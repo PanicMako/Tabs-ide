@@ -7,15 +7,18 @@
     "start": "bun src/server.ts",
     "worker": "bun src/worker.ts",
     "migrate": "bun src/migrate.ts",
+    "tuf:publish": "bun src/tufPublish.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1139.0",
     "@tabs/extension-package": "workspace:*",
-    "pg": "^8.23.0"
+    "pg": "^8.23.0",
+    "tuf-js": "6.0.0"
   },
   "devDependencies": {
+    "@tufjs/models": "5.0.0",
     "@types/bun": "catalog:",
     "@types/node": "catalog:",
     "@types/pg": "^8.15.5",

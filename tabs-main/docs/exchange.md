@@ -25,11 +25,32 @@ by registry origin and trust identity, rejects redirected/cross-origin metadata
 requests, and looks up signed package targets at
 `extensions/:namespace/:name/:version.tabsext`. Tests exercise a signed target,
 target revocation, rollback, expiration, and tampering. The adapter is not yet
-connected to installation or updates. Exchange does not yet publish signed
-root, timestamp, snapshot, and targets roles, and no official root key has been
-provisioned. Until those pieces are complete, catalog JSON must never authorize
-installation or silent updates. Forks will need their own explicitly configured
-trust root and origin.
+connected to installation or updates. Exchange now serves signed metadata from
+PostgreSQL at `/v1/tuf/metadata/:file` and approved package targets at
+`/v1/tuf/targets/extensions/:namespace/:name/:version.tabsext`. The package
+route returns 404 immediately after revocation, even before a new signed
+targets role is published.
+
+An operator can produce TUF metadata with standard TUF tooling outside the API
+and worker, then transfer only the signed JSON files to a database-connected
+machine. The staged directory must contain `root.json`, `timestamp.json`,
+`snapshot.json`, and `targets.json`; include numbered root transitions and
+versioned snapshot/targets files when the repository uses them. Each target
+path is `extensions/:namespace/:name/:version.tabsext` and its SHA-256 and
+length must match an approved database row. On first publication, configure
+`EXCHANGE_TUF_BOOTSTRAP_ROOT_SHA256` from an independently verified root file.
+Run `bun run tuf:publish /absolute/staged-directory` in `apps/exchange` with
+`DATABASE_URL` set. The command verifies signatures, freshness, rollback,
+exact approved targets, and root transitions before committing all metadata
+in one transaction. No private key is read by this command or stored in the
+API/worker. New targets and timestamps must be signed and published before
+their current metadata expires; revocations also require a promptly updated
+signed targets role.
+
+No official root key or production signing ceremony has been provisioned yet,
+and the desktop installer is still absent. Until those pieces are complete,
+catalog JSON must never authorize installation or silent updates. Forks need
+their own explicitly configured trust root and origin.
 
 ## Local self-hosting
 

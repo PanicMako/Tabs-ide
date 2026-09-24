@@ -23,6 +23,10 @@ const UPLOAD_ROUTE = /^\/v1\/publisher\/([a-z][a-z0-9-]{1,62})\/([a-z][a-z0-9-]{
 const REVIEW_ROUTE = /^\/v1\/review\/([a-z][a-z0-9-]{1,62})\/([a-z][a-z0-9-]{1,62})\/([^/]+)$/;
 const REVIEW_DOWNLOAD_ROUTE =
   /^\/v1\/review\/([a-z][a-z0-9-]{1,62})\/([a-z][a-z0-9-]{1,62})\/([^/]+)\/download$/;
+const TUF_METADATA_ROUTE =
+  /^\/v1\/tuf\/metadata\/((?:[1-9][0-9]*\.)?(?:root|snapshot|targets)|timestamp)\.json$/;
+const TUF_TARGET_ROUTE =
+  /^\/v1\/tuf\/targets\/extensions\/([a-z][a-z0-9-]{1,62})\/([a-z][a-z0-9-]{1,62})\/(?:(?:([a-f0-9]{64})\.)?([0-9A-Za-z.+-]+))\.tabsext$/;
 const MEMBER_ROUTE = /^\/v1\/namespaces\/([a-z][a-z0-9-]{1,62})\/members$/;
 const VERIFY_NAMESPACE_ROUTE = /^\/v1\/review\/namespaces\/([a-z][a-z0-9-]{1,62})\/verification$/;
 const RESERVED_NAMESPACES = new Set(["tabs", "official", "admin", "system"]);
@@ -101,6 +105,56 @@ export function createExchangeServer(
     try {
       const url = new URL(request.url ?? "/", config.origin);
       const path = url.pathname;
+      const tufMetadata = request.method === "GET" ? TUF_METADATA_ROUTE.exec(path) : null;
+      if (tufMetadata) {
+        const name = `${tufMetadata[1]}.json`;
+        const found = await pool.query<{ bytes: Buffer; sha256: string }>(
+          "SELECT bytes, sha256 FROM exchange_tuf_metadata WHERE name = $1",
+          [name],
+        );
+        const entry = found.rows[0];
+        if (!entry) throw new HttpError(404, "Signed metadata is not published.");
+        if (Crypto.createHash("sha256").update(entry.bytes).digest("hex") !== entry.sha256) {
+          throw new Error("Stored signed metadata failed digest verification.");
+        }
+        response.writeHead(200, {
+          "Content-Type": "application/json; charset=utf-8",
+          "Content-Length": entry.bytes.length,
+          "Cache-Control": "no-store",
+          "X-Content-Type-Options": "nosniff",
+        });
+        response.end(entry.bytes);
+        return;
+      }
+      const tufTarget = request.method === "GET" ? TUF_TARGET_ROUTE.exec(path) : null;
+      if (tufTarget) {
+        const [, namespace, name, hashPrefix, version] = tufTarget;
+        const found = await pool.query<{ digest: string; bytes: number; object_key: string }>(
+          `SELECT digest, bytes, object_key FROM exchange_versions
+           WHERE namespace = $1 AND name = $2 AND version = $3 AND status = 'approved'`,
+          [namespace, name, version],
+        );
+        const release = found.rows[0];
+        if (!release || (hashPrefix && hashPrefix !== release.digest)) {
+          throw new HttpError(404, "Approved target not found.");
+        }
+        const bytes = await boundedObject(storage, config.bucket, release.object_key);
+        if (
+          bytes.length !== release.bytes ||
+          Crypto.createHash("sha256").update(bytes).digest("hex") !== release.digest
+        ) {
+          throw new Error("Approved target failed digest verification.");
+        }
+        response.writeHead(200, {
+          "Content-Type": "application/octet-stream",
+          "Content-Length": bytes.length,
+          "Cache-Control": "no-store",
+          "X-Content-Type-Options": "nosniff",
+          Digest: `sha-256=${Buffer.from(release.digest, "hex").toString("base64")}`,
+        });
+        response.end(bytes);
+        return;
+      }
       const publicFiles: Record<string, { file: string; type: string }> = {
         "/publisher": { file: "publisher.html", type: "text/html; charset=utf-8" },
         "/publisher-terms": { file: "publisher-terms.html", type: "text/html; charset=utf-8" },

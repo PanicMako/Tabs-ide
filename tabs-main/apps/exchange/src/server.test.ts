@@ -1,5 +1,6 @@
 import * as Crypto from "node:crypto";
 import type { AddressInfo } from "node:net";
+import { Readable } from "node:stream";
 import type { Pool } from "pg";
 import type { S3Client } from "@aws-sdk/client-s3";
 import { afterEach, describe, expect, it } from "vitest";
@@ -19,7 +20,12 @@ const config: ExchangeConfig = {
   publishingEnabled: false,
 };
 
-async function fixture(scanPassed = true, storedDigest = digest, submissionStatus = "review") {
+async function fixture(
+  scanPassed = true,
+  storedDigest = digest,
+  submissionStatus = "review",
+  tuf?: { metadata?: Buffer; target?: Buffer; targetStatus?: "approved" | "revoked" },
+) {
   const actions: string[] = [];
   const client = {
     async query(sql: string) {
@@ -37,7 +43,36 @@ async function fixture(scanPassed = true, storedDigest = digest, submissionStatu
     release() {},
   };
   const pool = {
-    async query(sql: string) {
+    async query(sql: string, params?: unknown[]) {
+      if (sql.includes("FROM exchange_tuf_metadata")) {
+        return {
+          rows:
+            tuf?.metadata && params?.[0] === "timestamp.json"
+              ? [
+                  {
+                    bytes: tuf.metadata,
+                    sha256: Crypto.createHash("sha256").update(tuf.metadata).digest("hex"),
+                  },
+                ]
+              : [],
+          rowCount: tuf?.metadata && params?.[0] === "timestamp.json" ? 1 : 0,
+        };
+      }
+      if (sql.includes("FROM exchange_versions") && sql.includes("status = 'approved'")) {
+        return {
+          rows:
+            tuf?.target && tuf.targetStatus === "approved"
+              ? [
+                  {
+                    digest: Crypto.createHash("sha256").update(tuf.target).digest("hex"),
+                    bytes: tuf.target.length,
+                    object_key: "approved/example/dashboard/1.0.0.tabsext",
+                  },
+                ]
+              : [],
+          rowCount: tuf?.targetStatus === "approved" ? 1 : 0,
+        };
+      }
       if (sql.includes("FROM exchange_sessions")) {
         return {
           rows: [
@@ -56,7 +91,12 @@ async function fixture(scanPassed = true, storedDigest = digest, submissionStatu
       return client;
     },
   } as unknown as Pool;
-  const server = createExchangeServer(pool, {} as S3Client, config);
+  const storage = {
+    async send() {
+      return { Body: Readable.from(tuf?.target ? [tuf.target] : []) };
+    },
+  } as unknown as S3Client;
+  const server = createExchangeServer(pool, storage, config);
   servers.push(server);
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const address = server.address() as AddressInfo;
@@ -72,6 +112,38 @@ afterEach(async () => {
 });
 
 describe("Exchange HTTP boundaries", () => {
+  it("serves only published signed metadata bytes", async () => {
+    const metadata = Buffer.from('{"signed":"test"}');
+    const ready = await fixture(true, digest, "review", { metadata });
+    const result = await fetch(`${ready.base}/v1/tuf/metadata/timestamp.json`);
+    expect(result.status).toBe(200);
+    expect(Buffer.from(await result.arrayBuffer())).toEqual(metadata);
+    expect(result.headers.get("cache-control")).toBe("no-store");
+    const missing = await fetch(`${ready.base}/v1/tuf/metadata/2.root.json`);
+    expect(missing.status).toBe(404);
+  });
+
+  it("serves approved TUF targets but blocks revoked and wrong digest paths", async () => {
+    const target = Buffer.from("approved extension archive");
+    const hash = Crypto.createHash("sha256").update(target).digest("hex");
+    const ready = await fixture(true, digest, "review", {
+      target,
+      targetStatus: "approved",
+    });
+    const path = "/v1/tuf/targets/extensions/example/dashboard/1.0.0.tabsext";
+    const result = await fetch(`${ready.base}${path}`);
+    expect(result.status).toBe(200);
+    expect(Buffer.from(await result.arrayBuffer())).toEqual(target);
+    expect(
+      (await fetch(`${ready.base}${path.replace("1.0.0", `${"f".repeat(64)}.1.0.0`)}`)).status,
+    ).toBe(404);
+    expect((await fetch(`${ready.base}${path.replace("1.0.0", `${hash}.1.0.0`)}`)).status).toBe(
+      200,
+    );
+    const revoked = await fixture(true, digest, "review", { target, targetStatus: "revoked" });
+    expect((await fetch(`${revoked.base}${path}`)).status).toBe(404);
+  });
+
   it("serves the accessible publisher shell but keeps publishing disabled", async () => {
     const { base } = await fixture();
     const page = await fetch(`${base}/publisher`);

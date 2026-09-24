@@ -80,3 +80,12 @@ CREATE TABLE IF NOT EXISTS exchange_review_events (
   FOREIGN KEY (namespace, name, version)
     REFERENCES exchange_versions(namespace, name, version)
 );
+
+-- Signed TUF bytes are produced offline and published separately from review.
+-- API and worker containers never hold metadata signing keys.
+CREATE TABLE IF NOT EXISTS exchange_tuf_metadata (
+  name TEXT PRIMARY KEY CHECK (name ~ '^([1-9][0-9]*\.)?(root|snapshot|targets)\.json$|^timestamp\.json$'),
+  bytes BYTEA NOT NULL CHECK (octet_length(bytes) > 0 AND octet_length(bytes) <= 4194304),
+  sha256 TEXT NOT NULL CHECK (sha256 ~ '^[a-f0-9]{64}$'),
+  published_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
