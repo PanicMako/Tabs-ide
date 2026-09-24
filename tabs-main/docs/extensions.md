@@ -100,6 +100,10 @@ to fresh signed metadata before offering Review update, then uses the same
 package download and consent flow. The installer rejects downgrades and a
 changed digest for an already installed version, including if the installed
 version changes while an update review is open.
+Desktop also checks for signed, compatible updates after startup and every six
+hours. It shows an update hint in Installed settings and never downloads or
+activates an update in the background. Failed metadata refreshes clear stale
+update hints; opening a review always repeats signed verification.
 
 This is a manual flow, not a production-ready release channel. Desktop checks
 installed Exchange versions against fresh signed metadata at startup, every

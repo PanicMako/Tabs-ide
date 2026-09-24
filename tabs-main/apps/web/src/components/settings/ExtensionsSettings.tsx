@@ -41,6 +41,10 @@ export default function ExtensionsSettings() {
   const extensions = useInstalledExtensions();
   const projects = useAtomValue(projectsAtom);
   const bridge = window.desktopBridge;
+  const availableUpdate = (extension: DesktopInstalledExtension) =>
+    Object.hasOwn(checkedUpdates, extension.id)
+      ? checkedUpdates[extension.id]
+      : extension.availableUpdate;
 
   useEffect(() => {
     if (tab === "discover" && preparedInstall) reviewHeading.current?.focus();
@@ -372,27 +376,37 @@ export default function ExtensionsSettings() {
                       >
                         Check for updates
                       </Button>
-                      {checkedUpdates[extension.id] ? (
-                        <Button
-                          id={`extension-update-${extension.id}`}
-                          type="button"
-                          disabled={busy}
-                          onClick={(event) => {
-                            reviewTrigger.current = event.currentTarget;
-                            reviewReturnExtensionId.current = extension.id;
-                            void run(async () => {
-                              if (preparedInstall) {
-                                await bridge.cancelExchangeInstall(preparedInstall.token);
-                              }
-                              setPreparedInstall(
-                                await bridge.prepareExchangeInstall(checkedUpdates[extension.id]!),
-                              );
-                              setTab("discover");
-                            });
-                          }}
-                        >
-                          Review update to {checkedUpdates[extension.id]?.version}
-                        </Button>
+                      {availableUpdate(extension) ? (
+                        <>
+                          <span
+                            role={
+                              Object.hasOwn(checkedUpdates, extension.id) ? undefined : "status"
+                            }
+                            className="text-sm text-muted-foreground"
+                          >
+                            Version {availableUpdate(extension)?.version} is available.
+                          </span>
+                          <Button
+                            id={`extension-update-${extension.id}`}
+                            type="button"
+                            disabled={busy}
+                            onClick={(event) => {
+                              const update = availableUpdate(extension);
+                              if (!update) return;
+                              reviewTrigger.current = event.currentTarget;
+                              reviewReturnExtensionId.current = extension.id;
+                              void run(async () => {
+                                if (preparedInstall) {
+                                  await bridge.cancelExchangeInstall(preparedInstall.token);
+                                }
+                                setPreparedInstall(await bridge.prepareExchangeInstall(update));
+                                setTab("discover");
+                              });
+                            }}
+                          >
+                            Review update to {availableUpdate(extension)?.version}
+                          </Button>
+                        </>
                       ) : null}
                     </div>
                   ) : null}

@@ -85,6 +85,7 @@ import { CodeHostManager, resolveCodeHostConfig } from "./codeHostManager";
 import { BrowserHostManager } from "./browserHostManager";
 import { ExtensionViewManager } from "./extensionViewManager";
 import { configuredExchangeOrigin, discoverExchangeExtensions } from "./exchangeCatalog";
+import { ExchangeUpdateMonitor } from "./exchangeUpdateMonitor";
 import { configuredExchangeTrust, ExchangeInstallService } from "./exchangeInstall";
 import { resolveUserDataPathWithFs } from "./userDataPath";
 import { NativeViewStackCoordinator } from "./nativeViewStackCoordinator";
@@ -474,8 +475,12 @@ const extensionViewManager = new ExtensionViewManager(
 );
 let exchangeInstallService: ExchangeInstallService | null = null;
 let exchangeStatusTimer: ReturnType<typeof setInterval> | null = null;
+let exchangeUpdateTimer: ReturnType<typeof setInterval> | null = null;
+let exchangeUpdateStartupTimer: ReturnType<typeof setTimeout> | null = null;
 app.on("will-quit", () => {
   if (exchangeStatusTimer) clearInterval(exchangeStatusTimer);
+  if (exchangeUpdateTimer) clearInterval(exchangeUpdateTimer);
+  if (exchangeUpdateStartupTimer) clearTimeout(exchangeUpdateStartupTimer);
   exchangeInstallService?.dispose();
 });
 function requireExchangeInstallService(): ExchangeInstallService {
@@ -494,6 +499,24 @@ function requireExchangeInstallService(): ExchangeInstallService {
       extensionViewManager.installVerifiedExchangePackage(archive, registryOrigin, digest),
   );
   return exchangeInstallService;
+}
+const exchangeUpdateMonitor = new ExchangeUpdateMonitor(
+  () => extensionViewManager.list(),
+  (extension) => requireExchangeInstallService().availableUpdate(extension),
+  () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send(EXTENSION_CHANGED_CHANNEL);
+    }
+  },
+  (id, error) => {
+    writeDesktopLogHeader(`Exchange update check failed for ${id}: ${formatErrorMessage(error)}`);
+  },
+);
+function checkAllInstalledExchangeUpdates(): void {
+  if (!process.env.TABS_EXCHANGE_TRUST_ROOT_PATH || !process.env.TABS_EXCHANGE_ORIGIN) return;
+  void exchangeUpdateMonitor.check().catch((error) => {
+    writeDesktopLogHeader(`Exchange update monitor failed: ${formatErrorMessage(error)}`);
+  });
 }
 async function checkInstalledExchangeStatus(extensionId: string): Promise<void> {
   const installed = extensionViewManager.list().find((entry) => entry.id === extensionId);
@@ -2081,7 +2104,10 @@ function registerIpcHandlers(): void {
   ipcMain.removeHandler(EXTENSION_LIST_CHANNEL);
   ipcMain.handle(EXTENSION_LIST_CHANNEL, async (event) => {
     requireMainRenderer(event);
-    return extensionViewManager.list();
+    return extensionViewManager.list().map((entry) => {
+      const availableUpdate = exchangeUpdateMonitor.availableFor(entry);
+      return availableUpdate ? { ...entry, availableUpdate } : entry;
+    });
   });
   ipcMain.removeHandler(EXTENSION_DISCOVER_CHANNEL);
   ipcMain.handle(EXTENSION_DISCOVER_CHANNEL, async (event, query: unknown) => {
@@ -4133,6 +4159,13 @@ async function bootstrap(): Promise<void> {
     void checkAllInstalledExchangeStatuses();
   }, 60_000);
   exchangeStatusTimer.unref();
+  exchangeUpdateStartupTimer = setTimeout(() => {
+    exchangeUpdateStartupTimer = null;
+    checkAllInstalledExchangeUpdates();
+  }, 30_000);
+  exchangeUpdateStartupTimer.unref();
+  exchangeUpdateTimer = setInterval(checkAllInstalledExchangeUpdates, 6 * 60 * 60_000);
+  exchangeUpdateTimer.unref();
   writeDesktopLogHeader(
     `bootstrap main window created durationMs=${Math.round(performance.now() - bootstrapStartedAt)}`,
   );

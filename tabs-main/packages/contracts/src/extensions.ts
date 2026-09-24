@@ -48,6 +48,8 @@ export interface DesktopInstalledExtension {
   readonly registryOrigin?: string;
   /** A signed registry status check removed this exact version or digest. */
   readonly revoked?: true;
+  /** Informational update hint; installation still requires a fresh signed review. */
+  readonly availableUpdate?: DesktopExchangeListing;
 }
 
 export interface DesktopPreparedExchangeInstall {
