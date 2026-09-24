@@ -4,6 +4,7 @@ import type { NotificationToastPayload } from "./notificationOverlay.ts";
 import type {
   DesktopExtensionBoundsInput,
   DesktopExtensionViewInput,
+  DesktopExchangeListing,
   DesktopInstalledExtension,
   TabsExtensionAssignment,
 } from "./extensions.ts";
@@ -1185,6 +1186,7 @@ export interface BrowserProfilePermissionInfo {
 
 export interface DesktopBridge {
   listExtensions: () => Promise<DesktopInstalledExtension[]>;
+  discoverExchangeExtensions: (query: string) => Promise<DesktopExchangeListing[] | null>;
   installDevelopmentExtension: (directory: string) => Promise<DesktopInstalledExtension>;
   installLocalExtensionPackage: (archive: string) => Promise<DesktopInstalledExtension>;
   setExtensionAssignment: (

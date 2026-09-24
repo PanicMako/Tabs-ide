@@ -67,7 +67,10 @@ Do not distribute this development format to users. Local archives do not have
 publisher identity verification, approval, revocation, or authenticated
 updates. An experimental Exchange API, scan worker, and publisher portal now
 exist; see [Exchange development status](exchange.md). Publishing is disabled
-by default, and the desktop client does not yet consume its catalog. The
+by default. Set `TABS_EXCHANGE_ORIGIN` in a development desktop process to
+display compatible approved catalog listings; HTTPS is required except for
+`http://localhost` in development. Catalog entries are not trusted installation
+metadata and cannot be installed from Discover yet. The
 production installer, authenticated updates, workspace/network/credential
 brokers, background runtime, AI-callable tools, and account-credential storage
 are not implemented. Those features require additional security and lifecycle

@@ -70,6 +70,7 @@ const CODE_HOST_GET_CHROME_STATE_CHANNEL = "desktop:code-host:get-chrome-state";
 const CODE_HOST_CHROME_STATE_CHANNEL = "desktop:code-host:chrome-state";
 const BROWSER_HOST_GET_STATE_CHANNEL = "desktop:browser-host:get-state";
 const EXTENSION_LIST_CHANNEL = "desktop:extension:list";
+const EXTENSION_DISCOVER_CHANNEL = "desktop:extension:discover";
 const EXTENSION_INSTALL_DEV_CHANNEL = "desktop:extension:install-dev";
 const EXTENSION_INSTALL_LOCAL_PACKAGE_CHANNEL = "desktop:extension:install-local-package";
 const EXTENSION_ASSIGN_CHANNEL = "desktop:extension:assign";
@@ -275,6 +276,7 @@ contextBridge.exposeInMainWorld("desktopBridge", {
     ipcRenderer.invoke("desktop:browser-comparison:capture", input),
   getBrowserHostState: () => ipcRenderer.invoke(BROWSER_HOST_GET_STATE_CHANNEL),
   listExtensions: () => ipcRenderer.invoke(EXTENSION_LIST_CHANNEL),
+  discoverExchangeExtensions: (query) => ipcRenderer.invoke(EXTENSION_DISCOVER_CHANNEL, query),
   installDevelopmentExtension: (directory) =>
     ipcRenderer.invoke(EXTENSION_INSTALL_DEV_CHANNEL, directory),
   installLocalExtensionPackage: (archive) =>

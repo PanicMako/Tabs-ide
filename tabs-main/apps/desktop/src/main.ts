@@ -83,6 +83,7 @@ import {
 import { CodeHostManager, resolveCodeHostConfig } from "./codeHostManager";
 import { BrowserHostManager } from "./browserHostManager";
 import { ExtensionViewManager } from "./extensionViewManager";
+import { configuredExchangeOrigin, discoverExchangeExtensions } from "./exchangeCatalog";
 import { resolveUserDataPathWithFs } from "./userDataPath";
 import { NativeViewStackCoordinator } from "./nativeViewStackCoordinator";
 import {
@@ -171,6 +172,7 @@ const CODE_HOST_GET_CHROME_STATE_CHANNEL = "desktop:code-host:get-chrome-state";
 const CODE_HOST_CHROME_STATE_CHANNEL = "desktop:code-host:chrome-state";
 const BROWSER_HOST_GET_STATE_CHANNEL = "desktop:browser-host:get-state";
 const EXTENSION_LIST_CHANNEL = "desktop:extension:list";
+const EXTENSION_DISCOVER_CHANNEL = "desktop:extension:discover";
 const EXTENSION_INSTALL_DEV_CHANNEL = "desktop:extension:install-dev";
 const EXTENSION_INSTALL_LOCAL_PACKAGE_CHANNEL = "desktop:extension:install-local-package";
 const EXTENSION_ASSIGN_CHANNEL = "desktop:extension:assign";
@@ -2016,6 +2018,14 @@ function registerIpcHandlers(): void {
   ipcMain.handle(EXTENSION_LIST_CHANNEL, async (event) => {
     requireMainRenderer(event);
     return extensionViewManager.list();
+  });
+  ipcMain.removeHandler(EXTENSION_DISCOVER_CHANNEL);
+  ipcMain.handle(EXTENSION_DISCOVER_CHANNEL, async (event, query: unknown) => {
+    requireMainRenderer(event);
+    if (typeof query !== "string") throw new Error("Invalid Exchange search query.");
+    const origin = configuredExchangeOrigin(process.env.TABS_EXCHANGE_ORIGIN, !app.isPackaged);
+    if (!origin) return null;
+    return discoverExchangeExtensions(origin, app.getVersion(), query);
   });
   ipcMain.removeHandler(EXTENSION_INSTALL_DEV_CHANNEL);
   ipcMain.handle(EXTENSION_INSTALL_DEV_CHANNEL, async (event, directory: unknown) => {

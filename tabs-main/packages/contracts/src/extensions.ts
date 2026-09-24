@@ -46,6 +46,19 @@ export interface DesktopInstalledExtension {
   readonly digest?: string;
 }
 
+/** Informational catalog data; it is not an installation authorization. */
+export interface DesktopExchangeListing {
+  readonly registryOrigin: string;
+  readonly id: string;
+  readonly namespace: string;
+  readonly name: string;
+  readonly version: string;
+  readonly digest: string;
+  readonly displayName: string;
+  readonly description: string;
+  readonly verifiedPublisher: boolean;
+}
+
 export interface DesktopExtensionViewInput {
   readonly extensionId: string;
   readonly toolId: string;

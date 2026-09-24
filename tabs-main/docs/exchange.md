@@ -11,7 +11,9 @@ to `false`. The publisher terms are a draft, the scanner does not include a
 malware intelligence feed or external dependency advisory checks, and the
 reviewer view does not yet present a full package diff. Production registry
 metadata signing, revocation freshness, and the desktop Exchange installer are
-not implemented. The public API is therefore an experimental shape, not a
+not implemented. Desktop development builds can display compatible approved
+listings from `TABS_EXCHANGE_ORIGIN`, but these listings are informational and
+cannot authorize an install. The public API is therefore an experimental shape, not a
 stable protocol for forks yet.
 
 ## Local self-hosting

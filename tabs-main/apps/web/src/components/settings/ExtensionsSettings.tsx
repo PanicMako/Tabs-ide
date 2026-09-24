@@ -1,6 +1,10 @@
 import { useState } from "react";
 import { useAtomValue } from "@effect/atom-react";
-import type { DesktopInstalledExtension, TabsExtensionAssignment } from "@tabs/contracts";
+import type {
+  DesktopExchangeListing,
+  DesktopInstalledExtension,
+  TabsExtensionAssignment,
+} from "@tabs/contracts";
 import { projectsAtom } from "~/state/threads";
 import { refreshExtensions, useInstalledExtensions } from "~/state/extensions";
 import { Button } from "../ui/button";
@@ -15,6 +19,8 @@ export default function ExtensionsSettings() {
   const [busy, setBusy] = useState(false);
   const [profileNames, setProfileNames] = useState<Record<string, string>>({});
   const [profileScopes, setProfileScopes] = useState<Record<string, "shared" | "project">>({});
+  const [searchQuery, setSearchQuery] = useState("");
+  const [catalog, setCatalog] = useState<DesktopExchangeListing[] | null | undefined>(undefined);
   const extensions = useInstalledExtensions();
   const projects = useAtomValue(projectsAtom);
   const bridge = window.desktopBridge;
@@ -34,6 +40,19 @@ export default function ExtensionsSettings() {
   const assign = (extension: DesktopInstalledExtension, update: TabsExtensionAssignment) => {
     if (!bridge) return;
     void run(() => bridge.setExtensionAssignment(extension.id, update));
+  };
+  const searchExchange = async () => {
+    if (!bridge) return;
+    setBusy(true);
+    setError(null);
+    setCatalog(undefined);
+    try {
+      setCatalog(await bridge.discoverExchangeExtensions(searchQuery.trim()));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -71,10 +90,57 @@ export default function ExtensionsSettings() {
       ) : tab === "discover" ? (
         <SettingsSection title="Discover">
           <p className="text-sm text-muted-foreground">
-            The public Tabs Exchange is not connected yet. In development builds, load an unpacked
-            UI-only extension from a local folder or an untrusted local .tabsext archive. Neither
-            option grants workspace, network, or account access.
+            Browse approved Exchange listings from the configured registry. Listings are
+            informational: installation remains unavailable until signed metadata and revocation
+            checks are implemented. Development builds can load an unpacked UI-only extension or a
+            local .tabsext archive; neither gets workspace, network, or account access.
           </p>
+          <form
+            className="flex flex-wrap gap-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void searchExchange();
+            }}
+          >
+            <Input
+              aria-label="Search Tabs Exchange extensions"
+              placeholder="Search extensions"
+              value={searchQuery}
+              maxLength={100}
+              disabled={busy}
+              onChange={(event) => setSearchQuery(event.target.value)}
+            />
+            <Button type="submit" disabled={busy}>
+              Search Exchange
+            </Button>
+          </form>
+          <p role="status" className="text-sm text-muted-foreground">
+            {catalog === null
+              ? "No Exchange registry is configured for this desktop build."
+              : catalog
+                ? `${catalog.length} compatible ${catalog.length === 1 ? "extension" : "extensions"} found.`
+                : "Search to view compatible approved extensions."}
+          </p>
+          {catalog?.length ? (
+            <ul className="space-y-3" aria-label="Exchange search results">
+              {catalog.map((listing) => (
+                <li
+                  key={`${listing.registryOrigin}:${listing.id}`}
+                  className="rounded border border-border p-3"
+                >
+                  <h3 className="font-medium">{listing.displayName}</h3>
+                  <p className="text-xs text-muted-foreground">
+                    {listing.id} · {listing.version} ·{" "}
+                    {listing.verifiedPublisher ? "Verified publisher" : "Unverified publisher"}
+                  </p>
+                  <p className="text-sm">{listing.description}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Registry: {listing.registryOrigin}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          ) : null}
           {import.meta.env.DEV ? (
             <div className="flex flex-wrap gap-2">
               <Button

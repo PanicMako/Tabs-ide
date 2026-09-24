@@ -1,0 +1,119 @@
+import type { DesktopExchangeListing } from "@tabs/contracts";
+import { validateTabsExtensionManifest } from "@tabs/shared/extensions";
+
+const MAX_CATALOG_BYTES = 1024 * 1024;
+const DIGEST = /^[a-f0-9]{64}$/;
+const SEGMENT = /^[a-z][a-z0-9-]{1,62}$/;
+
+function record(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+export function configuredExchangeOrigin(
+  value: string | undefined,
+  development: boolean,
+): string | null {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    if (url.username || url.password || url.pathname !== "/" || url.search || url.hash) return null;
+    if (
+      url.protocol !== "https:" &&
+      !(development && url.protocol === "http:" && url.hostname === "localhost")
+    ) {
+      return null;
+    }
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
+async function boundedJson(response: Response): Promise<unknown> {
+  if (!response.ok || !response.headers.get("content-type")?.startsWith("application/json")) {
+    throw new Error(`Exchange catalog request failed (${response.status}).`);
+  }
+  const declared = Number(response.headers.get("content-length"));
+  if (declared > MAX_CATALOG_BYTES) throw new Error("Exchange catalog is too large.");
+  if (!response.body) throw new Error("Exchange catalog has no response body.");
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  try {
+    while (true) {
+      const part = await reader.read();
+      if (part.done) break;
+      size += part.value.byteLength;
+      if (size > MAX_CATALOG_BYTES) throw new Error("Exchange catalog is too large.");
+      chunks.push(part.value);
+    }
+  } catch (error) {
+    await reader.cancel().catch(() => undefined);
+    throw error;
+  } finally {
+    reader.releaseLock();
+  }
+  return JSON.parse(Buffer.concat(chunks).toString("utf8")) as unknown;
+}
+
+/** Catalog content is untrusted and must never authorize an install or update. */
+export async function discoverExchangeExtensions(
+  origin: string,
+  tabsVersion: string,
+  query: string,
+  fetcher: typeof fetch = fetch,
+): Promise<DesktopExchangeListing[]> {
+  if (query.length > 100) throw new Error("Exchange search query is too long.");
+  const url = new URL("/v1/extensions", origin);
+  url.searchParams.set("q", query);
+  url.searchParams.set("limit", "30");
+  const response = await fetcher(url.href, {
+    method: "GET",
+    redirect: "error",
+    credentials: "omit",
+    cache: "no-store",
+    signal: AbortSignal.timeout(8_000),
+  });
+  if (response.url !== url.href) throw new Error("Exchange catalog changed origin or path.");
+  const document = await boundedJson(response);
+  if (!record(document) || !Array.isArray(document.extensions) || document.extensions.length > 30) {
+    throw new Error("Exchange catalog response is invalid.");
+  }
+  const seen = new Set<string>();
+  const listings: DesktopExchangeListing[] = [];
+  for (const item of document.extensions) {
+    if (
+      !record(item) ||
+      typeof item.namespace !== "string" ||
+      !SEGMENT.test(item.namespace) ||
+      typeof item.name !== "string" ||
+      !SEGMENT.test(item.name) ||
+      typeof item.digest !== "string" ||
+      !DIGEST.test(item.digest) ||
+      typeof item.version !== "string" ||
+      typeof item.verified !== "boolean"
+    ) {
+      throw new Error("Exchange catalog contains an invalid listing.");
+    }
+    const id = `${item.namespace}.${item.name}`;
+    if (seen.has(id)) throw new Error("Exchange catalog contains duplicate listings.");
+    seen.add(id);
+    const validated = validateTabsExtensionManifest(item.manifest, tabsVersion);
+    if (!validated.ok) continue; // A valid but incompatible release is not installable here.
+    if (validated.id !== id || validated.manifest.version !== item.version) {
+      throw new Error("Exchange listing identity does not match its manifest.");
+    }
+    listings.push({
+      registryOrigin: origin,
+      id,
+      namespace: item.namespace,
+      name: item.name,
+      version: item.version,
+      digest: item.digest,
+      displayName: validated.manifest.displayName,
+      description: validated.manifest.description,
+      verifiedPublisher: item.verified,
+    });
+  }
+  return listings;
+}
