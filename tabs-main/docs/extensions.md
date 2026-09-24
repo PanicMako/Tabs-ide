@@ -115,6 +115,10 @@ Desktop also checks for signed, compatible updates after startup and every six
 hours. It shows an update hint in Installed settings and never downloads or
 activates an update in the background. Failed metadata refreshes clear stale
 update hints; opening a review always repeats signed verification.
+An Exchange extension can be pinned in Installed settings. Pinning persists
+across restarts and reviewed updates, suppresses background update checks and
+hints for that extension, but keeps manual Check for updates and Review update
+available. It does not bypass registry revocation checks.
 
 This is a manual flow, not a production-ready release channel. Desktop checks
 installed Exchange versions against fresh signed metadata at startup, every
@@ -124,7 +128,7 @@ closes, toolbar contributions disappear, and Settings explains the status.
 Transport outages retain the last known status; invalid or expired metadata
 does not qualify as offline. The flow does not yet check revocation continuously
 while a view is active, automatically install updates, or provide package
-rollback, pinning, or profile-data deletion controls.
+rollback or profile-data deletion controls.
 
 ## Not yet supported
 

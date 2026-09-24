@@ -79,6 +79,7 @@ const EXTENSION_EXCHANGE_CONFIRM_CHANNEL = "desktop:extension:exchange-confirm";
 const EXTENSION_EXCHANGE_CANCEL_CHANNEL = "desktop:extension:exchange-cancel";
 const EXTENSION_UNINSTALL_CHANNEL = "desktop:extension:uninstall";
 const EXTENSION_SET_DISABLED_CHANNEL = "desktop:extension:set-disabled";
+const EXTENSION_SET_UPDATES_PINNED_CHANNEL = "desktop:extension:set-updates-pinned";
 const EXTENSION_INSTALL_DEV_CHANNEL = "desktop:extension:install-dev";
 const EXTENSION_INSTALL_LOCAL_PACKAGE_CHANNEL = "desktop:extension:install-local-package";
 const EXTENSION_ASSIGN_CHANNEL = "desktop:extension:assign";
@@ -300,6 +301,8 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   uninstallExtension: (extensionId) => ipcRenderer.invoke(EXTENSION_UNINSTALL_CHANNEL, extensionId),
   setExtensionDisabled: (extensionId, disabled) =>
     ipcRenderer.invoke(EXTENSION_SET_DISABLED_CHANNEL, extensionId, disabled),
+  setExtensionUpdatesPinned: (extensionId, pinned) =>
+    ipcRenderer.invoke(EXTENSION_SET_UPDATES_PINNED_CHANNEL, extensionId, pinned),
   installDevelopmentExtension: (directory) =>
     ipcRenderer.invoke(EXTENSION_INSTALL_DEV_CHANNEL, directory),
   installLocalExtensionPackage: (archive) =>

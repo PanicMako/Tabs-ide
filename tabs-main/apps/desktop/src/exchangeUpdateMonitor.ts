@@ -25,6 +25,7 @@ export class ExchangeUpdateMonitor {
     return cached &&
       extension.source === "exchange" &&
       !extension.revoked &&
+      !extension.updatesPinned &&
       cached.installedDigest === extension.digest &&
       cached.installedVersion === extension.manifest.version &&
       cached.listing.registryOrigin === extension.registryOrigin
@@ -41,7 +42,8 @@ export class ExchangeUpdateMonitor {
 
   private async checkNow(): Promise<void> {
     const installed = this.listInstalled().filter(
-      (entry) => entry.source === "exchange" && !entry.revoked && entry.digest,
+      (entry) =>
+        entry.source === "exchange" && !entry.revoked && !entry.updatesPinned && entry.digest,
     );
     const next = new Map<string, CachedUpdate>();
     for (let start = 0; start < installed.length; start += 3) {
@@ -74,6 +76,7 @@ export class ExchangeUpdateMonitor {
             entry.id === id &&
             entry.digest === update.installedDigest &&
             entry.manifest.version === update.installedVersion &&
+            !entry.updatesPinned &&
             !entry.revoked,
         )
       ) {

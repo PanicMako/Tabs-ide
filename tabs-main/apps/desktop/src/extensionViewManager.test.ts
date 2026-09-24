@@ -100,6 +100,12 @@ describe("development extension installation", () => {
     expect(restarted.list()[0]?.disabled).toBeUndefined();
     expect(restarted.list()[0]?.assignment.enabledProjectIds).toEqual(["project-a"]);
   });
+
+  it("rejects update pinning for non-Exchange extensions", () => {
+    const { directory, manager } = fixture();
+    const installed = manager.installDevelopment(directory);
+    expect(() => manager.setUpdatesPinned(installed.id, true)).toThrow(/Only Exchange/);
+  });
   it("uses separate browser partitions for project-isolated profiles", () => {
     expect(extensionSessionPartition("acme.dashboard", "work", "shared", "project-a")).toBe(
       extensionSessionPartition("acme.dashboard", "work", "shared", "project-b"),
@@ -382,6 +388,8 @@ describe("development extension installation", () => {
     );
     expect(installed.source).toBe("exchange");
     expect(installed.assignment.enabledGlobally).toBe(false);
+    manager.setUpdatesPinned(installed.id, true);
+    expect(manager.list()[0]?.updatesPinned).toBe(true);
     const packaged = new ExtensionViewManager(
       () => null,
       {} as ConstructorParameters<typeof ExtensionViewManager>[1],
@@ -390,6 +398,9 @@ describe("development extension installation", () => {
       false,
     );
     expect(packaged.list()[0]?.digest).toBe(info.digest);
+    expect(packaged.list()[0]?.updatesPinned).toBe(true);
+    packaged.setUpdatesPinned(installed.id, false);
+    expect(packaged.list()[0]?.updatesPinned).toBeUndefined();
     await expect(
       packaged.installVerifiedExchangePackage(archive, "https://evil.example", info.digest),
     ).rejects.toThrow(/another registry/);
@@ -403,10 +414,12 @@ describe("development extension installation", () => {
     expect(
       packaged.revokeIfCurrent(installed.id, "https://exchange.tabs.example", "0".repeat(64)),
     ).toBe(false);
+    packaged.setUpdatesPinned(installed.id, true);
     expect(
       packaged.revokeIfCurrent(installed.id, "https://exchange.tabs.example", info.digest),
     ).toBe(true);
     expect(packaged.list()[0]?.revoked).toBe(true);
+    expect(packaged.list()[0]?.updatesPinned).toBe(true);
     expect(() => packaged.setAssignment(installed.id, installed.assignment)).toThrow(/revoked/);
     const staleSender = { isDestroyed: () => false };
     (packaged as unknown as { active: unknown }).active = {
@@ -502,6 +515,7 @@ describe("development extension installation", () => {
     });
     manager.addProfile(installed.id, "work", "Work");
     manager.setDisabled(installed.id, true);
+    manager.setUpdatesPinned(installed.id, true);
     manifest.version = "1.0.1";
     manifest.capabilities = ["profile-storage"];
     FS.writeFileSync(manifestPath, JSON.stringify(manifest));
@@ -517,6 +531,7 @@ describe("development extension installation", () => {
       update.digest,
     );
     expect(updated.disabled).toBe(true);
+    expect(updated.updatesPinned).toBe(true);
     manager.setDisabled(installed.id, false);
     await expect(
       manager.installVerifiedExchangePackage(

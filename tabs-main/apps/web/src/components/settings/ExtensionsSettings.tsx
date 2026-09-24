@@ -391,60 +391,88 @@ export default function ExtensionsSettings() {
                     </p>
                   ) : null}
                   {extension.source === "exchange" ? (
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled={busy}
-                        onClick={() =>
-                          void run(async () => {
-                            const update = await bridge.checkExtensionUpdate(extension.id);
-                            setCheckedUpdates((current) => ({
-                              ...current,
-                              [extension.id]: update,
-                            }));
-                            setStatus(
-                              update
-                                ? `${extension.manifest.displayName} ${update.version} is available for review.`
-                                : `No newer compatible approved version of ${extension.manifest.displayName} is available.`,
-                            );
-                          })
-                        }
-                      >
-                        Check for updates
-                      </Button>
-                      {availableUpdate(extension) ? (
-                        <>
-                          <span
-                            role={
-                              Object.hasOwn(checkedUpdates, extension.id) ? undefined : "status"
-                            }
-                            className="text-sm text-muted-foreground"
-                          >
-                            Version {availableUpdate(extension)?.version} is available.
-                          </span>
-                          <Button
-                            id={`extension-update-${extension.id}`}
-                            type="button"
-                            disabled={busy}
-                            onClick={(event) => {
-                              const update = availableUpdate(extension);
-                              if (!update) return;
-                              reviewTrigger.current = event.currentTarget;
-                              reviewReturnExtensionId.current = extension.id;
-                              void run(async () => {
-                                if (preparedInstall) {
-                                  await bridge.cancelExchangeInstall(preparedInstall.token);
-                                }
-                                setPreparedInstall(await bridge.prepareExchangeInstall(update));
-                                setTab("discover");
+                    <div className="mt-2 space-y-2">
+                      <label className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(extension.updatesPinned)}
+                          disabled={busy}
+                          onChange={(event) => {
+                            const pinned = event.target.checked;
+                            void run(async () => {
+                              await bridge.setExtensionUpdatesPinned(extension.id, pinned);
+                              setCheckedUpdates((current) => {
+                                const next = { ...current };
+                                delete next[extension.id];
+                                return next;
                               });
-                            }}
-                          >
-                            Review update to {availableUpdate(extension)?.version}
-                          </Button>
-                        </>
-                      ) : null}
+                              setStatus(
+                                pinned
+                                  ? `Background update checks are paused for ${extension.manifest.displayName}. Manual checks remain available.`
+                                  : `Background update checks are enabled for ${extension.manifest.displayName}.`,
+                              );
+                            });
+                          }}
+                        />
+                        Pin {extension.manifest.displayName} at version {extension.manifest.version}
+                      </label>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={busy}
+                          onClick={() =>
+                            void run(async () => {
+                              const update = await bridge.checkExtensionUpdate(extension.id);
+                              setCheckedUpdates((current) => ({
+                                ...current,
+                                [extension.id]: update,
+                              }));
+                              setStatus(
+                                update
+                                  ? `${extension.manifest.displayName} ${update.version} is available for review.`
+                                  : `No newer compatible approved version of ${extension.manifest.displayName} is available.`,
+                              );
+                            })
+                          }
+                        >
+                          Check for updates
+                        </Button>
+                        {availableUpdate(extension) &&
+                        (!extension.updatesPinned ||
+                          Object.hasOwn(checkedUpdates, extension.id)) ? (
+                          <>
+                            <span
+                              role={
+                                Object.hasOwn(checkedUpdates, extension.id) ? undefined : "status"
+                              }
+                              className="text-sm text-muted-foreground"
+                            >
+                              Version {availableUpdate(extension)?.version} is available.
+                            </span>
+                            <Button
+                              id={`extension-update-${extension.id}`}
+                              type="button"
+                              disabled={busy}
+                              onClick={(event) => {
+                                const update = availableUpdate(extension);
+                                if (!update) return;
+                                reviewTrigger.current = event.currentTarget;
+                                reviewReturnExtensionId.current = extension.id;
+                                void run(async () => {
+                                  if (preparedInstall) {
+                                    await bridge.cancelExchangeInstall(preparedInstall.token);
+                                  }
+                                  setPreparedInstall(await bridge.prepareExchangeInstall(update));
+                                  setTab("discover");
+                                });
+                              }}
+                            >
+                              Review update to {availableUpdate(extension)?.version}
+                            </Button>
+                          </>
+                        ) : null}
+                      </div>
                     </div>
                   ) : null}
                 </div>

@@ -54,6 +54,8 @@ export interface DesktopInstalledExtension {
   readonly revoked?: true;
   /** Stops tools and bridge access without erasing assignments, profiles, or data. */
   readonly disabled?: true;
+  /** Suppresses automatic update discovery/application; manual review remains available. */
+  readonly updatesPinned?: true;
   /** Informational update hint; installation still requires a fresh signed review. */
   readonly availableUpdate?: DesktopExchangeListing;
 }

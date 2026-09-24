@@ -357,6 +357,7 @@ export class ExtensionViewManager {
         : assignment,
       profiles: previous?.profiles ?? retained?.profiles ?? [{ id: "default", label: "Default" }],
       ...(previous?.disabled ? { disabled: true } : {}),
+      ...(previous?.updatesPinned ? { updatesPinned: true } : {}),
       ...this.dataInventoryFields(previous, retained),
       source: "exchange",
       digest: expectedDigest,
@@ -470,6 +471,20 @@ export class ExtensionViewManager {
       throw error;
     }
     if (disabled && this.active?.extensionId === extensionId) this.hide();
+  }
+
+  setUpdatesPinned(extensionId: string, pinned: boolean): void {
+    const current = this.requireInstalled(extensionId);
+    if (current.source !== "exchange") throw new Error("Only Exchange extensions can pin updates.");
+    if (Boolean(current.updatesPinned) === pinned) return;
+    const { updatesPinned: _updatesPinned, ...unpinned } = current;
+    this.installed.set(extensionId, pinned ? { ...current, updatesPinned: true } : unpinned);
+    try {
+      this.save();
+    } catch (error) {
+      this.installed.set(extensionId, current);
+      throw error;
+    }
   }
 
   addProfile(
@@ -808,6 +823,7 @@ export class ExtensionViewManager {
             continue;
           if (entry.revoked !== undefined && entry.revoked !== true) continue;
           if (entry.disabled !== undefined && entry.disabled !== true) continue;
+          if (entry.updatesPinned !== undefined && entry.updatesPinned !== true) continue;
           if (!this.validPartitionInventory(entry, entry.id, entry.source, entry.registryOrigin)) {
             continue;
           }

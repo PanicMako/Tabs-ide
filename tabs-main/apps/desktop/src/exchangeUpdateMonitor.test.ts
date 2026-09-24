@@ -51,9 +51,22 @@ describe("Exchange background update monitor", () => {
     await monitor.check();
     expect(changed).toHaveBeenCalledTimes(1);
     expect(monitor.availableFor({ ...entries[0]!, revoked: true })).toBeNull();
+    expect(monitor.availableFor({ ...entries[0]!, updatesPinned: true })).toBeNull();
     entries = [];
     await monitor.check();
     expect(changed).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not query pinned releases in the background", async () => {
+    const finder = vi.fn(async () => listing);
+    const monitor = new ExchangeUpdateMonitor(
+      () => [{ ...installed, updatesPinned: true }],
+      finder,
+      vi.fn(),
+      vi.fn(),
+    );
+    await monitor.check();
+    expect(finder).not.toHaveBeenCalled();
   });
 
   it("drops prior hints after a failed refresh", async () => {
