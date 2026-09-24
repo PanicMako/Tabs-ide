@@ -26,11 +26,13 @@
     "electron": "44.1.0",
     "electron-store": "^8.2.0",
     "electron-updater": "^6.6.2",
-    "tldts": "^7.0.26"
+    "tldts": "^7.0.26",
+    "tuf-js": "6.0.0"
   },
   "devDependencies": {
     "@tabs/contracts": "workspace:*",
     "@tabs/shared": "workspace:*",
+    "@tufjs/models": "5.0.0",
     "@types/node": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",

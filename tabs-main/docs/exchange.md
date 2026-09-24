@@ -16,6 +16,21 @@ listings from `TABS_EXCHANGE_ORIGIN`, but these listings are informational and
 cannot authorize an install. The public API is therefore an experimental shape, not a
 stable protocol for forks yet.
 
+## Metadata trust work in progress
+
+The desktop tree includes a [TUF](https://theupdateframework.io/docs/metadata/)
+client adapter backed by `tuf-js`. It requires
+an initial self-signed root delivered out of band, persists verified metadata
+by registry origin and trust identity, rejects redirected/cross-origin metadata
+requests, and looks up signed package targets at
+`extensions/:namespace/:name/:version.tabsext`. Tests exercise a signed target,
+target revocation, rollback, expiration, and tampering. The adapter is not yet
+connected to installation or updates. Exchange does not yet publish signed
+root, timestamp, snapshot, and targets roles, and no official root key has been
+provisioned. Until those pieces are complete, catalog JSON must never authorize
+installation or silent updates. Forks will need their own explicitly configured
+trust root and origin.
+
 ## Local self-hosting
 
 Copy `apps/exchange/.env.example` to `apps/exchange/.env` and replace every
