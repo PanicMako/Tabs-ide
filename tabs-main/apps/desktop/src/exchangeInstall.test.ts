@@ -95,11 +95,13 @@ describe("Exchange install consent", () => {
     let revoked = false;
     let offline = false;
     let invalidMetadata = false;
+    let listedUpdateDigest = "c".repeat(64);
+    let currentInstallation: DesktopInstalledExtension | null = null;
     const service = new ExchangeInstallService(
       { origin, trustId: "official", root: Buffer.from("test") },
       Path.join(root, "metadata"),
       "1.3.17",
-      () => [],
+      () => (currentInstallation ? [currentInstallation] : []),
       async (archive, installedOrigin, digest) => {
         expect(FS.readFileSync(archive)).toEqual(FS.readFileSync(packagePath));
         expect(installedOrigin).toBe(origin);
@@ -108,20 +110,41 @@ describe("Exchange install consent", () => {
         return { id: packageInfo.id } as DesktopInstalledExtension;
       },
       async (url) => {
-        const response = new Response(new Uint8Array(FS.readFileSync(packagePath)));
+        const response = String(url).endsWith("/v1/extensions/acme/dashboard")
+          ? new Response(
+              JSON.stringify({
+                versions: [
+                  {
+                    namespace: "acme",
+                    name: "dashboard",
+                    version: "1.0.1",
+                    digest: listedUpdateDigest,
+                    verified: false,
+                    manifest: {
+                      ...JSON.parse(
+                        FS.readFileSync(Path.join(source, "tabs-extension.json"), "utf8"),
+                      ),
+                      version: "1.0.1",
+                    },
+                  },
+                ],
+              }),
+              { headers: { "content-type": "application/json" } },
+            )
+          : new Response(new Uint8Array(FS.readFileSync(packagePath)));
         Object.defineProperty(response, "url", { value: String(url) });
         return response;
       },
       {
-        resolve: async () => {
+        resolve: async (_namespace, _name, version) => {
           if (offline) throw new DownloadHTTPError("offline", 503);
           if (invalidMetadata) throw new ExpiredMetadataError("expired");
           return revoked
             ? null
             : {
-                path: exchangeTargetPath("acme", "dashboard", "1.0.0"),
+                path: exchangeTargetPath("acme", "dashboard", version),
                 bytes: packageInfo.bytes,
-                digest: packageInfo.digest,
+                digest: version === "1.0.1" ? "c".repeat(64) : packageInfo.digest,
               };
         },
       },
@@ -146,6 +169,26 @@ describe("Exchange install consent", () => {
       invalidMetadata = false;
       await service.confirm(prepared.token);
       expect(installed).toBe(1);
+      currentInstallation = installedEntry;
+      expect((await service.availableUpdate(installedEntry))?.version).toBe("1.0.1");
+      listedUpdateDigest = "d".repeat(64);
+      expect(await service.availableUpdate(installedEntry)).toBeNull();
+      listedUpdateDigest = "c".repeat(64);
+      currentInstallation = {
+        ...installedEntry,
+        manifest: { ...installedEntry.manifest, version: "2.0.0" },
+      };
+      await expect(service.prepare(listing)).rejects.toThrow(/downgrade/);
+      currentInstallation = { ...installedEntry, digest: "b".repeat(64) };
+      await expect(service.prepare(listing)).rejects.toThrow(/cannot change its package digest/);
+      currentInstallation = installedEntry;
+      const superseded = await service.prepare(listing);
+      currentInstallation = {
+        ...installedEntry,
+        manifest: { ...installedEntry.manifest, version: "2.0.0" },
+      };
+      await expect(service.confirm(superseded.token)).rejects.toThrow(/downgrade/);
+      currentInstallation = installedEntry;
       await expect(service.confirm(prepared.token)).rejects.toThrow(/expired/);
       await expect(
         service.prepare({ ...listing, registryOrigin: "https://evil.example" }),

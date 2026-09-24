@@ -1,5 +1,6 @@
 import type { DesktopExchangeListing } from "@tabs/contracts";
 import { validateTabsExtensionManifest } from "@tabs/shared/extensions";
+import { compareSemverVersions } from "@tabs/shared/semver";
 
 const MAX_CATALOG_BYTES = 1024 * 1024;
 const DIGEST = /^[a-f0-9]{64}$/;
@@ -116,4 +117,64 @@ export async function discoverExchangeExtensions(
     });
   }
   return listings;
+}
+
+/** Version listings are hints only; callers must verify candidates through TUF. */
+export async function discoverExchangeVersions(
+  origin: string,
+  tabsVersion: string,
+  namespace: string,
+  name: string,
+  fetcher: typeof fetch = fetch,
+): Promise<DesktopExchangeListing[]> {
+  if (!SEGMENT.test(namespace) || !SEGMENT.test(name)) {
+    throw new Error("Invalid Exchange extension identity.");
+  }
+  const url = new URL(`/v1/extensions/${namespace}/${name}`, origin);
+  const response = await fetcher(url.href, {
+    method: "GET",
+    redirect: "error",
+    credentials: "omit",
+    cache: "no-store",
+    signal: AbortSignal.timeout(8_000),
+  });
+  if (response.url !== url.href) throw new Error("Exchange version list changed origin or path.");
+  const document = await boundedJson(response);
+  if (!record(document) || !Array.isArray(document.versions) || document.versions.length > 100) {
+    throw new Error("Exchange version list is invalid.");
+  }
+  const seen = new Set<string>();
+  const listings: DesktopExchangeListing[] = [];
+  for (const item of document.versions) {
+    if (
+      !record(item) ||
+      item.namespace !== namespace ||
+      item.name !== name ||
+      typeof item.version !== "string" ||
+      typeof item.digest !== "string" ||
+      !DIGEST.test(item.digest) ||
+      typeof item.verified !== "boolean" ||
+      seen.has(item.version)
+    ) {
+      throw new Error("Exchange version list contains an invalid release.");
+    }
+    seen.add(item.version);
+    const validated = validateTabsExtensionManifest(item.manifest, tabsVersion);
+    if (!validated.ok) continue;
+    if (validated.id !== `${namespace}.${name}` || validated.manifest.version !== item.version) {
+      throw new Error("Exchange version identity does not match its manifest.");
+    }
+    listings.push({
+      registryOrigin: origin,
+      id: validated.id,
+      namespace,
+      name,
+      version: item.version,
+      digest: item.digest,
+      displayName: validated.manifest.displayName,
+      description: validated.manifest.description,
+      verifiedPublisher: item.verified,
+    });
+  }
+  return listings.toSorted((left, right) => compareSemverVersions(right.version, left.version));
 }

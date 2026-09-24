@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { configuredExchangeOrigin, discoverExchangeExtensions } from "./exchangeCatalog";
+import {
+  configuredExchangeOrigin,
+  discoverExchangeExtensions,
+  discoverExchangeVersions,
+} from "./exchangeCatalog";
 
 const origin = "https://exchange.tabs.example";
 const manifest = {
@@ -22,6 +26,30 @@ function response(body: unknown, url = `${origin}/v1/extensions?q=&limit=30`): R
 }
 
 describe("Exchange catalog client", () => {
+  it("sorts compatible versions and rejects mismatched exact-identity responses", async () => {
+    const versionUrl = `${origin}/v1/extensions/acme/dashboard`;
+    const release = (version: string) => ({
+      namespace: "acme",
+      name: "dashboard",
+      version,
+      digest: "a".repeat(64),
+      verified: true,
+      manifest: { ...manifest, version },
+    });
+    const versions = await discoverExchangeVersions(
+      origin,
+      "1.3.17",
+      "acme",
+      "dashboard",
+      async () => response({ versions: [release("1.1.0"), release("1.10.0")] }, versionUrl),
+    );
+    expect(versions.map((item) => item.version)).toEqual(["1.10.0", "1.1.0"]);
+    await expect(
+      discoverExchangeVersions(origin, "1.3.17", "acme", "dashboard", async () =>
+        response({ versions: [{ ...release("1.1.0"), name: "other" }] }, versionUrl),
+      ),
+    ).rejects.toThrow(/invalid release/);
+  });
   it("requires a clean HTTPS origin outside desktop development", () => {
     expect(configuredExchangeOrigin(origin, false)).toBe(origin);
     expect(configuredExchangeOrigin("http://localhost:8787", true)).toBe("http://localhost:8787");

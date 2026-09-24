@@ -24,6 +24,9 @@ export default function ExtensionsSettings() {
   const [searchQuery, setSearchQuery] = useState("");
   const [catalog, setCatalog] = useState<DesktopExchangeListing[] | null | undefined>(undefined);
   const [exchangeInstallAvailable, setExchangeInstallAvailable] = useState(false);
+  const [checkedUpdates, setCheckedUpdates] = useState<
+    Record<string, DesktopExchangeListing | null>
+  >({});
   const [preparedInstall, setPreparedInstall] = useState<DesktopPreparedExchangeInstall | null>(
     null,
   );
@@ -32,7 +35,9 @@ export default function ExtensionsSettings() {
   const uninstallHeading = useRef<HTMLHeadingElement>(null);
   const uninstallTrigger = useRef<HTMLButtonElement | null>(null);
   const reviewTrigger = useRef<HTMLButtonElement | null>(null);
+  const reviewReturnExtensionId = useRef<string | null>(null);
   const installedTabButton = useRef<HTMLButtonElement | null>(null);
+  const discoverTabButton = useRef<HTMLButtonElement | null>(null);
   const extensions = useInstalledExtensions();
   const projects = useAtomValue(projectsAtom);
   const bridge = window.desktopBridge;
@@ -90,7 +95,13 @@ export default function ExtensionsSettings() {
         {(["discover", "installed", "profiles"] as const).map((item) => (
           <Button
             key={item}
-            ref={item === "installed" ? installedTabButton : undefined}
+            ref={
+              item === "installed"
+                ? installedTabButton
+                : item === "discover"
+                  ? discoverTabButton
+                  : undefined
+            }
             type="button"
             aria-pressed={tab === item}
             variant={tab === item ? "default" : "outline"}
@@ -173,6 +184,7 @@ export default function ExtensionsSettings() {
                     disabled={busy || !exchangeInstallAvailable}
                     onClick={(event) => {
                       reviewTrigger.current = event.currentTarget;
+                      reviewReturnExtensionId.current = null;
                       void run(async () => {
                         if (preparedInstall) {
                           await bridge.cancelExchangeInstall(preparedInstall.token);
@@ -232,6 +244,13 @@ export default function ExtensionsSettings() {
                   onClick={() =>
                     void run(async () => {
                       await bridge.confirmExchangeInstall(preparedInstall.token);
+                      setCheckedUpdates((current) => {
+                        const next = { ...current };
+                        delete next[
+                          `${preparedInstall.manifest.publisher}.${preparedInstall.manifest.name}`
+                        ];
+                        return next;
+                      });
                       setPreparedInstall(null);
                       setTab("installed");
                       requestAnimationFrame(() => installedTabButton.current?.focus());
@@ -248,7 +267,18 @@ export default function ExtensionsSettings() {
                     void run(async () => {
                       await bridge.cancelExchangeInstall(preparedInstall.token);
                       setPreparedInstall(null);
-                      requestAnimationFrame(() => reviewTrigger.current?.focus());
+                      const returnId = reviewReturnExtensionId.current;
+                      if (returnId) setTab("installed");
+                      requestAnimationFrame(() =>
+                        (
+                          (returnId
+                            ? document.getElementById(`extension-update-${returnId}`)
+                            : reviewTrigger.current?.isConnected
+                              ? reviewTrigger.current
+                              : null) ??
+                          (returnId ? installedTabButton.current : discoverTabButton.current)
+                        )?.focus(),
+                      );
                     })
                   }
                 >
@@ -318,6 +348,53 @@ export default function ExtensionsSettings() {
                       This version was revoked by its registry. Its tools are disabled. Check
                       Discover for a newer approved version; your profiles and data are retained.
                     </p>
+                  ) : null}
+                  {extension.source === "exchange" ? (
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={busy}
+                        onClick={() =>
+                          void run(async () => {
+                            const update = await bridge.checkExtensionUpdate(extension.id);
+                            setCheckedUpdates((current) => ({
+                              ...current,
+                              [extension.id]: update,
+                            }));
+                            setStatus(
+                              update
+                                ? `${extension.manifest.displayName} ${update.version} is available for review.`
+                                : `No newer compatible approved version of ${extension.manifest.displayName} is available.`,
+                            );
+                          })
+                        }
+                      >
+                        Check for updates
+                      </Button>
+                      {checkedUpdates[extension.id] ? (
+                        <Button
+                          id={`extension-update-${extension.id}`}
+                          type="button"
+                          disabled={busy}
+                          onClick={(event) => {
+                            reviewTrigger.current = event.currentTarget;
+                            reviewReturnExtensionId.current = extension.id;
+                            void run(async () => {
+                              if (preparedInstall) {
+                                await bridge.cancelExchangeInstall(preparedInstall.token);
+                              }
+                              setPreparedInstall(
+                                await bridge.prepareExchangeInstall(checkedUpdates[extension.id]!),
+                              );
+                              setTab("discover");
+                            });
+                          }}
+                        >
+                          Review update to {checkedUpdates[extension.id]?.version}
+                        </Button>
+                      ) : null}
+                    </div>
                   ) : null}
                 </div>
                 <label className="flex items-center gap-2 text-sm">
@@ -408,6 +485,11 @@ export default function ExtensionsSettings() {
                         onClick={() =>
                           void run(async () => {
                             await bridge.uninstallExtension(extension.id);
+                            setCheckedUpdates((current) => {
+                              const next = { ...current };
+                              delete next[extension.id];
+                              return next;
+                            });
                             setUninstallingId(null);
                             setStatus(
                               `${extension.manifest.displayName} uninstalled. Profile data was retained.`,

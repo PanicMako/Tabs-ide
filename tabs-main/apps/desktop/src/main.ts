@@ -176,6 +176,7 @@ const BROWSER_HOST_GET_STATE_CHANNEL = "desktop:browser-host:get-state";
 const EXTENSION_LIST_CHANNEL = "desktop:extension:list";
 const EXTENSION_CHANGED_CHANNEL = "desktop:extension:changed";
 const EXTENSION_DISCOVER_CHANNEL = "desktop:extension:discover";
+const EXTENSION_CHECK_UPDATE_CHANNEL = "desktop:extension:check-update";
 const EXTENSION_EXCHANGE_AVAILABLE_CHANNEL = "desktop:extension:exchange-available";
 const EXTENSION_EXCHANGE_PREPARE_CHANNEL = "desktop:extension:exchange-prepare";
 const EXTENSION_EXCHANGE_CONFIRM_CHANNEL = "desktop:extension:exchange-confirm";
@@ -2089,6 +2090,16 @@ function registerIpcHandlers(): void {
     const origin = configuredExchangeOrigin(process.env.TABS_EXCHANGE_ORIGIN, !app.isPackaged);
     if (!origin) return null;
     return discoverExchangeExtensions(origin, app.getVersion(), query);
+  });
+  ipcMain.removeHandler(EXTENSION_CHECK_UPDATE_CHANNEL);
+  ipcMain.handle(EXTENSION_CHECK_UPDATE_CHANNEL, async (event, id: unknown) => {
+    requireMainRenderer(event);
+    if (typeof id !== "string" || !/^[a-z][a-z0-9-]{1,62}\.[a-z][a-z0-9-]{1,62}$/.test(id)) {
+      throw new Error("Invalid extension identity.");
+    }
+    const installed = extensionViewManager.list().find((entry) => entry.id === id);
+    if (!installed) throw new Error("Extension is not installed.");
+    return requireExchangeInstallService().availableUpdate(installed);
   });
   ipcMain.removeHandler(EXTENSION_EXCHANGE_AVAILABLE_CHANNEL);
   ipcMain.handle(EXTENSION_EXCHANGE_AVAILABLE_CHANNEL, (event) => {

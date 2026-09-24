@@ -72,6 +72,7 @@ const BROWSER_HOST_GET_STATE_CHANNEL = "desktop:browser-host:get-state";
 const EXTENSION_LIST_CHANNEL = "desktop:extension:list";
 const EXTENSION_CHANGED_CHANNEL = "desktop:extension:changed";
 const EXTENSION_DISCOVER_CHANNEL = "desktop:extension:discover";
+const EXTENSION_CHECK_UPDATE_CHANNEL = "desktop:extension:check-update";
 const EXTENSION_EXCHANGE_AVAILABLE_CHANNEL = "desktop:extension:exchange-available";
 const EXTENSION_EXCHANGE_PREPARE_CHANNEL = "desktop:extension:exchange-prepare";
 const EXTENSION_EXCHANGE_CONFIRM_CHANNEL = "desktop:extension:exchange-confirm";
@@ -288,6 +289,8 @@ contextBridge.exposeInMainWorld("desktopBridge", {
     return () => ipcRenderer.removeListener(EXTENSION_CHANGED_CHANNEL, handler);
   },
   discoverExchangeExtensions: (query) => ipcRenderer.invoke(EXTENSION_DISCOVER_CHANNEL, query),
+  checkExtensionUpdate: (extensionId) =>
+    ipcRenderer.invoke(EXTENSION_CHECK_UPDATE_CHANNEL, extensionId),
   exchangeInstallAvailable: () => ipcRenderer.invoke(EXTENSION_EXCHANGE_AVAILABLE_CHANNEL),
   prepareExchangeInstall: (listing) =>
     ipcRenderer.invoke(EXTENSION_EXCHANGE_PREPARE_CHANNEL, listing),

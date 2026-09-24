@@ -15,6 +15,7 @@ import {
   isExtensionEnabledForProject,
   validateTabsExtensionManifest,
 } from "@tabs/shared/extensions";
+import { compareSemverVersions } from "@tabs/shared/semver";
 import type { NativeViewStackCoordinator } from "./nativeViewStackCoordinator";
 import { ExtensionStorage, type ExtensionStorageOperation } from "./extensionStorage";
 
@@ -296,6 +297,16 @@ export class ExtensionViewManager {
     }
     if (previous?.registryOrigin && previous.registryOrigin !== registryOrigin) {
       throw new Error("A same-named extension from another registry is already installed.");
+    }
+    if (previous) {
+      const comparison = compareSemverVersions(
+        inspected.manifest.version,
+        previous.manifest.version,
+      );
+      if (comparison < 0) throw new Error("Exchange cannot downgrade an installed extension.");
+      if (comparison === 0 && previous.digest !== expectedDigest) {
+        throw new Error("An installed Exchange version cannot change its package digest.");
+      }
     }
     const retained = this.readRetainedRecord(inspected.id, "exchange", registryOrigin);
     const packagesRoot = Path.join(Path.dirname(this.statePath), "extension-packages");

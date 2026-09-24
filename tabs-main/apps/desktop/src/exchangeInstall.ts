@@ -9,6 +9,8 @@ import type {
   DesktopInstalledExtension,
   DesktopPreparedExchangeInstall,
 } from "@tabs/contracts";
+import { compareSemverVersions } from "@tabs/shared/semver";
+import { discoverExchangeVersions } from "./exchangeCatalog";
 import { downloadSignedExchangePackage } from "./exchangePackageDownload";
 import { ExchangeTransportError, TrustedExchange } from "./trustedExchange";
 
@@ -95,6 +97,31 @@ export class ExchangeInstallService {
 
   private readonly fetcher: typeof fetch | undefined;
 
+  async availableUpdate(
+    extension: DesktopInstalledExtension,
+  ): Promise<DesktopExchangeListing | null> {
+    if (
+      extension.source !== "exchange" ||
+      extension.registryOrigin !== this.configuration.origin ||
+      !extension.digest
+    ) {
+      throw new Error("Installed extension does not match trusted Exchange identity.");
+    }
+    const releases = await discoverExchangeVersions(
+      this.configuration.origin,
+      this.tabsVersion,
+      extension.manifest.publisher,
+      extension.manifest.name,
+      this.fetcher,
+    );
+    for (const release of releases) {
+      if (compareSemverVersions(release.version, extension.manifest.version) <= 0) continue;
+      const target = await this.trusted.resolve(release.namespace, release.name, release.version);
+      if (target?.digest === release.digest) return release;
+    }
+    return null;
+  }
+
   async prepare(listing: DesktopExchangeListing): Promise<DesktopPreparedExchangeInstall> {
     this.pruneExpired();
     if (
@@ -104,6 +131,7 @@ export class ExchangeInstallService {
     ) {
       throw new Error("Exchange listing does not match the trusted registry.");
     }
+    this.assertSafeReplacement(listing.id, listing.version, listing.digest);
     const target = await this.trusted.resolve(listing.namespace, listing.name, listing.version);
     if (!target || target.digest !== listing.digest) {
       throw new Error("This listing is not present in current signed Exchange metadata.");
@@ -123,10 +151,7 @@ export class ExchangeInstallService {
       ) {
         throw new Error("Signed package identity differs from Exchange listing.");
       }
-      const previous = this.listInstalled().find((extension) => extension.id === inspected.id);
-      if (previous?.registryOrigin && previous.registryOrigin !== this.configuration.origin) {
-        throw new Error("A same-named extension from another registry is already installed.");
-      }
+      const previous = this.assertSafeReplacement(inspected.id, listing.version, target.digest);
       const oldCapabilities = previous?.manifest.capabilities ?? [];
       const addedCapability =
         previous?.revoked ||
@@ -157,10 +182,12 @@ export class ExchangeInstallService {
     this.prepared.delete(token);
     try {
       const { publisher, name, version } = prepared.result.manifest;
+      this.assertSafeReplacement(`${publisher}.${name}`, version, prepared.result.digest);
       const current = await this.trusted.resolve(publisher, name, version);
       if (!current || current.digest !== prepared.result.digest) {
         throw new Error("This version is no longer present in current signed Exchange metadata.");
       }
+      this.assertSafeReplacement(`${publisher}.${name}`, version, prepared.result.digest);
       return await this.install(
         prepared.archive,
         prepared.result.registryOrigin,
@@ -169,6 +196,24 @@ export class ExchangeInstallService {
     } finally {
       FS.rmSync(Path.dirname(prepared.archive), { recursive: true, force: true });
     }
+  }
+
+  private assertSafeReplacement(
+    id: string,
+    version: string,
+    digest: string,
+  ): DesktopInstalledExtension | undefined {
+    const previous = this.listInstalled().find((extension) => extension.id === id);
+    if (!previous) return undefined;
+    if (previous.source !== "exchange" || previous.registryOrigin !== this.configuration.origin) {
+      throw new Error("Uninstall the existing extension before changing its source or registry.");
+    }
+    const comparison = compareSemverVersions(version, previous.manifest.version);
+    if (comparison < 0) throw new Error("Exchange cannot downgrade an installed extension.");
+    if (comparison === 0 && previous.digest !== digest) {
+      throw new Error("An installed Exchange version cannot change its package digest.");
+    }
+    return previous;
   }
 
   /** Missing signed target or changed digest revokes this exact installed version. */

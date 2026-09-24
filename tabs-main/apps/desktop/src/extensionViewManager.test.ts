@@ -469,6 +469,14 @@ describe("development extension installation", () => {
       "https://exchange.tabs.example",
       update.digest,
     );
+    await expect(
+      manager.installVerifiedExchangePackage(
+        firstArchive,
+        "https://exchange.tabs.example",
+        first.digest,
+      ),
+    ).rejects.toThrow(/downgrade/);
+    expect(manager.list()[0]?.digest).toBe(update.digest);
     expect(updated.assignment.enabledProjectIds).toEqual([]);
     expect(updated.assignment.storageGrantedProjectIds).toEqual([]);
     expect(updated.profiles.map((profile) => profile.id)).toEqual(["default", "work"]);

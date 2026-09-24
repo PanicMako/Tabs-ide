@@ -94,6 +94,12 @@ does not run or enable a new extension automatically. The installed identity
 includes the registry origin; a same-named package from another registry
 cannot silently replace it. Packaged builds can load these verified packages
 after restart, while development-only imports remain unavailable there.
+Installed settings can check one Exchange extension for a newer compatible,
+approved release. The version list is informational: Tabs matches the candidate
+to fresh signed metadata before offering Review update, then uses the same
+package download and consent flow. The installer rejects downgrades and a
+changed digest for an already installed version, including if the installed
+version changes while an update review is open.
 
 This is a manual flow, not a production-ready release channel. Desktop checks
 installed Exchange versions against fresh signed metadata at startup, every
@@ -103,7 +109,7 @@ closes, toolbar contributions disappear, and Settings explains the status.
 Transport outages retain the last known status; invalid or expired metadata
 does not qualify as offline. The flow does not yet check revocation continuously
 while a view is active, automatically install updates, or provide package
-rollback or profile-data deletion controls.
+rollback, pinning, or profile-data deletion controls.
 
 ## Not yet supported
 
