@@ -13,6 +13,8 @@ const listing: DesktopExchangeListing = {
   displayName: "Dashboard",
   description: "A tool",
   verifiedPublisher: false,
+  tabsCompatibility: ">=1.3.0 <2.0.0",
+  capabilities: [],
 };
 const installed = {
   id: listing.id,

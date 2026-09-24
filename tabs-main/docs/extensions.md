@@ -29,6 +29,13 @@ a semantic version, a Tabs version range, and 1-12 full-workspace tools. Each
 tool names a packaged HTML entry. Paths must be relative to the extension
 root. The only supported optional capability is `profile-storage`. Unsupported
 runtime and capability declarations are rejected rather than silently ignored.
+Optional `releaseNotes` is plain text (maximum 10,000 characters). Optional
+`sourceUrl`, `supportUrl`, and `privacyUrl` must be HTTPS links without embedded
+credentials (maximum 2,048 characters each). The Exchange displays these
+publisher-supplied details alongside the supported Tabs version range and
+requested capabilities. Links and release notes are informational, not a
+security endorsement or installation authorization; the desktop opens links
+in the system browser and renders notes as text.
 
 The development package has no Node integration, direct network access,
 navigation, or popups. Its files are served

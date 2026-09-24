@@ -16,6 +16,10 @@ export const TabsExtensionManifest = Schema.Struct({
   version: Schema.String,
   displayName: Schema.String,
   description: Schema.String,
+  releaseNotes: Schema.optionalKey(Schema.String),
+  sourceUrl: Schema.optionalKey(Schema.String),
+  supportUrl: Schema.optionalKey(Schema.String),
+  privacyUrl: Schema.optionalKey(Schema.String),
   engines: Schema.Struct({ tabs: Schema.String }),
   capabilities: Schema.optionalKey(Schema.Array(Schema.Literal("profile-storage"))),
   contributes: Schema.Struct({ tools: Schema.Array(TabsExtensionTool) }),
@@ -74,6 +78,12 @@ export interface DesktopExchangeListing {
   readonly displayName: string;
   readonly description: string;
   readonly verifiedPublisher: boolean;
+  readonly tabsCompatibility: string;
+  readonly capabilities: ReadonlyArray<string>;
+  readonly releaseNotes?: string;
+  readonly sourceUrl?: string;
+  readonly supportUrl?: string;
+  readonly privacyUrl?: string;
 }
 
 export interface DesktopExtensionViewInput {

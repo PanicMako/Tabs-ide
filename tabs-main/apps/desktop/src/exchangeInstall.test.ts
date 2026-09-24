@@ -90,6 +90,8 @@ describe("Exchange install consent", () => {
       displayName: "Dashboard",
       description: "A UI tool",
       verifiedPublisher: false,
+      tabsCompatibility: ">=1.3.0 <2.0.0",
+      capabilities: [],
     };
     let installed = 0;
     let revoked = false;

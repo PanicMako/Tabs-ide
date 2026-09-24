@@ -19,6 +19,22 @@ function safePackagePath(value: unknown): value is string {
   return value.split("/").every((part) => part !== "" && part !== "." && part !== "..");
 }
 
+function safePublisherUrl(value: unknown): value is string {
+  if (
+    typeof value !== "string" ||
+    value.length > 2048 ||
+    value !== value.trim() ||
+    Array.from(value).some((character) => character.charCodeAt(0) <= 31 || character === "\u007f")
+  )
+    return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && !url.username && !url.password;
+  } catch {
+    return false;
+  }
+}
+
 /** Validate the deliberately narrow, UI-only v1 manifest before it reaches Electron. */
 export function validateTabsExtensionManifest(
   input: unknown,
@@ -33,6 +49,10 @@ export function validateTabsExtensionManifest(
     "version",
     "displayName",
     "description",
+    "releaseNotes",
+    "sourceUrl",
+    "supportUrl",
+    "privacyUrl",
     "engines",
     "capabilities",
     "contributes",
@@ -53,6 +73,17 @@ export function validateTabsExtensionManifest(
   for (const key of ["displayName", "description"] as const) {
     if (typeof input[key] !== "string" || !input[key].trim() || input[key].length > 500) {
       errors.push(`${key} must be nonempty and at most 500 characters.`);
+    }
+  }
+  if (
+    input.releaseNotes !== undefined &&
+    (typeof input.releaseNotes !== "string" || input.releaseNotes.length > 10_000)
+  ) {
+    errors.push("releaseNotes must be plain text of at most 10000 characters.");
+  }
+  for (const key of ["sourceUrl", "supportUrl", "privacyUrl"] as const) {
+    if (input[key] !== undefined && !safePublisherUrl(input[key])) {
+      errors.push(`${key} must be an HTTPS URL without credentials, at most 2048 characters.`);
     }
   }
   const engines = input.engines;

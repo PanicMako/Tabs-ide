@@ -34,6 +34,32 @@ describe("Tabs extension manifest", () => {
     ).toBe(false);
   });
 
+  it("accepts bounded release notes and HTTPS publisher links", () => {
+    expect(
+      validateTabsExtensionManifest(
+        {
+          ...manifest,
+          releaseNotes: "Fixed a bug",
+          sourceUrl: "https://github.com/acme/dashboard",
+          supportUrl: "https://acme.example/help",
+          privacyUrl: "https://acme.example/privacy",
+        },
+        "1.3.17",
+      ).ok,
+    ).toBe(true);
+    for (const sourceUrl of [
+      "http://example.com",
+      "javascript:alert(1)",
+      "https://user:pass@example.com",
+      "https://example.com/\n",
+    ]) {
+      expect(validateTabsExtensionManifest({ ...manifest, sourceUrl }, "1.3.17").ok).toBe(false);
+    }
+    expect(
+      validateTabsExtensionManifest({ ...manifest, releaseNotes: "x".repeat(10_001) }, "1.3.17").ok,
+    ).toBe(false);
+  });
+
   it("rejects traversal and unsupported executable contributions", () => {
     expect(
       validateTabsExtensionManifest(

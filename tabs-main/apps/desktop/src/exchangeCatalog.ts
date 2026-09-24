@@ -114,6 +114,20 @@ export async function discoverExchangeExtensions(
       displayName: validated.manifest.displayName,
       description: validated.manifest.description,
       verifiedPublisher: item.verified,
+      tabsCompatibility: validated.manifest.engines.tabs,
+      capabilities: validated.manifest.capabilities ?? [],
+      ...(validated.manifest.releaseNotes !== undefined && {
+        releaseNotes: validated.manifest.releaseNotes,
+      }),
+      ...(validated.manifest.sourceUrl !== undefined && {
+        sourceUrl: validated.manifest.sourceUrl,
+      }),
+      ...(validated.manifest.supportUrl !== undefined && {
+        supportUrl: validated.manifest.supportUrl,
+      }),
+      ...(validated.manifest.privacyUrl !== undefined && {
+        privacyUrl: validated.manifest.privacyUrl,
+      }),
     });
   }
   return listings;
@@ -174,6 +188,20 @@ export async function discoverExchangeVersions(
       displayName: validated.manifest.displayName,
       description: validated.manifest.description,
       verifiedPublisher: item.verified,
+      tabsCompatibility: validated.manifest.engines.tabs,
+      capabilities: validated.manifest.capabilities ?? [],
+      ...(validated.manifest.releaseNotes !== undefined && {
+        releaseNotes: validated.manifest.releaseNotes,
+      }),
+      ...(validated.manifest.sourceUrl !== undefined && {
+        sourceUrl: validated.manifest.sourceUrl,
+      }),
+      ...(validated.manifest.supportUrl !== undefined && {
+        supportUrl: validated.manifest.supportUrl,
+      }),
+      ...(validated.manifest.privacyUrl !== undefined && {
+        privacyUrl: validated.manifest.privacyUrl,
+      }),
     });
   }
   return listings.toSorted((left, right) => compareSemverVersions(right.version, left.version));

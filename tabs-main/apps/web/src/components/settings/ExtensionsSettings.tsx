@@ -180,6 +180,37 @@ export default function ExtensionsSettings() {
                   </p>
                   <p className="text-sm">{listing.description}</p>
                   <p className="text-xs text-muted-foreground">
+                    Tabs {listing.tabsCompatibility} · Permissions:{" "}
+                    {listing.capabilities.length ? listing.capabilities.join(", ") : "None"}
+                  </p>
+                  {listing.releaseNotes ? (
+                    <details className="text-sm">
+                      <summary>Release notes</summary>
+                      <p className="whitespace-pre-wrap">{listing.releaseNotes}</p>
+                    </details>
+                  ) : null}
+                  <div className="flex flex-wrap gap-2">
+                    {(
+                      [
+                        ["Source", listing.sourceUrl],
+                        ["Support", listing.supportUrl],
+                        ["Privacy", listing.privacyUrl],
+                      ] as const
+                    ).map(([label, url]) =>
+                      url ? (
+                        <Button
+                          key={label}
+                          type="button"
+                          variant="link"
+                          className="h-auto p-0"
+                          onClick={() => void bridge.openExternal(url)}
+                        >
+                          {label}
+                        </Button>
+                      ) : null,
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
                     Registry: {listing.registryOrigin}
                   </p>
                   <Button

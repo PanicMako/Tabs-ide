@@ -13,6 +13,10 @@ const manifest = {
   version: "1.0.0",
   displayName: "Dashboard",
   description: "Example tool",
+  releaseNotes: "A safer dashboard",
+  sourceUrl: "https://github.com/acme/dashboard",
+  supportUrl: "https://acme.example/help",
+  privacyUrl: "https://acme.example/privacy",
   engines: { tabs: ">=1.3.0 <2.0.0" },
   contributes: { tools: [{ id: "main", label: "Main", entry: "dist/index.html" }] },
 };
@@ -74,7 +78,16 @@ describe("Exchange catalog client", () => {
       }),
     );
     const results = await discoverExchangeExtensions(origin, "1.3.17", "", fetcher);
-    expect(results).toMatchObject([{ id: "acme.dashboard", verifiedPublisher: true }]);
+    expect(results).toMatchObject([
+      {
+        id: "acme.dashboard",
+        verifiedPublisher: true,
+        releaseNotes: "A safer dashboard",
+        sourceUrl: "https://github.com/acme/dashboard",
+        tabsCompatibility: ">=1.3.0 <2.0.0",
+        capabilities: [],
+      },
+    ]);
     expect(fetcher.mock.calls).toHaveLength(1);
     expect(fetcher.mock.calls[0]?.[1]).toMatchObject({
       redirect: "error",
