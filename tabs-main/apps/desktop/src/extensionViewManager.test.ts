@@ -9,7 +9,11 @@ vi.mock("electron", () => ({
   WebContentsView: vi.fn(),
 }));
 
-import { ExtensionViewManager, extensionSessionPartition } from "./extensionViewManager";
+import {
+  ExtensionViewManager,
+  extensionDataIdentity,
+  extensionSessionPartition,
+} from "./extensionViewManager";
 
 const temporaryRoots: string[] = [];
 
@@ -56,6 +60,29 @@ describe("development extension installation", () => {
     );
     expect(extensionSessionPartition("acme.dashboard", "work", "project", "project-a")).not.toBe(
       extensionSessionPartition("acme.dashboard", "work", "project", "project-b"),
+    );
+    expect(
+      extensionSessionPartition(
+        "acme.dashboard",
+        "work",
+        "shared",
+        "project-a",
+        "https://registry-a.example",
+      ),
+    ).not.toBe(
+      extensionSessionPartition(
+        "acme.dashboard",
+        "work",
+        "shared",
+        "project-a",
+        "https://registry-b.example",
+      ),
+    );
+    expect(extensionDataIdentity("acme.dashboard", "https://registry-a.example")).not.toBe(
+      extensionDataIdentity("acme.dashboard", "https://registry-b.example"),
+    );
+    expect(extensionDataIdentity("acme.dashboard", undefined, "development")).not.toBe(
+      extensionDataIdentity("acme.dashboard", undefined, "local-package"),
     );
   });
 
@@ -203,6 +230,22 @@ describe("development extension installation", () => {
     ]);
   });
 
+  it("uninstalls a development tool without deleting its source or retained profiles", () => {
+    const { directory, manager } = fixture();
+    const installed = manager.installDevelopment(directory);
+    manager.addProfile(installed.id, "work", "Work", "project");
+    manager.setAssignment(installed.id, {
+      ...installed.assignment,
+      enabledProjectIds: ["project-a"],
+    });
+    manager.uninstall(installed.id);
+    expect(manager.list()).toEqual([]);
+    expect(FS.existsSync(Path.join(directory, "tabs-extension.json"))).toBe(true);
+    const reinstalled = manager.installDevelopment(directory);
+    expect(reinstalled.profiles.map((profile) => profile.id)).toEqual(["default", "work"]);
+    expect(reinstalled.assignment.enabledProjectIds).toEqual([]);
+  });
+
   it("rejects symlinked package assets", () => {
     const { directory, manager } = fixture();
     FS.symlinkSync(
@@ -306,6 +349,39 @@ describe("development extension installation", () => {
     expect(restarted.list()[0]?.revoked).toBe(true);
   });
 
+  it("does not inherit development profiles or grants when switching package source", async () => {
+    const { directory, manager } = fixture();
+    const development = manager.installDevelopment(directory);
+    manager.addProfile(development.id, "work", "Work");
+    const archive = Path.join(directory, "source-change.tabsext");
+    const info = await packTabsext({ directory, destination: archive, tabsVersion: "1.3.17" });
+    await expect(
+      manager.installVerifiedExchangePackage(archive, "https://exchange.tabs.example", info.digest),
+    ).rejects.toThrow(/Uninstall the existing extension/);
+    expect(manager.list()[0]?.source).toBe("development");
+  });
+
+  it("refuses to uninstall through a replaced package-directory symlink", async () => {
+    const { directory, manager } = fixture();
+    const archive = Path.join(directory, "symlink-uninstall.tabsext");
+    const info = await packTabsext({ directory, destination: archive, tabsVersion: "1.3.17" });
+    const installed = await manager.installVerifiedExchangePackage(
+      archive,
+      "https://exchange.tabs.example",
+      info.digest,
+    );
+    const packageDirectory = Path.join(directory, "extension-packages", installed.id);
+    const backup = `${packageDirectory}-backup`;
+    FS.renameSync(packageDirectory, backup);
+    const outside = Path.join(directory, "outside");
+    FS.mkdirSync(outside);
+    FS.writeFileSync(Path.join(outside, "keep.txt"), "keep");
+    FS.symlinkSync(outside, packageDirectory);
+    expect(() => manager.uninstall(installed.id)).toThrow(/symbolic link/);
+    expect(FS.readFileSync(Path.join(outside, "keep.txt"), "utf8")).toBe("keep");
+    expect(manager.list()[0]?.id).toBe(installed.id);
+  });
+
   it("requires fresh project consent when an Exchange update adds storage access", async () => {
     const { directory, manager } = fixture();
     const source = Path.join(directory, "source");
@@ -356,6 +432,69 @@ describe("development extension installation", () => {
     expect(
       FS.existsSync(Path.join(directory, "extension-packages", installed.id, first.digest)),
     ).toBe(true);
+    manager.setAssignment(installed.id, {
+      ...updated.assignment,
+      enabledProjectIds: ["project-a"],
+      storageGrantedProjectIds: ["project-a"],
+    });
+    const sender = { isDestroyed: () => false };
+    const internal = manager as unknown as { active: unknown };
+    internal.active = {
+      key: "original-registry",
+      view: { webContents: sender },
+      extensionId: installed.id,
+      projectId: "project-a",
+      profileId: "default",
+    };
+    manager.invokeStorage(sender as never, { kind: "set", key: "private", value: "registry-a" });
+    internal.active = null;
+    manager.uninstall(installed.id);
+    expect(manager.list()).toEqual([]);
+    expect(FS.existsSync(Path.join(directory, "extension-packages", installed.id))).toBe(false);
+    const otherRegistry = await manager.installVerifiedExchangePackage(
+      updateArchive,
+      "https://other.example",
+      update.digest,
+    );
+    expect(otherRegistry.profiles.map((profile) => profile.id)).toEqual(["default"]);
+    manager.setAssignment(installed.id, {
+      ...otherRegistry.assignment,
+      enabledProjectIds: ["project-a"],
+      storageGrantedProjectIds: ["project-a"],
+    });
+    internal.active = {
+      key: "other-registry",
+      view: { webContents: sender },
+      extensionId: installed.id,
+      projectId: "project-a",
+      profileId: "default",
+    };
+    expect(manager.invokeStorage(sender as never, { kind: "get", key: "private" })).toBeNull();
+    internal.active = null;
+    manager.uninstall(installed.id);
+    const reinstalled = await manager.installVerifiedExchangePackage(
+      updateArchive,
+      "https://exchange.tabs.example",
+      update.digest,
+    );
+    expect(reinstalled.profiles.map((profile) => profile.id)).toEqual(["default", "work"]);
+    expect(reinstalled.assignment.enabledProjectIds).toEqual([]);
+    manager.setAssignment(installed.id, {
+      ...reinstalled.assignment,
+      enabledProjectIds: ["project-a"],
+      storageGrantedProjectIds: ["project-a"],
+    });
+    internal.active = {
+      key: "restored-registry",
+      view: { webContents: sender },
+      extensionId: installed.id,
+      projectId: "project-a",
+      profileId: "default",
+    };
+    expect(manager.invokeStorage(sender as never, { kind: "get", key: "private" })).toBe(
+      "registry-a",
+    );
+    internal.active = null;
   });
 
   it("imports a local package once and preserves assignments across replacement", async () => {

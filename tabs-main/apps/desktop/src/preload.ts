@@ -76,6 +76,7 @@ const EXTENSION_EXCHANGE_AVAILABLE_CHANNEL = "desktop:extension:exchange-availab
 const EXTENSION_EXCHANGE_PREPARE_CHANNEL = "desktop:extension:exchange-prepare";
 const EXTENSION_EXCHANGE_CONFIRM_CHANNEL = "desktop:extension:exchange-confirm";
 const EXTENSION_EXCHANGE_CANCEL_CHANNEL = "desktop:extension:exchange-cancel";
+const EXTENSION_UNINSTALL_CHANNEL = "desktop:extension:uninstall";
 const EXTENSION_INSTALL_DEV_CHANNEL = "desktop:extension:install-dev";
 const EXTENSION_INSTALL_LOCAL_PACKAGE_CHANNEL = "desktop:extension:install-local-package";
 const EXTENSION_ASSIGN_CHANNEL = "desktop:extension:assign";
@@ -292,6 +293,7 @@ contextBridge.exposeInMainWorld("desktopBridge", {
     ipcRenderer.invoke(EXTENSION_EXCHANGE_PREPARE_CHANNEL, listing),
   confirmExchangeInstall: (token) => ipcRenderer.invoke(EXTENSION_EXCHANGE_CONFIRM_CHANNEL, token),
   cancelExchangeInstall: (token) => ipcRenderer.invoke(EXTENSION_EXCHANGE_CANCEL_CHANNEL, token),
+  uninstallExtension: (extensionId) => ipcRenderer.invoke(EXTENSION_UNINSTALL_CHANNEL, extensionId),
   installDevelopmentExtension: (directory) =>
     ipcRenderer.invoke(EXTENSION_INSTALL_DEV_CHANNEL, directory),
   installLocalExtensionPackage: (archive) =>

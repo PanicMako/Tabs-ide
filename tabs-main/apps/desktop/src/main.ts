@@ -180,6 +180,7 @@ const EXTENSION_EXCHANGE_AVAILABLE_CHANNEL = "desktop:extension:exchange-availab
 const EXTENSION_EXCHANGE_PREPARE_CHANNEL = "desktop:extension:exchange-prepare";
 const EXTENSION_EXCHANGE_CONFIRM_CHANNEL = "desktop:extension:exchange-confirm";
 const EXTENSION_EXCHANGE_CANCEL_CHANNEL = "desktop:extension:exchange-cancel";
+const EXTENSION_UNINSTALL_CHANNEL = "desktop:extension:uninstall";
 const EXTENSION_INSTALL_DEV_CHANNEL = "desktop:extension:install-dev";
 const EXTENSION_INSTALL_LOCAL_PACKAGE_CHANNEL = "desktop:extension:install-local-package";
 const EXTENSION_ASSIGN_CHANNEL = "desktop:extension:assign";
@@ -2118,6 +2119,24 @@ function registerIpcHandlers(): void {
       throw new Error("Invalid Exchange install token.");
     }
     exchangeInstallService?.cancel(token);
+  });
+  ipcMain.removeHandler(EXTENSION_UNINSTALL_CHANNEL);
+  ipcMain.handle(EXTENSION_UNINSTALL_CHANNEL, (event, id: unknown) => {
+    requireMainRenderer(event);
+    if (typeof id !== "string" || !/^[a-z][a-z0-9-]{1,62}\.[a-z][a-z0-9-]{1,62}$/.test(id)) {
+      throw new Error("Invalid extension identity.");
+    }
+    try {
+      extensionViewManager.uninstall(id);
+    } finally {
+      if (
+        !extensionViewManager.list().some((entry) => entry.id === id) &&
+        mainWindow &&
+        !mainWindow.isDestroyed()
+      ) {
+        mainWindow.webContents.send(EXTENSION_CHANGED_CHANNEL);
+      }
+    }
   });
   ipcMain.removeHandler(EXTENSION_INSTALL_DEV_CHANNEL);
   ipcMain.handle(EXTENSION_INSTALL_DEV_CHANNEL, async (event, directory: unknown) => {

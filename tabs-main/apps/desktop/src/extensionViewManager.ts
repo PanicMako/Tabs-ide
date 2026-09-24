@@ -27,6 +27,13 @@ interface StoredExtension extends DesktopInstalledExtension {
   readonly directory: string;
 }
 
+interface RetainedProfiles {
+  readonly id: string;
+  readonly source: DesktopInstalledExtension["source"];
+  readonly registryOrigin?: string;
+  readonly profiles: DesktopInstalledExtension["profiles"];
+}
+
 interface ActiveView {
   readonly key: string;
   readonly view: WebContentsView;
@@ -35,15 +42,38 @@ interface ActiveView {
   readonly profileId: string;
 }
 
+/** Registry origin is part of storage and Chromium partition identity. */
+export function extensionDataIdentity(
+  extensionId: string,
+  registryOrigin?: string,
+  source?: DesktopInstalledExtension["source"],
+): string {
+  if (!registryOrigin) {
+    return source === "local-package" ? `local-package-${extensionId}` : extensionId;
+  }
+  const originHash = Crypto.createHash("sha256").update(registryOrigin).digest("hex");
+  return `exchange-${originHash}-${extensionId}`;
+}
+
+function retainedProfilesIdentity(
+  id: string,
+  source: DesktopInstalledExtension["source"],
+  registryOrigin?: string,
+): string {
+  return JSON.stringify([id, source, registryOrigin ?? null]);
+}
+
 export function extensionSessionPartition(
   extensionId: string,
   profileId: string,
   scope: "shared" | "project" | undefined,
   projectId: string,
+  registryOrigin?: string,
+  source?: DesktopInstalledExtension["source"],
 ): string {
   const projectSuffix =
     scope === "project" ? `:${Crypto.createHash("sha256").update(projectId).digest("hex")}` : "";
-  return `persist:tabs-extension:${extensionId}:${profileId}${projectSuffix}`;
+  return `persist:tabs-extension:${extensionDataIdentity(extensionId, registryOrigin, source)}:${profileId}${projectSuffix}`;
 }
 
 function inspectDirectory(root: string): void {
@@ -109,7 +139,11 @@ export class ExtensionViewManager {
     const profile = this.requireProfile(installed, active.profileId);
     return this.storage.invoke(
       {
-        extensionId: active.extensionId,
+        extensionId: extensionDataIdentity(
+          active.extensionId,
+          installed.registryOrigin,
+          installed.source,
+        ),
         profileId: active.profileId,
         ...(profile.scope === "project" ? { projectId: active.projectId } : {}),
       },
@@ -143,6 +177,9 @@ export class ExtensionViewManager {
       if (tool.icon) this.resolveAsset(root, tool.icon);
     }
     const previous = this.installed.get(parsed.id);
+    if (previous && previous.source !== "development") {
+      throw new Error("Uninstall the existing extension before changing its source.");
+    }
     const assignment: TabsExtensionAssignment = previous?.assignment ?? {
       extensionId: parsed.id,
       enabledGlobally: false,
@@ -160,7 +197,10 @@ export class ExtensionViewManager {
       id: parsed.id,
       manifest: parsed.manifest,
       assignment: safeAssignment,
-      profiles: previous?.profiles ?? [{ id: "default", label: "Default" }],
+      profiles: previous?.profiles ??
+        this.readRetainedProfiles(parsed.id, "development") ?? [
+          { id: "default", label: "Default" },
+        ],
       source: "development",
       directory: root,
     };
@@ -180,6 +220,9 @@ export class ExtensionViewManager {
     const packagesRoot = Path.join(Path.dirname(this.statePath), "extension-packages");
     const directory = Path.join(packagesRoot, inspected.id, inspected.digest);
     const previous = this.installed.get(inspected.id);
+    if (previous && previous.source !== "local-package") {
+      throw new Error("Uninstall the existing extension before changing its source.");
+    }
     if (FS.existsSync(directory)) {
       if (previous?.source === "local-package" && previous.digest === inspected.digest) {
         return this.publicEntry(previous);
@@ -208,7 +251,10 @@ export class ExtensionViewManager {
         !previous?.manifest.capabilities?.includes("profile-storage")
           ? { ...assignment, storageGrantedProjectIds: [] }
           : assignment,
-      profiles: previous?.profiles ?? [{ id: "default", label: "Default" }],
+      profiles: previous?.profiles ??
+        this.readRetainedProfiles(inspected.id, "local-package") ?? [
+          { id: "default", label: "Default" },
+        ],
       source: "local-package",
       digest: inspected.digest,
       directory,
@@ -243,6 +289,9 @@ export class ExtensionViewManager {
       throw new Error("Package digest differs from signed metadata.");
     }
     const previous = this.installed.get(inspected.id);
+    if (previous && previous.source !== "exchange") {
+      throw new Error("Uninstall the existing extension before changing its source.");
+    }
     if (previous?.registryOrigin && previous.registryOrigin !== registryOrigin) {
       throw new Error("A same-named extension from another registry is already installed.");
     }
@@ -289,7 +338,10 @@ export class ExtensionViewManager {
             storageGrantedProjectIds: [],
           }
         : assignment,
-      profiles: previous?.profiles ?? [{ id: "default", label: "Default" }],
+      profiles: previous?.profiles ??
+        this.readRetainedProfiles(inspected.id, "exchange", registryOrigin) ?? [
+          { id: "default", label: "Default" },
+        ],
       source: "exchange",
       digest: expectedDigest,
       registryOrigin,
@@ -324,6 +376,51 @@ export class ExtensionViewManager {
     if (this.active?.extensionId === extensionId) this.hide();
     this.save();
     return true;
+  }
+
+  /** Uninstall executable code and assignments; retain profiles and non-secret data. */
+  uninstall(extensionId: string): void {
+    const current = this.requireInstalled(extensionId);
+    this.writeRetainedProfiles(current);
+    if (this.active?.extensionId === extensionId) this.hide();
+    const packagesRoot = Path.join(Path.dirname(this.statePath), "extension-packages");
+    const packageDirectory = Path.join(packagesRoot, extensionId);
+    let movedPackage: string | null = null;
+    if (current.source !== "development" && FS.existsSync(packageDirectory)) {
+      if (FS.lstatSync(packagesRoot).isSymbolicLink()) {
+        throw new Error("Extension packages root is a symbolic link.");
+      }
+      if (FS.lstatSync(packageDirectory).isSymbolicLink()) {
+        throw new Error("Extension package directory is a symbolic link.");
+      }
+      const expected = Path.join(packageDirectory, current.digest ?? "");
+      if (Path.resolve(current.directory) !== expected) {
+        throw new Error("Extension package directory identity mismatch.");
+      }
+      movedPackage = Path.join(
+        packagesRoot,
+        `.uninstalled-${extensionId}-${Crypto.randomBytes(8).toString("hex")}`,
+      );
+      if (FS.existsSync(movedPackage)) throw new Error("Extension package staging path exists.");
+      FS.renameSync(packageDirectory, movedPackage);
+    }
+    this.installed.delete(extensionId);
+    try {
+      this.save();
+    } catch (error) {
+      this.installed.set(extensionId, current);
+      if (movedPackage) FS.renameSync(movedPackage, packageDirectory);
+      throw error;
+    }
+    if (movedPackage) {
+      try {
+        FS.rmSync(movedPackage, { recursive: true, force: true });
+      } catch (cause) {
+        throw new Error("Extension uninstalled, but its package cache could not be removed.", {
+          cause,
+        });
+      }
+    }
   }
 
   setAssignment(extensionId: string, assignment: TabsExtensionAssignment): void {
@@ -386,6 +483,8 @@ export class ExtensionViewManager {
       input.profileId,
       profile.scope,
       input.projectId,
+      installed.registryOrigin,
+      installed.source,
     );
     const extensionSession = session.fromPartition(partition);
     this.configureSession(extensionSession, partition, installed);
@@ -519,6 +618,74 @@ export class ExtensionViewManager {
     const installed = this.installed.get(id);
     if (!installed) throw new Error("Extension is not installed.");
     return installed;
+  }
+
+  private retainedProfilesPath(
+    id: string,
+    source: DesktopInstalledExtension["source"],
+    registryOrigin?: string,
+  ): string {
+    const hash = Crypto.createHash("sha256")
+      .update(retainedProfilesIdentity(id, source, registryOrigin))
+      .digest("hex");
+    return Path.join(Path.dirname(this.statePath), "retained-extension-profiles", `${hash}.json`);
+  }
+
+  private readRetainedProfiles(
+    id: string,
+    source: DesktopInstalledExtension["source"],
+    registryOrigin?: string,
+  ): DesktopInstalledExtension["profiles"] | null {
+    try {
+      const path = this.retainedProfilesPath(id, source, registryOrigin);
+      const stat = FS.lstatSync(path);
+      if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 64 * 1024) return null;
+      const value = JSON.parse(FS.readFileSync(path, "utf8")) as RetainedProfiles;
+      if (
+        value.id !== id ||
+        value.source !== source ||
+        value.registryOrigin !== registryOrigin ||
+        !Array.isArray(value.profiles) ||
+        value.profiles.length === 0 ||
+        value.profiles.length > 100 ||
+        new Set(value.profiles.map((profile) => profile.id)).size !== value.profiles.length ||
+        value.profiles.some(
+          (profile) =>
+            !PROFILE_ID.test(profile.id) ||
+            !profile.label.trim() ||
+            profile.label.length > 80 ||
+            (profile.scope !== undefined &&
+              profile.scope !== "shared" &&
+              profile.scope !== "project"),
+        )
+      ) {
+        return null;
+      }
+      return value.profiles;
+    } catch {
+      return null;
+    }
+  }
+
+  private writeRetainedProfiles(entry: StoredExtension): void {
+    const path = this.retainedProfilesPath(entry.id, entry.source, entry.registryOrigin);
+    FS.mkdirSync(Path.dirname(path), { recursive: true, mode: 0o700 });
+    const temporary = `${path}.${Crypto.randomBytes(8).toString("hex")}.tmp`;
+    try {
+      FS.writeFileSync(
+        temporary,
+        JSON.stringify({
+          id: entry.id,
+          source: entry.source,
+          registryOrigin: entry.registryOrigin,
+          profiles: entry.profiles,
+        }),
+        { flag: "wx", mode: 0o600 },
+      );
+      FS.renameSync(temporary, path);
+    } finally {
+      if (FS.existsSync(temporary)) FS.unlinkSync(temporary);
+    }
   }
 
   private profileExists(extension: StoredExtension, profileId: string): boolean {

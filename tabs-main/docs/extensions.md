@@ -59,8 +59,15 @@ be hidden for individual projects. Named profiles isolate the extension's
 browser storage, with a default profile and optional per-project override.
 The same named shared profile may deliberately be shared between projects,
 while a project-isolated profile keeps data separate even if assigned to both.
-No account
-credential API is available in this experimental stage.
+No account credential API is available in this experimental stage. Uninstall
+removes packaged code and project assignments, but deliberately retains named
+profiles and non-secret extension data. Reinstalling the same source identity
+restores the profile names and scopes. Exchange browser partitions and bridge
+storage include the registry origin in their identity, so a same-named package
+from another registry cannot inherit the retained data. Local archives are also
+separate from unpacked development folders. Secure deletion of all
+profile data is not yet offered because older browser partitions and hashed
+storage files do not have a complete deletion inventory.
 
 ## Manually installing from a trusted Exchange
 
@@ -92,7 +99,7 @@ closes, toolbar contributions disappear, and Settings explains the status.
 Transport outages retain the last known status; invalid or expired metadata
 does not qualify as offline. The flow does not yet check revocation continuously
 while a view is active, automatically install updates, or provide package
-rollback and uninstall controls.
+rollback or profile-data deletion controls.
 
 ## Not yet supported
 

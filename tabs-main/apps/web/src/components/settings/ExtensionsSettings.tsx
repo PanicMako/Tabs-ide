@@ -17,6 +17,7 @@ type Tab = "discover" | "installed" | "profiles";
 export default function ExtensionsSettings() {
   const [tab, setTab] = useState<Tab>("installed");
   const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [profileNames, setProfileNames] = useState<Record<string, string>>({});
   const [profileScopes, setProfileScopes] = useState<Record<string, "shared" | "project">>({});
@@ -26,7 +27,10 @@ export default function ExtensionsSettings() {
   const [preparedInstall, setPreparedInstall] = useState<DesktopPreparedExchangeInstall | null>(
     null,
   );
+  const [uninstallingId, setUninstallingId] = useState<string | null>(null);
   const reviewHeading = useRef<HTMLHeadingElement>(null);
+  const uninstallHeading = useRef<HTMLHeadingElement>(null);
+  const uninstallTrigger = useRef<HTMLButtonElement | null>(null);
   const reviewTrigger = useRef<HTMLButtonElement | null>(null);
   const installedTabButton = useRef<HTMLButtonElement | null>(null);
   const extensions = useInstalledExtensions();
@@ -36,10 +40,14 @@ export default function ExtensionsSettings() {
   useEffect(() => {
     if (tab === "discover" && preparedInstall) reviewHeading.current?.focus();
   }, [preparedInstall, tab]);
+  useEffect(() => {
+    if (tab === "installed" && uninstallingId) uninstallHeading.current?.focus();
+  }, [uninstallingId, tab]);
 
   const run = async (operation: () => Promise<void>) => {
     setBusy(true);
     setError(null);
+    setStatus(null);
     try {
       await operation();
       await refreshExtensions();
@@ -97,6 +105,11 @@ export default function ExtensionsSettings() {
       {error ? (
         <p role="alert" className="px-6 text-sm text-destructive">
           {error}
+        </p>
+      ) : null}
+      {status ? (
+        <p role="status" className="px-6 text-sm text-muted-foreground">
+          {status}
         </p>
       ) : null}
       {!bridge ? (
@@ -363,6 +376,74 @@ export default function ExtensionsSettings() {
                     );
                   })}
                 </div>
+                {uninstallingId === extension.id ? (
+                  <section
+                    aria-labelledby={`uninstall-${extension.id}`}
+                    className="space-y-2 rounded border border-destructive/50 p-3"
+                    onKeyDown={(event) => {
+                      if (event.key === "Escape") {
+                        setUninstallingId(null);
+                        requestAnimationFrame(() => uninstallTrigger.current?.focus());
+                      }
+                    }}
+                  >
+                    <h4
+                      id={`uninstall-${extension.id}`}
+                      ref={uninstallHeading}
+                      tabIndex={-1}
+                      className="font-medium"
+                    >
+                      Uninstall {extension.manifest.displayName}?
+                    </h4>
+                    <p className="text-sm text-muted-foreground">
+                      Its tools and packaged files will be removed. Named profiles and stored data
+                      will be retained for a future reinstall; project assignments will be removed.
+                      Secure data deletion is not available yet.
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        disabled={busy}
+                        onClick={() =>
+                          void run(async () => {
+                            await bridge.uninstallExtension(extension.id);
+                            setUninstallingId(null);
+                            setStatus(
+                              `${extension.manifest.displayName} uninstalled. Profile data was retained.`,
+                            );
+                            requestAnimationFrame(() => installedTabButton.current?.focus());
+                          })
+                        }
+                      >
+                        Uninstall and retain data
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={busy}
+                        onClick={() => {
+                          setUninstallingId(null);
+                          requestAnimationFrame(() => uninstallTrigger.current?.focus());
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </section>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={busy}
+                    onClick={(event) => {
+                      uninstallTrigger.current = event.currentTarget;
+                      setUninstallingId(extension.id);
+                    }}
+                  >
+                    Uninstall {extension.manifest.displayName}
+                  </Button>
+                )}
               </div>
             ))
           )}
