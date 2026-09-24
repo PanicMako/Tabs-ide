@@ -123,4 +123,37 @@ describe(".tabsext packages", () => {
     await pipeline(zip.outputStream, FS.createWriteStream(malformed));
     await expect(inspectTabsext(malformed, "1.3.17")).rejects.toThrow(/colliding package path/);
   });
+
+  it("rejects a ZIP entry that traverses outside its extraction root", async () => {
+    const { root } = fixture();
+    const zip = new Yazl.ZipFile();
+    zip.addBuffer(Buffer.from("untrusted"), "safe.txt");
+    zip.end();
+    const archive = Path.join(root, "traversal.tabsext");
+    await pipeline(zip.outputStream, FS.createWriteStream(archive));
+    const bytes = FS.readFileSync(archive);
+    const original = Buffer.from("safe.txt");
+    const traversal = Buffer.from("../e.txt");
+    let offset = 0;
+    let replacements = 0;
+    while ((offset = bytes.indexOf(original, offset)) >= 0) {
+      traversal.copy(bytes, offset);
+      offset += original.length;
+      replacements++;
+    }
+    expect(replacements).toBe(2);
+    FS.writeFileSync(archive, bytes);
+    await expect(inspectTabsext(archive, "1.3.17")).rejects.toThrow(
+      /invalid relative path|Invalid package path/,
+    );
+    await expect(
+      extractTabsext({
+        archive,
+        destination: Path.join(root, "installed"),
+        expectedDigest: "0".repeat(64),
+        tabsVersion: "1.3.17",
+      }),
+    ).rejects.toThrow();
+    expect(FS.existsSync(Path.join(root, "e.txt"))).toBe(false);
+  });
 });
