@@ -22,9 +22,12 @@ const SCHEME = "tabs-extension";
 const MAX_FILES = 1_000;
 const MAX_TOTAL_BYTES = 50 * 1024 * 1024;
 const PROFILE_ID = /^[a-z][a-z0-9-]{0,62}$/;
+const MAX_PARTITIONS = 1_024;
 
 interface StoredExtension extends DesktopInstalledExtension {
   readonly directory: string;
+  readonly dataInventoryVersion?: 1;
+  readonly usedPartitions?: ReadonlyArray<string>;
 }
 
 interface RetainedProfiles {
@@ -32,6 +35,8 @@ interface RetainedProfiles {
   readonly source: DesktopInstalledExtension["source"];
   readonly registryOrigin?: string;
   readonly profiles: DesktopInstalledExtension["profiles"];
+  readonly dataInventoryVersion?: 1;
+  readonly usedPartitions?: ReadonlyArray<string>;
 }
 
 interface ActiveView {
@@ -148,13 +153,12 @@ export class ExtensionViewManager {
         ...(profile.scope === "project" ? { projectId: active.projectId } : {}),
       },
       operation,
+      { allowLegacy: installed.dataInventoryVersion !== 1 },
     );
   }
 
   list(): DesktopInstalledExtension[] {
-    return [...this.installed.values()].map(
-      ({ directory: _directory, ...publicEntry }) => publicEntry,
-    );
+    return [...this.installed.values()].map((entry) => this.publicEntry(entry));
   }
 
   installDevelopment(directory: string): DesktopInstalledExtension {
@@ -180,6 +184,7 @@ export class ExtensionViewManager {
     if (previous && previous.source !== "development") {
       throw new Error("Uninstall the existing extension before changing its source.");
     }
+    const retained = this.readRetainedRecord(parsed.id, "development");
     const assignment: TabsExtensionAssignment = previous?.assignment ?? {
       extensionId: parsed.id,
       enabledGlobally: false,
@@ -197,10 +202,8 @@ export class ExtensionViewManager {
       id: parsed.id,
       manifest: parsed.manifest,
       assignment: safeAssignment,
-      profiles: previous?.profiles ??
-        this.readRetainedProfiles(parsed.id, "development") ?? [
-          { id: "default", label: "Default" },
-        ],
+      profiles: previous?.profiles ?? retained?.profiles ?? [{ id: "default", label: "Default" }],
+      ...this.dataInventoryFields(previous, retained),
       source: "development",
       directory: root,
     };
@@ -223,6 +226,7 @@ export class ExtensionViewManager {
     if (previous && previous.source !== "local-package") {
       throw new Error("Uninstall the existing extension before changing its source.");
     }
+    const retained = this.readRetainedRecord(inspected.id, "local-package");
     if (FS.existsSync(directory)) {
       if (previous?.source === "local-package" && previous.digest === inspected.digest) {
         return this.publicEntry(previous);
@@ -251,10 +255,8 @@ export class ExtensionViewManager {
         !previous?.manifest.capabilities?.includes("profile-storage")
           ? { ...assignment, storageGrantedProjectIds: [] }
           : assignment,
-      profiles: previous?.profiles ??
-        this.readRetainedProfiles(inspected.id, "local-package") ?? [
-          { id: "default", label: "Default" },
-        ],
+      profiles: previous?.profiles ?? retained?.profiles ?? [{ id: "default", label: "Default" }],
+      ...this.dataInventoryFields(previous, retained),
       source: "local-package",
       digest: inspected.digest,
       directory,
@@ -295,6 +297,7 @@ export class ExtensionViewManager {
     if (previous?.registryOrigin && previous.registryOrigin !== registryOrigin) {
       throw new Error("A same-named extension from another registry is already installed.");
     }
+    const retained = this.readRetainedRecord(inspected.id, "exchange", registryOrigin);
     const packagesRoot = Path.join(Path.dirname(this.statePath), "extension-packages");
     const directory = Path.join(packagesRoot, inspected.id, inspected.digest);
     if (FS.existsSync(directory)) {
@@ -338,10 +341,8 @@ export class ExtensionViewManager {
             storageGrantedProjectIds: [],
           }
         : assignment,
-      profiles: previous?.profiles ??
-        this.readRetainedProfiles(inspected.id, "exchange", registryOrigin) ?? [
-          { id: "default", label: "Default" },
-        ],
+      profiles: previous?.profiles ?? retained?.profiles ?? [{ id: "default", label: "Default" }],
+      ...this.dataInventoryFields(previous, retained),
       source: "exchange",
       digest: expectedDigest,
       registryOrigin,
@@ -486,6 +487,22 @@ export class ExtensionViewManager {
       installed.registryOrigin,
       installed.source,
     );
+    if (!installed.usedPartitions?.includes(partition)) {
+      const known = installed.usedPartitions ?? [];
+      if (known.length >= MAX_PARTITIONS) {
+        throw new Error("Extension has used too many browser partitions.");
+      }
+      this.installed.set(installed.id, {
+        ...installed,
+        usedPartitions: [...known, partition],
+      });
+      try {
+        this.save();
+      } catch (error) {
+        this.installed.set(installed.id, installed);
+        throw error;
+      }
+    }
     const extensionSession = session.fromPartition(partition);
     this.configureSession(extensionSession, partition, installed);
     const view = new WebContentsView({
@@ -609,6 +626,8 @@ export class ExtensionViewManager {
 
   private publicEntry({
     directory: _directory,
+    dataInventoryVersion: _dataInventoryVersion,
+    usedPartitions: _usedPartitions,
     ...entry
   }: StoredExtension): DesktopInstalledExtension {
     return entry;
@@ -618,6 +637,23 @@ export class ExtensionViewManager {
     const installed = this.installed.get(id);
     if (!installed) throw new Error("Extension is not installed.");
     return installed;
+  }
+
+  private dataInventoryFields(
+    previous: StoredExtension | undefined,
+    retained: RetainedProfiles | null,
+  ): Pick<StoredExtension, "dataInventoryVersion" | "usedPartitions"> {
+    const existing = previous ?? retained;
+    return {
+      usedPartitions: existing?.usedPartitions ?? [],
+      ...(existing
+        ? existing.dataInventoryVersion === 1
+          ? { dataInventoryVersion: 1 as const }
+          : {}
+        : this.storage.hasLegacyFiles()
+          ? {}
+          : { dataInventoryVersion: 1 as const }),
+    };
   }
 
   private retainedProfilesPath(
@@ -631,11 +667,11 @@ export class ExtensionViewManager {
     return Path.join(Path.dirname(this.statePath), "retained-extension-profiles", `${hash}.json`);
   }
 
-  private readRetainedProfiles(
+  private readRetainedRecord(
     id: string,
     source: DesktopInstalledExtension["source"],
     registryOrigin?: string,
-  ): DesktopInstalledExtension["profiles"] | null {
+  ): RetainedProfiles | null {
     try {
       const path = this.retainedProfilesPath(id, source, registryOrigin);
       const stat = FS.lstatSync(path);
@@ -657,11 +693,12 @@ export class ExtensionViewManager {
             (profile.scope !== undefined &&
               profile.scope !== "shared" &&
               profile.scope !== "project"),
-        )
+        ) ||
+        !this.validPartitionInventory(value, id, source, registryOrigin)
       ) {
         return null;
       }
-      return value.profiles;
+      return value;
     } catch {
       return null;
     }
@@ -679,6 +716,8 @@ export class ExtensionViewManager {
           source: entry.source,
           registryOrigin: entry.registryOrigin,
           profiles: entry.profiles,
+          dataInventoryVersion: entry.dataInventoryVersion,
+          usedPartitions: entry.usedPartitions,
         }),
         { flag: "wx", mode: 0o600 },
       );
@@ -686,6 +725,30 @@ export class ExtensionViewManager {
     } finally {
       if (FS.existsSync(temporary)) FS.unlinkSync(temporary);
     }
+  }
+
+  private validPartitionInventory(
+    value: Pick<StoredExtension, "dataInventoryVersion" | "usedPartitions">,
+    id: string,
+    source: DesktopInstalledExtension["source"],
+    registryOrigin?: string,
+  ): boolean {
+    if (value.dataInventoryVersion !== undefined && value.dataInventoryVersion !== 1) return false;
+    if (value.usedPartitions === undefined) return value.dataInventoryVersion !== 1;
+    if (!Array.isArray(value.usedPartitions) || value.usedPartitions.length > MAX_PARTITIONS) {
+      return false;
+    }
+    const prefix = `persist:tabs-extension:${extensionDataIdentity(id, registryOrigin, source)}:`;
+    return (
+      new Set(value.usedPartitions).size === value.usedPartitions.length &&
+      value.usedPartitions.every(
+        (partition) =>
+          typeof partition === "string" &&
+          partition.startsWith(prefix) &&
+          partition.length <= prefix.length + 130 &&
+          /^[a-z0-9:.-]+$/.test(partition),
+      )
+    );
   }
 
   private profileExists(extension: StoredExtension, profileId: string): boolean {
@@ -712,6 +775,9 @@ export class ExtensionViewManager {
           )
             continue;
           if (entry.revoked !== undefined && entry.revoked !== true) continue;
+          if (!this.validPartitionInventory(entry, entry.id, entry.source, entry.registryOrigin)) {
+            continue;
+          }
           const result = validateTabsExtensionManifest(entry.manifest, this.tabsVersion);
           if (!result.ok || result.id !== entry.id || !Array.isArray(entry.profiles)) continue;
           if (

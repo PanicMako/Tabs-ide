@@ -65,9 +65,13 @@ profiles and non-secret extension data. Reinstalling the same source identity
 restores the profile names and scopes. Exchange browser partitions and bridge
 storage include the registry origin in their identity, so a same-named package
 from another registry cannot inherit the retained data. Local archives are also
-separate from unpacked development folders. Secure deletion of all
-profile data is not yet offered because older browser partitions and hashed
-storage files do not have a complete deletion inventory.
+separate from unpacked development folders. New installs write non-secret
+storage under an extension-scoped directory and record browser partitions
+before creating a view. Older flat-hash storage can still be read by older
+installations, but cannot be completely inventoried. Full profile-data deletion
+is not offered until the deletion and retry workflow is complete; older
+installations will require an explicit migration or a conservative unavailable
+state.
 
 ## Manually installing from a trusted Exchange
 

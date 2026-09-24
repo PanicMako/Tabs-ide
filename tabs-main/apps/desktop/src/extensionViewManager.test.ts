@@ -233,6 +233,9 @@ describe("development extension installation", () => {
   it("uninstalls a development tool without deleting its source or retained profiles", () => {
     const { directory, manager } = fixture();
     const installed = manager.installDevelopment(directory);
+    const firstIndex = JSON.parse(FS.readFileSync(Path.join(directory, "installed.json"), "utf8"));
+    expect(firstIndex[0].dataInventoryVersion).toBe(1);
+    expect(firstIndex[0].usedPartitions).toEqual([]);
     manager.addProfile(installed.id, "work", "Work", "project");
     manager.setAssignment(installed.id, {
       ...installed.assignment,
@@ -244,6 +247,46 @@ describe("development extension installation", () => {
     const reinstalled = manager.installDevelopment(directory);
     expect(reinstalled.profiles.map((profile) => profile.id)).toEqual(["default", "work"]);
     expect(reinstalled.assignment.enabledProjectIds).toEqual([]);
+    const nextIndex = JSON.parse(FS.readFileSync(Path.join(directory, "installed.json"), "utf8"));
+    expect(nextIndex[0].dataInventoryVersion).toBe(1);
+  });
+
+  it("does not claim a complete deletion inventory when legacy storage exists", () => {
+    const { directory, manager } = fixture();
+    const legacyDirectory = Path.join(directory, "extension-storage", "ab");
+    FS.mkdirSync(legacyDirectory, { recursive: true });
+    FS.writeFileSync(Path.join(legacyDirectory, `${"a".repeat(64)}.json`), "{}");
+    manager.installDevelopment(directory);
+    const index = JSON.parse(FS.readFileSync(Path.join(directory, "installed.json"), "utf8"));
+    expect(index[0].dataInventoryVersion).toBeUndefined();
+  });
+
+  it("records a browser partition before attempting to create its view", async () => {
+    const { directory, manager } = fixture();
+    const installed = manager.installDevelopment(directory);
+    manager.setAssignment(installed.id, {
+      ...installed.assignment,
+      enabledProjectIds: ["project-a"],
+    });
+    await expect(
+      manager.activate({
+        extensionId: installed.id,
+        toolId: "main",
+        projectId: "project-a",
+        profileId: "default",
+      }),
+    ).rejects.toThrow(); // Electron is mocked; inventory must precede view creation.
+    const index = JSON.parse(FS.readFileSync(Path.join(directory, "installed.json"), "utf8"));
+    expect(index[0].usedPartitions).toEqual([
+      extensionSessionPartition(
+        installed.id,
+        "default",
+        undefined,
+        "project-a",
+        undefined,
+        "development",
+      ),
+    ]);
   });
 
   it("rejects symlinked package assets", () => {
