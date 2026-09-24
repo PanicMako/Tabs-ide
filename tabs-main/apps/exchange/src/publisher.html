@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Publish an Extension - Tabs Exchange</title>
+    <link rel="stylesheet" href="/publisher.css" />
+    <script src="/publisher.js" defer></script>
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+    <header>
+      <a href="/publisher">Tabs Exchange</a>
+      <nav aria-label="Exchange navigation"><a href="/v1/extensions">Public catalog API</a></nav>
+    </header>
+    <main id="main">
+      <h1>Publish an Extension</h1>
+      <p>
+        Submit a Tabs-native <code>.tabsext</code> package for review. Every version requires
+        approval before it appears in the public catalog.
+      </p>
+      <p id="status" role="status" aria-live="polite" tabindex="-1"></p>
+      <section id="signed-out" hidden>
+        <h2>Sign in</h2>
+        <p>Use your GitHub account to manage publisher namespaces and submissions.</p>
+        <a class="button" href="/auth/github/start">Sign in with GitHub</a>
+      </section>
+      <div id="signed-in" hidden>
+        <p id="identity"></p>
+        <section aria-labelledby="namespace-title">
+          <h2 id="namespace-title">Create a publisher namespace</h2>
+          <form id="namespace-form">
+            <label for="namespace-name">Namespace</label>
+            <input
+              id="namespace-name"
+              name="namespace"
+              pattern="[a-z][a-z0-9-]{1,62}"
+              required
+              autocomplete="off"
+            />
+            <label class="check" for="terms"
+              ><input id="terms" type="checkbox" required /> I accept the
+              <a href="/publisher-terms">publisher terms</a> (version 2026-09-24).</label
+            >
+            <button type="submit">Create namespace</button>
+          </form>
+          <h3>Your namespaces</h3>
+          <ul id="namespaces"></ul>
+          <h3>Add a namespace member</h3>
+          <p>The member must have signed in to the Exchange before they can be added.</p>
+          <form id="member-form">
+            <label for="member-namespace">Namespace you own</label>
+            <input
+              id="member-namespace"
+              required
+              pattern="[a-z][a-z0-9-]{1,62}"
+              autocomplete="off"
+            />
+            <label for="member-user">Member GitHub numeric user ID</label>
+            <input
+              id="member-user"
+              required
+              pattern="[0-9]{1,19}"
+              inputmode="numeric"
+              autocomplete="off"
+            />
+            <label for="member-role">Role</label>
+            <select id="member-role">
+              <option value="contributor">Contributor</option>
+              <option value="owner">Owner</option>
+            </select>
+            <button type="submit">Add member</button>
+          </form>
+        </section>
+        <section aria-labelledby="upload-title">
+          <h2 id="upload-title">Submit a package</h2>
+          <p>
+            Only members of the matching publisher namespace can submit. The package identity must
+            match its manifest.
+          </p>
+          <form id="upload-form">
+            <label for="upload-namespace">Namespace</label>
+            <input
+              id="upload-namespace"
+              required
+              pattern="[a-z][a-z0-9-]{1,62}"
+              autocomplete="off"
+            />
+            <label for="upload-name">Extension name</label>
+            <input id="upload-name" required pattern="[a-z][a-z0-9-]{1,62}" autocomplete="off" />
+            <label for="upload-file">Package file</label>
+            <input id="upload-file" type="file" accept=".tabsext" required />
+            <button type="submit">Submit for review</button>
+          </form>
+        </section>
+        <section aria-labelledby="submissions-title">
+          <h2 id="submissions-title">Your submissions</h2>
+          <button id="refresh-submissions" type="button">Refresh submissions</button>
+          <ul id="submissions"></ul>
+        </section>
+        <section id="review-section" aria-labelledby="review-title" hidden>
+          <h2 id="review-title">Reviewer queue</h2>
+          <p>
+            Review the exact digest and scan result before making a decision. Automated scanning is
+            not a security guarantee.
+          </p>
+          <button id="refresh-review" type="button">Refresh review queue</button>
+          <ul id="review-queue"></ul>
+        </section>
+        <section id="revocation-section" aria-labelledby="revocation-title" hidden>
+          <h2 id="revocation-title">Approved versions and revocation</h2>
+          <p>
+            Revocation immediately removes a version from the public API. Enter a clear reason
+            before revoking.
+          </p>
+          <button id="refresh-approved" type="button">Refresh approved versions</button>
+          <ul id="approved-versions"></ul>
+        </section>
+        <section id="verification-section" aria-labelledby="verification-title" hidden>
+          <h2 id="verification-title">Publisher verification</h2>
+          <p>
+            Only mark a namespace verified after checking independent proof of ownership. Every
+            change is audited.
+          </p>
+          <form id="verification-form">
+            <label for="verification-namespace">Namespace</label>
+            <input
+              id="verification-namespace"
+              required
+              pattern="[a-z][a-z0-9-]{1,62}"
+              autocomplete="off"
+            />
+            <label for="verification-proof">HTTPS proof URL (required when verifying)</label>
+            <input id="verification-proof" type="url" inputmode="url" />
+            <label for="verification-reason">Decision reason</label>
+            <input id="verification-reason" required maxlength="2000" />
+            <label class="check" for="verification-value"
+              ><input id="verification-value" type="checkbox" /> Mark verified</label
+            >
+            <button type="submit">Record verification decision</button>
+          </form>
+        </section>
+        <button id="logout" type="button">Sign out</button>
+      </div>
+    </main>
+  </body>
+</html>

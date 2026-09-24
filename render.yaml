@@ -1,0 +1,70 @@
+services:
+  - name: tabs-exchange-api
+    type: web
+    runtime: docker
+    dockerContext: tabs-main
+    dockerfilePath: tabs-main/apps/exchange/Dockerfile
+    preDeployCommand: bun --cwd apps/exchange run migrate
+    healthCheckPath: /healthz
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: tabs-exchange-db
+          property: connectionString
+      - key: EXCHANGE_ORIGIN
+        sync: false
+      - key: EXCHANGE_TABS_VERSION
+        value: 1.3.17
+      - key: EXCHANGE_PUBLISHING_ENABLED
+        value: "false"
+      - key: GITHUB_CLIENT_ID
+        sync: false
+      - key: GITHUB_CLIENT_SECRET
+        sync: false
+      - key: EXCHANGE_ADMIN_GITHUB_IDS
+        sync: false
+      - key: S3_ENDPOINT
+        sync: false
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_ACCESS_KEY_ID
+        sync: false
+      - key: S3_SECRET_ACCESS_KEY
+        sync: false
+
+  - name: tabs-exchange-worker
+    type: worker
+    runtime: docker
+    dockerContext: tabs-main
+    dockerfilePath: tabs-main/apps/exchange/Dockerfile
+    dockerCommand: bun --cwd apps/exchange run worker
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: tabs-exchange-db
+          property: connectionString
+      - key: EXCHANGE_ORIGIN
+        sync: false
+      - key: EXCHANGE_TABS_VERSION
+        value: 1.3.17
+      - key: EXCHANGE_PUBLISHING_ENABLED
+        value: "false"
+      - key: GITHUB_CLIENT_ID
+        sync: false
+      - key: GITHUB_CLIENT_SECRET
+        sync: false
+      - key: EXCHANGE_ADMIN_GITHUB_IDS
+        sync: false
+      - key: S3_ENDPOINT
+        sync: false
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_ACCESS_KEY_ID
+        sync: false
+      - key: S3_SECRET_ACCESS_KEY
+        sync: false
+
+databases:
+  - name: tabs-exchange-db
+    plan: 0.5c-1g
+    databaseName: tabs_exchange

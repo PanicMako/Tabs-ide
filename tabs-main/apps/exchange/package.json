@@ -1,0 +1,25 @@
+{
+  "name": "@tabs/exchange",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun src/server.ts",
+    "start": "bun src/server.ts",
+    "worker": "bun src/worker.ts",
+    "migrate": "bun src/migrate.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1139.0",
+    "@tabs/extension-package": "workspace:*",
+    "pg": "^8.23.0"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "@types/node": "catalog:",
+    "@types/pg": "^8.15.5",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

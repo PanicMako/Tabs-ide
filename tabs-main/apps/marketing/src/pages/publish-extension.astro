@@ -1,0 +1,37 @@
+---
+import Layout from "../layouts/Layout.astro";
+import { configuredExchangeOrigin } from "../lib/exchange-url";
+
+const exchange = configuredExchangeOrigin(import.meta.env.PUBLIC_TABS_EXCHANGE_URL);
+---
+
+<Layout title="Publish a Tabs Extension" description="Submit a Tabs-native extension package for review.">
+  <section class="publish-page">
+    <p class="eyebrow">TABS EXCHANGE</p>
+    <h1>Publish an Extension</h1>
+    <p>Create a <code>tabs-extension.json</code> manifest, bundle your UI, and package it as a deterministic <code>.tabsext</code> archive. Each version is scanned and manually reviewed before it can appear in Explore Extensions.</p>
+    <ol>
+      <li>Sign in with GitHub and create a publisher namespace.</li>
+      <li>Submit the archive for private scanning and review.</li>
+      <li>Once approved, users can discover and download that exact version.</li>
+    </ol>
+    {exchange ? (
+      <a class="action" href={`${exchange}/publisher`}>Open the publisher portal</a>
+    ) : (
+      <p role="status">Public submissions are not open yet. The package and local development tooling are still experimental.</p>
+    )}
+    <p>Reviewer approval does not certify that an extension is safe. Publishers should disclose data access, external services, and any charges to users.</p>
+    <p><a href="/extensions">Explore Extensions</a></p>
+  </section>
+</Layout>
+
+<style>
+  .publish-page { max-width: 48rem; margin: 2rem auto 5rem; padding: 0 1.5rem; line-height: 1.6; }
+  .eyebrow { color: #a1a1aa; letter-spacing: .15em; font-size: .8rem; }
+  h1 { font-size: clamp(2.5rem, 7vw, 4rem); margin: 1rem 0; }
+  ol { padding-left: 1.5rem; margin: 2rem 0; }
+  li { margin-bottom: .75rem; }
+  a { color: #bfdbfe; text-decoration: underline; }
+  .action { display: inline-block; padding: .75rem 1rem; margin: 1rem 0; background: #bfdbfe; color: #09090b; border-radius: .35rem; font-weight: 600; }
+  :focus-visible { outline: 3px solid #fbbf24; outline-offset: 3px; }
+</style>

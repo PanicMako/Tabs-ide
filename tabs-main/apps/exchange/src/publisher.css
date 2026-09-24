@@ -1,0 +1,94 @@
+:root {
+  color-scheme: dark;
+  font-family: system-ui, sans-serif;
+  background: #111827;
+  color: #f9fafb;
+}
+body {
+  margin: 0;
+  line-height: 1.5;
+}
+header,
+main {
+  max-width: 58rem;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid #4b5563;
+}
+section {
+  margin: 2rem 0;
+  padding: 1.5rem;
+  border: 1px solid #4b5563;
+  border-radius: 0.5rem;
+}
+form {
+  display: grid;
+  gap: 0.65rem;
+  max-width: 36rem;
+}
+input:not([type="checkbox"]),
+select,
+button,
+.button {
+  font: inherit;
+  padding: 0.6rem 0.8rem;
+  border-radius: 0.35rem;
+}
+input:not([type="checkbox"]),
+select {
+  color: #f9fafb;
+  background: #1f2937;
+  border: 1px solid #9ca3af;
+}
+button,
+.button {
+  color: #111827;
+  background: #93c5fd;
+  border: 1px solid #93c5fd;
+  cursor: pointer;
+  width: fit-content;
+  text-decoration: none;
+}
+button:hover,
+.button:hover {
+  background: #bfdbfe;
+}
+a {
+  color: #bfdbfe;
+}
+:focus-visible {
+  outline: 3px solid #fbbf24;
+  outline-offset: 3px;
+}
+.check {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+.skip {
+  position: absolute;
+  left: -10000px;
+  top: 0;
+  padding: 0.5rem;
+  background: #111827;
+}
+.skip:focus {
+  left: 0.5rem;
+}
+li {
+  margin: 0.75rem 0;
+}
+pre {
+  overflow: auto;
+  padding: 0.75rem;
+  background: #1f2937;
+}
+#status:not(:empty) {
+  padding: 0.8rem;
+  border-left: 3px solid #93c5fd;
+}

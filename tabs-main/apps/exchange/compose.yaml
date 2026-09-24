@@ -1,0 +1,97 @@
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: tabs_exchange
+      POSTGRES_USER: tabs_exchange
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - exchange_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tabs_exchange"]
+      interval: 5s
+      retries: 20
+
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    command: server /data --console-address :9001
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY_ID:?Set S3_ACCESS_KEY_ID in .env}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_ACCESS_KEY:?Set S3_SECRET_ACCESS_KEY in .env}
+    volumes:
+      - exchange_objects:/data
+
+  bucket:
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    depends_on:
+      - minio
+    entrypoint: ["/bin/sh", "-c"]
+    command: >-
+      mc alias set exchange http://minio:9000 "$$S3_ACCESS_KEY_ID" "$$S3_SECRET_ACCESS_KEY" &&
+      mc mb --ignore-existing exchange/tabs-exchange
+    environment:
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:?Set S3_ACCESS_KEY_ID in .env}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:?Set S3_SECRET_ACCESS_KEY in .env}
+
+  migrate:
+    build:
+      context: ../..
+      dockerfile: apps/exchange/Dockerfile
+    command: ["bun", "--cwd", "apps/exchange", "run", "migrate"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://tabs_exchange:${POSTGRES_PASSWORD}@postgres:5432/tabs_exchange
+
+  api:
+    build:
+      context: ../..
+      dockerfile: apps/exchange/Dockerfile
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      bucket:
+        condition: service_completed_successfully
+    ports:
+      - "8787:8787"
+    environment:
+      DATABASE_URL: postgres://tabs_exchange:${POSTGRES_PASSWORD}@postgres:5432/tabs_exchange
+      S3_ENDPOINT: http://minio:9000
+      S3_BUCKET: tabs-exchange
+      PORT: "8787"
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:?Set S3_ACCESS_KEY_ID in .env}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:?Set S3_SECRET_ACCESS_KEY in .env}
+      EXCHANGE_ORIGIN: ${EXCHANGE_ORIGIN:?Set EXCHANGE_ORIGIN in .env}
+      EXCHANGE_TABS_VERSION: ${EXCHANGE_TABS_VERSION:?Set EXCHANGE_TABS_VERSION in .env}
+      EXCHANGE_PUBLISHING_ENABLED: ${EXCHANGE_PUBLISHING_ENABLED:-false}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:?Set GITHUB_CLIENT_ID in .env}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:?Set GITHUB_CLIENT_SECRET in .env}
+      EXCHANGE_ADMIN_GITHUB_IDS: ${EXCHANGE_ADMIN_GITHUB_IDS:?Set EXCHANGE_ADMIN_GITHUB_IDS in .env}
+
+  worker:
+    build:
+      context: ../..
+      dockerfile: apps/exchange/Dockerfile
+    command: ["bun", "--cwd", "apps/exchange", "run", "worker"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      bucket:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgres://tabs_exchange:${POSTGRES_PASSWORD}@postgres:5432/tabs_exchange
+      S3_ENDPOINT: http://minio:9000
+      S3_BUCKET: tabs-exchange
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:?Set S3_ACCESS_KEY_ID in .env}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:?Set S3_SECRET_ACCESS_KEY in .env}
+      EXCHANGE_ORIGIN: ${EXCHANGE_ORIGIN:?Set EXCHANGE_ORIGIN in .env}
+      EXCHANGE_TABS_VERSION: ${EXCHANGE_TABS_VERSION:?Set EXCHANGE_TABS_VERSION in .env}
+      EXCHANGE_PUBLISHING_ENABLED: ${EXCHANGE_PUBLISHING_ENABLED:-false}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:?Set GITHUB_CLIENT_ID in .env}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:?Set GITHUB_CLIENT_SECRET in .env}
+      EXCHANGE_ADMIN_GITHUB_IDS: ${EXCHANGE_ADMIN_GITHUB_IDS:?Set EXCHANGE_ADMIN_GITHUB_IDS in .env}
+
+volumes:
+  exchange_postgres:
+  exchange_objects:
