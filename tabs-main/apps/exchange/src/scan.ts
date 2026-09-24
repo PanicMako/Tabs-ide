@@ -15,6 +15,11 @@ export interface ScanResult {
   readonly digest: string;
   readonly scannedAt: string;
   readonly files: Readonly<Record<string, string>>;
+  readonly comparisonVersion?: string;
+  readonly capabilityChanges: {
+    readonly added: ReadonlyArray<string>;
+    readonly removed: ReadonlyArray<string>;
+  };
   readonly changes: {
     readonly added: ReadonlyArray<string>;
     readonly modified: ReadonlyArray<string>;
@@ -29,8 +34,9 @@ const SECRET_PATTERN =
 export async function scanExtractedPackage(
   directory: string,
   inspected: InspectedTabsext,
-  priorManifest?: { readonly contributes?: unknown },
+  priorManifest?: { readonly contributes?: unknown; readonly capabilities?: ReadonlyArray<string> },
   priorFiles: Readonly<Record<string, string>> = {},
+  priorVersion?: string,
 ): Promise<ScanResult> {
   const issues: ScanIssue[] = [];
   const files: Record<string, string> = {};
@@ -59,12 +65,32 @@ export async function scanExtractedPackage(
   ) {
     issues.push({ severity: "warning", code: "contributions-changed" });
   }
+  const currentCapabilities = inspected.manifest.capabilities ?? [];
+  const priorCapabilities = Array.isArray(priorManifest?.capabilities)
+    ? priorManifest.capabilities.filter((capability) => typeof capability === "string")
+    : [];
+  const currentCapabilitySet = new Set<string>(currentCapabilities);
+  const priorCapabilitySet = new Set<string>(priorCapabilities);
+  const addedCapabilities = currentCapabilities.filter(
+    (capability) => !priorCapabilitySet.has(capability),
+  );
+  const removedCapabilities = priorCapabilities.filter(
+    (capability) => !currentCapabilitySet.has(capability),
+  );
+  if (priorManifest && addedCapabilities.length > 0) {
+    issues.push({ severity: "warning", code: "capabilities-increased" });
+  }
   return {
     passed: !issues.some((issue) => issue.severity === "blocking"),
     issues,
     digest: inspected.digest,
     scannedAt: new Date().toISOString(),
     files,
+    ...(priorVersion ? { comparisonVersion: priorVersion } : {}),
+    capabilityChanges: {
+      added: addedCapabilities,
+      removed: removedCapabilities,
+    },
     changes: {
       added: Object.keys(files).filter((file) => !priorFiles[file]),
       modified: Object.keys(files).filter(

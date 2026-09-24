@@ -33,6 +33,10 @@ function item(list, text) {
   return li;
 }
 
+function listText(value) {
+  return Array.isArray(value) && value.length ? value.join(", ") : "none";
+}
+
 async function refreshNamespaces() {
   const data = await requestJson("/v1/publisher/namespaces");
   const list = document.getElementById("namespaces");
@@ -68,6 +72,28 @@ async function refreshReview() {
       list,
       `${entry.namespace}.${entry.name}@${entry.version}: ${entry.status}. SHA-256 ${entry.digest}`,
     );
+    const requested = document.createElement("p");
+    requested.textContent = `Requested capabilities: ${listText(entry.manifest?.capabilities)}.`;
+    li.append(requested);
+    const comparison = document.createElement("p");
+    const scan = entry.scan_result;
+    const previous = scan?.comparisonVersion;
+    comparison.textContent = !scan
+      ? "Capability comparison pending scan."
+      : scan.issues?.some((issue) => issue.code === "scan-failed")
+        ? "Capability comparison unavailable because the scan failed."
+        : !scan.capabilityChanges
+          ? "Capability comparison unavailable for this scan."
+          : previous
+            ? `Compared with approved ${previous}: added ${listText(scan.capabilityChanges.added)}; removed ${listText(scan.capabilityChanges.removed)}.`
+            : "No prior approved version for capability comparison.";
+    li.append(comparison);
+    const files = entry.scan_result?.changes;
+    if (files) {
+      const fileChanges = document.createElement("p");
+      fileChanges.textContent = `Package files: ${files.added?.length ?? 0} added, ${files.modified?.length ?? 0} modified, ${files.removed?.length ?? 0} removed.`;
+      li.append(fileChanges);
+    }
     const details = document.createElement("pre");
     details.textContent = JSON.stringify(
       { manifest: entry.manifest, scan: entry.scan_result },

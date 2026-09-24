@@ -57,10 +57,11 @@ export async function scanNextVersion(
       throw new Error("Quarantined package identity changed.");
     }
     const prior = await pool.query<{
-      manifest: { contributes?: unknown };
+      version: string;
+      manifest: { contributes?: unknown; capabilities?: string[] };
       scan_result: { files?: Record<string, string> } | null;
     }>(
-      `SELECT manifest, scan_result FROM exchange_versions WHERE namespace = $1 AND name = $2
+      `SELECT version, manifest, scan_result FROM exchange_versions WHERE namespace = $1 AND name = $2
        AND status = 'approved' ORDER BY submitted_at DESC LIMIT 1`,
       [job.namespace, job.name],
     );
@@ -69,6 +70,7 @@ export async function scanNextVersion(
       inspected,
       prior.rows[0]?.manifest,
       prior.rows[0]?.scan_result?.files,
+      prior.rows[0]?.version,
     );
   } catch (error) {
     result = {
@@ -77,6 +79,7 @@ export async function scanNextVersion(
       scannedAt: new Date().toISOString(),
       issues: [{ severity: "blocking", code: "scan-failed" }],
       files: {},
+      capabilityChanges: { added: [], removed: [] },
       changes: { added: [], modified: [], removed: [] },
     };
     process.stderr.write(

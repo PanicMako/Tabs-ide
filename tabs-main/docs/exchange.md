@@ -109,7 +109,11 @@ POST bodies, capped at 25 MiB. The `tabs_exchange_session` cookie is HttpOnly.
 
 The worker scans queued packages, verifies stored bytes, extracts with bounded
 ZIP validation, and writes a scan result. A blocking scan result prevents
-approval. Every decision writes an audit event. Revoked versions disappear
+approval. The scan records capabilities added or removed relative to the last
+approved version and warns on increases; the reviewer queue displays those
+changes alongside the requested capabilities and file-change counts. This
+summary does not replace inspecting the exact archive. Every decision writes
+an audit event. Revoked versions disappear
 from public metadata and downloads. The desktop client detects signed target
 removal during periodic or activation checks and removes the revoked version's
 tools from its toolbar.

@@ -7,7 +7,7 @@ import { scanExtractedPackage } from "./scan.ts";
 
 const roots: string[] = [];
 
-async function packageFixture(extra?: Record<string, string>) {
+async function packageFixture(extra?: Record<string, string>, capabilities?: string[]) {
   const root = FS.mkdtempSync(Path.join(OS.tmpdir(), "tabs-exchange-scan-test-"));
   roots.push(root);
   const source = Path.join(root, "source");
@@ -23,6 +23,7 @@ async function packageFixture(extra?: Record<string, string>) {
       displayName: "Dashboard",
       description: "A test extension",
       engines: { tabs: ">=1.3.0 <2.0.0" },
+      ...(capabilities ? { capabilities } : {}),
       contributes: { tools: [{ id: "main", label: "Main", entry: "dist/index.html" }] },
     }),
   );
@@ -82,5 +83,35 @@ describe("Exchange automated scan", () => {
     expect(result.issues).toContainEqual({ severity: "warning", code: "contributions-changed" });
     expect(result.changes.modified).toContain("dist/index.html");
     expect(result.changes.removed).toContain("removed.txt");
+  });
+
+  it("shows added capabilities against the last approved version", async () => {
+    const { destination, inspected } = await packageFixture({}, ["profile-storage"]);
+    const result = await scanExtractedPackage(
+      destination,
+      inspected,
+      { capabilities: [], contributes: inspected.manifest.contributes },
+      {},
+      "1.0.0",
+    );
+    expect(result.comparisonVersion).toBe("1.0.0");
+    expect(result.capabilityChanges).toEqual({ added: ["profile-storage"], removed: [] });
+    expect(result.issues).toContainEqual({ severity: "warning", code: "capabilities-increased" });
+  });
+
+  it("reports removed capabilities without marking them as an increase", async () => {
+    const { destination, inspected } = await packageFixture();
+    const result = await scanExtractedPackage(
+      destination,
+      inspected,
+      { capabilities: ["profile-storage"], contributes: inspected.manifest.contributes },
+      {},
+      "1.0.0",
+    );
+    expect(result.capabilityChanges).toEqual({ added: [], removed: ["profile-storage"] });
+    expect(result.issues).not.toContainEqual({
+      severity: "warning",
+      code: "capabilities-increased",
+    });
   });
 });

@@ -20,7 +20,7 @@ const config: ExchangeConfig = {
   publishingEnabled: true,
 };
 
-async function fixture() {
+async function fixture(capabilities?: string[]) {
   const root = FS.mkdtempSync(Path.join(OS.tmpdir(), "tabs-exchange-worker-test-"));
   roots.push(root);
   const source = Path.join(root, "source");
@@ -36,6 +36,7 @@ async function fixture() {
       displayName: "Dashboard",
       description: "A test extension",
       engines: { tabs: ">=1.3.0 <2.0.0" },
+      ...(capabilities ? { capabilities } : {}),
       contributes: { tools: [{ id: "main", label: "Main", entry: "dist/index.html" }] },
     }),
   );
@@ -53,6 +54,52 @@ afterEach(() => {
 });
 
 describe("Exchange quarantine worker", () => {
+  it("carries the last approved version's capability diff into the review record", async () => {
+    const { inspected, bytes } = await fixture(["profile-storage"]);
+    let result: { comparisonVersion?: string; capabilityChanges: { added: string[] } } | null =
+      null;
+    const pool = {
+      async query(sql: string, values?: unknown[]) {
+        if (sql.includes("RETURNING namespace, name, version, digest, object_key, scan_token")) {
+          return {
+            rows: [
+              {
+                namespace: "example",
+                name: "dashboard",
+                version: "1.0.0",
+                digest: inspected.digest,
+                object_key: "quarantine/test",
+                scan_token: values?.[0],
+              },
+            ],
+          };
+        }
+        if (sql.includes("SELECT version, manifest, scan_result")) {
+          return {
+            rows: [
+              {
+                version: "0.9.0",
+                manifest: { capabilities: [], contributes: inspected.manifest.contributes },
+                scan_result: null,
+              },
+            ],
+          };
+        }
+        if (sql.includes("status = 'review'")) result = JSON.parse(values?.[4] as string);
+        return { rows: [], rowCount: 1 };
+      },
+    } as unknown as Pool;
+    const storage = {
+      async send() {
+        return { Body: Readable.from([bytes]) };
+      },
+    } as unknown as S3Client;
+    expect(await scanNextVersion(pool, storage, config)).toBe(true);
+    expect(result).toMatchObject({
+      comparisonVersion: "0.9.0",
+      capabilityChanges: { added: ["profile-storage"] },
+    });
+  });
   it("moves a verified, scanned package to manual review", async () => {
     const { inspected, bytes } = await fixture();
     const updates: Array<{ sql: string; values: unknown[] | undefined }> = [];
@@ -72,7 +119,7 @@ describe("Exchange quarantine worker", () => {
             ],
           };
         }
-        if (sql.includes("SELECT manifest, scan_result")) return { rows: [] };
+        if (sql.includes("SELECT version, manifest, scan_result")) return { rows: [] };
         updates.push({ sql, values });
         return { rows: [], rowCount: 1 };
       },
@@ -89,6 +136,7 @@ describe("Exchange quarantine worker", () => {
     expect(result.passed).toBe(true);
     expect(result.digest).toBe(inspected.digest);
     expect(result.files["dist/index.html"]).toMatch(/^[a-f0-9]{64}$/);
+    expect(result.capabilityChanges).toEqual({ added: [], removed: [] });
   });
 
   it("cannot pass a package whose quarantined bytes changed", async () => {
