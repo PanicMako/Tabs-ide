@@ -14,6 +14,7 @@ export default function ExtensionsSettings() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [profileNames, setProfileNames] = useState<Record<string, string>>({});
+  const [profileScopes, setProfileScopes] = useState<Record<string, "shared" | "project">>({});
   const extensions = useInstalledExtensions();
   const projects = useAtomValue(projectsAtom);
   const bridge = window.desktopBridge;
@@ -190,8 +191,9 @@ export default function ExtensionsSettings() {
       ) : (
         <SettingsSection title="Profiles & Permissions">
           <p className="text-sm text-muted-foreground">
-            Profiles isolate extension browser storage. Extensions may request non-secret profile
-            storage separately for each project. Workspace, network, and account APIs remain
+            A shared profile uses one storage space across projects. A project-isolated profile
+            keeps browser and non-secret storage separate for each project. Storage access still
+            requires a separate grant per project. Workspace, network, and account APIs remain
             unavailable to development extensions.
           </p>
           {extensions.map((extension) => (
@@ -212,12 +214,13 @@ export default function ExtensionsSettings() {
                 >
                   {extension.profiles.map((profile) => (
                     <option key={profile.id} value={profile.id}>
-                      {profile.label}
+                      {profile.label} ({profile.scope === "project" ? "project-isolated" : "shared"}
+                      )
                     </option>
                   ))}
                 </select>
               </label>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <Input
                   aria-label={`New profile for ${extension.manifest.displayName}`}
                   placeholder="Profile name"
@@ -229,6 +232,21 @@ export default function ExtensionsSettings() {
                     }))
                   }
                 />
+                <select
+                  className="rounded border border-border bg-background px-2 py-1 text-sm"
+                  aria-label={`Storage scope for new ${extension.manifest.displayName} profile`}
+                  value={profileScopes[extension.id] ?? "shared"}
+                  disabled={busy}
+                  onChange={(event) =>
+                    setProfileScopes((current) => ({
+                      ...current,
+                      [extension.id]: event.target.value as "shared" | "project",
+                    }))
+                  }
+                >
+                  <option value="shared">Shared across projects</option>
+                  <option value="project">Isolated per project</option>
+                </select>
                 <Button
                   type="button"
                   disabled={busy || !(profileNames[extension.id] ?? "").trim()}
@@ -239,7 +257,12 @@ export default function ExtensionsSettings() {
                         .toLowerCase()
                         .replace(/[^a-z0-9]+/g, "-")
                         .replace(/^-|-$/g, "");
-                      await bridge.addExtensionProfile(extension.id, id, label);
+                      await bridge.addExtensionProfile(
+                        extension.id,
+                        id,
+                        label,
+                        profileScopes[extension.id] ?? "shared",
+                      );
                       setProfileNames((current) => ({ ...current, [extension.id]: "" }));
                     })
                   }
@@ -266,7 +289,8 @@ export default function ExtensionsSettings() {
                       <option value="">Use default</option>
                       {extension.profiles.map((profile) => (
                         <option key={profile.id} value={profile.id}>
-                          {profile.label}
+                          {profile.label} (
+                          {profile.scope === "project" ? "project-isolated" : "shared"})
                         </option>
                       ))}
                     </select>

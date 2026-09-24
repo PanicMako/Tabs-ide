@@ -281,8 +281,8 @@ contextBridge.exposeInMainWorld("desktopBridge", {
     ipcRenderer.invoke(EXTENSION_INSTALL_LOCAL_PACKAGE_CHANNEL, archive),
   setExtensionAssignment: (extensionId, assignment) =>
     ipcRenderer.invoke(EXTENSION_ASSIGN_CHANNEL, extensionId, assignment),
-  addExtensionProfile: (extensionId, id, label) =>
-    ipcRenderer.invoke(EXTENSION_ADD_PROFILE_CHANNEL, extensionId, id, label),
+  addExtensionProfile: (extensionId, id, label, scope) =>
+    ipcRenderer.invoke(EXTENSION_ADD_PROFILE_CHANNEL, extensionId, id, label, scope),
   activateExtensionTool: (input) => ipcRenderer.invoke(EXTENSION_ACTIVATE_CHANNEL, input),
   setExtensionBounds: (input) => ipcRenderer.invoke(EXTENSION_SET_BOUNDS_CHANNEL, input),
   hideExtensionTool: () => ipcRenderer.invoke(EXTENSION_HIDE_CHANNEL),

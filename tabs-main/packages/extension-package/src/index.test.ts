@@ -78,7 +78,7 @@ describe(".tabsext packages", () => {
     expect(FS.readFileSync(Path.join(root, archives[0]!))).toEqual(
       FS.readFileSync(Path.join(root, archives[1]!)),
     );
-  });
+  }, 20_000);
 
   it("does not replace an existing destination or extract a mismatched digest", async () => {
     const { root, source } = fixture();

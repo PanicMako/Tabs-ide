@@ -1191,7 +1191,12 @@ export interface DesktopBridge {
     extensionId: string,
     assignment: TabsExtensionAssignment,
   ) => Promise<void>;
-  addExtensionProfile: (extensionId: string, id: string, label: string) => Promise<void>;
+  addExtensionProfile: (
+    extensionId: string,
+    id: string,
+    label: string,
+    scope: "shared" | "project",
+  ) => Promise<void>;
   activateExtensionTool: (input: DesktopExtensionViewInput) => Promise<void>;
   setExtensionBounds: (input: DesktopExtensionBoundsInput) => Promise<void>;
   hideExtensionTool: () => Promise<void>;

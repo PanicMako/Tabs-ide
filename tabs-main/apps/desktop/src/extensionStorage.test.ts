@@ -37,6 +37,27 @@ describe("extension profile storage", () => {
     expect(subject.invoke(work, { kind: "get", key: "theme" })).toBeNull();
   });
 
+  it("shares data only when no project scope is selected", () => {
+    const subject = storage();
+    const base = { extensionId: "acme.dashboard", profileId: "work" };
+    subject.invoke(base, { kind: "set", key: "theme", value: "shared" });
+    subject.invoke(
+      { ...base, projectId: "project-a" },
+      {
+        kind: "set",
+        key: "theme",
+        value: "project-a",
+      },
+    );
+    expect(subject.invoke(base, { kind: "get", key: "theme" })).toBe("shared");
+    expect(subject.invoke({ ...base, projectId: "project-a" }, { kind: "get", key: "theme" })).toBe(
+      "project-a",
+    );
+    expect(
+      subject.invoke({ ...base, projectId: "project-b" }, { kind: "get", key: "theme" }),
+    ).toBeNull();
+  });
+
   it("rejects non-JSON values, oversized values, and invalid keys", () => {
     const subject = storage();
     const identity = { extensionId: "acme.dashboard", profileId: "work" };

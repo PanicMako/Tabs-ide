@@ -1,5 +1,6 @@
 import * as FS from "node:fs";
 import * as Path from "node:path";
+import * as Crypto from "node:crypto";
 import { type BrowserWindow, type Session, WebContentsView, session } from "electron";
 import { extractTabsext, inspectTabsext } from "@tabs/extension-package";
 import {
@@ -32,6 +33,17 @@ interface ActiveView {
   readonly projectId: string;
   readonly extensionId: string;
   readonly profileId: string;
+}
+
+export function extensionSessionPartition(
+  extensionId: string,
+  profileId: string,
+  scope: "shared" | "project" | undefined,
+  projectId: string,
+): string {
+  const projectSuffix =
+    scope === "project" ? `:${Crypto.createHash("sha256").update(projectId).digest("hex")}` : "";
+  return `persist:tabs-extension:${extensionId}:${profileId}${projectSuffix}`;
 }
 
 function inspectDirectory(root: string): void {
@@ -93,7 +105,15 @@ export class ExtensionViewManager {
     ) {
       throw new Error("Profile storage permission is not granted for this project.");
     }
-    return this.storage.invoke(active, operation);
+    const profile = this.requireProfile(installed, active.profileId);
+    return this.storage.invoke(
+      {
+        extensionId: active.extensionId,
+        profileId: active.profileId,
+        ...(profile.scope === "project" ? { projectId: active.projectId } : {}),
+      },
+      operation,
+    );
   }
 
   list(): DesktopInstalledExtension[] {
@@ -220,15 +240,21 @@ export class ExtensionViewManager {
     this.save();
   }
 
-  addProfile(extensionId: string, id: string, label: string): void {
+  addProfile(
+    extensionId: string,
+    id: string,
+    label: string,
+    scope: "shared" | "project" = "shared",
+  ): void {
     const current = this.requireInstalled(extensionId);
     if (!PROFILE_ID.test(id) || !label.trim() || label.length > 80) {
       throw new Error("Invalid profile name.");
     }
     if (this.profileExists(current, id)) throw new Error("Profile already exists.");
+    if (scope !== "shared" && scope !== "project") throw new Error("Invalid profile scope.");
     this.installed.set(extensionId, {
       ...current,
-      profiles: [...current.profiles, { id, label: label.trim() }],
+      profiles: [...current.profiles, { id, label: label.trim(), scope }],
     });
     this.save();
   }
@@ -241,8 +267,7 @@ export class ExtensionViewManager {
     if (extensionProfileForProject(installed.assignment, input.projectId) !== input.profileId) {
       throw new Error("Extension profile assignment mismatch.");
     }
-    if (!this.profileExists(installed, input.profileId))
-      throw new Error("Unknown extension profile.");
+    const profile = this.requireProfile(installed, input.profileId);
     const tool = installed.manifest.contributes.tools.find((item) => item.id === input.toolId);
     if (!tool) throw new Error("Unknown extension tool.");
     const key = [input.projectId, input.extensionId, input.toolId, input.profileId].join(":");
@@ -252,7 +277,12 @@ export class ExtensionViewManager {
     }
     this.hide();
     this.resolveAsset(installed.directory, tool.entry);
-    const partition = `persist:tabs-extension:${input.extensionId}:${input.profileId}`;
+    const partition = extensionSessionPartition(
+      input.extensionId,
+      input.profileId,
+      profile.scope,
+      input.projectId,
+    );
     const extensionSession = session.fromPartition(partition);
     this.configureSession(extensionSession, partition, installed);
     const view = new WebContentsView({
@@ -391,6 +421,12 @@ export class ExtensionViewManager {
     return extension.profiles.some((profile) => profile.id === profileId);
   }
 
+  private requireProfile(extension: StoredExtension, profileId: string) {
+    const profile = extension.profiles.find((item) => item.id === profileId);
+    if (!profile) throw new Error("Unknown extension profile.");
+    return profile;
+  }
+
   private load(): void {
     if (!this.allowDevelopment) return;
     try {
@@ -402,6 +438,24 @@ export class ExtensionViewManager {
           if (entry.source !== "development" && entry.source !== "local-package") continue;
           const result = validateTabsExtensionManifest(entry.manifest, this.tabsVersion);
           if (!result.ok || result.id !== entry.id || !Array.isArray(entry.profiles)) continue;
+          if (
+            entry.profiles.length === 0 ||
+            new Set(entry.profiles.map((profile) => profile?.id)).size !== entry.profiles.length ||
+            entry.profiles.some(
+              (profile) =>
+                !profile ||
+                typeof profile.id !== "string" ||
+                !PROFILE_ID.test(profile.id) ||
+                typeof profile.label !== "string" ||
+                !profile.label.trim() ||
+                profile.label.length > 80 ||
+                (profile.scope !== undefined &&
+                  profile.scope !== "shared" &&
+                  profile.scope !== "project"),
+            )
+          ) {
+            continue;
+          }
           if (!FS.existsSync(entry.directory)) continue;
           inspectDirectory(entry.directory);
           const diskManifest = JSON.parse(

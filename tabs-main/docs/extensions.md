@@ -41,7 +41,10 @@ A narrow `window.tabsExtension.storage` bridge offers `get(key)`,
 binds each call to the active view's installed identity and assigned profile,
 checks the project grant on every call, and limits each JSON value to 64 KiB.
 This store is for non-secret data, not credentials. A shared profile
-deliberately sees the same values across separately granted projects.
+deliberately sees the same values across separately granted projects. A
+project-isolated profile uses a distinct browser partition and bridge storage
+namespace for each project. Choose the scope when creating a named profile;
+it cannot be changed later without creating a new profile.
 
 ## Enabling and profiles
 
@@ -53,7 +56,9 @@ The package is registered once locally. Installed settings
 can show it in every project or in selected projects. A global extension can
 be hidden for individual projects. Named profiles isolate the extension's
 browser storage, with a default profile and optional per-project override.
-The same named profile may deliberately be shared between projects. No account
+The same named shared profile may deliberately be shared between projects,
+while a project-isolated profile keeps data separate even if assigned to both.
+No account
 credential API is available in this experimental stage.
 
 ## Not yet supported

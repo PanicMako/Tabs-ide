@@ -9,7 +9,7 @@ vi.mock("electron", () => ({
   WebContentsView: vi.fn(),
 }));
 
-import { ExtensionViewManager } from "./extensionViewManager";
+import { ExtensionViewManager, extensionSessionPartition } from "./extensionViewManager";
 
 const temporaryRoots: string[] = [];
 
@@ -50,6 +50,38 @@ afterEach(() => {
 });
 
 describe("development extension installation", () => {
+  it("uses separate browser partitions for project-isolated profiles", () => {
+    expect(extensionSessionPartition("acme.dashboard", "work", "shared", "project-a")).toBe(
+      extensionSessionPartition("acme.dashboard", "work", "shared", "project-b"),
+    );
+    expect(extensionSessionPartition("acme.dashboard", "work", "project", "project-a")).not.toBe(
+      extensionSessionPartition("acme.dashboard", "work", "project", "project-b"),
+    );
+  });
+
+  it("records an immutable scope for each new profile", () => {
+    const { directory, manager } = fixture();
+    const installed = manager.installDevelopment(directory);
+    manager.addProfile(installed.id, "work", "Work", "project");
+    expect(manager.list()[0]?.profiles).toContainEqual({
+      id: "work",
+      label: "Work",
+      scope: "project",
+    });
+    const restarted = new ExtensionViewManager(
+      () => null,
+      {} as ConstructorParameters<typeof ExtensionViewManager>[1],
+      Path.join(directory, "installed.json"),
+      "1.3.17",
+      true,
+    );
+    expect(restarted.list()[0]?.profiles).toContainEqual({
+      id: "work",
+      label: "Work",
+      scope: "project",
+    });
+  });
+
   it("binds storage to the active view and a project grant", () => {
     const { directory, manager } = fixture();
     const manifestPath = Path.join(directory, "tabs-extension.json");
@@ -102,6 +134,42 @@ describe("development extension installation", () => {
     expect(() => manager.invokeStorage(sender as never, { kind: "get", key: "theme" })).toThrow(
       /not granted/,
     );
+  });
+
+  it("keeps one named project-isolated profile separate across projects", () => {
+    const { directory, manager } = fixture();
+    const manifestPath = Path.join(directory, "tabs-extension.json");
+    const manifest = JSON.parse(FS.readFileSync(manifestPath, "utf8"));
+    manifest.capabilities = ["profile-storage"];
+    FS.writeFileSync(manifestPath, JSON.stringify(manifest));
+    const installed = manager.installDevelopment(directory);
+    manager.addProfile(installed.id, "work", "Work", "project");
+    manager.setAssignment(installed.id, {
+      ...installed.assignment,
+      enabledProjectIds: ["project-a", "project-b"],
+      storageGrantedProjectIds: ["project-a", "project-b"],
+      defaultProfileId: "work",
+    });
+    const sender = { isDestroyed: () => false };
+    const internal = manager as unknown as {
+      active: {
+        key: string;
+        view: { webContents: typeof sender };
+        extensionId: string;
+        projectId: string;
+        profileId: string;
+      } | null;
+    };
+    internal.active = {
+      key: "a",
+      view: { webContents: sender },
+      extensionId: installed.id,
+      projectId: "project-a",
+      profileId: "work",
+    };
+    manager.invokeStorage(sender as never, { kind: "set", key: "value", value: "a" });
+    internal.active = { ...internal.active, key: "b", projectId: "project-b" };
+    expect(manager.invokeStorage(sender as never, { kind: "get", key: "value" })).toBeNull();
   });
 
   it("clears stale storage grants when an update first requests storage", () => {

@@ -2044,12 +2044,15 @@ function registerIpcHandlers(): void {
   ipcMain.removeHandler(EXTENSION_ADD_PROFILE_CHANNEL);
   ipcMain.handle(
     EXTENSION_ADD_PROFILE_CHANNEL,
-    async (event, id: unknown, profile: unknown, label: unknown) => {
+    async (event, id: unknown, profile: unknown, label: unknown, scope: unknown) => {
       requireMainRenderer(event);
       if (typeof id !== "string" || typeof profile !== "string" || typeof label !== "string") {
         throw new Error("Invalid extension profile.");
       }
-      extensionViewManager.addProfile(id, profile, label);
+      if (scope !== "shared" && scope !== "project") {
+        throw new Error("Invalid extension profile scope.");
+      }
+      extensionViewManager.addProfile(id, profile, label, scope);
     },
   );
   ipcMain.removeHandler(EXTENSION_ACTIVATE_CHANNEL);

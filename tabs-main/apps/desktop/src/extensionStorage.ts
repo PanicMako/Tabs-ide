@@ -14,6 +14,7 @@ export type ExtensionStorageOperation =
 export interface ExtensionStorageIdentity {
   readonly extensionId: string;
   readonly profileId: string;
+  readonly projectId?: string;
 }
 
 /** Non-secret, profile-scoped data. The caller must authorize the active view first. */
@@ -57,9 +58,11 @@ export class ExtensionStorage {
   }
 
   private filename(identity: ExtensionStorageIdentity): string {
-    const hash = Crypto.createHash("sha256")
-      .update(JSON.stringify([identity.extensionId, identity.profileId]))
-      .digest("hex");
+    const parts =
+      identity.projectId === undefined
+        ? [identity.extensionId, identity.profileId]
+        : [identity.extensionId, identity.profileId, identity.projectId];
+    const hash = Crypto.createHash("sha256").update(JSON.stringify(parts)).digest("hex");
     return Path.join(this.root, hash.slice(0, 2), `${hash}.json`);
   }
 
