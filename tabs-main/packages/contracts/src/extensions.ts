@@ -56,6 +56,8 @@ export interface DesktopInstalledExtension {
   readonly disabled?: true;
   /** Suppresses automatic update discovery/application; manual review remains available. */
   readonly updatesPinned?: true;
+  /** False for older installs whose pre-inventory browser/storage data cannot be enumerated. */
+  readonly dataDeletionAvailable?: boolean;
   /** Informational update hint; installation still requires a fresh signed review. */
   readonly availableUpdate?: DesktopExchangeListing;
 }

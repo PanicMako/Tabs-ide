@@ -552,6 +552,7 @@ export default function ExtensionsSettings() {
                 {uninstallingId === extension.id ? (
                   <section
                     aria-labelledby={`uninstall-${extension.id}`}
+                    aria-describedby={`uninstall-description-${extension.id}`}
                     className="space-y-2 rounded border border-destructive/50 p-3"
                     onKeyDown={(event) => {
                       if (event.key === "Escape") {
@@ -568,12 +569,18 @@ export default function ExtensionsSettings() {
                     >
                       Uninstall {extension.manifest.displayName}?
                     </h4>
-                    <p className="text-sm text-muted-foreground">
-                      Its tools and packaged files will be removed. Named profiles and stored data
-                      will be retained for a future reinstall; project assignments will be removed.
-                      Secure data deletion is not available yet.
+                    <p
+                      id={`uninstall-description-${extension.id}`}
+                      className="text-sm text-muted-foreground"
+                    >
+                      Its tools, packaged files, and project assignments will be removed. Choose
+                      whether to retain named profiles and local data for a future reinstall or
+                      remove them from Tabs. This is not a secure erase of backups or disk history.
+                      {!extension.dataDeletionAvailable
+                        ? " Data deletion is unavailable because its storage inventory is incomplete or contains legacy data."
+                        : ""}
                     </p>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                       <Button
                         type="button"
                         variant="destructive"
@@ -596,6 +603,30 @@ export default function ExtensionsSettings() {
                       >
                         Uninstall and retain data
                       </Button>
+                      {extension.dataDeletionAvailable ? (
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          disabled={busy}
+                          onClick={() =>
+                            void run(async () => {
+                              await bridge.uninstallExtension(extension.id, true);
+                              setCheckedUpdates((current) => {
+                                const next = { ...current };
+                                delete next[extension.id];
+                                return next;
+                              });
+                              setUninstallingId(null);
+                              setStatus(
+                                `${extension.manifest.displayName} uninstalled. Its inventoried local data and profiles were removed from Tabs.`,
+                              );
+                              requestAnimationFrame(() => installedTabButton.current?.focus());
+                            })
+                          }
+                        >
+                          Uninstall and delete local data
+                        </Button>
+                      ) : null}
                       <Button
                         type="button"
                         variant="outline"

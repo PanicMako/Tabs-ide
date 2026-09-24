@@ -100,13 +100,17 @@ export class ExtensionStorage {
     const namespace = Crypto.createHash("sha256").update(extensionId).digest("hex");
     const scopedRoot = Path.join(this.root, "scoped");
     const directory = Path.join(scopedRoot, namespace);
-    if (!FS.existsSync(directory)) return;
-    if (
-      FS.lstatSync(this.root).isSymbolicLink() ||
-      FS.lstatSync(scopedRoot).isSymbolicLink() ||
-      FS.lstatSync(directory).isSymbolicLink()
-    ) {
-      throw new Error("Extension storage directory is a symbolic link.");
+    this.assertSafeDirectory(this.root);
+    this.assertSafeDirectory(scopedRoot);
+    let directoryStat: FS.Stats;
+    try {
+      directoryStat = FS.lstatSync(directory);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+      throw error;
+    }
+    if (!directoryStat.isDirectory() || directoryStat.isSymbolicLink()) {
+      throw new Error("Extension storage directory is invalid.");
     }
     for (const entry of FS.readdirSync(directory, { withFileTypes: true })) {
       if (!entry.isFile() || !/^[a-f0-9]{64}\.json$/.test(entry.name)) {

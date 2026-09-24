@@ -2160,13 +2160,18 @@ function registerIpcHandlers(): void {
     exchangeInstallService?.cancel(token);
   });
   ipcMain.removeHandler(EXTENSION_UNINSTALL_CHANNEL);
-  ipcMain.handle(EXTENSION_UNINSTALL_CHANNEL, (event, id: unknown) => {
+  ipcMain.handle(EXTENSION_UNINSTALL_CHANNEL, async (event, id: unknown, deleteData: unknown) => {
     requireMainRenderer(event);
-    if (typeof id !== "string" || !/^[a-z][a-z0-9-]{1,62}\.[a-z][a-z0-9-]{1,62}$/.test(id)) {
+    if (
+      typeof id !== "string" ||
+      !/^[a-z][a-z0-9-]{1,62}\.[a-z][a-z0-9-]{1,62}$/.test(id) ||
+      typeof deleteData !== "boolean"
+    ) {
       throw new Error("Invalid extension identity.");
     }
     try {
-      extensionViewManager.uninstall(id);
+      if (deleteData) await extensionViewManager.uninstallAndDeleteData(id);
+      else extensionViewManager.uninstall(id);
     } finally {
       if (
         !extensionViewManager.list().some((entry) => entry.id === id) &&

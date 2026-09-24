@@ -298,7 +298,8 @@ contextBridge.exposeInMainWorld("desktopBridge", {
     ipcRenderer.invoke(EXTENSION_EXCHANGE_PREPARE_CHANNEL, listing),
   confirmExchangeInstall: (token) => ipcRenderer.invoke(EXTENSION_EXCHANGE_CONFIRM_CHANNEL, token),
   cancelExchangeInstall: (token) => ipcRenderer.invoke(EXTENSION_EXCHANGE_CANCEL_CHANNEL, token),
-  uninstallExtension: (extensionId) => ipcRenderer.invoke(EXTENSION_UNINSTALL_CHANNEL, extensionId),
+  uninstallExtension: (extensionId, deleteData) =>
+    ipcRenderer.invoke(EXTENSION_UNINSTALL_CHANNEL, extensionId, deleteData ?? false),
   setExtensionDisabled: (extensionId, disabled) =>
     ipcRenderer.invoke(EXTENSION_SET_DISABLED_CHANNEL, extensionId, disabled),
   setExtensionUpdatesPinned: (extensionId, pinned) =>

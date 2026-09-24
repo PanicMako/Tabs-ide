@@ -71,18 +71,22 @@ choices. Disabling closes its active view and removes its toolbar tools, but
 keeps assignments, profiles, permissions, and data for re-enabling. A revoked
 version cannot be re-enabled.
 No account credential API is available in this experimental stage. Uninstall
-removes packaged code and project assignments, but deliberately retains named
-profiles and non-secret extension data. Reinstalling the same source identity
-restores the profile names and scopes. Exchange browser partitions and bridge
+removes packaged code and project assignments. For installations with a complete
+storage inventory, the user can separately choose to retain named profiles and
+data or delete Tabs-managed local profile data. Deletion clears each recorded
+Electron partition and scoped bridge storage, then removes retained profile
+names. It is not secure erasure of backups or disk history. If clearing fails,
+the extension stays installed so the user can retry. Older installations with
+uninventoried flat-hash data may only retain data; Tabs does not claim it can
+completely delete what it cannot enumerate. Retained data restores profiles
+when the same source identity is reinstalled. Exchange browser partitions and bridge
 storage include the registry origin in their identity, so a same-named package
 from another registry cannot inherit the retained data. Local archives are also
 separate from unpacked development folders. New installs write non-secret
 storage under an extension-scoped directory and record browser partitions
 before creating a view. Older flat-hash storage can still be read by older
-installations, but cannot be completely inventoried. Full profile-data deletion
-is not offered until the deletion and retry workflow is complete; older
-installations will require an explicit migration or a conservative unavailable
-state.
+installations, but cannot be completely inventoried. Their data-deletion choice
+remains unavailable pending an explicit migration.
 
 ## Manually installing from a trusted Exchange
 
@@ -128,7 +132,7 @@ closes, toolbar contributions disappear, and Settings explains the status.
 Transport outages retain the last known status; invalid or expired metadata
 does not qualify as offline. The flow does not yet check revocation continuously
 while a view is active, automatically install updates, or provide package
-rollback or profile-data deletion controls.
+rollback.
 
 ## Not yet supported
 

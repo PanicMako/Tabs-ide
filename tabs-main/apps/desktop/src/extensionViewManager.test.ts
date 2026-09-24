@@ -3,6 +3,7 @@ import * as OS from "node:os";
 import * as Path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { packTabsext } from "@tabs/extension-package";
+import { session as electronSession } from "electron";
 
 vi.mock("electron", () => ({
   session: { fromPartition: vi.fn() },
@@ -14,6 +15,7 @@ import {
   extensionDataIdentity,
   extensionSessionPartition,
 } from "./extensionViewManager";
+import { ExtensionStorage } from "./extensionStorage";
 
 const temporaryRoots: string[] = [];
 
@@ -49,6 +51,7 @@ function fixture(): { directory: string; manager: ExtensionViewManager } {
 }
 
 afterEach(() => {
+  vi.mocked(electronSession.fromPartition).mockReset();
   for (const directory of temporaryRoots.splice(0))
     FS.rmSync(directory, { recursive: true, force: true });
 });
@@ -301,6 +304,122 @@ describe("development extension installation", () => {
     expect(reinstalled.assignment.enabledProjectIds).toEqual([]);
     const nextIndex = JSON.parse(FS.readFileSync(Path.join(directory, "installed.json"), "utf8"));
     expect(nextIndex[0].dataInventoryVersion).toBe(1);
+  });
+
+  it("deletes inventoried local data and profiles only after an explicit choice", async () => {
+    const { directory, manager } = fixture();
+    let installed = manager.installDevelopment(directory);
+    manager.addProfile(installed.id, "work", "Work", "project");
+    manager.uninstall(installed.id);
+    installed = manager.installDevelopment(directory);
+    expect(installed.profiles.map((profile) => profile.id)).toEqual(["default", "work"]);
+    expect(installed.dataDeletionAvailable).toBe(true);
+    const storage = new ExtensionStorage(Path.join(directory, "extension-storage"));
+    const identity = {
+      extensionId: extensionDataIdentity(installed.id),
+      profileId: "work",
+      projectId: "project-a",
+    };
+    const secondIdentity = { ...identity, projectId: "project-b" };
+    storage.invoke(identity, { kind: "set", key: "value", value: "private" });
+    storage.invoke(secondIdentity, { kind: "set", key: "value", value: "other" });
+    manager.setAssignment(installed.id, {
+      ...installed.assignment,
+      enabledProjectIds: ["project-a", "project-b"],
+      defaultProfileId: "work",
+    });
+    await expect(
+      manager.activate({
+        extensionId: installed.id,
+        toolId: "main",
+        projectId: "project-a",
+        profileId: "work",
+      }),
+    ).rejects.toThrow();
+    await expect(
+      manager.activate({
+        extensionId: installed.id,
+        toolId: "main",
+        projectId: "project-b",
+        profileId: "work",
+      }),
+    ).rejects.toThrow();
+    const partition = extensionSessionPartition(installed.id, "work", "project", "project-a");
+    const secondPartition = extensionSessionPartition(installed.id, "work", "project", "project-b");
+    const clearData = vi.fn(async () => undefined);
+    const fakeSession = {
+      closeAllConnections: vi.fn(async () => undefined),
+      clearData,
+      clearAuthCache: vi.fn(async () => undefined),
+      clearCodeCaches: vi.fn(async () => undefined),
+      flushStorageData: vi.fn(),
+      cookies: { flushStore: vi.fn(async () => undefined) },
+    };
+    vi.mocked(electronSession.fromPartition)
+      .mockReset()
+      .mockReturnValue(fakeSession as never);
+    await manager.uninstallAndDeleteData(installed.id);
+    expect(electronSession.fromPartition).toHaveBeenCalledWith(partition);
+    expect(electronSession.fromPartition).toHaveBeenCalledWith(secondPartition);
+    expect(clearData).toHaveBeenCalledTimes(2);
+    expect(storage.invoke(identity, { kind: "get", key: "value" })).toBeNull();
+    expect(storage.invoke(secondIdentity, { kind: "get", key: "value" })).toBeNull();
+    expect(manager.list()).toEqual([]);
+    expect(manager.installDevelopment(directory).profiles.map((profile) => profile.id)).toEqual([
+      "default",
+    ]);
+  });
+
+  it("keeps an installation available for retry when browser data clearing fails", async () => {
+    const { directory, manager } = fixture();
+    const installed = manager.installDevelopment(directory);
+    manager.setAssignment(installed.id, {
+      ...installed.assignment,
+      enabledProjectIds: ["project-a"],
+    });
+    await expect(
+      manager.activate({
+        extensionId: installed.id,
+        toolId: "main",
+        projectId: "project-a",
+        profileId: "default",
+      }),
+    ).rejects.toThrow();
+    vi.mocked(electronSession.fromPartition).mockReturnValue({
+      closeAllConnections: vi.fn(async () => undefined),
+      clearData: vi.fn(async () => {
+        throw new Error("clear failed");
+      }),
+    } as never);
+    const deletion = manager.uninstallAndDeleteData(installed.id);
+    expect(() => manager.setAssignment(installed.id, installed.assignment)).toThrow(/in progress/);
+    await expect(deletion).rejects.toThrow(/clear failed/);
+    expect(manager.list()[0]?.id).toBe(installed.id);
+  });
+
+  it("refuses complete deletion of an older installation without an inventory", async () => {
+    const { directory, manager } = fixture();
+    const legacy = Path.join(directory, "extension-storage", "ab");
+    FS.mkdirSync(legacy, { recursive: true });
+    FS.writeFileSync(Path.join(legacy, `${"a".repeat(64)}.json`), "{}");
+    const installed = manager.installDevelopment(directory);
+    expect(installed.dataDeletionAvailable).toBe(false);
+    await expect(manager.uninstallAndDeleteData(installed.id)).rejects.toThrow(/inventory/);
+    expect(manager.list()[0]?.id).toBe(installed.id);
+  });
+
+  it("discards an extracted package when a data deletion invalidates an in-flight install", () => {
+    const { directory, manager } = fixture();
+    const extracted = Path.join(directory, "extension-packages", "acme.dashboard", "digest");
+    FS.mkdirSync(extracted, { recursive: true });
+    FS.writeFileSync(Path.join(extracted, "stale.txt"), "stale");
+    const internal = manager as unknown as {
+      deletionEpoch: number;
+      assertInstallEpoch: (id: string, expected: number, extracted: string) => void;
+    };
+    internal.deletionEpoch = 1;
+    expect(() => internal.assertInstallEpoch("acme.dashboard", 0, extracted)).toThrow(/retry/);
+    expect(FS.existsSync(extracted)).toBe(false);
   });
 
   it("does not claim a complete deletion inventory when legacy storage exists", () => {

@@ -31,6 +31,17 @@ describe("extension profile storage", () => {
     expect(subject.invoke(second, { kind: "get", key: "secret" })).toBe("b");
   });
 
+  it("refuses to follow a dangling symlink when removing extension data", () => {
+    const root = FS.mkdtempSync(Path.join(OS.tmpdir(), "tabs-extension-storage-test-"));
+    roots.push(root);
+    const identity = "acme.dashboard";
+    const namespace = Crypto.createHash("sha256").update(identity).digest("hex");
+    const scoped = Path.join(root, "scoped");
+    FS.mkdirSync(scoped);
+    FS.symlinkSync(Path.join(root, "missing"), Path.join(scoped, namespace));
+    expect(() => new ExtensionStorage(root).removeNamespace(identity)).toThrow(/invalid/);
+  });
+
   it("rejects a storage-root symlink rather than writing outside Tabs data", () => {
     const root = FS.mkdtempSync(Path.join(OS.tmpdir(), "tabs-extension-storage-test-"));
     roots.push(root);

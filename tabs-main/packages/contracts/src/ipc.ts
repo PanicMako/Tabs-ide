@@ -1196,7 +1196,7 @@ export interface DesktopBridge {
   ) => Promise<DesktopPreparedExchangeInstall>;
   confirmExchangeInstall: (token: string) => Promise<DesktopInstalledExtension>;
   cancelExchangeInstall: (token: string) => Promise<void>;
-  uninstallExtension: (extensionId: string) => Promise<void>;
+  uninstallExtension: (extensionId: string, deleteData?: boolean) => Promise<void>;
   setExtensionDisabled: (extensionId: string, disabled: boolean) => Promise<void>;
   setExtensionUpdatesPinned: (extensionId: string, pinned: boolean) => Promise<void>;
   installDevelopmentExtension: (directory: string) => Promise<DesktopInstalledExtension>;

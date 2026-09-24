@@ -110,6 +110,8 @@ function inspectDirectory(root: string): void {
 
 export class ExtensionViewManager {
   private readonly installed = new Map<string, StoredExtension>();
+  private readonly deleting = new Set<string>();
+  private deletionEpoch = 0;
   private readonly configuredSessions = new Set<string>();
   private active: ActiveView | null = null;
   private readonly storage: ExtensionStorage;
@@ -131,6 +133,7 @@ export class ExtensionViewManager {
       throw new Error("Extension view is no longer active.");
     }
     const installed = this.requireInstalled(active.extensionId);
+    this.assertNotDeleting(installed.id);
     if (installed.revoked) throw new Error("This extension version has been revoked.");
     if (installed.disabled) throw new Error("This extension is disabled.");
     if (!installed.manifest.capabilities?.includes("profile-storage")) {
@@ -178,6 +181,7 @@ export class ExtensionViewManager {
       this.tabsVersion,
     );
     if (!parsed.ok) throw new Error(parsed.errors.join("\n"));
+    this.assertNotDeleting(parsed.id);
     for (const tool of parsed.manifest.contributes.tools) {
       this.resolveAsset(root, tool.entry);
       if (tool.icon) this.resolveAsset(root, tool.icon);
@@ -217,12 +221,15 @@ export class ExtensionViewManager {
   }
 
   async installLocalPackage(archive: string): Promise<DesktopInstalledExtension> {
+    const deletionEpoch = this.deletionEpoch;
+    if (this.deleting.size) throw new Error("Extension data deletion is in progress.");
     if (!this.allowDevelopment)
       throw new Error("Local extension packages are disabled in this build.");
     if (!Path.isAbsolute(archive) || !archive.endsWith(".tabsext")) {
       throw new Error("Select an absolute .tabsext archive.");
     }
     const inspected = await inspectTabsext(archive, this.tabsVersion);
+    this.assertInstallEpoch(inspected.id, deletionEpoch);
     const packagesRoot = Path.join(Path.dirname(this.statePath), "extension-packages");
     const directory = Path.join(packagesRoot, inspected.id, inspected.digest);
     const previous = this.installed.get(inspected.id);
@@ -242,6 +249,7 @@ export class ExtensionViewManager {
       expectedDigest: inspected.digest,
       tabsVersion: this.tabsVersion,
     });
+    this.assertInstallEpoch(inspected.id, deletionEpoch, directory);
     const assignment = previous?.assignment ?? {
       extensionId: inspected.id,
       enabledGlobally: false,
@@ -283,6 +291,8 @@ export class ExtensionViewManager {
     registryOrigin: string,
     expectedDigest: string,
   ): Promise<DesktopInstalledExtension> {
+    const deletionEpoch = this.deletionEpoch;
+    if (this.deleting.size) throw new Error("Extension data deletion is in progress.");
     const origin = new URL(registryOrigin);
     if (origin.origin !== registryOrigin || origin.protocol !== "https:") {
       throw new Error("Invalid trusted Exchange origin.");
@@ -291,6 +301,7 @@ export class ExtensionViewManager {
       throw new Error("Invalid signed package digest.");
     }
     const inspected = await inspectTabsext(archive, this.tabsVersion);
+    this.assertInstallEpoch(inspected.id, deletionEpoch);
     if (inspected.digest !== expectedDigest) {
       throw new Error("Package digest differs from signed metadata.");
     }
@@ -331,6 +342,7 @@ export class ExtensionViewManager {
       expectedDigest,
       tabsVersion: this.tabsVersion,
     });
+    this.assertInstallEpoch(inspected.id, deletionEpoch, directory);
     const previousCapabilities = previous?.manifest.capabilities ?? [];
     const requestedCapabilities = inspected.manifest.capabilities ?? [];
     const increased =
@@ -397,8 +409,62 @@ export class ExtensionViewManager {
 
   /** Uninstall executable code and assignments; retain profiles and non-secret data. */
   uninstall(extensionId: string): void {
+    this.assertNotDeleting(extensionId);
+    this.uninstallInternal(extensionId, true);
+  }
+
+  /** Explicit deletion is unavailable for older installs with unenumerated legacy data. */
+  async uninstallAndDeleteData(extensionId: string): Promise<void> {
     const current = this.requireInstalled(extensionId);
-    this.writeRetainedProfiles(current);
+    this.assertNotDeleting(extensionId);
+    if (!this.canDeleteData(current)) {
+      throw new Error(
+        "Data deletion is unavailable because this installation has incomplete or legacy storage inventory.",
+      );
+    }
+    this.assertSafeUninstallPackage(current);
+    const retainedPath = this.retainedProfilesPath(
+      current.id,
+      current.source,
+      current.registryOrigin,
+    );
+    let retainedExists = false;
+    try {
+      const stat = FS.lstatSync(retainedPath);
+      if (!stat.isFile() || stat.isSymbolicLink()) {
+        throw new Error("Retained extension profile record is invalid.");
+      }
+      retainedExists = true;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+    this.deleting.add(extensionId);
+    this.deletionEpoch++;
+    try {
+      if (this.active?.extensionId === extensionId) this.hide();
+      for (const partition of current.usedPartitions ?? []) {
+        const extensionSession = session.fromPartition(partition);
+        await extensionSession.closeAllConnections();
+        await extensionSession.clearData();
+        await extensionSession.clearAuthCache();
+        await extensionSession.clearCodeCaches({ urls: [] });
+        extensionSession.flushStorageData();
+        await extensionSession.cookies.flushStore();
+      }
+      this.storage.removeNamespace(
+        extensionDataIdentity(current.id, current.registryOrigin, current.source),
+      );
+      if (retainedExists) FS.unlinkSync(retainedPath);
+      this.uninstallInternal(extensionId, false);
+    } finally {
+      this.deleting.delete(extensionId);
+    }
+  }
+
+  private uninstallInternal(extensionId: string, retainData: boolean): void {
+    const current = this.requireInstalled(extensionId);
+    this.assertSafeUninstallPackage(current);
+    if (retainData) this.writeRetainedProfiles(current);
     if (this.active?.extensionId === extensionId) this.hide();
     const packagesRoot = Path.join(Path.dirname(this.statePath), "extension-packages");
     const packageDirectory = Path.join(packagesRoot, extensionId);
@@ -440,7 +506,24 @@ export class ExtensionViewManager {
     }
   }
 
+  private assertSafeUninstallPackage(current: StoredExtension): void {
+    if (current.source === "development") return;
+    const packagesRoot = Path.join(Path.dirname(this.statePath), "extension-packages");
+    const packageDirectory = Path.join(packagesRoot, current.id);
+    if (!FS.existsSync(packageDirectory)) return;
+    if (
+      FS.lstatSync(packagesRoot).isSymbolicLink() ||
+      FS.lstatSync(packageDirectory).isSymbolicLink()
+    ) {
+      throw new Error("Extension package directory is a symbolic link.");
+    }
+    if (Path.resolve(current.directory) !== Path.join(packageDirectory, current.digest ?? "")) {
+      throw new Error("Extension package directory identity mismatch.");
+    }
+  }
+
   setAssignment(extensionId: string, assignment: TabsExtensionAssignment): void {
+    this.assertNotDeleting(extensionId);
     const current = this.requireInstalled(extensionId);
     if (current.revoked) throw new Error("This extension version has been revoked.");
     const validated = Schema.decodeUnknownSync(TabsExtensionAssignment)(assignment);
@@ -458,6 +541,7 @@ export class ExtensionViewManager {
   }
 
   setDisabled(extensionId: string, disabled: boolean): void {
+    this.assertNotDeleting(extensionId);
     const current = this.requireInstalled(extensionId);
     if (!disabled && current.revoked) throw new Error("A revoked extension cannot be enabled.");
     if (Boolean(current.disabled) === disabled) return;
@@ -474,6 +558,7 @@ export class ExtensionViewManager {
   }
 
   setUpdatesPinned(extensionId: string, pinned: boolean): void {
+    this.assertNotDeleting(extensionId);
     const current = this.requireInstalled(extensionId);
     if (current.source !== "exchange") throw new Error("Only Exchange extensions can pin updates.");
     if (Boolean(current.updatesPinned) === pinned) return;
@@ -493,6 +578,7 @@ export class ExtensionViewManager {
     label: string,
     scope: "shared" | "project" = "shared",
   ): void {
+    this.assertNotDeleting(extensionId);
     const current = this.requireInstalled(extensionId);
     if (!PROFILE_ID.test(id) || !label.trim() || label.length > 80) {
       throw new Error("Invalid profile name.");
@@ -507,6 +593,7 @@ export class ExtensionViewManager {
   }
 
   async activate(input: DesktopExtensionViewInput): Promise<void> {
+    this.assertNotDeleting(input.extensionId);
     const installed = this.requireInstalled(input.extensionId);
     if (installed.revoked) throw new Error("This extension version has been revoked.");
     if (installed.disabled) throw new Error("This extension is disabled.");
@@ -671,13 +758,34 @@ export class ExtensionViewManager {
     return path;
   }
 
-  private publicEntry({
-    directory: _directory,
-    dataInventoryVersion: _dataInventoryVersion,
-    usedPartitions: _usedPartitions,
-    ...entry
-  }: StoredExtension): DesktopInstalledExtension {
-    return entry;
+  private publicEntry(stored: StoredExtension): DesktopInstalledExtension {
+    const {
+      directory: _directory,
+      dataInventoryVersion: _dataInventoryVersion,
+      usedPartitions: _usedPartitions,
+      ...entry
+    } = stored;
+    return { ...entry, dataDeletionAvailable: this.canDeleteData(stored) };
+  }
+
+  private canDeleteData(entry: StoredExtension): boolean {
+    return (
+      entry.dataInventoryVersion === 1 &&
+      !this.storage.hasLegacyFiles() &&
+      this.validPartitionInventory(entry, entry.id, entry.source, entry.registryOrigin)
+    );
+  }
+
+  private assertNotDeleting(extensionId: string): void {
+    if (this.deleting.has(extensionId)) throw new Error("Extension data deletion is in progress.");
+  }
+
+  private assertInstallEpoch(extensionId: string, expectedEpoch: number, extracted?: string): void {
+    if (expectedEpoch === this.deletionEpoch && !this.deleting.has(extensionId)) return;
+    if (extracted && FS.existsSync(extracted) && !FS.lstatSync(extracted).isSymbolicLink()) {
+      FS.rmSync(extracted, { recursive: true, force: true });
+    }
+    throw new Error("Extension data changed during package install; retry the install.");
   }
 
   private requireInstalled(id: string): StoredExtension {
