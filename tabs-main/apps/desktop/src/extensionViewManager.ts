@@ -15,6 +15,7 @@ import {
   validateTabsExtensionManifest,
 } from "@tabs/shared/extensions";
 import type { NativeViewStackCoordinator } from "./nativeViewStackCoordinator";
+import { ExtensionStorage, type ExtensionStorageOperation } from "./extensionStorage";
 
 const SCHEME = "tabs-extension";
 const MAX_FILES = 1_000;
@@ -28,6 +29,9 @@ interface StoredExtension extends DesktopInstalledExtension {
 interface ActiveView {
   readonly key: string;
   readonly view: WebContentsView;
+  readonly projectId: string;
+  readonly extensionId: string;
+  readonly profileId: string;
 }
 
 function inspectDirectory(root: string): void {
@@ -60,6 +64,7 @@ export class ExtensionViewManager {
   private readonly installed = new Map<string, StoredExtension>();
   private readonly configuredSessions = new Set<string>();
   private active: ActiveView | null = null;
+  private readonly storage: ExtensionStorage;
 
   constructor(
     private readonly getWindow: () => BrowserWindow | null,
@@ -68,7 +73,27 @@ export class ExtensionViewManager {
     private readonly tabsVersion: string,
     private readonly allowDevelopment: boolean,
   ) {
+    this.storage = new ExtensionStorage(Path.join(Path.dirname(statePath), "extension-storage"));
     this.load();
+  }
+
+  invokeStorage(sender: Electron.WebContents, operation: ExtensionStorageOperation): unknown {
+    const active = this.active;
+    if (!active || active.view.webContents !== sender || sender.isDestroyed()) {
+      throw new Error("Extension view is no longer active.");
+    }
+    const installed = this.requireInstalled(active.extensionId);
+    if (!installed.manifest.capabilities?.includes("profile-storage")) {
+      throw new Error("Extension did not request profile storage.");
+    }
+    if (
+      !isExtensionEnabledForProject(installed.assignment, active.projectId) ||
+      !installed.assignment.storageGrantedProjectIds?.includes(active.projectId) ||
+      extensionProfileForProject(installed.assignment, active.projectId) !== active.profileId
+    ) {
+      throw new Error("Profile storage permission is not granted for this project.");
+    }
+    return this.storage.invoke(active, operation);
   }
 
   list(): DesktopInstalledExtension[] {
@@ -105,10 +130,15 @@ export class ExtensionViewManager {
       defaultProfileId: "default",
       profileIdByProjectId: {},
     };
+    const safeAssignment =
+      parsed.manifest.capabilities?.includes("profile-storage") &&
+      !previous?.manifest.capabilities?.includes("profile-storage")
+        ? { ...assignment, storageGrantedProjectIds: [] }
+        : assignment;
     const next: StoredExtension = {
       id: parsed.id,
       manifest: parsed.manifest,
-      assignment,
+      assignment: safeAssignment,
       profiles: previous?.profiles ?? [{ id: "default", label: "Default" }],
       source: "development",
       directory: root,
@@ -141,17 +171,22 @@ export class ExtensionViewManager {
       expectedDigest: inspected.digest,
       tabsVersion: this.tabsVersion,
     });
+    const assignment = previous?.assignment ?? {
+      extensionId: inspected.id,
+      enabledGlobally: false,
+      enabledProjectIds: [],
+      disabledProjectIds: [],
+      defaultProfileId: "default",
+      profileIdByProjectId: {},
+    };
     const next: StoredExtension = {
       id: inspected.id,
       manifest: inspected.manifest,
-      assignment: previous?.assignment ?? {
-        extensionId: inspected.id,
-        enabledGlobally: false,
-        enabledProjectIds: [],
-        disabledProjectIds: [],
-        defaultProfileId: "default",
-        profileIdByProjectId: {},
-      },
+      assignment:
+        inspected.manifest.capabilities?.includes("profile-storage") &&
+        !previous?.manifest.capabilities?.includes("profile-storage")
+          ? { ...assignment, storageGrantedProjectIds: [] }
+          : assignment,
       profiles: previous?.profiles ?? [{ id: "default", label: "Default" }],
       source: "local-package",
       digest: inspected.digest,
@@ -227,11 +262,18 @@ export class ExtensionViewManager {
         contextIsolation: true,
         nodeIntegration: false,
         webSecurity: true,
+        preload: Path.join(__dirname, "extensionPreload.js"),
       },
     });
     view.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
     view.webContents.on("will-navigate", (event) => event.preventDefault());
-    this.active = { key, view };
+    this.active = {
+      key,
+      view,
+      projectId: input.projectId,
+      extensionId: input.extensionId,
+      profileId: input.profileId,
+    };
     this.coordinator.attachToolView(view);
     try {
       await view.webContents.loadURL(

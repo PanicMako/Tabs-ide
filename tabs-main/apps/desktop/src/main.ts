@@ -178,6 +178,7 @@ const EXTENSION_ADD_PROFILE_CHANNEL = "desktop:extension:add-profile";
 const EXTENSION_ACTIVATE_CHANNEL = "desktop:extension:activate";
 const EXTENSION_SET_BOUNDS_CHANNEL = "desktop:extension:set-bounds";
 const EXTENSION_HIDE_CHANNEL = "desktop:extension:hide";
+const EXTENSION_STORAGE_CHANNEL = "desktop:extension:storage";
 const WRITE_CLIPBOARD_TEXT_CHANNEL = "desktop:clipboard:write-text";
 const READ_CLIPBOARD_TEXT_CHANNEL = "desktop:clipboard:read-text";
 const DESKTOP_CAPTURE_SCREEN_CHANNEL = "desktop:capture:screen";
@@ -2074,6 +2075,16 @@ function registerIpcHandlers(): void {
   ipcMain.handle(EXTENSION_HIDE_CHANNEL, async (event) => {
     requireMainRenderer(event);
     extensionViewManager.hide();
+  });
+  ipcMain.removeHandler(EXTENSION_STORAGE_CHANNEL);
+  ipcMain.handle(EXTENSION_STORAGE_CHANNEL, (event, operation: unknown) => {
+    if (event.senderFrame !== event.sender.mainFrame) {
+      throw new Error("Extension storage is available only to the main frame.");
+    }
+    return extensionViewManager.invokeStorage(
+      event.sender,
+      operation as Parameters<ExtensionViewManager["invokeStorage"]>[1],
+    );
   });
   ipcMain.removeHandler(HOST_POWER_GET_CHANNEL);
   ipcMain.handle(HOST_POWER_GET_CHANNEL, () => readHostPowerSnapshot());

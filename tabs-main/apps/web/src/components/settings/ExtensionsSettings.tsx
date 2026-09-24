@@ -190,8 +190,9 @@ export default function ExtensionsSettings() {
       ) : (
         <SettingsSection title="Profiles & Permissions">
           <p className="text-sm text-muted-foreground">
-            Profiles currently isolate extension browser storage. Privileged workspace, network, and
-            account APIs are not available to development extensions.
+            Profiles isolate extension browser storage. Extensions may request non-secret profile
+            storage separately for each project. Workspace, network, and account APIs remain
+            unavailable to development extensions.
           </p>
           {extensions.map((extension) => (
             <div key={extension.id} className="space-y-3 border-b border-border py-4 last:border-0">
@@ -247,28 +248,52 @@ export default function ExtensionsSettings() {
                 </Button>
               </div>
               {projects.map((project) => (
-                <label key={project.id} className="flex items-center justify-between gap-2 text-sm">
-                  {project.name}
-                  <select
-                    className="rounded border border-border bg-background px-2 py-1"
-                    aria-label={`${extension.manifest.displayName} profile for ${project.name}`}
-                    value={extension.assignment.profileIdByProjectId[project.id] ?? ""}
-                    disabled={busy}
-                    onChange={(event) => {
-                      const next = { ...extension.assignment.profileIdByProjectId };
-                      if (event.target.value) next[project.id] = event.target.value;
-                      else delete next[project.id];
-                      assign(extension, { ...extension.assignment, profileIdByProjectId: next });
-                    }}
-                  >
-                    <option value="">Use default</option>
-                    {extension.profiles.map((profile) => (
-                      <option key={profile.id} value={profile.id}>
-                        {profile.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <div key={project.id} className="space-y-1">
+                  <label className="flex items-center justify-between gap-2 text-sm">
+                    {project.name}
+                    <select
+                      className="rounded border border-border bg-background px-2 py-1"
+                      aria-label={`${extension.manifest.displayName} profile for ${project.name}`}
+                      value={extension.assignment.profileIdByProjectId[project.id] ?? ""}
+                      disabled={busy}
+                      onChange={(event) => {
+                        const next = { ...extension.assignment.profileIdByProjectId };
+                        if (event.target.value) next[project.id] = event.target.value;
+                        else delete next[project.id];
+                        assign(extension, { ...extension.assignment, profileIdByProjectId: next });
+                      }}
+                    >
+                      <option value="">Use default</option>
+                      {extension.profiles.map((profile) => (
+                        <option key={profile.id} value={profile.id}>
+                          {profile.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {extension.manifest.capabilities?.includes("profile-storage") ? (
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={
+                          extension.assignment.storageGrantedProjectIds?.includes(project.id) ??
+                          false
+                        }
+                        disabled={busy}
+                        onChange={(event) => {
+                          const ids = extension.assignment.storageGrantedProjectIds ?? [];
+                          assign(extension, {
+                            ...extension.assignment,
+                            storageGrantedProjectIds: event.target.checked
+                              ? [...ids, project.id]
+                              : ids.filter((id) => id !== project.id),
+                          });
+                        }}
+                      />
+                      Allow non-secret profile storage for {project.name}
+                    </label>
+                  ) : null}
+                </div>
               ))}
             </div>
           ))}

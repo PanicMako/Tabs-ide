@@ -50,6 +50,75 @@ afterEach(() => {
 });
 
 describe("development extension installation", () => {
+  it("binds storage to the active view and a project grant", () => {
+    const { directory, manager } = fixture();
+    const manifestPath = Path.join(directory, "tabs-extension.json");
+    const manifest = JSON.parse(FS.readFileSync(manifestPath, "utf8"));
+    manifest.capabilities = ["profile-storage"];
+    FS.writeFileSync(manifestPath, JSON.stringify(manifest));
+    const installed = manager.installDevelopment(directory);
+    manager.setAssignment(installed.id, {
+      ...installed.assignment,
+      enabledProjectIds: ["project-a"],
+      storageGrantedProjectIds: ["project-a"],
+    });
+    const sender = { isDestroyed: () => false };
+    const internal = manager as unknown as {
+      active: {
+        key: string;
+        view: { webContents: typeof sender };
+        extensionId: string;
+        projectId: string;
+        profileId: string;
+      } | null;
+    };
+    internal.active = {
+      key: "active",
+      view: { webContents: sender },
+      extensionId: installed.id,
+      projectId: "project-a",
+      profileId: "default",
+    };
+    expect(() =>
+      manager.invokeStorage({ isDestroyed: () => false } as never, {
+        kind: "get",
+        key: "theme",
+      }),
+    ).toThrow(/no longer active/);
+    manager.invokeStorage(sender as never, { kind: "set", key: "theme", value: "dark" });
+    expect(manager.invokeStorage(sender as never, { kind: "get", key: "theme" })).toBe("dark");
+    internal.active = null;
+    manager.setAssignment(installed.id, {
+      ...manager.list()[0]!.assignment,
+      storageGrantedProjectIds: [],
+    });
+    internal.active = {
+      key: "stale",
+      view: { webContents: sender },
+      extensionId: installed.id,
+      projectId: "project-a",
+      profileId: "default",
+    };
+    expect(() => manager.invokeStorage(sender as never, { kind: "get", key: "theme" })).toThrow(
+      /not granted/,
+    );
+  });
+
+  it("clears stale storage grants when an update first requests storage", () => {
+    const { directory, manager } = fixture();
+    const first = manager.installDevelopment(directory);
+    manager.setAssignment(first.id, {
+      ...first.assignment,
+      storageGrantedProjectIds: ["project-a"],
+    });
+    const manifestPath = Path.join(directory, "tabs-extension.json");
+    const manifest = JSON.parse(FS.readFileSync(manifestPath, "utf8"));
+    manifest.version = "1.0.1";
+    manifest.capabilities = ["profile-storage"];
+    FS.writeFileSync(manifestPath, JSON.stringify(manifest));
+    expect(manager.installDevelopment(directory).assignment.storageGrantedProjectIds).toEqual([]);
+  });
+
   it("installs a manifest once and preserves project assignments", () => {
     const { directory, manager } = fixture();
     const installed = manager.installDevelopment(directory);

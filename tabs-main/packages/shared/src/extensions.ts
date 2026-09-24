@@ -34,6 +34,7 @@ export function validateTabsExtensionManifest(
     "displayName",
     "description",
     "engines",
+    "capabilities",
     "contributes",
   ]);
   for (const key of Object.keys(input)) {
@@ -65,6 +66,14 @@ export function validateTabsExtensionManifest(
     errors.push("engines has unsupported fields.");
   }
   const contributes = input.contributes;
+  if (
+    input.capabilities !== undefined &&
+    (!Array.isArray(input.capabilities) ||
+      input.capabilities.length > 1 ||
+      input.capabilities.some((capability) => capability !== "profile-storage"))
+  ) {
+    errors.push("capabilities currently supports only profile-storage.");
+  }
   if (!record(contributes) || !Array.isArray(contributes.tools)) {
     errors.push("contributes.tools must be an array.");
   } else {

@@ -24,6 +24,16 @@ describe("Tabs extension manifest", () => {
     });
   });
 
+  it("accepts only the supported storage capability", () => {
+    expect(
+      validateTabsExtensionManifest({ ...manifest, capabilities: ["profile-storage"] }, "1.3.17")
+        .ok,
+    ).toBe(true);
+    expect(
+      validateTabsExtensionManifest({ ...manifest, capabilities: ["network"] }, "1.3.17").ok,
+    ).toBe(false);
+  });
+
   it("rejects traversal and unsupported executable contributions", () => {
     expect(
       validateTabsExtensionManifest(
