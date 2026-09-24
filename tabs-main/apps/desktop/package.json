@@ -20,6 +20,7 @@
     "@clerk/electron-passkeys": "0.0.3",
     "@effect/platform-node": "catalog:",
     "@tabs/client-runtime": "workspace:*",
+    "@tabs/extension-package": "workspace:*",
     "@tabs/ssh": "workspace:*",
     "effect": "catalog:",
     "electron": "44.1.0",

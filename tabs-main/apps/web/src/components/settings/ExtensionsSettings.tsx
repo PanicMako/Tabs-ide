@@ -71,21 +71,40 @@ export default function ExtensionsSettings() {
         <SettingsSection title="Discover">
           <p className="text-sm text-muted-foreground">
             The public Tabs Exchange is not connected yet. In development builds, load an unpacked
-            UI-only extension from a local folder.
+            UI-only extension from a local folder or an untrusted local .tabsext archive. Neither
+            option grants workspace, network, or account access.
           </p>
           {import.meta.env.DEV ? (
-            <Button
-              type="button"
-              disabled={busy}
-              onClick={() =>
-                void run(async () => {
-                  const directory = await bridge.pickFolder();
-                  if (directory) await bridge.installDevelopmentExtension(directory);
-                })
-              }
-            >
-              Load development extension
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                disabled={busy}
+                onClick={() =>
+                  void run(async () => {
+                    const directory = await bridge.pickFolder();
+                    if (directory) await bridge.installDevelopmentExtension(directory);
+                  })
+                }
+              >
+                Load development folder
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={busy}
+                onClick={() =>
+                  void run(async () => {
+                    const archive = await bridge.pickFile({
+                      title: "Select a local Tabs extension package",
+                      filters: [{ name: "Tabs extension packages", extensions: ["tabsext"] }],
+                    });
+                    if (archive) await bridge.installLocalExtensionPackage(archive);
+                  })
+                }
+              >
+                Load local package
+              </Button>
+            </div>
           ) : null}
         </SettingsSection>
       ) : tab === "installed" ? (
@@ -101,7 +120,8 @@ export default function ExtensionsSettings() {
                 <div>
                   <h3 className="font-medium">{extension.manifest.displayName}</h3>
                   <p className="text-xs text-muted-foreground">
-                    {extension.id} · {extension.manifest.version} · Development source
+                    {extension.id} · {extension.manifest.version} ·{" "}
+                    {extension.source === "local-package" ? "Local package" : "Development folder"}
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground">
                     {extension.manifest.description}

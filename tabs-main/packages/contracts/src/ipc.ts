@@ -1186,6 +1186,7 @@ export interface BrowserProfilePermissionInfo {
 export interface DesktopBridge {
   listExtensions: () => Promise<DesktopInstalledExtension[]>;
   installDevelopmentExtension: (directory: string) => Promise<DesktopInstalledExtension>;
+  installLocalExtensionPackage: (archive: string) => Promise<DesktopInstalledExtension>;
   setExtensionAssignment: (
     extensionId: string,
     assignment: TabsExtensionAssignment,

@@ -71,6 +71,7 @@ const CODE_HOST_CHROME_STATE_CHANNEL = "desktop:code-host:chrome-state";
 const BROWSER_HOST_GET_STATE_CHANNEL = "desktop:browser-host:get-state";
 const EXTENSION_LIST_CHANNEL = "desktop:extension:list";
 const EXTENSION_INSTALL_DEV_CHANNEL = "desktop:extension:install-dev";
+const EXTENSION_INSTALL_LOCAL_PACKAGE_CHANNEL = "desktop:extension:install-local-package";
 const EXTENSION_ASSIGN_CHANNEL = "desktop:extension:assign";
 const EXTENSION_ADD_PROFILE_CHANNEL = "desktop:extension:add-profile";
 const EXTENSION_ACTIVATE_CHANNEL = "desktop:extension:activate";
@@ -276,6 +277,8 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   listExtensions: () => ipcRenderer.invoke(EXTENSION_LIST_CHANNEL),
   installDevelopmentExtension: (directory) =>
     ipcRenderer.invoke(EXTENSION_INSTALL_DEV_CHANNEL, directory),
+  installLocalExtensionPackage: (archive) =>
+    ipcRenderer.invoke(EXTENSION_INSTALL_LOCAL_PACKAGE_CHANNEL, archive),
   setExtensionAssignment: (extensionId, assignment) =>
     ipcRenderer.invoke(EXTENSION_ASSIGN_CHANNEL, extensionId, assignment),
   addExtensionProfile: (extensionId, id, label) =>

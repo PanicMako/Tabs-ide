@@ -36,7 +36,8 @@ export interface DesktopInstalledExtension {
   readonly manifest: TabsExtensionManifest;
   readonly assignment: TabsExtensionAssignment;
   readonly profiles: ReadonlyArray<{ readonly id: string; readonly label: string }>;
-  readonly source: "development";
+  readonly source: "development" | "local-package";
+  readonly digest?: string;
 }
 
 export interface DesktopExtensionViewInput {

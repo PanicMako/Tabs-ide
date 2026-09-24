@@ -2,6 +2,7 @@ import * as FS from "node:fs";
 import * as OS from "node:os";
 import * as Path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { packTabsext } from "@tabs/extension-package";
 
 vi.mock("electron", () => ({
   session: { fromPartition: vi.fn() },
@@ -95,5 +96,62 @@ describe("development extension installation", () => {
     );
     expect(packaged.list()).toEqual([]);
     expect(() => packaged.installDevelopment(directory)).toThrow(/disabled/);
+  });
+
+  it("imports a local package once and preserves assignments across replacement", async () => {
+    const { directory, manager } = fixture();
+    const archiveRoot = FS.mkdtempSync(Path.join(OS.tmpdir(), "tabs-extension-archive-test-"));
+    temporaryRoots.push(archiveRoot);
+    const firstArchive = Path.join(archiveRoot, "first.tabsext");
+    await packTabsext({ directory, destination: firstArchive, tabsVersion: "1.3.17" });
+    const first = await manager.installLocalPackage(firstArchive);
+    expect(first.source).toBe("local-package");
+    expect(first.digest).toMatch(/^[a-f0-9]{64}$/);
+    manager.setAssignment(first.id, { ...first.assignment, enabledProjectIds: ["project-a"] });
+    manager.addProfile(first.id, "work", "Work");
+    expect(await manager.installLocalPackage(firstArchive)).toEqual(manager.list()[0]);
+
+    const manifestPath = Path.join(directory, "tabs-extension.json");
+    const manifest = JSON.parse(FS.readFileSync(manifestPath, "utf8"));
+    manifest.version = "1.0.1";
+    const updatedSource = Path.join(archiveRoot, "updated-source");
+    FS.mkdirSync(Path.join(updatedSource, "dist"), { recursive: true });
+    FS.copyFileSync(
+      Path.join(directory, "dist", "index.html"),
+      Path.join(updatedSource, "dist", "index.html"),
+    );
+    FS.writeFileSync(Path.join(updatedSource, "tabs-extension.json"), JSON.stringify(manifest));
+    const secondArchive = Path.join(archiveRoot, "second.tabsext");
+    await packTabsext({
+      directory: updatedSource,
+      destination: secondArchive,
+      tabsVersion: "1.3.17",
+    });
+    const updated = await manager.installLocalPackage(secondArchive);
+    expect(updated.manifest.version).toBe("1.0.1");
+    expect(updated.assignment.enabledProjectIds).toEqual(["project-a"]);
+    expect(updated.profiles.map((profile) => profile.id)).toEqual(["default", "work"]);
+    expect(updated.digest).not.toBe(first.digest);
+
+    const restarted = new ExtensionViewManager(
+      () => null,
+      {} as ConstructorParameters<typeof ExtensionViewManager>[1],
+      Path.join(directory, "installed.json"),
+      "1.3.17",
+      true,
+    );
+    expect(restarted.list()).toEqual([updated]);
+  });
+
+  it("keeps local packages unavailable in production builds", async () => {
+    const { directory } = fixture();
+    const packaged = new ExtensionViewManager(
+      () => null,
+      {} as ConstructorParameters<typeof ExtensionViewManager>[1],
+      Path.join(directory, "installed.json"),
+      "1.3.17",
+      false,
+    );
+    await expect(packaged.installLocalPackage("/tmp/example.tabsext")).rejects.toThrow(/disabled/);
   });
 });

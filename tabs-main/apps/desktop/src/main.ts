@@ -172,6 +172,7 @@ const CODE_HOST_CHROME_STATE_CHANNEL = "desktop:code-host:chrome-state";
 const BROWSER_HOST_GET_STATE_CHANNEL = "desktop:browser-host:get-state";
 const EXTENSION_LIST_CHANNEL = "desktop:extension:list";
 const EXTENSION_INSTALL_DEV_CHANNEL = "desktop:extension:install-dev";
+const EXTENSION_INSTALL_LOCAL_PACKAGE_CHANNEL = "desktop:extension:install-local-package";
 const EXTENSION_ASSIGN_CHANNEL = "desktop:extension:assign";
 const EXTENSION_ADD_PROFILE_CHANNEL = "desktop:extension:add-profile";
 const EXTENSION_ACTIVATE_CHANNEL = "desktop:extension:activate";
@@ -2022,6 +2023,14 @@ function registerIpcHandlers(): void {
       throw new Error("Unpacked extensions can only be loaded in development builds.");
     }
     return extensionViewManager.installDevelopment(directory);
+  });
+  ipcMain.removeHandler(EXTENSION_INSTALL_LOCAL_PACKAGE_CHANNEL);
+  ipcMain.handle(EXTENSION_INSTALL_LOCAL_PACKAGE_CHANNEL, async (event, archive: unknown) => {
+    requireMainRenderer(event);
+    if (app.isPackaged || typeof archive !== "string") {
+      throw new Error("Local extension packages can only be loaded in development builds.");
+    }
+    return extensionViewManager.installLocalPackage(archive);
   });
   ipcMain.removeHandler(EXTENSION_ASSIGN_CHANNEL);
   ipcMain.handle(EXTENSION_ASSIGN_CHANNEL, async (event, id: unknown, assignment: unknown) => {

@@ -1,6 +1,7 @@
 import * as FS from "node:fs";
 import * as Path from "node:path";
 import { type BrowserWindow, type Session, WebContentsView, session } from "electron";
+import { extractTabsext, inspectTabsext } from "@tabs/extension-package";
 import {
   TabsExtensionAssignment,
   type DesktopExtensionBoundsInput,
@@ -115,6 +116,56 @@ export class ExtensionViewManager {
     this.installed.set(parsed.id, next);
     this.hide();
     this.save();
+    return this.publicEntry(next);
+  }
+
+  async installLocalPackage(archive: string): Promise<DesktopInstalledExtension> {
+    if (!this.allowDevelopment)
+      throw new Error("Local extension packages are disabled in this build.");
+    if (!Path.isAbsolute(archive) || !archive.endsWith(".tabsext")) {
+      throw new Error("Select an absolute .tabsext archive.");
+    }
+    const inspected = await inspectTabsext(archive, this.tabsVersion);
+    const packagesRoot = Path.join(Path.dirname(this.statePath), "extension-packages");
+    const directory = Path.join(packagesRoot, inspected.id, inspected.digest);
+    const previous = this.installed.get(inspected.id);
+    if (FS.existsSync(directory)) {
+      if (previous?.source === "local-package" && previous.digest === inspected.digest) {
+        return this.publicEntry(previous);
+      }
+      throw new Error("This package digest has already been extracted; remove it before retrying.");
+    }
+    await extractTabsext({
+      archive,
+      destination: directory,
+      expectedDigest: inspected.digest,
+      tabsVersion: this.tabsVersion,
+    });
+    const next: StoredExtension = {
+      id: inspected.id,
+      manifest: inspected.manifest,
+      assignment: previous?.assignment ?? {
+        extensionId: inspected.id,
+        enabledGlobally: false,
+        enabledProjectIds: [],
+        disabledProjectIds: [],
+        defaultProfileId: "default",
+        profileIdByProjectId: {},
+      },
+      profiles: previous?.profiles ?? [{ id: "default", label: "Default" }],
+      source: "local-package",
+      digest: inspected.digest,
+      directory,
+    };
+    this.hide();
+    this.installed.set(inspected.id, next);
+    try {
+      this.save();
+    } catch (error) {
+      if (previous) this.installed.set(inspected.id, previous);
+      else this.installed.delete(inspected.id);
+      throw error;
+    }
     return this.publicEntry(next);
   }
 
@@ -306,9 +357,35 @@ export class ExtensionViewManager {
       for (const entry of entries) {
         try {
           if (!entry || typeof entry.directory !== "string") continue;
+          if (entry.source !== "development" && entry.source !== "local-package") continue;
           const result = validateTabsExtensionManifest(entry.manifest, this.tabsVersion);
           if (!result.ok || result.id !== entry.id || !Array.isArray(entry.profiles)) continue;
           if (!FS.existsSync(entry.directory)) continue;
+          inspectDirectory(entry.directory);
+          const diskManifest = JSON.parse(
+            FS.readFileSync(Path.join(entry.directory, "tabs-extension.json"), "utf8"),
+          );
+          const diskResult = validateTabsExtensionManifest(diskManifest, this.tabsVersion);
+          if (!diskResult.ok || diskResult.id !== entry.id) continue;
+          if (JSON.stringify(diskResult.manifest) !== JSON.stringify(entry.manifest)) continue;
+          if (entry.source === "local-package") {
+            if (!entry.digest || !/^[a-f0-9]{64}$/.test(entry.digest)) continue;
+            const expected = Path.join(
+              Path.dirname(this.statePath),
+              "extension-packages",
+              entry.id,
+              entry.digest,
+            );
+            if (Path.resolve(entry.directory) !== expected) continue;
+            if (FS.lstatSync(entry.directory).isSymbolicLink()) continue;
+            if (FS.lstatSync(Path.dirname(entry.directory)).isSymbolicLink()) continue;
+            const packageRoot = FS.realpathSync(
+              Path.join(Path.dirname(this.statePath), "extension-packages"),
+            );
+            if (!FS.realpathSync(entry.directory).startsWith(`${packageRoot}${Path.sep}`)) {
+              continue;
+            }
+          }
           const assignment = Schema.decodeUnknownSync(TabsExtensionAssignment)(entry.assignment);
           if (
             assignment.extensionId !== entry.id ||

@@ -1,9 +1,10 @@
 # Tabs development extensions (experimental)
 
-The current implementation is a desktop-only, unpacked, UI-only development
-format. It is not the Tabs Exchange, and it is not compatible with VS Code
-`.vsix` packages. Packaged builds reject development-folder installation and
-do not load previously registered development folders.
+The current implementation is a desktop-only, UI-only development format. It
+is not the Tabs Exchange, and it is not compatible with VS Code `.vsix`
+packages. Development builds can load either an unpacked folder or a local
+`.tabsext` archive. Packaged builds reject both local import paths and do not
+load previously registered development extensions.
 
 The repository also contains a deterministic `.tabsext` ZIP packer and bounded
 archive inspector/extractor in `packages/extension-package`. This is a package
@@ -37,7 +38,10 @@ these are display context only, not authorization tokens.
 ## Enabling and profiles
 
 In Tabs desktop development mode, open Settings > Extensions > Discover and
-load the folder. The package is registered once locally. Installed settings
+load the folder or a local archive. Archives are validated and extracted into
+Tabs-owned versioned storage; importing a newer archive for the same ID keeps
+the previous extracted version on disk and retains assignments and profiles.
+The package is registered once locally. Installed settings
 can show it in every project or in selected projects. A global extension can
 be hidden for individual projects. Named profiles isolate the extension's
 browser storage, with a default profile and optional per-project override.
@@ -46,9 +50,10 @@ credential API is available in this experimental stage.
 
 ## Not yet supported
 
-Do not distribute this development format to users. The public `.tabsext`
-installer, Exchange publishing/review service, publisher identities, downloads,
-updates, revocation, permission broker, network broker, background runtime,
-AI-callable tools, and account-credential storage are not implemented. Those
-features require additional security and lifecycle work before a public
-extension ecosystem can be enabled.
+Do not distribute this development format to users. Local archives do not have
+publisher identity verification, approval, revocation, or authenticated
+updates. The public `.tabsext` installer, Exchange publishing/review service,
+publisher identities, downloads, updates, permission broker, network broker,
+background runtime, AI-callable tools, and account-credential storage are not
+implemented. Those features require additional security and lifecycle work
+before a public extension ecosystem can be enabled.
