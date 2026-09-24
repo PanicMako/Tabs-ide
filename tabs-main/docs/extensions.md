@@ -1,7 +1,7 @@
 # Tabs development extensions (experimental)
 
-The current implementation is a desktop-only, UI-only development format. It
-is not the Tabs Exchange, and it is not compatible with VS Code `.vsix`
+The desktop implementation is a UI-only development format. It is not yet
+connected to the experimental Tabs Exchange service, and it is not compatible with VS Code `.vsix`
 packages. Development builds can load either an unpacked folder or a local
 `.tabsext` archive. Packaged builds reject both local import paths and do not
 load previously registered development extensions.
@@ -52,8 +52,10 @@ credential API is available in this experimental stage.
 
 Do not distribute this development format to users. Local archives do not have
 publisher identity verification, approval, revocation, or authenticated
-updates. The public `.tabsext` installer, Exchange publishing/review service,
-publisher identities, downloads, updates, permission broker, network broker,
-background runtime, AI-callable tools, and account-credential storage are not
-implemented. Those features require additional security and lifecycle work
-before a public extension ecosystem can be enabled.
+updates. An experimental Exchange API, scan worker, and publisher portal now
+exist; see [Exchange development status](exchange.md). Publishing is disabled
+by default, and the desktop client does not yet consume its catalog. The
+production installer, authenticated updates, permission broker, network
+broker, background runtime, AI-callable tools, and account-credential storage
+are not implemented. Those features require additional security and lifecycle
+work before a public extension ecosystem can be enabled.
