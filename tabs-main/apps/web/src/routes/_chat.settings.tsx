@@ -9,6 +9,7 @@ import {
   BookOpenIcon,
   BotIcon,
   DownloadIcon,
+  PuzzleIcon,
   FingerprintIcon,
   FolderIcon,
   GitBranchIcon,
@@ -106,6 +107,7 @@ const ThemesSettings = lazy(() => import("~/components/settings/ThemesSettings")
 const AnimationsSettings = lazy(() => import("~/components/settings/AnimationsSettings"));
 const ProvidersSettings = lazy(() => import("~/components/settings/ProvidersSettings"));
 const AboutSettings = lazy(() => import("~/components/settings/AboutSettings"));
+const ExtensionsSettings = lazy(() => import("~/components/settings/ExtensionsSettings"));
 const ProjectWorkspaceSettingsSection = lazy(() =>
   import("~/components/ProjectWorkspaceSettingsSection").then((m) => ({
     default: m.ProjectWorkspaceSettingsSection,
@@ -154,6 +156,7 @@ export type SettingsSectionId =
   | "workspace"
   | "profiles"
   | "providers"
+  | "extensions"
   | "usage"
   | "source-control"
   | "connections"
@@ -173,6 +176,7 @@ const SETTINGS_NAV: ReadonlyArray<{
   { id: "themes", label: "Themes", icon: PaletteIcon },
   { id: "startup-animation", label: "Animations", icon: MonitorPlayIcon },
   { id: "providers", label: "Providers", icon: BotIcon },
+  { id: "extensions", label: "Extensions", icon: PuzzleIcon },
   { id: "usage", label: "Usage & Limits", icon: GaugeIcon },
   { id: "diagnostics", label: "Diagnostics", icon: ActivityIcon },
   { id: "documentation", label: "Documentation", icon: BookOpenIcon },
@@ -183,6 +187,10 @@ const SETTINGS_NAV: ReadonlyArray<{
   { id: "keybindings", label: "Keybindings", icon: KeyboardIcon },
   { id: "about", label: "About", icon: InfoIcon },
 ];
+
+const AVAILABLE_SETTINGS_NAV = import.meta.env.DEV
+  ? SETTINGS_NAV
+  : SETTINGS_NAV.filter((item) => item.id !== "extensions");
 
 const EMPTY_KEYBINDINGS: ResolvedKeybindingsConfig = [];
 
@@ -220,9 +228,11 @@ function SettingsRouteView() {
 
   const [settingsViewState, updateSettingsViewState] = useSettingsViewState();
   const activeSettingsSection =
-    (urlSection && SETTINGS_NAV.some((item) => item.id === urlSection)
+    (urlSection && AVAILABLE_SETTINGS_NAV.some((item) => item.id === urlSection)
       ? urlSection
-      : (settingsViewState.activeSection as SettingsSectionId)) || "general";
+      : AVAILABLE_SETTINGS_NAV.some((item) => item.id === settingsViewState.activeSection)
+        ? (settingsViewState.activeSection as SettingsSectionId)
+        : "general") || "general";
   const setActiveSettingsSection = useCallback(
     (s: SettingsSectionId) => {
       updateSettingsViewState({ activeSection: s });
@@ -527,7 +537,7 @@ function SettingsRouteView() {
         <div className="min-h-0 flex-1 overflow-hidden">
           <div className="flex h-full w-full gap-6 px-6 sm:px-10 lg:px-16">
             <nav className="w-48 shrink-0 space-y-0.5 py-4">
-              {SETTINGS_NAV.map((item) => {
+              {AVAILABLE_SETTINGS_NAV.map((item) => {
                 const NavIcon = item.icon;
                 const active = activeSettingsSection === item.id;
                 return (
@@ -554,7 +564,7 @@ function SettingsRouteView() {
                 <Suspense
                   fallback={
                     <SettingsLoadingState
-                      label={`Loading ${SETTINGS_NAV.find((item) => item.id === activeSettingsSection)?.label ?? "settings"}`}
+                      label={`Loading ${AVAILABLE_SETTINGS_NAV.find((item) => item.id === activeSettingsSection)?.label ?? "settings"}`}
                     />
                   }
                 >
@@ -567,6 +577,7 @@ function SettingsRouteView() {
                       <ProjectWorkspaceSettingsSection />
                     ) : null}
                     {activeSettingsSection === "profiles" ? <BrowserProfilesSettings /> : null}
+                    {activeSettingsSection === "extensions" ? <ExtensionsSettings /> : null}
                     {activeSettingsSection === "source-control" ? (
                       <SourceControlSettingsPanel
                         startProviderAction={startProviderAction}

@@ -69,6 +69,13 @@ const CODE_HOST_RUN_COMMAND_CHANNEL = "vscode:tabs-code-host:run-command";
 const CODE_HOST_GET_CHROME_STATE_CHANNEL = "desktop:code-host:get-chrome-state";
 const CODE_HOST_CHROME_STATE_CHANNEL = "desktop:code-host:chrome-state";
 const BROWSER_HOST_GET_STATE_CHANNEL = "desktop:browser-host:get-state";
+const EXTENSION_LIST_CHANNEL = "desktop:extension:list";
+const EXTENSION_INSTALL_DEV_CHANNEL = "desktop:extension:install-dev";
+const EXTENSION_ASSIGN_CHANNEL = "desktop:extension:assign";
+const EXTENSION_ADD_PROFILE_CHANNEL = "desktop:extension:add-profile";
+const EXTENSION_ACTIVATE_CHANNEL = "desktop:extension:activate";
+const EXTENSION_SET_BOUNDS_CHANNEL = "desktop:extension:set-bounds";
+const EXTENSION_HIDE_CHANNEL = "desktop:extension:hide";
 const BROWSER_HOST_GET_SESSION_STATE_CHANNEL = "desktop:browser-host:get-session-state";
 const BROWSER_HOST_ENSURE_SESSION_CHANNEL = "desktop:browser-host:ensure-session";
 const BROWSER_HOST_ACTIVATE_SESSION_CHANNEL = "desktop:browser-host:activate-session";
@@ -266,6 +273,16 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   captureBrowserComparison: (input) =>
     ipcRenderer.invoke("desktop:browser-comparison:capture", input),
   getBrowserHostState: () => ipcRenderer.invoke(BROWSER_HOST_GET_STATE_CHANNEL),
+  listExtensions: () => ipcRenderer.invoke(EXTENSION_LIST_CHANNEL),
+  installDevelopmentExtension: (directory) =>
+    ipcRenderer.invoke(EXTENSION_INSTALL_DEV_CHANNEL, directory),
+  setExtensionAssignment: (extensionId, assignment) =>
+    ipcRenderer.invoke(EXTENSION_ASSIGN_CHANNEL, extensionId, assignment),
+  addExtensionProfile: (extensionId, id, label) =>
+    ipcRenderer.invoke(EXTENSION_ADD_PROFILE_CHANNEL, extensionId, id, label),
+  activateExtensionTool: (input) => ipcRenderer.invoke(EXTENSION_ACTIVATE_CHANNEL, input),
+  setExtensionBounds: (input) => ipcRenderer.invoke(EXTENSION_SET_BOUNDS_CHANNEL, input),
+  hideExtensionTool: () => ipcRenderer.invoke(EXTENSION_HIDE_CHANNEL),
   getBrowserSessionState: (input) =>
     ipcRenderer.invoke(BROWSER_HOST_GET_SESSION_STATE_CHANNEL, input),
   ensureBrowserSession: (input) => ipcRenderer.invoke(BROWSER_HOST_ENSURE_SESSION_CHANNEL, input),

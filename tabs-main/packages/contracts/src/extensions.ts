@@ -1,0 +1,55 @@
+import * as Schema from "effect/Schema";
+
+/** The first package format is intentionally UI-only. Logic permissions require a separate runtime. */
+export const TabsExtensionTool = Schema.Struct({
+  id: Schema.String,
+  label: Schema.String,
+  entry: Schema.String,
+  icon: Schema.optionalKey(Schema.String),
+});
+export type TabsExtensionTool = typeof TabsExtensionTool.Type;
+
+export const TabsExtensionManifest = Schema.Struct({
+  manifestVersion: Schema.Literal(1),
+  publisher: Schema.String,
+  name: Schema.String,
+  version: Schema.String,
+  displayName: Schema.String,
+  description: Schema.String,
+  engines: Schema.Struct({ tabs: Schema.String }),
+  contributes: Schema.Struct({ tools: Schema.Array(TabsExtensionTool) }),
+});
+export type TabsExtensionManifest = typeof TabsExtensionManifest.Type;
+
+export const TabsExtensionAssignment = Schema.Struct({
+  extensionId: Schema.String,
+  enabledGlobally: Schema.Boolean,
+  enabledProjectIds: Schema.Array(Schema.String),
+  disabledProjectIds: Schema.Array(Schema.String),
+  defaultProfileId: Schema.String,
+  profileIdByProjectId: Schema.Record(Schema.String, Schema.String),
+});
+export type TabsExtensionAssignment = typeof TabsExtensionAssignment.Type;
+
+export interface DesktopInstalledExtension {
+  readonly id: string;
+  readonly manifest: TabsExtensionManifest;
+  readonly assignment: TabsExtensionAssignment;
+  readonly profiles: ReadonlyArray<{ readonly id: string; readonly label: string }>;
+  readonly source: "development";
+}
+
+export interface DesktopExtensionViewInput {
+  readonly extensionId: string;
+  readonly toolId: string;
+  readonly projectId: string;
+  readonly profileId: string;
+}
+
+export interface DesktopExtensionBoundsInput extends DesktopExtensionViewInput {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+  readonly visible: boolean;
+}

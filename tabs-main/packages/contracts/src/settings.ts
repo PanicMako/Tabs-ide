@@ -1325,6 +1325,7 @@ export const ProjectToolKind = Schema.Literals([
   "testing",
   "custom_embed",
   "custom_process",
+  "extension",
 ]);
 export type ProjectToolKind = typeof ProjectToolKind.Type;
 
@@ -1400,6 +1401,8 @@ export const ProjectToolDefinition = Schema.Struct({
   customEmbedId: Schema.optionalKey(Schema.NullOr(ProjectSettingId)),
   serverProcessId: Schema.optionalKey(Schema.NullOr(ProjectSettingId)),
   terminalProcessId: Schema.optionalKey(Schema.NullOr(ProjectSettingId)),
+  extensionId: Schema.optionalKey(Schema.NullOr(ProjectSettingId)),
+  extensionToolId: Schema.optionalKey(Schema.NullOr(ProjectSettingId)),
 });
 export type ProjectToolDefinition = typeof ProjectToolDefinition.Type;
 

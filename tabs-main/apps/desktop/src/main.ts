@@ -32,6 +32,9 @@ import type {
   DesktopUpdateActionResult,
   DesktopUpdateState,
   DesktopSshEnvironmentTarget,
+  DesktopExtensionBoundsInput,
+  DesktopExtensionViewInput,
+  TabsExtensionAssignment,
 } from "@tabs/contracts";
 import { BrowserImportInput } from "@tabs/contracts";
 import { DEFAULT_DESKTOP_ICON_THEME } from "@tabs/contracts/settings";
@@ -79,6 +82,7 @@ import {
 } from "./linuxAppImageUpdater";
 import { CodeHostManager, resolveCodeHostConfig } from "./codeHostManager";
 import { BrowserHostManager } from "./browserHostManager";
+import { ExtensionViewManager } from "./extensionViewManager";
 import { resolveUserDataPathWithFs } from "./userDataPath";
 import { NativeViewStackCoordinator } from "./nativeViewStackCoordinator";
 import {
@@ -166,6 +170,13 @@ const CODE_HOST_RUN_COMMAND_CHANNEL = "vscode:tabs-code-host:run-command";
 const CODE_HOST_GET_CHROME_STATE_CHANNEL = "desktop:code-host:get-chrome-state";
 const CODE_HOST_CHROME_STATE_CHANNEL = "desktop:code-host:chrome-state";
 const BROWSER_HOST_GET_STATE_CHANNEL = "desktop:browser-host:get-state";
+const EXTENSION_LIST_CHANNEL = "desktop:extension:list";
+const EXTENSION_INSTALL_DEV_CHANNEL = "desktop:extension:install-dev";
+const EXTENSION_ASSIGN_CHANNEL = "desktop:extension:assign";
+const EXTENSION_ADD_PROFILE_CHANNEL = "desktop:extension:add-profile";
+const EXTENSION_ACTIVATE_CHANNEL = "desktop:extension:activate";
+const EXTENSION_SET_BOUNDS_CHANNEL = "desktop:extension:set-bounds";
+const EXTENSION_HIDE_CHANNEL = "desktop:extension:hide";
 const WRITE_CLIPBOARD_TEXT_CHANNEL = "desktop:clipboard:write-text";
 const READ_CLIPBOARD_TEXT_CHANNEL = "desktop:clipboard:read-text";
 const DESKTOP_CAPTURE_SCREEN_CHANNEL = "desktop:capture:screen";
@@ -441,6 +452,13 @@ if (persistedDesktopTheme) {
   });
 }
 const browserHostManager = new BrowserHostManager(() => mainWindow, nativeViewCoordinator);
+const extensionViewManager = new ExtensionViewManager(
+  () => mainWindow,
+  nativeViewCoordinator,
+  Path.join(STATE_DIR, "development-extensions.json"),
+  app.getVersion(),
+  !app.isPackaged,
+);
 const desktopCaptureCoordinator = new DesktopCaptureCoordinator();
 const CODE_OSS_PRIMARY_STATE_DIR = Path.join(STATE_DIR, "code-oss-main");
 
@@ -736,6 +754,10 @@ function recoverFailedUpdateInstall(message: string): void {
 
 function registerPrivilegedSchemes(): void {
   protocol.registerSchemesAsPrivileged([
+    {
+      scheme: "tabs-extension",
+      privileges: { standard: true, secure: true, supportFetchAPI: true },
+    },
     {
       scheme: DESKTOP_SCHEME,
       privileges: {
@@ -1210,14 +1232,16 @@ function configureApplicationMenu(): void {
     {
       label: "Tools",
       submenu: [
-        ...([
-          ["Code", "code"],
-          ["Agents", "agents"],
-          ["Server", "server"],
-          ["Git", "git"],
-          ["Browser", "browser"],
-          ["Testing", "testing"],
-        ] as const).map(([label, kind]) => ({
+        ...(
+          [
+            ["Code", "code"],
+            ["Agents", "agents"],
+            ["Server", "server"],
+            ["Git", "git"],
+            ["Browser", "browser"],
+            ["Testing", "testing"],
+          ] as const
+        ).map(([label, kind]) => ({
           label,
           click: () => dispatchMenuAction(`tool-kind-${kind}`),
         })),
@@ -1981,6 +2005,67 @@ const shutdownPromise = Effect.runPromise(
 );
 
 function registerIpcHandlers(): void {
+  const requireMainRenderer = (event: Electron.IpcMainInvokeEvent): void => {
+    if (!mainWindow || event.sender !== mainWindow.webContents) {
+      throw new Error("Extension management is available only to the Tabs window.");
+    }
+  };
+  ipcMain.removeHandler(EXTENSION_LIST_CHANNEL);
+  ipcMain.handle(EXTENSION_LIST_CHANNEL, async (event) => {
+    requireMainRenderer(event);
+    return extensionViewManager.list();
+  });
+  ipcMain.removeHandler(EXTENSION_INSTALL_DEV_CHANNEL);
+  ipcMain.handle(EXTENSION_INSTALL_DEV_CHANNEL, async (event, directory: unknown) => {
+    requireMainRenderer(event);
+    if (app.isPackaged || typeof directory !== "string") {
+      throw new Error("Unpacked extensions can only be loaded in development builds.");
+    }
+    return extensionViewManager.installDevelopment(directory);
+  });
+  ipcMain.removeHandler(EXTENSION_ASSIGN_CHANNEL);
+  ipcMain.handle(EXTENSION_ASSIGN_CHANNEL, async (event, id: unknown, assignment: unknown) => {
+    requireMainRenderer(event);
+    if (typeof id !== "string" || !assignment || typeof assignment !== "object") {
+      throw new Error("Invalid extension assignment.");
+    }
+    extensionViewManager.setAssignment(id, assignment as TabsExtensionAssignment);
+  });
+  ipcMain.removeHandler(EXTENSION_ADD_PROFILE_CHANNEL);
+  ipcMain.handle(
+    EXTENSION_ADD_PROFILE_CHANNEL,
+    async (event, id: unknown, profile: unknown, label: unknown) => {
+      requireMainRenderer(event);
+      if (typeof id !== "string" || typeof profile !== "string" || typeof label !== "string") {
+        throw new Error("Invalid extension profile.");
+      }
+      extensionViewManager.addProfile(id, profile, label);
+    },
+  );
+  ipcMain.removeHandler(EXTENSION_ACTIVATE_CHANNEL);
+  ipcMain.handle(EXTENSION_ACTIVATE_CHANNEL, async (event, input: unknown) => {
+    requireMainRenderer(event);
+    if (!input || typeof input !== "object") throw new Error("Invalid extension view.");
+    const value = input as DesktopExtensionViewInput;
+    if (
+      ![value.extensionId, value.toolId, value.projectId, value.profileId].every(
+        (item) => typeof item === "string" && item.length > 0,
+      )
+    )
+      throw new Error("Invalid extension view.");
+    await extensionViewManager.activate(value);
+  });
+  ipcMain.removeHandler(EXTENSION_SET_BOUNDS_CHANNEL);
+  ipcMain.handle(EXTENSION_SET_BOUNDS_CHANNEL, async (event, input: unknown) => {
+    requireMainRenderer(event);
+    if (!input || typeof input !== "object") return;
+    extensionViewManager.setBounds(input as DesktopExtensionBoundsInput);
+  });
+  ipcMain.removeHandler(EXTENSION_HIDE_CHANNEL);
+  ipcMain.handle(EXTENSION_HIDE_CHANNEL, async (event) => {
+    requireMainRenderer(event);
+    extensionViewManager.hide();
+  });
   ipcMain.removeHandler(HOST_POWER_GET_CHANNEL);
   ipcMain.handle(HOST_POWER_GET_CHANNEL, () => readHostPowerSnapshot());
 

@@ -1,6 +1,12 @@
 import type { BrowserReadinessResult } from "./browserReadiness.ts";
 import type { BrowserComparisonInput } from "./browserComparison.ts";
 import type { NotificationToastPayload } from "./notificationOverlay.ts";
+import type {
+  DesktopExtensionBoundsInput,
+  DesktopExtensionViewInput,
+  DesktopInstalledExtension,
+  TabsExtensionAssignment,
+} from "./extensions.ts";
 export * from "./notificationOverlay.ts";
 import type {
   VcsCreateRefInput,
@@ -1178,6 +1184,16 @@ export interface BrowserProfilePermissionInfo {
 }
 
 export interface DesktopBridge {
+  listExtensions: () => Promise<DesktopInstalledExtension[]>;
+  installDevelopmentExtension: (directory: string) => Promise<DesktopInstalledExtension>;
+  setExtensionAssignment: (
+    extensionId: string,
+    assignment: TabsExtensionAssignment,
+  ) => Promise<void>;
+  addExtensionProfile: (extensionId: string, id: string, label: string) => Promise<void>;
+  activateExtensionTool: (input: DesktopExtensionViewInput) => Promise<void>;
+  setExtensionBounds: (input: DesktopExtensionBoundsInput) => Promise<void>;
+  hideExtensionTool: () => Promise<void>;
   writeClipboardText: (text: string) => Promise<void>;
   readClipboardText?: (type?: "clipboard" | "selection") => Promise<string>;
   getDesktopCapturePermissionStatus?: () => Promise<DesktopCapturePermissionStatus>;

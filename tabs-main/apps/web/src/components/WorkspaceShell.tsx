@@ -1,4 +1,7 @@
 import { BrowserToolbar } from "./browser/BrowserToolbar";
+import { ExtensionToolSurface } from "./ExtensionToolSurface";
+import { useInstalledExtensions } from "../state/extensions";
+import { isExtensionEnabledForProject, extensionProfileForProject } from "@tabs/shared/extensions";
 import type { FileDiffMetadata, Hunk } from "@pierre/diffs";
 import { createPortal } from "react-dom";
 import { useAtomValue } from "@effect/atom-react";
@@ -33,6 +36,7 @@ import { RecordIssueDialog } from "./browser/RecordIssueDialog";
 import { ServerReadinessBadge } from "./browser/ServerReadinessBadge";
 import {
   type ProjectToolKind,
+  type ProjectToolDefinition,
   type ProjectWorkspaceSettings,
   type BrowserPartitionMode,
   resolveBrowserPartition,
@@ -92,6 +96,7 @@ import {
   MonitorIcon,
   MousePointer2Icon,
   PlayIcon,
+  PuzzleIcon,
   PencilIcon,
   PlusIcon,
   RefreshCwIcon,
@@ -564,6 +569,8 @@ function toolIcon(tool: ProjectToolKind) {
       return <FlaskConicalIcon aria-hidden="true" className="size-3.5" />;
     case "custom_process":
       return <TerminalSquareIcon className="size-3.5" />;
+    case "extension":
+      return <PuzzleIcon className="size-3.5" />;
   }
 }
 
@@ -1699,7 +1706,11 @@ function AgentsThreadList(props: {
             </button>
 
             {/* Lifecycle is the primary navigation; archive remains secondary history. */}
-            <div className="tabs-segmented mt-2.5 flex items-center" role="group" aria-label="Task view">
+            <div
+              className="tabs-segmented mt-2.5 flex items-center"
+              role="group"
+              aria-label="Task view"
+            >
               <button
                 type="button"
                 onClick={() => {
@@ -10679,6 +10690,7 @@ function ServerTool(props: {
 }
 
 export function WorkspaceShell(props: { agentsContent: ReactNode; settingsContent: ReactNode }) {
+  const installedExtensions = useInstalledExtensions();
   useDesktopIconThemeSync();
   useAutoRefreshModelsOnStartup();
   const openAddProjectCommandPalette = useOpenAddProjectCommandPalette();
@@ -10924,9 +10936,27 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
     .map((projectId) => projects.find((project) => project.id === projectId) ?? null)
     .filter((project): project is Project => project !== null);
   const activeProjectSettings = useProjectWorkspaceSettings(activeProject?.id ?? null);
-  const resolvedTools = activeProjectSettings ? resolveProjectTools(activeProjectSettings) : [];
+  const extensionTools: ProjectToolDefinition[] = activeProject
+    ? installedExtensions.flatMap((extension) =>
+        isExtensionEnabledForProject(extension.assignment, activeProject.id)
+          ? extension.manifest.contributes.tools.map((tool) => ({
+              id: `ext:${extension.id}:${tool.id}`,
+              kind: "extension" as const,
+              label: tool.label,
+              visible: true,
+              extensionId: extension.id,
+              extensionToolId: tool.id,
+            }))
+          : [],
+      )
+    : [];
+  const resolvedTools = activeProjectSettings
+    ? [...resolveProjectTools(activeProjectSettings), ...extensionTools]
+    : [];
   const activeToolId = activeProject
-    ? (workspaceState.session.activeToolIdByProjectId[activeProject.id] ??
+    ? (resolvedTools.find(
+        (tool) => tool.id === workspaceState.session.activeToolIdByProjectId[activeProject.id],
+      )?.id ??
       resolvedTools[0]?.id ??
       "agents")
     : null;
@@ -12723,6 +12753,21 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
     content = customEmbedTool;
   } else if (activeTool?.kind === "custom_process") {
     content = customProcessTool;
+  } else if (activeTool?.kind === "extension") {
+    const extension = installedExtensions.find((item) => item.id === activeTool.extensionId);
+    content =
+      activeProject && extension && activeTool.extensionToolId ? (
+        <ExtensionToolSurface
+          key={`${activeProject.id}:${extension.id}:${activeTool.extensionToolId}`}
+          label={activeTool.label}
+          input={{
+            projectId: activeProject.id,
+            extensionId: extension.id,
+            toolId: activeTool.extensionToolId,
+            profileId: extensionProfileForProject(extension.assignment, activeProject.id),
+          }}
+        />
+      ) : null;
   } else {
     content = browserTool;
   }

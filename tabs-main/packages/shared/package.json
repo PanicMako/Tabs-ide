@@ -4,6 +4,10 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./extensions": {
+      "types": "./src/extensions.ts",
+      "import": "./src/extensions.ts"
+    },
     "./browserReproduction": {
       "types": "./src/browserReproduction.ts",
       "import": "./src/browserReproduction.ts"
