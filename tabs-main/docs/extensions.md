@@ -5,6 +5,19 @@ format. It is not the Tabs Exchange, and it is not compatible with VS Code
 `.vsix` packages. Packaged builds reject development-folder installation and
 do not load previously registered development folders.
 
+The repository also contains a deterministic `.tabsext` ZIP packer and bounded
+archive inspector/extractor in `packages/extension-package`. This is a package
+format foundation, **not** a production installer or approval system. Use:
+
+```sh
+bun packages/extension-package/src/cli.ts pack examples/hello-extension /tmp/hello.tabsext --tabs-version 1.3.17
+bun packages/extension-package/src/cli.ts inspect /tmp/hello.tabsext --tabs-version 1.3.17
+```
+
+The packer refuses links and special files, path collisions, missing assets,
+and oversized packages. The extractor requires an expected SHA-256 digest and
+only writes to a new directory. Neither command runs extension code.
+
 ## Manifest
 
 Place `tabs-extension.json` at the root of a local folder. See
@@ -34,7 +47,7 @@ credential API is available in this experimental stage.
 ## Not yet supported
 
 Do not distribute this development format to users. The public `.tabsext`
-package, Exchange publishing/review service, publisher identities, downloads,
+installer, Exchange publishing/review service, publisher identities, downloads,
 updates, revocation, permission broker, network broker, background runtime,
 AI-callable tools, and account-credential storage are not implemented. Those
 features require additional security and lifecycle work before a public

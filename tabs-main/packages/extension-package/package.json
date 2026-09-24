@@ -1,0 +1,31 @@
+{
+  "name": "@tabs/extension-package",
+  "private": true,
+  "bin": {
+    "tabsext": "./src/cli.ts"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@tabs/contracts": "workspace:*",
+    "@tabs/shared": "workspace:*",
+    "yauzl": "3.4.0",
+    "yazl": "3.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@types/yauzl": "^2.10.3",
+    "@types/yazl": "^2.4.6",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
