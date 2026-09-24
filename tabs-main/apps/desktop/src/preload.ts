@@ -71,6 +71,10 @@ const CODE_HOST_CHROME_STATE_CHANNEL = "desktop:code-host:chrome-state";
 const BROWSER_HOST_GET_STATE_CHANNEL = "desktop:browser-host:get-state";
 const EXTENSION_LIST_CHANNEL = "desktop:extension:list";
 const EXTENSION_DISCOVER_CHANNEL = "desktop:extension:discover";
+const EXTENSION_EXCHANGE_AVAILABLE_CHANNEL = "desktop:extension:exchange-available";
+const EXTENSION_EXCHANGE_PREPARE_CHANNEL = "desktop:extension:exchange-prepare";
+const EXTENSION_EXCHANGE_CONFIRM_CHANNEL = "desktop:extension:exchange-confirm";
+const EXTENSION_EXCHANGE_CANCEL_CHANNEL = "desktop:extension:exchange-cancel";
 const EXTENSION_INSTALL_DEV_CHANNEL = "desktop:extension:install-dev";
 const EXTENSION_INSTALL_LOCAL_PACKAGE_CHANNEL = "desktop:extension:install-local-package";
 const EXTENSION_ASSIGN_CHANNEL = "desktop:extension:assign";
@@ -277,6 +281,11 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   getBrowserHostState: () => ipcRenderer.invoke(BROWSER_HOST_GET_STATE_CHANNEL),
   listExtensions: () => ipcRenderer.invoke(EXTENSION_LIST_CHANNEL),
   discoverExchangeExtensions: (query) => ipcRenderer.invoke(EXTENSION_DISCOVER_CHANNEL, query),
+  exchangeInstallAvailable: () => ipcRenderer.invoke(EXTENSION_EXCHANGE_AVAILABLE_CHANNEL),
+  prepareExchangeInstall: (listing) =>
+    ipcRenderer.invoke(EXTENSION_EXCHANGE_PREPARE_CHANNEL, listing),
+  confirmExchangeInstall: (token) => ipcRenderer.invoke(EXTENSION_EXCHANGE_CONFIRM_CHANNEL, token),
+  cancelExchangeInstall: (token) => ipcRenderer.invoke(EXTENSION_EXCHANGE_CANCEL_CHANNEL, token),
   installDevelopmentExtension: (directory) =>
     ipcRenderer.invoke(EXTENSION_INSTALL_DEV_CHANNEL, directory),
   installLocalExtensionPackage: (archive) =>

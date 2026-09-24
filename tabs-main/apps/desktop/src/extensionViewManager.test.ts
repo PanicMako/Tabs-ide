@@ -235,6 +235,93 @@ describe("development extension installation", () => {
     expect(() => packaged.installDevelopment(directory)).toThrow(/disabled/);
   });
 
+  it("loads verified Exchange packages in packaged builds and rejects registry replacement", async () => {
+    const { directory, manager } = fixture();
+    const archive = Path.join(directory, "exchange.tabsext");
+    const info = await packTabsext({
+      directory,
+      destination: archive,
+      tabsVersion: "1.3.17",
+    });
+    const installed = await manager.installVerifiedExchangePackage(
+      archive,
+      "https://exchange.tabs.example",
+      info.digest,
+    );
+    expect(installed.source).toBe("exchange");
+    expect(installed.assignment.enabledGlobally).toBe(false);
+    const packaged = new ExtensionViewManager(
+      () => null,
+      {} as ConstructorParameters<typeof ExtensionViewManager>[1],
+      Path.join(directory, "installed.json"),
+      "1.3.17",
+      false,
+    );
+    expect(packaged.list()[0]?.digest).toBe(info.digest);
+    await expect(
+      packaged.installVerifiedExchangePackage(archive, "https://evil.example", info.digest),
+    ).rejects.toThrow(/another registry/);
+    await expect(
+      packaged.installVerifiedExchangePackage(
+        archive,
+        "https://exchange.tabs.example",
+        "0".repeat(64),
+      ),
+    ).rejects.toThrow(/digest differs/);
+  });
+
+  it("requires fresh project consent when an Exchange update adds storage access", async () => {
+    const { directory, manager } = fixture();
+    const source = Path.join(directory, "source");
+    FS.mkdirSync(Path.join(source, "dist"), { recursive: true });
+    FS.copyFileSync(
+      Path.join(directory, "dist", "index.html"),
+      Path.join(source, "dist", "index.html"),
+    );
+    const manifestPath = Path.join(source, "tabs-extension.json");
+    const manifest = JSON.parse(
+      FS.readFileSync(Path.join(directory, "tabs-extension.json"), "utf8"),
+    );
+    FS.writeFileSync(manifestPath, JSON.stringify(manifest));
+    const firstArchive = Path.join(directory, "first-exchange.tabsext");
+    const first = await packTabsext({
+      directory: source,
+      destination: firstArchive,
+      tabsVersion: "1.3.17",
+    });
+    const installed = await manager.installVerifiedExchangePackage(
+      firstArchive,
+      "https://exchange.tabs.example",
+      first.digest,
+    );
+    manager.setAssignment(installed.id, {
+      ...installed.assignment,
+      enabledProjectIds: ["project-a"],
+      storageGrantedProjectIds: ["project-a"],
+    });
+    manager.addProfile(installed.id, "work", "Work");
+    manifest.version = "1.0.1";
+    manifest.capabilities = ["profile-storage"];
+    FS.writeFileSync(manifestPath, JSON.stringify(manifest));
+    const updateArchive = Path.join(directory, "updated-exchange.tabsext");
+    const update = await packTabsext({
+      directory: source,
+      destination: updateArchive,
+      tabsVersion: "1.3.17",
+    });
+    const updated = await manager.installVerifiedExchangePackage(
+      updateArchive,
+      "https://exchange.tabs.example",
+      update.digest,
+    );
+    expect(updated.assignment.enabledProjectIds).toEqual([]);
+    expect(updated.assignment.storageGrantedProjectIds).toEqual([]);
+    expect(updated.profiles.map((profile) => profile.id)).toEqual(["default", "work"]);
+    expect(
+      FS.existsSync(Path.join(directory, "extension-packages", installed.id, first.digest)),
+    ).toBe(true);
+  });
+
   it("imports a local package once and preserves assignments across replacement", async () => {
     const { directory, manager } = fixture();
     const archiveRoot = FS.mkdtempSync(Path.join(OS.tmpdir(), "tabs-extension-archive-test-"));

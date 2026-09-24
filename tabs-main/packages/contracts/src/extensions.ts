@@ -42,8 +42,19 @@ export interface DesktopInstalledExtension {
     readonly label: string;
     readonly scope?: "shared" | "project";
   }>;
-  readonly source: "development" | "local-package";
+  readonly source: "development" | "local-package" | "exchange";
   readonly digest?: string;
+  /** Origin is part of the package identity; a different registry cannot replace it. */
+  readonly registryOrigin?: string;
+}
+
+export interface DesktopPreparedExchangeInstall {
+  readonly token: string;
+  readonly registryOrigin: string;
+  readonly digest: string;
+  readonly manifest: TabsExtensionManifest;
+  readonly replacesVersion?: string;
+  readonly willKeepEnabled: boolean;
 }
 
 /** Informational catalog data; it is not an installation authorization. */

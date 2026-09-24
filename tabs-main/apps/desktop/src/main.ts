@@ -34,6 +34,7 @@ import type {
   DesktopSshEnvironmentTarget,
   DesktopExtensionBoundsInput,
   DesktopExtensionViewInput,
+  DesktopExchangeListing,
   TabsExtensionAssignment,
 } from "@tabs/contracts";
 import { BrowserImportInput } from "@tabs/contracts";
@@ -84,6 +85,7 @@ import { CodeHostManager, resolveCodeHostConfig } from "./codeHostManager";
 import { BrowserHostManager } from "./browserHostManager";
 import { ExtensionViewManager } from "./extensionViewManager";
 import { configuredExchangeOrigin, discoverExchangeExtensions } from "./exchangeCatalog";
+import { configuredExchangeTrust, ExchangeInstallService } from "./exchangeInstall";
 import { resolveUserDataPathWithFs } from "./userDataPath";
 import { NativeViewStackCoordinator } from "./nativeViewStackCoordinator";
 import {
@@ -173,6 +175,10 @@ const CODE_HOST_CHROME_STATE_CHANNEL = "desktop:code-host:chrome-state";
 const BROWSER_HOST_GET_STATE_CHANNEL = "desktop:browser-host:get-state";
 const EXTENSION_LIST_CHANNEL = "desktop:extension:list";
 const EXTENSION_DISCOVER_CHANNEL = "desktop:extension:discover";
+const EXTENSION_EXCHANGE_AVAILABLE_CHANNEL = "desktop:extension:exchange-available";
+const EXTENSION_EXCHANGE_PREPARE_CHANNEL = "desktop:extension:exchange-prepare";
+const EXTENSION_EXCHANGE_CONFIRM_CHANNEL = "desktop:extension:exchange-confirm";
+const EXTENSION_EXCHANGE_CANCEL_CHANNEL = "desktop:extension:exchange-cancel";
 const EXTENSION_INSTALL_DEV_CHANNEL = "desktop:extension:install-dev";
 const EXTENSION_INSTALL_LOCAL_PACKAGE_CHANNEL = "desktop:extension:install-local-package";
 const EXTENSION_ASSIGN_CHANNEL = "desktop:extension:assign";
@@ -463,6 +469,25 @@ const extensionViewManager = new ExtensionViewManager(
   app.getVersion(),
   !app.isPackaged,
 );
+let exchangeInstallService: ExchangeInstallService | null = null;
+app.on("will-quit", () => exchangeInstallService?.dispose());
+function requireExchangeInstallService(): ExchangeInstallService {
+  if (exchangeInstallService) return exchangeInstallService;
+  const origin = configuredExchangeOrigin(process.env.TABS_EXCHANGE_ORIGIN, !app.isPackaged);
+  const configuration = configuredExchangeTrust(process.env, origin);
+  if (!configuration) {
+    throw new Error("Exchange installation needs an out-of-band pinned trust root.");
+  }
+  exchangeInstallService = new ExchangeInstallService(
+    configuration,
+    Path.join(STATE_DIR, "exchange-trust"),
+    app.getVersion(),
+    () => extensionViewManager.list(),
+    (archive, registryOrigin, digest) =>
+      extensionViewManager.installVerifiedExchangePackage(archive, registryOrigin, digest),
+  );
+  return exchangeInstallService;
+}
 const desktopCaptureCoordinator = new DesktopCaptureCoordinator();
 const CODE_OSS_PRIMARY_STATE_DIR = Path.join(STATE_DIR, "code-oss-main");
 
@@ -2026,6 +2051,36 @@ function registerIpcHandlers(): void {
     const origin = configuredExchangeOrigin(process.env.TABS_EXCHANGE_ORIGIN, !app.isPackaged);
     if (!origin) return null;
     return discoverExchangeExtensions(origin, app.getVersion(), query);
+  });
+  ipcMain.removeHandler(EXTENSION_EXCHANGE_AVAILABLE_CHANNEL);
+  ipcMain.handle(EXTENSION_EXCHANGE_AVAILABLE_CHANNEL, (event) => {
+    requireMainRenderer(event);
+    const origin = configuredExchangeOrigin(process.env.TABS_EXCHANGE_ORIGIN, !app.isPackaged);
+    return configuredExchangeTrust(process.env, origin) !== null;
+  });
+  ipcMain.removeHandler(EXTENSION_EXCHANGE_PREPARE_CHANNEL);
+  ipcMain.handle(EXTENSION_EXCHANGE_PREPARE_CHANNEL, async (event, listing: unknown) => {
+    requireMainRenderer(event);
+    if (!listing || typeof listing !== "object" || Array.isArray(listing)) {
+      throw new Error("Invalid Exchange listing.");
+    }
+    return requireExchangeInstallService().prepare(listing as DesktopExchangeListing);
+  });
+  ipcMain.removeHandler(EXTENSION_EXCHANGE_CONFIRM_CHANNEL);
+  ipcMain.handle(EXTENSION_EXCHANGE_CONFIRM_CHANNEL, async (event, token: unknown) => {
+    requireMainRenderer(event);
+    if (typeof token !== "string" || !/^[a-f0-9]{48}$/.test(token)) {
+      throw new Error("Invalid Exchange install token.");
+    }
+    return requireExchangeInstallService().confirm(token);
+  });
+  ipcMain.removeHandler(EXTENSION_EXCHANGE_CANCEL_CHANNEL);
+  ipcMain.handle(EXTENSION_EXCHANGE_CANCEL_CHANNEL, (event, token: unknown) => {
+    requireMainRenderer(event);
+    if (typeof token !== "string" || !/^[a-f0-9]{48}$/.test(token)) {
+      throw new Error("Invalid Exchange install token.");
+    }
+    exchangeInstallService?.cancel(token);
   });
   ipcMain.removeHandler(EXTENSION_INSTALL_DEV_CHANNEL);
   ipcMain.handle(EXTENSION_INSTALL_DEV_CHANNEL, async (event, directory: unknown) => {

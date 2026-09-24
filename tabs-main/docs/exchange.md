@@ -9,11 +9,11 @@ public catalog until an admin approves the exact SHA-256 digest after scanning.
 **Do not enable public publishing yet.** `EXCHANGE_PUBLISHING_ENABLED` defaults
 to `false`. The publisher terms are a draft, the scanner does not include a
 malware intelligence feed or external dependency advisory checks, and the
-reviewer view does not yet present a full package diff. Production registry
-metadata signing, revocation freshness, and the desktop Exchange installer are
-not implemented. Desktop development builds can display compatible approved
-listings from `TABS_EXCHANGE_ORIGIN`, but these listings are informational and
-cannot authorize an install. The public API is therefore an experimental shape, not a
+reviewer view does not yet present a full package diff. A production root
+signing ceremony, revocation freshness checks, and automatic updates are not
+implemented. Desktop builds can display compatible approved listings from
+`TABS_EXCHANGE_ORIGIN`; a separately provisioned trust root is required for
+manual installation. The public API is therefore an experimental shape, not a
 stable protocol for forks yet.
 
 ## Metadata trust work in progress
@@ -24,8 +24,10 @@ an initial self-signed root delivered out of band, persists verified metadata
 by registry origin and trust identity, rejects redirected/cross-origin metadata
 requests, and looks up signed package targets at
 `extensions/:namespace/:name/:version.tabsext`. Tests exercise a signed target,
-target revocation, rollback, expiration, and tampering. The adapter is not yet
-connected to installation or updates. Exchange now serves signed metadata from
+target revocation, rollback, expiration, and tampering. Manual desktop
+installation now uses this adapter and verifies the signed target digest and
+length before presenting a permission review. Automatic updates and prompt
+revocation enforcement are not implemented. Exchange serves signed metadata from
 PostgreSQL at `/v1/tuf/metadata/:file` and approved package targets at
 `/v1/tuf/targets/extensions/:namespace/:name/:version.tabsext`. The package
 route returns 404 immediately after revocation, even before a new signed
@@ -47,10 +49,10 @@ API/worker. New targets and timestamps must be signed and published before
 their current metadata expires; revocations also require a promptly updated
 signed targets role.
 
-No official root key or production signing ceremony has been provisioned yet,
-and the desktop installer is still absent. Until those pieces are complete,
-catalog JSON must never authorize installation or silent updates. Forks need
-their own explicitly configured trust root and origin.
+No official root key or production signing ceremony has been provisioned yet.
+Catalog JSON never authorizes installation or silent updates. Forks need their
+own explicitly configured trust root and origin; see the manual desktop
+configuration in [Extensions](extensions.md).
 
 ## Local self-hosting
 

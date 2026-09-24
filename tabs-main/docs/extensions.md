@@ -1,10 +1,11 @@
 # Tabs development extensions (experimental)
 
-The desktop implementation is a UI-only development format. It is not yet
-connected to the experimental Tabs Exchange service, and it is not compatible with VS Code `.vsix`
-packages. Development builds can load either an unpacked folder or a local
-`.tabsext` archive. Packaged builds reject both local import paths and do not
-load previously registered development extensions.
+The desktop implementation is a UI-only development format. It is not
+compatible with VS Code `.vsix` packages. Development builds can load either
+an unpacked folder or a local `.tabsext` archive. Packaged builds reject both
+local import paths and do not load previously registered development extensions.
+An experimental manually initiated Exchange install path is available only
+when a registry and out-of-band trust root are configured.
 
 The repository also contains a deterministic `.tabsext` ZIP packer and bounded
 archive inspector/extractor in `packages/extension-package`. This is a package
@@ -61,6 +62,32 @@ while a project-isolated profile keeps data separate even if assigned to both.
 No account
 credential API is available in this experimental stage.
 
+## Manually installing from a trusted Exchange
+
+Set `TABS_EXCHANGE_ORIGIN` to the HTTPS origin of an Exchange deployment and
+provision these desktop environment variables independently of its catalog:
+
+- `TABS_EXCHANGE_TRUST_ROOT_PATH`: absolute path to an independently verified
+  TUF `root.json` file.
+- `TABS_EXCHANGE_TRUST_ROOT_SHA256`: lowercase SHA-256 digest of that exact file.
+- `TABS_EXCHANGE_TRUST_ID`: stable lowercase identifier for this registry's
+  trust lineage, such as `official` for a future official root. Do not change
+  it on routine root rotation because the client stores rollback-protected
+  metadata under this identity.
+
+There is no official production root yet. Desktop discovery remains read-only
+without these settings. With them, **Review & install** refreshes signed TUF
+metadata, downloads and validates the exact signed package, and presents its
+manifest and requested capabilities for a separate confirmation. Installation
+does not run or enable a new extension automatically. The installed identity
+includes the registry origin; a same-named package from another registry
+cannot silently replace it. Packaged builds can load these verified packages
+after restart, while development-only imports remain unavailable there.
+
+This is a manual flow, not a production-ready release channel. It does not yet
+poll for revocations or updates, enforce a fresh revocation check at activation,
+or provide package rollback and uninstall controls.
+
 ## Not yet supported
 
 Do not distribute this development format to users. Local archives do not have
@@ -70,8 +97,8 @@ exist; see [Exchange development status](exchange.md). Publishing is disabled
 by default. Set `TABS_EXCHANGE_ORIGIN` in a development desktop process to
 display compatible approved catalog listings; HTTPS is required except for
 `http://localhost` in development. Catalog entries are not trusted installation
-metadata and cannot be installed from Discover yet. The
-production installer, authenticated updates, workspace/network/credential
+metadata and cannot authorize an install alone. The
+production update/revocation lifecycle, workspace/network/credential
 brokers, background runtime, AI-callable tools, and account-credential storage
 are not implemented. Those features require additional security and lifecycle
 work before a public extension ecosystem can be enabled.

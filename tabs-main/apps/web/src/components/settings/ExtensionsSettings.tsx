@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAtomValue } from "@effect/atom-react";
 import type {
   DesktopExchangeListing,
   DesktopInstalledExtension,
+  DesktopPreparedExchangeInstall,
   TabsExtensionAssignment,
 } from "@tabs/contracts";
 import { projectsAtom } from "~/state/threads";
@@ -21,9 +22,20 @@ export default function ExtensionsSettings() {
   const [profileScopes, setProfileScopes] = useState<Record<string, "shared" | "project">>({});
   const [searchQuery, setSearchQuery] = useState("");
   const [catalog, setCatalog] = useState<DesktopExchangeListing[] | null | undefined>(undefined);
+  const [exchangeInstallAvailable, setExchangeInstallAvailable] = useState(false);
+  const [preparedInstall, setPreparedInstall] = useState<DesktopPreparedExchangeInstall | null>(
+    null,
+  );
+  const reviewHeading = useRef<HTMLHeadingElement>(null);
+  const reviewTrigger = useRef<HTMLButtonElement | null>(null);
+  const installedTabButton = useRef<HTMLButtonElement | null>(null);
   const extensions = useInstalledExtensions();
   const projects = useAtomValue(projectsAtom);
   const bridge = window.desktopBridge;
+
+  useEffect(() => {
+    if (tab === "discover" && preparedInstall) reviewHeading.current?.focus();
+  }, [preparedInstall, tab]);
 
   const run = async (operation: () => Promise<void>) => {
     setBusy(true);
@@ -47,7 +59,12 @@ export default function ExtensionsSettings() {
     setError(null);
     setCatalog(undefined);
     try {
-      setCatalog(await bridge.discoverExchangeExtensions(searchQuery.trim()));
+      const [listings, available] = await Promise.all([
+        bridge.discoverExchangeExtensions(searchQuery.trim()),
+        bridge.exchangeInstallAvailable(),
+      ]);
+      setCatalog(listings);
+      setExchangeInstallAvailable(available);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -65,6 +82,7 @@ export default function ExtensionsSettings() {
         {(["discover", "installed", "profiles"] as const).map((item) => (
           <Button
             key={item}
+            ref={item === "installed" ? installedTabButton : undefined}
             type="button"
             aria-pressed={tab === item}
             variant={tab === item ? "default" : "outline"}
@@ -90,10 +108,9 @@ export default function ExtensionsSettings() {
       ) : tab === "discover" ? (
         <SettingsSection title="Discover">
           <p className="text-sm text-muted-foreground">
-            Browse approved Exchange listings from the configured registry. Listings are
-            informational: installation remains unavailable until signed metadata and revocation
-            checks are implemented. Development builds can load an unpacked UI-only extension or a
-            local .tabsext archive; neither gets workspace, network, or account access.
+            Browse approved Exchange listings. Before installation, Tabs checks signed registry
+            metadata and the exact package digest. New installations are disabled until you enable
+            them for projects below. Development builds can also load a local UI-only package.
           </p>
           <form
             className="flex flex-wrap gap-2"
@@ -137,9 +154,95 @@ export default function ExtensionsSettings() {
                   <p className="text-xs text-muted-foreground">
                     Registry: {listing.registryOrigin}
                   </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={busy || !exchangeInstallAvailable}
+                    onClick={(event) => {
+                      reviewTrigger.current = event.currentTarget;
+                      void run(async () => {
+                        if (preparedInstall) {
+                          await bridge.cancelExchangeInstall(preparedInstall.token);
+                          setPreparedInstall(null);
+                        }
+                        setPreparedInstall(await bridge.prepareExchangeInstall(listing));
+                      });
+                    }}
+                  >
+                    Review &amp; install {listing.displayName}
+                  </Button>
                 </li>
               ))}
             </ul>
+          ) : null}
+          {catalog && !exchangeInstallAvailable ? (
+            <p role="status" className="text-sm text-muted-foreground">
+              Installation is unavailable: this desktop build has no pinned Exchange trust root.
+            </p>
+          ) : null}
+          {preparedInstall ? (
+            <section
+              aria-labelledby="exchange-install-review"
+              className="space-y-2 rounded border border-border p-3"
+            >
+              <h3
+                id="exchange-install-review"
+                ref={reviewHeading}
+                tabIndex={-1}
+                className="font-medium"
+              >
+                Review {preparedInstall.manifest.displayName}
+              </h3>
+              <p className="text-sm">
+                {preparedInstall.manifest.publisher}.{preparedInstall.manifest.name} · Version{" "}
+                {preparedInstall.manifest.version}
+                {preparedInstall.replacesVersion
+                  ? ` (replaces ${preparedInstall.replacesVersion})`
+                  : ""}
+              </p>
+              <p className="text-sm">
+                Requested capabilities:{" "}
+                {preparedInstall.manifest.capabilities?.join(", ") || "none"}.
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Registry: {preparedInstall.registryOrigin} · SHA-256: {preparedInstall.digest}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {preparedInstall.willKeepEnabled
+                  ? "Existing project enablement is retained because no capability was added."
+                  : "The extension will be disabled until you choose projects and grant requested access."}
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  disabled={busy}
+                  onClick={() =>
+                    void run(async () => {
+                      await bridge.confirmExchangeInstall(preparedInstall.token);
+                      setPreparedInstall(null);
+                      setTab("installed");
+                      requestAnimationFrame(() => installedTabButton.current?.focus());
+                    })
+                  }
+                >
+                  Install verified package
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={busy}
+                  onClick={() =>
+                    void run(async () => {
+                      await bridge.cancelExchangeInstall(preparedInstall.token);
+                      setPreparedInstall(null);
+                      requestAnimationFrame(() => reviewTrigger.current?.focus());
+                    })
+                  }
+                >
+                  Cancel install
+                </Button>
+              </div>
+            </section>
           ) : null}
           {import.meta.env.DEV ? (
             <div className="flex flex-wrap gap-2">
@@ -188,7 +291,11 @@ export default function ExtensionsSettings() {
                   <h3 className="font-medium">{extension.manifest.displayName}</h3>
                   <p className="text-xs text-muted-foreground">
                     {extension.id} · {extension.manifest.version} ·{" "}
-                    {extension.source === "local-package" ? "Local package" : "Development folder"}
+                    {extension.source === "exchange"
+                      ? `Exchange · ${extension.registryOrigin}`
+                      : extension.source === "local-package"
+                        ? "Local package"
+                        : "Development folder"}
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground">
                     {extension.manifest.description}

@@ -6,6 +6,7 @@ import type {
   DesktopExtensionViewInput,
   DesktopExchangeListing,
   DesktopInstalledExtension,
+  DesktopPreparedExchangeInstall,
   TabsExtensionAssignment,
 } from "./extensions.ts";
 export * from "./notificationOverlay.ts";
@@ -1187,6 +1188,12 @@ export interface BrowserProfilePermissionInfo {
 export interface DesktopBridge {
   listExtensions: () => Promise<DesktopInstalledExtension[]>;
   discoverExchangeExtensions: (query: string) => Promise<DesktopExchangeListing[] | null>;
+  exchangeInstallAvailable: () => Promise<boolean>;
+  prepareExchangeInstall: (
+    listing: DesktopExchangeListing,
+  ) => Promise<DesktopPreparedExchangeInstall>;
+  confirmExchangeInstall: (token: string) => Promise<DesktopInstalledExtension>;
+  cancelExchangeInstall: (token: string) => Promise<void>;
   installDevelopmentExtension: (directory: string) => Promise<DesktopInstalledExtension>;
   installLocalExtensionPackage: (archive: string) => Promise<DesktopInstalledExtension>;
   setExtensionAssignment: (

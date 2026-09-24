@@ -224,6 +224,87 @@ export class ExtensionViewManager {
     return this.publicEntry(next);
   }
 
+  /** Caller must first resolve and download this exact digest through trusted TUF metadata. */
+  async installVerifiedExchangePackage(
+    archive: string,
+    registryOrigin: string,
+    expectedDigest: string,
+  ): Promise<DesktopInstalledExtension> {
+    const origin = new URL(registryOrigin);
+    if (origin.origin !== registryOrigin || origin.protocol !== "https:") {
+      throw new Error("Invalid trusted Exchange origin.");
+    }
+    if (!/^[a-f0-9]{64}$/.test(expectedDigest)) {
+      throw new Error("Invalid signed package digest.");
+    }
+    const inspected = await inspectTabsext(archive, this.tabsVersion);
+    if (inspected.digest !== expectedDigest) {
+      throw new Error("Package digest differs from signed metadata.");
+    }
+    const previous = this.installed.get(inspected.id);
+    if (previous?.registryOrigin && previous.registryOrigin !== registryOrigin) {
+      throw new Error("A same-named extension from another registry is already installed.");
+    }
+    const packagesRoot = Path.join(Path.dirname(this.statePath), "extension-packages");
+    const directory = Path.join(packagesRoot, inspected.id, inspected.digest);
+    if (FS.existsSync(directory)) {
+      if (
+        previous?.source === "exchange" &&
+        previous.digest === inspected.digest &&
+        previous.registryOrigin === registryOrigin
+      ) {
+        return this.publicEntry(previous);
+      }
+      throw new Error("This package digest was already extracted; remove it before retrying.");
+    }
+    await extractTabsext({
+      archive,
+      destination: directory,
+      expectedDigest,
+      tabsVersion: this.tabsVersion,
+    });
+    const previousCapabilities = previous?.manifest.capabilities ?? [];
+    const requestedCapabilities = inspected.manifest.capabilities ?? [];
+    const increased = requestedCapabilities.some(
+      (capability) => !previousCapabilities.includes(capability),
+    );
+    const assignment: TabsExtensionAssignment = previous?.assignment ?? {
+      extensionId: inspected.id,
+      enabledGlobally: false,
+      enabledProjectIds: [],
+      disabledProjectIds: [],
+      defaultProfileId: "default",
+      profileIdByProjectId: {},
+    };
+    const next: StoredExtension = {
+      id: inspected.id,
+      manifest: inspected.manifest,
+      assignment: increased
+        ? {
+            ...assignment,
+            enabledGlobally: false,
+            enabledProjectIds: [],
+            storageGrantedProjectIds: [],
+          }
+        : assignment,
+      profiles: previous?.profiles ?? [{ id: "default", label: "Default" }],
+      source: "exchange",
+      digest: expectedDigest,
+      registryOrigin,
+      directory,
+    };
+    this.hide();
+    this.installed.set(inspected.id, next);
+    try {
+      this.save();
+    } catch (error) {
+      if (previous) this.installed.set(inspected.id, previous);
+      else this.installed.delete(inspected.id);
+      throw error;
+    }
+    return this.publicEntry(next);
+  }
+
   setAssignment(extensionId: string, assignment: TabsExtensionAssignment): void {
     const current = this.requireInstalled(extensionId);
     const validated = Schema.decodeUnknownSync(TabsExtensionAssignment)(assignment);
@@ -428,14 +509,18 @@ export class ExtensionViewManager {
   }
 
   private load(): void {
-    if (!this.allowDevelopment) return;
     try {
       const entries = JSON.parse(FS.readFileSync(this.statePath, "utf8")) as StoredExtension[];
       if (!Array.isArray(entries)) return;
       for (const entry of entries) {
         try {
           if (!entry || typeof entry.directory !== "string") continue;
-          if (entry.source !== "development" && entry.source !== "local-package") continue;
+          if (
+            entry.source !== "exchange" &&
+            (!this.allowDevelopment ||
+              (entry.source !== "development" && entry.source !== "local-package"))
+          )
+            continue;
           const result = validateTabsExtensionManifest(entry.manifest, this.tabsVersion);
           if (!result.ok || result.id !== entry.id || !Array.isArray(entry.profiles)) continue;
           if (
@@ -464,7 +549,12 @@ export class ExtensionViewManager {
           const diskResult = validateTabsExtensionManifest(diskManifest, this.tabsVersion);
           if (!diskResult.ok || diskResult.id !== entry.id) continue;
           if (JSON.stringify(diskResult.manifest) !== JSON.stringify(entry.manifest)) continue;
-          if (entry.source === "local-package") {
+          if (entry.source === "local-package" || entry.source === "exchange") {
+            if (entry.source === "exchange") {
+              if (typeof entry.registryOrigin !== "string") continue;
+              const origin = new URL(entry.registryOrigin);
+              if (origin.origin !== entry.registryOrigin || origin.protocol !== "https:") continue;
+            }
             if (!entry.digest || !/^[a-f0-9]{64}$/.test(entry.digest)) continue;
             const expected = Path.join(
               Path.dirname(this.statePath),
