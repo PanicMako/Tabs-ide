@@ -132,6 +132,7 @@ export class ExtensionViewManager {
     }
     const installed = this.requireInstalled(active.extensionId);
     if (installed.revoked) throw new Error("This extension version has been revoked.");
+    if (installed.disabled) throw new Error("This extension is disabled.");
     if (!installed.manifest.capabilities?.includes("profile-storage")) {
       throw new Error("Extension did not request profile storage.");
     }
@@ -204,6 +205,7 @@ export class ExtensionViewManager {
       manifest: parsed.manifest,
       assignment: safeAssignment,
       profiles: previous?.profiles ?? retained?.profiles ?? [{ id: "default", label: "Default" }],
+      ...(previous?.disabled ? { disabled: true } : {}),
       ...this.dataInventoryFields(previous, retained),
       source: "development",
       directory: root,
@@ -257,6 +259,7 @@ export class ExtensionViewManager {
           ? { ...assignment, storageGrantedProjectIds: [] }
           : assignment,
       profiles: previous?.profiles ?? retained?.profiles ?? [{ id: "default", label: "Default" }],
+      ...(previous?.disabled ? { disabled: true } : {}),
       ...this.dataInventoryFields(previous, retained),
       source: "local-package",
       digest: inspected.digest,
@@ -353,6 +356,7 @@ export class ExtensionViewManager {
           }
         : assignment,
       profiles: previous?.profiles ?? retained?.profiles ?? [{ id: "default", label: "Default" }],
+      ...(previous?.disabled ? { disabled: true } : {}),
       ...this.dataInventoryFields(previous, retained),
       source: "exchange",
       digest: expectedDigest,
@@ -452,6 +456,22 @@ export class ExtensionViewManager {
     this.save();
   }
 
+  setDisabled(extensionId: string, disabled: boolean): void {
+    const current = this.requireInstalled(extensionId);
+    if (!disabled && current.revoked) throw new Error("A revoked extension cannot be enabled.");
+    if (Boolean(current.disabled) === disabled) return;
+    const { disabled: _disabled, ...enabled } = current;
+    const next: StoredExtension = disabled ? { ...current, disabled: true } : enabled;
+    this.installed.set(extensionId, next);
+    try {
+      this.save();
+    } catch (error) {
+      this.installed.set(extensionId, current);
+      throw error;
+    }
+    if (disabled && this.active?.extensionId === extensionId) this.hide();
+  }
+
   addProfile(
     extensionId: string,
     id: string,
@@ -474,6 +494,7 @@ export class ExtensionViewManager {
   async activate(input: DesktopExtensionViewInput): Promise<void> {
     const installed = this.requireInstalled(input.extensionId);
     if (installed.revoked) throw new Error("This extension version has been revoked.");
+    if (installed.disabled) throw new Error("This extension is disabled.");
     if (!isExtensionEnabledForProject(installed.assignment, input.projectId)) {
       throw new Error("Extension is not enabled for this project.");
     }
@@ -786,6 +807,7 @@ export class ExtensionViewManager {
           )
             continue;
           if (entry.revoked !== undefined && entry.revoked !== true) continue;
+          if (entry.disabled !== undefined && entry.disabled !== true) continue;
           if (!this.validPartitionInventory(entry, entry.id, entry.source, entry.registryOrigin)) {
             continue;
           }

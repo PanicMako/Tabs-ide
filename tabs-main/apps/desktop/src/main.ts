@@ -183,6 +183,7 @@ const EXTENSION_EXCHANGE_PREPARE_CHANNEL = "desktop:extension:exchange-prepare";
 const EXTENSION_EXCHANGE_CONFIRM_CHANNEL = "desktop:extension:exchange-confirm";
 const EXTENSION_EXCHANGE_CANCEL_CHANNEL = "desktop:extension:exchange-cancel";
 const EXTENSION_UNINSTALL_CHANNEL = "desktop:extension:uninstall";
+const EXTENSION_SET_DISABLED_CHANNEL = "desktop:extension:set-disabled";
 const EXTENSION_INSTALL_DEV_CHANNEL = "desktop:extension:install-dev";
 const EXTENSION_INSTALL_LOCAL_PACKAGE_CHANNEL = "desktop:extension:install-local-package";
 const EXTENSION_ASSIGN_CHANNEL = "desktop:extension:assign";
@@ -2173,6 +2174,21 @@ function registerIpcHandlers(): void {
       ) {
         mainWindow.webContents.send(EXTENSION_CHANGED_CHANNEL);
       }
+    }
+  });
+  ipcMain.removeHandler(EXTENSION_SET_DISABLED_CHANNEL);
+  ipcMain.handle(EXTENSION_SET_DISABLED_CHANNEL, (event, id: unknown, disabled: unknown) => {
+    requireMainRenderer(event);
+    if (
+      typeof id !== "string" ||
+      !/^[a-z][a-z0-9-]{1,62}\.[a-z][a-z0-9-]{1,62}$/.test(id) ||
+      typeof disabled !== "boolean"
+    ) {
+      throw new Error("Invalid extension disabled state.");
+    }
+    extensionViewManager.setDisabled(id, disabled);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send(EXTENSION_CHANGED_CHANNEL);
     }
   });
   ipcMain.removeHandler(EXTENSION_INSTALL_DEV_CHANNEL);

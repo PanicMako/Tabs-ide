@@ -54,6 +54,52 @@ afterEach(() => {
 });
 
 describe("development extension installation", () => {
+  it("disables active tools without erasing assignments or profiles", async () => {
+    const { directory, manager } = fixture();
+    const installed = manager.installDevelopment(directory);
+    manager.setAssignment(installed.id, {
+      ...installed.assignment,
+      enabledProjectIds: ["project-a"],
+    });
+    manager.addProfile(installed.id, "work", "Work");
+    const detachToolView = vi.fn();
+    const close = vi.fn();
+    const internal = manager as unknown as {
+      coordinator: { detachToolView: typeof detachToolView };
+      active: { extensionId: string; view: { webContents: { close: typeof close } } } | null;
+    };
+    internal.coordinator.detachToolView = detachToolView;
+    internal.active = { extensionId: installed.id, view: { webContents: { close } } };
+    manager.setDisabled(installed.id, true);
+    expect(detachToolView).toHaveBeenCalledOnce();
+    expect(close).toHaveBeenCalledOnce();
+    expect(manager.list()[0]).toMatchObject({
+      disabled: true,
+      assignment: { enabledProjectIds: ["project-a"] },
+      profiles: [{ id: "default" }, { id: "work" }],
+    });
+    await expect(
+      manager.activate({
+        extensionId: installed.id,
+        toolId: "main",
+        projectId: "project-a",
+        profileId: "default",
+      }),
+    ).rejects.toThrow(/disabled/);
+    const restarted = new ExtensionViewManager(
+      () => null,
+      {} as ConstructorParameters<typeof ExtensionViewManager>[1],
+      Path.join(directory, "installed.json"),
+      "1.3.17",
+      true,
+    );
+    expect(restarted.list()[0]?.disabled).toBe(true);
+    restarted.installDevelopment(directory);
+    expect(restarted.list()[0]?.disabled).toBe(true);
+    restarted.setDisabled(installed.id, false);
+    expect(restarted.list()[0]?.disabled).toBeUndefined();
+    expect(restarted.list()[0]?.assignment.enabledProjectIds).toEqual(["project-a"]);
+  });
   it("uses separate browser partitions for project-isolated profiles", () => {
     expect(extensionSessionPartition("acme.dashboard", "work", "shared", "project-a")).toBe(
       extensionSessionPartition("acme.dashboard", "work", "shared", "project-b"),
@@ -455,6 +501,7 @@ describe("development extension installation", () => {
       storageGrantedProjectIds: ["project-a"],
     });
     manager.addProfile(installed.id, "work", "Work");
+    manager.setDisabled(installed.id, true);
     manifest.version = "1.0.1";
     manifest.capabilities = ["profile-storage"];
     FS.writeFileSync(manifestPath, JSON.stringify(manifest));
@@ -469,6 +516,8 @@ describe("development extension installation", () => {
       "https://exchange.tabs.example",
       update.digest,
     );
+    expect(updated.disabled).toBe(true);
+    manager.setDisabled(installed.id, false);
     await expect(
       manager.installVerifiedExchangePackage(
         firstArchive,

@@ -48,6 +48,8 @@ export interface DesktopInstalledExtension {
   readonly registryOrigin?: string;
   /** A signed registry status check removed this exact version or digest. */
   readonly revoked?: true;
+  /** Stops tools and bridge access without erasing assignments, profiles, or data. */
+  readonly disabled?: true;
   /** Informational update hint; installation still requires a fresh signed review. */
   readonly availableUpdate?: DesktopExchangeListing;
 }

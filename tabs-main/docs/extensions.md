@@ -59,6 +59,10 @@ be hidden for individual projects. Named profiles isolate the extension's
 browser storage, with a default profile and optional per-project override.
 The same named shared profile may deliberately be shared between projects,
 while a project-isolated profile keeps data separate even if assigned to both.
+Installed settings can disable an extension independently of those project
+choices. Disabling closes its active view and removes its toolbar tools, but
+keeps assignments, profiles, permissions, and data for re-enabling. A revoked
+version cannot be re-enabled.
 No account credential API is available in this experimental stage. Uninstall
 removes packaged code and project assignments, but deliberately retains named
 profiles and non-secret extension data. Reinstalling the same source identity

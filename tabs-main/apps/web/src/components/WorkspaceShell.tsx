@@ -10938,7 +10938,9 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
   const activeProjectSettings = useProjectWorkspaceSettings(activeProject?.id ?? null);
   const extensionTools: ProjectToolDefinition[] = activeProject
     ? installedExtensions.flatMap((extension) =>
-        !extension.revoked && isExtensionEnabledForProject(extension.assignment, activeProject.id)
+        !extension.revoked &&
+        !extension.disabled &&
+        isExtensionEnabledForProject(extension.assignment, activeProject.id)
           ? extension.manifest.contributes.tools.map((tool) => ({
               id: `ext:${extension.id}:${tool.id}`,
               kind: "extension" as const,

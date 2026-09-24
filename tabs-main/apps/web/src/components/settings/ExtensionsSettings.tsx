@@ -353,6 +353,12 @@ export default function ExtensionsSettings() {
                       Discover for a newer approved version; your profiles and data are retained.
                     </p>
                   ) : null}
+                  {extension.disabled ? (
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      Disabled. Its tools are hidden; profiles, permissions, and project choices are
+                      retained.
+                    </p>
+                  ) : null}
                   {extension.source === "exchange" ? (
                     <div className="mt-2 flex flex-wrap items-center gap-2">
                       <Button
@@ -411,6 +417,23 @@ export default function ExtensionsSettings() {
                     </div>
                   ) : null}
                 </div>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={!extension.disabled}
+                    disabled={busy || extension.revoked}
+                    onChange={(event) => {
+                      const disabled = !event.target.checked;
+                      void run(async () => {
+                        await bridge.setExtensionDisabled(extension.id, disabled);
+                        setStatus(
+                          `${extension.manifest.displayName} ${disabled ? "disabled" : "enabled"}.`,
+                        );
+                      });
+                    }}
+                  />
+                  Extension enabled
+                </label>
                 <label className="flex items-center gap-2 text-sm">
                   <input
                     type="checkbox"
