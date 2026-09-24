@@ -300,12 +300,18 @@ export default function ExtensionsSettings() {
                   <p className="mt-1 text-sm text-muted-foreground">
                     {extension.manifest.description}
                   </p>
+                  {extension.revoked ? (
+                    <p role="alert" className="mt-2 text-sm text-destructive">
+                      This version was revoked by its registry. Its tools are disabled. Check
+                      Discover for a newer approved version; your profiles and data are retained.
+                    </p>
+                  ) : null}
                 </div>
                 <label className="flex items-center gap-2 text-sm">
                   <input
                     type="checkbox"
                     checked={extension.assignment.enabledGlobally}
-                    disabled={busy}
+                    disabled={busy || extension.revoked}
                     onChange={(event) =>
                       assign(extension, {
                         ...extension.assignment,
@@ -326,7 +332,7 @@ export default function ExtensionsSettings() {
                         <input
                           type="checkbox"
                           checked={selected}
-                          disabled={busy}
+                          disabled={busy || extension.revoked}
                           onChange={(event) => {
                             const assignment = extension.assignment;
                             const next = event.target.checked;

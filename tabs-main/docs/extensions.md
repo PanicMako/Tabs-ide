@@ -84,9 +84,15 @@ includes the registry origin; a same-named package from another registry
 cannot silently replace it. Packaged builds can load these verified packages
 after restart, while development-only imports remain unavailable there.
 
-This is a manual flow, not a production-ready release channel. It does not yet
-poll for revocations or updates, enforce a fresh revocation check at activation,
-or provide package rollback and uninstall controls.
+This is a manual flow, not a production-ready release channel. Desktop checks
+installed Exchange versions against fresh signed metadata at startup, every
+minute, after system resume, and before activation. A version missing from signed targets, or
+whose signed digest changed, is persistently marked revoked: its active view
+closes, toolbar contributions disappear, and Settings explains the status.
+Transport outages retain the last known status; invalid or expired metadata
+does not qualify as offline. The flow does not yet check revocation continuously
+while a view is active, automatically install updates, or provide package
+rollback and uninstall controls.
 
 ## Not yet supported
 

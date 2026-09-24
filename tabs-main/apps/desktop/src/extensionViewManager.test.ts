@@ -268,6 +268,42 @@ describe("development extension installation", () => {
         "0".repeat(64),
       ),
     ).rejects.toThrow(/digest differs/);
+    expect(
+      packaged.revokeIfCurrent(installed.id, "https://exchange.tabs.example", "0".repeat(64)),
+    ).toBe(false);
+    expect(
+      packaged.revokeIfCurrent(installed.id, "https://exchange.tabs.example", info.digest),
+    ).toBe(true);
+    expect(packaged.list()[0]?.revoked).toBe(true);
+    expect(() => packaged.setAssignment(installed.id, installed.assignment)).toThrow(/revoked/);
+    const staleSender = { isDestroyed: () => false };
+    (packaged as unknown as { active: unknown }).active = {
+      key: "stale",
+      view: { webContents: staleSender },
+      extensionId: installed.id,
+      projectId: "project-a",
+      profileId: "default",
+    };
+    expect(() =>
+      packaged.invokeStorage(staleSender as never, { kind: "get", key: "value" }),
+    ).toThrow(/revoked/);
+    (packaged as unknown as { active: unknown }).active = null;
+    await expect(
+      packaged.activate({
+        extensionId: installed.id,
+        toolId: "main",
+        projectId: "project-a",
+        profileId: "default",
+      }),
+    ).rejects.toThrow(/revoked/);
+    const restarted = new ExtensionViewManager(
+      () => null,
+      {} as ConstructorParameters<typeof ExtensionViewManager>[1],
+      Path.join(directory, "installed.json"),
+      "1.3.17",
+      false,
+    );
+    expect(restarted.list()[0]?.revoked).toBe(true);
   });
 
   it("requires fresh project consent when an Exchange update adds storage access", async () => {

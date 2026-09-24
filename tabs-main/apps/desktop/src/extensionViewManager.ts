@@ -95,6 +95,7 @@ export class ExtensionViewManager {
       throw new Error("Extension view is no longer active.");
     }
     const installed = this.requireInstalled(active.extensionId);
+    if (installed.revoked) throw new Error("This extension version has been revoked.");
     if (!installed.manifest.capabilities?.includes("profile-storage")) {
       throw new Error("Extension did not request profile storage.");
     }
@@ -253,6 +254,7 @@ export class ExtensionViewManager {
         previous.digest === inspected.digest &&
         previous.registryOrigin === registryOrigin
       ) {
+        if (previous.revoked) throw new Error("This extension version has been revoked.");
         return this.publicEntry(previous);
       }
       throw new Error("This package digest was already extracted; remove it before retrying.");
@@ -265,9 +267,9 @@ export class ExtensionViewManager {
     });
     const previousCapabilities = previous?.manifest.capabilities ?? [];
     const requestedCapabilities = inspected.manifest.capabilities ?? [];
-    const increased = requestedCapabilities.some(
-      (capability) => !previousCapabilities.includes(capability),
-    );
+    const increased =
+      previous?.revoked ||
+      requestedCapabilities.some((capability) => !previousCapabilities.includes(capability));
     const assignment: TabsExtensionAssignment = previous?.assignment ?? {
       extensionId: inspected.id,
       enabledGlobally: false,
@@ -305,8 +307,28 @@ export class ExtensionViewManager {
     return this.publicEntry(next);
   }
 
+  /** Only call after a fresh, signed registry check for this exact installed digest. */
+  revokeIfCurrent(extensionId: string, registryOrigin: string, digest: string): boolean {
+    const current = this.installed.get(extensionId);
+    if (
+      !current ||
+      current.source !== "exchange" ||
+      current.registryOrigin !== registryOrigin ||
+      current.digest !== digest ||
+      current.revoked
+    ) {
+      return false;
+    }
+    const next: StoredExtension = { ...current, revoked: true };
+    this.installed.set(extensionId, next);
+    if (this.active?.extensionId === extensionId) this.hide();
+    this.save();
+    return true;
+  }
+
   setAssignment(extensionId: string, assignment: TabsExtensionAssignment): void {
     const current = this.requireInstalled(extensionId);
+    if (current.revoked) throw new Error("This extension version has been revoked.");
     const validated = Schema.decodeUnknownSync(TabsExtensionAssignment)(assignment);
     if (validated.extensionId !== extensionId) throw new Error("Assignment identity mismatch.");
     if (!this.profileExists(current, validated.defaultProfileId)) {
@@ -342,6 +364,7 @@ export class ExtensionViewManager {
 
   async activate(input: DesktopExtensionViewInput): Promise<void> {
     const installed = this.requireInstalled(input.extensionId);
+    if (installed.revoked) throw new Error("This extension version has been revoked.");
     if (!isExtensionEnabledForProject(installed.assignment, input.projectId)) {
       throw new Error("Extension is not enabled for this project.");
     }
@@ -521,6 +544,7 @@ export class ExtensionViewManager {
               (entry.source !== "development" && entry.source !== "local-package"))
           )
             continue;
+          if (entry.revoked !== undefined && entry.revoked !== true) continue;
           const result = validateTabsExtensionManifest(entry.manifest, this.tabsVersion);
           if (!result.ok || result.id !== entry.id || !Array.isArray(entry.profiles)) continue;
           if (

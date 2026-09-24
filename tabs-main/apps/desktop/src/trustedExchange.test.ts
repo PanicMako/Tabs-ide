@@ -14,7 +14,12 @@ import {
   Timestamp,
 } from "@tufjs/models";
 import { afterEach, describe, expect, it } from "vitest";
-import { ExchangeMetadataFetcher, TrustedExchange, exchangeTargetPath } from "./trustedExchange";
+import {
+  ExchangeMetadataFetcher,
+  ExchangeTransportError,
+  TrustedExchange,
+  exchangeTargetPath,
+} from "./trustedExchange";
 
 const origin = "https://exchange.tabs.example";
 const directories: string[] = [];
@@ -131,6 +136,28 @@ describe("trusted Exchange metadata", () => {
     await expect(
       fetcher.fetch("https://other.example/v1/tuf/metadata/timestamp.json"),
     ).rejects.toThrow(/escaped/);
+  });
+
+  it("classifies a fetch failure at the transport boundary", async () => {
+    const fetcher = new ExchangeMetadataFetcher(origin, async () => {
+      throw new TypeError("fetch failed");
+    });
+    await expect(fetcher.fetch(`${origin}/v1/tuf/metadata/timestamp.json`)).rejects.toBeInstanceOf(
+      ExchangeTransportError,
+    );
+  });
+
+  it("rejects metadata redirects as a trust failure, not an offline outage", async () => {
+    const fetcher = new ExchangeMetadataFetcher(origin, async (_url, options) => {
+      expect(options?.redirect).toBe("manual");
+      return new Response(null, {
+        status: 302,
+        headers: { location: "https://other.example/metadata" },
+      });
+    });
+    await expect(fetcher.fetch(`${origin}/v1/tuf/metadata/timestamp.json`)).rejects.toThrow(
+      /redirects are forbidden/,
+    );
   });
 
   it("resolves a signed target and rejects changed signed metadata", async () => {

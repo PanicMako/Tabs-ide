@@ -70,6 +70,7 @@ const CODE_HOST_GET_CHROME_STATE_CHANNEL = "desktop:code-host:get-chrome-state";
 const CODE_HOST_CHROME_STATE_CHANNEL = "desktop:code-host:chrome-state";
 const BROWSER_HOST_GET_STATE_CHANNEL = "desktop:browser-host:get-state";
 const EXTENSION_LIST_CHANNEL = "desktop:extension:list";
+const EXTENSION_CHANGED_CHANNEL = "desktop:extension:changed";
 const EXTENSION_DISCOVER_CHANNEL = "desktop:extension:discover";
 const EXTENSION_EXCHANGE_AVAILABLE_CHANNEL = "desktop:extension:exchange-available";
 const EXTENSION_EXCHANGE_PREPARE_CHANNEL = "desktop:extension:exchange-prepare";
@@ -280,6 +281,11 @@ contextBridge.exposeInMainWorld("desktopBridge", {
     ipcRenderer.invoke("desktop:browser-comparison:capture", input),
   getBrowserHostState: () => ipcRenderer.invoke(BROWSER_HOST_GET_STATE_CHANNEL),
   listExtensions: () => ipcRenderer.invoke(EXTENSION_LIST_CHANNEL),
+  onExtensionsChanged: (listener) => {
+    const handler = () => listener();
+    ipcRenderer.on(EXTENSION_CHANGED_CHANNEL, handler);
+    return () => ipcRenderer.removeListener(EXTENSION_CHANGED_CHANNEL, handler);
+  },
   discoverExchangeExtensions: (query) => ipcRenderer.invoke(EXTENSION_DISCOVER_CHANNEL, query),
   exchangeInstallAvailable: () => ipcRenderer.invoke(EXTENSION_EXCHANGE_AVAILABLE_CHANNEL),
   prepareExchangeInstall: (listing) =>

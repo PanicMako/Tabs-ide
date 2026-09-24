@@ -16,6 +16,14 @@ export interface TrustedExchangeTarget {
   readonly digest: string;
 }
 
+/** Only transport failures at the HTTP fetch boundary qualify for offline fallback. */
+export class ExchangeTransportError extends Error {
+  constructor(cause: unknown) {
+    super("Exchange metadata transport is unavailable.", { cause });
+    this.name = "ExchangeTransportError";
+  }
+}
+
 /** TUF transport still rejects redirects and cross-origin requests before signature verification. */
 export class ExchangeMetadataFetcher extends BaseFetcher {
   constructor(
@@ -35,13 +43,27 @@ export class ExchangeMetadataFetcher extends BaseFetcher {
     ) {
       throw new Error("TUF metadata URL escaped the configured Exchange origin.");
     }
-    const response = await this.fetcher(url, {
-      method: "GET",
-      redirect: "error",
-      credentials: "omit",
-      cache: "no-store",
-      signal: AbortSignal.timeout(8_000),
-    });
+    let response: Response;
+    try {
+      response = await this.fetcher(url, {
+        method: "GET",
+        redirect: "manual",
+        credentials: "omit",
+        cache: "no-store",
+        signal: AbortSignal.timeout(8_000),
+      });
+    } catch (error) {
+      if (
+        error instanceof TypeError ||
+        (error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError"))
+      ) {
+        throw new ExchangeTransportError(error);
+      }
+      throw error;
+    }
+    if (response.status >= 300 && response.status < 400) {
+      throw new Error("TUF metadata redirects are forbidden.");
+    }
     if (!response.ok) {
       throw new DownloadHTTPError("TUF metadata request failed.", response.status);
     }

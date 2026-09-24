@@ -3,10 +3,15 @@ import * as FS from "node:fs";
 import * as OS from "node:os";
 import * as Path from "node:path";
 import { packTabsext } from "@tabs/extension-package";
+import { DownloadHTTPError, ExpiredMetadataError } from "tuf-js/dist/error";
 import type { DesktopExchangeListing, DesktopInstalledExtension } from "@tabs/contracts";
 import { afterEach, describe, expect, it } from "vitest";
-import { configuredExchangeTrust, ExchangeInstallService } from "./exchangeInstall";
-import { exchangeTargetPath } from "./trustedExchange";
+import {
+  configuredExchangeTrust,
+  ExchangeInstallService,
+  isOfflineExchangeError,
+} from "./exchangeInstall";
+import { ExchangeTransportError, exchangeTargetPath } from "./trustedExchange";
 
 const origin = "https://exchange.tabs.example";
 const roots: string[] = [];
@@ -20,6 +25,15 @@ afterEach(() => {
 });
 
 describe("Exchange install consent", () => {
+  it("treats transport outages as offline, but not invalid signed metadata", () => {
+    expect(isOfflineExchangeError(new DownloadHTTPError("offline", 503))).toBe(true);
+    expect(isOfflineExchangeError(new ExchangeTransportError(new TypeError("fetch failed")))).toBe(
+      true,
+    );
+    expect(isOfflineExchangeError(new DownloadHTTPError("missing", 404))).toBe(false);
+    expect(isOfflineExchangeError(new TypeError("invalid metadata"))).toBe(false);
+    expect(isOfflineExchangeError(new ExpiredMetadataError("expired"))).toBe(false);
+  });
   it("requires an out-of-band root whose bytes match the pinned hash", () => {
     const root = temporaryDirectory();
     const path = Path.join(root, "root.json");
@@ -79,6 +93,8 @@ describe("Exchange install consent", () => {
     };
     let installed = 0;
     let revoked = false;
+    let offline = false;
+    let invalidMetadata = false;
     const service = new ExchangeInstallService(
       { origin, trustId: "official", root: Buffer.from("test") },
       Path.join(root, "metadata"),
@@ -97,20 +113,37 @@ describe("Exchange install consent", () => {
         return response;
       },
       {
-        resolve: async () =>
-          revoked
+        resolve: async () => {
+          if (offline) throw new DownloadHTTPError("offline", 503);
+          if (invalidMetadata) throw new ExpiredMetadataError("expired");
+          return revoked
             ? null
             : {
                 path: exchangeTargetPath("acme", "dashboard", "1.0.0"),
                 bytes: packageInfo.bytes,
                 digest: packageInfo.digest,
-              },
+              };
+        },
       },
     );
     try {
       const prepared = await service.prepare(listing);
       expect(prepared.manifest.capabilities).toEqual(["profile-storage"]);
       expect(prepared.willKeepEnabled).toBe(false);
+      const installedEntry = {
+        id: listing.id,
+        manifest: prepared.manifest,
+        source: "exchange",
+        registryOrigin: origin,
+        digest: listing.digest,
+      } as DesktopInstalledExtension;
+      expect(await service.statusFor(installedEntry)).toBe("approved");
+      offline = true;
+      expect(await service.statusFor(installedEntry)).toBe("offline");
+      offline = false;
+      invalidMetadata = true;
+      await expect(service.statusFor(installedEntry)).rejects.toThrow(/expired/);
+      invalidMetadata = false;
       await service.confirm(prepared.token);
       expect(installed).toBe(1);
       await expect(service.confirm(prepared.token)).rejects.toThrow(/expired/);
@@ -122,6 +155,7 @@ describe("Exchange install consent", () => {
       await expect(service.confirm(cancelled.token)).rejects.toThrow(/expired/);
       const nowRevoked = await service.prepare(listing);
       revoked = true;
+      expect(await service.statusFor(installedEntry)).toBe("revoked");
       await expect(service.confirm(nowRevoked.token)).rejects.toThrow(/no longer present/);
       expect(installed).toBe(1);
     } finally {

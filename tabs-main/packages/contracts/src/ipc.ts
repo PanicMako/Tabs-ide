@@ -1187,6 +1187,7 @@ export interface BrowserProfilePermissionInfo {
 
 export interface DesktopBridge {
   listExtensions: () => Promise<DesktopInstalledExtension[]>;
+  onExtensionsChanged: (listener: () => void) => () => void;
   discoverExchangeExtensions: (query: string) => Promise<DesktopExchangeListing[] | null>;
   exchangeInstallAvailable: () => Promise<boolean>;
   prepareExchangeInstall: (

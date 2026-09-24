@@ -10,7 +10,7 @@ public catalog until an admin approves the exact SHA-256 digest after scanning.
 to `false`. The publisher terms are a draft, the scanner does not include a
 malware intelligence feed or external dependency advisory checks, and the
 reviewer view does not yet present a full package diff. A production root
-signing ceremony, revocation freshness checks, and automatic updates are not
+signing ceremony, continuous revocation checks, and automatic updates are not
 implemented. Desktop builds can display compatible approved listings from
 `TABS_EXCHANGE_ORIGIN`; a separately provisioned trust root is required for
 manual installation. The public API is therefore an experimental shape, not a
@@ -26,8 +26,10 @@ requests, and looks up signed package targets at
 `extensions/:namespace/:name/:version.tabsext`. Tests exercise a signed target,
 target revocation, rollback, expiration, and tampering. Manual desktop
 installation now uses this adapter and verifies the signed target digest and
-length before presenting a permission review. Automatic updates and prompt
-revocation enforcement are not implemented. Exchange serves signed metadata from
+length before presenting a permission review. Desktop checks installed versions
+at startup, every minute, after system resume, and before activation, persisting signed
+revocations. Continuous active-view checks and automatic updates are not
+implemented. Exchange serves signed metadata from
 PostgreSQL at `/v1/tuf/metadata/:file` and approved package targets at
 `/v1/tuf/targets/extensions/:namespace/:name/:version.tabsext`. The package
 route returns 404 immediately after revocation, even before a new signed
@@ -108,5 +110,6 @@ POST bodies, capped at 25 MiB. The `tabs_exchange_session` cookie is HttpOnly.
 The worker scans queued packages, verifies stored bytes, extracts with bounded
 ZIP validation, and writes a scan result. A blocking scan result prevents
 approval. Every decision writes an audit event. Revoked versions disappear
-from public metadata and downloads. This is not yet a client-side revocation
-notification system.
+from public metadata and downloads. The desktop client detects signed target
+removal during periodic or activation checks and removes the revoked version's
+tools from its toolbar.

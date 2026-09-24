@@ -3,17 +3,25 @@ import * as FS from "node:fs";
 import * as OS from "node:os";
 import * as Path from "node:path";
 import { inspectTabsext } from "@tabs/extension-package";
+import { DownloadHTTPError } from "tuf-js/dist/error";
 import type {
   DesktopExchangeListing,
   DesktopInstalledExtension,
   DesktopPreparedExchangeInstall,
 } from "@tabs/contracts";
 import { downloadSignedExchangePackage } from "./exchangePackageDownload";
-import { TrustedExchange } from "./trustedExchange";
+import { ExchangeTransportError, TrustedExchange } from "./trustedExchange";
 
 const SHA256 = /^[a-f0-9]{64}$/;
 const TRUST_ID = /^[a-z0-9-]{1,64}$/;
 const PREPARED_TTL_MS = 10 * 60_000;
+
+export function isOfflineExchangeError(error: unknown): boolean {
+  if (error instanceof DownloadHTTPError) {
+    return error.statusCode === 408 || error.statusCode === 429 || error.statusCode >= 500;
+  }
+  return error instanceof ExchangeTransportError;
+}
 
 export interface ExchangeTrustConfiguration {
   readonly origin: string;
@@ -120,9 +128,11 @@ export class ExchangeInstallService {
         throw new Error("A same-named extension from another registry is already installed.");
       }
       const oldCapabilities = previous?.manifest.capabilities ?? [];
-      const addedCapability = (inspected.manifest.capabilities ?? []).some(
-        (capability) => !oldCapabilities.includes(capability),
-      );
+      const addedCapability =
+        previous?.revoked ||
+        (inspected.manifest.capabilities ?? []).some(
+          (capability) => !oldCapabilities.includes(capability),
+        );
       const token = Crypto.randomBytes(24).toString("hex");
       const result: DesktopPreparedExchangeInstall = {
         token,
@@ -158,6 +168,31 @@ export class ExchangeInstallService {
       );
     } finally {
       FS.rmSync(Path.dirname(prepared.archive), { recursive: true, force: true });
+    }
+  }
+
+  /** Missing signed target or changed digest revokes this exact installed version. */
+  async statusFor(
+    extension: DesktopInstalledExtension,
+  ): Promise<"approved" | "revoked" | "offline"> {
+    if (
+      extension.source !== "exchange" ||
+      extension.registryOrigin !== this.configuration.origin ||
+      !extension.digest ||
+      !SHA256.test(extension.digest)
+    ) {
+      throw new Error("Installed extension does not match trusted Exchange identity.");
+    }
+    try {
+      const target = await this.trusted.resolve(
+        extension.manifest.publisher,
+        extension.manifest.name,
+        extension.manifest.version,
+      );
+      return target?.digest === extension.digest ? "approved" : "revoked";
+    } catch (error) {
+      if (isOfflineExchangeError(error)) return "offline";
+      throw error;
     }
   }
 

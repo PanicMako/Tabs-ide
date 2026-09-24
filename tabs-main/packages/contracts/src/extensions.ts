@@ -46,6 +46,8 @@ export interface DesktopInstalledExtension {
   readonly digest?: string;
   /** Origin is part of the package identity; a different registry cannot replace it. */
   readonly registryOrigin?: string;
+  /** A signed registry status check removed this exact version or digest. */
+  readonly revoked?: true;
 }
 
 export interface DesktopPreparedExchangeInstall {

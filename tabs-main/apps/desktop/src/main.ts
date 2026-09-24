@@ -174,6 +174,7 @@ const CODE_HOST_GET_CHROME_STATE_CHANNEL = "desktop:code-host:get-chrome-state";
 const CODE_HOST_CHROME_STATE_CHANNEL = "desktop:code-host:chrome-state";
 const BROWSER_HOST_GET_STATE_CHANNEL = "desktop:browser-host:get-state";
 const EXTENSION_LIST_CHANNEL = "desktop:extension:list";
+const EXTENSION_CHANGED_CHANNEL = "desktop:extension:changed";
 const EXTENSION_DISCOVER_CHANNEL = "desktop:extension:discover";
 const EXTENSION_EXCHANGE_AVAILABLE_CHANNEL = "desktop:extension:exchange-available";
 const EXTENSION_EXCHANGE_PREPARE_CHANNEL = "desktop:extension:exchange-prepare";
@@ -470,7 +471,11 @@ const extensionViewManager = new ExtensionViewManager(
   !app.isPackaged,
 );
 let exchangeInstallService: ExchangeInstallService | null = null;
-app.on("will-quit", () => exchangeInstallService?.dispose());
+let exchangeStatusTimer: ReturnType<typeof setInterval> | null = null;
+app.on("will-quit", () => {
+  if (exchangeStatusTimer) clearInterval(exchangeStatusTimer);
+  exchangeInstallService?.dispose();
+});
 function requireExchangeInstallService(): ExchangeInstallService {
   if (exchangeInstallService) return exchangeInstallService;
   const origin = configuredExchangeOrigin(process.env.TABS_EXCHANGE_ORIGIN, !app.isPackaged);
@@ -487,6 +492,38 @@ function requireExchangeInstallService(): ExchangeInstallService {
       extensionViewManager.installVerifiedExchangePackage(archive, registryOrigin, digest),
   );
   return exchangeInstallService;
+}
+async function checkInstalledExchangeStatus(extensionId: string): Promise<void> {
+  const installed = extensionViewManager.list().find((entry) => entry.id === extensionId);
+  if (!installed || installed.source !== "exchange" || installed.revoked) return;
+  const status = await requireExchangeInstallService().statusFor(installed);
+  if (status === "revoked" && installed.registryOrigin && installed.digest) {
+    try {
+      extensionViewManager.revokeIfCurrent(
+        installed.id,
+        installed.registryOrigin,
+        installed.digest,
+      );
+    } finally {
+      const current = extensionViewManager.list().find((entry) => entry.id === installed.id);
+      if (current?.revoked && mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send(EXTENSION_CHANGED_CHANNEL);
+      }
+    }
+  }
+}
+
+async function checkAllInstalledExchangeStatuses(): Promise<void> {
+  const extensions = extensionViewManager.list().filter((entry) => entry.source === "exchange");
+  await Promise.all(
+    extensions.map((entry) =>
+      checkInstalledExchangeStatus(entry.id).catch((error) => {
+        writeDesktopLogHeader(
+          `Exchange status check failed for ${entry.id}: ${formatErrorMessage(error)}`,
+        );
+      }),
+    ),
+  );
 }
 const desktopCaptureCoordinator = new DesktopCaptureCoordinator();
 const CODE_OSS_PRIMARY_STATE_DIR = Path.join(STATE_DIR, "code-oss-main");
@@ -2131,6 +2168,15 @@ function registerIpcHandlers(): void {
       )
     )
       throw new Error("Invalid extension view.");
+    const before = extensionViewManager.list().find((entry) => entry.id === value.extensionId);
+    if (before?.source === "exchange") {
+      if (before.revoked) throw new Error("This extension version has been revoked.");
+      await checkInstalledExchangeStatus(before.id);
+      const after = extensionViewManager.list().find((entry) => entry.id === value.extensionId);
+      if (!after || after.digest !== before.digest || after.revoked) {
+        throw new Error("Extension status changed; select the tool again.");
+      }
+    }
     await extensionViewManager.activate(value);
   });
   ipcMain.removeHandler(EXTENSION_SET_BOUNDS_CHANNEL);
@@ -4052,6 +4098,11 @@ async function bootstrap(): Promise<void> {
   startBackend();
   writeDesktopLogHeader("bootstrap backend start requested");
   mainWindow = createWindow();
+  void checkAllInstalledExchangeStatuses();
+  exchangeStatusTimer = setInterval(() => {
+    void checkAllInstalledExchangeStatuses();
+  }, 60_000);
+  exchangeStatusTimer.unref();
   writeDesktopLogHeader(
     `bootstrap main window created durationMs=${Math.round(performance.now() - bootstrapStartedAt)}`,
   );
@@ -4263,6 +4314,7 @@ if (clerkBridge.isPrimaryInstance) {
 
       powerMonitor.on("resume", () => {
         hostSuspended = false;
+        void checkAllInstalledExchangeStatuses();
         const window = mainWindow;
         if (!window || window.isDestroyed()) return;
         window.webContents.send(SYSTEM_RESUME_CHANNEL);
