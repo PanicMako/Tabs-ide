@@ -2,6 +2,15 @@
 
 All notable changes to Tabs IDE will be documented in this file.
 
+## [v1.3.24] - 2026-09-27
+
+### Local data reset, batch keybindings restore, and renderer responsiveness diagnostics
+
+- **Local data reset in About settings**: Easily reset Tabs cached data, conversation history, and local profile state directly from Settings while safely preserving your Git worktrees and editor runtime.
+- **Batch restore for default keybindings**: Restoring default shortcuts now removes all custom keybindings in a single atomic operation, preventing partial resets or delays.
+- **Renderer responsiveness diagnostics**: Added real-time tracking of input delay, main-thread long tasks, and presentation latency to the Diagnostics panel to help identify UI slowdowns.
+- **Deep-linking and notification permission polish**: Settings sections now synchronize with URL search parameters for direct navigation, and notification toggles display clear pending states during system authorization.
+
 ## [v1.3.23] - 2026-09-25
 
 ### Vibrant setup wizard wallpapers, filmstrip dock, and modal portaling

@@ -21,15 +21,45 @@ export interface ChangelogRelease {
   }[];
 }
 
-export const TOTAL_TAGS_COUNT = 166;
+export const TOTAL_TAGS_COUNT = 167;
 
 export const changelogData: ChangelogRelease[] = [
+  {
+    tag: "v1.3.24",
+    title: "Local data reset, batch keybindings restore, and renderer responsiveness diagnostics",
+    date: "September 27, 2026",
+    shortDate: "Sep 27",
+    isLatest: true,
+    type: "patch",
+    summary:
+      "Tabs introduces a safe local data reset option in About settings, atomic restoration of default keyboard shortcuts, and real-time renderer responsiveness metrics in Diagnostics.",
+    highlights: [
+      "Easily reset Tabs cached data, conversation history, and local profile state directly from Settings while safely preserving your Git worktrees and editor runtime.",
+      "Restoring default shortcuts now removes all custom keybindings in a single atomic operation, preventing partial resets or delays.",
+      "Added real-time tracking of input delay, main-thread long tasks, and presentation latency to the Diagnostics panel to help identify UI slowdowns.",
+      "Settings sections now synchronize with URL search parameters for direct navigation, and notification toggles display clear pending states during system authorization.",
+    ],
+    categories: [
+      {
+        title: "Settings",
+        items: [
+          "Safe local data reset in About settings preserving Git worktrees.",
+          "Atomic batch restoration for default keybindings.",
+          "URL search parameter synchronization for settings navigation.",
+        ],
+      },
+      {
+        title: "Diagnostics",
+        items: ["Real-time tracking of UI input delay, long tasks, and presentation latency."],
+      },
+    ],
+  },
   {
     tag: "v1.3.23",
     title: "Vibrant setup wizard wallpapers, filmstrip dock, and modal portaling",
     date: "September 25, 2026",
     shortDate: "Sep 25",
-    isLatest: true,
+    isLatest: false,
     type: "patch",
     summary:
       "Tabs enhances the first-run onboarding experience with curated bright anime wallpapers, a horizontal filmstrip dock for quick scene switching, and portaled modal rendering.",
