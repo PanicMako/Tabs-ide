@@ -79,7 +79,8 @@ import {
 } from "./linuxAppImageUpdater";
 import { CodeHostManager, resolveCodeHostConfig } from "./codeHostManager";
 import { BrowserHostManager } from "./browserHostManager";
-import { resolveUserDataPathWithFs } from "./userDataPath";
+import { resolveKnownUserDataPathsWithFs, resolveUserDataPathWithFs } from "./userDataPath";
+import { resetTabsUserData } from "./userDataReset";
 import { NativeViewStackCoordinator } from "./nativeViewStackCoordinator";
 import {
   normalizeNotificationToasts,
@@ -131,6 +132,9 @@ const QUIT_CONFIRMATION_REQUEST_CHANNEL = "desktop:quit-confirmation-request";
 const QUIT_CONFIRMATION_RESPONSE_CHANNEL = "desktop:quit-confirmation-response";
 const GET_CONFIRM_BEFORE_QUIT_CHANNEL = "desktop:get-confirm-before-quit";
 const SET_CONFIRM_BEFORE_QUIT_CHANNEL = "desktop:set-confirm-before-quit";
+const RESET_TABS_USER_DATA_CHANNEL = "desktop:reset-tabs-user-data";
+const GET_TABS_DATA_RESET_STARTUP_ERROR_CHANNEL = "desktop:get-data-reset-startup-error";
+const RESET_TABS_USER_DATA_ARG = "--tabs-reset-user-data";
 const UPDATE_STATE_CHANNEL = "desktop:update-state";
 const UPDATE_GET_STATE_CHANNEL = "desktop:update-get-state";
 const UPDATE_DOWNLOAD_CHANNEL = "desktop:update-download";
@@ -299,8 +303,35 @@ const isDevelopment = Boolean(process.env.VITE_DEV_SERVER_URL || !app.isPackaged
 const APP_BASE_NAME = "Tabs";
 const APP_DISPLAY_NAME = isDevelopment ? "Tabs Dev" : APP_BASE_NAME;
 const APP_USER_MODEL_ID = isDevelopment ? "com.tabs.app.dev" : "com.tabs.app";
-const USER_DATA_DIR_NAME = isDevelopment ? "tabs-dev" : "tabs";
-const LEGACY_USER_DATA_DIR_NAME = isDevelopment ? "Tabs (Dev)" : "Tabs (Alpha)";
+const ELECTRON_USER_DATA_PATH = resolveUserDataPathWithFs({ isDevelopment });
+app.setPath("userData", ELECTRON_USER_DATA_PATH);
+
+let tabsDataResetStartupError: string | null = null;
+const tabsDataResetRequested = process.argv.includes(RESET_TABS_USER_DATA_ARG);
+for (
+  let index = process.argv.indexOf(RESET_TABS_USER_DATA_ARG);
+  index >= 0;
+  index = process.argv.indexOf(RESET_TABS_USER_DATA_ARG)
+) {
+  process.argv.splice(index, 1);
+}
+if (tabsDataResetRequested) {
+  try {
+    resetTabsUserData({
+      baseDir: BASE_DIR,
+      stateDir: STATE_DIR,
+      additionalStateDirs: process.env.VITE_DEV_SERVER_URL?.trim()
+        ? [Path.join(BASE_DIR, "dev")]
+        : [],
+      electronProfileDirs: resolveKnownUserDataPathsWithFs({ isDevelopment }),
+      homeDir: OS.homedir(),
+    });
+  } catch (error) {
+    tabsDataResetStartupError =
+      error instanceof Error ? error.message : "Tabs could not clear all local data.";
+    console.error("[data-reset] failed during startup", error);
+  }
+}
 const COMMIT_HASH_PATTERN = /^[0-9a-f]{7,40}$/i;
 const COMMIT_HASH_DISPLAY_LENGTH = 12;
 const LOG_DIR = Path.join(STATE_DIR, "logs");
@@ -366,6 +397,7 @@ let restartTimer: ReturnType<typeof setTimeout> | null = null;
 let isQuitting = false;
 let isQuittingConfirmed = false;
 let isQuitConfirmationOpen = false;
+let tabsDataResetPending = false;
 let desktopProtocolRegistered = false;
 let nativeCodeHostMainBackend: NativeCodeHostMainBackend | null = null;
 const pendingNativeCodeHostURLs: string[] = [];
@@ -1386,16 +1418,6 @@ function isDirectory(pathname: string): boolean {
  * directory already exists we keep using it so existing users don't
  * lose their Chromium profile data (localStorage, cookies, sessions).
  */
-function resolveUserDataPath(): string {
-  return resolveUserDataPathWithFs({
-    isDevelopment,
-    logger: {
-      warn: (msg) => writeDesktopLogHeader(msg),
-      info: (msg) => writeDesktopLogHeader(msg),
-    },
-  });
-}
-
 function configureAppIdentity(): void {
   app.setName(APP_DISPLAY_NAME);
   const commitHash = resolveAboutCommitHash();
@@ -2241,6 +2263,25 @@ function registerIpcHandlers(): void {
     if (typeof value === "boolean") {
       setConfirmBeforeQuit(value);
     }
+  });
+
+  ipcMain.removeHandler(GET_TABS_DATA_RESET_STARTUP_ERROR_CHANNEL);
+  ipcMain.handle(GET_TABS_DATA_RESET_STARTUP_ERROR_CHANNEL, (event) => {
+    if (event.sender !== mainWindow?.webContents) return null;
+    return tabsDataResetStartupError;
+  });
+
+  ipcMain.removeHandler(RESET_TABS_USER_DATA_CHANNEL);
+  ipcMain.handle(RESET_TABS_USER_DATA_CHANNEL, (event) => {
+    if (event.sender !== mainWindow?.webContents || tabsDataResetPending) {
+      return false;
+    }
+    tabsDataResetPending = true;
+    tabsDataResetStartupError = null;
+    isQuittingConfirmed = true;
+    // Let Electron deliver the invoke response before shutdown starts.
+    setTimeout(() => app.quit(), 50);
+    return true;
   });
 
   ipcMain.removeAllListeners(QUIT_CONFIRMATION_RESPONSE_CHANNEL);
@@ -3776,11 +3817,6 @@ function createWindow(): BrowserWindow {
   return window;
 }
 
-// Override Electron's userData path before the `ready` event so that
-// Chromium session data uses a filesystem-friendly directory name.
-// Must be called synchronously at the top level — before `app.whenReady()`.
-app.setPath("userData", resolveUserDataPath());
-
 configureAppIdentity();
 
 // Clerk owns the single-instance lock so OAuth callbacks are forwarded to the
@@ -4167,6 +4203,20 @@ app.on("before-quit", (event) => {
       }
 
       const quitWithFailsafe = (): void => {
+        if (tabsDataResetPending) {
+          try {
+            app.relaunch({
+              args: [...process.argv.slice(1), RESET_TABS_USER_DATA_ARG],
+            });
+            app.exit(0);
+            return;
+          } catch (error) {
+            tabsDataResetPending = false;
+            writeDesktopLogHeader(
+              `failed to relaunch for local data reset: ${formatErrorMessage(error)}`,
+            );
+          }
+        }
         app.quit();
         setTimeout(() => {
           app.exit(0);

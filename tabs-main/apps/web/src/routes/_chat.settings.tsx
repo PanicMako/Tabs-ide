@@ -214,21 +214,51 @@ function SettingsRouteView() {
 
   const isPopout = isPopoutMode();
 
-  const urlSection = useMemo(() => {
-    return getHashAwareSearchParams().get("section") as SettingsSectionId | null;
-  }, []);
-
   const [settingsViewState, updateSettingsViewState] = useSettingsViewState();
+  const [initialUrlSection, setInitialUrlSection] = useState<SettingsSectionId | null>(() => {
+    const section = getHashAwareSearchParams().get("section");
+    return SETTINGS_NAV.some((item) => item.id === section) ? (section as SettingsSectionId) : null;
+  });
   const activeSettingsSection =
-    (urlSection && SETTINGS_NAV.some((item) => item.id === urlSection)
-      ? urlSection
-      : (settingsViewState.activeSection as SettingsSectionId)) || "general";
+    initialUrlSection ?? (settingsViewState.activeSection as SettingsSectionId) ?? "general";
   const setActiveSettingsSection = useCallback(
     (s: SettingsSectionId) => {
+      setInitialUrlSection(null);
       updateSettingsViewState({ activeSection: s });
+      if (typeof window !== "undefined") {
+        const url = new URL(window.location.href);
+        url.searchParams.set("section", s);
+
+        const hash = url.hash;
+        const queryStart = hash.indexOf("?");
+        if (queryStart >= 0) {
+          const hashParams = new URLSearchParams(hash.slice(queryStart + 1));
+          hashParams.set("section", s);
+          url.hash = `${hash.slice(0, queryStart)}?${hashParams.toString()}`;
+        }
+        window.history.replaceState(window.history.state, "", url.toString());
+      }
     },
     [updateSettingsViewState],
   );
+  const openSettingsSection = useCallback(
+    (section: string) => {
+      const target = SETTINGS_NAV.find((item) => item.id === section)?.id;
+      if (target) setActiveSettingsSection(target);
+    },
+    [setActiveSettingsSection],
+  );
+
+  useEffect(() => {
+    const syncUrlSection = () => {
+      const section = getHashAwareSearchParams().get("section");
+      setInitialUrlSection(
+        SETTINGS_NAV.some((item) => item.id === section) ? (section as SettingsSectionId) : null,
+      );
+    };
+    window.addEventListener("popstate", syncUrlSection);
+    return () => window.removeEventListener("popstate", syncUrlSection);
+  }, []);
 
   const [isRefreshingProviders, setIsRefreshingProviders] = useState(false);
   const refreshingRef = useRef(false);
@@ -465,12 +495,27 @@ function SettingsRouteView() {
     [applyKeybindingMutation],
   );
 
+  const handleBatchRemoveKeybindings = useCallback(
+    async (rules: ReadonlyArray<KeybindingRule>) => {
+      const result = await ensureNativeApi().server.batchRemoveKeybindings({ rules: [...rules] });
+      await Promise.all([
+        refreshServerConfig(),
+        queryClient.invalidateQueries({ queryKey: serverQueryKeys.config() }),
+      ]);
+      return {
+        removedCount: result.removedCount,
+        failedCount: Math.max(0, rules.length - result.removedCount),
+      };
+    },
+    [queryClient],
+  );
+
   if (isPopout) {
     return (
       <div className="isolate flex h-screen min-h-0 min-w-0 flex-col overflow-y-auto overscroll-y-none bg-background text-foreground">
         <Suspense fallback={<SettingsLoadingState label="Loading settings" className="h-64" />}>
           {activeSettingsSection === "documentation" ? (
-            <div className="p-6 max-w-7xl mx-auto w-full">
+            <div className="mx-auto w-full max-w-7xl p-6">
               <DocumentationSettings />
             </div>
           ) : (
@@ -574,7 +619,9 @@ function SettingsRouteView() {
                       />
                     ) : null}
                     {activeSettingsSection === "connections" ? <ConnectionsSettings /> : null}
-                    {activeSettingsSection === "documentation" ? <DocumentationSettings /> : null}
+                    {activeSettingsSection === "documentation" ? (
+                      <DocumentationSettings onOpenSettingsSection={openSettingsSection} />
+                    ) : null}
                     {activeSettingsSection === "providers" ? (
                       <ProvidersSettings
                         refreshProviders={refreshProviders}
@@ -588,6 +635,7 @@ function SettingsRouteView() {
                         keybindings={resolvedKeybindings}
                         onUpsert={handleUpsertKeybinding}
                         onBatchUpsert={handleBatchUpsertKeybindings}
+                        onBatchRemove={handleBatchRemoveKeybindings}
                         onRemove={handleRemoveKeybinding}
                         keybindingsConfigPath={keybindingsConfigPath as string}
                         availableEditors={(availableEditors as any) ?? []}

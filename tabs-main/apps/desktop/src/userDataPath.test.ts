@@ -3,6 +3,7 @@ import {
   CANONICAL_DEV_DIR_NAME,
   CANONICAL_PROD_DIR_NAME,
   FsProbe,
+  resolveKnownUserDataPathsWithFs,
   resolveUserDataPathWithFs,
 } from "./userDataPath";
 
@@ -252,5 +253,24 @@ describe("Linux and multi-platform userData continuity", () => {
       configuredPath: override,
     });
     expect(resolved).toBe(override);
+  });
+
+  it("returns canonical and all verified legacy profile paths for a full reset", () => {
+    expect(
+      resolveKnownUserDataPathsWithFs({
+        platform: "linux",
+        homedir,
+        isDevelopment: false,
+      }),
+    ).toEqual([`${defaultBase}/tabs`, `${defaultBase}/Tabs (Alpha)`, `${defaultBase}/Tabs`]);
+  });
+
+  it("limits a configured profile override to its configured path", () => {
+    expect(
+      resolveKnownUserDataPathsWithFs({
+        platform: "linux",
+        configuredPath: "/opt/tabs-custom-data",
+      }),
+    ).toEqual(["/opt/tabs-custom-data"]);
   });
 });

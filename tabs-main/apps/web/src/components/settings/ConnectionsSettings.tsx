@@ -87,6 +87,9 @@ export function ConnectionsSettings() {
   const [connectedIds, setConnectedIds] = useState<ReadonlySet<string>>(
     () => new Set(connectedEnvironmentIds()),
   );
+  const [isLoadingSavedConnections, setIsLoadingSavedConnections] = useState(isDesktop);
+  const [connectingEnvironmentId, setConnectingEnvironmentId] = useState<string | null>(null);
+  const [removingEnvironmentId, setRemovingEnvironmentId] = useState<string | null>(null);
   const [isSavingConnection, setIsSavingConnection] = useState(false);
   const connectionInFlightRef = useRef(false);
   const [sshPasswordPrompts, setSshPasswordPrompts] = useState<
@@ -118,16 +121,35 @@ export function ConnectionsSettings() {
 
   useEffect(() => {
     if (!isDesktop) return;
+    let active = true;
+    setIsLoadingSavedConnections(true);
     void listManualConnections()
-      .then(setSavedConnections)
-      .catch(() => undefined);
-    return window.desktopBridge!.onSshPasswordPrompt((request) => {
+      .then((connections) => {
+        if (active) setSavedConnections(connections);
+      })
+      .catch((error) => {
+        if (active) {
+          toastManager.add({
+            type: "error",
+            title: "Could not load saved environments",
+            description: error instanceof Error ? error.message : "Try reopening Connections.",
+          });
+        }
+      })
+      .finally(() => {
+        if (active) setIsLoadingSavedConnections(false);
+      });
+    const unsubscribe = window.desktopBridge!.onSshPasswordPrompt((request) => {
       setSshPasswordPrompts((current) =>
         current.some((prompt) => prompt.requestId === request.requestId)
           ? current
           : [...current, request],
       );
     });
+    return () => {
+      active = false;
+      unsubscribe();
+    };
   }, [isDesktop]);
 
   const activeSshPasswordPrompt = sshPasswordPrompts[0] ?? null;
@@ -676,7 +698,15 @@ export function ConnectionsSettings() {
               Connect to remote servers, virtual machines, or other instances of the editor running
               in different environments.
             </p>
-            {savedConnections.length > 0 && (
+            {isLoadingSavedConnections ? (
+              <p
+                className="flex items-center gap-1.5 pt-2 text-xs text-muted-foreground"
+                role="status"
+              >
+                <LoaderCircleIcon className="size-3.5 animate-spin" aria-hidden="true" />
+                Loading saved environments…
+              </p>
+            ) : savedConnections.length > 0 ? (
               <div className="space-y-2 pt-2 text-left">
                 {savedConnections.map((connection) => (
                   <div
@@ -700,7 +730,10 @@ export function ConnectionsSettings() {
                       size="sm"
                       variant="secondary"
                       aria-label={`Connect to ${connection.label}`}
+                      aria-busy={connectingEnvironmentId === connection.environmentId}
+                      disabled={connectingEnvironmentId !== null || removingEnvironmentId !== null}
                       onClick={async () => {
+                        setConnectingEnvironmentId(connection.environmentId);
                         try {
                           await connectEnvironmentApi(connection.environmentId);
                           setConnectedIds(new Set(connectedEnvironmentIds()));
@@ -711,28 +744,62 @@ export function ConnectionsSettings() {
                               error instanceof Error ? error.message : "Connection failed.",
                             type: "error",
                           });
+                        } finally {
+                          setConnectingEnvironmentId(null);
                         }
                       }}
                     >
-                      {connectedIds.has(connection.environmentId) ? "Connected" : "Connect"}
+                      {connectingEnvironmentId === connection.environmentId ? (
+                        <LoaderCircleIcon
+                          className="mr-1 size-3.5 animate-spin"
+                          aria-hidden="true"
+                        />
+                      ) : null}
+                      {connectingEnvironmentId === connection.environmentId
+                        ? "Connecting…"
+                        : connectedIds.has(connection.environmentId)
+                          ? "Connected"
+                          : "Connect"}
                     </Button>
                     <Button
                       size="icon-xs"
                       variant="ghost"
-                      aria-label={`Remove ${connection.label}`}
+                      aria-label={
+                        removingEnvironmentId === connection.environmentId
+                          ? `Removing ${connection.label}`
+                          : `Remove ${connection.label}`
+                      }
+                      aria-busy={removingEnvironmentId === connection.environmentId}
+                      disabled={connectingEnvironmentId !== null || removingEnvironmentId !== null}
                       onClick={async () => {
-                        disconnectEnvironmentApi(connection.environmentId);
-                        await removeManualConnection(connection.environmentId);
-                        setSavedConnections(await listManualConnections());
-                        setConnectedIds(new Set(connectedEnvironmentIds()));
+                        setRemovingEnvironmentId(connection.environmentId);
+                        try {
+                          disconnectEnvironmentApi(connection.environmentId);
+                          await removeManualConnection(connection.environmentId);
+                          setSavedConnections(await listManualConnections());
+                          setConnectedIds(new Set(connectedEnvironmentIds()));
+                        } catch (error) {
+                          toastManager.add({
+                            title: "Could not remove environment",
+                            description:
+                              error instanceof Error ? error.message : "Try again in a moment.",
+                            type: "error",
+                          });
+                        } finally {
+                          setRemovingEnvironmentId(null);
+                        }
                       }}
                     >
-                      <Trash2Icon className="size-3.5" />
+                      {removingEnvironmentId === connection.environmentId ? (
+                        <LoaderCircleIcon className="size-3.5 animate-spin" aria-hidden="true" />
+                      ) : (
+                        <Trash2Icon className="size-3.5" aria-hidden="true" />
+                      )}
                     </Button>
                   </div>
                 ))}
               </div>
-            )}
+            ) : null}
             <div className="pt-2">
               <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
                 <DialogTrigger

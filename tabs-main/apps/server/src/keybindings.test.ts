@@ -331,6 +331,30 @@ it.layer(NodeServices.layer)("keybindings", (it) => {
     }).pipe(Effect.provide(makeKeybindingsLayer())),
   );
 
+  it.effect("removes multiple custom keybindings with one batch operation", () =>
+    Effect.gen(function* () {
+      const { keybindingsConfigPath } = yield* ServerConfig;
+      yield* writeKeybindingsConfig(keybindingsConfigPath, [
+        { key: "mod+j", command: "terminal.toggle" },
+        { key: "mod+shift+r", command: "script.run-tests.run" },
+        { key: "mod+shift+t", command: "terminal.new" },
+      ]);
+
+      const result = yield* Effect.gen(function* () {
+        const keybindings = yield* Keybindings;
+        return yield* keybindings.batchRemoveKeybindingRules([
+          { key: "mod+j", command: "terminal.toggle" },
+          { key: "mod+shift+r", command: "script.run-tests.run" },
+        ]);
+      });
+
+      const persisted = yield* readKeybindingsConfig(keybindingsConfigPath);
+      assert.equal(result.removedCount, 2);
+      assert.deepEqual(persisted, [{ key: "mod+shift+t", command: "terminal.new" }]);
+      assert.isFalse(result.keybindings.some((entry) => entry.command === "script.run-tests.run"));
+    }).pipe(Effect.provide(makeKeybindingsLayer())),
+  );
+
   it.effect("replaces existing custom keybinding for the same command", () =>
     Effect.gen(function* () {
       const { keybindingsConfigPath } = yield* ServerConfig;

@@ -11,10 +11,21 @@ import {
 import { isElectron } from "../../env";
 import { APP_VERSION } from "../../branding";
 import { Button } from "../ui/button";
+import { Input } from "../ui/input";
+import {
+  AlertDialog,
+  AlertDialogClose,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogPopup,
+  AlertDialogTitle,
+} from "../ui/alert-dialog";
 import { DesktopUpdateReleaseNotes } from "../DesktopUpdateReleaseNotes";
 import { SettingsRow, SettingsSection, SettingsSectionHeader } from "./SettingsLayout";
 
 const TABS_RELEASES_URL = "https://github.com/mxyxyz9/Tabs-ide/releases";
+const RESET_CONFIRMATION_PHRASE = "DELETE TABS DATA";
 
 type DesktopOsKind = "mac" | "windows" | "linux" | "unknown";
 
@@ -117,6 +128,11 @@ function DesktopUpdateControl({
 export function AboutSettings() {
   const [updateState, setUpdateState] = useState<DesktopUpdateState | null>(null);
   const [updateActionError, setUpdateActionError] = useState<string | null>(null);
+  const [resetDialogStep, setResetDialogStep] = useState<"review" | "confirm" | null>(null);
+  const [resetPhrase, setResetPhrase] = useState("");
+  const [resetActionError, setResetActionError] = useState<string | null>(null);
+  const [resetStartupError, setResetStartupError] = useState<string | null>(null);
+  const [resetInProgress, setResetInProgress] = useState(false);
 
   useEffect(() => {
     const bridge = window.desktopBridge;
@@ -134,6 +150,27 @@ export function AboutSettings() {
     };
   }, []);
 
+  useEffect(() => {
+    const bridge = window.desktopBridge;
+    if (!bridge?.getDataResetStartupError) return;
+    let cancelled = false;
+    void bridge
+      .getDataResetStartupError()
+      .then((message) => {
+        if (!cancelled) setResetStartupError(message);
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setResetStartupError(
+            error instanceof Error ? error.message : "Could not verify the previous reset.",
+          );
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const runUpdateAction = useCallback((action: DesktopUpdateButtonAction) => {
     const bridge = window.desktopBridge;
     if (!bridge || action === "none") return;
@@ -148,6 +185,35 @@ export function AboutSettings() {
         setUpdateActionError(error instanceof Error ? error.message : "Update action failed.");
       });
   }, []);
+
+  const beginDataReset = useCallback(async () => {
+    const bridge = window.desktopBridge;
+    if (!bridge?.resetTabsUserData) {
+      setResetActionError("This Tabs build does not support resetting local data.");
+      return;
+    }
+    setResetActionError(null);
+    setResetInProgress(true);
+    try {
+      const started = await bridge.resetTabsUserData();
+      if (!started) {
+        throw new Error("Tabs could not start the data reset. Close any pop-out window and retry.");
+      }
+      setResetDialogStep(null);
+    } catch (error) {
+      setResetActionError(error instanceof Error ? error.message : "Could not reset Tabs data.");
+      setResetInProgress(false);
+      setResetDialogStep(null);
+    }
+  }, []);
+
+  const closeResetDialog = useCallback(() => {
+    if (resetInProgress) return;
+    setResetDialogStep(null);
+    setResetPhrase("");
+  }, [resetInProgress]);
+
+  const isPrimaryWindow = !window.desktopBridge?.isPopout;
 
   return (
     <div className="space-y-6">
@@ -205,6 +271,139 @@ export function AboutSettings() {
           />
         ) : null}
       </SettingsSection>
+
+      {isElectron && isPrimaryWindow && window.desktopBridge?.resetTabsUserData ? (
+        <SettingsSection
+          title="Reset local data"
+          description="Start Tabs again with a clean local profile and the first-run setup wizard."
+        >
+          <SettingsRow
+            title="Reset Tabs data"
+            description="Remove local projects, threads, settings, Tabs-stored credentials, saved connections, browser-profile data, attachments, and caches. Tabs will restart and show the setup wizard."
+            status={
+              resetStartupError ? (
+                <p className="text-destructive" role="alert">
+                  The last reset did not finish: {resetStartupError} You can retry it below.
+                </p>
+              ) : resetActionError ? (
+                <p className="text-destructive" role="alert">
+                  {resetActionError}
+                </p>
+              ) : resetInProgress ? (
+                <p role="status" aria-live="polite">
+                  Tabs is closing to clear local data, then it will reopen.
+                </p>
+              ) : null
+            }
+            control={
+              <Button
+                variant="destructive-outline"
+                disabled={resetInProgress}
+                onClick={() => {
+                  setResetActionError(null);
+                  setResetPhrase("");
+                  setResetDialogStep("review");
+                }}
+              >
+                Reset Tabs data…
+              </Button>
+            }
+          />
+        </SettingsSection>
+      ) : null}
+
+      <AlertDialog
+        open={resetDialogStep !== null}
+        onOpenChange={(open) => {
+          if (!open) closeResetDialog();
+        }}
+      >
+        <AlertDialogPopup>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {resetDialogStep === "confirm"
+                ? "Confirm complete data reset"
+                : "Reset all local Tabs data?"}
+            </AlertDialogTitle>
+            {resetDialogStep === "confirm" ? (
+              <AlertDialogDescription>
+                This will permanently remove Tabs’ local projects and threads, settings, saved
+                connections, Tabs-stored credentials, attachments, and browser-profile site data.
+                Tabs will restart and open the first-run setup wizard.
+              </AlertDialogDescription>
+            ) : (
+              <AlertDialogDescription>
+                This is permanent. Tabs will remove its local project and thread records, local
+                settings and credentials, attachments, saved connections, browser-profile site data,
+                caches, and logs. The app will then restart as a fresh setup.
+              </AlertDialogDescription>
+            )}
+          </AlertDialogHeader>
+
+          {resetDialogStep === "review" ? (
+            <div className="space-y-2 px-6 pb-5 text-sm">
+              <p className="font-medium">These stay on this computer:</p>
+              <ul className="list-disc space-y-1 ps-5 text-muted-foreground">
+                <li>Project files and managed Git worktrees.</li>
+                <li>
+                  The downloaded Code OSS runtime and its editor settings, profiles, and extensions.
+                </li>
+                <li>OS-level accounts and data stored by remote services.</li>
+              </ul>
+              <p className="text-muted-foreground">
+                Tabs-stored credentials and local connection entries are removed. You may need to
+                reconnect remote environments and sign in to browser profiles again.
+              </p>
+            </div>
+          ) : (
+            <form
+              className="space-y-3 px-6 pb-5"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (resetPhrase === RESET_CONFIRMATION_PHRASE) void beginDataReset();
+              }}
+            >
+              <label className="block space-y-2 text-sm" htmlFor="reset-tabs-data-confirmation">
+                Type <code className="font-semibold">{RESET_CONFIRMATION_PHRASE}</code> to continue.
+                <Input
+                  id="reset-tabs-data-confirmation"
+                  autoComplete="off"
+                  autoCapitalize="characters"
+                  value={resetPhrase}
+                  onChange={(event) => setResetPhrase(event.target.value)}
+                  aria-describedby="reset-tabs-data-phrase-help"
+                />
+              </label>
+              <p id="reset-tabs-data-phrase-help" className="text-xs text-muted-foreground">
+                Code OSS state and all project/worktree files are preserved.
+              </p>
+            </form>
+          )}
+
+          <AlertDialogFooter>
+            <AlertDialogClose
+              render={
+                <Button variant="outline" disabled={resetInProgress} onClick={closeResetDialog} />
+              }
+            >
+              Cancel
+            </AlertDialogClose>
+            {resetDialogStep === "review" ? (
+              <Button variant="destructive" onClick={() => setResetDialogStep("confirm")}>
+                Continue to final confirmation
+              </Button>
+            ) : (
+              <Button
+                variant="destructive"
+                disabled={resetPhrase !== RESET_CONFIRMATION_PHRASE || resetInProgress}
+                onClick={() => void beginDataReset()}
+              >
+                Delete Tabs data and restart
+              </Button>
+            )}
+          </AlertDialogFooter>
+        </AlertDialogPopup>
+      </AlertDialog>
     </div>
   );
 }

@@ -33,6 +33,38 @@ export const CANONICAL_DEV_DIR_NAME = "tabs-dev";
 export const VERIFIED_LEGACY_PROD_DIR_NAMES = ["Tabs (Alpha)", "Tabs"] as const;
 export const VERIFIED_LEGACY_DEV_DIR_NAMES = ["Tabs (Dev)"] as const;
 
+/**
+ * Returns every known Electron profile path for this app identity. Reset flows
+ * clear all of them because resolveUserDataPathWithFs intentionally continues
+ * using populated legacy profiles on later launches.
+ */
+export function resolveKnownUserDataPathsWithFs(options: ResolveUserDataOptions = {}): string[] {
+  const env = options.env ?? process.env;
+  const platform = options.platform ?? process.platform;
+  const pathUtil = platform === "win32" ? Path.win32 : Path.posix;
+  const configuredPath = options.configuredPath ?? env.TABS_DESKTOP_USER_DATA_DIR?.trim();
+  if (configuredPath) return [pathUtil.resolve(configuredPath)];
+
+  const homedir = options.homedir ?? OS.homedir();
+  const appDataBase =
+    platform === "win32"
+      ? env.APPDATA || pathUtil.join(homedir, "AppData", "Roaming")
+      : platform === "darwin"
+        ? pathUtil.join(homedir, "Library", "Application Support")
+        : env.XDG_CONFIG_HOME?.trim() || pathUtil.join(homedir, ".config");
+
+  const isDevelopment = options.isDevelopment ?? false;
+  const canonicalName = isDevelopment ? CANONICAL_DEV_DIR_NAME : CANONICAL_PROD_DIR_NAME;
+  const legacyNames = isDevelopment
+    ? VERIFIED_LEGACY_DEV_DIR_NAMES
+    : VERIFIED_LEGACY_PROD_DIR_NAMES;
+  const paths = [
+    pathUtil.join(appDataBase, canonicalName),
+    ...legacyNames.map((name) => pathUtil.join(appDataBase, name)),
+  ];
+  return [...new Set(paths)];
+}
+
 function isDirectoryEntry(path: string, fs: FsProbe): boolean {
   try {
     if (!fs.existsSync(path)) return false;

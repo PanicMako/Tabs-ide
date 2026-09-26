@@ -16,6 +16,7 @@ import type { EnvironmentTheme } from "@tabs/contracts";
 type ThemeSnapshot = {
   theme: ThemePreference;
   systemDark: boolean;
+  revision: number;
 };
 
 const STORAGE_KEY = "tabs:theme";
@@ -25,7 +26,16 @@ const MEDIA_QUERY = "(prefers-color-scheme: dark)";
 
 let listeners: Array<() => void> = [];
 let lastSnapshot: ThemeSnapshot | null = null;
+let themeRevision = 0;
 let lastDesktopTheme: string | null = null;
+let previewThemeSyncTimer: ReturnType<typeof setTimeout> | null = null;
+let queuedPreviewThemeSync: {
+  readonly themeId: string;
+  readonly preference: ThemePreference;
+  readonly customConfig?: CustomThemeConfig;
+  readonly fontPreferences: FontPreferences;
+} | null = null;
+let transitionCleanupFrame: number | null = null;
 let environmentThemes: ReadonlyArray<EnvironmentTheme> = [];
 
 export function setEnvironmentThemes(next: ReadonlyArray<EnvironmentTheme>) {
@@ -36,6 +46,8 @@ export function setEnvironmentThemes(next: ReadonlyArray<EnvironmentTheme>) {
 }
 
 function emitChange() {
+  themeRevision += 1;
+  lastSnapshot = null;
   for (const listener of listeners) listener();
 }
 
@@ -232,7 +244,10 @@ export function previewTheme(
   customConfig?: CustomThemeConfig,
   fontPreferences?: FontPreferences,
 ): void {
-  applyTheme(preference, true, customConfig, fontPreferences);
+  applyTheme(preference, true, customConfig, fontPreferences, {
+    deferDesktopSync: true,
+    dispatchResize: false,
+  });
 }
 
 export function restoreThemeSnapshot(snapshot: ThemeSnapshotState): void {
@@ -276,28 +291,14 @@ function applyTheme(
   suppressTransitions = false,
   customConfigOverride?: CustomThemeConfig,
   fontPreferencesOverride?: FontPreferences,
+  options: { readonly deferDesktopSync?: boolean; readonly dispatchResize?: boolean } = {},
 ) {
   if (suppressTransitions) {
     document.documentElement.classList.add("no-transitions");
   }
 
   const fonts = fontPreferencesOverride ?? getStoredFontPreferences();
-  const rootStyle = document.documentElement?.style;
-  if (rootStyle) {
-    rootStyle.setProperty("--font-sans", fonts.uiFont);
-    rootStyle.setProperty("--font-display", fonts.headingFont || fonts.uiFont);
-    rootStyle.setProperty("--font-mono", fonts.editorFont);
-    if (typeof fonts.fontSizeInterface === "number") {
-      applyInterfaceFontSize(rootStyle, fonts.fontSizeInterface);
-    }
-    if (typeof fonts.fontSizeCode === "number") {
-      rootStyle.setProperty("--font-size-code", `${fonts.fontSizeCode}px`);
-      rootStyle.setProperty("--diffs-font-size", `${fonts.fontSizeCode}px`);
-    }
-    if (typeof fonts.fontSizePrompt === "number") {
-      rootStyle.setProperty("--font-size-prompt", `${fonts.fontSizePrompt}px`);
-    }
-  }
+  applyFontPreferencesToDom(fonts);
 
   const activeThemeId = resolveActiveThemeId(preference);
 
@@ -435,36 +436,99 @@ function applyTheme(
     style.setProperty("--code-oss-accent", primary);
   }
 
-  syncDesktopTheme(
-    activeThemeId,
-    preference,
-    activeThemeId === "custom" || activeThemeId.startsWith("environment:") ? config : undefined,
-    fonts,
-  );
+  const desktopConfig =
+    activeThemeId === "custom" || activeThemeId.startsWith("environment:") ? config : undefined;
+  if (options.deferDesktopSync) {
+    schedulePreviewDesktopThemeSync(activeThemeId, preference, desktopConfig, fonts);
+  } else {
+    cancelPreviewDesktopThemeSync();
+    syncDesktopTheme(activeThemeId, preference, desktopConfig, fonts);
+  }
 
-  if (typeof document !== "undefined" && document.documentElement) {
-    // Synchronous layout reflow to flush DOM style recalculation
-    void document.documentElement.offsetHeight;
-    if (document.body) {
-      void document.body.offsetHeight;
-    }
-    if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
-      window.dispatchEvent(new Event("resize"));
-    }
+  if (
+    options.dispatchResize !== false &&
+    typeof window !== "undefined" &&
+    typeof window.dispatchEvent === "function"
+  ) {
+    window.dispatchEvent(new Event("resize"));
   }
 
   if (suppressTransitions && typeof document !== "undefined" && document.documentElement) {
-    const rAF =
-      typeof requestAnimationFrame === "function"
-        ? requestAnimationFrame
-        : (cb: () => void) => setTimeout(cb, 0);
-    rAF(() => {
-      if (typeof document !== "undefined" && document.documentElement) {
-        void document.documentElement.offsetHeight;
-      }
-      document.documentElement?.classList?.remove("no-transitions");
-    });
+    scheduleTransitionCleanup();
   }
+}
+
+function applyFontPreferencesToDom(fonts: FontPreferences): void {
+  const style = document.documentElement?.style;
+  if (!style) return;
+
+  style.setProperty("--font-sans", fonts.uiFont);
+  style.setProperty("--font-display", fonts.headingFont || fonts.uiFont);
+  style.setProperty("--font-mono", fonts.editorFont);
+  if (typeof fonts.fontSizeInterface === "number") {
+    applyInterfaceFontSize(style, fonts.fontSizeInterface);
+  }
+  if (typeof fonts.fontSizeCode === "number") {
+    style.setProperty("--font-size-code", `${fonts.fontSizeCode}px`);
+    style.setProperty("--diffs-font-size", `${fonts.fontSizeCode}px`);
+  }
+  if (typeof fonts.fontSizePrompt === "number") {
+    style.setProperty("--font-size-prompt", `${fonts.fontSizePrompt}px`);
+  }
+}
+
+function scheduleTransitionCleanup(): void {
+  if (typeof requestAnimationFrame !== "function") {
+    setTimeout(() => document.documentElement?.classList.remove("no-transitions"), 0);
+    return;
+  }
+
+  if (transitionCleanupFrame !== null) cancelAnimationFrame(transitionCleanupFrame);
+  transitionCleanupFrame = requestAnimationFrame(() => {
+    transitionCleanupFrame = requestAnimationFrame(() => {
+      transitionCleanupFrame = null;
+      document.documentElement?.classList.remove("no-transitions");
+    });
+  });
+}
+
+function schedulePreviewDesktopThemeSync(
+  themeId: string,
+  preference: ThemePreference,
+  customConfig: CustomThemeConfig | undefined,
+  fontPreferences: FontPreferences,
+): void {
+  queuedPreviewThemeSync = {
+    themeId,
+    preference,
+    ...(customConfig ? { customConfig } : {}),
+    fontPreferences,
+  };
+  if (previewThemeSyncTimer !== null) return;
+
+  previewThemeSyncTimer = setTimeout(() => {
+    previewThemeSyncTimer = null;
+    flushPreviewDesktopThemeSync();
+  }, 120);
+}
+
+function flushPreviewDesktopThemeSync(): void {
+  if (previewThemeSyncTimer !== null) {
+    clearTimeout(previewThemeSyncTimer);
+    previewThemeSyncTimer = null;
+  }
+  const queued = queuedPreviewThemeSync;
+  queuedPreviewThemeSync = null;
+  if (!queued) return;
+  syncDesktopTheme(queued.themeId, queued.preference, queued.customConfig, queued.fontPreferences);
+}
+
+function cancelPreviewDesktopThemeSync(): void {
+  if (previewThemeSyncTimer !== null) {
+    clearTimeout(previewThemeSyncTimer);
+    previewThemeSyncTimer = null;
+  }
+  queuedPreviewThemeSync = null;
 }
 
 function syncDesktopTheme(
@@ -524,11 +588,16 @@ function getSnapshot(): ThemeSnapshot {
   const theme = getStoredPreference();
   const systemDark = theme === "system" ? getSystemDark() : false;
 
-  if (lastSnapshot && lastSnapshot.theme === theme && lastSnapshot.systemDark === systemDark) {
+  if (
+    lastSnapshot &&
+    lastSnapshot.theme === theme &&
+    lastSnapshot.systemDark === systemDark &&
+    lastSnapshot.revision === themeRevision
+  ) {
     return lastSnapshot;
   }
 
-  lastSnapshot = { theme, systemDark };
+  lastSnapshot = { theme, systemDark, revision: themeRevision };
   return lastSnapshot;
 }
 
@@ -604,7 +673,7 @@ export function useTheme() {
       const current = getStoredFontPreferences();
       const updated = typeof next === "function" ? next(current) : next;
       localStorage.setItem(FONT_PREFERENCES_STORAGE_KEY, JSON.stringify(updated));
-      applyTheme(getStoredPreference(), true, undefined, updated);
+      applyFontPreferencesToDom(updated);
       emitChange();
     },
     [],

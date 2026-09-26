@@ -159,6 +159,8 @@ import {
   ServerUpsertKeybindingResult,
   ServerBatchUpsertKeybindingsInput,
   ServerBatchUpsertKeybindingsResult,
+  ServerBatchRemoveKeybindingsInput,
+  ServerBatchRemoveKeybindingsResult,
 } from "./server.ts";
 import { ServerSettings, ServerSettingsError, ServerSettingsPatch } from "./settings.ts";
 import {
@@ -240,6 +242,7 @@ export const WS_METHODS = {
   providerConsumeResetCredit: "provider.consumeResetCredit",
   serverUpsertKeybinding: "server.upsertKeybinding",
   serverBatchUpsertKeybindings: "server.batchUpsertKeybindings",
+  serverBatchRemoveKeybindings: "server.batchRemoveKeybindings",
   serverRemoveKeybinding: "server.removeKeybinding",
   serverGetSettings: "server.getSettings",
   serverUpdateSettings: "server.updateSettings",
@@ -281,6 +284,12 @@ export const WsServerUpsertKeybindingRpc = Rpc.make(WS_METHODS.serverUpsertKeybi
 export const WsServerBatchUpsertKeybindingsRpc = Rpc.make(WS_METHODS.serverBatchUpsertKeybindings, {
   payload: ServerBatchUpsertKeybindingsInput,
   success: ServerBatchUpsertKeybindingsResult,
+  error: Schema.Union([KeybindingsConfigError, EnvironmentAuthorizationError]),
+});
+
+export const WsServerBatchRemoveKeybindingsRpc = Rpc.make(WS_METHODS.serverBatchRemoveKeybindings, {
+  payload: ServerBatchRemoveKeybindingsInput,
+  success: ServerBatchRemoveKeybindingsResult,
   error: Schema.Union([KeybindingsConfigError, EnvironmentAuthorizationError]),
 });
 
@@ -788,6 +797,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsProviderConsumeResetCreditRpc,
   WsServerUpsertKeybindingRpc,
   WsServerBatchUpsertKeybindingsRpc,
+  WsServerBatchRemoveKeybindingsRpc,
   WsServerRemoveKeybindingRpc,
   WsServerGetSettingsRpc,
   WsServerUpdateSettingsRpc,

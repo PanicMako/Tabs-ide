@@ -759,7 +759,11 @@ function StepList({ steps }: { readonly steps: ReadonlyArray<DocStep> }) {
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
-export function DocumentationSettings() {
+export function DocumentationSettings({
+  onOpenSettingsSection,
+}: {
+  readonly onOpenSettingsSection?: (section: string) => void;
+}) {
   const { fontPreferences } = useTheme();
   const activeFontCombo = useMemo(() => getActiveFontCombo(fontPreferences), [fontPreferences]);
   const [, updateSettingsViewState] = useSettingsViewState();
@@ -783,7 +787,11 @@ export function DocumentationSettings() {
   };
 
   const handleOpenSection = (section: string) => {
-    updateSettingsViewState({ activeSection: section });
+    if (onOpenSettingsSection) {
+      onOpenSettingsSection(section);
+    } else {
+      updateSettingsViewState({ activeSection: section });
+    }
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
       url.searchParams.set("section", section);

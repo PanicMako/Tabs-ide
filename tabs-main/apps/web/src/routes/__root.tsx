@@ -41,6 +41,7 @@ import { NativePreviewAutomationHost } from "../components/NativePreviewAutomati
 import { BackgroundActivityReporter } from "../components/BackgroundActivityReporter";
 import { ProviderUpdateNotification } from "../components/ProviderUpdateNotification";
 import { SlowRpcRequestToastCoordinator } from "../components/SlowRpcRequestToastCoordinator";
+import { startRendererPerformanceCapture } from "../lib/rendererPerformance";
 import { createKeybindingsUpdateToastController } from "../components/KeybindingsUpdateToast.logic";
 import {
   removeEnvironmentReadModelFromAtoms,
@@ -82,6 +83,7 @@ export const Route = createRootRouteWithContext<{
  * route resets never navigate away to the full Tabs instance.
  */
 function PopoutRootView() {
+  useEffect(() => startRendererPerformanceCapture(), []);
   return (
     <ToastProvider>
       <AnchoredToastProvider>
@@ -101,6 +103,7 @@ function PopoutRootView() {
  * thread/project sync, CommandPalette, etc.
  */
 function FullAppRootView() {
+  useEffect(() => startRendererPerformanceCapture(), []);
   const isNativeApiReady = !!readNativeApi();
   const threadsHydrated = useAtomValue(threadsHydratedAtom);
   const settings = useSettings();

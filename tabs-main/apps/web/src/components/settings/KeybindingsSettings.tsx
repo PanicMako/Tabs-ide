@@ -8,6 +8,7 @@ import {
   FileJsonIcon,
   InfoIcon,
   KeyboardIcon,
+  LoaderCircleIcon,
   MessageSquareIcon,
   MinusIcon,
   PlusIcon,
@@ -88,6 +89,9 @@ export interface KeybindingsSettingsProps {
   readonly keybindings: ResolvedKeybindingsConfig;
   readonly onUpsert: (rule: KeybindingRule) => Promise<unknown> | unknown;
   readonly onBatchUpsert: (rules: ReadonlyArray<KeybindingRule>) => Promise<unknown> | unknown;
+  readonly onBatchRemove?: (
+    rules: ReadonlyArray<KeybindingRule>,
+  ) => Promise<{ readonly removedCount: number; readonly failedCount: number }>;
   readonly onRemove: (rule: KeybindingRule) => Promise<unknown> | unknown;
   readonly keybindingsConfigPath?: string | null | undefined;
   readonly availableEditors?: ReadonlyArray<any> | null | undefined;
@@ -1005,6 +1009,7 @@ export function KeybindingsSettings({
   keybindings,
   onUpsert,
   onBatchUpsert,
+  onBatchRemove,
   onRemove,
   keybindingsConfigPath,
   availableEditors,
@@ -1017,6 +1022,7 @@ export function KeybindingsSettings({
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [savingCommand, setSavingCommand] = useState<KeybindingCommand | null>(null);
+  const [isRestoringDefaults, setIsRestoringDefaults] = useState(false);
 
   const [activeTab, setActiveTab] = useState("All");
   const rows = useMemo(() => buildKeybindingRows(keybindings, query), [keybindings, query]);
@@ -1234,21 +1240,59 @@ export function KeybindingsSettings({
                 size="xs"
                 variant="outline"
                 className="no-drag"
-                disabled={!rows.some((r) => r.source === "Custom")}
+                disabled={isRestoringDefaults || !rows.some((r) => r.source === "Custom")}
+                aria-busy={isRestoringDefaults}
                 onClick={async () => {
                   const confirmed = await confirm(
                     "Restore default keybindings?\n\nThis will remove all custom shortcuts.",
                   );
-                  if (confirmed) {
-                    const customRows = rows.filter((r) => r.source === "Custom");
-                    customRows.forEach((row) => {
-                      void Promise.resolve(onRemove(rowKeybindingTarget(row)));
+                  if (!confirmed) return;
+
+                  const customRows = rows.filter((r) => r.source === "Custom");
+                  if (customRows.length === 0) return;
+                  setIsRestoringDefaults(true);
+                  try {
+                    const rules = customRows.map(rowKeybindingTarget);
+                    const result = onBatchRemove
+                      ? await onBatchRemove(rules)
+                      : await Promise.allSettled(
+                          rules.map((rule) => Promise.resolve(onRemove(rule))),
+                        ).then((results) => ({
+                          removedCount: results.filter((item) => item.status === "fulfilled")
+                            .length,
+                          failedCount: results.filter((item) => item.status === "rejected").length,
+                        }));
+                    toastManager.add(
+                      result.failedCount > 0
+                        ? {
+                            title: "Some keybindings could not be removed",
+                            description: `Removed ${result.removedCount}; ${result.failedCount} custom shortcut${result.failedCount === 1 ? " remains" : "s remain"}.`,
+                            type: "error",
+                          }
+                        : {
+                            title: "Default keybindings restored",
+                            description: `Removed ${result.removedCount} custom shortcut${result.removedCount === 1 ? "" : "s"}.`,
+                            type: "success",
+                          },
+                    );
+                  } catch (error) {
+                    toastManager.add({
+                      title: "Could not restore all keybindings",
+                      description:
+                        error instanceof Error ? error.message : "Some shortcuts may remain.",
+                      type: "error",
                     });
+                  } finally {
+                    setIsRestoringDefaults(false);
                   }
                 }}
               >
-                <RotateCcwIcon className="size-3.5 mr-1" />
-                Restore defaults
+                {isRestoringDefaults ? (
+                  <LoaderCircleIcon className="size-3.5 mr-1 animate-spin" aria-hidden="true" />
+                ) : (
+                  <RotateCcwIcon className="size-3.5 mr-1" aria-hidden="true" />
+                )}
+                {isRestoringDefaults ? "Restoring…" : "Restore defaults"}
               </Button>
             </SettingsHeaderPortal>
           </div>

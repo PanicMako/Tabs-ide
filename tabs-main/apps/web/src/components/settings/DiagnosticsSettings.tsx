@@ -45,6 +45,7 @@ import { ScrollArea } from "../ui/scroll-area";
 import { SegmentedControl, type SegmentOption } from "../ui/segmented-control";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { SettingsHeaderPortal, SettingsRow, SettingsSection } from "./SettingsLayout";
+import { RendererResponsivenessDiagnostics } from "./RendererResponsivenessDiagnostics";
 import { ExpandableText } from "./ExpandableText";
 import {
   AttributionTable,
@@ -1091,49 +1092,59 @@ export function DiagnosticsSettings() {
   const [signalingPid, setSignalingPid] = useState<number | null>(null);
   const [historyWindowIndex, setHistoryWindowIndex] = useState(1); // default 15m
 
-  const [aiDiagnoseResult, setAiDiagnoseResult] = useState<{
-    status: "healthy" | "warning";
+  const [resourceAssessment, setResourceAssessment] = useState<{
+    status: "healthy" | "warning" | "unavailable";
     summary: string;
     details: string[];
   } | null>(null);
-  const [isDiagnosing, setIsDiagnosing] = useState(false);
 
-  const handleAiDiagnose = useCallback(() => {
-    setIsDiagnosing(true);
-    setTimeout(() => {
-      const allCpu = telemetry?.groups.allT3.currentCpuPercent ?? 0;
-      const allMemBytes = telemetry?.groups.allT3.currentRssBytes ?? 0;
-      const allMemMb = allMemBytes / (1024 * 1024);
-      const isHighCpu = allCpu > 70;
-      const isHighMem = allMemMb > 2048;
+  const handleQuickResourceCheck = useCallback(() => {
+    const resourceSample = telemetry?.groups.allT3;
+    if (!resourceSample) {
+      setResourceAssessment({
+        status: "unavailable",
+        summary: "No backend resource sample is available yet.",
+        details: [
+          "Refresh diagnostics and run this check again when resource metrics have loaded.",
+        ],
+      });
+      return;
+    }
 
-      if (isHighCpu || isHighMem) {
-        setAiDiagnoseResult({
-          status: "warning",
-          summary: "Elevated resource footprint detected across active subsystems.",
-          details: [
-            isHighCpu
-              ? `Tabs CPU usage is elevated at ${allCpu.toFixed(1)}%.`
-              : "CPU usage is within acceptable range.",
-            isHighMem
-              ? `Total Tabs memory is ${formatBytes(allMemBytes)}. Consider terminating inactive terminal or agent sessions.`
-              : "Memory footprint is normal.",
-            "Process tree health is responsive; no unresponsive daemon or sidecar loops found.",
-          ],
-        });
-      } else {
-        setAiDiagnoseResult({
-          status: "healthy",
-          summary: "System and Tabs subsystems are running in optimal condition.",
-          details: [
-            `Tabs CPU footprint is low (${allCpu.toFixed(1)}%). Core loops and UI thread are completely unblocked.`,
-            `Total memory footprint is ${formatBytes(allMemBytes)} across ${processes?.processes.length ?? 5} active processes.`,
-            "Disk I/O and telemetry history are within nominal bounds; no runaway logging or memory leaks detected.",
-          ],
-        });
-      }
-      setIsDiagnosing(false);
-    }, 450);
+    const allCpu = resourceSample.currentCpuPercent;
+    const allMemBytes = resourceSample.currentRssBytes;
+    const allMemMb = allMemBytes / (1024 * 1024);
+    const isHighCpu = allCpu > 70;
+    const isHighMem = allMemMb > 2048;
+
+    if (isHighCpu || isHighMem) {
+      setResourceAssessment({
+        status: "warning",
+        summary: "Elevated backend resource footprint detected in the latest sample.",
+        details: [
+          isHighCpu
+            ? `Tabs CPU usage is elevated at ${allCpu.toFixed(1)}%.`
+            : "Backend CPU usage is within the configured threshold.",
+          isHighMem
+            ? `Reported process memory is ${formatBytes(allMemBytes)}. Consider terminating inactive terminal or agent sessions.`
+            : "Reported process memory is within the configured threshold.",
+          "Renderer interaction and main-thread measurements are shown in the section below.",
+        ],
+      });
+      return;
+    }
+
+    setResourceAssessment({
+      status: "healthy",
+      summary: "No elevated backend CPU or memory use was detected in the latest sample.",
+      details: [
+        `Reported backend CPU usage is ${allCpu.toFixed(1)}%.`,
+        processes
+          ? `Reported process memory is ${formatBytes(allMemBytes)} across ${processes.processes.length} active processes.`
+          : `Reported process memory is ${formatBytes(allMemBytes)}; process details are unavailable.`,
+        "Renderer responsiveness is measured separately below; this check does not assess click latency or UI-thread stalls.",
+      ],
+    });
   }, [telemetry, processes]);
 
   const currentHistoryConfig = HISTORY_WINDOWS[historyWindowIndex] ?? HISTORY_WINDOWS[1];
@@ -1343,12 +1354,11 @@ export function DiagnosticsSettings() {
               <Button
                 size="xs"
                 variant="outline"
-                onClick={handleAiDiagnose}
-                disabled={isDiagnosing}
+                onClick={handleQuickResourceCheck}
                 className="h-6.5 px-2 text-[11px] cursor-pointer border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary transition-all font-medium"
               >
-                <ActivityIcon className={cn("mr-1 size-3", isDiagnosing && "animate-spin")} />
-                {isDiagnosing ? "Diagnosing…" : "AI Diagnose"}
+                <ActivityIcon className="mr-1 size-3" aria-hidden="true" />
+                Run quick check
               </Button>
               <Button
                 size="xs"
@@ -1433,12 +1443,11 @@ export function DiagnosticsSettings() {
                 <Button
                   size="xs"
                   variant="outline"
-                  onClick={handleAiDiagnose}
-                  disabled={isDiagnosing}
+                  onClick={handleQuickResourceCheck}
                   className="cursor-pointer border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary transition-all font-medium"
                 >
-                  <ActivityIcon className={cn("mr-1.5 size-3.5", isDiagnosing && "animate-spin")} />
-                  {isDiagnosing ? "Diagnosing…" : "AI Diagnose"}
+                  <ActivityIcon className="mr-1.5 size-3.5" aria-hidden="true" />
+                  Run quick check
                 </Button>
                 <Tooltip>
                   <TooltipTrigger
@@ -1507,14 +1516,15 @@ export function DiagnosticsSettings() {
           </div>
         ) : null}
 
-        {/* AI Diagnosis Result Banner */}
-        {aiDiagnoseResult ? (
+        {resourceAssessment ? (
           <div
             className={cn(
               "rounded-xl border p-4 shadow-sm transition-all",
-              aiDiagnoseResult.status === "healthy"
+              resourceAssessment.status === "healthy"
                 ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-950 dark:text-emerald-100"
-                : "border-amber-500/40 bg-amber-500/10 text-amber-950 dark:text-amber-100",
+                : resourceAssessment.status === "warning"
+                  ? "border-amber-500/40 bg-amber-500/10 text-amber-950 dark:text-amber-100"
+                  : "border-border bg-muted/30 text-foreground",
             )}
           >
             <div className="flex items-start justify-between gap-3">
@@ -1522,21 +1532,27 @@ export function DiagnosticsSettings() {
                 <ActivityIcon
                   className={cn(
                     "size-4 shrink-0 mt-0.5",
-                    aiDiagnoseResult.status === "healthy" ? "text-emerald-500" : "text-amber-500",
+                    resourceAssessment.status === "healthy"
+                      ? "text-emerald-500"
+                      : resourceAssessment.status === "warning"
+                        ? "text-amber-500"
+                        : "text-muted-foreground",
                   )}
                 />
                 <div>
                   <div className="text-xs font-semibold tracking-tight">
-                    AI Diagnostic Assessment —{" "}
-                    {aiDiagnoseResult.status === "healthy"
-                      ? "All Systems Healthy"
-                      : "Attention Recommended"}
+                    Quick Resource Assessment —{" "}
+                    {resourceAssessment.status === "healthy"
+                      ? "Within Thresholds"
+                      : resourceAssessment.status === "warning"
+                        ? "Attention Recommended"
+                        : "Metrics Unavailable"}
                   </div>
                   <p className="mt-1 text-xs leading-relaxed opacity-90">
-                    {aiDiagnoseResult.summary}
+                    {resourceAssessment.summary}
                   </p>
                   <ul className="mt-2 space-y-1 text-[11.5px] opacity-80 list-disc list-inside">
-                    {aiDiagnoseResult.details.map((detail, idx) => (
+                    {resourceAssessment.details.map((detail, idx) => (
                       <li key={idx}>{detail}</li>
                     ))}
                   </ul>
@@ -1544,7 +1560,7 @@ export function DiagnosticsSettings() {
               </div>
               <button
                 type="button"
-                onClick={() => setAiDiagnoseResult(null)}
+                onClick={() => setResourceAssessment(null)}
                 className="text-muted-foreground hover:text-foreground p-1 rounded cursor-pointer"
                 aria-label="Dismiss diagnosis"
               >
@@ -1563,6 +1579,8 @@ export function DiagnosticsSettings() {
             <span>{error}</span>
           </div>
         ) : null}
+
+        <RendererResponsivenessDiagnostics />
 
         {/* TAB 1: OVERVIEW (Sections 1 & 2 + Background Activity Profile) */}
         {activeTab === "overview" ? (

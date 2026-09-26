@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { MinusIcon, PlusIcon, RotateCcwIcon } from "lucide-react";
+import { LoaderCircleIcon, MinusIcon, PlusIcon, RotateCcwIcon } from "lucide-react";
 import {
   DEFAULT_DESKTOP_ICON_THEME,
   DEFAULT_PANEL_ANIMATION_DURATION_MS,
@@ -78,6 +78,7 @@ const EMPTY_SERVER_PROVIDERS: ReadonlyArray<ServerProvider> = [];
 
 function OsNotificationsToggle() {
   const [enabled, setEnabled] = useState(() => getOsNotificationsEnabled());
+  const [isRequestingPermission, setIsRequestingPermission] = useState(false);
   const [permissionState, setPermissionState] = useState<NotificationPermission | "unsupported">(
     () => (typeof Notification === "undefined" ? "unsupported" : Notification.permission),
   );
@@ -99,10 +100,21 @@ function OsNotificationsToggle() {
         });
         return;
       }
-      const granted = await requestOsNotificationPermission();
-      const next = Notification.permission as NotificationPermission;
-      setPermissionState(next);
-      setEnabled(granted);
+      setIsRequestingPermission(true);
+      try {
+        const granted = await requestOsNotificationPermission();
+        const next = Notification.permission as NotificationPermission;
+        setPermissionState(next);
+        setEnabled(granted);
+      } catch (error) {
+        toastManager.add({
+          type: "error",
+          title: "Could not request notification permission",
+          description: error instanceof Error ? error.message : "Try again in system settings.",
+        });
+      } finally {
+        setIsRequestingPermission(false);
+      }
     },
     [permissionState],
   );
@@ -120,8 +132,15 @@ function OsNotificationsToggle() {
         checked={enabled && permissionState === "granted"}
         onCheckedChange={handleToggle}
         aria-label="Enable system notifications"
-        disabled={permissionState === "denied"}
+        disabled={permissionState === "denied" || isRequestingPermission}
+        aria-busy={isRequestingPermission}
       />
+      {isRequestingPermission ? (
+        <span className="flex items-center gap-1 text-[11px] text-muted-foreground" role="status">
+          <LoaderCircleIcon className="size-3 animate-spin" aria-hidden="true" />
+          Waiting for permission…
+        </span>
+      ) : null}
     </div>
   );
 }
@@ -134,6 +153,8 @@ export function GeneralSettings() {
   const { updateSettings } = useUpdateSettings();
   const [zoomFactor, updateZoom] = useZoomFactor();
   const activeProjectId = useWorkspaceActiveProjectId();
+  const [isReloadingCode, setIsReloadingCode] = useState(false);
+  const [isReloadingBrowser, setIsReloadingBrowser] = useState(false);
   const serverConfig = useServerConfig();
 
   const panelDurationField = useDebouncedSettingField<number>({
@@ -856,9 +877,11 @@ export function GeneralSettings() {
             <Button
               size="xs"
               variant="outline"
-              disabled={!isElectron || !activeProjectId}
+              disabled={!isElectron || !activeProjectId || isReloadingCode}
+              aria-busy={isReloadingCode}
               onClick={async () => {
                 if (!activeProjectId) return;
+                setIsReloadingCode(true);
                 try {
                   const bridge = window.desktopBridge;
                   if (bridge) {
@@ -877,10 +900,15 @@ export function GeneralSettings() {
                     title: "Reload failed",
                     description: String(e),
                   });
+                } finally {
+                  setIsReloadingCode(false);
                 }
               }}
             >
-              Reload Code OSS
+              {isReloadingCode ? (
+                <LoaderCircleIcon className="mr-1 size-3.5 animate-spin" aria-hidden="true" />
+              ) : null}
+              {isReloadingCode ? "Reloading Code OSS…" : "Reload Code OSS"}
             </Button>
           }
         />
@@ -892,9 +920,11 @@ export function GeneralSettings() {
             <Button
               size="xs"
               variant="outline"
-              disabled={!isElectron || !activeProjectId}
+              disabled={!isElectron || !activeProjectId || isReloadingBrowser}
+              aria-busy={isReloadingBrowser}
               onClick={async () => {
                 if (!activeProjectId) return;
+                setIsReloadingBrowser(true);
                 try {
                   const bridge = window.desktopBridge;
                   if (bridge) {
@@ -913,10 +943,15 @@ export function GeneralSettings() {
                     title: "Reload failed",
                     description: String(e),
                   });
+                } finally {
+                  setIsReloadingBrowser(false);
                 }
               }}
             >
-              Reload Browser Preview
+              {isReloadingBrowser ? (
+                <LoaderCircleIcon className="mr-1 size-3.5 animate-spin" aria-hidden="true" />
+              ) : null}
+              {isReloadingBrowser ? "Reloading browser…" : "Reload Browser Preview"}
             </Button>
           }
         />

@@ -2553,6 +2553,16 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
         };
       }
 
+      case WS_METHODS.serverBatchRemoveKeybindings: {
+        const body = stripRequestTag(request.body);
+        const result = yield* keybindingsManager.batchRemoveKeybindingRules(body.rules);
+        return {
+          keybindings: result.keybindings,
+          issues: [],
+          removedCount: result.removedCount,
+        };
+      }
+
       case WS_METHODS.serverRemoveKeybinding: {
         const body = stripRequestTag(request.body);
         const keybindingsConfig = yield* keybindingsManager.removeKeybindingRule(body);

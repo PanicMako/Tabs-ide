@@ -155,6 +155,7 @@ import type {
   ServerTraceDiagnosticsResult,
   ServerUpsertKeybindingResult,
   ServerBatchUpsertKeybindingsResult,
+  ServerBatchRemoveKeybindingsResult,
   ServerRunProviderMaintenanceInput,
 } from "./server.ts";
 import type {
@@ -172,6 +173,7 @@ import type {
 } from "./terminal.ts";
 import type {
   ServerBatchUpsertKeybindingsInput,
+  ServerBatchRemoveKeybindingsInput,
   ServerRemoveKeybindingInput,
   ServerUpsertKeybindingInput,
 } from "./server.ts";
@@ -1380,6 +1382,8 @@ export interface DesktopBridge {
   onAppCleanupDone: (listener: () => void) => () => void;
   notifyReadyToExit: () => Promise<void>;
   getConfirmBeforeQuit: () => Promise<boolean>;
+  resetTabsUserData?: () => Promise<boolean>;
+  getDataResetStartupError?: () => Promise<string | null>;
   setConfirmBeforeQuit: (value: boolean) => Promise<void>;
   onQuitConfirmationRequested: (listener: () => void) => () => void;
   respondToQuitConfirmation: (choice: "save-and-quit" | "cancel") => void;
@@ -1498,6 +1502,9 @@ export interface LocalApi {
     batchUpsertKeybindings: (
       input: ServerBatchUpsertKeybindingsInput,
     ) => Promise<ServerBatchUpsertKeybindingsResult>;
+    batchRemoveKeybindings: (
+      input: ServerBatchRemoveKeybindingsInput,
+    ) => Promise<ServerBatchRemoveKeybindingsResult>;
     removeKeybinding: (input: ServerRemoveKeybindingInput) => Promise<ServerRemoveKeybindingResult>;
     getSettings: () => Promise<ServerSettings>;
     updateSettings: (patch: ServerSettingsPatch) => Promise<ServerSettings>;

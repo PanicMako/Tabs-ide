@@ -104,6 +104,7 @@ import { ProviderConsumeResetCreditInput } from "./providerUsageLimits";
 import { UsageLimitSourceId } from "./usageLimitSourceId";
 import {
   ServerBatchUpsertKeybindingsInput,
+  ServerBatchRemoveKeybindingsInput,
   ServerConfigUpdatedPayload,
   ServerProviderUpdatedPayload,
   ServerRunProviderMaintenanceInput,
@@ -352,6 +353,7 @@ export const WS_METHODS = {
   serverUpdateSettings: "server.updateSettings",
   serverUpsertKeybinding: "server.upsertKeybinding",
   serverBatchUpsertKeybindings: "server.batchUpsertKeybindings",
+  serverBatchRemoveKeybindings: "server.batchRemoveKeybindings",
   cloudGetRelayClientStatus: "cloud.getRelayClientStatus",
   cloudInstallRelayClient: "cloud.installRelayClient",
   sourceControlCloneRepository: "sourceControl.cloneRepository",
@@ -580,6 +582,7 @@ const WebSocketRequestBody = Schema.Union([
   tagRequestBody(WS_METHODS.serverRunProviderMaintenance, ServerRunProviderMaintenanceInput),
   tagRequestBody(WS_METHODS.serverUpsertKeybinding, KeybindingRule),
   tagRequestBody(WS_METHODS.serverBatchUpsertKeybindings, ServerBatchUpsertKeybindingsInput),
+  tagRequestBody(WS_METHODS.serverBatchRemoveKeybindings, ServerBatchRemoveKeybindingsInput),
   tagRequestBody(WS_METHODS.serverRemoveKeybinding, KeybindingRule),
   tagRequestBody(WS_METHODS.serverGetSettings, Schema.Struct({})),
   tagRequestBody(WS_METHODS.serverUpdateSettings, Schema.Struct({ patch: ServerSettingsPatch })),

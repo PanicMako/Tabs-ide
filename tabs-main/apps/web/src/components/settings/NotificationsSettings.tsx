@@ -130,6 +130,7 @@ function OsNotificationsSection() {
   const enabled = useOsNotificationsEnabled();
   const categories = useOsNotificationCategories();
   const [permission, setPermission] = useState<NotificationPermission | "unsupported">("default");
+  const [isRequestingPermission, setIsRequestingPermission] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined" || !("Notification" in window)) {
@@ -149,18 +150,29 @@ function OsNotificationsSection() {
         setOsNotificationsEnabled(true);
         return;
       }
-      const granted = await requestOsNotificationPermission();
-      setPermission(
-        typeof window !== "undefined" && "Notification" in window
-          ? Notification.permission
-          : "unsupported",
-      );
-      if (!granted) {
+      setIsRequestingPermission(true);
+      try {
+        const granted = await requestOsNotificationPermission();
+        setPermission(
+          typeof window !== "undefined" && "Notification" in window
+            ? Notification.permission
+            : "unsupported",
+        );
+        if (!granted) {
+          toastManager.add({
+            type: "warning",
+            title: "Permission not granted",
+            description: "Notification permission was not granted by your system.",
+          });
+        }
+      } catch (error) {
         toastManager.add({
-          type: "warning",
-          title: "Permission not granted",
-          description: "Notification permission was not granted by your system.",
+          type: "error",
+          title: "Could not request notification permission",
+          description: error instanceof Error ? error.message : "Try again in system settings.",
         });
+      } finally {
+        setIsRequestingPermission(false);
       }
     },
     [permission],
@@ -197,8 +209,18 @@ function OsNotificationsSection() {
                 checked={enabled && permission === "granted"}
                 onCheckedChange={handleToggleMaster}
                 aria-label="Enable system notifications"
-                disabled={permission === "denied"}
+                disabled={permission === "denied" || isRequestingPermission}
+                aria-busy={isRequestingPermission}
               />
+              {isRequestingPermission ? (
+                <span
+                  className="flex items-center gap-1 text-[11px] text-muted-foreground"
+                  role="status"
+                >
+                  <LoaderCircleIcon className="size-3 animate-spin" aria-hidden="true" />
+                  Waiting for permission…
+                </span>
+              ) : null}
             </div>
           )
         }

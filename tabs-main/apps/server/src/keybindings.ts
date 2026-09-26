@@ -273,6 +273,17 @@ export interface KeybindingsShape {
   >;
 
   /**
+   * Atomically remove multiple custom overrides and persist the resulting
+   * configuration once.
+   */
+  readonly batchRemoveKeybindingRules: (
+    rules: ReadonlyArray<KeybindingRule>,
+  ) => Effect.Effect<
+    { readonly keybindings: ResolvedKeybindingsConfig; readonly removedCount: number },
+    KeybindingsConfigError
+  >;
+
+  /**
    * Remove the custom override for a command, reverting it to the built-in
    * default (if any). Writes config atomically.
    */
@@ -727,6 +738,33 @@ const makeKeybindings = Effect.gen(function* () {
             keybindings: nextResolved,
             importedCount,
           };
+        }),
+      ),
+    batchRemoveKeybindingRules: (rules) =>
+      upsertSemaphore.withPermits(1)(
+        Effect.gen(function* () {
+          const customConfig = yield* loadWritableCustomKeybindingsConfig();
+          const commandsToRemove = new Set(rules.map((rule) => rule.command));
+          const nextConfig = customConfig.filter((entry) => !commandsToRemove.has(entry.command));
+          const removedCount = customConfig.length - nextConfig.length;
+          const nextResolved = mergeWithDefaultKeybindings(
+            compileResolvedKeybindingsConfig(nextConfig),
+          );
+
+          if (removedCount === 0) {
+            return { keybindings: nextResolved, removedCount };
+          }
+
+          yield* writeConfigAtomically(nextConfig);
+          yield* Cache.set(resolvedConfigCache, resolvedConfigCacheKey, {
+            keybindings: nextResolved,
+            issues: [],
+          });
+          yield* emitChange({
+            keybindings: nextResolved,
+            issues: [],
+          });
+          return { keybindings: nextResolved, removedCount };
         }),
       ),
     removeKeybindingRule: (rule) =>

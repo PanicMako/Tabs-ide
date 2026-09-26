@@ -600,6 +600,18 @@ export const ServerBatchUpsertKeybindingsResult = Schema.Struct({
 });
 export type ServerBatchUpsertKeybindingsResult = typeof ServerBatchUpsertKeybindingsResult.Type;
 
+export const ServerBatchRemoveKeybindingsInput = Schema.Struct({
+  rules: Schema.Array(KeybindingRule),
+});
+export type ServerBatchRemoveKeybindingsInput = typeof ServerBatchRemoveKeybindingsInput.Type;
+
+export const ServerBatchRemoveKeybindingsResult = Schema.Struct({
+  keybindings: ResolvedKeybindingsConfig,
+  issues: ServerConfigIssues,
+  removedCount: Schema.Number,
+});
+export type ServerBatchRemoveKeybindingsResult = typeof ServerBatchRemoveKeybindingsResult.Type;
+
 export const ServerRemoveKeybindingResult = ServerUpsertKeybindingResult;
 export type ServerRemoveKeybindingResult = typeof ServerRemoveKeybindingResult.Type;
 

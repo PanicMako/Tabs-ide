@@ -21,6 +21,7 @@ import {
   ExternalLinkIcon,
   XIcon,
   ShieldCheckIcon,
+  LoaderCircleIcon,
 } from "lucide-react";
 import type { BrowserImportSourceId, BrowserImportSource } from "@tabs/contracts";
 import { BROWSER_IMPORT_FAILURE_COPY } from "@tabs/contracts";
@@ -222,18 +223,33 @@ export function BrowserProfilesSettings() {
   const [profilePermissions, setProfilePermissions] = useState<
     Record<string, BrowserProfilePermissionInfo[]>
   >({});
+  const [isLoadingPermissions, setIsLoadingPermissions] = useState(false);
+  const permissionRequestIdRef = useRef(0);
   const refreshPermissions = useCallback(async () => {
     if (!window.desktopBridge?.getBrowserProfilePermissions) return;
-    const res: Record<string, BrowserProfilePermissionInfo[]> = {};
-    for (const p of profiles) {
-      try {
-        const perms = await window.desktopBridge.getBrowserProfilePermissions({ profileId: p.id });
-        res[p.id] = perms;
-      } catch {
-        res[p.id] = [];
+    const requestId = ++permissionRequestIdRef.current;
+    setIsLoadingPermissions(true);
+    try {
+      const entries = await Promise.all(
+        profiles.map(async (profile) => {
+          try {
+            const permissions = await window.desktopBridge!.getBrowserProfilePermissions!({
+              profileId: profile.id,
+            });
+            return [profile.id, permissions] as const;
+          } catch {
+            return [profile.id, []] as const;
+          }
+        }),
+      );
+      if (permissionRequestIdRef.current === requestId) {
+        setProfilePermissions(Object.fromEntries(entries));
+      }
+    } finally {
+      if (permissionRequestIdRef.current === requestId) {
+        setIsLoadingPermissions(false);
       }
     }
-    setProfilePermissions(res);
   }, [profiles]);
 
   const handleRevokePermission = async (profileId: string, origin: string, permission: string) => {
@@ -309,6 +325,7 @@ export function BrowserProfilesSettings() {
   const [descriptionDraft, setDescriptionDraft] = useState("");
   const [colorDraft, setColorDraft] = useState("#3b82f6");
   const [clearingProfileId, setClearingProfileId] = useState<string | null>(null);
+  const [deletingProfileId, setDeletingProfileId] = useState<string | null>(null);
 
   // In-Dialog Interactive Login & Session Tester
   const [testingProfile, setTestingProfile] = useState<BrowserProfileDefinition | null>(null);
@@ -336,6 +353,7 @@ export function BrowserProfilesSettings() {
 
   // Browser import modal state
   const [importModalOpen, setImportModalOpen] = useState(false);
+  const [isLoadingImportSources, setIsLoadingImportSources] = useState(false);
   const [importSources, setImportSources] = useState<BrowserImportSource[]>([]);
   const [selectedSourceId, setSelectedSourceId] = useState<BrowserImportSourceId | "">("");
   const [selectedProfileDir, setSelectedProfileDir] = useState<string>("Default");
@@ -356,6 +374,7 @@ export function BrowserProfilesSettings() {
   const [importing, setImporting] = useState(false);
 
   const openImportModal = async () => {
+    if (isLoadingImportSources) return;
     if (!window.desktopBridge?.listBrowserImportSources) {
       toastManager.add({
         type: "error",
@@ -364,14 +383,25 @@ export function BrowserProfilesSettings() {
       });
       return;
     }
-    const sources = await window.desktopBridge.listBrowserImportSources();
-    setImportSources(sources);
-    if (sources.length > 0) {
-      setSelectedSourceId(sources[0]?.id ?? "");
-      setSelectedProfileDir(sources[0]?.profiles[0]?.directory ?? "Default");
+    setIsLoadingImportSources(true);
+    try {
+      const sources = await window.desktopBridge.listBrowserImportSources();
+      setImportSources(sources);
+      if (sources.length > 0) {
+        setSelectedSourceId(sources[0]?.id ?? "");
+        setSelectedProfileDir(sources[0]?.profiles[0]?.directory ?? "Default");
+      }
+      setImportTargetProfileId(profiles[0]?.id ?? "personal");
+      setImportModalOpen(true);
+    } catch (error) {
+      toastManager.add({
+        type: "error",
+        title: "Could not scan installed browsers",
+        description: error instanceof Error ? error.message : "Try again in a moment.",
+      });
+    } finally {
+      setIsLoadingImportSources(false);
     }
-    setImportTargetProfileId(profiles[0]?.id ?? "personal");
-    setImportModalOpen(true);
   };
 
   const handleRunImport = async () => {
@@ -471,6 +501,7 @@ export function BrowserProfilesSettings() {
     const confirmed = await confirm(message);
     if (!confirmed) return;
 
+    setDeletingProfileId(profile.id);
     try {
       for (const project of projects) {
         const current = shellState.projectSettingsByProjectId[project.id];
@@ -500,6 +531,8 @@ export function BrowserProfilesSettings() {
         title: "Could not delete profile",
         description: "The profile was kept because its session data could not be cleared safely.",
       });
+    } finally {
+      setDeletingProfileId(null);
     }
   };
 
@@ -624,10 +657,16 @@ export function BrowserProfilesSettings() {
             variant="outline"
             onClick={openImportModal}
             title="Import cookies from installed desktop browsers"
+            disabled={isLoadingImportSources}
+            aria-busy={isLoadingImportSources}
             className="gap-1.5 cursor-pointer"
           >
-            <DownloadIcon className="size-4" />
-            Import Sessions
+            {isLoadingImportSources ? (
+              <LoaderCircleIcon className="size-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <DownloadIcon className="size-4" aria-hidden="true" />
+            )}
+            {isLoadingImportSources ? "Scanning browsers…" : "Import Sessions"}
           </Button>
           <Button onClick={openCreateModal} className="gap-1.5 cursor-pointer">
             <PlusIcon className="size-4" />
@@ -693,6 +732,7 @@ export function BrowserProfilesSettings() {
           const sessionHintDomains = domains.filter((d) => d.hasSessionHint);
           const otherDomains = domains.filter((d) => !d.hasSessionHint);
           const isClearing = clearingProfileId === profile.id;
+          const isDeleting = deletingProfileId === profile.id;
 
           return (
             <Card
@@ -719,6 +759,8 @@ export function BrowserProfilesSettings() {
                       variant="ghost"
                       onClick={() => openEditModal(profile)}
                       title="Edit Profile"
+                      aria-label={`Edit profile ${profile.label}`}
+                      disabled={deletingProfileId !== null}
                       className="text-muted-foreground hover:text-foreground cursor-pointer"
                     >
                       <PencilIcon className="size-3.5" />
@@ -728,9 +770,20 @@ export function BrowserProfilesSettings() {
                       variant="ghost"
                       onClick={() => handleDeleteProfile(profile)}
                       title="Delete Profile"
+                      aria-label={
+                        isDeleting
+                          ? `Deleting profile ${profile.label}`
+                          : `Delete profile ${profile.label}`
+                      }
+                      aria-busy={isDeleting}
+                      disabled={deletingProfileId !== null || isClearing}
                       className="text-muted-foreground hover:text-destructive cursor-pointer"
                     >
-                      <Trash2Icon className="size-3.5" />
+                      {isDeleting ? (
+                        <LoaderCircleIcon className="size-3.5 animate-spin" aria-hidden="true" />
+                      ) : (
+                        <Trash2Icon className="size-3.5" aria-hidden="true" />
+                      )}
                     </Button>
                   </div>
                 </div>
@@ -827,6 +880,7 @@ export function BrowserProfilesSettings() {
                         variant="outline"
                         className="h-6 px-2 text-xs border-destructive/40 hover:bg-destructive/20 text-foreground"
                         onClick={() => inspectSingleProfile(profile.id)}
+                        disabled={deletingProfileId !== null}
                       >
                         Retry
                       </Button>
@@ -868,6 +922,7 @@ export function BrowserProfilesSettings() {
                                     <button
                                       type="button"
                                       onClick={() => handleClearSingleDomain(profile, item.domain)}
+                                      disabled={deletingProfileId !== null}
                                       title={`Clear cookies for ${item.domain}`}
                                       className="text-muted-foreground hover:text-destructive cursor-pointer opacity-70 hover:opacity-100"
                                     >
@@ -899,6 +954,7 @@ export function BrowserProfilesSettings() {
                                     <button
                                       type="button"
                                       onClick={() => handleClearSingleDomain(profile, item.domain)}
+                                      disabled={deletingProfileId !== null}
                                       title={`Clear cookies for ${item.domain}`}
                                       className="text-muted-foreground hover:text-destructive cursor-pointer opacity-70 hover:opacity-100"
                                     >
@@ -937,6 +993,7 @@ export function BrowserProfilesSettings() {
                             onClick={() =>
                               void handleRevokePermission(profile.id, perm.origin, perm.permission)
                             }
+                            disabled={deletingProfileId !== null}
                             title={`Revoke ${perm.permission} for ${perm.origin}`}
                             className="text-muted-foreground hover:text-destructive cursor-pointer opacity-70 hover:opacity-100"
                           >
@@ -944,6 +1001,14 @@ export function BrowserProfilesSettings() {
                           </button>
                         </span>
                       ))}
+                    </div>
+                  ) : isLoadingPermissions ? (
+                    <div
+                      className="flex items-center gap-1.5 text-[11px] text-muted-foreground"
+                      role="status"
+                    >
+                      <LoaderCircleIcon className="size-3 animate-spin" aria-hidden="true" />
+                      Checking permissions…
                     </div>
                   ) : (
                     <div className="text-[11px] text-muted-foreground/70">
@@ -961,6 +1026,7 @@ export function BrowserProfilesSettings() {
                       size="xs"
                       variant="outline"
                       onClick={() => openLoginModal(profile)}
+                      disabled={deletingProfileId !== null}
                       className="h-7 text-xs text-foreground hover:bg-accent cursor-pointer gap-1.5"
                       title="Log in or test website logins for this profile"
                     >
@@ -971,7 +1037,7 @@ export function BrowserProfilesSettings() {
                       size="xs"
                       variant="outline"
                       onClick={() => handleClearSessionData(profile)}
-                      disabled={isClearing}
+                      disabled={isClearing || deletingProfileId !== null}
                       className="h-7 text-xs text-muted-foreground hover:text-foreground cursor-pointer gap-1.5"
                       title="Clear cookies, storage, and log out of all tabs using this profile"
                     >

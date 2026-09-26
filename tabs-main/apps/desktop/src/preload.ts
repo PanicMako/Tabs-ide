@@ -29,6 +29,8 @@ const QUIT_CONFIRMATION_REQUEST_CHANNEL = "desktop:quit-confirmation-request";
 const QUIT_CONFIRMATION_RESPONSE_CHANNEL = "desktop:quit-confirmation-response";
 const GET_CONFIRM_BEFORE_QUIT_CHANNEL = "desktop:get-confirm-before-quit";
 const SET_CONFIRM_BEFORE_QUIT_CHANNEL = "desktop:set-confirm-before-quit";
+const RESET_TABS_USER_DATA_CHANNEL = "desktop:reset-tabs-user-data";
+const GET_TABS_DATA_RESET_STARTUP_ERROR_CHANNEL = "desktop:get-data-reset-startup-error";
 const APP_CLEANUP_DONE_CHANNEL = "desktop:app-cleanup-done";
 const APP_READY_TO_EXIT_CHANNEL = "desktop:app-ready-to-exit";
 const UPDATE_STATE_CHANNEL = "desktop:update-state";
@@ -392,6 +394,8 @@ contextBridge.exposeInMainWorld("desktopBridge", {
     ipcRenderer.send(APP_SETTINGS_FLUSH_DONE_CHANNEL);
   },
   getConfirmBeforeQuit: () => ipcRenderer.invoke(GET_CONFIRM_BEFORE_QUIT_CHANNEL),
+  resetTabsUserData: () => ipcRenderer.invoke(RESET_TABS_USER_DATA_CHANNEL),
+  getDataResetStartupError: () => ipcRenderer.invoke(GET_TABS_DATA_RESET_STARTUP_ERROR_CHANNEL),
   setConfirmBeforeQuit: (value: boolean) =>
     ipcRenderer.invoke(SET_CONFIRM_BEFORE_QUIT_CHANNEL, value),
   onQuitConfirmationRequested: (listener) => {
