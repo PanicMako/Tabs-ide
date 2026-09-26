@@ -237,6 +237,7 @@
     "@noble/curves": "^1.9.1",
     "@noble/hashes": "^1.8.0",
     "@tabs/contracts": "workspace:*",
+    "@tabs/extension-api": "workspace:*",
     "effect": "catalog:",
     "jose": "^6.2.2"
   },

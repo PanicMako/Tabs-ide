@@ -20,7 +20,10 @@ export const TabsExtensionManifest = Schema.Struct({
   sourceUrl: Schema.optionalKey(Schema.String),
   supportUrl: Schema.optionalKey(Schema.String),
   privacyUrl: Schema.optionalKey(Schema.String),
-  engines: Schema.Struct({ tabs: Schema.String }),
+  engines: Schema.Struct({
+    tabs: Schema.String,
+    api: Schema.optionalKey(Schema.String),
+  }),
   networkHosts: Schema.optionalKey(Schema.Array(Schema.String)),
   capabilities: Schema.optionalKey(
     Schema.Array(Schema.Literals(["profile-storage", "workspace-read", "network"])),

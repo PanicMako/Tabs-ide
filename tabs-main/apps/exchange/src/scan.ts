@@ -50,7 +50,11 @@ function hasExecutableSignature(contents: Buffer): boolean {
 export async function scanExtractedPackage(
   directory: string,
   inspected: InspectedTabsext,
-  priorManifest?: { readonly contributes?: unknown; readonly capabilities?: ReadonlyArray<string> },
+  priorManifest?: {
+    readonly contributes?: unknown;
+    readonly capabilities?: ReadonlyArray<string>;
+    readonly networkHosts?: ReadonlyArray<string>;
+  },
   priorFiles: Readonly<Record<string, string>> = {},
   priorVersion?: string,
 ): Promise<ScanResult> {

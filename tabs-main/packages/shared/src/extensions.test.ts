@@ -24,6 +24,28 @@ describe("Tabs extension manifest", () => {
     });
   });
 
+  it("checks declared extension API compatibility without rejecting older v1 manifests", () => {
+    expect(validateTabsExtensionManifest(manifest, "1.3.17").ok).toBe(true);
+    expect(
+      validateTabsExtensionManifest(
+        {
+          ...manifest,
+          engines: { ...manifest.engines, api: "^1.0.0" },
+        },
+        "1.3.17",
+      ).ok,
+    ).toBe(true);
+    expect(
+      validateTabsExtensionManifest(
+        {
+          ...manifest,
+          engines: { ...manifest.engines, api: ">=2.0.0" },
+        },
+        "1.3.17",
+      ).ok,
+    ).toBe(false);
+  });
+
   it("accepts only supported capabilities without duplicates", () => {
     expect(
       validateTabsExtensionManifest(

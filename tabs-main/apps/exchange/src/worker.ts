@@ -58,7 +58,7 @@ export async function scanNextVersion(
     }
     const prior = await pool.query<{
       version: string;
-      manifest: { contributes?: unknown; capabilities?: string[] };
+      manifest: { contributes?: unknown; capabilities?: string[]; networkHosts?: string[] };
       scan_result: { files?: Record<string, string> } | null;
     }>(
       `SELECT version, manifest, scan_result FROM exchange_versions WHERE namespace = $1 AND name = $2

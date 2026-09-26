@@ -5,7 +5,7 @@
   "version": "0.1.0",
   "displayName": "Workspace Reader",
   "description": "Read a small text file in the current Tabs project with explicit permission.",
-  "engines": { "tabs": ">=1.3.0 <2.0.0" },
+  "engines": { "tabs": ">=1.3.0 <2.0.0", "api": "^1.0.0" },
   "capabilities": ["profile-storage", "workspace-read"],
   "contributes": {
     "tools": [{ "id": "reader", "label": "Reader", "entry": "dist/index.html" }]

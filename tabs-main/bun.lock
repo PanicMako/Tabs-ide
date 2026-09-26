@@ -266,6 +266,14 @@
         "vitest": "catalog:",
       },
     },
+    "packages/extension-api": {
+      "name": "@tabs/extension-api",
+      "version": "1.0.0",
+      "devDependencies": {
+        "typescript": "^5.7.3",
+        "vitest": "^4.1.8",
+      },
+    },
     "packages/extension-package": {
       "name": "@tabs/extension-package",
       "bin": {
@@ -292,6 +300,7 @@
         "@noble/curves": "^1.9.1",
         "@noble/hashes": "^1.8.0",
         "@tabs/contracts": "workspace:*",
+        "@tabs/extension-api": "workspace:*",
         "effect": "catalog:",
         "jose": "^6.2.2",
       },
@@ -1309,6 +1318,8 @@
     "@tabs/desktop": ["@tabs/desktop@workspace:apps/desktop"],
 
     "@tabs/exchange": ["@tabs/exchange@workspace:apps/exchange"],
+
+    "@tabs/extension-api": ["@tabs/extension-api@workspace:packages/extension-api"],
 
     "@tabs/extension-package": ["@tabs/extension-package@workspace:packages/extension-package"],
 

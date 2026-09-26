@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import { packTabsext, inspectTabsext } from "./index.ts";
+import { packTabsext, inspectTabsext, validateTabsextDirectory } from "./index.ts";
 
 const args = process.argv.slice(2);
 const command = args[0];
@@ -11,13 +11,14 @@ if (
   !source ||
   option !== "--tabs-version" ||
   !version ||
-  (command !== "pack" && command !== "inspect") ||
+  (command !== "pack" && command !== "inspect" && command !== "validate") ||
   (command === "pack" && (!destination || args.length !== 5)) ||
-  (command === "inspect" && args.length !== 4)
+  ((command === "inspect" || command === "validate") && args.length !== 4)
 ) {
   process.stderr.write(
     "Usage: tabsext pack <directory> <output.tabsext> --tabs-version <version>\n" +
-      "       tabsext inspect <archive.tabsext> --tabs-version <version>\n",
+      "       tabsext inspect <archive.tabsext> --tabs-version <version>\n" +
+      "       tabsext validate <directory> --tabs-version <version>\n",
   );
   process.exitCode = 2;
 } else {
@@ -25,7 +26,9 @@ if (
     const result =
       command === "pack"
         ? await packTabsext({ directory: source, destination: destination!, tabsVersion: version })
-        : await inspectTabsext(source, version);
+        : command === "validate"
+          ? validateTabsextDirectory(source, version)
+          : await inspectTabsext(source, version);
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
   } catch (error) {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);

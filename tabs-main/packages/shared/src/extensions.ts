@@ -1,4 +1,5 @@
 import type { TabsExtensionAssignment, TabsExtensionManifest } from "@tabs/contracts";
+import { TABS_EXTENSION_API_VERSION } from "@tabs/extension-api";
 import { parseSemver, satisfiesSemverRange } from "./semver.ts";
 
 const SEGMENT = /^[a-z][a-z0-9-]{1,62}$/;
@@ -94,8 +95,18 @@ export function validateTabsExtensionManifest(
     !satisfiesSemverRange(tabsVersion, engines.tabs)
   ) {
     errors.push(`engines.tabs must include this Tabs version (${tabsVersion}).`);
-  } else if (Object.keys(engines).some((key) => key !== "tabs")) {
+  } else if (Object.keys(engines).some((key) => key !== "tabs" && key !== "api")) {
     errors.push("engines has unsupported fields.");
+  }
+  if (
+    record(engines) &&
+    engines.api !== undefined &&
+    (typeof engines.api !== "string" ||
+      !satisfiesSemverRange(TABS_EXTENSION_API_VERSION, engines.api))
+  ) {
+    errors.push(
+      `engines.api must include the current extension API (${TABS_EXTENSION_API_VERSION}).`,
+    );
   }
   const contributes = input.contributes;
   if (input.networkHosts !== undefined) {

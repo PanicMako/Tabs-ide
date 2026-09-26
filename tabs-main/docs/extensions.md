@@ -14,6 +14,7 @@ format foundation, **not** a production installer or approval system. Use:
 ```sh
 bun packages/extension-package/src/cli.ts pack examples/hello-extension /tmp/hello.tabsext --tabs-version 1.3.17
 bun packages/extension-package/src/cli.ts inspect /tmp/hello.tabsext --tabs-version 1.3.17
+bun packages/extension-package/src/cli.ts validate examples/hello-extension --tabs-version 1.3.17
 ```
 
 The packer refuses links and special files, path collisions, missing assets,
@@ -22,7 +23,11 @@ only writes to a new directory. Neither command runs extension code.
 
 ## Manifest
 
-Place `tabs-extension.json` at the root of a local folder. See
+Place `tabs-extension.json` at the root of a local folder. The dependency-free
+[`@tabs/extension-api`](../packages/extension-api/README.md) package exports
+the public manifest and bridge types plus the current API version. New manifests
+should declare `engines.api: "^1.0.0"`; older v1 manifests without it remain
+compatible. Tabs validates declared API compatibility at load time. See
 [`examples/hello-extension`](../examples/hello-extension/README.md) for a
 working example. Version 1 requires a lowercase publisher and package name,
 a semantic version, a Tabs version range, and 1-12 full-workspace tools. Each

@@ -92,19 +92,16 @@ function collectFiles(root: string): Array<{ path: string; bytes: number }> {
 }
 
 /** Create the same bytes for the same source files, regardless of their filesystem mtimes. */
-export async function packTabsext(input: {
-  readonly directory: string;
-  readonly destination: string;
-  readonly tabsVersion: string;
-}): Promise<InspectedTabsext> {
-  const root = FS.realpathSync(input.directory);
+export function validateTabsextDirectory(
+  directory: string,
+  tabsVersion: string,
+): {
+  readonly id: string;
+  readonly manifest: TabsExtensionManifest;
+  readonly files: ReadonlyArray<string>;
+} {
+  const root = FS.realpathSync(directory);
   if (!FS.statSync(root).isDirectory()) throw new Error("Package source must be a directory.");
-  const destination = Path.resolve(input.destination);
-  if (destination.startsWith(`${root}${Path.sep}`)) {
-    throw new Error("Place the archive outside its source directory.");
-  }
-  if (!destination.endsWith(".tabsext")) throw new Error("Archive must end in .tabsext.");
-  if (FS.existsSync(destination)) throw new Error("Destination already exists.");
   const files = collectFiles(root);
   if (!files.some((file) => file.path === "tabs-extension.json")) {
     throw new Error("Package is missing tabs-extension.json.");
@@ -113,7 +110,7 @@ export async function packTabsext(input: {
   if (manifestBytes.length > MAX_MANIFEST_BYTES) throw new Error("Manifest is too large.");
   const parsed = validateTabsExtensionManifest(
     JSON.parse(manifestBytes.toString("utf8")),
-    input.tabsVersion,
+    tabsVersion,
   );
   if (!parsed.ok) throw new Error(parsed.errors.join("\n"));
   for (const tool of parsed.manifest.contributes.tools) {
@@ -123,8 +120,25 @@ export async function packTabsext(input: {
       throw new Error(`Missing tool icon: ${tool.icon}`);
     }
   }
+  return { id: parsed.id, manifest: parsed.manifest, files: files.map((file) => file.path) };
+}
+
+/** Create the same bytes for the same source files, regardless of their filesystem mtimes. */
+export async function packTabsext(input: {
+  readonly directory: string;
+  readonly destination: string;
+  readonly tabsVersion: string;
+}): Promise<InspectedTabsext> {
+  const root = FS.realpathSync(input.directory);
+  const destination = Path.resolve(input.destination);
+  if (destination.startsWith(`${root}${Path.sep}`)) {
+    throw new Error("Place the archive outside its source directory.");
+  }
+  if (!destination.endsWith(".tabsext")) throw new Error("Archive must end in .tabsext.");
+  if (FS.existsSync(destination)) throw new Error("Destination already exists.");
+  const validated = validateTabsextDirectory(root, input.tabsVersion);
   const zip = new Yazl.ZipFile();
-  for (const file of files) {
+  for (const file of validated.files) {
     // yazl supports forceDosTimestamp, though @types/yazl has not declared it.
     const options = {
       mtime: FIXED_TIME,
@@ -132,7 +146,7 @@ export async function packTabsext(input: {
       compress: true,
       forceDosTimestamp: true,
     };
-    zip.addFile(Path.join(root, ...file.path.split("/")), file.path, options);
+    zip.addFile(Path.join(root, ...file.split("/")), file, options);
   }
   zip.end();
   const temporary = Path.join(Path.dirname(destination), `.tabsext-pack-${Crypto.randomUUID()}`);

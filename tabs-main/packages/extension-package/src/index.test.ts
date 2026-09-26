@@ -5,7 +5,7 @@ import { spawnSync } from "node:child_process";
 import { pipeline } from "node:stream/promises";
 import * as Yazl from "yazl";
 import { afterEach, describe, expect, it } from "vitest";
-import { extractTabsext, inspectTabsext, packTabsext } from "./index.ts";
+import { extractTabsext, inspectTabsext, packTabsext, validateTabsextDirectory } from "./index.ts";
 
 const temporaryRoots: string[] = [];
 
@@ -39,6 +39,18 @@ afterEach(() => {
 });
 
 describe(".tabsext packages", () => {
+  it("validates an unpacked package without writing an archive", () => {
+    const { root, source } = fixture();
+    const result = validateTabsextDirectory(source, "1.3.17");
+    expect(result.id).toBe("example.tool");
+    expect(result.files).toContain("dist/index.html");
+    expect(FS.readdirSync(root)).toEqual(["source"]);
+    const manifestPath = Path.join(source, "tabs-extension.json");
+    const manifest = JSON.parse(FS.readFileSync(manifestPath, "utf8"));
+    manifest.engines.api = ">=2.0.0";
+    FS.writeFileSync(manifestPath, JSON.stringify(manifest));
+    expect(() => validateTabsextDirectory(source, "1.3.17")).toThrow(/engines.api/);
+  });
   it("packs reproducibly and extracts an approved digest", async () => {
     const { root, source } = fixture();
     const first = Path.join(root, "first.tabsext");
