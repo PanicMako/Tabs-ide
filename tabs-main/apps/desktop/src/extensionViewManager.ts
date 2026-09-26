@@ -29,6 +29,12 @@ interface StoredExtension extends DesktopInstalledExtension {
   readonly directory: string;
   readonly dataInventoryVersion?: 1;
   readonly usedPartitions?: ReadonlyArray<string>;
+  readonly pendingRollback?: {
+    readonly manifest: DesktopInstalledExtension["manifest"];
+    readonly assignment: TabsExtensionAssignment;
+    readonly digest: string;
+    readonly directory: string;
+  };
 }
 
 interface RetainedProfiles {
@@ -312,6 +318,7 @@ export class ExtensionViewManager {
     if (previous?.registryOrigin && previous.registryOrigin !== registryOrigin) {
       throw new Error("A same-named extension from another registry is already installed.");
     }
+    if (previous && !previous.digest) throw new Error("Installed Exchange package lacks a digest.");
     if (previous) {
       const comparison = compareSemverVersions(
         inspected.manifest.version,
@@ -320,6 +327,11 @@ export class ExtensionViewManager {
       if (comparison < 0) throw new Error("Exchange cannot downgrade an installed extension.");
       if (comparison === 0 && previous.digest !== expectedDigest) {
         throw new Error("An installed Exchange version cannot change its package digest.");
+      }
+      if (previous.pendingRollback && comparison > 0) {
+        throw new Error(
+          "Activate or roll back the pending Exchange update before installing another.",
+        );
       }
     }
     const retained = this.readRetainedRecord(inspected.id, "exchange", registryOrigin);
@@ -375,6 +387,16 @@ export class ExtensionViewManager {
       digest: expectedDigest,
       registryOrigin,
       directory,
+      ...(previous && !previous.revoked && previous.digest && previous.digest !== expectedDigest
+        ? {
+            pendingRollback: {
+              manifest: previous.manifest,
+              assignment: previous.assignment,
+              digest: previous.digest,
+              directory: previous.directory,
+            },
+          }
+        : {}),
     };
     this.hide();
     this.installed.set(inspected.id, next);
@@ -612,11 +634,33 @@ export class ExtensionViewManager {
       return;
     }
     this.hide();
-    this.resolveAsset(installed.directory, tool.entry);
+    try {
+      await this.activateView(installed, input, profile.scope, tool.entry, key);
+      this.finishPendingUpdate(installed);
+    } catch (error) {
+      this.hide();
+      if (installed.pendingRollback) {
+        this.rollbackPendingUpdate(installed);
+        throw new Error("Exchange update failed to activate and was rolled back.", {
+          cause: error,
+        });
+      }
+      throw error;
+    }
+  }
+
+  private async activateView(
+    installed: StoredExtension,
+    input: DesktopExtensionViewInput,
+    scope: "shared" | "project" | undefined,
+    entry: string,
+    key: string,
+  ): Promise<void> {
+    this.resolveAsset(installed.directory, entry);
     const partition = extensionSessionPartition(
       input.extensionId,
       input.profileId,
-      profile.scope,
+      scope,
       input.projectId,
       installed.registryOrigin,
       installed.source,
@@ -659,12 +703,58 @@ export class ExtensionViewManager {
       profileId: input.profileId,
     };
     this.coordinator.attachToolView(view);
+    await view.webContents.loadURL(
+      `${SCHEME}://${installed.id}/${entry}?project=${encodeURIComponent(input.projectId)}&profile=${encodeURIComponent(input.profileId)}`,
+    );
+  }
+
+  private finishPendingUpdate(installed: StoredExtension): void {
+    if (!installed.pendingRollback) return;
+    const current = this.requireInstalled(installed.id);
+    if (current.digest !== installed.digest)
+      throw new Error("Extension changed during activation.");
+    const { pendingRollback: _pendingRollback, ...stable } = current;
+    this.installed.set(installed.id, stable);
     try {
-      await view.webContents.loadURL(
-        `${SCHEME}://${installed.id}/${tool.entry}?project=${encodeURIComponent(input.projectId)}&profile=${encodeURIComponent(input.profileId)}`,
-      );
+      this.save();
     } catch (error) {
-      this.hide();
+      this.installed.set(installed.id, current);
+      throw error;
+    }
+  }
+
+  private rollbackPendingUpdate(installed: StoredExtension): void {
+    const previous = installed.pendingRollback;
+    if (!previous) return;
+    const current = this.requireInstalled(installed.id);
+    if (current.digest !== installed.digest) throw new Error("Extension changed during rollback.");
+    const packageRoot = FS.realpathSync(
+      Path.join(Path.dirname(this.statePath), "extension-packages"),
+    );
+    if (!this.validPendingRollback(current, packageRoot)) {
+      const { pendingRollback: _pendingRollback, ...rest } = current;
+      this.installed.set(installed.id, { ...rest, disabled: true });
+      try {
+        this.save();
+      } catch (error) {
+        this.installed.set(installed.id, current);
+        throw error;
+      }
+      throw new Error("Previous Exchange package is unavailable; extension was disabled.");
+    }
+    const { pendingRollback: _pendingRollback, ...rest } = current;
+    const restored: StoredExtension = {
+      ...rest,
+      manifest: previous.manifest,
+      assignment: previous.assignment,
+      digest: previous.digest,
+      directory: previous.directory,
+    };
+    this.installed.set(installed.id, restored);
+    try {
+      this.save();
+    } catch (error) {
+      this.installed.set(installed.id, current);
       throw error;
     }
   }
@@ -752,7 +842,8 @@ export class ExtensionViewManager {
       throw new Error("Invalid extension asset path.");
     }
     const path = FS.realpathSync(Path.join(root, ...pieces));
-    if (!path.startsWith(`${root}${Path.sep}`) || !FS.statSync(path).isFile()) {
+    const canonicalRoot = FS.realpathSync(root);
+    if (!path.startsWith(`${canonicalRoot}${Path.sep}`) || !FS.statSync(path).isFile()) {
       throw new Error("Extension asset escapes its package.");
     }
     return path;
@@ -763,6 +854,7 @@ export class ExtensionViewManager {
       directory: _directory,
       dataInventoryVersion: _dataInventoryVersion,
       usedPartitions: _usedPartitions,
+      pendingRollback: _pendingRollback,
       ...entry
     } = stored;
     return { ...entry, dataDeletionAvailable: this.canDeleteData(stored) };
@@ -923,6 +1015,7 @@ export class ExtensionViewManager {
       for (const entry of entries) {
         try {
           if (!entry || typeof entry.directory !== "string") continue;
+          let safeEntry = entry;
           if (
             entry.source !== "exchange" &&
             (!this.allowDevelopment ||
@@ -985,6 +1078,12 @@ export class ExtensionViewManager {
             if (!FS.realpathSync(entry.directory).startsWith(`${packageRoot}${Path.sep}`)) {
               continue;
             }
+            if (entry.pendingRollback && !this.validPendingRollback(entry, packageRoot)) {
+              const { pendingRollback: _pendingRollback, ...withoutRollback } = entry;
+              safeEntry = { ...withoutRollback, disabled: true };
+            }
+          } else if (entry.pendingRollback) {
+            continue;
           }
           const assignment = Schema.decodeUnknownSync(TabsExtensionAssignment)(entry.assignment);
           if (
@@ -992,13 +1091,54 @@ export class ExtensionViewManager {
             !this.profileExists(entry, assignment.defaultProfileId)
           )
             continue;
-          this.installed.set(entry.id, { ...entry, assignment });
+          this.installed.set(entry.id, { ...safeEntry, assignment });
         } catch {
           // A damaged entry must not prevent other development tools from loading.
         }
       }
     } catch {
       // An absent or invalid local development index must not prevent Tabs from starting.
+    }
+  }
+
+  private validPendingRollback(entry: StoredExtension, packageRoot: string): boolean {
+    const previous = entry.pendingRollback;
+    if (!previous || entry.source !== "exchange" || !entry.digest) return false;
+    try {
+      if (!/^[a-f0-9]{64}$/.test(previous.digest) || previous.digest === entry.digest) return false;
+      const parsed = validateTabsExtensionManifest(previous.manifest, this.tabsVersion);
+      if (
+        !parsed.ok ||
+        parsed.id !== entry.id ||
+        compareSemverVersions(previous.manifest.version, entry.manifest.version) >= 0
+      )
+        return false;
+      const expected = Path.join(
+        Path.dirname(this.statePath),
+        "extension-packages",
+        entry.id,
+        previous.digest,
+      );
+      if (
+        Path.resolve(previous.directory) !== expected ||
+        FS.lstatSync(previous.directory).isSymbolicLink() ||
+        FS.lstatSync(Path.dirname(previous.directory)).isSymbolicLink() ||
+        !FS.realpathSync(previous.directory).startsWith(`${packageRoot}${Path.sep}`)
+      )
+        return false;
+      inspectDirectory(previous.directory);
+      const disk = JSON.parse(
+        FS.readFileSync(Path.join(previous.directory, "tabs-extension.json"), "utf8"),
+      );
+      if (JSON.stringify(disk) !== JSON.stringify(previous.manifest)) return false;
+      const assignment = Schema.decodeUnknownSync(TabsExtensionAssignment)(previous.assignment);
+      return (
+        assignment.extensionId === entry.id &&
+        this.profileExists(entry, assignment.defaultProfileId) &&
+        Object.values(assignment.profileIdByProjectId).every((id) => this.profileExists(entry, id))
+      );
+    } catch {
+      return false;
     }
   }
 

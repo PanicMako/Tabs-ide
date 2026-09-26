@@ -3,7 +3,7 @@ import * as OS from "node:os";
 import * as Path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { packTabsext } from "@tabs/extension-package";
-import { session as electronSession } from "electron";
+import { session as electronSession, WebContentsView } from "electron";
 
 vi.mock("electron", () => ({
   session: { fromPartition: vi.fn() },
@@ -50,8 +50,70 @@ function fixture(): { directory: string; manager: ExtensionViewManager } {
   return { directory, manager };
 }
 
+async function exchangeUpdateFixture() {
+  const { directory, manager } = fixture();
+  const source = Path.join(directory, "source");
+  FS.mkdirSync(Path.join(source, "dist"), { recursive: true });
+  FS.copyFileSync(
+    Path.join(directory, "dist", "index.html"),
+    Path.join(source, "dist", "index.html"),
+  );
+  const manifest = JSON.parse(FS.readFileSync(Path.join(directory, "tabs-extension.json"), "utf8"));
+  FS.writeFileSync(Path.join(source, "tabs-extension.json"), JSON.stringify(manifest));
+  const firstArchive = Path.join(directory, "first.tabsext");
+  const first = await packTabsext({
+    directory: source,
+    destination: firstArchive,
+    tabsVersion: "1.3.17",
+  });
+  const installed = await manager.installVerifiedExchangePackage(
+    firstArchive,
+    "https://exchange.tabs.example",
+    first.digest,
+  );
+  manager.setAssignment(installed.id, {
+    ...installed.assignment,
+    enabledProjectIds: ["project-a"],
+  });
+  manifest.version = "1.0.1";
+  FS.writeFileSync(Path.join(source, "tabs-extension.json"), JSON.stringify(manifest));
+  const secondArchive = Path.join(directory, "second.tabsext");
+  const second = await packTabsext({
+    directory: source,
+    destination: secondArchive,
+    tabsVersion: "1.3.17",
+  });
+  await manager.installVerifiedExchangePackage(
+    secondArchive,
+    "https://exchange.tabs.example",
+    second.digest,
+  );
+  return { directory, manager, installed, first, second };
+}
+
+function mockElectronExtensionView(loadURL: (url: string) => Promise<unknown>): void {
+  vi.mocked(electronSession.fromPartition).mockReturnValue({
+    setPermissionRequestHandler: vi.fn(),
+    setPermissionCheckHandler: vi.fn(),
+    webRequest: { onBeforeRequest: vi.fn(), onHeadersReceived: vi.fn() },
+    protocol: { registerFileProtocol: vi.fn() },
+  } as never);
+  vi.mocked(WebContentsView).mockImplementation(function MockExtensionView() {
+    return {
+      webContents: {
+        setWindowOpenHandler: vi.fn(),
+        on: vi.fn(),
+        loadURL,
+        close: vi.fn(),
+      },
+      setBounds: vi.fn(),
+    } as never;
+  });
+}
+
 afterEach(() => {
   vi.mocked(electronSession.fromPartition).mockReset();
+  vi.mocked(WebContentsView).mockReset();
   for (const directory of temporaryRoots.splice(0))
     FS.rmSync(directory, { recursive: true, force: true });
 });
@@ -568,6 +630,133 @@ describe("development extension installation", () => {
       false,
     );
     expect(restarted.list()[0]?.revoked).toBe(true);
+  });
+
+  it("persists a verified rollback checkpoint and restores it when the update cannot load", async () => {
+    const { directory, manager, installed, first, second } = await exchangeUpdateFixture();
+    expect(manager.list()[0]?.digest).toBe(second.digest);
+    expect(manager.list()[0]?.assignment.enabledProjectIds).toEqual(["project-a"]);
+    const restarted = new ExtensionViewManager(
+      () => null,
+      {} as ConstructorParameters<typeof ExtensionViewManager>[1],
+      Path.join(directory, "installed.json"),
+      "1.3.17",
+      false,
+    );
+    expect(restarted.list()[0]?.digest).toBe(second.digest);
+    expect(restarted.list()[0]).not.toHaveProperty("pendingRollback");
+    FS.unlinkSync(
+      Path.join(directory, "extension-packages", installed.id, second.digest, "dist", "index.html"),
+    );
+    await expect(
+      restarted.activate({
+        extensionId: installed.id,
+        toolId: "main",
+        projectId: "project-a",
+        profileId: "default",
+      }),
+    ).rejects.toThrow(/rolled back/);
+    expect(restarted.list()[0]?.digest).toBe(first.digest);
+    expect(restarted.list()[0]?.assignment.enabledProjectIds).toEqual(["project-a"]);
+    const recovered = new ExtensionViewManager(
+      () => null,
+      {} as ConstructorParameters<typeof ExtensionViewManager>[1],
+      Path.join(directory, "installed.json"),
+      "1.3.17",
+      false,
+    );
+    expect(recovered.list()[0]?.digest).toBe(first.digest);
+  });
+
+  it("commits an Exchange update only after its first view loads", async () => {
+    const { directory, manager, installed, second } = await exchangeUpdateFixture();
+    const attachToolView = vi.fn();
+    const detachToolView = vi.fn();
+    (manager as unknown as { coordinator: unknown }).coordinator = {
+      attachToolView,
+      detachToolView,
+    };
+    const loadURL = vi.fn(async () => undefined);
+    mockElectronExtensionView(loadURL);
+    await manager.activate({
+      extensionId: installed.id,
+      toolId: "main",
+      projectId: "project-a",
+      profileId: "default",
+    });
+    expect(loadURL).toHaveBeenCalledOnce();
+    expect(attachToolView).toHaveBeenCalledOnce();
+    expect(manager.list()[0]?.digest).toBe(second.digest);
+    const persisted = JSON.parse(FS.readFileSync(Path.join(directory, "installed.json"), "utf8"));
+    expect(persisted[0]).not.toHaveProperty("pendingRollback");
+    const restarted = new ExtensionViewManager(
+      () => null,
+      {} as ConstructorParameters<typeof ExtensionViewManager>[1],
+      Path.join(directory, "installed.json"),
+      "1.3.17",
+      false,
+    );
+    expect(restarted.list()[0]?.digest).toBe(second.digest);
+  });
+
+  it("rolls back an Exchange update when Electron rejects the first navigation", async () => {
+    const { manager, installed, first } = await exchangeUpdateFixture();
+    (manager as unknown as { coordinator: unknown }).coordinator = {
+      attachToolView: vi.fn(),
+      detachToolView: vi.fn(),
+    };
+    const loadURL = vi.fn(async () => {
+      throw new Error("renderer load failed");
+    });
+    mockElectronExtensionView(loadURL);
+    await expect(
+      manager.activate({
+        extensionId: installed.id,
+        toolId: "main",
+        projectId: "project-a",
+        profileId: "default",
+      }),
+    ).rejects.toThrow(/rolled back/);
+    expect(loadURL).toHaveBeenCalledOnce();
+    expect(manager.list()[0]?.digest).toBe(first.digest);
+  });
+
+  it("disables a failed update when the retained rollback package is missing", async () => {
+    const { directory, manager, installed, first, second } = await exchangeUpdateFixture();
+    FS.rmSync(Path.join(directory, "extension-packages", installed.id, first.digest), {
+      recursive: true,
+    });
+    FS.unlinkSync(
+      Path.join(directory, "extension-packages", installed.id, second.digest, "dist", "index.html"),
+    );
+    const restartedBeforeActivation = new ExtensionViewManager(
+      () => null,
+      {} as ConstructorParameters<typeof ExtensionViewManager>[1],
+      Path.join(directory, "installed.json"),
+      "1.3.17",
+      false,
+    );
+    expect(restartedBeforeActivation.list()[0]).toMatchObject({
+      digest: second.digest,
+      disabled: true,
+    });
+    await expect(
+      manager.activate({
+        extensionId: installed.id,
+        toolId: "main",
+        projectId: "project-a",
+        profileId: "default",
+      }),
+    ).rejects.toThrow(/unavailable/);
+    expect(manager.list()[0]).toMatchObject({ digest: second.digest, disabled: true });
+    const restarted = new ExtensionViewManager(
+      () => null,
+      {} as ConstructorParameters<typeof ExtensionViewManager>[1],
+      Path.join(directory, "installed.json"),
+      "1.3.17",
+      false,
+    );
+    expect(restarted.list()[0]).toMatchObject({ digest: second.digest, disabled: true });
   });
 
   it("does not inherit development profiles or grants when switching package source", async () => {
