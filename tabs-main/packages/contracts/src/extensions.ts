@@ -21,8 +21,9 @@ export const TabsExtensionManifest = Schema.Struct({
   supportUrl: Schema.optionalKey(Schema.String),
   privacyUrl: Schema.optionalKey(Schema.String),
   engines: Schema.Struct({ tabs: Schema.String }),
+  networkHosts: Schema.optionalKey(Schema.Array(Schema.String)),
   capabilities: Schema.optionalKey(
-    Schema.Array(Schema.Literals(["profile-storage", "workspace-read"])),
+    Schema.Array(Schema.Literals(["profile-storage", "workspace-read", "network"])),
   ),
   contributes: Schema.Struct({ tools: Schema.Array(TabsExtensionTool) }),
 });
@@ -37,6 +38,7 @@ export const TabsExtensionAssignment = Schema.Struct({
   profileIdByProjectId: Schema.Record(Schema.String, Schema.String),
   storageGrantedProjectIds: Schema.optionalKey(Schema.Array(Schema.String)),
   workspaceReadGrantedProjectIds: Schema.optionalKey(Schema.Array(Schema.String)),
+  networkGrantedProjectIds: Schema.optionalKey(Schema.Array(Schema.String)),
 });
 export type TabsExtensionAssignment = typeof TabsExtensionAssignment.Type;
 

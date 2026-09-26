@@ -95,14 +95,24 @@ export async function scanExtractedPackage(
   const priorCapabilities = Array.isArray(priorManifest?.capabilities)
     ? priorManifest.capabilities.filter((capability) => typeof capability === "string")
     : [];
+  const currentNetworkHosts = inspected.manifest.networkHosts ?? [];
+  const priorNetworkHosts = Array.isArray(priorManifest?.networkHosts)
+    ? priorManifest.networkHosts.filter((host) => typeof host === "string")
+    : [];
   const currentCapabilitySet = new Set<string>(currentCapabilities);
   const priorCapabilitySet = new Set<string>(priorCapabilities);
-  const addedCapabilities = currentCapabilities.filter(
-    (capability) => !priorCapabilitySet.has(capability),
-  );
-  const removedCapabilities = priorCapabilities.filter(
-    (capability) => !currentCapabilitySet.has(capability),
-  );
+  const addedCapabilities = [
+    ...currentCapabilities.filter((capability) => !priorCapabilitySet.has(capability)),
+    ...currentNetworkHosts
+      .filter((host) => !priorNetworkHosts.includes(host))
+      .map((host) => `network host: ${host}`),
+  ];
+  const removedCapabilities = [
+    ...priorCapabilities.filter((capability) => !currentCapabilitySet.has(capability)),
+    ...priorNetworkHosts
+      .filter((host) => !currentNetworkHosts.includes(host))
+      .map((host) => `network host: ${host}`),
+  ];
   if (priorManifest && addedCapabilities.length > 0) {
     issues.push({ severity: "warning", code: "capabilities-increased" });
   }

@@ -18,6 +18,7 @@ import {
 import { compareSemverVersions } from "@tabs/shared/semver";
 import type { NativeViewStackCoordinator } from "./nativeViewStackCoordinator";
 import { ExtensionStorage, type ExtensionStorageOperation } from "./extensionStorage";
+import { extensionNetworkGetText } from "./extensionNetwork";
 
 const SCHEME = "tabs-extension";
 const MAX_FILES = 1_000;
@@ -73,6 +74,13 @@ function retainedProfilesIdentity(
   registryOrigin?: string,
 ): string {
   return JSON.stringify([id, source, registryOrigin ?? null]);
+}
+
+function addsNetworkHosts(
+  next: DesktopInstalledExtension["manifest"],
+  previous?: DesktopInstalledExtension["manifest"],
+): boolean {
+  return (next.networkHosts ?? []).some((host) => !previous?.networkHosts?.includes(host));
 }
 
 export function extensionSessionPartition(
@@ -204,6 +212,34 @@ export class ExtensionViewManager {
     return contents;
   }
 
+  async invokeNetworkGetText(sender: Electron.WebContents, rawUrl: string): Promise<string> {
+    const active = this.active;
+    if (!active || active.view.webContents !== sender || sender.isDestroyed()) {
+      throw new Error("Extension view is no longer active.");
+    }
+    const authorize = () => {
+      const installed = this.requireInstalled(active.extensionId);
+      this.assertNotDeleting(installed.id);
+      if (
+        installed.revoked ||
+        installed.disabled ||
+        !installed.manifest.capabilities?.includes("network") ||
+        !isExtensionEnabledForProject(installed.assignment, active.projectId) ||
+        !installed.assignment.networkGrantedProjectIds?.includes(active.projectId) ||
+        extensionProfileForProject(installed.assignment, active.projectId) !== active.profileId
+      ) {
+        throw new Error("Network access is not granted for this project.");
+      }
+      return installed.manifest.networkHosts ?? [];
+    };
+    const hosts = authorize();
+    const result = await extensionNetworkGetText(rawUrl, hosts);
+    if (this.active !== active || sender.isDestroyed())
+      throw new Error("Extension view changed during network request.");
+    authorize();
+    return result;
+  }
+
   list(): DesktopInstalledExtension[] {
     return [...this.installed.values()].map((entry) => this.publicEntry(entry));
   }
@@ -250,6 +286,11 @@ export class ExtensionViewManager {
       ...(parsed.manifest.capabilities?.includes("workspace-read") &&
       !previous?.manifest.capabilities?.includes("workspace-read")
         ? { workspaceReadGrantedProjectIds: [] }
+        : {}),
+      ...(parsed.manifest.capabilities?.includes("network") &&
+      (!previous?.manifest.capabilities?.includes("network") ||
+        addsNetworkHosts(parsed.manifest, previous?.manifest))
+        ? { networkGrantedProjectIds: [] }
         : {}),
     };
     const next: StoredExtension = {
@@ -318,6 +359,11 @@ export class ExtensionViewManager {
         ...(inspected.manifest.capabilities?.includes("workspace-read") &&
         !previous?.manifest.capabilities?.includes("workspace-read")
           ? { workspaceReadGrantedProjectIds: [] }
+          : {}),
+        ...(inspected.manifest.capabilities?.includes("network") &&
+        (!previous?.manifest.capabilities?.includes("network") ||
+          addsNetworkHosts(inspected.manifest, previous?.manifest))
+          ? { networkGrantedProjectIds: [] }
           : {}),
       },
       profiles: previous?.profiles ?? retained?.profiles ?? [{ id: "default", label: "Default" }],
@@ -407,7 +453,8 @@ export class ExtensionViewManager {
     const requestedCapabilities = inspected.manifest.capabilities ?? [];
     const increased =
       previous?.revoked ||
-      requestedCapabilities.some((capability) => !previousCapabilities.includes(capability));
+      requestedCapabilities.some((capability) => !previousCapabilities.includes(capability)) ||
+      addsNetworkHosts(inspected.manifest, previous?.manifest);
     const assignment: TabsExtensionAssignment = previous?.assignment ?? {
       extensionId: inspected.id,
       enabledGlobally: false,
@@ -426,6 +473,7 @@ export class ExtensionViewManager {
             enabledProjectIds: [],
             storageGrantedProjectIds: [],
             workspaceReadGrantedProjectIds: [],
+            networkGrantedProjectIds: [],
           }
         : assignment,
       profiles: previous?.profiles ?? retained?.profiles ?? [{ id: "default", label: "Default" }],

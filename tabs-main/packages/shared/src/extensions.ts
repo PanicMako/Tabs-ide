@@ -54,6 +54,7 @@ export function validateTabsExtensionManifest(
     "supportUrl",
     "privacyUrl",
     "engines",
+    "networkHosts",
     "capabilities",
     "contributes",
   ]);
@@ -97,17 +98,44 @@ export function validateTabsExtensionManifest(
     errors.push("engines has unsupported fields.");
   }
   const contributes = input.contributes;
+  if (input.networkHosts !== undefined) {
+    if (
+      !Array.isArray(input.networkHosts) ||
+      input.networkHosts.length < 1 ||
+      input.networkHosts.length > 8 ||
+      new Set(input.networkHosts).size !== input.networkHosts.length ||
+      input.networkHosts.some(
+        (host) =>
+          typeof host !== "string" ||
+          host.length > 253 ||
+          !/^[a-z0-9.-]+$/.test(host) ||
+          !host.includes(".") ||
+          host.startsWith(".") ||
+          host.endsWith(".") ||
+          host.split(".").some((label) => !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label)),
+      )
+    )
+      errors.push("networkHosts requires 1 to 8 unique DNS hostnames without wildcards.");
+    if (!Array.isArray(input.capabilities) || !input.capabilities.includes("network")) {
+      errors.push("networkHosts requires the network capability.");
+    }
+  } else if (Array.isArray(input.capabilities) && input.capabilities.includes("network")) {
+    errors.push("network capability requires networkHosts.");
+  }
   if (
     input.capabilities !== undefined &&
     (!Array.isArray(input.capabilities) ||
-      input.capabilities.length > 2 ||
+      input.capabilities.length > 3 ||
       new Set(input.capabilities).size !== input.capabilities.length ||
       input.capabilities.some(
-        (capability) => capability !== "profile-storage" && capability !== "workspace-read",
+        (capability) =>
+          capability !== "profile-storage" &&
+          capability !== "workspace-read" &&
+          capability !== "network",
       ))
   ) {
     errors.push(
-      "capabilities supports only profile-storage and workspace-read without duplicates.",
+      "capabilities supports only profile-storage, workspace-read, and network without duplicates.",
     );
   }
   if (!record(contributes) || !Array.isArray(contributes.tools)) {

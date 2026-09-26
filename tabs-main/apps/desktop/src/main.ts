@@ -194,6 +194,7 @@ const EXTENSION_SET_BOUNDS_CHANNEL = "desktop:extension:set-bounds";
 const EXTENSION_HIDE_CHANNEL = "desktop:extension:hide";
 const EXTENSION_STORAGE_CHANNEL = "desktop:extension:storage";
 const EXTENSION_WORKSPACE_READ_CHANNEL = "desktop:extension:workspace-read";
+const EXTENSION_NETWORK_GET_CHANNEL = "desktop:extension:network-get";
 const WRITE_CLIPBOARD_TEXT_CHANNEL = "desktop:clipboard:write-text";
 const READ_CLIPBOARD_TEXT_CHANNEL = "desktop:clipboard:read-text";
 const DESKTOP_CAPTURE_SCREEN_CHANNEL = "desktop:capture:screen";
@@ -2295,6 +2296,13 @@ function registerIpcHandlers(): void {
     );
   });
   ipcMain.removeHandler(EXTENSION_WORKSPACE_READ_CHANNEL);
+  ipcMain.removeHandler(EXTENSION_NETWORK_GET_CHANNEL);
+  ipcMain.handle(EXTENSION_NETWORK_GET_CHANNEL, (event, rawUrl: unknown) => {
+    if (event.senderFrame !== event.sender.mainFrame) {
+      throw new Error("Extension network access is available only to the main frame.");
+    }
+    return extensionViewManager.invokeNetworkGetText(event.sender, rawUrl as string);
+  });
   ipcMain.handle(EXTENSION_WORKSPACE_READ_CHANNEL, async (event, relativePath: unknown) => {
     if (event.senderFrame !== event.sender.mainFrame) {
       throw new Error("Extension workspace access is available only to the main frame.");

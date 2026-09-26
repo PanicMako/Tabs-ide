@@ -348,6 +348,25 @@ describe("development extension installation", () => {
     await expect(inFlight).rejects.toThrow(/changed during workspace read/);
   });
 
+  it("clears the network grant when a development update adds a destination", () => {
+    const { directory, manager } = fixture();
+    const manifestPath = Path.join(directory, "tabs-extension.json");
+    const manifest = JSON.parse(FS.readFileSync(manifestPath, "utf8"));
+    manifest.capabilities = ["network"];
+    manifest.networkHosts = ["api.example.com"];
+    FS.writeFileSync(manifestPath, JSON.stringify(manifest));
+    const installed = manager.installDevelopment(directory);
+    manager.setAssignment(installed.id, {
+      ...installed.assignment,
+      enabledProjectIds: ["project-a"],
+      networkGrantedProjectIds: ["project-a"],
+    });
+    manifest.networkHosts.push("new.example.com");
+    FS.writeFileSync(manifestPath, JSON.stringify(manifest));
+    manager.installDevelopment(directory);
+    expect(manager.list()[0]?.assignment.networkGrantedProjectIds).toEqual([]);
+  });
+
   it("keeps one named project-isolated profile separate across projects", () => {
     const { directory, manager } = fixture();
     const manifestPath = Path.join(directory, "tabs-extension.json");

@@ -40,6 +40,26 @@ describe("Tabs extension manifest", () => {
     expect(
       validateTabsExtensionManifest({ ...manifest, capabilities: ["network"] }, "1.3.17").ok,
     ).toBe(false);
+    expect(
+      validateTabsExtensionManifest(
+        {
+          ...manifest,
+          capabilities: ["network"],
+          networkHosts: ["api.example.com"],
+        },
+        "1.3.17",
+      ).ok,
+    ).toBe(true);
+    expect(
+      validateTabsExtensionManifest(
+        {
+          ...manifest,
+          capabilities: ["network"],
+          networkHosts: ["*.example.com"],
+        },
+        "1.3.17",
+      ).ok,
+    ).toBe(false);
   });
 
   it("accepts bounded release notes and HTTPS publisher links", () => {

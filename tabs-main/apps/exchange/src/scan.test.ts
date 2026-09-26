@@ -11,6 +11,7 @@ async function packageFixture(
   extra?: Record<string, string | Buffer>,
   capabilities?: string[],
   displayName = "Dashboard",
+  networkHosts?: string[],
 ) {
   const root = FS.mkdtempSync(Path.join(OS.tmpdir(), "tabs-exchange-scan-test-"));
   roots.push(root);
@@ -28,6 +29,7 @@ async function packageFixture(
       description: "A test extension",
       engines: { tabs: ">=1.3.0 <2.0.0" },
       ...(capabilities ? { capabilities } : {}),
+      ...(networkHosts ? { networkHosts } : {}),
       contributes: { tools: [{ id: "main", label: "Main", entry: "dist/index.html" }] },
     }),
   );
@@ -168,5 +170,25 @@ describe("Exchange automated scan", () => {
       severity: "warning",
       code: "capabilities-increased",
     });
+  });
+
+  it("shows newly requested network destinations as permission increases", async () => {
+    const { destination, inspected } = await packageFixture({}, ["network"], "Dashboard", [
+      "api.example.com",
+      "new.example.com",
+    ]);
+    const result = await scanExtractedPackage(
+      destination,
+      inspected,
+      {
+        capabilities: ["network"],
+        networkHosts: ["api.example.com"],
+        contributes: inspected.manifest.contributes,
+      },
+      {},
+      "1.0.0",
+    );
+    expect(result.capabilityChanges.added).toEqual(["network host: new.example.com"]);
+    expect(result.issues).toContainEqual({ severity: "warning", code: "capabilities-increased" });
   });
 });

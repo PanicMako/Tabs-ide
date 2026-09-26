@@ -809,6 +809,29 @@ export default function ExtensionsSettings() {
                       Allow read-only workspace files for {project.name}
                     </label>
                   ) : null}
+                  {extension.manifest.capabilities?.includes("network") ? (
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={
+                          extension.assignment.networkGrantedProjectIds?.includes(project.id) ??
+                          false
+                        }
+                        disabled={busy}
+                        onChange={(event) => {
+                          const ids = extension.assignment.networkGrantedProjectIds ?? [];
+                          assign(extension, {
+                            ...extension.assignment,
+                            networkGrantedProjectIds: event.target.checked
+                              ? [...ids, project.id]
+                              : ids.filter((id) => id !== project.id),
+                          });
+                        }}
+                      />
+                      Allow HTTPS requests to {extension.manifest.networkHosts?.join(", ")} for{" "}
+                      {project.name}
+                    </label>
+                  ) : null}
                 </div>
               ))}
             </div>
