@@ -7,7 +7,11 @@ import { scanExtractedPackage } from "./scan.ts";
 
 const roots: string[] = [];
 
-async function packageFixture(extra?: Record<string, string>, capabilities?: string[]) {
+async function packageFixture(
+  extra?: Record<string, string | Buffer>,
+  capabilities?: string[],
+  displayName = "Dashboard",
+) {
   const root = FS.mkdtempSync(Path.join(OS.tmpdir(), "tabs-exchange-scan-test-"));
   roots.push(root);
   const source = Path.join(root, "source");
@@ -20,7 +24,7 @@ async function packageFixture(extra?: Record<string, string>, capabilities?: str
       publisher: "example",
       name: "dashboard",
       version: "1.0.0",
-      displayName: "Dashboard",
+      displayName,
       description: "A test extension",
       engines: { tabs: ">=1.3.0 <2.0.0" },
       ...(capabilities ? { capabilities } : {}),
@@ -69,6 +73,57 @@ describe("Exchange automated scan", () => {
     expect(result.passed).toBe(false);
     expect(result.issues.map((issue) => issue.code)).toContain("possible-secret");
     expect(result.issues.map((issue) => issue.code)).toContain("native-executable");
+  });
+
+  it("blocks executable magic even when a native binary is disguised as a text asset", async () => {
+    const pe = Buffer.alloc(128);
+    pe.write("MZ", 0, "ascii");
+    pe.writeUInt32LE(64, 0x3c);
+    pe.write("PE\0\0", 64, "binary");
+    const { destination, inspected } = await packageFixture({
+      "disguised.txt": Buffer.from([0x7f, 0x45, 0x4c, 0x46, 1, 2]),
+      "other.txt": pe,
+      "module.txt": Buffer.from([0, 0x61, 0x73, 0x6d, 1, 0, 0, 0]),
+    });
+    const result = await scanExtractedPackage(destination, inspected);
+    expect(result.passed).toBe(false);
+    expect(
+      result.issues
+        .filter((issue) => issue.code === "native-executable")
+        .map((issue) => issue.file),
+    ).toEqual(expect.arrayContaining(["dist/disguised.txt", "dist/other.txt", "dist/module.txt"]));
+  });
+
+  it("scans extensionless and large text files for secrets", async () => {
+    const { destination, inspected } = await packageFixture({
+      credentials: `${" ".repeat(1024 * 1024)}-----BEGIN PRIVATE KEY-----`,
+    });
+    const result = await scanExtractedPackage(destination, inspected);
+    expect(result.passed).toBe(false);
+    expect(result.issues).toContainEqual({
+      severity: "blocking",
+      code: "possible-secret",
+      file: "dist/credentials",
+    });
+  });
+
+  it("warns reviewers about nested archives and official-looking names", async () => {
+    const { destination, inspected } = await packageFixture(
+      { "payload.zip": "nested" },
+      undefined,
+      "Tabs Official Dashboard",
+    );
+    const result = await scanExtractedPackage(destination, inspected);
+    expect(result.passed).toBe(true);
+    expect(result.issues).toContainEqual({
+      severity: "warning",
+      code: "nested-archive",
+      file: "dist/payload.zip",
+    });
+    expect(result.issues).toContainEqual({
+      severity: "warning",
+      code: "possible-official-impersonation",
+    });
   });
 
   it("flags changed contributions for manual review", async () => {

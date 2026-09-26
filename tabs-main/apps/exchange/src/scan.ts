@@ -27,9 +27,25 @@ export interface ScanResult {
   };
 }
 
-const EXECUTABLE_SUFFIX = /\.(?:exe|dll|dylib|so|node|app|bin)$/i;
+const EXECUTABLE_SUFFIX = /\.(?:exe|dll|dylib|so|node|app|bin|wasm|sh|bat|cmd|ps1)$/i;
+const NESTED_ARCHIVE_SUFFIX = /\.(?:zip|tar|tgz|gz|7z|rar|jar)$/i;
 const SECRET_PATTERN =
-  /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----|gh[pousr]_[A-Za-z0-9_]{30,}|github_pat_[A-Za-z0-9_]{40,}/;
+  /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----|gh[pousr]_[A-Za-z0-9_]{30,}|github_pat_[A-Za-z0-9_]{40,}|xox[baprs]-[A-Za-z0-9-]{20,}|sk_live_[A-Za-z0-9]{20,}/;
+
+function hasExecutableSignature(contents: Buffer): boolean {
+  if (contents.subarray(0, 4).equals(Buffer.from([0x7f, 0x45, 0x4c, 0x46]))) return true;
+  if (contents.subarray(0, 4).equals(Buffer.from([0, 0x61, 0x73, 0x6d]))) return true;
+  const magic = contents.length >= 4 ? contents.readUInt32BE(0) : 0;
+  if ([0xfeedface, 0xfeedfacf, 0xcefaedfe, 0xcffaedfe, 0xcafebabe, 0xbebafeca].includes(magic)) {
+    return true;
+  }
+  if (contents.length < 0x40 || contents.subarray(0, 2).toString("ascii") !== "MZ") return false;
+  const peOffset = contents.readUInt32LE(0x3c);
+  return (
+    peOffset <= contents.length - 4 &&
+    contents.subarray(peOffset, peOffset + 4).equals(Buffer.from([0x50, 0x45, 0, 0]))
+  );
+}
 
 export async function scanExtractedPackage(
   directory: string,
@@ -40,17 +56,27 @@ export async function scanExtractedPackage(
 ): Promise<ScanResult> {
   const issues: ScanIssue[] = [];
   const files: Record<string, string> = {};
+  if (
+    inspected.manifest.publisher !== "tabs" &&
+    inspected.manifest.publisher !== "official" &&
+    /\b(?:tabs\s+(?:official|verified|staff|exchange)|official\s+tabs)\b/i.test(
+      inspected.manifest.displayName,
+    )
+  ) {
+    issues.push({ severity: "warning", code: "possible-official-impersonation" });
+  }
   for (const file of inspected.files) {
     const contents = await FS.readFile(Path.join(directory, file));
     files[file] = Crypto.createHash("sha256").update(contents).digest("hex");
-    if (EXECUTABLE_SUFFIX.test(file)) {
+    if (EXECUTABLE_SUFFIX.test(file) || hasExecutableSignature(contents)) {
       issues.push({ severity: "blocking", code: "native-executable", file });
+    }
+    if (NESTED_ARCHIVE_SUFFIX.test(file)) {
+      issues.push({ severity: "warning", code: "nested-archive", file });
     }
     if (file.startsWith("node_modules/") || file === "package-lock.json") {
       issues.push({ severity: "warning", code: "bundled-dependencies", file });
     }
-    if (!/\.(?:html|js|mjs|cjs|json|txt|md|css)$/i.test(file)) continue;
-    if (contents.length > 1024 * 1024) continue;
     const text = contents.toString("utf8");
     if (SECRET_PATTERN.test(text)) {
       issues.push({ severity: "blocking", code: "possible-secret", file });
