@@ -6,6 +6,7 @@ import type {
   DesktopExtensionViewInput,
   DesktopExchangeListing,
   DesktopInstalledExtension,
+  DesktopExtensionCredentialStatus,
   DesktopPreparedExchangeInstall,
   TabsExtensionAssignment,
 } from "./extensions.ts";
@@ -1210,6 +1211,14 @@ export interface DesktopBridge {
     id: string,
     label: string,
     scope: "shared" | "project",
+  ) => Promise<void>;
+  listExtensionCredentials: (extensionId: string) => Promise<DesktopExtensionCredentialStatus[]>;
+  setExtensionCredential: (
+    extensionId: string,
+    profileId: string,
+    host: string,
+    value: string | null,
+    projectId?: string,
   ) => Promise<void>;
   activateExtensionTool: (input: DesktopExtensionViewInput) => Promise<void>;
   setExtensionBounds: (input: DesktopExtensionBoundsInput) => Promise<void>;

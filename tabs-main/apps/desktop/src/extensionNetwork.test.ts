@@ -1,8 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
+import { EventEmitter } from "node:events";
 import {
+  extensionNetworkGetText,
   extensionNetworkStatusAllowed,
   resolveExtensionNetworkAddress,
   validateExtensionNetworkUrl,
+  type ExtensionNetworkTransport,
 } from "./extensionNetwork";
 
 describe("extension network broker", () => {
@@ -49,5 +52,92 @@ describe("extension network broker", () => {
     await expect(
       resolveExtensionNetworkAddress("api.example.com", fake([{ address: "8.8.8.8", family: 4 }])),
     ).resolves.toEqual({ address: "8.8.8.8", family: 4 });
+  });
+
+  it("pins DNS and sends a credential only on the approved TLS request without redirects", async () => {
+    const requests: Array<{ url: URL; options: Record<string, unknown> }> = [];
+    let nextStatus = 200;
+    const transport: ExtensionNetworkTransport = {
+      lookup: vi.fn().mockResolvedValue([{ address: "8.8.8.8", family: 4 }]) as never,
+      request: ((
+        url: URL,
+        options: Record<string, unknown>,
+        callback: (response: never) => void,
+      ) => {
+        requests.push({ url, options });
+        const request = new EventEmitter() as EventEmitter & { end: () => void };
+        request.end = () =>
+          queueMicrotask(() => {
+            const response = new EventEmitter() as EventEmitter & {
+              statusCode: number;
+              destroy: () => void;
+            };
+            response.statusCode = nextStatus;
+            response.destroy = vi.fn();
+            callback(response as never);
+            if (nextStatus === 200) {
+              response.emit("data", Buffer.from("hello"));
+              response.emit("end");
+            }
+          });
+        return request as never;
+      }) as never,
+    };
+    await expect(
+      extensionNetworkGetText(
+        "https://api.example.com/data",
+        ["api.example.com"],
+        "work-token",
+        transport,
+      ),
+    ).resolves.toBe("hello");
+    expect(requests[0]?.options.headers).toEqual({
+      Accept: "text/plain, application/json",
+      "User-Agent": "Tabs-Extension/1",
+      Authorization: "Bearer work-token",
+    });
+    expect(requests[0]?.options.family).toBe(4);
+    const pinnedLookup = requests[0]?.options.lookup as (
+      host: string,
+      options: { all: false },
+      callback: (error: null, address: string, family: number) => void,
+    ) => void;
+    const address = vi.fn();
+    pinnedLookup("api.example.com", { all: false }, address);
+    expect(address).toHaveBeenCalledWith(null, "8.8.8.8", 4);
+    nextStatus = 302;
+    await expect(
+      extensionNetworkGetText(
+        "https://api.example.com/data",
+        ["api.example.com"],
+        "work-token",
+        transport,
+      ),
+    ).rejects.toThrow(/redirect/);
+    expect(requests).toHaveLength(2);
+  });
+
+  it("never opens a TLS connection if permission is revoked during DNS", async () => {
+    let resolveLookup: (value: { address: string; family: 4 }[]) => void = () => {};
+    const pendingLookup = new Promise<{ address: string; family: 4 }[]>((resolve) => {
+      resolveLookup = resolve;
+    });
+    const request = vi.fn();
+    const transport: ExtensionNetworkTransport = {
+      lookup: vi.fn(() => pendingLookup) as never,
+      request: request as never,
+    };
+    const controller = new AbortController();
+    const pending = extensionNetworkGetText(
+      "https://api.example.com/me",
+      ["api.example.com"],
+      "secret",
+      transport,
+      controller.signal,
+    );
+    controller.abort();
+    resolveLookup([{ address: "8.8.8.8", family: 4 }]);
+    await expect(pending).rejects.toThrow(/cancelled/);
+    expect(request).not.toHaveBeenCalled();
   });
 });

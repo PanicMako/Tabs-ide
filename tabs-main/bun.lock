@@ -268,7 +268,7 @@
     },
     "packages/extension-api": {
       "name": "@tabs/extension-api",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "devDependencies": {
         "typescript": "^5.7.3",
         "vitest": "^4.1.8",

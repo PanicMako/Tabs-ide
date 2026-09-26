@@ -32,9 +32,11 @@ compatible. Tabs validates declared API compatibility at load time. See
 working example. Version 1 requires a lowercase publisher and package name,
 a semantic version, a Tabs version range, and 1-12 full-workspace tools. Each
 tool names a packaged HTML entry. Paths must be relative to the extension
-root. Supported optional capabilities are `profile-storage`, `workspace-read`, and `network`. A
-`network` manifest must list 1-8 exact DNS names in `networkHosts`; wildcards are not allowed. Unsupported
-runtime and capability declarations are rejected rather than silently ignored.
+root. Supported optional capabilities are `profile-storage`, `workspace-read`,
+`network`, and `credentials`. A `network` manifest must list 1-8 exact DNS names
+in `networkHosts`; wildcards are not allowed. `credentials` requires `network`
+and uses only those declared hosts. Unsupported runtime and capability
+declarations are rejected rather than silently ignored.
 Optional `releaseNotes` is plain text (maximum 10,000 characters). Optional
 `sourceUrl`, `supportUrl`, and `privacyUrl` must be HTTPS links without embedded
 credentials (maximum 2,048 characters each). The Exchange displays these
@@ -44,10 +46,20 @@ security endorsement or installation authorization; the desktop opens links
 in the system browser and renders notes as text.
 
 The [Workspace Reader example](../examples/workspace-reader-extension/README.md)
-shows storage and workspace-read capabilities with separate project grants. The network capability
-also requires separate per-project consent. Its initial bridge is `tabsExtension.network.getText(url)`:
-HTTPS GET only, exact declared host, no caller headers/cookies, redirect following, or private-address
-DNS answers; text responses are limited to 1 MiB. It is not an account-credential API.
+shows storage and workspace-read capabilities with separate project grants. The
+[GitHub Profile example](../examples/github-profile-extension/README.md) shows
+two named account profiles using the credential broker. The
+network capability also requires separate per-project consent. Its initial
+bridge is `tabsExtension.network.getText(url)`: HTTPS GET only, exact declared
+host, no caller headers/cookies, redirect following, or private-address DNS
+answers; text responses are limited to 1 MiB. With both `network` and `credentials`
+capabilities and separate project grants, an extension may call
+`tabsExtension.network.getText(url, { useProfileCredential: true })` to attach a
+saved Bearer token for the active account profile and exact destination host.
+The extension cannot read the saved token directly. A server may still return
+or reflect it in its response, so only save credentials for a service you trust.
+Changing the project, grant, profile, or active view cancels in-flight requests
+where possible; it cannot undo a request already delivered to the service.
 
 The development package has no Node integration, direct network access outside the host broker,
 navigation, or popups. Its files are served
@@ -74,7 +86,7 @@ cannot supply a root or project ID. The server resolves the active project's
 root from its own project record and rejects traversal and links outside that
 root. Grants are checked before and after the broker call, so disabling the
 extension, switching projects, or revoking permission invalidates an in-flight
-response. Workspace write, git, and credential brokers are not yet available.
+response. Workspace write and git brokers are not yet available.
 All bridges remain bound to the active extension main frame.
 
 ## Enabling and profiles
@@ -93,12 +105,18 @@ Installed settings can disable an extension independently of those project
 choices. Disabling closes its active view and removes its toolbar tools, but
 keeps assignments, profiles, permissions, and data for re-enabling. A revoked
 version cannot be re-enabled.
-No account credential API is available in this experimental stage. Uninstall
-removes packaged code and project assignments. For installations with a complete
-storage inventory, the user can separately choose to retain named profiles and
-data or delete Tabs-managed local profile data. Deletion clears each recorded
-Electron partition and scoped bridge storage, then removes retained profile
-names. It is not secure erasure of backups or disk history. If clearing fails,
+
+Account credentials are configured in Profiles & Permissions, stored encrypted
+by Electron's OS-backed safe storage, and never persisted in ordinary profile
+storage. On Linux, Tabs refuses credential storage if Electron selects the
+insecure `basic_text` backend. Shared profiles use one credential per declared
+host; project-isolated profiles use a separate credential per project and host.
+Normal updates retain credentials. Uninstall removes packaged code and project
+assignments. For installations with a complete storage inventory, the user can
+separately choose to retain named profiles, credentials, and data or delete
+Tabs-managed local profile data. Deletion clears each recorded Electron partition
+and scoped bridge storage, then removes retained profile names and saved
+credentials. It is not secure erasure of backups or disk history. If clearing fails,
 the extension stays installed so the user can retry. Older installations with
 uninventoried flat-hash data may only retain data; Tabs does not claim it can
 completely delete what it cannot enumerate. Retained data restores profiles
@@ -170,7 +188,7 @@ by default. Set `TABS_EXCHANGE_ORIGIN` in a development desktop process to
 display compatible approved catalog listings; HTTPS is required except for
 `http://localhost` in development. Catalog entries are not trusted installation
 metadata and cannot authorize an install alone. The
-production update/revocation lifecycle, workspace write/credential
-brokers, background runtime, AI-callable tools, and account-credential storage
+production update/revocation lifecycle, workspace write broker,
+background runtime, AI-callable tools, and full account OAuth flows
 are not implemented. Those features require additional security and lifecycle
 work before a public extension ecosystem can be enabled.

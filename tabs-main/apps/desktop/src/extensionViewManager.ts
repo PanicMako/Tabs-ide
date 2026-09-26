@@ -8,6 +8,7 @@ import {
   type DesktopExtensionBoundsInput,
   type DesktopExtensionViewInput,
   type DesktopInstalledExtension,
+  type DesktopExtensionCredentialStatus,
 } from "@tabs/contracts";
 import * as Schema from "effect/Schema";
 import {
@@ -18,7 +19,8 @@ import {
 import { compareSemverVersions } from "@tabs/shared/semver";
 import type { NativeViewStackCoordinator } from "./nativeViewStackCoordinator";
 import { ExtensionStorage, type ExtensionStorageOperation } from "./extensionStorage";
-import { extensionNetworkGetText } from "./extensionNetwork";
+import { ExtensionCredentials, type CredentialCryptography } from "./extensionCredentials";
+import { extensionNetworkGetText, validateExtensionNetworkUrl } from "./extensionNetwork";
 
 const SCHEME = "tabs-extension";
 const MAX_FILES = 1_000;
@@ -127,8 +129,13 @@ export class ExtensionViewManager {
   private readonly deleting = new Set<string>();
   private deletionEpoch = 0;
   private readonly configuredSessions = new Set<string>();
+  private readonly networkRequests = new Set<{
+    readonly extensionId: string;
+    readonly controller: AbortController;
+  }>();
   private active: ActiveView | null = null;
   private readonly storage: ExtensionStorage;
+  private readonly credentials: ExtensionCredentials | null;
 
   constructor(
     private readonly getWindow: () => BrowserWindow | null,
@@ -136,8 +143,16 @@ export class ExtensionViewManager {
     private readonly statePath: string,
     private readonly tabsVersion: string,
     private readonly allowDevelopment: boolean,
+    cryptography?: CredentialCryptography,
+    private readonly networkGetText: typeof extensionNetworkGetText = extensionNetworkGetText,
   ) {
     this.storage = new ExtensionStorage(Path.join(Path.dirname(statePath), "extension-storage"));
+    this.credentials = cryptography
+      ? new ExtensionCredentials(
+          Path.join(Path.dirname(statePath), "extension-credentials"),
+          cryptography,
+        )
+      : null;
     this.load();
   }
 
@@ -212,7 +227,11 @@ export class ExtensionViewManager {
     return contents;
   }
 
-  async invokeNetworkGetText(sender: Electron.WebContents, rawUrl: string): Promise<string> {
+  async invokeNetworkGetText(
+    sender: Electron.WebContents,
+    rawUrl: string,
+    useProfileCredential = false,
+  ): Promise<string> {
     const active = this.active;
     if (!active || active.view.webContents !== sender || sender.isDestroyed()) {
       throw new Error("Extension view is no longer active.");
@@ -230,14 +249,101 @@ export class ExtensionViewManager {
       ) {
         throw new Error("Network access is not granted for this project.");
       }
-      return installed.manifest.networkHosts ?? [];
+      if (
+        useProfileCredential &&
+        (!installed.manifest.capabilities?.includes("credentials") ||
+          !installed.assignment.credentialGrantedProjectIds?.includes(active.projectId))
+      ) {
+        throw new Error("Credential access is not granted for this project.");
+      }
+      return installed;
     };
-    const hosts = authorize();
-    const result = await extensionNetworkGetText(rawUrl, hosts);
+    const installed = authorize();
+    const hosts = installed.manifest.networkHosts ?? [];
+    const host = validateExtensionNetworkUrl(rawUrl, hosts).hostname;
+    const profile = this.requireProfile(installed, active.profileId);
+    const bearerToken = useProfileCredential
+      ? this.requireCredentials().get({
+          extensionId: extensionDataIdentity(
+            installed.id,
+            installed.registryOrigin,
+            installed.source,
+          ),
+          profileId: active.profileId,
+          ...(profile.scope === "project" ? { projectId: active.projectId } : {}),
+          host,
+        })
+      : null;
+    if (useProfileCredential && !bearerToken)
+      throw new Error("No credential is saved for this profile and host.");
+    const controller = new AbortController();
+    const request = { extensionId: installed.id, controller };
+    this.networkRequests.add(request);
+    let result: string;
+    try {
+      result = await this.networkGetText(
+        rawUrl,
+        hosts,
+        bearerToken ?? undefined,
+        undefined,
+        controller.signal,
+      );
+    } finally {
+      this.networkRequests.delete(request);
+    }
     if (this.active !== active || sender.isDestroyed())
       throw new Error("Extension view changed during network request.");
     authorize();
     return result;
+  }
+
+  listCredentialStatuses(extensionId: string): ReadonlyArray<DesktopExtensionCredentialStatus> {
+    const installed = this.requireInstalled(extensionId);
+    return this.requireCredentials()
+      .list(extensionDataIdentity(installed.id, installed.registryOrigin, installed.source))
+      .map(({ profileId, projectId, host }) =>
+        projectId === undefined ? { profileId, host } : { profileId, projectId, host },
+      );
+  }
+
+  setProfileCredential(
+    extensionId: string,
+    profileId: string,
+    host: string,
+    value: string | null,
+    projectId?: string,
+  ): void {
+    const installed = this.requireInstalled(extensionId);
+    this.assertNotDeleting(extensionId);
+    if (value !== null) {
+      if (installed.revoked) throw new Error("Revoked extensions cannot receive credentials.");
+      if (
+        !installed.manifest.capabilities?.includes("credentials") ||
+        !installed.manifest.networkHosts?.includes(host)
+      ) {
+        throw new Error("Extension did not request credentials for this host.");
+      }
+    }
+    if (value !== null) {
+      const profile = this.requireProfile(installed, profileId);
+      if ((profile.scope === "project") !== (projectId !== undefined)) {
+        throw new Error("Credential scope does not match the selected profile.");
+      }
+    }
+    const identity = {
+      extensionId: extensionDataIdentity(installed.id, installed.registryOrigin, installed.source),
+      profileId,
+      ...(projectId ? { projectId } : {}),
+      host,
+    };
+    if (value === null) this.requireCredentials().delete(identity);
+    else this.requireCredentials().set(identity, value);
+    if (this.active?.extensionId === extensionId) this.hide();
+  }
+
+  private requireCredentials(): ExtensionCredentials {
+    if (!this.credentials) throw new Error("Extension credential storage is unavailable.");
+    return this.credentials;
   }
 
   list(): DesktopInstalledExtension[] {
@@ -291,6 +397,11 @@ export class ExtensionViewManager {
       (!previous?.manifest.capabilities?.includes("network") ||
         addsNetworkHosts(parsed.manifest, previous?.manifest))
         ? { networkGrantedProjectIds: [] }
+        : {}),
+      ...(parsed.manifest.capabilities?.includes("credentials") &&
+      (!previous?.manifest.capabilities?.includes("credentials") ||
+        addsNetworkHosts(parsed.manifest, previous?.manifest))
+        ? { credentialGrantedProjectIds: [] }
         : {}),
     };
     const next: StoredExtension = {
@@ -364,6 +475,11 @@ export class ExtensionViewManager {
         (!previous?.manifest.capabilities?.includes("network") ||
           addsNetworkHosts(inspected.manifest, previous?.manifest))
           ? { networkGrantedProjectIds: [] }
+          : {}),
+        ...(inspected.manifest.capabilities?.includes("credentials") &&
+        (!previous?.manifest.capabilities?.includes("credentials") ||
+          addsNetworkHosts(inspected.manifest, previous?.manifest))
+          ? { credentialGrantedProjectIds: [] }
           : {}),
       },
       profiles: previous?.profiles ?? retained?.profiles ?? [{ id: "default", label: "Default" }],
@@ -474,6 +590,7 @@ export class ExtensionViewManager {
             storageGrantedProjectIds: [],
             workspaceReadGrantedProjectIds: [],
             networkGrantedProjectIds: [],
+            credentialGrantedProjectIds: [],
           }
         : assignment,
       profiles: previous?.profiles ?? retained?.profiles ?? [{ id: "default", label: "Default" }],
@@ -526,7 +643,7 @@ export class ExtensionViewManager {
     return true;
   }
 
-  /** Uninstall executable code and assignments; retain profiles and non-secret data. */
+  /** Uninstall executable code and assignments; retain profiles and their data. */
   uninstall(extensionId: string): void {
     this.assertNotDeleting(extensionId);
     this.uninstallInternal(extensionId, true);
@@ -571,6 +688,9 @@ export class ExtensionViewManager {
         await extensionSession.cookies.flushStore();
       }
       this.storage.removeNamespace(
+        extensionDataIdentity(current.id, current.registryOrigin, current.source),
+      );
+      this.credentials?.removeNamespace(
         extensionDataIdentity(current.id, current.registryOrigin, current.source),
       );
       if (retainedExists) FS.unlinkSync(retainedPath);
@@ -876,6 +996,9 @@ export class ExtensionViewManager {
 
   hide(): void {
     if (!this.active) return;
+    for (const request of this.networkRequests) {
+      if (request.extensionId === this.active.extensionId) request.controller.abort();
+    }
     this.coordinator.detachToolView(this.active.view);
     this.active.view.webContents.close();
     this.active = null;

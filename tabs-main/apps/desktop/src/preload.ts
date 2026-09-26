@@ -84,6 +84,8 @@ const EXTENSION_INSTALL_DEV_CHANNEL = "desktop:extension:install-dev";
 const EXTENSION_INSTALL_LOCAL_PACKAGE_CHANNEL = "desktop:extension:install-local-package";
 const EXTENSION_ASSIGN_CHANNEL = "desktop:extension:assign";
 const EXTENSION_ADD_PROFILE_CHANNEL = "desktop:extension:add-profile";
+const EXTENSION_CREDENTIALS_LIST_CHANNEL = "desktop:extension:credentials-list";
+const EXTENSION_CREDENTIAL_SET_CHANNEL = "desktop:extension:credential-set";
 const EXTENSION_ACTIVATE_CHANNEL = "desktop:extension:activate";
 const EXTENSION_SET_BOUNDS_CHANNEL = "desktop:extension:set-bounds";
 const EXTENSION_HIDE_CHANNEL = "desktop:extension:hide";
@@ -312,6 +314,17 @@ contextBridge.exposeInMainWorld("desktopBridge", {
     ipcRenderer.invoke(EXTENSION_ASSIGN_CHANNEL, extensionId, assignment),
   addExtensionProfile: (extensionId, id, label, scope) =>
     ipcRenderer.invoke(EXTENSION_ADD_PROFILE_CHANNEL, extensionId, id, label, scope),
+  listExtensionCredentials: (extensionId) =>
+    ipcRenderer.invoke(EXTENSION_CREDENTIALS_LIST_CHANNEL, extensionId),
+  setExtensionCredential: (extensionId, profileId, host, value, projectId) =>
+    ipcRenderer.invoke(
+      EXTENSION_CREDENTIAL_SET_CHANNEL,
+      extensionId,
+      profileId,
+      host,
+      value,
+      projectId,
+    ),
   activateExtensionTool: (input) => ipcRenderer.invoke(EXTENSION_ACTIVATE_CHANNEL, input),
   setExtensionBounds: (input) => ipcRenderer.invoke(EXTENSION_SET_BOUNDS_CHANNEL, input),
   hideExtensionTool: () => ipcRenderer.invoke(EXTENSION_HIDE_CHANNEL),

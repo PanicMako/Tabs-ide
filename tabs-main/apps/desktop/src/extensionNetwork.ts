@@ -5,6 +5,13 @@ import ipaddr from "ipaddr.js";
 
 const MAX_RESPONSE_BYTES = 1024 * 1024;
 
+export interface ExtensionNetworkTransport {
+  readonly lookup: typeof Dns.lookup;
+  readonly request: typeof Https.request;
+}
+
+const defaultTransport: ExtensionNetworkTransport = { lookup: Dns.lookup, request: Https.request };
+
 export function extensionNetworkStatusAllowed(statusCode: number | undefined): boolean {
   return statusCode !== undefined && statusCode >= 200 && statusCode < 300;
 }
@@ -48,11 +55,16 @@ export async function resolveExtensionNetworkAddress(
 export async function extensionNetworkGetText(
   raw: string,
   hosts: readonly string[],
+  bearerToken?: string,
+  transport: ExtensionNetworkTransport = defaultTransport,
+  signal?: AbortSignal,
 ): Promise<string> {
   const url = validateExtensionNetworkUrl(raw, hosts);
-  const pinned = await resolveExtensionNetworkAddress(url.hostname);
+  if (signal?.aborted) throw new Error("Network request was cancelled.");
+  const pinned = await resolveExtensionNetworkAddress(url.hostname, transport.lookup);
+  if (signal?.aborted) throw new Error("Network request was cancelled.");
   return new Promise((resolve, reject) => {
-    const request = Https.request(
+    const request = transport.request(
       url,
       {
         method: "GET",
@@ -60,7 +72,12 @@ export async function extensionNetworkGetText(
         family: pinned.family,
         timeout: 10_000,
         maxHeaderSize: 16 * 1024,
-        headers: { Accept: "text/plain, application/json" },
+        signal,
+        headers: {
+          Accept: "text/plain, application/json",
+          "User-Agent": "Tabs-Extension/1",
+          ...(bearerToken ? { Authorization: `Bearer ${bearerToken}` } : {}),
+        },
         lookup: (_hostname, options, callback) => {
           if (options.all) callback(null, [{ address: pinned.address, family: pinned.family }]);
           else callback(null, pinned.address, pinned.family);

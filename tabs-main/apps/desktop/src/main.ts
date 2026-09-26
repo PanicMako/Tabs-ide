@@ -19,6 +19,7 @@ import {
   nativeTheme,
   powerMonitor,
   protocol,
+  safeStorage,
   session,
   shell,
 } from "electron";
@@ -189,6 +190,8 @@ const EXTENSION_INSTALL_DEV_CHANNEL = "desktop:extension:install-dev";
 const EXTENSION_INSTALL_LOCAL_PACKAGE_CHANNEL = "desktop:extension:install-local-package";
 const EXTENSION_ASSIGN_CHANNEL = "desktop:extension:assign";
 const EXTENSION_ADD_PROFILE_CHANNEL = "desktop:extension:add-profile";
+const EXTENSION_CREDENTIALS_LIST_CHANNEL = "desktop:extension:credentials-list";
+const EXTENSION_CREDENTIAL_SET_CHANNEL = "desktop:extension:credential-set";
 const EXTENSION_ACTIVATE_CHANNEL = "desktop:extension:activate";
 const EXTENSION_SET_BOUNDS_CHANNEL = "desktop:extension:set-bounds";
 const EXTENSION_HIDE_CHANNEL = "desktop:extension:hide";
@@ -476,6 +479,7 @@ const extensionViewManager = new ExtensionViewManager(
   Path.join(STATE_DIR, "development-extensions.json"),
   app.getVersion(),
   !app.isPackaged,
+  safeStorage,
 );
 let exchangeInstallService: ExchangeInstallService | null = null;
 let exchangeStatusTimer: ReturnType<typeof setInterval> | null = null;
@@ -2252,6 +2256,30 @@ function registerIpcHandlers(): void {
       extensionViewManager.addProfile(id, profile, label, scope);
     },
   );
+  ipcMain.removeHandler(EXTENSION_CREDENTIALS_LIST_CHANNEL);
+  ipcMain.handle(EXTENSION_CREDENTIALS_LIST_CHANNEL, (event, id: unknown) => {
+    requireMainRenderer(event);
+    if (typeof id !== "string") throw new Error("Invalid extension identity.");
+    return extensionViewManager.listCredentialStatuses(id);
+  });
+  ipcMain.removeHandler(EXTENSION_CREDENTIAL_SET_CHANNEL);
+  ipcMain.handle(
+    EXTENSION_CREDENTIAL_SET_CHANNEL,
+    (event, id: unknown, profileId: unknown, host: unknown, value: unknown, projectId: unknown) => {
+      requireMainRenderer(event);
+      if (
+        typeof id !== "string" ||
+        typeof profileId !== "string" ||
+        typeof host !== "string" ||
+        (value !== null && typeof value !== "string") ||
+        (projectId !== undefined && typeof projectId !== "string")
+      ) {
+        throw new Error("Invalid extension credential request.");
+      }
+      extensionViewManager.setProfileCredential(id, profileId, host, value, projectId);
+      mainWindow?.webContents.send(EXTENSION_CHANGED_CHANNEL);
+    },
+  );
   ipcMain.removeHandler(EXTENSION_ACTIVATE_CHANNEL);
   ipcMain.handle(EXTENSION_ACTIVATE_CHANNEL, async (event, input: unknown) => {
     requireMainRenderer(event);
@@ -2297,12 +2325,22 @@ function registerIpcHandlers(): void {
   });
   ipcMain.removeHandler(EXTENSION_WORKSPACE_READ_CHANNEL);
   ipcMain.removeHandler(EXTENSION_NETWORK_GET_CHANNEL);
-  ipcMain.handle(EXTENSION_NETWORK_GET_CHANNEL, (event, rawUrl: unknown) => {
-    if (event.senderFrame !== event.sender.mainFrame) {
-      throw new Error("Extension network access is available only to the main frame.");
-    }
-    return extensionViewManager.invokeNetworkGetText(event.sender, rawUrl as string);
-  });
+  ipcMain.handle(
+    EXTENSION_NETWORK_GET_CHANNEL,
+    (event, rawUrl: unknown, useCredential: unknown) => {
+      if (event.senderFrame !== event.sender.mainFrame) {
+        throw new Error("Extension network access is available only to the main frame.");
+      }
+      if (useCredential !== undefined && typeof useCredential !== "boolean") {
+        throw new Error("Invalid network credential option.");
+      }
+      return extensionViewManager.invokeNetworkGetText(
+        event.sender,
+        rawUrl as string,
+        useCredential === true,
+      );
+    },
+  );
   ipcMain.handle(EXTENSION_WORKSPACE_READ_CHANNEL, async (event, relativePath: unknown) => {
     if (event.senderFrame !== event.sender.mainFrame) {
       throw new Error("Extension workspace access is available only to the main frame.");

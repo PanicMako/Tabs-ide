@@ -1,6 +1,10 @@
-export declare const TABS_EXTENSION_API_VERSION: "1.0.0";
+export declare const TABS_EXTENSION_API_VERSION: "1.1.0";
 
-export type TabsExtensionCapability = "profile-storage" | "workspace-read" | "network";
+export type TabsExtensionCapability =
+  | "profile-storage"
+  | "workspace-read"
+  | "network"
+  | "credentials";
 
 export interface TabsExtensionTool {
   readonly id: string;
@@ -50,7 +54,7 @@ export interface TabsExtensionHostBridge {
     readText(relativePath: string): Promise<string>;
   };
   readonly network: {
-    getText(url: string): Promise<string>;
+    getText(url: string, options?: { readonly useProfileCredential?: boolean }): Promise<string>;
   };
 }
 

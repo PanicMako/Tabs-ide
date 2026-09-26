@@ -134,19 +134,27 @@ export function validateTabsExtensionManifest(
     errors.push("network capability requires networkHosts.");
   }
   if (
+    Array.isArray(input.capabilities) &&
+    input.capabilities.includes("credentials") &&
+    !input.capabilities.includes("network")
+  ) {
+    errors.push("credentials capability requires network.");
+  }
+  if (
     input.capabilities !== undefined &&
     (!Array.isArray(input.capabilities) ||
-      input.capabilities.length > 3 ||
+      input.capabilities.length > 4 ||
       new Set(input.capabilities).size !== input.capabilities.length ||
       input.capabilities.some(
         (capability) =>
           capability !== "profile-storage" &&
           capability !== "workspace-read" &&
-          capability !== "network",
+          capability !== "network" &&
+          capability !== "credentials",
       ))
   ) {
     errors.push(
-      "capabilities supports only profile-storage, workspace-read, and network without duplicates.",
+      "capabilities supports only profile-storage, workspace-read, network, and credentials without duplicates.",
     );
   }
   if (!record(contributes) || !Array.isArray(contributes.tools)) {

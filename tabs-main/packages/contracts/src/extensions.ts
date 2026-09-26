@@ -26,7 +26,7 @@ export const TabsExtensionManifest = Schema.Struct({
   }),
   networkHosts: Schema.optionalKey(Schema.Array(Schema.String)),
   capabilities: Schema.optionalKey(
-    Schema.Array(Schema.Literals(["profile-storage", "workspace-read", "network"])),
+    Schema.Array(Schema.Literals(["profile-storage", "workspace-read", "network", "credentials"])),
   ),
   contributes: Schema.Struct({ tools: Schema.Array(TabsExtensionTool) }),
 });
@@ -42,8 +42,15 @@ export const TabsExtensionAssignment = Schema.Struct({
   storageGrantedProjectIds: Schema.optionalKey(Schema.Array(Schema.String)),
   workspaceReadGrantedProjectIds: Schema.optionalKey(Schema.Array(Schema.String)),
   networkGrantedProjectIds: Schema.optionalKey(Schema.Array(Schema.String)),
+  credentialGrantedProjectIds: Schema.optionalKey(Schema.Array(Schema.String)),
 });
 export type TabsExtensionAssignment = typeof TabsExtensionAssignment.Type;
+
+export interface DesktopExtensionCredentialStatus {
+  readonly profileId: string;
+  readonly projectId?: string;
+  readonly host: string;
+}
 
 export interface DesktopInstalledExtension {
   readonly id: string;

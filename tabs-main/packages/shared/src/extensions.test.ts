@@ -63,10 +63,13 @@ describe("Tabs extension manifest", () => {
       validateTabsExtensionManifest({ ...manifest, capabilities: ["network"] }, "1.3.17").ok,
     ).toBe(false);
     expect(
+      validateTabsExtensionManifest({ ...manifest, capabilities: ["credentials"] }, "1.3.17").ok,
+    ).toBe(false);
+    expect(
       validateTabsExtensionManifest(
         {
           ...manifest,
-          capabilities: ["network"],
+          capabilities: ["network", "credentials"],
           networkHosts: ["api.example.com"],
         },
         "1.3.17",

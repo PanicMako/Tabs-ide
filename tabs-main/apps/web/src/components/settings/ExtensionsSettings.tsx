@@ -4,6 +4,7 @@ import type {
   DesktopExchangeListing,
   DesktopInstalledExtension,
   DesktopPreparedExchangeInstall,
+  DesktopExtensionCredentialStatus,
   TabsExtensionAssignment,
 } from "@tabs/contracts";
 import { projectsAtom } from "~/state/threads";
@@ -21,6 +22,19 @@ export default function ExtensionsSettings() {
   const [busy, setBusy] = useState(false);
   const [profileNames, setProfileNames] = useState<Record<string, string>>({});
   const [profileScopes, setProfileScopes] = useState<Record<string, "shared" | "project">>({});
+  const [credentialValues, setCredentialValues] = useState<Record<string, string>>({});
+  const [credentialProfileSelection, setCredentialProfileSelection] = useState<
+    Record<string, string>
+  >({});
+  const [credentialProjectSelection, setCredentialProjectSelection] = useState<
+    Record<string, string>
+  >({});
+  const [credentialHostSelection, setCredentialHostSelection] = useState<Record<string, string>>(
+    {},
+  );
+  const [credentialStatuses, setCredentialStatuses] = useState<
+    Record<string, DesktopExtensionCredentialStatus[]>
+  >({});
   const [searchQuery, setSearchQuery] = useState("");
   const [catalog, setCatalog] = useState<DesktopExchangeListing[] | null | undefined>(undefined);
   const [exchangeInstallAvailable, setExchangeInstallAvailable] = useState(false);
@@ -52,6 +66,25 @@ export default function ExtensionsSettings() {
   useEffect(() => {
     if (tab === "installed" && uninstallingId) uninstallHeading.current?.focus();
   }, [uninstallingId, tab]);
+  useEffect(() => {
+    if (tab !== "profiles" || !bridge) return;
+    let cancelled = false;
+    void Promise.all(
+      extensions.map(
+        async (extension) =>
+          [extension.id, await bridge.listExtensionCredentials(extension.id)] as const,
+      ),
+    )
+      .then((entries) => {
+        if (!cancelled) setCredentialStatuses(Object.fromEntries(entries));
+      })
+      .catch((cause) => {
+        if (!cancelled) setError(cause instanceof Error ? cause.message : String(cause));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [tab, bridge, extensions]);
 
   const run = async (operation: () => Promise<void>) => {
     setBusy(true);
@@ -661,9 +694,9 @@ export default function ExtensionsSettings() {
         <SettingsSection title="Profiles & Permissions">
           <p className="text-sm text-muted-foreground">
             A shared profile uses one storage space across projects. A project-isolated profile
-            keeps browser and non-secret storage separate for each project. Storage access still
-            requires a separate grant per project. Workspace, network, and account APIs remain
-            unavailable to development extensions.
+            keeps browser and non-secret storage separate for each project. Workspace, network, and
+            credential use each require a separate project grant. Saved credentials are encrypted by
+            the operating system and never shown again in Settings.
           </p>
           {extensions.map((extension) => (
             <div key={extension.id} className="space-y-3 border-b border-border py-4 last:border-0">
@@ -739,6 +772,254 @@ export default function ExtensionsSettings() {
                   Add profile
                 </Button>
               </div>
+              {extension.manifest.capabilities?.includes("credentials") ? (
+                <div className="space-y-3 rounded border border-border p-3">
+                  <h4 className="text-sm font-medium">Account credentials</h4>
+                  <p className="text-xs text-muted-foreground">
+                    A saved token is sent as a Bearer credential only to its named HTTPS host when
+                    this extension asks for it in a project where credential use is allowed.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <label className="text-sm">
+                      Account profile
+                      <select
+                        className="ml-2 rounded border border-border bg-background px-2 py-1"
+                        value={
+                          credentialProfileSelection[extension.id] ??
+                          extension.profiles[0]?.id ??
+                          ""
+                        }
+                        disabled={busy}
+                        onChange={(event) => {
+                          setCredentialProfileSelection((current) => ({
+                            ...current,
+                            [extension.id]: event.target.value,
+                          }));
+                          setCredentialValues({});
+                        }}
+                      >
+                        {extension.profiles.map((profile) => (
+                          <option key={profile.id} value={profile.id}>
+                            {profile.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="text-sm">
+                      Service host
+                      <select
+                        className="ml-2 rounded border border-border bg-background px-2 py-1"
+                        value={
+                          credentialHostSelection[extension.id] ??
+                          extension.manifest.networkHosts?.[0] ??
+                          ""
+                        }
+                        disabled={busy}
+                        onChange={(event) => {
+                          setCredentialHostSelection((current) => ({
+                            ...current,
+                            [extension.id]: event.target.value,
+                          }));
+                          setCredentialValues({});
+                        }}
+                      >
+                        {(extension.manifest.networkHosts ?? []).map((host) => (
+                          <option key={host} value={host}>
+                            {host}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    {extension.profiles.find(
+                      (profile) =>
+                        profile.id ===
+                        (credentialProfileSelection[extension.id] ?? extension.profiles[0]?.id),
+                    )?.scope === "project" ? (
+                      <label className="text-sm">
+                        Project
+                        <select
+                          className="ml-2 rounded border border-border bg-background px-2 py-1"
+                          value={credentialProjectSelection[extension.id] ?? projects[0]?.id ?? ""}
+                          disabled={busy}
+                          onChange={(event) => {
+                            setCredentialProjectSelection((current) => ({
+                              ...current,
+                              [extension.id]: event.target.value,
+                            }));
+                            setCredentialValues({});
+                          }}
+                        >
+                          {projects.map((project) => (
+                            <option key={project.id} value={project.id}>
+                              {project.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    ) : null}
+                  </div>
+                  {extension.profiles
+                    .filter(
+                      (profile) =>
+                        profile.id ===
+                        (credentialProfileSelection[extension.id] ?? extension.profiles[0]?.id),
+                    )
+                    .flatMap((profile) =>
+                      (profile.scope === "project"
+                        ? projects
+                            .map((project) => project.id)
+                            .filter(
+                              (id) =>
+                                id ===
+                                (credentialProjectSelection[extension.id] ?? projects[0]?.id),
+                            )
+                        : [undefined]
+                      ).flatMap((projectId) =>
+                        (extension.manifest.networkHosts ?? [])
+                          .filter(
+                            (host) =>
+                              host ===
+                              (credentialHostSelection[extension.id] ??
+                                extension.manifest.networkHosts?.[0]),
+                          )
+                          .map((host) => {
+                            const key = JSON.stringify([
+                              extension.id,
+                              profile.id,
+                              projectId ?? null,
+                              host,
+                            ]);
+                            const saved =
+                              credentialStatuses[extension.id]?.some(
+                                (status) =>
+                                  status.profileId === profile.id &&
+                                  status.projectId === projectId &&
+                                  status.host === host,
+                              ) ?? false;
+                            const label = `${extension.manifest.displayName} ${profile.label}${projectId ? ` for ${projects.find((project) => project.id === projectId)?.name ?? projectId}` : ""} credential for ${host}`;
+                            return (
+                              <div key={key} className="space-y-1">
+                                <label className="block text-sm">
+                                  {label} ({saved ? "Saved" : "Not set"})
+                                  <Input
+                                    className="mt-1"
+                                    type="password"
+                                    autoComplete="off"
+                                    value={credentialValues[key] ?? ""}
+                                    disabled={busy}
+                                    onChange={(event) =>
+                                      setCredentialValues((current) => ({
+                                        ...current,
+                                        [key]: event.target.value,
+                                      }))
+                                    }
+                                  />
+                                </label>
+                                <div className="flex gap-2">
+                                  <Button
+                                    type="button"
+                                    disabled={busy || !(credentialValues[key] ?? "").trim()}
+                                    onClick={() =>
+                                      void run(async () => {
+                                        await bridge?.setExtensionCredential(
+                                          extension.id,
+                                          profile.id,
+                                          host,
+                                          credentialValues[key] ?? "",
+                                          projectId,
+                                        );
+                                        setCredentialValues((current) => ({
+                                          ...current,
+                                          [key]: "",
+                                        }));
+                                        const statuses = await bridge?.listExtensionCredentials(
+                                          extension.id,
+                                        );
+                                        if (statuses)
+                                          setCredentialStatuses((current) => ({
+                                            ...current,
+                                            [extension.id]: statuses,
+                                          }));
+                                      })
+                                    }
+                                  >
+                                    Save token
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    disabled={busy || !saved}
+                                    onClick={() =>
+                                      void run(async () => {
+                                        await bridge?.setExtensionCredential(
+                                          extension.id,
+                                          profile.id,
+                                          host,
+                                          null,
+                                          projectId,
+                                        );
+                                        const statuses = await bridge?.listExtensionCredentials(
+                                          extension.id,
+                                        );
+                                        if (statuses)
+                                          setCredentialStatuses((current) => ({
+                                            ...current,
+                                            [extension.id]: statuses,
+                                          }));
+                                      })
+                                    }
+                                  >
+                                    Remove token
+                                  </Button>
+                                </div>
+                              </div>
+                            );
+                          }),
+                      ),
+                    )}
+                </div>
+              ) : null}
+              {(credentialStatuses[extension.id] ?? [])
+                .filter(
+                  (saved) =>
+                    !extension.manifest.capabilities?.includes("credentials") ||
+                    !extension.manifest.networkHosts?.includes(saved.host) ||
+                    !extension.profiles.some((profile) => profile.id === saved.profileId) ||
+                    (saved.projectId !== undefined &&
+                      !projects.some((project) => project.id === saved.projectId)),
+                )
+                .map((saved) => (
+                  <div key={JSON.stringify(saved)} className="flex items-center gap-2 text-sm">
+                    <span>
+                      Retained credential for {saved.profileId}
+                      {saved.projectId ? ` / ${saved.projectId}` : ""} at {saved.host}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={busy}
+                      onClick={() =>
+                        void run(async () => {
+                          await bridge?.setExtensionCredential(
+                            extension.id,
+                            saved.profileId,
+                            saved.host,
+                            null,
+                            saved.projectId,
+                          );
+                          const statuses = await bridge?.listExtensionCredentials(extension.id);
+                          if (statuses)
+                            setCredentialStatuses((current) => ({
+                              ...current,
+                              [extension.id]: statuses,
+                            }));
+                        })
+                      }
+                    >
+                      Remove retained token
+                    </Button>
+                  </div>
+                ))}
               {projects.map((project) => (
                 <div key={project.id} className="space-y-1">
                   <label className="flex items-center justify-between gap-2 text-sm">
@@ -830,6 +1111,28 @@ export default function ExtensionsSettings() {
                       />
                       Allow HTTPS requests to {extension.manifest.networkHosts?.join(", ")} for{" "}
                       {project.name}
+                    </label>
+                  ) : null}
+                  {extension.manifest.capabilities?.includes("credentials") ? (
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={
+                          extension.assignment.credentialGrantedProjectIds?.includes(project.id) ??
+                          false
+                        }
+                        disabled={busy}
+                        onChange={(event) => {
+                          const ids = extension.assignment.credentialGrantedProjectIds ?? [];
+                          assign(extension, {
+                            ...extension.assignment,
+                            credentialGrantedProjectIds: event.target.checked
+                              ? [...ids, project.id]
+                              : ids.filter((id) => id !== project.id),
+                          });
+                        }}
+                      />
+                      Allow account credential use for {project.name}
                     </label>
                   ) : null}
                 </div>

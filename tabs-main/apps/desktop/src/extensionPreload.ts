@@ -17,6 +17,7 @@ contextBridge.exposeInMainWorld("tabsExtension", {
       ipcRenderer.invoke(WORKSPACE_READ_CHANNEL, relativePath),
   },
   network: {
-    getText: (url: string): Promise<string> => ipcRenderer.invoke(NETWORK_GET_CHANNEL, url),
+    getText: (url: string, options?: { useProfileCredential?: boolean }): Promise<string> =>
+      ipcRenderer.invoke(NETWORK_GET_CHANNEL, url, options?.useProfileCredential === true),
   },
 });

@@ -16,10 +16,17 @@ import {
   extensionSessionPartition,
 } from "./extensionViewManager";
 import { ExtensionStorage } from "./extensionStorage";
+import type { CredentialCryptography } from "./extensionCredentials";
 
 const temporaryRoots: string[] = [];
 
-function fixture(): { directory: string; manager: ExtensionViewManager } {
+function fixture(
+  cryptography?: CredentialCryptography,
+  networkGetText?: ConstructorParameters<typeof ExtensionViewManager>[6],
+): {
+  directory: string;
+  manager: ExtensionViewManager;
+} {
   const directory = FS.mkdtempSync(Path.join(OS.tmpdir(), "tabs-extension-test-"));
   temporaryRoots.push(directory);
   FS.mkdirSync(Path.join(directory, "dist"));
@@ -46,6 +53,8 @@ function fixture(): { directory: string; manager: ExtensionViewManager } {
     Path.join(directory, "installed.json"),
     "1.3.17",
     true,
+    cryptography,
+    networkGetText,
   );
   return { directory, manager };
 }
@@ -238,7 +247,7 @@ describe("development extension installation", () => {
       enabledProjectIds: ["project-a"],
       storageGrantedProjectIds: ["project-a"],
     });
-    const sender = { isDestroyed: () => false };
+    const sender = { isDestroyed: () => false, close: vi.fn() };
     const internal = manager as unknown as {
       active: {
         key: string;
@@ -352,7 +361,7 @@ describe("development extension installation", () => {
     const { directory, manager } = fixture();
     const manifestPath = Path.join(directory, "tabs-extension.json");
     const manifest = JSON.parse(FS.readFileSync(manifestPath, "utf8"));
-    manifest.capabilities = ["network"];
+    manifest.capabilities = ["network", "credentials"];
     manifest.networkHosts = ["api.example.com"];
     FS.writeFileSync(manifestPath, JSON.stringify(manifest));
     const installed = manager.installDevelopment(directory);
@@ -360,11 +369,158 @@ describe("development extension installation", () => {
       ...installed.assignment,
       enabledProjectIds: ["project-a"],
       networkGrantedProjectIds: ["project-a"],
+      credentialGrantedProjectIds: ["project-a"],
     });
     manifest.networkHosts.push("new.example.com");
     FS.writeFileSync(manifestPath, JSON.stringify(manifest));
     manager.installDevelopment(directory);
     expect(manager.list()[0]?.assignment.networkGrantedProjectIds).toEqual([]);
+    expect(manager.list()[0]?.assignment.credentialGrantedProjectIds).toEqual([]);
+  });
+
+  it("binds credential use to the active view, project grant, host, and named profile", async () => {
+    const cryptography: CredentialCryptography = {
+      isEncryptionAvailable: () => true,
+      getSelectedStorageBackend: () => "gnome_libsecret",
+      encryptString: (value) => Buffer.from(`encrypted:${value}`),
+      decryptString: (value) => value.toString().replace(/^encrypted:/, ""),
+    };
+    const networkGet = vi.fn(
+      async (
+        _url: string,
+        _hosts: readonly string[],
+        _token?: string,
+        _transport?: unknown,
+        _signal?: AbortSignal,
+      ) => "hello",
+    );
+    const { directory, manager } = fixture(cryptography, networkGet);
+    const manifestPath = Path.join(directory, "tabs-extension.json");
+    const manifest = JSON.parse(FS.readFileSync(manifestPath, "utf8"));
+    manifest.capabilities = ["network", "credentials"];
+    manifest.networkHosts = ["api.example.com"];
+    FS.writeFileSync(manifestPath, JSON.stringify(manifest));
+    const installed = manager.installDevelopment(directory);
+    manager.addProfile(installed.id, "work", "Work", "shared");
+    manager.addProfile(installed.id, "personal", "Personal", "shared");
+    manager.setProfileCredential(installed.id, "work", "api.example.com", "work-token");
+    manager.setProfileCredential(installed.id, "personal", "api.example.com", "personal-token");
+    expect(manager.listCredentialStatuses(installed.id)).toEqual([
+      { profileId: "work", host: "api.example.com" },
+      { profileId: "personal", host: "api.example.com" },
+    ]);
+    expect(() =>
+      manager.setProfileCredential(installed.id, "work", "other.example.com", "token"),
+    ).toThrow(/did not request/);
+    manager.setAssignment(installed.id, {
+      ...manager.list()[0]!.assignment,
+      enabledProjectIds: ["project-a"],
+      networkGrantedProjectIds: ["project-a"],
+      credentialGrantedProjectIds: ["project-a"],
+      defaultProfileId: "work",
+    });
+    const sender = { isDestroyed: () => false, close: vi.fn() };
+    const internal = manager as unknown as { active: unknown; coordinator: unknown };
+    internal.coordinator = { detachToolView: vi.fn() };
+    internal.active = {
+      key: "work",
+      view: { webContents: sender },
+      extensionId: installed.id,
+      projectId: "project-a",
+      profileId: "work",
+    };
+    await expect(
+      manager.invokeNetworkGetText(sender as never, "https://api.example.com/me", true),
+    ).resolves.toBe("hello");
+    expect(networkGet).toHaveBeenCalledWith(
+      "https://api.example.com/me",
+      ["api.example.com"],
+      "work-token",
+      undefined,
+      expect.any(AbortSignal),
+    );
+    manager.setAssignment(installed.id, {
+      ...manager.list()[0]!.assignment,
+      defaultProfileId: "personal",
+    });
+    internal.active = {
+      key: "personal",
+      view: { webContents: sender },
+      extensionId: installed.id,
+      projectId: "project-a",
+      profileId: "personal",
+    };
+    await manager.invokeNetworkGetText(sender as never, "https://api.example.com/me", true);
+    expect(networkGet).toHaveBeenLastCalledWith(
+      "https://api.example.com/me",
+      ["api.example.com"],
+      "personal-token",
+      undefined,
+      expect.any(AbortSignal),
+    );
+    await expect(
+      manager.invokeNetworkGetText(sender as never, "https://other.example.com/me", true),
+    ).rejects.toThrow(/not declared/);
+    networkGet.mockImplementationOnce(
+      async (_url, _hosts, _token, _transport, signal) =>
+        new Promise<string>((_resolve, reject) => {
+          signal?.addEventListener("abort", () => reject(new Error("cancelled")), { once: true });
+        }),
+    );
+    const inFlight = manager.invokeNetworkGetText(
+      sender as never,
+      "https://api.example.com/me",
+      true,
+    );
+    manager.setAssignment(installed.id, {
+      ...manager.list()[0]!.assignment,
+      credentialGrantedProjectIds: [],
+    });
+    await expect(inFlight).rejects.toThrow(/cancelled/);
+    internal.active = {
+      key: "revoked",
+      view: { webContents: sender },
+      extensionId: installed.id,
+      projectId: "project-a",
+      profileId: "personal",
+    };
+    await expect(
+      manager.invokeNetworkGetText(sender as never, "https://api.example.com/me", true),
+    ).rejects.toThrow(/not granted/);
+    manager.setProfileCredential(installed.id, "work", "api.example.com", null);
+    expect(manager.listCredentialStatuses(installed.id)).toEqual([
+      { profileId: "personal", host: "api.example.com" },
+    ]);
+    manifest.capabilities = ["network"];
+    FS.writeFileSync(manifestPath, JSON.stringify(manifest));
+    manager.installDevelopment(directory);
+    manager.setProfileCredential(installed.id, "personal", "api.example.com", null);
+    expect(manager.listCredentialStatuses(installed.id)).toEqual([]);
+  });
+
+  it("deletes encrypted credentials only with the explicit data-deletion uninstall", async () => {
+    const cryptography: CredentialCryptography = {
+      isEncryptionAvailable: () => true,
+      getSelectedStorageBackend: () => "gnome_libsecret",
+      encryptString: (value) => Buffer.from(`encrypted:${value}`),
+      decryptString: (value) => value.toString().replace(/^encrypted:/, ""),
+    };
+    const { directory, manager } = fixture(cryptography);
+    const manifestPath = Path.join(directory, "tabs-extension.json");
+    const manifest = JSON.parse(FS.readFileSync(manifestPath, "utf8"));
+    manifest.capabilities = ["network", "credentials"];
+    manifest.networkHosts = ["api.example.com"];
+    FS.writeFileSync(manifestPath, JSON.stringify(manifest));
+    const installed = manager.installDevelopment(directory);
+    manager.setProfileCredential(installed.id, "default", "api.example.com", "secret");
+    manager.uninstall(installed.id);
+    manager.installDevelopment(directory);
+    expect(manager.listCredentialStatuses(installed.id)).toEqual([
+      { profileId: "default", host: "api.example.com" },
+    ]);
+    await manager.uninstallAndDeleteData(installed.id);
+    manager.installDevelopment(directory);
+    expect(manager.listCredentialStatuses(installed.id)).toEqual([]);
   });
 
   it("keeps one named project-isolated profile separate across projects", () => {
