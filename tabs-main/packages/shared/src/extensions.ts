@@ -100,10 +100,15 @@ export function validateTabsExtensionManifest(
   if (
     input.capabilities !== undefined &&
     (!Array.isArray(input.capabilities) ||
-      input.capabilities.length > 1 ||
-      input.capabilities.some((capability) => capability !== "profile-storage"))
+      input.capabilities.length > 2 ||
+      new Set(input.capabilities).size !== input.capabilities.length ||
+      input.capabilities.some(
+        (capability) => capability !== "profile-storage" && capability !== "workspace-read",
+      ))
   ) {
-    errors.push("capabilities currently supports only profile-storage.");
+    errors.push(
+      "capabilities supports only profile-storage and workspace-read without duplicates.",
+    );
   }
   if (!record(contributes) || !Array.isArray(contributes.tools)) {
     errors.push("contributes.tools must be an array.");

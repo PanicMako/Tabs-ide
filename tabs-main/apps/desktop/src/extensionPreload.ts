@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 
 const CHANNEL = "desktop:extension:storage";
+const WORKSPACE_READ_CHANNEL = "desktop:extension:workspace-read";
 
 /** Deliberately no identity argument: main binds every call to the active WebContents. */
 contextBridge.exposeInMainWorld("tabsExtension", {
@@ -9,5 +10,9 @@ contextBridge.exposeInMainWorld("tabsExtension", {
     set: (key: string, value: unknown): Promise<void> =>
       ipcRenderer.invoke(CHANNEL, { kind: "set", key, value }),
     delete: (key: string): Promise<void> => ipcRenderer.invoke(CHANNEL, { kind: "delete", key }),
+  },
+  workspace: {
+    readText: (relativePath: string): Promise<string> =>
+      ipcRenderer.invoke(WORKSPACE_READ_CHANNEL, relativePath),
   },
 });

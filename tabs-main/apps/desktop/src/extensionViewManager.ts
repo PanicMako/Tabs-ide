@@ -168,6 +168,42 @@ export class ExtensionViewManager {
     );
   }
 
+  async invokeWorkspaceRead(
+    sender: Electron.WebContents,
+    relativePath: string,
+    read: (projectId: string, relativePath: string) => Promise<string>,
+  ): Promise<string> {
+    const active = this.active;
+    if (!active || active.view.webContents !== sender || sender.isDestroyed()) {
+      throw new Error("Extension view is no longer active.");
+    }
+    if (typeof relativePath !== "string" || !relativePath || relativePath.length > 240) {
+      throw new Error("Invalid workspace path.");
+    }
+    const authorize = () => {
+      const installed = this.requireInstalled(active.extensionId);
+      this.assertNotDeleting(installed.id);
+      if (installed.revoked || installed.disabled) throw new Error("Extension is unavailable.");
+      if (!installed.manifest.capabilities?.includes("workspace-read")) {
+        throw new Error("Extension did not request workspace read access.");
+      }
+      if (
+        !isExtensionEnabledForProject(installed.assignment, active.projectId) ||
+        !installed.assignment.workspaceReadGrantedProjectIds?.includes(active.projectId) ||
+        extensionProfileForProject(installed.assignment, active.projectId) !== active.profileId
+      ) {
+        throw new Error("Workspace read access is not granted for this project.");
+      }
+    };
+    authorize();
+    const contents = await read(active.projectId, relativePath);
+    if (this.active !== active || sender.isDestroyed()) {
+      throw new Error("Extension view changed during workspace read.");
+    }
+    authorize();
+    return contents;
+  }
+
   list(): DesktopInstalledExtension[] {
     return [...this.installed.values()].map((entry) => this.publicEntry(entry));
   }
@@ -205,11 +241,17 @@ export class ExtensionViewManager {
       defaultProfileId: "default",
       profileIdByProjectId: {},
     };
-    const safeAssignment =
-      parsed.manifest.capabilities?.includes("profile-storage") &&
+    const safeAssignment = {
+      ...assignment,
+      ...(parsed.manifest.capabilities?.includes("profile-storage") &&
       !previous?.manifest.capabilities?.includes("profile-storage")
-        ? { ...assignment, storageGrantedProjectIds: [] }
-        : assignment;
+        ? { storageGrantedProjectIds: [] }
+        : {}),
+      ...(parsed.manifest.capabilities?.includes("workspace-read") &&
+      !previous?.manifest.capabilities?.includes("workspace-read")
+        ? { workspaceReadGrantedProjectIds: [] }
+        : {}),
+    };
     const next: StoredExtension = {
       id: parsed.id,
       manifest: parsed.manifest,
@@ -267,11 +309,17 @@ export class ExtensionViewManager {
     const next: StoredExtension = {
       id: inspected.id,
       manifest: inspected.manifest,
-      assignment:
-        inspected.manifest.capabilities?.includes("profile-storage") &&
+      assignment: {
+        ...assignment,
+        ...(inspected.manifest.capabilities?.includes("profile-storage") &&
         !previous?.manifest.capabilities?.includes("profile-storage")
-          ? { ...assignment, storageGrantedProjectIds: [] }
-          : assignment,
+          ? { storageGrantedProjectIds: [] }
+          : {}),
+        ...(inspected.manifest.capabilities?.includes("workspace-read") &&
+        !previous?.manifest.capabilities?.includes("workspace-read")
+          ? { workspaceReadGrantedProjectIds: [] }
+          : {}),
+      },
       profiles: previous?.profiles ?? retained?.profiles ?? [{ id: "default", label: "Default" }],
       ...(previous?.disabled ? { disabled: true } : {}),
       ...this.dataInventoryFields(previous, retained),
@@ -377,6 +425,7 @@ export class ExtensionViewManager {
             enabledGlobally: false,
             enabledProjectIds: [],
             storageGrantedProjectIds: [],
+            workspaceReadGrantedProjectIds: [],
           }
         : assignment,
       profiles: previous?.profiles ?? retained?.profiles ?? [{ id: "default", label: "Default" }],

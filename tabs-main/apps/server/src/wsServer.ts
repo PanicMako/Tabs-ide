@@ -8,9 +8,11 @@ import * as Context from "effect/Context";
  * @module Server
  */
 import http from "node:http";
+import * as NodeCrypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import type { Duplex } from "node:stream";
+import { readExtensionWorkspaceFile } from "./extensionWorkspaceRead.ts";
 
 import Mime from "@effect/platform-node/Mime";
 import {
@@ -694,6 +696,53 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
             }
             return session;
           });
+
+        if (req.method === "POST" && url.pathname === "/internal/extensions/read-project-file") {
+          const remote = req.socket.remoteAddress;
+          if (
+            !authToken ||
+            (remote !== "127.0.0.1" && remote !== "::1" && remote !== "::ffff:127.0.0.1")
+          ) {
+            respondJson(404, { error: "Not found." });
+            return;
+          }
+          const supplied = req.headers["x-tabs-backend-token"];
+          const expected = Buffer.from(authToken);
+          const actual = Buffer.from(typeof supplied === "string" ? supplied : "");
+          if (actual.length !== expected.length || !NodeCrypto.timingSafeEqual(actual, expected)) {
+            respondJson(401, { error: "Unauthorized." });
+            return;
+          }
+          const parsed = yield* Effect.tryPromise(
+            async () => JSON.parse(await readHttpRequestBody(req)) as unknown,
+          ).pipe(Effect.exit);
+          if (Exit.isFailure(parsed) || !parsed.value || typeof parsed.value !== "object") {
+            respondJson(400, { error: "Invalid request." });
+            return;
+          }
+          const input = parsed.value as Record<string, unknown>;
+          if (typeof input.projectId !== "string" || typeof input.relativePath !== "string") {
+            respondJson(400, { error: "Invalid request." });
+            return;
+          }
+          const snapshot = yield* projectionReadModelQuery.getSnapshot();
+          const project = snapshot.projects.find(
+            (candidate) => candidate.id === input.projectId && candidate.deletedAt === null,
+          );
+          if (!project) {
+            respondJson(404, { error: "Project not found." });
+            return;
+          }
+          const read = yield* Effect.tryPromise(() =>
+            readExtensionWorkspaceFile(project.workspaceRoot, input.relativePath as string),
+          ).pipe(Effect.exit);
+          if (Exit.isFailure(read)) {
+            respondJson(400, { error: "Workspace file is unavailable." });
+            return;
+          }
+          respondJson(200, { contents: read.value });
+          return;
+        }
 
         if (req.method === "GET" && url.pathname === "/.well-known/t3/environment") {
           respondJson(200, yield* serverEnvironment.getDescriptor);

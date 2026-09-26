@@ -27,7 +27,7 @@ Place `tabs-extension.json` at the root of a local folder. See
 working example. Version 1 requires a lowercase publisher and package name,
 a semantic version, a Tabs version range, and 1-12 full-workspace tools. Each
 tool names a packaged HTML entry. Paths must be relative to the extension
-root. The only supported optional capability is `profile-storage`. Unsupported
+root. Supported optional capabilities are `profile-storage` and `workspace-read`. Unsupported
 runtime and capability declarations are rejected rather than silently ignored.
 Optional `releaseNotes` is plain text (maximum 10,000 characters). Optional
 `sourceUrl`, `supportUrl`, and `privacyUrl` must be HTTPS links without embedded
@@ -36,6 +36,9 @@ publisher-supplied details alongside the supported Tabs version range and
 requested capabilities. Links and release notes are informational, not a
 security endorsement or installation authorization; the desktop opens links
 in the system browser and renders notes as text.
+
+The [Workspace Reader example](../examples/workspace-reader-extension/README.md)
+shows both supported capabilities with separate project grants.
 
 The development package has no Node integration, direct network access,
 navigation, or popups. Its files are served
@@ -53,6 +56,17 @@ deliberately sees the same values across separately granted projects. A
 project-isolated profile uses a distinct browser partition and bridge storage
 namespace for each project. Choose the scope when creating a named profile;
 it cannot be changed later without creating a new profile.
+
+`window.tabsExtension.workspace.readText(relativePath)` is available only when
+the manifest requests `workspace-read` and the user grants it for the current
+project in Profiles & Permissions. It returns a UTF-8 text file (maximum 1 MiB)
+or rejects. Paths are relative to the active project's root; the extension
+cannot supply a root or project ID. The server resolves the active project's
+root from its own project record and rejects traversal and links outside that
+root. Grants are checked before and after the broker call, so disabling the
+extension, switching projects, or revoking permission invalidates an in-flight
+response. This is read-only; write, git, network, and credential brokers are
+not yet available. The bridge remains bound to the active extension main frame.
 
 ## Enabling and profiles
 
@@ -132,7 +146,10 @@ closes, toolbar contributions disappear, and Settings explains the status.
 Transport outages retain the last known status; invalid or expired metadata
 does not qualify as offline. The flow does not yet check revocation continuously
 while a view is active, automatically install updates, or provide package
-rollback.
+rollback of a newly installed UI that fails first activation. The previous
+package and assignment are retained until the new view loads, including across
+an app restart. This is not a rollback of extension-authored data migrations or
+failures that occur after first load.
 
 ## Not yet supported
 
@@ -144,7 +161,7 @@ by default. Set `TABS_EXCHANGE_ORIGIN` in a development desktop process to
 display compatible approved catalog listings; HTTPS is required except for
 `http://localhost` in development. Catalog entries are not trusted installation
 metadata and cannot authorize an install alone. The
-production update/revocation lifecycle, workspace/network/credential
+production update/revocation lifecycle, workspace write/network/credential
 brokers, background runtime, AI-callable tools, and account-credential storage
 are not implemented. Those features require additional security and lifecycle
 work before a public extension ecosystem can be enabled.

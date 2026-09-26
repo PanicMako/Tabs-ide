@@ -193,6 +193,7 @@ const EXTENSION_ACTIVATE_CHANNEL = "desktop:extension:activate";
 const EXTENSION_SET_BOUNDS_CHANNEL = "desktop:extension:set-bounds";
 const EXTENSION_HIDE_CHANNEL = "desktop:extension:hide";
 const EXTENSION_STORAGE_CHANNEL = "desktop:extension:storage";
+const EXTENSION_WORKSPACE_READ_CHANNEL = "desktop:extension:workspace-read";
 const WRITE_CLIPBOARD_TEXT_CHANNEL = "desktop:clipboard:write-text";
 const READ_CLIPBOARD_TEXT_CHANNEL = "desktop:clipboard:read-text";
 const DESKTOP_CAPTURE_SCREEN_CHANNEL = "desktop:capture:screen";
@@ -2291,6 +2292,41 @@ function registerIpcHandlers(): void {
     return extensionViewManager.invokeStorage(
       event.sender,
       operation as Parameters<ExtensionViewManager["invokeStorage"]>[1],
+    );
+  });
+  ipcMain.removeHandler(EXTENSION_WORKSPACE_READ_CHANNEL);
+  ipcMain.handle(EXTENSION_WORKSPACE_READ_CHANNEL, async (event, relativePath: unknown) => {
+    if (event.senderFrame !== event.sender.mainFrame) {
+      throw new Error("Extension workspace access is available only to the main frame.");
+    }
+    return extensionViewManager.invokeWorkspaceRead(
+      event.sender,
+      relativePath as string,
+      async (projectId, path) => {
+        if (!backendHttpUrl || !backendAuthToken)
+          throw new Error("Project backend is unavailable.");
+        const response = await fetch(`${backendHttpUrl}/internal/extensions/read-project-file`, {
+          method: "POST",
+          redirect: "error",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Tabs-Backend-Token": backendAuthToken,
+          },
+          body: JSON.stringify({ projectId, relativePath: path }),
+          signal: AbortSignal.timeout(10_000),
+        });
+        if (!response.ok)
+          throw new Error("Project file is unavailable or outside the granted workspace.");
+        const value: unknown = await response.json();
+        if (
+          !value ||
+          typeof value !== "object" ||
+          typeof (value as { contents?: unknown }).contents !== "string"
+        ) {
+          throw new Error("Invalid project file response.");
+        }
+        return (value as { contents: string }).contents;
+      },
     );
   });
   ipcMain.removeHandler(HOST_POWER_GET_CHANNEL);

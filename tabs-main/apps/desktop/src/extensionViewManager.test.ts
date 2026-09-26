@@ -280,6 +280,74 @@ describe("development extension installation", () => {
     );
   });
 
+  it("binds workspace reads to the active project and revokes in-flight access", async () => {
+    const { directory, manager } = fixture();
+    const manifestPath = Path.join(directory, "tabs-extension.json");
+    const manifest = JSON.parse(FS.readFileSync(manifestPath, "utf8"));
+    manifest.capabilities = ["workspace-read"];
+    FS.writeFileSync(manifestPath, JSON.stringify(manifest));
+    const installed = manager.installDevelopment(directory);
+    manager.setAssignment(installed.id, {
+      ...installed.assignment,
+      enabledProjectIds: ["project-a"],
+      workspaceReadGrantedProjectIds: ["project-a"],
+    });
+    const sender = { isDestroyed: () => false, close: vi.fn() };
+    const internal = manager as unknown as {
+      active: unknown;
+      coordinator: unknown;
+    };
+    internal.coordinator = { detachToolView: vi.fn() };
+    internal.active = {
+      key: "active",
+      view: { webContents: sender },
+      extensionId: installed.id,
+      projectId: "project-a",
+      profileId: "default",
+    };
+    const read = vi.fn(async (projectId: string) => `${projectId}:hello`);
+    await expect(manager.invokeWorkspaceRead(sender as never, "docs/intro.md", read)).resolves.toBe(
+      "project-a:hello",
+    );
+    expect(read).toHaveBeenCalledWith("project-a", "docs/intro.md");
+    await expect(
+      manager.invokeWorkspaceRead({ isDestroyed: () => false } as never, "docs/intro.md", read),
+    ).rejects.toThrow(/no longer active/);
+    manager.setAssignment(installed.id, {
+      ...manager.list()[0]!.assignment,
+      workspaceReadGrantedProjectIds: [],
+    });
+    internal.active = {
+      key: "revoked-grant",
+      view: { webContents: sender },
+      extensionId: installed.id,
+      projectId: "project-a",
+      profileId: "default",
+    };
+    await expect(
+      manager.invokeWorkspaceRead(sender as never, "docs/intro.md", read),
+    ).rejects.toThrow(/not granted/);
+    manager.setAssignment(installed.id, {
+      ...manager.list()[0]!.assignment,
+      workspaceReadGrantedProjectIds: ["project-a"],
+    });
+    internal.active = {
+      key: "renewed-grant",
+      view: { webContents: sender },
+      extensionId: installed.id,
+      projectId: "project-a",
+      profileId: "default",
+    };
+    let resolveRead: (value: string) => void = () => {};
+    const pending = new Promise<string>((resolve) => {
+      resolveRead = resolve;
+    });
+    const inFlight = manager.invokeWorkspaceRead(sender as never, "docs/intro.md", () => pending);
+    manager.setDisabled(installed.id, true);
+    resolveRead("secret");
+    await expect(inFlight).rejects.toThrow(/changed during workspace read/);
+  });
+
   it("keeps one named project-isolated profile separate across projects", () => {
     const { directory, manager } = fixture();
     const manifestPath = Path.join(directory, "tabs-extension.json");
@@ -792,7 +860,7 @@ describe("development extension installation", () => {
     expect(manager.list()[0]?.id).toBe(installed.id);
   });
 
-  it("requires fresh project consent when an Exchange update adds storage access", async () => {
+  it("requires fresh project consent when an Exchange update adds privileged access", async () => {
     const { directory, manager } = fixture();
     const source = Path.join(directory, "source");
     FS.mkdirSync(Path.join(source, "dist"), { recursive: true });
@@ -825,7 +893,7 @@ describe("development extension installation", () => {
     manager.setDisabled(installed.id, true);
     manager.setUpdatesPinned(installed.id, true);
     manifest.version = "1.0.1";
-    manifest.capabilities = ["profile-storage"];
+    manifest.capabilities = ["profile-storage", "workspace-read"];
     FS.writeFileSync(manifestPath, JSON.stringify(manifest));
     const updateArchive = Path.join(directory, "updated-exchange.tabsext");
     const update = await packTabsext({
@@ -851,6 +919,7 @@ describe("development extension installation", () => {
     expect(manager.list()[0]?.digest).toBe(update.digest);
     expect(updated.assignment.enabledProjectIds).toEqual([]);
     expect(updated.assignment.storageGrantedProjectIds).toEqual([]);
+    expect(updated.assignment.workspaceReadGrantedProjectIds).toEqual([]);
     expect(updated.profiles.map((profile) => profile.id)).toEqual(["default", "work"]);
     expect(
       FS.existsSync(Path.join(directory, "extension-packages", installed.id, first.digest)),

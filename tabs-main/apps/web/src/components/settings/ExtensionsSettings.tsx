@@ -786,6 +786,29 @@ export default function ExtensionsSettings() {
                       Allow non-secret profile storage for {project.name}
                     </label>
                   ) : null}
+                  {extension.manifest.capabilities?.includes("workspace-read") ? (
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={
+                          extension.assignment.workspaceReadGrantedProjectIds?.includes(
+                            project.id,
+                          ) ?? false
+                        }
+                        disabled={busy}
+                        onChange={(event) => {
+                          const ids = extension.assignment.workspaceReadGrantedProjectIds ?? [];
+                          assign(extension, {
+                            ...extension.assignment,
+                            workspaceReadGrantedProjectIds: event.target.checked
+                              ? [...ids, project.id]
+                              : ids.filter((id) => id !== project.id),
+                          });
+                        }}
+                      />
+                      Allow read-only workspace files for {project.name}
+                    </label>
+                  ) : null}
                 </div>
               ))}
             </div>

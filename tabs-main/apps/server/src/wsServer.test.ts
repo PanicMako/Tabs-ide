@@ -1769,6 +1769,52 @@ describe("WebSocket Server", () => {
     });
   });
 
+  it("binds internal extension reads to an authenticated project ID", async () => {
+    const workspace = makeTempDir("tabs-extension-project-");
+    const outside = makeTempDir("tabs-extension-outside-");
+    fs.writeFileSync(path.join(workspace, "note.txt"), "project-only");
+    fs.writeFileSync(path.join(outside, "secret.txt"), "outside-secret");
+    fs.symlinkSync(outside, path.join(workspace, "linked"));
+    server = await createTestServer({ cwd: "/test", authToken: "extension-backend-token" });
+    const addr = server.address();
+    const port = typeof addr === "object" && addr !== null ? addr.port : 0;
+    const [ws] = await connectAndAwaitWelcome(port, "extension-backend-token");
+    connections.push(ws);
+    const created = await sendRequest(ws, ORCHESTRATION_WS_METHODS.dispatchCommand, {
+      type: "project.create",
+      commandId: "cmd-extension-project-create",
+      projectId: "extension-project-a",
+      title: "Extension Project",
+      workspaceRoot: workspace,
+      defaultModelSelection: { provider: "codex", model: "gpt-5-codex" },
+      createdAt: new Date().toISOString(),
+    });
+    expect(created.error).toBeUndefined();
+    const endpoint = `http://127.0.0.1:${port}/internal/extensions/read-project-file`;
+    const request = (projectId: string, relativePath: string, token?: string) =>
+      fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { "X-Tabs-Backend-Token": token } : {}),
+        },
+        body: JSON.stringify({ projectId, relativePath }),
+      });
+    expect((await request("extension-project-a", "note.txt")).status).toBe(401);
+    const allowed = await request("extension-project-a", "note.txt", "extension-backend-token");
+    expect(allowed.status).toBe(200);
+    expect(await allowed.json()).toEqual({ contents: "project-only" });
+    expect((await request("unknown-project", "note.txt", "extension-backend-token")).status).toBe(
+      404,
+    );
+    expect(
+      (await request("extension-project-a", "linked/secret.txt", "extension-backend-token")).status,
+    ).toBe(400);
+    expect(
+      (await request("extension-project-a", "../secret.txt", "extension-backend-token")).status,
+    ).toBe(400);
+  }, 20_000);
+
   it("keeps projects.readFile restricted to relative paths inside the workspace root", async () => {
     const workspace = makeTempDir("tabs-ws-read-file-reject-");
     const outsideFile = path.join(makeTempDir("tabs-ws-read-file-outside-"), "secret.md");

@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Workspace Reader</title>
+    <link rel="stylesheet" href="./style.css" />
+    <script type="module" src="./app.js"></script>
+  </head>
+  <body>
+    <main>
+      <h1>Workspace Reader</h1>
+      <p>Choose a UTF-8 text file inside this project. Tabs checks this project's grant on every read.</p>
+      <form id="read-form">
+        <label for="relative-path">Path relative to project root</label>
+        <input id="relative-path" required maxlength="240" placeholder="README.md" autocomplete="off" />
+        <button type="submit">Read file</button>
+      </form>
+      <p id="status" role="status" aria-live="polite"></p>
+      <h2>Contents</h2>
+      <pre id="contents" tabindex="0" aria-label="Workspace file contents"></pre>
+    </main>
+  </body>
+</html>

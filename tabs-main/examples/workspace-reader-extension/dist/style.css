@@ -1,0 +1,7 @@
+:root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+body { margin: 0; }
+main { max-width: 48rem; margin: 0 auto; padding: 2rem; }
+form { display: grid; gap: 0.75rem; }
+input, button { font: inherit; padding: 0.5rem; }
+button { width: fit-content; cursor: pointer; }
+pre { min-height: 8rem; max-height: 55vh; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; padding: 1rem; border: 1px solid currentColor; }

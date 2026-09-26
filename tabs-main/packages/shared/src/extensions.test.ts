@@ -24,11 +24,19 @@ describe("Tabs extension manifest", () => {
     });
   });
 
-  it("accepts only the supported storage capability", () => {
+  it("accepts only supported capabilities without duplicates", () => {
     expect(
-      validateTabsExtensionManifest({ ...manifest, capabilities: ["profile-storage"] }, "1.3.17")
-        .ok,
+      validateTabsExtensionManifest(
+        { ...manifest, capabilities: ["profile-storage", "workspace-read"] },
+        "1.3.17",
+      ).ok,
     ).toBe(true);
+    expect(
+      validateTabsExtensionManifest(
+        { ...manifest, capabilities: ["workspace-read", "workspace-read"] },
+        "1.3.17",
+      ).ok,
+    ).toBe(false);
     expect(
       validateTabsExtensionManifest({ ...manifest, capabilities: ["network"] }, "1.3.17").ok,
     ).toBe(false);
