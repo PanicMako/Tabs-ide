@@ -2,6 +2,7 @@ import * as FS from "node:fs/promises";
 import * as Path from "node:path";
 import * as Crypto from "node:crypto";
 import type { InspectedTabsext } from "@tabs/extension-package";
+import type { ReviewDiff } from "./reviewDiff.ts";
 
 export interface ScanIssue {
   readonly severity: "blocking" | "warning";
@@ -14,6 +15,7 @@ export interface ScanResult {
   readonly issues: ReadonlyArray<ScanIssue>;
   readonly digest: string;
   readonly scannedAt: string;
+  readonly reviewDiff?: ReviewDiff;
   readonly files: Readonly<Record<string, string>>;
   readonly comparisonVersion?: string;
   readonly capabilityChanges: {

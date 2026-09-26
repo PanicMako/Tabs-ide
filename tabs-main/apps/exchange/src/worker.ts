@@ -6,6 +6,7 @@ import type { S3Client } from "@aws-sdk/client-s3";
 import { extractTabsext } from "@tabs/extension-package";
 import type { Pool } from "pg";
 import { createPool, createStorage, loadConfig, type ExchangeConfig } from "./config.ts";
+import { buildReviewDiff } from "./reviewDiff.ts";
 import { scanExtractedPackage, type ScanResult } from "./scan.ts";
 import { boundedObject } from "./storage.ts";
 
@@ -58,20 +59,65 @@ export async function scanNextVersion(
     }
     const prior = await pool.query<{
       version: string;
-      manifest: { contributes?: unknown; capabilities?: string[]; networkHosts?: string[] };
-      scan_result: { files?: Record<string, string> } | null;
+      digest: string;
+      bytes: number;
+      object_key: string;
     }>(
-      `SELECT version, manifest, scan_result FROM exchange_versions WHERE namespace = $1 AND name = $2
+      `SELECT version, digest, bytes, object_key FROM exchange_versions WHERE namespace = $1 AND name = $2
        AND status = 'approved' ORDER BY submitted_at DESC LIMIT 1`,
       [job.namespace, job.name],
     );
+    let priorDirectory: string | undefined;
+    let priorInspected: typeof inspected | undefined;
+    let priorFiles: Record<string, string> = {};
+    const priorVersion = prior.rows[0];
+    if (priorVersion) {
+      const priorBytes = await boundedObject(storage, config.bucket, priorVersion.object_key);
+      if (
+        priorBytes.length !== priorVersion.bytes ||
+        Crypto.createHash("sha256").update(priorBytes).digest("hex") !== priorVersion.digest
+      ) {
+        throw new Error("Previously approved package failed digest verification.");
+      }
+      const priorArchive = Path.join(temporary, "prior.tabsext");
+      await FS.writeFile(priorArchive, priorBytes, { flag: "wx", mode: 0o600 });
+      priorDirectory = Path.join(temporary, "prior-extracted");
+      priorInspected = await extractTabsext({
+        archive: priorArchive,
+        destination: priorDirectory,
+        expectedDigest: priorVersion.digest,
+        tabsVersion: config.tabsVersion,
+      });
+      if (
+        priorInspected.manifest.publisher !== job.namespace ||
+        priorInspected.manifest.name !== job.name ||
+        priorInspected.manifest.version !== priorVersion.version
+      ) {
+        throw new Error("Previously approved package identity changed.");
+      }
+      priorFiles = (await scanExtractedPackage(priorDirectory, priorInspected)).files;
+    }
     result = await scanExtractedPackage(
       installed,
       inspected,
-      prior.rows[0]?.manifest,
-      prior.rows[0]?.scan_result?.files,
-      prior.rows[0]?.version,
+      priorInspected?.manifest,
+      priorFiles,
+      priorVersion?.version,
     );
+    result = {
+      ...result,
+      reviewDiff: await buildReviewDiff({
+        currentDirectory: installed,
+        currentFiles: inspected.files,
+        ...(priorDirectory ? { priorDirectory } : {}),
+        ...(priorInspected ? { priorFiles: priorInspected.files } : {}),
+        changedFiles: [
+          ...result.changes.added,
+          ...result.changes.modified,
+          ...result.changes.removed,
+        ],
+      }),
+    };
   } catch (error) {
     result = {
       passed: false,

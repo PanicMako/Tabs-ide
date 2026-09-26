@@ -9,7 +9,8 @@ public catalog until an admin approves the exact SHA-256 digest after scanning.
 **Do not enable public publishing yet.** `EXCHANGE_PUBLISHING_ENABLED` defaults
 to `false`. The publisher terms are a draft, the scanner does not include a
 malware intelligence feed or external dependency advisory checks, and the
-reviewer view does not yet present a full package diff. A production root
+reviewer view shows bounded text diffs but cannot display large or binary files,
+so reviewers must inspect the exact archive separately. A production root
 signing ceremony, continuous revocation checks, and automatic updates are not
 implemented. Desktop builds can display compatible approved listings from
 `TABS_EXCHANGE_ORIGIN`; a separately provisioned trust root is required for
@@ -114,7 +115,12 @@ POST bodies, capped at 25 MiB. The `tabs_exchange_session` cookie is HttpOnly.
 | `POST /v1/review/:namespace/:name/:version`           | Admin decision: `approve`, `reject`, or `revoke`, with digest and reason |
 
 The worker scans queued packages, verifies stored bytes, extracts with bounded
-ZIP validation, and writes a scan result. A blocking scan result prevents
+ZIP validation, and writes a scan result. It also re-downloads and verifies the
+last approved archive before generating a version-to-version text diff. The
+reviewer portal marks binary, large, or computationally expensive diffs as
+omitted, caps the preview to 40 files and 128 KiB overall, and offers the exact
+archive for full inspection. If the prior approved archive fails verification,
+the new submission cannot pass scanning. A blocking scan result prevents
 approval. The scan records capabilities added or removed relative to the last
 approved version and warns on increases; the reviewer queue displays those
 changes alongside the requested capabilities and file-change counts. This

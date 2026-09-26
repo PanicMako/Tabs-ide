@@ -178,6 +178,23 @@ async function refreshReview() {
       fileChanges.textContent = `Package files: ${files.added?.length ?? 0} added, ${files.modified?.length ?? 0} modified, ${files.removed?.length ?? 0} removed.`;
       li.append(fileChanges);
     }
+    if (scan?.reviewDiff) {
+      const diff = document.createElement("details");
+      const summary = document.createElement("summary");
+      summary.textContent = `Inspect text changes (${scan.reviewDiff.entries.length} files${scan.reviewDiff.truncated ? ", preview truncated" : ""})`;
+      diff.append(summary);
+      for (const entry of scan.reviewDiff.entries) {
+        const heading = document.createElement("h4");
+        heading.textContent = `${entry.change}: ${entry.file}`;
+        diff.append(heading);
+        const preview = document.createElement("pre");
+        preview.textContent =
+          entry.patch ??
+          `Preview omitted: ${entry.omitted}. Download the archive for full inspection.`;
+        diff.append(preview);
+      }
+      li.append(diff);
+    }
     const details = document.createElement("pre");
     details.textContent = JSON.stringify(
       { manifest: entry.manifest, scan: entry.scan_result },
