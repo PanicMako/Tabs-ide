@@ -192,3 +192,22 @@ production update/revocation lifecycle, workspace write broker,
 background runtime, AI-callable tools, and full account OAuth flows
 are not implemented. Those features require additional security and lifecycle
 work before a public extension ecosystem can be enabled.
+
+## Optional logic runtime spike
+
+The desktop tree contains an isolated `extensionLogicSpike` probe, but manifests
+still reject logic and AI-tool declarations. The probe runs one synchronous
+`run(input)` invocation in a fresh Node worker hosting QuickJS-in-WASM. Its
+QuickJS runtime has an 8 MiB heap limit, a 512 KiB stack limit, and an inner
+deadline interrupt; the trusted caller also has an outer deadline that
+terminates a stuck worker. Input and output are JSON-only and bounded, and the
+guest receives no Node, network, Tabs bridge, or filesystem API. Tests cover
+infinite loops, memory exhaustion, explicit cancellation, a worker blocked
+outside QuickJS, worker crash/recovery, and oversized data. The desktop build
+emits the worker as a separate runtime asset.
+
+This probe does not establish that arbitrary packages are safe or provide an
+extension background API. Before activation, broker calls need identity and
+project-grant binding, async execution and cancellation semantics, packaged
+runtime verification across platforms, resource measurements under sustained
+load, and a dynamic AI-tool integration test with each supported provider.

@@ -31,4 +31,8 @@ export default defineConfig([
     ...shared,
     entry: ["src/extensionPreload.ts"],
   },
+  {
+    ...shared,
+    entry: ["src/extensionLogicWorker.js"],
+  },
 ]);
