@@ -21,6 +21,9 @@ const VERSION_ROUTE =
   /^\/v1\/extensions\/([a-z][a-z0-9-]{1,62})\/([a-z][a-z0-9-]{1,62})\/versions\/([^/]+)$/;
 const UPLOAD_ROUTE = /^\/v1\/publisher\/([a-z][a-z0-9-]{1,62})\/([a-z][a-z0-9-]{1,62})\/versions$/;
 const REVIEW_ROUTE = /^\/v1\/review\/([a-z][a-z0-9-]{1,62})\/([a-z][a-z0-9-]{1,62})\/([^/]+)$/;
+const APPEAL_ROUTE =
+  /^\/v1\/publisher\/([a-z][a-z0-9-]{1,62})\/([a-z][a-z0-9-]{1,62})\/versions\/([^/]+)\/appeals$/;
+const APPEAL_RESPONSE_ROUTE = /^\/v1\/review\/appeals\/([1-9][0-9]*)\/response$/;
 const REVIEW_DOWNLOAD_ROUTE =
   /^\/v1\/review\/([a-z][a-z0-9-]{1,62})\/([a-z][a-z0-9-]{1,62})\/([^/]+)\/download$/;
 const TUF_METADATA_ROUTE =
@@ -129,7 +132,11 @@ export function createExchangeServer(
       const tufTarget = request.method === "GET" ? TUF_TARGET_ROUTE.exec(path) : null;
       if (tufTarget) {
         const [, namespace, name, hashPrefix, version] = tufTarget;
-        const found = await pool.query<{ digest: string; bytes: number; object_key: string }>(
+        const found = await pool.query<{
+          digest: string;
+          bytes: number;
+          object_key: string;
+        }>(
           `SELECT digest, bytes, object_key FROM exchange_versions
            WHERE namespace = $1 AND name = $2 AND version = $3 AND status = 'approved'`,
           [namespace, name, version],
@@ -156,10 +163,22 @@ export function createExchangeServer(
         return;
       }
       const publicFiles: Record<string, { file: string; type: string }> = {
-        "/publisher": { file: "publisher.html", type: "text/html; charset=utf-8" },
-        "/publisher-terms": { file: "publisher-terms.html", type: "text/html; charset=utf-8" },
-        "/publisher.js": { file: "publisher.js", type: "text/javascript; charset=utf-8" },
-        "/publisher.css": { file: "publisher.css", type: "text/css; charset=utf-8" },
+        "/publisher": {
+          file: "publisher.html",
+          type: "text/html; charset=utf-8",
+        },
+        "/publisher-terms": {
+          file: "publisher-terms.html",
+          type: "text/html; charset=utf-8",
+        },
+        "/publisher.js": {
+          file: "publisher.js",
+          type: "text/javascript; charset=utf-8",
+        },
+        "/publisher.css": {
+          file: "publisher.css",
+          type: "text/css; charset=utf-8",
+        },
       };
       if (request.method === "GET" && publicFiles[path]) {
         const asset = publicFiles[path]!;
@@ -226,6 +245,63 @@ export function createExchangeServer(
           [actor.id],
         );
         json(response, 200, { submissions: found.rows });
+        return;
+      }
+      if (request.method === "GET" && path === "/v1/publisher/appeals") {
+        const actor = await actorFor(request, pool, config);
+        if (!actor) throw new HttpError(401, "Authentication required.");
+        const found = await pool.query(
+          `SELECT a.id, a.namespace, a.name, a.version, a.digest, a.message, a.created_at,
+                  a.response, a.responded_at FROM exchange_appeals a
+           JOIN exchange_namespace_members m ON m.namespace = a.namespace
+           WHERE m.user_id = $1 ORDER BY a.created_at DESC LIMIT 100`,
+          [actor.id],
+        );
+        json(response, 200, { appeals: found.rows });
+        return;
+      }
+      const appealMatch = request.method === "POST" ? APPEAL_ROUTE.exec(path) : null;
+      if (appealMatch) {
+        const actor = requireMutation(request, await actorFor(request, pool, config), config);
+        const body = await readJson(request);
+        if (
+          typeof body.message !== "string" ||
+          !body.message.trim() ||
+          body.message.length > 4000 ||
+          typeof body.digest !== "string" ||
+          !/^[a-f0-9]{64}$/.test(body.digest)
+        ) {
+          throw new HttpError(400, "Appeal requires a message and exact package digest.");
+        }
+        const message = body.message.trim();
+        const version = decodeURIComponent(appealMatch[3]!);
+        const result = await inTransaction(pool, async (client) => {
+          const found = await client.query<{ digest: string; status: string }>(
+            `SELECT v.digest, v.status FROM exchange_versions v
+             JOIN exchange_namespace_members m ON m.namespace = v.namespace
+             WHERE v.namespace = $1 AND v.name = $2 AND v.version = $3 AND m.user_id = $4 FOR UPDATE OF v`,
+            [appealMatch[1], appealMatch[2], version, actor.id],
+          );
+          if (!found.rows[0]) throw new HttpError(404, "Submission not found.");
+          if (
+            found.rows[0].digest !== body.digest ||
+            !["rejected", "revoked"].includes(found.rows[0].status)
+          ) {
+            throw new HttpError(409, "Only the exact rejected or revoked version can be appealed.");
+          }
+          const open = await client.query(
+            `SELECT id FROM exchange_appeals WHERE namespace = $1 AND name = $2 AND version = $3
+             AND responded_at IS NULL`,
+            [appealMatch[1], appealMatch[2], version],
+          );
+          if (open.rowCount) throw new HttpError(409, "An appeal is already awaiting a response.");
+          return client.query<{ id: string }>(
+            `INSERT INTO exchange_appeals(namespace, name, version, digest, actor_id, message)
+             VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+            [appealMatch[1], appealMatch[2], version, body.digest, actor.id, message],
+          );
+        });
+        json(response, 201, { id: result.rows[0]?.id, status: "open" });
         return;
       }
       if (request.method === "POST" && path === "/v1/logout") {
@@ -415,7 +491,11 @@ export function createExchangeServer(
       const downloadVersion = downloadMatch ? VERSION_ROUTE.exec(downloadMatch[1]!) : null;
       if (downloadVersion) {
         const version = decodeURIComponent(downloadVersion[3]!);
-        const found = await pool.query<{ digest: string; bytes: number; object_key: string }>(
+        const found = await pool.query<{
+          digest: string;
+          bytes: number;
+          object_key: string;
+        }>(
           `SELECT digest, bytes, object_key FROM exchange_versions
            WHERE namespace = $1 AND name = $2 AND version = $3 AND status = 'approved'`,
           [downloadVersion[1], downloadVersion[2], version],
@@ -448,6 +528,40 @@ export function createExchangeServer(
            ORDER BY submitted_at ASC LIMIT 100`,
         );
         json(response, 200, { submissions: found.rows });
+        return;
+      }
+      if (request.method === "GET" && path === "/v1/review/appeals") {
+        const actor = await actorFor(request, pool, config);
+        if (!actor?.admin) throw new HttpError(403, "Reviewer access required.");
+        const found = await pool.query(
+          `SELECT a.id, a.namespace, a.name, a.version, a.digest, a.message, a.created_at,
+                  a.response, a.responded_at, v.status, v.review_reason
+           FROM exchange_appeals a JOIN exchange_versions v
+             ON v.namespace = a.namespace AND v.name = a.name AND v.version = a.version
+           WHERE a.responded_at IS NULL ORDER BY a.created_at ASC LIMIT 100`,
+        );
+        json(response, 200, { appeals: found.rows });
+        return;
+      }
+      const appealResponse = request.method === "POST" ? APPEAL_RESPONSE_ROUTE.exec(path) : null;
+      if (appealResponse) {
+        const actor = requireMutation(request, await actorFor(request, pool, config), config);
+        if (!actor.admin) throw new HttpError(403, "Reviewer access required.");
+        const body = await readJson(request);
+        if (
+          typeof body.response !== "string" ||
+          !body.response.trim() ||
+          body.response.length > 4000
+        ) {
+          throw new HttpError(400, "A response is required.");
+        }
+        const changed = await pool.query(
+          `UPDATE exchange_appeals SET response = $2, responded_by = $3, responded_at = now()
+           WHERE id = $1 AND responded_at IS NULL RETURNING id`,
+          [appealResponse[1], body.response.trim(), actor.id],
+        );
+        if (changed.rowCount !== 1) throw new HttpError(409, "Appeal is not open.");
+        json(response, 200, { id: appealResponse[1], status: "answered" });
         return;
       }
       if (request.method === "GET" && path === "/v1/review/approved") {
@@ -500,7 +614,10 @@ export function createExchangeServer(
             [verifyNamespace[1], actor.id, body.verified, proofUrl, reason],
           );
         });
-        json(response, 200, { namespace: verifyNamespace[1], verified: body.verified });
+        json(response, 200, {
+          namespace: verifyNamespace[1],
+          verified: body.verified,
+        });
         return;
       }
       const reviewDownload = request.method === "GET" ? REVIEW_DOWNLOAD_ROUTE.exec(path) : null;
@@ -508,7 +625,11 @@ export function createExchangeServer(
         const actor = await actorFor(request, pool, config);
         if (!actor?.admin) throw new HttpError(403, "Reviewer access required.");
         const version = decodeURIComponent(reviewDownload[3]!);
-        const found = await pool.query<{ digest: string; bytes: number; object_key: string }>(
+        const found = await pool.query<{
+          digest: string;
+          bytes: number;
+          object_key: string;
+        }>(
           `SELECT digest, bytes, object_key FROM exchange_versions
            WHERE namespace = $1 AND name = $2 AND version = $3`,
           [reviewDownload[1], reviewDownload[2], version],

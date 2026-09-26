@@ -81,6 +81,25 @@ CREATE TABLE IF NOT EXISTS exchange_review_events (
     REFERENCES exchange_versions(namespace, name, version)
 );
 
+CREATE TABLE IF NOT EXISTS exchange_appeals (
+  id BIGSERIAL PRIMARY KEY,
+  namespace TEXT NOT NULL,
+  name TEXT NOT NULL,
+  version TEXT NOT NULL,
+  digest TEXT NOT NULL,
+  actor_id BIGINT NOT NULL REFERENCES exchange_users(id),
+  message TEXT NOT NULL CHECK (length(message) BETWEEN 1 AND 4000),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  response TEXT,
+  responded_by BIGINT REFERENCES exchange_users(id),
+  responded_at TIMESTAMPTZ,
+  FOREIGN KEY (namespace, name, version)
+    REFERENCES exchange_versions(namespace, name, version)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS exchange_appeals_one_open_per_version
+  ON exchange_appeals (namespace, name, version) WHERE responded_at IS NULL;
+
 -- Signed TUF bytes are produced offline and published separately from review.
 -- API and worker containers never hold metadata signing keys.
 CREATE TABLE IF NOT EXISTS exchange_tuf_metadata (

@@ -55,12 +55,96 @@ async function refreshSubmissions() {
   const list = document.getElementById("submissions");
   list.replaceChildren();
   for (const entry of data.submissions) {
-    item(
+    const li = item(
       list,
       `${entry.namespace}.${entry.name}@${entry.version}: ${entry.status}. SHA-256 ${entry.digest}${entry.review_reason ? `. Reviewer: ${entry.review_reason}` : ""}`,
     );
+    if (entry.status !== "rejected" && entry.status !== "revoked") continue;
+    const form = document.createElement("form");
+    const label = document.createElement("label");
+    label.textContent = `Appeal or correction details for ${entry.namespace}.${entry.name}@${entry.version} `;
+    const message = document.createElement("textarea");
+    message.required = true;
+    message.maxLength = 4000;
+    label.append(message);
+    const button = document.createElement("button");
+    button.type = "submit";
+    button.textContent = "Send appeal";
+    form.append(label, button);
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      try {
+        await requestJson(
+          `/v1/publisher/${entry.namespace}/${entry.name}/versions/${encodeURIComponent(entry.version)}/appeals`,
+          mutation(
+            "POST",
+            JSON.stringify({
+              digest: entry.digest,
+              message: message.value.trim(),
+            }),
+            "application/json",
+          ),
+        );
+        announce(`Appeal submitted for ${entry.namespace}.${entry.name}@${entry.version}.`);
+        await refreshAppeals();
+      } catch (error) {
+        announce(String(error), true);
+      }
+    });
+    li.append(form);
   }
   if (data.submissions.length === 0) item(list, "No submissions yet.");
+}
+
+async function refreshAppeals() {
+  const data = await requestJson("/v1/publisher/appeals");
+  const list = document.getElementById("appeals");
+  list.replaceChildren();
+  for (const entry of data.appeals) {
+    item(
+      list,
+      `${entry.namespace}.${entry.name}@${entry.version}: ${entry.message}. ${entry.response ? `Reviewer response: ${entry.response}` : "Awaiting reviewer response."}`,
+    );
+  }
+  if (!data.appeals.length) item(list, "No appeals yet.");
+}
+
+async function refreshReviewAppeals() {
+  const data = await requestJson("/v1/review/appeals");
+  const list = document.getElementById("review-appeals");
+  list.replaceChildren();
+  for (const entry of data.appeals) {
+    const li = item(
+      list,
+      `${entry.namespace}.${entry.name}@${entry.version}: ${entry.status}. SHA-256 ${entry.digest}. Publisher: ${entry.message}. Original decision: ${entry.review_reason ?? "none"}.`,
+    );
+    const form = document.createElement("form");
+    const label = document.createElement("label");
+    label.textContent = `Response to appeal ${entry.id} `;
+    const response = document.createElement("textarea");
+    response.required = true;
+    response.maxLength = 4000;
+    label.append(response);
+    const button = document.createElement("button");
+    button.type = "submit";
+    button.textContent = "Send response";
+    form.append(label, button);
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      try {
+        await requestJson(
+          `/v1/review/appeals/${entry.id}/response`,
+          mutation("POST", JSON.stringify({ response: response.value.trim() }), "application/json"),
+        );
+        announce(`Response sent for appeal ${entry.id}.`);
+        await refreshReviewAppeals();
+      } catch (error) {
+        announce(String(error), true);
+      }
+    });
+    li.append(form);
+  }
+  if (!data.appeals.length) item(list, "No open appeals.");
 }
 
 async function refreshReview() {
@@ -128,7 +212,11 @@ async function refreshReview() {
             `/v1/review/${entry.namespace}/${entry.name}/${encodeURIComponent(entry.version)}`,
             mutation(
               "POST",
-              JSON.stringify({ action, digest: entry.digest, reason: reason.value.trim() }),
+              JSON.stringify({
+                action,
+                digest: entry.digest,
+                reason: reason.value.trim(),
+              }),
               "application/json",
             ),
           );
@@ -175,7 +263,11 @@ async function refreshApproved() {
           `/v1/review/${entry.namespace}/${entry.name}/${encodeURIComponent(entry.version)}`,
           mutation(
             "POST",
-            JSON.stringify({ action: "revoke", digest: entry.digest, reason: reason.value.trim() }),
+            JSON.stringify({
+              action: "revoke",
+              digest: entry.digest,
+              reason: reason.value.trim(),
+            }),
             "application/json",
           ),
         );
@@ -264,6 +356,12 @@ document.getElementById("verification-form").addEventListener("submit", async (e
 document.getElementById("refresh-submissions").addEventListener("click", () => {
   refreshSubmissions().catch((error) => announce(String(error), true));
 });
+document.getElementById("refresh-appeals").addEventListener("click", () => {
+  refreshAppeals().catch((error) => announce(String(error), true));
+});
+document.getElementById("refresh-review-appeals").addEventListener("click", () => {
+  refreshReviewAppeals().catch((error) => announce(String(error), true));
+});
 document.getElementById("refresh-review").addEventListener("click", () => {
   refreshReview().catch((error) => announce(String(error), true));
 });
@@ -298,7 +396,8 @@ try {
     await Promise.all([
       refreshNamespaces(),
       refreshSubmissions(),
-      ...(me.admin ? [refreshReview(), refreshApproved()] : []),
+      refreshAppeals(),
+      ...(me.admin ? [refreshReview(), refreshReviewAppeals(), refreshApproved()] : []),
     ]);
   }
 } catch (error) {

@@ -11,7 +11,9 @@
     <a class="skip" href="#main">Skip to content</a>
     <header>
       <a href="/publisher">Tabs Exchange</a>
-      <nav aria-label="Exchange navigation"><a href="/v1/extensions">Public catalog API</a></nav>
+      <nav aria-label="Exchange navigation">
+        <a href="/v1/extensions">Public catalog API</a>
+      </nav>
     </header>
     <main id="main">
       <h1>Publish an Extension</h1>
@@ -98,6 +100,15 @@
           <button id="refresh-submissions" type="button">Refresh submissions</button>
           <ul id="submissions"></ul>
         </section>
+        <section aria-labelledby="appeals-title">
+          <h2 id="appeals-title">Appeals and corrections</h2>
+          <p>
+            Rejected or revoked versions can be appealed once at a time. A correction to package
+            contents must be submitted as a new version and reviewed separately.
+          </p>
+          <button id="refresh-appeals" type="button">Refresh appeals</button>
+          <ul id="appeals"></ul>
+        </section>
         <section id="review-section" aria-labelledby="review-title" hidden>
           <h2 id="review-title">Reviewer queue</h2>
           <p>
@@ -106,6 +117,9 @@
           </p>
           <button id="refresh-review" type="button">Refresh review queue</button>
           <ul id="review-queue"></ul>
+          <h3>Open appeals</h3>
+          <button id="refresh-review-appeals" type="button">Refresh open appeals</button>
+          <ul id="review-appeals"></ul>
         </section>
         <section id="revocation-section" aria-labelledby="revocation-title" hidden>
           <h2 id="revocation-title">Approved versions and revocation</h2>

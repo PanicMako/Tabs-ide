@@ -24,7 +24,11 @@ async function fixture(
   scanPassed = true,
   storedDigest = digest,
   submissionStatus = "review",
-  tuf?: { metadata?: Buffer; target?: Buffer; targetStatus?: "approved" | "revoked" },
+  tuf?: {
+    metadata?: Buffer;
+    target?: Buffer;
+    targetStatus?: "approved" | "revoked";
+  },
 ) {
   const actions: string[] = [];
   const client = {
@@ -33,10 +37,26 @@ async function fixture(
       if (sql.includes("SELECT status, digest, scan_result")) {
         return {
           rows: [
-            { status: submissionStatus, digest: storedDigest, scan_result: { passed: scanPassed } },
+            {
+              status: submissionStatus,
+              digest: storedDigest,
+              scan_result: { passed: scanPassed },
+            },
           ],
           rowCount: 1,
         };
+      }
+      if (sql.includes("SELECT v.digest, v.status")) {
+        return {
+          rows: [{ digest: storedDigest, status: submissionStatus }],
+          rowCount: 1,
+        };
+      }
+      if (sql.includes("INSERT INTO exchange_appeals")) {
+        return { rows: [{ id: "1" }], rowCount: 1 };
+      }
+      if (sql.includes("SELECT id FROM exchange_appeals")) {
+        return { rows: [], rowCount: 0 };
       }
       return { rows: [], rowCount: 1 };
     },
@@ -84,6 +104,9 @@ async function fixture(
           ],
           rowCount: 1,
         };
+      }
+      if (sql.includes("UPDATE exchange_appeals")) {
+        return { rows: [{ id: "1" }], rowCount: 1 };
       }
       return { rows: [], rowCount: 0 };
     },
@@ -140,7 +163,10 @@ describe("Exchange HTTP boundaries", () => {
     expect((await fetch(`${ready.base}${path.replace("1.0.0", `${hash}.1.0.0`)}`)).status).toBe(
       200,
     );
-    const revoked = await fixture(true, digest, "review", { target, targetStatus: "revoked" });
+    const revoked = await fixture(true, digest, "review", {
+      target,
+      targetStatus: "revoked",
+    });
     expect((await fetch(`${revoked.base}${path}`)).status).toBe(404);
   });
 
@@ -165,7 +191,11 @@ describe("Exchange HTTP boundaries", () => {
         "X-CSRF-Token": csrf,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ action: "approve", digest: "b".repeat(64), reason: "Reviewed" }),
+      body: JSON.stringify({
+        action: "approve",
+        digest: "b".repeat(64),
+        reason: "Reviewed",
+      }),
     });
     expect(result.status).toBe(409);
     expect(actions.some((sql) => sql.includes("INSERT INTO exchange_review_events"))).toBe(false);
@@ -179,7 +209,11 @@ describe("Exchange HTTP boundaries", () => {
       "X-CSRF-Token": csrf,
       "Content-Type": "application/json",
     };
-    const body = JSON.stringify({ action: "approve", digest, reason: "Reviewed package" });
+    const body = JSON.stringify({
+      action: "approve",
+      digest,
+      reason: "Reviewed package",
+    });
     const rejected = await fetch(`${blocked.base}/v1/review/example/dashboard/1.0.0`, {
       method: "POST",
       headers,
@@ -208,12 +242,75 @@ describe("Exchange HTTP boundaries", () => {
         "X-CSRF-Token": csrf,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ action: "revoke", digest, reason: "Confirmed malicious behavior" }),
+      body: JSON.stringify({
+        action: "revoke",
+        digest,
+        reason: "Confirmed malicious behavior",
+      }),
     });
     expect(result.status).toBe(200);
     expect(ready.actions.some((sql) => sql.includes("INSERT INTO exchange_review_events"))).toBe(
       true,
     );
+  });
+
+  it("accepts an exact-digest appeal only for a rejected or revoked version", async () => {
+    const headers = {
+      Origin: config.origin,
+      Cookie: "tabs_exchange_session=opaque",
+      "X-CSRF-Token": csrf,
+      "Content-Type": "application/json",
+    };
+    const ready = await fixture(true, digest, "rejected");
+    const path = `${ready.base}/v1/publisher/example/dashboard/versions/1.0.0/appeals`;
+    const wrong = await fetch(path, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        digest: "b".repeat(64),
+        message: "Please reconsider",
+      }),
+    });
+    expect(wrong.status).toBe(409);
+    const accepted = await fetch(path, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        digest,
+        message: "I corrected the documentation",
+      }),
+    });
+    expect(accepted.status).toBe(201);
+    expect(ready.actions.some((sql) => sql.includes("INSERT INTO exchange_appeals"))).toBe(true);
+    const approved = await fixture(true, digest, "approved");
+    const denied = await fetch(
+      `${approved.base}/v1/publisher/example/dashboard/versions/1.0.0/appeals`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ digest, message: "Please reconsider" }),
+      },
+    );
+    expect(denied.status).toBe(409);
+  });
+
+  it("requires reviewer authentication and records one appeal response", async () => {
+    const ready = await fixture();
+    const path = `${ready.base}/v1/review/appeals/1/response`;
+    expect((await fetch(path, { method: "POST" })).status).toBe(403);
+    const answered = await fetch(path, {
+      method: "POST",
+      headers: {
+        Origin: config.origin,
+        Cookie: "tabs_exchange_session=opaque",
+        "X-CSRF-Token": csrf,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        response: "Please submit a corrected new version",
+      }),
+    });
+    expect(answered.status).toBe(200);
   });
 
   it("does not verify a publisher without an HTTPS ownership proof", async () => {
