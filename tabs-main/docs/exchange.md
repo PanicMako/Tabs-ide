@@ -84,12 +84,18 @@ disabled until terms, operational controls, and security review are complete.
 
 Public GET routes:
 
-| Route                                                        | Result                                               |
-| ------------------------------------------------------------ | ---------------------------------------------------- |
-| `/v1/extensions?q=term&limit=30`                             | Latest approved version per extension                |
-| `/v1/extensions/:namespace/:name`                            | Approved versions and verification status            |
-| `/v1/extensions/:namespace/:name/versions/:version`          | Exact approved version metadata and digest           |
-| `/v1/extensions/:namespace/:name/versions/:version/download` | Archive bytes, re-hashed against the approved digest |
+| Route                                                        | Result                                                 |
+| ------------------------------------------------------------ | ------------------------------------------------------ |
+| `/v1/extensions?q=term&limit=30`                             | Most recently submitted approved version per extension |
+| `/v1/extensions/:namespace/:name`                            | Approved versions and verification status              |
+| `/v1/extensions/:namespace/:name/versions/:version`          | Exact approved version metadata and digest             |
+| `/v1/extensions/:namespace/:name/versions/:version/download` | Archive bytes, re-hashed against the approved digest   |
+
+The catalog head is a discovery hint, not an installation authorization. When
+its Tabs compatibility range excludes the current desktop version, the client
+queries the approved version list and selects the highest compatible semantic
+version. The package and digest must still be checked against signed metadata
+before installation.
 
 Publisher and reviewer routes use GitHub OAuth session cookies. Mutations
 require a same-origin `Origin` header and the `X-CSRF-Token` value from the

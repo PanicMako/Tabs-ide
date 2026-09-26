@@ -96,6 +96,82 @@ describe("Exchange catalog client", () => {
     });
   });
 
+  it("finds an older compatible approved release when the catalog head requires newer Tabs", async () => {
+    const versionUrl = `${origin}/v1/extensions/acme/dashboard`;
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === versionUrl) {
+        return response(
+          {
+            versions: [
+              {
+                namespace: "acme",
+                name: "dashboard",
+                version: "2.0.0",
+                digest: "b".repeat(64),
+                verified: true,
+                manifest: { ...manifest, version: "2.0.0", engines: { tabs: ">=2.0.0" } },
+              },
+              {
+                namespace: "acme",
+                name: "dashboard",
+                version: "1.0.0",
+                digest: "a".repeat(64),
+                verified: true,
+                manifest,
+              },
+            ],
+          },
+          versionUrl,
+        );
+      }
+      return response({
+        extensions: [
+          {
+            namespace: "acme",
+            name: "dashboard",
+            version: "2.0.0",
+            digest: "b".repeat(64),
+            verified: true,
+            manifest: { ...manifest, version: "2.0.0", engines: { tabs: ">=2.0.0" } },
+          },
+        ],
+      });
+    });
+    const results = await discoverExchangeExtensions(origin, "1.3.17", "", fetcher);
+    expect(results).toMatchObject([{ id: "acme.dashboard", version: "1.0.0" }]);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it("validates the complete catalog before requesting compatibility fallbacks", async () => {
+    const fetcher = vi.fn(async () =>
+      response({
+        extensions: [
+          {
+            namespace: "acme",
+            name: "dashboard",
+            version: "2.0.0",
+            digest: "b".repeat(64),
+            verified: true,
+            manifest: { ...manifest, version: "2.0.0", engines: { tabs: ">=2.0.0" } },
+          },
+          {
+            namespace: "acme",
+            name: "dashboard",
+            version: "1.0.0",
+            digest: "a".repeat(64),
+            verified: true,
+            manifest,
+          },
+        ],
+      }),
+    );
+    await expect(discoverExchangeExtensions(origin, "1.3.17", "", fetcher)).rejects.toThrow(
+      /duplicate/,
+    );
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
   it("rejects redirect destinations and spoofed identities", async () => {
     await expect(
       discoverExchangeExtensions(origin, "1.3.17", "", async () =>

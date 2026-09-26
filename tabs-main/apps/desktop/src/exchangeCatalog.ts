@@ -1,6 +1,6 @@
 import type { DesktopExchangeListing } from "@tabs/contracts";
 import { validateTabsExtensionManifest } from "@tabs/shared/extensions";
-import { compareSemverVersions } from "@tabs/shared/semver";
+import { compareSemverVersions, satisfiesSemverRange } from "@tabs/shared/semver";
 
 const MAX_CATALOG_BYTES = 1024 * 1024;
 const DIGEST = /^[a-f0-9]{64}$/;
@@ -81,7 +81,10 @@ export async function discoverExchangeExtensions(
     throw new Error("Exchange catalog response is invalid.");
   }
   const seen = new Set<string>();
-  const listings: DesktopExchangeListing[] = [];
+  const candidates: Array<
+    | DesktopExchangeListing
+    | { readonly fallback: true; readonly namespace: string; readonly name: string }
+  > = [];
   for (const item of document.extensions) {
     if (
       !record(item) ||
@@ -100,11 +103,20 @@ export async function discoverExchangeExtensions(
     if (seen.has(id)) throw new Error("Exchange catalog contains duplicate listings.");
     seen.add(id);
     const validated = validateTabsExtensionManifest(item.manifest, tabsVersion);
-    if (!validated.ok) continue; // A valid but incompatible release is not installable here.
+    if (!validated.ok) {
+      const range =
+        record(item.manifest) && record(item.manifest.engines)
+          ? item.manifest.engines.tabs
+          : undefined;
+      if (typeof range === "string" && !satisfiesSemverRange(tabsVersion, range)) {
+        candidates.push({ fallback: true, namespace: item.namespace, name: item.name });
+      }
+      continue;
+    }
     if (validated.id !== id || validated.manifest.version !== item.version) {
       throw new Error("Exchange listing identity does not match its manifest.");
     }
-    listings.push({
+    candidates.push({
       registryOrigin: origin,
       id,
       namespace: item.namespace,
@@ -130,7 +142,23 @@ export async function discoverExchangeExtensions(
       }),
     });
   }
-  return listings;
+  const listings = await Promise.all(
+    candidates.map(
+      async (candidate): Promise<DesktopExchangeListing | null> =>
+        "fallback" in candidate
+          ? ((
+              await discoverExchangeVersions(
+                origin,
+                tabsVersion,
+                candidate.namespace,
+                candidate.name,
+                fetcher,
+              )
+            )[0] ?? null)
+          : candidate,
+    ),
+  );
+  return listings.filter((listing): listing is DesktopExchangeListing => listing !== null);
 }
 
 /** Version listings are hints only; callers must verify candidates through TUF. */
