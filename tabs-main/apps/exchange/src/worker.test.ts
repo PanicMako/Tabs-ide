@@ -92,9 +92,11 @@ describe("Exchange quarantine worker", () => {
       issues: expect.arrayContaining([{ severity: "blocking", code: "known-malicious-package" }]),
     });
   });
-  it("carries the last approved version's capability diff into the review record", async () => {
+  it("compares against the closest lower approved version despite approval order", async () => {
     const { inspected, bytes } = await fixture(["profile-storage"]);
     const previous = await fixture([], "0.9.0");
+    const older = await fixture(["profile-storage"], "0.8.0");
+    const newer = await fixture(["profile-storage"], "1.1.0");
     let result: {
       comparisonVersion?: string;
       capabilityChanges: { added: string[] };
@@ -120,6 +122,18 @@ describe("Exchange quarantine worker", () => {
           return {
             rows: [
               {
+                version: "1.1.0",
+                digest: newer.inspected.digest,
+                bytes: newer.bytes.length,
+                object_key: "quarantine/newer",
+              },
+              {
+                version: "0.8.0",
+                digest: older.inspected.digest,
+                bytes: older.bytes.length,
+                object_key: "quarantine/older",
+              },
+              {
                 version: "0.9.0",
                 digest: previous.inspected.digest,
                 bytes: previous.bytes.length,
@@ -134,8 +148,17 @@ describe("Exchange quarantine worker", () => {
     } as unknown as Pool;
     const storage = {
       async send(command: { input?: { Key?: string } }) {
+        const key = command.input?.Key;
         return {
-          Body: Readable.from([command.input?.Key === "quarantine/prior" ? previous.bytes : bytes]),
+          Body: Readable.from([
+            key === "quarantine/prior"
+              ? previous.bytes
+              : key === "quarantine/older"
+                ? older.bytes
+                : key === "quarantine/newer"
+                  ? newer.bytes
+                  : bytes,
+          ]),
         };
       },
     } as unknown as S3Client;

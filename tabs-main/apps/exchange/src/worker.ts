@@ -4,6 +4,7 @@ import * as OS from "node:os";
 import * as Path from "node:path";
 import type { S3Client } from "@aws-sdk/client-s3";
 import { extractTabsext } from "@tabs/extension-package";
+import { compareSemverVersions } from "@tabs/shared/semver";
 import type { Pool } from "pg";
 import { createPool, createStorage, loadConfig, type ExchangeConfig } from "./config.ts";
 import { buildReviewDiff } from "./reviewDiff.ts";
@@ -68,13 +69,19 @@ export async function scanNextVersion(
       object_key: string;
     }>(
       `SELECT version, digest, bytes, object_key FROM exchange_versions WHERE namespace = $1 AND name = $2
-       AND status = 'approved' ORDER BY submitted_at DESC LIMIT 1`,
+       AND status = 'approved'`,
       [job.namespace, job.name],
     );
     let priorDirectory: string | undefined;
     let priorInspected: typeof inspected | undefined;
     let priorFiles: Record<string, string> = {};
-    const priorVersion = prior.rows[0];
+    const priorVersion = prior.rows
+      .filter((entry) => compareSemverVersions(entry.version, job.version) < 0)
+      .reduce<(typeof prior.rows)[number] | undefined>(
+        (closest, entry) =>
+          !closest || compareSemverVersions(entry.version, closest.version) > 0 ? entry : closest,
+        undefined,
+      );
     if (priorVersion) {
       const priorBytes = await boundedObject(storage, config.bucket, priorVersion.object_key);
       if (

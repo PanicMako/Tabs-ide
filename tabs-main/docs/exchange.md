@@ -128,9 +128,11 @@ reviewer portal marks binary, large, or computationally expensive diffs as
 omitted, caps the preview to 40 files and 128 KiB overall, and offers the exact
 archive for full inspection. If the prior approved archive fails verification,
 the new submission cannot pass scanning. A blocking scan result prevents
-approval. The scan records capabilities added or removed relative to the last
-approved version and warns on increases; the reviewer queue displays those
-changes alongside the requested capabilities and file-change counts. It also
+approval. The scan records capabilities added or removed relative to the
+closest approved semantic predecessor (the highest approved version below the
+submission), even if approvals occurred out of order, and warns on increases.
+The reviewer queue displays those changes alongside the requested capabilities
+and file-change counts. It also
 shows declared profile-storage migrations and blocks schema downgrades that
 desktop clients cannot install. This
 summary does not replace inspecting the exact archive. Every decision writes
