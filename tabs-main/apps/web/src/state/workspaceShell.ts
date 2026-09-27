@@ -98,6 +98,11 @@ export const workspaceShellActions = {
   upsertProjectSettings: (
     ...args: Parameters<ReturnType<typeof useWorkspaceShellStore.getState>["upsertProjectSettings"]>
   ) => useWorkspaceShellStore.getState().upsertProjectSettings(...args),
+  removeExtensionToolPreferences: (
+    ...args: Parameters<
+      ReturnType<typeof useWorkspaceShellStore.getState>["removeExtensionToolPreferences"]
+    >
+  ) => useWorkspaceShellStore.getState().removeExtensionToolPreferences(...args),
   openPendingTab: (
     ...args: Parameters<ReturnType<typeof useWorkspaceShellStore.getState>["openPendingTab"]>
   ) => useWorkspaceShellStore.getState().openPendingTab(...args),

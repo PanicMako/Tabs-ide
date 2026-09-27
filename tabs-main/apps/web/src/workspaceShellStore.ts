@@ -499,6 +499,7 @@ export interface WorkspaceShellStore extends WorkspaceShellPersistedState {
       | Partial<ProjectWorkspaceSettingsType>
       | ((current: ProjectWorkspaceSettingsType) => ProjectWorkspaceSettingsType),
   ) => void;
+  removeExtensionToolPreferences: (extensionId: string) => void;
   setBrowserCurrentUrl: (projectId: ProjectId, url: string, sessionId?: string | undefined) => void;
   setBrowserChromeExpanded: (
     projectId: ProjectId,
@@ -1079,6 +1080,32 @@ export const useWorkspaceShellStore = create<WorkspaceShellStore>()(
               },
             },
           };
+        }),
+      removeExtensionToolPreferences: (extensionId) =>
+        set((state) => {
+          const projectSettingsByProjectId = { ...state.projectSettingsByProjectId };
+          const activeToolIdByProjectId = { ...state.session.activeToolIdByProjectId };
+          let changed = false;
+          for (const [projectId, settings] of Object.entries(projectSettingsByProjectId)) {
+            const tools = settings.tools.filter(
+              (tool) => tool.kind !== "extension" || tool.extensionId !== extensionId,
+            );
+            if (tools.length === settings.tools.length) continue;
+            changed = true;
+            const nextSettings = { ...settings, tools };
+            projectSettingsByProjectId[projectId as ProjectId] = nextSettings;
+            activeToolIdByProjectId[projectId as ProjectId] = resolveActiveToolId(
+              nextSettings,
+              activeToolIdByProjectId[projectId as ProjectId],
+            );
+          }
+          return changed
+            ? {
+                ...state,
+                projectSettingsByProjectId,
+                session: { ...state.session, activeToolIdByProjectId },
+              }
+            : state;
         }),
       setBrowserCurrentUrl: (projectId, url, sessionId) =>
         set((state) => {

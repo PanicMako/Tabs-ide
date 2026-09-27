@@ -136,6 +136,41 @@ describe("workspaceShellStore", () => {
     expect(state.session.activeToolIdByProjectId[projectId]).toBe("agents");
   });
 
+  it("removes uninstalled extension tools from every project without touching other tools", () => {
+    const first = ProjectId.makeUnsafe("extension-project-a");
+    const second = ProjectId.makeUnsafe("extension-project-b");
+    const store = useWorkspaceShellStore.getState();
+    const removedTool = {
+      id: "ext:https%3A%2F%2Fexchange.test:demo.notes:main",
+      kind: "extension" as const,
+      label: "Notes",
+      visible: true,
+      extensionId: "demo.notes",
+      extensionToolId: "main",
+    };
+    const otherTool = {
+      ...removedTool,
+      id: "ext:https%3A%2F%2Fexchange.test:other.notes:main",
+      extensionId: "other.notes",
+    };
+    for (const projectId of [first, second]) {
+      store.openProject(projectId);
+      store.upsertProjectSettings(projectId, (current) => ({
+        ...current,
+        tools: [...current.tools, removedTool, otherTool],
+      }));
+      store.setActiveTool(projectId, removedTool.id);
+    }
+
+    store.removeExtensionToolPreferences("demo.notes");
+    const state = useWorkspaceShellStore.getState();
+    for (const projectId of [first, second]) {
+      expect(state.projectSettingsByProjectId[projectId]?.tools).not.toContainEqual(removedTool);
+      expect(state.projectSettingsByProjectId[projectId]?.tools).toContainEqual(otherTool);
+      expect(state.session.activeToolIdByProjectId[projectId]).toBe("agents");
+    }
+  });
+
   it("merges newly registered built-in tools into persisted project tool lists", () => {
     const project = makeProject("project-before-testing-tool");
     const baseState = createDefaultWorkspaceShellPersistedState();

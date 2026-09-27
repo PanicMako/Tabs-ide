@@ -9,6 +9,7 @@ import type {
 } from "@tabs/contracts";
 import { projectsAtom } from "~/state/threads";
 import { refreshExtensions, useInstalledExtensions } from "~/state/extensions";
+import { workspaceShellActions } from "~/state/workspaceShell";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { SettingsSection, SettingsSectionHeader } from "./SettingsLayout";
@@ -674,6 +675,7 @@ export default function ExtensionsSettings() {
                         onClick={() =>
                           void run(async () => {
                             await bridge.uninstallExtension(extension.id);
+                            workspaceShellActions.removeExtensionToolPreferences(extension.id);
                             setCheckedUpdates((current) => {
                               const next = { ...current };
                               delete next[extension.id];
@@ -697,6 +699,7 @@ export default function ExtensionsSettings() {
                           onClick={() =>
                             void run(async () => {
                               await bridge.uninstallExtension(extension.id, true);
+                              workspaceShellActions.removeExtensionToolPreferences(extension.id);
                               setCheckedUpdates((current) => {
                                 const next = { ...current };
                                 delete next[extension.id];

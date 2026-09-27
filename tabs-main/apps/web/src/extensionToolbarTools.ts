@@ -1,6 +1,15 @@
 import type { DesktopInstalledExtension, ProjectToolDefinition } from "@tabs/contracts";
 import { isExtensionEnabledForProject } from "@tabs/shared/extensions";
 
+/** A toolbar preference belongs to the package's source, not merely its name. */
+export function extensionToolbarToolId(
+  extension: Pick<DesktopInstalledExtension, "id" | "source" | "registryOrigin">,
+  toolId: string,
+): string {
+  const origin = extension.registryOrigin ?? extension.source;
+  return `ext:${encodeURIComponent(origin)}:${extension.id}:${toolId}`;
+}
+
 /** Keep the saved order and visibility, but take identity and labels from verified packages. */
 export function mergeExtensionToolbarTools(
   savedTools: readonly ProjectToolDefinition[],
@@ -17,7 +26,7 @@ export function mergeExtensionToolbarTools(
       continue;
     for (const tool of extension.manifest.contributes.tools) {
       const definition: ProjectToolDefinition = {
-        id: `ext:${extension.id}:${tool.id}`,
+        id: extensionToolbarToolId(extension, tool.id),
         kind: "extension",
         label: tool.label,
         visible: true,
