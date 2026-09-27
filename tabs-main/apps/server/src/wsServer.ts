@@ -156,6 +156,7 @@ import { ServerEnvironment } from "./environment/ServerEnvironment.ts";
 import { EnvironmentAuth } from "./auth/EnvironmentAuth.ts";
 import { PreviewAutomationBroker } from "./mcp/PreviewAutomationBroker.ts";
 import { handleMcpHttpRequest } from "./mcp/McpHttpServer.ts";
+import { resolveMcpProjectId } from "./mcp/McpProjectScope.ts";
 import { resolveActiveMcpCredential } from "./mcp/McpSessionRegistry.ts";
 import { SessionStore } from "./auth/SessionStore.ts";
 import * as Clock from "effect/Clock";
@@ -769,6 +770,11 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
                 id: null,
               }),
             );
+            return;
+          }
+          const snapshot = yield* projectionReadModelQuery.getSnapshot();
+          if (!resolveMcpProjectId(scope, snapshot)) {
+            respondJson(403, { error: "MCP thread or project is no longer available." });
             return;
           }
           yield* Effect.tryPromise(() =>
