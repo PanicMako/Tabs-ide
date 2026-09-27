@@ -131,6 +131,91 @@ afterEach(() => {
 });
 
 describe("development extension installation", () => {
+  it("removes a newly extracted local package when installation cannot be saved", async () => {
+    const { directory, manager } = fixture();
+    const archive = Path.join(directory, "local.tabsext");
+    const packageInfo = await packTabsext({
+      directory,
+      destination: archive,
+      tabsVersion: "1.3.17",
+    });
+    const save = vi.spyOn(manager as unknown as { save: () => void }, "save");
+    save.mockImplementationOnce(() => {
+      throw new Error("disk full");
+    });
+    await expect(manager.installLocalPackage(archive)).rejects.toThrow("disk full");
+    save.mockRestore();
+    expect(manager.list()).toEqual([]);
+    expect(
+      FS.existsSync(
+        Path.join(directory, "extension-packages", "acme.dashboard", packageInfo.digest),
+      ),
+    ).toBe(false);
+    expect((await manager.installLocalPackage(archive)).digest).toBe(packageInfo.digest);
+  });
+
+  it("keeps the prior Exchange package and allows retry after a failed update save", async () => {
+    const { directory, manager } = fixture();
+    const source = Path.join(directory, "source");
+    FS.mkdirSync(Path.join(source, "dist"), { recursive: true });
+    FS.copyFileSync(
+      Path.join(directory, "dist", "index.html"),
+      Path.join(source, "dist", "index.html"),
+    );
+    const manifestPath = Path.join(source, "tabs-extension.json");
+    const manifest = JSON.parse(
+      FS.readFileSync(Path.join(directory, "tabs-extension.json"), "utf8"),
+    );
+    FS.writeFileSync(manifestPath, JSON.stringify(manifest));
+    const firstArchive = Path.join(directory, "first.tabsext");
+    const first = await packTabsext({
+      directory: source,
+      destination: firstArchive,
+      tabsVersion: "1.3.17",
+    });
+    const installed = await manager.installVerifiedExchangePackage(
+      firstArchive,
+      "https://exchange.tabs.example",
+      first.digest,
+    );
+    manifest.version = "1.0.1";
+    FS.writeFileSync(manifestPath, JSON.stringify(manifest));
+    const secondArchive = Path.join(directory, "second.tabsext");
+    const second = await packTabsext({
+      directory: source,
+      destination: secondArchive,
+      tabsVersion: "1.3.17",
+    });
+    const save = vi.spyOn(manager as unknown as { save: () => void }, "save");
+    save.mockImplementationOnce(() => {
+      throw new Error("disk full");
+    });
+    await expect(
+      manager.installVerifiedExchangePackage(
+        secondArchive,
+        "https://exchange.tabs.example",
+        second.digest,
+      ),
+    ).rejects.toThrow("disk full");
+    save.mockRestore();
+    expect(manager.list()[0]?.digest).toBe(installed.digest);
+    expect(
+      FS.existsSync(Path.join(directory, "extension-packages", installed.id, first.digest)),
+    ).toBe(true);
+    expect(
+      FS.existsSync(Path.join(directory, "extension-packages", installed.id, second.digest)),
+    ).toBe(false);
+    expect(
+      (
+        await manager.installVerifiedExchangePackage(
+          secondArchive,
+          "https://exchange.tabs.example",
+          second.digest,
+        )
+      ).digest,
+    ).toBe(second.digest);
+  });
+
   it("disables active tools without erasing assignments or profiles", async () => {
     const { directory, manager } = fixture();
     const installed = manager.installDevelopment(directory);

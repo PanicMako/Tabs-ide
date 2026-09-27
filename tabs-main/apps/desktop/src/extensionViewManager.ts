@@ -656,6 +656,7 @@ export class ExtensionViewManager {
     } catch (error) {
       if (previous) this.installed.set(inspected.id, previous);
       else this.installed.delete(inspected.id);
+      this.removeFailedExtraction(directory);
       throw error;
     }
     return this.publicEntry(next);
@@ -792,6 +793,7 @@ export class ExtensionViewManager {
     } catch (error) {
       if (previous) this.installed.set(inspected.id, previous);
       else this.installed.delete(inspected.id);
+      this.removeFailedExtraction(directory);
       throw error;
     }
     return this.publicEntry(next);
@@ -1301,6 +1303,15 @@ export class ExtensionViewManager {
       FS.rmSync(extracted, { recursive: true, force: true });
     }
     throw new Error("Extension data changed during package install; retry the install.");
+  }
+
+  /** Only remove a newly extracted digest directory after persistence fails. */
+  private removeFailedExtraction(directory: string): void {
+    const stat = FS.lstatSync(directory);
+    if (!stat.isDirectory() || stat.isSymbolicLink()) {
+      throw new Error("Failed extension extraction path is no longer a directory.");
+    }
+    FS.rmSync(directory, { recursive: true });
   }
 
   private requireInstalled(id: string): StoredExtension {
