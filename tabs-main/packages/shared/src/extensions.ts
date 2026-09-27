@@ -14,6 +14,7 @@ export function extensionPermissionIncrease(
     NonNullable<TabsExtensionManifest["capabilities"]>[number]
   >;
   readonly addedNetworkHosts: ReadonlyArray<string>;
+  readonly addedAiTools: ReadonlyArray<string>;
 } {
   return {
     addedCapabilities: (next.capabilities ?? []).filter(
@@ -22,6 +23,15 @@ export function extensionPermissionIncrease(
     addedNetworkHosts: (next.networkHosts ?? []).filter(
       (host) => !previous?.networkHosts?.includes(host),
     ),
+    addedAiTools: (next.contributes.commands ?? [])
+      .filter(
+        (command) =>
+          command.aiCallable === true &&
+          !previous?.contributes.commands?.some(
+            (prior) => prior.id === command.id && prior.aiCallable === true,
+          ),
+      )
+      .map((command) => command.id),
   };
 }
 
@@ -56,7 +66,7 @@ function safePublisherUrl(value: unknown): value is string {
   }
 }
 
-function logicApiRangeIsSafe(range: string): boolean {
+function apiRangeIsSafe(range: string, minimum: string): boolean {
   return range.split("||").every((group) =>
     group
       .trim()
@@ -64,7 +74,7 @@ function logicApiRangeIsSafe(range: string): boolean {
       .some((comparator) => {
         const match = /^(\^|>=|>|=)?v?(\d+(?:\.\d+){0,2})$/.exec(comparator);
         if (!match || !["^", ">=", ">", "="].includes(match[1] ?? "=")) return false;
-        return compareSemverVersions(match[2]!, "1.2.0") >= 0;
+        return compareSemverVersions(match[2]!, minimum) >= 0;
       }),
   );
 }
@@ -152,7 +162,11 @@ export function validateTabsExtensionManifest(
     ) {
       errors.push("logic.entry must be a relative packaged JavaScript file.");
     }
-    if (!record(engines) || typeof engines.api !== "string" || !logicApiRangeIsSafe(engines.api)) {
+    if (
+      !record(engines) ||
+      typeof engines.api !== "string" ||
+      !apiRangeIsSafe(engines.api, "1.2.0")
+    ) {
       errors.push("logic commands require engines.api to start at 1.2.0 or later.");
     }
   }
@@ -190,18 +204,19 @@ export function validateTabsExtensionManifest(
   if (
     input.capabilities !== undefined &&
     (!Array.isArray(input.capabilities) ||
-      input.capabilities.length > 4 ||
+      input.capabilities.length > 5 ||
       new Set(input.capabilities).size !== input.capabilities.length ||
       input.capabilities.some(
         (capability) =>
           capability !== "profile-storage" &&
           capability !== "workspace-read" &&
           capability !== "network" &&
-          capability !== "credentials",
+          capability !== "credentials" &&
+          capability !== "ai-tools",
       ))
   ) {
     errors.push(
-      "capabilities supports only profile-storage, workspace-read, network, and credentials without duplicates.",
+      "capabilities supports only profile-storage, workspace-read, network, credentials, and ai-tools without duplicates.",
     );
   }
   if (!record(contributes) || !Array.isArray(contributes.tools)) {
@@ -249,7 +264,11 @@ export function validateTabsExtensionManifest(
             errors.push(`Command ${index} must be an object.`);
             continue;
           }
-          if (Object.keys(command).some((key) => !["id", "label", "description"].includes(key))) {
+          if (
+            Object.keys(command).some(
+              (key) => !["id", "label", "description", "aiCallable"].includes(key),
+            )
+          ) {
             errors.push(`Command ${index} has unsupported fields.`);
           }
           if (
@@ -273,11 +292,36 @@ export function validateTabsExtensionManifest(
           ) {
             errors.push(`Command ${index} needs a description of at most 500 characters.`);
           }
+          if (command.aiCallable !== undefined && typeof command.aiCallable !== "boolean") {
+            errors.push(`Command ${index} aiCallable must be a boolean.`);
+          }
+          if (command.aiCallable === true) {
+            if (!Array.isArray(input.capabilities) || !input.capabilities.includes("ai-tools")) {
+              errors.push(`Command ${index} requires the ai-tools capability.`);
+            }
+            if (
+              !record(engines) ||
+              typeof engines.api !== "string" ||
+              !apiRangeIsSafe(engines.api, "1.3.0")
+            ) {
+              errors.push(`Command ${index} requires engines.api to start at 1.3.0 or later.`);
+            }
+          }
         }
       }
       if (input.logic === undefined) errors.push("contributes.commands requires logic.entry.");
     } else if (input.logic !== undefined) {
       errors.push("logic.entry requires contributes.commands.");
+    }
+    if (
+      Array.isArray(input.capabilities) &&
+      input.capabilities.includes("ai-tools") &&
+      (!Array.isArray(contributes.commands) ||
+        !contributes.commands.some(
+          (command: unknown) => record(command) && command.aiCallable === true,
+        ))
+    ) {
+      errors.push("ai-tools capability requires at least one AI-callable command.");
     }
   }
   if (errors.length > 0) return { ok: false, errors };

@@ -9,6 +9,7 @@ import {
   type DesktopExtensionViewInput,
   type DesktopInstalledExtension,
   type DesktopExtensionCredentialStatus,
+  type DesktopExtensionAiTool,
 } from "@tabs/contracts";
 import * as Schema from "effect/Schema";
 import {
@@ -93,6 +94,17 @@ export function extensionSessionPartition(
   return `persist:tabs-extension:${extensionDataIdentity(extensionId, registryOrigin, source)}:${profileId}${projectSuffix}`;
 }
 
+export function extensionAiToolName(
+  extensionId: string,
+  commandId: string,
+  registryOrigin?: string,
+  source?: DesktopInstalledExtension["source"],
+): string {
+  const identity = extensionDataIdentity(extensionId, registryOrigin, source);
+  const hash = Crypto.createHash("sha256").update(identity).digest("hex").slice(0, 16);
+  return `tabs_ext_${hash}_${commandId}`;
+}
+
 function inspectDirectory(root: string): void {
   let count = 0;
   let bytes = 0;
@@ -131,6 +143,7 @@ export class ExtensionViewManager {
   private readonly logicRequests = new Set<{
     readonly extensionId: string;
     readonly controller: AbortController;
+    readonly origin: "view" | "agent";
   }>();
   private active: ActiveView | null = null;
   private readonly storage: ExtensionStorage;
@@ -325,6 +338,81 @@ export class ExtensionViewManager {
       return installed;
     };
     const installed = authorize();
+    return this.runLogicCommand(
+      installed,
+      commandId,
+      input,
+      () => {
+        if (this.active !== active || sender.isDestroyed()) {
+          throw new Error("Extension view changed during command.");
+        }
+        return authorize();
+      },
+      "view",
+    );
+  }
+
+  listAiToolsForProject(projectId: string): DesktopExtensionAiTool[] {
+    const tools: DesktopExtensionAiTool[] = [];
+    for (const installed of this.installed.values()) {
+      if (
+        installed.disabled ||
+        installed.revoked ||
+        this.deleting.has(installed.id) ||
+        !installed.manifest.capabilities?.includes("ai-tools") ||
+        !isExtensionEnabledForProject(installed.assignment, projectId) ||
+        !installed.assignment.aiToolGrantedProjectIds?.includes(projectId) ||
+        !this.profileExists(installed, extensionProfileForProject(installed.assignment, projectId))
+      )
+        continue;
+      for (const command of installed.manifest.contributes.commands ?? []) {
+        if (command.aiCallable !== true) continue;
+        tools.push({
+          name: extensionAiToolName(
+            installed.id,
+            command.id,
+            installed.registryOrigin,
+            installed.source,
+          ),
+          extensionId: installed.id,
+          commandId: command.id,
+          description: `${installed.manifest.displayName}: ${command.description}`,
+        });
+      }
+    }
+    return tools;
+  }
+
+  async invokeAiTool(projectId: string, toolName: string, input: unknown): Promise<unknown> {
+    const tool = this.listAiToolsForProject(projectId).find((entry) => entry.name === toolName);
+    if (!tool) throw new Error("Extension AI tool is unavailable for this project.");
+    const installed = this.requireInstalled(tool.extensionId);
+    const profileId = extensionProfileForProject(installed.assignment, projectId);
+    return this.runLogicCommand(
+      installed,
+      tool.commandId,
+      input,
+      () => {
+        const current = this.requireInstalled(tool.extensionId);
+        if (
+          extensionProfileForProject(current.assignment, projectId) !== profileId ||
+          !this.listAiToolsForProject(projectId).some((entry) => entry.name === toolName)
+        ) {
+          throw new Error("Extension AI tool permission or profile changed during command.");
+        }
+        return current;
+      },
+      "agent",
+    );
+  }
+
+  private async runLogicCommand(
+    installed: StoredExtension,
+    commandId: string,
+    input: unknown,
+    reauthorize: () => StoredExtension,
+    origin: "view" | "agent",
+  ): Promise<unknown> {
     if (
       this.logicRequests.size >= 4 ||
       [...this.logicRequests].filter((request) => request.extensionId === installed.id).length >= 2
@@ -338,7 +426,7 @@ export class ExtensionViewManager {
     }
     const source = FS.readFileSync(file, "utf8");
     const controller = new AbortController();
-    const request = { extensionId: installed.id, controller };
+    const request = { extensionId: installed.id, controller, origin };
     this.logicRequests.add(request);
     try {
       const result = await this.logicRun(
@@ -346,10 +434,7 @@ export class ExtensionViewManager {
         { commandId, input },
         { signal: controller.signal },
       );
-      if (this.active !== active || sender.isDestroyed()) {
-        throw new Error("Extension view changed during command.");
-      }
-      const current = authorize();
+      const current = reauthorize();
       if (
         current.directory !== installed.directory ||
         current.manifest.version !== installed.manifest.version ||
@@ -450,8 +535,8 @@ export class ExtensionViewManager {
       defaultProfileId: "default",
       profileIdByProjectId: {},
     };
-    const addedNetworkHosts =
-      extensionPermissionIncrease(parsed.manifest, previous?.manifest).addedNetworkHosts.length > 0;
+    const permissionIncrease = extensionPermissionIncrease(parsed.manifest, previous?.manifest);
+    const addedNetworkHosts = permissionIncrease.addedNetworkHosts.length > 0;
     const safeAssignment = {
       ...assignment,
       ...(parsed.manifest.capabilities?.includes("profile-storage") &&
@@ -469,6 +554,10 @@ export class ExtensionViewManager {
       ...(parsed.manifest.capabilities?.includes("credentials") &&
       (!previous?.manifest.capabilities?.includes("credentials") || addedNetworkHosts)
         ? { credentialGrantedProjectIds: [] }
+        : {}),
+      ...(parsed.manifest.capabilities?.includes("ai-tools") &&
+      permissionIncrease.addedAiTools.length > 0
+        ? { aiToolGrantedProjectIds: [] }
         : {}),
     };
     const next: StoredExtension = {
@@ -525,9 +614,8 @@ export class ExtensionViewManager {
       defaultProfileId: "default",
       profileIdByProjectId: {},
     };
-    const addedNetworkHosts =
-      extensionPermissionIncrease(inspected.manifest, previous?.manifest).addedNetworkHosts.length >
-      0;
+    const permissionIncrease = extensionPermissionIncrease(inspected.manifest, previous?.manifest);
+    const addedNetworkHosts = permissionIncrease.addedNetworkHosts.length > 0;
     const next: StoredExtension = {
       id: inspected.id,
       manifest: inspected.manifest,
@@ -548,6 +636,10 @@ export class ExtensionViewManager {
         ...(inspected.manifest.capabilities?.includes("credentials") &&
         (!previous?.manifest.capabilities?.includes("credentials") || addedNetworkHosts)
           ? { credentialGrantedProjectIds: [] }
+          : {}),
+        ...(inspected.manifest.capabilities?.includes("ai-tools") &&
+        permissionIncrease.addedAiTools.length > 0
+          ? { aiToolGrantedProjectIds: [] }
           : {}),
       },
       profiles: previous?.profiles ?? retained?.profiles ?? [{ id: "default", label: "Default" }],
@@ -645,10 +737,11 @@ export class ExtensionViewManager {
     const increased =
       previous?.revoked ||
       increase.addedCapabilities.length > 0 ||
-      increase.addedNetworkHosts.length > 0;
+      increase.addedNetworkHosts.length > 0 ||
+      increase.addedAiTools.length > 0;
     if (options.silent && increased) {
       FS.rmSync(directory, { recursive: true, force: true });
-      throw new Error("Silent updates cannot add permissions or network hosts.");
+      throw new Error("Silent updates cannot add permissions, network hosts, or AI tools.");
     }
     const assignment: TabsExtensionAssignment = previous?.assignment ?? {
       extensionId: inspected.id,
@@ -670,6 +763,7 @@ export class ExtensionViewManager {
             workspaceReadGrantedProjectIds: [],
             networkGrantedProjectIds: [],
             credentialGrantedProjectIds: [],
+            aiToolGrantedProjectIds: [],
           }
         : assignment,
       profiles: previous?.profiles ?? retained?.profiles ?? [{ id: "default", label: "Default" }],
@@ -712,6 +806,7 @@ export class ExtensionViewManager {
       !current.updatesPinned &&
       !current.pendingRollback &&
       !this.deleting.has(extensionId) &&
+      ![...this.logicRequests].some((request) => request.extensionId === extensionId) &&
       this.active?.extensionId !== extensionId &&
       (current.assignment.enabledGlobally || current.assignment.enabledProjectIds.length > 0),
     );
@@ -731,6 +826,7 @@ export class ExtensionViewManager {
     }
     const next: StoredExtension = { ...current, revoked: true };
     this.installed.set(extensionId, next);
+    this.abortLogicRequests(extensionId);
     if (this.active?.extensionId === extensionId) this.hide();
     this.save();
     return true;
@@ -797,6 +893,7 @@ export class ExtensionViewManager {
     const current = this.requireInstalled(extensionId);
     this.assertSafeUninstallPackage(current);
     if (retainData) this.writeRetainedProfiles(current);
+    this.abortLogicRequests(extensionId);
     if (this.active?.extensionId === extensionId) this.hide();
     const packagesRoot = Path.join(Path.dirname(this.statePath), "extension-packages");
     const packageDirectory = Path.join(packagesRoot, extensionId);
@@ -868,6 +965,7 @@ export class ExtensionViewManager {
         throw new Error("Assigned profile does not exist.");
     }
     this.installed.set(extensionId, { ...current, assignment: validated });
+    this.abortLogicRequests(extensionId);
     this.hide();
     this.save();
   }
@@ -887,6 +985,7 @@ export class ExtensionViewManager {
       throw error;
     }
     if (disabled && this.active?.extensionId === extensionId) this.hide();
+    if (disabled) this.abortLogicRequests(extensionId);
   }
 
   setUpdatesPinned(extensionId: string, pinned: boolean): void {
@@ -1093,11 +1192,19 @@ export class ExtensionViewManager {
       if (request.extensionId === this.active.extensionId) request.controller.abort();
     }
     for (const request of this.logicRequests) {
-      if (request.extensionId === this.active.extensionId) request.controller.abort();
+      if (request.extensionId === this.active.extensionId && request.origin === "view") {
+        request.controller.abort();
+      }
     }
     this.coordinator.detachToolView(this.active.view);
     this.active.view.webContents.close();
     this.active = null;
+  }
+
+  private abortLogicRequests(extensionId: string): void {
+    for (const request of this.logicRequests) {
+      if (request.extensionId === extensionId) request.controller.abort();
+    }
   }
 
   private configureSession(

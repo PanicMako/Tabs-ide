@@ -27,19 +27,24 @@ only writes to a new directory. Neither command runs extension code.
 Place `tabs-extension.json` at the root of a local folder. The dependency-free
 [`@tabs/extension-api`](../packages/extension-api/README.md) package exports
 the public manifest and bridge types plus the current API version. New manifests
-should declare `engines.api: "^1.2.0"` when using commands; older v1 manifests without it remain
+should declare `engines.api: "^1.2.0"` when using commands, or `"^1.3.0"` for AI-callable commands; older v1 manifests without it remain
 compatible. Tabs validates declared API compatibility at load time. See
 [`examples/hello-extension`](../examples/hello-extension/README.md) for a
 working example. Version 1 requires a lowercase publisher and package name,
 a semantic version, a Tabs version range, and 1-12 full-workspace tools. Each
 tool names a packaged HTML entry. Paths must be relative to the extension
 root. Supported optional capabilities are `profile-storage`, `workspace-read`,
-`network`, and `credentials`. A `network` manifest must list 1-8 exact DNS names
+`network`, `credentials`, and `ai-tools`. A `network` manifest must list 1-8 exact DNS names
 in `networkHosts`; wildcards are not allowed. `credentials` requires `network`
 and uses only those declared hosts. Optional `logic.entry` points to packaged
 JavaScript and requires 1-8 `contributes.commands`, each with a unique ID,
-label, and description. The active extension UI may call its own command with
-JSON input. Logic has no privileged host APIs; unsupported runtime and capability
+label, and description. A command marked `aiCallable: true` requires the
+`ai-tools` capability and an explicit grant for each project. It appears in
+that project's MCP tool list and accepts one JSON object named `input`; the
+host binds calls to the provider thread's current project and the desktop
+rechecks enablement, grant, profile assignment, and package identity after
+execution. The active extension UI may call its own command with JSON input.
+Logic has no privileged host APIs; unsupported runtime and capability
 declarations are rejected rather than silently ignored.
 Optional `releaseNotes` is plain text (maximum 10,000 characters). Optional
 `sourceUrl`, `supportUrl`, and `privacyUrl` must be HTTPS links without embedded
@@ -204,14 +209,19 @@ display compatible approved catalog listings; HTTPS is required except for
 `http://localhost` in development. Catalog entries are not trusted installation
 metadata and cannot authorize an install alone. The
 production update/revocation lifecycle, workspace write broker,
-persistent background runtime, AI-callable tools, and full account OAuth flows
+persistent background runtime, privileged AI tools, and full account OAuth flows
 are not implemented. Those features require additional security and lifecycle
 work before a public extension ecosystem can be enabled.
 
 ## Optional logic runtime spike
 
 The desktop tree contains an `extensionLogicSpike` runtime used by optional
-pure-computation commands. AI-tool declarations remain unsupported. It runs one synchronous
+pure-computation commands. Explicitly granted pure commands can also be
+advertised through the desktop MCP session. The Codex provider path is wired
+through the authenticated MCP endpoint, and Claude's SDK receives the same
+thread-scoped configuration. Live Claude verification and ACP provider wiring
+remain pending. Start a new provider session after
+granting AI tools so it refreshes its MCP tool list. Each call runs one synchronous
 `run(input)` invocation in a fresh Node worker hosting QuickJS-in-WASM. Its
 QuickJS runtime has an 8 MiB heap limit, a 512 KiB stack limit, and an inner
 deadline interrupt; the trusted caller also has an outer deadline that

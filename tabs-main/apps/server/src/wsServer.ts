@@ -156,6 +156,7 @@ import { ServerEnvironment } from "./environment/ServerEnvironment.ts";
 import { EnvironmentAuth } from "./auth/EnvironmentAuth.ts";
 import { PreviewAutomationBroker } from "./mcp/PreviewAutomationBroker.ts";
 import { handleMcpHttpRequest } from "./mcp/McpHttpServer.ts";
+import { ExtensionAiBrokerClient } from "./mcp/ExtensionAiBrokerClient.ts";
 import { resolveMcpProjectId } from "./mcp/McpProjectScope.ts";
 import { resolveActiveMcpCredential } from "./mcp/McpSessionRegistry.ts";
 import { SessionStore } from "./auth/SessionStore.ts";
@@ -644,6 +645,14 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
     ServerRuntimeServices | ServerConfig | FileSystem.FileSystem | Path.Path
   >();
   const runPromise = Effect.runPromiseWith(runtimeServices);
+  const extensionAiBroker = (() => {
+    if (!serverConfig.desktopExtensionBroker) return undefined;
+    try {
+      return new ExtensionAiBrokerClient(serverConfig.desktopExtensionBroker);
+    } catch {
+      return undefined;
+    }
+  })();
 
   // HTTP server — serves static files or redirects to Vite dev server
   const httpServer = http.createServer((req, res) => {
@@ -783,6 +792,12 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
               response: res,
               scope,
               broker: previewAutomationBroker,
+              ...(extensionAiBroker ? { extensionAiBroker } : {}),
+              resolveProjectId: async () =>
+                resolveMcpProjectId(
+                  scope,
+                  await runPromise(projectionReadModelQuery.getSnapshot()),
+                ),
               runPromise,
             }),
           );

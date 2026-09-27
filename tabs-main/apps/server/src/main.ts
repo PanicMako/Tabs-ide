@@ -61,6 +61,9 @@ const BootstrapEnvelopeSchema = Schema.Struct({
   devUrl: Schema.optional(Schema.URLFromString),
   noBrowser: Schema.optional(Schema.Boolean),
   authToken: Schema.optional(Schema.String),
+  desktopExtensionBroker: Schema.optional(
+    Schema.Struct({ endpoint: Schema.String, token: Schema.String }),
+  ),
   autoBootstrapProjectFromCwd: Schema.optional(Schema.Boolean),
   logWebSocketEvents: Schema.optional(Schema.Boolean),
 });
@@ -296,6 +299,11 @@ const ServerConfigLive = (input: CliInput) =>
         devUrl,
         noBrowser,
         authToken: Option.getOrUndefined(authToken),
+        ...(mode === "desktop" &&
+        Option.isSome(bootstrapEnvelope) &&
+        bootstrapEnvelope.value.desktopExtensionBroker
+          ? { desktopExtensionBroker: bootstrapEnvelope.value.desktopExtensionBroker }
+          : {}),
         autoBootstrapProjectFromCwd,
         logWebSocketEvents,
       } satisfies ServerConfigShape;
@@ -380,11 +388,12 @@ const makeServerRuntimeProgram = (input: CliInput) =>
       config.host && !isWildcardHost(config.host)
         ? `http://${formatHostForUrl(config.host)}:${config.port}`
         : localUrl;
-    const { authToken, devUrl, ...safeConfig } = config;
+    const { authToken, desktopExtensionBroker, devUrl, ...safeConfig } = config;
     yield* Effect.logInfo("Tabs running", {
       ...safeConfig,
       devUrl: devUrl?.toString(),
       authEnabled: Boolean(authToken),
+      extensionAiBrokerEnabled: Boolean(desktopExtensionBroker),
     });
 
     if (!config.noBrowser) {

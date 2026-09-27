@@ -163,7 +163,8 @@ export class ExchangeInstallService {
       const requiresNewConsent =
         previous?.revoked ||
         increase.addedCapabilities.length > 0 ||
-        increase.addedNetworkHosts.length > 0;
+        increase.addedNetworkHosts.length > 0 ||
+        increase.addedAiTools.length > 0;
       const token = Crypto.randomBytes(24).toString("hex");
       const result: DesktopPreparedExchangeInstall = {
         token,

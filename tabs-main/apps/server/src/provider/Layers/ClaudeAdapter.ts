@@ -143,6 +143,8 @@ const withAgentGatewayTurnCancellation = (_l: any, _t: any, eff?: any) =>
 const PROVIDER_ADAPTER_RUNTIME_EVENT_BUFFER_CAPACITY = 256;
 import { resolveProviderAttachmentPath } from "../providerAttachmentPaths.ts";
 import { ServerConfig } from "../../config.ts";
+import * as McpProviderSession from "../../mcp/McpProviderSession.ts";
+import { tabsClaudeMcpServer } from "../../mcp/ClaudeMcpServer.ts";
 import { buildFileAttachmentsPromptBlock } from "../attachmentProjection.ts";
 import { loadClaudeAgentSdk } from "../claudeAgentSdk.ts";
 import { buildClaudeProcessEnv } from "../claudeProcessEnv.ts";
@@ -5243,6 +5245,14 @@ export function makeClaudeAdapter(
           threadId,
           PROVIDER,
         );
+        const tabsMcpSession = McpProviderSession.readMcpProviderSession(input.threadId);
+        const gatewayMcpServers = agentGatewayCredentials
+          ? buildClaudeMcpServers(gatewaySessionLease!.connection)
+          : undefined;
+        const mcpServers = {
+          ...(gatewayMcpServers ?? {}),
+          ...(tabsMcpSession ? { tabs: tabsClaudeMcpServer(tabsMcpSession) } : {}),
+        };
         const queryOptions: any = {
           ...(input.cwd ? { cwd: input.cwd } : {}),
           // Keep Claude context-window selection model-driven so session start
@@ -5287,11 +5297,7 @@ export function makeClaudeAdapter(
           env: claudeSdkEnv,
           spawnClaudeCodeProcess: bindClaudeProcessOwner(processOwner),
           ...(input.cwd ? { additionalDirectories: [input.cwd] } : {}),
-          ...(agentGatewayCredentials
-            ? {
-                mcpServers: buildClaudeMcpServers(gatewaySessionLease!.connection),
-              }
-            : {}),
+          ...(Object.keys(mcpServers).length > 0 ? { mcpServers } : {}),
         };
 
         const queryRuntime = yield* Effect.tryPromise({

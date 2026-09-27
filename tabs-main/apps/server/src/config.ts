@@ -51,6 +51,10 @@ export interface ServerConfigShape extends ServerDerivedPaths {
   readonly noBrowser: boolean;
   readonly authToken: string | undefined;
   readonly desktopBootstrapToken?: string | undefined;
+  readonly desktopExtensionBroker?: {
+    readonly endpoint: string;
+    readonly token: string;
+  };
   readonly autoBootstrapProjectFromCwd: boolean;
   readonly logWebSocketEvents: boolean;
 }

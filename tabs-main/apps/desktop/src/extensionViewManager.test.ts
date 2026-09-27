@@ -12,6 +12,7 @@ vi.mock("electron", () => ({
 
 import {
   ExtensionViewManager,
+  extensionAiToolName,
   extensionDataIdentity,
   extensionSessionPartition,
 } from "./extensionViewManager";
@@ -548,6 +549,115 @@ describe("development extension installation", () => {
       profileId: "default",
     };
     await expect(manager.invokeLogic(sender as never, "sum", null)).rejects.toThrow(/unavailable/);
+  });
+
+  it("exposes AI commands only for granted projects and rechecks profile changes", async () => {
+    let finish: ((value: unknown) => void) | undefined;
+    const logicRun = vi.fn(
+      async () =>
+        new Promise<unknown>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const { directory, manager } = fixture(undefined, undefined, logicRun);
+    const manifestPath = Path.join(directory, "tabs-extension.json");
+    const manifest = JSON.parse(FS.readFileSync(manifestPath, "utf8"));
+    manifest.logic = { entry: "dist/logic.js" };
+    manifest.engines.api = "^1.3.0";
+    manifest.capabilities = ["ai-tools"];
+    manifest.contributes.commands = [
+      { id: "sum", label: "Sum", description: "Add values", aiCallable: true },
+      { id: "private", label: "Private", description: "UI only" },
+    ];
+    FS.writeFileSync(manifestPath, JSON.stringify(manifest));
+    FS.writeFileSync(Path.join(directory, "dist", "logic.js"), "globalThis.run = () => 3;");
+    const installed = manager.installDevelopment(directory);
+    manager.setAssignment(installed.id, {
+      ...installed.assignment,
+      enabledProjectIds: ["project-a", "project-b"],
+      aiToolGrantedProjectIds: ["project-a"],
+    });
+    const name = extensionAiToolName(installed.id, "sum", undefined, "development");
+    expect(manager.listAiToolsForProject("project-a")).toEqual([
+      expect.objectContaining({ name, commandId: "sum" }),
+    ]);
+    expect(manager.listAiToolsForProject("project-b")).toEqual([]);
+    await expect(manager.invokeAiTool("project-b", name, {})).rejects.toThrow(/unavailable/);
+    await expect(manager.invokeAiTool("project-a", "private", {})).rejects.toThrow(/unavailable/);
+    const pending = manager.invokeAiTool("project-a", name, { a: 1, b: 2 });
+    manager.addProfile(installed.id, "work", "Work", "shared");
+    manager.setAssignment(installed.id, {
+      ...manager.list()[0]!.assignment,
+      profileIdByProjectId: { "project-a": "work" },
+    });
+    finish?.(3);
+    await expect(pending).rejects.toThrow(/profile changed/);
+    expect(logicRun).toHaveBeenCalledOnce();
+    manager.setDisabled(installed.id, true);
+    expect(manager.listAiToolsForProject("project-a")).toEqual([]);
+  });
+
+  it("runs a granted AI command in the disposable runtime", async () => {
+    const { directory, manager } = fixture();
+    const manifestPath = Path.join(directory, "tabs-extension.json");
+    const manifest = JSON.parse(FS.readFileSync(manifestPath, "utf8"));
+    manifest.logic = { entry: "dist/logic.js" };
+    manifest.engines.api = "^1.3.0";
+    manifest.capabilities = ["ai-tools"];
+    manifest.contributes.commands = [
+      { id: "sum", label: "Sum", description: "Add numbers", aiCallable: true },
+    ];
+    FS.writeFileSync(manifestPath, JSON.stringify(manifest));
+    FS.writeFileSync(
+      Path.join(directory, "dist", "logic.js"),
+      "globalThis.run = ({ input }) => input.first + input.second;",
+    );
+    const installed = manager.installDevelopment(directory);
+    manager.setAssignment(installed.id, {
+      ...installed.assignment,
+      enabledProjectIds: ["project-a"],
+      aiToolGrantedProjectIds: ["project-a"],
+    });
+    const tool = manager.listAiToolsForProject("project-a")[0]!;
+    await expect(
+      manager.invokeAiTool("project-a", tool.name, { first: 3, second: 4 }),
+    ).resolves.toBe(7);
+  });
+
+  it("cancels an in-flight AI command when its project grant is revoked", async () => {
+    const logicRun = vi.fn(
+      async (_source: string, _request: unknown, options?: { signal?: AbortSignal }) =>
+        new Promise<unknown>((_resolve, reject) => {
+          options?.signal?.addEventListener("abort", () => reject(new Error("cancelled")), {
+            once: true,
+          });
+        }),
+    );
+    const { directory, manager } = fixture(undefined, undefined, logicRun);
+    const manifestPath = Path.join(directory, "tabs-extension.json");
+    const manifest = JSON.parse(FS.readFileSync(manifestPath, "utf8"));
+    manifest.logic = { entry: "dist/logic.js" };
+    manifest.engines.api = "^1.3.0";
+    manifest.capabilities = ["ai-tools"];
+    manifest.contributes.commands = [
+      { id: "sum", label: "Sum", description: "Add numbers", aiCallable: true },
+    ];
+    FS.writeFileSync(manifestPath, JSON.stringify(manifest));
+    FS.writeFileSync(Path.join(directory, "dist", "logic.js"), "globalThis.run = () => 0;");
+    const installed = manager.installDevelopment(directory);
+    manager.setAssignment(installed.id, {
+      ...installed.assignment,
+      enabledProjectIds: ["project-a"],
+      aiToolGrantedProjectIds: ["project-a"],
+    });
+    const tool = manager.listAiToolsForProject("project-a")[0]!;
+    const pending = manager.invokeAiTool("project-a", tool.name, {});
+    manager.setAssignment(installed.id, {
+      ...manager.list()[0]!.assignment,
+      aiToolGrantedProjectIds: [],
+    });
+    await expect(pending).rejects.toThrow(/cancelled/);
+    expect(manager.listAiToolsForProject("project-a")).toEqual([]);
   });
 
   it("cancels in-flight logic when the extension is disabled", async () => {
@@ -1096,6 +1206,76 @@ describe("development extension installation", () => {
     );
     expect(updated.digest).toBe(second.digest);
     expect(updated.assignment.enabledProjectIds).toEqual(["project-a"]);
+  });
+
+  it("requires review and fresh grants when an update exposes a new AI command", async () => {
+    const { directory, manager } = fixture();
+    const source = Path.join(directory, "ai-update-source");
+    FS.mkdirSync(Path.join(source, "dist"), { recursive: true });
+    FS.copyFileSync(
+      Path.join(directory, "dist", "index.html"),
+      Path.join(source, "dist", "index.html"),
+    );
+    FS.writeFileSync(Path.join(source, "dist", "logic.js"), "globalThis.run = () => 1;");
+    const manifestPath = Path.join(source, "tabs-extension.json");
+    const manifest = JSON.parse(
+      FS.readFileSync(Path.join(directory, "tabs-extension.json"), "utf8"),
+    );
+    manifest.engines.api = "^1.3.0";
+    manifest.capabilities = ["ai-tools"];
+    manifest.logic = { entry: "dist/logic.js" };
+    manifest.contributes.commands = [
+      { id: "sum", label: "Sum", description: "Add", aiCallable: true },
+    ];
+    FS.writeFileSync(manifestPath, JSON.stringify(manifest));
+    const firstArchive = Path.join(directory, "ai-first.tabsext");
+    const first = await packTabsext({
+      directory: source,
+      destination: firstArchive,
+      tabsVersion: "1.3.17",
+    });
+    const installed = await manager.installVerifiedExchangePackage(
+      firstArchive,
+      "https://exchange.tabs.example",
+      first.digest,
+    );
+    manager.setAssignment(installed.id, {
+      ...installed.assignment,
+      enabledProjectIds: ["project-a"],
+      aiToolGrantedProjectIds: ["project-a"],
+    });
+    manifest.version = "1.0.1";
+    manifest.contributes.commands.push({
+      id: "divide",
+      label: "Divide",
+      description: "Divide",
+      aiCallable: true,
+    });
+    FS.writeFileSync(manifestPath, JSON.stringify(manifest));
+    const secondArchive = Path.join(directory, "ai-second.tabsext");
+    const second = await packTabsext({
+      directory: source,
+      destination: secondArchive,
+      tabsVersion: "1.3.17",
+    });
+    await expect(
+      manager.installVerifiedExchangePackage(
+        secondArchive,
+        "https://exchange.tabs.example",
+        second.digest,
+        { silent: true },
+      ),
+    ).rejects.toThrow(/AI tools/);
+    expect(manager.list()[0]?.digest).toBe(first.digest);
+    expect(manager.listAiToolsForProject("project-a")).toHaveLength(1);
+    const reviewed = await manager.installVerifiedExchangePackage(
+      secondArchive,
+      "https://exchange.tabs.example",
+      second.digest,
+    );
+    expect(reviewed.assignment.enabledProjectIds).toEqual([]);
+    expect(reviewed.assignment.aiToolGrantedProjectIds).toEqual([]);
+    expect(manager.listAiToolsForProject("project-a")).toEqual([]);
   });
 
   it("persists a verified rollback checkpoint and restores it when the update cannot load", async () => {

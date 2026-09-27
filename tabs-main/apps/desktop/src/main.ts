@@ -85,6 +85,7 @@ import {
 import { CodeHostManager, resolveCodeHostConfig } from "./codeHostManager";
 import { BrowserHostManager } from "./browserHostManager";
 import { ExtensionViewManager } from "./extensionViewManager";
+import { ExtensionAiBrokerServer } from "./extensionAiBrokerServer";
 import { configuredExchangeOrigin, discoverExchangeExtensions } from "./exchangeCatalog";
 import { ExchangeUpdateMonitor } from "./exchangeUpdateMonitor";
 import { ExchangeAutomaticUpdater } from "./exchangeAutomaticUpdater";
@@ -483,11 +484,14 @@ const extensionViewManager = new ExtensionViewManager(
   !app.isPackaged,
   safeStorage,
 );
+const extensionAiBrokerServer = new ExtensionAiBrokerServer(extensionViewManager);
+let extensionAiBrokerConfig: { readonly endpoint: string; readonly token: string } | null = null;
 let exchangeInstallService: ExchangeInstallService | null = null;
 let exchangeStatusTimer: ReturnType<typeof setInterval> | null = null;
 let exchangeUpdateTimer: ReturnType<typeof setInterval> | null = null;
 let exchangeUpdateStartupTimer: ReturnType<typeof setTimeout> | null = null;
 app.on("will-quit", () => {
+  extensionAiBrokerServer.close();
   if (exchangeStatusTimer) clearInterval(exchangeStatusTimer);
   if (exchangeUpdateTimer) clearInterval(exchangeUpdateTimer);
   if (exchangeUpdateStartupTimer) clearTimeout(exchangeUpdateStartupTimer);
@@ -1954,6 +1958,7 @@ function startBackend(): void {
         port: backendPort,
         tabsHome: BASE_DIR,
         authToken: backendAuthToken,
+        ...(extensionAiBrokerConfig ? { desktopExtensionBroker: extensionAiBrokerConfig } : {}),
       })}\n`,
     );
     bootstrapStream.end();
@@ -4248,6 +4253,14 @@ async function bootstrap(): Promise<void> {
   backendWsUrl = `${wsBaseUrl}/?token=${encodeURIComponent(backendAuthToken)}`;
   backendHttpUrl = `http://127.0.0.1:${backendPort}`;
   writeDesktopLogHeader(`bootstrap resolved websocket endpoint baseUrl=${wsBaseUrl}`);
+  try {
+    extensionAiBrokerConfig = await extensionAiBrokerServer.start();
+    writeDesktopLogHeader("bootstrap extension AI broker started");
+  } catch (error) {
+    writeDesktopLogHeader(
+      `bootstrap extension AI broker unavailable: ${formatErrorMessage(error)}`,
+    );
+  }
 
   if (codeHostConfig.runtime) {
     // Do not hold first paint behind Code-OSS's large compatibility imports.

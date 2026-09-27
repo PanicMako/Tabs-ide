@@ -13,6 +13,8 @@ export const TabsExtensionCommand = Schema.Struct({
   id: Schema.String,
   label: Schema.String,
   description: Schema.String,
+  /** Expose this pure command through the project-scoped agent tool broker. */
+  aiCallable: Schema.optionalKey(Schema.Boolean),
 });
 export type TabsExtensionCommand = typeof TabsExtensionCommand.Type;
 
@@ -34,7 +36,9 @@ export const TabsExtensionManifest = Schema.Struct({
   networkHosts: Schema.optionalKey(Schema.Array(Schema.String)),
   logic: Schema.optionalKey(Schema.Struct({ entry: Schema.String })),
   capabilities: Schema.optionalKey(
-    Schema.Array(Schema.Literals(["profile-storage", "workspace-read", "network", "credentials"])),
+    Schema.Array(
+      Schema.Literals(["profile-storage", "workspace-read", "network", "credentials", "ai-tools"]),
+    ),
   ),
   contributes: Schema.Struct({
     tools: Schema.Array(TabsExtensionTool),
@@ -54,6 +58,7 @@ export const TabsExtensionAssignment = Schema.Struct({
   workspaceReadGrantedProjectIds: Schema.optionalKey(Schema.Array(Schema.String)),
   networkGrantedProjectIds: Schema.optionalKey(Schema.Array(Schema.String)),
   credentialGrantedProjectIds: Schema.optionalKey(Schema.Array(Schema.String)),
+  aiToolGrantedProjectIds: Schema.optionalKey(Schema.Array(Schema.String)),
 });
 export type TabsExtensionAssignment = typeof TabsExtensionAssignment.Type;
 
@@ -88,6 +93,14 @@ export interface DesktopInstalledExtension {
   readonly availableUpdate?: DesktopExchangeListing;
 }
 
+/** Agent-facing metadata; invocation is always reauthorized by the desktop. */
+export interface DesktopExtensionAiTool {
+  readonly name: string;
+  readonly extensionId: string;
+  readonly commandId: string;
+  readonly description: string;
+}
+
 export interface DesktopPreparedExchangeInstall {
   readonly token: string;
   readonly registryOrigin: string;
@@ -99,6 +112,7 @@ export interface DesktopPreparedExchangeInstall {
     NonNullable<TabsExtensionManifest["capabilities"]>[number]
   >;
   readonly addedNetworkHosts: ReadonlyArray<string>;
+  readonly addedAiTools: ReadonlyArray<string>;
 }
 
 /** Informational catalog data; it is not an installation authorization. */

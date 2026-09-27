@@ -34,6 +34,7 @@ import * as Stream from "effect/Stream";
 import * as TestClock from "effect/testing/TestClock";
 
 import { attachmentRelativePath } from "../../attachmentStore";
+import * as McpProviderSession from "../../mcp/McpProviderSession";
 import { ServerConfig } from "../../config";
 import { ServerSettingsService } from "../../serverSettings";
 import { ProviderAdapterValidationError } from "../Errors";
@@ -272,6 +273,36 @@ const THREAD_ID = "thread-claude-1" as ThreadId;
 const RESUME_THREAD_ID = "thread-claude-resume" as ThreadId;
 
 describe("ClaudeAdapterLive", () => {
+  it.effect("passes its thread-scoped MCP endpoint to Claude", () => {
+    const harness = makeHarness();
+    return Effect.gen(function* () {
+      const adapter = yield* ClaudeAdapter;
+      McpProviderSession.setMcpProviderSession({
+        environmentId: "environment-a" as never,
+        threadId: THREAD_ID,
+        providerSessionId: "provider-session-a",
+        providerInstanceId: "claude" as ProviderInstanceId,
+        endpoint: "http://127.0.0.1:40701/mcp",
+        authorizationHeader: "Bearer thread-secret",
+      });
+      try {
+        yield* adapter.startSession({
+          threadId: THREAD_ID,
+          provider: "claudeAgent" as ProviderDriverKind,
+          runtimeMode: "full-access",
+        });
+        assert.deepEqual(harness.getLastCreateQueryInput()?.options.mcpServers?.tabs, {
+          type: "http",
+          url: "http://127.0.0.1:40701/mcp",
+          headers: { Authorization: "Bearer thread-secret" },
+        });
+        yield* adapter.stopSession(THREAD_ID);
+      } finally {
+        McpProviderSession.clearMcpProviderSession(THREAD_ID);
+      }
+    }).pipe(Effect.provide(harness.layer));
+  });
+
   it.effect("returns validation error for non-claude provider on startSession", () => {
     const harness = makeHarness();
     return Effect.gen(function* () {

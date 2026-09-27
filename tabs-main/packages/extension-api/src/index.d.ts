@@ -1,10 +1,11 @@
-export declare const TABS_EXTENSION_API_VERSION: "1.2.0";
+export declare const TABS_EXTENSION_API_VERSION: "1.3.0";
 
 export type TabsExtensionCapability =
   | "profile-storage"
   | "workspace-read"
   | "network"
-  | "credentials";
+  | "credentials"
+  | "ai-tools";
 
 export interface TabsExtensionTool {
   readonly id: string;
@@ -17,6 +18,8 @@ export interface TabsExtensionCommand {
   readonly id: string;
   readonly label: string;
   readonly description: string;
+  /** Pure JSON command exposed to agents only after a per-project grant. */
+  readonly aiCallable?: boolean;
 }
 
 /** Logic commands run in a disposable, JSON-only runtime with no host capabilities. */

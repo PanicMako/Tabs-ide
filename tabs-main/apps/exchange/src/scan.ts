@@ -112,6 +112,24 @@ export async function scanExtractedPackage(
   const priorNetworkHosts = Array.isArray(priorManifest?.networkHosts)
     ? priorManifest.networkHosts.filter((host) => typeof host === "string")
     : [];
+  const priorContributes = priorManifest?.contributes;
+  const priorCommands =
+    priorContributes && typeof priorContributes === "object" && "commands" in priorContributes
+      ? priorContributes.commands
+      : undefined;
+  const priorAiTools = new Set(
+    Array.isArray(priorCommands)
+      ? priorCommands
+          .filter(
+            (command) =>
+              command &&
+              typeof command === "object" &&
+              command.aiCallable === true &&
+              typeof command.id === "string",
+          )
+          .map((command) => command.id as string)
+      : [],
+  );
   const currentCapabilitySet = new Set<string>(currentCapabilities);
   const priorCapabilitySet = new Set<string>(priorCapabilities);
   const addedCapabilities = [
@@ -119,6 +137,9 @@ export async function scanExtractedPackage(
     ...currentNetworkHosts
       .filter((host) => !priorNetworkHosts.includes(host))
       .map((host) => `network host: ${host}`),
+    ...(inspected.manifest.contributes.commands ?? [])
+      .filter((command) => command.aiCallable === true && !priorAiTools.has(command.id))
+      .map((command) => `AI-callable command: ${command.id}`),
   ];
   const removedCapabilities = [
     ...priorCapabilities.filter((capability) => !currentCapabilitySet.has(capability)),

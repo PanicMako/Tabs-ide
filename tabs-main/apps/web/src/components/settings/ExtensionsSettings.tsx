@@ -304,7 +304,8 @@ export default function ExtensionsSettings() {
               ) : null}
               {preparedInstall.replacesVersion &&
               (preparedInstall.addedCapabilities.length ||
-                preparedInstall.addedNetworkHosts.length) ? (
+                preparedInstall.addedNetworkHosts.length ||
+                preparedInstall.addedAiTools.length) ? (
                 <div className="text-sm" role="status">
                   <p>This update requests additional access:</p>
                   <ul className="list-disc pl-5">
@@ -313,6 +314,9 @@ export default function ExtensionsSettings() {
                     ))}
                     {preparedInstall.addedNetworkHosts.map((host) => (
                       <li key={host}>Network host: {host}</li>
+                    ))}
+                    {preparedInstall.addedAiTools.map((commandId) => (
+                      <li key={commandId}>AI-callable command: {commandId}</li>
                     ))}
                   </ul>
                 </div>
@@ -324,17 +328,26 @@ export default function ExtensionsSettings() {
                     {preparedInstall.manifest.contributes.commands.map((command) => (
                       <li key={command.id}>
                         {command.label}: {command.description}
+                        {command.aiCallable ? " (AI-callable after project grant)" : ""}
                       </li>
                     ))}
                   </ul>
                 </div>
+              ) : null}
+              {preparedInstall.manifest.contributes.commands?.some(
+                (command) => command.aiCallable,
+              ) ? (
+                <p className="text-sm">
+                  AI-callable commands require a separate grant for each project before agents can
+                  see or run them.
+                </p>
               ) : null}
               <p className="text-xs text-muted-foreground">
                 Registry: {preparedInstall.registryOrigin} · SHA-256: {preparedInstall.digest}
               </p>
               <p className="text-sm text-muted-foreground">
                 {preparedInstall.willKeepEnabled
-                  ? "Existing project enablement is retained because no capability or network host was added."
+                  ? "Existing project enablement is retained because no capability, network host, or AI-callable command was added."
                   : "The extension will be disabled until you choose projects and grant requested access."}
               </p>
               <div className="flex gap-2">
@@ -734,9 +747,10 @@ export default function ExtensionsSettings() {
         <SettingsSection title="Profiles & Permissions">
           <p className="text-sm text-muted-foreground">
             A shared profile uses one storage space across projects. A project-isolated profile
-            keeps browser and non-secret storage separate for each project. Workspace, network, and
-            credential use each require a separate project grant. Saved credentials are encrypted by
-            the operating system and never shown again in Settings.
+            keeps browser and non-secret storage separate for each project. Workspace access,
+            network and credential use, and AI-callable commands each require a separate project
+            grant. Saved credentials are encrypted by the operating system and never shown again in
+            Settings. Start a new Codex session after granting AI tools so it discovers them.
           </p>
           {extensions.map((extension) => (
             <div key={extension.id} className="space-y-3 border-b border-border py-4 last:border-0">
@@ -1173,6 +1187,29 @@ export default function ExtensionsSettings() {
                         }}
                       />
                       Allow account credential use for {project.name}
+                    </label>
+                  ) : null}
+                  {extension.manifest.capabilities?.includes("ai-tools") ? (
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={
+                          extension.assignment.aiToolGrantedProjectIds?.includes(project.id) ??
+                          false
+                        }
+                        disabled={busy}
+                        onChange={(event) => {
+                          const ids = extension.assignment.aiToolGrantedProjectIds ?? [];
+                          assign(extension, {
+                            ...extension.assignment,
+                            aiToolGrantedProjectIds: event.target.checked
+                              ? [...ids, project.id]
+                              : ids.filter((id) => id !== project.id),
+                          });
+                        }}
+                      />
+                      Allow agents to run {extension.manifest.displayName} commands for{" "}
+                      {project.name}
                     </label>
                   ) : null}
                 </div>

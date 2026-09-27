@@ -13,6 +13,7 @@ async function packageFixture(
   capabilities?: string[],
   displayName = "Dashboard",
   networkHosts?: string[],
+  manifestOverrides?: Record<string, unknown>,
 ) {
   const root = FS.mkdtempSync(Path.join(OS.tmpdir(), "tabs-exchange-scan-test-"));
   roots.push(root);
@@ -32,6 +33,7 @@ async function packageFixture(
       ...(capabilities ? { capabilities } : {}),
       ...(networkHosts ? { networkHosts } : {}),
       contributes: { tools: [{ id: "main", label: "Main", entry: "dist/index.html" }] },
+      ...manifestOverrides,
     }),
   );
   for (const [file, contents] of Object.entries(extra ?? {})) {
@@ -213,6 +215,39 @@ describe("Exchange automated scan", () => {
       "1.0.0",
     );
     expect(result.capabilityChanges.added).toEqual(["network host: new.example.com"]);
+    expect(result.issues).toContainEqual({ severity: "warning", code: "capabilities-increased" });
+  });
+
+  it("reports newly exposed AI commands to the reviewer", async () => {
+    const command = { id: "sum", label: "Sum", description: "Add numbers", aiCallable: true };
+    const { destination, inspected } = await packageFixture(
+      { "logic.js": "globalThis.run = () => 0;" },
+      ["ai-tools"],
+      "Dashboard",
+      undefined,
+      {
+        engines: { tabs: ">=1.3.0 <2.0.0", api: "^1.3.0" },
+        logic: { entry: "dist/logic.js" },
+        contributes: {
+          tools: [{ id: "main", label: "Main", entry: "dist/index.html" }],
+          commands: [command],
+        },
+      },
+    );
+    const result = await scanExtractedPackage(
+      destination,
+      inspected,
+      {
+        capabilities: ["ai-tools"],
+        contributes: {
+          ...inspected.manifest.contributes,
+          commands: [{ ...command, aiCallable: false }],
+        },
+      },
+      {},
+      "0.9.0",
+    );
+    expect(result.capabilityChanges.added).toEqual(["AI-callable command: sum"]);
     expect(result.issues).toContainEqual({ severity: "warning", code: "capabilities-increased" });
   });
 });

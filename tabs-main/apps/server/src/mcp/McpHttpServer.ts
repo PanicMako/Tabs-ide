@@ -7,6 +7,7 @@ import type { PreviewAutomationOperation, PreviewTabId } from "@tabs/contracts";
 import * as Effect from "effect/Effect";
 
 import type { McpInvocationScope } from "./McpInvocationContext.ts";
+import type { ExtensionAiBrokerClient } from "./ExtensionAiBrokerClient.ts";
 
 type Broker = {
   readonly invoke: <A = unknown>(request: {
@@ -150,24 +151,83 @@ export async function handleMcpHttpRequest(options: {
   readonly response: ServerResponse;
   readonly scope: McpInvocationScope;
   readonly broker: Broker;
+  readonly extensionAiBroker?: ExtensionAiBrokerClient;
+  readonly resolveProjectId?: () => Promise<string | undefined>;
   readonly runPromise: <A, E>(effect: Effect.Effect<A, E>) => Promise<A>;
 }): Promise<void> {
   const server = new Server({ name: "Tabs", version: "1.0.0" }, { capabilities: { tools: {} } });
-  server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: toolDefinitions.map((definition) => ({
-      name: definition.name,
-      description: definition.description,
-      inputSchema: {
-        type: "object" as const,
-        properties: { ...commonProperties, ...definition.inputSchema },
-        additionalProperties: false,
-      },
-    })),
-  }));
+  server.setRequestHandler(ListToolsRequestSchema, async () => {
+    let aiTools: Awaited<ReturnType<ExtensionAiBrokerClient["list"]>> = [];
+    if (options.extensionAiBroker && options.resolveProjectId) {
+      try {
+        const projectId = await options.resolveProjectId();
+        if (projectId) aiTools = await options.extensionAiBroker.list(projectId);
+      } catch {
+        // The desktop broker is optional; do not break existing preview tools.
+      }
+    }
+    return {
+      tools: [
+        ...toolDefinitions.map((definition) => ({
+          name: definition.name,
+          description: definition.description,
+          inputSchema: {
+            type: "object" as const,
+            properties: { ...commonProperties, ...definition.inputSchema },
+            additionalProperties: false,
+          },
+        })),
+        ...aiTools.map((tool) => ({
+          name: tool.name,
+          description: `${tool.description} (isolated, JSON-only Tabs extension command)`,
+          inputSchema: {
+            type: "object" as const,
+            properties: { input: { type: "object" as const, additionalProperties: true } },
+            required: ["input"],
+            additionalProperties: false,
+          },
+        })),
+      ],
+    };
+  });
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const definition = toolDefinitions.find((candidate) => candidate.name === request.params.name);
-    if (!definition)
-      return { isError: true, content: [{ type: "text" as const, text: "Unknown preview tool." }] };
+    if (!definition) {
+      try {
+        if (!options.extensionAiBroker || !options.resolveProjectId) {
+          throw new Error("Extension AI tool is unavailable.");
+        }
+        const projectId = await options.resolveProjectId();
+        if (!projectId) throw new Error("MCP project is no longer available.");
+        const authorized = await options.extensionAiBroker.list(projectId);
+        if (!authorized.some((tool) => tool.name === request.params.name)) {
+          throw new Error("Extension AI tool is unavailable for this project.");
+        }
+        const input = request.params.arguments?.input;
+        if (!input || typeof input !== "object" || Array.isArray(input)) {
+          throw new Error("Extension AI tool input must be a JSON object.");
+        }
+        const result = await options.extensionAiBroker.invoke(
+          projectId,
+          request.params.name,
+          input,
+        );
+        if ((await options.resolveProjectId()) !== projectId) {
+          throw new Error("MCP project changed during extension command.");
+        }
+        return toToolResult(result);
+      } catch (error) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: error instanceof Error ? error.message : "Extension AI tool failed.",
+            },
+          ],
+        };
+      }
+    }
     const { tabId, timeoutMs, ...input } = request.params.arguments ?? {};
     try {
       const result = await options.runPromise(

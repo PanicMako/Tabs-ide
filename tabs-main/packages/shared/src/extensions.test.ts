@@ -38,7 +38,34 @@ describe("Tabs extension manifest", () => {
     ).toEqual({
       addedCapabilities: ["credentials"],
       addedNetworkHosts: ["billing.example.com"],
+      addedAiTools: [],
     });
+  });
+  it("treats newly AI-callable commands as a permission increase", () => {
+    const previous: TabsExtensionManifest = {
+      ...manifest,
+      manifestVersion: 1,
+      capabilities: ["ai-tools"],
+      contributes: {
+        ...manifest.contributes,
+        commands: [{ id: "sum", label: "Sum", description: "Add", aiCallable: true }],
+      },
+    };
+    expect(
+      extensionPermissionIncrease(
+        {
+          ...previous,
+          contributes: {
+            ...previous.contributes,
+            commands: [
+              ...previous.contributes.commands!,
+              { id: "divide", label: "Divide", description: "Divide", aiCallable: true },
+            ],
+          },
+        },
+        previous,
+      ).addedAiTools,
+    ).toEqual(["divide"]);
   });
   it("accepts a UI-only manifest", () => {
     expect(validateTabsExtensionManifest(manifest, "1.3.17")).toMatchObject({
@@ -219,6 +246,50 @@ describe("Tabs extension manifest", () => {
             ...manifest.contributes,
             commands: [{ ...commands[0], entry: "remote.js" }],
           },
+        },
+        "1.3.17",
+      ).ok,
+    ).toBe(false);
+  });
+
+  it("requires explicit capability and API compatibility for AI-callable commands", () => {
+    const command = {
+      id: "summarize",
+      label: "Summarize",
+      description: "Summarize JSON input",
+      aiCallable: true,
+    };
+    const candidate = {
+      ...manifest,
+      engines: { ...manifest.engines, api: "^1.3.0" },
+      capabilities: ["ai-tools"],
+      logic: { entry: "dist/logic.js" },
+      contributes: { ...manifest.contributes, commands: [command] },
+    };
+    expect(validateTabsExtensionManifest(candidate, "1.3.17").ok).toBe(true);
+    expect(validateTabsExtensionManifest({ ...candidate, capabilities: [] }, "1.3.17").ok).toBe(
+      false,
+    );
+    expect(
+      validateTabsExtensionManifest(
+        {
+          ...candidate,
+          contributes: { ...candidate.contributes, commands: [{ ...command, aiCallable: false }] },
+        },
+        "1.3.17",
+      ).ok,
+    ).toBe(false);
+    expect(
+      validateTabsExtensionManifest(
+        { ...candidate, engines: { ...candidate.engines, api: "^1.2.0" } },
+        "1.3.17",
+      ).ok,
+    ).toBe(false);
+    expect(
+      validateTabsExtensionManifest(
+        {
+          ...candidate,
+          contributes: { ...candidate.contributes, commands: [{ ...command, aiCallable: "yes" }] },
         },
         "1.3.17",
       ).ok,
