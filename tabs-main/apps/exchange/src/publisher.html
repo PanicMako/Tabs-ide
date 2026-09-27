@@ -130,6 +130,30 @@
           <button id="refresh-approved" type="button">Refresh approved versions</button>
           <ul id="approved-versions"></ul>
         </section>
+        <section id="blocked-digests-section" aria-labelledby="blocked-digests-title" hidden>
+          <h2 id="blocked-digests-title">Blocked package material</h2>
+          <p>
+            Block an exact SHA-256 package or file digest. Matching approved versions are revoked
+            immediately. Publish updated signed TUF metadata promptly so desktop clients receive
+            authenticated revocation. A false positive requires an audited removal; it does not
+            automatically restore revoked versions.
+          </p>
+          <form id="blocked-digest-form">
+            <label for="blocked-digest-value">SHA-256 digest</label>
+            <input
+              id="blocked-digest-value"
+              required
+              pattern="[a-f0-9]{64}"
+              maxlength="64"
+              autocomplete="off"
+            />
+            <label for="blocked-digest-reason">Blocking reason</label>
+            <input id="blocked-digest-reason" required maxlength="2000" />
+            <button type="submit">Block digest and revoke matches</button>
+          </form>
+          <button id="refresh-blocked-digests" type="button">Refresh blocked digests</button>
+          <ul id="blocked-digests"></ul>
+        </section>
         <section id="verification-section" aria-labelledby="verification-title" hidden>
           <h2 id="verification-title">Publisher verification</h2>
           <p>

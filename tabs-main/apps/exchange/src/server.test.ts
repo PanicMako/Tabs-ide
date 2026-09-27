@@ -29,10 +29,11 @@ async function fixture(
     target?: Buffer;
     targetStatus?: "approved" | "revoked";
   },
+  blockedDigest?: string,
 ) {
   const actions: string[] = [];
   const client = {
-    async query(sql: string) {
+    async query(sql: string, params?: unknown[]) {
       actions.push(sql);
       if (sql.includes("SELECT status, digest, scan_result")) {
         return {
@@ -40,7 +41,7 @@ async function fixture(
             {
               status: submissionStatus,
               digest: storedDigest,
-              scan_result: { passed: scanPassed },
+              scan_result: { passed: scanPassed, digest: storedDigest, files: {} },
             },
           ],
           rowCount: 1,
@@ -57,6 +58,24 @@ async function fixture(
       }
       if (sql.includes("SELECT id FROM exchange_appeals")) {
         return { rows: [], rowCount: 0 };
+      }
+      if (sql.includes("INSERT INTO exchange_blocked_digests")) {
+        return { rows: [{ digest: params?.[0] }], rowCount: 1 };
+      }
+      if (sql.includes("DELETE FROM exchange_blocked_digests")) {
+        return { rows: [{ digest: params?.[0] }], rowCount: 1 };
+      }
+      if (sql.includes("FROM exchange_blocked_digests")) {
+        const digests = params?.[0];
+        return blockedDigest && Array.isArray(digests) && digests.includes(blockedDigest)
+          ? { rows: [{ digest: blockedDigest }], rowCount: 1 }
+          : { rows: [], rowCount: 0 };
+      }
+      if (sql.includes("SELECT namespace, name, version, digest FROM exchange_versions")) {
+        return {
+          rows: [{ namespace: "example", name: "dashboard", version: "1.0.0", digest }],
+          rowCount: 1,
+        };
       }
       return { rows: [], rowCount: 1 };
     },
@@ -228,6 +247,58 @@ describe("Exchange HTTP boundaries", () => {
     });
     expect(approved.status).toBe(200);
     expect(ready.actions.some((sql) => sql.includes("INSERT INTO exchange_review_events"))).toBe(
+      true,
+    );
+  });
+
+  it("rechecks blocked material when approving an older passed scan", async () => {
+    const ready = await fixture(true, digest, "review", undefined, digest);
+    const result = await fetch(`${ready.base}/v1/review/example/dashboard/1.0.0`, {
+      method: "POST",
+      headers: {
+        Origin: config.origin,
+        Cookie: "tabs_exchange_session=opaque",
+        "X-CSRF-Token": csrf,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ action: "approve", digest, reason: "Reviewed" }),
+    });
+    expect(result.status).toBe(409);
+    expect(ready.actions.some((sql) => sql.includes("UPDATE exchange_versions SET status"))).toBe(
+      false,
+    );
+  });
+
+  it("audits an added block and revokes matching approved versions", async () => {
+    const ready = await fixture();
+    const headers = {
+      Origin: config.origin,
+      Cookie: "tabs_exchange_session=opaque",
+      "X-CSRF-Token": csrf,
+      "Content-Type": "application/json",
+    };
+    const denied = await fetch(`${ready.base}/v1/review/blocked-digests`, {
+      method: "POST",
+      headers: { ...headers, "X-CSRF-Token": "bad" },
+      body: JSON.stringify({ digest, reason: "Known malicious package" }),
+    });
+    expect(denied.status).toBe(403);
+    const added = await fetch(`${ready.base}/v1/review/blocked-digests`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ digest, reason: "Known malicious package" }),
+    });
+    expect(added.status).toBe(201);
+    expect(await added.json()).toMatchObject({ revoked: 1 });
+    expect(ready.actions.some((sql) => sql.includes("exchange_blocked_digest_events"))).toBe(true);
+    expect(ready.actions.some((sql) => sql.includes("'revoke'"))).toBe(true);
+    const removed = await fetch(`${ready.base}/v1/review/blocked-digests/${digest}/remove`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ reason: "False positive" }),
+    });
+    expect(removed.status).toBe(200);
+    expect(ready.actions.some((sql) => sql.includes("DELETE FROM exchange_blocked_digests"))).toBe(
       true,
     );
   });

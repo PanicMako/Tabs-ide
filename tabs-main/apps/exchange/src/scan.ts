@@ -59,9 +59,13 @@ export async function scanExtractedPackage(
   },
   priorFiles: Readonly<Record<string, string>> = {},
   priorVersion?: string,
+  blockedDigests: ReadonlySet<string> = new Set(),
 ): Promise<ScanResult> {
   const issues: ScanIssue[] = [];
   const files: Record<string, string> = {};
+  if (blockedDigests.has(inspected.digest)) {
+    issues.push({ severity: "blocking", code: "known-malicious-package" });
+  }
   if (
     inspected.manifest.publisher !== "tabs" &&
     inspected.manifest.publisher !== "official" &&
@@ -74,6 +78,9 @@ export async function scanExtractedPackage(
   for (const file of inspected.files) {
     const contents = await FS.readFile(Path.join(directory, file));
     files[file] = Crypto.createHash("sha256").update(contents).digest("hex");
+    if (blockedDigests.has(files[file]!)) {
+      issues.push({ severity: "blocking", code: "known-malicious-file", file });
+    }
     if (EXECUTABLE_SUFFIX.test(file) || hasExecutableSignature(contents)) {
       issues.push({ severity: "blocking", code: "native-executable", file });
     }

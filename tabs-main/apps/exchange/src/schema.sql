@@ -100,6 +100,24 @@ CREATE TABLE IF NOT EXISTS exchange_appeals (
 CREATE UNIQUE INDEX IF NOT EXISTS exchange_appeals_one_open_per_version
   ON exchange_appeals (namespace, name, version) WHERE responded_at IS NULL;
 
+-- Operator-reviewed package or contained-file hashes. Entries are immutable;
+-- a correction requires an explicit audited removal before adding a new rule.
+CREATE TABLE IF NOT EXISTS exchange_blocked_digests (
+  digest TEXT PRIMARY KEY CHECK (digest ~ '^[a-f0-9]{64}$'),
+  reason TEXT NOT NULL CHECK (length(reason) BETWEEN 1 AND 2000),
+  created_by BIGINT NOT NULL REFERENCES exchange_users(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS exchange_blocked_digest_events (
+  id BIGSERIAL PRIMARY KEY,
+  digest TEXT NOT NULL CHECK (digest ~ '^[a-f0-9]{64}$'),
+  action TEXT NOT NULL CHECK (action IN ('add', 'remove')),
+  reason TEXT NOT NULL,
+  actor_id BIGINT NOT NULL REFERENCES exchange_users(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- Signed TUF bytes are produced offline and published separately from review.
 -- API and worker containers never hold metadata signing keys.
 CREATE TABLE IF NOT EXISTS exchange_tuf_metadata (

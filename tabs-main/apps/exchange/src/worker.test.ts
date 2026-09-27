@@ -54,6 +54,44 @@ afterEach(() => {
 });
 
 describe("Exchange quarantine worker", () => {
+  it("keeps a known blocked package out of manual approval", async () => {
+    const { inspected, bytes } = await fixture();
+    let result: { passed: boolean; issues: Array<{ code: string }> } | null = null;
+    const pool = {
+      async query(sql: string, values?: unknown[]) {
+        if (sql.includes("RETURNING namespace, name, version, digest, object_key, scan_token")) {
+          return {
+            rows: [
+              {
+                namespace: "example",
+                name: "dashboard",
+                version: "1.0.0",
+                digest: inspected.digest,
+                object_key: "quarantine/test",
+                scan_token: values?.[0],
+              },
+            ],
+          };
+        }
+        if (sql.includes("FROM exchange_blocked_digests")) {
+          return { rows: [{ digest: inspected.digest }] };
+        }
+        if (sql.includes("SELECT version, digest, bytes, object_key")) return { rows: [] };
+        if (sql.includes("status = 'review'")) result = JSON.parse(values?.[4] as string);
+        return { rows: [], rowCount: 1 };
+      },
+    } as unknown as Pool;
+    const storage = {
+      async send() {
+        return { Body: Readable.from([bytes]) };
+      },
+    } as unknown as S3Client;
+    expect(await scanNextVersion(pool, storage, config)).toBe(true);
+    expect(result).toMatchObject({
+      passed: false,
+      issues: expect.arrayContaining([{ severity: "blocking", code: "known-malicious-package" }]),
+    });
+  });
   it("carries the last approved version's capability diff into the review record", async () => {
     const { inspected, bytes } = await fixture(["profile-storage"]);
     const previous = await fixture([], "0.9.0");
@@ -145,9 +183,9 @@ describe("Exchange quarantine worker", () => {
       },
     } as unknown as S3Client;
     expect(await scanNextVersion(pool, storage, config)).toBe(true);
-    expect(updates).toHaveLength(1);
-    expect(updates[0]!.sql).toContain("status = 'review'");
-    const result = JSON.parse(updates[0]!.values?.[4] as string);
+    const reviewUpdate = updates.find((entry) => entry.sql.includes("status = 'review'"));
+    expect(reviewUpdate).toBeDefined();
+    const result = JSON.parse(reviewUpdate!.values?.[4] as string);
     expect(result.passed).toBe(true);
     expect(result.digest).toBe(inspected.digest);
     expect(result.files["dist/index.html"]).toMatch(/^[a-f0-9]{64}$/);

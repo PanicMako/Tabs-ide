@@ -129,3 +129,14 @@ an audit event. Revoked versions disappear
 from public metadata and downloads. The desktop client detects signed target
 removal during periodic or activation checks and removes the revoked version's
 tools from its toolbar.
+
+Reviewers can add exact SHA-256 package or contained-file hashes to an
+operator-maintained blocked-digest list in the reviewer portal. New scans fail
+when they contain a blocked hash. Approval rechecks the current list under the
+same transaction lock as list changes, so a previously passing scan cannot
+authorize newly blocked material. Adding a hash automatically revokes matching
+approved versions and records reviewer events. Removal requires a reason and
+is audited; it does not restore revoked versions. After any revocation, an
+operator must promptly publish updated signed TUF targets and timestamp
+metadata so desktop clients receive authenticated revocation. This local feed
+does not replace an external malware-intelligence or dependency-advisory feed.

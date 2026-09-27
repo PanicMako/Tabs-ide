@@ -42,6 +42,10 @@ export async function scanNextVersion(
     const bytes = await boundedObject(storage, config.bucket, job.object_key);
     const digest = Crypto.createHash("sha256").update(bytes).digest("hex");
     if (digest !== job.digest) throw new Error("Quarantined object digest changed.");
+    const blocked = await pool.query<{ digest: string }>(
+      "SELECT digest FROM exchange_blocked_digests",
+    );
+    const blockedDigests = new Set(blocked.rows.map((entry) => entry.digest));
     await FS.writeFile(archive, bytes, { flag: "wx", mode: 0o600 });
     const installed = Path.join(temporary, "extracted");
     const inspected = await extractTabsext({
@@ -103,6 +107,7 @@ export async function scanNextVersion(
       priorInspected?.manifest,
       priorFiles,
       priorVersion?.version,
+      blockedDigests,
     );
     result = {
       ...result,

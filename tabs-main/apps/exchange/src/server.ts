@@ -32,6 +32,7 @@ const TUF_TARGET_ROUTE =
   /^\/v1\/tuf\/targets\/extensions\/([a-z][a-z0-9-]{1,62})\/([a-z][a-z0-9-]{1,62})\/(?:(?:([a-f0-9]{64})\.)?([0-9A-Za-z.+-]+))\.tabsext$/;
 const MEMBER_ROUTE = /^\/v1\/namespaces\/([a-z][a-z0-9-]{1,62})\/members$/;
 const VERIFY_NAMESPACE_ROUTE = /^\/v1\/review\/namespaces\/([a-z][a-z0-9-]{1,62})\/verification$/;
+const BLOCKED_DIGEST_REMOVE_ROUTE = /^\/v1\/review\/blocked-digests\/([a-f0-9]{64})\/remove$/;
 const RESERVED_NAMESPACES = new Set(["tabs", "official", "admin", "system"]);
 const TERMS_VERSION = "2026-09-24";
 
@@ -575,6 +576,111 @@ export function createExchangeServer(
         json(response, 200, { versions: found.rows });
         return;
       }
+      if (request.method === "GET" && path === "/v1/review/blocked-digests") {
+        const actor = await actorFor(request, pool, config);
+        if (!actor?.admin) throw new HttpError(403, "Reviewer access required.");
+        const found = await pool.query(
+          `SELECT digest, reason, created_by, created_at FROM exchange_blocked_digests
+           ORDER BY created_at DESC LIMIT 500`,
+        );
+        json(response, 200, { blockedDigests: found.rows });
+        return;
+      }
+      if (request.method === "POST" && path === "/v1/review/blocked-digests") {
+        const actor = requireMutation(request, await actorFor(request, pool, config), config);
+        if (!actor.admin) throw new HttpError(403, "Reviewer access required.");
+        const body = await readJson(request);
+        if (
+          typeof body.digest !== "string" ||
+          !/^[a-f0-9]{64}$/.test(body.digest) ||
+          typeof body.reason !== "string" ||
+          !body.reason.trim() ||
+          body.reason.length > 2000
+        ) {
+          throw new HttpError(400, "A SHA-256 digest and reason are required.");
+        }
+        const digest = body.digest;
+        const reason = body.reason.trim();
+        const revoked = await inTransaction(pool, async (client) => {
+          await client.query("SELECT pg_advisory_xact_lock(7331, 1)");
+          const inserted = await client.query(
+            `INSERT INTO exchange_blocked_digests(digest, reason, created_by)
+             VALUES ($1, $2, $3) ON CONFLICT DO NOTHING RETURNING digest`,
+            [digest, reason, actor.id],
+          );
+          if (inserted.rowCount !== 1) throw new HttpError(409, "Digest is already blocked.");
+          await client.query(
+            `INSERT INTO exchange_blocked_digest_events(digest, action, reason, actor_id)
+             VALUES ($1, 'add', $2, $3)`,
+            [digest, reason, actor.id],
+          );
+          const affected = await client.query<{
+            namespace: string;
+            name: string;
+            version: string;
+            digest: string;
+          }>(
+            `SELECT namespace, name, version, digest FROM exchange_versions
+             WHERE status = 'approved' AND (
+               digest = $1 OR EXISTS (
+                 SELECT 1 FROM jsonb_each_text(COALESCE(scan_result->'files', '{}'::jsonb)) AS file_hash(file, hash)
+                 WHERE file_hash.hash = $1
+               )
+             ) FOR UPDATE`,
+            [digest],
+          );
+          for (const release of affected.rows) {
+            const revocationReason = `Blocked package material: ${reason}`;
+            await client.query(
+              `UPDATE exchange_versions SET status = 'revoked', reviewed_at = now(),
+                 reviewed_by = $4, review_reason = $5
+               WHERE namespace = $1 AND name = $2 AND version = $3`,
+              [release.namespace, release.name, release.version, actor.id, revocationReason],
+            );
+            await client.query(
+              `INSERT INTO exchange_review_events(namespace, name, version, digest, actor_id, action, reason)
+               VALUES ($1, $2, $3, $4, $5, 'revoke', $6)`,
+              [
+                release.namespace,
+                release.name,
+                release.version,
+                release.digest,
+                actor.id,
+                revocationReason,
+              ],
+            );
+          }
+          return affected.rows.length;
+        });
+        json(response, 201, { digest, status: "blocked", revoked });
+        return;
+      }
+      const removeBlockedDigest =
+        request.method === "POST" ? BLOCKED_DIGEST_REMOVE_ROUTE.exec(path) : null;
+      if (removeBlockedDigest) {
+        const actor = requireMutation(request, await actorFor(request, pool, config), config);
+        if (!actor.admin) throw new HttpError(403, "Reviewer access required.");
+        const body = await readJson(request);
+        if (typeof body.reason !== "string" || !body.reason.trim() || body.reason.length > 2000) {
+          throw new HttpError(400, "A removal reason is required.");
+        }
+        const reason = body.reason.trim();
+        await inTransaction(pool, async (client) => {
+          await client.query("SELECT pg_advisory_xact_lock(7331, 1)");
+          const removed = await client.query(
+            "DELETE FROM exchange_blocked_digests WHERE digest = $1 RETURNING digest",
+            [removeBlockedDigest[1]],
+          );
+          if (removed.rowCount !== 1) throw new HttpError(404, "Blocked digest not found.");
+          await client.query(
+            `INSERT INTO exchange_blocked_digest_events(digest, action, reason, actor_id)
+             VALUES ($1, 'remove', $2, $3)`,
+            [removeBlockedDigest[1], reason, actor.id],
+          );
+        });
+        json(response, 200, { digest: removeBlockedDigest[1], status: "removed" });
+        return;
+      }
       const verifyNamespace = request.method === "POST" ? VERIFY_NAMESPACE_ROUTE.exec(path) : null;
       if (verifyNamespace) {
         const actor = requireMutation(request, await actorFor(request, pool, config), config);
@@ -671,10 +777,15 @@ export function createExchangeServer(
         )
           throw new HttpError(400, "Decision requires an action, exact digest, and reason.");
         await inTransaction(pool, async (client) => {
+          await client.query("SELECT pg_advisory_xact_lock(7331, 1)");
           const found = await client.query<{
             status: string;
             digest: string;
-            scan_result: { passed?: boolean } | null;
+            scan_result: {
+              passed?: boolean;
+              digest?: string;
+              files?: Record<string, string>;
+            } | null;
           }>(
             `SELECT status, digest, scan_result FROM exchange_versions
              WHERE namespace = $1 AND name = $2 AND version = $3 FOR UPDATE`,
@@ -689,8 +800,23 @@ export function createExchangeServer(
           ) {
             throw new HttpError(409, "Submission is not in a reviewable state.");
           }
-          if (action === "approve" && submission.scan_result?.passed !== true) {
+          if (
+            action === "approve" &&
+            (submission.scan_result?.passed !== true || submission.scan_result.digest !== digest)
+          ) {
             throw new HttpError(409, "Blocking scan results prevent approval.");
+          }
+          if (action === "approve") {
+            const fileDigests = Object.values(submission.scan_result?.files ?? {}).filter((value) =>
+              /^[a-f0-9]{64}$/.test(value),
+            );
+            const blocked = await client.query(
+              "SELECT digest FROM exchange_blocked_digests WHERE digest = ANY($1::text[]) LIMIT 1",
+              [[digest, ...fileDigests]],
+            );
+            if (blocked.rowCount) {
+              throw new HttpError(409, "This package contains a blocked digest.");
+            }
           }
           const status =
             action === "approve" ? "approved" : action === "reject" ? "rejected" : "revoked";

@@ -299,6 +299,41 @@ async function refreshApproved() {
   if (data.versions.length === 0) item(list, "No approved versions.");
 }
 
+async function refreshBlockedDigests() {
+  const data = await requestJson("/v1/review/blocked-digests");
+  const list = document.getElementById("blocked-digests");
+  list.replaceChildren();
+  for (const entry of data.blockedDigests) {
+    const li = item(list, `${entry.digest}: ${entry.reason}`);
+    const form = document.createElement("form");
+    const label = document.createElement("label");
+    label.textContent = `Reason to remove blocked digest ${entry.digest} `;
+    const reason = document.createElement("input");
+    reason.required = true;
+    reason.maxLength = 2000;
+    label.append(reason);
+    const button = document.createElement("button");
+    button.type = "submit";
+    button.textContent = `Remove block for ${entry.digest}`;
+    form.append(label, button);
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      try {
+        await requestJson(
+          `/v1/review/blocked-digests/${entry.digest}/remove`,
+          mutation("POST", JSON.stringify({ reason: reason.value.trim() }), "application/json"),
+        );
+        announce(`Block removed for ${entry.digest}. Revoked versions remain revoked.`);
+        await refreshBlockedDigests();
+      } catch (error) {
+        announce(String(error), true);
+      }
+    });
+    li.append(form);
+  }
+  if (!data.blockedDigests.length) item(list, "No blocked digests.");
+}
+
 document.getElementById("namespace-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const name = document.getElementById("namespace-name").value;
@@ -370,6 +405,22 @@ document.getElementById("verification-form").addEventListener("submit", async (e
   }
 });
 
+document.getElementById("blocked-digest-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const digest = document.getElementById("blocked-digest-value").value;
+  const reason = document.getElementById("blocked-digest-reason").value;
+  try {
+    const result = await requestJson(
+      "/v1/review/blocked-digests",
+      mutation("POST", JSON.stringify({ digest, reason }), "application/json"),
+    );
+    announce(`Digest blocked. ${result.revoked} approved version(s) revoked.`);
+    await Promise.all([refreshBlockedDigests(), refreshApproved()]);
+  } catch (error) {
+    announce(String(error), true);
+  }
+});
+
 document.getElementById("refresh-submissions").addEventListener("click", () => {
   refreshSubmissions().catch((error) => announce(String(error), true));
 });
@@ -384,6 +435,9 @@ document.getElementById("refresh-review").addEventListener("click", () => {
 });
 document.getElementById("refresh-approved").addEventListener("click", () => {
   refreshApproved().catch((error) => announce(String(error), true));
+});
+document.getElementById("refresh-blocked-digests").addEventListener("click", () => {
+  refreshBlockedDigests().catch((error) => announce(String(error), true));
 });
 document.getElementById("logout").addEventListener("click", async () => {
   try {
@@ -410,11 +464,14 @@ try {
     document.getElementById("review-section").hidden = !me.admin;
     document.getElementById("revocation-section").hidden = !me.admin;
     document.getElementById("verification-section").hidden = !me.admin;
+    document.getElementById("blocked-digests-section").hidden = !me.admin;
     await Promise.all([
       refreshNamespaces(),
       refreshSubmissions(),
       refreshAppeals(),
-      ...(me.admin ? [refreshReview(), refreshReviewAppeals(), refreshApproved()] : []),
+      ...(me.admin
+        ? [refreshReview(), refreshReviewAppeals(), refreshApproved(), refreshBlockedDigests()]
+        : []),
     ]);
   }
 } catch (error) {

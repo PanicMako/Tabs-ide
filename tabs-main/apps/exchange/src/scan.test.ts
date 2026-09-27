@@ -1,3 +1,4 @@
+import * as Crypto from "node:crypto";
 import * as FS from "node:fs";
 import * as OS from "node:os";
 import * as Path from "node:path";
@@ -75,6 +76,29 @@ describe("Exchange automated scan", () => {
     expect(result.passed).toBe(false);
     expect(result.issues.map((issue) => issue.code)).toContain("possible-secret");
     expect(result.issues.map((issue) => issue.code)).toContain("native-executable");
+  });
+
+  it("blocks operator-listed package and contained-file digests", async () => {
+    const { destination, inspected } = await packageFixture({ "payload.txt": "known material" });
+    const fileDigest = Crypto.createHash("sha256").update("known material").digest("hex");
+    const result = await scanExtractedPackage(
+      destination,
+      inspected,
+      undefined,
+      {},
+      undefined,
+      new Set([inspected.digest, fileDigest]),
+    );
+    expect(result.passed).toBe(false);
+    expect(result.issues).toContainEqual({
+      severity: "blocking",
+      code: "known-malicious-package",
+    });
+    expect(result.issues).toContainEqual({
+      severity: "blocking",
+      code: "known-malicious-file",
+      file: "dist/payload.txt",
+    });
   });
 
   it("blocks executable magic even when a native binary is disguised as a text asset", async () => {
