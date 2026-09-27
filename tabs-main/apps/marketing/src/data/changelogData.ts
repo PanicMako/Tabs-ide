@@ -21,16 +21,36 @@ export interface ChangelogRelease {
   }[];
 }
 
-export const TOTAL_TAGS_COUNT = 168;
+export const TOTAL_TAGS_COUNT = 169;
 
 export const changelogData: ChangelogRelease[] = [
+  {
+    tag: "v1.3.26",
+    title: "Font picker selection highlight fix",
+    date: "September 28, 2026",
+    shortDate: "Sep 28",
+    isLatest: true,
+    type: "patch",
+    summary:
+      "Font combo buttons and font dropdowns in the Themes settings now correctly highlight the active selection in packaged desktop builds.",
+    highlights: [
+      "Selecting a font combo or changing the interface/editor font now immediately shows the active selection indicator. Previously the highlight did not appear because font family changes were not propagated to the settings store that drives the comparison.",
+    ],
+    categories: [
+      {
+        title: "Appearance",
+        items: [
+          "Font picker active-selection highlight now works correctly in packaged builds.",
+        ],
+      },
+    ],
+  },
   {
     tag: "v1.3.25",
     title:
       "Packaged desktop font rendering, editor font synchronization, and dynamic provider models",
     date: "September 28, 2026",
     shortDate: "Sep 28",
-    isLatest: true,
     type: "patch",
     summary:
       "Tabs improves desktop font rendering with proper cross-origin headers, adds instant font preference synchronization for the embedded editor, and switches provider models to dynamic capability snapshots.",
