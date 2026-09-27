@@ -115,16 +115,17 @@ excess upload connections with HTTP 429, and terminates uploads whose bodies
 take longer than two minutes. Publishers can retry after an in-progress upload
 finishes; invalid archives receive HTTP 400.
 
-| Route                                                 | Access                                                                   |
-| ----------------------------------------------------- | ------------------------------------------------------------------------ |
-| `GET /auth/github/start`, `GET /auth/github/callback` | GitHub OAuth sign-in                                                     |
-| `GET /v1/me`                                          | Current account and reviewer flag                                        |
-| `POST /v1/namespaces`                                 | Signed-in publisher, exact terms version                                 |
-| `GET /v1/publisher/namespaces`                        | Publisher namespace membership                                           |
-| `GET /v1/publisher/submissions`                       | Publisher submission status                                              |
-| `POST /v1/publisher/:namespace/:name/versions`        | Namespace owner/contributor upload                                       |
-| `GET /v1/review/queue`                                | Admin reviewer                                                           |
-| `POST /v1/review/:namespace/:name/:version`           | Admin decision: `approve`, `reject`, or `revoke`, with digest and reason |
+| Route                                                 | Access                                                                     |
+| ----------------------------------------------------- | -------------------------------------------------------------------------- |
+| `GET /auth/github/start`, `GET /auth/github/callback` | GitHub OAuth sign-in                                                       |
+| `GET /v1/me`                                          | Current account and reviewer flag                                          |
+| `POST /v1/namespaces`                                 | Signed-in publisher, exact terms version                                   |
+| `GET /v1/publisher/namespaces`                        | Publisher namespace membership                                             |
+| `GET /v1/publisher/submissions`                       | Publisher submission status                                                |
+| `POST /v1/publisher/:namespace/:name/versions`        | Namespace owner/contributor upload                                         |
+| `GET /v1/review/queue`                                | Admin reviewer                                                             |
+| `GET /v1/review/:namespace/:name/history`             | Admin-only prior versions, uploader names, and review-decision audit trail |
+| `POST /v1/review/:namespace/:name/:version`           | Admin decision: `approve`, `reject`, or `revoke`, with digest and reason   |
 
 The worker scans queued packages, verifies stored bytes, extracts with bounded
 ZIP validation, and writes a scan result. It also re-downloads and verifies the
@@ -150,7 +151,10 @@ approval. The scan records capabilities added or removed relative to the
 closest approved semantic predecessor (the highest approved version below the
 submission), even if approvals occurred out of order, and warns on increases.
 The reviewer queue displays those changes alongside the requested capabilities
-and file-change counts. It also
+and file-change counts. Its on-demand history disclosure shows up to 100 prior
+versions and 100 recorded review decisions for the extension, including
+publisher and reviewer identity; raw package objects and credentials are not
+exposed by that route. It also
 shows declared profile-storage migrations and blocks schema downgrades that
 desktop clients cannot install. This
 summary does not replace inspecting the exact archive. Every decision writes

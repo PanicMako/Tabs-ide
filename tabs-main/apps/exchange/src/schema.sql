@@ -67,6 +67,9 @@ CREATE INDEX IF NOT EXISTS exchange_versions_public_search
   ON exchange_versions (namespace, name, submitted_at DESC)
   WHERE status = 'approved';
 
+CREATE INDEX IF NOT EXISTS exchange_versions_review_history
+  ON exchange_versions (namespace, name, submitted_at DESC);
+
 CREATE TABLE IF NOT EXISTS exchange_review_events (
   id BIGSERIAL PRIMARY KEY,
   namespace TEXT NOT NULL,
@@ -80,6 +83,9 @@ CREATE TABLE IF NOT EXISTS exchange_review_events (
   FOREIGN KEY (namespace, name, version)
     REFERENCES exchange_versions(namespace, name, version)
 );
+
+CREATE INDEX IF NOT EXISTS exchange_review_events_history
+  ON exchange_review_events (namespace, name, created_at DESC, id DESC);
 
 CREATE TABLE IF NOT EXISTS exchange_appeals (
   id BIGSERIAL PRIMARY KEY,

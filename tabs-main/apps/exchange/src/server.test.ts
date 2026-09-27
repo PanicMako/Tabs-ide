@@ -103,6 +103,35 @@ async function fixture(
           rowCount: tuf?.metadata && params?.[0] === "timestamp.json" ? 1 : 0,
         };
       }
+      if (sql.includes("uploader.login AS uploader_login")) {
+        return {
+          rows: [
+            {
+              version: "1.0.0",
+              digest,
+              status: "approved",
+              uploader_login: "publisher",
+              reviewer_login: "reviewer",
+              review_reason: "Reviewed package",
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+      if (sql.includes("FROM exchange_review_events e")) {
+        return {
+          rows: [
+            {
+              version: "1.0.0",
+              digest,
+              action: "approve",
+              reviewer_login: "reviewer",
+              reason: "Reviewed package",
+            },
+          ],
+          rowCount: 1,
+        };
+      }
       if (sql.includes("FROM exchange_versions") && sql.includes("status = 'approved'")) {
         const isPublic = Boolean(
           tuf?.target && tuf.targetStatus === "approved" && tuf.publishedTarget !== false,
@@ -185,6 +214,28 @@ afterEach(async () => {
 });
 
 describe("Exchange HTTP boundaries", () => {
+  it("restricts exact extension review history to admins", async () => {
+    const ready = await fixture();
+    const path = `${ready.base}/v1/review/example/dashboard/history`;
+    expect((await fetch(path)).status).toBe(403);
+    const response = await fetch(path, { headers: { Cookie: "tabs_exchange_session=opaque" } });
+    expect(response.status).toBe(200);
+    const history = await response.json();
+    expect(history).toMatchObject({
+      namespace: "example",
+      name: "dashboard",
+      versions: [{ uploader_login: "publisher", reviewer_login: "reviewer" }],
+      decisions: [{ action: "approve", reason: "Reviewed package" }],
+    });
+    expect(JSON.stringify(history)).not.toContain("object_key");
+    expect(
+      ready.publicQueries.filter((sql) => sql.includes("WHERE v.namespace = $1 AND v.name = $2")),
+    ).toHaveLength(1);
+    expect(
+      ready.publicQueries.filter((sql) => sql.includes("WHERE e.namespace = $1 AND e.name = $2")),
+    ).toHaveLength(1);
+  });
+
   it("limits concurrent publisher uploads and releases slots after disconnects", async () => {
     const ready = await fixture(true, digest, "review", undefined, undefined, undefined, true);
     const headers = {

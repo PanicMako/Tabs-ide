@@ -37,6 +37,57 @@ function listText(value) {
   return Array.isArray(value) && value.length ? value.join(", ") : "none";
 }
 
+function reviewHistoryDisclosure(entry) {
+  const details = document.createElement("details");
+  const heading = document.createElement("summary");
+  heading.textContent = `Publisher and review history for ${entry.namespace}.${entry.name}`;
+  const state = document.createElement("p");
+  state.setAttribute("role", "status");
+  const content = document.createElement("div");
+  details.append(heading, state, content);
+  let loaded = false;
+  let loading = false;
+  details.addEventListener("toggle", async () => {
+    if (!details.open || loaded || loading) return;
+    loading = true;
+    state.setAttribute("role", "status");
+    state.textContent = "Loading publisher and review history.";
+    try {
+      const history = await requestJson(`/v1/review/${entry.namespace}/${entry.name}/history`);
+      content.replaceChildren();
+      const versionsHeading = document.createElement("h4");
+      versionsHeading.textContent = "Submitted versions";
+      const versions = document.createElement("ul");
+      for (const version of history.versions) {
+        item(
+          versions,
+          `${version.version}: ${version.status}. SHA-256 ${version.digest}. Uploaded by ${version.uploader_login} at ${version.submitted_at}.${version.reviewer_login ? ` Reviewed by ${version.reviewer_login} at ${version.reviewed_at}.` : ""}${version.review_reason ? ` Reason: ${version.review_reason}` : ""}`,
+        );
+      }
+      if (!history.versions.length) item(versions, "No submitted versions found.");
+      const decisionsHeading = document.createElement("h4");
+      decisionsHeading.textContent = "Review decisions";
+      const decisions = document.createElement("ul");
+      for (const decision of history.decisions) {
+        item(
+          decisions,
+          `${decision.action} ${decision.version}: SHA-256 ${decision.digest}. ${decision.reviewer_login} at ${decision.created_at}. Reason: ${decision.reason}`,
+        );
+      }
+      if (!history.decisions.length) item(decisions, "No review decisions recorded yet.");
+      content.append(versionsHeading, versions, decisionsHeading, decisions);
+      state.textContent = "History loaded. Each list shows up to 100 recent entries.";
+      loaded = true;
+    } catch (error) {
+      state.setAttribute("role", "alert");
+      state.textContent = `Could not load history: ${String(error)}`;
+    } finally {
+      loading = false;
+    }
+  });
+  return details;
+}
+
 async function refreshNamespaces() {
   const data = await requestJson("/v1/publisher/namespaces");
   const list = document.getElementById("namespaces");
@@ -172,6 +223,7 @@ async function refreshReview() {
             ? `Compared with approved ${previous}: added ${listText(scan.capabilityChanges.added)}; removed ${listText(scan.capabilityChanges.removed)}.`
             : "No prior approved version for capability comparison.";
     li.append(comparison);
+    li.append(reviewHistoryDisclosure(entry));
     if (scan?.dependencyAudit) {
       const audit = scan.dependencyAudit;
       const summary = document.createElement("p");

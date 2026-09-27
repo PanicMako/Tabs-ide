@@ -27,6 +27,8 @@ const APPEAL_ROUTE =
 const APPEAL_RESPONSE_ROUTE = /^\/v1\/review\/appeals\/([1-9][0-9]*)\/response$/;
 const REVIEW_DOWNLOAD_ROUTE =
   /^\/v1\/review\/([a-z][a-z0-9-]{1,62})\/([a-z][a-z0-9-]{1,62})\/([^/]+)\/download$/;
+const REVIEW_HISTORY_ROUTE =
+  /^\/v1\/review\/([a-z][a-z0-9-]{1,62})\/([a-z][a-z0-9-]{1,62})\/history$/;
 const TUF_METADATA_ROUTE =
   /^\/v1\/tuf\/metadata\/((?:[1-9][0-9]*\.)?(?:root|snapshot|targets)|timestamp)\.json$/;
 const TUF_TARGET_ROUTE =
@@ -605,6 +607,40 @@ export function createExchangeServer(
            ORDER BY submitted_at ASC LIMIT 100`,
         );
         json(response, 200, { submissions: found.rows });
+        return;
+      }
+      const reviewHistory = request.method === "GET" ? REVIEW_HISTORY_ROUTE.exec(path) : null;
+      if (reviewHistory) {
+        const actor = await actorFor(request, pool, config);
+        if (!actor?.admin) throw new HttpError(403, "Reviewer access required.");
+        const namespace = reviewHistory[1]!;
+        const name = reviewHistory[2]!;
+        const versions = await pool.query(
+          `SELECT v.version, v.digest, v.status, v.submitted_at, v.reviewed_at,
+                  v.review_reason, uploader.login AS uploader_login,
+                  reviewer.login AS reviewer_login
+           FROM exchange_versions v
+           JOIN exchange_users uploader ON uploader.id = v.uploaded_by
+           LEFT JOIN exchange_users reviewer ON reviewer.id = v.reviewed_by
+           WHERE v.namespace = $1 AND v.name = $2
+           ORDER BY v.submitted_at DESC, v.version DESC LIMIT 100`,
+          [namespace, name],
+        );
+        const decisions = await pool.query(
+          `SELECT e.version, e.digest, e.action, e.reason, e.created_at,
+                  reviewer.login AS reviewer_login
+           FROM exchange_review_events e
+           JOIN exchange_users reviewer ON reviewer.id = e.actor_id
+           WHERE e.namespace = $1 AND e.name = $2
+           ORDER BY e.created_at DESC, e.id DESC LIMIT 100`,
+          [namespace, name],
+        );
+        json(response, 200, {
+          namespace,
+          name,
+          versions: versions.rows,
+          decisions: decisions.rows,
+        });
         return;
       }
       if (request.method === "GET" && path === "/v1/review/appeals") {
