@@ -12762,6 +12762,8 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
         <ExtensionToolSurface
           key={`${activeProject.id}:${extension.id}:${activeTool.extensionToolId}`}
           label={activeTool.label}
+          source={extension.source}
+          {...(extension.registryOrigin ? { registryOrigin: extension.registryOrigin } : {})}
           input={{
             projectId: activeProject.id,
             extensionId: extension.id,

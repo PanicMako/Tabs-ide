@@ -77,6 +77,11 @@ navigation, or popups. Its files are served
 from a dedicated `tabs-extension:` origin through a dedicated Electron session.
 The host passes the current project and profile IDs as URL query parameters;
 these are display context only, not authorization tokens.
+Tabs renders a separate identity strip above the extension view with its
+package ID, tool label, and registry origin or local-development source. The
+extension cannot draw over that strip through its bounded native view. The
+strip does not claim that a publisher is verified or that its content is safe.
+Unsupported browser clients show an unavailable message instead of a blank tool.
 
 A narrow `window.tabsExtension.storage` bridge offers `get(key)`,
 `set(key, JSONValue)`, and `delete(key)` only when the manifest requests
