@@ -64,6 +64,11 @@ export class CodeControlChannel {
     Set<{ resolve: () => void; reject: (error: Error) => void; timeout: NodeJS.Timeout }>
   >();
   private urlFilePath: string | null = null;
+  private currentThemeState: {
+    theme: string;
+    customConfig?: unknown;
+    fontPreferences?: unknown;
+  } | null = null;
 
   /**
    * Start the loopback control server. Idempotent — repeated calls return the
@@ -179,6 +184,10 @@ export class CodeControlChannel {
     }
     this.socketsByProject.set(projectId, socket);
     this.projectBySocket.set(socket, projectId);
+    if (this.currentThemeState) {
+      const message = { type: "setTheme", ...this.currentThemeState };
+      socket.write(`${JSON.stringify(message)}\n`);
+    }
     const waiters = this.extensionHostWaiters.get(projectId);
     if (waiters) {
       this.extensionHostWaiters.delete(projectId);
@@ -293,8 +302,9 @@ export class CodeControlChannel {
     return true;
   }
 
-  setTheme(theme: string, customConfig?: any): void {
-    const message = { type: "setTheme", theme, customConfig };
+  setTheme(theme: string, customConfig?: unknown, fontPreferences?: unknown): void {
+    this.currentThemeState = { theme, customConfig, fontPreferences };
+    const message = { type: "setTheme", theme, customConfig, fontPreferences };
     const payload = `${JSON.stringify(message)}\n`;
     for (const socket of this.socketsByProject.values()) {
       if (!socket.destroyed && socket.writable) {

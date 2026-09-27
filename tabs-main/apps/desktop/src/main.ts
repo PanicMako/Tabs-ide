@@ -261,6 +261,7 @@ type PersistedDesktopTheme = {
   themeId: string;
   preference?: string;
   customConfig?: unknown;
+  fontPreferences?: unknown;
 };
 
 function loadPersistedDesktopTheme(): PersistedDesktopTheme | null {
@@ -276,6 +277,7 @@ function loadPersistedDesktopTheme(): PersistedDesktopTheme | null {
           themeId,
           ...(preference ? { preference } : null),
           customConfig: parsed.customConfig,
+          fontPreferences: parsed.fontPreferences,
         }
       : null;
   } catch {
@@ -466,7 +468,16 @@ if (persistedDesktopTheme) {
       : isLightDesktopTheme(persistedDesktopTheme.themeId, persistedDesktopTheme.customConfig)
         ? "light"
         : "dark";
-  codeHostManager.setTheme(persistedDesktopTheme.themeId, persistedDesktopTheme.customConfig);
+  codeControlChannel.setTheme(
+    persistedDesktopTheme.themeId,
+    persistedDesktopTheme.customConfig,
+    persistedDesktopTheme.fontPreferences,
+  );
+  codeHostManager.setTheme(
+    persistedDesktopTheme.themeId,
+    persistedDesktopTheme.customConfig,
+    persistedDesktopTheme.fontPreferences,
+  );
   notificationOverlayManager.setTheme({
     themeId: persistedDesktopTheme.themeId,
     isDark: !isLightDesktopTheme(persistedDesktopTheme.themeId, persistedDesktopTheme.customConfig),
@@ -959,6 +970,46 @@ function handleFatalStartupError(stage: string, error: unknown): void {
   app.quit();
 }
 
+function getDesktopAssetContentType(pathname: string): string {
+  switch (Path.extname(pathname).toLowerCase()) {
+    case ".html":
+      return "text/html; charset=utf-8";
+    case ".js":
+    case ".mjs":
+      return "text/javascript; charset=utf-8";
+    case ".css":
+      return "text/css; charset=utf-8";
+    case ".json":
+    case ".map":
+      return "application/json; charset=utf-8";
+    case ".svg":
+      return "image/svg+xml";
+    case ".png":
+      return "image/png";
+    case ".jpg":
+    case ".jpeg":
+      return "image/jpeg";
+    case ".gif":
+      return "image/gif";
+    case ".webp":
+      return "image/webp";
+    case ".ico":
+      return "image/x-icon";
+    case ".woff":
+      return "font/woff";
+    case ".woff2":
+      return "font/woff2";
+    case ".ttf":
+      return "font/ttf";
+    case ".otf":
+      return "font/otf";
+    case ".wasm":
+      return "application/wasm";
+    default:
+      return "application/octet-stream";
+  }
+}
+
 function registerDesktopProtocol(): void {
   if (isDevelopment || desktopProtocolRegistered) return;
 
@@ -973,7 +1024,7 @@ function registerDesktopProtocol(): void {
   const staticRootPrefix = `${staticRootResolved}${Path.sep}`;
   const fallbackIndex = Path.join(staticRootResolved, "index.html");
 
-  protocol.registerFileProtocol(DESKTOP_SCHEME, (request, callback) => {
+  protocol.handle(DESKTOP_SCHEME, async (request) => {
     try {
       const candidate = resolveDesktopStaticPath(staticRootResolved, request.url);
       const resolvedCandidate = Path.resolve(candidate);
@@ -983,16 +1034,42 @@ function registerDesktopProtocol(): void {
 
       if (!isInRoot || !FS.existsSync(resolvedCandidate)) {
         if (isAssetRequest) {
-          callback({ error: -6 });
-          return;
+          return new Response(null, { status: 404, statusText: "Not Found" });
         }
-        callback({ path: fallbackIndex });
-        return;
+        const indexContents = await FS.promises.readFile(fallbackIndex);
+        return new Response(indexContents, {
+          status: 200,
+          headers: {
+            "Content-Type": "text/html; charset=utf-8",
+            "Access-Control-Allow-Origin": "*",
+            "Cross-Origin-Resource-Policy": "cross-origin",
+          },
+        });
       }
 
-      callback({ path: resolvedCandidate });
+      const contents = await FS.promises.readFile(resolvedCandidate);
+      return new Response(contents, {
+        status: 200,
+        headers: {
+          "Content-Type": getDesktopAssetContentType(resolvedCandidate),
+          "Access-Control-Allow-Origin": "*",
+          "Cross-Origin-Resource-Policy": "cross-origin",
+        },
+      });
     } catch {
-      callback({ path: fallbackIndex });
+      try {
+        const indexContents = await FS.promises.readFile(fallbackIndex);
+        return new Response(indexContents, {
+          status: 200,
+          headers: {
+            "Content-Type": "text/html; charset=utf-8",
+            "Access-Control-Allow-Origin": "*",
+            "Cross-Origin-Resource-Policy": "cross-origin",
+          },
+        });
+      } catch {
+        return new Response(null, { status: 500, statusText: "Internal Server Error" });
+      }
     }
   });
 
@@ -2430,11 +2507,13 @@ function registerIpcHandlers(): void {
     let themeId: string | null = null;
     let preference: string | null = null;
     let customConfig: any = null;
+    let fontPreferences: any = null;
 
     if (typeof payload === "object" && payload !== null && "themeId" in payload) {
       themeId = getSafeTheme((payload as any).themeId);
       preference = getSafeTheme((payload as any).preference);
       customConfig = (payload as any).customConfig ?? null;
+      fontPreferences = (payload as any).fontPreferences ?? null;
     } else {
       themeId = getSafeTheme(payload);
     }
@@ -2453,9 +2532,10 @@ function registerIpcHandlers(): void {
       themeId,
       preference: preference ?? themeId,
       customConfig,
+      fontPreferences,
     });
-    codeControlChannel.setTheme(themeId, customConfig);
-    codeHostManager.setTheme(themeId, customConfig);
+    codeControlChannel.setTheme(themeId, customConfig, fontPreferences);
+    codeHostManager.setTheme(themeId, customConfig, fontPreferences);
     notificationOverlayManager.setTheme({
       themeId,
       isDark: !isLightDesktopTheme(themeId, customConfig),

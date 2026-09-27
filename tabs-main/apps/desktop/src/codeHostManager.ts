@@ -1107,11 +1107,13 @@ export class CodeHostManager {
     }
   }
 
+  private currentFontPreferences: any = null;
   private currentAiProvider: "tabs" | "copilot" = "tabs";
 
-  setTheme(themeId: string, customConfig?: any): void {
+  setTheme(themeId: string, customConfig?: any, fontPreferences?: any): void {
     this.currentThemeId = themeId;
     this.currentCustomConfig = customConfig ?? null;
+    this.currentFontPreferences = fontPreferences ?? null;
     const backgroundColor = this.isCurrentThemeLight() ? "#f8f8f8" : "#141414";
     for (const session of this.sessions.values()) {
       if (session.view && !session.view.webContents.isDestroyed()) {
@@ -1191,7 +1193,15 @@ export class CodeHostManager {
 
     this.controlChannel?.onExtensionHostConnected(async (projectId) => {
       // 1. Sync active theme
-      this.controlChannel?.setTheme(this.currentThemeId, this.currentCustomConfig);
+      if (this.currentFontPreferences) {
+        this.controlChannel?.setTheme(
+          this.currentThemeId,
+          this.currentCustomConfig,
+          this.currentFontPreferences,
+        );
+      } else {
+        this.controlChannel?.setTheme(this.currentThemeId, this.currentCustomConfig);
+      }
 
       // 2. Queue persisted tabs without artificial per-editor sleeps. The
       // control channel preserves message order, so inactive editors still

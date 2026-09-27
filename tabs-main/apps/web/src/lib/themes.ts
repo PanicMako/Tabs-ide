@@ -652,7 +652,6 @@ export const UI_FONT_OPTIONS = [
   { value: "'Manrope', sans-serif", label: "Manrope" },
   { value: "'Unbounded', sans-serif", label: "Unbounded" },
   { value: "'Inter', system-ui, sans-serif", label: "Inter" },
-  { value: "'General Sans', sans-serif", label: "General Sans" },
 ] as const;
 
 export const HEADING_FONT_OPTIONS = [
@@ -667,8 +666,6 @@ export const HEADING_FONT_OPTIONS = [
   { value: "'Cormorant Garamond', serif", label: "Cormorant Garamond" },
   { value: "'IBM Plex Mono', monospace", label: "IBM Plex Mono" },
   { value: "'Space Grotesk', sans-serif", label: "Space Grotesk" },
-  { value: "'Clash Display', sans-serif", label: "Clash Display" },
-  { value: "'Cabinet Grotesk', sans-serif", label: "Cabinet Grotesk" },
   { value: "'Syne', sans-serif", label: "Syne" },
   { value: "'Outfit', sans-serif", label: "Outfit" },
 ] as const;
@@ -676,12 +673,9 @@ export const HEADING_FONT_OPTIONS = [
 export const EDITOR_FONT_OPTIONS = [
   { value: "Menlo, Monaco, 'Courier New', monospace", label: "Menlo / Monaco (Default)" },
   { value: "'JetBrains Mono', monospace", label: "JetBrains Mono" },
-  { value: "'Fira Code', monospace", label: "Fira Code" },
   { value: "'IBM Plex Mono', monospace", label: "IBM Plex Mono" },
-  { value: "'Space Mono', monospace", label: "Space Mono" },
   { value: "'Cascadia Code', monospace", label: "Cascadia Code" },
   { value: "Consolas, 'Liberation Mono', monospace", label: "Consolas" },
-  { value: "'Source Code Pro', monospace", label: "Source Code Pro" },
 ] as const;
 
 export interface FontCombo {
