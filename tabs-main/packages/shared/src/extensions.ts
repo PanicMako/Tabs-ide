@@ -5,6 +5,7 @@ import { compareSemverVersions, parseSemver, satisfiesSemverRange } from "./semv
 const SEGMENT = /^[a-z][a-z0-9-]{1,62}$/;
 const MAX_TOOLS = 12;
 const MAX_COMMANDS = 8;
+const STORAGE_KEY = /^[a-zA-Z][a-zA-Z0-9._-]{0,127}$/;
 
 export function extensionPermissionIncrease(
   next: TabsExtensionManifest,
@@ -99,6 +100,7 @@ export function validateTabsExtensionManifest(
     "privacyUrl",
     "engines",
     "networkHosts",
+    "storage",
     "logic",
     "capabilities",
     "contributes",
@@ -168,6 +170,74 @@ export function validateTabsExtensionManifest(
       !apiRangeIsSafe(engines.api, "1.2.0")
     ) {
       errors.push("logic commands require engines.api to start at 1.2.0 or later.");
+    }
+  }
+  if (input.storage !== undefined) {
+    const storage = input.storage;
+    if (
+      !record(storage) ||
+      Object.keys(storage).some((key) => !["version", "migrations"].includes(key))
+    ) {
+      errors.push("storage supports only version and migrations.");
+    } else {
+      const version = storage.version;
+      if (!Number.isInteger(version) || (version as number) < 1 || (version as number) > 16) {
+        errors.push("storage.version must be an integer from 1 to 16.");
+      }
+      const migrations = storage.migrations ?? [];
+      if (!Array.isArray(migrations) || migrations.length !== (version as number) - 1) {
+        errors.push("storage.migrations must contain every step from version 1.");
+      } else {
+        for (const [index, migration] of migrations.entries()) {
+          if (
+            !record(migration) ||
+            Object.keys(migration).some((key) => !["from", "to", "renames"].includes(key)) ||
+            migration.from !== index + 1 ||
+            migration.to !== index + 2 ||
+            !Array.isArray(migration.renames) ||
+            migration.renames.length < 1 ||
+            migration.renames.length > 32
+          ) {
+            errors.push(
+              `Storage migration ${index} must rename keys from version ${index + 1} to ${index + 2}.`,
+            );
+            continue;
+          }
+          const sources = new Set<string>();
+          const destinations = new Set<string>();
+          for (const rename of migration.renames) {
+            if (
+              !record(rename) ||
+              Object.keys(rename).some((key) => !["from", "to"].includes(key)) ||
+              typeof rename.from !== "string" ||
+              !STORAGE_KEY.test(rename.from) ||
+              typeof rename.to !== "string" ||
+              !STORAGE_KEY.test(rename.to) ||
+              rename.from === rename.to ||
+              sources.has(rename.from) ||
+              destinations.has(rename.to)
+            ) {
+              errors.push(`Storage migration ${index} has an invalid or duplicate key rename.`);
+              continue;
+            }
+            sources.add(rename.from);
+            destinations.add(rename.to);
+          }
+          if ([...destinations].some((key) => sources.has(key))) {
+            errors.push(`Storage migration ${index} cannot chain renames within one step.`);
+          }
+        }
+      }
+    }
+    if (!Array.isArray(input.capabilities) || !input.capabilities.includes("profile-storage")) {
+      errors.push("storage migrations require the profile-storage capability.");
+    }
+    if (
+      !record(engines) ||
+      typeof engines.api !== "string" ||
+      !apiRangeIsSafe(engines.api, "1.4.0")
+    ) {
+      errors.push("storage migrations require engines.api to start at 1.4.0 or later.");
     }
   }
   if (input.networkHosts !== undefined) {

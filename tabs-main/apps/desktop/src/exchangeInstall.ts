@@ -159,12 +159,21 @@ export class ExchangeInstallService {
         throw new Error("Signed package identity differs from Exchange listing.");
       }
       const previous = this.assertSafeReplacement(inspected.id, listing.version, target.digest);
+      if (
+        previous &&
+        (inspected.manifest.storage?.version ?? 1) < (previous.manifest.storage?.version ?? 1)
+      ) {
+        throw new Error("Exchange update cannot downgrade the extension storage schema.");
+      }
       const increase = extensionPermissionIncrease(inspected.manifest, previous?.manifest);
       const requiresNewConsent =
         previous?.revoked ||
         increase.addedCapabilities.length > 0 ||
         increase.addedNetworkHosts.length > 0 ||
         increase.addedAiTools.length > 0;
+      const storageMigration =
+        Boolean(previous) &&
+        (inspected.manifest.storage?.version ?? 1) > (previous?.manifest.storage?.version ?? 1);
       const token = Crypto.randomBytes(24).toString("hex");
       const result: DesktopPreparedExchangeInstall = {
         token,
@@ -173,6 +182,7 @@ export class ExchangeInstallService {
         manifest: inspected.manifest,
         ...(previous ? { replacesVersion: previous.manifest.version } : {}),
         willKeepEnabled: Boolean(previous && !requiresNewConsent),
+        requiresManualReview: storageMigration,
         ...increase,
       };
       this.prepared.set(token, {
@@ -214,8 +224,11 @@ export class ExchangeInstallService {
         throw new Error("This version is no longer present in current signed Exchange metadata.");
       }
       this.assertPreparedReplacement(prepared);
-      if (options.silent && !prepared.result.willKeepEnabled) {
-        throw new Error("Silent updates cannot add permissions or install new extensions.");
+      if (
+        options.silent &&
+        (!prepared.result.willKeepEnabled || prepared.result.requiresManualReview)
+      ) {
+        throw new Error("Silent updates cannot add permissions or migrate profile storage.");
       }
       return await this.install(
         prepared.archive,

@@ -27,6 +27,7 @@ const prepared = {
   digest: listing.digest,
   registryOrigin: origin,
   willKeepEnabled: true,
+  requiresManualReview: false,
 } as DesktopPreparedExchangeInstall;
 
 describe("Exchange automatic updates", () => {
@@ -88,6 +89,24 @@ describe("Exchange automatic updates", () => {
     await updater.applyAvailable();
     expect(confirm).not.toHaveBeenCalled();
     expect(cancel).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not apply a profile-data migration without manual review", async () => {
+    const confirm = vi.fn(async () => undefined);
+    const cancel = vi.fn();
+    const updater = new ExchangeAutomaticUpdater(
+      () => [entry],
+      () => listing,
+      () => true,
+      async () => ({ ...prepared, requiresManualReview: true }),
+      confirm,
+      cancel,
+      vi.fn(),
+      vi.fn(),
+    );
+    await updater.applyAvailable();
+    expect(confirm).not.toHaveBeenCalled();
+    expect(cancel).toHaveBeenCalledWith("token");
   });
 
   it("reports install errors and cancels unused review tokens", async () => {

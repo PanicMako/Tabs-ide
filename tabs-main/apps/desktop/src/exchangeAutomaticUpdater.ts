@@ -48,6 +48,7 @@ export class ExchangeAutomaticUpdater {
           const current = this.listInstalled().find((candidate) => candidate.id === entry.id);
           if (
             prepared.willKeepEnabled &&
+            !prepared.requiresManualReview &&
             prepared.digest === listing.digest &&
             prepared.registryOrigin === entry.registryOrigin &&
             current?.digest === entry.digest &&

@@ -1399,6 +1399,111 @@ describe("development extension installation", () => {
     expect(recovered.list()[0]?.digest).toBe(first.digest);
   });
 
+  it.each([
+    { name: "commits migrated profile data after successful activation", failActivation: false },
+    { name: "restores profile data when migration activation fails", failActivation: true },
+  ])("$name", async ({ failActivation }) => {
+    const { directory, manager } = fixture();
+    const source = Path.join(directory, "migration-source");
+    FS.mkdirSync(Path.join(source, "dist"), { recursive: true });
+    FS.copyFileSync(
+      Path.join(directory, "dist", "index.html"),
+      Path.join(source, "dist", "index.html"),
+    );
+    const manifestPath = Path.join(source, "tabs-extension.json");
+    const manifest = JSON.parse(
+      FS.readFileSync(Path.join(directory, "tabs-extension.json"), "utf8"),
+    );
+    manifest.capabilities = ["profile-storage"];
+    manifest.engines.api = "^1.4.0";
+    FS.writeFileSync(manifestPath, JSON.stringify(manifest));
+    const firstArchive = Path.join(directory, "migration-first.tabsext");
+    const first = await packTabsext({
+      directory: source,
+      destination: firstArchive,
+      tabsVersion: "1.3.17",
+    });
+    const installed = await manager.installVerifiedExchangePackage(
+      firstArchive,
+      "https://exchange.tabs.example",
+      first.digest,
+    );
+    manager.setAssignment(installed.id, {
+      ...installed.assignment,
+      enabledProjectIds: ["project-a"],
+      storageGrantedProjectIds: ["project-a"],
+    });
+    const storage = new ExtensionStorage(Path.join(directory, "extension-storage"));
+    const identity = {
+      extensionId: extensionDataIdentity(installed.id, installed.registryOrigin, installed.source),
+      profileId: "default",
+    };
+    storage.invoke(identity, { kind: "set", key: "oldTheme", value: "dark" });
+    manifest.version = "1.0.1";
+    manifest.storage = {
+      version: 2,
+      migrations: [{ from: 1, to: 2, renames: [{ from: "oldTheme", to: "theme" }] }],
+    };
+    FS.writeFileSync(manifestPath, JSON.stringify(manifest));
+    const secondArchive = Path.join(directory, "migration-second.tabsext");
+    const second = await packTabsext({
+      directory: source,
+      destination: secondArchive,
+      tabsVersion: "1.3.17",
+    });
+    await expect(
+      manager.installVerifiedExchangePackage(
+        secondArchive,
+        "https://exchange.tabs.example",
+        second.digest,
+        { silent: true },
+      ),
+    ).rejects.toThrow(/migrate profile storage/);
+    await manager.installVerifiedExchangePackage(
+      secondArchive,
+      "https://exchange.tabs.example",
+      second.digest,
+    );
+    const activatedManager = new ExtensionViewManager(
+      () => null,
+      {} as ConstructorParameters<typeof ExtensionViewManager>[1],
+      Path.join(directory, "installed.json"),
+      "1.3.17",
+      false,
+    );
+    (activatedManager as unknown as { coordinator: unknown }).coordinator = {
+      attachToolView: vi.fn(),
+      detachToolView: vi.fn(),
+    };
+    mockElectronExtensionView(async () => {
+      expect(storage.invoke(identity, { kind: "get", key: "theme" })).toBe("dark");
+      if (failActivation) {
+        storage.invoke(identity, { kind: "set", key: "newData", value: true });
+        throw new Error("UI failed to load");
+      }
+    });
+    const activation = activatedManager.activate({
+      extensionId: installed.id,
+      toolId: "main",
+      projectId: "project-a",
+      profileId: "default",
+    });
+    if (failActivation) {
+      await expect(activation).rejects.toThrow(/rolled back/);
+      expect(activatedManager.list()[0]?.digest).toBe(first.digest);
+      expect(storage.invoke(identity, { kind: "get", key: "oldTheme" })).toBe("dark");
+      expect(storage.invoke(identity, { kind: "get", key: "theme" })).toBeNull();
+      expect(storage.invoke(identity, { kind: "get", key: "newData" })).toBeNull();
+    } else {
+      await activation;
+      expect(activatedManager.list()[0]?.digest).toBe(second.digest);
+      expect(storage.invoke(identity, { kind: "get", key: "oldTheme" })).toBeNull();
+      expect(storage.invoke(identity, { kind: "get", key: "theme" })).toBe("dark");
+      const persisted = JSON.parse(FS.readFileSync(Path.join(directory, "installed.json"), "utf8"));
+      expect(persisted[0]).not.toHaveProperty("pendingRollback");
+    }
+  });
+
   it("commits an Exchange update only after its first view loads", async () => {
     const { directory, manager, installed, second } = await exchangeUpdateFixture();
     const attachToolView = vi.fn();

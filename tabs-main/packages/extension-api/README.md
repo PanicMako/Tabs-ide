@@ -6,7 +6,8 @@ manifest object and `TabsExtensionHostBridge` to type-check a packaged UI. The
 package also exports the current API version at runtime.
 
 New manifests should set `engines.api` to `^1.2.0` when they use logic commands,
-or `^1.3.0` when marking a pure command `aiCallable: true`.
+or `^1.3.0` when marking a pure command `aiCallable: true`. Use `^1.4.0`
+when declaring host-run `storage.version` and `storage.migrations` key renames.
 Older v1 manifests without this field remain compatible. The host validates both `engines.tabs` and
 `engines.api` during local load and package inspection; importing these types
 alone does not validate a manifest. Use the `tabsext` pack/inspect command for

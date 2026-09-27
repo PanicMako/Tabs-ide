@@ -708,6 +708,15 @@ export class ExtensionViewManager {
           "Activate or roll back the pending Exchange update before installing another.",
         );
       }
+      if ((inspected.manifest.storage?.version ?? 1) < (previous.manifest.storage?.version ?? 1)) {
+        throw new Error("Exchange update cannot downgrade the extension storage schema.");
+      }
+      if (
+        options.silent &&
+        (inspected.manifest.storage?.version ?? 1) > (previous.manifest.storage?.version ?? 1)
+      ) {
+        throw new Error("Silent updates cannot migrate profile storage.");
+      }
     }
     const retained = this.readRetainedRecord(inspected.id, "exchange", registryOrigin);
     const packagesRoot = Path.join(Path.dirname(this.statePath), "extension-packages");
@@ -926,6 +935,9 @@ export class ExtensionViewManager {
       if (movedPackage) FS.renameSync(movedPackage, packageDirectory);
       throw error;
     }
+    this.storage.discardAllUpdateSnapshots(
+      extensionDataIdentity(current.id, current.registryOrigin, current.source),
+    );
     if (movedPackage) {
       try {
         FS.rmSync(movedPackage, { recursive: true, force: true });
@@ -1045,7 +1057,24 @@ export class ExtensionViewManager {
       return;
     }
     this.hide();
+    const updateIdentity = extensionDataIdentity(
+      installed.id,
+      installed.registryOrigin,
+      installed.source,
+    );
+    if (installed.pendingRollback && installed.digest) {
+      this.storage.snapshotForUpdate(updateIdentity, installed.digest);
+    }
     try {
+      if (installed.pendingRollback && installed.digest) {
+        this.storage.restoreUpdateSnapshot(updateIdentity, installed.digest);
+        this.storage.applyVersionedMigrations(
+          updateIdentity,
+          installed.pendingRollback.manifest.storage?.version ?? 1,
+          installed.manifest.storage?.version ?? 1,
+          installed.manifest.storage?.migrations ?? [],
+        );
+      }
       await this.activateView(installed, input, profile.scope, tool.entry, key);
       this.finishPendingUpdate(installed);
     } catch (error) {
@@ -1057,6 +1086,9 @@ export class ExtensionViewManager {
         });
       }
       throw error;
+    }
+    if (installed.pendingRollback && installed.digest) {
+      this.storage.discardUpdateSnapshot(updateIdentity, installed.digest);
     }
   }
 
@@ -1139,6 +1171,20 @@ export class ExtensionViewManager {
     if (!previous) return;
     const current = this.requireInstalled(installed.id);
     if (current.digest !== installed.digest) throw new Error("Extension changed during rollback.");
+    const identity = extensionDataIdentity(
+      installed.id,
+      installed.registryOrigin,
+      installed.source,
+    );
+    try {
+      this.storage.restoreUpdateSnapshot(identity, installed.digest!);
+    } catch (cause) {
+      this.installed.set(installed.id, { ...current, disabled: true });
+      this.save();
+      throw new Error("Extension storage could not be restored; updated extension was disabled.", {
+        cause,
+      });
+    }
     const packageRoot = FS.realpathSync(
       Path.join(Path.dirname(this.statePath), "extension-packages"),
     );
@@ -1168,6 +1214,7 @@ export class ExtensionViewManager {
       this.installed.set(installed.id, current);
       throw error;
     }
+    this.storage.discardUpdateSnapshot(identity, installed.digest!);
   }
 
   setBounds(input: DesktopExtensionBoundsInput): void {

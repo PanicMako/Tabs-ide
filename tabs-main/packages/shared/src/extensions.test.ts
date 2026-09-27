@@ -74,6 +74,46 @@ describe("Tabs extension manifest", () => {
     });
   });
 
+  it("requires a complete, bounded, non-overwriting storage migration chain", () => {
+    const versioned = {
+      ...manifest,
+      engines: { ...manifest.engines, api: "^1.4.0" },
+      capabilities: ["profile-storage"],
+      storage: {
+        version: 3,
+        migrations: [
+          { from: 1, to: 2, renames: [{ from: "oldTheme", to: "theme" }] },
+          { from: 2, to: 3, renames: [{ from: "theme", to: "appearance" }] },
+        ],
+      },
+    };
+    expect(validateTabsExtensionManifest(versioned, "1.3.17").ok).toBe(true);
+    expect(
+      validateTabsExtensionManifest(
+        {
+          ...versioned,
+          storage: { ...versioned.storage, migrations: versioned.storage.migrations.slice(1) },
+        },
+        "1.3.17",
+      ).ok,
+    ).toBe(false);
+    expect(
+      validateTabsExtensionManifest(
+        {
+          ...versioned,
+          storage: {
+            version: 2,
+            migrations: [{ from: 1, to: 2, renames: [{ from: "a", to: "a" }] }],
+          },
+        },
+        "1.3.17",
+      ).ok,
+    ).toBe(false);
+    expect(validateTabsExtensionManifest({ ...versioned, capabilities: [] }, "1.3.17").ok).toBe(
+      false,
+    );
+  });
+
   it("checks declared extension API compatibility without rejecting older v1 manifests", () => {
     expect(validateTabsExtensionManifest(manifest, "1.3.17").ok).toBe(true);
     expect(

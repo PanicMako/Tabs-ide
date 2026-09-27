@@ -298,6 +298,13 @@ export default function ExtensionsSettings() {
                 Requested capabilities:{" "}
                 {preparedInstall.manifest.capabilities?.join(", ") || "none"}.
               </p>
+              {preparedInstall.requiresManualReview ? (
+                <p className="text-sm" role="status">
+                  This update includes a versioned migration of Tabs profile storage. Tabs backs up
+                  the existing values and restores them if the new tool fails its first load.
+                  Browser-local storage is not covered by this backup.
+                </p>
+              ) : null}
               {preparedInstall.manifest.networkHosts?.length ? (
                 <p className="text-sm">
                   Requested network hosts: {preparedInstall.manifest.networkHosts.join(", ")}.

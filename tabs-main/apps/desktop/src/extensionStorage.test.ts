@@ -18,6 +18,62 @@ afterEach(() => {
 });
 
 describe("extension profile storage", () => {
+  it("migrates every isolated profile document and restores the exact baseline", () => {
+    const subject = storage();
+    const shared = { extensionId: "exchange-acme.dashboard", profileId: "work" };
+    const project = { ...shared, projectId: "project-a" };
+    const other = { extensionId: "other.dashboard", profileId: "work" };
+    const digest = "a".repeat(64);
+    subject.invoke(shared, { kind: "set", key: "oldTheme", value: "dark" });
+    subject.invoke(project, { kind: "set", key: "oldTheme", value: "light" });
+    subject.invoke(other, { kind: "set", key: "oldTheme", value: "other" });
+    subject.snapshotForUpdate(shared.extensionId, digest);
+    subject.applyVersionedMigrations(shared.extensionId, 1, 2, [
+      { from: 1, to: 2, renames: [{ from: "oldTheme", to: "theme" }] },
+    ]);
+    expect(subject.invoke(shared, { kind: "get", key: "theme" })).toBe("dark");
+    expect(subject.invoke(project, { kind: "get", key: "theme" })).toBe("light");
+    expect(subject.invoke(other, { kind: "get", key: "theme" })).toBeNull();
+    subject.invoke(shared, { kind: "set", key: "newData", value: true });
+    subject.restoreUpdateSnapshot(shared.extensionId, digest);
+    expect(subject.invoke(shared, { kind: "get", key: "oldTheme" })).toBe("dark");
+    expect(subject.invoke(shared, { kind: "get", key: "theme" })).toBeNull();
+    expect(subject.invoke(shared, { kind: "get", key: "newData" })).toBeNull();
+    expect(subject.invoke(project, { kind: "get", key: "oldTheme" })).toBe("light");
+    expect(subject.invoke(other, { kind: "get", key: "oldTheme" })).toBe("other");
+    subject.discardUpdateSnapshot(shared.extensionId, digest);
+  });
+
+  it("rejects a migration that would overwrite an existing profile value", () => {
+    const subject = storage();
+    const identity = { extensionId: "exchange-acme.dashboard", profileId: "work" };
+    subject.invoke(identity, { kind: "set", key: "oldTheme", value: "dark" });
+    subject.invoke(identity, { kind: "set", key: "theme", value: "custom" });
+    expect(() =>
+      subject.applyVersionedMigrations(identity.extensionId, 1, 2, [
+        { from: 1, to: 2, renames: [{ from: "oldTheme", to: "theme" }] },
+      ]),
+    ).toThrow(/overwrite/);
+    expect(subject.invoke(identity, { kind: "get", key: "oldTheme" })).toBe("dark");
+    expect(subject.invoke(identity, { kind: "get", key: "theme" })).toBe("custom");
+  });
+
+  it("recovers a leftover atomic-write temporary file before snapshotting", () => {
+    const root = FS.mkdtempSync(Path.join(OS.tmpdir(), "tabs-extension-storage-test-"));
+    roots.push(root);
+    const subject = new ExtensionStorage(root);
+    const identity = { extensionId: "exchange-acme.dashboard", profileId: "work" };
+    subject.invoke(identity, { kind: "set", key: "theme", value: "dark" });
+    const namespace = Crypto.createHash("sha256").update(identity.extensionId).digest("hex");
+    const directory = Path.join(root, "scoped", namespace);
+    const name = FS.readdirSync(directory)[0]!;
+    const temporary = Path.join(directory, `${name}.${"a".repeat(16)}.tmp`);
+    FS.writeFileSync(temporary, "incomplete");
+    subject.snapshotForUpdate(identity.extensionId, "b".repeat(64));
+    expect(FS.existsSync(temporary)).toBe(false);
+    expect(subject.invoke(identity, { kind: "get", key: "theme" })).toBe("dark");
+  });
+
   it("can remove one extension namespace without touching another", () => {
     const root = FS.mkdtempSync(Path.join(OS.tmpdir(), "tabs-extension-storage-test-"));
     roots.push(root);

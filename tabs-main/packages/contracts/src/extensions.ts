@@ -18,6 +18,13 @@ export const TabsExtensionCommand = Schema.Struct({
 });
 export type TabsExtensionCommand = typeof TabsExtensionCommand.Type;
 
+export const TabsExtensionStorageMigration = Schema.Struct({
+  from: Schema.Number,
+  to: Schema.Number,
+  renames: Schema.Array(Schema.Struct({ from: Schema.String, to: Schema.String })),
+});
+export type TabsExtensionStorageMigration = typeof TabsExtensionStorageMigration.Type;
+
 export const TabsExtensionManifest = Schema.Struct({
   manifestVersion: Schema.Literal(1),
   publisher: Schema.String,
@@ -34,6 +41,12 @@ export const TabsExtensionManifest = Schema.Struct({
     api: Schema.optionalKey(Schema.String),
   }),
   networkHosts: Schema.optionalKey(Schema.Array(Schema.String)),
+  storage: Schema.optionalKey(
+    Schema.Struct({
+      version: Schema.Number,
+      migrations: Schema.optionalKey(Schema.Array(TabsExtensionStorageMigration)),
+    }),
+  ),
   logic: Schema.optionalKey(Schema.Struct({ entry: Schema.String })),
   capabilities: Schema.optionalKey(
     Schema.Array(
@@ -108,6 +121,8 @@ export interface DesktopPreparedExchangeInstall {
   readonly manifest: TabsExtensionManifest;
   readonly replacesVersion?: string;
   readonly willKeepEnabled: boolean;
+  /** Storage migrations require manual review even if project enablement is retained. */
+  readonly requiresManualReview: boolean;
   readonly addedCapabilities: ReadonlyArray<
     NonNullable<TabsExtensionManifest["capabilities"]>[number]
   >;

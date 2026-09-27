@@ -1,4 +1,11 @@
-export declare const TABS_EXTENSION_API_VERSION: "1.3.0";
+export declare const TABS_EXTENSION_API_VERSION: "1.4.0";
+
+export interface TabsExtensionStorageMigration {
+  readonly from: number;
+  readonly to: number;
+  /** Rename top-level keys in each shared or project-isolated profile document. */
+  readonly renames: ReadonlyArray<{ readonly from: string; readonly to: string }>;
+}
 
 export type TabsExtensionCapability =
   | "profile-storage"
@@ -41,6 +48,11 @@ export interface TabsExtensionManifest {
   };
   readonly capabilities?: ReadonlyArray<TabsExtensionCapability>;
   readonly networkHosts?: ReadonlyArray<string>;
+  /** Omission means schema version 1; migrations are host-run before first activation. */
+  readonly storage?: {
+    readonly version: number;
+    readonly migrations?: ReadonlyArray<TabsExtensionStorageMigration>;
+  };
   readonly logic?: { readonly entry: string };
   readonly contributes: {
     readonly tools: ReadonlyArray<TabsExtensionTool>;

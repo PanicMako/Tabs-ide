@@ -27,7 +27,7 @@ only writes to a new directory. Neither command runs extension code.
 Place `tabs-extension.json` at the root of a local folder. The dependency-free
 [`@tabs/extension-api`](../packages/extension-api/README.md) package exports
 the public manifest and bridge types plus the current API version. New manifests
-should declare `engines.api: "^1.2.0"` when using commands, or `"^1.3.0"` for AI-callable commands; older v1 manifests without it remain
+should declare `engines.api: "^1.2.0"` when using commands, `"^1.3.0"` for AI-callable commands, or `"^1.4.0"` for storage migrations; older v1 manifests without it remain
 compatible. Tabs validates declared API compatibility at load time. See
 [`examples/hello-extension`](../examples/hello-extension/README.md) for a
 working example. Version 1 requires a lowercase publisher and package name,
@@ -93,6 +93,20 @@ deliberately sees the same values across separately granted projects. A
 project-isolated profile uses a distinct browser partition and bridge storage
 namespace for each project. Choose the scope when creating a named profile;
 it cannot be changed later without creating a new profile.
+
+Packages using `profile-storage` may declare `storage.version` (1 through 16)
+and a complete chain of `storage.migrations` from version 1. Each step renames
+bounded top-level keys in every Tabs profile-storage document, including
+project-isolated profiles. This declarative format works for UI-only tools;
+extension code never receives filesystem access. A destination key that already
+exists aborts the update rather than overwriting data. On first activation of
+an updated Exchange package, Tabs saves a bounded, exact profile-storage
+snapshot, runs the migrations, and restores that snapshot with the previous
+package if the new view fails to load. A crash before activation completes is
+recovered from the same snapshot on the next attempt. Storage-schema updates
+require manual review; experimental silent updates skip them. This mechanism
+does not migrate or roll back Chromium localStorage/IndexedDB, credentials, or
+extension data changed after the new view has loaded successfully.
 
 `window.tabsExtension.workspace.readText(relativePath)` is available only when
 the manifest requests `workspace-read` and the user grants it for the current
@@ -196,12 +210,12 @@ minute, after system resume, and before activation. A version missing from signe
 whose signed digest changed, is persistently marked revoked: its active view
 closes, toolbar contributions disappear, and Settings explains the status.
 Transport outages retain the last known status; invalid or expired metadata
-does not qualify as offline. The flow does not yet check revocation continuously
-while a view is active or provide package
-rollback of a newly installed UI that fails first activation. The previous
-package and assignment are retained until the new view loads, including across
-an app restart. This is not a rollback of extension-authored data migrations or
-failures that occur after first load.
+does not qualify as offline. Revocation is checked every minute, including
+while a view is active, rather than continuously. A newly installed Exchange
+update retains the previous package and assignment until its first view loads,
+including across an app restart. A failed first load restores that package
+and the pre-update Tabs profile-storage snapshot. Browser storage and failures
+after first load are not covered by this rollback.
 
 ## Not yet supported
 
