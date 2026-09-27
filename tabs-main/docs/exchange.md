@@ -109,6 +109,10 @@ Publisher and reviewer routes use GitHub OAuth session cookies. Mutations
 require a same-origin `Origin` header and the `X-CSRF-Token` value from the
 `tabs_exchange_csrf` cookie. Publisher uploads are raw `application/octet-stream`
 POST bodies, capped at 25 MiB. The `tabs_exchange_session` cookie is HttpOnly.
+The API accepts at most two concurrent archive submissions per process, closes
+excess upload connections with HTTP 429, and terminates uploads whose bodies
+take longer than two minutes. Publishers can retry after an in-progress upload
+finishes; invalid archives receive HTTP 400.
 
 | Route                                                 | Access                                                                   |
 | ----------------------------------------------------- | ------------------------------------------------------------------------ |

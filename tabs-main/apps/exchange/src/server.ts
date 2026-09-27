@@ -40,6 +40,8 @@ const PUBLISHED_RELEASE_JOIN = `JOIN exchange_published_targets p
   ON p.namespace = v.namespace AND p.name = v.name AND p.version = v.version
   AND p.digest = v.digest AND p.bytes = v.bytes`;
 const MAX_CATALOG_RELEASES = 10_000;
+const MAX_CONCURRENT_UPLOADS = 2;
+const UPLOAD_DEADLINE_MS = 120_000;
 
 class HttpError extends Error {
   constructor(
@@ -60,16 +62,27 @@ function json(response: Http.ServerResponse, status: number, body: unknown): voi
   response.end(JSON.stringify(body));
 }
 
-async function readLimited(request: Http.IncomingMessage, max: number): Promise<Buffer> {
+async function readLimited(
+  request: Http.IncomingMessage,
+  max: number,
+  deadlineMs?: number,
+): Promise<Buffer> {
   const length = Number(request.headers["content-length"]);
   if (Number.isFinite(length) && length > max) throw new HttpError(413, "Request is too large.");
   const chunks: Buffer[] = [];
   let size = 0;
-  for await (const chunk of request) {
-    const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-    size += bytes.length;
-    if (size > max) throw new HttpError(413, "Request is too large.");
-    chunks.push(bytes);
+  const deadline = deadlineMs
+    ? setTimeout(() => request.destroy(new Error("Upload deadline exceeded.")), deadlineMs)
+    : undefined;
+  try {
+    for await (const chunk of request) {
+      const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      size += bytes.length;
+      if (size > max) throw new HttpError(413, "Request is too large.");
+      chunks.push(bytes);
+    }
+  } finally {
+    if (deadline) clearTimeout(deadline);
   }
   return Buffer.concat(chunks);
 }
@@ -110,6 +123,7 @@ export function createExchangeServer(
   storage: S3Client,
   config: ExchangeConfig,
 ): Http.Server {
+  let activeUploads = 0;
   return Http.createServer(async (request, response) => {
     try {
       const url = new URL(request.url ?? "/", config.origin);
@@ -397,47 +411,58 @@ export function createExchangeServer(
         if (request.headers["content-type"] !== "application/octet-stream") {
           throw new HttpError(415, "Upload a raw .tabsext archive.");
         }
-        const bytes = await readLimited(request, 25 * 1024 * 1024);
-        const temporary = await FS.mkdtemp(Path.join(OS.tmpdir(), "tabs-exchange-upload-"));
+        if (activeUploads >= MAX_CONCURRENT_UPLOADS) {
+          response.setHeader("Connection", "close");
+          throw new HttpError(429, "Too many extension uploads are in progress.");
+        }
+        activeUploads++;
         try {
-          const archive = Path.join(temporary, "package.tabsext");
-          await FS.writeFile(archive, bytes, { flag: "wx", mode: 0o600 });
-          const inspected = await inspectTabsext(archive, config.tabsVersion);
-          if (inspected.manifest.publisher !== namespace || inspected.manifest.name !== name) {
-            throw new HttpError(400, "Package identity does not match the namespace and name.");
-          }
-          const key = `quarantine/${namespace}/${name}/${inspected.manifest.version}/${inspected.digest}.tabsext`;
-          await storage.send(
-            new PutObjectCommand({
-              Bucket: config.bucket,
-              Key: key,
-              Body: bytes,
-              ContentType: "application/octet-stream",
-            }),
-          );
-          await pool.query(
-            `INSERT INTO exchange_versions(namespace, name, version, digest, bytes, manifest, object_key, status, uploaded_by)
+          const bytes = await readLimited(request, 25 * 1024 * 1024, UPLOAD_DEADLINE_MS);
+          const temporary = await FS.mkdtemp(Path.join(OS.tmpdir(), "tabs-exchange-upload-"));
+          try {
+            const archive = Path.join(temporary, "package.tabsext");
+            await FS.writeFile(archive, bytes, { flag: "wx", mode: 0o600 });
+            const inspected = await inspectTabsext(archive, config.tabsVersion).catch(() => {
+              throw new HttpError(400, "Invalid Tabs extension package.");
+            });
+            if (inspected.manifest.publisher !== namespace || inspected.manifest.name !== name) {
+              throw new HttpError(400, "Package identity does not match the namespace and name.");
+            }
+            const key = `quarantine/${namespace}/${name}/${inspected.manifest.version}/${inspected.digest}.tabsext`;
+            await storage.send(
+              new PutObjectCommand({
+                Bucket: config.bucket,
+                Key: key,
+                Body: bytes,
+                ContentType: "application/octet-stream",
+              }),
+            );
+            await pool.query(
+              `INSERT INTO exchange_versions(namespace, name, version, digest, bytes, manifest, object_key, status, uploaded_by)
              VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, 'queued', $8)`,
-            [
+              [
+                namespace,
+                name,
+                inspected.manifest.version,
+                inspected.digest,
+                inspected.bytes,
+                JSON.stringify(inspected.manifest),
+                key,
+                actor.id,
+              ],
+            );
+            json(response, 202, {
               namespace,
               name,
-              inspected.manifest.version,
-              inspected.digest,
-              inspected.bytes,
-              JSON.stringify(inspected.manifest),
-              key,
-              actor.id,
-            ],
-          );
-          json(response, 202, {
-            namespace,
-            name,
-            version: inspected.manifest.version,
-            digest: inspected.digest,
-            status: "queued",
-          });
+              version: inspected.manifest.version,
+              digest: inspected.digest,
+              status: "queued",
+            });
+          } finally {
+            await FS.rm(temporary, { recursive: true, force: true });
+          }
         } finally {
-          await FS.rm(temporary, { recursive: true, force: true });
+          activeUploads--;
         }
         return;
       }
@@ -906,9 +931,11 @@ export function createExchangeServer(
       }
       throw new HttpError(404, "Route not found.");
     } catch (error) {
-      if (response.headersSent) return;
-      if (error instanceof HttpError) json(response, error.status, { error: error.message });
-      else if (
+      if (response.headersSent || (request.destroyed && !request.complete)) return;
+      if (error instanceof HttpError) {
+        if (error.status === 413) response.setHeader("Connection", "close");
+        json(response, error.status, { error: error.message });
+      } else if (
         error instanceof Error &&
         /^(Authentication required|CSRF validation failed)/.test(error.message)
       ) {

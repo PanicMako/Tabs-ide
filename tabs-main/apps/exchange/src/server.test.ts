@@ -1,4 +1,5 @@
 import * as Crypto from "node:crypto";
+import * as Http from "node:http";
 import type { AddressInfo } from "node:net";
 import { Readable } from "node:stream";
 import type { Pool } from "pg";
@@ -32,6 +33,7 @@ async function fixture(
   },
   blockedDigest?: string,
   catalogRows?: Array<Record<string, unknown>>,
+  allowUploads = false,
 ) {
   const actions: string[] = [];
   const publicQueries: string[] = [];
@@ -146,6 +148,9 @@ async function fixture(
           rowCount: 1,
         };
       }
+      if (allowUploads && sql.includes("FROM exchange_namespace_members WHERE")) {
+        return { rows: [{ role: "owner" }], rowCount: 1 };
+      }
       if (sql.includes("UPDATE exchange_appeals")) {
         return { rows: [{ id: "1" }], rowCount: 1 };
       }
@@ -160,7 +165,11 @@ async function fixture(
       return { Body: Readable.from(tuf?.target ? [tuf.target] : []) };
     },
   } as unknown as S3Client;
-  const server = createExchangeServer(pool, storage, config);
+  const server = createExchangeServer(
+    pool,
+    storage,
+    allowUploads ? { ...config, publishingEnabled: true } : config,
+  );
   servers.push(server);
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const address = server.address() as AddressInfo;
@@ -176,6 +185,85 @@ afterEach(async () => {
 });
 
 describe("Exchange HTTP boundaries", () => {
+  it("limits concurrent publisher uploads and releases slots after disconnects", async () => {
+    const ready = await fixture(true, digest, "review", undefined, undefined, undefined, true);
+    const headers = {
+      Origin: config.origin,
+      Cookie: "tabs_exchange_session=opaque",
+      "X-CSRF-Token": csrf,
+      "Content-Type": "application/octet-stream",
+      "Content-Length": "100",
+    };
+    const upload = () => {
+      const request = Http.request(`${ready.base}/v1/publisher/example/dashboard/versions`, {
+        method: "POST",
+        headers,
+      });
+      request.on("error", () => {});
+      request.write("x");
+      return request;
+    };
+    const first = upload();
+    const second = upload();
+    try {
+      for (let attempt = 0; attempt < 100; attempt++) {
+        if (
+          ready.publicQueries.filter((sql) => sql.includes("FROM exchange_namespace_members WHERE"))
+            .length >= 2
+        ) {
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 5));
+      }
+      expect(
+        ready.publicQueries.filter((sql) => sql.includes("FROM exchange_namespace_members WHERE")),
+      ).toHaveLength(2);
+      const crowded = await fetch(`${ready.base}/v1/publisher/example/dashboard/versions`, {
+        method: "POST",
+        headers: { ...headers, "Content-Length": "1" },
+        body: "x",
+      });
+      expect(crowded.status).toBe(429);
+      expect(crowded.headers.get("connection")).toBe("close");
+    } finally {
+      first.destroy();
+      second.destroy();
+    }
+    let retryStatus = 429;
+    for (let attempt = 0; attempt < 100 && retryStatus === 429; attempt++) {
+      const retry = await fetch(`${ready.base}/v1/publisher/example/dashboard/versions`, {
+        method: "POST",
+        headers: { ...headers, "Content-Length": "1" },
+        body: "x",
+      });
+      retryStatus = retry.status;
+      if (retryStatus === 429) await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    expect(retryStatus).toBe(400);
+  });
+
+  it("rejects declared oversized archives without retaining the upload connection", async () => {
+    const ready = await fixture(true, digest, "review", undefined, undefined, undefined, true);
+    const response = await new Promise<Http.IncomingMessage>((resolve, reject) => {
+      const request = Http.request(`${ready.base}/v1/publisher/example/dashboard/versions`, {
+        method: "POST",
+        headers: {
+          Origin: config.origin,
+          Cookie: "tabs_exchange_session=opaque",
+          "X-CSRF-Token": csrf,
+          "Content-Type": "application/octet-stream",
+          "Content-Length": String(25 * 1024 * 1024 + 1),
+        },
+      });
+      request.once("response", resolve);
+      request.once("error", reject);
+      request.write("x");
+    });
+    expect(response.statusCode).toBe(413);
+    expect(response.headers.connection).toBe("close");
+    response.resume();
+  });
+
   it("lists the highest semantic version even when an older release was approved later", async () => {
     const target = Buffer.from("approved extension archive");
     const rows = ["1.1.0", "1.2.0-rc.1", "1.0.0", "1.2.0"].map((version) => ({
