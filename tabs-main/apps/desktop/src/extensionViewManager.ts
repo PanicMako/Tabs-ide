@@ -1109,7 +1109,7 @@ export class ExtensionViewManager {
       throw error;
     }
     if (installed.pendingRollback && installed.digest) {
-      this.storage.discardUpdateSnapshot(updateIdentity, installed.digest);
+      this.cleanupUpdateSnapshots(updateIdentity);
     }
   }
 
@@ -1235,7 +1235,18 @@ export class ExtensionViewManager {
       this.installed.set(installed.id, current);
       throw error;
     }
-    this.storage.discardUpdateSnapshot(identity, installed.digest!);
+    this.cleanupUpdateSnapshots(identity);
+  }
+
+  private cleanupUpdateSnapshots(identity: string): void {
+    try {
+      this.storage.discardAllUpdateSnapshots(identity);
+    } catch {
+      // The package and profile state are already committed. Retry stale backup cleanup on restart.
+      console.warn(
+        "[extensions] Could not remove a completed update backup; will retry on restart.",
+      );
+    }
   }
 
   setBounds(input: DesktopExtensionBoundsInput): void {
@@ -1594,6 +1605,11 @@ export class ExtensionViewManager {
           )
             continue;
           this.installed.set(entry.id, { ...safeEntry, assignment });
+          if (!safeEntry.pendingRollback) {
+            this.cleanupUpdateSnapshots(
+              extensionDataIdentity(safeEntry.id, safeEntry.registryOrigin, safeEntry.source),
+            );
+          }
         } catch {
           // A damaged entry must not prevent other development tools from loading.
         }

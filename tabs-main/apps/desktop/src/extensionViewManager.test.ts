@@ -1400,9 +1400,22 @@ describe("development extension installation", () => {
   });
 
   it.each([
-    { name: "commits migrated profile data after successful activation", failActivation: false },
-    { name: "restores profile data when migration activation fails", failActivation: true },
-  ])("$name", async ({ failActivation }) => {
+    {
+      name: "commits migrated profile data after successful activation",
+      failActivation: false,
+      failCleanup: false,
+    },
+    {
+      name: "restores profile data when migration activation fails",
+      failActivation: true,
+      failCleanup: false,
+    },
+    {
+      name: "reports successful activation when backup cleanup fails",
+      failActivation: false,
+      failCleanup: true,
+    },
+  ])("$name", async ({ failActivation, failCleanup }) => {
     const { directory, manager } = fixture();
     const source = Path.join(directory, "migration-source");
     FS.mkdirSync(Path.join(source, "dist"), { recursive: true });
@@ -1475,6 +1488,12 @@ describe("development extension installation", () => {
       attachToolView: vi.fn(),
       detachToolView: vi.fn(),
     };
+    if (failCleanup) {
+      const managerStorage = (activatedManager as unknown as { storage: ExtensionStorage }).storage;
+      vi.spyOn(managerStorage, "discardAllUpdateSnapshots").mockImplementationOnce(() => {
+        throw new Error("Backup cleanup failed");
+      });
+    }
     mockElectronExtensionView(async () => {
       expect(storage.invoke(identity, { kind: "get", key: "theme" })).toBe("dark");
       if (failActivation) {
@@ -1501,6 +1520,18 @@ describe("development extension installation", () => {
       expect(storage.invoke(identity, { kind: "get", key: "theme" })).toBe("dark");
       const persisted = JSON.parse(FS.readFileSync(Path.join(directory, "installed.json"), "utf8"));
       expect(persisted[0]).not.toHaveProperty("pendingRollback");
+      if (failCleanup) {
+        const rollbackDirectory = Path.join(directory, "extension-storage", "rollback");
+        expect(FS.readdirSync(rollbackDirectory)).toHaveLength(1);
+        new ExtensionViewManager(
+          () => null,
+          {} as ConstructorParameters<typeof ExtensionViewManager>[1],
+          Path.join(directory, "installed.json"),
+          "1.3.17",
+          false,
+        );
+        expect(FS.readdirSync(rollbackDirectory)).toHaveLength(0);
+      }
     }
   });
 
