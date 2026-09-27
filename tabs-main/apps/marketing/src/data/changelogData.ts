@@ -21,15 +21,49 @@ export interface ChangelogRelease {
   }[];
 }
 
-export const TOTAL_TAGS_COUNT = 167;
+export const TOTAL_TAGS_COUNT = 168;
 
 export const changelogData: ChangelogRelease[] = [
+  {
+    tag: "v1.3.25",
+    title:
+      "Packaged desktop font rendering, editor font synchronization, and dynamic provider models",
+    date: "September 28, 2026",
+    shortDate: "Sep 28",
+    isLatest: true,
+    type: "patch",
+    summary:
+      "Tabs improves desktop font rendering with proper cross-origin headers, adds instant font preference synchronization for the embedded editor, and switches provider models to dynamic capability snapshots.",
+    highlights: [
+      "Resolved cross-origin asset restrictions when loading local application fonts in packaged desktop builds, ensuring custom UI fonts render cleanly.",
+      "Updated editor typography settings so font family and code font size preferences apply immediately to the embedded Code-OSS editor and persist across restarts.",
+      "Provider model menus now rely strictly on live provider capability snapshots, keeping available models accurate and up to date.",
+      "Curated the font picker to bundled local typefaces so your selected typography renders consistently with or without network access.",
+    ],
+    categories: [
+      {
+        title: "Desktop",
+        items: [
+          "Proper cross-origin headers for custom font assets in packaged builds.",
+          "Real-time font family and size synchronization with the embedded Code-OSS editor.",
+        ],
+      },
+      {
+        title: "Models",
+        items: ["Dynamic provider model discovery from live server capability snapshots."],
+      },
+      {
+        title: "Appearance",
+        items: ["Offline font reliability with bundled local typefaces."],
+      },
+    ],
+  },
   {
     tag: "v1.3.24",
     title: "Local data reset, batch keybindings restore, and renderer responsiveness diagnostics",
     date: "September 27, 2026",
     shortDate: "Sep 27",
-    isLatest: true,
+    isLatest: false,
     type: "patch",
     summary:
       "Tabs introduces a safe local data reset option in About settings, atomic restoration of default keyboard shortcuts, and real-time renderer responsiveness metrics in Diagnostics.",

@@ -2,6 +2,15 @@
 
 All notable changes to Tabs IDE will be documented in this file.
 
+## [v1.3.25] - 2026-09-28
+
+### Packaged desktop font rendering, editor font synchronization, and dynamic provider models
+
+- **Packaged desktop font rendering**: Resolved cross-origin asset restrictions when loading local application fonts in packaged desktop builds, ensuring custom UI fonts render cleanly.
+- **Embedded editor font synchronization**: Updated editor typography settings so font family and code font size preferences apply immediately to the embedded Code-OSS editor and persist across restarts.
+- **Dynamic provider model discovery**: Provider model menus now rely strictly on live provider capability snapshots, keeping available models accurate and up to date.
+- **Reliable offline font selections**: Curated the font picker to bundled local typefaces so your selected typography renders consistently with or without network access.
+
 ## [v1.3.24] - 2026-09-27
 
 ### Local data reset, batch keybindings restore, and renderer responsiveness diagnostics
