@@ -163,22 +163,31 @@ package download and consent flow. The installer rejects downgrades and a
 changed digest for an already installed version, including if the installed
 version changes while an update review is open.
 Desktop also checks for signed, compatible updates after startup and every six
-hours. It shows an update hint in Installed settings and never downloads or
-activates an update in the background. Failed metadata refreshes clear stale
-update hints; opening a review always repeats signed verification.
+hours. By default it shows an update hint in Installed settings and never
+downloads or activates an update in the background. Operators with an
+independently provisioned TUF trust root may opt into experimental silent
+updates with `TABS_EXCHANGE_AUTOMATIC_UPDATES=true`. This applies only an
+approved, compatible update with no new capability or network host, while its
+view is inactive and no manual review is open. A pinned, disabled, revoked,
+or not-yet-enabled extension is skipped. Tabs rechecks signed metadata and the
+installed package identity immediately before activation, keeps the prior
+verified package for rollback, and never silently grants new access. The
+setting does not make the experimental Exchange a production release channel.
+Failed metadata refreshes clear stale update hints; opening a review always
+repeats signed verification.
 An Exchange extension can be pinned in Installed settings. Pinning persists
 across restarts and reviewed updates, suppresses background update checks and
 hints for that extension, but keeps manual Check for updates and Review update
 available. It does not bypass registry revocation checks.
 
-This is a manual flow, not a production-ready release channel. Desktop checks
+This is an experimental flow, not a production-ready release channel. Desktop checks
 installed Exchange versions against fresh signed metadata at startup, every
 minute, after system resume, and before activation. A version missing from signed targets, or
 whose signed digest changed, is persistently marked revoked: its active view
 closes, toolbar contributions disappear, and Settings explains the status.
 Transport outages retain the last known status; invalid or expired metadata
 does not qualify as offline. The flow does not yet check revocation continuously
-while a view is active, automatically install updates, or provide package
+while a view is active or provide package
 rollback of a newly installed UI that fails first activation. The previous
 package and assignment are retained until the new view loads, including across
 an app restart. This is not a rollback of extension-authored data migrations or

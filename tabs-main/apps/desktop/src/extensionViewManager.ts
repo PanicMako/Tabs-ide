@@ -574,6 +574,7 @@ export class ExtensionViewManager {
     archive: string,
     registryOrigin: string,
     expectedDigest: string,
+    options: { readonly silent?: boolean } = {},
   ): Promise<DesktopInstalledExtension> {
     const deletionEpoch = this.deletionEpoch;
     if (this.deleting.size) throw new Error("Extension data deletion is in progress.");
@@ -586,6 +587,9 @@ export class ExtensionViewManager {
     }
     const inspected = await inspectTabsext(archive, this.tabsVersion);
     this.assertInstallEpoch(inspected.id, deletionEpoch);
+    if (options.silent && !this.canApplySilentUpdate(inspected.id)) {
+      throw new Error("Extension is not at a safe update boundary.");
+    }
     if (inspected.digest !== expectedDigest) {
       throw new Error("Package digest differs from signed metadata.");
     }
@@ -633,11 +637,19 @@ export class ExtensionViewManager {
       tabsVersion: this.tabsVersion,
     });
     this.assertInstallEpoch(inspected.id, deletionEpoch, directory);
+    if (options.silent && !this.canApplySilentUpdate(inspected.id)) {
+      FS.rmSync(directory, { recursive: true, force: true });
+      throw new Error("Extension became active during update preparation.");
+    }
     const increase = extensionPermissionIncrease(inspected.manifest, previous?.manifest);
     const increased =
       previous?.revoked ||
       increase.addedCapabilities.length > 0 ||
       increase.addedNetworkHosts.length > 0;
+    if (options.silent && increased) {
+      FS.rmSync(directory, { recursive: true, force: true });
+      throw new Error("Silent updates cannot add permissions or network hosts.");
+    }
     const assignment: TabsExtensionAssignment = previous?.assignment ?? {
       extensionId: inspected.id,
       enabledGlobally: false,
@@ -679,7 +691,7 @@ export class ExtensionViewManager {
           }
         : {}),
     };
-    this.hide();
+    if (!options.silent) this.hide();
     this.installed.set(inspected.id, next);
     try {
       this.save();
@@ -689,6 +701,20 @@ export class ExtensionViewManager {
       throw error;
     }
     return this.publicEntry(next);
+  }
+
+  canApplySilentUpdate(extensionId: string): boolean {
+    const current = this.installed.get(extensionId);
+    return Boolean(
+      current?.source === "exchange" &&
+      !current.disabled &&
+      !current.revoked &&
+      !current.updatesPinned &&
+      !current.pendingRollback &&
+      !this.deleting.has(extensionId) &&
+      this.active?.extensionId !== extensionId &&
+      (current.assignment.enabledGlobally || current.assignment.enabledProjectIds.length > 0),
+    );
   }
 
   /** Only call after a fresh, signed registry check for this exact installed digest. */

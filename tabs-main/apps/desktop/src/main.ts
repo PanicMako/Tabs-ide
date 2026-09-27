@@ -87,6 +87,7 @@ import { BrowserHostManager } from "./browserHostManager";
 import { ExtensionViewManager } from "./extensionViewManager";
 import { configuredExchangeOrigin, discoverExchangeExtensions } from "./exchangeCatalog";
 import { ExchangeUpdateMonitor } from "./exchangeUpdateMonitor";
+import { ExchangeAutomaticUpdater } from "./exchangeAutomaticUpdater";
 import { configuredExchangeTrust, ExchangeInstallService } from "./exchangeInstall";
 import { resolveUserDataPathWithFs } from "./userDataPath";
 import { NativeViewStackCoordinator } from "./nativeViewStackCoordinator";
@@ -504,8 +505,8 @@ function requireExchangeInstallService(): ExchangeInstallService {
     Path.join(STATE_DIR, "exchange-trust"),
     app.getVersion(),
     () => extensionViewManager.list(),
-    (archive, registryOrigin, digest) =>
-      extensionViewManager.installVerifiedExchangePackage(archive, registryOrigin, digest),
+    (archive, registryOrigin, digest, options) =>
+      extensionViewManager.installVerifiedExchangePackage(archive, registryOrigin, digest, options),
   );
   return exchangeInstallService;
 }
@@ -521,11 +522,39 @@ const exchangeUpdateMonitor = new ExchangeUpdateMonitor(
     writeDesktopLogHeader(`Exchange update check failed for ${id}: ${formatErrorMessage(error)}`);
   },
 );
+const exchangeAutomaticUpdater = new ExchangeAutomaticUpdater(
+  () => extensionViewManager.list(),
+  (entry) => exchangeUpdateMonitor.availableFor(entry),
+  (id) =>
+    extensionViewManager.canApplySilentUpdate(id) && !exchangeInstallService?.hasManualReview(id),
+  (listing, options) => requireExchangeInstallService().prepare(listing, options),
+  (token, options) => requireExchangeInstallService().confirm(token, options),
+  (token) => exchangeInstallService?.cancel(token),
+  () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send(EXTENSION_CHANGED_CHANNEL);
+    }
+  },
+  (id, error) => {
+    writeDesktopLogHeader(
+      `Exchange automatic update failed for ${id}: ${formatErrorMessage(error)}`,
+    );
+  },
+);
+function applyAvailableExchangeUpdates(): void {
+  if (process.env.TABS_EXCHANGE_AUTOMATIC_UPDATES !== "true") return;
+  void exchangeAutomaticUpdater.applyAvailable().catch((error) => {
+    writeDesktopLogHeader(`Exchange automatic update failed: ${formatErrorMessage(error)}`);
+  });
+}
 function checkAllInstalledExchangeUpdates(): void {
   if (!process.env.TABS_EXCHANGE_TRUST_ROOT_PATH || !process.env.TABS_EXCHANGE_ORIGIN) return;
-  void exchangeUpdateMonitor.check().catch((error) => {
-    writeDesktopLogHeader(`Exchange update monitor failed: ${formatErrorMessage(error)}`);
-  });
+  void exchangeUpdateMonitor
+    .check()
+    .then(applyAvailableExchangeUpdates)
+    .catch((error) => {
+      writeDesktopLogHeader(`Exchange update monitor failed: ${formatErrorMessage(error)}`);
+    });
 }
 async function checkInstalledExchangeStatus(extensionId: string): Promise<void> {
   const installed = extensionViewManager.list().find((entry) => entry.id === extensionId);
@@ -2313,6 +2342,7 @@ function registerIpcHandlers(): void {
   ipcMain.handle(EXTENSION_HIDE_CHANNEL, async (event) => {
     requireMainRenderer(event);
     extensionViewManager.hide();
+    applyAvailableExchangeUpdates();
   });
   ipcMain.removeHandler(EXTENSION_STORAGE_CHANNEL);
   ipcMain.handle(EXTENSION_STORAGE_CHANNEL, (event, operation: unknown) => {

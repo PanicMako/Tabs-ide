@@ -1036,6 +1036,68 @@ describe("development extension installation", () => {
     expect(restarted.list()[0]?.revoked).toBe(true);
   });
 
+  it("keeps an active extension untouched by a silent update", async () => {
+    const { directory, manager } = fixture();
+    const source = Path.join(directory, "source");
+    FS.mkdirSync(Path.join(source, "dist"), { recursive: true });
+    FS.copyFileSync(
+      Path.join(directory, "dist", "index.html"),
+      Path.join(source, "dist", "index.html"),
+    );
+    const manifestPath = Path.join(source, "tabs-extension.json");
+    const manifest = JSON.parse(
+      FS.readFileSync(Path.join(directory, "tabs-extension.json"), "utf8"),
+    );
+    FS.writeFileSync(manifestPath, JSON.stringify(manifest));
+    const firstArchive = Path.join(directory, "first-silent.tabsext");
+    const first = await packTabsext({
+      directory: source,
+      destination: firstArchive,
+      tabsVersion: "1.3.17",
+    });
+    const installed = await manager.installVerifiedExchangePackage(
+      firstArchive,
+      "https://exchange.tabs.example",
+      first.digest,
+    );
+    manager.setAssignment(installed.id, {
+      ...installed.assignment,
+      enabledProjectIds: ["project-a"],
+    });
+    expect(manager.canApplySilentUpdate(installed.id)).toBe(true);
+    manifest.version = "1.0.1";
+    FS.writeFileSync(manifestPath, JSON.stringify(manifest));
+    const secondArchive = Path.join(directory, "second-silent.tabsext");
+    const second = await packTabsext({
+      directory: source,
+      destination: secondArchive,
+      tabsVersion: "1.3.17",
+    });
+    (manager as unknown as { active: unknown }).active = {
+      extensionId: installed.id,
+      key: "active",
+    };
+    expect(manager.canApplySilentUpdate(installed.id)).toBe(false);
+    await expect(
+      manager.installVerifiedExchangePackage(
+        secondArchive,
+        "https://exchange.tabs.example",
+        second.digest,
+        { silent: true },
+      ),
+    ).rejects.toThrow(/safe update boundary/);
+    expect(manager.list()[0]?.digest).toBe(first.digest);
+    (manager as unknown as { active: unknown }).active = null;
+    const updated = await manager.installVerifiedExchangePackage(
+      secondArchive,
+      "https://exchange.tabs.example",
+      second.digest,
+      { silent: true },
+    );
+    expect(updated.digest).toBe(second.digest);
+    expect(updated.assignment.enabledProjectIds).toEqual(["project-a"]);
+  });
+
   it("persists a verified rollback checkpoint and restores it when the update cannot load", async () => {
     const { directory, manager, installed, first, second } = await exchangeUpdateFixture();
     expect(manager.list()[0]?.digest).toBe(second.digest);

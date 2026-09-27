@@ -49,7 +49,7 @@ describe("Exchange install consent", () => {
       destination: archive,
       tabsVersion: "1.3.17",
     });
-    const previous = {
+    let previous: DesktopInstalledExtension = {
       id: packageInfo.id,
       source: "exchange",
       registryOrigin: origin,
@@ -68,7 +68,7 @@ describe("Exchange install consent", () => {
         version: "1.0.0",
         networkHosts: ["api.example.com"],
       },
-    } satisfies DesktopInstalledExtension;
+    };
     const service = new ExchangeInstallService(
       { origin, trustId: "official", root: Buffer.from("test") },
       Path.join(root, "metadata"),
@@ -107,6 +107,26 @@ describe("Exchange install consent", () => {
       expect(prepared.addedCapabilities).toEqual([]);
       expect(prepared.addedNetworkHosts).toEqual(["billing.example.com"]);
       expect(prepared.willKeepEnabled).toBe(false);
+      expect(service.hasManualReview(packageInfo.id)).toBe(true);
+      await expect(service.confirm(prepared.token, { silent: true })).rejects.toThrow(
+        /Silent updates cannot add permissions/,
+      );
+      expect(service.hasManualReview(packageInfo.id)).toBe(false);
+      const stale = await service.prepare({
+        registryOrigin: origin,
+        id: packageInfo.id,
+        namespace: "acme",
+        name: "dashboard",
+        version: "1.0.1",
+        digest: packageInfo.digest,
+        displayName: "Dashboard",
+        description: "A UI tool",
+        verifiedPublisher: false,
+        tabsCompatibility: ">=1.3.0 <2.0.0",
+        capabilities: ["network"],
+      });
+      previous = { ...previous, digest: "c".repeat(64) };
+      await expect(service.confirm(stale.token)).rejects.toThrow(/changed during update review/);
     } finally {
       service.dispose();
     }

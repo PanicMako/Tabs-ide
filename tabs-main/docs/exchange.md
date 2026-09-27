@@ -11,8 +11,10 @@ to `false`. The publisher terms are a draft, the scanner does not include a
 malware intelligence feed or external dependency advisory checks, and the
 reviewer view shows bounded text diffs but cannot display large or binary files,
 so reviewers must inspect the exact archive separately. A production root
-signing ceremony, continuous revocation checks, and automatic updates are not
-implemented. Desktop builds can display compatible approved listings from
+signing ceremony and continuous revocation checks are not implemented.
+Experimental permission-neutral automatic updates are available only with an
+independently pinned trust root and explicit desktop opt-in. Desktop builds can
+display compatible approved listings from
 `TABS_EXCHANGE_ORIGIN`; a separately provisioned trust root is required for
 manual installation. The public API is therefore an experimental shape, not a
 stable protocol for forks yet.

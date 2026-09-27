@@ -63,6 +63,8 @@ interface Prepared {
   readonly archive: string;
   readonly result: DesktopPreparedExchangeInstall;
   readonly expiresAt: number;
+  readonly replacesDigest?: string;
+  readonly automatic: boolean;
 }
 
 /** Holds one verified, immutable-by-digest candidate until the user accepts its permissions. */
@@ -80,6 +82,7 @@ export class ExchangeInstallService {
       archive: string,
       origin: string,
       digest: string,
+      options?: { readonly silent?: boolean },
     ) => Promise<DesktopInstalledExtension>,
     fetcher?: typeof fetch,
     trusted?: Pick<TrustedExchange, "resolve">,
@@ -123,7 +126,10 @@ export class ExchangeInstallService {
     return null;
   }
 
-  async prepare(listing: DesktopExchangeListing): Promise<DesktopPreparedExchangeInstall> {
+  async prepare(
+    listing: DesktopExchangeListing,
+    options: { readonly automatic?: boolean } = {},
+  ): Promise<DesktopPreparedExchangeInstall> {
     this.pruneExpired();
     if (
       listing.registryOrigin !== this.configuration.origin ||
@@ -168,7 +174,13 @@ export class ExchangeInstallService {
         willKeepEnabled: Boolean(previous && !requiresNewConsent),
         ...increase,
       };
-      this.prepared.set(token, { archive, result, expiresAt: Date.now() + PREPARED_TTL_MS });
+      this.prepared.set(token, {
+        archive,
+        result,
+        expiresAt: Date.now() + PREPARED_TTL_MS,
+        automatic: options.automatic === true,
+        ...(previous?.digest ? { replacesDigest: previous.digest } : {}),
+      });
       return result;
     } catch (error) {
       FS.rmSync(Path.dirname(archive), { recursive: true, force: true });
@@ -176,26 +188,57 @@ export class ExchangeInstallService {
     }
   }
 
-  async confirm(token: string): Promise<DesktopInstalledExtension> {
+  hasManualReview(extensionId: string): boolean {
+    this.pruneExpired();
+    return [...this.prepared.values()].some(
+      (entry) =>
+        !entry.automatic &&
+        `${entry.result.manifest.publisher}.${entry.result.manifest.name}` === extensionId,
+    );
+  }
+
+  async confirm(
+    token: string,
+    options: { readonly silent?: boolean } = {},
+  ): Promise<DesktopInstalledExtension> {
     this.pruneExpired();
     const prepared = this.prepared.get(token);
     if (!prepared) throw new Error("Exchange install review expired; prepare it again.");
     this.prepared.delete(token);
     try {
       const { publisher, name, version } = prepared.result.manifest;
-      this.assertSafeReplacement(`${publisher}.${name}`, version, prepared.result.digest);
+      this.assertPreparedReplacement(prepared);
       const current = await this.trusted.resolve(publisher, name, version);
       if (!current || current.digest !== prepared.result.digest) {
         throw new Error("This version is no longer present in current signed Exchange metadata.");
       }
-      this.assertSafeReplacement(`${publisher}.${name}`, version, prepared.result.digest);
+      this.assertPreparedReplacement(prepared);
+      if (options.silent && !prepared.result.willKeepEnabled) {
+        throw new Error("Silent updates cannot add permissions or install new extensions.");
+      }
       return await this.install(
         prepared.archive,
         prepared.result.registryOrigin,
         prepared.result.digest,
+        options,
       );
     } finally {
       FS.rmSync(Path.dirname(prepared.archive), { recursive: true, force: true });
+    }
+  }
+
+  private assertPreparedReplacement(prepared: Prepared): void {
+    const manifest = prepared.result.manifest;
+    const previous = this.assertSafeReplacement(
+      `${manifest.publisher}.${manifest.name}`,
+      manifest.version,
+      prepared.result.digest,
+    );
+    if (
+      previous?.digest !== prepared.replacesDigest ||
+      previous?.manifest.version !== prepared.result.replacesVersion
+    ) {
+      throw new Error("Installed extension changed during update review.");
     }
   }
 
