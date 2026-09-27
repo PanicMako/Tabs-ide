@@ -19,6 +19,8 @@ import {
   type ProjectWorkspaceSettings as ProjectWorkspaceSettingsType,
 } from "@tabs/contracts/settings";
 import { ProjectId, ThreadId } from "@tabs/contracts";
+import type { DesktopInstalledExtension } from "@tabs/contracts";
+import { mergeExtensionToolbarTools } from "./extensionToolbarTools";
 import {
   DEFAULT_CODE_CHROME_STATE,
   coerceChromeState,
@@ -899,8 +901,14 @@ export function syncWorkspaceShellState(
 
 export function resolveProjectTools(
   settings: ProjectWorkspaceSettingsType,
+  installedExtensions?: readonly DesktopInstalledExtension[],
+  projectId?: string,
 ): ProjectToolDefinition[] {
-  return resolveVisibleTools(settings);
+  if (!installedExtensions || !projectId) return resolveVisibleTools(settings);
+  return resolveVisibleTools({
+    ...settings,
+    tools: mergeExtensionToolbarTools(settings.tools, installedExtensions, projectId),
+  });
 }
 
 export const useWorkspaceShellStore = create<WorkspaceShellStore>()(

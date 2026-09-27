@@ -83,6 +83,11 @@ import {
   workspaceShellActions,
 } from "../state/workspaceShell";
 import { useSettingsViewState } from "~/state/scopedStateStore";
+import { useInstalledExtensions } from "../state/extensions";
+import {
+  mergeExtensionToolbarTools,
+  preserveUnavailableExtensionTools,
+} from "../extensionToolbarTools";
 import { registerDraftSource, useSettingsDraftSource } from "../state/settingsDraftRegistry";
 import {
   type CustomEmbedDraft,
@@ -152,6 +157,8 @@ function describeToolKind(kind: string) {
       return "browser tab";
     case "custom_process":
       return "terminal tab";
+    case "extension":
+      return "extension tool";
     default:
       return kind;
   }
@@ -364,6 +371,7 @@ export function ProjectWorkspaceSettingsSection() {
     activeProjectId ? (state.find((project) => project.id === activeProjectId) ?? null) : null,
   );
   const projectSettings = useProjectWorkspaceSettings(activeProjectId);
+  const installedExtensions = useInstalledExtensions();
   const upsertProjectSettings = workspaceShellActions.upsertProjectSettings;
   const initialCached = activeProjectId ? getProjectWorkspaceDrafts(activeProjectId) : undefined;
   const [customEmbedDrafts, setCustomEmbedDrafts] = useState<CustomEmbedDraft[]>(() => {
@@ -551,12 +559,15 @@ export function ProjectWorkspaceSettingsSection() {
     }
     upsertProjectSettings(activeProjectId, (current) => ({
       ...current,
-      tools: (current.tools ?? []).map((entry) =>
-        entry.id === toolId ? { ...entry, visible: nextVisible } : entry,
+      tools: preserveUnavailableExtensionTools(
+        current.tools,
+        mergeExtensionToolbarTools(current.tools, installedExtensions, activeProjectId).map(
+          (entry) => (entry.id === toolId ? { ...entry, visible: nextVisible } : entry),
+        ),
       ),
     }));
     setPendingToggle(null);
-  }, [activeProjectId, pendingToggle, upsertProjectSettings]);
+  }, [activeProjectId, installedExtensions, pendingToggle, upsertProjectSettings]);
 
   const draftsRef = useRef<ProjectWorkspaceDraftSnapshot>({
     customEmbedDrafts,
@@ -692,7 +703,11 @@ export function ProjectWorkspaceSettingsSection() {
   useSettingsDraftSource("workspace", isWorkspaceDirty, "Workspace");
 
   const toolbarPreviewTools = useMemo(() => {
-    return (projectSettings?.tools ?? []).filter((tool) => {
+    return mergeExtensionToolbarTools(
+      projectSettings?.tools ?? [],
+      installedExtensions,
+      activeProjectId ?? "",
+    ).filter((tool) => {
       if (tool.kind === "custom_embed") {
         return customEmbedDrafts.some((draft) => createCustomEmbedToolId(draft.id) === tool.id);
       }
@@ -701,7 +716,13 @@ export function ProjectWorkspaceSettingsSection() {
       }
       return true;
     });
-  }, [projectSettings?.tools, customEmbedDrafts, serverProcessDrafts]);
+  }, [
+    projectSettings?.tools,
+    installedExtensions,
+    activeProjectId,
+    customEmbedDrafts,
+    serverProcessDrafts,
+  ]);
 
   const visibleToolsCount = useMemo(
     () => toolbarPreviewTools.filter((tool) => tool.visible).length,
@@ -866,7 +887,12 @@ export function ProjectWorkspaceSettingsSection() {
     const rankOf = (id: string) => rank.get(id) ?? Number.MAX_SAFE_INTEGER;
     upsertProjectSettings(projectId, (current) => ({
       ...current,
-      tools: [...current.tools].sort((a, b) => rankOf(a.id) - rankOf(b.id)),
+      tools: preserveUnavailableExtensionTools(
+        current.tools,
+        mergeExtensionToolbarTools(current.tools, installedExtensions, projectId).sort(
+          (a, b) => rankOf(a.id) - rankOf(b.id),
+        ),
+      ),
     }));
     setCustomEmbedDrafts((current) =>
       [...current].sort(
@@ -1211,7 +1237,11 @@ export function ProjectWorkspaceSettingsSection() {
                       in an isolated sandbox, or connects to a named profile.
                     </div>
                   </div>
-                  <div className="tabs-segmented flex shrink-0 self-start sm:self-auto" role="group" aria-label="Project browser session isolation">
+                  <div
+                    className="tabs-segmented flex shrink-0 self-start sm:self-auto"
+                    role="group"
+                    aria-label="Project browser session isolation"
+                  >
                     <button
                       type="button"
                       onClick={() => setBrowserPartitionModeDraft("shared")}
@@ -1479,13 +1509,19 @@ export function ProjectWorkspaceSettingsSection() {
                                         project, stays isolated, or links to a named profile.
                                       </div>
                                     </div>
-                                    <div className="tabs-segmented flex shrink-0 self-start sm:self-auto" role="group" aria-label="Tab browser session isolation">
+                                    <div
+                                      className="tabs-segmented flex shrink-0 self-start sm:self-auto"
+                                      role="group"
+                                      aria-label="Tab browser session isolation"
+                                    >
                                       <button
                                         type="button"
                                         onClick={() =>
                                           saveCustomEmbedPartition(activeDraft.id, "shared")
                                         }
-                                        aria-pressed={(activeDraft.partitionMode ?? "shared") === "shared"}
+                                        aria-pressed={
+                                          (activeDraft.partitionMode ?? "shared") === "shared"
+                                        }
                                         className={cn(
                                           "text-xs px-3 py-1.5 rounded-md font-medium transition-colors cursor-pointer",
                                           (activeDraft.partitionMode ?? "shared") === "shared"

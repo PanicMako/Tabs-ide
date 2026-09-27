@@ -1,7 +1,7 @@
 import { BrowserToolbar } from "./browser/BrowserToolbar";
 import { ExtensionToolSurface } from "./ExtensionToolSurface";
 import { useInstalledExtensions } from "../state/extensions";
-import { isExtensionEnabledForProject, extensionProfileForProject } from "@tabs/shared/extensions";
+import { extensionProfileForProject } from "@tabs/shared/extensions";
 import type { FileDiffMetadata, Hunk } from "@pierre/diffs";
 import { createPortal } from "react-dom";
 import { useAtomValue } from "@effect/atom-react";
@@ -36,7 +36,6 @@ import { RecordIssueDialog } from "./browser/RecordIssueDialog";
 import { ServerReadinessBadge } from "./browser/ServerReadinessBadge";
 import {
   type ProjectToolKind,
-  type ProjectToolDefinition,
   type ProjectWorkspaceSettings,
   type BrowserPartitionMode,
   resolveBrowserPartition,
@@ -10936,24 +10935,8 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
     .map((projectId) => projects.find((project) => project.id === projectId) ?? null)
     .filter((project): project is Project => project !== null);
   const activeProjectSettings = useProjectWorkspaceSettings(activeProject?.id ?? null);
-  const extensionTools: ProjectToolDefinition[] = activeProject
-    ? installedExtensions.flatMap((extension) =>
-        !extension.revoked &&
-        !extension.disabled &&
-        isExtensionEnabledForProject(extension.assignment, activeProject.id)
-          ? extension.manifest.contributes.tools.map((tool) => ({
-              id: `ext:${extension.id}:${tool.id}`,
-              kind: "extension" as const,
-              label: tool.label,
-              visible: true,
-              extensionId: extension.id,
-              extensionToolId: tool.id,
-            }))
-          : [],
-      )
-    : [];
   const resolvedTools = activeProjectSettings
-    ? [...resolveProjectTools(activeProjectSettings), ...extensionTools]
+    ? resolveProjectTools(activeProjectSettings, installedExtensions, activeProject?.id)
     : [];
   const activeToolId = activeProject
     ? (resolvedTools.find(
