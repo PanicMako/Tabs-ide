@@ -25,6 +25,92 @@ afterEach(() => {
 });
 
 describe("Exchange install consent", () => {
+  it("flags an added network host before retaining project enablement", async () => {
+    const root = temporaryDirectory();
+    const source = Path.join(root, "source");
+    FS.mkdirSync(Path.join(source, "dist"), { recursive: true });
+    FS.writeFileSync(Path.join(source, "dist", "index.html"), "<!doctype html><title>Tool</title>");
+    const manifest = {
+      manifestVersion: 1 as const,
+      publisher: "acme",
+      name: "dashboard",
+      version: "1.0.1",
+      displayName: "Dashboard",
+      description: "A UI tool",
+      engines: { tabs: ">=1.3.0 <2.0.0" },
+      capabilities: ["network"] as Array<"network">,
+      networkHosts: ["api.example.com", "billing.example.com"],
+      contributes: { tools: [{ id: "main", label: "Dashboard", entry: "dist/index.html" }] },
+    };
+    FS.writeFileSync(Path.join(source, "tabs-extension.json"), JSON.stringify(manifest));
+    const archive = Path.join(root, "update.tabsext");
+    const packageInfo = await packTabsext({
+      directory: source,
+      destination: archive,
+      tabsVersion: "1.3.17",
+    });
+    const previous = {
+      id: packageInfo.id,
+      source: "exchange",
+      registryOrigin: origin,
+      digest: "a".repeat(64),
+      assignment: {
+        extensionId: packageInfo.id,
+        enabledGlobally: true,
+        enabledProjectIds: [],
+        disabledProjectIds: [],
+        defaultProfileId: "default",
+        profileIdByProjectId: {},
+      },
+      profiles: [{ id: "default", label: "Default" }],
+      manifest: {
+        ...manifest,
+        version: "1.0.0",
+        networkHosts: ["api.example.com"],
+      },
+    } satisfies DesktopInstalledExtension;
+    const service = new ExchangeInstallService(
+      { origin, trustId: "official", root: Buffer.from("test") },
+      Path.join(root, "metadata"),
+      "1.3.17",
+      () => [previous],
+      async () => {
+        throw new Error("not expected");
+      },
+      async (url) => {
+        const response = new Response(new Uint8Array(FS.readFileSync(archive)));
+        Object.defineProperty(response, "url", { value: String(url) });
+        return response;
+      },
+      {
+        resolve: async () => ({
+          path: exchangeTargetPath("acme", "dashboard", "1.0.1"),
+          bytes: packageInfo.bytes,
+          digest: packageInfo.digest,
+        }),
+      },
+    );
+    try {
+      const prepared = await service.prepare({
+        registryOrigin: origin,
+        id: packageInfo.id,
+        namespace: "acme",
+        name: "dashboard",
+        version: "1.0.1",
+        digest: packageInfo.digest,
+        displayName: "Dashboard",
+        description: "A UI tool",
+        verifiedPublisher: false,
+        tabsCompatibility: ">=1.3.0 <2.0.0",
+        capabilities: ["network"],
+      });
+      expect(prepared.addedCapabilities).toEqual([]);
+      expect(prepared.addedNetworkHosts).toEqual(["billing.example.com"]);
+      expect(prepared.willKeepEnabled).toBe(false);
+    } finally {
+      service.dispose();
+    }
+  });
   it("treats transport outages as offline, but not invalid signed metadata", () => {
     expect(isOfflineExchangeError(new DownloadHTTPError("offline", 503))).toBe(true);
     expect(isOfflineExchangeError(new ExchangeTransportError(new TypeError("fetch failed")))).toBe(

@@ -6,6 +6,25 @@ const SEGMENT = /^[a-z][a-z0-9-]{1,62}$/;
 const MAX_TOOLS = 12;
 const MAX_COMMANDS = 8;
 
+export function extensionPermissionIncrease(
+  next: TabsExtensionManifest,
+  previous?: TabsExtensionManifest,
+): {
+  readonly addedCapabilities: ReadonlyArray<
+    NonNullable<TabsExtensionManifest["capabilities"]>[number]
+  >;
+  readonly addedNetworkHosts: ReadonlyArray<string>;
+} {
+  return {
+    addedCapabilities: (next.capabilities ?? []).filter(
+      (capability) => !previous?.capabilities?.includes(capability),
+    ),
+    addedNetworkHosts: (next.networkHosts ?? []).filter(
+      (host) => !previous?.networkHosts?.includes(host),
+    ),
+  };
+}
+
 export type ManifestValidationResult =
   | { readonly ok: true; readonly manifest: TabsExtensionManifest; readonly id: string }
   | { readonly ok: false; readonly errors: ReadonlyArray<string> };

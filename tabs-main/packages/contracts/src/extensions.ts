@@ -95,6 +95,10 @@ export interface DesktopPreparedExchangeInstall {
   readonly manifest: TabsExtensionManifest;
   readonly replacesVersion?: string;
   readonly willKeepEnabled: boolean;
+  readonly addedCapabilities: ReadonlyArray<
+    NonNullable<TabsExtensionManifest["capabilities"]>[number]
+  >;
+  readonly addedNetworkHosts: ReadonlyArray<string>;
 }
 
 /** Informational catalog data; it is not an installation authorization. */

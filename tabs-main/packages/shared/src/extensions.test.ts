@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import type { TabsExtensionManifest } from "@tabs/contracts";
 import {
+  extensionPermissionIncrease,
   extensionProfileForProject,
   isExtensionEnabledForProject,
   validateTabsExtensionManifest,
@@ -17,6 +19,27 @@ const manifest = {
 };
 
 describe("Tabs extension manifest", () => {
+  it("reports capability and exact-host increases against the installed manifest", () => {
+    const previous: TabsExtensionManifest = {
+      ...manifest,
+      manifestVersion: 1,
+      capabilities: ["network"] as Array<"network" | "credentials">,
+      networkHosts: ["api.example.com"],
+    };
+    expect(
+      extensionPermissionIncrease(
+        {
+          ...previous,
+          capabilities: ["network", "credentials"],
+          networkHosts: ["api.example.com", "billing.example.com"],
+        },
+        previous,
+      ),
+    ).toEqual({
+      addedCapabilities: ["credentials"],
+      addedNetworkHosts: ["billing.example.com"],
+    });
+  });
   it("accepts a UI-only manifest", () => {
     expect(validateTabsExtensionManifest(manifest, "1.3.17")).toMatchObject({
       ok: true,

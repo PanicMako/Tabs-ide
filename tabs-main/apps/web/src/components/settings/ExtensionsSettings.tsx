@@ -297,6 +297,26 @@ export default function ExtensionsSettings() {
                 Requested capabilities:{" "}
                 {preparedInstall.manifest.capabilities?.join(", ") || "none"}.
               </p>
+              {preparedInstall.manifest.networkHosts?.length ? (
+                <p className="text-sm">
+                  Requested network hosts: {preparedInstall.manifest.networkHosts.join(", ")}.
+                </p>
+              ) : null}
+              {preparedInstall.replacesVersion &&
+              (preparedInstall.addedCapabilities.length ||
+                preparedInstall.addedNetworkHosts.length) ? (
+                <div className="text-sm" role="status">
+                  <p>This update requests additional access:</p>
+                  <ul className="list-disc pl-5">
+                    {preparedInstall.addedCapabilities.map((capability) => (
+                      <li key={capability}>Capability: {capability}</li>
+                    ))}
+                    {preparedInstall.addedNetworkHosts.map((host) => (
+                      <li key={host}>Network host: {host}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
               {preparedInstall.manifest.contributes.commands?.length ? (
                 <div className="text-sm">
                   <p>Packaged computation commands (no privileged access):</p>
@@ -314,7 +334,7 @@ export default function ExtensionsSettings() {
               </p>
               <p className="text-sm text-muted-foreground">
                 {preparedInstall.willKeepEnabled
-                  ? "Existing project enablement is retained because no capability was added."
+                  ? "Existing project enablement is retained because no capability or network host was added."
                   : "The extension will be disabled until you choose projects and grant requested access."}
               </p>
               <div className="flex gap-2">

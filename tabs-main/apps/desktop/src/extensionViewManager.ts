@@ -12,6 +12,7 @@ import {
 } from "@tabs/contracts";
 import * as Schema from "effect/Schema";
 import {
+  extensionPermissionIncrease,
   extensionProfileForProject,
   isExtensionEnabledForProject,
   validateTabsExtensionManifest,
@@ -77,13 +78,6 @@ function retainedProfilesIdentity(
   registryOrigin?: string,
 ): string {
   return JSON.stringify([id, source, registryOrigin ?? null]);
-}
-
-function addsNetworkHosts(
-  next: DesktopInstalledExtension["manifest"],
-  previous?: DesktopInstalledExtension["manifest"],
-): boolean {
-  return (next.networkHosts ?? []).some((host) => !previous?.networkHosts?.includes(host));
 }
 
 export function extensionSessionPartition(
@@ -456,6 +450,8 @@ export class ExtensionViewManager {
       defaultProfileId: "default",
       profileIdByProjectId: {},
     };
+    const addedNetworkHosts =
+      extensionPermissionIncrease(parsed.manifest, previous?.manifest).addedNetworkHosts.length > 0;
     const safeAssignment = {
       ...assignment,
       ...(parsed.manifest.capabilities?.includes("profile-storage") &&
@@ -467,13 +463,11 @@ export class ExtensionViewManager {
         ? { workspaceReadGrantedProjectIds: [] }
         : {}),
       ...(parsed.manifest.capabilities?.includes("network") &&
-      (!previous?.manifest.capabilities?.includes("network") ||
-        addsNetworkHosts(parsed.manifest, previous?.manifest))
+      (!previous?.manifest.capabilities?.includes("network") || addedNetworkHosts)
         ? { networkGrantedProjectIds: [] }
         : {}),
       ...(parsed.manifest.capabilities?.includes("credentials") &&
-      (!previous?.manifest.capabilities?.includes("credentials") ||
-        addsNetworkHosts(parsed.manifest, previous?.manifest))
+      (!previous?.manifest.capabilities?.includes("credentials") || addedNetworkHosts)
         ? { credentialGrantedProjectIds: [] }
         : {}),
     };
@@ -531,6 +525,9 @@ export class ExtensionViewManager {
       defaultProfileId: "default",
       profileIdByProjectId: {},
     };
+    const addedNetworkHosts =
+      extensionPermissionIncrease(inspected.manifest, previous?.manifest).addedNetworkHosts.length >
+      0;
     const next: StoredExtension = {
       id: inspected.id,
       manifest: inspected.manifest,
@@ -545,13 +542,11 @@ export class ExtensionViewManager {
           ? { workspaceReadGrantedProjectIds: [] }
           : {}),
         ...(inspected.manifest.capabilities?.includes("network") &&
-        (!previous?.manifest.capabilities?.includes("network") ||
-          addsNetworkHosts(inspected.manifest, previous?.manifest))
+        (!previous?.manifest.capabilities?.includes("network") || addedNetworkHosts)
           ? { networkGrantedProjectIds: [] }
           : {}),
         ...(inspected.manifest.capabilities?.includes("credentials") &&
-        (!previous?.manifest.capabilities?.includes("credentials") ||
-          addsNetworkHosts(inspected.manifest, previous?.manifest))
+        (!previous?.manifest.capabilities?.includes("credentials") || addedNetworkHosts)
           ? { credentialGrantedProjectIds: [] }
           : {}),
       },
@@ -638,12 +633,11 @@ export class ExtensionViewManager {
       tabsVersion: this.tabsVersion,
     });
     this.assertInstallEpoch(inspected.id, deletionEpoch, directory);
-    const previousCapabilities = previous?.manifest.capabilities ?? [];
-    const requestedCapabilities = inspected.manifest.capabilities ?? [];
+    const increase = extensionPermissionIncrease(inspected.manifest, previous?.manifest);
     const increased =
       previous?.revoked ||
-      requestedCapabilities.some((capability) => !previousCapabilities.includes(capability)) ||
-      addsNetworkHosts(inspected.manifest, previous?.manifest);
+      increase.addedCapabilities.length > 0 ||
+      increase.addedNetworkHosts.length > 0;
     const assignment: TabsExtensionAssignment = previous?.assignment ?? {
       extensionId: inspected.id,
       enabledGlobally: false,

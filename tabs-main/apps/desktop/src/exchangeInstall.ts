@@ -10,6 +10,7 @@ import type {
   DesktopPreparedExchangeInstall,
 } from "@tabs/contracts";
 import { compareSemverVersions } from "@tabs/shared/semver";
+import { extensionPermissionIncrease } from "@tabs/shared/extensions";
 import { discoverExchangeVersions } from "./exchangeCatalog";
 import { downloadSignedExchangePackage } from "./exchangePackageDownload";
 import { ExchangeTransportError, TrustedExchange } from "./trustedExchange";
@@ -152,12 +153,11 @@ export class ExchangeInstallService {
         throw new Error("Signed package identity differs from Exchange listing.");
       }
       const previous = this.assertSafeReplacement(inspected.id, listing.version, target.digest);
-      const oldCapabilities = previous?.manifest.capabilities ?? [];
-      const addedCapability =
+      const increase = extensionPermissionIncrease(inspected.manifest, previous?.manifest);
+      const requiresNewConsent =
         previous?.revoked ||
-        (inspected.manifest.capabilities ?? []).some(
-          (capability) => !oldCapabilities.includes(capability),
-        );
+        increase.addedCapabilities.length > 0 ||
+        increase.addedNetworkHosts.length > 0;
       const token = Crypto.randomBytes(24).toString("hex");
       const result: DesktopPreparedExchangeInstall = {
         token,
@@ -165,7 +165,8 @@ export class ExchangeInstallService {
         digest: target.digest,
         manifest: inspected.manifest,
         ...(previous ? { replacesVersion: previous.manifest.version } : {}),
-        willKeepEnabled: Boolean(previous && !addedCapability),
+        willKeepEnabled: Boolean(previous && !requiresNewConsent),
+        ...increase,
       };
       this.prepared.set(token, { archive, result, expiresAt: Date.now() + PREPARED_TTL_MS });
       return result;
