@@ -26,21 +26,24 @@ export const TOTAL_TAGS_COUNT = 169;
 export const changelogData: ChangelogRelease[] = [
   {
     tag: "v1.3.26",
-    title: "Font picker selection highlight fix",
+    title:
+      "Font picker selection highlight and persistent typography synchronization",
     date: "September 28, 2026",
     shortDate: "Sep 28",
     isLatest: true,
     type: "patch",
     summary:
-      "Font combo buttons and font dropdowns in the Themes settings now correctly highlight the active selection in packaged desktop builds.",
+      "Tabs restores the active selection highlight for typography presets in Themes settings and synchronizes font family preferences to persistent storage.",
     highlights: [
-      "Selecting a font combo or changing the interface/editor font now immediately shows the active selection indicator. Previously the highlight did not appear because font family changes were not propagated to the settings store that drives the comparison.",
+      "Selecting a preset font combination or choosing individual interface and editor fonts in Themes settings now immediately displays the active selection highlight.",
+      "Font family choices now synchronize directly to the persistent settings store alongside font size preferences, ensuring your active typography state remains consistent across restarts.",
     ],
     categories: [
       {
         title: "Appearance",
         items: [
-          "Font picker active-selection highlight now works correctly in packaged builds.",
+          "Restored active selection highlight on font presets and individual font pickers in Themes settings.",
+          "Synchronized font family selections with client settings store for consistent state comparison.",
         ],
       },
     ],

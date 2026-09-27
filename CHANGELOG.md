@@ -2,6 +2,13 @@
 
 All notable changes to Tabs IDE will be documented in this file.
 
+## [v1.3.26] - 2026-09-28
+
+### Font picker selection highlight and persistent typography synchronization
+
+- **Font picker selection highlight**: Selecting a preset font combination or choosing individual interface and editor fonts in Themes settings now immediately displays the active selection highlight.
+- **Typography settings synchronization**: Font family choices now synchronize directly to the persistent settings store alongside font size preferences, ensuring your active typography state remains consistent across restarts.
+
 ## [v1.3.25] - 2026-09-28
 
 ### Packaged desktop font rendering, editor font synchronization, and dynamic provider models
