@@ -57,7 +57,7 @@ async function refreshSubmissions() {
   for (const entry of data.submissions) {
     const li = item(
       list,
-      `${entry.namespace}.${entry.name}@${entry.version}: ${entry.status}. SHA-256 ${entry.digest}${entry.review_reason ? `. Reviewer: ${entry.review_reason}` : ""}`,
+      `${entry.namespace}.${entry.name}@${entry.version}: ${entry.status === "approved" && !entry.published ? "approved, awaiting signed publication" : entry.status}. SHA-256 ${entry.digest}${entry.review_reason ? `. Reviewer: ${entry.review_reason}` : ""}`,
     );
     if (entry.status !== "rejected" && entry.status !== "revoked") continue;
     const form = document.createElement("form");

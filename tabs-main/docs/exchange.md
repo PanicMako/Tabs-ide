@@ -4,7 +4,9 @@ Tabs Exchange is a separate service from the static marketing website. The
 implementation lives in `apps/exchange` and has an HTTP API, PostgreSQL state,
 an S3-compatible quarantine bucket, and a polling scan worker. It uses GitHub
 OAuth for publisher and reviewer sessions. Uploaded bytes never enter the
-public catalog until an admin approves the exact SHA-256 digest after scanning.
+public catalog until an admin approves the exact SHA-256 digest after scanning
+and the corresponding signed TUF target is published. The publisher portal
+distinguishes approval from signed publication.
 
 **Do not enable public publishing yet.** `EXCHANGE_PUBLISHING_ENABLED` defaults
 to `false`. The publisher terms are a draft, the scanner does not include a
@@ -49,7 +51,9 @@ length must match an approved database row. On first publication, configure
 Run `bun run tuf:publish /absolute/staged-directory` in `apps/exchange` with
 `DATABASE_URL` set. The command verifies signatures, freshness, rollback,
 exact approved targets, and root transitions before committing all metadata
-in one transaction. No private key is read by this command or stored in the
+and its public-target index in one transaction. After upgrading an existing
+Exchange database, republish the current signed bundle to populate that index;
+approved versions remain private until then. No private key is read by this command or stored in the
 API/worker. New targets and timestamps must be signed and published before
 their current metadata expires; revocations also require a promptly updated
 signed targets role.
@@ -94,7 +98,8 @@ Public GET routes:
 | `/v1/extensions/:namespace/:name/versions/:version`          | Exact approved version metadata and digest             |
 | `/v1/extensions/:namespace/:name/versions/:version/download` | Archive bytes, re-hashed against the approved digest   |
 
-The catalog head is a discovery hint, not an installation authorization. When
+Only approved versions present in the currently published signed targets role
+appear in these public routes. The catalog head is a discovery hint, not an installation authorization. When
 its Tabs compatibility range excludes the current desktop version, the client
 queries the approved version list and selects the highest compatible semantic
 version. The package and digest must still be checked against signed metadata

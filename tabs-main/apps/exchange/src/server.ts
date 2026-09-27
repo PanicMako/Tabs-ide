@@ -35,6 +35,9 @@ const VERIFY_NAMESPACE_ROUTE = /^\/v1\/review\/namespaces\/([a-z][a-z0-9-]{1,62}
 const BLOCKED_DIGEST_REMOVE_ROUTE = /^\/v1\/review\/blocked-digests\/([a-f0-9]{64})\/remove$/;
 const RESERVED_NAMESPACES = new Set(["tabs", "official", "admin", "system"]);
 const TERMS_VERSION = "2026-09-24";
+const PUBLISHED_RELEASE_JOIN = `JOIN exchange_published_targets p
+  ON p.namespace = v.namespace AND p.name = v.name AND p.version = v.version
+  AND p.digest = v.digest AND p.bytes = v.bytes`;
 
 class HttpError extends Error {
   constructor(
@@ -138,8 +141,8 @@ export function createExchangeServer(
           bytes: number;
           object_key: string;
         }>(
-          `SELECT digest, bytes, object_key FROM exchange_versions
-           WHERE namespace = $1 AND name = $2 AND version = $3 AND status = 'approved'`,
+          `SELECT v.digest, v.bytes, v.object_key FROM exchange_versions v ${PUBLISHED_RELEASE_JOIN}
+           WHERE v.namespace = $1 AND v.name = $2 AND v.version = $3 AND v.status = 'approved'`,
           [namespace, name, version],
         );
         const release = found.rows[0];
@@ -240,8 +243,11 @@ export function createExchangeServer(
         if (!actor) throw new HttpError(401, "Authentication required.");
         const found = await pool.query(
           `SELECT v.namespace, v.name, v.version, v.digest, v.status, v.scan_result,
-                  v.review_reason, v.submitted_at, v.reviewed_at
+                  v.review_reason, v.submitted_at, v.reviewed_at,
+                  (p.digest IS NOT NULL) AS published
            FROM exchange_versions v JOIN exchange_namespace_members m ON m.namespace = v.namespace
+           LEFT JOIN exchange_published_targets p ON p.namespace = v.namespace AND p.name = v.name
+             AND p.version = v.version AND p.digest = v.digest AND p.bytes = v.bytes
            WHERE m.user_id = $1 ORDER BY v.submitted_at DESC LIMIT 100`,
           [actor.id],
         );
@@ -439,7 +445,8 @@ export function createExchangeServer(
         const found = await pool.query(
           `SELECT DISTINCT ON (v.namespace, v.name)
              v.namespace, v.name, v.version, v.digest, v.manifest, v.submitted_at, n.verified
-           FROM exchange_versions v JOIN exchange_namespaces n ON n.name = v.namespace
+           FROM exchange_versions v ${PUBLISHED_RELEASE_JOIN}
+           JOIN exchange_namespaces n ON n.name = v.namespace
            WHERE v.status = 'approved' AND (v.namespace ILIKE $1 OR v.name ILIKE $1 OR v.manifest->>'displayName' ILIKE $1)
            ORDER BY v.namespace, v.name, v.submitted_at DESC LIMIT $2`,
           [`%${query.replaceAll("%", "\\%").replaceAll("_", "\\_")}%`, limit],
@@ -451,7 +458,8 @@ export function createExchangeServer(
       if (packageMatch) {
         const found = await pool.query(
           `SELECT v.namespace, v.name, v.version, v.digest, v.bytes, v.manifest, v.submitted_at, n.verified
-           FROM exchange_versions v JOIN exchange_namespaces n ON n.name = v.namespace
+           FROM exchange_versions v ${PUBLISHED_RELEASE_JOIN}
+           JOIN exchange_namespaces n ON n.name = v.namespace
            WHERE v.namespace = $1 AND v.name = $2 AND v.status = 'approved'
            ORDER BY v.submitted_at DESC`,
           [packageMatch[1], packageMatch[2]],
@@ -469,8 +477,9 @@ export function createExchangeServer(
           manifest: unknown;
           object_key: string;
         }>(
-          `SELECT digest, bytes, manifest, object_key FROM exchange_versions
-           WHERE namespace = $1 AND name = $2 AND version = $3 AND status = 'approved'`,
+          `SELECT v.digest, v.bytes, v.manifest, v.object_key
+           FROM exchange_versions v ${PUBLISHED_RELEASE_JOIN}
+           WHERE v.namespace = $1 AND v.name = $2 AND v.version = $3 AND v.status = 'approved'`,
           [versionMatch[1], versionMatch[2], version],
         );
         const release = found.rows[0];
@@ -497,8 +506,8 @@ export function createExchangeServer(
           bytes: number;
           object_key: string;
         }>(
-          `SELECT digest, bytes, object_key FROM exchange_versions
-           WHERE namespace = $1 AND name = $2 AND version = $3 AND status = 'approved'`,
+          `SELECT v.digest, v.bytes, v.object_key FROM exchange_versions v ${PUBLISHED_RELEASE_JOIN}
+           WHERE v.namespace = $1 AND v.name = $2 AND v.version = $3 AND v.status = 'approved'`,
           [downloadVersion[1], downloadVersion[2], version],
         );
         const release = found.rows[0];

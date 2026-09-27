@@ -99,6 +99,7 @@ async function fixture() {
   };
   await publishStage(1, true);
   const stored = new Map<string, Buffer>();
+  const published: unknown[][] = [];
   let releaseStatus = "approved";
   const operations: string[] = [];
   const client = {
@@ -126,6 +127,10 @@ async function fixture() {
       if (sql.startsWith("INSERT INTO exchange_tuf_metadata")) {
         stored.set(parameters![0] as string, parameters![1] as Buffer);
       }
+      if (sql.startsWith("DELETE FROM exchange_published_targets")) published.length = 0;
+      if (sql.startsWith("INSERT INTO exchange_published_targets")) {
+        published.push(parameters ?? []);
+      }
       return { rows: [] };
     },
     release() {},
@@ -140,6 +145,7 @@ async function fixture() {
     rootBytes,
     pool,
     stored,
+    published,
     operations,
     publishStage,
     revoke: () => {
@@ -170,9 +176,11 @@ describe("offline TUF publication gate", () => {
     expect(subject.stored.size).toBe(0);
     expect(await publishTufMetadata(subject.pool, subject.directory, bootstrap)).toBe(4);
     expect(subject.stored.has("timestamp.json")).toBe(true);
+    expect(subject.published).toEqual([["acme", "dashboard", "1.0.0", digest, archive.length]]);
     subject.revoke();
     await subject.publishStage(2, false);
     expect(await publishTufMetadata(subject.pool, subject.directory)).toBe(4);
+    expect(subject.published).toEqual([]);
     await subject.publishStage(1, true);
     await expect(publishTufMetadata(subject.pool, subject.directory)).rejects.toThrow();
     expect(subject.operations.filter((sql) => sql === "COMMIT")).toHaveLength(2);

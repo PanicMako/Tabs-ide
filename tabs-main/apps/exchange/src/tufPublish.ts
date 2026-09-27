@@ -28,6 +28,14 @@ interface ReleaseRow {
   readonly status: string;
 }
 
+interface PublishedTarget {
+  readonly namespace: string;
+  readonly name: string;
+  readonly version: string;
+  readonly digest: string;
+  readonly bytes: number;
+}
+
 function record(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
@@ -86,7 +94,10 @@ function roleVersion(bytes: Buffer, role: string): number {
   return version as number;
 }
 
-export function verifyApprovedTargets(bytes: Buffer, releases: readonly ReleaseRow[]): void {
+export function verifyApprovedTargets(
+  bytes: Buffer,
+  releases: readonly ReleaseRow[],
+): ReadonlyArray<PublishedTarget> {
   const signed = signedPart(bytes, "targets");
   if (!record(signed.targets) || signed.delegations !== undefined) {
     throw new Error("Tabs Exchange does not publish delegated target roles yet.");
@@ -99,8 +110,10 @@ export function verifyApprovedTargets(bytes: Buffer, releases: readonly ReleaseR
         release,
       ]),
   );
+  const published: PublishedTarget[] = [];
   for (const [path, target] of Object.entries(signed.targets)) {
-    if (!TARGET_PATH.test(path) || !record(target) || !record(target.hashes)) {
+    const match = TARGET_PATH.exec(path);
+    if (!match || !record(target) || !record(target.hashes)) {
       throw new Error(`Invalid signed target path or metadata: ${path}`);
     }
     const release = approved.get(path);
@@ -115,14 +128,22 @@ export function verifyApprovedTargets(bytes: Buffer, releases: readonly ReleaseR
     ) {
       throw new Error(`Signed target is not an exact approved package: ${path}`);
     }
+    published.push({
+      namespace: match[1]!,
+      name: match[2]!,
+      version: match[3]!,
+      digest: release.digest,
+      bytes: release.bytes,
+    });
   }
+  return published;
 }
 
 async function verifiedBundle(
   client: PoolClient,
   stageDirectory: string,
   bootstrapRootDigest: string | undefined,
-): Promise<Map<string, Buffer>> {
+): Promise<{ metadata: Map<string, Buffer>; targets: ReadonlyArray<PublishedTarget> }> {
   const current = await client.query<MetadataRow>(
     "SELECT name, bytes FROM exchange_tuf_metadata ORDER BY name",
   );
@@ -183,13 +204,13 @@ async function verifiedBundle(
     const releases = await client.query<ReleaseRow>(
       "SELECT namespace, name, version, digest, bytes, status FROM exchange_versions WHERE status IN ('approved', 'revoked') FOR SHARE",
     );
-    verifyApprovedTargets(result.get("targets.json")!, releases.rows);
+    const targets = verifyApprovedTargets(result.get("targets.json")!, releases.rows);
     for (const [name, bytes] of result) {
       if (/^[0-9]/.test(name) && existing.has(name) && !existing.get(name)!.equals(bytes)) {
         throw new Error(`Versioned TUF metadata is immutable: ${name}`);
       }
     }
-    return result;
+    return { metadata: result, targets };
   } finally {
     await FS.rm(temporary, { recursive: true, force: true });
   }
@@ -209,7 +230,7 @@ export async function publishTufMetadata(
     await client.query("BEGIN");
     await client.query("SELECT pg_advisory_xact_lock(1261492744)");
     const bundle = await verifiedBundle(client, stageDirectory, bootstrapRootDigest);
-    for (const [name, bytes] of bundle) {
+    for (const [name, bytes] of bundle.metadata) {
       await client.query(
         `INSERT INTO exchange_tuf_metadata(name, bytes, sha256)
          VALUES ($1, $2, $3)
@@ -218,8 +239,16 @@ export async function publishTufMetadata(
         [name, bytes, sha256(bytes)],
       );
     }
+    await client.query("DELETE FROM exchange_published_targets");
+    for (const target of bundle.targets) {
+      await client.query(
+        `INSERT INTO exchange_published_targets(namespace, name, version, digest, bytes)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [target.namespace, target.name, target.version, target.digest, target.bytes],
+      );
+    }
     await client.query("COMMIT");
-    return bundle.size;
+    return bundle.metadata.size;
   } catch (error) {
     await client.query("ROLLBACK");
     throw error;

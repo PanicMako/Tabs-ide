@@ -28,10 +28,12 @@ async function fixture(
     metadata?: Buffer;
     target?: Buffer;
     targetStatus?: "approved" | "revoked";
+    publishedTarget?: boolean;
   },
   blockedDigest?: string,
 ) {
   const actions: string[] = [];
+  const publicQueries: string[] = [];
   const client = {
     async query(sql: string, params?: unknown[]) {
       actions.push(sql);
@@ -83,6 +85,7 @@ async function fixture(
   };
   const pool = {
     async query(sql: string, params?: unknown[]) {
+      publicQueries.push(sql);
       if (sql.includes("FROM exchange_tuf_metadata")) {
         return {
           rows:
@@ -98,18 +101,25 @@ async function fixture(
         };
       }
       if (sql.includes("FROM exchange_versions") && sql.includes("status = 'approved'")) {
+        const isPublic = Boolean(
+          tuf?.target && tuf.targetStatus === "approved" && tuf.publishedTarget !== false,
+        );
         return {
-          rows:
-            tuf?.target && tuf.targetStatus === "approved"
-              ? [
-                  {
-                    digest: Crypto.createHash("sha256").update(tuf.target).digest("hex"),
-                    bytes: tuf.target.length,
-                    object_key: "approved/example/dashboard/1.0.0.tabsext",
-                  },
-                ]
-              : [],
-          rowCount: tuf?.targetStatus === "approved" ? 1 : 0,
+          rows: isPublic
+            ? [
+                {
+                  namespace: "example",
+                  name: "dashboard",
+                  version: "1.0.0",
+                  digest: Crypto.createHash("sha256").update(tuf!.target!).digest("hex"),
+                  bytes: tuf!.target!.length,
+                  manifest: { displayName: "Dashboard" },
+                  verified: false,
+                  object_key: "approved/example/dashboard/1.0.0.tabsext",
+                },
+              ]
+            : [],
+          rowCount: isPublic ? 1 : 0,
         };
       }
       if (sql.includes("FROM exchange_sessions")) {
@@ -142,7 +152,7 @@ async function fixture(
   servers.push(server);
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const address = server.address() as AddressInfo;
-  return { base: `http://127.0.0.1:${address.port}`, actions };
+  return { base: `http://127.0.0.1:${address.port}`, actions, publicQueries };
 }
 
 afterEach(async () => {
@@ -187,6 +197,47 @@ describe("Exchange HTTP boundaries", () => {
       targetStatus: "revoked",
     });
     expect((await fetch(`${revoked.base}${path}`)).status).toBe(404);
+  });
+
+  it("keeps approved versions out of discovery and downloads until signed publication", async () => {
+    const target = Buffer.from("approved but not signed");
+    const ready = await fixture(true, digest, "approved", {
+      target,
+      targetStatus: "approved",
+      publishedTarget: false,
+    });
+    const catalog = await fetch(`${ready.base}/v1/extensions`);
+    expect((await catalog.json()).extensions).toEqual([]);
+    expect((await fetch(`${ready.base}/v1/extensions/example/dashboard`)).status).toBe(404);
+    expect(
+      (await fetch(`${ready.base}/v1/extensions/example/dashboard/versions/1.0.0`)).status,
+    ).toBe(404);
+    expect(
+      (await fetch(`${ready.base}/v1/extensions/example/dashboard/versions/1.0.0/download`)).status,
+    ).toBe(404);
+    expect(
+      (await fetch(`${ready.base}/v1/tuf/targets/extensions/example/dashboard/1.0.0.tabsext`))
+        .status,
+    ).toBe(404);
+    const approvedQueries = ready.publicQueries.filter((sql) =>
+      sql.includes("status = 'approved'"),
+    );
+    expect(approvedQueries).toHaveLength(5);
+    expect(approvedQueries.every((sql) => sql.includes("exchange_published_targets"))).toBe(true);
+
+    const published = await fixture(true, digest, "approved", {
+      target,
+      targetStatus: "approved",
+    });
+    const visible = await fetch(`${published.base}/v1/extensions`);
+    expect((await visible.json()).extensions).toEqual([
+      expect.objectContaining({ namespace: "example", name: "dashboard", version: "1.0.0" }),
+    ]);
+    const downloaded = await fetch(
+      `${published.base}/v1/extensions/example/dashboard/versions/1.0.0/download`,
+    );
+    expect(downloaded.status).toBe(200);
+    expect(Buffer.from(await downloaded.arrayBuffer())).toEqual(target);
   });
 
   it("serves the accessible publisher shell but keeps publishing disabled", async () => {

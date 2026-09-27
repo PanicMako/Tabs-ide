@@ -126,3 +126,16 @@ CREATE TABLE IF NOT EXISTS exchange_tuf_metadata (
   sha256 TEXT NOT NULL CHECK (sha256 ~ '^[a-f0-9]{64}$'),
   published_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Derived from the verified targets role in the same publication transaction.
+-- Approval alone never makes a package discoverable or downloadable.
+CREATE TABLE IF NOT EXISTS exchange_published_targets (
+  namespace TEXT NOT NULL,
+  name TEXT NOT NULL,
+  version TEXT NOT NULL,
+  digest TEXT NOT NULL CHECK (digest ~ '^[a-f0-9]{64}$'),
+  bytes INTEGER NOT NULL CHECK (bytes > 0 AND bytes <= 26214400),
+  PRIMARY KEY (namespace, name, version),
+  FOREIGN KEY (namespace, name, version)
+    REFERENCES exchange_versions(namespace, name, version)
+);
