@@ -42,6 +42,7 @@ export interface AcpSessionRuntimeOptions {
   readonly spawn: AcpSpawnInput;
   readonly cwd: string;
   readonly resumeSessionId?: string;
+  readonly mcpServers?: ReadonlyArray<EffectAcpSchema.McpServer>;
   readonly clientCapabilities?: EffectAcpSchema.InitializeRequest["clientCapabilities"];
   readonly clientInfo: {
     readonly name: string;
@@ -197,8 +198,24 @@ const makeAcpSessionRuntime = (
     const startStateRef = yield* Ref.make<AcpStartState>({ _tag: "NotStarted" });
     const stderrFailure = yield* Deferred.make<never, EffectAcpErrors.AcpError>();
 
-    const logRequest = (event: AcpSessionRequestLogEvent) =>
-      options.requestLogger ? options.requestLogger(event) : Effect.void;
+    const logRequest = (event: AcpSessionRequestLogEvent) => {
+      if (!options.requestLogger) return Effect.void;
+      if (options.mcpServers?.length && ["session/new", "session/load"].includes(event.method)) {
+        const payload = event.payload as {
+          readonly mcpServers?: ReadonlyArray<EffectAcpSchema.McpServer>;
+        };
+        return options.requestLogger({
+          method: event.method,
+          status: event.status,
+          payload: {
+            mcpServers: payload.mcpServers?.map((server) => ({
+              name: server.name,
+            })),
+          },
+        });
+      }
+      return options.requestLogger(event);
+    };
 
     const runLoggedRequest = <A>(
       method: string,
@@ -275,12 +292,16 @@ const makeAcpSessionRuntime = (
     const acpContext = yield* Layer.build(
       EffectAcpClient.layerChildProcess(child, {
         ...(options.transformStdout ? { transformStdout: options.transformStdout } : {}),
-        ...(options.protocolLogging?.logIncoming !== undefined
-          ? { logIncoming: options.protocolLogging.logIncoming }
-          : {}),
-        ...(options.protocolLogging?.logOutgoing !== undefined
-          ? { logOutgoing: options.protocolLogging.logOutgoing }
-          : {}),
+        ...(options.mcpServers?.length
+          ? { logIncoming: false, logOutgoing: false }
+          : {
+              ...(options.protocolLogging?.logIncoming !== undefined
+                ? { logIncoming: options.protocolLogging.logIncoming }
+                : {}),
+              ...(options.protocolLogging?.logOutgoing !== undefined
+                ? { logOutgoing: options.protocolLogging.logOutgoing }
+                : {}),
+            }),
         ...(options.protocolLogging?.logger ? { logger: options.protocolLogging.logger } : {}),
       }),
     ).pipe(Effect.provideService(Scope.Scope, runtimeScope));
@@ -438,6 +459,9 @@ const makeAcpSessionRuntime = (
 
     const startOnce = Effect.gen(function* () {
       const initializeResult = yield* initialize();
+      const mcpServers = initializeResult.agentCapabilities?.mcpCapabilities?.http
+        ? (options.mcpServers ?? [])
+        : [];
 
       const authenticationMethod = resolveAcpAuthenticationMethod(
         initializeResult,
@@ -463,7 +487,7 @@ const makeAcpSessionRuntime = (
         const loadPayload = {
           sessionId: options.resumeSessionId,
           cwd: options.cwd,
-          mcpServers: [],
+          mcpServers,
         } satisfies EffectAcpSchema.LoadSessionRequest;
         const resumed = yield* runLoggedRequest(
           "session/load",
@@ -476,7 +500,7 @@ const makeAcpSessionRuntime = (
         } else {
           const createPayload = {
             cwd: options.cwd,
-            mcpServers: [],
+            mcpServers,
           } satisfies EffectAcpSchema.NewSessionRequest;
           const created = yield* runLoggedRequest(
             "session/new",
@@ -489,7 +513,7 @@ const makeAcpSessionRuntime = (
       } else {
         const createPayload = {
           cwd: options.cwd,
-          mcpServers: [],
+          mcpServers,
         } satisfies EffectAcpSchema.NewSessionRequest;
         const created = yield* runLoggedRequest(
           "session/new",

@@ -51,6 +51,7 @@ import {
 } from "../acp/AcpCoreRuntimeEvents";
 import { parsePermissionRequest } from "../acp/AcpRuntimeModel";
 import { makeAcpNativeLoggerFactory } from "../acp/AcpNativeLogging";
+import { tabsAcpMcpServersForThread } from "../../mcp/AcpMcpServer";
 import {
   applyDroidAcpModelSelection,
   currentDroidModelIdFromSessionSetup,
@@ -395,6 +396,7 @@ export function makeDroidAdapter(
           });
 
           const acp = yield* makeDroidAcpRuntime({
+            mcpServers: tabsAcpMcpServersForThread(input.threadId),
             droidSettings,
             ...(options?.environment ? { environment: options.environment } : {}),
             childProcessSpawner,

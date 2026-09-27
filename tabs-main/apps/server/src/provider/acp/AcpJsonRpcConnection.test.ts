@@ -453,6 +453,113 @@ describe("AcpSessionRuntime", () => {
     );
   });
 
+  it.effect("passes HTTP MCP to capable agents without recording the bearer credential", () => {
+    const tempDir = mkdtempSync(path.join(os.tmpdir(), "acp-mcp-"));
+    const requestLogPath = path.join(tempDir, "requests.ndjson");
+    const bearer = "Bearer private-thread-credential";
+    const requestEvents: Array<AcpSessionRequestLogEvent> = [];
+    const protocolEvents: Array<EffectAcpProtocol.AcpProtocolLogEvent> = [];
+    return Effect.gen(function* () {
+      const runtime = yield* AcpSessionRuntime;
+      yield* runtime.start();
+
+      const wire = readFileSync(requestLogPath, "utf8");
+      const setup = wire
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line) as { method?: string; params?: { mcpServers?: unknown } })
+        .find((entry) => entry.method === "session/new");
+      expect(setup?.params?.mcpServers).toEqual([
+        {
+          type: "http",
+          name: "Tabs",
+          url: "http://127.0.0.1:40701/mcp",
+          headers: [{ name: "Authorization", value: bearer }],
+        },
+      ]);
+      expect(JSON.stringify(requestEvents)).not.toContain(bearer);
+      expect(requestEvents.find((event) => event.method === "session/new")?.payload).toEqual({
+        mcpServers: [{ name: "Tabs" }],
+      });
+      expect(protocolEvents).toEqual([]);
+    }).pipe(
+      Effect.provide(
+        AcpSessionRuntime.layer({
+          authMethodId: "test",
+          spawn: {
+            command: mockAgentCommand,
+            args: mockAgentArgs,
+            env: { T3_ACP_HTTP_MCP: "1", T3_ACP_REQUEST_LOG_PATH: requestLogPath },
+          },
+          cwd: process.cwd(),
+          clientInfo: { name: "tabs-test", version: "0.0.0" },
+          mcpServers: [
+            {
+              type: "http",
+              name: "Tabs",
+              url: "http://127.0.0.1:40701/mcp",
+              headers: [{ name: "Authorization", value: bearer }],
+            },
+          ],
+          requestLogger: (event) =>
+            Effect.sync(() => {
+              requestEvents.push(event);
+            }),
+          protocolLogging: {
+            logIncoming: true,
+            logOutgoing: true,
+            logger: (event) =>
+              Effect.sync(() => {
+                protocolEvents.push(event);
+              }),
+          },
+        }),
+      ),
+      Effect.scoped,
+      Effect.provide(NodeServices.layer),
+      Effect.ensuring(Effect.sync(() => rmSync(tempDir, { recursive: true, force: true }))),
+    );
+  });
+
+  it.effect("omits HTTP MCP when the ACP agent does not advertise it", () => {
+    const tempDir = mkdtempSync(path.join(os.tmpdir(), "acp-mcp-"));
+    const requestLogPath = path.join(tempDir, "requests.ndjson");
+    return Effect.gen(function* () {
+      const runtime = yield* AcpSessionRuntime;
+      yield* runtime.start();
+      const setup = readFileSync(requestLogPath, "utf8")
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line) as { method?: string; params?: { mcpServers?: unknown } })
+        .find((entry) => entry.method === "session/new");
+      expect(setup?.params?.mcpServers).toEqual([]);
+    }).pipe(
+      Effect.provide(
+        AcpSessionRuntime.layer({
+          authMethodId: "test",
+          spawn: {
+            command: mockAgentCommand,
+            args: mockAgentArgs,
+            env: { T3_ACP_REQUEST_LOG_PATH: requestLogPath },
+          },
+          cwd: process.cwd(),
+          clientInfo: { name: "tabs-test", version: "0.0.0" },
+          mcpServers: [
+            {
+              type: "http",
+              name: "Tabs",
+              url: "http://127.0.0.1:40701/mcp",
+              headers: [{ name: "Authorization", value: "Bearer private-thread-credential" }],
+            },
+          ],
+        }),
+      ),
+      Effect.scoped,
+      Effect.provide(NodeServices.layer),
+      Effect.ensuring(Effect.sync(() => rmSync(tempDir, { recursive: true, force: true }))),
+    );
+  });
+
   it.effect("rejects invalid config option values before sending session/set_config_option", () => {
     const tempDir = mkdtempSync(path.join(os.tmpdir(), "acp-runtime-"));
     const requestLogPath = path.join(tempDir, "requests.ndjson");

@@ -52,6 +52,7 @@ import {
 } from "../acp/AcpCoreRuntimeEvents";
 import { parsePermissionRequest } from "../acp/AcpRuntimeModel";
 import { makeAcpNativeLoggerFactory } from "../acp/AcpNativeLogging";
+import { tabsAcpMcpServersForThread } from "../../mcp/AcpMcpServer";
 import {
   antigravityApprovalOptions,
   extractAntigravityUserInputQuestion,
@@ -389,6 +390,7 @@ export function makeAntigravityAdapter(
           });
 
           const acp = yield* makeAntigravityAcpRuntime({
+            mcpServers: tabsAcpMcpServersForThread(input.threadId),
             antigravitySettings,
             ...(options?.environment ? { environment: options.environment } : {}),
             childProcessSpawner,

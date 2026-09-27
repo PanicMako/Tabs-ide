@@ -51,6 +51,7 @@ import {
 } from "../acp/AcpCoreRuntimeEvents";
 import { parsePermissionRequest } from "../acp/AcpRuntimeModel";
 import { makeAcpNativeLoggerFactory } from "../acp/AcpNativeLogging";
+import { tabsAcpMcpServersForThread } from "../../mcp/AcpMcpServer";
 import {
   applyCopilotAcpModelSelection,
   currentCopilotModelIdFromSessionSetup,
@@ -394,6 +395,7 @@ export function makeCopilotAdapter(
           });
 
           const acp = yield* makeCopilotAcpRuntime({
+            mcpServers: tabsAcpMcpServersForThread(input.threadId),
             copilotSettings,
             ...(options?.environment ? { environment: options.environment } : {}),
             childProcessSpawner,

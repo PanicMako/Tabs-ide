@@ -51,6 +51,7 @@ import {
 } from "../acp/AcpCoreRuntimeEvents";
 import { parsePermissionRequest } from "../acp/AcpRuntimeModel";
 import { makeAcpNativeLoggerFactory } from "../acp/AcpNativeLogging";
+import { tabsAcpMcpServersForThread } from "../../mcp/AcpMcpServer";
 import {
   applyGrokAcpModelSelection,
   currentGrokModelIdFromSessionSetup,
@@ -378,6 +379,7 @@ export function makeGrokAdapter(grokSettings: GrokSettings, options?: GrokAdapte
           });
 
           const acp = yield* makeGrokAcpRuntime({
+            mcpServers: tabsAcpMcpServersForThread(input.threadId),
             grokSettings,
             ...(options?.environment ? { environment: options.environment } : {}),
             childProcessSpawner,

@@ -218,10 +218,12 @@ work before a public extension ecosystem can be enabled.
 The desktop tree contains an `extensionLogicSpike` runtime used by optional
 pure-computation commands. Explicitly granted pure commands can also be
 advertised through the desktop MCP session. The Codex provider path is wired
-through the authenticated MCP endpoint, and Claude's SDK receives the same
-thread-scoped configuration. Live Claude verification and ACP provider wiring
-remain pending. Start a new provider session after
-granting AI tools so it refreshes its MCP tool list. Each call runs one synchronous
+through the authenticated MCP endpoint. Claude's SDK receives the same
+thread-scoped configuration. ACP providers receive it only when they advertise
+HTTP MCP support; native ACP diagnostics omit the session credential and raw
+protocol traffic for that session. Mock-agent tests cover this wiring, while
+live Claude and ACP-provider verification remain pending. Start a new provider
+session after granting AI tools so it refreshes its MCP tool list. Each call runs one synchronous
 `run(input)` invocation in a fresh Node worker hosting QuickJS-in-WASM. Its
 QuickJS runtime has an 8 MiB heap limit, a 512 KiB stack limit, and an inner
 deadline interrupt; the trusted caller also has an outer deadline that

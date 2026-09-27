@@ -750,7 +750,7 @@ export default function ExtensionsSettings() {
             keeps browser and non-secret storage separate for each project. Workspace access,
             network and credential use, and AI-callable commands each require a separate project
             grant. Saved credentials are encrypted by the operating system and never shown again in
-            Settings. Start a new Codex session after granting AI tools so it discovers them.
+            Settings. Start a new agent session after granting AI tools so it discovers them.
           </p>
           {extensions.map((extension) => (
             <div key={extension.id} className="space-y-3 border-b border-border py-4 last:border-0">

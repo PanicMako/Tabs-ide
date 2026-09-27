@@ -64,6 +64,7 @@ import {
   parsePermissionRequest,
 } from "../acp/AcpRuntimeModel";
 import { makeAcpNativeLoggerFactory } from "../acp/AcpNativeLogging";
+import { tabsAcpMcpServersForThread } from "../../mcp/AcpMcpServer";
 import { applyCursorAcpModelSelection, makeCursorAcpRuntime } from "../acp/CursorAcpSupport";
 import {
   CursorAskQuestionRequest,
@@ -532,6 +533,7 @@ export function makeCursorAdapter(
             : cursorSettings;
 
           const acp = yield* makeCursorAcpRuntime({
+            mcpServers: tabsAcpMcpServersForThread(input.threadId),
             cursorSettings: effectiveCursorSettings,
             ...(options?.environment ? { environment: options.environment } : {}),
             childProcessSpawner,
