@@ -7,6 +7,7 @@ import { extractTabsext } from "@tabs/extension-package";
 import { compareSemverVersions } from "@tabs/shared/semver";
 import type { Pool } from "pg";
 import { createPool, createStorage, loadConfig, type ExchangeConfig } from "./config.ts";
+import { auditNpmDependencies } from "./dependencyAudit.ts";
 import { buildReviewDiff } from "./reviewDiff.ts";
 import { scanExtractedPackage, type ScanResult } from "./scan.ts";
 import { boundedObject } from "./storage.ts";
@@ -116,8 +117,23 @@ export async function scanNextVersion(
       priorVersion?.version,
       blockedDigests,
     );
+    const dependencyAudit = await auditNpmDependencies(installed, inspected.files);
+    const dependencyIssue =
+      dependencyAudit.findings.length > 0
+        ? "known-vulnerable-dependency"
+        : dependencyAudit.status === "partial"
+          ? "dependency-audit-partial"
+          : dependencyAudit.status === "unsupported"
+            ? "dependency-audit-unsupported"
+            : dependencyAudit.status === "unavailable"
+              ? "dependency-audit-unavailable"
+              : null;
     result = {
       ...result,
+      dependencyAudit,
+      issues: dependencyIssue
+        ? [...result.issues, { severity: "warning", code: dependencyIssue }]
+        : result.issues,
       reviewDiff: await buildReviewDiff({
         currentDirectory: installed,
         currentFiles: inspected.files,

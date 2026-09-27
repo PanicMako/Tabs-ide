@@ -9,10 +9,11 @@ and the corresponding signed TUF target is published. The publisher portal
 distinguishes approval from signed publication.
 
 **Do not enable public publishing yet.** `EXCHANGE_PUBLISHING_ENABLED` defaults
-to `false`. The publisher terms are a draft, the scanner does not include a
-malware intelligence feed or external dependency advisory checks, and the
-reviewer view shows bounded text diffs but cannot display large or binary files,
-so reviewers must inspect the exact archive separately. A production root
+to `false`. The publisher terms are a draft. The scanner does not include a
+malware intelligence feed, and its npm advisory checks cannot identify every
+dependency embedded in bundled assets. The reviewer view shows bounded text
+diffs but cannot display large or binary files, so reviewers must inspect the
+exact archive separately. A production root
 signing ceremony and continuous revocation checks are not implemented.
 Experimental permission-neutral automatic updates are available only with an
 independently pinned trust root and explicit desktop opt-in. Desktop builds can
@@ -128,7 +129,20 @@ finishes; invalid archives receive HTTP 400.
 The worker scans queued packages, verifies stored bytes, extracts with bounded
 ZIP validation, and writes a scan result. It also re-downloads and verifies the
 last approved archive before generating a version-to-version text diff. The
-reviewer portal marks binary, large, or computationally expensive diffs as
+worker reads a root npm lockfile (v2 or v3) when one is submitted and checks up
+to 200 exact public-registry package versions with the [OSV batch API](https://google.github.io/osv.dev/post-v1-querybatch/).
+Only entries resolved from `https://registry.npmjs.org/` are sent to OSV;
+private-registry and unresolvable entries are skipped to avoid disclosing
+their names to a third party.
+The reviewer sees advisory IDs and explicit `complete`, `partial`, `unsupported`,
+`unavailable`, or `not-declared` coverage. Known advisories are warnings for
+manual judgment, not automatic rejection: a lockfile does not prove which
+dependencies are present in bundled code, and no lockfile does not prove the
+absence of dependencies. Requests and responses are size-bounded and the
+advisory service has a per-request timeout. The audit needs Exchange worker
+egress to `api.osv.dev`; an outage is recorded as unavailable rather than
+misreported as a clean result. The reviewer portal marks binary, large, or
+computationally expensive diffs as
 omitted, caps the preview to 40 files and 128 KiB overall, and offers the exact
 archive for full inspection. If the prior approved archive fails verification,
 the new submission cannot pass scanning. A blocking scan result prevents

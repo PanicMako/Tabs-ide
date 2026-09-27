@@ -2,6 +2,7 @@ import * as FS from "node:fs/promises";
 import * as Path from "node:path";
 import * as Crypto from "node:crypto";
 import type { InspectedTabsext } from "@tabs/extension-package";
+import type { DependencyAudit } from "./dependencyAudit.ts";
 import type { ReviewDiff } from "./reviewDiff.ts";
 
 export interface ScanIssue {
@@ -16,6 +17,7 @@ export interface ScanResult {
   readonly digest: string;
   readonly scannedAt: string;
   readonly reviewDiff?: ReviewDiff;
+  readonly dependencyAudit?: DependencyAudit;
   readonly files: Readonly<Record<string, string>>;
   readonly comparisonVersion?: string;
   readonly capabilityChanges: {

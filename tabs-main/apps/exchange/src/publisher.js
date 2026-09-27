@@ -172,6 +172,43 @@ async function refreshReview() {
             ? `Compared with approved ${previous}: added ${listText(scan.capabilityChanges.added)}; removed ${listText(scan.capabilityChanges.removed)}.`
             : "No prior approved version for capability comparison.";
     li.append(comparison);
+    if (scan?.dependencyAudit) {
+      const audit = scan.dependencyAudit;
+      const summary = document.createElement("p");
+      const coverage =
+        audit.status === "complete"
+          ? `${audit.packagesChecked} exact npm versions checked.`
+          : audit.status === "partial"
+            ? `${audit.packagesChecked} exact npm versions checked; ${audit.packagesSkipped} entries could not be checked.`
+            : audit.status === "not-declared"
+              ? "No root npm lockfile was submitted; dependencies were not assessed."
+              : audit.status === "unsupported"
+                ? "The npm lockfile could not be audited."
+                : "The advisory lookup was unavailable or incomplete.";
+      summary.textContent = `Dependency advisory audit: ${coverage} ${audit.findings.length} known advisories found. A lockfile does not prove which code is in the bundle.`;
+      li.append(summary);
+      if (audit.findings.length) {
+        const details = document.createElement("details");
+        const heading = document.createElement("summary");
+        heading.textContent = `Inspect ${audit.findings.length} dependency advisories`;
+        details.append(heading);
+        const findings = document.createElement("ul");
+        for (const finding of audit.findings.slice(0, 50)) {
+          const row = document.createElement("li");
+          row.append(`${finding.name}@${finding.version}: `);
+          const link = document.createElement("a");
+          link.href = `https://osv.dev/vulnerability/${encodeURIComponent(finding.advisoryId)}`;
+          link.textContent = finding.advisoryId;
+          row.append(link);
+          findings.append(row);
+        }
+        if (audit.findings.length > 50) {
+          item(findings, `${audit.findings.length - 50} more in the raw scan result below.`);
+        }
+        details.append(findings);
+        li.append(details);
+      }
+    }
     if (scan?.storageChanges) {
       const change = scan.storageChanges;
       const storage = document.createElement("p");

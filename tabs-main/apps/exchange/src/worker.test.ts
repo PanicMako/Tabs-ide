@@ -5,7 +5,7 @@ import { Readable } from "node:stream";
 import type { S3Client } from "@aws-sdk/client-s3";
 import { packTabsext } from "@tabs/extension-package";
 import type { Pool } from "pg";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ExchangeConfig } from "./config.ts";
 import { scanNextVersion } from "./worker.ts";
 
@@ -20,7 +20,7 @@ const config: ExchangeConfig = {
   publishingEnabled: true,
 };
 
-async function fixture(capabilities?: string[], version = "1.0.0") {
+async function fixture(capabilities?: string[], version = "1.0.0", lockfile?: unknown) {
   const root = FS.mkdtempSync(Path.join(OS.tmpdir(), "tabs-exchange-worker-test-"));
   roots.push(root);
   const source = Path.join(root, "source");
@@ -40,6 +40,7 @@ async function fixture(capabilities?: string[], version = "1.0.0") {
       contributes: { tools: [{ id: "main", label: "Main", entry: "dist/index.html" }] },
     }),
   );
+  if (lockfile) FS.writeFileSync(Path.join(source, "package-lock.json"), JSON.stringify(lockfile));
   const archive = Path.join(root, "package.tabsext");
   const inspected = await packTabsext({
     directory: source,
@@ -50,10 +51,70 @@ async function fixture(capabilities?: string[], version = "1.0.0") {
 }
 
 afterEach(() => {
+  vi.restoreAllMocks();
   for (const root of roots.splice(0)) FS.rmSync(root, { recursive: true, force: true });
 });
 
 describe("Exchange quarantine worker", () => {
+  it("records advisory findings for manual review without auto-approving", async () => {
+    const { inspected, bytes } = await fixture(undefined, "1.0.0", {
+      lockfileVersion: 3,
+      packages: {
+        "node_modules/plain": {
+          version: "1.2.3",
+          resolved: "https://registry.npmjs.org/plain/-/plain-1.2.3.tgz",
+        },
+      },
+    });
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      Response.json({ results: [{ vulns: [{ id: "GHSA-aaaa-bbbb-cccc" }] }] }),
+    );
+    let result: {
+      passed: boolean;
+      issues: Array<{ code: string }>;
+      dependencyAudit: { findings: Array<{ advisoryId: string }> };
+    } | null = null;
+    const pool = {
+      async query(sql: string, values?: unknown[]) {
+        if (sql.includes("RETURNING namespace, name, version, digest, object_key, scan_token")) {
+          return {
+            rows: [
+              {
+                namespace: "example",
+                name: "dashboard",
+                version: "1.0.0",
+                digest: inspected.digest,
+                object_key: "quarantine/test",
+                scan_token: values?.[0],
+              },
+            ],
+          };
+        }
+        if (sql.includes("FROM exchange_blocked_digests")) return { rows: [] };
+        if (sql.includes("SELECT version, digest, bytes, object_key")) return { rows: [] };
+        if (sql.includes("status = 'review'")) result = JSON.parse(values?.[4] as string);
+        return { rows: [], rowCount: 1 };
+      },
+    } as unknown as Pool;
+    const storage = {
+      async send() {
+        return { Body: Readable.from([bytes]) };
+      },
+    } as unknown as S3Client;
+    expect(await scanNextVersion(pool, storage, config)).toBe(true);
+    expect(result).toMatchObject({
+      passed: true,
+      issues: expect.arrayContaining([
+        { severity: "warning", code: "known-vulnerable-dependency" },
+      ]),
+      dependencyAudit: {
+        status: "complete",
+        packagesChecked: 1,
+        findings: [{ advisoryId: "GHSA-aaaa-bbbb-cccc" }],
+      },
+    });
+  });
+
   it("keeps a known blocked package out of manual approval", async () => {
     const { inspected, bytes } = await fixture();
     let result: { passed: boolean; issues: Array<{ code: string }> } | null = null;
