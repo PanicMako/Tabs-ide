@@ -1046,6 +1046,7 @@ export function ThemesSettings() {
                       uiFont: combo.uiFont,
                       headingFont: combo.headingFont,
                     }));
+                    updateSettings({ fontFamilySans: combo.uiFont });
                   }
                 }}
                 className={cn(
@@ -1107,6 +1108,7 @@ export function ThemesSettings() {
                     uiFont: combo.uiFont,
                     headingFont: combo.headingFont,
                   }));
+                  updateSettings({ fontFamilySans: combo.uiFont });
                 }}
                 className={cn(
                   "group relative flex flex-col items-start rounded-xl border p-3.5 text-left transition-all duration-200 cursor-pointer overflow-hidden",
@@ -1214,13 +1216,11 @@ export function ThemesSettings() {
                 </p>
                 <Select
                   value={fontPreferences.uiFont}
-                  onValueChange={(val) =>
-                    val &&
-                    setFontPreferences((prev) => ({
-                      ...prev,
-                      uiFont: val,
-                    }))
-                  }
+                  onValueChange={(val) => {
+                    if (!val) return;
+                    setFontPreferences((prev) => ({ ...prev, uiFont: val }));
+                    updateSettings({ fontFamilySans: val });
+                  }}
                 >
                   <SelectTrigger className="w-full text-xs rounded-lg bg-background border-border/80">
                     <SelectValue placeholder="Select Interface Font" />
@@ -1270,13 +1270,11 @@ export function ThemesSettings() {
                 </p>
                 <Select
                   value={fontPreferences.editorFont}
-                  onValueChange={(val) =>
-                    val &&
-                    setFontPreferences((prev) => ({
-                      ...prev,
-                      editorFont: val,
-                    }))
-                  }
+                  onValueChange={(val) => {
+                    if (!val) return;
+                    setFontPreferences((prev) => ({ ...prev, editorFont: val }));
+                    updateSettings({ fontFamilyCode: val });
+                  }}
                 >
                   <SelectTrigger className="w-full text-xs rounded-lg bg-background border-border/80">
                     <SelectValue placeholder="Select Editor Font" />
@@ -1306,13 +1304,11 @@ export function ThemesSettings() {
               <div className="shrink-0 w-full sm:w-52">
                 <Select
                   value={fontPreferences.editorFont}
-                  onValueChange={(val) =>
-                    val &&
-                    setFontPreferences((prev) => ({
-                      ...prev,
-                      editorFont: val,
-                    }))
-                  }
+                  onValueChange={(val) => {
+                    if (!val) return;
+                    setFontPreferences((prev) => ({ ...prev, editorFont: val }));
+                    updateSettings({ fontFamilyCode: val });
+                  }}
                 >
                   <SelectTrigger className="w-full text-xs rounded-xl bg-background border-border/80">
                     <SelectValue placeholder="Select Editor Font" />
