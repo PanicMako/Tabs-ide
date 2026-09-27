@@ -1802,6 +1802,96 @@ describe("development extension installation", () => {
     expect(restarted.list()).toEqual([updated]);
   });
 
+  it("migrates local package storage and rolls back a failed first load", async () => {
+    const { directory, manager } = fixture();
+    const source = Path.join(directory, "local-migration-source");
+    FS.mkdirSync(Path.join(source, "dist"), { recursive: true });
+    FS.copyFileSync(
+      Path.join(directory, "dist", "index.html"),
+      Path.join(source, "dist", "index.html"),
+    );
+    const manifestPath = Path.join(source, "tabs-extension.json");
+    const manifest = JSON.parse(
+      FS.readFileSync(Path.join(directory, "tabs-extension.json"), "utf8"),
+    );
+    manifest.engines.api = "^1.4.0";
+    manifest.capabilities = ["profile-storage"];
+    FS.writeFileSync(manifestPath, JSON.stringify(manifest));
+    const firstArchive = Path.join(directory, "local-first.tabsext");
+    const first = await packTabsext({
+      directory: source,
+      destination: firstArchive,
+      tabsVersion: "1.3.17",
+    });
+    const installed = await manager.installLocalPackage(firstArchive);
+    manager.setAssignment(installed.id, {
+      ...installed.assignment,
+      enabledProjectIds: ["project-a"],
+      storageGrantedProjectIds: ["project-a"],
+    });
+    const storage = new ExtensionStorage(Path.join(directory, "extension-storage"));
+    const identity = {
+      extensionId: extensionDataIdentity(installed.id, undefined, "local-package"),
+      profileId: "default",
+    };
+    storage.invoke(identity, { kind: "set", key: "oldTheme", value: "dark" });
+    manifest.version = "1.0.1";
+    manifest.storage = {
+      version: 2,
+      migrations: [{ from: 1, to: 2, renames: [{ from: "oldTheme", to: "theme" }] }],
+    };
+    FS.writeFileSync(manifestPath, JSON.stringify(manifest));
+    const secondArchive = Path.join(directory, "local-second.tabsext");
+    const second = await packTabsext({
+      directory: source,
+      destination: secondArchive,
+      tabsVersion: "1.3.17",
+    });
+    manifest.version = "1.0.0";
+    FS.writeFileSync(manifestPath, JSON.stringify(manifest));
+    const sameVersionArchive = Path.join(directory, "local-same-version.tabsext");
+    await packTabsext({
+      directory: source,
+      destination: sameVersionArchive,
+      tabsVersion: "1.3.17",
+    });
+    await expect(manager.installLocalPackage(sameVersionArchive)).rejects.toThrow(
+      /increase its version/,
+    );
+    await manager.installLocalPackage(secondArchive);
+    await expect(manager.installLocalPackage(firstArchive)).rejects.toThrow(
+      /pending local-package/,
+    );
+    const restarted = new ExtensionViewManager(
+      () => null,
+      {} as ConstructorParameters<typeof ExtensionViewManager>[1],
+      Path.join(directory, "installed.json"),
+      "1.3.17",
+      true,
+    );
+    (restarted as unknown as { coordinator: unknown }).coordinator = {
+      attachToolView: vi.fn(),
+      detachToolView: vi.fn(),
+    };
+    mockElectronExtensionView(async () => {
+      expect(storage.invoke(identity, { kind: "get", key: "theme" })).toBe("dark");
+      throw new Error("UI failed to load");
+    });
+    await expect(
+      restarted.activate({
+        extensionId: installed.id,
+        toolId: "main",
+        projectId: "project-a",
+        profileId: "default",
+      }),
+    ).rejects.toThrow(/rolled back/);
+    expect(restarted.list()[0]?.digest).toBe(first.digest);
+    expect(storage.invoke(identity, { kind: "get", key: "oldTheme" })).toBe("dark");
+    expect(storage.invoke(identity, { kind: "get", key: "theme" })).toBeNull();
+    expect(restarted.list()[0]?.assignment.enabledProjectIds).toEqual(["project-a"]);
+    expect(second.digest).not.toBe(first.digest);
+  });
+
   it("keeps local packages unavailable in production builds", async () => {
     const { directory } = fixture();
     const packaged = new ExtensionViewManager(

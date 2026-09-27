@@ -592,6 +592,17 @@ export class ExtensionViewManager {
     if (previous && previous.source !== "local-package") {
       throw new Error("Uninstall the existing extension before changing its source.");
     }
+    if (previous && previous.digest !== inspected.digest) {
+      if (previous.pendingRollback) {
+        throw new Error("Activate or roll back the pending local-package update first.");
+      }
+      if (compareSemverVersions(inspected.manifest.version, previous.manifest.version) <= 0) {
+        throw new Error("A changed local package must increase its version.");
+      }
+      if ((inspected.manifest.storage?.version ?? 1) < (previous.manifest.storage?.version ?? 1)) {
+        throw new Error("Local package update cannot downgrade the extension storage schema.");
+      }
+    }
     const retained = this.readRetainedRecord(inspected.id, "local-package");
     if (FS.existsSync(directory)) {
       if (previous?.source === "local-package" && previous.digest === inspected.digest) {
@@ -648,6 +659,16 @@ export class ExtensionViewManager {
       source: "local-package",
       digest: inspected.digest,
       directory,
+      ...(previous?.digest && previous.digest !== inspected.digest
+        ? {
+            pendingRollback: {
+              manifest: previous.manifest,
+              assignment: previous.assignment,
+              digest: previous.digest,
+              directory: previous.directory,
+            },
+          }
+        : {}),
     };
     this.hide();
     this.installed.set(inspected.id, next);
@@ -1081,7 +1102,7 @@ export class ExtensionViewManager {
       this.hide();
       if (installed.pendingRollback) {
         this.rollbackPendingUpdate(installed);
-        throw new Error("Exchange update failed to activate and was rolled back.", {
+        throw new Error("Extension update failed to activate and was rolled back.", {
           cause: error,
         });
       }
@@ -1197,7 +1218,7 @@ export class ExtensionViewManager {
         this.installed.set(installed.id, current);
         throw error;
       }
-      throw new Error("Previous Exchange package is unavailable; extension was disabled.");
+      throw new Error("Previous extension package is unavailable; extension was disabled.");
     }
     const { pendingRollback: _pendingRollback, ...rest } = current;
     const restored: StoredExtension = {
@@ -1584,7 +1605,12 @@ export class ExtensionViewManager {
 
   private validPendingRollback(entry: StoredExtension, packageRoot: string): boolean {
     const previous = entry.pendingRollback;
-    if (!previous || entry.source !== "exchange" || !entry.digest) return false;
+    if (
+      !previous ||
+      (entry.source !== "exchange" && entry.source !== "local-package") ||
+      !entry.digest
+    )
+      return false;
     try {
       if (!/^[a-f0-9]{64}$/.test(previous.digest) || previous.digest === entry.digest) return false;
       const parsed = validateTabsExtensionManifest(previous.manifest, this.tabsVersion);
