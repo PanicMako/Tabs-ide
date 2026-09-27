@@ -5,7 +5,7 @@ not the VS Code extension API. Import `TabsExtensionManifest` to type-check a
 manifest object and `TabsExtensionHostBridge` to type-check a packaged UI. The
 package also exports the current API version at runtime.
 
-New manifests should set `engines.api` to `^1.1.0` when they use credentials.
+New manifests should set `engines.api` to `^1.2.0` when they use logic commands.
 Older v1 manifests without this field remain compatible. The host validates both `engines.tabs` and
 `engines.api` during local load and package inspection; importing these types
 alone does not validate a manifest. Use the `tabsext` pack/inspect command for
@@ -18,7 +18,11 @@ JSON storage; `workspace.readText` is a scoped, read-only text broker; and
 `network.getText` performs a bounded HTTPS GET to an exact declared host.
 The optional `credentials` capability lets the host attach a saved Bearer token
 to an approved HTTPS request without exposing the token through the bridge.
-There is no workspace write, background runtime, or AI tool API yet.
+An optional `logic.entry` and `contributes.commands` expose pure, JSON-only
+commands to the extension's own active UI through `logic.invoke(commandId,
+input)`. Each invocation runs in a fresh bounded QuickJS worker; it has no
+broker, Node, network, workspace, or credential access. There is no persistent
+background service, workspace write, or AI tool API yet.
 
 See `docs/extensions.md` in the Tabs repository for package and permission
 details. The API version is independent of the Tabs desktop version.

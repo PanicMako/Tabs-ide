@@ -3,6 +3,7 @@ import { contextBridge, ipcRenderer } from "electron";
 const CHANNEL = "desktop:extension:storage";
 const WORKSPACE_READ_CHANNEL = "desktop:extension:workspace-read";
 const NETWORK_GET_CHANNEL = "desktop:extension:network-get";
+const LOGIC_INVOKE_CHANNEL = "desktop:extension:logic-invoke";
 
 /** Deliberately no identity argument: main binds every call to the active WebContents. */
 contextBridge.exposeInMainWorld("tabsExtension", {
@@ -19,5 +20,9 @@ contextBridge.exposeInMainWorld("tabsExtension", {
   network: {
     getText: (url: string, options?: { useProfileCredential?: boolean }): Promise<string> =>
       ipcRenderer.invoke(NETWORK_GET_CHANNEL, url, options?.useProfileCredential === true),
+  },
+  logic: {
+    invoke: (commandId: string, input: unknown): Promise<unknown> =>
+      ipcRenderer.invoke(LOGIC_INVOKE_CHANNEL, commandId, input),
   },
 });

@@ -23,6 +23,7 @@ const temporaryRoots: string[] = [];
 function fixture(
   cryptography?: CredentialCryptography,
   networkGetText?: ConstructorParameters<typeof ExtensionViewManager>[6],
+  logicRun?: ConstructorParameters<typeof ExtensionViewManager>[7],
 ): {
   directory: string;
   manager: ExtensionViewManager;
@@ -55,6 +56,7 @@ function fixture(
     true,
     cryptography,
     networkGetText,
+    logicRun,
   );
   return { directory, manager };
 }
@@ -496,6 +498,165 @@ describe("development extension installation", () => {
     manager.installDevelopment(directory);
     manager.setProfileCredential(installed.id, "personal", "api.example.com", null);
     expect(manager.listCredentialStatuses(installed.id)).toEqual([]);
+  });
+
+  it("binds a pure logic command to its active package, view, and project", async () => {
+    const logicRun = vi.fn(async (_source: string, request: unknown) => request);
+    const { directory, manager } = fixture(undefined, undefined, logicRun);
+    const manifestPath = Path.join(directory, "tabs-extension.json");
+    const manifest = JSON.parse(FS.readFileSync(manifestPath, "utf8"));
+    manifest.logic = { entry: "dist/logic.js" };
+    manifest.engines.api = "^1.2.0";
+    manifest.contributes.commands = [{ id: "sum", label: "Sum", description: "Add values" }];
+    FS.writeFileSync(manifestPath, JSON.stringify(manifest));
+    FS.writeFileSync(Path.join(directory, "dist", "logic.js"), "globalThis.run = () => 3;");
+    const installed = manager.installDevelopment(directory);
+    manager.setAssignment(installed.id, {
+      ...installed.assignment,
+      enabledProjectIds: ["project-a"],
+    });
+    const sender = { isDestroyed: () => false, close: vi.fn() };
+    const internal = manager as unknown as { active: unknown; coordinator: unknown };
+    internal.coordinator = { detachToolView: vi.fn() };
+    internal.active = {
+      key: "logic",
+      view: { webContents: sender },
+      extensionId: installed.id,
+      projectId: "project-a",
+      profileId: "default",
+    };
+    await expect(manager.invokeLogic(sender as never, "sum", { a: 1, b: 2 })).resolves.toEqual({
+      commandId: "sum",
+      input: { a: 1, b: 2 },
+    });
+    expect(logicRun).toHaveBeenCalledWith(
+      "globalThis.run = () => 3;",
+      { commandId: "sum", input: { a: 1, b: 2 } },
+      { signal: expect.any(AbortSignal) },
+    );
+    await expect(
+      manager.invokeLogic({ isDestroyed: () => false } as never, "sum", null),
+    ).rejects.toThrow(/no longer active/);
+    await expect(manager.invokeLogic(sender as never, "other", null)).rejects.toThrow(
+      /unavailable/,
+    );
+    internal.active = {
+      key: "other-project",
+      view: { webContents: sender },
+      extensionId: installed.id,
+      projectId: "project-b",
+      profileId: "default",
+    };
+    await expect(manager.invokeLogic(sender as never, "sum", null)).rejects.toThrow(/unavailable/);
+  });
+
+  it("cancels in-flight logic when the extension is disabled", async () => {
+    const logicRun = vi.fn(
+      async (_source: string, _request: unknown, options?: { signal?: AbortSignal }) =>
+        new Promise<unknown>((_resolve, reject) => {
+          options?.signal?.addEventListener("abort", () => reject(new Error("cancelled")), {
+            once: true,
+          });
+        }),
+    );
+    const { directory, manager } = fixture(undefined, undefined, logicRun);
+    const manifestPath = Path.join(directory, "tabs-extension.json");
+    const manifest = JSON.parse(FS.readFileSync(manifestPath, "utf8"));
+    manifest.logic = { entry: "dist/logic.js" };
+    manifest.engines.api = "^1.2.0";
+    manifest.contributes.commands = [{ id: "sum", label: "Sum", description: "Add values" }];
+    FS.writeFileSync(manifestPath, JSON.stringify(manifest));
+    FS.writeFileSync(Path.join(directory, "dist", "logic.js"), "globalThis.run = () => 3;");
+    const installed = manager.installDevelopment(directory);
+    manager.setAssignment(installed.id, {
+      ...installed.assignment,
+      enabledProjectIds: ["project-a"],
+    });
+    const sender = { isDestroyed: () => false, close: vi.fn() };
+    const internal = manager as unknown as { active: unknown; coordinator: unknown };
+    internal.coordinator = { detachToolView: vi.fn() };
+    internal.active = {
+      key: "logic",
+      view: { webContents: sender },
+      extensionId: installed.id,
+      projectId: "project-a",
+      profileId: "default",
+    };
+    const pending = manager.invokeLogic(sender as never, "sum", { a: 1 });
+    const second = manager.invokeLogic(sender as never, "sum", { a: 2 });
+    await expect(manager.invokeLogic(sender as never, "sum", { a: 3 })).rejects.toThrow(
+      /Too many extension commands/,
+    );
+    manager.setDisabled(installed.id, true);
+    await expect(pending).rejects.toThrow(/cancelled/);
+    await expect(second).rejects.toThrow(/cancelled/);
+  });
+
+  it("executes a declared packaged command in the disposable runtime", async () => {
+    const { directory, manager } = fixture();
+    const manifestPath = Path.join(directory, "tabs-extension.json");
+    const manifest = JSON.parse(FS.readFileSync(manifestPath, "utf8"));
+    manifest.logic = { entry: "dist/logic.js" };
+    manifest.engines.api = "^1.2.0";
+    manifest.contributes.commands = [{ id: "sum", label: "Sum", description: "Add values" }];
+    FS.writeFileSync(manifestPath, JSON.stringify(manifest));
+    FS.writeFileSync(
+      Path.join(directory, "dist", "logic.js"),
+      "globalThis.run = ({ commandId, input }) => commandId === 'sum' ? input.a + input.b : null;",
+    );
+    const installed = manager.installDevelopment(directory);
+    manager.setAssignment(installed.id, {
+      ...installed.assignment,
+      enabledProjectIds: ["project-a"],
+    });
+    const sender = { isDestroyed: () => false, close: vi.fn() };
+    const internal = manager as unknown as { active: unknown };
+    internal.active = {
+      key: "logic",
+      view: { webContents: sender },
+      extensionId: installed.id,
+      projectId: "project-a",
+      profileId: "default",
+    };
+    await expect(manager.invokeLogic(sender as never, "sum", { a: 3, b: 4 })).resolves.toBe(7);
+  });
+
+  it("executes a verified local archive command after extraction", async () => {
+    const { directory, manager } = fixture();
+    const source = Path.join(directory, "packaged-source");
+    FS.mkdirSync(Path.join(source, "dist"), { recursive: true });
+    FS.copyFileSync(
+      Path.join(directory, "dist", "index.html"),
+      Path.join(source, "dist", "index.html"),
+    );
+    const manifest = JSON.parse(
+      FS.readFileSync(Path.join(directory, "tabs-extension.json"), "utf8"),
+    );
+    manifest.engines.api = "^1.2.0";
+    manifest.logic = { entry: "dist/logic.js" };
+    manifest.contributes.commands = [{ id: "sum", label: "Sum", description: "Add values" }];
+    FS.writeFileSync(Path.join(source, "tabs-extension.json"), JSON.stringify(manifest));
+    FS.writeFileSync(
+      Path.join(source, "dist", "logic.js"),
+      "globalThis.run = ({ input }) => input.a + input.b;",
+    );
+    const archive = Path.join(directory, "calculator.tabsext");
+    await packTabsext({ directory: source, destination: archive, tabsVersion: "1.3.17" });
+    const installed = await manager.installLocalPackage(archive);
+    manager.setAssignment(installed.id, {
+      ...installed.assignment,
+      enabledProjectIds: ["project-a"],
+    });
+    const sender = { isDestroyed: () => false, close: vi.fn() };
+    const internal = manager as unknown as { active: unknown };
+    internal.active = {
+      key: "packaged-logic",
+      view: { webContents: sender },
+      extensionId: installed.id,
+      projectId: "project-a",
+      profileId: "default",
+    };
+    await expect(manager.invokeLogic(sender as never, "sum", { a: 8, b: 5 })).resolves.toBe(13);
   });
 
   it("deletes encrypted credentials only with the explicit data-deletion uninstall", async () => {

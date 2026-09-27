@@ -141,6 +141,66 @@ describe("Tabs extension manifest", () => {
       ).ok,
     ).toBe(false);
   });
+
+  it("accepts only bounded packaged logic commands", () => {
+    const commands = [{ id: "summarize", label: "Summarize", description: "Summarize input" }];
+    const valid = {
+      ...manifest,
+      engines: { ...manifest.engines, api: "^1.2.0" },
+      logic: { entry: "dist/logic.js" },
+      contributes: { ...manifest.contributes, commands },
+    };
+    expect(validateTabsExtensionManifest(valid, "1.3.17").ok).toBe(true);
+    expect(
+      validateTabsExtensionManifest({ ...valid, engines: manifest.engines }, "1.3.17").ok,
+    ).toBe(false);
+    expect(
+      validateTabsExtensionManifest(
+        { ...valid, engines: { ...manifest.engines, api: "^1.0.0" } },
+        "1.3.17",
+      ).ok,
+    ).toBe(false);
+    expect(
+      validateTabsExtensionManifest(
+        { ...valid, engines: { ...manifest.engines, api: ">=1.1.1 <2.0.0" } },
+        "1.3.17",
+      ).ok,
+    ).toBe(false);
+    expect(
+      validateTabsExtensionManifest(
+        { ...valid, engines: { ...manifest.engines, api: "^1.2.0 || ^1.0.0" } },
+        "1.3.17",
+      ).ok,
+    ).toBe(false);
+    expect(
+      validateTabsExtensionManifest({ ...valid, logic: { entry: "../logic.js" } }, "1.3.17").ok,
+    ).toBe(false);
+    expect(validateTabsExtensionManifest({ ...valid, logic: undefined }, "1.3.17").ok).toBe(false);
+    expect(
+      validateTabsExtensionManifest({ ...valid, contributes: manifest.contributes }, "1.3.17").ok,
+    ).toBe(false);
+    expect(
+      validateTabsExtensionManifest(
+        {
+          ...valid,
+          contributes: { ...manifest.contributes, commands: [...commands, ...commands] },
+        },
+        "1.3.17",
+      ).ok,
+    ).toBe(false);
+    expect(
+      validateTabsExtensionManifest(
+        {
+          ...valid,
+          contributes: {
+            ...manifest.contributes,
+            commands: [{ ...commands[0], entry: "remote.js" }],
+          },
+        },
+        "1.3.17",
+      ).ok,
+    ).toBe(false);
+  });
 });
 
 describe("Tabs extension assignments", () => {

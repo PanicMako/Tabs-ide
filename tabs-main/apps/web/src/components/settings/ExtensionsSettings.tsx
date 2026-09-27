@@ -297,6 +297,18 @@ export default function ExtensionsSettings() {
                 Requested capabilities:{" "}
                 {preparedInstall.manifest.capabilities?.join(", ") || "none"}.
               </p>
+              {preparedInstall.manifest.contributes.commands?.length ? (
+                <div className="text-sm">
+                  <p>Packaged computation commands (no privileged access):</p>
+                  <ul className="list-disc pl-5">
+                    {preparedInstall.manifest.contributes.commands.map((command) => (
+                      <li key={command.id}>
+                        {command.label}: {command.description}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
               <p className="text-xs text-muted-foreground">
                 Registry: {preparedInstall.registryOrigin} · SHA-256: {preparedInstall.digest}
               </p>
@@ -411,6 +423,14 @@ export default function ExtensionsSettings() {
                   <p className="mt-1 text-sm text-muted-foreground">
                     {extension.manifest.description}
                   </p>
+                  {extension.manifest.contributes.commands?.length ? (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Pure commands:{" "}
+                      {extension.manifest.contributes.commands
+                        .map((command) => command.label)
+                        .join(", ")}
+                    </p>
+                  ) : null}
                   {extension.revoked ? (
                     <p role="alert" className="mt-2 text-sm text-destructive">
                       This version was revoked by its registry. Its tools are disabled. Check

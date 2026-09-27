@@ -1,0 +1,20 @@
+{
+  "manifestVersion": 1,
+  "publisher": "tabs-example",
+  "name": "calculator",
+  "version": "0.1.0",
+  "displayName": "Calculator",
+  "description": "A full-workspace sample with isolated computation commands.",
+  "engines": {
+    "tabs": ">=1.3.0 <2.0.0",
+    "api": "^1.2.0"
+  },
+  "logic": { "entry": "dist/logic.js" },
+  "contributes": {
+    "tools": [{ "id": "calculator", "label": "Calculator", "entry": "dist/index.html" }],
+    "commands": [
+      { "id": "add", "label": "Add", "description": "Add two finite numbers." },
+      { "id": "multiply", "label": "Multiply", "description": "Multiply two finite numbers." }
+    ]
+  }
+}

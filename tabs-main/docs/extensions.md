@@ -1,6 +1,7 @@
 # Tabs development extensions (experimental)
 
-The desktop implementation is a UI-only development format. It is not
+The desktop implementation is an experimental format for full-workspace UI
+and optional pure-computation commands. It is not
 compatible with VS Code `.vsix` packages. Development builds can load either
 an unpacked folder or a local `.tabsext` archive. Packaged builds reject both
 local import paths and do not load previously registered development extensions.
@@ -26,7 +27,7 @@ only writes to a new directory. Neither command runs extension code.
 Place `tabs-extension.json` at the root of a local folder. The dependency-free
 [`@tabs/extension-api`](../packages/extension-api/README.md) package exports
 the public manifest and bridge types plus the current API version. New manifests
-should declare `engines.api: "^1.0.0"`; older v1 manifests without it remain
+should declare `engines.api: "^1.2.0"` when using commands; older v1 manifests without it remain
 compatible. Tabs validates declared API compatibility at load time. See
 [`examples/hello-extension`](../examples/hello-extension/README.md) for a
 working example. Version 1 requires a lowercase publisher and package name,
@@ -35,7 +36,10 @@ tool names a packaged HTML entry. Paths must be relative to the extension
 root. Supported optional capabilities are `profile-storage`, `workspace-read`,
 `network`, and `credentials`. A `network` manifest must list 1-8 exact DNS names
 in `networkHosts`; wildcards are not allowed. `credentials` requires `network`
-and uses only those declared hosts. Unsupported runtime and capability
+and uses only those declared hosts. Optional `logic.entry` points to packaged
+JavaScript and requires 1-8 `contributes.commands`, each with a unique ID,
+label, and description. The active extension UI may call its own command with
+JSON input. Logic has no privileged host APIs; unsupported runtime and capability
 declarations are rejected rather than silently ignored.
 Optional `releaseNotes` is plain text (maximum 10,000 characters). Optional
 `sourceUrl`, `supportUrl`, and `privacyUrl` must be HTTPS links without embedded
@@ -49,6 +53,8 @@ The [Workspace Reader example](../examples/workspace-reader-extension/README.md)
 shows storage and workspace-read capabilities with separate project grants. The
 [GitHub Profile example](../examples/github-profile-extension/README.md) shows
 two named account profiles using the credential broker. The
+[Calculator example](../examples/calculator-extension/README.md) exercises two
+isolated commands from a full-workspace UI. The
 network capability also requires separate per-project consent. Its initial
 bridge is `tabsExtension.network.getText(url)`: HTTPS GET only, exact declared
 host, no caller headers/cookies, redirect following, or private-address DNS
@@ -189,14 +195,14 @@ display compatible approved catalog listings; HTTPS is required except for
 `http://localhost` in development. Catalog entries are not trusted installation
 metadata and cannot authorize an install alone. The
 production update/revocation lifecycle, workspace write broker,
-background runtime, AI-callable tools, and full account OAuth flows
+persistent background runtime, AI-callable tools, and full account OAuth flows
 are not implemented. Those features require additional security and lifecycle
 work before a public extension ecosystem can be enabled.
 
 ## Optional logic runtime spike
 
-The desktop tree contains an isolated `extensionLogicSpike` probe, but manifests
-still reject logic and AI-tool declarations. The probe runs one synchronous
+The desktop tree contains an `extensionLogicSpike` runtime used by optional
+pure-computation commands. AI-tool declarations remain unsupported. It runs one synchronous
 `run(input)` invocation in a fresh Node worker hosting QuickJS-in-WASM. Its
 QuickJS runtime has an 8 MiB heap limit, a 512 KiB stack limit, and an inner
 deadline interrupt; the trusted caller also has an outer deadline that
@@ -206,8 +212,8 @@ infinite loops, memory exhaustion, explicit cancellation, a worker blocked
 outside QuickJS, worker crash/recovery, and oversized data. The desktop build
 emits the worker as a separate runtime asset.
 
-This probe does not establish that arbitrary packages are safe or provide an
-extension background API. Before activation, broker calls need identity and
-project-grant binding, async execution and cancellation semantics, packaged
-runtime verification across platforms, resource measurements under sustained
-load, and a dynamic AI-tool integration test with each supported provider.
+This path does not establish that arbitrary packages are safe or provide a
+persistent extension background API. Privileged broker calls require separate
+identity and project-grant binding, async execution semantics, packaged runtime
+verification across platforms, resource measurements under sustained load, and
+a dynamic AI-tool integration test with each supported provider.

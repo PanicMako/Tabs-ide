@@ -1,9 +1,10 @@
 import type { TabsExtensionAssignment, TabsExtensionManifest } from "@tabs/contracts";
 import { TABS_EXTENSION_API_VERSION } from "@tabs/extension-api";
-import { parseSemver, satisfiesSemverRange } from "./semver.ts";
+import { compareSemverVersions, parseSemver, satisfiesSemverRange } from "./semver.ts";
 
 const SEGMENT = /^[a-z][a-z0-9-]{1,62}$/;
 const MAX_TOOLS = 12;
+const MAX_COMMANDS = 8;
 
 export type ManifestValidationResult =
   | { readonly ok: true; readonly manifest: TabsExtensionManifest; readonly id: string }
@@ -36,7 +37,20 @@ function safePublisherUrl(value: unknown): value is string {
   }
 }
 
-/** Validate the deliberately narrow, UI-only v1 manifest before it reaches Electron. */
+function logicApiRangeIsSafe(range: string): boolean {
+  return range.split("||").every((group) =>
+    group
+      .trim()
+      .split(/\s+/)
+      .some((comparator) => {
+        const match = /^(\^|>=|>|=)?v?(\d+(?:\.\d+){0,2})$/.exec(comparator);
+        if (!match || !["^", ">=", ">", "="].includes(match[1] ?? "=")) return false;
+        return compareSemverVersions(match[2]!, "1.2.0") >= 0;
+      }),
+  );
+}
+
+/** Validate packaged contributions before they reach the desktop host. */
 export function validateTabsExtensionManifest(
   input: unknown,
   tabsVersion: string,
@@ -56,6 +70,7 @@ export function validateTabsExtensionManifest(
     "privacyUrl",
     "engines",
     "networkHosts",
+    "logic",
     "capabilities",
     "contributes",
   ]);
@@ -109,6 +124,19 @@ export function validateTabsExtensionManifest(
     );
   }
   const contributes = input.contributes;
+  if (input.logic !== undefined) {
+    if (
+      !record(input.logic) ||
+      Object.keys(input.logic).some((key) => key !== "entry") ||
+      !safePackagePath(input.logic.entry) ||
+      !input.logic.entry.endsWith(".js")
+    ) {
+      errors.push("logic.entry must be a relative packaged JavaScript file.");
+    }
+    if (!record(engines) || typeof engines.api !== "string" || !logicApiRangeIsSafe(engines.api)) {
+      errors.push("logic commands require engines.api to start at 1.2.0 or later.");
+    }
+  }
   if (input.networkHosts !== undefined) {
     if (
       !Array.isArray(input.networkHosts) ||
@@ -160,7 +188,7 @@ export function validateTabsExtensionManifest(
   if (!record(contributes) || !Array.isArray(contributes.tools)) {
     errors.push("contributes.tools must be an array.");
   } else {
-    if (Object.keys(contributes).some((key) => key !== "tools")) {
+    if (Object.keys(contributes).some((key) => key !== "tools" && key !== "commands")) {
       errors.push("contributes has unsupported fields.");
     }
     if (contributes.tools.length < 1 || contributes.tools.length > MAX_TOOLS) {
@@ -187,6 +215,50 @@ export function validateTabsExtensionManifest(
       if (tool.icon !== undefined && (!safePackagePath(tool.icon) || !tool.icon.endsWith(".svg"))) {
         errors.push(`Tool ${index} icon must be a relative packaged SVG file.`);
       }
+    }
+    if (contributes.commands !== undefined) {
+      if (
+        !Array.isArray(contributes.commands) ||
+        contributes.commands.length < 1 ||
+        contributes.commands.length > MAX_COMMANDS
+      ) {
+        errors.push(`contributes.commands must contain 1 to ${MAX_COMMANDS} commands.`);
+      } else {
+        const commandIds = new Set<string>();
+        for (const [index, command] of contributes.commands.entries()) {
+          if (!record(command)) {
+            errors.push(`Command ${index} must be an object.`);
+            continue;
+          }
+          if (Object.keys(command).some((key) => !["id", "label", "description"].includes(key))) {
+            errors.push(`Command ${index} has unsupported fields.`);
+          }
+          if (
+            typeof command.id !== "string" ||
+            !SEGMENT.test(command.id) ||
+            commandIds.has(command.id)
+          ) {
+            errors.push(`Command ${index} needs a unique lowercase id.`);
+          } else commandIds.add(command.id);
+          if (
+            typeof command.label !== "string" ||
+            !command.label.trim() ||
+            command.label.length > 80
+          ) {
+            errors.push(`Command ${index} needs a label of at most 80 characters.`);
+          }
+          if (
+            typeof command.description !== "string" ||
+            !command.description.trim() ||
+            command.description.length > 500
+          ) {
+            errors.push(`Command ${index} needs a description of at most 500 characters.`);
+          }
+        }
+      }
+      if (input.logic === undefined) errors.push("contributes.commands requires logic.entry.");
+    } else if (input.logic !== undefined) {
+      errors.push("logic.entry requires contributes.commands.");
     }
   }
   if (errors.length > 0) return { ok: false, errors };

@@ -21,6 +21,7 @@ import type { NativeViewStackCoordinator } from "./nativeViewStackCoordinator";
 import { ExtensionStorage, type ExtensionStorageOperation } from "./extensionStorage";
 import { ExtensionCredentials, type CredentialCryptography } from "./extensionCredentials";
 import { extensionNetworkGetText, validateExtensionNetworkUrl } from "./extensionNetwork";
+import { runExtensionLogicSpike } from "./extensionLogicSpike";
 
 const SCHEME = "tabs-extension";
 const MAX_FILES = 1_000;
@@ -133,6 +134,10 @@ export class ExtensionViewManager {
     readonly extensionId: string;
     readonly controller: AbortController;
   }>();
+  private readonly logicRequests = new Set<{
+    readonly extensionId: string;
+    readonly controller: AbortController;
+  }>();
   private active: ActiveView | null = null;
   private readonly storage: ExtensionStorage;
   private readonly credentials: ExtensionCredentials | null;
@@ -145,6 +150,7 @@ export class ExtensionViewManager {
     private readonly allowDevelopment: boolean,
     cryptography?: CredentialCryptography,
     private readonly networkGetText: typeof extensionNetworkGetText = extensionNetworkGetText,
+    private readonly logicRun: typeof runExtensionLogicSpike = runExtensionLogicSpike,
   ) {
     this.storage = new ExtensionStorage(Path.join(Path.dirname(statePath), "extension-storage"));
     this.credentials = cryptography
@@ -297,6 +303,72 @@ export class ExtensionViewManager {
     return result;
   }
 
+  async invokeLogic(
+    sender: Electron.WebContents,
+    commandId: string,
+    input: unknown,
+  ): Promise<unknown> {
+    const active = this.active;
+    if (!active || active.view.webContents !== sender || sender.isDestroyed()) {
+      throw new Error("Extension view is no longer active.");
+    }
+    if (typeof commandId !== "string" || !/^[a-z][a-z0-9-]{1,62}$/.test(commandId)) {
+      throw new Error("Invalid extension command ID.");
+    }
+    const authorize = () => {
+      const installed = this.requireInstalled(active.extensionId);
+      this.assertNotDeleting(installed.id);
+      if (
+        installed.revoked ||
+        installed.disabled ||
+        !isExtensionEnabledForProject(installed.assignment, active.projectId) ||
+        extensionProfileForProject(installed.assignment, active.projectId) !== active.profileId ||
+        !installed.manifest.logic?.entry ||
+        !installed.manifest.contributes.commands?.some((command) => command.id === commandId)
+      ) {
+        throw new Error("Extension command is unavailable for this project.");
+      }
+      return installed;
+    };
+    const installed = authorize();
+    if (
+      this.logicRequests.size >= 4 ||
+      [...this.logicRequests].filter((request) => request.extensionId === installed.id).length >= 2
+    ) {
+      throw new Error("Too many extension commands are running.");
+    }
+    const entry = installed.manifest.logic!.entry;
+    const file = this.resolveAsset(installed.directory, entry);
+    if (FS.statSync(file).size > 256 * 1024) {
+      throw new Error("Extension logic exceeds its size limit.");
+    }
+    const source = FS.readFileSync(file, "utf8");
+    const controller = new AbortController();
+    const request = { extensionId: installed.id, controller };
+    this.logicRequests.add(request);
+    try {
+      const result = await this.logicRun(
+        source,
+        { commandId, input },
+        { signal: controller.signal },
+      );
+      if (this.active !== active || sender.isDestroyed()) {
+        throw new Error("Extension view changed during command.");
+      }
+      const current = authorize();
+      if (
+        current.directory !== installed.directory ||
+        current.manifest.version !== installed.manifest.version ||
+        current.digest !== installed.digest
+      ) {
+        throw new Error("Extension package changed during command.");
+      }
+      return result;
+    } finally {
+      this.logicRequests.delete(request);
+    }
+  }
+
   listCredentialStatuses(extensionId: string): ReadonlyArray<DesktopExtensionCredentialStatus> {
     const installed = this.requireInstalled(extensionId);
     return this.requireCredentials()
@@ -370,6 +442,7 @@ export class ExtensionViewManager {
       this.resolveAsset(root, tool.entry);
       if (tool.icon) this.resolveAsset(root, tool.icon);
     }
+    if (parsed.manifest.logic) this.resolveAsset(root, parsed.manifest.logic.entry);
     const previous = this.installed.get(parsed.id);
     if (previous && previous.source !== "development") {
       throw new Error("Uninstall the existing extension before changing its source.");
@@ -997,6 +1070,9 @@ export class ExtensionViewManager {
   hide(): void {
     if (!this.active) return;
     for (const request of this.networkRequests) {
+      if (request.extensionId === this.active.extensionId) request.controller.abort();
+    }
+    for (const request of this.logicRequests) {
       if (request.extensionId === this.active.extensionId) request.controller.abort();
     }
     this.coordinator.detachToolView(this.active.view);

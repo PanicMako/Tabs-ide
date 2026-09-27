@@ -1,4 +1,4 @@
-export declare const TABS_EXTENSION_API_VERSION: "1.1.0";
+export declare const TABS_EXTENSION_API_VERSION: "1.2.0";
 
 export type TabsExtensionCapability =
   | "profile-storage"
@@ -13,7 +13,13 @@ export interface TabsExtensionTool {
   readonly icon?: string;
 }
 
-/** Manifest v1 describes packaged static UI; logic contributions are not supported yet. */
+export interface TabsExtensionCommand {
+  readonly id: string;
+  readonly label: string;
+  readonly description: string;
+}
+
+/** Logic commands run in a disposable, JSON-only runtime with no host capabilities. */
 export interface TabsExtensionManifest {
   readonly manifestVersion: 1;
   readonly publisher: string;
@@ -32,7 +38,11 @@ export interface TabsExtensionManifest {
   };
   readonly capabilities?: ReadonlyArray<TabsExtensionCapability>;
   readonly networkHosts?: ReadonlyArray<string>;
-  readonly contributes: { readonly tools: ReadonlyArray<TabsExtensionTool> };
+  readonly logic?: { readonly entry: string };
+  readonly contributes: {
+    readonly tools: ReadonlyArray<TabsExtensionTool>;
+    readonly commands?: ReadonlyArray<TabsExtensionCommand>;
+  };
 }
 
 export type TabsExtensionJsonValue =
@@ -55,6 +65,9 @@ export interface TabsExtensionHostBridge {
   };
   readonly network: {
     getText(url: string, options?: { readonly useProfileCredential?: boolean }): Promise<string>;
+  };
+  readonly logic: {
+    invoke(commandId: string, input: TabsExtensionJsonValue): Promise<TabsExtensionJsonValue>;
   };
 }
 

@@ -120,6 +120,9 @@ export function validateTabsextDirectory(
       throw new Error(`Missing tool icon: ${tool.icon}`);
     }
   }
+  if (parsed.manifest.logic && !files.some((file) => file.path === parsed.manifest.logic?.entry)) {
+    throw new Error(`Missing logic entry: ${parsed.manifest.logic.entry}`);
+  }
   return { id: parsed.id, manifest: parsed.manifest, files: files.map((file) => file.path) };
 }
 
@@ -280,6 +283,9 @@ export async function inspectTabsext(path: string, tabsVersion: string): Promise
   for (const tool of manifest.contributes.tools) {
     if (!files.includes(tool.entry)) throw new Error(`Missing tool entry: ${tool.entry}`);
     if (tool.icon && !files.includes(tool.icon)) throw new Error(`Missing tool icon: ${tool.icon}`);
+  }
+  if (manifest.logic && !files.includes(manifest.logic.entry)) {
+    throw new Error(`Missing logic entry: ${manifest.logic.entry}`);
   }
   return { digest, bytes: stat.size, manifest, id, files };
 }

@@ -1,6 +1,6 @@
 import * as Schema from "effect/Schema";
 
-/** The first package format is intentionally UI-only. Logic permissions require a separate runtime. */
+/** The host owns the label and icon boundary for each full-workspace tool. */
 export const TabsExtensionTool = Schema.Struct({
   id: Schema.String,
   label: Schema.String,
@@ -8,6 +8,13 @@ export const TabsExtensionTool = Schema.Struct({
   icon: Schema.optionalKey(Schema.String),
 });
 export type TabsExtensionTool = typeof TabsExtensionTool.Type;
+
+export const TabsExtensionCommand = Schema.Struct({
+  id: Schema.String,
+  label: Schema.String,
+  description: Schema.String,
+});
+export type TabsExtensionCommand = typeof TabsExtensionCommand.Type;
 
 export const TabsExtensionManifest = Schema.Struct({
   manifestVersion: Schema.Literal(1),
@@ -25,10 +32,14 @@ export const TabsExtensionManifest = Schema.Struct({
     api: Schema.optionalKey(Schema.String),
   }),
   networkHosts: Schema.optionalKey(Schema.Array(Schema.String)),
+  logic: Schema.optionalKey(Schema.Struct({ entry: Schema.String })),
   capabilities: Schema.optionalKey(
     Schema.Array(Schema.Literals(["profile-storage", "workspace-read", "network", "credentials"])),
   ),
-  contributes: Schema.Struct({ tools: Schema.Array(TabsExtensionTool) }),
+  contributes: Schema.Struct({
+    tools: Schema.Array(TabsExtensionTool),
+    commands: Schema.optionalKey(Schema.Array(TabsExtensionCommand)),
+  }),
 });
 export type TabsExtensionManifest = typeof TabsExtensionManifest.Type;
 

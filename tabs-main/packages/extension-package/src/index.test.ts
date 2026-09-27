@@ -51,6 +51,32 @@ describe(".tabsext packages", () => {
     FS.writeFileSync(manifestPath, JSON.stringify(manifest));
     expect(() => validateTabsextDirectory(source, "1.3.17")).toThrow(/engines.api/);
   });
+  it("requires packaged logic bytes and preserves them on extraction", async () => {
+    const { root, source } = fixture();
+    const manifestPath = Path.join(source, "tabs-extension.json");
+    const manifest = JSON.parse(FS.readFileSync(manifestPath, "utf8"));
+    manifest.engines.api = "^1.2.0";
+    manifest.logic = { entry: "dist/logic.js" };
+    manifest.contributes.commands = [{ id: "sum", label: "Sum", description: "Adds values" }];
+    FS.writeFileSync(manifestPath, JSON.stringify(manifest));
+    expect(() => validateTabsextDirectory(source, "1.3.17")).toThrow(/Missing logic entry/);
+    FS.writeFileSync(Path.join(source, "dist", "logic.js"), "globalThis.run = () => 3;");
+    const archive = Path.join(root, "logic.tabsext");
+    const packed = await packTabsext({
+      directory: source,
+      destination: archive,
+      tabsVersion: "1.3.17",
+    });
+    const destination = Path.join(root, "installed");
+    const extracted = await extractTabsext({
+      archive,
+      destination,
+      expectedDigest: packed.digest,
+      tabsVersion: "1.3.17",
+    });
+    expect(extracted.manifest.contributes.commands?.[0]?.id).toBe("sum");
+    expect(FS.readFileSync(Path.join(destination, "dist", "logic.js"), "utf8")).toContain("run");
+  });
   it("packs reproducibly and extracts an approved digest", async () => {
     const { root, source } = fixture();
     const first = Path.join(root, "first.tabsext");

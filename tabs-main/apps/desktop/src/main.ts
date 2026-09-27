@@ -198,6 +198,7 @@ const EXTENSION_HIDE_CHANNEL = "desktop:extension:hide";
 const EXTENSION_STORAGE_CHANNEL = "desktop:extension:storage";
 const EXTENSION_WORKSPACE_READ_CHANNEL = "desktop:extension:workspace-read";
 const EXTENSION_NETWORK_GET_CHANNEL = "desktop:extension:network-get";
+const EXTENSION_LOGIC_INVOKE_CHANNEL = "desktop:extension:logic-invoke";
 const WRITE_CLIPBOARD_TEXT_CHANNEL = "desktop:clipboard:write-text";
 const READ_CLIPBOARD_TEXT_CHANNEL = "desktop:clipboard:read-text";
 const DESKTOP_CAPTURE_SCREEN_CHANNEL = "desktop:capture:screen";
@@ -2325,6 +2326,13 @@ function registerIpcHandlers(): void {
   });
   ipcMain.removeHandler(EXTENSION_WORKSPACE_READ_CHANNEL);
   ipcMain.removeHandler(EXTENSION_NETWORK_GET_CHANNEL);
+  ipcMain.removeHandler(EXTENSION_LOGIC_INVOKE_CHANNEL);
+  ipcMain.handle(EXTENSION_LOGIC_INVOKE_CHANNEL, (event, commandId: unknown, input: unknown) => {
+    if (event.senderFrame !== event.sender.mainFrame) {
+      throw new Error("Extension commands are available only to the main frame.");
+    }
+    return extensionViewManager.invokeLogic(event.sender, commandId as string, input);
+  });
   ipcMain.handle(
     EXTENSION_NETWORK_GET_CHANNEL,
     (event, rawUrl: unknown, useCredential: unknown) => {
