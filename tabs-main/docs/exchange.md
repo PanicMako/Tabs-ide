@@ -130,7 +130,9 @@ archive for full inspection. If the prior approved archive fails verification,
 the new submission cannot pass scanning. A blocking scan result prevents
 approval. The scan records capabilities added or removed relative to the last
 approved version and warns on increases; the reviewer queue displays those
-changes alongside the requested capabilities and file-change counts. This
+changes alongside the requested capabilities and file-change counts. It also
+shows declared profile-storage migrations and blocks schema downgrades that
+desktop clients cannot install. This
 summary does not replace inspecting the exact archive. Every decision writes
 an audit event. Revoked versions disappear
 from public metadata and downloads. The desktop client detects signed target

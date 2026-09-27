@@ -172,6 +172,33 @@ async function refreshReview() {
             ? `Compared with approved ${previous}: added ${listText(scan.capabilityChanges.added)}; removed ${listText(scan.capabilityChanges.removed)}.`
             : "No prior approved version for capability comparison.";
     li.append(comparison);
+    if (scan?.storageChanges) {
+      const change = scan.storageChanges;
+      const storage = document.createElement("p");
+      const reviewNote =
+        change.toVersion < change.fromVersion
+          ? "Downgrade blocks approval."
+          : change.toVersion === change.fromVersion
+            ? "Storage definition changed without a schema version increase; inspect the manifest diff."
+            : "Review declared migrations before approval.";
+      storage.textContent = `Profile storage schema: version ${change.fromVersion} to ${change.toVersion}. ${reviewNote}`;
+      li.append(storage);
+      if (change.migrations?.length) {
+        const migrations = document.createElement("details");
+        const summary = document.createElement("summary");
+        summary.textContent = `Inspect declared storage migrations (${change.migrations.length} steps)`;
+        migrations.append(summary);
+        const steps = document.createElement("ul");
+        for (const step of change.migrations) {
+          item(
+            steps,
+            `Version ${step.from} to ${step.to}: ${step.renames.map((rename) => `${rename.from} to ${rename.to}`).join(", ")}`,
+          );
+        }
+        migrations.append(steps);
+        li.append(migrations);
+      }
+    }
     const files = entry.scan_result?.changes;
     if (files) {
       const fileChanges = document.createElement("p");

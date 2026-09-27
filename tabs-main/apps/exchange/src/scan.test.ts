@@ -250,4 +250,66 @@ describe("Exchange automated scan", () => {
     expect(result.capabilityChanges.added).toEqual(["AI-callable command: sum"]);
     expect(result.issues).toContainEqual({ severity: "warning", code: "capabilities-increased" });
   });
+
+  it("highlights declared storage migrations for version review", async () => {
+    const migrations = [{ from: 1, to: 2, renames: [{ from: "oldTheme", to: "theme" }] }];
+    const { destination, inspected } = await packageFixture(
+      {},
+      ["profile-storage"],
+      "Dashboard",
+      undefined,
+      {
+        engines: { tabs: ">=1.3.0 <2.0.0", api: "^1.4.0" },
+        storage: { version: 2, migrations },
+      },
+    );
+    const result = await scanExtractedPackage(
+      destination,
+      inspected,
+      { capabilities: ["profile-storage"], contributes: inspected.manifest.contributes },
+      {},
+      "0.9.0",
+    );
+    expect(result.passed).toBe(true);
+    expect(result.issues).toContainEqual({ severity: "warning", code: "storage-schema-changed" });
+    expect(result.storageChanges).toEqual({
+      fromVersion: 1,
+      toVersion: 2,
+      definitionChanged: true,
+      migrations,
+    });
+  });
+
+  it("blocks a storage schema downgrade that desktop clients cannot install", async () => {
+    const { destination, inspected } = await packageFixture(
+      {},
+      ["profile-storage"],
+      "Dashboard",
+      undefined,
+      {
+        engines: { tabs: ">=1.3.0 <2.0.0", api: "^1.4.0" },
+        storage: { version: 1 },
+      },
+    );
+    const result = await scanExtractedPackage(
+      destination,
+      inspected,
+      {
+        capabilities: ["profile-storage"],
+        contributes: inspected.manifest.contributes,
+        storage: {
+          version: 2,
+          migrations: [{ from: 1, to: 2, renames: [{ from: "oldTheme", to: "theme" }] }],
+        },
+      },
+      {},
+      "0.9.0",
+    );
+    expect(result.passed).toBe(false);
+    expect(result.issues).toContainEqual({
+      severity: "blocking",
+      code: "storage-schema-downgrade",
+    });
+    expect(result.storageChanges).toMatchObject({ fromVersion: 2, toVersion: 1 });
+  });
 });

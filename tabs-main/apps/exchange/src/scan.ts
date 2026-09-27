@@ -22,6 +22,12 @@ export interface ScanResult {
     readonly added: ReadonlyArray<string>;
     readonly removed: ReadonlyArray<string>;
   };
+  readonly storageChanges?: {
+    readonly fromVersion: number;
+    readonly toVersion: number;
+    readonly definitionChanged: boolean;
+    readonly migrations: NonNullable<InspectedTabsext["manifest"]["storage"]>["migrations"];
+  };
   readonly changes: {
     readonly added: ReadonlyArray<string>;
     readonly modified: ReadonlyArray<string>;
@@ -56,6 +62,7 @@ export async function scanExtractedPackage(
     readonly contributes?: unknown;
     readonly capabilities?: ReadonlyArray<string>;
     readonly networkHosts?: ReadonlyArray<string>;
+    readonly storage?: InspectedTabsext["manifest"]["storage"];
   },
   priorFiles: Readonly<Record<string, string>> = {},
   priorVersion?: string,
@@ -150,6 +157,16 @@ export async function scanExtractedPackage(
   if (priorManifest && addedCapabilities.length > 0) {
     issues.push({ severity: "warning", code: "capabilities-increased" });
   }
+  const previousStorageVersion = priorManifest?.storage?.version ?? 1;
+  const nextStorageVersion = inspected.manifest.storage?.version ?? 1;
+  const storageDefinitionChanged =
+    JSON.stringify(priorManifest?.storage ?? null) !==
+    JSON.stringify(inspected.manifest.storage ?? null);
+  if (priorManifest && nextStorageVersion < previousStorageVersion) {
+    issues.push({ severity: "blocking", code: "storage-schema-downgrade" });
+  } else if (priorManifest && storageDefinitionChanged) {
+    issues.push({ severity: "warning", code: "storage-schema-changed" });
+  }
   return {
     passed: !issues.some((issue) => issue.severity === "blocking"),
     issues,
@@ -161,6 +178,16 @@ export async function scanExtractedPackage(
       added: addedCapabilities,
       removed: removedCapabilities,
     },
+    ...(priorManifest && storageDefinitionChanged
+      ? {
+          storageChanges: {
+            fromVersion: previousStorageVersion,
+            toVersion: nextStorageVersion,
+            definitionChanged: true,
+            migrations: inspected.manifest.storage?.migrations ?? [],
+          },
+        }
+      : {}),
     changes: {
       added: Object.keys(files).filter((file) => !priorFiles[file]),
       modified: Object.keys(files).filter(
