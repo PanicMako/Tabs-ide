@@ -54,6 +54,23 @@ describe("extension network broker", () => {
     ).resolves.toEqual({ address: "8.8.8.8", family: 4 });
   });
 
+  it("settles a stalled DNS lookup promptly on cancellation and at its deadline", async () => {
+    const lookup = vi.fn(() => new Promise<never>(() => {})) as never;
+    const controller = new AbortController();
+    const cancelled = resolveExtensionNetworkAddress("api.example.com", lookup, controller.signal);
+    controller.abort();
+    await expect(cancelled).rejects.toThrow(/cancelled/);
+    vi.useFakeTimers();
+    try {
+      const timedOut = resolveExtensionNetworkAddress("api.example.com", lookup);
+      const assertion = expect(timedOut).rejects.toThrow(/lookup timed out/);
+      await vi.advanceTimersByTimeAsync(5_000);
+      await assertion;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("pins DNS and sends a credential only on the approved TLS request without redirects", async () => {
     const requests: Array<{ url: URL; options: Record<string, unknown> }> = [];
     let nextStatus = 200;
@@ -139,5 +156,39 @@ describe("extension network broker", () => {
     resolveLookup([{ address: "8.8.8.8", family: 4 }]);
     await expect(pending).rejects.toThrow(/cancelled/);
     expect(request).not.toHaveBeenCalled();
+  });
+
+  it("enforces an overall request deadline even when the socket never responds", async () => {
+    vi.useFakeTimers();
+    try {
+      const destroy = vi.fn();
+      const transport: ExtensionNetworkTransport = {
+        lookup: vi.fn(async () => {
+          await new Promise((resolve) => setTimeout(resolve, 4_000));
+          return [{ address: "8.8.8.8", family: 4 }];
+        }) as never,
+        request: (() => {
+          const request = new EventEmitter() as EventEmitter & {
+            destroy: typeof destroy;
+            end: () => void;
+          };
+          request.destroy = destroy;
+          request.end = vi.fn();
+          return request as never;
+        }) as never,
+      };
+      const pending = extensionNetworkGetText(
+        "https://api.example.com/data",
+        ["api.example.com"],
+        undefined,
+        transport,
+      );
+      const assertion = expect(pending).rejects.toThrow(/timed out/);
+      await vi.advanceTimersByTimeAsync(15_000);
+      await assertion;
+      expect(destroy).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

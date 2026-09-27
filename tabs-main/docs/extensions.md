@@ -63,7 +63,8 @@ isolated commands from a full-workspace UI. The
 network capability also requires separate per-project consent. Its initial
 bridge is `tabsExtension.network.getText(url)`: HTTPS GET only, exact declared
 host, no caller headers/cookies, redirect following, or private-address DNS
-answers; text responses are limited to 1 MiB. With both `network` and `credentials`
+answers; DNS has a five-second deadline, the whole request has a 15-second
+deadline, and text responses are limited to 1 MiB. With both `network` and `credentials`
 capabilities and separate project grants, an extension may call
 `tabsExtension.network.getText(url, { useProfileCredential: true })` to attach a
 saved Bearer token for the active account profile and exact destination host.
