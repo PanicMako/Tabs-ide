@@ -209,7 +209,7 @@ export default function ExtensionsSettings() {
                 >
                   <h3 className="font-medium">{listing.displayName}</h3>
                   <p className="text-xs text-muted-foreground">
-                    {listing.id} · {listing.version} ·{" "}
+                    {listing.id} · {listing.version} · Approved release ·{" "}
                     {listing.verifiedPublisher ? "Verified publisher" : "Unverified publisher"}
                   </p>
                   <p className="text-sm">{listing.description}</p>

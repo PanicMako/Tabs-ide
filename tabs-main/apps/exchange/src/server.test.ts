@@ -31,6 +31,7 @@ async function fixture(
     publishedTarget?: boolean;
   },
   blockedDigest?: string,
+  catalogRows?: Array<Record<string, unknown>>,
 ) {
   const actions: string[] = [];
   const publicQueries: string[] = [];
@@ -104,22 +105,33 @@ async function fixture(
         const isPublic = Boolean(
           tuf?.target && tuf.targetStatus === "approved" && tuf.publishedTarget !== false,
         );
+        const rows = isPublic
+          ? (catalogRows ?? [
+              {
+                namespace: "example",
+                name: "dashboard",
+                version: "1.0.0",
+                digest: Crypto.createHash("sha256").update(tuf!.target!).digest("hex"),
+                bytes: tuf!.target!.length,
+                manifest: { displayName: "Dashboard" },
+                verified: false,
+                object_key: "approved/example/dashboard/1.0.0.tabsext",
+              },
+            ])
+          : [];
+        if (sql.includes("AND (v.namespace, v.name, v.version) IN (")) {
+          const selected = new Set<string>();
+          for (let index = 0; index < (params?.length ?? 0); index += 3) {
+            selected.add(`${params?.[index]}.${params?.[index + 1]}@${params?.[index + 2]}`);
+          }
+          const heads = rows.filter((entry) =>
+            selected.has(`${entry.namespace}.${entry.name}@${entry.version}`),
+          );
+          return { rows: heads, rowCount: heads.length };
+        }
         return {
-          rows: isPublic
-            ? [
-                {
-                  namespace: "example",
-                  name: "dashboard",
-                  version: "1.0.0",
-                  digest: Crypto.createHash("sha256").update(tuf!.target!).digest("hex"),
-                  bytes: tuf!.target!.length,
-                  manifest: { displayName: "Dashboard" },
-                  verified: false,
-                  object_key: "approved/example/dashboard/1.0.0.tabsext",
-                },
-              ]
-            : [],
-          rowCount: isPublic ? 1 : 0,
+          rows,
+          rowCount: rows.length,
         };
       }
       if (sql.includes("FROM exchange_sessions")) {
@@ -164,6 +176,49 @@ afterEach(async () => {
 });
 
 describe("Exchange HTTP boundaries", () => {
+  it("lists the highest semantic version even when an older release was approved later", async () => {
+    const target = Buffer.from("approved extension archive");
+    const rows = ["1.1.0", "1.2.0-rc.1", "1.0.0", "1.2.0"].map((version) => ({
+      namespace: "example",
+      name: "dashboard",
+      version,
+      digest,
+      manifest: { displayName: "Dashboard", version },
+      verified: false,
+    }));
+    const ready = await fixture(
+      true,
+      digest,
+      "approved",
+      { target, targetStatus: "approved" },
+      undefined,
+      rows,
+    );
+    const response = await fetch(`${ready.base}/v1/extensions`);
+    expect(response.status).toBe(200);
+    expect((await response.json()).extensions).toMatchObject([{ version: "1.2.0" }]);
+  });
+
+  it("fails closed instead of silently truncating a catalog ranking", async () => {
+    const target = Buffer.from("approved extension archive");
+    const rows = Array.from({ length: 10_001 }, (_, index) => ({
+      namespace: "example",
+      name: "dashboard",
+      version: `1.0.${index}`,
+    }));
+    const ready = await fixture(
+      true,
+      digest,
+      "approved",
+      { target, targetStatus: "approved" },
+      undefined,
+      rows,
+    );
+    const response = await fetch(`${ready.base}/v1/extensions`);
+    expect(response.status).toBe(503);
+    expect((await response.json()).error).toMatch(/too many releases/);
+  });
+
   it("serves only published signed metadata bytes", async () => {
     const metadata = Buffer.from('{"signed":"test"}');
     const ready = await fixture(true, digest, "review", { metadata });

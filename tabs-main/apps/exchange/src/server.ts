@@ -5,6 +5,7 @@ import * as OS from "node:os";
 import * as Path from "node:path";
 import { PutObjectCommand, type S3Client } from "@aws-sdk/client-s3";
 import { inspectTabsext } from "@tabs/extension-package";
+import { compareSemverVersions } from "@tabs/shared/semver";
 import type { Pool, PoolClient } from "pg";
 import {
   actorFor,
@@ -38,6 +39,7 @@ const TERMS_VERSION = "2026-09-24";
 const PUBLISHED_RELEASE_JOIN = `JOIN exchange_published_targets p
   ON p.namespace = v.namespace AND p.name = v.name AND p.version = v.version
   AND p.digest = v.digest AND p.bytes = v.bytes`;
+const MAX_CATALOG_RELEASES = 10_000;
 
 class HttpError extends Error {
   constructor(
@@ -442,16 +444,56 @@ export function createExchangeServer(
       if (request.method === "GET" && path === "/v1/extensions") {
         const query = (url.searchParams.get("q") ?? "").slice(0, 100);
         const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit")) || 30));
-        const found = await pool.query(
-          `SELECT DISTINCT ON (v.namespace, v.name)
-             v.namespace, v.name, v.version, v.digest, v.manifest, v.submitted_at, n.verified
+        const found = await pool.query<{
+          namespace: string;
+          name: string;
+          version: string;
+        }>(
+          `WITH matching_extensions AS (
+             SELECT DISTINCT v.namespace, v.name
+             FROM exchange_versions v ${PUBLISHED_RELEASE_JOIN}
+             WHERE v.status = 'approved' AND (v.namespace ILIKE $1 OR v.name ILIKE $1 OR v.manifest->>'displayName' ILIKE $1)
+             ORDER BY v.namespace, v.name LIMIT $2
+           )
+           SELECT v.namespace, v.name, v.version
+           FROM exchange_versions v ${PUBLISHED_RELEASE_JOIN}
+           JOIN matching_extensions m ON m.namespace = v.namespace AND m.name = v.name
+           WHERE v.status = 'approved'
+           ORDER BY v.namespace, v.name LIMIT $3`,
+          [
+            `%${query.replaceAll("%", "\\%").replaceAll("_", "\\_")}%`,
+            limit,
+            MAX_CATALOG_RELEASES + 1,
+          ],
+        );
+        if (found.rows.length > MAX_CATALOG_RELEASES) {
+          throw new HttpError(503, "Exchange catalog has too many releases to rank safely.");
+        }
+        const latest = new Map<string, (typeof found.rows)[number]>();
+        for (const release of found.rows) {
+          const key = `${release.namespace}.${release.name}`;
+          const current = latest.get(key);
+          if (!current || compareSemverVersions(release.version, current.version) > 0) {
+            latest.set(key, release);
+          }
+        }
+        const selected = [...latest.values()];
+        if (selected.length === 0) {
+          json(response, 200, { extensions: [] });
+          return;
+        }
+        const keys = selected
+          .map((_, index) => `($${index * 3 + 1}, $${index * 3 + 2}, $${index * 3 + 3})`)
+          .join(", ");
+        const heads = await pool.query(
+          `SELECT v.namespace, v.name, v.version, v.digest, v.manifest, v.submitted_at, n.verified
            FROM exchange_versions v ${PUBLISHED_RELEASE_JOIN}
            JOIN exchange_namespaces n ON n.name = v.namespace
-           WHERE v.status = 'approved' AND (v.namespace ILIKE $1 OR v.name ILIKE $1 OR v.manifest->>'displayName' ILIKE $1)
-           ORDER BY v.namespace, v.name, v.submitted_at DESC LIMIT $2`,
-          [`%${query.replaceAll("%", "\\%").replaceAll("_", "\\_")}%`, limit],
+           WHERE v.status = 'approved' AND (v.namespace, v.name, v.version) IN (${keys})
+           ORDER BY v.namespace, v.name`,
+          selected.flatMap((release) => [release.namespace, release.name, release.version]),
         );
-        json(response, 200, { extensions: found.rows });
+        json(response, 200, { extensions: heads.rows });
         return;
       }
       const packageMatch = request.method === "GET" ? PACKAGE_ROUTE.exec(path) : null;
