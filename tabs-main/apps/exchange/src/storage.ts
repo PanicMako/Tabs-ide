@@ -20,6 +20,23 @@ export async function boundedObject(
   return Buffer.concat(parts);
 }
 
+export async function verifiedPackageObject(
+  storage: S3Client,
+  bucket: string,
+  key: string,
+  expectedBytes: number,
+  expectedDigest: string,
+): Promise<Buffer> {
+  const bytes = await boundedObject(storage, bucket, key);
+  if (
+    bytes.length !== expectedBytes ||
+    Crypto.createHash("sha256").update(bytes).digest("hex") !== expectedDigest
+  ) {
+    throw new Error("Package object failed digest verification.");
+  }
+  return bytes;
+}
+
 /** Never overwrite a quarantine key; a retry may reuse only identical stored bytes. */
 export async function putImmutablePackageObject(
   storage: S3Client,

@@ -7,6 +7,8 @@ OAuth for publisher and reviewer sessions. Uploaded bytes never enter the
 public catalog until an admin approves the exact SHA-256 digest after scanning
 and the corresponding signed TUF target is published. The publisher portal
 distinguishes approval from signed publication.
+Approval re-reads the private quarantine object and verifies its recorded
+length and digest after the scan, before recording the exact-digest decision.
 
 **Do not enable public publishing yet.** `EXCHANGE_PUBLISHING_ENABLED` defaults
 to `false`. The publisher terms are a draft. The scanner does not include a

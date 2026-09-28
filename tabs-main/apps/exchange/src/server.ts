@@ -14,7 +14,7 @@ import {
   startGithubLogin,
 } from "./auth.ts";
 import { createPool, createStorage, loadConfig, type ExchangeConfig } from "./config.ts";
-import { boundedObject, putImmutablePackageObject } from "./storage.ts";
+import { boundedObject, putImmutablePackageObject, verifiedPackageObject } from "./storage.ts";
 import { refreshPublishedHead } from "./publishedHeads.ts";
 import { decodeSearchCursor, encodeSearchCursor } from "./searchCursor.ts";
 import { decodeVersionCursor, encodeVersionCursor } from "./versionCursor.ts";
@@ -953,13 +953,13 @@ export function createExchangeServer(
         );
         const submission = found.rows[0];
         if (!submission) throw new HttpError(404, "Submission not found.");
-        const bytes = await boundedObject(storage, config.bucket, submission.object_key);
-        if (
-          bytes.length !== submission.bytes ||
-          Crypto.createHash("sha256").update(bytes).digest("hex") !== submission.digest
-        ) {
-          throw new Error("Quarantined package object failed digest verification.");
-        }
+        const bytes = await verifiedPackageObject(
+          storage,
+          config.bucket,
+          submission.object_key,
+          submission.bytes,
+          submission.digest,
+        );
         response.writeHead(200, {
           "Content-Type": "application/octet-stream",
           "Content-Length": bytes.length,
@@ -993,13 +993,15 @@ export function createExchangeServer(
           const found = await client.query<{
             status: string;
             digest: string;
+            bytes: number;
+            object_key: string;
             scan_result: {
               passed?: boolean;
               digest?: string;
               files?: Record<string, string>;
             } | null;
           }>(
-            `SELECT status, digest, scan_result FROM exchange_versions
+            `SELECT status, digest, bytes, object_key, scan_result FROM exchange_versions
              WHERE namespace = $1 AND name = $2 AND version = $3 FOR UPDATE`,
             [reviewMatch[1], reviewMatch[2], decodeURIComponent(reviewMatch[3]!)],
           );
@@ -1028,6 +1030,20 @@ export function createExchangeServer(
             );
             if (blocked.rowCount) {
               throw new HttpError(409, "This package contains a blocked digest.");
+            }
+            try {
+              await verifiedPackageObject(
+                storage,
+                config.bucket,
+                submission.object_key,
+                submission.bytes,
+                digest,
+              );
+            } catch {
+              throw new HttpError(
+                409,
+                "Quarantined package no longer matches the reviewed digest.",
+              );
             }
           }
           const status =

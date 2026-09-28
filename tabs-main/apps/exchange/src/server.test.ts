@@ -15,7 +15,8 @@ import { SignedMetadataEvents } from "./signedMetadataEvents.ts";
 
 const servers: Array<ReturnType<typeof createExchangeServer>> = [];
 const temporaryDirectories: string[] = [];
-const digest = "a".repeat(64);
+const reviewObject = Buffer.from("reviewed extension package");
+const digest = Crypto.createHash("sha256").update(reviewObject).digest("hex");
 const csrf = "test-csrf-token";
 const config: ExchangeConfig = {
   origin: "http://localhost:8787",
@@ -42,18 +43,21 @@ async function fixture(
   allowUploads = false,
   signedMetadataEvents?: SignedMetadataEvents,
   duplicateUpload = false,
+  storedReviewObject = reviewObject,
 ) {
   const actions: string[] = [];
   const publicQueries: string[] = [];
   const client = {
     async query(sql: string, params?: unknown[]) {
       actions.push(sql);
-      if (sql.includes("SELECT status, digest, scan_result")) {
+      if (sql.includes("SELECT status, digest, bytes, object_key, scan_result")) {
         return {
           rows: [
             {
               status: submissionStatus,
               digest: storedDigest,
+              bytes: reviewObject.length,
+              object_key: "quarantine/example/dashboard/1.0.0.tabsext",
               scan_result: { passed: scanPassed, digest: storedDigest, files: {} },
             },
           ],
@@ -272,7 +276,7 @@ async function fixture(
   } as unknown as Pool;
   const storage = {
     async send() {
-      return { Body: Readable.from(tuf?.target ? [tuf.target] : []) };
+      return { Body: Readable.from([tuf?.target ?? storedReviewObject]) };
     },
   } as unknown as S3Client;
   const server = createExchangeServer(
@@ -789,6 +793,41 @@ describe("Exchange HTTP boundaries", () => {
     });
     expect(result.status).toBe(409);
     expect(ready.actions.some((sql) => sql.includes("UPDATE exchange_versions SET status"))).toBe(
+      false,
+    );
+  });
+
+  it("does not approve an object changed after its scan", async () => {
+    const ready = await fixture(
+      true,
+      digest,
+      "review",
+      undefined,
+      undefined,
+      undefined,
+      false,
+      undefined,
+      false,
+      Buffer.from("changed extension package"),
+    );
+    const result = await fetch(`${ready.base}/v1/review/example/dashboard/1.0.0`, {
+      method: "POST",
+      headers: {
+        Origin: config.origin,
+        Cookie: "tabs_exchange_session=opaque",
+        "X-CSRF-Token": csrf,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ action: "approve", digest, reason: "Reviewed" }),
+    });
+    expect(result.status).toBe(409);
+    expect(await result.json()).toEqual({
+      error: "Quarantined package no longer matches the reviewed digest.",
+    });
+    expect(ready.actions.some((sql) => sql.includes("UPDATE exchange_versions SET status"))).toBe(
+      false,
+    );
+    expect(ready.actions.some((sql) => sql.includes("INSERT INTO exchange_review_events"))).toBe(
       false,
     );
   });
