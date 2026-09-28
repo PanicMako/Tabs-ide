@@ -81,6 +81,10 @@ function apiRangeIsSafe(range: string, minimum: string): boolean {
   );
 }
 
+export function extensionApiRangeCompatible(range: string): boolean {
+  return satisfiesSemverRange(TABS_EXTENSION_API_VERSION, range);
+}
+
 /** Validate packaged contributions before they reach the desktop host. */
 export function validateTabsExtensionManifest(
   input: unknown,
@@ -152,8 +156,7 @@ export function validateTabsExtensionManifest(
   if (
     record(engines) &&
     engines.api !== undefined &&
-    (typeof engines.api !== "string" ||
-      !satisfiesSemverRange(TABS_EXTENSION_API_VERSION, engines.api))
+    (typeof engines.api !== "string" || !extensionApiRangeCompatible(engines.api))
   ) {
     errors.push(
       `engines.api must include the current extension API (${TABS_EXTENSION_API_VERSION}).`,

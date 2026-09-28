@@ -201,6 +201,85 @@ describe("Exchange catalog client", () => {
     expect(fetcher).toHaveBeenCalledTimes(2);
   });
 
+  it("finds an older approved release when the catalog head requires a newer extension API", async () => {
+    const versionUrl = `${origin}/v1/extensions/acme/dashboard`;
+    const newer = {
+      ...manifest,
+      version: "2.0.0",
+      engines: { ...manifest.engines, api: ">=2.0.0" },
+    };
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      return response(
+        url === versionUrl
+          ? {
+              versions: [
+                {
+                  namespace: "acme",
+                  name: "dashboard",
+                  version: "2.0.0",
+                  digest: "b".repeat(64),
+                  verified: true,
+                  manifest: newer,
+                },
+                {
+                  namespace: "acme",
+                  name: "dashboard",
+                  version: "1.0.0",
+                  digest: "a".repeat(64),
+                  verified: true,
+                  manifest,
+                },
+              ],
+              nextCursor: null,
+            }
+          : {
+              extensions: [
+                {
+                  namespace: "acme",
+                  name: "dashboard",
+                  version: "2.0.0",
+                  digest: "b".repeat(64),
+                  verified: true,
+                  manifest: newer,
+                },
+              ],
+            },
+        url,
+      );
+    });
+    expect(await discoverExchangeExtensions(origin, "1.3.17", "", fetcher)).toMatchObject([
+      { id: "acme.dashboard", version: "1.0.0" },
+    ]);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects a spoofed catalog head before compatibility fallback", async () => {
+    const fetcher = vi.fn(async () =>
+      response({
+        extensions: [
+          {
+            namespace: "acme",
+            name: "dashboard",
+            version: "2.0.0",
+            digest: "b".repeat(64),
+            verified: true,
+            manifest: {
+              ...manifest,
+              name: "other",
+              version: "2.0.0",
+              engines: { tabs: ">=2.0.0" },
+            },
+          },
+        ],
+      }),
+    );
+    await expect(discoverExchangeExtensions(origin, "1.3.17", "", fetcher)).rejects.toThrow(
+      /identity/,
+    );
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
   it("validates the complete catalog before requesting compatibility fallbacks", async () => {
     const fetcher = vi.fn(async () =>
       response({

@@ -1,5 +1,8 @@
 import type { DesktopExchangeListing } from "@tabs/contracts";
-import { validateTabsExtensionManifest } from "@tabs/shared/extensions";
+import {
+  extensionApiRangeCompatible,
+  validateTabsExtensionManifest,
+} from "@tabs/shared/extensions";
 import { compareSemverVersions, satisfiesSemverRange } from "@tabs/shared/semver";
 
 const MAX_CATALOG_BYTES = 1024 * 1024;
@@ -103,13 +106,22 @@ export async function discoverExchangeExtensions(
     const id = `${item.namespace}.${item.name}`;
     if (seen.has(id)) throw new Error("Exchange catalog contains duplicate listings.");
     seen.add(id);
+    if (
+      !record(item.manifest) ||
+      item.manifest.publisher !== item.namespace ||
+      item.manifest.name !== item.name ||
+      item.manifest.version !== item.version
+    ) {
+      throw new Error("Exchange listing identity does not match its manifest.");
+    }
     const validated = validateTabsExtensionManifest(item.manifest, tabsVersion);
     if (!validated.ok) {
-      const range =
-        record(item.manifest) && record(item.manifest.engines)
-          ? item.manifest.engines.tabs
-          : undefined;
-      if (typeof range === "string" && !satisfiesSemverRange(tabsVersion, range)) {
+      const engines = item.manifest.engines;
+      if (
+        record(engines) &&
+        ((typeof engines.tabs === "string" && !satisfiesSemverRange(tabsVersion, engines.tabs)) ||
+          (typeof engines.api === "string" && !extensionApiRangeCompatible(engines.api)))
+      ) {
         candidates.push({ fallback: true, namespace: item.namespace, name: item.name });
       }
       continue;
