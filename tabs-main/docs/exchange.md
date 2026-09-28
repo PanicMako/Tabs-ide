@@ -87,6 +87,68 @@ The API listens on port 8787 and `/publisher` serves the publisher/reviewer
 page. This checkout could not execute the stack because the Docker daemon was
 not running; only `docker compose config` was validated.
 
+### Cold backup and restore drill
+
+Back up PostgreSQL **and** the private object bucket together. PostgreSQL
+contains the exact reviewed digests, audit history, and published TUF metadata;
+the bucket contains the archives. Keep the signing keys and independently
+distributed client trust root in a separate secure backup. A database-only
+restore cannot recover packages, and an object-only restore cannot recover
+review decisions.
+
+For the self-hosted Compose stack, schedule a maintenance window and stop the
+API and worker before the database dump and object copy. Do not run the TUF
+publication command until the copy is complete. Replace the example absolute
+path below with a new private directory **outside the Git checkout** for each
+backup, then run the object verifier before restarting writes:
+
+```sh
+set -e
+exchange_backup_dir=/absolute/private/tabs-exchange-backup-2026-09-28
+cd apps/exchange
+docker compose stop api worker
+mkdir -m 700 "$exchange_backup_dir"
+docker compose exec -T postgres pg_dump -U tabs_exchange -d tabs_exchange -Fc > "$exchange_backup_dir/exchange.pgcustom"
+docker compose run --rm --no-deps -v "$exchange_backup_dir:/backup" --entrypoint sh bucket -c 'mc alias set exchange http://minio:9000 "$S3_ACCESS_KEY_ID" "$S3_SECRET_ACCESS_KEY" && mc mirror exchange/tabs-exchange /backup/objects'
+docker compose run --rm --no-deps api bun --cwd apps/exchange run verify:objects > "$exchange_backup_dir/object-verification.json"
+```
+
+The verifier reads every `exchange_versions` row, including private and
+revoked submissions, and checks its expected object key, byte length, and
+SHA-256. It reports at most the first 100 failures but counts all of them;
+a nonzero failure count exits unsuccessfully. The pre-restart check verifies
+the source bucket, not the copied backup; the restore drill verifies that copy.
+Record the source `checked` count from `object-verification.json` and compare
+it with the restored environment; zero failures with a smaller or empty
+restored database is not a successful recovery.
+Store and test the dump and object copy outside the machine running Exchange.
+For a restore drill, create
+**fresh empty** PostgreSQL and object storage. After supplying the new
+environment's secrets and making the private backup directory available on
+the restore host, restore with:
+
+```sh
+set -e
+exchange_backup_dir=/absolute/private/tabs-exchange-backup-2026-09-28
+cd apps/exchange
+docker compose up -d postgres minio bucket
+docker compose exec -T postgres pg_restore -U tabs_exchange -d tabs_exchange --no-owner < "$exchange_backup_dir/exchange.pgcustom"
+docker compose run --rm --no-deps -v "$exchange_backup_dir:/backup:ro" --entrypoint sh bucket -c 'mc alias set exchange http://minio:9000 "$S3_ACCESS_KEY_ID" "$S3_SECRET_ACCESS_KEY" && mc mirror /backup/objects exchange/tabs-exchange'
+docker compose run --rm --no-deps api bun --cwd apps/exchange run verify:objects
+```
+
+Run `docker compose up -d api worker` only after verification succeeds. Confirm published TUF
+metadata and a trusted desktop install/status check separately; the object
+verifier does not validate signatures, database audit semantics, or signing-key
+availability. Do not run a restore over a live Exchange database.
+For the source environment, restart the API and worker only after its backup
+verification succeeds.
+
+For Render and R2, use the same write-freeze, database-snapshot, immutable
+object-copy, restore-to-new-environment, and verification sequence with the
+provider's backup tooling. Do not assume independently timed managed snapshots
+are a consistent pair while submissions or signed publication continue.
+
 For Render, `render.yaml` at the repository root declares the API, worker,
 and managed PostgreSQL database. Configure all `sync: false` values in Render,
 create a private Cloudflare R2 bucket, and set `S3_ENDPOINT` to the R2 S3 API
