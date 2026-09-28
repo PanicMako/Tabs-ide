@@ -7,7 +7,7 @@ import { packTabsext } from "@tabs/extension-package";
 import type { Pool } from "pg";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ExchangeConfig } from "./config.ts";
-import { recordWorkerHeartbeat, scanNextVersion } from "./worker.ts";
+import { recordWorkerHeartbeat, renewScanLease, scanNextVersion } from "./worker.ts";
 
 const roots: string[] = [];
 const config: ExchangeConfig = {
@@ -56,6 +56,102 @@ afterEach(() => {
 });
 
 describe("Exchange quarantine worker", () => {
+  it("renews only the exact scan claim", async () => {
+    const calls: Array<{ sql: string; values?: unknown[] }> = [];
+    let owned = true;
+    const pool = {
+      async query(sql: string, values?: unknown[]) {
+        calls.push({ sql, ...(values ? { values } : {}) });
+        return { rowCount: owned ? 1 : 0 };
+      },
+    } as unknown as Pool;
+    const job = {
+      namespace: "example",
+      name: "dashboard",
+      version: "1.0.0",
+      digest: "a".repeat(64),
+      object_key: "quarantine/test",
+      scan_token: "00000000-0000-4000-8000-000000000001",
+    };
+    expect(await renewScanLease(pool, job)).toBe(true);
+    owned = false;
+    expect(await renewScanLease(pool, job)).toBe(false);
+    expect(calls[0]?.values).toEqual([
+      job.namespace,
+      job.name,
+      job.version,
+      job.digest,
+      job.scan_token,
+    ]);
+    expect(calls[0]?.sql).toContain("status = 'scanning' AND scan_token = $5");
+  });
+  it("does not report completion when a scan claim was replaced", async () => {
+    const pool = {
+      async query(sql: string) {
+        if (sql.includes("RETURNING namespace, name, version, digest, object_key, scan_token")) {
+          return {
+            rows: [
+              {
+                namespace: "example",
+                name: "dashboard",
+                version: "1.0.0",
+                digest: "a".repeat(64),
+                object_key: "quarantine/test",
+                scan_token: "00000000-0000-4000-8000-000000000001",
+              },
+            ],
+          };
+        }
+        return { rows: [], rowCount: 0 };
+      },
+    } as unknown as Pool;
+    const storage = {
+      async send() {
+        return { Body: Readable.from([Buffer.from("changed")]) };
+      },
+    } as unknown as S3Client;
+    expect(await scanNextVersion(pool, storage, config)).toBe(false);
+  });
+  it("renews a scan claim while package retrieval is pending", async () => {
+    let renewals = 0;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const pool = {
+      async query(sql: string) {
+        if (sql.includes("RETURNING namespace, name, version, digest, object_key, scan_token")) {
+          return {
+            rows: [
+              {
+                namespace: "example",
+                name: "dashboard",
+                version: "1.0.0",
+                digest: "a".repeat(64),
+                object_key: "quarantine/test",
+                scan_token: "00000000-0000-4000-8000-000000000001",
+              },
+            ],
+          };
+        }
+        if (sql.includes("SET scan_claimed_at = now()")) renewals += 1;
+        return { rows: [], rowCount: 1 };
+      },
+    } as unknown as Pool;
+    const storage = {
+      async send() {
+        await gate;
+        return { Body: Readable.from([Buffer.from("changed")]) };
+      },
+    } as unknown as S3Client;
+    const scan = scanNextVersion(pool, storage, config, 5);
+    try {
+      await vi.waitFor(() => expect(renewals).toBeGreaterThan(0), { timeout: 1_000 });
+    } finally {
+      release();
+    }
+    expect(await scan).toBe(true);
+  });
   it("records liveness separately from completed scans", async () => {
     const queries: Array<{ sql: string; values?: unknown[] }> = [];
     const pool = {

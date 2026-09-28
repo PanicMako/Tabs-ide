@@ -21,6 +21,16 @@ interface Job {
   readonly scan_token: string;
 }
 
+export async function renewScanLease(pool: Pool, job: Job): Promise<boolean> {
+  const renewed = await pool.query(
+    `UPDATE exchange_versions SET scan_claimed_at = now()
+     WHERE namespace = $1 AND name = $2 AND version = $3 AND digest = $4
+       AND status = 'scanning' AND scan_token = $5`,
+    [job.namespace, job.name, job.version, job.digest, job.scan_token],
+  );
+  return renewed.rowCount === 1;
+}
+
 export async function recordWorkerHeartbeat(
   pool: Pool,
   workerId: string,
@@ -39,6 +49,7 @@ export async function scanNextVersion(
   pool: Pool,
   storage: S3Client,
   config: ExchangeConfig,
+  leaseIntervalMs = 60_000,
 ): Promise<boolean> {
   const claimed = await pool.query<Job>(
     `UPDATE exchange_versions SET status = 'scanning', scan_claimed_at = now(), scan_token = $1
@@ -51,9 +62,27 @@ export async function scanNextVersion(
   );
   const job = claimed.rows[0];
   if (!job) return false;
-  const temporary = await FS.mkdtemp(Path.join(OS.tmpdir(), "tabs-exchange-scan-"));
+  let leaseOwned = true;
+  let renewal: Promise<void> | null = null;
+  const leaseTimer = setInterval(() => {
+    if (!leaseOwned || renewal) return;
+    renewal = (async () => {
+      try {
+        leaseOwned = await renewScanLease(pool, job);
+      } catch (error) {
+        process.stderr.write(
+          `Exchange scan lease renewal failed for ${job.namespace}.${job.name}@${job.version}: ${String(error)}\n`,
+        );
+      } finally {
+        renewal = null;
+      }
+    })();
+  }, leaseIntervalMs);
+  leaseTimer.unref();
+  let temporary: string | undefined;
   let result: ScanResult;
   try {
+    temporary = await FS.mkdtemp(Path.join(OS.tmpdir(), "tabs-exchange-scan-"));
     const archive = Path.join(temporary, "package.tabsext");
     const bytes = await boundedObject(storage, config.bucket, job.object_key);
     const digest = Crypto.createHash("sha256").update(bytes).digest("hex");
@@ -174,14 +203,17 @@ export async function scanNextVersion(
       `Exchange scan failed for ${job.namespace}.${job.name}@${job.version}: ${String(error)}\n`,
     );
   } finally {
-    await FS.rm(temporary, { recursive: true, force: true });
+    clearInterval(leaseTimer);
+    if (renewal) await renewal;
+    if (temporary) await FS.rm(temporary, { recursive: true, force: true });
   }
-  await pool.query(
+  if (!leaseOwned) return false;
+  const completed = await pool.query(
     `UPDATE exchange_versions SET status = 'review', scan_result = $5::jsonb, scan_claimed_at = NULL, scan_token = NULL
      WHERE namespace = $1 AND name = $2 AND version = $3 AND digest = $4 AND status = 'scanning' AND scan_token = $6`,
     [job.namespace, job.name, job.version, job.digest, JSON.stringify(result), job.scan_token],
   );
-  return true;
+  return completed.rowCount === 1;
 }
 
 if (import.meta.main) {

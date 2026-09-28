@@ -13,8 +13,9 @@ to `false`. The publisher terms are a draft. The scanner does not include a
 malware intelligence feed, and its npm advisory checks cannot identify every
 dependency embedded in bundled assets. The reviewer view shows bounded text
 diffs but cannot display large or binary files, so reviewers must inspect the
-exact archive separately. A production root
-signing ceremony and continuous revocation checks are not implemented.
+exact archive separately. A production root signing ceremony and push-based
+revocation notification are not implemented; desktop relies on periodic signed
+status checks.
 Experimental permission-neutral automatic updates are available only with an
 independently pinned trust root and explicit desktop opt-in. Desktop builds can
 display compatible approved listings from
@@ -34,8 +35,9 @@ target revocation, rollback, expiration, and tampering. Manual desktop
 installation now uses this adapter and verifies the signed target digest and
 length before presenting a permission review. Desktop checks installed versions
 at startup, every minute, after system resume, and before activation, persisting signed
-revocations. Continuous active-view checks and automatic updates are not
-implemented. Exchange serves signed metadata from
+revocations and closing an active view when its version is revoked. Experimental
+permission-neutral automatic updates require an explicit desktop opt-in and a
+pinned trust root. Exchange serves signed metadata from
 PostgreSQL at `/v1/tuf/metadata/:file` and approved package targets at
 `/v1/tuf/targets/extensions/:namespace/:name/:version.tabsext`. The package
 route returns 404 immediately after revocation, even before a new signed
@@ -139,7 +141,10 @@ this signal and queue age rather than relying on the API's database-only
 The worker scans queued packages, verifies stored bytes, extracts with bounded
 ZIP validation, and writes a scan result. It also re-downloads and verifies the
 last approved archive before generating a version-to-version text diff. The
-worker reads a root npm lockfile (v2 or v3) when one is submitted and checks up
+worker renews its token-bound scan claim once a minute; a claim older than ten
+minutes can be reclaimed after a worker stops. A superseded worker cannot
+commit its scan result. The worker reads a root npm lockfile (v2 or v3) when one
+is submitted and checks up
 to 200 exact public-registry package versions with the [OSV batch API](https://google.github.io/osv.dev/post-v1-querybatch/).
 Only entries resolved from `https://registry.npmjs.org/` are sent to OSV;
 private-registry and unresolvable entries are skipped to avoid disclosing
