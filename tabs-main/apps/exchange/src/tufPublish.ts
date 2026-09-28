@@ -4,9 +4,11 @@ import * as OS from "node:os";
 import * as Path from "node:path";
 import { BaseFetcher, Updater } from "tuf-js";
 import { DownloadHTTPError } from "tuf-js/dist/error";
+import type { S3Client } from "@aws-sdk/client-s3";
 import type { Pool, PoolClient } from "pg";
-import { createPool } from "./config.ts";
+import { createPool, createStorage } from "./config.ts";
 import { insertPublishedHeads, type PublishedTarget } from "./publishedHeads.ts";
+import { boundedObject } from "./storage.ts";
 
 const METADATA_NAME = /^(?:[1-9][0-9]*\.)?(?:root|snapshot|targets)\.json$|^timestamp\.json$/;
 const TARGET_PATH =
@@ -27,6 +29,7 @@ interface ReleaseRow {
   readonly digest: string;
   readonly bytes: number;
   readonly status: string;
+  readonly object_key: string;
 }
 
 function record(value: unknown): value is Record<string, unknown> {
@@ -136,7 +139,11 @@ async function verifiedBundle(
   client: PoolClient,
   stageDirectory: string,
   bootstrapRootDigest: string | undefined,
-): Promise<{ metadata: Map<string, Buffer>; targets: ReadonlyArray<PublishedTarget> }> {
+): Promise<{
+  metadata: Map<string, Buffer>;
+  targets: ReadonlyArray<PublishedTarget>;
+  objectKeys: ReadonlyMap<string, string>;
+}> {
   const current = await client.query<MetadataRow>(
     "SELECT name, bytes FROM exchange_tuf_metadata ORDER BY name",
   );
@@ -195,7 +202,7 @@ async function verifiedBundle(
       }
     }
     const releases = await client.query<ReleaseRow>(
-      "SELECT namespace, name, version, digest, bytes, status FROM exchange_versions WHERE status IN ('approved', 'revoked') FOR SHARE",
+      "SELECT namespace, name, version, digest, bytes, status, object_key FROM exchange_versions WHERE status IN ('approved', 'revoked') FOR SHARE",
     );
     const targets = verifyApprovedTargets(result.get("targets.json")!, releases.rows);
     for (const [name, bytes] of result) {
@@ -203,7 +210,16 @@ async function verifiedBundle(
         throw new Error(`Versioned TUF metadata is immutable: ${name}`);
       }
     }
-    return { metadata: result, targets };
+    return {
+      metadata: result,
+      targets,
+      objectKeys: new Map(
+        releases.rows.map((release) => [
+          `${release.namespace}/${release.name}/${release.version}`,
+          release.object_key,
+        ]),
+      ),
+    };
   } finally {
     await FS.rm(temporary, { recursive: true, force: true });
   }
@@ -212,9 +228,12 @@ async function verifiedBundle(
 /** Publish a pre-signed bundle; the API/worker never see private signing keys. */
 export async function publishTufMetadata(
   pool: Pool,
+  storage: S3Client,
+  bucket: string,
   stageDirectory: string,
   bootstrapRootDigest?: string,
 ): Promise<number> {
+  if (!bucket) throw new Error("A package object bucket is required for signed publication.");
   if (!Path.isAbsolute(stageDirectory) || !(await FS.lstat(stageDirectory)).isDirectory()) {
     throw new Error("Select an absolute staged metadata directory.");
   }
@@ -223,6 +242,41 @@ export async function publishTufMetadata(
     await client.query("BEGIN");
     await client.query("SELECT pg_advisory_xact_lock(1261492744)");
     const bundle = await verifiedBundle(client, stageDirectory, bootstrapRootDigest);
+    const prior = await client.query<PublishedTarget>(
+      "SELECT namespace, name, version, digest, bytes FROM exchange_published_targets",
+    );
+    const priorTargets = new Set(
+      prior.rows.map(
+        (target) =>
+          `${target.namespace}/${target.name}/${target.version}/${target.digest}/${target.bytes}`,
+      ),
+    );
+    for (const target of bundle.targets) {
+      const identity = `${target.namespace}/${target.name}/${target.version}`;
+      const key = bundle.objectKeys.get(identity);
+      if (key !== `quarantine/${identity}/${target.digest}.tabsext`) {
+        throw new Error(`Signed target has an invalid object key: ${identity}`);
+      }
+      if (
+        priorTargets.has(
+          `${target.namespace}/${target.name}/${target.version}/${target.digest}/${target.bytes}`,
+        )
+      ) {
+        continue;
+      }
+      let bytes: Buffer;
+      try {
+        bytes = await boundedObject(storage, bucket, key);
+      } catch {
+        throw new Error(`Signed target object is unreadable: ${identity}`);
+      }
+      if (
+        bytes.length !== target.bytes ||
+        Crypto.createHash("sha256").update(bytes).digest("hex") !== target.digest
+      ) {
+        throw new Error(`Signed target object does not match approved digest: ${identity}`);
+      }
+    }
     for (const [name, bytes] of bundle.metadata) {
       await client.query(
         `INSERT INTO exchange_tuf_metadata(name, bytes, sha256)
@@ -256,10 +310,14 @@ export async function publishTufMetadata(
 if (import.meta.main) {
   const directory = process.argv[2];
   if (!directory) throw new Error("Usage: bun src/tufPublish.ts /absolute/staged-metadata-dir");
+  const bucket = process.env.S3_BUCKET;
+  if (!bucket) throw new Error("Missing S3_BUCKET.");
   const pool = createPool();
   try {
     const count = await publishTufMetadata(
       pool,
+      createStorage(),
+      bucket,
       directory,
       process.env.EXCHANGE_TUF_BOOTSTRAP_ROOT_SHA256,
     );

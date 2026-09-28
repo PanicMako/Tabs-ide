@@ -2,6 +2,7 @@ import * as Crypto from "node:crypto";
 import * as FS from "node:fs/promises";
 import * as OS from "node:os";
 import * as Path from "node:path";
+import { Readable } from "node:stream";
 import {
   Key,
   MetaFile,
@@ -13,6 +14,7 @@ import {
   Targets,
   Timestamp,
 } from "@tufjs/models";
+import type { S3Client } from "@aws-sdk/client-s3";
 import type { Pool } from "pg";
 import { afterEach, describe, expect, it } from "vitest";
 import { publishedHeads } from "./publishedHeads.ts";
@@ -103,6 +105,8 @@ async function fixture() {
   const published: unknown[][] = [];
   const heads: unknown[][] = [];
   let releaseStatus = "approved";
+  let objectBytes: Buffer | null = archive;
+  let objectKey = `quarantine/acme/dashboard/1.0.0/${digest}.tabsext`;
   const operations: string[] = [];
   const client = {
     async query(sql: string, parameters?: unknown[]) {
@@ -122,8 +126,24 @@ async function fixture() {
               digest,
               bytes: archive.length,
               status: releaseStatus,
+              object_key: objectKey,
             },
           ],
+        };
+      }
+      if (
+        sql.startsWith(
+          "SELECT namespace, name, version, digest, bytes FROM exchange_published_targets",
+        )
+      ) {
+        return {
+          rows: published.map(([namespace, name, version, digest, bytes]) => ({
+            namespace,
+            name,
+            version,
+            digest,
+            bytes,
+          })),
         };
       }
       if (sql.startsWith("INSERT INTO exchange_tuf_metadata")) {
@@ -148,10 +168,17 @@ async function fixture() {
       return client;
     },
   } as unknown as Pool;
+  const storage = {
+    async send() {
+      if (!objectBytes) throw new Error("Object missing");
+      return { Body: Readable.from([objectBytes]) };
+    },
+  } as unknown as S3Client;
   return {
     directory,
     rootBytes,
     pool,
+    storage,
     stored,
     published,
     heads,
@@ -159,6 +186,12 @@ async function fixture() {
     publishStage,
     revoke: () => {
       releaseStatus = "revoked";
+    },
+    setObject: (bytes: Buffer | null) => {
+      objectBytes = bytes;
+    },
+    setObjectKey: (key: string) => {
+      objectKey = key;
     },
   };
 }
@@ -195,24 +228,74 @@ describe("offline TUF publication gate", () => {
     expect(() => verifyApprovedTargets(bytes, [])).toThrow(/not an exact approved package/);
   });
 
+  it("keeps a newly signed target private until its stored object matches the approved digest", async () => {
+    const subject = await fixture();
+    const bootstrap = Crypto.createHash("sha256").update(subject.rootBytes).digest("hex");
+    subject.setObject(null);
+    await expect(
+      publishTufMetadata(subject.pool, subject.storage, "quarantine", subject.directory, bootstrap),
+    ).rejects.toThrow(/unreadable/);
+    subject.setObject(Buffer.from("modified extension package"));
+    await expect(
+      publishTufMetadata(subject.pool, subject.storage, "quarantine", subject.directory, bootstrap),
+    ).rejects.toThrow(/does not match approved digest/);
+    subject.setObject(archive);
+    subject.setObjectKey("quarantine/acme/dashboard/1.0.0/unexpected.tabsext");
+    await expect(
+      publishTufMetadata(subject.pool, subject.storage, "quarantine", subject.directory, bootstrap),
+    ).rejects.toThrow(/invalid object key/);
+    expect(subject.stored.size).toBe(0);
+    expect(subject.published).toEqual([]);
+    expect(subject.operations.filter((sql) => sql === "COMMIT")).toHaveLength(0);
+    subject.setObjectKey(`quarantine/acme/dashboard/1.0.0/${digest}.tabsext`);
+    expect(
+      await publishTufMetadata(
+        subject.pool,
+        subject.storage,
+        "quarantine",
+        subject.directory,
+        bootstrap,
+      ),
+    ).toBe(4);
+    expect(subject.published).toHaveLength(1);
+  });
+
   it("publishes signed metadata, removes revoked targets, and rejects rollback", async () => {
     const subject = await fixture();
     const bootstrap = Crypto.createHash("sha256").update(subject.rootBytes).digest("hex");
     await expect(
-      publishTufMetadata(subject.pool, subject.directory, "f".repeat(64)),
+      publishTufMetadata(
+        subject.pool,
+        subject.storage,
+        "quarantine",
+        subject.directory,
+        "f".repeat(64),
+      ),
     ).rejects.toThrow(/root SHA-256 pin/);
     expect(subject.stored.size).toBe(0);
-    expect(await publishTufMetadata(subject.pool, subject.directory, bootstrap)).toBe(4);
+    expect(
+      await publishTufMetadata(
+        subject.pool,
+        subject.storage,
+        "quarantine",
+        subject.directory,
+        bootstrap,
+      ),
+    ).toBe(4);
     expect(subject.stored.has("timestamp.json")).toBe(true);
     expect(subject.published).toEqual([["acme", "dashboard", "1.0.0", digest, archive.length]]);
     expect(subject.heads).toEqual([["acme", "dashboard", "1.0.0"]]);
     subject.revoke();
     await subject.publishStage(2, false);
-    expect(await publishTufMetadata(subject.pool, subject.directory)).toBe(4);
+    expect(
+      await publishTufMetadata(subject.pool, subject.storage, "quarantine", subject.directory),
+    ).toBe(4);
     expect(subject.published).toEqual([]);
     expect(subject.heads).toEqual([]);
     await subject.publishStage(1, true);
-    await expect(publishTufMetadata(subject.pool, subject.directory)).rejects.toThrow();
+    await expect(
+      publishTufMetadata(subject.pool, subject.storage, "quarantine", subject.directory),
+    ).rejects.toThrow();
     expect(subject.operations.filter((sql) => sql === "COMMIT")).toHaveLength(2);
     expect(subject.operations.filter((sql) => sql === "ROLLBACK")).toHaveLength(2);
     expect(
