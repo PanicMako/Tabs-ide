@@ -159,6 +159,24 @@ async function fixture(
           rowCount: 1,
         };
       }
+      if (sql.includes("FROM exchange_published_heads h")) {
+        const isPublic = Boolean(
+          tuf?.target && tuf.targetStatus === "approved" && tuf.publishedTarget !== false,
+        );
+        const rows = isPublic
+          ? (catalogRows ?? [
+              {
+                namespace: "example",
+                name: "dashboard",
+                version: "1.0.0",
+                digest,
+                manifest: { displayName: "Dashboard" },
+                verified: false,
+              },
+            ])
+          : [];
+        return { rows: rows.slice(0, Number(params?.[1])), rowCount: rows.length };
+      }
       if (sql.includes("FROM exchange_versions") && sql.includes("status = 'approved'")) {
         const isPublic = Boolean(
           tuf?.target && tuf.targetStatus === "approved" && tuf.publishedTarget !== false,
@@ -200,16 +218,6 @@ async function fixture(
             )
             .slice(0, Number(params?.[4]));
           return { rows: versions, rowCount: versions.length };
-        }
-        if (sql.includes("AND (v.namespace, v.name, v.version) IN (")) {
-          const selected = new Set<string>();
-          for (let index = 0; index < (params?.length ?? 0); index += 3) {
-            selected.add(`${params?.[index]}.${params?.[index + 1]}@${params?.[index + 2]}`);
-          }
-          const heads = rows.filter((entry) =>
-            selected.has(`${entry.namespace}.${entry.name}@${entry.version}`),
-          );
-          return { rows: heads, rowCount: heads.length };
         }
         return {
           rows,
@@ -431,16 +439,18 @@ describe("Exchange HTTP boundaries", () => {
     response.resume();
   });
 
-  it("lists the highest semantic version even when an older release was approved later", async () => {
+  it("serves the signed-publication head without ranking historical releases on each search", async () => {
     const target = Buffer.from("approved extension archive");
-    const rows = ["1.1.0", "1.2.0-rc.1", "1.0.0", "1.2.0"].map((version) => ({
-      namespace: "example",
-      name: "dashboard",
-      version,
-      digest,
-      manifest: { displayName: "Dashboard", version },
-      verified: false,
-    }));
+    const rows = [
+      {
+        namespace: "example",
+        name: "dashboard",
+        version: "1.2.0",
+        digest,
+        manifest: { displayName: "Dashboard", version: "1.2.0" },
+        verified: false,
+      },
+    ];
     const ready = await fixture(
       true,
       digest,
@@ -452,26 +462,9 @@ describe("Exchange HTTP boundaries", () => {
     const response = await fetch(`${ready.base}/v1/extensions`);
     expect(response.status).toBe(200);
     expect((await response.json()).extensions).toMatchObject([{ version: "1.2.0" }]);
-  });
-
-  it("fails closed instead of silently truncating a catalog ranking", async () => {
-    const target = Buffer.from("approved extension archive");
-    const rows = Array.from({ length: 10_001 }, (_, index) => ({
-      namespace: "example",
-      name: "dashboard",
-      version: `1.0.${index}`,
-    }));
-    const ready = await fixture(
-      true,
-      digest,
-      "approved",
-      { target, targetStatus: "approved" },
-      undefined,
-      rows,
-    );
-    const response = await fetch(`${ready.base}/v1/extensions`);
-    expect(response.status).toBe(503);
-    expect((await response.json()).error).toMatch(/too many releases/);
+    expect(
+      ready.publicQueries.filter((sql) => sql.includes("exchange_published_heads h")),
+    ).toHaveLength(1);
   });
 
   it("serves only published signed metadata bytes", async () => {

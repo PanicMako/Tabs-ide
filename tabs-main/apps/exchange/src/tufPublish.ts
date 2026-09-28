@@ -4,6 +4,7 @@ import * as OS from "node:os";
 import * as Path from "node:path";
 import { BaseFetcher, Updater } from "tuf-js";
 import { DownloadHTTPError } from "tuf-js/dist/error";
+import { compareSemverVersions } from "@tabs/shared/semver";
 import type { Pool, PoolClient } from "pg";
 import { createPool } from "./config.ts";
 
@@ -34,6 +35,20 @@ interface PublishedTarget {
   readonly version: string;
   readonly digest: string;
   readonly bytes: number;
+}
+
+export function publishedHeads(
+  targets: readonly PublishedTarget[],
+): ReadonlyArray<PublishedTarget> {
+  const heads = new Map<string, PublishedTarget>();
+  for (const target of targets) {
+    const identity = `${target.namespace}.${target.name}`;
+    const current = heads.get(identity);
+    if (!current || compareSemverVersions(target.version, current.version) > 0) {
+      heads.set(identity, target);
+    }
+  }
+  return [...heads.values()];
 }
 
 function record(value: unknown): value is Record<string, unknown> {
@@ -245,6 +260,13 @@ export async function publishTufMetadata(
         `INSERT INTO exchange_published_targets(namespace, name, version, digest, bytes)
          VALUES ($1, $2, $3, $4, $5)`,
         [target.namespace, target.name, target.version, target.digest, target.bytes],
+      );
+    }
+    for (const head of publishedHeads(bundle.targets)) {
+      await client.query(
+        `INSERT INTO exchange_published_heads(namespace, name, version)
+         VALUES ($1, $2, $3)`,
+        [head.namespace, head.name, head.version],
       );
     }
     await client.query("COMMIT");

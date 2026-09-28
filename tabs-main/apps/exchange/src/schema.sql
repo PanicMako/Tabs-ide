@@ -151,3 +151,15 @@ CREATE TABLE IF NOT EXISTS exchange_published_targets (
   FOREIGN KEY (namespace, name, version)
     REFERENCES exchange_versions(namespace, name, version)
 );
+
+-- Materialized from the same verified targets bundle as published_targets.
+-- Search reads one semantic-version head per extension instead of ranking
+-- every historical release on each request. Deleting targets cascades heads.
+CREATE TABLE IF NOT EXISTS exchange_published_heads (
+  namespace TEXT NOT NULL,
+  name TEXT NOT NULL,
+  version TEXT NOT NULL,
+  PRIMARY KEY (namespace, name),
+  FOREIGN KEY (namespace, name, version)
+    REFERENCES exchange_published_targets(namespace, name, version) ON DELETE CASCADE
+);

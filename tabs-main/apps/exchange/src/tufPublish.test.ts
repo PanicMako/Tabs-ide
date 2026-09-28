@@ -15,7 +15,7 @@ import {
 } from "@tufjs/models";
 import type { Pool } from "pg";
 import { afterEach, describe, expect, it } from "vitest";
-import { publishTufMetadata, verifyApprovedTargets } from "./tufPublish.ts";
+import { publishTufMetadata, publishedHeads, verifyApprovedTargets } from "./tufPublish.ts";
 
 const temporaryDirectories: string[] = [];
 const targetPath = "extensions/acme/dashboard/1.0.0.tabsext";
@@ -100,6 +100,7 @@ async function fixture() {
   await publishStage(1, true);
   const stored = new Map<string, Buffer>();
   const published: unknown[][] = [];
+  const heads: unknown[][] = [];
   let releaseStatus = "approved";
   const operations: string[] = [];
   const client = {
@@ -127,9 +128,15 @@ async function fixture() {
       if (sql.startsWith("INSERT INTO exchange_tuf_metadata")) {
         stored.set(parameters![0] as string, parameters![1] as Buffer);
       }
-      if (sql.startsWith("DELETE FROM exchange_published_targets")) published.length = 0;
+      if (sql.startsWith("DELETE FROM exchange_published_targets")) {
+        published.length = 0;
+        heads.length = 0;
+      }
       if (sql.startsWith("INSERT INTO exchange_published_targets")) {
         published.push(parameters ?? []);
+      }
+      if (sql.startsWith("INSERT INTO exchange_published_heads")) {
+        heads.push(parameters ?? []);
       }
       return { rows: [] };
     },
@@ -146,6 +153,7 @@ async function fixture() {
     pool,
     stored,
     published,
+    heads,
     operations,
     publishStage,
     revoke: () => {
@@ -155,6 +163,25 @@ async function fixture() {
 }
 
 describe("offline TUF publication gate", () => {
+  it("selects the highest semantic version per signed extension identity", () => {
+    const target = (name: string, version: string) => ({
+      namespace: "acme",
+      name,
+      version,
+      digest,
+      bytes: archive.length,
+    });
+    expect(
+      publishedHeads([
+        target("dashboard", "1.1.0"),
+        target("dashboard", "1.2.0-rc.1"),
+        target("dashboard", "1.0.0"),
+        target("dashboard", "1.2.0"),
+        target("reader", "0.3.0"),
+      ]).map((entry) => `${entry.name}@${entry.version}`),
+    ).toEqual(["dashboard@1.2.0", "reader@0.3.0"]);
+  });
+
   it("rejects signed targets without exact approval", () => {
     const bytes = Buffer.from(
       JSON.stringify({
@@ -177,10 +204,12 @@ describe("offline TUF publication gate", () => {
     expect(await publishTufMetadata(subject.pool, subject.directory, bootstrap)).toBe(4);
     expect(subject.stored.has("timestamp.json")).toBe(true);
     expect(subject.published).toEqual([["acme", "dashboard", "1.0.0", digest, archive.length]]);
+    expect(subject.heads).toEqual([["acme", "dashboard", "1.0.0"]]);
     subject.revoke();
     await subject.publishStage(2, false);
     expect(await publishTufMetadata(subject.pool, subject.directory)).toBe(4);
     expect(subject.published).toEqual([]);
+    expect(subject.heads).toEqual([]);
     await subject.publishStage(1, true);
     await expect(publishTufMetadata(subject.pool, subject.directory)).rejects.toThrow();
     expect(subject.operations.filter((sql) => sql === "COMMIT")).toHaveLength(2);
