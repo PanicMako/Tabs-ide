@@ -1,8 +1,30 @@
+import * as FS from "node:fs";
 import * as Path from "node:path";
 import { describe, expect, it } from "vitest";
 import { runExtensionLogicSpike, runInDisposableLogicWorker } from "./extensionLogicSpike.ts";
 
 describe("disposable QuickJS-in-WASM logic probe", () => {
+  it("runs the integrated Project Companion sample without privileged globals", async () => {
+    const source = FS.readFileSync(
+      Path.join(__dirname, "../../../examples/project-companion-extension/dist/logic.js"),
+      "utf8",
+    );
+    await expect(
+      runExtensionLogicSpike(source, {
+        commandId: "analyze-text",
+        input: { text: "hello world\nsecond line" },
+      }),
+    ).resolves.toEqual({ words: 4, lines: 2, characters: 23 });
+    await expect(
+      runExtensionLogicSpike(source, { commandId: "analyze-text", input: { text: "A\u{1F600}" } }),
+    ).resolves.toEqual({ words: 1, lines: 1, characters: 2 });
+    await expect(
+      runExtensionLogicSpike(source, {
+        commandId: "analyze-text",
+        input: { text: "x".repeat(10_001) },
+      }),
+    ).rejects.toThrow("at most 10,000");
+  });
   it("passes JSON input and output without exposing Node or network APIs", async () => {
     const result = await runExtensionLogicSpike(
       `globalThis.run = (input) => ({

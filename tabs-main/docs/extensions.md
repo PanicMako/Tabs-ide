@@ -60,6 +60,10 @@ shows storage and workspace-read capabilities with separate project grants. The
 two named account profiles using the credential broker. The
 [Calculator example](../examples/calculator-extension/README.md) exercises two
 isolated commands from a full-workspace UI. The
+[Project Companion example](../examples/project-companion-extension/README.md)
+combines named profiles, project-scoped workspace reads, and a pure AI-callable
+text command in one package. Its AI command receives only caller-supplied text,
+not workspace or credential broker access. The
 network capability also requires separate per-project consent. Its initial
 bridge is `tabsExtension.network.getText(url)`: HTTPS GET only, exact declared
 host, no caller headers/cookies, redirect following, or private-address DNS

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Project Companion</title>
+    <link rel="stylesheet" href="./style.css" />
+    <script type="module" src="./app.js"></script>
+  </head>
+  <body>
+    <main>
+      <h1>Project Companion</h1>
+      <p>Each resource needs a separate project grant. Tabs assigns the account profile in Extensions settings.</p>
+      <section aria-labelledby="account-title">
+        <h2 id="account-title">Assigned GitHub account</h2>
+        <button id="load-account" type="button">Load assigned account</button>
+        <p id="account-status" role="status" aria-live="polite">No account loaded.</p>
+      </section>
+      <section aria-labelledby="workspace-title">
+        <h2 id="workspace-title">Project file</h2>
+        <form id="read-form">
+          <label for="relative-path">Text file path relative to this project</label>
+          <input id="relative-path" required maxlength="240" autocomplete="off" placeholder="README.md" />
+          <button type="submit">Read project file</button>
+        </form>
+        <p id="read-status" role="status" aria-live="polite">No file loaded.</p>
+        <pre id="preview" tabindex="0" aria-label="Project file preview"></pre>
+      </section>
+      <section aria-labelledby="analysis-title">
+        <h2 id="analysis-title">Pure text analysis</h2>
+        <p>The command sees only supplied text. AI callers cannot use it to read project files or account credentials.</p>
+        <button id="analyze" type="button" disabled>Analyze loaded text</button>
+        <p id="analysis-status" role="status" aria-live="polite">Read a file first.</p>
+      </section>
+      <p id="error" role="alert" hidden></p>
+    </main>
+  </body>
+</html>
