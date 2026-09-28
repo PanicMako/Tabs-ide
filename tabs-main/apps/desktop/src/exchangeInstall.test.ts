@@ -384,6 +384,28 @@ describe("Exchange install consent", () => {
       await expect(service.prepare(listing)).rejects.toThrow(/downgrade/);
       currentInstallation = { ...installedEntry, digest: "b".repeat(64) };
       await expect(service.prepare(listing)).rejects.toThrow(/cannot change its package digest/);
+      currentInstallation = {
+        ...installedEntry,
+        registryOrigin: "https://another-registry.example",
+      };
+      await expect(service.prepare(listing)).rejects.toThrow(/changing its source or registry/);
+      currentInstallation = { ...installedEntry, source: "development" };
+      await expect(service.prepare(listing)).rejects.toThrow(/changing its source or registry/);
+      currentInstallation = installedEntry;
+      const supersededByRegistry = await service.prepare(listing);
+      currentInstallation = {
+        ...installedEntry,
+        registryOrigin: "https://another-registry.example",
+      };
+      await expect(service.confirm(supersededByRegistry.token)).rejects.toThrow(
+        /changing its source or registry/,
+      );
+      currentInstallation = installedEntry;
+      const supersededBySource = await service.prepare(listing);
+      currentInstallation = { ...installedEntry, source: "development" };
+      await expect(service.confirm(supersededBySource.token)).rejects.toThrow(
+        /changing its source or registry/,
+      );
       currentInstallation = installedEntry;
       const superseded = await service.prepare(listing);
       currentInstallation = {
