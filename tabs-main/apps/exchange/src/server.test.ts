@@ -65,6 +65,7 @@ async function fixture(
         return { rows: [], rowCount: 0 };
       }
       if (sql.includes("INSERT INTO exchange_blocked_digests")) {
+        if (params?.[0] === blockedDigest) return { rows: [], rowCount: 0 };
         return { rows: [{ digest: params?.[0] }], rowCount: 1 };
       }
       if (sql.includes("DELETE FROM exchange_blocked_digests")) {
@@ -707,6 +708,69 @@ describe("Exchange HTTP boundaries", () => {
     expect(ready.actions.some((sql) => sql.includes("DELETE FROM exchange_blocked_digests"))).toBe(
       true,
     );
+  });
+
+  it("imports a bounded reviewer digest batch in one transaction", async () => {
+    const ready = await fixture();
+    const headers = {
+      Origin: config.origin,
+      Cookie: "tabs_exchange_session=opaque",
+      "X-CSRF-Token": csrf,
+      "Content-Type": "application/json",
+    };
+    const entries = [
+      { digest, reason: "Confirmed malicious package" },
+      { digest: "b".repeat(64), reason: "Confirmed malicious asset" },
+    ];
+    const response = await fetch(`${ready.base}/v1/review/blocked-digests/batch`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ entries }),
+    });
+    expect(response.status).toBe(201);
+    expect(await response.json()).toMatchObject({ blocked: 2 });
+    expect(ready.actions.filter((sql) => sql === "BEGIN")).toHaveLength(1);
+    expect(ready.actions.filter((sql) => sql === "COMMIT")).toHaveLength(1);
+    expect(
+      ready.actions.filter((sql) => sql.includes("INSERT INTO exchange_blocked_digest_events")),
+    ).toHaveLength(2);
+
+    const duplicate = await fetch(`${ready.base}/v1/review/blocked-digests/batch`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ entries: [entries[0], entries[0]] }),
+    });
+    expect(duplicate.status).toBe(400);
+    const oversized = await fetch(`${ready.base}/v1/review/blocked-digests/batch`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ entries: Array.from({ length: 101 }, () => entries[0]) }),
+    });
+    expect(oversized.status).toBe(400);
+    expect(ready.actions.filter((sql) => sql === "BEGIN")).toHaveLength(1);
+  });
+
+  it("rolls back a digest batch when any hash is already blocked", async () => {
+    const blocked = "b".repeat(64);
+    const ready = await fixture(true, digest, "review", undefined, blocked);
+    const response = await fetch(`${ready.base}/v1/review/blocked-digests/batch`, {
+      method: "POST",
+      headers: {
+        Origin: config.origin,
+        Cookie: "tabs_exchange_session=opaque",
+        "X-CSRF-Token": csrf,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        entries: [
+          { digest, reason: "First finding" },
+          { digest: blocked, reason: "Existing finding" },
+        ],
+      }),
+    });
+    expect(response.status).toBe(409);
+    expect(ready.actions).toContain("ROLLBACK");
+    expect(ready.actions).not.toContain("COMMIT");
   });
 
   it("audits revocation only for an approved version", async () => {

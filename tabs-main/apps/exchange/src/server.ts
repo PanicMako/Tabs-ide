@@ -44,6 +44,7 @@ const PUBLISHED_RELEASE_JOIN = `JOIN exchange_published_targets p
   ON p.namespace = v.namespace AND p.name = v.name AND p.version = v.version
   AND p.digest = v.digest AND p.bytes = v.bytes`;
 const VERSION_PAGE_SIZE = 100;
+const MAX_BLOCKED_DIGEST_BATCH = 100;
 const MAX_CONCURRENT_UPLOADS = 2;
 const UPLOAD_DEADLINE_MS = 120_000;
 
@@ -120,6 +121,83 @@ async function inTransaction<T>(
   } finally {
     client.release();
   }
+}
+
+interface DigestBlock {
+  readonly digest: string;
+  readonly reason: string;
+}
+
+function parseDigestBlock(value: unknown): DigestBlock {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new HttpError(400, "A SHA-256 digest and reason are required.");
+  }
+  const { digest, reason } = value as Record<string, unknown>;
+  if (
+    typeof digest !== "string" ||
+    !/^[a-f0-9]{64}$/.test(digest) ||
+    typeof reason !== "string" ||
+    !reason.trim() ||
+    reason.length > 2000
+  ) {
+    throw new HttpError(400, "A SHA-256 digest and reason are required.");
+  }
+  return { digest, reason: reason.trim() };
+}
+
+async function blockDigest(
+  client: PoolClient,
+  block: DigestBlock,
+  actorId: string,
+): Promise<number> {
+  const { digest, reason } = block;
+  const inserted = await client.query(
+    `INSERT INTO exchange_blocked_digests(digest, reason, created_by)
+     VALUES ($1, $2, $3) ON CONFLICT DO NOTHING RETURNING digest`,
+    [digest, reason, actorId],
+  );
+  if (inserted.rowCount !== 1) throw new HttpError(409, `Digest ${digest} is already blocked.`);
+  await client.query(
+    `INSERT INTO exchange_blocked_digest_events(digest, action, reason, actor_id)
+     VALUES ($1, 'add', $2, $3)`,
+    [digest, reason, actorId],
+  );
+  const affected = await client.query<{
+    namespace: string;
+    name: string;
+    version: string;
+    digest: string;
+  }>(
+    `SELECT namespace, name, version, digest FROM exchange_versions
+     WHERE status = 'approved' AND (
+       digest = $1 OR EXISTS (
+         SELECT 1 FROM jsonb_each_text(COALESCE(scan_result->'files', '{}'::jsonb)) AS file_hash(file, hash)
+         WHERE file_hash.hash = $1
+       )
+     ) FOR UPDATE`,
+    [digest],
+  );
+  for (const release of affected.rows) {
+    const revocationReason = `Blocked package material: ${reason}`;
+    await client.query(
+      `UPDATE exchange_versions SET status = 'revoked', reviewed_at = now(),
+         reviewed_by = $4, review_reason = $5
+       WHERE namespace = $1 AND name = $2 AND version = $3`,
+      [release.namespace, release.name, release.version, actorId, revocationReason],
+    );
+    await client.query(
+      `INSERT INTO exchange_review_events(namespace, name, version, digest, actor_id, action, reason)
+       VALUES ($1, $2, $3, $4, $5, 'revoke', $6)`,
+      [release.namespace, release.name, release.version, release.digest, actorId, revocationReason],
+    );
+  }
+  for (const identity of new Set(
+    affected.rows.map((release) => `${release.namespace}.${release.name}`),
+  )) {
+    const separator = identity.indexOf(".");
+    await refreshPublishedHead(client, identity.slice(0, separator), identity.slice(separator + 1));
+  }
+  return affected.rows.length;
 }
 
 export function createExchangeServer(
@@ -729,84 +807,42 @@ export function createExchangeServer(
         json(response, 200, { blockedDigests: found.rows });
         return;
       }
-      if (request.method === "POST" && path === "/v1/review/blocked-digests") {
+      if (
+        request.method === "POST" &&
+        (path === "/v1/review/blocked-digests" || path === "/v1/review/blocked-digests/batch")
+      ) {
         const actor = requireMutation(request, await actorFor(request, pool, config), config);
         if (!actor.admin) throw new HttpError(403, "Reviewer access required.");
         const body = await readJson(request);
+        const batch = path.endsWith("/batch");
         if (
-          typeof body.digest !== "string" ||
-          !/^[a-f0-9]{64}$/.test(body.digest) ||
-          typeof body.reason !== "string" ||
-          !body.reason.trim() ||
-          body.reason.length > 2000
+          batch &&
+          (!Array.isArray(body.entries) ||
+            body.entries.length < 1 ||
+            body.entries.length > MAX_BLOCKED_DIGEST_BATCH)
         ) {
-          throw new HttpError(400, "A SHA-256 digest and reason are required.");
+          throw new HttpError(400, "Batch requires 1 to 100 digest entries.");
         }
-        const digest = body.digest;
-        const reason = body.reason.trim();
+        const blocks = batch
+          ? (body.entries as unknown[]).map(parseDigestBlock)
+          : [parseDigestBlock(body)];
+        if (new Set(blocks.map((entry) => entry.digest)).size !== blocks.length) {
+          throw new HttpError(400, "Batch contains a duplicate digest.");
+        }
         const revoked = await inTransaction(pool, async (client) => {
           await client.query("SELECT pg_advisory_xact_lock(1261492744)");
           await client.query("SELECT pg_advisory_xact_lock(7331, 1)");
-          const inserted = await client.query(
-            `INSERT INTO exchange_blocked_digests(digest, reason, created_by)
-             VALUES ($1, $2, $3) ON CONFLICT DO NOTHING RETURNING digest`,
-            [digest, reason, actor.id],
-          );
-          if (inserted.rowCount !== 1) throw new HttpError(409, "Digest is already blocked.");
-          await client.query(
-            `INSERT INTO exchange_blocked_digest_events(digest, action, reason, actor_id)
-             VALUES ($1, 'add', $2, $3)`,
-            [digest, reason, actor.id],
-          );
-          const affected = await client.query<{
-            namespace: string;
-            name: string;
-            version: string;
-            digest: string;
-          }>(
-            `SELECT namespace, name, version, digest FROM exchange_versions
-             WHERE status = 'approved' AND (
-               digest = $1 OR EXISTS (
-                 SELECT 1 FROM jsonb_each_text(COALESCE(scan_result->'files', '{}'::jsonb)) AS file_hash(file, hash)
-                 WHERE file_hash.hash = $1
-               )
-             ) FOR UPDATE`,
-            [digest],
-          );
-          for (const release of affected.rows) {
-            const revocationReason = `Blocked package material: ${reason}`;
-            await client.query(
-              `UPDATE exchange_versions SET status = 'revoked', reviewed_at = now(),
-                 reviewed_by = $4, review_reason = $5
-               WHERE namespace = $1 AND name = $2 AND version = $3`,
-              [release.namespace, release.name, release.version, actor.id, revocationReason],
-            );
-            await client.query(
-              `INSERT INTO exchange_review_events(namespace, name, version, digest, actor_id, action, reason)
-               VALUES ($1, $2, $3, $4, $5, 'revoke', $6)`,
-              [
-                release.namespace,
-                release.name,
-                release.version,
-                release.digest,
-                actor.id,
-                revocationReason,
-              ],
-            );
-          }
-          for (const identity of new Set(
-            affected.rows.map((release) => `${release.namespace}.${release.name}`),
-          )) {
-            const separator = identity.indexOf(".");
-            await refreshPublishedHead(
-              client,
-              identity.slice(0, separator),
-              identity.slice(separator + 1),
-            );
-          }
-          return affected.rows.length;
+          let count = 0;
+          for (const block of blocks) count += await blockDigest(client, block, actor.id);
+          return count;
         });
-        json(response, 201, { digest, status: "blocked", revoked });
+        json(
+          response,
+          201,
+          batch
+            ? { blocked: blocks.length, revoked }
+            : { digest: blocks[0]!.digest, status: "blocked", revoked },
+        );
         return;
       }
       const removeBlockedDigest =

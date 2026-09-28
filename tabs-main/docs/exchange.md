@@ -202,3 +202,11 @@ is audited; it does not restore revoked versions. After any revocation, an
 operator must promptly publish updated signed TUF targets and timestamp
 metadata so desktop clients receive authenticated revocation. This local feed
 does not replace an external malware-intelligence or dependency-advisory feed.
+Reviewers can also import 1-100 vetted entries atomically with
+`POST /v1/review/blocked-digests/batch` and a JSON body of
+`{"entries":[{"digest":"<lowercase SHA-256>","reason":"<reviewed reason>"}]}`.
+The endpoint uses the same authenticated reviewer session, origin and CSRF
+checks as individual blocks, and records each digest and matching revocation
+under one database transaction. A duplicate or already blocked digest rejects
+the entire batch. It does not fetch, verify, or automatically trust an external
+feed; an operator must vet the source and record a reason for each hash.
