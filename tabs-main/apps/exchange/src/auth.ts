@@ -5,6 +5,9 @@ import type { ExchangeConfig } from "./config.ts";
 
 const SESSION_AGE_SECONDS = 60 * 60 * 24 * 7;
 const STATE_AGE_SECONDS = 60 * 10;
+const GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token";
+const GITHUB_USER_URL = "https://api.github.com/user";
+const MAX_GITHUB_JSON_BYTES = 128 * 1024;
 
 function token(): string {
   return Crypto.randomBytes(32).toString("base64url");
@@ -12,6 +15,48 @@ function token(): string {
 
 function hash(value: string): string {
   return Crypto.createHash("sha256").update(value).digest("hex");
+}
+
+function record(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+async function githubJson(url: string, init: RequestInit): Promise<unknown> {
+  const response = await fetch(url, {
+    ...init,
+    redirect: "error",
+    cache: "no-store",
+    credentials: "omit",
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!response.ok || response.url !== url || !response.body) {
+    throw new Error("GitHub authentication request failed or changed destination.");
+  }
+  const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+  if (
+    !contentType.startsWith("application/json") &&
+    !contentType.startsWith("application/vnd.github+json")
+  ) {
+    throw new Error("GitHub authentication returned an unexpected content type.");
+  }
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let bytes = 0;
+  try {
+    for (;;) {
+      const part = await reader.read();
+      if (part.done) break;
+      bytes += part.value.byteLength;
+      if (bytes > MAX_GITHUB_JSON_BYTES) {
+        throw new Error("GitHub authentication response is too large.");
+      }
+      chunks.push(part.value);
+    }
+  } finally {
+    await reader.cancel().catch(() => undefined);
+    reader.releaseLock();
+  }
+  return JSON.parse(Buffer.concat(chunks).toString("utf8")) as unknown;
 }
 
 function cookies(request: IncomingMessage): Record<string, string> {
@@ -71,7 +116,13 @@ export async function completeGithubLogin(
 ): Promise<void> {
   const state = url.searchParams.get("state");
   const code = url.searchParams.get("code");
-  if (!state || !code || state !== cookies(request).tabs_exchange_oauth) {
+  if (
+    !state ||
+    state.length !== 43 ||
+    !code ||
+    code.length > 2048 ||
+    state !== cookies(request).tabs_exchange_oauth
+  ) {
     throw new Error("OAuth state mismatch.");
   }
   const consumed = await pool.query(
@@ -79,7 +130,7 @@ export async function completeGithubLogin(
     [hash(state)],
   );
   if (consumed.rowCount !== 1) throw new Error("OAuth state expired or already used.");
-  const exchange = await fetch("https://github.com/login/oauth/access_token", {
+  const grant = await githubJson(GITHUB_TOKEN_URL, {
     method: "POST",
     headers: { Accept: "application/json", "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -88,22 +139,31 @@ export async function completeGithubLogin(
       code,
       redirect_uri: `${config.origin}/auth/github/callback`,
     }),
-    signal: AbortSignal.timeout(10_000),
   });
-  if (!exchange.ok) throw new Error("GitHub token exchange failed.");
-  const grant = (await exchange.json()) as { access_token?: string };
-  if (!grant.access_token) throw new Error("GitHub did not provide an access token.");
-  const profile = await fetch("https://api.github.com/user", {
+  if (
+    !record(grant) ||
+    typeof grant.access_token !== "string" ||
+    !grant.access_token ||
+    grant.access_token.length > 2048 ||
+    /\s|[\u0000-\u001f\u007f]/.test(grant.access_token)
+  ) {
+    throw new Error("GitHub did not provide a valid access token.");
+  }
+  const user = await githubJson(GITHUB_USER_URL, {
     headers: {
       Accept: "application/vnd.github+json",
       Authorization: `Bearer ${grant.access_token}`,
       "User-Agent": "Tabs-Exchange",
     },
-    signal: AbortSignal.timeout(10_000),
   });
-  if (!profile.ok) throw new Error("GitHub identity lookup failed.");
-  const user = (await profile.json()) as { id?: number; login?: string };
-  if (!Number.isSafeInteger(user.id) || !user.login) {
+  if (
+    !record(user) ||
+    !Number.isSafeInteger(user.id) ||
+    (user.id as number) <= 0 ||
+    typeof user.login !== "string" ||
+    !user.login ||
+    user.login.length > 100
+  ) {
     throw new Error("Invalid GitHub identity response.");
   }
   const id = String(user.id);
