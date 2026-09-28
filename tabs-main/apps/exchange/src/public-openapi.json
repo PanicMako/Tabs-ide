@@ -1,0 +1,303 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Tabs Exchange public registry API",
+    "version": "1.0.0-draft",
+    "description": "Experimental Tabs-native registry discovery and TUF transport API. Catalog JSON, Digest, and ETag are not installation authority. Clients must independently pin a TUF root, verify current signed metadata and target length/hash, then validate the .tabsext archive."
+  },
+  "servers": [
+    {
+      "url": "https://exchange.example",
+      "description": "Replace with the configured registry origin"
+    }
+  ],
+  "paths": {
+    "/v1/extensions": {
+      "get": {
+        "operationId": "searchExtensions",
+        "summary": "Search published extension heads",
+        "description": "Returns at most one highest-semver signed, approved release per namespace/name. Results are discovery hints only.",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "schema": { "type": "string", "maxLength": 100, "default": "" }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 30 }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "Opaque cursor from nextCursor; keep q and limit unchanged.",
+            "schema": { "type": "string", "maxLength": 256 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Search page",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/SearchPage" } }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" }
+        }
+      }
+    },
+    "/v1/extensions/{namespace}/{name}": {
+      "get": {
+        "operationId": "listExtensionVersions",
+        "summary": "List signed, approved versions of one extension",
+        "parameters": [
+          { "$ref": "#/components/parameters/Namespace" },
+          { "$ref": "#/components/parameters/Name" },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "Opaque cursor from nextCursor.",
+            "schema": { "type": "string", "maxLength": 512 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Up to 100 versions in descending submission-time order",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/VersionPage" } }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/v1/extensions/{namespace}/{name}/versions/{version}": {
+      "get": {
+        "operationId": "getExtensionVersion",
+        "summary": "Get exact published release metadata",
+        "parameters": [
+          { "$ref": "#/components/parameters/Namespace" },
+          { "$ref": "#/components/parameters/Name" },
+          { "$ref": "#/components/parameters/Version" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Exact release, not an installation authorization",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ExactRelease" } }
+            }
+          },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/v1/extensions/{namespace}/{name}/versions/{version}/download": {
+      "get": {
+        "operationId": "downloadExtensionVersion",
+        "summary": "Download an approved archive for inspection",
+        "description": "The desktop installer uses the signed TUF target route instead. Digest and ETag alone do not authorize installation.",
+        "parameters": [
+          { "$ref": "#/components/parameters/Namespace" },
+          { "$ref": "#/components/parameters/Name" },
+          { "$ref": "#/components/parameters/Version" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Exact archive bytes",
+            "headers": {
+              "Digest": {
+                "description": "sha-256=<base64 SHA-256>",
+                "schema": { "type": "string" }
+              },
+              "ETag": { "description": "Quoted lowercase SHA-256", "schema": { "type": "string" } }
+            },
+            "content": {
+              "application/octet-stream": { "schema": { "type": "string", "format": "binary" } }
+            }
+          },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/v1/tuf/metadata/{file}": {
+      "get": {
+        "operationId": "getTufMetadata",
+        "summary": "Fetch signed TUF metadata",
+        "description": "Supports root.json, timestamp.json, snapshot.json, targets.json, and numbered root/snapshot/targets files. Clients verify signatures, freshness, rollback protection, and root rotation.",
+        "parameters": [
+          { "name": "file", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Signed TUF JSON bytes",
+            "content": { "application/json": { "schema": { "type": "object" } } }
+          },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/v1/tuf/targets/extensions/{namespace}/{name}/{version}.tabsext": {
+      "get": {
+        "operationId": "getTufTarget",
+        "summary": "Fetch a currently approved signed target",
+        "description": "The filename may have a leading SHA-256 and dot for consistent-snapshot clients. The response is served only while the exact version remains approved and indexed by published signed targets.",
+        "parameters": [
+          { "$ref": "#/components/parameters/Namespace" },
+          { "$ref": "#/components/parameters/Name" },
+          { "$ref": "#/components/parameters/TargetVersion" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Archive bytes; verify against the signed TUF target length and SHA-256",
+            "content": {
+              "application/octet-stream": { "schema": { "type": "string", "format": "binary" } }
+            }
+          },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/v1/tuf/events": {
+      "get": {
+        "operationId": "watchSignedMetadata",
+        "summary": "Best-effort signed-publication wake-up hints",
+        "description": "Optional server-sent events. An event named signed-metadata with data refresh only asks clients to refetch and verify signed metadata. It conveys no trust decision. Reconnect and continue periodic polling when unavailable.",
+        "responses": {
+          "200": {
+            "description": "Event stream",
+            "content": { "text/event-stream": { "schema": { "type": "string" } } }
+          },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "Namespace": {
+        "name": "namespace",
+        "in": "path",
+        "required": true,
+        "schema": { "$ref": "#/components/schemas/Segment" }
+      },
+      "Name": {
+        "name": "name",
+        "in": "path",
+        "required": true,
+        "schema": { "$ref": "#/components/schemas/Segment" }
+      },
+      "Version": {
+        "name": "version",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string", "maxLength": 128 }
+      },
+      "TargetVersion": {
+        "name": "version",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "maxLength": 193,
+          "pattern": "^(?:[a-f0-9]{64}\\.)?[0-9A-Za-z.+-]{1,128}$"
+        }
+      }
+    },
+    "schemas": {
+      "Segment": { "type": "string", "pattern": "^[a-z][a-z0-9-]{1,62}$" },
+      "Sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+      "Manifest": {
+        "type": "object",
+        "description": "A tabs-extension.json manifest validated according to the package specification in docs/extensions.md.",
+        "additionalProperties": true
+      },
+      "Release": {
+        "type": "object",
+        "required": [
+          "namespace",
+          "name",
+          "version",
+          "digest",
+          "manifest",
+          "submitted_at",
+          "verified"
+        ],
+        "properties": {
+          "namespace": { "$ref": "#/components/schemas/Segment" },
+          "name": { "$ref": "#/components/schemas/Segment" },
+          "version": { "type": "string" },
+          "digest": { "$ref": "#/components/schemas/Sha256" },
+          "bytes": { "type": "integer", "minimum": 1, "maximum": 26214400 },
+          "manifest": { "$ref": "#/components/schemas/Manifest" },
+          "submitted_at": { "type": "string", "format": "date-time" },
+          "verified": {
+            "type": "boolean",
+            "description": "Namespace ownership proof reviewed by the registry."
+          }
+        }
+      },
+      "SearchPage": {
+        "type": "object",
+        "required": ["extensions", "nextCursor"],
+        "properties": {
+          "extensions": {
+            "type": "array",
+            "maxItems": 100,
+            "items": { "$ref": "#/components/schemas/Release" }
+          },
+          "nextCursor": { "type": ["string", "null"] }
+        }
+      },
+      "VersionPage": {
+        "type": "object",
+        "required": ["versions", "nextCursor"],
+        "properties": {
+          "versions": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "allOf": [
+                { "$ref": "#/components/schemas/Release" },
+                { "type": "object", "required": ["bytes"] }
+              ]
+            }
+          },
+          "nextCursor": { "type": ["string", "null"] }
+        }
+      },
+      "ExactRelease": {
+        "type": "object",
+        "required": ["namespace", "name", "version", "digest", "bytes", "manifest", "downloadUrl"],
+        "properties": {
+          "namespace": { "$ref": "#/components/schemas/Segment" },
+          "name": { "$ref": "#/components/schemas/Segment" },
+          "version": { "type": "string" },
+          "digest": { "$ref": "#/components/schemas/Sha256" },
+          "bytes": { "type": "integer", "minimum": 1, "maximum": 26214400 },
+          "manifest": { "$ref": "#/components/schemas/Manifest" },
+          "downloadUrl": { "type": "string", "format": "uri" }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "required": ["error"],
+        "properties": { "error": { "type": "string" } }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Invalid cursor or query",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+      },
+      "NotFound": {
+        "description": "Unknown or unpublished resource",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+      },
+      "Unavailable": {
+        "description": "Event subscriber capacity exhausted",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+      }
+    }
+  }
+}

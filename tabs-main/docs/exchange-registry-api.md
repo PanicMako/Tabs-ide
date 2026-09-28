@@ -5,6 +5,8 @@ independent of GitHub OAuth, publisher submission, reviewer administration,
 Render, PostgreSQL, and R2. A fork may implement these public routes with a
 different backend and trust root. This is an experimental v1 shape; do not
 claim compatibility with VS Code `.vsix` or Open VSX registry clients.
+The draft [OpenAPI document](../apps/exchange/src/public-openapi.json) is also
+served at `GET /v1/openapi.json` for client generation and contract checks.
 
 All paths are relative to one configured HTTPS registry origin. Responses use
 JSON unless noted. The official desktop client sends no cookies, rejects HTTP
@@ -20,6 +22,7 @@ JSON to 8 MiB, and validates manifest identity and compatibility. Public catalog
 | `GET /v1/extensions/:namespace/:name/versions/:version/download`   | Archive bytes with SHA-256 `Digest` and `ETag` headers. This URL is convenient for people but does not independently authorize desktop installation.                                                  |
 | `GET /v1/tuf/metadata/:file`                                       | Signed TUF JSON (`root.json`, `timestamp.json`, `snapshot.json`, `targets.json`, and supported numbered role files).                                                                                  |
 | `GET /v1/tuf/targets/extensions/:namespace/:name/:version.tabsext` | Exact approved archive bytes, only while the version remains approved and present in the published signed target index.                                                                               |
+| `GET /v1/tuf/events`                                               | Optional `text/event-stream` with `signed-metadata` refresh hints. Reconnect or poll if unavailable; events are never installation or revocation authority.                                           |
 
 A `release` includes `namespace`, `name`, `version`, lowercase SHA-256
 `digest`, `manifest`, `submitted_at`, and `verified`. The exact package route

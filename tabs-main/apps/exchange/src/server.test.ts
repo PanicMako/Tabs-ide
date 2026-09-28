@@ -287,6 +287,38 @@ afterEach(async () => {
 });
 
 describe("Exchange HTTP boundaries", () => {
+  it("serves a machine-readable public contract without treating catalog data as authority", async () => {
+    const ready = await fixture(true, digest, "approved");
+    const response = await fetch(`${ready.base}/v1/openapi.json`);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("application/json");
+    const contract = await response.json();
+    expect(contract.openapi).toBe("3.1.0");
+    expect(contract.info.description).toContain("not installation authority");
+    expect(Object.keys(contract.paths)).toEqual([
+      "/v1/extensions",
+      "/v1/extensions/{namespace}/{name}",
+      "/v1/extensions/{namespace}/{name}/versions/{version}",
+      "/v1/extensions/{namespace}/{name}/versions/{version}/download",
+      "/v1/tuf/metadata/{file}",
+      "/v1/tuf/targets/extensions/{namespace}/{name}/{version}.tabsext",
+      "/v1/tuf/events",
+    ]);
+  });
+
+  it("rejects search parameters outside the public contract", async () => {
+    const ready = await fixture(true, digest, "approved");
+    for (const query of [
+      "limit=0",
+      "limit=101",
+      "limit=1.5",
+      "limit=nan",
+      `q=${"x".repeat(101)}`,
+    ]) {
+      expect((await fetch(`${ready.base}/v1/extensions?${query}`)).status).toBe(400);
+    }
+  });
+
   it("paginates public search without repeating an extension", async () => {
     const target = Buffer.from("approved");
     const rows = ["alpha", "bravo", "charlie"].map((name) => ({

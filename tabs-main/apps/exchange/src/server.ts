@@ -273,6 +273,10 @@ export function createExchangeServer(
         return;
       }
       const publicFiles: Record<string, { file: string; type: string }> = {
+        "/v1/openapi.json": {
+          file: "public-openapi.json",
+          type: "application/json; charset=utf-8",
+        },
         "/publisher": {
           file: "publisher.html",
           type: "text/html; charset=utf-8",
@@ -561,8 +565,13 @@ export function createExchangeServer(
         return;
       }
       if (request.method === "GET" && path === "/v1/extensions") {
-        const query = (url.searchParams.get("q") ?? "").slice(0, 100);
-        const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit")) || 30));
+        const query = url.searchParams.get("q") ?? "";
+        if (query.length > 100) throw new HttpError(400, "Search query is too long.");
+        const rawLimit = url.searchParams.get("limit");
+        const limit = rawLimit === null ? 30 : Number(rawLimit);
+        if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
+          throw new HttpError(400, "Invalid search limit.");
+        }
         const cursorValue = url.searchParams.get("cursor");
         const cursor = cursorValue === null ? null : decodeSearchCursor(cursorValue);
         if (cursorValue !== null && !cursor) throw new HttpError(400, "Invalid search cursor.");
@@ -577,7 +586,7 @@ export function createExchangeServer(
              AND ($2::text IS NULL OR (v.namespace, v.name) > ($2::text, $3::text))
            ORDER BY v.namespace, v.name LIMIT $4`,
           [
-            `%${query.replaceAll("%", "\\%").replaceAll("_", "\\_")}%`,
+            `%${query.replaceAll("\\", "\\\\").replaceAll("%", "\\%").replaceAll("_", "\\_")}%`,
             cursor?.namespace ?? null,
             cursor?.name ?? null,
             limit + 1,
