@@ -13,9 +13,9 @@ to `false`. The publisher terms are a draft. The scanner does not include a
 malware intelligence feed, and its npm advisory checks cannot identify every
 dependency embedded in bundled assets. The reviewer view shows bounded text
 diffs but cannot display large or binary files, so reviewers must inspect the
-exact archive separately. A production root signing ceremony and push-based
-revocation notification are not implemented; desktop relies on periodic signed
-status checks.
+exact archive separately. A production root signing ceremony is not implemented.
+Signed-metadata events are only best-effort wake-up hints; desktop still relies
+on periodic signed status checks when events are missed.
 Experimental permission-neutral automatic updates are available only with an
 independently pinned trust root and explicit desktop opt-in. Desktop builds can
 display compatible approved listings from
@@ -152,6 +152,12 @@ included in signed targets. Public routes suppress revoked packages immediately,
 but installed clients cannot authenticate that revocation until fresh TUF
 metadata removes those targets; reviewers must treat a nonzero revocation
 backlog as urgent operator work.
+Successful signed publication sends a PostgreSQL notification to API instances,
+which broadcast a hint on `GET /v1/tuf/events` using server-sent events. The
+stream carries no package identity or trust assertion. Desktop reconnects and
+refreshes its pinned TUF metadata after a hint; its minute polling remains the
+fallback. Revoke decisions alone do not emit an authenticated client signal:
+publish fresh signed targets promptly so installed clients can verify removal.
 
 The worker scans queued packages, verifies stored bytes, extracts with bounded
 ZIP validation, and writes a scan result. It also re-downloads and verifies the

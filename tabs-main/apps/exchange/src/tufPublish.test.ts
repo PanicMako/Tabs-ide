@@ -215,5 +215,8 @@ describe("offline TUF publication gate", () => {
     await expect(publishTufMetadata(subject.pool, subject.directory)).rejects.toThrow();
     expect(subject.operations.filter((sql) => sql === "COMMIT")).toHaveLength(2);
     expect(subject.operations.filter((sql) => sql === "ROLLBACK")).toHaveLength(2);
+    expect(
+      subject.operations.filter((sql) => sql.includes("pg_notify('exchange_signed_metadata'")),
+    ).toHaveLength(2);
   });
 });

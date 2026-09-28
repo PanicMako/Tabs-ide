@@ -89,6 +89,7 @@ import { ExtensionAiBrokerServer } from "./extensionAiBrokerServer";
 import { configuredExchangeOrigin, discoverExchangePage } from "./exchangeCatalog";
 import { ExchangeUpdateMonitor } from "./exchangeUpdateMonitor";
 import { ExchangeAutomaticUpdater } from "./exchangeAutomaticUpdater";
+import { ExchangeSignedMetadataHints } from "./exchangeSignedMetadataHints";
 import { configuredExchangeTrust, ExchangeInstallService } from "./exchangeInstall";
 import { resolveUserDataPathWithFs } from "./userDataPath";
 import { NativeViewStackCoordinator } from "./nativeViewStackCoordinator";
@@ -490,11 +491,13 @@ let exchangeInstallService: ExchangeInstallService | null = null;
 let exchangeStatusTimer: ReturnType<typeof setInterval> | null = null;
 let exchangeUpdateTimer: ReturnType<typeof setInterval> | null = null;
 let exchangeUpdateStartupTimer: ReturnType<typeof setTimeout> | null = null;
+let exchangeSignedMetadataHints: ExchangeSignedMetadataHints | null = null;
 app.on("will-quit", () => {
   extensionAiBrokerServer.close();
   if (exchangeStatusTimer) clearInterval(exchangeStatusTimer);
   if (exchangeUpdateTimer) clearInterval(exchangeUpdateTimer);
   if (exchangeUpdateStartupTimer) clearTimeout(exchangeUpdateStartupTimer);
+  exchangeSignedMetadataHints?.stop();
   exchangeInstallService?.dispose();
 });
 function requireExchangeInstallService(): ExchangeInstallService {
@@ -4327,6 +4330,32 @@ async function bootstrap(): Promise<void> {
   writeDesktopLogHeader("bootstrap backend start requested");
   mainWindow = createWindow();
   void checkAllInstalledExchangeStatuses();
+  if (process.env.TABS_EXCHANGE_TRUST_ROOT_PATH && process.env.TABS_EXCHANGE_ORIGIN) {
+    try {
+      const hintOrigin = configuredExchangeOrigin(
+        process.env.TABS_EXCHANGE_ORIGIN,
+        !app.isPackaged,
+      );
+      if (!hintOrigin) throw new Error("Exchange registry origin is unavailable.");
+      exchangeSignedMetadataHints = new ExchangeSignedMetadataHints(
+        hintOrigin,
+        () => {
+          void checkAllInstalledExchangeStatuses();
+          checkAllInstalledExchangeUpdates();
+        },
+        (error) => {
+          writeDesktopLogHeader(
+            `Exchange signed-metadata hints failed: ${formatErrorMessage(error)}`,
+          );
+        },
+      );
+      exchangeSignedMetadataHints.start();
+    } catch (error) {
+      writeDesktopLogHeader(
+        `Exchange signed-metadata hints unavailable: ${formatErrorMessage(error)}`,
+      );
+    }
+  }
   exchangeStatusTimer = setInterval(() => {
     void checkAllInstalledExchangeStatuses();
   }, 60_000);

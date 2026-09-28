@@ -241,6 +241,8 @@ export async function publishTufMetadata(
       );
     }
     await insertPublishedHeads(client, bundle.targets);
+    // PostgreSQL delivers this only after COMMIT; subscribers still verify TUF themselves.
+    await client.query("SELECT pg_notify('exchange_signed_metadata', 'refresh')");
     await client.query("COMMIT");
     return bundle.metadata.size;
   } catch (error) {

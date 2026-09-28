@@ -18,6 +18,7 @@ import { boundedObject } from "./storage.ts";
 import { refreshPublishedHead } from "./publishedHeads.ts";
 import { decodeSearchCursor, encodeSearchCursor } from "./searchCursor.ts";
 import { decodeVersionCursor, encodeVersionCursor } from "./versionCursor.ts";
+import { SignedMetadataEvents } from "./signedMetadataEvents.ts";
 
 const PACKAGE_ROUTE = /^\/v1\/extensions\/([a-z][a-z0-9-]{1,62})\/([a-z][a-z0-9-]{1,62})$/;
 const VERSION_ROUTE =
@@ -204,12 +205,19 @@ export function createExchangeServer(
   pool: Pool,
   storage: S3Client,
   config: ExchangeConfig,
+  signedMetadataEvents = new SignedMetadataEvents(),
 ): Http.Server {
   let activeUploads = 0;
   return Http.createServer(async (request, response) => {
     try {
       const url = new URL(request.url ?? "/", config.origin);
       const path = url.pathname;
+      if (request.method === "GET" && path === "/v1/tuf/events") {
+        if (!signedMetadataEvents.subscribe(response)) {
+          throw new HttpError(503, "Too many signed-metadata listeners.");
+        }
+        return;
+      }
       const tufMetadata = request.method === "GET" ? TUF_METADATA_ROUTE.exec(path) : null;
       if (tufMetadata) {
         const name = `${tufMetadata[1]}.json`;
@@ -1071,7 +1079,11 @@ export function createExchangeServer(
 }
 
 if (import.meta.main) {
-  const server = createExchangeServer(createPool(), createStorage(), loadConfig());
+  const pool = createPool();
+  const signedMetadataEvents = new SignedMetadataEvents();
+  const server = createExchangeServer(pool, createStorage(), loadConfig(), signedMetadataEvents);
+  signedMetadataEvents.start(pool);
+  server.on("close", () => signedMetadataEvents.stop());
   const port = Number(process.env.PORT ?? "8787");
   server.listen(port, "0.0.0.0", () =>
     process.stdout.write(`Tabs Exchange listening on ${port}\n`),

@@ -216,6 +216,10 @@ installed Exchange versions against fresh signed metadata at startup, every
 minute, after system resume, and before activation. A version missing from signed targets, or
 whose signed digest changed, is persistently marked revoked: its active view
 closes, toolbar contributions disappear, and Settings explains the status.
+On HTTPS registries with a configured trust root, signed-publication events
+also prompt a fresh status and update check. These unsigned events only wake
+the client; pinned TUF metadata still determines trust, and minute polling
+continues when the event connection is unavailable.
 Transport outages retain the last known status; invalid or expired metadata
 does not qualify as offline. Revocation is checked every minute, including
 while a view is active, rather than continuously. A newly installed Exchange or

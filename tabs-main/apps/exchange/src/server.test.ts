@@ -7,6 +7,7 @@ import type { S3Client } from "@aws-sdk/client-s3";
 import { afterEach, describe, expect, it } from "vitest";
 import { createExchangeServer } from "./server.ts";
 import type { ExchangeConfig } from "./config.ts";
+import { SignedMetadataEvents } from "./signedMetadataEvents.ts";
 
 const servers: Array<ReturnType<typeof createExchangeServer>> = [];
 const digest = "a".repeat(64);
@@ -34,6 +35,7 @@ async function fixture(
   blockedDigest?: string,
   catalogRows?: Array<Record<string, unknown>>,
   allowUploads = false,
+  signedMetadataEvents?: SignedMetadataEvents,
 ) {
   const actions: string[] = [];
   const publicQueries: string[] = [];
@@ -268,6 +270,7 @@ async function fixture(
     pool,
     storage,
     allowUploads ? { ...config, publishingEnabled: true } : config,
+    signedMetadataEvents,
   );
   servers.push(server);
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -602,6 +605,36 @@ describe("Exchange HTTP boundaries", () => {
     expect(await parser.text()).toContain("parseBlockedDigestBatch");
     const create = await fetch(`${base}/v1/namespaces`, { method: "POST" });
     expect(create.status).toBe(503);
+  });
+
+  it("streams unsigned hints only after signed metadata publication", async () => {
+    const events = new SignedMetadataEvents();
+    const ready = await fixture(
+      true,
+      digest,
+      "review",
+      undefined,
+      undefined,
+      undefined,
+      false,
+      events,
+    );
+    const controller = new AbortController();
+    const response = await fetch(`${ready.base}/v1/tuf/events`, { signal: controller.signal });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("text/event-stream");
+    const reader = response.body!.getReader();
+    try {
+      const initial = await reader.read();
+      expect(new TextDecoder().decode(initial.value)).toContain("retry: 10000");
+      const next = reader.read();
+      events.publishHint();
+      expect(new TextDecoder().decode((await next).value)).toContain("event: signed-metadata");
+    } finally {
+      controller.abort();
+      await reader.cancel().catch(() => undefined);
+      events.stop();
+    }
   });
 
   it("requires reviewer authentication and exact digest", async () => {
