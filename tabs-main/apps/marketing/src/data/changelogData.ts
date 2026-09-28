@@ -21,16 +21,45 @@ export interface ChangelogRelease {
   }[];
 }
 
-export const TOTAL_TAGS_COUNT = 169;
+export const TOTAL_TAGS_COUNT = 170;
 
 export const changelogData: ChangelogRelease[] = [
   {
-    tag: "v1.3.26",
-    title:
-      "Font picker selection highlight and persistent typography synchronization",
+    tag: "v1.3.27",
+    title: "Orphaned provider process cleanup and theme typography combination persistence",
     date: "September 28, 2026",
     shortDate: "Sep 28",
     isLatest: true,
+    type: "patch",
+    summary:
+      "Tabs automatically detects and shuts down orphaned local provider process groups when the parent process exits unexpectedly, and preserves selected font preset combinations when client settings update.",
+    highlights: [
+      "Adds a process watchdog to monitor local provider servers, terminating detached provider process groups cleanly if the Tabs backend process exits unexpectedly.",
+      "Selected typography presets in Themes settings now take precedence when restoring saved configurations, preventing older client font settings from reverting your active font combo.",
+      "Stale development instance termination now tracks complete process groups and cleans up orphaned OpenCode and Kilo server instances across worktrees.",
+    ],
+    categories: [
+      {
+        title: "Reliability",
+        items: [
+          "Detached provider process watchdog to stop orphaned provider process groups when backend exits.",
+          "Development cleanup now terminates full process groups for local provider servers across worktrees.",
+        ],
+      },
+      {
+        title: "Appearance",
+        items: [
+          "Preserve selected font combination presets when restoring saved client configurations.",
+        ],
+      },
+    ],
+  },
+  {
+    tag: "v1.3.26",
+    title: "Font picker selection highlight and persistent typography synchronization",
+    date: "September 28, 2026",
+    shortDate: "Sep 28",
+    isLatest: false,
     type: "patch",
     summary:
       "Tabs restores the active selection highlight for typography presets in Themes settings and synchronizes font family preferences to persistent storage.",

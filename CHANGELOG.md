@@ -2,6 +2,14 @@
 
 All notable changes to Tabs IDE will be documented in this file.
 
+## [v1.3.27] - 2026-09-28
+
+### Orphaned provider process cleanup and theme typography combination persistence
+
+- **Detached provider process watchdog**: Adds a process watchdog to monitor local provider servers, terminating detached provider process groups cleanly if the Tabs backend process exits unexpectedly.
+- **Font combination preference persistence**: Selected typography presets in Themes settings now take precedence when restoring saved configurations, preventing older client font settings from reverting your active font combo.
+- **Development instance and provider process cleanup**: Stale development instance termination now tracks complete process groups and cleans up orphaned OpenCode and Kilo server instances across worktrees.
+
 ## [v1.3.26] - 2026-09-28
 
 ### Font picker selection highlight and persistent typography synchronization
