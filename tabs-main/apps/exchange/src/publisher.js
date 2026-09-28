@@ -205,6 +205,23 @@ async function refreshOperations() {
     `Worker heartbeat: ${queue.worker_recently_seen ? "recent" : "missing or stale"}. Last heartbeat: ${queue.last_worker_heartbeat_at ?? "none"}. Last completed scan: ${queue.last_scan_at ?? "none"}. ` +
     `Queued: ${queue.queued}. Scanning: ${queue.scanning}. Stale scans: ${queue.stale_scans}. Awaiting review: ${queue.awaiting_review}. ` +
     `Oldest queued: ${queue.oldest_queued_at ?? "none"}. Last review: ${queue.last_reviewed_at ?? "none"}.`;
+  document.getElementById("signing-backlog").textContent =
+    (queue.pending_signed_revocations
+      ? `${queue.pending_signed_revocations} revoked version(s) still listed in published signed targets; publish updated TUF metadata promptly. `
+      : "No revocations await signed publication. ") +
+    `${queue.awaiting_signed_publication} approved version(s) await signed publication. ` +
+    `Last signed publication: ${queue.last_signed_publication_at ?? "none"}.`;
+  const pending = document.getElementById("pending-revocations");
+  pending.replaceChildren();
+  for (const entry of data.pendingRevocations) {
+    item(
+      pending,
+      `${entry.namespace}.${entry.name}@${entry.version}: SHA-256 ${entry.digest}. Revoked at ${entry.reviewed_at ?? "unknown"}.`,
+    );
+  }
+  if (queue.pending_signed_revocations > data.pendingRevocations.length) {
+    item(pending, "Only the oldest 100 pending revocations are shown.");
+  }
 }
 
 async function refreshReview() {
@@ -365,7 +382,7 @@ async function refreshReview() {
           announce(
             `${entry.namespace}.${entry.name}@${entry.version} ${action === "approve" ? "approved" : "rejected"}.`,
           );
-          await refreshReview();
+          await Promise.all([refreshReview(), refreshOperations()]);
         } catch (error) {
           announce(String(error), true);
         }
@@ -414,7 +431,7 @@ async function refreshApproved() {
           ),
         );
         announce(`${entry.namespace}.${entry.name}@${entry.version} revoked.`);
-        await refreshApproved();
+        await Promise.all([refreshApproved(), refreshOperations()]);
       } catch (error) {
         announce(String(error), true);
       }
@@ -540,7 +557,7 @@ document.getElementById("blocked-digest-form").addEventListener("submit", async 
       mutation("POST", JSON.stringify({ digest, reason }), "application/json"),
     );
     announce(`Digest blocked. ${result.revoked} approved version(s) revoked.`);
-    await Promise.all([refreshBlockedDigests(), refreshApproved()]);
+    await Promise.all([refreshBlockedDigests(), refreshApproved(), refreshOperations()]);
   } catch (error) {
     announce(String(error), true);
   }

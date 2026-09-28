@@ -97,13 +97,22 @@ async function fixture(
               scanning: 1,
               stale_scans: 1,
               awaiting_review: 3,
+              awaiting_signed_publication: 2,
+              pending_signed_revocations: 1,
               oldest_queued_at: "2026-09-28T00:00:00Z",
               last_reviewed_at: null,
               last_worker_heartbeat_at: "2026-09-28T00:00:05Z",
               last_scan_at: "2026-09-28T00:00:04Z",
               worker_recently_seen: true,
+              last_signed_publication_at: "2026-09-27T00:00:00Z",
             },
           ],
+          rowCount: 1,
+        };
+      }
+      if (sql.includes("WHERE v.status = 'revoked' ORDER BY v.reviewed_at")) {
+        return {
+          rows: [{ namespace: "example", name: "dashboard", version: "1.0.0", digest }],
           rowCount: 1,
         };
       }
@@ -237,6 +246,9 @@ describe("Exchange HTTP boundaries", () => {
     const path = `${ready.base}/v1/review/operations`;
     expect((await fetch(path)).status).toBe(403);
     expect(ready.publicQueries.some((sql) => sql.includes("AS stale_scans"))).toBe(false);
+    expect(
+      ready.publicQueries.some((sql) => sql.includes("WHERE v.status = 'revoked' ORDER BY")),
+    ).toBe(false);
     const response = await fetch(path, { headers: { Cookie: "tabs_exchange_session=opaque" } });
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
@@ -245,10 +257,16 @@ describe("Exchange HTTP boundaries", () => {
         scanning: 1,
         stale_scans: 1,
         awaiting_review: 3,
+        awaiting_signed_publication: 2,
+        pending_signed_revocations: 1,
         worker_recently_seen: true,
       },
+      pendingRevocations: [{ namespace: "example", name: "dashboard", digest }],
     });
     expect(ready.publicQueries.filter((sql) => sql.includes("AS stale_scans"))).toHaveLength(1);
+    expect(
+      ready.publicQueries.filter((sql) => sql.includes("WHERE v.status = 'revoked' ORDER BY")),
+    ).toHaveLength(1);
   });
   it("restricts exact extension review history to admins", async () => {
     const ready = await fixture();

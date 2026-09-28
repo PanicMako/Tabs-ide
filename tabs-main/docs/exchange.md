@@ -126,7 +126,7 @@ finishes; invalid archives receive HTTP 400.
 | `GET /v1/publisher/submissions`                       | Publisher submission status                                                |
 | `POST /v1/publisher/:namespace/:name/versions`        | Namespace owner/contributor upload                                         |
 | `GET /v1/review/queue`                                | Admin reviewer                                                             |
-| `GET /v1/review/operations`                           | Admin-only queue counts, worker heartbeat, and review timestamps           |
+| `GET /v1/review/operations`                           | Admin-only queue, worker heartbeat, and signed-publication backlog         |
 | `GET /v1/review/:namespace/:name/history`             | Admin-only prior versions, uploader names, and review-decision audit trail |
 | `POST /v1/review/:namespace/:name/:version`           | Admin decision: `approve`, `reject`, or `revoke`, with digest and reason   |
 
@@ -137,6 +137,13 @@ stale heartbeat warrants investigation; a recent heartbeat does not prove that
 all scans or external advisory services are healthy. Operators should alert on
 this signal and queue age rather than relying on the API's database-only
 `/healthz` check.
+The same operations view flags revoked versions still present in the last
+published signed targets role and lists the first 100 exact package digests
+requiring a new signed publication. It also counts approved versions not yet
+included in signed targets. Public routes suppress revoked packages immediately,
+but installed clients cannot authenticate that revocation until fresh TUF
+metadata removes those targets; reviewers must treat a nonzero revocation
+backlog as urgent operator work.
 
 The worker scans queued packages, verifies stored bytes, extracts with bounded
 ZIP validation, and writes a scan result. It also re-downloads and verifies the

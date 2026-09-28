@@ -613,18 +613,30 @@ export function createExchangeServer(
         const actor = await actorFor(request, pool, config);
         if (!actor?.admin) throw new HttpError(403, "Reviewer access required.");
         const found = await pool.query(
-          `SELECT count(*) FILTER (WHERE status = 'queued')::int AS queued,
-                  count(*) FILTER (WHERE status = 'scanning')::int AS scanning,
-                  count(*) FILTER (WHERE status = 'scanning' AND scan_claimed_at < now() - interval '10 minutes')::int AS stale_scans,
-                  count(*) FILTER (WHERE status = 'review')::int AS awaiting_review,
-                  min(submitted_at) FILTER (WHERE status = 'queued') AS oldest_queued_at,
-                  max(reviewed_at) AS last_reviewed_at,
+          `SELECT count(*) FILTER (WHERE v.status = 'queued')::int AS queued,
+                  count(*) FILTER (WHERE v.status = 'scanning')::int AS scanning,
+                  count(*) FILTER (WHERE v.status = 'scanning' AND v.scan_claimed_at < now() - interval '10 minutes')::int AS stale_scans,
+                  count(*) FILTER (WHERE v.status = 'review')::int AS awaiting_review,
+                  count(*) FILTER (WHERE v.status = 'approved' AND p.digest IS NULL)::int AS awaiting_signed_publication,
+                  count(*) FILTER (WHERE v.status = 'revoked' AND p.digest IS NOT NULL)::int AS pending_signed_revocations,
+                  min(v.submitted_at) FILTER (WHERE v.status = 'queued') AS oldest_queued_at,
+                  max(v.reviewed_at) AS last_reviewed_at,
                   (SELECT max(heartbeat_at) FROM exchange_worker_heartbeats) AS last_worker_heartbeat_at,
                   (SELECT max(last_scan_at) FROM exchange_worker_heartbeats) AS last_scan_at,
-                  EXISTS (SELECT 1 FROM exchange_worker_heartbeats WHERE heartbeat_at >= now() - interval '15 seconds') AS worker_recently_seen
-           FROM exchange_versions`,
+                  EXISTS (SELECT 1 FROM exchange_worker_heartbeats WHERE heartbeat_at >= now() - interval '15 seconds') AS worker_recently_seen,
+                  (SELECT max(published_at) FROM exchange_tuf_metadata WHERE name = 'timestamp.json') AS last_signed_publication_at
+           FROM exchange_versions v LEFT JOIN exchange_published_targets p
+             ON p.namespace = v.namespace AND p.name = v.name AND p.version = v.version
+             AND p.digest = v.digest AND p.bytes = v.bytes`,
         );
-        json(response, 200, { queue: found.rows[0] });
+        const pending = await pool.query(
+          `SELECT v.namespace, v.name, v.version, v.digest, v.reviewed_at
+           FROM exchange_versions v JOIN exchange_published_targets p
+             ON p.namespace = v.namespace AND p.name = v.name AND p.version = v.version
+             AND p.digest = v.digest AND p.bytes = v.bytes
+           WHERE v.status = 'revoked' ORDER BY v.reviewed_at ASC LIMIT 100`,
+        );
+        json(response, 200, { queue: found.rows[0], pendingRevocations: pending.rows });
         return;
       }
       const reviewHistory = request.method === "GET" ? REVIEW_HISTORY_ROUTE.exec(path) : null;
