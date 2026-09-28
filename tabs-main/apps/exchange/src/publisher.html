@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Publish an Extension - Tabs Exchange</title>
     <link rel="stylesheet" href="/publisher.css" />
-    <script src="/publisher.js" defer></script>
+    <script src="/publisher.js" type="module"></script>
   </head>
   <body>
     <a class="skip" href="#main">Skip to content</a>
@@ -159,6 +159,24 @@
             <label for="blocked-digest-reason">Blocking reason</label>
             <input id="blocked-digest-reason" required maxlength="2000" />
             <button type="submit">Block digest and revoke matches</button>
+          </form>
+          <h3>Import a vetted hash list</h3>
+          <p id="blocked-digest-batch-help">
+            Enter one lowercase SHA-256 digest and its reason per line, separated by a space or tab.
+            Review the source before importing. All entries succeed together, or none are saved. Up
+            to 100 entries are allowed.
+          </p>
+          <form id="blocked-digest-batch-form">
+            <label for="blocked-digest-batch-value">Digests and reasons</label>
+            <textarea
+              id="blocked-digest-batch-value"
+              aria-describedby="blocked-digest-batch-help"
+              rows="8"
+              required
+              spellcheck="false"
+              autocomplete="off"
+            ></textarea>
+            <button type="submit">Block vetted digests and revoke matches</button>
           </form>
           <button id="refresh-blocked-digests" type="button">Refresh blocked digests</button>
           <ul id="blocked-digests"></ul>

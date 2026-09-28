@@ -277,6 +277,10 @@ export function createExchangeServer(
           file: "publisher.js",
           type: "text/javascript; charset=utf-8",
         },
+        "/publisherBatch.js": {
+          file: "publisherBatch.js",
+          type: "text/javascript; charset=utf-8",
+        },
         "/publisher.css": {
           file: "publisher.css",
           type: "text/css; charset=utf-8",

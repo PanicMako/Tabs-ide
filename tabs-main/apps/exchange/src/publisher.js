@@ -1,3 +1,5 @@
+import { parseBlockedDigestBatch } from "./publisherBatch.js";
+
 const status = document.getElementById("status");
 
 function announce(message, error = false) {
@@ -557,6 +559,23 @@ document.getElementById("blocked-digest-form").addEventListener("submit", async 
       mutation("POST", JSON.stringify({ digest, reason }), "application/json"),
     );
     announce(`Digest blocked. ${result.revoked} approved version(s) revoked.`);
+    await Promise.all([refreshBlockedDigests(), refreshApproved(), refreshOperations()]);
+  } catch (error) {
+    announce(String(error), true);
+  }
+});
+
+document.getElementById("blocked-digest-batch-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const input = document.getElementById("blocked-digest-batch-value");
+  try {
+    const body = parseBlockedDigestBatch(input.value);
+    const result = await requestJson(
+      "/v1/review/blocked-digests/batch",
+      mutation("POST", body, "application/json"),
+    );
+    input.value = "";
+    announce(`${result.blocked} digest(s) blocked. ${result.revoked} approved version(s) revoked.`);
     await Promise.all([refreshBlockedDigests(), refreshApproved(), refreshOperations()]);
   } catch (error) {
     announce(String(error), true);

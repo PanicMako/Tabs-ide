@@ -33,6 +33,7 @@ form {
 }
 input:not([type="checkbox"]),
 select,
+textarea,
 button,
 .button {
   font: inherit;
@@ -40,7 +41,8 @@ button,
   border-radius: 0.35rem;
 }
 input:not([type="checkbox"]),
-select {
+select,
+textarea {
   color: #f9fafb;
   background: #1f2937;
   border: 1px solid #9ca3af;

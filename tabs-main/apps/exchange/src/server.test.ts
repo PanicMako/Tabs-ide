@@ -592,7 +592,14 @@ describe("Exchange HTTP boundaries", () => {
     const { base } = await fixture();
     const page = await fetch(`${base}/publisher`);
     expect(page.status).toBe(200);
-    expect(await page.text()).toContain('aria-live="polite"');
+    const html = await page.text();
+    expect(html).toContain('aria-live="polite"');
+    expect(html).toContain('id="blocked-digest-batch-value"');
+    expect(html).toContain('src="/publisher.js" type="module"');
+    const parser = await fetch(`${base}/publisherBatch.js`);
+    expect(parser.status).toBe(200);
+    expect(parser.headers.get("content-type")).toContain("text/javascript");
+    expect(await parser.text()).toContain("parseBlockedDigestBatch");
     const create = await fetch(`${base}/v1/namespaces`, { method: "POST" });
     expect(create.status).toBe(503);
   });

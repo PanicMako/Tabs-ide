@@ -205,6 +205,8 @@ does not replace an external malware-intelligence or dependency-advisory feed.
 Reviewers can also import 1-100 vetted entries atomically with
 `POST /v1/review/blocked-digests/batch` and a JSON body of
 `{"entries":[{"digest":"<lowercase SHA-256>","reason":"<reviewed reason>"}]}`.
+The reviewer portal accepts the same entries as one digest and reason per line,
+separated by whitespace, and validates duplicates and body size before upload.
 The endpoint uses the same authenticated reviewer session, origin and CSRF
 checks as individual blocks, and records each digest and matching revocation
 under one database transaction. A duplicate or already blocked digest rejects
