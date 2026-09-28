@@ -206,6 +206,9 @@ and download recheck the bytes.
 | `GET /v1/publisher/namespaces`                        | Publisher namespace membership                                           |
 | `GET /v1/publisher/submissions`                       | Publisher submission status                                              |
 | `POST /v1/publisher/:namespace/:name/versions`        | Namespace owner/contributor upload                                       |
+| `POST /v1/namespaces/:namespace/members`              | Owner invites a signed-in GitHub account for 14 days                     |
+| `GET /v1/publisher/invitations`                       | Account's pending, unexpired namespace invitations                       |
+| `POST /v1/publisher/invitations/:id/accept`           | Recipient accepts and becomes an owner or contributor                    |
 | `GET /v1/review/queue`                                | Admin reviewer                                                           |
 | `GET /v1/review/operations`                           | Admin-only queue, worker heartbeat, and signed-publication backlog       |
 | `GET /v1/review/:namespace/:name/history`             | Admin-only prior versions, uploader names, and review-action audit trail |
@@ -216,6 +219,13 @@ Rescan is available only while an exact digest awaits review. It clears the old
 scan result, returns the same immutable submission to the worker queue, and
 records the reviewer and reason in history. It does not approve or publish the
 version; the reviewer must inspect the new result and make a separate decision.
+
+Namespace invitations are bound to the recipient's GitHub numeric account ID.
+Sending an invitation does not grant publishing access; the recipient must
+sign in and accept it within 14 days. Existing members cannot be re-invited,
+and a second pending invitation for the same namespace and account is rejected.
+Acceptance requires the current publisher terms version, recorded with the
+invitation, before membership grants upload rights.
 
 The worker writes a database heartbeat every five seconds, including while a
 scan is running. The reviewer operations view treats a heartbeat within fifteen

@@ -48,8 +48,11 @@
           </form>
           <h3>Your namespaces</h3>
           <ul id="namespaces"></ul>
-          <h3>Add a namespace member</h3>
-          <p>The member must have signed in to the Exchange before they can be added.</p>
+          <h3>Invite a namespace member</h3>
+          <p>
+            The recipient must have signed in to the Exchange. Their publishing access begins only
+            after they accept the invitation, which expires after 14 days.
+          </p>
           <form id="member-form">
             <label for="member-namespace">Namespace you own</label>
             <input
@@ -71,8 +74,11 @@
               <option value="contributor">Contributor</option>
               <option value="owner">Owner</option>
             </select>
-            <button type="submit">Add member</button>
+            <button type="submit">Send invitation</button>
           </form>
+          <h3>Invitations for you</h3>
+          <button id="refresh-invitations" type="button">Refresh invitations</button>
+          <ul id="invitations" aria-label="Pending namespace invitations"></ul>
         </section>
         <section aria-labelledby="upload-title">
           <h2 id="upload-title">Submit a package</h2>

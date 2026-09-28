@@ -32,6 +32,27 @@ CREATE TABLE IF NOT EXISTS exchange_namespace_members (
   PRIMARY KEY (namespace, user_id)
 );
 
+CREATE TABLE IF NOT EXISTS exchange_namespace_invitations (
+  id BIGSERIAL PRIMARY KEY,
+  namespace TEXT NOT NULL REFERENCES exchange_namespaces(name),
+  user_id BIGINT NOT NULL REFERENCES exchange_users(id),
+  role TEXT NOT NULL CHECK (role IN ('owner', 'contributor')),
+  invited_by BIGINT NOT NULL REFERENCES exchange_users(id),
+  status TEXT NOT NULL CHECK (status IN ('pending', 'accepted', 'declined', 'expired')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at TIMESTAMPTZ NOT NULL,
+  decided_at TIMESTAMPTZ,
+  accepted_terms_version TEXT
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS exchange_namespace_one_pending_invitation
+  ON exchange_namespace_invitations (namespace, user_id) WHERE status = 'pending';
+CREATE INDEX IF NOT EXISTS exchange_namespace_incoming_invitations
+  ON exchange_namespace_invitations (user_id, created_at DESC) WHERE status = 'pending';
+
+ALTER TABLE exchange_namespace_invitations
+  ADD COLUMN IF NOT EXISTS accepted_terms_version TEXT;
+
 CREATE TABLE IF NOT EXISTS exchange_namespace_verifications (
   id BIGSERIAL PRIMARY KEY,
   namespace TEXT NOT NULL REFERENCES exchange_namespaces(name),

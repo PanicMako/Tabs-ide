@@ -1,6 +1,7 @@
 import { parseBlockedDigestBatch } from "./publisherBatch.js";
 
 const status = document.getElementById("status");
+let publishingEnabled = false;
 
 function announce(message, error = false) {
   status.textContent = message;
@@ -101,6 +102,57 @@ async function refreshNamespaces() {
     );
   }
   if (data.namespaces.length === 0) item(list, "No namespaces yet.");
+}
+
+async function refreshInvitations() {
+  const data = await requestJson("/v1/publisher/invitations");
+  const list = document.getElementById("invitations");
+  list.replaceChildren();
+  for (const invitation of data.invitations) {
+    const li = item(
+      list,
+      `${invitation.namespace}: ${invitation.role} invitation from ${invitation.inviter_login}, expires ${invitation.expires_at}. `,
+    );
+    const accept = document.createElement("button");
+    accept.type = "button";
+    accept.textContent = `Accept ${invitation.role} invitation for ${invitation.namespace}`;
+    accept.disabled = !publishingEnabled;
+    const termsLabel = document.createElement("label");
+    const terms = document.createElement("input");
+    terms.type = "checkbox";
+    terms.required = true;
+    termsLabel.append(terms, " I accept the ");
+    const termsLink = document.createElement("a");
+    termsLink.href = "/publisher-terms";
+    termsLink.textContent = "publisher terms";
+    termsLabel.append(termsLink, " (version 2026-09-24).");
+    li.append(termsLabel);
+    accept.addEventListener("click", async () => {
+      if (!terms.checked) {
+        announce("Accept the publisher terms before joining a namespace.", true);
+        terms.focus();
+        return;
+      }
+      accept.disabled = true;
+      try {
+        await requestJson(
+          `/v1/publisher/invitations/${invitation.id}/accept`,
+          mutation(
+            "POST",
+            JSON.stringify({ acceptTermsVersion: "2026-09-24" }),
+            "application/json",
+          ),
+        );
+        announce(`Joined ${invitation.namespace} as ${invitation.role}.`);
+        await Promise.all([refreshInvitations(), refreshNamespaces()]);
+      } catch (error) {
+        announce(String(error), true);
+        accept.disabled = false;
+      }
+    });
+    li.append(accept);
+  }
+  if (!data.invitations.length) item(list, "No pending invitations.");
 }
 
 async function refreshSubmissions() {
@@ -543,7 +595,7 @@ document.getElementById("member-form").addEventListener("submit", async (event) 
       `/v1/namespaces/${namespace}/members`,
       mutation("POST", JSON.stringify({ githubUserId, role }), "application/json"),
     );
-    announce(`Added GitHub user ${githubUserId} to ${namespace} as ${role}.`);
+    announce(`Invited GitHub user ${githubUserId} to ${namespace} as ${role}.`);
   } catch (error) {
     announce(String(error), true);
   }
@@ -621,6 +673,9 @@ document.getElementById("blocked-digest-batch-form").addEventListener("submit", 
 document.getElementById("refresh-submissions").addEventListener("click", () => {
   refreshSubmissions().catch((error) => announce(String(error), true));
 });
+document.getElementById("refresh-invitations").addEventListener("click", () => {
+  refreshInvitations().catch((error) => announce(String(error), true));
+});
 document.getElementById("refresh-appeals").addEventListener("click", () => {
   refreshAppeals().catch((error) => announce(String(error), true));
 });
@@ -652,6 +707,7 @@ try {
   const me = await requestJson("/v1/me");
   document.getElementById(me ? "signed-in" : "signed-out").hidden = false;
   if (me) {
+    publishingEnabled = me.publishingEnabled;
     document.getElementById("identity").textContent = `Signed in as ${me.login}.`;
     if (!me.publishingEnabled) {
       for (const form of ["namespace-form", "member-form", "upload-form"]) {
@@ -667,6 +723,7 @@ try {
     document.getElementById("blocked-digests-section").hidden = !me.admin;
     await Promise.all([
       refreshNamespaces(),
+      refreshInvitations(),
       refreshSubmissions(),
       refreshAppeals(),
       ...(me.admin

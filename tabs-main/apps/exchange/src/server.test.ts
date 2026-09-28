@@ -44,12 +44,59 @@ async function fixture(
   signedMetadataEvents?: SignedMetadataEvents,
   duplicateUpload = false,
   storedReviewObject = reviewObject,
+  invitation?: { owner?: boolean; targetId?: string; status?: string; expiresAt?: Date },
 ) {
   const actions: string[] = [];
   const publicQueries: string[] = [];
   const client = {
     async query(sql: string, params?: unknown[]) {
       actions.push(sql);
+      if (sql.includes("SELECT name FROM exchange_namespaces")) {
+        return { rows: [{ name: "example" }], rowCount: 1 };
+      }
+      if (
+        sql.includes("SELECT role FROM exchange_namespace_members") &&
+        sql.includes("role = 'owner'")
+      ) {
+        return {
+          rows: invitation?.owner === false ? [] : [{ role: "owner" }],
+          rowCount: invitation?.owner === false ? 0 : 1,
+        };
+      }
+      if (sql.includes("SELECT id FROM exchange_users")) {
+        return { rows: [{ id: params?.[0] }], rowCount: 1 };
+      }
+      if (
+        sql.includes("SELECT role FROM exchange_namespace_members") &&
+        !sql.includes("role = 'owner'")
+      ) {
+        return { rows: [], rowCount: 0 };
+      }
+      if (sql.includes("INSERT INTO exchange_namespace_invitations")) {
+        return { rows: [{ id: "7" }], rowCount: 1 };
+      }
+      if (sql.includes("SELECT namespace, role, user_id, status")) {
+        if (invitation?.expiresAt && invitation.expiresAt.getTime() <= Date.now()) {
+          return { rows: [], rowCount: 0 };
+        }
+        return {
+          rows: [
+            {
+              namespace: "example",
+              role: "contributor",
+              user_id: invitation?.targetId ?? "42",
+              status: invitation?.status ?? "pending",
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+      if (
+        sql.includes("INSERT INTO exchange_namespace_members") &&
+        sql.includes("ON CONFLICT DO NOTHING")
+      ) {
+        return { rows: [{ user_id: "42" }], rowCount: 1 };
+      }
       if (sql.includes("SELECT status, digest, bytes, object_key, scan_result")) {
         return {
           rows: [
@@ -269,6 +316,20 @@ async function fixture(
               id: "42",
               login: "reviewer",
               csrf_hash: Crypto.createHash("sha256").update(csrf).digest("hex"),
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+      if (sql.includes("FROM exchange_namespace_invitations i")) {
+        return {
+          rows: [
+            {
+              id: "7",
+              namespace: "example",
+              role: "contributor",
+              inviter_login: "owner",
+              expires_at: "2026-10-01T00:00:00Z",
             },
           ],
           rowCount: 1,
@@ -515,6 +576,128 @@ describe("Exchange HTTP boundaries", () => {
     ).toHaveLength(1);
   });
 
+  it("requires invitation acceptance before granting namespace membership", async () => {
+    const ready = await fixture(true, digest, "review", undefined, undefined, undefined, true);
+    const headers = {
+      Origin: config.origin,
+      Cookie: "tabs_exchange_session=opaque",
+      "X-CSRF-Token": csrf,
+      "Content-Type": "application/json",
+    };
+    const incoming = await fetch(`${ready.base}/v1/publisher/invitations`, {
+      headers: { Cookie: "tabs_exchange_session=opaque" },
+    });
+    expect(incoming.status).toBe(200);
+    expect((await incoming.json()).invitations[0]).toMatchObject({
+      id: "7",
+      namespace: "example",
+      role: "contributor",
+    });
+    const invite = await fetch(`${ready.base}/v1/namespaces/example/members`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ githubUserId: "43", role: "contributor" }),
+    });
+    expect(invite.status).toBe(202);
+    expect(await invite.json()).toMatchObject({ invitationId: "7", userId: "43" });
+    expect(
+      ready.actions.some((sql) => sql.includes("INSERT INTO exchange_namespace_members")),
+    ).toBe(false);
+    const withoutTerms = await fetch(`${ready.base}/v1/publisher/invitations/7/accept`, {
+      method: "POST",
+      headers,
+      body: "{}",
+    });
+    expect(withoutTerms.status).toBe(400);
+    expect(
+      ready.actions.some((sql) => sql.includes("INSERT INTO exchange_namespace_members")),
+    ).toBe(false);
+    const accepted = await fetch(`${ready.base}/v1/publisher/invitations/7/accept`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ acceptTermsVersion: "2026-09-24" }),
+    });
+    expect(accepted.status).toBe(200);
+    expect(await accepted.json()).toEqual({ namespace: "example", role: "contributor" });
+    expect(
+      ready.actions.some((sql) => sql.includes("INSERT INTO exchange_namespace_members")),
+    ).toBe(true);
+    expect(ready.actions.some((sql) => sql.includes("status = 'accepted'"))).toBe(true);
+    expect(ready.actions.some((sql) => sql.includes("accepted_terms_version = $2"))).toBe(true);
+  });
+
+  it("rejects invitations to non-owners and acceptance by another account", async () => {
+    const notOwner = await fixture(
+      true,
+      digest,
+      "review",
+      undefined,
+      undefined,
+      undefined,
+      true,
+      undefined,
+      false,
+      reviewObject,
+      { owner: false },
+    );
+    const headers = {
+      Origin: config.origin,
+      Cookie: "tabs_exchange_session=opaque",
+      "X-CSRF-Token": csrf,
+      "Content-Type": "application/json",
+    };
+    const invite = await fetch(`${notOwner.base}/v1/namespaces/example/members`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ githubUserId: "43", role: "owner" }),
+    });
+    expect(invite.status).toBe(403);
+    const wrongRecipient = await fixture(
+      true,
+      digest,
+      "review",
+      undefined,
+      undefined,
+      undefined,
+      true,
+      undefined,
+      false,
+      reviewObject,
+      { targetId: "43" },
+    );
+    const accepted = await fetch(`${wrongRecipient.base}/v1/publisher/invitations/7/accept`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ acceptTermsVersion: "2026-09-24" }),
+    });
+    expect(accepted.status).toBe(409);
+    expect(
+      wrongRecipient.actions.some((sql) => sql.includes("INSERT INTO exchange_namespace_members")),
+    ).toBe(false);
+    const expired = await fixture(
+      true,
+      digest,
+      "review",
+      undefined,
+      undefined,
+      undefined,
+      true,
+      undefined,
+      false,
+      reviewObject,
+      { expiresAt: new Date(0) },
+    );
+    const expiredResponse = await fetch(`${expired.base}/v1/publisher/invitations/7/accept`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ acceptTermsVersion: "2026-09-24" }),
+    });
+    expect(expiredResponse.status).toBe(409);
+    expect(
+      expired.actions.some((sql) => sql.includes("INSERT INTO exchange_namespace_members")),
+    ).toBe(false);
+  });
+
   it("limits concurrent publisher uploads and releases slots after disconnects", async () => {
     const ready = await fixture(true, digest, "review", undefined, undefined, undefined, true);
     const headers = {
@@ -705,6 +888,7 @@ describe("Exchange HTTP boundaries", () => {
     const html = await page.text();
     expect(html).toContain('aria-live="polite"');
     expect(html).toContain('id="metadata-freshness"');
+    expect(html).toContain('id="invitations" aria-label="Pending namespace invitations"');
     expect(html).toContain('id="blocked-digest-batch-value"');
     expect(html).toContain('src="/publisher.js" type="module"');
     const parser = await fetch(`${base}/publisherBatch.js`);

@@ -40,6 +40,7 @@ const TUF_METADATA_ROUTE =
 const TUF_TARGET_ROUTE =
   /^\/v1\/tuf\/targets\/extensions\/([a-z][a-z0-9-]{1,62})\/([a-z][a-z0-9-]{1,62})\/(?:(?:([a-f0-9]{64})\.)?([0-9A-Za-z.+-]+))\.tabsext$/;
 const MEMBER_ROUTE = /^\/v1\/namespaces\/([a-z][a-z0-9-]{1,62})\/members$/;
+const INVITATION_ACCEPT_ROUTE = /^\/v1\/publisher\/invitations\/([1-9][0-9]*)\/accept$/;
 const VERIFY_NAMESPACE_ROUTE = /^\/v1\/review\/namespaces\/([a-z][a-z0-9-]{1,62})\/verification$/;
 const BLOCKED_DIGEST_REMOVE_ROUTE = /^\/v1\/review\/blocked-digests\/([a-f0-9]{64})\/remove$/;
 const RESERVED_NAMESPACES = new Set(["tabs", "official", "admin", "system"]);
@@ -355,6 +356,20 @@ export function createExchangeServer(
         json(response, 200, { namespaces: found.rows });
         return;
       }
+      if (request.method === "GET" && path === "/v1/publisher/invitations") {
+        const actor = await actorFor(request, pool, config);
+        if (!actor) throw new HttpError(403, "Publisher sign-in required.");
+        const found = await pool.query(
+          `SELECT i.id, i.namespace, i.role, i.created_at, i.expires_at, u.login AS inviter_login
+           FROM exchange_namespace_invitations i
+           JOIN exchange_users u ON u.id = i.invited_by
+           WHERE i.user_id = $1 AND i.status = 'pending' AND i.expires_at > now()
+           ORDER BY i.created_at DESC LIMIT 100`,
+          [actor.id],
+        );
+        json(response, 200, { invitations: found.rows });
+        return;
+      }
       if (request.method === "GET" && path === "/v1/publisher/submissions") {
         const actor = await actorFor(request, pool, config);
         if (!actor) throw new HttpError(401, "Authentication required.");
@@ -472,29 +487,101 @@ export function createExchangeServer(
         ) {
           throw new HttpError(400, "Member requires a GitHub user ID and role.");
         }
-        if (body.githubUserId === actor.id && body.role !== "owner") {
-          throw new HttpError(400, "Owners cannot remove their own ownership here.");
+        if (BigInt(body.githubUserId) > 9223372036854775807n) {
+          throw new HttpError(400, "Invalid GitHub user ID.");
         }
-        const owner = await pool.query(
-          "SELECT role FROM exchange_namespace_members WHERE namespace = $1 AND user_id = $2 AND role = 'owner'",
-          [memberMatch[1], actor.id],
-        );
-        if (owner.rowCount !== 1)
-          throw new HttpError(403, "Only namespace owners can add members.");
-        const member = await pool.query("SELECT id FROM exchange_users WHERE id = $1", [
-          body.githubUserId,
-        ]);
-        if (member.rowCount !== 1) throw new HttpError(404, "That GitHub user must sign in first.");
-        await pool.query(
-          `INSERT INTO exchange_namespace_members(namespace, user_id, role) VALUES ($1, $2, $3)
-           ON CONFLICT (namespace, user_id) DO UPDATE SET role = EXCLUDED.role`,
-          [memberMatch[1], body.githubUserId, body.role],
-        );
-        json(response, 200, {
+        const invitationId = await inTransaction(pool, async (client) => {
+          const namespace = await client.query(
+            "SELECT name FROM exchange_namespaces WHERE name = $1 FOR UPDATE",
+            [memberMatch[1]],
+          );
+          if (namespace.rowCount !== 1) throw new HttpError(404, "Namespace not found.");
+          const owner = await client.query(
+            "SELECT role FROM exchange_namespace_members WHERE namespace = $1 AND user_id = $2 AND role = 'owner'",
+            [memberMatch[1], actor.id],
+          );
+          if (owner.rowCount !== 1)
+            throw new HttpError(403, "Only namespace owners can invite members.");
+          const member = await client.query("SELECT id FROM exchange_users WHERE id = $1", [
+            body.githubUserId,
+          ]);
+          if (member.rowCount !== 1)
+            throw new HttpError(404, "That GitHub user must sign in first.");
+          const existing = await client.query(
+            "SELECT role FROM exchange_namespace_members WHERE namespace = $1 AND user_id = $2",
+            [memberMatch[1], body.githubUserId],
+          );
+          if (existing.rowCount) throw new HttpError(409, "That user is already a member.");
+          await client.query(
+            `UPDATE exchange_namespace_invitations SET status = 'expired', decided_at = now()
+             WHERE namespace = $1 AND user_id = $2 AND status = 'pending' AND expires_at <= now()`,
+            [memberMatch[1], body.githubUserId],
+          );
+          const invited = await client.query<{ id: string }>(
+            `INSERT INTO exchange_namespace_invitations(namespace, user_id, role, invited_by, status, expires_at)
+             VALUES ($1, $2, $3, $4, 'pending', now() + interval '14 days') RETURNING id`,
+            [memberMatch[1], body.githubUserId, body.role, actor.id],
+          );
+          return invited.rows[0]!.id;
+        }).catch((error: unknown) => {
+          if ((error as { code?: unknown }).code === "23505") {
+            throw new HttpError(409, "A pending invitation already exists for that user.");
+          }
+          throw error;
+        });
+        json(response, 202, {
           namespace: memberMatch[1],
           userId: body.githubUserId,
           role: body.role,
+          invitationId,
         });
+        return;
+      }
+      const invitationAccept =
+        request.method === "POST" ? INVITATION_ACCEPT_ROUTE.exec(path) : null;
+      if (invitationAccept) {
+        if (!config.publishingEnabled)
+          throw new HttpError(503, "Publisher submissions are not enabled.");
+        const actor = requireMutation(request, await actorFor(request, pool, config), config);
+        const body = await readJson(request);
+        if (body.acceptTermsVersion !== TERMS_VERSION) {
+          throw new HttpError(400, "Publisher terms must be accepted.");
+        }
+        const accepted = await inTransaction(pool, async (client) => {
+          const found = await client.query<{
+            namespace: string;
+            role: "owner" | "contributor";
+            user_id: string;
+            status: string;
+          }>(
+            `SELECT namespace, role, user_id, status
+             FROM exchange_namespace_invitations
+             WHERE id = $1 AND expires_at > clock_timestamp() FOR UPDATE`,
+            [invitationAccept[1]],
+          );
+          const invitation = found.rows[0];
+          if (
+            !invitation ||
+            String(invitation.user_id) !== actor.id ||
+            invitation.status !== "pending"
+          ) {
+            throw new HttpError(409, "Invitation is unavailable or expired.");
+          }
+          const added = await client.query(
+            `INSERT INTO exchange_namespace_members(namespace, user_id, role)
+             VALUES ($1, $2, $3) ON CONFLICT DO NOTHING RETURNING user_id`,
+            [invitation.namespace, actor.id, invitation.role],
+          );
+          if (added.rowCount !== 1) throw new HttpError(409, "Already a namespace member.");
+          await client.query(
+            `UPDATE exchange_namespace_invitations SET status = 'accepted', decided_at = now(),
+             accepted_terms_version = $2
+             WHERE id = $1`,
+            [invitationAccept[1], TERMS_VERSION],
+          );
+          return invitation;
+        });
+        json(response, 200, { namespace: accepted.namespace, role: accepted.role });
         return;
       }
       const uploadMatch = request.method === "POST" ? UPLOAD_ROUTE.exec(path) : null;
