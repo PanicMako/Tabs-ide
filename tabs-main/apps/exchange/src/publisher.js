@@ -68,7 +68,7 @@ function reviewHistoryDisclosure(entry) {
       }
       if (!history.versions.length) item(versions, "No submitted versions found.");
       const decisionsHeading = document.createElement("h4");
-      decisionsHeading.textContent = "Review decisions";
+      decisionsHeading.textContent = "Review actions";
       const decisions = document.createElement("ul");
       for (const decision of history.decisions) {
         item(
@@ -76,7 +76,7 @@ function reviewHistoryDisclosure(entry) {
           `${decision.action} ${decision.version}: SHA-256 ${decision.digest}. ${decision.reviewer_login} at ${decision.created_at}. Reason: ${decision.reason}`,
         );
       }
-      if (!history.decisions.length) item(decisions, "No review decisions recorded yet.");
+      if (!history.decisions.length) item(decisions, "No review actions recorded yet.");
       content.append(versionsHeading, versions, decisionsHeading, decisions);
       state.textContent = "History loaded. Each list shows up to 100 recent entries.";
       loaded = true;
@@ -352,12 +352,39 @@ async function refreshReview() {
     li.append(archive);
     if (entry.status !== "review") continue;
     const label = document.createElement("label");
-    label.textContent = "Decision reason ";
+    label.textContent = "Decision or rescan reason ";
     const reason = document.createElement("input");
     reason.required = true;
     reason.maxLength = 2000;
     label.append(reason);
     li.append(label);
+    const rescan = document.createElement("button");
+    rescan.type = "button";
+    rescan.textContent = `Rescan ${entry.namespace}.${entry.name}@${entry.version}`;
+    rescan.addEventListener("click", async () => {
+      if (!reason.value.trim()) {
+        announce("Enter a reason before requesting a rescan.", true);
+        reason.focus();
+        return;
+      }
+      rescan.disabled = true;
+      try {
+        await requestJson(
+          `/v1/review/${entry.namespace}/${entry.name}/${encodeURIComponent(entry.version)}/rescan`,
+          mutation(
+            "POST",
+            JSON.stringify({ digest: entry.digest, reason: reason.value.trim() }),
+            "application/json",
+          ),
+        );
+        announce(`${entry.namespace}.${entry.name}@${entry.version} queued for a new scan.`);
+        await Promise.all([refreshReview(), refreshOperations()]);
+      } catch (error) {
+        announce(String(error), true);
+        rescan.disabled = false;
+      }
+    });
+    li.append(rescan);
     for (const action of ["approve", "reject"]) {
       const button = document.createElement("button");
       button.type = "button";

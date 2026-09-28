@@ -198,18 +198,24 @@ retry or operator cleanup. Conditional PUT is not protection against an
 administrator changing bucket objects outside this API; signed publication
 and download recheck the bytes.
 
-| Route                                                 | Access                                                                     |
-| ----------------------------------------------------- | -------------------------------------------------------------------------- |
-| `GET /auth/github/start`, `GET /auth/github/callback` | GitHub OAuth sign-in                                                       |
-| `GET /v1/me`                                          | Current account and reviewer flag                                          |
-| `POST /v1/namespaces`                                 | Signed-in publisher, exact terms version                                   |
-| `GET /v1/publisher/namespaces`                        | Publisher namespace membership                                             |
-| `GET /v1/publisher/submissions`                       | Publisher submission status                                                |
-| `POST /v1/publisher/:namespace/:name/versions`        | Namespace owner/contributor upload                                         |
-| `GET /v1/review/queue`                                | Admin reviewer                                                             |
-| `GET /v1/review/operations`                           | Admin-only queue, worker heartbeat, and signed-publication backlog         |
-| `GET /v1/review/:namespace/:name/history`             | Admin-only prior versions, uploader names, and review-decision audit trail |
-| `POST /v1/review/:namespace/:name/:version`           | Admin decision: `approve`, `reject`, or `revoke`, with digest and reason   |
+| Route                                                 | Access                                                                   |
+| ----------------------------------------------------- | ------------------------------------------------------------------------ |
+| `GET /auth/github/start`, `GET /auth/github/callback` | GitHub OAuth sign-in                                                     |
+| `GET /v1/me`                                          | Current account and reviewer flag                                        |
+| `POST /v1/namespaces`                                 | Signed-in publisher, exact terms version                                 |
+| `GET /v1/publisher/namespaces`                        | Publisher namespace membership                                           |
+| `GET /v1/publisher/submissions`                       | Publisher submission status                                              |
+| `POST /v1/publisher/:namespace/:name/versions`        | Namespace owner/contributor upload                                       |
+| `GET /v1/review/queue`                                | Admin reviewer                                                           |
+| `GET /v1/review/operations`                           | Admin-only queue, worker heartbeat, and signed-publication backlog       |
+| `GET /v1/review/:namespace/:name/history`             | Admin-only prior versions, uploader names, and review-action audit trail |
+| `POST /v1/review/:namespace/:name/:version`           | Admin decision: `approve`, `reject`, or `revoke`, with digest and reason |
+| `POST /v1/review/:namespace/:name/:version/rescan`    | Admin retry of an awaiting-review digest, with reason and audit event    |
+
+Rescan is available only while an exact digest awaits review. It clears the old
+scan result, returns the same immutable submission to the worker queue, and
+records the reviewer and reason in history. It does not approve or publish the
+version; the reviewer must inspect the new result and make a separate decision.
 
 The worker writes a database heartbeat every five seconds, including while a
 scan is running. The reviewer operations view treats a heartbeat within fifteen

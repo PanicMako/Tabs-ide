@@ -83,7 +83,7 @@ CREATE TABLE IF NOT EXISTS exchange_review_events (
   version TEXT NOT NULL,
   digest TEXT NOT NULL,
   actor_id BIGINT NOT NULL REFERENCES exchange_users(id),
-  action TEXT NOT NULL CHECK (action IN ('approve', 'reject', 'revoke')),
+  action TEXT NOT NULL CHECK (action IN ('approve', 'reject', 'revoke', 'rescan')),
   reason TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   FOREIGN KEY (namespace, name, version)
@@ -92,6 +92,12 @@ CREATE TABLE IF NOT EXISTS exchange_review_events (
 
 CREATE INDEX IF NOT EXISTS exchange_review_events_history
   ON exchange_review_events (namespace, name, created_at DESC, id DESC);
+
+ALTER TABLE exchange_review_events
+  DROP CONSTRAINT IF EXISTS exchange_review_events_action_check;
+ALTER TABLE exchange_review_events
+  ADD CONSTRAINT exchange_review_events_action_check
+  CHECK (action IN ('approve', 'reject', 'revoke', 'rescan'));
 
 CREATE TABLE IF NOT EXISTS exchange_appeals (
   id BIGSERIAL PRIMARY KEY,

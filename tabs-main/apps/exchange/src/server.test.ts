@@ -64,6 +64,12 @@ async function fixture(
           rowCount: 1,
         };
       }
+      if (sql.includes("SELECT status, digest FROM exchange_versions")) {
+        return {
+          rows: [{ status: submissionStatus, digest: storedDigest }],
+          rowCount: 1,
+        };
+      }
       if (sql.includes("SELECT v.digest, v.status")) {
         return {
           rows: [{ digest: storedDigest, status: submissionStatus }],
@@ -827,6 +833,51 @@ describe("Exchange HTTP boundaries", () => {
     expect(ready.actions.some((sql) => sql.includes("UPDATE exchange_versions SET status"))).toBe(
       false,
     );
+    expect(ready.actions.some((sql) => sql.includes("INSERT INTO exchange_review_events"))).toBe(
+      false,
+    );
+  });
+
+  it("audits a reviewer-requested rescan of the exact awaiting-review digest", async () => {
+    const ready = await fixture();
+    const route = `${ready.base}/v1/review/example/dashboard/1.0.0/rescan`;
+    const headers = {
+      Origin: config.origin,
+      Cookie: "tabs_exchange_session=opaque",
+      "X-CSRF-Token": csrf,
+      "Content-Type": "application/json",
+    };
+    const mismatch = await fetch(route, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ digest: "b".repeat(64), reason: "Retry transient scanner error" }),
+    });
+    expect(mismatch.status).toBe(409);
+    expect(ready.actions.some((sql) => sql.includes("SET status = 'queued'"))).toBe(false);
+    const response = await fetch(route, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ digest, reason: "Retry transient scanner error" }),
+    });
+    expect(response.status).toBe(202);
+    expect(await response.json()).toEqual({ status: "queued", digest });
+    expect(ready.actions.some((sql) => sql.includes("scan_result = NULL"))).toBe(true);
+    expect(ready.actions.some((sql) => sql.includes("'rescan'"))).toBe(true);
+  });
+
+  it("does not rescan an approved version", async () => {
+    const ready = await fixture(true, digest, "approved");
+    const response = await fetch(`${ready.base}/v1/review/example/dashboard/1.0.0/rescan`, {
+      method: "POST",
+      headers: {
+        Origin: config.origin,
+        Cookie: "tabs_exchange_session=opaque",
+        "X-CSRF-Token": csrf,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ digest, reason: "Retry" }),
+    });
+    expect(response.status).toBe(409);
     expect(ready.actions.some((sql) => sql.includes("INSERT INTO exchange_review_events"))).toBe(
       false,
     );

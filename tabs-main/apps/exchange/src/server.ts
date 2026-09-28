@@ -25,6 +25,8 @@ const VERSION_ROUTE =
   /^\/v1\/extensions\/([a-z][a-z0-9-]{1,62})\/([a-z][a-z0-9-]{1,62})\/versions\/([^/]+)$/;
 const UPLOAD_ROUTE = /^\/v1\/publisher\/([a-z][a-z0-9-]{1,62})\/([a-z][a-z0-9-]{1,62})\/versions$/;
 const REVIEW_ROUTE = /^\/v1\/review\/([a-z][a-z0-9-]{1,62})\/([a-z][a-z0-9-]{1,62})\/([^/]+)$/;
+const RESCAN_ROUTE =
+  /^\/v1\/review\/([a-z][a-z0-9-]{1,62})\/([a-z][a-z0-9-]{1,62})\/([^/]+)\/rescan$/;
 const APPEAL_ROUTE =
   /^\/v1\/publisher\/([a-z][a-z0-9-]{1,62})\/([a-z][a-z0-9-]{1,62})\/versions\/([^/]+)\/appeals$/;
 const APPEAL_RESPONSE_ROUTE = /^\/v1\/review\/appeals\/([1-9][0-9]*)\/response$/;
@@ -968,6 +970,48 @@ export function createExchangeServer(
           "X-Content-Type-Options": "nosniff",
         });
         response.end(bytes);
+        return;
+      }
+      const rescanMatch = request.method === "POST" ? RESCAN_ROUTE.exec(path) : null;
+      if (rescanMatch) {
+        const actor = requireMutation(request, await actorFor(request, pool, config), config);
+        if (!actor.admin) throw new HttpError(403, "Reviewer access required.");
+        const body = await readJson(request);
+        if (
+          typeof body.digest !== "string" ||
+          !/^[a-f0-9]{64}$/.test(body.digest) ||
+          typeof body.reason !== "string" ||
+          !body.reason.trim() ||
+          body.reason.length > 2000
+        ) {
+          throw new HttpError(400, "Rescan requires the exact digest and a reason.");
+        }
+        const digest = body.digest;
+        const reason = body.reason.trim();
+        const version = decodeURIComponent(rescanMatch[3]!);
+        await inTransaction(pool, async (client) => {
+          const found = await client.query<{ status: string; digest: string }>(
+            `SELECT status, digest FROM exchange_versions
+             WHERE namespace = $1 AND name = $2 AND version = $3 FOR UPDATE`,
+            [rescanMatch[1], rescanMatch[2], version],
+          );
+          const submission = found.rows[0];
+          if (!submission || submission.digest !== digest || submission.status !== "review") {
+            throw new HttpError(409, "Only the exact awaiting-review submission can be rescanned.");
+          }
+          await client.query(
+            `UPDATE exchange_versions SET status = 'queued', scan_result = NULL,
+             scan_claimed_at = NULL, scan_token = NULL
+             WHERE namespace = $1 AND name = $2 AND version = $3 AND digest = $4`,
+            [rescanMatch[1], rescanMatch[2], version, digest],
+          );
+          await client.query(
+            `INSERT INTO exchange_review_events(namespace, name, version, digest, actor_id, action, reason)
+             VALUES ($1, $2, $3, $4, $5, 'rescan', $6)`,
+            [rescanMatch[1], rescanMatch[2], version, digest, actor.id, reason],
+          );
+        });
+        json(response, 202, { status: "queued", digest });
         return;
       }
       const reviewMatch = request.method === "POST" ? REVIEW_ROUTE.exec(path) : null;
