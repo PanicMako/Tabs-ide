@@ -124,6 +124,7 @@ finishes; invalid archives receive HTTP 400.
 | `GET /v1/publisher/submissions`                       | Publisher submission status                                                |
 | `POST /v1/publisher/:namespace/:name/versions`        | Namespace owner/contributor upload                                         |
 | `GET /v1/review/queue`                                | Admin reviewer                                                             |
+| `GET /v1/review/operations`                           | Admin-only queue counts, stale scan claims, and review timestamps          |
 | `GET /v1/review/:namespace/:name/history`             | Admin-only prior versions, uploader names, and review-decision audit trail |
 | `POST /v1/review/:namespace/:name/:version`           | Admin decision: `approve`, `reject`, or `revoke`, with digest and reason   |
 

@@ -198,6 +198,14 @@ async function refreshReviewAppeals() {
   if (!data.appeals.length) item(list, "No open appeals.");
 }
 
+async function refreshOperations() {
+  const data = await requestJson("/v1/review/operations");
+  const queue = data.queue;
+  document.getElementById("queue-operations").textContent =
+    `Queued: ${queue.queued}. Scanning: ${queue.scanning}. Stale scans: ${queue.stale_scans}. Awaiting review: ${queue.awaiting_review}. ` +
+    `Oldest queued: ${queue.oldest_queued_at ?? "none"}. Last review: ${queue.last_reviewed_at ?? "none"}.`;
+}
+
 async function refreshReview() {
   const data = await requestJson("/v1/review/queue");
   const list = document.getElementById("review-queue");
@@ -549,6 +557,9 @@ document.getElementById("refresh-review-appeals").addEventListener("click", () =
 document.getElementById("refresh-review").addEventListener("click", () => {
   refreshReview().catch((error) => announce(String(error), true));
 });
+document.getElementById("refresh-operations").addEventListener("click", () => {
+  refreshOperations().catch((error) => announce(String(error), true));
+});
 document.getElementById("refresh-approved").addEventListener("click", () => {
   refreshApproved().catch((error) => announce(String(error), true));
 });
@@ -586,7 +597,13 @@ try {
       refreshSubmissions(),
       refreshAppeals(),
       ...(me.admin
-        ? [refreshReview(), refreshReviewAppeals(), refreshApproved(), refreshBlockedDigests()]
+        ? [
+            refreshReview(),
+            refreshOperations(),
+            refreshReviewAppeals(),
+            refreshApproved(),
+            refreshBlockedDigests(),
+          ]
         : []),
     ]);
   }

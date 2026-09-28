@@ -609,6 +609,21 @@ export function createExchangeServer(
         json(response, 200, { submissions: found.rows });
         return;
       }
+      if (request.method === "GET" && path === "/v1/review/operations") {
+        const actor = await actorFor(request, pool, config);
+        if (!actor?.admin) throw new HttpError(403, "Reviewer access required.");
+        const found = await pool.query(
+          `SELECT count(*) FILTER (WHERE status = 'queued')::int AS queued,
+                  count(*) FILTER (WHERE status = 'scanning')::int AS scanning,
+                  count(*) FILTER (WHERE status = 'scanning' AND scan_claimed_at < now() - interval '10 minutes')::int AS stale_scans,
+                  count(*) FILTER (WHERE status = 'review')::int AS awaiting_review,
+                  min(submitted_at) FILTER (WHERE status = 'queued') AS oldest_queued_at,
+                  max(reviewed_at) AS last_reviewed_at
+           FROM exchange_versions`,
+        );
+        json(response, 200, { queue: found.rows[0] });
+        return;
+      }
       const reviewHistory = request.method === "GET" ? REVIEW_HISTORY_ROUTE.exec(path) : null;
       if (reviewHistory) {
         const actor = await actorFor(request, pool, config);

@@ -89,6 +89,21 @@ async function fixture(
   const pool = {
     async query(sql: string, params?: unknown[]) {
       publicQueries.push(sql);
+      if (sql.includes("AS stale_scans")) {
+        return {
+          rows: [
+            {
+              queued: 2,
+              scanning: 1,
+              stale_scans: 1,
+              awaiting_review: 3,
+              oldest_queued_at: "2026-09-28T00:00:00Z",
+              last_reviewed_at: null,
+            },
+          ],
+          rowCount: 1,
+        };
+      }
       if (sql.includes("FROM exchange_tuf_metadata")) {
         return {
           rows:
@@ -214,6 +229,18 @@ afterEach(async () => {
 });
 
 describe("Exchange HTTP boundaries", () => {
+  it("exposes scan queue operations only to reviewers", async () => {
+    const ready = await fixture();
+    const path = `${ready.base}/v1/review/operations`;
+    expect((await fetch(path)).status).toBe(403);
+    expect(ready.publicQueries.some((sql) => sql.includes("AS stale_scans"))).toBe(false);
+    const response = await fetch(path, { headers: { Cookie: "tabs_exchange_session=opaque" } });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      queue: { queued: 2, scanning: 1, stale_scans: 1, awaiting_review: 3 },
+    });
+    expect(ready.publicQueries.filter((sql) => sql.includes("AS stale_scans"))).toHaveLength(1);
+  });
   it("restricts exact extension review history to admins", async () => {
     const ready = await fixture();
     const path = `${ready.base}/v1/review/example/dashboard/history`;

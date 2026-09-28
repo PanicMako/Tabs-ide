@@ -111,6 +111,13 @@
         </section>
         <section id="review-section" aria-labelledby="review-title" hidden>
           <h2 id="review-title">Reviewer queue</h2>
+          <h3>Queue operations</h3>
+          <p>
+            Stale scans are claims older than ten minutes. This summary does not confirm that the
+            worker is running.
+          </p>
+          <button id="refresh-operations" type="button">Refresh queue health</button>
+          <p id="queue-operations" role="status" aria-live="polite">Queue health not loaded.</p>
           <p>
             Review the exact digest and scan result before making a decision. Automated scanning is
             not a security guarantee.
