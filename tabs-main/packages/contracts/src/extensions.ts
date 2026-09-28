@@ -50,7 +50,14 @@ export const TabsExtensionManifest = Schema.Struct({
   logic: Schema.optionalKey(Schema.Struct({ entry: Schema.String })),
   capabilities: Schema.optionalKey(
     Schema.Array(
-      Schema.Literals(["profile-storage", "workspace-read", "network", "credentials", "ai-tools"]),
+      Schema.Literals([
+        "profile-storage",
+        "workspace-read",
+        "git-status",
+        "network",
+        "credentials",
+        "ai-tools",
+      ]),
     ),
   ),
   contributes: Schema.Struct({
@@ -69,6 +76,7 @@ export const TabsExtensionAssignment = Schema.Struct({
   profileIdByProjectId: Schema.Record(Schema.String, Schema.String),
   storageGrantedProjectIds: Schema.optionalKey(Schema.Array(Schema.String)),
   workspaceReadGrantedProjectIds: Schema.optionalKey(Schema.Array(Schema.String)),
+  gitStatusGrantedProjectIds: Schema.optionalKey(Schema.Array(Schema.String)),
   networkGrantedProjectIds: Schema.optionalKey(Schema.Array(Schema.String)),
   credentialGrantedProjectIds: Schema.optionalKey(Schema.Array(Schema.String)),
   aiToolGrantedProjectIds: Schema.optionalKey(Schema.Array(Schema.String)),

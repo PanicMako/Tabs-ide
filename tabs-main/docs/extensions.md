@@ -27,7 +27,7 @@ only writes to a new directory. Neither command runs extension code.
 Place `tabs-extension.json` at the root of a local folder. The dependency-free
 [`@tabs/extension-api`](../packages/extension-api/README.md) package exports
 the public manifest and bridge types plus the current API version. New manifests
-should declare `engines.api: "^1.2.0"` when using commands, `"^1.3.0"` for AI-callable commands, or `"^1.4.0"` for storage migrations; older v1 manifests without it remain
+should declare `engines.api: "^1.2.0"` when using commands, `"^1.3.0"` for AI-callable commands, `"^1.4.0"` for storage migrations, or `"^1.5.0"` for read-only Git status; older v1 manifests without it remain
 compatible. Tabs validates declared API compatibility at load time. See
 [`examples/hello-extension`](../examples/hello-extension/README.md) for a
 working example. Version 1 requires a lowercase publisher and package name,
@@ -35,7 +35,7 @@ a URL-safe semantic version of at most 128 characters, a Tabs version range,
 and 1-12 full-workspace tools. Each
 tool names a packaged HTML entry. Paths must be relative to the extension
 root. Supported optional capabilities are `profile-storage`, `workspace-read`,
-`network`, `credentials`, and `ai-tools`. A `network` manifest must list 1-8 exact DNS names
+`git-status`, `network`, `credentials`, and `ai-tools`. A `network` manifest must list 1-8 exact DNS names
 in `networkHosts`; wildcards are not allowed. `credentials` requires `network`
 and uses only those declared hosts. Optional `logic.entry` points to packaged
 JavaScript and requires 1-8 `contributes.commands`, each with a unique ID,
@@ -59,6 +59,8 @@ The [Workspace Reader example](../examples/workspace-reader-extension/README.md)
 shows storage and workspace-read capabilities with separate project grants. The
 [GitHub Profile example](../examples/github-profile-extension/README.md) shows
 two named account profiles using the credential broker. The
+[Git Status example](../examples/git-status-extension/README.md) exercises the
+project-scoped read-only Git status broker. The
 [Calculator example](../examples/calculator-extension/README.md) exercises two
 isolated commands from a full-workspace UI. The
 [Project Companion example](../examples/project-companion-extension/README.md)
@@ -123,7 +125,11 @@ cannot supply a root or project ID. The server resolves the active project's
 root from its own project record and rejects traversal and links outside that
 root. Grants are checked before and after the broker call, so disabling the
 extension, switching projects, or revoking permission invalidates an in-flight
-response. Workspace write and git brokers are not yet available.
+response. With `git-status` and a separate project grant, the UI can call
+`tabsExtension.git.status()` to receive only `{ branch, dirty }` for the active
+project. The extension cannot choose a repository path or Git command. A
+workspace without a Git repository reports an error. Workspace write and
+Git mutation brokers are not yet available.
 All bridges remain bound to the active extension main frame.
 
 ## Enabling and profiles

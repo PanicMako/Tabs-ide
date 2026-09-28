@@ -1,4 +1,5 @@
 import * as Http from "node:http";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -1813,6 +1814,23 @@ describe("WebSocket Server", () => {
     expect(
       (await request("extension-project-a", "../secret.txt", "extension-backend-token")).status,
     ).toBe(400);
+    const gitEndpoint = `http://127.0.0.1:${port}/internal/extensions/git-status`;
+    const gitRequest = (projectId: string, token?: string) =>
+      fetch(gitEndpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { "X-Tabs-Backend-Token": token } : {}),
+        },
+        body: JSON.stringify({ projectId }),
+      });
+    expect((await gitRequest("extension-project-a")).status).toBe(401);
+    expect((await gitRequest("unknown-project", "extension-backend-token")).status).toBe(404);
+    expect((await gitRequest("extension-project-a", "extension-backend-token")).status).toBe(400);
+    execFileSync("git", ["init", "-q", workspace]);
+    const gitStatus = await gitRequest("extension-project-a", "extension-backend-token");
+    expect(gitStatus.status).toBe(200);
+    expect(await gitStatus.json()).toEqual({ branch: expect.any(String), dirty: true });
   }, 20_000);
 
   it("keeps projects.readFile restricted to relative paths inside the workspace root", async () => {

@@ -1198,6 +1198,28 @@ export default function ExtensionsSettings() {
                       Allow read-only workspace files for {project.name}
                     </label>
                   ) : null}
+                  {extension.manifest.capabilities?.includes("git-status") ? (
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={
+                          extension.assignment.gitStatusGrantedProjectIds?.includes(project.id) ??
+                          false
+                        }
+                        disabled={busy}
+                        onChange={(event) => {
+                          const ids = extension.assignment.gitStatusGrantedProjectIds ?? [];
+                          assign(extension, {
+                            ...extension.assignment,
+                            gitStatusGrantedProjectIds: event.target.checked
+                              ? [...ids, project.id]
+                              : ids.filter((id) => id !== project.id),
+                          });
+                        }}
+                      />
+                      Allow read-only Git status for {project.name}
+                    </label>
+                  ) : null}
                   {extension.manifest.capabilities?.includes("network") ? (
                     <label className="flex items-center gap-2 text-sm">
                       <input

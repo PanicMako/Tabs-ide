@@ -240,6 +240,37 @@ export class ExtensionViewManager {
     return contents;
   }
 
+  async invokeGitStatus(
+    sender: Electron.WebContents,
+    read: (projectId: string) => Promise<{ readonly branch: string; readonly dirty: boolean }>,
+  ): Promise<{ readonly branch: string; readonly dirty: boolean }> {
+    const active = this.active;
+    if (!active || active.view.webContents !== sender || sender.isDestroyed()) {
+      throw new Error("Extension view is no longer active.");
+    }
+    const authorize = () => {
+      const installed = this.requireInstalled(active.extensionId);
+      this.assertNotDeleting(installed.id);
+      if (
+        installed.revoked ||
+        installed.disabled ||
+        !installed.manifest.capabilities?.includes("git-status") ||
+        !isExtensionEnabledForProject(installed.assignment, active.projectId) ||
+        !installed.assignment.gitStatusGrantedProjectIds?.includes(active.projectId) ||
+        extensionProfileForProject(installed.assignment, active.projectId) !== active.profileId
+      ) {
+        throw new Error("Git status access is not granted for this project.");
+      }
+    };
+    authorize();
+    const status = await read(active.projectId);
+    if (this.active !== active || sender.isDestroyed()) {
+      throw new Error("Extension view changed during Git status request.");
+    }
+    authorize();
+    return status;
+  }
+
   async invokeNetworkGetText(
     sender: Electron.WebContents,
     rawUrl: string,
@@ -547,6 +578,10 @@ export class ExtensionViewManager {
       !previous?.manifest.capabilities?.includes("workspace-read")
         ? { workspaceReadGrantedProjectIds: [] }
         : {}),
+      ...(parsed.manifest.capabilities?.includes("git-status") &&
+      !previous?.manifest.capabilities?.includes("git-status")
+        ? { gitStatusGrantedProjectIds: [] }
+        : {}),
       ...(parsed.manifest.capabilities?.includes("network") &&
       (!previous?.manifest.capabilities?.includes("network") || addedNetworkHosts)
         ? { networkGrantedProjectIds: [] }
@@ -639,6 +674,10 @@ export class ExtensionViewManager {
         ...(inspected.manifest.capabilities?.includes("workspace-read") &&
         !previous?.manifest.capabilities?.includes("workspace-read")
           ? { workspaceReadGrantedProjectIds: [] }
+          : {}),
+        ...(inspected.manifest.capabilities?.includes("git-status") &&
+        !previous?.manifest.capabilities?.includes("git-status")
+          ? { gitStatusGrantedProjectIds: [] }
           : {}),
         ...(inspected.manifest.capabilities?.includes("network") &&
         (!previous?.manifest.capabilities?.includes("network") || addedNetworkHosts)
@@ -792,6 +831,7 @@ export class ExtensionViewManager {
             enabledProjectIds: [],
             storageGrantedProjectIds: [],
             workspaceReadGrantedProjectIds: [],
+            gitStatusGrantedProjectIds: [],
             networkGrantedProjectIds: [],
             credentialGrantedProjectIds: [],
             aiToolGrantedProjectIds: [],

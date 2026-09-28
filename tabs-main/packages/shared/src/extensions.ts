@@ -282,20 +282,28 @@ export function validateTabsExtensionManifest(
   if (
     input.capabilities !== undefined &&
     (!Array.isArray(input.capabilities) ||
-      input.capabilities.length > 5 ||
+      input.capabilities.length > 6 ||
       new Set(input.capabilities).size !== input.capabilities.length ||
       input.capabilities.some(
         (capability) =>
           capability !== "profile-storage" &&
           capability !== "workspace-read" &&
+          capability !== "git-status" &&
           capability !== "network" &&
           capability !== "credentials" &&
           capability !== "ai-tools",
       ))
   ) {
     errors.push(
-      "capabilities supports only profile-storage, workspace-read, network, credentials, and ai-tools without duplicates.",
+      "capabilities supports only profile-storage, workspace-read, git-status, network, credentials, and ai-tools without duplicates.",
     );
+  }
+  if (
+    Array.isArray(input.capabilities) &&
+    input.capabilities.includes("git-status") &&
+    (!record(engines) || typeof engines.api !== "string" || !apiRangeIsSafe(engines.api, "1.5.0"))
+  ) {
+    errors.push("git-status requires engines.api to start at 1.5.0 or later.");
   }
   if (!record(contributes) || !Array.isArray(contributes.tools)) {
     errors.push("contributes.tools must be an array.");

@@ -1,4 +1,4 @@
-export declare const TABS_EXTENSION_API_VERSION: "1.4.0";
+export declare const TABS_EXTENSION_API_VERSION: "1.5.0";
 
 export interface TabsExtensionStorageMigration {
   readonly from: number;
@@ -10,6 +10,7 @@ export interface TabsExtensionStorageMigration {
 export type TabsExtensionCapability =
   | "profile-storage"
   | "workspace-read"
+  | "git-status"
   | "network"
   | "credentials"
   | "ai-tools";
@@ -77,6 +78,9 @@ export interface TabsExtensionHostBridge {
   };
   readonly workspace: {
     readText(relativePath: string): Promise<string>;
+  };
+  readonly git: {
+    status(): Promise<{ readonly branch: string; readonly dirty: boolean }>;
   };
   readonly network: {
     getText(url: string, options?: { readonly useProfileCredential?: boolean }): Promise<string>;

@@ -13,6 +13,7 @@ import fs from "node:fs";
 import os from "node:os";
 import type { Duplex } from "node:stream";
 import { readExtensionWorkspaceFile } from "./extensionWorkspaceRead.ts";
+import { readExtensionGitStatus } from "./extensionGitStatus.ts";
 
 import Mime from "@effect/platform-node/Mime";
 import {
@@ -707,7 +708,11 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
             return session;
           });
 
-        if (req.method === "POST" && url.pathname === "/internal/extensions/read-project-file") {
+        if (
+          req.method === "POST" &&
+          (url.pathname === "/internal/extensions/read-project-file" ||
+            url.pathname === "/internal/extensions/git-status")
+        ) {
           const remote = req.socket.remoteAddress;
           if (
             !authToken ||
@@ -731,7 +736,11 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
             return;
           }
           const input = parsed.value as Record<string, unknown>;
-          if (typeof input.projectId !== "string" || typeof input.relativePath !== "string") {
+          if (
+            typeof input.projectId !== "string" ||
+            (url.pathname === "/internal/extensions/read-project-file" &&
+              typeof input.relativePath !== "string")
+          ) {
             respondJson(400, { error: "Invalid request." });
             return;
           }
@@ -741,6 +750,17 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
           );
           if (!project) {
             respondJson(404, { error: "Project not found." });
+            return;
+          }
+          if (url.pathname === "/internal/extensions/git-status") {
+            const status = yield* Effect.tryPromise(() =>
+              readExtensionGitStatus(project.workspaceRoot),
+            ).pipe(Effect.exit);
+            if (Exit.isFailure(status)) {
+              respondJson(400, { error: "Git status is unavailable for this project." });
+              return;
+            }
+            respondJson(200, status.value);
             return;
           }
           const read = yield* Effect.tryPromise(() =>

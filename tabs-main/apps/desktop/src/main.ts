@@ -200,6 +200,7 @@ const EXTENSION_SET_BOUNDS_CHANNEL = "desktop:extension:set-bounds";
 const EXTENSION_HIDE_CHANNEL = "desktop:extension:hide";
 const EXTENSION_STORAGE_CHANNEL = "desktop:extension:storage";
 const EXTENSION_WORKSPACE_READ_CHANNEL = "desktop:extension:workspace-read";
+const EXTENSION_GIT_STATUS_CHANNEL = "desktop:extension:git-status";
 const EXTENSION_NETWORK_GET_CHANNEL = "desktop:extension:network-get";
 const EXTENSION_LOGIC_INVOKE_CHANNEL = "desktop:extension:logic-invoke";
 const WRITE_CLIPBOARD_TEXT_CHANNEL = "desktop:clipboard:write-text";
@@ -2365,6 +2366,7 @@ function registerIpcHandlers(): void {
     );
   });
   ipcMain.removeHandler(EXTENSION_WORKSPACE_READ_CHANNEL);
+  ipcMain.removeHandler(EXTENSION_GIT_STATUS_CHANNEL);
   ipcMain.removeHandler(EXTENSION_NETWORK_GET_CHANNEL);
   ipcMain.removeHandler(EXTENSION_LOGIC_INVOKE_CHANNEL);
   ipcMain.handle(EXTENSION_LOGIC_INVOKE_CHANNEL, (event, commandId: unknown, input: unknown) => {
@@ -2422,6 +2424,35 @@ function registerIpcHandlers(): void {
         return (value as { contents: string }).contents;
       },
     );
+  });
+  ipcMain.handle(EXTENSION_GIT_STATUS_CHANNEL, async (event) => {
+    if (event.senderFrame !== event.sender.mainFrame) {
+      throw new Error("Extension Git status is available only to the main frame.");
+    }
+    return extensionViewManager.invokeGitStatus(event.sender, async (projectId) => {
+      if (!backendHttpUrl || !backendAuthToken) throw new Error("Project backend is unavailable.");
+      const response = await fetch(`${backendHttpUrl}/internal/extensions/git-status`, {
+        method: "POST",
+        redirect: "error",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Tabs-Backend-Token": backendAuthToken,
+        },
+        body: JSON.stringify({ projectId }),
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (!response.ok) throw new Error("Git status is unavailable for this project.");
+      const value: unknown = await response.json();
+      if (
+        !value ||
+        typeof value !== "object" ||
+        typeof (value as { branch?: unknown }).branch !== "string" ||
+        typeof (value as { dirty?: unknown }).dirty !== "boolean"
+      ) {
+        throw new Error("Invalid Git status response.");
+      }
+      return value as { branch: string; dirty: boolean };
+    });
   });
   ipcMain.removeHandler(HOST_POWER_GET_CHANNEL);
   ipcMain.handle(HOST_POWER_GET_CHANNEL, () => readHostPowerSnapshot());

@@ -86,6 +86,25 @@ describe("Tabs extension manifest", () => {
     });
   });
 
+  it("requires API 1.5 for read-only Git status and treats it as a new permission", () => {
+    const next = {
+      ...manifest,
+      engines: { ...manifest.engines, api: "^1.5.0" },
+      capabilities: ["git-status"],
+    };
+    expect(validateTabsExtensionManifest(next, "1.3.17").ok).toBe(true);
+    expect(
+      validateTabsExtensionManifest(
+        { ...next, engines: { ...manifest.engines, api: "^1.4.0" } },
+        "1.3.17",
+      ).ok,
+    ).toBe(false);
+    expect(
+      extensionPermissionIncrease(next as TabsExtensionManifest, manifest as TabsExtensionManifest)
+        .addedCapabilities,
+    ).toEqual(["git-status"]);
+  });
+
   it("requires a complete, bounded, non-overwriting storage migration chain", () => {
     const versioned = {
       ...manifest,

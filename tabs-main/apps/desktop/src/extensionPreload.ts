@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 
 const CHANNEL = "desktop:extension:storage";
 const WORKSPACE_READ_CHANNEL = "desktop:extension:workspace-read";
+const GIT_STATUS_CHANNEL = "desktop:extension:git-status";
 const NETWORK_GET_CHANNEL = "desktop:extension:network-get";
 const LOGIC_INVOKE_CHANNEL = "desktop:extension:logic-invoke";
 
@@ -16,6 +17,10 @@ contextBridge.exposeInMainWorld("tabsExtension", {
   workspace: {
     readText: (relativePath: string): Promise<string> =>
       ipcRenderer.invoke(WORKSPACE_READ_CHANNEL, relativePath),
+  },
+  git: {
+    status: (): Promise<{ branch: string; dirty: boolean }> =>
+      ipcRenderer.invoke(GIT_STATUS_CHANNEL),
   },
   network: {
     getText: (url: string, options?: { useProfileCredential?: boolean }): Promise<string> =>

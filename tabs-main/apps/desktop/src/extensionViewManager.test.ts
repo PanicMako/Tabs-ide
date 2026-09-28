@@ -445,6 +445,62 @@ describe("development extension installation", () => {
     await expect(inFlight).rejects.toThrow(/changed during workspace read/);
   });
 
+  it("binds Git status to the active project's explicit grant", async () => {
+    const { directory, manager } = fixture();
+    const manifestPath = Path.join(directory, "tabs-extension.json");
+    const manifest = JSON.parse(FS.readFileSync(manifestPath, "utf8"));
+    manifest.engines.api = "^1.5.0";
+    manifest.capabilities = ["git-status"];
+    FS.writeFileSync(manifestPath, JSON.stringify(manifest));
+    const installed = manager.installDevelopment(directory);
+    manager.setAssignment(installed.id, {
+      ...installed.assignment,
+      enabledProjectIds: ["project-a"],
+      gitStatusGrantedProjectIds: ["project-a"],
+    });
+    const sender = { isDestroyed: () => false, close: vi.fn() };
+    const internal = manager as unknown as { active: unknown; coordinator: unknown };
+    internal.coordinator = { detachToolView: vi.fn() };
+    const active = () => {
+      internal.active = {
+        key: "git-status",
+        view: { webContents: sender },
+        extensionId: installed.id,
+        projectId: "project-a",
+        profileId: "default",
+      };
+    };
+    active();
+    const read = vi.fn(async () => ({ branch: "main", dirty: true }));
+    await expect(manager.invokeGitStatus(sender as never, read)).resolves.toEqual({
+      branch: "main",
+      dirty: true,
+    });
+    expect(read).toHaveBeenCalledWith("project-a");
+    await expect(
+      manager.invokeGitStatus({ isDestroyed: () => false } as never, read),
+    ).rejects.toThrow(/no longer active/);
+    manager.setAssignment(installed.id, {
+      ...manager.list()[0]!.assignment,
+      gitStatusGrantedProjectIds: [],
+    });
+    active();
+    await expect(manager.invokeGitStatus(sender as never, read)).rejects.toThrow(/not granted/);
+    manager.setAssignment(installed.id, {
+      ...manager.list()[0]!.assignment,
+      gitStatusGrantedProjectIds: ["project-a"],
+    });
+    active();
+    let resolveRead: (value: { branch: string; dirty: boolean }) => void = () => {};
+    const pending = new Promise<{ branch: string; dirty: boolean }>((resolve) => {
+      resolveRead = resolve;
+    });
+    const inFlight = manager.invokeGitStatus(sender as never, () => pending);
+    manager.setDisabled(installed.id, true);
+    resolveRead({ branch: "main", dirty: false });
+    await expect(inFlight).rejects.toThrow(/changed during Git status request/);
+  });
+
   it("clears the network grant when a development update adds a destination", () => {
     const { directory, manager } = fixture();
     const manifestPath = Path.join(directory, "tabs-extension.json");
