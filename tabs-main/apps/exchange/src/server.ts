@@ -15,6 +15,7 @@ import {
 } from "./auth.ts";
 import { createPool, createStorage, loadConfig, type ExchangeConfig } from "./config.ts";
 import { boundedObject } from "./storage.ts";
+import { refreshPublishedHead } from "./publishedHeads.ts";
 import { decodeVersionCursor, encodeVersionCursor } from "./versionCursor.ts";
 
 const PACKAGE_ROUTE = /^\/v1\/extensions\/([a-z][a-z0-9-]{1,62})\/([a-z][a-z0-9-]{1,62})$/;
@@ -726,6 +727,7 @@ export function createExchangeServer(
         const digest = body.digest;
         const reason = body.reason.trim();
         const revoked = await inTransaction(pool, async (client) => {
+          await client.query("SELECT pg_advisory_xact_lock(1261492744)");
           await client.query("SELECT pg_advisory_xact_lock(7331, 1)");
           const inserted = await client.query(
             `INSERT INTO exchange_blocked_digests(digest, reason, created_by)
@@ -772,6 +774,16 @@ export function createExchangeServer(
                 actor.id,
                 revocationReason,
               ],
+            );
+          }
+          for (const identity of new Set(
+            affected.rows.map((release) => `${release.namespace}.${release.name}`),
+          )) {
+            const separator = identity.indexOf(".");
+            await refreshPublishedHead(
+              client,
+              identity.slice(0, separator),
+              identity.slice(separator + 1),
             );
           }
           return affected.rows.length;
@@ -901,6 +913,7 @@ export function createExchangeServer(
         )
           throw new HttpError(400, "Decision requires an action, exact digest, and reason.");
         await inTransaction(pool, async (client) => {
+          await client.query("SELECT pg_advisory_xact_lock(1261492744)");
           await client.query("SELECT pg_advisory_xact_lock(7331, 1)");
           const found = await client.query<{
             status: string;
@@ -970,6 +983,9 @@ export function createExchangeServer(
               reason.trim(),
             ],
           );
+          if (action === "revoke") {
+            await refreshPublishedHead(client, reviewMatch[1]!, reviewMatch[2]!);
+          }
         });
         json(response, 200, {
           status: action === "approve" ? "approved" : action === "reject" ? "rejected" : "revoked",

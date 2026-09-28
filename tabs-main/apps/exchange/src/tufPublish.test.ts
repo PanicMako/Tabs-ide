@@ -15,7 +15,8 @@ import {
 } from "@tufjs/models";
 import type { Pool } from "pg";
 import { afterEach, describe, expect, it } from "vitest";
-import { publishTufMetadata, publishedHeads, verifyApprovedTargets } from "./tufPublish.ts";
+import { publishedHeads } from "./publishedHeads.ts";
+import { publishTufMetadata, verifyApprovedTargets } from "./tufPublish.ts";
 
 const temporaryDirectories: string[] = [];
 const targetPath = "extensions/acme/dashboard/1.0.0.tabsext";

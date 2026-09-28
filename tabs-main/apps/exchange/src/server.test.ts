@@ -646,6 +646,14 @@ describe("Exchange HTTP boundaries", () => {
     expect(await added.json()).toMatchObject({ revoked: 1 });
     expect(ready.actions.some((sql) => sql.includes("exchange_blocked_digest_events"))).toBe(true);
     expect(ready.actions.some((sql) => sql.includes("'revoke'"))).toBe(true);
+    expect(ready.actions.some((sql) => sql.includes("DELETE FROM exchange_published_heads"))).toBe(
+      true,
+    );
+    expect(ready.actions.indexOf("SELECT pg_advisory_xact_lock(1261492744)")).toBeLessThan(
+      ready.actions.findIndex((sql) =>
+        sql.includes("UPDATE exchange_versions SET status = 'revoked'"),
+      ),
+    );
     const removed = await fetch(`${ready.base}/v1/review/blocked-digests/${digest}/remove`, {
       method: "POST",
       headers,
@@ -676,6 +684,12 @@ describe("Exchange HTTP boundaries", () => {
     expect(result.status).toBe(200);
     expect(ready.actions.some((sql) => sql.includes("INSERT INTO exchange_review_events"))).toBe(
       true,
+    );
+    expect(ready.actions.some((sql) => sql.includes("DELETE FROM exchange_published_heads"))).toBe(
+      true,
+    );
+    expect(ready.actions.indexOf("SELECT pg_advisory_xact_lock(1261492744)")).toBeLessThan(
+      ready.actions.findIndex((sql) => sql.includes("UPDATE exchange_versions SET status = $5")),
     );
   });
 

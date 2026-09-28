@@ -56,8 +56,11 @@ Run `bun run tuf:publish /absolute/staged-directory` in `apps/exchange` with
 exact approved targets, and root transitions before committing all metadata
 and its public-target index in one transaction. After upgrading an existing
 Exchange database, republish the current signed bundle to populate that index
-and the materialized highest-semver search heads;
-approved versions remain private until then. No private key is read by this command or stored in the
+and the materialized highest-semver search heads; approved versions remain
+private until then. A local revocation immediately selects the highest
+remaining signed, approved release as its search head, if one exists. It does
+not authenticate the revocation for installed clients; publish updated signed
+metadata promptly. No private key is read by this command or stored in the
 API/worker. New targets and timestamps must be signed and published before
 their current metadata expires; revocations also require a promptly updated
 signed targets role.

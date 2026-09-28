@@ -4,9 +4,9 @@ import * as OS from "node:os";
 import * as Path from "node:path";
 import { BaseFetcher, Updater } from "tuf-js";
 import { DownloadHTTPError } from "tuf-js/dist/error";
-import { compareSemverVersions } from "@tabs/shared/semver";
 import type { Pool, PoolClient } from "pg";
 import { createPool } from "./config.ts";
+import { publishedHeads, type PublishedTarget } from "./publishedHeads.ts";
 
 const METADATA_NAME = /^(?:[1-9][0-9]*\.)?(?:root|snapshot|targets)\.json$|^timestamp\.json$/;
 const TARGET_PATH =
@@ -27,28 +27,6 @@ interface ReleaseRow {
   readonly digest: string;
   readonly bytes: number;
   readonly status: string;
-}
-
-interface PublishedTarget {
-  readonly namespace: string;
-  readonly name: string;
-  readonly version: string;
-  readonly digest: string;
-  readonly bytes: number;
-}
-
-export function publishedHeads(
-  targets: readonly PublishedTarget[],
-): ReadonlyArray<PublishedTarget> {
-  const heads = new Map<string, PublishedTarget>();
-  for (const target of targets) {
-    const identity = `${target.namespace}.${target.name}`;
-    const current = heads.get(identity);
-    if (!current || compareSemverVersions(target.version, current.version) > 0) {
-      heads.set(identity, target);
-    }
-  }
-  return [...heads.values()];
 }
 
 function record(value: unknown): value is Record<string, unknown> {
