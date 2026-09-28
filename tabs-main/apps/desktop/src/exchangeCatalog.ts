@@ -5,8 +5,9 @@ import {
 } from "@tabs/shared/extensions";
 import { compareSemverVersions, satisfiesSemverRange } from "@tabs/shared/semver";
 
-const MAX_CATALOG_BYTES = 1024 * 1024;
+const MAX_CATALOG_BYTES = 4 * 1024 * 1024;
 const MAX_VERSION_PAGE_BYTES = 8 * 1024 * 1024;
+const MAX_FALLBACK_CONCURRENCY = 4;
 const DIGEST = /^[a-f0-9]{64}$/;
 const SEGMENT = /^[a-z][a-z0-9-]{1,62}$/;
 
@@ -155,22 +156,28 @@ export async function discoverExchangeExtensions(
       }),
     });
   }
-  const listings = await Promise.all(
-    candidates.map(
-      async (candidate): Promise<DesktopExchangeListing | null> =>
-        "fallback" in candidate
-          ? ((
-              await discoverExchangeVersions(
-                origin,
-                tabsVersion,
-                candidate.namespace,
-                candidate.name,
-                fetcher,
-              )
-            )[0] ?? null)
-          : candidate,
-    ),
-  );
+  const listings: Array<DesktopExchangeListing | null> = [];
+  for (let index = 0; index < candidates.length; index += MAX_FALLBACK_CONCURRENCY) {
+    const batch = candidates.slice(index, index + MAX_FALLBACK_CONCURRENCY);
+    listings.push(
+      ...(await Promise.all(
+        batch.map(
+          async (candidate): Promise<DesktopExchangeListing | null> =>
+            "fallback" in candidate
+              ? ((
+                  await discoverExchangeVersions(
+                    origin,
+                    tabsVersion,
+                    candidate.namespace,
+                    candidate.name,
+                    fetcher,
+                  )
+                )[0] ?? null)
+              : candidate,
+        ),
+      )),
+    );
+  }
   return listings.filter((listing): listing is DesktopExchangeListing => listing !== null);
 }
 

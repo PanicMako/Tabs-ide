@@ -280,6 +280,52 @@ describe("Exchange catalog client", () => {
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
 
+  it("bounds concurrent compatibility lookups while retaining catalog order", async () => {
+    const names = Array.from({ length: 9 }, (_, index) => `dashboard-${index}`);
+    let active = 0;
+    let peak = 0;
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/v1/extensions?")) {
+        return response({
+          extensions: names.map((name) => ({
+            namespace: "acme",
+            name,
+            version: "2.0.0",
+            digest: "b".repeat(64),
+            verified: false,
+            manifest: { ...manifest, name, version: "2.0.0", engines: { tabs: ">=2.0.0" } },
+          })),
+        });
+      }
+      const name = url.split("/").at(-1)!;
+      active += 1;
+      peak = Math.max(peak, active);
+      await new Promise((resolve) => setTimeout(resolve, 1));
+      active -= 1;
+      return response(
+        {
+          versions: [
+            {
+              namespace: "acme",
+              name,
+              version: "1.0.0",
+              digest: "a".repeat(64),
+              verified: false,
+              manifest: { ...manifest, name },
+            },
+          ],
+          nextCursor: null,
+        },
+        url,
+      );
+    });
+    const results = await discoverExchangeExtensions(origin, "1.3.17", "", fetcher);
+    expect(results.map((item) => item.name)).toEqual(names);
+    expect(peak).toBe(4);
+    expect(active).toBe(0);
+  });
+
   it("validates the complete catalog before requesting compatibility fallbacks", async () => {
     const fetcher = vi.fn(async () =>
       response({
@@ -336,8 +382,27 @@ describe("Exchange catalog client", () => {
   it("rejects an oversized catalog even when headers omit the length", async () => {
     await expect(
       discoverExchangeExtensions(origin, "1.3.17", "", async () =>
-        response({ extensions: [], padding: "x".repeat(1024 * 1024) }),
+        response({ extensions: [], padding: "x".repeat(4 * 1024 * 1024) }),
       ),
     ).rejects.toThrow(/too large/);
+  });
+
+  it("accepts a catalog larger than 1 MiB within the valid listing envelope", async () => {
+    const results = await discoverExchangeExtensions(origin, "1.3.17", "", async () =>
+      response({
+        extensions: [
+          {
+            namespace: "acme",
+            name: "dashboard",
+            version: "1.0.0",
+            digest: "a".repeat(64),
+            verified: false,
+            manifest,
+          },
+        ],
+        padding: "x".repeat(1024 * 1024),
+      }),
+    );
+    expect(results).toHaveLength(1);
   });
 });
