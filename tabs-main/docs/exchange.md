@@ -54,10 +54,10 @@ length must match an approved database row. On first publication, configure
 Run `bun run tuf:publish /absolute/staged-directory` in `apps/exchange` with
 `DATABASE_URL` set. The command verifies signatures, freshness, rollback,
 exact approved targets, and root transitions before committing all metadata
-and its public-target index in one transaction. After upgrading an existing
-Exchange database, republish the current signed bundle to populate that index
-and the materialized highest-semver search heads; approved versions remain
-private until then. A local revocation immediately selects the highest
+and its public-target index in one transaction. Schema migration rebuilds the
+materialized highest-semver search heads from that existing signed-target index.
+An older database without the index still needs a signed republish; approved
+versions remain private until then. A local revocation immediately selects the highest
 remaining signed, approved release as its search head, if one exists. It does
 not authenticate the revocation for installed clients; publish updated signed
 metadata promptly. No private key is read by this command or stored in the

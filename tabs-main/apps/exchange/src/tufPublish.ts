@@ -6,7 +6,7 @@ import { BaseFetcher, Updater } from "tuf-js";
 import { DownloadHTTPError } from "tuf-js/dist/error";
 import type { Pool, PoolClient } from "pg";
 import { createPool } from "./config.ts";
-import { publishedHeads, type PublishedTarget } from "./publishedHeads.ts";
+import { insertPublishedHeads, type PublishedTarget } from "./publishedHeads.ts";
 
 const METADATA_NAME = /^(?:[1-9][0-9]*\.)?(?:root|snapshot|targets)\.json$|^timestamp\.json$/;
 const TARGET_PATH =
@@ -240,13 +240,7 @@ export async function publishTufMetadata(
         [target.namespace, target.name, target.version, target.digest, target.bytes],
       );
     }
-    for (const head of publishedHeads(bundle.targets)) {
-      await client.query(
-        `INSERT INTO exchange_published_heads(namespace, name, version)
-         VALUES ($1, $2, $3)`,
-        [head.namespace, head.name, head.version],
-      );
-    }
+    await insertPublishedHeads(client, bundle.targets);
     await client.query("COMMIT");
     return bundle.metadata.size;
   } catch (error) {
