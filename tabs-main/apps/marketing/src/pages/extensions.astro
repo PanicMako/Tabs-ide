@@ -25,6 +25,8 @@ const exchange = configuredExchangeOrigin(import.meta.env.PUBLIC_TABS_EXCHANGE_U
 </Layout>
 
 <script>
+  import { extensionDetailHref } from "../lib/extension-listing";
+
   const catalog = document.getElementById("catalog");
   if (catalog) {
     const origin = catalog.dataset.exchangeUrl;
@@ -42,10 +44,12 @@ const exchange = configuredExchangeOrigin(import.meta.env.PUBLIC_TABS_EXCHANGE_U
         if (current !== sequence) return;
         list.replaceChildren();
         for (const extension of data.extensions ?? []) {
+          const detailHref = extensionDetailHref(extension.namespace, extension.name);
+          if (!detailHref) continue;
           const item = document.createElement("li");
           const title = document.createElement("a");
           title.textContent = extension.manifest.displayName;
-          title.href = `${origin}/v1/extensions/${encodeURIComponent(extension.namespace)}/${encodeURIComponent(extension.name)}`;
+          title.href = detailHref;
           const description = document.createElement("p");
           description.textContent = `${extension.manifest.description} — ${extension.namespace}.${extension.name}, version ${extension.version}${extension.verified ? ", verified publisher" : ", unverified publisher"}`;
           item.append(title, description);

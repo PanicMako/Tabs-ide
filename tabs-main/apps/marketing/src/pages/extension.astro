@@ -1,0 +1,153 @@
+---
+import Layout from "../layouts/Layout.astro";
+import { configuredExchangeOrigin } from "../lib/exchange-url";
+
+const exchange = configuredExchangeOrigin(import.meta.env.PUBLIC_TABS_EXCHANGE_URL);
+---
+
+<Layout title="Tabs Extension Details" description="Review a Tabs-native extension's published versions and requested access.">
+  <section class="extension-page">
+    <p class="eyebrow">TABS EXCHANGE</p>
+    <p><a href="/extensions">Back to Explore Extensions</a></p>
+    <h1 id="extension-title">Extension details</h1>
+    <p>Public versions are manually reviewed and included in signed registry metadata. Review is not a security guarantee.</p>
+    {exchange ? (
+      <div id="extension-detail" data-exchange-url={exchange}>
+        <p id="detail-status" role="status" aria-live="polite">Loading extension details...</p>
+        <p id="extension-identity"></p>
+        <ol id="version-list" aria-label="Published extension versions"></ol>
+      </div>
+    ) : (
+      <p role="status">Tabs Exchange details are not available yet.</p>
+    )}
+  </section>
+</Layout>
+
+<script>
+  import { isExchangeIdentifier, safePublisherUrl } from "../lib/extension-listing";
+
+  interface PublicVersion {
+    namespace: string;
+    name: string;
+    version: string;
+    digest: string;
+    bytes: number;
+    submitted_at: string;
+    verified: boolean;
+    manifest: {
+      displayName: string;
+      description: string;
+      engines?: { tabs?: string };
+      capabilities?: string[];
+      networkHosts?: string[];
+      releaseNotes?: string;
+      sourceUrl?: string;
+      supportUrl?: string;
+      privacyUrl?: string;
+    };
+  }
+
+  function detail(parent: HTMLElement, label: string, value: string): void {
+    const term = document.createElement("dt");
+    term.textContent = label;
+    const description = document.createElement("dd");
+    description.textContent = value;
+    parent.append(term, description);
+  }
+
+  function publisherLink(parent: HTMLElement, label: string, value: unknown): void {
+    const link = safePublisherUrl(value);
+    if (!link) {
+      detail(parent, label, "Not provided");
+      return;
+    }
+    const term = document.createElement("dt");
+    term.textContent = label;
+    const description = document.createElement("dd");
+    const anchor = document.createElement("a");
+    anchor.href = link;
+    anchor.target = "_blank";
+    anchor.rel = "noopener noreferrer";
+    anchor.textContent = link;
+    description.append(anchor);
+    parent.append(term, description);
+  }
+
+  const root = document.getElementById("extension-detail");
+  if (root) {
+    const origin = root.dataset.exchangeUrl!;
+    const status = document.getElementById("detail-status")!;
+    const title = document.getElementById("extension-title")!;
+    const identity = document.getElementById("extension-identity")!;
+    const list = document.getElementById("version-list")!;
+    const params = new URLSearchParams(window.location.search);
+    const namespace = params.get("namespace");
+    const name = params.get("name");
+    if (!isExchangeIdentifier(namespace) || !isExchangeIdentifier(name)) {
+      status.textContent = "Choose an extension from Explore Extensions.";
+    } else {
+      const selectedNamespace = namespace;
+      const selectedName = name;
+      void (async () => {
+        try {
+          const response = await fetch(`${origin}/v1/extensions/${selectedNamespace}/${selectedName}`);
+          if (!response.ok) throw new Error("This extension is unavailable or no longer published.");
+          const data: { versions?: PublicVersion[] } = await response.json();
+          const versions = Array.isArray(data.versions) ? data.versions : [];
+          if (!versions.length) throw new Error("No published versions are available.");
+          const first = versions[0]!;
+          title.textContent = first.manifest.displayName;
+          identity.textContent = `${selectedNamespace}.${selectedName} - ${first.verified ? "verified publisher" : "unverified publisher"}. Namespace membership alone is not verification.`;
+          for (const entry of versions) {
+            if (entry.namespace !== selectedNamespace || entry.name !== selectedName) continue;
+            const item = document.createElement("li");
+            const heading = document.createElement("h2");
+            heading.textContent = `Version ${entry.version}`;
+            const summary = document.createElement("p");
+            summary.textContent = entry.manifest.description;
+            const metadata = document.createElement("dl");
+            detail(metadata, "Review status", "Approved and included in signed registry metadata");
+            detail(metadata, "Tabs compatibility", entry.manifest.engines?.tabs ?? "Not specified");
+            detail(metadata, "Requested permissions", entry.manifest.capabilities?.length ? entry.manifest.capabilities.join(", ") : "None");
+            detail(metadata, "Permitted network hosts", entry.manifest.networkHosts?.length ? entry.manifest.networkHosts.join(", ") : "None");
+            detail(metadata, "Package SHA-256", entry.digest);
+            detail(metadata, "Package size", `${entry.bytes} bytes`);
+            detail(metadata, "Submitted", entry.submitted_at);
+            publisherLink(metadata, "Source", entry.manifest.sourceUrl);
+            publisherLink(metadata, "Support", entry.manifest.supportUrl);
+            publisherLink(metadata, "Privacy", entry.manifest.privacyUrl);
+            const notesHeading = document.createElement("h3");
+            notesHeading.textContent = "Release notes";
+            const notes = document.createElement("p");
+            notes.className = "release-notes";
+            notes.textContent = entry.manifest.releaseNotes || "No release notes provided.";
+            const download = document.createElement("a");
+            download.href = `${origin}/v1/extensions/${selectedNamespace}/${selectedName}/versions/${encodeURIComponent(entry.version)}/download`;
+            download.textContent = `Download version ${entry.version} package`;
+            item.append(heading, summary, metadata, notesHeading, notes, download);
+            list.append(item);
+          }
+          status.textContent = `${list.children.length} published version(s) available. Install through Tabs with a trusted Exchange root; a browser download alone does not verify signed metadata.`;
+        } catch (error) {
+          status.textContent = error instanceof Error ? error.message : "Extension details are unavailable.";
+        }
+      })();
+    }
+  }
+</script>
+
+<style is:global>
+  .extension-page { max-width: 55rem; margin: 2rem auto 5rem; padding: 0 1.5rem; line-height: 1.6; }
+  .eyebrow { color: #a1a1aa; letter-spacing: .15em; font-size: .8rem; }
+  .extension-page h1 { font-size: clamp(2.5rem, 7vw, 4rem); margin: 1rem 0; }
+  .extension-page h2 { margin-top: 0; }
+  .extension-page ol { list-style: none; padding: 0; }
+  .extension-page li { padding: 1.5rem 0; border-top: 1px solid #3f3f46; }
+  .extension-page dl { display: grid; grid-template-columns: minmax(9rem, 12rem) 1fr; gap: .5rem 1rem; }
+  .extension-page dt { color: #d4d4d8; }
+  .extension-page dd { margin: 0; overflow-wrap: anywhere; }
+  .extension-page .release-notes { white-space: pre-wrap; overflow-wrap: anywhere; }
+  .extension-page a { color: #bfdbfe; text-decoration: underline; }
+  .extension-page :focus-visible { outline: 3px solid #fbbf24; outline-offset: 3px; }
+  @media (max-width: 35rem) { .extension-page dl { grid-template-columns: 1fr; } }
+</style>
