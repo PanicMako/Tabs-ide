@@ -292,7 +292,8 @@ contextBridge.exposeInMainWorld("desktopBridge", {
     ipcRenderer.on(EXTENSION_CHANGED_CHANNEL, handler);
     return () => ipcRenderer.removeListener(EXTENSION_CHANGED_CHANNEL, handler);
   },
-  discoverExchangeExtensions: (query) => ipcRenderer.invoke(EXTENSION_DISCOVER_CHANNEL, query),
+  discoverExchangeExtensions: (query, cursor) =>
+    ipcRenderer.invoke(EXTENSION_DISCOVER_CHANNEL, query, cursor),
   checkExtensionUpdate: (extensionId) =>
     ipcRenderer.invoke(EXTENSION_CHECK_UPDATE_CHANNEL, extensionId),
   exchangeInstallAvailable: () => ipcRenderer.invoke(EXTENSION_EXCHANGE_AVAILABLE_CHANNEL),

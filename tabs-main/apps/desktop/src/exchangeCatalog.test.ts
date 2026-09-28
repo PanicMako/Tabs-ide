@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   configuredExchangeOrigin,
+  discoverExchangePage,
   discoverExchangeExtensions,
   discoverExchangeVersions,
 } from "./exchangeCatalog";
@@ -30,6 +31,33 @@ function response(body: unknown, url = `${origin}/v1/extensions?q=&limit=30`): R
 }
 
 describe("Exchange catalog client", () => {
+  it("accepts a bounded next search page and rejects cursor replay", async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL) =>
+      response(
+        {
+          extensions: [
+            {
+              namespace: "acme",
+              name: "dashboard",
+              version: "1.0.0",
+              digest: "a".repeat(64),
+              verified: true,
+              manifest,
+            },
+          ],
+          nextCursor: "nextpage",
+        },
+        String(input),
+      ),
+    );
+    const first = await discoverExchangePage(origin, "1.3.17", "", null, fetcher);
+    expect(first.listings).toHaveLength(1);
+    expect(first.nextCursor).toBe("nextpage");
+    await expect(discoverExchangePage(origin, "1.3.17", "", "nextpage", fetcher)).rejects.toThrow(
+      /pagination/,
+    );
+    expect(fetcher.mock.calls[1]?.[0]).toBe(`${origin}/v1/extensions?q=&limit=30&cursor=nextpage`);
+  });
   it("sorts compatible versions and rejects mismatched exact-identity responses", async () => {
     const versionUrl = `${origin}/v1/extensions/acme/dashboard`;
     const release = (version: string) => ({

@@ -175,7 +175,17 @@ async function fixture(
               },
             ])
           : [];
-        return { rows: rows.slice(0, Number(params?.[1])), rowCount: rows.length };
+        const after = rows
+          .filter(
+            (entry) =>
+              params?.[1] === null ||
+              `${entry.namespace}.${entry.name}` > `${params?.[1]}.${params?.[2]}`,
+          )
+          .sort((left, right) =>
+            `${left.namespace}.${left.name}`.localeCompare(`${right.namespace}.${right.name}`),
+          )
+          .slice(0, Number(params?.[3]));
+        return { rows: after, rowCount: after.length };
       }
       if (sql.includes("FROM exchange_versions") && sql.includes("status = 'approved'")) {
         const isPublic = Boolean(
@@ -273,6 +283,40 @@ afterEach(async () => {
 });
 
 describe("Exchange HTTP boundaries", () => {
+  it("paginates public search without repeating an extension", async () => {
+    const target = Buffer.from("approved");
+    const rows = ["alpha", "bravo", "charlie"].map((name) => ({
+      namespace: "example",
+      name,
+      version: "1.0.0",
+      digest,
+      manifest: { displayName: name },
+      verified: false,
+    }));
+    const ready = await fixture(
+      true,
+      digest,
+      "approved",
+      { target, targetStatus: "approved" },
+      undefined,
+      rows,
+    );
+    const path = `${ready.base}/v1/extensions?limit=2`;
+    const first = await fetch(path);
+    expect(first.status).toBe(200);
+    const firstPage = await first.json();
+    expect(firstPage.extensions.map((entry: { name: string }) => entry.name)).toEqual([
+      "alpha",
+      "bravo",
+    ]);
+    expect(typeof firstPage.nextCursor).toBe("string");
+    const second = await fetch(`${path}&cursor=${encodeURIComponent(firstPage.nextCursor)}`);
+    const secondPage = await second.json();
+    expect(secondPage.extensions.map((entry: { name: string }) => entry.name)).toEqual(["charlie"]);
+    expect(secondPage.nextCursor).toBeNull();
+    expect((await fetch(`${path}&cursor=bad%2Fcursor`)).status).toBe(400);
+  });
+
   it("paginates public version lists with bounded opaque cursors", async () => {
     const rows = Array.from({ length: 101 }, (_, index) => ({
       namespace: "example",

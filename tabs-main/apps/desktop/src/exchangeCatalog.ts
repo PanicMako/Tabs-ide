@@ -1,4 +1,4 @@
-import type { DesktopExchangeListing } from "@tabs/contracts";
+import type { DesktopExchangeListing, DesktopExchangePage } from "@tabs/contracts";
 import {
   extensionApiRangeCompatible,
   validateTabsExtensionManifest,
@@ -63,16 +63,21 @@ async function boundedJson(response: Response, maxBytes = MAX_CATALOG_BYTES): Pr
 }
 
 /** Catalog content is untrusted and must never authorize an install or update. */
-export async function discoverExchangeExtensions(
+export async function discoverExchangePage(
   origin: string,
   tabsVersion: string,
   query: string,
+  cursor: string | null = null,
   fetcher: typeof fetch = fetch,
-): Promise<DesktopExchangeListing[]> {
+): Promise<DesktopExchangePage> {
   if (query.length > 100) throw new Error("Exchange search query is too long.");
+  if (cursor !== null && (cursor.length > 256 || !/^[A-Za-z0-9_-]+$/.test(cursor))) {
+    throw new Error("Invalid Exchange search cursor.");
+  }
   const url = new URL("/v1/extensions", origin);
   url.searchParams.set("q", query);
   url.searchParams.set("limit", "30");
+  if (cursor) url.searchParams.set("cursor", cursor);
   const response = await fetcher(url.href, {
     method: "GET",
     redirect: "error",
@@ -84,6 +89,18 @@ export async function discoverExchangeExtensions(
   const document = await boundedJson(response);
   if (!record(document) || !Array.isArray(document.extensions) || document.extensions.length > 30) {
     throw new Error("Exchange catalog response is invalid.");
+  }
+  const nextCursor = document.nextCursor;
+  if (
+    nextCursor !== undefined &&
+    nextCursor !== null &&
+    (typeof nextCursor !== "string" ||
+      nextCursor.length > 256 ||
+      !/^[A-Za-z0-9_-]+$/.test(nextCursor) ||
+      nextCursor === cursor ||
+      document.extensions.length === 0)
+  ) {
+    throw new Error("Exchange search pagination is invalid.");
   }
   const seen = new Set<string>();
   const candidates: Array<
@@ -178,7 +195,20 @@ export async function discoverExchangeExtensions(
       )),
     );
   }
-  return listings.filter((listing): listing is DesktopExchangeListing => listing !== null);
+  return {
+    listings: listings.filter((listing): listing is DesktopExchangeListing => listing !== null),
+    nextCursor: typeof nextCursor === "string" ? nextCursor : null,
+  };
+}
+
+/** Legacy single-page helper used by existing discovery callers and tests. */
+export async function discoverExchangeExtensions(
+  origin: string,
+  tabsVersion: string,
+  query: string,
+  fetcher: typeof fetch = fetch,
+): Promise<DesktopExchangeListing[]> {
+  return (await discoverExchangePage(origin, tabsVersion, query, null, fetcher)).listings.slice();
 }
 
 /** Version listings are hints only; callers must verify candidates through TUF. */

@@ -149,6 +149,11 @@ export interface DesktopExchangeListing {
   readonly privacyUrl?: string;
 }
 
+export interface DesktopExchangePage {
+  readonly listings: ReadonlyArray<DesktopExchangeListing>;
+  readonly nextCursor: string | null;
+}
+
 export interface DesktopExtensionViewInput {
   readonly extensionId: string;
   readonly toolId: string;

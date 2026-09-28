@@ -86,7 +86,7 @@ import { CodeHostManager, resolveCodeHostConfig } from "./codeHostManager";
 import { BrowserHostManager } from "./browserHostManager";
 import { ExtensionViewManager } from "./extensionViewManager";
 import { ExtensionAiBrokerServer } from "./extensionAiBrokerServer";
-import { configuredExchangeOrigin, discoverExchangeExtensions } from "./exchangeCatalog";
+import { configuredExchangeOrigin, discoverExchangePage } from "./exchangeCatalog";
 import { ExchangeUpdateMonitor } from "./exchangeUpdateMonitor";
 import { ExchangeAutomaticUpdater } from "./exchangeAutomaticUpdater";
 import { configuredExchangeTrust, ExchangeInstallService } from "./exchangeInstall";
@@ -2153,12 +2153,14 @@ function registerIpcHandlers(): void {
     });
   });
   ipcMain.removeHandler(EXTENSION_DISCOVER_CHANNEL);
-  ipcMain.handle(EXTENSION_DISCOVER_CHANNEL, async (event, query: unknown) => {
+  ipcMain.handle(EXTENSION_DISCOVER_CHANNEL, async (event, query: unknown, cursor: unknown) => {
     requireMainRenderer(event);
     if (typeof query !== "string") throw new Error("Invalid Exchange search query.");
+    if (cursor !== undefined && typeof cursor !== "string")
+      throw new Error("Invalid Exchange search cursor.");
     const origin = configuredExchangeOrigin(process.env.TABS_EXCHANGE_ORIGIN, !app.isPackaged);
     if (!origin) return null;
-    return discoverExchangeExtensions(origin, app.getVersion(), query);
+    return discoverExchangePage(origin, app.getVersion(), query, cursor ?? null);
   });
   ipcMain.removeHandler(EXTENSION_CHECK_UPDATE_CHANNEL);
   ipcMain.handle(EXTENSION_CHECK_UPDATE_CHANNEL, async (event, id: unknown) => {

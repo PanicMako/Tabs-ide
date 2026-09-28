@@ -16,6 +16,7 @@ const exchange = configuredExchangeOrigin(import.meta.env.PUBLIC_TABS_EXCHANGE_U
         <input id="search" type="search" placeholder="Search by name or publisher" />
         <p id="catalog-status" role="status" aria-live="polite">Loading approved extensions...</p>
         <ul id="catalog-list"></ul>
+        <button id="catalog-more" type="button" hidden>Load more extensions</button>
       </div>
     ) : (
       <p role="status">Tabs Exchange discovery is not available yet. The desktop development format is experimental.</p>
@@ -33,17 +34,38 @@ const exchange = configuredExchangeOrigin(import.meta.env.PUBLIC_TABS_EXCHANGE_U
     const input = document.getElementById("search") as HTMLInputElement;
     const status = document.getElementById("catalog-status")!;
     const list = document.getElementById("catalog-list")!;
+    const moreButton = document.getElementById("catalog-more") as HTMLButtonElement;
     let sequence = 0;
-    const load = async () => {
+    let nextCursor: string | null = null;
+    const seenCursors = new Set<string>();
+    const load = async (append = false) => {
+      if (append && !nextCursor) return;
       const current = ++sequence;
+      if (!append) {
+        list.replaceChildren();
+        nextCursor = null;
+        seenCursors.clear();
+      }
+      const url = new URL("/v1/extensions", origin);
+      url.searchParams.set("q", input.value.trim());
+      url.searchParams.set("limit", "30");
+      if (append && nextCursor) url.searchParams.set("cursor", nextCursor);
+      moreButton.hidden = !append;
+      moreButton.disabled = true;
       status.textContent = "Loading approved extensions...";
       try {
-        const response = await fetch(`${origin}/v1/extensions?q=${encodeURIComponent(input.value.trim())}`);
+        const response = await fetch(url.href, { redirect: "error" });
         if (!response.ok) throw new Error("The catalog could not be loaded.");
         const data = await response.json();
         if (current !== sequence) return;
-        list.replaceChildren();
-        for (const extension of data.extensions ?? []) {
+        if (!Array.isArray(data.extensions) || data.extensions.length > 30) throw new Error("Invalid catalog page.");
+        const cursor = data.nextCursor;
+        if (cursor !== null && cursor !== undefined &&
+          (typeof cursor !== "string" || cursor.length > 256 || !/^[A-Za-z0-9_-]+$/.test(cursor) || seenCursors.has(cursor) || !data.extensions.length)) {
+          throw new Error("Invalid catalog cursor.");
+        }
+        const firstNewIndex = list.children.length;
+        for (const extension of data.extensions) {
           const detailHref = extensionDetailHref(extension.namespace, extension.name);
           if (!detailHref) continue;
           const item = document.createElement("li");
@@ -55,12 +77,24 @@ const exchange = configuredExchangeOrigin(import.meta.env.PUBLIC_TABS_EXCHANGE_U
           item.append(title, description);
           list.append(item);
         }
-        status.textContent = data.extensions?.length ? `${data.extensions.length} approved extensions found.` : "No approved extensions found.";
+        nextCursor = typeof cursor === "string" ? cursor : null;
+        if (nextCursor) seenCursors.add(nextCursor);
+        if (append) list.children[firstNewIndex]?.querySelector("a")?.focus();
+        moreButton.hidden = !nextCursor;
+        moreButton.disabled = !nextCursor;
+        status.textContent = list.children.length
+          ? `${list.children.length} approved extensions shown${nextCursor ? ", more available" : ""}.`
+          : "No approved extensions found.";
       } catch {
-        if (current === sequence) status.textContent = "The catalog is unavailable. Please try again later.";
+        if (current === sequence) {
+          status.textContent = "The catalog is unavailable. Please try again later.";
+          moreButton.hidden = !nextCursor;
+          moreButton.disabled = !nextCursor;
+        }
       }
     };
     input.addEventListener("input", () => { void load(); });
+    moreButton.addEventListener("click", () => { void load(true); });
     void load();
   }
 </script>
@@ -73,6 +107,8 @@ const exchange = configuredExchangeOrigin(import.meta.env.PUBLIC_TABS_EXCHANGE_U
   input { width: 100%; padding: .75rem; margin: .5rem 0; color: #fafafa; background: #18181b; border: 1px solid #a1a1aa; border-radius: .4rem; font: inherit; }
   ul { list-style: none; padding: 0; }
   li { padding: 1.2rem 0; border-bottom: 1px solid #3f3f46; }
+  button { margin-top: 1rem; padding: .7rem 1rem; color: #fafafa; background: #27272a; border: 1px solid #a1a1aa; border-radius: .4rem; font: inherit; cursor: pointer; }
+  button[hidden] { display: none; }
   a { color: #bfdbfe; text-decoration: underline; }
   :focus-visible { outline: 3px solid #fbbf24; outline-offset: 3px; }
 </style>

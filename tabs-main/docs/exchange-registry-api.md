@@ -8,13 +8,13 @@ claim compatibility with VS Code `.vsix` or Open VSX registry clients.
 
 All paths are relative to one configured HTTPS registry origin. Responses use
 JSON unless noted. The official desktop client sends no cookies, rejects HTTP
-redirects and changed response URLs, bounds JSON bodies to 1 MiB each, and
-validates manifest identity and compatibility. Public catalog data is a
+redirects and changed response URLs, bounds search JSON to 4 MiB and version
+JSON to 8 MiB, and validates manifest identity and compatibility. Public catalog data is a
 **discovery hint**, never authority to install or update executable bytes.
 
 | Route                                                              | Response                                                                                                                                                                                              |
 | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /v1/extensions?q=term&limit=30`                               | `{ "extensions": [release, ...] }`; one highest-semver published release per identity, at most 100.                                                                                                   |
+| `GET /v1/extensions?q=term&limit=30`                               | `{ "extensions": [release, ...], "nextCursor": string \| null }`; one highest-semver published release per identity, at most 100 per page. Pass `?cursor=<opaque>` for the next page.                 |
 | `GET /v1/extensions/:namespace/:name`                              | `{ "versions": [release, ...], "nextCursor": string \| null }`; up to 100 published versions, newest submission first. Pass `?cursor=<opaque>` to get the next page. An unknown identity returns 404. |
 | `GET /v1/extensions/:namespace/:name/versions/:version`            | One exact published release with `downloadUrl`.                                                                                                                                                       |
 | `GET /v1/extensions/:namespace/:name/versions/:version/download`   | Archive bytes with SHA-256 `Digest` and `ETag` headers. This URL is convenient for people but does not independently authorize desktop installation.                                                  |
@@ -32,7 +32,9 @@ have not yet published the updated signed metadata. Operators must publish a
 fresh signed removal promptly so already installed clients can authenticate
 the revocation.
 
-Version-list cursors are opaque and must be passed back unchanged. They are
+Search cursors are opaque keyset positions over publisher and extension name;
+keep the same `q` and `limit` while following them. Version-list cursors are
+opaque and must be passed back unchanged. They are
 keyset positions over exact submission time and version, not an authorization
 token. Clients should reject duplicate versions, repeated cursors, oversized
 pages, and a registry that never terminates pagination. Tabs desktop and the

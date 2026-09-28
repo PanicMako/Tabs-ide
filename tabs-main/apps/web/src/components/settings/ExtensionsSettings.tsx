@@ -38,6 +38,10 @@ export default function ExtensionsSettings() {
   >({});
   const [searchQuery, setSearchQuery] = useState("");
   const [catalog, setCatalog] = useState<DesktopExchangeListing[] | null | undefined>(undefined);
+  const [catalogQuery, setCatalogQuery] = useState("");
+  const [catalogCursor, setCatalogCursor] = useState<string | null>(null);
+  const [catalogPaged, setCatalogPaged] = useState(false);
+  const catalogSeenCursors = useRef(new Set<string>());
   const [exchangeInstallAvailable, setExchangeInstallAvailable] = useState(false);
   const [checkedUpdates, setCheckedUpdates] = useState<
     Record<string, DesktopExchangeListing | null>
@@ -106,16 +110,46 @@ export default function ExtensionsSettings() {
   };
   const searchExchange = async () => {
     if (!bridge) return;
+    const query = searchQuery.trim();
     setBusy(true);
     setError(null);
     setCatalog(undefined);
+    setCatalogCursor(null);
+    setCatalogPaged(false);
+    setCatalogQuery(query);
+    catalogSeenCursors.current.clear();
     try {
-      const [listings, available] = await Promise.all([
-        bridge.discoverExchangeExtensions(searchQuery.trim()),
+      const [page, available] = await Promise.all([
+        bridge.discoverExchangeExtensions(query),
         bridge.exchangeInstallAvailable(),
       ]);
-      setCatalog(listings);
+      setCatalog(page ? [...page.listings] : null);
+      setCatalogCursor(page?.nextCursor ?? null);
+      if (page?.nextCursor) catalogSeenCursors.current.add(page.nextCursor);
       setExchangeInstallAvailable(available);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const loadMoreExchange = async () => {
+    if (!bridge || !catalogCursor || !catalog) return;
+    setBusy(true);
+    setError(null);
+    const cursor = catalogCursor;
+    try {
+      const page = await bridge.discoverExchangeExtensions(catalogQuery, cursor);
+      if (!page || (page.nextCursor !== null && catalogSeenCursors.current.has(page.nextCursor)))
+        throw new Error("Exchange search pagination is invalid.");
+      const known = new Set(catalog.map((listing) => listing.id));
+      if (page.listings.some((listing) => known.has(listing.id))) {
+        throw new Error("Exchange search returned a duplicate extension.");
+      }
+      setCatalog([...catalog, ...page.listings]);
+      setCatalogCursor(page.nextCursor);
+      if (page.nextCursor) catalogSeenCursors.current.add(page.nextCursor);
+      setCatalogPaged(true);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -268,6 +302,16 @@ export default function ExtensionsSettings() {
                 </li>
               ))}
             </ul>
+          ) : null}
+          {catalog && (catalogCursor || catalogPaged) ? (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={busy || !catalogCursor}
+              onClick={() => void loadMoreExchange()}
+            >
+              {catalogCursor ? "Load more extensions" : "All results loaded"}
+            </Button>
           ) : null}
           {catalog && !exchangeInstallAvailable ? (
             <p role="status" className="text-sm text-muted-foreground">

@@ -16,6 +16,7 @@ import {
 import { createPool, createStorage, loadConfig, type ExchangeConfig } from "./config.ts";
 import { boundedObject } from "./storage.ts";
 import { refreshPublishedHead } from "./publishedHeads.ts";
+import { decodeSearchCursor, encodeSearchCursor } from "./searchCursor.ts";
 import { decodeVersionCursor, encodeVersionCursor } from "./versionCursor.ts";
 
 const PACKAGE_ROUTE = /^\/v1\/extensions\/([a-z][a-z0-9-]{1,62})\/([a-z][a-z0-9-]{1,62})$/;
@@ -472,6 +473,9 @@ export function createExchangeServer(
       if (request.method === "GET" && path === "/v1/extensions") {
         const query = (url.searchParams.get("q") ?? "").slice(0, 100);
         const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit")) || 30));
+        const cursorValue = url.searchParams.get("cursor");
+        const cursor = cursorValue === null ? null : decodeSearchCursor(cursorValue);
+        if (cursorValue !== null && !cursor) throw new HttpError(400, "Invalid search cursor.");
         const heads = await pool.query(
           `SELECT v.namespace, v.name, v.version, v.digest, v.manifest, v.submitted_at, n.verified
            FROM exchange_published_heads h
@@ -480,10 +484,24 @@ export function createExchangeServer(
            JOIN exchange_namespaces n ON n.name = v.namespace
            WHERE v.status = 'approved'
              AND (v.namespace ILIKE $1 OR v.name ILIKE $1 OR v.manifest->>'displayName' ILIKE $1)
-           ORDER BY v.namespace, v.name LIMIT $2`,
-          [`%${query.replaceAll("%", "\\%").replaceAll("_", "\\_")}%`, limit],
+             AND ($2::text IS NULL OR (v.namespace, v.name) > ($2::text, $3::text))
+           ORDER BY v.namespace, v.name LIMIT $4`,
+          [
+            `%${query.replaceAll("%", "\\%").replaceAll("_", "\\_")}%`,
+            cursor?.namespace ?? null,
+            cursor?.name ?? null,
+            limit + 1,
+          ],
         );
-        json(response, 200, { extensions: heads.rows });
+        const page = heads.rows.slice(0, limit);
+        const last = page.at(-1);
+        json(response, 200, {
+          extensions: page,
+          nextCursor:
+            heads.rows.length > limit && last
+              ? encodeSearchCursor({ namespace: last.namespace, name: last.name })
+              : null,
+        });
         return;
       }
       const packageMatch = request.method === "GET" ? PACKAGE_ROUTE.exec(path) : null;
