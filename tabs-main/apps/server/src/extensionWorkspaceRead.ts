@@ -9,6 +9,7 @@ const MAX_CONTENT_BYTES = 1024 * 1024;
 export async function readExtensionWorkspaceFile(
   workspaceRoot: string,
   relativePath: string,
+  openFile: typeof FS.open = FS.open,
 ): Promise<string> {
   if (
     typeof relativePath !== "string" ||
@@ -28,11 +29,19 @@ export async function readExtensionWorkspaceFile(
   if (!canonical.startsWith(`${root}${Path.sep}`)) {
     throw new Error("Workspace path escapes the project root.");
   }
-  const handle = await FS.open(canonical, FS_CONSTANTS.O_RDONLY | FS_CONSTANTS.O_NOFOLLOW);
+  const handle = await openFile(canonical, FS_CONSTANTS.O_RDONLY | FS_CONSTANTS.O_NOFOLLOW);
   try {
     const stat = await handle.stat();
     if (!stat.isFile() || stat.size > MAX_CONTENT_BYTES) {
       throw new Error("Workspace file is unavailable or too large.");
+    }
+    const openedPath = await FS.realpath(canonical);
+    if (!openedPath.startsWith(`${root}${Path.sep}`)) {
+      throw new Error("Workspace path changed outside the project root.");
+    }
+    const current = await FS.stat(openedPath);
+    if (current.dev !== stat.dev || current.ino !== stat.ino) {
+      throw new Error("Workspace file changed while it was opened.");
     }
     const bytes = Buffer.alloc(MAX_CONTENT_BYTES + 1);
     let length = 0;

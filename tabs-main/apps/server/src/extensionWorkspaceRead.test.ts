@@ -48,4 +48,19 @@ describe("extension workspace file broker", () => {
     await expect(readExtensionWorkspaceFile(root, "binary.txt")).rejects.toThrow();
     await expect(readExtensionWorkspaceFile(root, ".")).rejects.toThrow();
   });
+
+  it("rejects a parent directory switched to an outside symlink before opening", async () => {
+    const root = temporary();
+    const outside = temporary();
+    FS.mkdirSync(Path.join(root, "docs"));
+    FS.writeFileSync(Path.join(root, "docs", "secret.txt"), "inside");
+    FS.writeFileSync(Path.join(outside, "secret.txt"), "outside");
+    await expect(
+      readExtensionWorkspaceFile(root, "docs/secret.txt", async (path, flags) => {
+        FS.renameSync(Path.join(root, "docs"), Path.join(root, "old-docs"));
+        FS.symlinkSync(outside, Path.join(root, "docs"));
+        return FS.promises.open(path, flags);
+      }),
+    ).rejects.toThrow(/outside the project root/);
+  });
 });
