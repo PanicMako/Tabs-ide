@@ -213,6 +213,15 @@ async function refreshOperations() {
       : "No revocations await signed publication. ") +
     `${queue.awaiting_signed_publication} approved version(s) await signed publication. ` +
     `Last signed publication: ${queue.last_signed_publication_at ?? "none"}.`;
+  document.getElementById("metadata-freshness").textContent =
+    "Stored TUF metadata expiry (advisory; this view does not verify signatures): " +
+    data.metadataFreshness
+      .map(
+        (entry) =>
+          `${entry.role}: ${entry.status}${entry.expiresAt ? ` at ${entry.expiresAt}` : ""}`,
+      )
+      .join("; ") +
+    ". Refresh or publish signed metadata before a role expires.";
   const pending = document.getElementById("pending-revocations");
   pending.replaceChildren();
   for (const entry of data.pendingRevocations) {

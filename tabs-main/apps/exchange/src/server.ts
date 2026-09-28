@@ -19,6 +19,7 @@ import { refreshPublishedHead } from "./publishedHeads.ts";
 import { decodeSearchCursor, encodeSearchCursor } from "./searchCursor.ts";
 import { decodeVersionCursor, encodeVersionCursor } from "./versionCursor.ts";
 import { SignedMetadataEvents } from "./signedMetadataEvents.ts";
+import { metadataFreshness, type StoredMetadataRow } from "./metadataFreshness.ts";
 
 const PACKAGE_ROUTE = /^\/v1\/extensions\/([a-z][a-z0-9-]{1,62})\/([a-z][a-z0-9-]{1,62})$/;
 const VERSION_ROUTE =
@@ -736,9 +737,18 @@ export function createExchangeServer(
            FROM exchange_versions v JOIN exchange_published_targets p
              ON p.namespace = v.namespace AND p.name = v.name AND p.version = v.version
              AND p.digest = v.digest AND p.bytes = v.bytes
-           WHERE v.status = 'revoked' ORDER BY v.reviewed_at ASC LIMIT 100`,
+          WHERE v.status = 'revoked' ORDER BY v.reviewed_at ASC LIMIT 100`,
         );
-        json(response, 200, { queue: found.rows[0], pendingRevocations: pending.rows });
+        const metadata = await pool.query<StoredMetadataRow>(
+          `SELECT name, bytes FROM exchange_tuf_metadata
+           WHERE name = ANY($1::text[])`,
+          [["root.json", "timestamp.json", "snapshot.json", "targets.json"]],
+        );
+        json(response, 200, {
+          queue: found.rows[0],
+          pendingRevocations: pending.rows,
+          metadataFreshness: metadataFreshness(metadata.rows),
+        });
         return;
       }
       const reviewHistory = request.method === "GET" ? REVIEW_HISTORY_ROUTE.exec(path) : null;

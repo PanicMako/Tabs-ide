@@ -139,6 +139,12 @@ async function fixture(
         };
       }
       if (sql.includes("FROM exchange_tuf_metadata")) {
+        if (sql.includes("WHERE name = ANY")) {
+          return {
+            rows: tuf?.metadata ? [{ name: "timestamp.json", bytes: tuf.metadata }] : [],
+            rowCount: tuf?.metadata ? 1 : 0,
+          };
+        }
         return {
           rows:
             tuf?.metadata && params?.[0] === "timestamp.json"
@@ -475,6 +481,12 @@ describe("Exchange HTTP boundaries", () => {
         worker_recently_seen: true,
       },
       pendingRevocations: [{ namespace: "example", name: "dashboard", digest }],
+      metadataFreshness: [
+        { role: "root", status: "missing", expiresAt: null },
+        { role: "timestamp", status: "missing", expiresAt: null },
+        { role: "snapshot", status: "missing", expiresAt: null },
+        { role: "targets", status: "missing", expiresAt: null },
+      ],
     });
     expect(ready.publicQueries.filter((sql) => sql.includes("AS stale_scans"))).toHaveLength(1);
     expect(
@@ -692,6 +704,7 @@ describe("Exchange HTTP boundaries", () => {
     expect(page.status).toBe(200);
     const html = await page.text();
     expect(html).toContain('aria-live="polite"');
+    expect(html).toContain('id="metadata-freshness"');
     expect(html).toContain('id="blocked-digest-batch-value"');
     expect(html).toContain('src="/publisher.js" type="module"');
     const parser = await fetch(`${base}/publisherBatch.js`);

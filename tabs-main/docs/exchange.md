@@ -224,6 +224,11 @@ stale heartbeat warrants investigation; a recent heartbeat does not prove that
 all scans or external advisory services are healthy. Operators should alert on
 this signal and queue age rather than relying on the API's database-only
 `/healthz` check.
+The operations view also displays each stored TUF role's expiry with a 48-hour
+warning window. This is an advisory parse of the bytes already accepted by the
+publication verifier, not a fresh signature check. Missing, malformed, or
+expired metadata needs operator attention; monitor the timestamp role especially
+closely because clients stop accepting expired metadata.
 The same operations view flags revoked versions still present in the last
 published signed targets role and lists the first 100 exact package digests
 requiring a new signed publication. It also counts approved versions not yet
