@@ -21,6 +21,20 @@ interface Job {
   readonly scan_token: string;
 }
 
+export async function recordWorkerHeartbeat(
+  pool: Pool,
+  workerId: string,
+  completedScan = false,
+): Promise<void> {
+  await pool.query(
+    `INSERT INTO exchange_worker_heartbeats(worker_id, heartbeat_at, last_scan_at)
+     VALUES ($1, now(), CASE WHEN $2 THEN now() ELSE NULL END)
+     ON CONFLICT (worker_id) DO UPDATE SET heartbeat_at = now(),
+       last_scan_at = CASE WHEN $2 THEN now() ELSE exchange_worker_heartbeats.last_scan_at END`,
+    [workerId, completedScan],
+  );
+}
+
 export async function scanNextVersion(
   pool: Pool,
   storage: S3Client,
@@ -174,9 +188,24 @@ if (import.meta.main) {
   const config = loadConfig();
   const pool = createPool();
   const storage = createStorage();
+  const workerId = Crypto.randomUUID();
+  void pool
+    .query("DELETE FROM exchange_worker_heartbeats WHERE heartbeat_at < now() - interval '1 day'")
+    .catch((error) => {
+      process.stderr.write(`Exchange worker heartbeat cleanup failed: ${String(error)}\n`);
+    });
+  const heartbeat = () => {
+    void recordWorkerHeartbeat(pool, workerId).catch((error) => {
+      process.stderr.write(`Exchange worker heartbeat failed: ${String(error)}\n`);
+    });
+  };
+  heartbeat();
+  setInterval(heartbeat, 5_000);
   for (;;) {
     try {
-      if (!(await scanNextVersion(pool, storage, config))) {
+      if (await scanNextVersion(pool, storage, config)) {
+        await recordWorkerHeartbeat(pool, workerId, true);
+      } else {
         await new Promise((resolve) => setTimeout(resolve, 3_000));
       }
     } catch (error) {

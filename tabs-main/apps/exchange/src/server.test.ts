@@ -99,6 +99,9 @@ async function fixture(
               awaiting_review: 3,
               oldest_queued_at: "2026-09-28T00:00:00Z",
               last_reviewed_at: null,
+              last_worker_heartbeat_at: "2026-09-28T00:00:05Z",
+              last_scan_at: "2026-09-28T00:00:04Z",
+              worker_recently_seen: true,
             },
           ],
           rowCount: 1,
@@ -237,7 +240,13 @@ describe("Exchange HTTP boundaries", () => {
     const response = await fetch(path, { headers: { Cookie: "tabs_exchange_session=opaque" } });
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
-      queue: { queued: 2, scanning: 1, stale_scans: 1, awaiting_review: 3 },
+      queue: {
+        queued: 2,
+        scanning: 1,
+        stale_scans: 1,
+        awaiting_review: 3,
+        worker_recently_seen: true,
+      },
     });
     expect(ready.publicQueries.filter((sql) => sql.includes("AS stale_scans"))).toHaveLength(1);
   });

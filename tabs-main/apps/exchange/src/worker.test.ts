@@ -7,7 +7,7 @@ import { packTabsext } from "@tabs/extension-package";
 import type { Pool } from "pg";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ExchangeConfig } from "./config.ts";
-import { scanNextVersion } from "./worker.ts";
+import { recordWorkerHeartbeat, scanNextVersion } from "./worker.ts";
 
 const roots: string[] = [];
 const config: ExchangeConfig = {
@@ -56,6 +56,20 @@ afterEach(() => {
 });
 
 describe("Exchange quarantine worker", () => {
+  it("records liveness separately from completed scans", async () => {
+    const queries: Array<{ sql: string; values?: unknown[] }> = [];
+    const pool = {
+      async query(sql: string, values?: unknown[]) {
+        queries.push({ sql, ...(values ? { values } : {}) });
+        return { rows: [] };
+      },
+    } as unknown as Pool;
+    await recordWorkerHeartbeat(pool, "00000000-0000-4000-8000-000000000001");
+    await recordWorkerHeartbeat(pool, "00000000-0000-4000-8000-000000000001", true);
+    expect(queries.map((query) => query.values?.[1])).toEqual([false, true]);
+    expect(queries[0]?.sql).toContain("ON CONFLICT (worker_id) DO UPDATE");
+    expect(queries[0]?.sql).toContain("exchange_worker_heartbeats.last_scan_at");
+  });
   it("records advisory findings for manual review without auto-approving", async () => {
     const { inspected, bytes } = await fixture(undefined, "1.0.0", {
       lockfileVersion: 3,

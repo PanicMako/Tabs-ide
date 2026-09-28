@@ -124,9 +124,17 @@ finishes; invalid archives receive HTTP 400.
 | `GET /v1/publisher/submissions`                       | Publisher submission status                                                |
 | `POST /v1/publisher/:namespace/:name/versions`        | Namespace owner/contributor upload                                         |
 | `GET /v1/review/queue`                                | Admin reviewer                                                             |
-| `GET /v1/review/operations`                           | Admin-only queue counts, stale scan claims, and review timestamps          |
+| `GET /v1/review/operations`                           | Admin-only queue counts, worker heartbeat, and review timestamps           |
 | `GET /v1/review/:namespace/:name/history`             | Admin-only prior versions, uploader names, and review-decision audit trail |
 | `POST /v1/review/:namespace/:name/:version`           | Admin decision: `approve`, `reject`, or `revoke`, with digest and reason   |
+
+The worker writes a database heartbeat every five seconds, including while a
+scan is running. The reviewer operations view treats a heartbeat within fifteen
+seconds as recent and shows the last completed scan separately. A missing or
+stale heartbeat warrants investigation; a recent heartbeat does not prove that
+all scans or external advisory services are healthy. Operators should alert on
+this signal and queue age rather than relying on the API's database-only
+`/healthz` check.
 
 The worker scans queued packages, verifies stored bytes, extracts with bounded
 ZIP validation, and writes a scan result. It also re-downloads and verifies the

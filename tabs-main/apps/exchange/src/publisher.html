@@ -113,8 +113,8 @@
           <h2 id="review-title">Reviewer queue</h2>
           <h3>Queue operations</h3>
           <p>
-            Stale scans are claims older than ten minutes. This summary does not confirm that the
-            worker is running.
+            Stale scans are claims older than ten minutes. A recent heartbeat means a worker reached
+            the database within fifteen seconds, not that every scan is healthy.
           </p>
           <button id="refresh-operations" type="button">Refresh queue health</button>
           <p id="queue-operations" role="status" aria-live="polite">Queue health not loaded.</p>

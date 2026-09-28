@@ -70,6 +70,12 @@ CREATE INDEX IF NOT EXISTS exchange_versions_public_search
 CREATE INDEX IF NOT EXISTS exchange_versions_review_history
   ON exchange_versions (namespace, name, submitted_at DESC);
 
+CREATE TABLE IF NOT EXISTS exchange_worker_heartbeats (
+  worker_id UUID PRIMARY KEY,
+  heartbeat_at TIMESTAMPTZ NOT NULL,
+  last_scan_at TIMESTAMPTZ
+);
+
 CREATE TABLE IF NOT EXISTS exchange_review_events (
   id BIGSERIAL PRIMARY KEY,
   namespace TEXT NOT NULL,

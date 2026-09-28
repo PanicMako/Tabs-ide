@@ -618,7 +618,10 @@ export function createExchangeServer(
                   count(*) FILTER (WHERE status = 'scanning' AND scan_claimed_at < now() - interval '10 minutes')::int AS stale_scans,
                   count(*) FILTER (WHERE status = 'review')::int AS awaiting_review,
                   min(submitted_at) FILTER (WHERE status = 'queued') AS oldest_queued_at,
-                  max(reviewed_at) AS last_reviewed_at
+                  max(reviewed_at) AS last_reviewed_at,
+                  (SELECT max(heartbeat_at) FROM exchange_worker_heartbeats) AS last_worker_heartbeat_at,
+                  (SELECT max(last_scan_at) FROM exchange_worker_heartbeats) AS last_scan_at,
+                  EXISTS (SELECT 1 FROM exchange_worker_heartbeats WHERE heartbeat_at >= now() - interval '15 seconds') AS worker_recently_seen
            FROM exchange_versions`,
         );
         json(response, 200, { queue: found.rows[0] });

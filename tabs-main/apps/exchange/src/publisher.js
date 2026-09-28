@@ -202,6 +202,7 @@ async function refreshOperations() {
   const data = await requestJson("/v1/review/operations");
   const queue = data.queue;
   document.getElementById("queue-operations").textContent =
+    `Worker heartbeat: ${queue.worker_recently_seen ? "recent" : "missing or stale"}. Last heartbeat: ${queue.last_worker_heartbeat_at ?? "none"}. Last completed scan: ${queue.last_scan_at ?? "none"}. ` +
     `Queued: ${queue.queued}. Scanning: ${queue.scanning}. Stale scans: ${queue.stale_scans}. Awaiting review: ${queue.awaiting_review}. ` +
     `Oldest queued: ${queue.oldest_queued_at ?? "none"}. Last review: ${queue.last_reviewed_at ?? "none"}.`;
 }
