@@ -32,13 +32,27 @@ CREATE TABLE IF NOT EXISTS exchange_namespace_members (
   PRIMARY KEY (namespace, user_id)
 );
 
+CREATE TABLE IF NOT EXISTS exchange_namespace_member_events (
+  id BIGSERIAL PRIMARY KEY,
+  namespace TEXT NOT NULL REFERENCES exchange_namespaces(name),
+  user_id BIGINT NOT NULL REFERENCES exchange_users(id),
+  role TEXT NOT NULL CHECK (role IN ('owner', 'contributor')),
+  actor_id BIGINT NOT NULL REFERENCES exchange_users(id),
+  action TEXT NOT NULL CHECK (action = 'remove'),
+  reason TEXT NOT NULL CHECK (length(reason) BETWEEN 1 AND 2000),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS exchange_namespace_member_events_history
+  ON exchange_namespace_member_events (namespace, created_at DESC, id DESC);
+
 CREATE TABLE IF NOT EXISTS exchange_namespace_invitations (
   id BIGSERIAL PRIMARY KEY,
   namespace TEXT NOT NULL REFERENCES exchange_namespaces(name),
   user_id BIGINT NOT NULL REFERENCES exchange_users(id),
   role TEXT NOT NULL CHECK (role IN ('owner', 'contributor')),
   invited_by BIGINT NOT NULL REFERENCES exchange_users(id),
-  status TEXT NOT NULL CHECK (status IN ('pending', 'accepted', 'declined', 'expired')),
+  status TEXT NOT NULL CHECK (status IN ('pending', 'accepted', 'declined', 'expired', 'revoked')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   expires_at TIMESTAMPTZ NOT NULL,
   decided_at TIMESTAMPTZ,
@@ -52,6 +66,12 @@ CREATE INDEX IF NOT EXISTS exchange_namespace_incoming_invitations
 
 ALTER TABLE exchange_namespace_invitations
   ADD COLUMN IF NOT EXISTS accepted_terms_version TEXT;
+
+ALTER TABLE exchange_namespace_invitations
+  DROP CONSTRAINT IF EXISTS exchange_namespace_invitations_status_check;
+ALTER TABLE exchange_namespace_invitations
+  ADD CONSTRAINT exchange_namespace_invitations_status_check
+  CHECK (status IN ('pending', 'accepted', 'declined', 'expired', 'revoked'));
 
 CREATE TABLE IF NOT EXISTS exchange_namespace_verifications (
   id BIGSERIAL PRIMARY KEY,

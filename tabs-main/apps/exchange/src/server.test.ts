@@ -6,7 +6,7 @@ import * as Path from "node:path";
 import type { AddressInfo } from "node:net";
 import { Readable } from "node:stream";
 import type { Pool } from "pg";
-import type { S3Client } from "@aws-sdk/client-s3";
+import { PutObjectCommand, type S3Client } from "@aws-sdk/client-s3";
 import { packTabsext } from "@tabs/extension-package";
 import { afterEach, describe, expect, it } from "vitest";
 import { createExchangeServer } from "./server.ts";
@@ -45,12 +45,22 @@ async function fixture(
   duplicateUpload = false,
   storedReviewObject = reviewObject,
   invitation?: { owner?: boolean; targetId?: string; status?: string; expiresAt?: Date },
+  membership?: {
+    owner?: boolean;
+    ownerCount?: number;
+    targetRole?: "owner" | "contributor";
+    finalGranted?: boolean;
+  },
 ) {
   const actions: string[] = [];
   const publicQueries: string[] = [];
+  let uploadObjectStored = false;
   const client = {
     async query(sql: string, params?: unknown[]) {
       actions.push(sql);
+      if (duplicateUpload && sql.startsWith("INSERT INTO exchange_versions")) {
+        throw Object.assign(new Error("duplicate version"), { code: "23505" });
+      }
       if (sql.includes("SELECT name FROM exchange_namespaces")) {
         return { rows: [{ name: "example" }], rowCount: 1 };
       }
@@ -59,8 +69,9 @@ async function fixture(
         sql.includes("role = 'owner'")
       ) {
         return {
-          rows: invitation?.owner === false ? [] : [{ role: "owner" }],
-          rowCount: invitation?.owner === false ? 0 : 1,
+          rows:
+            invitation?.owner === false || membership?.owner === false ? [] : [{ role: "owner" }],
+          rowCount: invitation?.owner === false || membership?.owner === false ? 0 : 1,
         };
       }
       if (sql.includes("SELECT id FROM exchange_users")) {
@@ -70,7 +81,16 @@ async function fixture(
         sql.includes("SELECT role FROM exchange_namespace_members") &&
         !sql.includes("role = 'owner'")
       ) {
+        if (membership?.targetRole) {
+          return { rows: [{ role: membership.targetRole }], rowCount: 1 };
+        }
+        if (uploadObjectStored && membership?.finalGranted !== false) {
+          return { rows: [{ role: "contributor" }], rowCount: 1 };
+        }
         return { rows: [], rowCount: 0 };
+      }
+      if (sql.includes("SELECT count(*)::text AS count FROM exchange_namespace_members")) {
+        return { rows: [{ count: String(membership?.ownerCount ?? 2) }], rowCount: 1 };
       }
       if (sql.includes("INSERT INTO exchange_namespace_invitations")) {
         return { rows: [{ id: "7" }], rowCount: 1 };
@@ -155,9 +175,6 @@ async function fixture(
   const pool = {
     async query(sql: string, params?: unknown[]) {
       publicQueries.push(sql);
-      if (duplicateUpload && sql.startsWith("INSERT INTO exchange_versions")) {
-        throw Object.assign(new Error("duplicate version"), { code: "23505" });
-      }
       if (sql.includes("AS stale_scans")) {
         return {
           rows: [
@@ -335,6 +352,18 @@ async function fixture(
           rowCount: 1,
         };
       }
+      if (
+        sql.includes("FROM exchange_namespace_members m") &&
+        sql.includes("JOIN exchange_users u")
+      ) {
+        return {
+          rows: [
+            { user_id: "42", login: "owner", role: "owner" },
+            { user_id: "43", login: "contributor", role: "contributor" },
+          ],
+          rowCount: 2,
+        };
+      }
       if (allowUploads && sql.includes("FROM exchange_namespace_members WHERE")) {
         return { rows: [{ role: "owner" }], rowCount: 1 };
       }
@@ -348,7 +377,8 @@ async function fixture(
     },
   } as unknown as Pool;
   const storage = {
-    async send() {
+    async send(command: unknown) {
+      if (command instanceof PutObjectCommand) uploadObjectStored = true;
       return { Body: Readable.from([tuf?.target ?? storedReviewObject]) };
     },
   } as unknown as S3Client;
@@ -412,9 +442,7 @@ describe("Exchange HTTP boundaries", () => {
     expect(await response.json()).toEqual({
       error: "This extension version was already submitted.",
     });
-    expect(ready.publicQueries.some((sql) => sql.startsWith("INSERT INTO exchange_versions"))).toBe(
-      true,
-    );
+    expect(ready.actions.some((sql) => sql.startsWith("INSERT INTO exchange_versions"))).toBe(true);
   });
 
   it("serves a machine-readable public contract without treating catalog data as authority", async () => {
@@ -696,6 +724,155 @@ describe("Exchange HTTP boundaries", () => {
     expect(
       expired.actions.some((sql) => sql.includes("INSERT INTO exchange_namespace_members")),
     ).toBe(false);
+  });
+
+  it("lists members only for owners and audits access removal", async () => {
+    const ready = await fixture(
+      true,
+      digest,
+      "review",
+      undefined,
+      undefined,
+      undefined,
+      true,
+      undefined,
+      false,
+      reviewObject,
+      undefined,
+      { targetRole: "contributor" },
+    );
+    const list = await fetch(`${ready.base}/v1/namespaces/example/members`, {
+      headers: { Cookie: "tabs_exchange_session=opaque" },
+    });
+    expect(list.status).toBe(200);
+    expect((await list.json()).members).toHaveLength(2);
+    const removed = await fetch(`${ready.base}/v1/namespaces/example/members/43`, {
+      method: "DELETE",
+      headers: {
+        Origin: config.origin,
+        Cookie: "tabs_exchange_session=opaque",
+        "X-CSRF-Token": csrf,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ reason: "Contributor left the team" }),
+    });
+    expect(removed.status).toBe(200);
+    expect(await removed.json()).toEqual({
+      namespace: "example",
+      userId: "43",
+      removedRole: "contributor",
+    });
+    expect(
+      ready.actions.some((sql) => sql.includes("DELETE FROM exchange_namespace_members")),
+    ).toBe(true);
+    expect(
+      ready.actions.some((sql) => sql.includes("INSERT INTO exchange_namespace_member_events")),
+    ).toBe(true);
+    expect(ready.actions.some((sql) => sql.includes("status = 'revoked'"))).toBe(true);
+    const outsider = await fixture();
+    expect(
+      (
+        await fetch(`${outsider.base}/v1/namespaces/example/members`, {
+          headers: { Cookie: "tabs_exchange_session=opaque" },
+        })
+      ).status,
+    ).toBe(403);
+    const publishingDisabled = await fixture(
+      true,
+      digest,
+      "review",
+      undefined,
+      undefined,
+      undefined,
+      false,
+      undefined,
+      false,
+      reviewObject,
+      undefined,
+      { targetRole: "contributor" },
+    );
+    const emergencyRemoval = await fetch(
+      `${publishingDisabled.base}/v1/namespaces/example/members/43`,
+      {
+        method: "DELETE",
+        headers: {
+          Origin: config.origin,
+          Cookie: "tabs_exchange_session=opaque",
+          "X-CSRF-Token": csrf,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ reason: "Emergency access revocation" }),
+      },
+    );
+    expect(emergencyRemoval.status).toBe(200);
+  });
+
+  it("preserves the last namespace owner", async () => {
+    const ready = await fixture(
+      true,
+      digest,
+      "review",
+      undefined,
+      undefined,
+      undefined,
+      true,
+      undefined,
+      false,
+      reviewObject,
+      undefined,
+      { ownerCount: 1, targetRole: "owner" },
+    );
+    const response = await fetch(`${ready.base}/v1/namespaces/example/members/42`, {
+      method: "DELETE",
+      headers: {
+        Origin: config.origin,
+        Cookie: "tabs_exchange_session=opaque",
+        "X-CSRF-Token": csrf,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ reason: "Leaving" }),
+    });
+    expect(response.status).toBe(409);
+    expect(
+      ready.actions.some((sql) => sql.includes("DELETE FROM exchange_namespace_members")),
+    ).toBe(false);
+  });
+
+  it("rechecks publisher membership after an archive reaches quarantine", async () => {
+    const directory = await FS.mkdtemp(Path.join(OS.tmpdir(), "tabs-exchange-revoked-upload-"));
+    temporaryDirectories.push(directory);
+    const archive = Path.join(directory, "hello.tabsext");
+    await packTabsext({
+      directory: Path.resolve(import.meta.dirname, "../../../examples/hello-extension"),
+      destination: archive,
+      tabsVersion: "1.3.17",
+    });
+    const ready = await fixture(
+      true,
+      digest,
+      "review",
+      undefined,
+      undefined,
+      undefined,
+      true,
+      undefined,
+      false,
+      reviewObject,
+      undefined,
+      { finalGranted: false },
+    );
+    const response = await fetch(`${ready.base}/v1/publisher/tabs-example/hello/versions`, {
+      method: "POST",
+      headers: {
+        Origin: config.origin,
+        Cookie: "tabs_exchange_session=opaque",
+        "X-CSRF-Token": csrf,
+        "Content-Type": "application/octet-stream",
+      },
+      body: new Uint8Array(await FS.readFile(archive)),
+    });
+    expect(response.status).toBe(403);
+    expect(ready.actions.some((sql) => sql.includes("INSERT INTO exchange_versions"))).toBe(false);
   });
 
   it("limits concurrent publisher uploads and releases slots after disconnects", async () => {

@@ -207,6 +207,8 @@ and download recheck the bytes.
 | `GET /v1/publisher/submissions`                       | Publisher submission status                                              |
 | `POST /v1/publisher/:namespace/:name/versions`        | Namespace owner/contributor upload                                       |
 | `POST /v1/namespaces/:namespace/members`              | Owner invites a signed-in GitHub account for 14 days                     |
+| `GET /v1/namespaces/:namespace/members`               | Owner lists current namespace members                                    |
+| `DELETE /v1/namespaces/:namespace/members/:userId`    | Owner removes access with an audited reason; last owner is protected     |
 | `GET /v1/publisher/invitations`                       | Account's pending, unexpired namespace invitations                       |
 | `POST /v1/publisher/invitations/:id/accept`           | Recipient accepts and becomes an owner or contributor                    |
 | `GET /v1/review/queue`                                | Admin reviewer                                                           |
@@ -226,6 +228,11 @@ sign in and accept it within 14 days. Existing members cannot be re-invited,
 and a second pending invitation for the same namespace and account is rejected.
 Acceptance requires the current publisher terms version, recorded with the
 invitation, before membership grants upload rights.
+Owners can remove a member with a recorded reason, but cannot remove the last
+owner. A publisher upload rechecks membership at its database commit boundary,
+so access removed while an archive is uploading cannot authorize its final
+submission. Pending invitations issued by the removed member are revoked too.
+The already uploaded private object may remain for operator cleanup.
 
 The worker writes a database heartbeat every five seconds, including while a
 scan is running. The reviewer operations view treats a heartbeat within fifteen

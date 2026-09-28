@@ -40,6 +40,7 @@ const TUF_METADATA_ROUTE =
 const TUF_TARGET_ROUTE =
   /^\/v1\/tuf\/targets\/extensions\/([a-z][a-z0-9-]{1,62})\/([a-z][a-z0-9-]{1,62})\/(?:(?:([a-f0-9]{64})\.)?([0-9A-Za-z.+-]+))\.tabsext$/;
 const MEMBER_ROUTE = /^\/v1\/namespaces\/([a-z][a-z0-9-]{1,62})\/members$/;
+const MEMBER_REMOVE_ROUTE = /^\/v1\/namespaces\/([a-z][a-z0-9-]{1,62})\/members\/([1-9][0-9]*)$/;
 const INVITATION_ACCEPT_ROUTE = /^\/v1\/publisher\/invitations\/([1-9][0-9]*)\/accept$/;
 const VERIFY_NAMESPACE_ROUTE = /^\/v1\/review\/namespaces\/([a-z][a-z0-9-]{1,62})\/verification$/;
 const BLOCKED_DIGEST_REMOVE_ROUTE = /^\/v1\/review\/blocked-digests\/([a-f0-9]{64})\/remove$/;
@@ -474,6 +475,84 @@ export function createExchangeServer(
         json(response, 201, { name, verified: false });
         return;
       }
+      const memberList = request.method === "GET" ? MEMBER_ROUTE.exec(path) : null;
+      if (memberList) {
+        const actor = await actorFor(request, pool, config);
+        if (!actor) throw new HttpError(403, "Publisher sign-in required.");
+        const owner = await pool.query(
+          "SELECT role FROM exchange_namespace_members WHERE namespace = $1 AND user_id = $2 AND role = 'owner'",
+          [memberList[1], actor.id],
+        );
+        if (owner.rowCount !== 1) throw new HttpError(403, "Namespace owner access required.");
+        const members = await pool.query(
+          `SELECT m.user_id, u.login, m.role FROM exchange_namespace_members m
+           JOIN exchange_users u ON u.id = m.user_id
+           WHERE m.namespace = $1 ORDER BY m.role DESC, u.login, m.user_id`,
+          [memberList[1]],
+        );
+        json(response, 200, { namespace: memberList[1], members: members.rows });
+        return;
+      }
+      const memberRemove = request.method === "DELETE" ? MEMBER_REMOVE_ROUTE.exec(path) : null;
+      if (memberRemove) {
+        const actor = requireMutation(request, await actorFor(request, pool, config), config);
+        if (BigInt(memberRemove[2]!) > 9223372036854775807n) {
+          throw new HttpError(400, "Invalid GitHub user ID.");
+        }
+        const body = await readJson(request);
+        if (typeof body.reason !== "string" || !body.reason.trim() || body.reason.length > 2000) {
+          throw new HttpError(400, "Removing a member requires a reason.");
+        }
+        const reason = body.reason.trim();
+        const removedRole = await inTransaction(pool, async (client) => {
+          const namespace = await client.query(
+            "SELECT name FROM exchange_namespaces WHERE name = $1 FOR UPDATE",
+            [memberRemove[1]],
+          );
+          if (namespace.rowCount !== 1) throw new HttpError(404, "Namespace not found.");
+          const owner = await client.query(
+            "SELECT role FROM exchange_namespace_members WHERE namespace = $1 AND user_id = $2 AND role = 'owner'",
+            [memberRemove[1], actor.id],
+          );
+          if (owner.rowCount !== 1)
+            throw new HttpError(403, "Only namespace owners can remove members.");
+          const target = await client.query<{ role: "owner" | "contributor" }>(
+            "SELECT role FROM exchange_namespace_members WHERE namespace = $1 AND user_id = $2",
+            [memberRemove[1], memberRemove[2]],
+          );
+          if (!target.rows[0]) throw new HttpError(404, "Namespace member not found.");
+          if (target.rows[0].role === "owner") {
+            const owners = await client.query<{ count: string }>(
+              "SELECT count(*)::text AS count FROM exchange_namespace_members WHERE namespace = $1 AND role = 'owner'",
+              [memberRemove[1]],
+            );
+            if (Number(owners.rows[0]?.count ?? 0) <= 1) {
+              throw new HttpError(409, "The last namespace owner cannot be removed.");
+            }
+          }
+          await client.query(
+            "DELETE FROM exchange_namespace_members WHERE namespace = $1 AND user_id = $2",
+            [memberRemove[1], memberRemove[2]],
+          );
+          await client.query(
+            `UPDATE exchange_namespace_invitations SET status = 'revoked', decided_at = now()
+             WHERE namespace = $1 AND invited_by = $2 AND status = 'pending'`,
+            [memberRemove[1], memberRemove[2]],
+          );
+          await client.query(
+            `INSERT INTO exchange_namespace_member_events(namespace, user_id, role, actor_id, action, reason)
+             VALUES ($1, $2, $3, $4, 'remove', $5)`,
+            [memberRemove[1], memberRemove[2], target.rows[0].role, actor.id, reason],
+          );
+          return target.rows[0].role;
+        });
+        json(response, 200, {
+          namespace: memberRemove[1],
+          userId: memberRemove[2],
+          removedRole,
+        });
+        return;
+      }
       const memberMatch = request.method === "POST" ? MEMBER_ROUTE.exec(path) : null;
       if (memberMatch) {
         if (!config.publishingEnabled)
@@ -619,20 +698,33 @@ export function createExchangeServer(
             const key = `quarantine/${namespace}/${name}/${inspected.manifest.version}/${inspected.digest}.tabsext`;
             await putImmutablePackageObject(storage, config.bucket, key, bytes, inspected.digest);
             try {
-              await pool.query(
-                `INSERT INTO exchange_versions(namespace, name, version, digest, bytes, manifest, object_key, status, uploaded_by)
+              await inTransaction(pool, async (client) => {
+                await client.query(
+                  "SELECT name FROM exchange_namespaces WHERE name = $1 FOR UPDATE",
+                  [namespace],
+                );
+                const currentMember = await client.query(
+                  "SELECT role FROM exchange_namespace_members WHERE namespace = $1 AND user_id = $2",
+                  [namespace, actor.id],
+                );
+                if (currentMember.rowCount !== 1) {
+                  throw new HttpError(403, "Namespace publishing access changed during upload.");
+                }
+                await client.query(
+                  `INSERT INTO exchange_versions(namespace, name, version, digest, bytes, manifest, object_key, status, uploaded_by)
              VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, 'queued', $8)`,
-                [
-                  namespace,
-                  name,
-                  inspected.manifest.version,
-                  inspected.digest,
-                  inspected.bytes,
-                  JSON.stringify(inspected.manifest),
-                  key,
-                  actor.id,
-                ],
-              );
+                  [
+                    namespace,
+                    name,
+                    inspected.manifest.version,
+                    inspected.digest,
+                    inspected.bytes,
+                    JSON.stringify(inspected.manifest),
+                    key,
+                    actor.id,
+                  ],
+                );
+              });
             } catch (error) {
               if ((error as { code?: unknown }).code === "23505") {
                 throw new HttpError(409, "This extension version was already submitted.");

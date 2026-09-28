@@ -96,10 +96,75 @@ async function refreshNamespaces() {
   const list = document.getElementById("namespaces");
   list.replaceChildren();
   for (const namespace of data.namespaces) {
-    item(
+    const li = item(
       list,
       `${namespace.name} (${namespace.role}${namespace.verified ? ", verified" : ", unverified"})`,
     );
+    if (namespace.role !== "owner") continue;
+    const details = document.createElement("details");
+    const summary = document.createElement("summary");
+    summary.textContent = `Manage ${namespace.name} members`;
+    const state = document.createElement("p");
+    state.setAttribute("role", "status");
+    const members = document.createElement("ul");
+    details.append(summary, state, members);
+    details.addEventListener("toggle", async () => {
+      if (!details.open) return;
+      state.textContent = "Loading namespace members.";
+      try {
+        const result = await requestJson(`/v1/namespaces/${namespace.name}/members`);
+        members.replaceChildren();
+        const ownerCount = result.members.filter((member) => member.role === "owner").length;
+        for (const member of result.members) {
+          const row = item(
+            members,
+            `${member.login} (GitHub ID ${member.user_id}, ${member.role}). `,
+          );
+          if (member.role === "owner" && ownerCount <= 1) {
+            row.append("The last owner cannot be removed.");
+            continue;
+          }
+          const label = document.createElement("label");
+          label.textContent = `Reason to remove ${member.login} `;
+          const reason = document.createElement("input");
+          reason.maxLength = 2000;
+          reason.required = true;
+          label.append(reason);
+          const remove = document.createElement("button");
+          remove.type = "button";
+          remove.textContent = `Remove ${member.login} from ${namespace.name}`;
+          remove.addEventListener("click", async () => {
+            if (!reason.value.trim()) {
+              announce("Enter a reason before removing a namespace member.", true);
+              reason.focus();
+              return;
+            }
+            remove.disabled = true;
+            try {
+              await requestJson(
+                `/v1/namespaces/${namespace.name}/members/${member.user_id}`,
+                mutation(
+                  "DELETE",
+                  JSON.stringify({ reason: reason.value.trim() }),
+                  "application/json",
+                ),
+              );
+              announce(`Removed ${member.login} from ${namespace.name}.`);
+              await refreshNamespaces();
+            } catch (error) {
+              announce(String(error), true);
+              remove.disabled = false;
+            }
+          });
+          row.append(label, remove);
+        }
+        state.textContent = `${result.members.length} namespace member(s) loaded.`;
+      } catch (error) {
+        state.setAttribute("role", "alert");
+        state.textContent = `Could not load members: ${String(error)}`;
+      }
+    });
+    li.append(details);
   }
   if (data.namespaces.length === 0) item(list, "No namespaces yet.");
 }
