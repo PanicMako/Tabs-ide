@@ -3,6 +3,7 @@ import { validateTabsExtensionManifest } from "@tabs/shared/extensions";
 import { compareSemverVersions, satisfiesSemverRange } from "@tabs/shared/semver";
 
 const MAX_CATALOG_BYTES = 1024 * 1024;
+const MAX_VERSION_PAGE_BYTES = 8 * 1024 * 1024;
 const DIGEST = /^[a-f0-9]{64}$/;
 const SEGMENT = /^[a-z][a-z0-9-]{1,62}$/;
 
@@ -30,12 +31,12 @@ export function configuredExchangeOrigin(
   }
 }
 
-async function boundedJson(response: Response): Promise<unknown> {
+async function boundedJson(response: Response, maxBytes = MAX_CATALOG_BYTES): Promise<unknown> {
   if (!response.ok || !response.headers.get("content-type")?.startsWith("application/json")) {
     throw new Error(`Exchange catalog request failed (${response.status}).`);
   }
   const declared = Number(response.headers.get("content-length"));
-  if (declared > MAX_CATALOG_BYTES) throw new Error("Exchange catalog is too large.");
+  if (declared > maxBytes) throw new Error("Exchange catalog is too large.");
   if (!response.body) throw new Error("Exchange catalog has no response body.");
   const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];
@@ -45,7 +46,7 @@ async function boundedJson(response: Response): Promise<unknown> {
       const part = await reader.read();
       if (part.done) break;
       size += part.value.byteLength;
-      if (size > MAX_CATALOG_BYTES) throw new Error("Exchange catalog is too large.");
+      if (size > maxBytes) throw new Error("Exchange catalog is too large.");
       chunks.push(part.value);
     }
   } catch (error) {
@@ -173,64 +174,83 @@ export async function discoverExchangeVersions(
     throw new Error("Invalid Exchange extension identity.");
   }
   const url = new URL(`/v1/extensions/${namespace}/${name}`, origin);
-  const response = await fetcher(url.href, {
-    method: "GET",
-    redirect: "error",
-    credentials: "omit",
-    cache: "no-store",
-    signal: AbortSignal.timeout(8_000),
-  });
-  if (response.url !== url.href) throw new Error("Exchange version list changed origin or path.");
-  const document = await boundedJson(response);
-  if (!record(document) || !Array.isArray(document.versions) || document.versions.length > 100) {
-    throw new Error("Exchange version list is invalid.");
-  }
   const seen = new Set<string>();
+  const seenCursors = new Set<string>();
   const listings: DesktopExchangeListing[] = [];
-  for (const item of document.versions) {
-    if (
-      !record(item) ||
-      item.namespace !== namespace ||
-      item.name !== name ||
-      typeof item.version !== "string" ||
-      typeof item.digest !== "string" ||
-      !DIGEST.test(item.digest) ||
-      typeof item.verified !== "boolean" ||
-      seen.has(item.version)
-    ) {
-      throw new Error("Exchange version list contains an invalid release.");
-    }
-    seen.add(item.version);
-    const validated = validateTabsExtensionManifest(item.manifest, tabsVersion);
-    if (!validated.ok) continue;
-    if (validated.id !== `${namespace}.${name}` || validated.manifest.version !== item.version) {
-      throw new Error("Exchange version identity does not match its manifest.");
-    }
-    listings.push({
-      registryOrigin: origin,
-      id: validated.id,
-      namespace,
-      name,
-      version: item.version,
-      digest: item.digest,
-      displayName: validated.manifest.displayName,
-      description: validated.manifest.description,
-      verifiedPublisher: item.verified,
-      tabsCompatibility: validated.manifest.engines.tabs,
-      capabilities: validated.manifest.capabilities ?? [],
-      ...(validated.manifest.releaseNotes !== undefined && {
-        releaseNotes: validated.manifest.releaseNotes,
-      }),
-      ...(validated.manifest.sourceUrl !== undefined && {
-        sourceUrl: validated.manifest.sourceUrl,
-      }),
-      ...(validated.manifest.supportUrl !== undefined && {
-        supportUrl: validated.manifest.supportUrl,
-      }),
-      ...(validated.manifest.privacyUrl !== undefined && {
-        privacyUrl: validated.manifest.privacyUrl,
-      }),
+  for (let page = 0; page < 10; page += 1) {
+    const response = await fetcher(url.href, {
+      method: "GET",
+      redirect: "error",
+      credentials: "omit",
+      cache: "no-store",
+      signal: AbortSignal.timeout(8_000),
     });
+    if (response.url !== url.href) throw new Error("Exchange version list changed origin or path.");
+    const document = await boundedJson(response, MAX_VERSION_PAGE_BYTES);
+    if (!record(document) || !Array.isArray(document.versions) || document.versions.length > 100) {
+      throw new Error("Exchange version list is invalid.");
+    }
+    for (const item of document.versions) {
+      if (
+        !record(item) ||
+        item.namespace !== namespace ||
+        item.name !== name ||
+        typeof item.version !== "string" ||
+        typeof item.digest !== "string" ||
+        !DIGEST.test(item.digest) ||
+        typeof item.verified !== "boolean" ||
+        seen.has(item.version)
+      ) {
+        throw new Error("Exchange version list contains an invalid release.");
+      }
+      seen.add(item.version);
+      const validated = validateTabsExtensionManifest(item.manifest, tabsVersion);
+      if (!validated.ok) continue;
+      if (validated.id !== `${namespace}.${name}` || validated.manifest.version !== item.version) {
+        throw new Error("Exchange version identity does not match its manifest.");
+      }
+      listings.push({
+        registryOrigin: origin,
+        id: validated.id,
+        namespace,
+        name,
+        version: item.version,
+        digest: item.digest,
+        displayName: validated.manifest.displayName,
+        description: validated.manifest.description,
+        verifiedPublisher: item.verified,
+        tabsCompatibility: validated.manifest.engines.tabs,
+        capabilities: validated.manifest.capabilities ?? [],
+        ...(validated.manifest.releaseNotes !== undefined && {
+          releaseNotes: validated.manifest.releaseNotes,
+        }),
+        ...(validated.manifest.sourceUrl !== undefined && {
+          sourceUrl: validated.manifest.sourceUrl,
+        }),
+        ...(validated.manifest.supportUrl !== undefined && {
+          supportUrl: validated.manifest.supportUrl,
+        }),
+        ...(validated.manifest.privacyUrl !== undefined && {
+          privacyUrl: validated.manifest.privacyUrl,
+        }),
+      });
+    }
+    const cursor = document.nextCursor;
+    if (cursor === null || cursor === undefined) {
+      return listings.toSorted((left, right) => compareSemverVersions(right.version, left.version));
+    }
+    if (
+      typeof cursor !== "string" ||
+      cursor.length === 0 ||
+      cursor.length > 512 ||
+      !/^[A-Za-z0-9_-]+$/.test(cursor) ||
+      document.versions.length === 0 ||
+      seenCursors.has(cursor)
+    ) {
+      throw new Error("Exchange version pagination is invalid.");
+    }
+    seenCursors.add(cursor);
+    url.searchParams.set("cursor", cursor);
   }
-  return listings.toSorted((left, right) => compareSemverVersions(right.version, left.version));
+  throw new Error("Exchange version list exceeds the client page limit.");
 }

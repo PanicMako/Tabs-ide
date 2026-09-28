@@ -3,6 +3,7 @@ import { TABS_EXTENSION_API_VERSION } from "@tabs/extension-api";
 import { compareSemverVersions, parseSemver, satisfiesSemverRange } from "./semver.ts";
 
 const SEGMENT = /^[a-z][a-z0-9-]{1,62}$/;
+const PACKAGE_VERSION = /^[0-9A-Za-z.+-]{1,128}$/;
 const MAX_TOOLS = 12;
 const MAX_COMMANDS = 8;
 const STORAGE_KEY = /^[a-zA-Z][a-zA-Z0-9._-]{0,127}$/;
@@ -115,8 +116,12 @@ export function validateTabsExtensionManifest(
   if (typeof input.name !== "string" || !SEGMENT.test(input.name)) {
     errors.push("name must be a lowercase package name.");
   }
-  if (typeof input.version !== "string" || !parseSemver(input.version)) {
-    errors.push("version must be semantic versioning.");
+  if (
+    typeof input.version !== "string" ||
+    !PACKAGE_VERSION.test(input.version) ||
+    !parseSemver(input.version)
+  ) {
+    errors.push("version must be URL-safe semantic versioning, at most 128 characters.");
   }
   for (const key of ["displayName", "description"] as const) {
     if (typeof input[key] !== "string" || !input[key].trim() || input[key].length > 500) {

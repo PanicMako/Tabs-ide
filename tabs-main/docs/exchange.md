@@ -92,14 +92,18 @@ disabled until terms, operational controls, and security review are complete.
 
 ## Experimental API
 
+The fork-facing public HTTP contract and client trust sequence are documented
+in [Exchange registry API](exchange-registry-api.md). Publisher and reviewer
+routes below are private implementation details.
+
 Public GET routes:
 
-| Route                                                        | Result                                               |
-| ------------------------------------------------------------ | ---------------------------------------------------- |
-| `/v1/extensions?q=term&limit=30`                             | Highest semver approved version per extension        |
-| `/v1/extensions/:namespace/:name`                            | Approved versions and verification status            |
-| `/v1/extensions/:namespace/:name/versions/:version`          | Exact approved version metadata and digest           |
-| `/v1/extensions/:namespace/:name/versions/:version/download` | Archive bytes, re-hashed against the approved digest |
+| Route                                                        | Result                                                     |
+| ------------------------------------------------------------ | ---------------------------------------------------------- |
+| `/v1/extensions?q=term&limit=30`                             | Highest semver approved version per extension              |
+| `/v1/extensions/:namespace/:name`                            | Cursor-paginated approved versions and verification status |
+| `/v1/extensions/:namespace/:name/versions/:version`          | Exact approved version metadata and digest                 |
+| `/v1/extensions/:namespace/:name/versions/:version/download` | Archive bytes, re-hashed against the approved digest       |
 
 Only approved versions present in the currently published signed targets role
 appear in these public routes. The catalog head is a discovery hint, not an installation authorization. When

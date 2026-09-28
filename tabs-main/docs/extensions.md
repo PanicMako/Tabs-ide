@@ -31,7 +31,8 @@ should declare `engines.api: "^1.2.0"` when using commands, `"^1.3.0"` for AI-ca
 compatible. Tabs validates declared API compatibility at load time. See
 [`examples/hello-extension`](../examples/hello-extension/README.md) for a
 working example. Version 1 requires a lowercase publisher and package name,
-a semantic version, a Tabs version range, and 1-12 full-workspace tools. Each
+a URL-safe semantic version of at most 128 characters, a Tabs version range,
+and 1-12 full-workspace tools. Each
 tool names a packaged HTML entry. Paths must be relative to the extension
 root. Supported optional capabilities are `profile-storage`, `workspace-read`,
 `network`, `credentials`, and `ai-tools`. A `network` manifest must list 1-8 exact DNS names

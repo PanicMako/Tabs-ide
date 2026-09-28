@@ -16,6 +16,7 @@ import {
 } from "./auth.ts";
 import { createPool, createStorage, loadConfig, type ExchangeConfig } from "./config.ts";
 import { boundedObject } from "./storage.ts";
+import { decodeVersionCursor, encodeVersionCursor } from "./versionCursor.ts";
 
 const PACKAGE_ROUTE = /^\/v1\/extensions\/([a-z][a-z0-9-]{1,62})\/([a-z][a-z0-9-]{1,62})$/;
 const VERSION_ROUTE =
@@ -42,6 +43,7 @@ const PUBLISHED_RELEASE_JOIN = `JOIN exchange_published_targets p
   ON p.namespace = v.namespace AND p.name = v.name AND p.version = v.version
   AND p.digest = v.digest AND p.bytes = v.bytes`;
 const MAX_CATALOG_RELEASES = 10_000;
+const VERSION_PAGE_SIZE = 100;
 const MAX_CONCURRENT_UPLOADS = 2;
 const UPLOAD_DEADLINE_MS = 120_000;
 
@@ -525,16 +527,36 @@ export function createExchangeServer(
       }
       const packageMatch = request.method === "GET" ? PACKAGE_ROUTE.exec(path) : null;
       if (packageMatch) {
+        const cursorValue = url.searchParams.get("cursor");
+        const cursor = cursorValue === null ? null : decodeVersionCursor(cursorValue);
+        if (cursorValue !== null && !cursor) throw new HttpError(400, "Invalid version cursor.");
         const found = await pool.query(
-          `SELECT v.namespace, v.name, v.version, v.digest, v.bytes, v.manifest, v.submitted_at, n.verified
+          `SELECT v.namespace, v.name, v.version, v.digest, v.bytes, v.manifest, v.submitted_at, n.verified,
+                  to_char(v.submitted_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_time
            FROM exchange_versions v ${PUBLISHED_RELEASE_JOIN}
            JOIN exchange_namespaces n ON n.name = v.namespace
            WHERE v.namespace = $1 AND v.name = $2 AND v.status = 'approved'
-           ORDER BY v.submitted_at DESC`,
-          [packageMatch[1], packageMatch[2]],
+             AND ($3::timestamptz IS NULL OR (v.submitted_at, v.version) < ($3::timestamptz, $4::text))
+           ORDER BY v.submitted_at DESC, v.version DESC LIMIT $5`,
+          [
+            packageMatch[1],
+            packageMatch[2],
+            cursor?.submittedAt ?? null,
+            cursor?.version ?? null,
+            VERSION_PAGE_SIZE + 1,
+          ],
         );
-        if (!found.rowCount) throw new HttpError(404, "Extension not found.");
-        json(response, 200, { versions: found.rows });
+        if (!found.rowCount && !cursor) throw new HttpError(404, "Extension not found.");
+        const page = found.rows.slice(0, VERSION_PAGE_SIZE);
+        const next = page.at(-1);
+        const nextCursor =
+          found.rows.length > VERSION_PAGE_SIZE && next
+            ? encodeVersionCursor({ submittedAt: next.cursor_time, version: next.version })
+            : null;
+        json(response, 200, {
+          versions: page.map(({ cursor_time: _cursorTime, ...release }) => release),
+          nextCursor,
+        });
         return;
       }
       const versionMatch = request.method === "GET" ? VERSION_ROUTE.exec(path) : null;

@@ -19,6 +19,18 @@ const manifest = {
 };
 
 describe("Tabs extension manifest", () => {
+  it("rejects versions that cannot be used safely in registry paths and cursors", () => {
+    expect(
+      validateTabsExtensionManifest({ ...manifest, version: "1.0.0-alpha" }, "1.3.17").ok,
+    ).toBe(true);
+    expect(
+      validateTabsExtensionManifest({ ...manifest, version: "1.0.0-../admin" }, "1.3.17").ok,
+    ).toBe(false);
+    expect(
+      validateTabsExtensionManifest({ ...manifest, version: `1.0.0-${"a".repeat(128)}` }, "1.3.17")
+        .ok,
+    ).toBe(false);
+  });
   it("reports capability and exact-host increases against the installed manifest", () => {
     const previous: TabsExtensionManifest = {
       ...manifest,

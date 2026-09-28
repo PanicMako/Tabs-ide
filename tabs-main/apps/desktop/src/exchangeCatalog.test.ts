@@ -54,6 +54,64 @@ describe("Exchange catalog client", () => {
       ),
     ).rejects.toThrow(/invalid release/);
   });
+  it("follows bounded version pages and rejects cursor loops", async () => {
+    const versionUrl = `${origin}/v1/extensions/acme/dashboard`;
+    const release = (version: string) => ({
+      namespace: "acme",
+      name: "dashboard",
+      version,
+      digest: "a".repeat(64),
+      verified: true,
+      manifest: { ...manifest, version },
+    });
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      return response(
+        url === versionUrl
+          ? { versions: [release("1.0.0")], nextCursor: "next" }
+          : { versions: [release("1.1.0")], nextCursor: null },
+        url,
+      );
+    });
+    const versions = await discoverExchangeVersions(origin, "1.3.17", "acme", "dashboard", fetcher);
+    expect(versions.map((entry) => entry.version)).toEqual(["1.1.0", "1.0.0"]);
+    expect(fetcher.mock.calls.map(([url]) => String(url))).toEqual([
+      versionUrl,
+      `${versionUrl}?cursor=next`,
+    ]);
+    let page = 0;
+    await expect(
+      discoverExchangeVersions(origin, "1.3.17", "acme", "dashboard", async (input) =>
+        response({ versions: [release(`1.0.${page++}`)], nextCursor: "repeat" }, String(input)),
+      ),
+    ).rejects.toThrow(/pagination/);
+  });
+  it("stops a registry that never ends version pagination", async () => {
+    let page = 0;
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const version = `1.0.${page++}`;
+      return response(
+        {
+          versions: [
+            {
+              namespace: "acme",
+              name: "dashboard",
+              version,
+              digest: "a".repeat(64),
+              verified: true,
+              manifest: { ...manifest, version },
+            },
+          ],
+          nextCursor: `page${page}`,
+        },
+        String(input),
+      );
+    });
+    await expect(
+      discoverExchangeVersions(origin, "1.3.17", "acme", "dashboard", fetcher),
+    ).rejects.toThrow(/page limit/);
+    expect(fetcher).toHaveBeenCalledTimes(10);
+  });
   it("requires a clean HTTPS origin outside desktop development", () => {
     expect(configuredExchangeOrigin(origin, false)).toBe(origin);
     expect(configuredExchangeOrigin("http://localhost:8787", true)).toBe("http://localhost:8787");

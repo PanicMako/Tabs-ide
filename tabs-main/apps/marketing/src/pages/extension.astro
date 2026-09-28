@@ -90,16 +90,53 @@ const exchange = configuredExchangeOrigin(import.meta.env.PUBLIC_TABS_EXCHANGE_U
       const selectedName = name;
       void (async () => {
         try {
-          const response = await fetch(`${origin}/v1/extensions/${selectedNamespace}/${selectedName}`);
-          if (!response.ok) throw new Error("This extension is unavailable or no longer published.");
-          const data: { versions?: PublicVersion[] } = await response.json();
-          const versions = Array.isArray(data.versions) ? data.versions : [];
+          const versions: PublicVersion[] = [];
+          const seenCursors = new Set<string>();
+          const seenVersions = new Set<string>();
+          let cursor: string | null = null;
+          let complete = false;
+          for (let page = 0; page < 10; page += 1) {
+            const url = new URL(`/v1/extensions/${selectedNamespace}/${selectedName}`, origin);
+            if (cursor) url.searchParams.set("cursor", cursor);
+            const response = await fetch(url.href);
+            if (!response.ok) throw new Error("This extension is unavailable or no longer published.");
+            const data: { versions?: PublicVersion[]; nextCursor?: unknown } = await response.json();
+            if (!Array.isArray(data.versions) || data.versions.length > 100) {
+              throw new Error("The registry returned an invalid version page.");
+            }
+            for (const entry of data.versions) {
+              if (
+                entry.namespace !== selectedNamespace ||
+                entry.name !== selectedName ||
+                typeof entry.version !== "string" ||
+                seenVersions.has(entry.version)
+              ) {
+                throw new Error("The registry returned a mismatched or duplicate version.");
+              }
+              seenVersions.add(entry.version);
+              versions.push(entry);
+            }
+            if (data.nextCursor === null || data.nextCursor === undefined) {
+              complete = true;
+              break;
+            }
+            if (
+              typeof data.nextCursor !== "string" ||
+              !/^[A-Za-z0-9_-]{1,512}$/.test(data.nextCursor) ||
+              data.versions.length === 0 ||
+              seenCursors.has(data.nextCursor)
+            ) {
+              throw new Error("The registry returned an invalid version cursor.");
+            }
+            cursor = data.nextCursor;
+            seenCursors.add(cursor);
+          }
+          if (!complete) throw new Error("The extension has too many versions to display.");
           if (!versions.length) throw new Error("No published versions are available.");
           const first = versions[0]!;
           title.textContent = first.manifest.displayName;
           identity.textContent = `${selectedNamespace}.${selectedName} - ${first.verified ? "verified publisher" : "unverified publisher"}. Namespace membership alone is not verification.`;
           for (const entry of versions) {
-            if (entry.namespace !== selectedNamespace || entry.name !== selectedName) continue;
             const item = document.createElement("li");
             const heading = document.createElement("h2");
             heading.textContent = `Version ${entry.version}`;

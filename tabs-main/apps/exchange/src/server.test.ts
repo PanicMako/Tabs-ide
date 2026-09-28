@@ -163,7 +163,7 @@ async function fixture(
         const isPublic = Boolean(
           tuf?.target && tuf.targetStatus === "approved" && tuf.publishedTarget !== false,
         );
-        const rows = isPublic
+        const rows: Array<Record<string, unknown>> = isPublic
           ? (catalogRows ?? [
               {
                 namespace: "example",
@@ -177,6 +177,30 @@ async function fixture(
               },
             ])
           : [];
+        if (sql.includes("AS cursor_time")) {
+          const cursorTime = "2026-09-28T10:11:12.123456Z";
+          const versions = rows
+            .map((entry) => ({
+              ...entry,
+              version: String(entry["version"]),
+              cursor_time: cursorTime,
+            }))
+            .filter(
+              (entry) =>
+                params?.[2] === null ||
+                cursorTime < String(params?.[2]) ||
+                (cursorTime === params?.[2] && String(entry.version) < String(params?.[3])),
+            )
+            .sort((left, right) =>
+              left.version === right.version
+                ? 0
+                : String(left.version) < String(right.version)
+                  ? 1
+                  : -1,
+            )
+            .slice(0, Number(params?.[4]));
+          return { rows: versions, rowCount: versions.length };
+        }
         if (sql.includes("AND (v.namespace, v.name, v.version) IN (")) {
           const selected = new Set<string>();
           for (let index = 0; index < (params?.length ?? 0); index += 3) {
@@ -241,6 +265,44 @@ afterEach(async () => {
 });
 
 describe("Exchange HTTP boundaries", () => {
+  it("paginates public version lists with bounded opaque cursors", async () => {
+    const rows = Array.from({ length: 101 }, (_, index) => ({
+      namespace: "example",
+      name: "dashboard",
+      version: `1.0.${index}`,
+      digest,
+      bytes: 100,
+      manifest: { displayName: "Dashboard" },
+      verified: false,
+    }));
+    const ready = await fixture(
+      true,
+      digest,
+      "approved",
+      {
+        target: Buffer.from("approved"),
+        targetStatus: "approved",
+      },
+      undefined,
+      rows,
+    );
+    const path = `${ready.base}/v1/extensions/example/dashboard`;
+    const first = await fetch(path);
+    expect(first.status).toBe(200);
+    const firstPage = await first.json();
+    expect(firstPage.versions).toHaveLength(100);
+    expect(firstPage.versions[0]).not.toHaveProperty("cursor_time");
+    expect(typeof firstPage.nextCursor).toBe("string");
+    const second = await fetch(`${path}?cursor=${encodeURIComponent(firstPage.nextCursor)}`);
+    expect(second.status).toBe(200);
+    const secondPage = await second.json();
+    expect(secondPage.versions).toHaveLength(1);
+    expect(secondPage.nextCursor).toBeNull();
+    expect(
+      new Set([...firstPage.versions, ...secondPage.versions].map((entry) => entry.version)).size,
+    ).toBe(101);
+    expect((await fetch(`${path}?cursor=bad%2Fcursor`)).status).toBe(400);
+  });
   it("exposes scan queue operations only to reviewers", async () => {
     const ready = await fixture();
     const path = `${ready.base}/v1/review/operations`;
