@@ -1084,6 +1084,20 @@ if (import.meta.main) {
   const server = createExchangeServer(pool, createStorage(), loadConfig(), signedMetadataEvents);
   signedMetadataEvents.start(pool);
   server.on("close", () => signedMetadataEvents.stop());
+  let shuttingDown = false;
+  const shutdown = () => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    signedMetadataEvents.stop();
+    server.close(() => {
+      void pool.end().catch((error) => {
+        process.stderr.write(`Exchange database shutdown failed: ${String(error)}\n`);
+        process.exitCode = 1;
+      });
+    });
+  };
+  process.once("SIGTERM", shutdown);
+  process.once("SIGINT", shutdown);
   const port = Number(process.env.PORT ?? "8787");
   server.listen(port, "0.0.0.0", () =>
     process.stdout.write(`Tabs Exchange listening on ${port}\n`),

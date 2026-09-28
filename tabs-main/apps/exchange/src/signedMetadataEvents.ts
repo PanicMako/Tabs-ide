@@ -11,11 +11,12 @@ export class SignedMetadataEvents {
   private readonly subscribers = new Set<Http.ServerResponse>();
   private readonly heartbeats = new Map<Http.ServerResponse, ReturnType<typeof setInterval>>();
   private listener: PoolClient | null = null;
+  private connecting = false;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private stopped = false;
 
   subscribe(response: Http.ServerResponse): boolean {
-    if (this.subscribers.size >= MAX_SUBSCRIBERS) return false;
+    if (this.stopped || this.subscribers.size >= MAX_SUBSCRIBERS) return false;
     response.writeHead(200, {
       "Content-Type": "text/event-stream; charset=utf-8",
       "Cache-Control": "no-store, no-transform",
@@ -41,7 +42,7 @@ export class SignedMetadataEvents {
   }
 
   start(pool: Pool): void {
-    if (this.stopped || this.listener || this.reconnectTimer) return;
+    if (this.stopped || this.listener || this.connecting || this.reconnectTimer) return;
     this.pool = pool;
     void this.connect(pool);
   }
@@ -52,7 +53,13 @@ export class SignedMetadataEvents {
     this.reconnectTimer = null;
     const listener = this.listener;
     this.listener = null;
-    listener?.release();
+    if (listener) {
+      listener.removeListener("notification", this.onNotification);
+      listener.removeListener("error", this.onListenerError);
+      listener.removeListener("end", this.onListenerError);
+      // A LISTEN connection must never return to the general query pool.
+      listener.release(true);
+    }
     for (const response of this.subscribers) response.end();
     for (const heartbeat of this.heartbeats.values()) clearInterval(heartbeat);
     this.heartbeats.clear();
@@ -67,16 +74,17 @@ export class SignedMetadataEvents {
   }
 
   private async connect(pool: Pool): Promise<void> {
+    this.connecting = true;
     let client: PoolClient | undefined;
     try {
       client = await pool.connect();
       if (this.stopped) {
-        client.release();
+        client.release(true);
         return;
       }
       await client.query(`LISTEN ${CHANNEL}`);
       if (this.stopped) {
-        client.release();
+        client.release(true);
         return;
       }
       this.listener = client;
@@ -87,6 +95,8 @@ export class SignedMetadataEvents {
       client?.release(true);
       process.stderr.write(`Exchange signed-metadata listener failed: ${String(error)}\n`);
       this.scheduleReconnect(pool);
+    } finally {
+      this.connecting = false;
     }
   }
 
