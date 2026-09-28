@@ -3,6 +3,7 @@
 // Layer: Provider runtime tests
 // Exports: Vitest suites for opencodeRuntime.ts
 
+import { spawn } from "node:child_process";
 import { Duration, Effect, Exit, Fiber, Layer, Scope, Sink, Stream } from "effect";
 import { ChildProcessSpawner } from "effect/unstable/process";
 import * as TestClock from "effect/testing/TestClock";
@@ -20,9 +21,39 @@ import {
   parseOpenCodeCredentialProviderIDs,
   resolveOpenCodeConfigContent,
   toOpenCodeFileParts,
+  watchDetachedOpenCodeProcessGroup,
 } from "./opencodeRuntime.ts";
 
 const encoder = new TextEncoder();
+
+it.skipIf(process.platform === "win32")(
+  "stops a detached provider group after its owner dies",
+  async () => {
+    const owner = spawn("/bin/sleep", ["60"], { stdio: "ignore" });
+    const provider = spawn("/bin/sleep", ["60"], { detached: true, stdio: "ignore" });
+    try {
+      expect(owner.pid).toBeDefined();
+      expect(provider.pid).toBeDefined();
+      watchDetachedOpenCodeProcessGroup(provider.pid!, owner.pid!);
+      owner.kill("SIGKILL");
+      await Promise.race([
+        new Promise<void>((resolve) => provider.once("exit", () => resolve())),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("Provider group survived its owner")), 7_000),
+        ),
+      ]);
+    } finally {
+      owner.kill("SIGKILL");
+      if (provider.pid) {
+        try {
+          process.kill(-provider.pid, "SIGKILL");
+        } catch {
+          // The watchdog already terminated the group.
+        }
+      }
+    }
+  },
+);
 
 describe("OpenCode process configuration", () => {
   it("preserves explicit and inherited config content", () => {

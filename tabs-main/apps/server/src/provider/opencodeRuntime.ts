@@ -1,3 +1,4 @@
+import { spawn as spawnNodeProcess } from "node:child_process";
 import { pathToFileURL } from "node:url";
 
 import type { ChatAttachment, ProviderApprovalDecision, RuntimeMode } from "@tabs/contracts";
@@ -365,6 +366,32 @@ export interface OpenCodeRuntimeLiveOptions {
 const OPEN_CODE_PROCESS_GROUP_GRACE_MS = 1_000;
 const OPEN_CODE_PROCESS_GROUP_POLL_MS = 50;
 
+// A detached provider can outlive the backend after SIGKILL or a crash, when
+// Effect finalizers cannot run. This small independent shell watches the owner
+// and terminates the entire provider group if the owner disappears.
+export function watchDetachedOpenCodeProcessGroup(pid: number, ownerPid = process.pid): void {
+  if (process.platform === "win32" || pid <= 1) return;
+  const script = `
+while kill -0 "$1" 2>/dev/null && kill -0 "-$2" 2>/dev/null; do
+  sleep 2
+done
+if ! kill -0 "$1" 2>/dev/null; then
+  kill -TERM "-$2" 2>/dev/null
+  sleep 1
+  kill -KILL "-$2" 2>/dev/null
+fi
+`;
+  const watchdog = spawnNodeProcess(
+    "/bin/sh",
+    ["-c", script, "tabs-provider-watchdog", String(ownerPid), String(pid)],
+    { detached: true, stdio: "ignore" },
+  );
+  watchdog.on("error", (cause) => {
+    console.warn("Failed to start provider process watchdog", { pid, cause });
+  });
+  watchdog.unref();
+}
+
 async function stopDetachedOpenCodeProcessGroup(pid: number): Promise<void> {
   const signalGroup = (signal: NodeJS.Signals): boolean => {
     try {
@@ -490,6 +517,8 @@ const makeOpenCodeRuntime = (options?: OpenCodeRuntimeLiveOptions) =>
                 }),
             ),
           );
+
+        watchDetachedOpenCodeProcessGroup(Number(child.pid));
 
         // PR-008: Signal detached process group on POSIX before fallback process-tree teardown.
         yield* Scope.addFinalizer(

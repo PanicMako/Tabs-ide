@@ -2,6 +2,7 @@
 
 import { homedir } from "node:os";
 import { execSync } from "node:child_process";
+import { join } from "node:path";
 
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeServices from "@effect/platform-node/NodeServices";
@@ -396,6 +397,13 @@ const resolveOptionalBooleanOverride = (
   return envValue;
 };
 
+export function matchesLocalProviderServerCommand(command: string): boolean {
+  return (
+    /(?:^|\s)(?:\S*\/)?opencode serve --hostname 127\.0\.0\.1 --port \d+(?:\s|$)/u.test(command) ||
+    /(?:^|\s)(?:\S*\/)?\.?kilo serve --hostname 127\.0\.0\.1 --port \d+(?:\s|$)/u.test(command)
+  );
+}
+
 function terminateExistingDevInstances(options?: {
   readonly protectCurrentDescendants?: boolean;
   readonly restrictToCurrentWorkingTree?: boolean;
@@ -405,11 +413,13 @@ function terminateExistingDevInstances(options?: {
     const ancestors = new Set<number>([process.pid]);
     const ppidMap = new Map<number, number>();
 
-    // Get all processes with PID, PPID, and full command line
-    const psOutput = execSync("ps -ax -o pid,ppid,command").toString();
+    // Get process groups as well: Kilo's native worker survives if only its
+    // Node launcher is killed.
+    const psOutput = execSync("ps -ax -o pid,ppid,pgid,command").toString();
     const lines = psOutput.split("\n");
 
-    const processesToInspect: Array<{ pid: number; ppid: number; command: string }> = [];
+    const processesToInspect: Array<{ pid: number; ppid: number; pgid: number; command: string }> =
+      [];
 
     for (let i = 1; i < lines.length; i++) {
       const rawLine = lines[i];
@@ -421,13 +431,20 @@ function terminateExistingDevInstances(options?: {
         continue;
       }
       // Match pid, ppid, and the command string
-      const match = line.match(/^(\d+)\s+(\d+)\s+(.+)$/);
-      if (match && match[1] !== undefined && match[2] !== undefined && match[3] !== undefined) {
+      const match = line.match(/^(\d+)\s+(\d+)\s+(\d+)\s+(.+)$/);
+      if (
+        match &&
+        match[1] !== undefined &&
+        match[2] !== undefined &&
+        match[3] !== undefined &&
+        match[4] !== undefined
+      ) {
         const pid = parseInt(match[1], 10);
         const ppid = parseInt(match[2], 10);
-        const command = match[3];
+        const pgid = parseInt(match[3], 10);
+        const command = match[4];
         ppidMap.set(pid, ppid);
-        processesToInspect.push({ pid, ppid, command });
+        processesToInspect.push({ pid, ppid, pgid, command });
       }
     }
 
@@ -460,6 +477,9 @@ function terminateExistingDevInstances(options?: {
       ...ancestors,
       ...(options?.protectCurrentDescendants === false ? [process.pid] : descendants),
     ]);
+    const protectedGroups = new Set(
+      processesToInspect.filter(({ pid }) => protectedPids.has(pid)).map(({ pgid }) => pgid),
+    );
 
     // Designate the process pattern matching targets
     const TARGET_PATTERNS = [
@@ -496,16 +516,15 @@ function terminateExistingDevInstances(options?: {
       readonly pid: number;
       readonly ppid: number;
       readonly command: string;
-    }): boolean => {
-      const exactLocalServer =
-        /(?:^|\s)(?:\S*\/)?opencode serve --hostname 127\.0\.0\.1 --port \d+(?:\s|$)/u.test(
-          input.command,
-        ) ||
-        /(?:^|\s)(?:\S*\/)?kilo serve --hostname 127\.0\.0\.1 --port \d+(?:\s|$)/u.test(
-          input.command,
-        );
-      return exactLocalServer && (input.ppid === 1 || descendsFromStaleDevProcess(input.pid));
-    };
+    }): boolean =>
+      matchesLocalProviderServerCommand(input.command) &&
+      (input.ppid === 1 || descendsFromStaleDevProcess(input.pid));
+    const knownServerDirectories = new Set(
+      execSync("git worktree list --porcelain", { encoding: "utf8" })
+        .split("\n")
+        .filter((line) => line.startsWith("worktree "))
+        .map((line) => join(line.slice("worktree ".length), "tabs-main", "apps", "server")),
+    );
     const belongsToCurrentWorkingTree = (pid: number): boolean => {
       if (options?.restrictToCurrentWorkingTree !== true) return true;
       try {
@@ -523,25 +542,57 @@ function terminateExistingDevInstances(options?: {
         return false;
       }
     };
+    const belongsToKnownServerWorktree = (pid: number): boolean => {
+      try {
+        const output = execSync(`lsof -a -p ${pid} -d cwd -Fn`, {
+          encoding: "utf8",
+          stdio: ["ignore", "pipe", "ignore"],
+        });
+        const cwd = output
+          .split("\n")
+          .find((line) => line.startsWith("n"))
+          ?.slice(1);
+        return cwd !== undefined && knownServerDirectories.has(cwd);
+      } catch {
+        return false;
+      }
+    };
 
     // Identify processes to kill
     const pidsToKill: number[] = [];
+    const providerGroupsToKill = new Set<number>();
     for (const processInfo of processesToInspect) {
-      const { pid, command } = processInfo;
+      const { pid, pgid, command } = processInfo;
       // Never kill protected processes (ourselves, ancestors, or our own spawned descendants)
       if (protectedPids.has(pid)) {
         continue;
       }
 
-      const matchesPattern = matchesDevProcess(command) || isOwnedProviderServer(processInfo);
+      const ownedProvider = isOwnedProviderServer(processInfo);
+      const matchesPattern = matchesDevProcess(command) || ownedProvider;
 
-      if (matchesPattern && belongsToCurrentWorkingTree(pid)) {
+      if (
+        ownedProvider &&
+        !protectedGroups.has(pgid) &&
+        (belongsToCurrentWorkingTree(pid) ||
+          (processInfo.ppid === 1 && belongsToKnownServerWorktree(pid)))
+      ) {
+        providerGroupsToKill.add(pgid);
+      } else if (matchesPattern && belongsToCurrentWorkingTree(pid)) {
         pidsToKill.push(pid);
       }
     }
 
     // Kill the target processes
     let terminated = 0;
+    for (const pgid of providerGroupsToKill) {
+      try {
+        process.kill(-pgid, "SIGKILL");
+        terminated += 1;
+      } catch {
+        // ignore if the group already exited
+      }
+    }
     for (const pid of pidsToKill) {
       try {
         process.kill(pid, "SIGKILL");

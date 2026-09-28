@@ -105,15 +105,15 @@ export function getStoredFontPreferences(): FontPreferences {
         const parsed = JSON.parse(raw);
         if (parsed && typeof parsed === "object") {
           return {
-            uiFont: clientFontSettings.uiFont || parsed.uiFont || DEFAULT_FONT_PREFERENCES.uiFont,
+            uiFont: parsed.uiFont || clientFontSettings.uiFont || DEFAULT_FONT_PREFERENCES.uiFont,
             headingFont:
               parsed.headingFont ||
-              clientFontSettings.uiFont ||
               parsed.uiFont ||
+              clientFontSettings.uiFont ||
               DEFAULT_FONT_PREFERENCES.headingFont,
             editorFont:
-              clientFontSettings.editorFont ||
               parsed.editorFont ||
+              clientFontSettings.editorFont ||
               DEFAULT_FONT_PREFERENCES.editorFont,
             fontSizeInterface:
               clientFontSettings.fontSizeInterface ??

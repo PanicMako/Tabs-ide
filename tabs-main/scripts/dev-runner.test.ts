@@ -7,11 +7,33 @@ import { Effect } from "effect";
 import {
   createDevRunnerEnv,
   findFirstAvailableOffset,
+  matchesLocalProviderServerCommand,
   resolveModePortOffsets,
   resolveOffset,
 } from "./dev-runner.ts";
 
 it.layer(NodeServices.layer)("dev-runner", (it) => {
+  describe("local provider process detection", () => {
+    it("recognizes Kilo's launcher and native worker", () => {
+      assert.equal(
+        matchesLocalProviderServerCommand(
+          "node /opt/bin/kilo serve --hostname 127.0.0.1 --port 59629",
+        ),
+        true,
+      );
+      assert.equal(
+        matchesLocalProviderServerCommand(
+          "/opt/lib/@kilocode/cli/bin/.kilo serve --hostname 127.0.0.1 --port 59629",
+        ),
+        true,
+      );
+      assert.equal(
+        matchesLocalProviderServerCommand("kilo serve --hostname 0.0.0.0 --port 59629"),
+        false,
+      );
+    });
+  });
+
   describe("resolveOffset", () => {
     it.effect("uses explicit TABS_PORT_OFFSET when provided", () =>
       Effect.sync(() => {
