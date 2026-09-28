@@ -187,6 +187,14 @@ The API accepts at most two concurrent archive submissions per process, closes
 excess upload connections with HTTP 429, and terminates uploads whose bodies
 take longer than two minutes. Publishers can retry after an in-progress upload
 finishes; invalid archives receive HTTP 400.
+Quarantine objects use content-addressed keys and conditional `If-None-Match: *`
+PUTs, so this API cannot overwrite an existing key. A retry may reuse an
+existing object only after reading and verifying its exact size and SHA-256;
+the database still rejects an already submitted version with HTTP 409. A
+failed database insert can leave a private, unreferenced object for a later
+retry or operator cleanup. Conditional PUT is not protection against an
+administrator changing bucket objects outside this API; signed publication
+and download recheck the bytes.
 
 | Route                                                 | Access                                                                     |
 | ----------------------------------------------------- | -------------------------------------------------------------------------- |

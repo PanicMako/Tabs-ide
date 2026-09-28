@@ -3,7 +3,7 @@ import * as FS from "node:fs/promises";
 import * as Http from "node:http";
 import * as OS from "node:os";
 import * as Path from "node:path";
-import { PutObjectCommand, type S3Client } from "@aws-sdk/client-s3";
+import type { S3Client } from "@aws-sdk/client-s3";
 import { inspectTabsext } from "@tabs/extension-package";
 import type { Pool, PoolClient } from "pg";
 import {
@@ -14,7 +14,7 @@ import {
   startGithubLogin,
 } from "./auth.ts";
 import { createPool, createStorage, loadConfig, type ExchangeConfig } from "./config.ts";
-import { boundedObject } from "./storage.ts";
+import { boundedObject, putImmutablePackageObject } from "./storage.ts";
 import { refreshPublishedHead } from "./publishedHeads.ts";
 import { decodeSearchCursor, encodeSearchCursor } from "./searchCursor.ts";
 import { decodeVersionCursor, encodeVersionCursor } from "./versionCursor.ts";
@@ -527,28 +527,28 @@ export function createExchangeServer(
               throw new HttpError(400, "Package identity does not match the namespace and name.");
             }
             const key = `quarantine/${namespace}/${name}/${inspected.manifest.version}/${inspected.digest}.tabsext`;
-            await storage.send(
-              new PutObjectCommand({
-                Bucket: config.bucket,
-                Key: key,
-                Body: bytes,
-                ContentType: "application/octet-stream",
-              }),
-            );
-            await pool.query(
-              `INSERT INTO exchange_versions(namespace, name, version, digest, bytes, manifest, object_key, status, uploaded_by)
+            await putImmutablePackageObject(storage, config.bucket, key, bytes, inspected.digest);
+            try {
+              await pool.query(
+                `INSERT INTO exchange_versions(namespace, name, version, digest, bytes, manifest, object_key, status, uploaded_by)
              VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, 'queued', $8)`,
-              [
-                namespace,
-                name,
-                inspected.manifest.version,
-                inspected.digest,
-                inspected.bytes,
-                JSON.stringify(inspected.manifest),
-                key,
-                actor.id,
-              ],
-            );
+                [
+                  namespace,
+                  name,
+                  inspected.manifest.version,
+                  inspected.digest,
+                  inspected.bytes,
+                  JSON.stringify(inspected.manifest),
+                  key,
+                  actor.id,
+                ],
+              );
+            } catch (error) {
+              if ((error as { code?: unknown }).code === "23505") {
+                throw new HttpError(409, "This extension version was already submitted.");
+              }
+              throw error;
+            }
             json(response, 202, {
               namespace,
               name,

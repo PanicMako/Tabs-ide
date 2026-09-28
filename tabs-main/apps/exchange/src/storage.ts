@@ -1,4 +1,5 @@
-import { GetObjectCommand, type S3Client } from "@aws-sdk/client-s3";
+import * as Crypto from "node:crypto";
+import { GetObjectCommand, PutObjectCommand, type S3Client } from "@aws-sdk/client-s3";
 import { Readable } from "node:stream";
 
 export async function boundedObject(
@@ -17,4 +18,43 @@ export async function boundedObject(
     parts.push(buffer);
   }
   return Buffer.concat(parts);
+}
+
+/** Never overwrite a quarantine key; a retry may reuse only identical stored bytes. */
+export async function putImmutablePackageObject(
+  storage: S3Client,
+  bucket: string,
+  key: string,
+  bytes: Buffer,
+  expectedDigest: string,
+): Promise<void> {
+  if (Crypto.createHash("sha256").update(bytes).digest("hex") !== expectedDigest) {
+    throw new Error("Package upload digest does not match its archive.");
+  }
+  try {
+    await storage.send(
+      new PutObjectCommand({
+        Bucket: bucket,
+        Key: key,
+        Body: bytes,
+        ContentType: "application/octet-stream",
+        IfNoneMatch: "*",
+      }),
+    );
+  } catch (error) {
+    if (
+      !error ||
+      typeof error !== "object" ||
+      (error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode !== 412
+    ) {
+      throw error;
+    }
+    const existing = await boundedObject(storage, bucket, key);
+    if (
+      existing.length !== bytes.length ||
+      Crypto.createHash("sha256").update(existing).digest("hex") !== expectedDigest
+    ) {
+      throw new Error("Existing quarantine object does not match the submitted archive.");
+    }
+  }
 }

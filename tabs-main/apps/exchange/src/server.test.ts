@@ -1,15 +1,20 @@
 import * as Crypto from "node:crypto";
+import * as FS from "node:fs/promises";
 import * as Http from "node:http";
+import * as OS from "node:os";
+import * as Path from "node:path";
 import type { AddressInfo } from "node:net";
 import { Readable } from "node:stream";
 import type { Pool } from "pg";
 import type { S3Client } from "@aws-sdk/client-s3";
+import { packTabsext } from "@tabs/extension-package";
 import { afterEach, describe, expect, it } from "vitest";
 import { createExchangeServer } from "./server.ts";
 import type { ExchangeConfig } from "./config.ts";
 import { SignedMetadataEvents } from "./signedMetadataEvents.ts";
 
 const servers: Array<ReturnType<typeof createExchangeServer>> = [];
+const temporaryDirectories: string[] = [];
 const digest = "a".repeat(64);
 const csrf = "test-csrf-token";
 const config: ExchangeConfig = {
@@ -36,6 +41,7 @@ async function fixture(
   catalogRows?: Array<Record<string, unknown>>,
   allowUploads = false,
   signedMetadataEvents?: SignedMetadataEvents,
+  duplicateUpload = false,
 ) {
   const actions: string[] = [];
   const publicQueries: string[] = [];
@@ -92,6 +98,9 @@ async function fixture(
   const pool = {
     async query(sql: string, params?: unknown[]) {
       publicQueries.push(sql);
+      if (duplicateUpload && sql.startsWith("INSERT INTO exchange_versions")) {
+        throw Object.assign(new Error("duplicate version"), { code: "23505" });
+      }
       if (sql.includes("AS stale_scans")) {
         return {
           rows: [
@@ -284,9 +293,53 @@ afterEach(async () => {
       .splice(0)
       .map((server) => new Promise<void>((resolve) => server.close(() => resolve()))),
   );
+  await Promise.all(
+    temporaryDirectories
+      .splice(0)
+      .map((directory) => FS.rm(directory, { recursive: true, force: true })),
+  );
 });
 
 describe("Exchange HTTP boundaries", () => {
+  it("reports a duplicate submitted version without publishing it", async () => {
+    const directory = await FS.mkdtemp(Path.join(OS.tmpdir(), "tabs-exchange-duplicate-test-"));
+    temporaryDirectories.push(directory);
+    const archive = Path.join(directory, "hello.tabsext");
+    await packTabsext({
+      directory: Path.resolve(import.meta.dirname, "../../../examples/hello-extension"),
+      destination: archive,
+      tabsVersion: "1.3.17",
+    });
+    const ready = await fixture(
+      true,
+      digest,
+      "review",
+      undefined,
+      undefined,
+      undefined,
+      true,
+      undefined,
+      true,
+    );
+    const response = await fetch(`${ready.base}/v1/publisher/tabs-example/hello/versions`, {
+      method: "POST",
+      headers: {
+        Origin: config.origin,
+        Cookie: "tabs_exchange_session=opaque",
+        "X-CSRF-Token": csrf,
+        "Content-Type": "application/octet-stream",
+      },
+      body: new Uint8Array(await FS.readFile(archive)),
+    });
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({
+      error: "This extension version was already submitted.",
+    });
+    expect(ready.publicQueries.some((sql) => sql.startsWith("INSERT INTO exchange_versions"))).toBe(
+      true,
+    );
+  });
+
   it("serves a machine-readable public contract without treating catalog data as authority", async () => {
     const ready = await fixture(true, digest, "approved");
     const response = await fetch(`${ready.base}/v1/openapi.json`);
