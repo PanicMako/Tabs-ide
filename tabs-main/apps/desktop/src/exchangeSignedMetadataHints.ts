@@ -87,17 +87,20 @@ export class ExchangeSignedMetadataHints {
           const part = await reader.read();
           if (part.done) break;
           buffer += decoder.decode(part.value, { stream: true });
-          if (Buffer.byteLength(buffer) > MAX_EVENT_BYTES) {
-            throw new Error("Exchange signed-metadata event is too large.");
-          }
           buffer = buffer.replaceAll("\r\n", "\n");
           let boundary: number;
           while ((boundary = buffer.indexOf("\n\n")) !== -1) {
             const event = buffer.slice(0, boundary);
+            if (Buffer.byteLength(event) > MAX_EVENT_BYTES) {
+              throw new Error("Exchange signed-metadata event is too large.");
+            }
             buffer = buffer.slice(boundary + 2);
             if (event.split("\n").some((line) => line === "event: signed-metadata")) {
               this.hint();
             }
+          }
+          if (Buffer.byteLength(buffer) > MAX_EVENT_BYTES) {
+            throw new Error("Exchange signed-metadata event is too large.");
           }
         }
       } finally {
