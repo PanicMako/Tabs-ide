@@ -101,6 +101,36 @@ async function fixture() {
     ]);
   };
   await publishStage(1, true);
+  const rotateRoot = async (signWithNewKey: boolean) => {
+    const rotated = Crypto.generateKeyPairSync("ed25519");
+    const publicBytes = rotated.publicKey.export({ format: "der", type: "spki" }).subarray(-32);
+    const rotatedKeyID = Crypto.createHash("sha256").update(publicBytes).digest("hex");
+    const rotatedKey = new Key({
+      keyID: rotatedKeyID,
+      keyType: "ed25519",
+      scheme: "ed25519",
+      keyVal: { public: publicBytes.toString("hex") },
+    });
+    const nextRoot = new Root({ ...common, version: 2, consistentSnapshot: false });
+    nextRoot.addKey(rotatedKey, "root");
+    for (const role of ["timestamp", "snapshot", "targets"]) nextRoot.addKey(key, role);
+    const metadata = new Metadata(nextRoot);
+    metadata.sign(
+      (bytes) =>
+        new Signature({ keyID, sig: Crypto.sign(null, bytes, privateKey).toString("hex") }),
+    );
+    if (signWithNewKey) {
+      metadata.sign(
+        (bytes) =>
+          new Signature({
+            keyID: rotatedKeyID,
+            sig: Crypto.sign(null, bytes, rotated.privateKey).toString("hex"),
+          }),
+      );
+    }
+    await FS.writeFile(Path.join(directory, "2.root.json"), JSON.stringify(metadata.toJSON()));
+    await publishStage(2, true);
+  };
   const stored = new Map<string, Buffer>();
   const published: unknown[][] = [];
   const heads: unknown[][] = [];
@@ -184,6 +214,7 @@ async function fixture() {
     heads,
     operations,
     publishStage,
+    rotateRoot,
     revoke: () => {
       releaseStatus = "revoked";
     },
@@ -197,6 +228,29 @@ async function fixture() {
 }
 
 describe("offline TUF publication gate", () => {
+  it("requires both old and new root signatures before publishing a rotated root", async () => {
+    const subject = await fixture();
+    const bootstrap = Crypto.createHash("sha256").update(subject.rootBytes).digest("hex");
+    await publishTufMetadata(
+      subject.pool,
+      subject.storage,
+      "quarantine",
+      subject.directory,
+      bootstrap,
+    );
+    await subject.rotateRoot(false);
+    await expect(
+      publishTufMetadata(subject.pool, subject.storage, "quarantine", subject.directory),
+    ).rejects.toThrow();
+    expect(subject.stored.has("2.root.json")).toBe(false);
+    await subject.rotateRoot(true);
+    expect(
+      await publishTufMetadata(subject.pool, subject.storage, "quarantine", subject.directory),
+    ).toBe(5);
+    expect(subject.stored.has("2.root.json")).toBe(true);
+    expect(JSON.parse(subject.stored.get("root.json")!.toString("utf8")).signed.version).toBe(2);
+  });
+
   it("rejects a staged symlink without reading its target", async () => {
     const subject = await fixture();
     const realTimestamp = Path.join(subject.directory, "real-timestamp.json");
