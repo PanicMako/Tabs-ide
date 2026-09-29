@@ -97,7 +97,7 @@ export async function scanNextVersion(
       archive,
       destination: installed,
       expectedDigest: job.digest,
-      tabsVersion: config.tabsVersion,
+      tabsVersion: null,
     });
     if (
       inspected.manifest.publisher !== job.namespace ||
@@ -141,7 +141,7 @@ export async function scanNextVersion(
         archive: priorArchive,
         destination: priorDirectory,
         expectedDigest: priorVersion.digest,
-        tabsVersion: config.tabsVersion,
+        tabsVersion: null,
       });
       if (
         priorInspected.manifest.publisher !== job.namespace ||

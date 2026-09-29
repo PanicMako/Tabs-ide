@@ -13,7 +13,6 @@ export interface ExchangeConfig {
   readonly githubClientSecret: string;
   readonly adminGithubIds: ReadonlySet<string>;
   readonly bucket: string;
-  readonly tabsVersion: string;
   readonly publishingEnabled: boolean;
 }
 
@@ -31,7 +30,6 @@ export function loadConfig(): ExchangeConfig {
     githubClientSecret: required("GITHUB_CLIENT_SECRET"),
     adminGithubIds: new Set(required("EXCHANGE_ADMIN_GITHUB_IDS").split(",")),
     bucket: required("S3_BUCKET"),
-    tabsVersion: required("EXCHANGE_TABS_VERSION"),
     publishingEnabled: process.env.EXCHANGE_PUBLISHING_ENABLED === "true",
   };
 }

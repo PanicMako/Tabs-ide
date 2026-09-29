@@ -772,7 +772,7 @@ export function createExchangeServer(
           try {
             const archive = Path.join(temporary, "package.tabsext");
             await FS.writeFile(archive, bytes, { flag: "wx", mode: 0o600 });
-            const inspected = await inspectTabsext(archive, config.tabsVersion).catch(() => {
+            const inspected = await inspectTabsext(archive, null).catch(() => {
               throw new HttpError(400, "Invalid Tabs extension package.");
             });
             if (inspected.manifest.publisher !== namespace || inspected.manifest.name !== name) {

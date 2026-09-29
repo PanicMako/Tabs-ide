@@ -16,11 +16,16 @@ const config: ExchangeConfig = {
   githubClientSecret: "test",
   adminGithubIds: new Set(),
   bucket: "quarantine",
-  tabsVersion: "1.3.17",
   publishingEnabled: true,
 };
 
-async function fixture(capabilities?: string[], version = "1.0.0", lockfile?: unknown) {
+async function fixture(
+  capabilities?: string[],
+  version = "1.0.0",
+  lockfile?: unknown,
+  tabsRange = ">=1.3.0 <2.0.0",
+  packVersion = "1.3.17",
+) {
   const root = FS.mkdtempSync(Path.join(OS.tmpdir(), "tabs-exchange-worker-test-"));
   roots.push(root);
   const source = Path.join(root, "source");
@@ -35,7 +40,7 @@ async function fixture(capabilities?: string[], version = "1.0.0", lockfile?: un
       version,
       displayName: "Dashboard",
       description: "A test extension",
-      engines: { tabs: ">=1.3.0 <2.0.0" },
+      engines: { tabs: tabsRange },
       ...(capabilities ? { capabilities } : {}),
       contributes: { tools: [{ id: "main", label: "Main", entry: "dist/index.html" }] },
     }),
@@ -45,7 +50,7 @@ async function fixture(capabilities?: string[], version = "1.0.0", lockfile?: un
   const inspected = await packTabsext({
     directory: source,
     destination: archive,
-    tabsVersion: "1.3.17",
+    tabsVersion: packVersion,
   });
   return { inspected, bytes: FS.readFileSync(archive) };
 }
@@ -265,7 +270,7 @@ describe("Exchange quarantine worker", () => {
   });
   it("compares against the closest lower approved version despite approval order", async () => {
     const { inspected, bytes } = await fixture(["profile-storage"]);
-    const previous = await fixture([], "0.9.0");
+    const previous = await fixture([], "0.9.0", undefined, ">=1.0.0 <1.2.0", "1.1.0");
     const older = await fixture(["profile-storage"], "0.8.0");
     const newer = await fixture(["profile-storage"], "1.1.0");
     let result: {

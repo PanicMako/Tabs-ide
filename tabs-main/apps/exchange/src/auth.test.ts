@@ -13,7 +13,6 @@ const config: ExchangeConfig = {
   githubClientSecret: "secret",
   adminGithubIds: new Set(),
   bucket: "quarantine",
-  tabsVersion: "1.3.17",
   publishingEnabled: false,
 };
 

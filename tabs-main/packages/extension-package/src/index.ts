@@ -246,8 +246,11 @@ async function readBounded(stream: NodeJS.ReadableStream, limit: number): Promis
   return Buffer.concat(chunks);
 }
 
-/** Validate ZIP metadata, manifest, entry names and expected tool assets without extracting. */
-export async function inspectTabsext(path: string, tabsVersion: string): Promise<InspectedTabsext> {
+/** Null skips only the Tabs client version gate for registry-side review. */
+export async function inspectTabsext(
+  path: string,
+  tabsVersion: string | null,
+): Promise<InspectedTabsext> {
   const stat = FS.statSync(path);
   if (!stat.isFile() || stat.size > MAX_ARCHIVE_BYTES)
     throw new Error("Archive exceeds the size limit.");
@@ -295,7 +298,7 @@ export async function extractTabsext(input: {
   readonly archive: string;
   readonly destination: string;
   readonly expectedDigest: string;
-  readonly tabsVersion: string;
+  readonly tabsVersion: string | null;
 }): Promise<InspectedTabsext> {
   const destination = Path.resolve(input.destination);
   if (FS.existsSync(destination)) throw new Error("Destination already exists.");

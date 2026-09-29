@@ -86,6 +86,15 @@ describe("Tabs extension manifest", () => {
     });
   });
 
+  it("accepts older client ranges for registry review but keeps desktop compatibility strict", () => {
+    const older = { ...manifest, engines: { tabs: ">=1.0.0 <1.2.0" } };
+    expect(validateTabsExtensionManifest(older, null).ok).toBe(true);
+    expect(validateTabsExtensionManifest(older, "1.3.17").ok).toBe(false);
+    for (const tabs of ["*", ">=1.0.0 ||", ">=1.0.0 unexpected", "x".repeat(257)]) {
+      expect(validateTabsExtensionManifest({ ...older, engines: { tabs } }, null).ok).toBe(false);
+    }
+  });
+
   it("requires API 1.5 for read-only Git status and treats it as a new permission", () => {
     const next = {
       ...manifest,

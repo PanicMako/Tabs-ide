@@ -198,6 +198,11 @@ The API accepts at most two concurrent archive submissions per process, closes
 excess upload connections with HTTP 429, and terminates uploads whose bodies
 take longer than two minutes. Publishers can retry after an in-progress upload
 finishes; invalid archives receive HTTP 400.
+The Exchange validates the package format and a bounded, supported
+`engines.tabs` range but does not require that range to include the server's
+own Tabs build. Older supported desktop clients can therefore discover their
+compatible release; each desktop still checks compatibility before install
+and activation.
 Quarantine objects use content-addressed keys and conditional `If-None-Match: *`
 PUTs, so this API cannot overwrite an existing key. A retry may reuse an
 existing object only after reading and verifying its exact size and SHA-256;

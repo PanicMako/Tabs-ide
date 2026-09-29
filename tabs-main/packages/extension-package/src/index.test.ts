@@ -101,6 +101,25 @@ describe(".tabsext packages", () => {
     );
   });
 
+  it("inspects an older release for registry review without making it desktop-compatible", async () => {
+    const { root, source } = fixture();
+    const archive = Path.join(root, "older.tabsext");
+    const packed = await packTabsext({
+      directory: source,
+      destination: archive,
+      tabsVersion: "1.3.17",
+    });
+    expect((await inspectTabsext(archive, null)).digest).toBe(packed.digest);
+    await expect(inspectTabsext(archive, "2.0.0")).rejects.toThrow(/engines.tabs/);
+    const extracted = await extractTabsext({
+      archive,
+      destination: Path.join(root, "registry-review"),
+      expectedDigest: packed.digest,
+      tabsVersion: null,
+    });
+    expect(extracted.manifest.name).toBe("tool");
+  });
+
   it("produces identical bytes in different system timezones", () => {
     const { root, source } = fixture();
     const cli = Path.join(import.meta.dirname, "cli.ts");

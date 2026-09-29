@@ -24,7 +24,6 @@ const config: ExchangeConfig = {
   githubClientSecret: "test",
   adminGithubIds: new Set(["42"]),
   bucket: "test",
-  tabsVersion: "1.3.17",
   publishingEnabled: false,
 };
 
@@ -440,6 +439,34 @@ afterEach(async () => {
 });
 
 describe("Exchange HTTP boundaries", () => {
+  it("accepts a valid package for an older Tabs client", async () => {
+    const directory = await FS.mkdtemp(Path.join(OS.tmpdir(), "tabs-exchange-older-upload-"));
+    temporaryDirectories.push(directory);
+    const source = Path.join(directory, "source");
+    await FS.cp(Path.resolve(import.meta.dirname, "../../../examples/hello-extension"), source, {
+      recursive: true,
+    });
+    const manifestPath = Path.join(source, "tabs-extension.json");
+    const manifest = JSON.parse(await FS.readFile(manifestPath, "utf8"));
+    manifest.engines.tabs = ">=1.0.0 <1.2.0";
+    await FS.writeFile(manifestPath, JSON.stringify(manifest));
+    const archive = Path.join(directory, "older.tabsext");
+    await packTabsext({ directory: source, destination: archive, tabsVersion: "1.1.0" });
+    const ready = await fixture(true, digest, "review", undefined, undefined, undefined, true);
+    const response = await fetch(`${ready.base}/v1/publisher/tabs-example/hello/versions`, {
+      method: "POST",
+      headers: {
+        Origin: config.origin,
+        Cookie: "tabs_exchange_session=opaque",
+        "X-CSRF-Token": csrf,
+        "Content-Type": "application/octet-stream",
+      },
+      body: new Uint8Array(await FS.readFile(archive)),
+    });
+    expect(response.status).toBe(202);
+    expect(ready.actions.some((sql) => sql.startsWith("INSERT INTO exchange_versions"))).toBe(true);
+  });
+
   it("reports a duplicate submitted version without publishing it", async () => {
     const directory = await FS.mkdtemp(Path.join(OS.tmpdir(), "tabs-exchange-duplicate-test-"));
     temporaryDirectories.push(directory);

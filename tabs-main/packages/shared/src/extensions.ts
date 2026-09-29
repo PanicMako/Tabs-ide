@@ -85,10 +85,26 @@ export function extensionApiRangeCompatible(range: string): boolean {
   return satisfiesSemverRange(TABS_EXTENSION_API_VERSION, range);
 }
 
-/** Validate packaged contributions before they reach the desktop host. */
+function supportedTabsRangeSyntax(range: string): boolean {
+  return (
+    range.length > 0 &&
+    range.length <= 256 &&
+    range.split("||").every((group) => {
+      const comparators = group.trim().split(/\s+/);
+      return (
+        comparators.length > 0 &&
+        comparators.every((comparator) =>
+          /^(?:\^|>=|>|<=|<|=)?v?\d+(?:\.\d+){0,2}$/.test(comparator),
+        )
+      );
+    })
+  );
+}
+
+/** Pass null only for registry review, where client compatibility is checked later. */
 export function validateTabsExtensionManifest(
   input: unknown,
-  tabsVersion: string,
+  tabsVersion: string | null,
 ): ManifestValidationResult {
   const errors: string[] = [];
   if (!record(input)) return { ok: false, errors: ["Manifest must be a JSON object."] };
@@ -147,10 +163,13 @@ export function validateTabsExtensionManifest(
   if (
     !record(engines) ||
     typeof engines.tabs !== "string" ||
-    !satisfiesSemverRange(tabsVersion, engines.tabs)
+    !supportedTabsRangeSyntax(engines.tabs)
   ) {
+    errors.push("engines.tabs must use a supported, bounded Tabs version range.");
+  } else if (tabsVersion !== null && !satisfiesSemverRange(tabsVersion, engines.tabs)) {
     errors.push(`engines.tabs must include this Tabs version (${tabsVersion}).`);
-  } else if (Object.keys(engines).some((key) => key !== "tabs" && key !== "api")) {
+  }
+  if (record(engines) && Object.keys(engines).some((key) => key !== "tabs" && key !== "api")) {
     errors.push("engines has unsupported fields.");
   }
   if (
