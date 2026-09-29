@@ -65,11 +65,30 @@ export default function ExtensionsSettings() {
       ? checkedUpdates[extension.id]
       : extension.availableUpdate;
 
+  const prevPreparedInstall = useRef<DesktopPreparedExchangeInstall | null>(null);
   useEffect(() => {
-    if (tab === "discover" && preparedInstall) reviewHeading.current?.focus();
+    if (tab === "discover" && preparedInstall) {
+      reviewHeading.current?.focus();
+    } else if (tab === "discover" && !preparedInstall && prevPreparedInstall.current) {
+      const id = `${prevPreparedInstall.current.manifest.publisher}.${prevPreparedInstall.current.manifest.name}`;
+      const el = document.getElementById(`extension-discover-review-${id}`);
+      if (el) el.focus();
+      else discoverTabButton.current?.focus();
+    }
+    prevPreparedInstall.current = preparedInstall;
   }, [preparedInstall, tab]);
+
+  const prevUninstallingId = useRef<string | null>(null);
   useEffect(() => {
-    if (tab === "installed" && uninstallingId) uninstallHeading.current?.focus();
+    if (tab === "installed" && uninstallingId) {
+      uninstallHeading.current?.focus();
+    } else if (tab === "installed" && !uninstallingId && prevUninstallingId.current) {
+      const id = prevUninstallingId.current;
+      const el = document.getElementById(`extension-uninstall-${id}`);
+      if (el) el.focus();
+      else installedTabButton.current?.focus();
+    }
+    prevUninstallingId.current = uninstallingId;
   }, [uninstallingId, tab]);
   useEffect(() => {
     if (tab !== "profiles" || !bridge) return;
@@ -186,9 +205,21 @@ export default function ExtensionsSettings() {
         ))}
       </div>
       {error ? (
-        <p role="alert" className="px-6 text-sm text-destructive">
-          {error}
-        </p>
+        <div
+          role="alert"
+          className="flex items-center justify-between gap-2 px-6 text-sm text-destructive"
+        >
+          <span>{error}</span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            aria-label="Dismiss error"
+            onClick={() => setError(null)}
+          >
+            Dismiss
+          </Button>
+        </div>
       ) : null}
       {status ? (
         <p role="status" className="px-6 text-sm text-muted-foreground">
@@ -282,6 +313,7 @@ export default function ExtensionsSettings() {
                     Registry: {listing.registryOrigin}
                   </p>
                   <Button
+                    id={`extension-discover-review-${listing.id}`}
                     type="button"
                     variant="outline"
                     disabled={busy || !exchangeInstallAvailable}
@@ -322,6 +354,26 @@ export default function ExtensionsSettings() {
             <section
               aria-labelledby="exchange-install-review"
               className="space-y-2 rounded border border-border p-3"
+              onKeyDown={(event) => {
+                if (event.key === "Escape") {
+                  void run(async () => {
+                    await bridge.cancelExchangeInstall(preparedInstall.token);
+                    setPreparedInstall(null);
+                    const returnId = reviewReturnExtensionId.current;
+                    if (returnId) setTab("installed");
+                    requestAnimationFrame(() =>
+                      (
+                        (returnId
+                          ? document.getElementById(`extension-update-${returnId}`)
+                          : reviewTrigger.current?.isConnected
+                            ? reviewTrigger.current
+                            : null) ??
+                        (returnId ? installedTabButton.current : discoverTabButton.current)
+                      )?.focus(),
+                    );
+                  });
+                }
+              }}
             >
               <h3
                 id="exchange-install-review"
@@ -430,17 +482,17 @@ export default function ExtensionsSettings() {
                   disabled={busy}
                   onClick={() =>
                     void run(async () => {
+                      const returnId = reviewReturnExtensionId.current;
+                      const listingId = `${preparedInstall.manifest.publisher}.${preparedInstall.manifest.name}`;
                       await bridge.cancelExchangeInstall(preparedInstall.token);
                       setPreparedInstall(null);
-                      const returnId = reviewReturnExtensionId.current;
                       if (returnId) setTab("installed");
                       requestAnimationFrame(() =>
                         (
                           (returnId
                             ? document.getElementById(`extension-update-${returnId}`)
-                            : reviewTrigger.current?.isConnected
-                              ? reviewTrigger.current
-                              : null) ??
+                            : document.getElementById(`extension-discover-review-${listingId}`)) ??
+                          (reviewTrigger.current?.isConnected ? reviewTrigger.current : null) ??
                           (returnId ? installedTabButton.current : discoverTabButton.current)
                         )?.focus(),
                       );
@@ -700,8 +752,17 @@ export default function ExtensionsSettings() {
                     className="space-y-2 rounded border border-destructive/50 p-3"
                     onKeyDown={(event) => {
                       if (event.key === "Escape") {
+                        const extId = extension.id;
                         setUninstallingId(null);
-                        requestAnimationFrame(() => uninstallTrigger.current?.focus());
+                        requestAnimationFrame(() =>
+                          (
+                            document.getElementById(`extension-uninstall-${extId}`) ??
+                            (uninstallTrigger.current?.isConnected
+                              ? uninstallTrigger.current
+                              : null) ??
+                            installedTabButton.current
+                          )?.focus(),
+                        );
                       }
                     }}
                   >
@@ -778,8 +839,17 @@ export default function ExtensionsSettings() {
                         variant="outline"
                         disabled={busy}
                         onClick={() => {
+                          const extId = extension.id;
                           setUninstallingId(null);
-                          requestAnimationFrame(() => uninstallTrigger.current?.focus());
+                          requestAnimationFrame(() =>
+                            (
+                              document.getElementById(`extension-uninstall-${extId}`) ??
+                              (uninstallTrigger.current?.isConnected
+                                ? uninstallTrigger.current
+                                : null) ??
+                              installedTabButton.current
+                            )?.focus(),
+                          );
                         }}
                       >
                         Cancel
@@ -788,6 +858,7 @@ export default function ExtensionsSettings() {
                   </section>
                 ) : (
                   <Button
+                    id={`extension-uninstall-${extension.id}`}
                     type="button"
                     variant="outline"
                     disabled={busy}
@@ -1010,13 +1081,15 @@ export default function ExtensionsSettings() {
                               projectId ?? null,
                               host,
                             ]);
+                            const list = credentialStatuses[extension.id];
                             const saved =
-                              credentialStatuses[extension.id]?.some(
+                              Array.isArray(list) &&
+                              list.some(
                                 (status) =>
                                   status.profileId === profile.id &&
                                   status.projectId === projectId &&
                                   status.host === host,
-                              ) ?? false;
+                              );
                             const label = `${extension.manifest.displayName} ${profile.label}${projectId ? ` for ${projects.find((project) => project.id === projectId)?.name ?? projectId}` : ""} credential for ${host}`;
                             return (
                               <div key={key} className="space-y-1">

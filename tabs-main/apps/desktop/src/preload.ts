@@ -87,6 +87,7 @@ const EXTENSION_ADD_PROFILE_CHANNEL = "desktop:extension:add-profile";
 const EXTENSION_CREDENTIALS_LIST_CHANNEL = "desktop:extension:credentials-list";
 const EXTENSION_CREDENTIAL_SET_CHANNEL = "desktop:extension:credential-set";
 const EXTENSION_ACTIVATE_CHANNEL = "desktop:extension:activate";
+const EXTENSION_VIEW_ERROR_CHANNEL = "desktop:extension:view-error";
 const EXTENSION_SET_BOUNDS_CHANNEL = "desktop:extension:set-bounds";
 const EXTENSION_HIDE_CHANNEL = "desktop:extension:hide";
 const BROWSER_HOST_GET_SESSION_STATE_CHANNEL = "desktop:browser-host:get-session-state";
@@ -292,6 +293,18 @@ contextBridge.exposeInMainWorld("desktopBridge", {
     ipcRenderer.on(EXTENSION_CHANGED_CHANNEL, handler);
     return () => ipcRenderer.removeListener(EXTENSION_CHANGED_CHANNEL, handler);
   },
+  onExtensionViewError: (listener) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      payload: Parameters<NonNullable<DesktopBridge["onExtensionViewError"]>>[0] extends (
+        event: infer E,
+      ) => void
+        ? E
+        : never,
+    ) => listener(payload);
+    ipcRenderer.on(EXTENSION_VIEW_ERROR_CHANNEL, handler);
+    return () => ipcRenderer.removeListener(EXTENSION_VIEW_ERROR_CHANNEL, handler);
+  },
   discoverExchangeExtensions: (query, cursor) =>
     ipcRenderer.invoke(EXTENSION_DISCOVER_CHANNEL, query, cursor),
   checkExtensionUpdate: (extensionId) =>
@@ -328,7 +341,7 @@ contextBridge.exposeInMainWorld("desktopBridge", {
     ),
   activateExtensionTool: (input) => ipcRenderer.invoke(EXTENSION_ACTIVATE_CHANNEL, input),
   setExtensionBounds: (input) => ipcRenderer.invoke(EXTENSION_SET_BOUNDS_CHANNEL, input),
-  hideExtensionTool: () => ipcRenderer.invoke(EXTENSION_HIDE_CHANNEL),
+  hideExtensionTool: (input) => ipcRenderer.invoke(EXTENSION_HIDE_CHANNEL, input),
   getBrowserSessionState: (input) =>
     ipcRenderer.invoke(BROWSER_HOST_GET_SESSION_STATE_CHANNEL, input),
   ensureBrowserSession: (input) => ipcRenderer.invoke(BROWSER_HOST_ENSURE_SESSION_CHANNEL, input),

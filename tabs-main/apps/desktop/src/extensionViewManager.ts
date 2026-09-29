@@ -26,6 +26,7 @@ import { extensionNetworkGetText, validateExtensionNetworkUrl } from "./extensio
 import { runExtensionLogicSpike } from "./extensionLogicSpike";
 
 const SCHEME = "tabs-extension";
+const EXTENSION_VIEW_ERROR_CHANNEL = "desktop:extension:view-error";
 const MAX_FILES = 1_000;
 const MAX_TOTAL_BYTES = 50 * 1024 * 1024;
 const PROFILE_ID = /^[a-z][a-z0-9-]{0,62}$/;
@@ -57,7 +58,10 @@ interface ActiveView {
   readonly view: WebContentsView;
   readonly projectId: string;
   readonly extensionId: string;
+  readonly toolId: string;
   readonly profileId: string;
+  readonly activationId: string;
+  isCommitted: boolean;
 }
 
 /** Registry origin is part of storage and Chromium partition identity. */
@@ -1115,13 +1119,32 @@ export class ExtensionViewManager {
     const profile = this.requireProfile(installed, input.profileId);
     const tool = installed.manifest.contributes.tools.find((item) => item.id === input.toolId);
     if (!tool) throw new Error("Unknown extension tool.");
+    const activationId =
+      input.activationId && /^[a-zA-Z0-9_-]{1,128}$/.test(input.activationId)
+        ? input.activationId
+        : Crypto.randomBytes(16).toString("hex");
     const key = [input.projectId, input.extensionId, input.toolId, input.profileId].join(":");
-    if (this.active?.key === key) {
-      this.coordinator.attachToolView(this.active.view);
-      if (this.loadingActivation?.key === key) await this.loadingActivation.promise;
+    if (this.loadingActivation?.key === key) {
+      if (this.active?.view) this.coordinator.attachToolView(this.active.view);
+      await this.loadingActivation.promise;
       return;
     }
-    const activation = this.activateNew(installed, input, profile.scope, tool.entry, key);
+    if (
+      this.active?.key === key &&
+      this.active.isCommitted &&
+      (!input.activationId || this.active.activationId === input.activationId)
+    ) {
+      this.coordinator.attachToolView(this.active.view);
+      return;
+    }
+    const activation = this.activateNew(
+      installed,
+      input,
+      profile.scope,
+      tool.entry,
+      key,
+      activationId,
+    );
     this.loadingActivation = { key, promise: activation };
     try {
       await activation;
@@ -1136,6 +1159,7 @@ export class ExtensionViewManager {
     scope: "shared" | "project" | undefined,
     entry: string,
     key: string,
+    activationId: string,
   ): Promise<void> {
     const activationSequence = ++this.activationSequence;
     this.hide();
@@ -1147,6 +1171,7 @@ export class ExtensionViewManager {
     if (installed.pendingRollback && installed.digest) {
       this.storage.snapshotForUpdate(updateIdentity, installed.digest);
     }
+    let rollbackApplied = false;
     try {
       if (installed.pendingRollback && installed.digest) {
         this.storage.restoreUpdateSnapshot(updateIdentity, installed.digest);
@@ -1157,13 +1182,43 @@ export class ExtensionViewManager {
           installed.manifest.storage?.migrations ?? [],
         );
       }
-      await this.activateView(installed, input, scope, entry, key);
-      if (this.activationSequence !== activationSequence || this.active?.key !== key) return;
+      await this.activateView(installed, input, scope, entry, key, activationId);
+      const current = this.installed.get(installed.id);
+      if (this.activationSequence !== activationSequence) {
+        if (this.active?.activationId === activationId) {
+          this.hide({ activationId });
+        }
+        return;
+      }
+      if (
+        this.active?.key !== key ||
+        this.active?.activationId !== activationId ||
+        !current ||
+        current.disabled ||
+        current.revoked ||
+        !isExtensionEnabledForProject(current.assignment, input.projectId) ||
+        extensionProfileForProject(current.assignment, input.projectId) !== input.profileId ||
+        (installed.digest && current.digest !== installed.digest)
+      ) {
+        if (this.active?.activationId === activationId) {
+          this.hide({ activationId });
+        }
+        if (current?.revoked) throw new Error("This extension version has been revoked.");
+        if (current?.disabled) throw new Error("This extension is disabled.");
+        if (!current) throw new Error("Extension was removed during activation.");
+        throw new Error("Extension became unavailable or assignment changed during activation.");
+      }
       this.finishPendingUpdate(installed);
+      if (this.active?.activationId === activationId) {
+        this.active.isCommitted = true;
+      }
     } catch (error) {
       const currentActivation = this.activationSequence === activationSequence;
-      if (currentActivation) this.hide();
-      if (installed.pendingRollback && currentActivation) {
+      if (this.active?.activationId === activationId) {
+        this.hide({ activationId });
+      }
+      if (installed.pendingRollback && currentActivation && !rollbackApplied) {
+        rollbackApplied = true;
         this.rollbackPendingUpdate(installed);
         throw new Error("Extension update failed to activate and was rolled back.", {
           cause: error,
@@ -1186,6 +1241,7 @@ export class ExtensionViewManager {
     scope: "shared" | "project" | undefined,
     entry: string,
     key: string,
+    activationId: string,
   ): Promise<void> {
     this.resolveAsset(installed.directory, entry);
     const partition = extensionSessionPartition(
@@ -1226,17 +1282,104 @@ export class ExtensionViewManager {
     });
     view.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
     view.webContents.on("will-navigate", (event) => event.preventDefault());
-    this.active = {
+    view.webContents.on("will-redirect", (event) => event.preventDefault());
+
+    const activeEntry: ActiveView = {
       key,
       view,
       projectId: input.projectId,
       extensionId: input.extensionId,
+      toolId: input.toolId,
       profileId: input.profileId,
+      activationId,
+      isCommitted: false,
     };
+    this.active = activeEntry;
     this.coordinator.attachToolView(view);
-    await view.webContents.loadURL(
-      `${SCHEME}://${installed.id}/${entry}?project=${encodeURIComponent(input.projectId)}&profile=${encodeURIComponent(input.profileId)}`,
-    );
+
+    let rejectCrash: ((error: Error) => void) | null = null;
+    const crashPromise = new Promise<never>((_, reject) => {
+      rejectCrash = reject;
+    });
+
+    view.webContents.on("render-process-gone", (_event, details) => {
+      const reason = details?.reason ?? "crashed";
+      if (!activeEntry.isCommitted && rejectCrash) {
+        rejectCrash(new Error(`The extension crashed during initial load (${reason}).`));
+      }
+      this.handleViewCrash(view, input, activationId, reason);
+    });
+
+    try {
+      await Promise.race([
+        view.webContents.loadURL(
+          `${SCHEME}://${installed.id}/${entry}?project=${encodeURIComponent(input.projectId)}&profile=${encodeURIComponent(input.profileId)}`,
+        ),
+        crashPromise,
+      ]);
+    } catch (loadError) {
+      if (this.active?.activationId === activationId) {
+        this.hide({ activationId });
+      }
+      throw loadError;
+    }
+  }
+
+  private handleViewCrash(
+    view: WebContentsView,
+    input: DesktopExtensionViewInput,
+    activationId: string,
+    reason: string,
+  ): void {
+    const isCurrentActive = this.active?.view === view && this.active.activationId === activationId;
+    const wasCommitted = isCurrentActive && Boolean(this.active?.isCommitted);
+
+    // The host must send a crash event only for the view that was active when it crashed.
+    if (!isCurrentActive) {
+      this.coordinator.detachToolView(view);
+      try {
+        if (!view.webContents.isDestroyed()) {
+          view.webContents.close();
+        }
+      } catch {
+        // ignore
+      }
+      return;
+    }
+
+    // Clear active BEFORE closing to avoid re-entrant events
+    this.active = null;
+    this.coordinator.detachToolView(view);
+    for (const request of this.networkRequests) {
+      if (request.extensionId === input.extensionId) request.controller.abort();
+    }
+    // A UI-view crash should abort ONLY work owned by that view
+    for (const request of this.logicRequests) {
+      if (request.extensionId === input.extensionId && request.origin === "view") {
+        request.controller.abort();
+      }
+    }
+    try {
+      if (typeof view.webContents.isDestroyed !== "function" || !view.webContents.isDestroyed()) {
+        view.webContents.close();
+      }
+    } catch {
+      // ignore
+    }
+
+    if (wasCommitted) {
+      const window = this.getWindow();
+      if (window && !window.isDestroyed()) {
+        window.webContents.send(EXTENSION_VIEW_ERROR_CHANNEL, {
+          projectId: input.projectId,
+          extensionId: input.extensionId,
+          toolId: input.toolId,
+          profileId: input.profileId,
+          activationId,
+          error: `The extension crashed (${reason}).`,
+        });
+      }
+    }
   }
 
   private finishPendingUpdate(installed: StoredExtension): void {
@@ -1317,6 +1460,8 @@ export class ExtensionViewManager {
   }
 
   setBounds(input: DesktopExtensionBoundsInput): void {
+    if (!this.active) return;
+    if (input.activationId && this.active.activationId !== input.activationId) return;
     const key = [input.projectId, input.extensionId, input.toolId, input.profileId].join(":");
     if (this.active?.key !== key) return;
     const { view } = this.active;
@@ -1334,19 +1479,31 @@ export class ExtensionViewManager {
     });
   }
 
-  hide(): void {
+  hide(input?: { readonly activationId?: string } | string): void {
     if (!this.active) return;
+    const targetActivationId = typeof input === "string" ? input : input?.activationId;
+    if (targetActivationId && this.active.activationId !== targetActivationId) {
+      return;
+    }
+    const view = this.active.view;
+    const extensionId = this.active.extensionId;
+    this.active = null;
+    this.coordinator.detachToolView(view);
     for (const request of this.networkRequests) {
-      if (request.extensionId === this.active.extensionId) request.controller.abort();
+      if (request.extensionId === extensionId) request.controller.abort();
     }
     for (const request of this.logicRequests) {
-      if (request.extensionId === this.active.extensionId && request.origin === "view") {
+      if (request.extensionId === extensionId && request.origin === "view") {
         request.controller.abort();
       }
     }
-    this.coordinator.detachToolView(this.active.view);
-    this.active.view.webContents.close();
-    this.active = null;
+    try {
+      if (typeof view.webContents.isDestroyed !== "function" || !view.webContents.isDestroyed()) {
+        view.webContents.close();
+      }
+    } catch {
+      // ignore
+    }
   }
 
   private abortLogicRequests(extensionId: string): void {

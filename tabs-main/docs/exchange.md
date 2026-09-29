@@ -350,3 +350,94 @@ checks as individual blocks, and records each digest and matching revocation
 under one database transaction. A duplicate or already blocked digest rejects
 the entire batch. It does not fetch, verify, or automatically trust an external
 feed; an operator must vet the source and record a reason for each hash.
+
+## Local Service Integration Testing
+
+To run the real local Exchange service integration suite against isolated PostgreSQL and S3-compatible storage without external dependencies or production credentials:
+
+### Prerequisites
+
+- Docker Engine and Docker Compose (e.g. `colima start` on macOS).
+
+### Commands
+
+- **Start test stack**:
+  `docker compose -f apps/exchange/compose.test.yaml up -d`
+- **Execute integration tests**:
+  `bun --cwd apps/exchange run test:integration`
+- **Stop test stack & clean up volumes**:
+  `docker compose -f apps/exchange/compose.test.yaml down -v`
+
+If Docker is not running, the test command safely detects the absence of services, warns with the start instructions, marks live execution unverified, and skips live operations rather than failing spuriously.
+
+## Operations Hardening & Disaster Recovery Drills
+
+Tabs Exchange includes comprehensive operational procedures and drills implemented and verified in `apps/exchange/src/exchangeHardening.integration.test.ts`.
+
+### 1. TUF Root Rotation Drill
+
+- **Intermediate Numbered Roots**: Intermediate root transitions (`1.root.json` -> `2.root.json` -> `3.root.json`) must be signed by both the old root key threshold and the new root key threshold.
+- **Client Advancement**: Pinned desktop clients automatically advance across intermediate root versions upon fetching fresh metadata without manual re-pinning or service downtime.
+- **Security Invariants**:
+  - Roots signed only by the new key without old threshold signatures are rejected.
+  - Roots signed with insufficient threshold signatures are rejected.
+  - Rollback attacks attempting to present an earlier root version after advancing are rejected by `tuf-js`.
+
+### 2. Key Expiry, Freshness & Mutable Catalog Drift
+
+- **Strict Expiration**: Client rejects metadata where `expires` is in the past. Expired `timestamp.json` halts updates immediately; expired `snapshot.json` or `targets.json` prevents discovery of new targets.
+- **TUF as Sole Authority**: Catalog JSON and search endpoints are treated strictly as discovery hints. If an unauthenticated catalog endpoint claims a version exists or is updated, but that version is omitted from signed TUF targets, the client refuses to download or activate it.
+
+### 3. Signed Revocation & Fallback
+
+- **Dual-Layer Revocation**:
+  1. _Immediate Public Route Suppression_: Revoking a version immediately returns HTTP 404 on public download and search routes (`/v1/extensions/...`).
+  2. _Authenticated Client Revocation_: Installed desktop clients do not accept unsigned hints or SSE events as revocation authority. An operator must publish updated signed TUF targets with the target omitted. Once published, desktop clients verify signature validity, promptly remove the target from active tools, and close open views.
+- **Reconnect & Polling Fallback**: Desktop clients poll signed metadata every 60 seconds and on resume. If SSE disconnects or drops events, clients detect target omission on the next poll and apply revocation promptly.
+
+### 4. Database & Storage Backup / Restore Procedures
+
+- **Backup (`backupExchangeData`)**:
+  - Dumps all 13 PostgreSQL tables in topological order (`exchange_users`, `exchange_namespaces`, `exchange_namespace_members`, `exchange_namespace_invitations`, `exchange_namespace_verifications`, `exchange_versions`, `exchange_review_events`, `exchange_appeals`, `exchange_blocked_digests`, `exchange_blocked_digest_events`, `exchange_tuf_metadata`, `exchange_published_targets`, `exchange_published_heads`).
+  - Exports all private S3 objects with cryptographic SHA-256 validation.
+- **Restore (`restoreExchangeData`)**:
+  - **CRITICAL SAFETY INVARIANT**: Restoration into any non-empty database or non-empty S3 bucket is **strictly rejected**. Never restore over a live database or active bucket.
+  - Restores all table rows in a single atomic database transaction.
+  - Uploads all S3 objects and re-verifies SHA-256 digests against the manifest.
+  - Confirms exact row and object count match between backup and restored instance.
+
+### 5. Worker Recovery & Operational Readiness
+
+- **Worker Crash Recovery**: If a scan worker terminates unexpectedly mid-scan, its token-bound claim expires after 10 minutes (`claim_expires_at < now()`). The next worker iteration automatically reclaims the abandoned package and completes verification.
+- **Quarantine Corruption Detection**: If quarantined object bytes in S3 are mutated or truncated before review, the scan worker detects the digest mismatch, aborts review advancement, and logs `quarantined-digest-changed`.
+- **Operational Readiness beyond `/healthz`**:
+  - Database ping `/healthz` verifies basic connectivity but is **insufficient** for production monitoring.
+  - Review queue metrics (`/v1/review/queue`) evaluate:
+    - Worker heartbeat: alert if no worker heartbeat observed within 15 seconds (`worker_recently_seen === false`).
+    - Queue backlog: alert if queue depth exceeds 20 packages or oldest queued package exceeds 10 minutes.
+    - TUF metadata freshness: alert if any role (`root`, `timestamp`, `snapshot`, `targets`) is expired (`critical`) or expiring within 48 hours (`warning`).
+
+### 6. Multi-Registry Origin Isolation
+
+- Desktop trust configurations require an explicit `origin` and `trustId`.
+- Verified TUF metadata, roots, and timestamps are stored in isolated disk paths partitioned by `trustId`.
+- Extension credentials, profile storage, and Electron browser partitions are strictly isolated by registry origin and extension ID.
+- Forked registries sharing namespace or package names cannot access or poison official registry trust state or local storage.
+
+---
+
+## Operator Production Go / No-Go Checklist
+
+| Area                | Item                                               |     Status     | Verification & Blocker Notes                                                                                       |
+| :------------------ | :------------------------------------------------- | :------------: | :----------------------------------------------------------------------------------------------------------------- |
+| **Publishing Gate** | `EXCHANGE_PUBLISHING_ENABLED = false`              |  **ENFORCED**  | Public submissions disabled by default in source and configuration.                                                |
+| **Trust Signing**   | Production TUF Root Signing Ceremony               |  **BLOCKED**   | External dependency: requires offline ceremony, air-gapped hardware/YubiKeys, and operator quorum.                 |
+| **OAuth Auth**      | Production GitHub OAuth Application                |  **BLOCKED**   | External dependency: requires official Tabs organization OAuth Client ID & Secret; local fixture used for testing. |
+| **Infrastructure**  | Managed PostgreSQL & S3 Object Storage (R2/Render) | **UNVERIFIED** | Local container and test harnesses verified; production cloud deployment pending ops rollout.                      |
+| **Malware Intel**   | External Threat & Malware Advisory Feed            |  **BLOCKED**   | External dependency: commercial/curated malware feed not configured; local blocked-digest DB active.               |
+| **AI Providers**    | Live Provider Production Credentials               |  **BLOCKED**   | Production API keys withheld per safety instructions; provider mocks active for test suites.                       |
+| **Legal / Terms**   | Final Publisher Terms of Service                   |  **BLOCKED**   | Draft terms version `2026-09-24` active in schema; legal review required before public publishing.                 |
+| **TUF Mechanics**   | Root Rotation & Threshold Verification             |    **PASS**    | Verified via `exchangeHardening.integration.test.ts` (1 -> 2 -> 3 chain, dual signatures, rollback rejected).      |
+| **Data Recovery**   | Atomic Backup & Safe Restore Protocol              |    **PASS**    | Verified via `backupRestore.ts` and automated drill with exact SHA-256 and row count validation.                   |
+| **Worker Faults**   | Expired Claim Reclamation & Tamper Detection       |    **PASS**    | Verified via worker unit and hardening integration suites.                                                         |
+| **Origin Defense**  | Multi-Registry Origin Isolation & Anti-Collision   |    **PASS**    | Verified via client trust isolation and state root partitioning drills.                                            |
