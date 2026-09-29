@@ -619,7 +619,7 @@ export class ExtensionViewManager {
       directory: root,
     };
     this.installed.set(parsed.id, next);
-    this.hide();
+    if (this.active?.extensionId === parsed.id) this.hide();
     this.save();
     return this.publicEntry(next);
   }
@@ -722,7 +722,7 @@ export class ExtensionViewManager {
           }
         : {}),
     };
-    this.hide();
+    if (this.active?.extensionId === inspected.id) this.hide();
     this.installed.set(inspected.id, next);
     try {
       this.save();
@@ -869,7 +869,7 @@ export class ExtensionViewManager {
           }
         : {}),
     };
-    if (!options.silent) this.hide();
+    if (!options.silent && this.active?.extensionId === inspected.id) this.hide();
     this.installed.set(inspected.id, next);
     try {
       this.save();

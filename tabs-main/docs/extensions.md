@@ -244,8 +244,8 @@ publisher identity verification, approval, revocation, or authenticated
 updates. An experimental Exchange API, scan worker, and publisher portal now
 exist; see [Exchange development status](exchange.md). Publishing is disabled
 by default. Set `TABS_EXCHANGE_ORIGIN` in a development desktop process to
-display compatible approved catalog listings; HTTPS is required except for
-`http://localhost` in development. Catalog entries are not trusted installation
+display compatible approved catalog listings; the registry origin must use
+HTTPS. Catalog entries are not trusted installation
 metadata and cannot authorize an install alone. The
 production update/revocation lifecycle, workspace write broker,
 persistent background runtime, privileged AI tools, and full account OAuth flows
@@ -277,3 +277,14 @@ persistent extension background API. Privileged broker calls require separate
 identity and project-grant binding, async execution semantics, packaged runtime
 verification across platforms, resource measurements under sustained load, and
 a dynamic AI-tool integration test with each supported provider.
+
+## Real Electron smoke test
+
+Run `bun run test:extension-smoke` from `apps/desktop` on a host that can launch
+Electron. The test creates a temporary user-data directory, packages the hello
+extension, loads it in a real `WebContentsView`, exercises renderer isolation,
+protocol and network boundaries, profile browser-storage separation, and crash
+re-activation. It reports a single renderer-process working-set sample and
+startup timings; these are observations, not performance budgets. The host
+window is synthetic, so this test does not verify the Tabs React retry UI,
+desktop-to-live-Exchange installation, or production packaging.

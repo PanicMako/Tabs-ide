@@ -910,6 +910,62 @@ describe("development extension installation", () => {
     await expect(manager.invokeLogic(sender as never, "sum", { a: 8, b: 5 })).resolves.toBe(13);
   });
 
+  it("keeps the active tool open when installing a different extension from any source", async () => {
+    for (const source of ["development", "local-package", "exchange"] as const) {
+      const { directory, manager } = fixture();
+      const activeExtension = manager.installDevelopment(directory);
+      const close = vi.fn();
+      const detachToolView = vi.fn();
+      const active = {
+        extensionId: activeExtension.id,
+        view: { webContents: { close, isDestroyed: () => false } },
+      };
+      const internal = manager as unknown as {
+        active: typeof active | null;
+        coordinator: { detachToolView: typeof detachToolView };
+      };
+      internal.active = active;
+      internal.coordinator.detachToolView = detachToolView;
+
+      const foreignDirectory = Path.join(directory, `foreign-${source}`);
+      FS.mkdirSync(Path.join(foreignDirectory, "dist"), { recursive: true });
+      FS.copyFileSync(
+        Path.join(directory, "dist", "index.html"),
+        Path.join(foreignDirectory, "dist", "index.html"),
+      );
+      const manifest = JSON.parse(
+        FS.readFileSync(Path.join(directory, "tabs-extension.json"), "utf8"),
+      );
+      manifest.name = "foreign";
+      FS.writeFileSync(
+        Path.join(foreignDirectory, "tabs-extension.json"),
+        JSON.stringify(manifest),
+      );
+
+      if (source === "development") {
+        manager.installDevelopment(foreignDirectory);
+      } else {
+        const archive = Path.join(directory, `foreign-${source}.tabsext`);
+        const packed = await packTabsext({
+          directory: foreignDirectory,
+          destination: archive,
+          tabsVersion: "1.3.17",
+        });
+        if (source === "local-package") await manager.installLocalPackage(archive);
+        else
+          await manager.installVerifiedExchangePackage(
+            archive,
+            "https://exchange.tabs.example",
+            packed.digest,
+          );
+      }
+
+      expect(internal.active).toBe(active);
+      expect(close).not.toHaveBeenCalled();
+      expect(detachToolView).not.toHaveBeenCalled();
+    }
+  });
+
   it("deletes encrypted credentials only with the explicit data-deletion uninstall", async () => {
     const cryptography: CredentialCryptography = {
       isEncryptionAvailable: () => true,
