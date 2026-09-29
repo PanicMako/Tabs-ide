@@ -2,6 +2,14 @@
 
 All notable changes to Tabs IDE will be documented in this file.
 
+## [v1.3.28] - 2026-09-29
+
+### Development state isolation, preserved workspace configs, and reactive typography
+
+- **Desktop development state isolation**: Development launches now use a dedicated state directory, keeping local development sessions separated from your production profiles and caches.
+- **Workspace configuration preservation during reset**: Local data reset flows now preserve active workspace configuration files alongside editor runtime data and settings.
+- **Immediate typography and theme reactivity**: Font family, heading font, and custom theme adjustments apply instantly across all open views without requiring a page reload.
+
 ## [v1.3.27] - 2026-09-28
 
 ### Orphaned provider process cleanup and theme typography combination persistence

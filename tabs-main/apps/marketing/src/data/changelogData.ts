@@ -21,15 +21,45 @@ export interface ChangelogRelease {
   }[];
 }
 
-export const TOTAL_TAGS_COUNT = 170;
+export const TOTAL_TAGS_COUNT = 171;
 
 export const changelogData: ChangelogRelease[] = [
+  {
+    tag: "v1.3.28",
+    title: "Development state isolation, preserved workspace configs, and reactive typography",
+    date: "September 29, 2026",
+    shortDate: "Sep 29",
+    isLatest: true,
+    type: "patch",
+    summary:
+      "Tabs isolates development state from production profiles, preserves workspace configuration files during data resets, and applies font preference changes immediately across the interface.",
+    highlights: [
+      "Development launches now use a dedicated state directory, keeping local development sessions separated from your production profiles and caches.",
+      "Local data reset flows now preserve active workspace configuration files alongside editor runtime data and settings.",
+      "Font family, heading font, and custom theme adjustments apply instantly across all open views without requiring a page reload.",
+    ],
+    categories: [
+      {
+        title: "Reliability",
+        items: [
+          "Development launches now use an isolated state directory to avoid mutating production profiles.",
+          "Local data reset flows preserve workspace configuration files alongside editor runtime data.",
+        ],
+      },
+      {
+        title: "Appearance",
+        items: [
+          "Font preference and custom theme changes apply reactively across all open views without page reloads.",
+        ],
+      },
+    ],
+  },
   {
     tag: "v1.3.27",
     title: "Orphaned provider process cleanup and theme typography combination persistence",
     date: "September 28, 2026",
     shortDate: "Sep 28",
-    isLatest: true,
+    isLatest: false,
     type: "patch",
     summary:
       "Tabs automatically detects and shuts down orphaned local provider process groups when the parent process exits unexpectedly, and preserves selected font preset combinations when client settings update.",
