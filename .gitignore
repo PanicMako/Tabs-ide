@@ -13,3 +13,4 @@ vscode-main/
 synara-main/
 .vercel
 .env*
+!tabs-main/apps/exchange/.env.example
