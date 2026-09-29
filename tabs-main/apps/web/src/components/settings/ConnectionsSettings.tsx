@@ -760,7 +760,11 @@ export function ConnectionsSettings() {
                   <DialogPanel className="space-y-6 pt-2 pb-3">
                     <>
                       {/* Connection Type Toggle */}
-                      <div className="tabs-segmented grid grid-cols-2" role="group" aria-label="Connection type">
+                      <div
+                        className="tabs-segmented grid grid-cols-2"
+                        role="group"
+                        aria-label="Connection type"
+                      >
                         <button
                           type="button"
                           onClick={() => setAddMode("remote")}

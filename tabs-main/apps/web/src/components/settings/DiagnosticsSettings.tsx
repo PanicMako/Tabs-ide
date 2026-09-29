@@ -1624,7 +1624,11 @@ export function DiagnosticsSettings() {
               description="Multi-metric CPU average, I/O read throughput, and I/O write throughput history."
               headerAction={
                 <div className="flex items-center gap-1.5">
-                  <div className="tabs-segmented flex items-center text-xs" role="group" aria-label="Resource timeline window">
+                  <div
+                    className="tabs-segmented flex items-center text-xs"
+                    role="group"
+                    aria-label="Resource timeline window"
+                  >
                     {HISTORY_WINDOWS.map((win, idx) => (
                       <button
                         key={win.label}

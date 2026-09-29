@@ -99,7 +99,10 @@ export function DesktopUpdateReleaseNotes({ state }: { readonly state: DesktopUp
         >
           <ReactMarkdown components={releaseNotesMarkdownComponents}>{notes}</ReactMarkdown>
         </DialogPanel>
-        <DialogFooter variant="bare" className="border-t border-border/60 bg-muted/25 px-7 py-4 sm:px-9">
+        <DialogFooter
+          variant="bare"
+          className="border-t border-border/60 bg-muted/25 px-7 py-4 sm:px-9"
+        >
           <DialogClose
             render={
               <Button size="sm" variant="outline">

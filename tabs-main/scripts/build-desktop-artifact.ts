@@ -550,7 +550,17 @@ function getRequiredMacArtifactPaths(productName: string, thin = false): readonl
     join(codeOss, "node_modules"),
     join(codeOss, "node_modules", "minimist", "index.js"),
     join(codeOss, "extensions", "node_modules", "typescript", "lib", "typescript.js"),
-    join(codeOss, "extensions", "git", "node_modules", "@vscode", "fs-copyfile", "build", "Release", "vscode_fs.node"),
+    join(
+      codeOss,
+      "extensions",
+      "git",
+      "node_modules",
+      "@vscode",
+      "fs-copyfile",
+      "build",
+      "Release",
+      "vscode_fs.node",
+    ),
     join(codeOss, "extensions", "copilot", "node_modules", "@anthropic-ai", "sdk", "package.json"),
   ];
 }
@@ -1067,10 +1077,17 @@ const stageVsCodeRuntime = Effect.fn("stageVsCodeRuntime")(function* (
     });
   }
 
-  const packagedFsCopyfile = path.join(packagedExtensionsDir, "git", "node_modules", "@vscode", "fs-copyfile");
-  const packagedFsCopyfileMarker = platform === "mac"
-    ? path.join(packagedFsCopyfile, "build", "Release", "vscode_fs.node")
-    : path.join(packagedFsCopyfile, "lib", "native.js");
+  const packagedFsCopyfile = path.join(
+    packagedExtensionsDir,
+    "git",
+    "node_modules",
+    "@vscode",
+    "fs-copyfile",
+  );
+  const packagedFsCopyfileMarker =
+    platform === "mac"
+      ? path.join(packagedFsCopyfile, "build", "Release", "vscode_fs.node")
+      : path.join(packagedFsCopyfile, "lib", "native.js");
   if (!(yield* fs.exists(packagedFsCopyfileMarker))) {
     return yield* new BuildScriptError({
       message: `The packaged git extension is missing ${packagedFsCopyfileMarker}.`,
@@ -1080,8 +1097,19 @@ const stageVsCodeRuntime = Effect.fn("stageVsCodeRuntime")(function* (
   yield* Effect.log("[desktop-artifact] Staging VS Code runtime...");
   yield* fs.makeDirectory(vsCodeDestDir, { recursive: true });
   const excludedSourceEntries = new Set([
-    "extensions", ".build", "src", "test", ".git", ".github", ".vscode",
-    ".devcontainer", ".eslint-plugin-local", "build", "cli", ".claude", ".gitignore",
+    "extensions",
+    ".build",
+    "src",
+    "test",
+    ".git",
+    ".github",
+    ".vscode",
+    ".devcontainer",
+    ".eslint-plugin-local",
+    "build",
+    "cli",
+    ".claude",
+    ".gitignore",
   ]);
   for (const entry of yield* fs.readDirectory(vsCodeSourceDir)) {
     if (excludedSourceEntries.has(entry)) continue;
@@ -1395,7 +1423,12 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
   yield* fs.copy(distDirs.desktopResources, stageResourcesDir);
   yield* fs.copy(distDirs.serverDist, path.join(stageAppDir, "apps/server/dist"));
 
-  const runtimeStaged = yield* stageVsCodeRuntime(repoRoot, stageResourcesDir, options.platform, options.thin);
+  const runtimeStaged = yield* stageVsCodeRuntime(
+    repoRoot,
+    stageResourcesDir,
+    options.platform,
+    options.thin,
+  );
   yield* assertPlatformBuildResources(options.platform, stageResourcesDir, options.verbose);
 
   if (!options.thin && !runtimeStaged) {

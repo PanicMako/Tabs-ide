@@ -446,7 +446,11 @@ export function HistoryWindowSelector({
   onSelect: (windowMs: number) => void;
 }) {
   return (
-    <div className="tabs-segmented inline-flex items-center select-none" role="group" aria-label="History window">
+    <div
+      className="tabs-segmented inline-flex items-center select-none"
+      role="group"
+      aria-label="History window"
+    >
       {HISTORY_WINDOWS.map((option) => (
         <button
           key={option.windowMs}

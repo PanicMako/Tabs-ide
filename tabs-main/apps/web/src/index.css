@@ -15,23 +15,34 @@
   background: transparent;
   color: var(--muted-foreground);
   box-shadow: none;
-  transition: background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    box-shadow 150ms ease;
 }
 
-.tabs-segmented > :is(button[aria-pressed="true"], button[aria-checked="true"], button[aria-selected="true"]) {
+.tabs-segmented
+  > :is(button[aria-pressed="true"], button[aria-checked="true"], button[aria-selected="true"]) {
   border-color: color-mix(in oklab, var(--foreground) 28%, transparent);
   background: color-mix(in oklab, var(--background) 88%, var(--foreground) 12%);
   color: var(--foreground);
-  box-shadow: inset 0 1px 2px color-mix(in oklab, var(--foreground) 8%, transparent),
+  box-shadow:
+    inset 0 1px 2px color-mix(in oklab, var(--foreground) 8%, transparent),
     0 0 5px color-mix(in oklab, var(--foreground) 8%, transparent);
 }
 
-.tabs-segmented > :is(button[aria-pressed="false"], button[aria-checked="false"], button[aria-selected="false"]):hover {
+.tabs-segmented
+  > :is(
+    button[aria-pressed="false"],
+    button[aria-checked="false"],
+    button[aria-selected="false"]
+  ):hover {
   background: color-mix(in oklab, var(--foreground) 6%, transparent);
   color: var(--foreground);
 }
 
-.tabs-segmented > :is(button[aria-pressed], button[aria-checked], button[aria-selected]):focus-visible {
+.tabs-segmented
+  > :is(button[aria-pressed], button[aria-checked], button[aria-selected]):focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
 }

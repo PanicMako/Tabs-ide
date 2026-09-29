@@ -557,7 +557,11 @@ export function SettingsPanel({
                 Choose how AI models are routed for diff summaries and reviews
               </span>
             </div>
-            <div className="tabs-segmented flex items-center" role="group" aria-label="Model source mode">
+            <div
+              className="tabs-segmented flex items-center"
+              role="group"
+              aria-label="Model source mode"
+            >
               <button
                 type="button"
                 onClick={() => setModelSourceMode("connected")}
@@ -690,7 +694,11 @@ export function SettingsPanel({
                       <span className="text-muted-foreground/70 font-medium">Not Configured</span>
                     )}
                   </div>
-                  <div className="tabs-segmented flex items-center" role="group" aria-label="API key scope">
+                  <div
+                    className="tabs-segmented flex items-center"
+                    role="group"
+                    aria-label="API key scope"
+                  >
                     <button
                       type="button"
                       onClick={() => setKeyScope("global")}

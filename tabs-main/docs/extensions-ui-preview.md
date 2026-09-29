@@ -51,9 +51,18 @@ Existing grants, credential storage, package checks, and install consent are unc
   empty states, and extension selection for account/access management.
 - Unrelated application screens and the Tabs product logo remain unchanged.
 
-The populated preview was checked in the browser, including catalog and version details.
+The populated preview was checked in the browser, including catalog, search filtering,
+no-result state, and version details. At the mobile breakpoint the document had no
+horizontal overflow; the package-integrity disclosure opened with Enter.
 The settings browser tests cover install/uninstall focus, cancellation, and switching
-between extension profile forms. Verification is not complete until the outstanding
-final visual review has finished. The server rerun passed 228 files and 1,848 tests
-(27 skipped). The repository-wide formatting
-gate currently reports 23 pre-existing unrelated files; changed-file formatting passes.
+between extension profile forms. The server rerun passed 228 files and 1,848 tests
+(27 skipped). The initial full workspace test run passed the other 16 package tasks.
+All 15 workspace typechecks passed. The 23 pre-existing formatting failures were
+mechanically formatted and their diff reviewed without changing behavior. `vp check`
+now passes with existing lint warnings, using `NODE_OPTIONS=--max-old-space-size=8192`
+because the default lint process exhausted its heap.
+
+The vendored Code-OSS commit hook cannot start because its `event-stream` dependency
+is missing. The hook was attempted; scoped commits bypass it without changing the
+hook configuration or any Code-OSS files. This limitation is separate from the Tabs
+workspace checks above.

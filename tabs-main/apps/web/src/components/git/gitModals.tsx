@@ -591,15 +591,17 @@ export function CreatePRModal({
                 <label className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/70 block">
                   PR Visibility
                 </label>
-                <div className="tabs-segmented grid grid-cols-2 text-xs" role="group" aria-label="Pull request visibility">
+                <div
+                  className="tabs-segmented grid grid-cols-2 text-xs"
+                  role="group"
+                  aria-label="Pull request visibility"
+                >
                   <button
                     type="button"
                     onClick={() => setDraft(false)}
                     aria-pressed={!draft}
                     className={`flex items-center justify-center gap-1.5 py-2 rounded-lg font-medium transition-all ${
-                      !draft
-                        ? "font-semibold"
-                        : "text-muted-foreground hover:text-foreground"
+                      !draft ? "font-semibold" : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
                     <GitPullRequest
@@ -613,9 +615,7 @@ export function CreatePRModal({
                     onClick={() => setDraft(true)}
                     aria-pressed={draft}
                     className={`flex items-center justify-center gap-1.5 py-2 rounded-lg font-medium transition-all ${
-                      draft
-                        ? "font-semibold"
-                        : "text-muted-foreground hover:text-foreground"
+                      draft ? "font-semibold" : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
                     <FileText
@@ -1152,15 +1152,17 @@ export function DraftReleaseModal({
                 <label className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/70 block">
                   Release Type
                 </label>
-                <div className="tabs-segmented grid grid-cols-2 text-xs" role="group" aria-label="Release type">
+                <div
+                  className="tabs-segmented grid grid-cols-2 text-xs"
+                  role="group"
+                  aria-label="Release type"
+                >
                   <button
                     type="button"
                     onClick={() => setPrerelease(false)}
                     aria-pressed={!prerelease}
                     className={`flex items-center justify-center gap-1.5 py-2 rounded-lg font-medium transition-all ${
-                      !prerelease
-                        ? "font-semibold"
-                        : "text-muted-foreground hover:text-foreground"
+                      !prerelease ? "font-semibold" : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
                     <Package
@@ -1174,9 +1176,7 @@ export function DraftReleaseModal({
                     onClick={() => setPrerelease(true)}
                     aria-pressed={prerelease}
                     className={`flex items-center justify-center gap-1.5 py-2 rounded-lg font-medium transition-all ${
-                      prerelease
-                        ? "font-semibold"
-                        : "text-muted-foreground hover:text-foreground"
+                      prerelease ? "font-semibold" : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
                     <Beaker

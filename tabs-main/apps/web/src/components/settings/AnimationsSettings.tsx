@@ -31,7 +31,8 @@ function StartupPreviewOverlay({ loader, palette, theme, fontComboId, customFont
   onCloseRef.current = onClose;
 
   useEffect(() => {
-    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousFocus =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
     overlayRef.current?.focus();
     return () => previousFocus?.focus();
   }, []);
@@ -100,7 +101,8 @@ function ClosePreviewOverlay({ loader, palette, theme, fontComboId, customFont, 
   onCloseRef.current = onClose;
 
   useEffect(() => {
-    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousFocus =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
     overlayRef.current?.focus();
     return () => previousFocus?.focus();
   }, []);
@@ -329,30 +331,32 @@ export function AnimationsSettings() {
 
   return (
     <div className="space-y-6">
-      {fullscreenStartupPreview && createPortal(
-        <StartupPreviewOverlay
-          key={startupReplayKey}
-          loader={previewStyle}
-          palette={previewPalette}
-          theme={effectivePreviewTheme}
-          fontComboId={previewStartupAnimationFontComboId}
-          customFont={previewStartupCustomAnimationFont}
-          onClose={() => setFullscreenStartupPreview(false)}
-        />,
-        document.body,
-      )}
-      {fullscreenClosePreview && createPortal(
-        <ClosePreviewOverlay
-          key={closeReplayKey}
-          loader={closePreviewStyle}
-          palette={closePreviewPalette}
-          theme={effectiveClosePreviewTheme}
-          fontComboId={previewCloseAnimationFontComboId}
-          customFont={previewCloseCustomAnimationFont}
-          onClose={() => setFullscreenClosePreview(false)}
-        />,
-        document.body,
-      )}
+      {fullscreenStartupPreview &&
+        createPortal(
+          <StartupPreviewOverlay
+            key={startupReplayKey}
+            loader={previewStyle}
+            palette={previewPalette}
+            theme={effectivePreviewTheme}
+            fontComboId={previewStartupAnimationFontComboId}
+            customFont={previewStartupCustomAnimationFont}
+            onClose={() => setFullscreenStartupPreview(false)}
+          />,
+          document.body,
+        )}
+      {fullscreenClosePreview &&
+        createPortal(
+          <ClosePreviewOverlay
+            key={closeReplayKey}
+            loader={closePreviewStyle}
+            palette={closePreviewPalette}
+            theme={effectiveClosePreviewTheme}
+            fontComboId={previewCloseAnimationFontComboId}
+            customFont={previewCloseCustomAnimationFont}
+            onClose={() => setFullscreenClosePreview(false)}
+          />,
+          document.body,
+        )}
 
       <SettingsSectionHeader
         title="Animations"

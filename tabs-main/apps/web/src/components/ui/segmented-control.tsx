@@ -29,10 +29,7 @@ export function SegmentedControl<T extends string>({
     <div
       role="radiogroup"
       aria-label={ariaLabel}
-      className={cn(
-        "tabs-segmented inline-flex items-center select-none",
-        className,
-      )}
+      className={cn("tabs-segmented inline-flex items-center select-none", className)}
     >
       {options.map((opt, index) => {
         const isSelected = opt.value === value;
@@ -62,7 +59,9 @@ export function SegmentedControl<T extends string>({
                 const target = options[next];
                 if (!target || target.disabled) continue;
                 onValueChange(target.value);
-                event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('button[role="radio"]')[next]?.focus();
+                event.currentTarget.parentElement
+                  ?.querySelectorAll<HTMLButtonElement>('button[role="radio"]')
+                  [next]?.focus();
                 break;
               }
             }}

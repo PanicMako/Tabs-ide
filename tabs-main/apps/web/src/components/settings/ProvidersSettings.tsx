@@ -502,7 +502,11 @@ function PinModelCommandPalette({
 
               {/* Provider Filter Pills */}
               <div className="flex items-center gap-1.5 overflow-x-auto px-4 py-2 border-b border-border/40 bg-muted/10 [&::-webkit-scrollbar]:hidden">
-                <div className="tabs-segmented inline-flex items-center shrink-0" role="group" aria-label="Provider filter">
+                <div
+                  className="tabs-segmented inline-flex items-center shrink-0"
+                  role="group"
+                  aria-label="Provider filter"
+                >
                   <button
                     type="button"
                     onClick={() => setActiveProviderFilter(null)}
@@ -518,8 +522,9 @@ function PinModelCommandPalette({
                   </button>
                   {providerCards.map((card) => {
                     const providerName =
-                      PROVIDER_DISPLAY_NAMES[card.provider as keyof typeof PROVIDER_DISPLAY_NAMES] ??
-                      card.title;
+                      PROVIDER_DISPLAY_NAMES[
+                        card.provider as keyof typeof PROVIDER_DISPLAY_NAMES
+                      ] ?? card.title;
                     const isSelected = activeProviderFilter === card.provider;
                     return (
                       <button

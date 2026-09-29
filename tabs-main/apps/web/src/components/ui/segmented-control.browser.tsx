@@ -49,7 +49,9 @@ test("grouped choices show a subtle selected rim and move it when selected", asy
   expect(getComputedStyle(system.element()).boxShadow).toBe("none");
   always.element().focus();
   await userEvent.keyboard("{ArrowRight}");
-  await expect.element(page.getByRole("radio", { name: "Never reduce" })).toHaveAttribute("aria-checked", "true");
+  await expect
+    .element(page.getByRole("radio", { name: "Never reduce" }))
+    .toHaveAttribute("aria-checked", "true");
 
   const startup = page.getByRole("tab", { name: "Startup" });
   const close = page.getByRole("tab", { name: "Close" });

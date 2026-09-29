@@ -101,7 +101,11 @@ export function UsageLimitsPage() {
 
       {/* Sub-tab Navigation (Usage / Limits) */}
       <div className="flex items-center gap-2 border-b border-border/60 pb-3">
-        <div className="tabs-segmented flex items-center" role="group" aria-label="Usage settings section">
+        <div
+          className="tabs-segmented flex items-center"
+          role="group"
+          aria-label="Usage settings section"
+        >
           <button
             type="button"
             onClick={() => setSubTab("usage")}

@@ -143,7 +143,11 @@ export const ThemeImportExportModal: React.FC<ThemeImportExportModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="tabs-segmented flex text-xs" role="group" aria-label="Theme transfer mode">
+            <div
+              className="tabs-segmented flex text-xs"
+              role="group"
+              aria-label="Theme transfer mode"
+            >
               <button
                 type="button"
                 onClick={() => setActiveTab("import")}

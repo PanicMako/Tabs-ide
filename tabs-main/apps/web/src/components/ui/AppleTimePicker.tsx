@@ -763,7 +763,11 @@ export const AppleTimePicker = memo(function AppleTimePicker({
       </div>
 
       {/* Day Selector Chips */}
-      <div className="tabs-segmented mt-3 flex items-center justify-between" role="group" aria-label="Day preset">
+      <div
+        className="tabs-segmented mt-3 flex items-center justify-between"
+        role="group"
+        aria-label="Day preset"
+      >
         <button
           type="button"
           onClick={() => setDayPreset("today")}

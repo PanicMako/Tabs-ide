@@ -45,13 +45,7 @@ module.exports = async function afterPack(context) {
   const projectDir =
     (context.packager && context.packager.info && context.packager.info.projectDir) ||
     process.cwd();
-  const sourceRuntimeDir = path.join(
-    projectDir,
-    "apps",
-    "desktop",
-    "resources",
-    "tabs-code-main",
-  );
+  const sourceRuntimeDir = path.join(projectDir, "apps", "desktop", "resources", "tabs-code-main");
   const requiredDependencies = [
     ["node_modules", "minimist/index.js"],
     ["extensions/node_modules", "typescript/lib/typescript.js"],

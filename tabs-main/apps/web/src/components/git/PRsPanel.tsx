@@ -414,7 +414,11 @@ export function PRsPanel({
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-card/60 p-3 rounded-xl border border-border/60">
         {/* Segmented Scope Control */}
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="tabs-segmented grid grid-cols-2 text-xs shrink-0 sm:w-auto" role="group" aria-label="Pull request scope">
+          <div
+            className="tabs-segmented grid grid-cols-2 text-xs shrink-0 sm:w-auto"
+            role="group"
+            aria-label="Pull request scope"
+          >
             <button
               type="button"
               aria-pressed={viewMode === "branch"}
@@ -432,9 +436,7 @@ export function PRsPanel({
               aria-pressed={viewMode === "all"}
               onClick={() => setViewMode("all")}
               className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
-                viewMode === "all"
-                  ? "font-semibold"
-                  : "text-muted-foreground hover:text-foreground"
+                viewMode === "all" ? "font-semibold" : "text-muted-foreground hover:text-foreground"
               }`}
             >
               All repository PRs
@@ -443,7 +445,11 @@ export function PRsPanel({
 
           {/* State Filter Buttons (Active when viewing Repository PRs) */}
           {viewMode === "all" && (
-            <div className="tabs-segmented flex items-center text-[11px]" role="group" aria-label="Pull request state">
+            <div
+              className="tabs-segmented flex items-center text-[11px]"
+              role="group"
+              aria-label="Pull request state"
+            >
               {(["all", "open", "merged", "closed"] as const).map((st) => (
                 <button
                   key={st}

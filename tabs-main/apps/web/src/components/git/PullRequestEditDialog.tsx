@@ -77,7 +77,11 @@ export function PullRequestEditForm({
             <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
               Description
             </span>
-            <div className="tabs-segmented flex items-center" role="group" aria-label="Description editor mode">
+            <div
+              className="tabs-segmented flex items-center"
+              role="group"
+              aria-label="Description editor mode"
+            >
               <Button
                 type="button"
                 size="sm"
