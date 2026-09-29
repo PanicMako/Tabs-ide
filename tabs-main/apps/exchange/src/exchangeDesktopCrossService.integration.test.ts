@@ -1,4 +1,5 @@
 import * as Crypto from "node:crypto";
+import * as FSSync from "node:fs";
 import * as FS from "node:fs/promises";
 import * as Http from "node:http";
 import * as Https from "node:https";
@@ -113,13 +114,12 @@ let trustedExchange: TrustedExchange;
 let mockCoordinator: NativeViewStackCoordinator;
 
 async function assertPrerequisites(): Promise<void> {
+  const probePool = new Pool({
+    connectionString: TEST_POSTGRES_URL,
+    connectionTimeoutMillis: 2000,
+  });
   try {
-    const probePool = new Pool({
-      connectionString: TEST_POSTGRES_URL,
-      connectionTimeoutMillis: 2000,
-    });
     await probePool.query("SELECT 1");
-    await probePool.end();
 
     const probeS3 = new S3Client({
       region: "us-east-1",
@@ -139,6 +139,8 @@ async function assertPrerequisites(): Promise<void> {
       `[Prerequisites Failure] Real PostgreSQL (port 5433) or S3 mock (port 9090) is unavailable: ${(error as Error).message}. This integration test requires live services and will never silently skip. Run: docker compose -f apps/exchange/compose.test.yaml up -d`,
       { cause: error },
     );
+  } finally {
+    await probePool.end();
   }
 }
 
@@ -155,9 +157,18 @@ function generateEphemeralTlsCertificates(dir: string): {
   const ext = Path.join(dir, "srv.ext");
 
   const extContent = "subjectAltName=IP:127.0.0.1,DNS:localhost\n";
-  spawnSync("sh", ["-c", `echo "${extContent}" > "${ext}"`]);
+  FSSync.writeFileSync(ext, extContent);
 
-  spawnSync("openssl", [
+  const runOpenSSL = (args: string[]) => {
+    const result = spawnSync("openssl", args);
+    if (result.error || result.status !== 0) {
+      throw new Error(`OpenSSL test certificate generation failed: ${result.stderr.toString()}`, {
+        cause: result.error,
+      });
+    }
+  };
+
+  runOpenSSL([
     "req",
     "-x509",
     "-newkey",
@@ -173,7 +184,7 @@ function generateEphemeralTlsCertificates(dir: string): {
     "/CN=TabsTestEphemeralCA",
   ]);
 
-  spawnSync("openssl", [
+  runOpenSSL([
     "req",
     "-newkey",
     "rsa:2048",
@@ -186,7 +197,7 @@ function generateEphemeralTlsCertificates(dir: string): {
     "/CN=127.0.0.1",
   ]);
 
-  spawnSync("openssl", [
+  runOpenSSL([
     "x509",
     "-req",
     "-in",
@@ -204,11 +215,10 @@ function generateEphemeralTlsCertificates(dir: string): {
     ext,
   ]);
 
-  const { readFileSync } = require("node:fs");
   return {
-    caCert: readFileSync(caCrt),
-    serverKey: readFileSync(srvKey),
-    serverCert: readFileSync(srvCrt),
+    caCert: FSSync.readFileSync(caCrt),
+    serverKey: FSSync.readFileSync(srvKey),
+    serverCert: FSSync.readFileSync(srvCrt),
   };
 }
 
@@ -665,7 +675,7 @@ describeCrossIntegration("Strict Exchange & Desktop Client Cross-Service Integra
     manifest1.capabilities = ["profile-storage"];
     await FS.writeFile(manifestPath1, JSON.stringify(manifest1, null, 2));
 
-    const archive1 = Path.join(pkgDir1, "dashboard-1.0.0.tabsext");
+    const archive1 = Path.join(desktopStateRoot, "dashboard-1.0.0.tabsext");
     const packResult1 = await packTabsext({
       directory: pkgDir1,
       destination: archive1,
@@ -818,6 +828,52 @@ describeCrossIntegration("Strict Exchange & Desktop Client Cross-Service Integra
       extensionManager.invokeStorage(mockSenderBeta, { kind: "get", key: "auth_token" }),
     ).toThrow(/Extension view is no longer active/);
 
+    // Explicitly enable beta with a distinct account and project storage grant.
+    extensionManager.addProfile(installedV1.id, "personal-profile", "Personal Profile", "project");
+    extensionManager.setAssignment(installedV1.id, {
+      extensionId: installedV1.id,
+      enabledGlobally: false,
+      enabledProjectIds: ["project-alpha", "project-beta"],
+      disabledProjectIds: [],
+      defaultProfileId: "default",
+      profileIdByProjectId: {
+        "project-alpha": "work-profile",
+        "project-beta": "personal-profile",
+      },
+      storageGrantedProjectIds: ["project-alpha", "project-beta"],
+    });
+    (extensionManager as any).active = {
+      key: "project-beta:acme.dashboard:hello:personal-profile",
+      view: { webContents: mockSenderBeta },
+      projectId: "project-beta",
+      extensionId: installedV1.id,
+      toolId: "hello",
+      profileId: "personal-profile",
+      activationId: "act-beta",
+      isCommitted: true,
+    };
+    expect(
+      extensionManager.invokeStorage(mockSenderBeta, { kind: "get", key: "auth_token" }),
+    ).toBeNull();
+    extensionManager.invokeStorage(mockSenderBeta, {
+      kind: "set",
+      key: "auth_token",
+      value: "secret-token-beta-456",
+    });
+    (extensionManager as any).active = {
+      key: "project-alpha:acme.dashboard:hello:work-profile",
+      view: { webContents: mockSenderAlpha },
+      projectId: "project-alpha",
+      extensionId: installedV1.id,
+      toolId: "hello",
+      profileId: "work-profile",
+      activationId: "act-alpha-2",
+      isCommitted: true,
+    };
+    expect(
+      extensionManager.invokeStorage(mockSenderAlpha, { kind: "get", key: "auth_token" }),
+    ).toBe("secret-token-alpha-123");
+
     // Deactivate view so extension is at a safe update boundary
     extensionManager.hide();
 
@@ -833,7 +889,7 @@ describeCrossIntegration("Strict Exchange & Desktop Client Cross-Service Integra
     manifest2.version = "1.1.0";
     await FS.writeFile(manifestPath2, JSON.stringify(manifest2, null, 2));
 
-    const archive2 = Path.join(pkgDir2, "dashboard-1.1.0.tabsext");
+    const archive2 = Path.join(desktopStateRoot, "dashboard-1.1.0.tabsext");
     const packResult2 = await packTabsext({
       directory: pkgDir2,
       destination: archive2,
@@ -909,7 +965,7 @@ describeCrossIntegration("Strict Exchange & Desktop Client Cross-Service Integra
     manifest3.networkHosts = ["api.acme.com"];
     await FS.writeFile(manifestPath3, JSON.stringify(manifest3, null, 2));
 
-    const archive3 = Path.join(pkgDir3, "dashboard-1.2.0.tabsext");
+    const archive3 = Path.join(desktopStateRoot, "dashboard-1.2.0.tabsext");
     const packResult3 = await packTabsext({
       directory: pkgDir3,
       destination: archive3,
@@ -960,7 +1016,8 @@ describeCrossIntegration("Strict Exchange & Desktop Client Cross-Service Integra
     expect(preparedUpdate2.addedCapabilities).toContain("workspace-read");
     expect(preparedUpdate2.addedNetworkHosts).toContain("api.acme.com");
 
-    // USER DECLINES CONSENT (token discarded, not confirmed)
+    // User declines consent and discards the staged package.
+    installService.cancel(preparedUpdate2.token);
     // Verify expected state: installed version remains 1.1.0 (digest2)
     const afterDecline = extensionManager.list().find((e) => e.id === "acme.dashboard")!;
     expect(afterDecline.manifest.version).toBe("1.1.0");
@@ -1123,32 +1180,49 @@ describeCrossIntegration("Strict Exchange & Desktop Client Cross-Service Integra
       }
     });
 
-    it("rejects rolled-back or expired metadata and retains trusted local state", async () => {
-      const stageDir = await FS.mkdtemp(Path.join(OS.tmpdir(), "tabs-tuf-rollback-"));
-      temporaryDirectories.push(stageDir);
+    it("rejects rolled-back and expired signed metadata while retaining trusted state", async () => {
+      const stateRoot = await FS.mkdtemp(Path.join(OS.tmpdir(), "tabs-tuf-rollback-"));
+      temporaryDirectories.push(stateRoot);
+      let injectedTimestamp: Buffer | null = null;
+      const metadataFetcher = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = typeof input === "string" ? input : input.toString();
+        if (injectedTimestamp && url.endsWith("/timestamp.json")) {
+          const response = new Response(new Uint8Array(injectedTimestamp), { status: 200 });
+          Object.defineProperty(response, "url", { value: url });
+          return response;
+        }
+        return testFetcher(input, init);
+      }) as typeof fetch;
+      const client = new TrustedExchange({
+        origin: exchangeOrigin,
+        trustId: "tabs-rollback-test",
+        initialRoot: initialRootBytes,
+        stateRoot,
+        fetcher: metadataFetcher,
+      });
+      const validTarget = await client.resolve("acme", "dashboard", "1.0.0");
+      expect(validTarget?.digest).toBe(digest1);
 
-      // Attempt to publish an expired timestamp
-      const expiredTimestamp = signTufMetadata(
-        new Timestamp({
-          specVersion: "1.0.0",
-          version: 1, // Rolled back version!
-          expires: "2020-01-01T00:00:00Z", // Expired!
-          snapshotMeta: new MetaFile({
-            version: 1,
-            length: 100,
-            hashes: { sha256: "0".repeat(64) },
-          }),
+      const timestampFields = {
+        specVersion: "1.0.0",
+        snapshotMeta: new MetaFile({
+          version: 4,
+          length: 100,
+          hashes: { sha256: "0".repeat(64) },
         }),
+      };
+      injectedTimestamp = signTufMetadata(
+        new Timestamp({ ...timestampFields, version: 1, expires: "2030-01-01T00:00:00Z" }),
       );
+      await expect(client.resolve("acme", "dashboard", "1.0.0")).rejects.toThrow();
 
-      await FS.writeFile(Path.join(stageDir, "timestamp.json"), expiredTimestamp);
+      injectedTimestamp = signTufMetadata(
+        new Timestamp({ ...timestampFields, version: 5, expires: "2020-01-01T00:00:00Z" }),
+      );
+      await expect(client.resolve("acme", "dashboard", "1.0.0")).rejects.toThrow();
 
-      // TrustedExchange rejects rollback
-      await expect(trustedExchange.resolve("acme", "dashboard", "9.9.9")).resolves.toBeNull();
-
-      // Post-failure state: verified target resolution for valid targets still functions
-      const validTarget = await trustedExchange.resolve("acme", "dashboard", "1.0.0");
-      expect(validTarget).toBeTruthy();
+      injectedTimestamp = null;
+      expect((await client.resolve("acme", "dashboard", "1.0.0"))?.digest).toBe(digest1);
     });
 
     it("rejects metadata redirects and prevents origin escapes", async () => {
@@ -1173,7 +1247,7 @@ describeCrossIntegration("Strict Exchange & Desktop Client Cross-Service Integra
       );
     });
 
-    it("differentiates transport outages from invalid metadata and enforces offline policy", async () => {
+    it("differentiates transport outages from invalid metadata in installed status", async () => {
       // 1. Transport outage (e.g. ECONNREFUSED)
       const outageError = new TypeError("fetch failed");
       const transportError = new ExchangeTransportError(outageError);
@@ -1189,7 +1263,42 @@ describeCrossIntegration("Strict Exchange & Desktop Client Cross-Service Integra
       const tamperingError = new Error("TUF verification failed: bad signature");
       expect(isOfflineExchangeError(tamperingError)).toBe(false);
 
-      // Post-failure state: offline error allows installed extension to operate; invalid metadata strictly rejects
+      const installed = extensionManager.list().find((entry) => entry.id === "acme.dashboard")!;
+      const createStatusService = (fetcher: typeof fetch) => {
+        const stateRoot = Path.join(desktopStateRoot, Crypto.randomUUID());
+        const trust = new TrustedExchange({
+          origin: exchangeOrigin,
+          trustId: "tabs-offline-test",
+          initialRoot: initialRootBytes,
+          stateRoot,
+          fetcher,
+        });
+        return new ExchangeInstallService(
+          { origin: exchangeOrigin, trustId: "tabs-offline-test", root: initialRootBytes },
+          stateRoot,
+          TABS_VERSION,
+          () => extensionManager.list(),
+          (archive, origin, digest, options) =>
+            extensionManager.installVerifiedExchangePackage(archive, origin, digest, options),
+          fetcher,
+          trust,
+        );
+      };
+      const offlineService = createStatusService((async () => {
+        throw new TypeError("fetch failed");
+      }) as unknown as typeof fetch);
+      expect(await offlineService.statusFor(installed)).toBe("offline");
+
+      const invalidService = createStatusService((async (input: RequestInfo | URL) => {
+        const url = typeof input === "string" ? input : input.toString();
+        const response = new Response("not signed metadata", { status: 200 });
+        Object.defineProperty(response, "url", { value: url });
+        return response;
+      }) as typeof fetch);
+      await expect(invalidService.statusFor(installed)).rejects.toThrow();
+      expect(extensionManager.list().find((entry) => entry.id === installed.id)?.digest).toBe(
+        installed.digest,
+      );
     });
   });
 });

@@ -21,6 +21,12 @@ import type { CredentialCryptography } from "./extensionCredentials";
 
 const temporaryRoots: string[] = [];
 
+function outsideArchive(name: string): string {
+  const directory = FS.mkdtempSync(Path.join(OS.tmpdir(), "tabs-test-archive-"));
+  temporaryRoots.push(directory);
+  return Path.join(directory, name);
+}
+
 function fixture(
   cryptography?: CredentialCryptography,
   networkGetText?: ConstructorParameters<typeof ExtensionViewManager>[6],
@@ -133,7 +139,7 @@ afterEach(() => {
 describe("development extension installation", () => {
   it("removes a newly extracted local package when installation cannot be saved", async () => {
     const { directory, manager } = fixture();
-    const archive = Path.join(directory, "local.tabsext");
+    const archive = outsideArchive("local.tabsext");
     const packageInfo = await packTabsext({
       directory,
       destination: archive,
@@ -1267,7 +1273,7 @@ describe("development extension installation", () => {
 
   it("loads verified Exchange packages in packaged builds and rejects registry replacement", async () => {
     const { directory, manager } = fixture();
-    const archive = Path.join(directory, "exchange.tabsext");
+    const archive = outsideArchive("exchange.tabsext");
     const info = await packTabsext({
       directory,
       destination: archive,
@@ -1868,7 +1874,7 @@ describe("development extension installation", () => {
     const { directory, manager } = fixture();
     const development = manager.installDevelopment(directory);
     manager.addProfile(development.id, "work", "Work");
-    const archive = Path.join(directory, "source-change.tabsext");
+    const archive = outsideArchive("source-change.tabsext");
     const info = await packTabsext({ directory, destination: archive, tabsVersion: "1.3.17" });
     await expect(
       manager.installVerifiedExchangePackage(archive, "https://exchange.tabs.example", info.digest),
@@ -1878,7 +1884,7 @@ describe("development extension installation", () => {
 
   it("refuses to uninstall through a replaced package-directory symlink", async () => {
     const { directory, manager } = fixture();
-    const archive = Path.join(directory, "symlink-uninstall.tabsext");
+    const archive = outsideArchive("symlink-uninstall.tabsext");
     const info = await packTabsext({ directory, destination: archive, tabsVersion: "1.3.17" });
     const installed = await manager.installVerifiedExchangePackage(
       archive,

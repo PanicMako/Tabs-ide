@@ -134,7 +134,8 @@ export async function packTabsext(input: {
 }): Promise<InspectedTabsext> {
   const root = FS.realpathSync(input.directory);
   const destination = Path.resolve(input.destination);
-  if (destination.startsWith(`${root}${Path.sep}`)) {
+  const destinationParent = FS.realpathSync(Path.dirname(destination));
+  if (destinationParent === root || destinationParent.startsWith(`${root}${Path.sep}`)) {
     throw new Error("Place the archive outside its source directory.");
   }
   if (!destination.endsWith(".tabsext")) throw new Error("Archive must end in .tabsext.");

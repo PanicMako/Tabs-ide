@@ -39,6 +39,20 @@ afterEach(() => {
 });
 
 describe(".tabsext packages", () => {
+  it("rejects an output inside the source through a symlinked parent", async () => {
+    const { root, source } = fixture();
+    const alias = Path.join(root, "source-alias");
+    FS.symlinkSync(source, alias, "dir");
+    await expect(
+      packTabsext({
+        directory: source,
+        destination: Path.join(alias, "nested.tabsext"),
+        tabsVersion: "1.3.17",
+      }),
+    ).rejects.toThrow(/outside its source directory/);
+    expect(FS.existsSync(Path.join(source, "nested.tabsext"))).toBe(false);
+  });
+
   it("validates an unpacked package without writing an archive", () => {
     const { root, source } = fixture();
     const result = validateTabsextDirectory(source, "1.3.17");
