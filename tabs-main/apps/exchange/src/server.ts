@@ -42,6 +42,9 @@ const TUF_TARGET_ROUTE =
 const MEMBER_ROUTE = /^\/v1\/namespaces\/([a-z][a-z0-9-]{1,62})\/members$/;
 const MEMBER_REMOVE_ROUTE = /^\/v1\/namespaces\/([a-z][a-z0-9-]{1,62})\/members\/([1-9][0-9]*)$/;
 const INVITATION_ACCEPT_ROUTE = /^\/v1\/publisher\/invitations\/([1-9][0-9]*)\/accept$/;
+const INVITATION_DECLINE_ROUTE = /^\/v1\/publisher\/invitations\/([1-9][0-9]*)\/decline$/;
+const INVITATION_CANCEL_ROUTE =
+  /^\/v1\/namespaces\/([a-z][a-z0-9-]{1,62})\/invitations\/([1-9][0-9]*)\/cancel$/;
 const VERIFY_NAMESPACE_ROUTE = /^\/v1\/review\/namespaces\/([a-z][a-z0-9-]{1,62})\/verification$/;
 const BLOCKED_DIGEST_REMOVE_ROUTE = /^\/v1\/review\/blocked-digests\/([a-f0-9]{64})\/remove$/;
 const RESERVED_NAMESPACES = new Set(["tabs", "official", "admin", "system"]);
@@ -340,6 +343,7 @@ export function createExchangeServer(
                 login: actor.login,
                 admin: actor.admin,
                 publishingEnabled: config.publishingEnabled,
+                termsVersion: TERMS_VERSION,
               }
             : null,
         );
@@ -490,7 +494,19 @@ export function createExchangeServer(
            WHERE m.namespace = $1 ORDER BY m.role DESC, u.login, m.user_id`,
           [memberList[1]],
         );
-        json(response, 200, { namespace: memberList[1], members: members.rows });
+        const invitations = await pool.query(
+          `SELECT i.id, i.user_id, u.login, i.role, i.expires_at
+           FROM exchange_namespace_invitations i
+           JOIN exchange_users u ON u.id = i.user_id
+           WHERE i.namespace = $1 AND i.status = 'pending' AND i.expires_at > now()
+           ORDER BY i.created_at DESC LIMIT 100`,
+          [memberList[1]],
+        );
+        json(response, 200, {
+          namespace: memberList[1],
+          members: members.rows,
+          invitations: invitations.rows,
+        });
         return;
       }
       const memberRemove = request.method === "DELETE" ? MEMBER_REMOVE_ROUTE.exec(path) : null;
@@ -535,9 +551,10 @@ export function createExchangeServer(
             [memberRemove[1], memberRemove[2]],
           );
           await client.query(
-            `UPDATE exchange_namespace_invitations SET status = 'revoked', decided_at = now()
+            `UPDATE exchange_namespace_invitations SET status = 'revoked', decided_at = now(),
+             decided_by = $3, decision_reason = $4
              WHERE namespace = $1 AND invited_by = $2 AND status = 'pending'`,
-            [memberRemove[1], memberRemove[2]],
+            [memberRemove[1], memberRemove[2], actor.id, reason],
           );
           await client.query(
             `INSERT INTO exchange_namespace_member_events(namespace, user_id, role, actor_id, action, reason)
@@ -654,13 +671,79 @@ export function createExchangeServer(
           if (added.rowCount !== 1) throw new HttpError(409, "Already a namespace member.");
           await client.query(
             `UPDATE exchange_namespace_invitations SET status = 'accepted', decided_at = now(),
-             accepted_terms_version = $2
+             accepted_terms_version = $2, decided_by = $3
              WHERE id = $1`,
-            [invitationAccept[1], TERMS_VERSION],
+            [invitationAccept[1], TERMS_VERSION, actor.id],
           );
           return invitation;
         });
         json(response, 200, { namespace: accepted.namespace, role: accepted.role });
+        return;
+      }
+      const invitationDecline =
+        request.method === "POST" ? INVITATION_DECLINE_ROUTE.exec(path) : null;
+      if (invitationDecline) {
+        const actor = requireMutation(request, await actorFor(request, pool, config), config);
+        const namespace = await inTransaction(pool, async (client) => {
+          const found = await client.query<{ namespace: string; user_id: string; status: string }>(
+            `SELECT namespace, user_id, status FROM exchange_namespace_invitations
+             WHERE id = $1 FOR UPDATE`,
+            [invitationDecline[1]],
+          );
+          const invitation = found.rows[0];
+          if (
+            !invitation ||
+            String(invitation.user_id) !== actor.id ||
+            invitation.status !== "pending"
+          ) {
+            throw new HttpError(409, "Invitation is unavailable.");
+          }
+          await client.query(
+            `UPDATE exchange_namespace_invitations SET status = 'declined', decided_at = now(),
+             decided_by = $2 WHERE id = $1`,
+            [invitationDecline[1], actor.id],
+          );
+          return invitation.namespace;
+        });
+        json(response, 200, { namespace, status: "declined" });
+        return;
+      }
+      const invitationCancel =
+        request.method === "POST" ? INVITATION_CANCEL_ROUTE.exec(path) : null;
+      if (invitationCancel) {
+        const actor = requireMutation(request, await actorFor(request, pool, config), config);
+        const body = await readJson(request);
+        if (typeof body.reason !== "string" || !body.reason.trim() || body.reason.length > 2000) {
+          throw new HttpError(400, "Cancelling an invitation requires a reason.");
+        }
+        const reason = body.reason.trim();
+        await inTransaction(pool, async (client) => {
+          const namespace = await client.query(
+            "SELECT name FROM exchange_namespaces WHERE name = $1 FOR UPDATE",
+            [invitationCancel[1]],
+          );
+          if (namespace.rowCount !== 1) throw new HttpError(404, "Namespace not found.");
+          const owner = await client.query(
+            "SELECT role FROM exchange_namespace_members WHERE namespace = $1 AND user_id = $2 AND role = 'owner'",
+            [invitationCancel[1], actor.id],
+          );
+          if (owner.rowCount !== 1)
+            throw new HttpError(403, "Only namespace owners can cancel invitations.");
+          const found = await client.query<{ status: string }>(
+            `SELECT status FROM exchange_namespace_invitations
+             WHERE id = $1 AND namespace = $2 FOR UPDATE`,
+            [invitationCancel[2], invitationCancel[1]],
+          );
+          if (found.rows[0]?.status !== "pending") {
+            throw new HttpError(409, "Invitation is no longer pending.");
+          }
+          await client.query(
+            `UPDATE exchange_namespace_invitations SET status = 'revoked', decided_at = now(),
+             decided_by = $2, decision_reason = $3 WHERE id = $1`,
+            [invitationCancel[2], actor.id, reason],
+          );
+        });
+        json(response, 200, { namespace: invitationCancel[1], status: "revoked" });
         return;
       }
       const uploadMatch = request.method === "POST" ? UPLOAD_ROUTE.exec(path) : null;

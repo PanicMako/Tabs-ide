@@ -198,24 +198,26 @@ retry or operator cleanup. Conditional PUT is not protection against an
 administrator changing bucket objects outside this API; signed publication
 and download recheck the bytes.
 
-| Route                                                 | Access                                                                   |
-| ----------------------------------------------------- | ------------------------------------------------------------------------ |
-| `GET /auth/github/start`, `GET /auth/github/callback` | GitHub OAuth sign-in                                                     |
-| `GET /v1/me`                                          | Current account and reviewer flag                                        |
-| `POST /v1/namespaces`                                 | Signed-in publisher, exact terms version                                 |
-| `GET /v1/publisher/namespaces`                        | Publisher namespace membership                                           |
-| `GET /v1/publisher/submissions`                       | Publisher submission status                                              |
-| `POST /v1/publisher/:namespace/:name/versions`        | Namespace owner/contributor upload                                       |
-| `POST /v1/namespaces/:namespace/members`              | Owner invites a signed-in GitHub account for 14 days                     |
-| `GET /v1/namespaces/:namespace/members`               | Owner lists current namespace members                                    |
-| `DELETE /v1/namespaces/:namespace/members/:userId`    | Owner removes access with an audited reason; last owner is protected     |
-| `GET /v1/publisher/invitations`                       | Account's pending, unexpired namespace invitations                       |
-| `POST /v1/publisher/invitations/:id/accept`           | Recipient accepts and becomes an owner or contributor                    |
-| `GET /v1/review/queue`                                | Admin reviewer                                                           |
-| `GET /v1/review/operations`                           | Admin-only queue, worker heartbeat, and signed-publication backlog       |
-| `GET /v1/review/:namespace/:name/history`             | Admin-only prior versions, uploader names, and review-action audit trail |
-| `POST /v1/review/:namespace/:name/:version`           | Admin decision: `approve`, `reject`, or `revoke`, with digest and reason |
-| `POST /v1/review/:namespace/:name/:version/rescan`    | Admin retry of an awaiting-review digest, with reason and audit event    |
+| Route                                                   | Access                                                                   |
+| ------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `GET /auth/github/start`, `GET /auth/github/callback`   | GitHub OAuth sign-in                                                     |
+| `GET /v1/me`                                            | Current account and reviewer flag                                        |
+| `POST /v1/namespaces`                                   | Signed-in publisher, exact terms version                                 |
+| `GET /v1/publisher/namespaces`                          | Publisher namespace membership                                           |
+| `GET /v1/publisher/submissions`                         | Publisher submission status                                              |
+| `POST /v1/publisher/:namespace/:name/versions`          | Namespace owner/contributor upload                                       |
+| `POST /v1/namespaces/:namespace/members`                | Owner invites a signed-in GitHub account for 14 days                     |
+| `GET /v1/namespaces/:namespace/members`                 | Owner lists current namespace members                                    |
+| `DELETE /v1/namespaces/:namespace/members/:userId`      | Owner removes access with an audited reason; last owner is protected     |
+| `GET /v1/publisher/invitations`                         | Account's pending, unexpired namespace invitations                       |
+| `POST /v1/publisher/invitations/:id/accept`             | Recipient accepts and becomes an owner or contributor                    |
+| `POST /v1/publisher/invitations/:id/decline`            | Recipient declines a pending invitation                                  |
+| `POST /v1/namespaces/:namespace/invitations/:id/cancel` | Owner cancels a pending invitation with an audited reason                |
+| `GET /v1/review/queue`                                  | Admin reviewer                                                           |
+| `GET /v1/review/operations`                             | Admin-only queue, worker heartbeat, and signed-publication backlog       |
+| `GET /v1/review/:namespace/:name/history`               | Admin-only prior versions, uploader names, and review-action audit trail |
+| `POST /v1/review/:namespace/:name/:version`             | Admin decision: `approve`, `reject`, or `revoke`, with digest and reason |
+| `POST /v1/review/:namespace/:name/:version/rescan`      | Admin retry of an awaiting-review digest, with reason and audit event    |
 
 Rescan is available only while an exact digest awaits review. It clears the old
 scan result, returns the same immutable submission to the worker queue, and
@@ -228,6 +230,10 @@ sign in and accept it within 14 days. Existing members cannot be re-invited,
 and a second pending invitation for the same namespace and account is rejected.
 Acceptance requires the current publisher terms version, recorded with the
 invitation, before membership grants upload rights.
+Recipients can decline, and owners can cancel a pending invitation; both
+record who made the decision and release the pending-invitation slot so the
+owner can invite again. Cancellation remains available when public publishing
+is disabled.
 Owners can remove a member with a recorded reason, but cannot remove the last
 owner. A publisher upload rechecks membership at its database commit boundary,
 so access removed while an archive is uploading cannot authorize its final

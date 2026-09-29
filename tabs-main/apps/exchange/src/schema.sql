@@ -56,6 +56,8 @@ CREATE TABLE IF NOT EXISTS exchange_namespace_invitations (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   expires_at TIMESTAMPTZ NOT NULL,
   decided_at TIMESTAMPTZ,
+  decided_by BIGINT REFERENCES exchange_users(id),
+  decision_reason TEXT CHECK (decision_reason IS NULL OR length(decision_reason) BETWEEN 1 AND 2000),
   accepted_terms_version TEXT
 );
 
@@ -66,12 +68,21 @@ CREATE INDEX IF NOT EXISTS exchange_namespace_incoming_invitations
 
 ALTER TABLE exchange_namespace_invitations
   ADD COLUMN IF NOT EXISTS accepted_terms_version TEXT;
+ALTER TABLE exchange_namespace_invitations
+  ADD COLUMN IF NOT EXISTS decided_by BIGINT REFERENCES exchange_users(id);
+ALTER TABLE exchange_namespace_invitations
+  ADD COLUMN IF NOT EXISTS decision_reason TEXT;
 
 ALTER TABLE exchange_namespace_invitations
   DROP CONSTRAINT IF EXISTS exchange_namespace_invitations_status_check;
 ALTER TABLE exchange_namespace_invitations
   ADD CONSTRAINT exchange_namespace_invitations_status_check
   CHECK (status IN ('pending', 'accepted', 'declined', 'expired', 'revoked'));
+ALTER TABLE exchange_namespace_invitations
+  DROP CONSTRAINT IF EXISTS exchange_namespace_invitations_decision_reason_check;
+ALTER TABLE exchange_namespace_invitations
+  ADD CONSTRAINT exchange_namespace_invitations_decision_reason_check
+  CHECK (decision_reason IS NULL OR length(decision_reason) BETWEEN 1 AND 2000);
 
 CREATE TABLE IF NOT EXISTS exchange_namespace_verifications (
   id BIGSERIAL PRIMARY KEY,

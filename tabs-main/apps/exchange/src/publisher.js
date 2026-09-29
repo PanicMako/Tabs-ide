@@ -2,6 +2,7 @@ import { parseBlockedDigestBatch } from "./publisherBatch.js";
 
 const status = document.getElementById("status");
 let publishingEnabled = false;
+let termsVersion = null;
 
 function announce(message, error = false) {
   status.textContent = message;
@@ -107,7 +108,10 @@ async function refreshNamespaces() {
     const state = document.createElement("p");
     state.setAttribute("role", "status");
     const members = document.createElement("ul");
-    details.append(summary, state, members);
+    const pendingHeading = document.createElement("h4");
+    pendingHeading.textContent = "Pending invitations";
+    const pending = document.createElement("ul");
+    details.append(summary, state, members, pendingHeading, pending);
     details.addEventListener("toggle", async () => {
       if (!details.open) return;
       state.textContent = "Loading namespace members.";
@@ -158,7 +162,48 @@ async function refreshNamespaces() {
           });
           row.append(label, remove);
         }
-        state.textContent = `${result.members.length} namespace member(s) loaded.`;
+        pending.replaceChildren();
+        for (const invitation of result.invitations) {
+          const row = item(
+            pending,
+            `${invitation.login} (GitHub ID ${invitation.user_id}, ${invitation.role}), expires ${invitation.expires_at}. `,
+          );
+          const label = document.createElement("label");
+          label.textContent = `Reason to cancel ${invitation.login}'s invitation `;
+          const reason = document.createElement("input");
+          reason.maxLength = 2000;
+          reason.required = true;
+          label.append(reason);
+          const cancel = document.createElement("button");
+          cancel.type = "button";
+          cancel.textContent = `Cancel ${invitation.login}'s invitation to ${namespace.name}`;
+          cancel.addEventListener("click", async () => {
+            if (!reason.value.trim()) {
+              announce("Enter a reason before cancelling an invitation.", true);
+              reason.focus();
+              return;
+            }
+            cancel.disabled = true;
+            try {
+              await requestJson(
+                `/v1/namespaces/${namespace.name}/invitations/${invitation.id}/cancel`,
+                mutation(
+                  "POST",
+                  JSON.stringify({ reason: reason.value.trim() }),
+                  "application/json",
+                ),
+              );
+              announce(`Cancelled ${invitation.login}'s invitation to ${namespace.name}.`);
+              await refreshNamespaces();
+            } catch (error) {
+              announce(String(error), true);
+              cancel.disabled = false;
+            }
+          });
+          row.append(label, cancel);
+        }
+        if (!result.invitations.length) item(pending, "No pending invitations.");
+        state.textContent = `${result.members.length} member(s) and ${result.invitations.length} pending invitation(s) loaded.`;
       } catch (error) {
         state.setAttribute("role", "alert");
         state.textContent = `Could not load members: ${String(error)}`;
@@ -190,7 +235,7 @@ async function refreshInvitations() {
     const termsLink = document.createElement("a");
     termsLink.href = "/publisher-terms";
     termsLink.textContent = "publisher terms";
-    termsLabel.append(termsLink, " (version 2026-09-24).");
+    termsLabel.append(termsLink, ` (version ${termsVersion}).`);
     li.append(termsLabel);
     accept.addEventListener("click", async () => {
       if (!terms.checked) {
@@ -204,7 +249,7 @@ async function refreshInvitations() {
           `/v1/publisher/invitations/${invitation.id}/accept`,
           mutation(
             "POST",
-            JSON.stringify({ acceptTermsVersion: "2026-09-24" }),
+            JSON.stringify({ acceptTermsVersion: termsVersion }),
             "application/json",
           ),
         );
@@ -216,6 +261,24 @@ async function refreshInvitations() {
       }
     });
     li.append(accept);
+    const decline = document.createElement("button");
+    decline.type = "button";
+    decline.textContent = `Decline invitation for ${invitation.namespace}`;
+    decline.addEventListener("click", async () => {
+      decline.disabled = true;
+      try {
+        await requestJson(
+          `/v1/publisher/invitations/${invitation.id}/decline`,
+          mutation("POST", "{}", "application/json"),
+        );
+        announce(`Declined invitation for ${invitation.namespace}.`);
+        await refreshInvitations();
+      } catch (error) {
+        announce(String(error), true);
+        decline.disabled = false;
+      }
+    });
+    li.append(decline);
   }
   if (!data.invitations.length) item(list, "No pending invitations.");
 }
@@ -639,7 +702,7 @@ document.getElementById("namespace-form").addEventListener("submit", async (even
       "/v1/namespaces",
       mutation(
         "POST",
-        JSON.stringify({ name, acceptTermsVersion: "2026-09-24" }),
+        JSON.stringify({ name, acceptTermsVersion: termsVersion }),
         "application/json",
       ),
     );
@@ -773,6 +836,8 @@ try {
   document.getElementById(me ? "signed-in" : "signed-out").hidden = false;
   if (me) {
     publishingEnabled = me.publishingEnabled;
+    termsVersion = me.termsVersion;
+    document.getElementById("terms-version").textContent = termsVersion;
     document.getElementById("identity").textContent = `Signed in as ${me.login}.`;
     if (!me.publishingEnabled) {
       for (const form of ["namespace-form", "member-form", "upload-form"]) {

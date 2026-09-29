@@ -111,6 +111,21 @@ async function fixture(
           rowCount: 1,
         };
       }
+      if (sql.includes("SELECT namespace, user_id, status FROM exchange_namespace_invitations")) {
+        return {
+          rows: [
+            {
+              namespace: "example",
+              user_id: invitation?.targetId ?? "42",
+              status: invitation?.status ?? "pending",
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+      if (sql.includes("SELECT status FROM exchange_namespace_invitations")) {
+        return { rows: [{ status: invitation?.status ?? "pending" }], rowCount: 1 };
+      }
       if (
         sql.includes("INSERT INTO exchange_namespace_members") &&
         sql.includes("ON CONFLICT DO NOTHING")
@@ -333,6 +348,23 @@ async function fixture(
               id: "42",
               login: "reviewer",
               csrf_hash: Crypto.createHash("sha256").update(csrf).digest("hex"),
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+      if (
+        sql.includes("FROM exchange_namespace_invitations i") &&
+        sql.includes("u.id = i.user_id")
+      ) {
+        return {
+          rows: [
+            {
+              id: "7",
+              user_id: "43",
+              login: "invitee",
+              role: "contributor",
+              expires_at: "2026-10-01T00:00:00Z",
             },
           ],
           rowCount: 1,
@@ -606,6 +638,10 @@ describe("Exchange HTTP boundaries", () => {
 
   it("requires invitation acceptance before granting namespace membership", async () => {
     const ready = await fixture(true, digest, "review", undefined, undefined, undefined, true);
+    const account = await fetch(`${ready.base}/v1/me`, {
+      headers: { Cookie: "tabs_exchange_session=opaque" },
+    });
+    expect((await account.json()).termsVersion).toBe("2026-09-24");
     const headers = {
       Origin: config.origin,
       Cookie: "tabs_exchange_session=opaque",
@@ -726,6 +762,91 @@ describe("Exchange HTTP boundaries", () => {
     ).toBe(false);
   });
 
+  it("lets a recipient decline a pending invitation without accepting terms", async () => {
+    const ready = await fixture();
+    const response = await fetch(`${ready.base}/v1/publisher/invitations/7/decline`, {
+      method: "POST",
+      headers: {
+        Origin: config.origin,
+        Cookie: "tabs_exchange_session=opaque",
+        "X-CSRF-Token": csrf,
+        "Content-Type": "application/json",
+      },
+      body: "{}",
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ namespace: "example", status: "declined" });
+    expect(ready.actions.some((sql) => sql.includes("status = 'declined'"))).toBe(true);
+    expect(
+      ready.actions.some((sql) => sql.includes("INSERT INTO exchange_namespace_members")),
+    ).toBe(false);
+    const wrongRecipient = await fixture(
+      true,
+      digest,
+      "review",
+      undefined,
+      undefined,
+      undefined,
+      false,
+      undefined,
+      false,
+      reviewObject,
+      { targetId: "43" },
+    );
+    const denied = await fetch(`${wrongRecipient.base}/v1/publisher/invitations/7/decline`, {
+      method: "POST",
+      headers: {
+        Origin: config.origin,
+        Cookie: "tabs_exchange_session=opaque",
+        "X-CSRF-Token": csrf,
+        "Content-Type": "application/json",
+      },
+      body: "{}",
+    });
+    expect(denied.status).toBe(409);
+  });
+
+  it("lets an owner cancel a pending invitation with an audited reason", async () => {
+    const ready = await fixture();
+    const response = await fetch(`${ready.base}/v1/namespaces/example/invitations/7/cancel`, {
+      method: "POST",
+      headers: {
+        Origin: config.origin,
+        Cookie: "tabs_exchange_session=opaque",
+        "X-CSRF-Token": csrf,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ reason: "Wrong account invited" }),
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ namespace: "example", status: "revoked" });
+    expect(ready.actions.some((sql) => sql.includes("decision_reason = $3"))).toBe(true);
+    const nonOwner = await fixture(
+      true,
+      digest,
+      "review",
+      undefined,
+      undefined,
+      undefined,
+      false,
+      undefined,
+      false,
+      reviewObject,
+      { owner: false },
+    );
+    const denied = await fetch(`${nonOwner.base}/v1/namespaces/example/invitations/7/cancel`, {
+      method: "POST",
+      headers: {
+        Origin: config.origin,
+        Cookie: "tabs_exchange_session=opaque",
+        "X-CSRF-Token": csrf,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ reason: "Wrong account invited" }),
+    });
+    expect(denied.status).toBe(403);
+  });
+
   it("lists members only for owners and audits access removal", async () => {
     const ready = await fixture(
       true,
@@ -745,7 +866,9 @@ describe("Exchange HTTP boundaries", () => {
       headers: { Cookie: "tabs_exchange_session=opaque" },
     });
     expect(list.status).toBe(200);
-    expect((await list.json()).members).toHaveLength(2);
+    const listing = await list.json();
+    expect(listing.members).toHaveLength(2);
+    expect(listing.invitations).toHaveLength(1);
     const removed = await fetch(`${ready.base}/v1/namespaces/example/members/43`, {
       method: "DELETE",
       headers: {
