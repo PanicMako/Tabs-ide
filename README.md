@@ -10,11 +10,18 @@
 </p>
 
 <p align="center">
+  <a href="https://notacent.app/en/app/tabs-ide">
+    <img src="https://notacent.app/api/badge/tabs-ide.svg?style=card&lang=en" alt="75 active days, verified by Not a Cent" />
+  </a>
+</p>
+
+<p align="center">
   <a href="#why-tabs">Why Tabs</a> ·
   <a href="#quick-start">Quick start</a> ·
   <a href="#how-it-works">How it works</a> ·
   <a href="#development">Development</a> ·
-  <a href="#releases">Releases</a>
+  <a href="#releases">Releases</a> ·
+  <a href="#acknowledgments--shoutouts">Acknowledgments</a>
 </p>
 
 > [!NOTE]
@@ -82,13 +89,13 @@ The Electron shell owns the desktop window and native integrations. The React wo
 
 ### Technology
 
-| Area | Stack |
-| --- | --- |
-| Workspace UI | React 19, Vite, Tailwind CSS, Zustand, TanStack Router and Query |
-| Desktop | Electron with an embedded Code-OSS workbench |
-| Server | Node.js, Effect, WebSocket, SQLite |
-| Agent providers | Codex app-server and Claude Agent SDK |
-| Tooling | Bun, Turborepo, Vitest, Playwright, oxlint, oxfmt |
+| Area            | Stack                                                            |
+| --------------- | ---------------------------------------------------------------- |
+| Workspace UI    | React 19, Vite, Tailwind CSS, Zustand, TanStack Router and Query |
+| Desktop         | Electron with an embedded Code-OSS workbench                     |
+| Server          | Node.js, Effect, WebSocket, SQLite                               |
+| Agent providers | Codex app-server and Claude Agent SDK                            |
+| Tooling         | Bun, Turborepo, Vitest, Playwright, oxlint, oxfmt                |
 
 ## Repository map
 
@@ -167,6 +174,14 @@ Before opening a change:
 4. Document user-visible changes in the appropriate release notes.
 
 Performance, reliability, and predictable recovery behavior take priority over clever shortcuts.
+
+## Acknowledgments & Shoutouts
+
+Tabs is built on top of and inspired by incredible open-source projects and developer tools:
+
+- **[T3 Code](https://github.com/t3tools/t3code)** — The foundational base upon which the Tabs IDE application was built and evolved.
+- **[Code-OSS](https://github.com/microsoft/vscode)** — The open-source core of Visual Studio Code powering Tabs' embedded editor runtime and desktop workbench.
+- **[Synara](https://trysynara.com)** — A key inspiration for multi-agent workflows, provider integration patterns, and code analysis capabilities.
 
 ## License
 

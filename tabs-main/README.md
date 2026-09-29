@@ -162,3 +162,11 @@ bun run build
 ## Contributing
 
 Read [CONTRIBUTING.md](./CONTRIBUTING.md) before opening a change.
+
+## Acknowledgments & Shoutouts
+
+Tabs is built on top of and inspired by incredible open-source projects and developer tools:
+
+- **[T3 Code](https://github.com/t3tools/t3code)** — The foundational base upon which the Tabs IDE application was built and evolved.
+- **[Code-OSS](https://github.com/microsoft/vscode)** — The open-source core of Visual Studio Code powering Tabs' embedded editor runtime and desktop workbench.
+- **[Synara](https://trysynara.com)** — A key inspiration for multi-agent workflows, provider integration patterns, and code analysis capabilities.
