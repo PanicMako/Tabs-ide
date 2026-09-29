@@ -1,0 +1,85 @@
+{
+  "timestamp": "2026-09-29T15:50:38.402Z",
+  "measurementMethod": "Node.js headless benchmark with QuickJS-Emscripten WebWorker isolated runtime probe & V8 memoryUsage delta sampling",
+  "verifiedInRealElectron": false,
+  "environment": {
+    "os": "Darwin 27.0.0 (arm64)",
+    "platform": "darwin",
+    "cpu": "Apple M3 Pro",
+    "cpuCores": 12,
+    "totalMemoryMb": 18432,
+    "nodeVersion": "v24.3.0",
+    "pid": 15970
+  },
+  "samples": [
+    {
+      "sampleName": "hello-extension (UI-only)",
+      "type": "ui-only",
+      "publisher": "tabs-example",
+      "extensionName": "hello",
+      "version": "0.1.0",
+      "capabilities": [],
+      "manifestValidationTimeMs": 1.843,
+      "averageLogicExecutionTimeMs": null,
+      "logicRuns": [],
+      "memoryDelta": {
+        "heapUsedDeltaKb": 0,
+        "heapTotalDeltaKb": 0,
+        "rssDeltaKb": 0,
+        "externalDeltaKb": 0
+      },
+      "baselineMemory": {
+        "heapUsedMb": 0.7,
+        "rssMb": 33.58
+      }
+    },
+    {
+      "sampleName": "project-companion-extension (Logic-enabled)",
+      "type": "logic-enabled",
+      "publisher": "tabs-example",
+      "extensionName": "project-companion",
+      "version": "0.1.0",
+      "capabilities": [
+        "profile-storage",
+        "workspace-read",
+        "network",
+        "credentials",
+        "ai-tools"
+      ],
+      "manifestValidationTimeMs": 0.341,
+      "averageLogicExecutionTimeMs": 21.725,
+      "logicRuns": [
+        {
+          "run": 1,
+          "durationMs": 22.119
+        },
+        {
+          "run": 2,
+          "durationMs": 21.746
+        },
+        {
+          "run": 3,
+          "durationMs": 21.621
+        },
+        {
+          "run": 4,
+          "durationMs": 21.657
+        },
+        {
+          "run": 5,
+          "durationMs": 21.479
+        }
+      ],
+      "memoryDelta": {
+        "heapUsedDeltaKb": 360,
+        "heapTotalDeltaKb": 62,
+        "rssDeltaKb": 59520,
+        "externalDeltaKb": 155
+      },
+      "baselineMemory": {
+        "heapUsedMb": 1.05,
+        "rssMb": 91.8
+      }
+    }
+  ]
+}

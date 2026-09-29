@@ -13,7 +13,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
     "smoke-test": "node scripts/smoke-test.mjs",
-    "test:browser-workflows": "node scripts/browser-workflows-smoke.mjs"
+    "test:browser-workflows": "node scripts/browser-workflows-smoke.mjs",
+    "measure:perf": "bun run scripts/measure-extension-performance.mjs"
   },
   "dependencies": {
     "@clerk/electron": "0.0.37",
