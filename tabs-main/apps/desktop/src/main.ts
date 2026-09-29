@@ -79,7 +79,11 @@ import {
 } from "./linuxAppImageUpdater";
 import { CodeHostManager, resolveCodeHostConfig } from "./codeHostManager";
 import { BrowserHostManager } from "./browserHostManager";
-import { resolveKnownUserDataPathsWithFs, resolveUserDataPathWithFs } from "./userDataPath";
+import {
+  resolveDesktopStateDir,
+  resolveKnownUserDataPathsWithFs,
+  resolveUserDataPathWithFs,
+} from "./userDataPath";
 import { resetTabsUserData } from "./userDataReset";
 import { NativeViewStackCoordinator } from "./nativeViewStackCoordinator";
 import {
@@ -237,8 +241,9 @@ const VSCODE_TOGGLE_DEVTOOLS_CHANNEL = "vscode:toggleDevTools";
 const VSCODE_OPEN_DEVTOOLS_CHANNEL = "vscode:openDevTools";
 const VSCODE_RELOAD_WINDOW_CHANNEL = "vscode:reloadWindow";
 const VSCODE_NOTIFY_ZOOM_LEVEL_CHANNEL = "vscode:notifyZoomLevel";
+const isDevelopment = Boolean(process.env.VITE_DEV_SERVER_URL || !app.isPackaged);
 const BASE_DIR = process.env.TABS_HOME?.trim() || Path.join(OS.homedir(), ".tabs");
-const STATE_DIR = Path.join(BASE_DIR, "userdata");
+const STATE_DIR = resolveDesktopStateDir(BASE_DIR, isDevelopment);
 const DESKTOP_THEME_STATE_PATH = Path.join(STATE_DIR, "desktop-theme.json");
 const DESKTOP_SCHEME = "tabs";
 // In packaged apps, ROOT_DIR should point to the Resources directory, not inside the asar.
@@ -301,7 +306,6 @@ function isLightDesktopTheme(themeId: string, customConfig?: any): boolean {
 }
 const ROOT_DIR = resolveRootDir();
 
-const isDevelopment = Boolean(process.env.VITE_DEV_SERVER_URL || !app.isPackaged);
 const APP_BASE_NAME = "Tabs";
 const APP_DISPLAY_NAME = isDevelopment ? "Tabs Dev" : APP_BASE_NAME;
 const APP_USER_MODEL_ID = isDevelopment ? "com.tabs.app.dev" : "com.tabs.app";
@@ -322,9 +326,6 @@ if (tabsDataResetRequested) {
     resetTabsUserData({
       baseDir: BASE_DIR,
       stateDir: STATE_DIR,
-      additionalStateDirs: process.env.VITE_DEV_SERVER_URL?.trim()
-        ? [Path.join(BASE_DIR, "dev")]
-        : [],
       electronProfileDirs: resolveKnownUserDataPathsWithFs({ isDevelopment }),
       homeDir: OS.homedir(),
     });

@@ -33,6 +33,10 @@ export const CANONICAL_DEV_DIR_NAME = "tabs-dev";
 export const VERIFIED_LEGACY_PROD_DIR_NAMES = ["Tabs (Alpha)", "Tabs"] as const;
 export const VERIFIED_LEGACY_DEV_DIR_NAMES = ["Tabs (Dev)"] as const;
 
+export function resolveDesktopStateDir(baseDir: string, isDevelopment: boolean): string {
+  return Path.join(baseDir, isDevelopment ? "dev" : "userdata");
+}
+
 /**
  * Returns every known Electron profile path for this app identity. Reset flows
  * clear all of them because resolveUserDataPathWithFs intentionally continues

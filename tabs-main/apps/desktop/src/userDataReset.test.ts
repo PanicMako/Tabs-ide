@@ -50,23 +50,31 @@ describe("resetTabsUserData", () => {
     writeFile(baseDir, "dev/review_state/review.json");
     writeFile(baseDir, "dev/review_history/history.json");
     writeFile(baseDir, "dev/feedback_store.json");
+    writeFile(baseDir, "dev/state.sqlite");
+    writeFile(baseDir, "dev/desktop-theme.json");
     writeFile(baseDir, "dev/other-dev-data.json");
 
     resetTabsUserData({ baseDir, stateDir, electronProfileDirs: profiles, homeDir });
 
-    expect(FS.readdirSync(stateDir).sort()).toEqual(["code-oss-desktop", "code-oss-main"]);
+    expect(FS.readdirSync(stateDir).sort()).toEqual([
+      "code-oss-desktop",
+      "code-oss-main",
+      "workspace-tabs-project_1.json",
+    ]);
     expect(FS.existsSync(Path.join(stateDir, "code-oss-main/User/settings.json"))).toBe(true);
     expect(
       FS.existsSync(Path.join(stateDir, "code-oss-desktop/extensions/example/package.json")),
     ).toBe(true);
-    expect(FS.existsSync(Path.join(stateDir, "workspace-tabs-project_1.json"))).toBe(false);
+    expect(FS.existsSync(Path.join(stateDir, "workspace-tabs-project_1.json"))).toBe(true);
     expect(FS.existsSync(Path.join(baseDir, "code-oss-runtime/bin/code"))).toBe(true);
     expect(FS.existsSync(Path.join(baseDir, "worktrees/project/README.md"))).toBe(true);
     for (const profile of profiles) expect(FS.readdirSync(profile)).toEqual([]);
 
-    expect(FS.existsSync(Path.join(baseDir, "dev/review_state"))).toBe(false);
-    expect(FS.existsSync(Path.join(baseDir, "dev/review_history"))).toBe(false);
-    expect(FS.existsSync(Path.join(baseDir, "dev/feedback_store.json"))).toBe(false);
+    expect(FS.existsSync(Path.join(baseDir, "dev/review_state/review.json"))).toBe(true);
+    expect(FS.existsSync(Path.join(baseDir, "dev/review_history/history.json"))).toBe(true);
+    expect(FS.existsSync(Path.join(baseDir, "dev/feedback_store.json"))).toBe(true);
+    expect(FS.existsSync(Path.join(baseDir, "dev/state.sqlite"))).toBe(true);
+    expect(FS.existsSync(Path.join(baseDir, "dev/desktop-theme.json"))).toBe(true);
     expect(FS.existsSync(Path.join(baseDir, "dev/other-dev-data.json"))).toBe(true);
   });
 
@@ -133,6 +141,38 @@ describe("resetTabsUserData", () => {
     expect(FS.readdirSync(developmentStateDir)).toEqual([]);
     expect(FS.existsSync(Path.join(stateDir, "code-oss-main/User/settings.json"))).toBe(true);
     expect(FS.readdirSync(profileDir)).toEqual([]);
+  });
+
+  it("clears development desktop state without clearing production state", () => {
+    const homeDir = createTempDirectory();
+    const baseDir = Path.join(homeDir, ".tabs");
+    const stateDir = Path.join(baseDir, "dev");
+    const productionStateDir = Path.join(baseDir, "userdata");
+    const developmentProfile = Path.join(homeDir, ".config", "tabs-dev");
+    const productionProfile = Path.join(homeDir, ".config", "tabs");
+
+    writeFile(stateDir, "state.sqlite");
+    writeFile(stateDir, "desktop-theme.json");
+    writeFile(stateDir, "review_state/review.json");
+    writeFile(productionStateDir, "state.sqlite");
+    writeFile(productionStateDir, "desktop-theme.json");
+    writeFile(developmentProfile, "Local Storage/leveldb/000001.log");
+    writeFile(productionProfile, "Local Storage/leveldb/000001.log");
+
+    resetTabsUserData({
+      baseDir,
+      stateDir,
+      electronProfileDirs: [developmentProfile],
+      homeDir,
+    });
+
+    expect(FS.readdirSync(stateDir)).toEqual([]);
+    expect(FS.existsSync(Path.join(productionStateDir, "state.sqlite"))).toBe(true);
+    expect(FS.existsSync(Path.join(productionStateDir, "desktop-theme.json"))).toBe(true);
+    expect(FS.readdirSync(developmentProfile)).toEqual([]);
+    expect(FS.existsSync(Path.join(productionProfile, "Local Storage/leveldb/000001.log"))).toBe(
+      true,
+    );
   });
 
   it("does not follow child symlinks while clearing a profile", () => {

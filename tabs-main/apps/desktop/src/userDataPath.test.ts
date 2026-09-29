@@ -3,6 +3,7 @@ import {
   CANONICAL_DEV_DIR_NAME,
   CANONICAL_PROD_DIR_NAME,
   FsProbe,
+  resolveDesktopStateDir,
   resolveKnownUserDataPathsWithFs,
   resolveUserDataPathWithFs,
 } from "./userDataPath";
@@ -272,5 +273,13 @@ describe("Linux and multi-platform userData continuity", () => {
         configuredPath: "/opt/tabs-custom-data",
       }),
     ).toEqual(["/opt/tabs-custom-data"]);
+  });
+});
+
+describe("desktop state isolation", () => {
+  it("uses separate state directories for development and production", () => {
+    const baseDir = "/Users/testuser/.tabs";
+    expect(resolveDesktopStateDir(baseDir, true)).toBe(`${baseDir}/dev`);
+    expect(resolveDesktopStateDir(baseDir, false)).toBe(`${baseDir}/userdata`);
   });
 });

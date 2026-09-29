@@ -12,6 +12,13 @@ export interface ResetTabsUserDataOptions {
 
 const PRESERVED_STATE_DIRECTORIES = new Set(["code-oss-main", "code-oss-desktop"]);
 
+function isPreservedEditorStateEntry(name: string): boolean {
+  return (
+    PRESERVED_STATE_DIRECTORIES.has(name) ||
+    (name.startsWith("workspace-tabs-") && name.endsWith(".json"))
+  );
+}
+
 function isSameOrWithin(candidate: string, parent: string): boolean {
   const relative = Path.relative(parent, candidate);
   return relative === "" || (!relative.startsWith(`..${Path.sep}`) && relative !== "..");
@@ -65,11 +72,16 @@ function assertSafeResetTargets(options: ResetTabsUserDataOptions): {
   );
   const homeDir = resolveForOverlapCheck(options.homeDir ?? OS.homedir());
   const reviewBase = Path.join(baseDir, "dev");
-  const reviewTargets = [
-    Path.join(reviewBase, "review_state"),
-    Path.join(reviewBase, "review_history"),
-    Path.join(reviewBase, "feedback_store.json"),
-  ].map(resolveForOverlapCheck);
+  const clearsDevelopmentState = [stateDir, ...additionalStateDirs].some(
+    (path) => path === resolveForOverlapCheck(reviewBase),
+  );
+  const reviewTargets = clearsDevelopmentState
+    ? [
+        Path.join(reviewBase, "review_state"),
+        Path.join(reviewBase, "review_history"),
+        Path.join(reviewBase, "feedback_store.json"),
+      ].map(resolveForOverlapCheck)
+    : [];
 
   if (baseDir === Path.parse(baseDir).root || baseDir === homeDir) {
     throw new Error(`Cannot reset Tabs data: refusing to use base directory ${baseDir}.`);
@@ -184,7 +196,7 @@ function assertSafeResetTargets(options: ResetTabsUserDataOptions): {
 function clearDirectoryContents(directory: string, preserveStateData = false): void {
   if (!FS.existsSync(directory)) return;
   for (const entry of FS.readdirSync(directory, { withFileTypes: true })) {
-    if (preserveStateData && PRESERVED_STATE_DIRECTORIES.has(entry.name)) {
+    if (preserveStateData && isPreservedEditorStateEntry(entry.name)) {
       continue;
     }
     // rmSync removes a symlink itself and does not traverse its target.

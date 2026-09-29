@@ -17,6 +17,8 @@ type ThemeSnapshot = {
   theme: ThemePreference;
   systemDark: boolean;
   revision: number;
+  customConfig: CustomThemeConfig;
+  fontPreferences: FontPreferences;
 };
 
 const STORAGE_KEY = "tabs:theme";
@@ -597,7 +599,13 @@ function getSnapshot(): ThemeSnapshot {
     return lastSnapshot;
   }
 
-  lastSnapshot = { theme, systemDark, revision: themeRevision };
+  lastSnapshot = {
+    theme,
+    systemDark,
+    revision: themeRevision,
+    customConfig: getStoredCustomThemeConfig(),
+    fontPreferences: getStoredFontPreferences(),
+  };
   return lastSnapshot;
 }
 
@@ -643,7 +651,7 @@ export function useTheme() {
   const theme = snapshot.theme;
 
   const activeThemeId = resolveActiveThemeId(theme);
-  const customConfig = getStoredCustomThemeConfig();
+  const customConfig = snapshot.customConfig;
   const themeDef = activeThemeId.startsWith("environment:")
     ? undefined
     : THEME_DEFINITIONS[activeThemeId as ThemeId];
@@ -690,9 +698,9 @@ export function useTheme() {
     activeThemeId,
     themeDef,
     resolvedTheme,
-    customThemeConfig: getStoredCustomThemeConfig(),
+    customThemeConfig: customConfig,
     setCustomThemeConfig,
-    fontPreferences: getStoredFontPreferences(),
+    fontPreferences: snapshot.fontPreferences,
     setFontPreferences,
   } as const;
 }
