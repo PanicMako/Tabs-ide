@@ -100,7 +100,10 @@ export async function startGithubLogin(
     "Set-Cookie",
     cookie("tabs_exchange_oauth", state, config.origin, STATE_AGE_SECONDS),
   );
-  const url = new URL("https://github.com/login/oauth/authorize");
+  const authorizeBase =
+    (process.env.NODE_ENV === "test" && config.testGithubAuthUrls?.authorizeUrl) ||
+    "https://github.com/login/oauth/authorize";
+  const url = new URL(authorizeBase);
   url.searchParams.set("client_id", config.githubClientId);
   url.searchParams.set("redirect_uri", `${config.origin}/auth/github/callback`);
   url.searchParams.set("state", state);
@@ -130,7 +133,9 @@ export async function completeGithubLogin(
     [hash(state)],
   );
   if (consumed.rowCount !== 1) throw new Error("OAuth state expired or already used.");
-  const grant = await githubJson(GITHUB_TOKEN_URL, {
+  const tokenUrl =
+    (process.env.NODE_ENV === "test" && config.testGithubAuthUrls?.tokenUrl) || GITHUB_TOKEN_URL;
+  const grant = await githubJson(tokenUrl, {
     method: "POST",
     headers: { Accept: "application/json", "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -149,7 +154,9 @@ export async function completeGithubLogin(
   ) {
     throw new Error("GitHub did not provide a valid access token.");
   }
-  const user = await githubJson(GITHUB_USER_URL, {
+  const userUrl =
+    (process.env.NODE_ENV === "test" && config.testGithubAuthUrls?.userUrl) || GITHUB_USER_URL;
+  const user = await githubJson(userUrl, {
     headers: {
       Accept: "application/vnd.github+json",
       Authorization: `Bearer ${grant.access_token}`,

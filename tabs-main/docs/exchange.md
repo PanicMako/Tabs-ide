@@ -350,3 +350,22 @@ checks as individual blocks, and records each digest and matching revocation
 under one database transaction. A duplicate or already blocked digest rejects
 the entire batch. It does not fetch, verify, or automatically trust an external
 feed; an operator must vet the source and record a reason for each hash.
+
+## Local Service Integration Testing
+
+To run the real local Exchange service integration suite against isolated PostgreSQL and S3-compatible storage without external dependencies or production credentials:
+
+### Prerequisites
+
+- Docker Engine and Docker Compose (e.g. `colima start` on macOS).
+
+### Commands
+
+- **Start test stack**:
+  `docker compose -f apps/exchange/compose.test.yaml up -d`
+- **Execute integration tests**:
+  `bun --cwd apps/exchange run test:integration`
+- **Stop test stack & clean up volumes**:
+  `docker compose -f apps/exchange/compose.test.yaml down -v`
+
+If Docker is not running, the test command safely detects the absence of services, warns with the start instructions, marks live execution unverified, and skips live operations rather than failing spuriously.
