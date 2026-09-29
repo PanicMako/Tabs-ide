@@ -52,7 +52,8 @@
     "dist:desktop:win": "bun scripts/build-desktop-artifact.ts --platform win --target nsis --arch x64",
     "release:smoke": "bun scripts/release-smoke.ts",
     "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules apps/*/dist apps/*/dist-electron packages/*/dist .turbo apps/*/.turbo packages/*/.turbo",
-    "sync:vscode-icons": "node scripts/sync-vscode-icons.mjs"
+    "sync:vscode-icons": "node scripts/sync-vscode-icons.mjs",
+    "test:cross-integration": "bun --cwd=apps/exchange run test:cross-integration"
   },
   "devDependencies": {
     "@types/node": "catalog:",
@@ -65,8 +66,8 @@
   },
   "overrides": {
     "@effect/platform-node-shared": "4.0.0-beta.78",
-    "vite": "^8.0.16",
-    "undici-types": "8.11.0"
+    "undici-types": "8.11.0",
+    "vite": "^8.0.16"
   },
   "engines": {
     "bun": "^1.3.9",
