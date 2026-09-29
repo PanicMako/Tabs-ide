@@ -622,7 +622,7 @@ describeCrossIntegration("Strict Exchange & Desktop Client Cross-Service Integra
       await testPool.end();
     }
     if (rootPool && testDbName) {
-      await rootPool.query(`DROP DATABASE IF EXISTS ${testDbName} WITH (FORCE)`);
+      await rootPool.query(`DROP DATABASE IF EXISTS ${testDbName}`);
       await rootPool.end();
     }
     if (s3Client && testBucket) {
