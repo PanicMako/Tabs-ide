@@ -197,6 +197,20 @@ async function fixture() {
 }
 
 describe("offline TUF publication gate", () => {
+  it("rejects a staged symlink without reading its target", async () => {
+    const subject = await fixture();
+    const realTimestamp = Path.join(subject.directory, "real-timestamp.json");
+    const stagedTimestamp = Path.join(subject.directory, "timestamp.json");
+    await FS.rename(stagedTimestamp, realTimestamp);
+    await FS.symlink(realTimestamp, stagedTimestamp);
+    const bootstrap = Crypto.createHash("sha256").update(subject.rootBytes).digest("hex");
+    await expect(
+      publishTufMetadata(subject.pool, subject.storage, "quarantine", subject.directory, bootstrap),
+    ).rejects.toThrow();
+    expect(subject.stored.size).toBe(0);
+    expect(subject.operations).not.toContain("COMMIT");
+  });
+
   it("selects the highest semantic version per signed extension identity", () => {
     const target = (name: string, version: string) => ({
       namespace: "acme",

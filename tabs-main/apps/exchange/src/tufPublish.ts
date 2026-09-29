@@ -1,5 +1,6 @@
 import * as Crypto from "node:crypto";
 import * as FS from "node:fs/promises";
+import { constants as FSConstants } from "node:fs";
 import * as OS from "node:os";
 import * as Path from "node:path";
 import { BaseFetcher, Updater } from "tuf-js";
@@ -43,15 +44,28 @@ function sha256(bytes: Buffer): string {
 async function stageFile(directory: string, name: string): Promise<Buffer | null> {
   if (!METADATA_NAME.test(name)) throw new Error("Invalid TUF metadata filename.");
   const path = Path.join(directory, name);
+  let file: FS.FileHandle;
   try {
-    const stat = await FS.lstat(path);
-    if (!stat.isFile() || stat.isSymbolicLink() || stat.size > MAX_METADATA_BYTES) {
-      throw new Error(`Invalid staged metadata file: ${name}`);
-    }
-    return await FS.readFile(path);
+    file = await FS.open(path, FSConstants.O_RDONLY | FSConstants.O_NOFOLLOW);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw error;
+  }
+  try {
+    const stat = await file.stat();
+    if (!stat.isFile() || stat.size > MAX_METADATA_BYTES) {
+      throw new Error(`Invalid staged metadata file: ${name}`);
+    }
+    const bytes = Buffer.allocUnsafe(MAX_METADATA_BYTES + 1);
+    let length = 0;
+    while (length < bytes.length) {
+      const result = await file.read(bytes, length, bytes.length - length, null);
+      if (result.bytesRead === 0) return bytes.subarray(0, length);
+      length += result.bytesRead;
+    }
+    throw new Error(`Staged metadata exceeds size limit: ${name}`);
+  } finally {
+    await file.close();
   }
 }
 
