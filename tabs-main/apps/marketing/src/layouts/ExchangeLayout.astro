@@ -1,0 +1,32 @@
+---
+import TabsLogo from "../components/TabsLogo.astro";
+import Icon from "../components/Icon.astro";
+import SiteThemeHead from "../components/SiteThemeHead.astro";
+import "../styles/exchange.css";
+interface Props { title: string; description: string; active?: "explore" | "publish"; }
+const { title, description, active = "explore" } = Astro.props;
+const preview = import.meta.env.DEV && import.meta.env.PUBLIC_TABS_EXCHANGE_PREVIEW === "true";
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <title>{title} — Tabs Exchange</title>
+    <SiteThemeHead />
+  </head>
+  <body class="exchange-site">
+    <a class="exchange-skip" href="#exchange-main">Skip to content</a>
+    <header class="exchange-nav">
+      <a class="exchange-brand" href="/" aria-label="Tabs home"><TabsLogo size={30} /> <span>Tabs <small>Exchange</small></span></a>
+      <nav aria-label="Exchange navigation">
+        <a href="/extensions" aria-current={active === "explore" ? "page" : undefined}>Explore</a>
+        <a href="/publish-extension" aria-current={active === "publish" ? "page" : undefined}>For developers</a>
+        <a class="exchange-button compact" href="/downloads">Get Tabs <Icon name="ArrowUpRight" size={15} /></a>
+      </nav>
+    </header>
+    <main id="exchange-main" class="exchange-main">{preview ? <p class="exchange-preview-notice" role="status">Local design preview · Sample extensions only. These are not approved listings; publishing and downloads are unavailable.</p> : null}<slot /></main>
+    <footer class="exchange-footer"><a href="/">Built for Tabs.</a><span>Tools that fit your workspace.</span><a href="https://github.com/mxyxyz9/Tabs-ide" target="_blank" rel="noopener noreferrer">GitHub <Icon name="ArrowUpRight" size={14} /></a></footer>
+  </body>
+</html>

@@ -1,27 +1,37 @@
 ---
-import Layout from "../layouts/Layout.astro";
+import Layout from "../layouts/ExchangeLayout.astro";
+import Icon from "../components/Icon.astro";
 import { configuredExchangeOrigin } from "../lib/exchange-url";
 
 const exchange = configuredExchangeOrigin(import.meta.env.PUBLIC_TABS_EXCHANGE_URL);
 ---
 
 <Layout title="Explore Tabs Extensions" description="Discover reviewed, Tabs-native full-workspace tools.">
-  <section class="exchange-page">
-    <p class="eyebrow">TABS EXCHANGE</p>
-    <h1>Explore Extensions</h1>
-    <p>Tabs extensions are full-workspace tools built for Tabs, not VS Code .vsix packages. Every public version is reviewed before listing; approval is not a security guarantee.</p>
+  <section>
+    <div class="exchange-hero">
+      <div><p class="exchange-eyebrow"><Icon name="Puzzle" size={16} /> Tabs Exchange</p>
+        <h1>Your workspace.<br /><em>More possibilities.</em></h1>
+        <p class="exchange-lead">Find tools that make Tabs your own. Extensions live right in your project toolbar, with a full workspace to do their thing.</p>
+      </div>
+      <div class="exchange-emblem" aria-hidden="true"><Icon name="Puzzle" size={56} /></div>
+    </div>
     {exchange ? (
-      <div id="catalog" data-exchange-url={exchange}>
-        <label for="search">Search extensions</label>
-        <input id="search" type="search" placeholder="Search by name or publisher" />
-        <p id="catalog-status" role="status" aria-live="polite">Loading approved extensions...</p>
-        <ul id="catalog-list"></ul>
-        <button id="catalog-more" type="button" hidden>Load more extensions</button>
+      <div id="catalog" data-exchange-url={exchange} data-preview={import.meta.env.DEV && import.meta.env.PUBLIC_TABS_EXCHANGE_PREVIEW === "true" ? "true" : undefined}>
+        <div class="exchange-toolbar"><h2>Explore extensions</h2><label class="exchange-search" for="search"><Icon name="Search" size={18} /><span class="sr-only">Search extensions</span><input id="search" type="search" placeholder="Search by name or publisher" /></label></div>
+        <p class="exchange-status" id="catalog-status" role="status" aria-live="polite">Loading approved extensions...</p>
+        <ul class="exchange-catalog" id="catalog-list" aria-label="Approved extensions"></ul>
+        <div class="exchange-empty" id="catalog-empty" hidden><div class="exchange-card-icon"><Icon name="Puzzle" size={24} /></div><h2 id="catalog-empty-title">No matching tools yet.</h2><p id="catalog-empty-description">Try another name or publisher.</p><div class="exchange-actions"><button class="exchange-button secondary" id="catalog-retry" type="button">Try again</button></div></div>
+        <div class="exchange-actions"><button class="exchange-button secondary" id="catalog-more" type="button" hidden>Load more extensions</button></div>
       </div>
     ) : (
-      <p role="status">Tabs Exchange discovery is not available yet. The desktop development format is experimental.</p>
+      <div class="exchange-empty">
+        <div class="exchange-card-icon"><Icon name="Puzzle" size={24} /></div>
+        <h2>A home for your next tool.</h2>
+        <p role="status">Tabs Exchange discovery is not available yet. You can try local extensions in the desktop development build while the public catalog is being prepared.</p>
+        <div class="exchange-actions"><a class="exchange-button" href="/publish-extension">Build an extension <Icon name="ArrowUpRight" size={16} /></a><a class="exchange-button secondary" href="/downloads">Get Tabs</a></div>
+      </div>
     )}
-    <p><a href="/publish-extension">Want to publish a tool? See how submission works.</a></p>
+    <div class="exchange-note"><Icon name="ShieldCheck" size={18} /><p>Built for Tabs, not VS Code .vsix packages. Every public version is reviewed before listing, but approval is not a security guarantee. <a href="/publish-extension">Have a tool to share?</a></p></div>
   </section>
 </Layout>
 
@@ -31,10 +41,16 @@ const exchange = configuredExchangeOrigin(import.meta.env.PUBLIC_TABS_EXCHANGE_U
   const catalog = document.getElementById("catalog");
   if (catalog) {
     const origin = catalog.dataset.exchangeUrl;
+    const preview = catalog.dataset.preview === "true";
+    if (preview) document.getElementById("catalog-list")?.setAttribute("aria-label", "Sample extensions");
     const input = document.getElementById("search") as HTMLInputElement;
     const status = document.getElementById("catalog-status")!;
     const list = document.getElementById("catalog-list")!;
     const moreButton = document.getElementById("catalog-more") as HTMLButtonElement;
+    const empty = document.getElementById("catalog-empty")!;
+    const emptyTitle = document.getElementById("catalog-empty-title")!;
+    const emptyDescription = document.getElementById("catalog-empty-description")!;
+    const retry = document.getElementById("catalog-retry") as HTMLButtonElement;
     let sequence = 0;
     let nextCursor: string | null = null;
     const seenCursors = new Set<string>();
@@ -53,6 +69,7 @@ const exchange = configuredExchangeOrigin(import.meta.env.PUBLIC_TABS_EXCHANGE_U
       moreButton.hidden = !append;
       moreButton.disabled = true;
       status.textContent = "Loading approved extensions...";
+      empty.hidden = true;
       try {
         const response = await fetch(url.href, { redirect: "error" });
         if (!response.ok) throw new Error("The catalog could not be loaded.");
@@ -69,12 +86,30 @@ const exchange = configuredExchangeOrigin(import.meta.env.PUBLIC_TABS_EXCHANGE_U
           const detailHref = extensionDetailHref(extension.namespace, extension.name);
           if (!detailHref) continue;
           const item = document.createElement("li");
+          item.className = "exchange-card";
+          const icon = document.createElement("div");
+          icon.className = "exchange-card-icon";
+          icon.setAttribute("aria-hidden", "true");
+          icon.append((document.getElementById("catalog-puzzle") as HTMLTemplateElement).content.cloneNode(true));
+          const heading = document.createElement("h3");
           const title = document.createElement("a");
           title.textContent = extension.manifest.displayName;
           title.href = detailHref;
           const description = document.createElement("p");
-          description.textContent = `${extension.manifest.description} — ${extension.namespace}.${extension.name}, version ${extension.version}${extension.verified ? ", verified publisher" : ", unverified publisher"}`;
-          item.append(title, description);
+          description.textContent = extension.manifest.description;
+          const metadata = document.createElement("div");
+          metadata.className = "exchange-card-meta";
+          const publisher = document.createElement("span");
+          publisher.textContent = `${extension.namespace}.${extension.name}`;
+          const version = document.createElement("span");
+          version.className = "exchange-badge";
+          version.textContent = `v${extension.version}`;
+          const verified = document.createElement("span");
+          verified.className = "exchange-badge";
+          verified.textContent = extension.verified ? "Verified publisher" : "Unverified publisher";
+          metadata.append(publisher, version, verified);
+          heading.append(title);
+          item.append(icon, heading, description, metadata);
           list.append(item);
         }
         nextCursor = typeof cursor === "string" ? cursor : null;
@@ -82,33 +117,30 @@ const exchange = configuredExchangeOrigin(import.meta.env.PUBLIC_TABS_EXCHANGE_U
         if (append) list.children[firstNewIndex]?.querySelector("a")?.focus();
         moreButton.hidden = !nextCursor;
         moreButton.disabled = !nextCursor;
+        empty.hidden = list.children.length > 0;
+        emptyTitle.textContent = "No matching tools yet.";
+        emptyDescription.textContent = "Try another name or publisher. New tools appear here after review.";
+        retry.hidden = true;
         status.textContent = list.children.length
-          ? `${list.children.length} approved extensions shown${nextCursor ? ", more available" : ""}.`
+          ? `${list.children.length} ${preview ? "sample" : "approved"} extensions shown${nextCursor ? ", more available" : ""}.`
           : "No approved extensions found.";
       } catch {
         if (current === sequence) {
           status.textContent = "The catalog is unavailable. Please try again later.";
           moreButton.hidden = !nextCursor;
           moreButton.disabled = !nextCursor;
+          empty.hidden = list.children.length > 0;
+          emptyTitle.textContent = "We couldn’t reach the Exchange.";
+          emptyDescription.textContent = "Your search is saved. Try again when the registry is available.";
+          retry.hidden = false;
         }
       }
     };
     input.addEventListener("input", () => { void load(); });
     moreButton.addEventListener("click", () => { void load(true); });
+    retry.addEventListener("click", () => { void load(); });
     void load();
   }
 </script>
 
-<style>
-  .exchange-page { max-width: 48rem; margin: 2rem auto 5rem; padding: 0 1.5rem; line-height: 1.6; }
-  .eyebrow { color: #a1a1aa; letter-spacing: .15em; font-size: .8rem; }
-  h1 { font-size: clamp(2.5rem, 7vw, 4rem); margin: 1rem 0; }
-  label { display: block; margin-top: 2rem; }
-  input { width: 100%; padding: .75rem; margin: .5rem 0; color: #fafafa; background: #18181b; border: 1px solid #a1a1aa; border-radius: .4rem; font: inherit; }
-  ul { list-style: none; padding: 0; }
-  li { padding: 1.2rem 0; border-bottom: 1px solid #3f3f46; }
-  button { margin-top: 1rem; padding: .7rem 1rem; color: #fafafa; background: #27272a; border: 1px solid #a1a1aa; border-radius: .4rem; font: inherit; cursor: pointer; }
-  button[hidden] { display: none; }
-  a { color: #bfdbfe; text-decoration: underline; }
-  :focus-visible { outline: 3px solid #fbbf24; outline-offset: 3px; }
-</style>
+<template id="catalog-puzzle"><Icon name="Puzzle" size={23} /></template>

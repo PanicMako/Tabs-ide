@@ -101,8 +101,9 @@ vi.mock("@effect/atom-react", () => ({
   useAtomValue: () => [{ id: "project-a", name: "Alpha Project" }],
 }));
 vi.mock("~/state/threads", () => ({ projectsAtom: Symbol("projects") }));
+let visibleExtensions = [sampleExtension];
 vi.mock("~/state/extensions", () => ({
-  useInstalledExtensions: () => [sampleExtension],
+  useInstalledExtensions: () => visibleExtensions,
   refreshExtensions: async () => {},
 }));
 vi.mock("~/state/workspaceShell", () => ({
@@ -238,4 +239,44 @@ test("ExtensionsSettings: navigates views, manages focus on dialogs, and support
     .toHaveAttribute("aria-pressed", "true");
 
   delete (window as unknown as { desktopBridge?: unknown }).desktopBridge;
+});
+
+test("profiles view manages one selected extension without stacking account forms", async () => {
+  visibleExtensions = [
+    sampleExtension,
+    {
+      ...sampleExtension,
+      id: "acme.notes",
+      manifest: { ...sampleExtension.manifest, name: "notes", displayName: "Notes" },
+      assignment: { ...sampleExtension.assignment, extensionId: "acme.notes" },
+    },
+  ];
+  const bridge = {
+    listExtensionCredentials: vi.fn(async () => []),
+    setTheme: vi.fn(async () => undefined),
+  };
+  (window as unknown as { desktopBridge: typeof bridge }).desktopBridge = bridge;
+  try {
+    const screen = await render(<ExtensionsSettings />);
+    await screen.getByRole("button", { name: "Profiles & Permissions" }).click();
+    await expect
+      .element(screen.getByRole("heading", { name: "Dashboard", exact: true }))
+      .toBeVisible();
+    await expect
+      .element(screen.getByRole("heading", { name: "Notes", exact: true }))
+      .not.toBeInTheDocument();
+    await screen
+      .getByRole("combobox", { name: "Extension to manage profiles and permissions" })
+      .selectOptions("acme.notes");
+    await expect.element(screen.getByRole("heading", { name: "Notes", exact: true })).toBeVisible();
+    await expect
+      .element(screen.getByRole("heading", { name: "Dashboard", exact: true }))
+      .not.toBeInTheDocument();
+    await expect
+      .element(screen.getByRole("textbox", { name: "New profile for Notes" }))
+      .toBeVisible();
+  } finally {
+    visibleExtensions = [sampleExtension];
+    delete (window as unknown as { desktopBridge?: unknown }).desktopBridge;
+  }
 });

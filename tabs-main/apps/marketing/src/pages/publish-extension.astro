@@ -1,37 +1,26 @@
 ---
-import Layout from "../layouts/Layout.astro";
+import Layout from "../layouts/ExchangeLayout.astro";
+import Icon from "../components/Icon.astro";
 import { configuredExchangeOrigin } from "../lib/exchange-url";
 
-const exchange = configuredExchangeOrigin(import.meta.env.PUBLIC_TABS_EXCHANGE_URL);
+const exchange = import.meta.env.DEV && import.meta.env.PUBLIC_TABS_EXCHANGE_PREVIEW === "true" ? null : configuredExchangeOrigin(import.meta.env.PUBLIC_TABS_EXCHANGE_URL);
 ---
 
-<Layout title="Publish a Tabs Extension" description="Submit a Tabs-native extension package for review.">
-  <section class="publish-page">
-    <p class="eyebrow">TABS EXCHANGE</p>
-    <h1>Publish an Extension</h1>
-    <p>Create a <code>tabs-extension.json</code> manifest, bundle your UI, and package it as a deterministic <code>.tabsext</code> archive. Each version is scanned and manually reviewed before it can appear in Explore Extensions.</p>
-    <ol>
-      <li>Sign in with GitHub and create a publisher namespace.</li>
-      <li>Submit the archive for private scanning and review.</li>
-      <li>Once approved, users can discover and download that exact version.</li>
+<Layout title="Publish a Tabs Extension" description="Submit a Tabs-native extension package for review." active="publish">
+  <section>
+    <div class="exchange-hero"><div><p class="exchange-eyebrow"><Icon name="Puzzle" size={16} /> For developers</p><h1>Build your tool.<br /><em>Give it a home.</em></h1><p class="exchange-lead">Bring your workflow into Tabs. Bundle a full-workspace tool, submit it for review, and share it through the Exchange.</p></div><div class="exchange-emblem" aria-hidden="true"><Icon name="Code2" size={56} /></div></div>
+    <ol class="exchange-steps" aria-label="Publishing steps">
+      <li class="exchange-card"><div class="exchange-step-number">01 / BUILD</div><h2>Make it Tabs-native.</h2><p>Create a <code>tabs-extension.json</code> manifest, bundle your UI, and package a deterministic <code>.tabsext</code> archive. Test it locally in the desktop development build.</p></li>
+      <li class="exchange-card"><div class="exchange-step-number">02 / SUBMIT</div><h2>Put your name on it.</h2><p>Sign in with GitHub, create a publisher namespace, and upload your package. Each version stays private while automated checks and manual review take place.</p></li>
+      <li class="exchange-card"><div class="exchange-step-number">03 / SHARE</div><h2>Join the workspace.</h2><p>After approval, users can discover and download that exact version. Updates go through the same review process, with permission changes shown before installation.</p></li>
     </ol>
+    <div class="exchange-publish-panel"><div><h2>Ready to publish?</h2>
     {exchange ? (
-      <a class="action" href={`${exchange}/publisher`}>Open the publisher portal</a>
+      <p>Manage your namespace, submissions, and releases in the publisher portal.</p>
     ) : (
       <p role="status">Public submissions are not open yet. The package and local development tooling are still experimental.</p>
     )}
-    <p>Reviewer approval does not certify that an extension is safe. Publishers should disclose data access, external services, and any charges to users.</p>
-    <p><a href="/extensions">Explore Extensions</a></p>
+    </div>{exchange ? <a class="exchange-button" href={`${exchange}/publisher`}>Open publisher portal <Icon name="ArrowUpRight" size={16} /></a> : <a class="exchange-button secondary" href="https://github.com/mxyxyz9/Tabs-ide" target="_blank" rel="noopener noreferrer">Follow development <Icon name="ArrowUpRight" size={16} /></a>}</div>
+    <div class="exchange-note"><Icon name="ShieldCheck" size={18} /><p>Review is not a security guarantee. Disclose data access, external services, and any charges to users. Namespace membership alone does not verify publisher ownership. <a href="/extensions">Explore the Exchange</a></p></div>
   </section>
 </Layout>
-
-<style>
-  .publish-page { max-width: 48rem; margin: 2rem auto 5rem; padding: 0 1.5rem; line-height: 1.6; }
-  .eyebrow { color: #a1a1aa; letter-spacing: .15em; font-size: .8rem; }
-  h1 { font-size: clamp(2.5rem, 7vw, 4rem); margin: 1rem 0; }
-  ol { padding-left: 1.5rem; margin: 2rem 0; }
-  li { margin-bottom: .75rem; }
-  a { color: #bfdbfe; text-decoration: underline; }
-  .action { display: inline-block; padding: .75rem 1rem; margin: 1rem 0; background: #bfdbfe; color: #09090b; border-radius: .35rem; font-weight: 600; }
-  :focus-visible { outline: 3px solid #fbbf24; outline-offset: 3px; }
-</style>

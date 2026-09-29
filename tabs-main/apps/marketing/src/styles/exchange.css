@@ -1,0 +1,548 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap");
+.exchange-preview-notice {
+  padding: 12px 16px;
+  background: #fff5df;
+  border: 1px solid #e8d5ae;
+  border-radius: 10px;
+  font-size: 12px;
+  color: #72551d;
+}
+.exchange-package-details {
+  margin: 20px 0;
+  font-size: 13px;
+  color: var(--ex-muted);
+}
+.exchange-package-details summary {
+  cursor: pointer;
+}
+.exchange-version .exchange-package-details dl {
+  border: 0;
+  margin: 12px 0;
+  padding: 10px 0;
+}
+.exchange-site {
+  --ex-bg: #fbfcfe;
+  --ex-ink: #202b44;
+  --ex-muted: #59657b;
+  --ex-line: #dce2ee;
+  --ex-blue: #2b54dc;
+  margin: 0;
+  background: var(--ex-bg);
+  color: var(--ex-ink);
+  font-family: "DM Sans", Arial, sans-serif;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+.exchange-site * {
+  box-sizing: border-box;
+}
+.exchange-site .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.exchange-site [hidden] {
+  display: none !important;
+}
+.exchange-site a {
+  color: inherit;
+  text-decoration: none;
+}
+.exchange-site button,
+.exchange-site input {
+  font: inherit;
+}
+.exchange-site button {
+  cursor: pointer;
+}
+.exchange-site button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+.exchange-site :focus-visible {
+  outline: 3px solid var(--ex-blue);
+  outline-offset: 4px;
+}
+.exchange-site h1,
+.exchange-site h2,
+.exchange-site h3,
+.exchange-site p {
+  margin: 0;
+}
+.exchange-skip {
+  position: fixed;
+  left: 1rem;
+  top: -100px;
+  z-index: 20;
+  background: white;
+  padding: 0.75rem;
+  border: 1px solid var(--ex-line);
+}
+.exchange-skip:focus {
+  top: 1rem;
+}
+.exchange-nav {
+  max-width: 1200px;
+  margin: auto;
+  padding: 26px 32px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+}
+.exchange-brand,
+.exchange-nav nav,
+.exchange-footer a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.exchange-brand {
+  font-weight: 600;
+  font-size: 20px;
+  letter-spacing: -0.04em;
+}
+.exchange-brand small {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--ex-muted);
+  border-left: 1px solid var(--ex-line);
+  padding-left: 12px;
+  margin-left: 8px;
+  letter-spacing: 0;
+}
+.exchange-nav nav {
+  gap: 28px;
+  font-size: 13px;
+}
+.exchange-nav nav > a[aria-current] {
+  color: var(--ex-blue);
+}
+.exchange-main {
+  max-width: 1136px;
+  margin: 0 auto;
+  padding: 0 32px 80px;
+  min-height: 75vh;
+}
+.exchange-hero {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 32px;
+  align-items: center;
+  padding: 64px 0 48px;
+}
+.exchange-eyebrow {
+  color: var(--ex-blue);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 18px !important;
+}
+.exchange-hero h1 {
+  font-size: clamp(38px, 5vw, 66px);
+  font-weight: 500;
+  line-height: 1.06;
+  letter-spacing: -0.06em;
+  max-width: 760px;
+}
+.exchange-hero h1 em {
+  color: var(--ex-blue);
+  font-family: "Instrument Serif", Georgia, serif;
+  font-weight: 400;
+}
+.exchange-lead {
+  max-width: 590px;
+  font-size: 16px;
+  color: var(--ex-muted);
+  margin-top: 22px !important;
+}
+.exchange-emblem {
+  width: 112px;
+  height: 112px;
+  display: grid;
+  place-items: center;
+  border-radius: 28px;
+  color: var(--ex-blue);
+  background: #edf1ff;
+  border: 1px solid #d9e1ff;
+  transform: rotate(-7deg);
+}
+.exchange-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 12px 20px;
+  background: var(--ex-blue);
+  color: white !important;
+  border: 1px solid var(--ex-blue);
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  min-height: 44px;
+}
+.exchange-button.compact {
+  padding: 8px 16px;
+  min-height: 38px;
+}
+.exchange-button.secondary {
+  color: var(--ex-ink) !important;
+  background: white;
+  border-color: var(--ex-line);
+}
+.exchange-button:hover {
+  filter: brightness(0.95);
+}
+.exchange-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 26px;
+}
+.exchange-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 20px 0;
+  border-top: 1px solid var(--ex-line);
+}
+.exchange-toolbar h2 {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+.exchange-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--ex-line);
+  background: white;
+  border-radius: 12px;
+  padding: 0 14px;
+  width: min(100%, 360px);
+  color: var(--ex-muted);
+}
+.exchange-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  padding: 12px 0;
+  color: var(--ex-ink);
+  font-size: 13px;
+}
+.exchange-search:focus-within {
+  outline: 2px solid var(--ex-blue);
+  outline-offset: 2px;
+}
+.exchange-search input:focus-visible {
+  outline: none;
+}
+.exchange-status {
+  color: var(--ex-muted);
+  font-size: 13px;
+  padding: 0 0 20px;
+}
+.exchange-catalog {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+.exchange-card {
+  background: white;
+  border: 1px solid var(--ex-line);
+  border-radius: 18px;
+  padding: 24px;
+  min-width: 0;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+}
+.exchange-card:hover {
+  border-color: #a9bae9;
+  box-shadow: 0 8px 24px #202b4407;
+}
+.exchange-card-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: #edf1ff;
+  color: var(--ex-blue);
+  margin-bottom: 18px;
+}
+.exchange-card h3 {
+  font-size: 17px;
+  letter-spacing: -0.025em;
+  font-weight: 600;
+}
+.exchange-card h3 a::after {
+  content: " ↗";
+  color: var(--ex-muted);
+  font-weight: 400;
+}
+.exchange-card p {
+  color: var(--ex-muted);
+  font-size: 13px;
+  margin-top: 10px;
+  overflow-wrap: anywhere;
+}
+.exchange-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--ex-muted);
+  padding-top: 20px;
+  margin-top: 20px;
+  border-top: 1px solid var(--ex-line);
+}
+.exchange-badge {
+  border: 1px solid var(--ex-line);
+  border-radius: 999px;
+  padding: 3px 9px;
+  background: var(--ex-bg);
+  font-size: 11px;
+  color: var(--ex-muted);
+}
+.exchange-empty {
+  padding: 48px 24px;
+  text-align: center;
+  border: 1px dashed #c9d2e5;
+  border-radius: 20px;
+  background: white;
+}
+.exchange-empty .exchange-card-icon {
+  margin: 0 auto 18px;
+}
+.exchange-empty h2 {
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.04em;
+}
+.exchange-empty p {
+  color: var(--ex-muted);
+  max-width: 480px;
+  margin: 12px auto 0;
+  font-size: 14px;
+}
+.exchange-empty .exchange-actions {
+  justify-content: center;
+}
+.exchange-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  border-top: 1px solid var(--ex-line);
+  padding-top: 22px;
+  margin-top: 32px;
+  color: var(--ex-muted);
+  font-size: 12px;
+}
+.exchange-note svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.exchange-note a {
+  color: var(--ex-blue);
+  text-decoration: underline;
+}
+.exchange-footer {
+  max-width: 1200px;
+  margin: auto;
+  padding: 28px 32px;
+  border-top: 1px solid var(--ex-line);
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  color: var(--ex-muted);
+  font-size: 12px;
+}
+.exchange-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  gap: 18px;
+  counter-reset: steps;
+}
+.exchange-steps li {
+  counter-increment: steps;
+}
+.exchange-step-number {
+  font-size: 11px;
+  color: var(--ex-blue);
+  font-weight: 600;
+  margin-bottom: 28px;
+}
+.exchange-steps h2 {
+  font-size: 20px;
+  font-weight: 500;
+  letter-spacing: -0.04em;
+}
+.exchange-steps p {
+  margin-top: 12px;
+  font-size: 14px;
+  color: var(--ex-muted);
+}
+.exchange-publish-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  border: 1px solid var(--ex-line);
+  background: #edf1ff;
+  padding: 28px;
+  border-radius: 18px;
+  margin-top: 28px;
+}
+.exchange-publish-panel h2 {
+  font-size: 19px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+}
+.exchange-publish-panel p {
+  color: var(--ex-muted);
+  font-size: 13px;
+  margin-top: 8px;
+}
+.exchange-detail-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ex-muted) !important;
+  font-size: 13px;
+  margin-top: 30px;
+}
+.exchange-versions {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 20px;
+}
+.exchange-version {
+  padding: 28px;
+  border-radius: 18px;
+  border: 1px solid var(--ex-line);
+  background: white;
+}
+.exchange-version h2 {
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.04em;
+}
+.exchange-version > p {
+  color: var(--ex-muted);
+  margin-top: 12px;
+  font-size: 14px;
+}
+.exchange-version dl {
+  display: grid;
+  grid-template-columns: minmax(130px, 190px) minmax(0, 1fr);
+  gap: 12px 24px;
+  margin: 26px 0;
+  padding: 22px 0;
+  border-block: 1px solid var(--ex-line);
+  font-size: 13px;
+}
+.exchange-version dt {
+  color: var(--ex-muted);
+}
+.exchange-version dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.exchange-version dd a {
+  color: var(--ex-blue);
+  text-decoration: underline;
+}
+.exchange-version h3 {
+  font-size: 14px;
+  font-weight: 600;
+}
+.exchange-version .release-notes {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin-bottom: 24px;
+}
+@media (max-width: 800px) {
+  .exchange-catalog {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .exchange-steps {
+    grid-template-columns: 1fr;
+  }
+  .exchange-emblem {
+    width: 80px;
+    height: 80px;
+    border-radius: 22px;
+  }
+}
+@media (max-width: 560px) {
+  .exchange-nav {
+    padding: 20px;
+    flex-wrap: wrap;
+  }
+  .exchange-nav nav {
+    gap: 18px;
+    width: 100%;
+    justify-content: space-between;
+  }
+  .exchange-main {
+    padding: 0 20px 48px;
+  }
+  .exchange-hero {
+    padding: 40px 0 32px;
+    grid-template-columns: 1fr;
+  }
+  .exchange-emblem {
+    display: none;
+  }
+  .exchange-toolbar,
+  .exchange-publish-panel {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .exchange-search {
+    width: 100%;
+  }
+  .exchange-catalog {
+    grid-template-columns: 1fr;
+  }
+  .exchange-footer {
+    padding: 24px 20px;
+    flex-wrap: wrap;
+  }
+  .exchange-footer > span {
+    display: none;
+  }
+  .exchange-version dl {
+    grid-template-columns: 1fr;
+    gap: 5px;
+  }
+  .exchange-version dd {
+    margin-bottom: 12px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .exchange-site * {
+    transition: none !important;
+  }
+}

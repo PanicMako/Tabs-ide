@@ -1,8 +1,8 @@
 ---
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { ArrowUpRight, ArrowUp, ArrowDown, Code2, GitBranch, Bot, Terminal, Globe, CheckCircle, Layers, Sun, Moon } from 'lucide-react';
-const icons = { ArrowUpRight, ArrowUp, ArrowDown, Code2, GitBranch, Bot, Terminal, Globe, CheckCircle, Layers, Sun, Moon };
+import { ArrowUpRight, ArrowUp, ArrowDown, Code2, GitBranch, Bot, Terminal, Globe, CheckCircle, Layers, Sun, Moon, Puzzle, Search, ShieldCheck, ArrowLeft } from 'lucide-react';
+const icons = { ArrowUpRight, ArrowUp, ArrowDown, Code2, GitBranch, Bot, Terminal, Globe, CheckCircle, Layers, Sun, Moon, Puzzle, Search, ShieldCheck, ArrowLeft };
 interface Props { name: keyof typeof icons; size?: number; }
 const { name, size = 20 } = Astro.props;
 const svg = renderToStaticMarkup(createElement(icons[name], { size, strokeWidth: 1.6, 'aria-hidden': true }));

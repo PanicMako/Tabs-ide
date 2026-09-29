@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { PuzzleIcon, SearchIcon, PackageIcon, UsersIcon } from "lucide-react";
 import { useAtomValue } from "@effect/atom-react";
 import type {
   DesktopExchangeListing,
@@ -18,6 +19,7 @@ type Tab = "discover" | "installed" | "profiles";
 
 export default function ExtensionsSettings() {
   const [tab, setTab] = useState<Tab>("installed");
+  const [profileExtensionId, setProfileExtensionId] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -58,6 +60,11 @@ export default function ExtensionsSettings() {
   const installedTabButton = useRef<HTMLButtonElement | null>(null);
   const discoverTabButton = useRef<HTMLButtonElement | null>(null);
   const extensions = useInstalledExtensions();
+  const activeProfileExtensionId = extensions.some(
+    (extension) => extension.id === profileExtensionId,
+  )
+    ? profileExtensionId
+    : extensions[0]?.id;
   const projects = useAtomValue(projectsAtom);
   const bridge = window.desktopBridge;
   const availableUpdate = (extension: DesktopInstalledExtension) =>
@@ -178,11 +185,22 @@ export default function ExtensionsSettings() {
 
   return (
     <div className="space-y-6">
-      <SettingsSectionHeader
-        title="Extensions"
-        description="Full-workspace tools for Tabs projects."
-      />
-      <div role="group" aria-label="Extension settings views" className="flex gap-2 px-6">
+      <div className="flex items-start gap-4">
+        <div className="mt-1 flex size-12 shrink-0 items-center justify-center rounded-2xl border border-border bg-muted/40 text-foreground">
+          <PuzzleIcon className="size-6" aria-hidden="true" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <SettingsSectionHeader
+            title="Extensions"
+            description="Your tools, right at home in your workspace."
+          />
+        </div>
+      </div>
+      <div
+        role="group"
+        aria-label="Extension settings views"
+        className="flex flex-wrap gap-1 rounded-xl border border-border bg-muted/30 p-1"
+      >
         {(["discover", "installed", "profiles"] as const).map((item) => (
           <Button
             key={item}
@@ -195,19 +213,32 @@ export default function ExtensionsSettings() {
             }
             type="button"
             aria-pressed={tab === item}
-            variant={tab === item ? "default" : "outline"}
+            variant={tab === item ? "secondary" : "ghost"}
+            className={tab === item ? "shadow-sm" : "text-muted-foreground"}
             onClick={() => setTab(item)}
           >
+            {item === "discover" ? (
+              <SearchIcon aria-hidden="true" className="size-4" />
+            ) : item === "installed" ? (
+              <PackageIcon aria-hidden="true" className="size-4" />
+            ) : (
+              <UsersIcon aria-hidden="true" className="size-4" />
+            )}
             {item === "profiles"
               ? "Profiles & Permissions"
               : item[0]!.toUpperCase() + item.slice(1)}
+            {item === "installed" ? (
+              <span className="ml-1 rounded-md bg-background/60 px-1.5 text-xs tabular-nums">
+                {extensions.length}
+              </span>
+            ) : null}
           </Button>
         ))}
       </div>
       {error ? (
         <div
           role="alert"
-          className="flex items-center justify-between gap-2 px-6 text-sm text-destructive"
+          className="flex items-center justify-between gap-3 rounded-xl border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive"
         >
           <span>{error}</span>
           <Button
@@ -222,25 +253,38 @@ export default function ExtensionsSettings() {
         </div>
       ) : null}
       {status ? (
-        <p role="status" className="px-6 text-sm text-muted-foreground">
+        <p
+          role="status"
+          className="rounded-xl border border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground"
+        >
           {status}
         </p>
       ) : null}
       {!bridge ? (
-        <SettingsSection title="Desktop only">
+        <SettingsSection title="Desktop only" contentClassName="p-5">
           <p className="text-sm text-muted-foreground">
             Extensions are currently available in Tabs desktop.
           </p>
         </SettingsSection>
       ) : tab === "discover" ? (
-        <SettingsSection title="Discover">
+        <SettingsSection
+          title="Discover"
+          description="Find your next full-workspace tool."
+          contentClassName="space-y-5 p-4 sm:p-5"
+        >
           <p className="text-sm text-muted-foreground">
-            Browse approved Exchange listings. Before installation, Tabs checks signed registry
-            metadata and the exact package digest. New installations are disabled until you enable
-            them for projects below. Development builds can also load a local UI-only package.
+            Browse approved tools built for Tabs. Review access before installing, then choose the
+            projects where each tool appears.
           </p>
+          <details className="text-xs text-muted-foreground">
+            <summary className="cursor-pointer">How installation is verified</summary>
+            <p className="mt-2 leading-relaxed">
+              Tabs checks signed registry metadata and the exact package digest. New installations
+              are disabled until you enable them for projects. Review is not a security guarantee.
+            </p>
+          </details>
           <form
-            className="flex flex-wrap gap-2"
+            className="flex flex-col gap-2 sm:flex-row"
             onSubmit={(event) => {
               event.preventDefault();
               void searchExchange();
@@ -249,6 +293,7 @@ export default function ExtensionsSettings() {
             <Input
               aria-label="Search Tabs Exchange extensions"
               placeholder="Search extensions"
+              className="min-w-0 flex-1"
               value={searchQuery}
               maxLength={100}
               disabled={busy}
@@ -270,9 +315,14 @@ export default function ExtensionsSettings() {
               {catalog.map((listing) => (
                 <li
                   key={`${listing.registryOrigin}:${listing.id}`}
-                  className="rounded border border-border p-3"
+                  className="space-y-3 rounded-xl border border-border bg-background/50 p-4"
                 >
-                  <h3 className="font-medium">{listing.displayName}</h3>
+                  <div className="flex items-center gap-3">
+                    <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-border bg-muted/40">
+                      <PuzzleIcon aria-hidden="true" className="size-5" />
+                    </span>
+                    <h3 className="font-semibold">{listing.displayName}</h3>
+                  </div>
                   <p className="text-xs text-muted-foreground">
                     {listing.id} · {listing.version} · Approved release ·{" "}
                     {listing.verifiedPublisher ? "Verified publisher" : "Unverified publisher"}
@@ -538,19 +588,42 @@ export default function ExtensionsSettings() {
           ) : null}
         </SettingsSection>
       ) : tab === "installed" ? (
-        <SettingsSection title="Installed">
+        <SettingsSection
+          title="Installed"
+          description="Manage tools and choose where they appear."
+          contentClassName="divide-y divide-border"
+        >
           {extensions.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No extensions installed.</p>
+            <div className="flex flex-col items-center gap-3 px-5 py-12 text-center">
+              <PuzzleIcon aria-hidden="true" className="size-8 text-muted-foreground" />
+              <h3 className="text-sm font-medium">No extensions installed.</h3>
+              <p className="max-w-sm text-sm text-muted-foreground">
+                Add a tool from the Exchange or load a local package in a development build.
+              </p>
+              <Button variant="outline" onClick={() => setTab("discover")}>
+                Explore extensions
+              </Button>
+            </div>
           ) : (
             extensions.map((extension) => (
               <div
                 key={extension.id}
                 role="group"
                 aria-label={`${extension.manifest.displayName} installation and project settings`}
-                className="space-y-3 border-b border-border py-4 last:border-0"
+                className="space-y-4 p-4 sm:p-5"
               >
                 <div>
-                  <h3 className="font-medium">{extension.manifest.displayName}</h3>
+                  <div className="mb-3 flex items-center gap-3">
+                    <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-border bg-muted/40">
+                      <PuzzleIcon aria-hidden="true" className="size-5" />
+                    </span>
+                    <h3 className="min-w-0 flex-1 font-semibold">
+                      {extension.manifest.displayName}
+                    </h3>
+                    <span className="rounded-full border border-border px-2.5 py-1 text-[11px] text-muted-foreground">
+                      {extension.revoked ? "Revoked" : extension.disabled ? "Disabled" : "Enabled"}
+                    </span>
+                  </div>
                   <p className="text-xs text-muted-foreground">
                     {extension.id} · {extension.manifest.version} ·{" "}
                     {extension.source === "exchange"
@@ -702,8 +775,13 @@ export default function ExtensionsSettings() {
                   />
                   Show in all projects
                 </label>
-                <div className="space-y-2">
+                <div className="space-y-3 rounded-xl border border-border bg-muted/20 p-4">
                   <p className="text-xs font-medium text-muted-foreground">Project overrides</p>
+                  {projects.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      Add a project to choose where this tool appears.
+                    </p>
+                  ) : null}
                   {projects.map((project) => {
                     const selected = extension.assignment.enabledGlobally
                       ? !extension.assignment.disabledProjectIds.includes(project.id)
@@ -875,7 +953,11 @@ export default function ExtensionsSettings() {
           )}
         </SettingsSection>
       ) : (
-        <SettingsSection title="Profiles & Permissions">
+        <SettingsSection
+          title="Profiles & Permissions"
+          description="Keep accounts separate. Stay in control of access."
+          contentClassName="space-y-5 p-4 sm:p-5"
+        >
           <p className="text-sm text-muted-foreground">
             A shared profile uses one storage space across projects. A project-isolated profile
             keeps browser and non-secret storage separate for each project. Workspace access,
@@ -883,510 +965,557 @@ export default function ExtensionsSettings() {
             grant. Saved credentials are encrypted by the operating system and never shown again in
             Settings. Start a new agent session after granting AI tools so it discovers them.
           </p>
-          {extensions.map((extension) => (
-            <div
-              key={extension.id}
-              role="group"
-              aria-label={`${extension.manifest.displayName} profiles and permissions`}
-              className="space-y-3 border-b border-border py-4 last:border-0"
-            >
-              <h3 className="font-medium">{extension.manifest.displayName}</h3>
-              <label className="block text-sm">
-                Default profile
-                <select
-                  className="ml-2 rounded border border-border bg-background px-2 py-1"
-                  aria-label={`Default profile for ${extension.manifest.displayName}`}
-                  value={extension.assignment.defaultProfileId}
-                  disabled={busy}
-                  onChange={(event) =>
-                    assign(extension, {
-                      ...extension.assignment,
-                      defaultProfileId: event.target.value,
-                    })
-                  }
-                >
-                  {extension.profiles.map((profile) => (
-                    <option key={profile.id} value={profile.id}>
-                      {profile.label} ({profile.scope === "project" ? "project-isolated" : "shared"}
-                      )
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <div className="flex flex-wrap gap-2">
-                <Input
-                  aria-label={`New profile for ${extension.manifest.displayName}`}
-                  placeholder="Profile name"
-                  value={profileNames[extension.id] ?? ""}
-                  onChange={(event) =>
-                    setProfileNames((current) => ({
-                      ...current,
-                      [extension.id]: event.target.value,
-                    }))
-                  }
-                />
-                <select
-                  className="rounded border border-border bg-background px-2 py-1 text-sm"
-                  aria-label={`Storage scope for new ${extension.manifest.displayName} profile`}
-                  value={profileScopes[extension.id] ?? "shared"}
-                  disabled={busy}
-                  onChange={(event) =>
-                    setProfileScopes((current) => ({
-                      ...current,
-                      [extension.id]: event.target.value as "shared" | "project",
-                    }))
-                  }
-                >
-                  <option value="shared">Shared across projects</option>
-                  <option value="project">Isolated per project</option>
-                </select>
-                <Button
-                  type="button"
-                  aria-label={`Add profile for ${extension.manifest.displayName}`}
-                  disabled={busy || !(profileNames[extension.id] ?? "").trim()}
-                  onClick={() =>
-                    void run(async () => {
-                      const label = (profileNames[extension.id] ?? "").trim();
-                      const id = label
-                        .toLowerCase()
-                        .replace(/[^a-z0-9]+/g, "-")
-                        .replace(/^-|-$/g, "");
-                      await bridge.addExtensionProfile(
-                        extension.id,
-                        id,
-                        label,
-                        profileScopes[extension.id] ?? "shared",
-                      );
-                      setProfileNames((current) => ({ ...current, [extension.id]: "" }));
-                    })
-                  }
-                >
-                  Add profile
-                </Button>
-              </div>
-              {extension.manifest.capabilities?.includes("credentials") ? (
-                <div className="space-y-3 rounded border border-border p-3">
-                  <h4 className="text-sm font-medium">Account credentials</h4>
-                  <p className="text-xs text-muted-foreground">
-                    A saved token is sent as a Bearer credential only to its named HTTPS host when
-                    this extension asks for it in a project where credential use is allowed.
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    <label className="text-sm">
-                      Account profile
-                      <select
-                        className="ml-2 rounded border border-border bg-background px-2 py-1"
-                        value={
-                          credentialProfileSelection[extension.id] ??
-                          extension.profiles[0]?.id ??
-                          ""
-                        }
-                        disabled={busy}
-                        onChange={(event) => {
-                          setCredentialProfileSelection((current) => ({
-                            ...current,
-                            [extension.id]: event.target.value,
-                          }));
-                          setCredentialValues({});
-                        }}
-                      >
-                        {extension.profiles.map((profile) => (
-                          <option key={profile.id} value={profile.id}>
-                            {profile.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="text-sm">
-                      Service host
-                      <select
-                        className="ml-2 rounded border border-border bg-background px-2 py-1"
-                        value={
-                          credentialHostSelection[extension.id] ??
-                          extension.manifest.networkHosts?.[0] ??
-                          ""
-                        }
-                        disabled={busy}
-                        onChange={(event) => {
-                          setCredentialHostSelection((current) => ({
-                            ...current,
-                            [extension.id]: event.target.value,
-                          }));
-                          setCredentialValues({});
-                        }}
-                      >
-                        {(extension.manifest.networkHosts ?? []).map((host) => (
-                          <option key={host} value={host}>
-                            {host}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    {extension.profiles.find(
-                      (profile) =>
-                        profile.id ===
-                        (credentialProfileSelection[extension.id] ?? extension.profiles[0]?.id),
-                    )?.scope === "project" ? (
+          {extensions.length === 0 ? (
+            <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border px-5 py-8 text-center">
+              <UsersIcon aria-hidden="true" className="size-7 text-muted-foreground" />
+              <h3 className="text-sm font-medium">Your accounts, kept separate.</h3>
+              <p className="max-w-sm text-sm text-muted-foreground">
+                Install an extension to create Work and Personal profiles and manage access for each
+                project.
+              </p>
+              <Button variant="outline" onClick={() => setTab("discover")}>
+                Explore extensions
+              </Button>
+            </div>
+          ) : null}
+          {extensions.length > 0 ? (
+            <label className="flex flex-col gap-2 text-sm font-medium sm:flex-row sm:items-center sm:justify-between">
+              Manage an extension
+              <select
+                aria-label="Extension to manage profiles and permissions"
+                className="min-w-0 rounded-lg border border-border bg-background px-3 py-2 text-sm font-normal sm:max-w-xs"
+                value={activeProfileExtensionId}
+                onChange={(event) => setProfileExtensionId(event.target.value)}
+              >
+                {extensions.map((extension) => (
+                  <option key={extension.id} value={extension.id}>
+                    {extension.manifest.displayName}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          {extensions
+            .filter((extension) => extension.id === activeProfileExtensionId)
+            .map((extension) => (
+              <div
+                key={extension.id}
+                role="group"
+                aria-label={`${extension.manifest.displayName} profiles and permissions`}
+                className="space-y-5 rounded-xl border border-border bg-background/40 p-4"
+              >
+                <div className="flex items-center gap-3">
+                  <PuzzleIcon aria-hidden="true" className="size-5 text-muted-foreground" />
+                  <h3 className="font-semibold">{extension.manifest.displayName}</h3>
+                  <span className="ml-auto text-xs text-muted-foreground">
+                    {extension.profiles.length} profiles
+                  </span>
+                </div>
+                <label className="block text-sm">
+                  Default profile
+                  <select
+                    className="ml-2 rounded border border-border bg-background px-2 py-1"
+                    aria-label={`Default profile for ${extension.manifest.displayName}`}
+                    value={extension.assignment.defaultProfileId}
+                    disabled={busy}
+                    onChange={(event) =>
+                      assign(extension, {
+                        ...extension.assignment,
+                        defaultProfileId: event.target.value,
+                      })
+                    }
+                  >
+                    {extension.profiles.map((profile) => (
+                      <option key={profile.id} value={profile.id}>
+                        {profile.label} (
+                        {profile.scope === "project" ? "project-isolated" : "shared"})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  <Input
+                    aria-label={`New profile for ${extension.manifest.displayName}`}
+                    placeholder="Profile name"
+                    value={profileNames[extension.id] ?? ""}
+                    onChange={(event) =>
+                      setProfileNames((current) => ({
+                        ...current,
+                        [extension.id]: event.target.value,
+                      }))
+                    }
+                  />
+                  <select
+                    className="rounded border border-border bg-background px-2 py-1 text-sm"
+                    aria-label={`Storage scope for new ${extension.manifest.displayName} profile`}
+                    value={profileScopes[extension.id] ?? "shared"}
+                    disabled={busy}
+                    onChange={(event) =>
+                      setProfileScopes((current) => ({
+                        ...current,
+                        [extension.id]: event.target.value as "shared" | "project",
+                      }))
+                    }
+                  >
+                    <option value="shared">Shared across projects</option>
+                    <option value="project">Isolated per project</option>
+                  </select>
+                  <Button
+                    type="button"
+                    aria-label={`Add profile for ${extension.manifest.displayName}`}
+                    disabled={busy || !(profileNames[extension.id] ?? "").trim()}
+                    onClick={() =>
+                      void run(async () => {
+                        const label = (profileNames[extension.id] ?? "").trim();
+                        const id = label
+                          .toLowerCase()
+                          .replace(/[^a-z0-9]+/g, "-")
+                          .replace(/^-|-$/g, "");
+                        await bridge.addExtensionProfile(
+                          extension.id,
+                          id,
+                          label,
+                          profileScopes[extension.id] ?? "shared",
+                        );
+                        setProfileNames((current) => ({ ...current, [extension.id]: "" }));
+                      })
+                    }
+                  >
+                    Add profile
+                  </Button>
+                </div>
+                {extension.manifest.capabilities?.includes("credentials") ? (
+                  <div className="space-y-3 rounded border border-border p-3">
+                    <h4 className="text-sm font-medium">Account credentials</h4>
+                    <p className="text-xs text-muted-foreground">
+                      A saved token is sent as a Bearer credential only to its named HTTPS host when
+                      this extension asks for it in a project where credential use is allowed.
+                    </p>
+                    <div className="flex flex-wrap gap-2">
                       <label className="text-sm">
-                        Project
+                        Account profile
                         <select
                           className="ml-2 rounded border border-border bg-background px-2 py-1"
-                          value={credentialProjectSelection[extension.id] ?? projects[0]?.id ?? ""}
+                          value={
+                            credentialProfileSelection[extension.id] ??
+                            extension.profiles[0]?.id ??
+                            ""
+                          }
                           disabled={busy}
                           onChange={(event) => {
-                            setCredentialProjectSelection((current) => ({
+                            setCredentialProfileSelection((current) => ({
                               ...current,
                               [extension.id]: event.target.value,
                             }));
                             setCredentialValues({});
                           }}
                         >
-                          {projects.map((project) => (
-                            <option key={project.id} value={project.id}>
-                              {project.name}
+                          {extension.profiles.map((profile) => (
+                            <option key={profile.id} value={profile.id}>
+                              {profile.label}
                             </option>
                           ))}
                         </select>
                       </label>
-                    ) : null}
-                  </div>
-                  {extension.profiles
-                    .filter(
-                      (profile) =>
-                        profile.id ===
-                        (credentialProfileSelection[extension.id] ?? extension.profiles[0]?.id),
-                    )
-                    .flatMap((profile) =>
-                      (profile.scope === "project"
-                        ? projects
-                            .map((project) => project.id)
+                      <label className="text-sm">
+                        Service host
+                        <select
+                          className="ml-2 rounded border border-border bg-background px-2 py-1"
+                          value={
+                            credentialHostSelection[extension.id] ??
+                            extension.manifest.networkHosts?.[0] ??
+                            ""
+                          }
+                          disabled={busy}
+                          onChange={(event) => {
+                            setCredentialHostSelection((current) => ({
+                              ...current,
+                              [extension.id]: event.target.value,
+                            }));
+                            setCredentialValues({});
+                          }}
+                        >
+                          {(extension.manifest.networkHosts ?? []).map((host) => (
+                            <option key={host} value={host}>
+                              {host}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      {extension.profiles.find(
+                        (profile) =>
+                          profile.id ===
+                          (credentialProfileSelection[extension.id] ?? extension.profiles[0]?.id),
+                      )?.scope === "project" ? (
+                        <label className="text-sm">
+                          Project
+                          <select
+                            className="ml-2 rounded border border-border bg-background px-2 py-1"
+                            value={
+                              credentialProjectSelection[extension.id] ?? projects[0]?.id ?? ""
+                            }
+                            disabled={busy}
+                            onChange={(event) => {
+                              setCredentialProjectSelection((current) => ({
+                                ...current,
+                                [extension.id]: event.target.value,
+                              }));
+                              setCredentialValues({});
+                            }}
+                          >
+                            {projects.map((project) => (
+                              <option key={project.id} value={project.id}>
+                                {project.name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      ) : null}
+                    </div>
+                    {extension.profiles
+                      .filter(
+                        (profile) =>
+                          profile.id ===
+                          (credentialProfileSelection[extension.id] ?? extension.profiles[0]?.id),
+                      )
+                      .flatMap((profile) =>
+                        (profile.scope === "project"
+                          ? projects
+                              .map((project) => project.id)
+                              .filter(
+                                (id) =>
+                                  id ===
+                                  (credentialProjectSelection[extension.id] ?? projects[0]?.id),
+                              )
+                          : [undefined]
+                        ).flatMap((projectId) =>
+                          (extension.manifest.networkHosts ?? [])
                             .filter(
-                              (id) =>
-                                id ===
-                                (credentialProjectSelection[extension.id] ?? projects[0]?.id),
+                              (host) =>
+                                host ===
+                                (credentialHostSelection[extension.id] ??
+                                  extension.manifest.networkHosts?.[0]),
                             )
-                        : [undefined]
-                      ).flatMap((projectId) =>
-                        (extension.manifest.networkHosts ?? [])
-                          .filter(
-                            (host) =>
-                              host ===
-                              (credentialHostSelection[extension.id] ??
-                                extension.manifest.networkHosts?.[0]),
-                          )
-                          .map((host) => {
-                            const key = JSON.stringify([
-                              extension.id,
-                              profile.id,
-                              projectId ?? null,
-                              host,
-                            ]);
-                            const list = credentialStatuses[extension.id];
-                            const saved =
-                              Array.isArray(list) &&
-                              list.some(
-                                (status) =>
-                                  status.profileId === profile.id &&
-                                  status.projectId === projectId &&
-                                  status.host === host,
-                              );
-                            const label = `${extension.manifest.displayName} ${profile.label}${projectId ? ` for ${projects.find((project) => project.id === projectId)?.name ?? projectId}` : ""} credential for ${host}`;
-                            return (
-                              <div key={key} className="space-y-1">
-                                <label className="block text-sm">
-                                  {label} ({saved ? "Saved" : "Not set"})
-                                  <Input
-                                    className="mt-1"
-                                    type="password"
-                                    autoComplete="off"
-                                    value={credentialValues[key] ?? ""}
-                                    disabled={busy}
-                                    onChange={(event) =>
-                                      setCredentialValues((current) => ({
-                                        ...current,
-                                        [key]: event.target.value,
-                                      }))
-                                    }
-                                  />
-                                </label>
-                                <div className="flex gap-2">
-                                  <Button
-                                    type="button"
-                                    aria-label={`Save token for ${label}`}
-                                    disabled={busy || !(credentialValues[key] ?? "").trim()}
-                                    onClick={() =>
-                                      void run(async () => {
-                                        await bridge?.setExtensionCredential(
-                                          extension.id,
-                                          profile.id,
-                                          host,
-                                          credentialValues[key] ?? "",
-                                          projectId,
-                                        );
+                            .map((host) => {
+                              const key = JSON.stringify([
+                                extension.id,
+                                profile.id,
+                                projectId ?? null,
+                                host,
+                              ]);
+                              const list = credentialStatuses[extension.id];
+                              const saved =
+                                Array.isArray(list) &&
+                                list.some(
+                                  (status) =>
+                                    status.profileId === profile.id &&
+                                    status.projectId === projectId &&
+                                    status.host === host,
+                                );
+                              const label = `${extension.manifest.displayName} ${profile.label}${projectId ? ` for ${projects.find((project) => project.id === projectId)?.name ?? projectId}` : ""} credential for ${host}`;
+                              return (
+                                <div key={key} className="space-y-1">
+                                  <label className="block text-sm">
+                                    {label} ({saved ? "Saved" : "Not set"})
+                                    <Input
+                                      className="mt-1"
+                                      type="password"
+                                      autoComplete="off"
+                                      value={credentialValues[key] ?? ""}
+                                      disabled={busy}
+                                      onChange={(event) =>
                                         setCredentialValues((current) => ({
                                           ...current,
-                                          [key]: "",
-                                        }));
-                                        const statuses = await bridge?.listExtensionCredentials(
-                                          extension.id,
-                                        );
-                                        if (statuses)
-                                          setCredentialStatuses((current) => ({
+                                          [key]: event.target.value,
+                                        }))
+                                      }
+                                    />
+                                  </label>
+                                  <div className="flex gap-2">
+                                    <Button
+                                      type="button"
+                                      aria-label={`Save token for ${label}`}
+                                      disabled={busy || !(credentialValues[key] ?? "").trim()}
+                                      onClick={() =>
+                                        void run(async () => {
+                                          await bridge?.setExtensionCredential(
+                                            extension.id,
+                                            profile.id,
+                                            host,
+                                            credentialValues[key] ?? "",
+                                            projectId,
+                                          );
+                                          setCredentialValues((current) => ({
                                             ...current,
-                                            [extension.id]: statuses,
+                                            [key]: "",
                                           }));
-                                      })
-                                    }
-                                  >
-                                    Save token
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    aria-label={`Remove token for ${label}`}
-                                    disabled={busy || !saved}
-                                    onClick={() =>
-                                      void run(async () => {
-                                        await bridge?.setExtensionCredential(
-                                          extension.id,
-                                          profile.id,
-                                          host,
-                                          null,
-                                          projectId,
-                                        );
-                                        const statuses = await bridge?.listExtensionCredentials(
-                                          extension.id,
-                                        );
-                                        if (statuses)
-                                          setCredentialStatuses((current) => ({
-                                            ...current,
-                                            [extension.id]: statuses,
-                                          }));
-                                      })
-                                    }
-                                  >
-                                    Remove token
-                                  </Button>
+                                          const statuses = await bridge?.listExtensionCredentials(
+                                            extension.id,
+                                          );
+                                          if (statuses)
+                                            setCredentialStatuses((current) => ({
+                                              ...current,
+                                              [extension.id]: statuses,
+                                            }));
+                                        })
+                                      }
+                                    >
+                                      Save token
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      aria-label={`Remove token for ${label}`}
+                                      disabled={busy || !saved}
+                                      onClick={() =>
+                                        void run(async () => {
+                                          await bridge?.setExtensionCredential(
+                                            extension.id,
+                                            profile.id,
+                                            host,
+                                            null,
+                                            projectId,
+                                          );
+                                          const statuses = await bridge?.listExtensionCredentials(
+                                            extension.id,
+                                          );
+                                          if (statuses)
+                                            setCredentialStatuses((current) => ({
+                                              ...current,
+                                              [extension.id]: statuses,
+                                            }));
+                                        })
+                                      }
+                                    >
+                                      Remove token
+                                    </Button>
+                                  </div>
                                 </div>
-                              </div>
+                              );
+                            }),
+                        ),
+                      )}
+                  </div>
+                ) : null}
+                {(credentialStatuses[extension.id] ?? [])
+                  .filter(
+                    (saved) =>
+                      !extension.manifest.capabilities?.includes("credentials") ||
+                      !extension.manifest.networkHosts?.includes(saved.host) ||
+                      !extension.profiles.some((profile) => profile.id === saved.profileId) ||
+                      (saved.projectId !== undefined &&
+                        !projects.some((project) => project.id === saved.projectId)),
+                  )
+                  .map((saved) => (
+                    <div key={JSON.stringify(saved)} className="flex items-center gap-2 text-sm">
+                      <span>
+                        Retained credential for {saved.profileId}
+                        {saved.projectId ? ` / ${saved.projectId}` : ""} at {saved.host}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        aria-label={`Remove retained token for ${extension.manifest.displayName} ${saved.profileId}${saved.projectId ? ` in ${saved.projectId}` : ""} at ${saved.host}`}
+                        disabled={busy}
+                        onClick={() =>
+                          void run(async () => {
+                            await bridge?.setExtensionCredential(
+                              extension.id,
+                              saved.profileId,
+                              saved.host,
+                              null,
+                              saved.projectId,
                             );
-                          }),
-                      ),
-                    )}
-                </div>
-              ) : null}
-              {(credentialStatuses[extension.id] ?? [])
-                .filter(
-                  (saved) =>
-                    !extension.manifest.capabilities?.includes("credentials") ||
-                    !extension.manifest.networkHosts?.includes(saved.host) ||
-                    !extension.profiles.some((profile) => profile.id === saved.profileId) ||
-                    (saved.projectId !== undefined &&
-                      !projects.some((project) => project.id === saved.projectId)),
-                )
-                .map((saved) => (
-                  <div key={JSON.stringify(saved)} className="flex items-center gap-2 text-sm">
-                    <span>
-                      Retained credential for {saved.profileId}
-                      {saved.projectId ? ` / ${saved.projectId}` : ""} at {saved.host}
-                    </span>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      aria-label={`Remove retained token for ${extension.manifest.displayName} ${saved.profileId}${saved.projectId ? ` in ${saved.projectId}` : ""} at ${saved.host}`}
-                      disabled={busy}
-                      onClick={() =>
-                        void run(async () => {
-                          await bridge?.setExtensionCredential(
-                            extension.id,
-                            saved.profileId,
-                            saved.host,
-                            null,
-                            saved.projectId,
-                          );
-                          const statuses = await bridge?.listExtensionCredentials(extension.id);
-                          if (statuses)
-                            setCredentialStatuses((current) => ({
-                              ...current,
-                              [extension.id]: statuses,
-                            }));
-                        })
-                      }
-                    >
-                      Remove retained token
-                    </Button>
+                            const statuses = await bridge?.listExtensionCredentials(extension.id);
+                            if (statuses)
+                              setCredentialStatuses((current) => ({
+                                ...current,
+                                [extension.id]: statuses,
+                              }));
+                          })
+                        }
+                      >
+                        Remove retained token
+                      </Button>
+                    </div>
+                  ))}
+                {projects.map((project) => (
+                  <div
+                    key={project.id}
+                    className="space-y-3 rounded-xl border border-border bg-muted/20 p-4"
+                  >
+                    <label className="flex items-center justify-between gap-2 text-sm">
+                      {project.name}
+                      <select
+                        className="rounded border border-border bg-background px-2 py-1"
+                        aria-label={`${extension.manifest.displayName} profile for ${project.name}`}
+                        value={extension.assignment.profileIdByProjectId[project.id] ?? ""}
+                        disabled={busy}
+                        onChange={(event) => {
+                          const next = { ...extension.assignment.profileIdByProjectId };
+                          if (event.target.value) next[project.id] = event.target.value;
+                          else delete next[project.id];
+                          assign(extension, {
+                            ...extension.assignment,
+                            profileIdByProjectId: next,
+                          });
+                        }}
+                      >
+                        <option value="">Use default</option>
+                        {extension.profiles.map((profile) => (
+                          <option key={profile.id} value={profile.id}>
+                            {profile.label} (
+                            {profile.scope === "project" ? "project-isolated" : "shared"})
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    {extension.manifest.capabilities?.includes("profile-storage") ? (
+                      <label className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          aria-label={`Allow ${extension.manifest.displayName} profile storage in ${project.name}`}
+                          checked={
+                            extension.assignment.storageGrantedProjectIds?.includes(project.id) ??
+                            false
+                          }
+                          disabled={busy}
+                          onChange={(event) => {
+                            const ids = extension.assignment.storageGrantedProjectIds ?? [];
+                            assign(extension, {
+                              ...extension.assignment,
+                              storageGrantedProjectIds: event.target.checked
+                                ? [...ids, project.id]
+                                : ids.filter((id) => id !== project.id),
+                            });
+                          }}
+                        />
+                        Allow non-secret profile storage for {project.name}
+                      </label>
+                    ) : null}
+                    {extension.manifest.capabilities?.includes("workspace-read") ? (
+                      <label className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          aria-label={`Allow ${extension.manifest.displayName} to read workspace files in ${project.name}`}
+                          checked={
+                            extension.assignment.workspaceReadGrantedProjectIds?.includes(
+                              project.id,
+                            ) ?? false
+                          }
+                          disabled={busy}
+                          onChange={(event) => {
+                            const ids = extension.assignment.workspaceReadGrantedProjectIds ?? [];
+                            assign(extension, {
+                              ...extension.assignment,
+                              workspaceReadGrantedProjectIds: event.target.checked
+                                ? [...ids, project.id]
+                                : ids.filter((id) => id !== project.id),
+                            });
+                          }}
+                        />
+                        Allow read-only workspace files for {project.name}
+                      </label>
+                    ) : null}
+                    {extension.manifest.capabilities?.includes("git-status") ? (
+                      <label className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          aria-label={`Allow ${extension.manifest.displayName} to read Git status in ${project.name}`}
+                          checked={
+                            extension.assignment.gitStatusGrantedProjectIds?.includes(project.id) ??
+                            false
+                          }
+                          disabled={busy}
+                          onChange={(event) => {
+                            const ids = extension.assignment.gitStatusGrantedProjectIds ?? [];
+                            assign(extension, {
+                              ...extension.assignment,
+                              gitStatusGrantedProjectIds: event.target.checked
+                                ? [...ids, project.id]
+                                : ids.filter((id) => id !== project.id),
+                            });
+                          }}
+                        />
+                        Allow read-only Git status for {project.name}
+                      </label>
+                    ) : null}
+                    {extension.manifest.capabilities?.includes("network") ? (
+                      <label className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          aria-label={`Allow ${extension.manifest.displayName} network access in ${project.name}`}
+                          checked={
+                            extension.assignment.networkGrantedProjectIds?.includes(project.id) ??
+                            false
+                          }
+                          disabled={busy}
+                          onChange={(event) => {
+                            const ids = extension.assignment.networkGrantedProjectIds ?? [];
+                            assign(extension, {
+                              ...extension.assignment,
+                              networkGrantedProjectIds: event.target.checked
+                                ? [...ids, project.id]
+                                : ids.filter((id) => id !== project.id),
+                            });
+                          }}
+                        />
+                        Allow HTTPS requests to {extension.manifest.networkHosts?.join(", ")} for{" "}
+                        {project.name}
+                      </label>
+                    ) : null}
+                    {extension.manifest.capabilities?.includes("credentials") ? (
+                      <label className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          aria-label={`Allow ${extension.manifest.displayName} credential use in ${project.name}`}
+                          checked={
+                            extension.assignment.credentialGrantedProjectIds?.includes(
+                              project.id,
+                            ) ?? false
+                          }
+                          disabled={busy}
+                          onChange={(event) => {
+                            const ids = extension.assignment.credentialGrantedProjectIds ?? [];
+                            assign(extension, {
+                              ...extension.assignment,
+                              credentialGrantedProjectIds: event.target.checked
+                                ? [...ids, project.id]
+                                : ids.filter((id) => id !== project.id),
+                            });
+                          }}
+                        />
+                        Allow account credential use for {project.name}
+                      </label>
+                    ) : null}
+                    {extension.manifest.capabilities?.includes("ai-tools") ? (
+                      <label className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          aria-label={`Allow agents to run ${extension.manifest.displayName} commands in ${project.name}`}
+                          checked={
+                            extension.assignment.aiToolGrantedProjectIds?.includes(project.id) ??
+                            false
+                          }
+                          disabled={busy}
+                          onChange={(event) => {
+                            const ids = extension.assignment.aiToolGrantedProjectIds ?? [];
+                            assign(extension, {
+                              ...extension.assignment,
+                              aiToolGrantedProjectIds: event.target.checked
+                                ? [...ids, project.id]
+                                : ids.filter((id) => id !== project.id),
+                            });
+                          }}
+                        />
+                        Allow agents to run {extension.manifest.displayName} commands for{" "}
+                        {project.name}
+                      </label>
+                    ) : null}
                   </div>
                 ))}
-              {projects.map((project) => (
-                <div key={project.id} className="space-y-1">
-                  <label className="flex items-center justify-between gap-2 text-sm">
-                    {project.name}
-                    <select
-                      className="rounded border border-border bg-background px-2 py-1"
-                      aria-label={`${extension.manifest.displayName} profile for ${project.name}`}
-                      value={extension.assignment.profileIdByProjectId[project.id] ?? ""}
-                      disabled={busy}
-                      onChange={(event) => {
-                        const next = { ...extension.assignment.profileIdByProjectId };
-                        if (event.target.value) next[project.id] = event.target.value;
-                        else delete next[project.id];
-                        assign(extension, { ...extension.assignment, profileIdByProjectId: next });
-                      }}
-                    >
-                      <option value="">Use default</option>
-                      {extension.profiles.map((profile) => (
-                        <option key={profile.id} value={profile.id}>
-                          {profile.label} (
-                          {profile.scope === "project" ? "project-isolated" : "shared"})
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  {extension.manifest.capabilities?.includes("profile-storage") ? (
-                    <label className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        aria-label={`Allow ${extension.manifest.displayName} profile storage in ${project.name}`}
-                        checked={
-                          extension.assignment.storageGrantedProjectIds?.includes(project.id) ??
-                          false
-                        }
-                        disabled={busy}
-                        onChange={(event) => {
-                          const ids = extension.assignment.storageGrantedProjectIds ?? [];
-                          assign(extension, {
-                            ...extension.assignment,
-                            storageGrantedProjectIds: event.target.checked
-                              ? [...ids, project.id]
-                              : ids.filter((id) => id !== project.id),
-                          });
-                        }}
-                      />
-                      Allow non-secret profile storage for {project.name}
-                    </label>
-                  ) : null}
-                  {extension.manifest.capabilities?.includes("workspace-read") ? (
-                    <label className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        aria-label={`Allow ${extension.manifest.displayName} to read workspace files in ${project.name}`}
-                        checked={
-                          extension.assignment.workspaceReadGrantedProjectIds?.includes(
-                            project.id,
-                          ) ?? false
-                        }
-                        disabled={busy}
-                        onChange={(event) => {
-                          const ids = extension.assignment.workspaceReadGrantedProjectIds ?? [];
-                          assign(extension, {
-                            ...extension.assignment,
-                            workspaceReadGrantedProjectIds: event.target.checked
-                              ? [...ids, project.id]
-                              : ids.filter((id) => id !== project.id),
-                          });
-                        }}
-                      />
-                      Allow read-only workspace files for {project.name}
-                    </label>
-                  ) : null}
-                  {extension.manifest.capabilities?.includes("git-status") ? (
-                    <label className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        aria-label={`Allow ${extension.manifest.displayName} to read Git status in ${project.name}`}
-                        checked={
-                          extension.assignment.gitStatusGrantedProjectIds?.includes(project.id) ??
-                          false
-                        }
-                        disabled={busy}
-                        onChange={(event) => {
-                          const ids = extension.assignment.gitStatusGrantedProjectIds ?? [];
-                          assign(extension, {
-                            ...extension.assignment,
-                            gitStatusGrantedProjectIds: event.target.checked
-                              ? [...ids, project.id]
-                              : ids.filter((id) => id !== project.id),
-                          });
-                        }}
-                      />
-                      Allow read-only Git status for {project.name}
-                    </label>
-                  ) : null}
-                  {extension.manifest.capabilities?.includes("network") ? (
-                    <label className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        aria-label={`Allow ${extension.manifest.displayName} network access in ${project.name}`}
-                        checked={
-                          extension.assignment.networkGrantedProjectIds?.includes(project.id) ??
-                          false
-                        }
-                        disabled={busy}
-                        onChange={(event) => {
-                          const ids = extension.assignment.networkGrantedProjectIds ?? [];
-                          assign(extension, {
-                            ...extension.assignment,
-                            networkGrantedProjectIds: event.target.checked
-                              ? [...ids, project.id]
-                              : ids.filter((id) => id !== project.id),
-                          });
-                        }}
-                      />
-                      Allow HTTPS requests to {extension.manifest.networkHosts?.join(", ")} for{" "}
-                      {project.name}
-                    </label>
-                  ) : null}
-                  {extension.manifest.capabilities?.includes("credentials") ? (
-                    <label className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        aria-label={`Allow ${extension.manifest.displayName} credential use in ${project.name}`}
-                        checked={
-                          extension.assignment.credentialGrantedProjectIds?.includes(project.id) ??
-                          false
-                        }
-                        disabled={busy}
-                        onChange={(event) => {
-                          const ids = extension.assignment.credentialGrantedProjectIds ?? [];
-                          assign(extension, {
-                            ...extension.assignment,
-                            credentialGrantedProjectIds: event.target.checked
-                              ? [...ids, project.id]
-                              : ids.filter((id) => id !== project.id),
-                          });
-                        }}
-                      />
-                      Allow account credential use for {project.name}
-                    </label>
-                  ) : null}
-                  {extension.manifest.capabilities?.includes("ai-tools") ? (
-                    <label className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        aria-label={`Allow agents to run ${extension.manifest.displayName} commands in ${project.name}`}
-                        checked={
-                          extension.assignment.aiToolGrantedProjectIds?.includes(project.id) ??
-                          false
-                        }
-                        disabled={busy}
-                        onChange={(event) => {
-                          const ids = extension.assignment.aiToolGrantedProjectIds ?? [];
-                          assign(extension, {
-                            ...extension.assignment,
-                            aiToolGrantedProjectIds: event.target.checked
-                              ? [...ids, project.id]
-                              : ids.filter((id) => id !== project.id),
-                          });
-                        }}
-                      />
-                      Allow agents to run {extension.manifest.displayName} commands for{" "}
-                      {project.name}
-                    </label>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          ))}
+              </div>
+            ))}
         </SettingsSection>
       )}
     </div>
