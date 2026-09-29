@@ -88,8 +88,9 @@ root signed to satisfy both the old and new root-role thresholds, retain every
 intermediate `N.root.json`, then publish fresh timestamp, snapshot, and targets
 metadata. Confirm that the desktop advances from its original pinned root,
 rejects a root lacking the new-key threshold, and rejects older metadata after
-the advance. The publication test covers the dual-signature gate, but it is
-not a substitute for an operational key ceremony and client drill. See the
+the advance. Automated publication and desktop tests cover the dual-signature
+gate and persisted client advance, but they are not a substitute for an
+operational key ceremony and client drill. See the
 [TUF root update rules](https://github.com/theupdateframework/specification/blob/master/tuf-spec.md#update-root).
 
 ## Local self-hosting

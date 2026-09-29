@@ -105,6 +105,36 @@ function fixture() {
     metadata["targets.json"] = targetsBytes;
   };
   publish(1, true);
+  const rotateRoot = (signWithNewKey: boolean) => {
+    const rotated = Crypto.generateKeyPairSync("ed25519");
+    const publicBytes = rotated.publicKey.export({ format: "der", type: "spki" }).subarray(-32);
+    const rotatedKeyID = Crypto.createHash("sha256").update(publicBytes).digest("hex");
+    const rotatedKey = new Key({
+      keyID: rotatedKeyID,
+      keyType: "ed25519",
+      scheme: "ed25519",
+      keyVal: { public: publicBytes.toString("hex") },
+    });
+    const nextRoot = new Root({ ...common, version: 2, consistentSnapshot: false });
+    nextRoot.addKey(rotatedKey, "root");
+    for (const role of ["timestamp", "snapshot", "targets"]) nextRoot.addKey(key, role);
+    const signed = new Metadata(nextRoot);
+    signed.sign(
+      (bytes) =>
+        new Signature({ keyID, sig: Crypto.sign(null, bytes, privateKey).toString("hex") }),
+    );
+    if (signWithNewKey) {
+      signed.sign(
+        (bytes) =>
+          new Signature({
+            keyID: rotatedKeyID,
+            sig: Crypto.sign(null, bytes, rotated.privateKey).toString("hex"),
+          }),
+      );
+    }
+    metadata["2.root.json"] = Buffer.from(JSON.stringify(signed.toJSON()));
+    publish(2, true);
+  };
   const fetcher: typeof fetch = async (input) => {
     const url = String(input);
     const filename = url.split("/").at(-1)!;
@@ -115,10 +145,34 @@ function fixture() {
     Object.defineProperty(response, "url", { value: url });
     return response;
   };
-  return { rootBytes, metadata, fetcher, digest, targetBytes, path, publish };
+  return { rootBytes, metadata, fetcher, digest, targetBytes, path, publish, rotateRoot };
 }
 
 describe("trusted Exchange metadata", () => {
+  it("advances from a pinned root only through a dual-signed rotation", async () => {
+    const source = fixture();
+    const stateRoot = temporaryDirectory();
+    const trusted = new TrustedExchange({
+      origin,
+      trustId: "rotation-test",
+      initialRoot: source.rootBytes,
+      stateRoot,
+      fetcher: source.fetcher,
+    });
+    expect(await trusted.resolve("acme", "dashboard", "1.0.0")).not.toBeNull();
+    source.rotateRoot(false);
+    await expect(trusted.resolve("acme", "dashboard", "1.0.0")).rejects.toThrow();
+    source.rotateRoot(true);
+    expect(await trusted.resolve("acme", "dashboard", "1.0.0")).not.toBeNull();
+    const metadataDirectory = Path.join(stateRoot, FS.readdirSync(stateRoot)[0]!);
+    const persisted = JSON.parse(
+      FS.readFileSync(Path.join(metadataDirectory, "root.json"), "utf8"),
+    );
+    expect(persisted.signed.version).toBe(2);
+    source.publish(1, true);
+    await expect(trusted.resolve("acme", "dashboard", "1.0.0")).rejects.toThrow();
+  });
+
   it("rejects target identities that could escape their namespace", () => {
     expect(() => exchangeTargetPath("../acme", "dashboard", "1.0.0")).toThrow();
     expect(() => exchangeTargetPath("acme", "dashboard", "../../file")).toThrow();
