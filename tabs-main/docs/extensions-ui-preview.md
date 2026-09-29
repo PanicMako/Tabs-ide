@@ -55,9 +55,11 @@ The populated preview was checked in the browser, including catalog, search filt
 no-result state, and version details. At the mobile breakpoint the document had no
 horizontal overflow; the package-integrity disclosure opened with Enter.
 The settings browser tests cover install/uninstall focus, cancellation, and switching
-between extension profile forms. The server rerun passed 228 files and 1,848 tests
-(27 skipped). The initial full workspace test run passed the other 16 package tasks.
-All 15 workspace typechecks passed. The 23 pre-existing formatting failures were
+between extension profile forms. The final full workspace suite passed all 17 tasks
+with `bunx turbo run test --concurrency=2 --force` (5m 6s). Default-concurrency runs
+hit short timeouts in unrelated server/ACP tests; test timeouts were not changed.
+The server task passed 228 files and 1,848 tests (27 skipped). All 15 workspace
+typechecks passed, and all three targeted browser tests passed. The 23 pre-existing formatting failures were
 mechanically formatted and their diff reviewed without changing behavior. `vp check`
 now passes with existing lint warnings, using `NODE_OPTIONS=--max-old-space-size=8192`
 because the default lint process exhausted its heap.
