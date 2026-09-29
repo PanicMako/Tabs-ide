@@ -1683,6 +1683,34 @@ describe("development extension installation", () => {
     expect(coordinator.attachToolView).toHaveBeenCalledTimes(2);
   });
 
+  it("starts a new activation when a retry has a new ID while the old load is unresolved", async () => {
+    const { manager, installed, second } = await exchangeUpdateFixture();
+    const coordinator = { attachToolView: vi.fn(), detachToolView: vi.fn() };
+    (manager as unknown as { coordinator: unknown }).coordinator = coordinator;
+    const loadURL = vi
+      .fn()
+      .mockImplementationOnce(() => new Promise<void>(() => undefined))
+      .mockResolvedValueOnce(undefined);
+    mockElectronExtensionView(loadURL);
+    const input = {
+      extensionId: installed.id,
+      toolId: "main",
+      projectId: "project-a",
+      profileId: "default",
+    };
+
+    const oldActivation = manager.activate({ ...input, activationId: "attempt-1" });
+    await manager.activate({ ...input, activationId: "attempt-2" });
+    await expect(oldActivation).resolves.toBeUndefined();
+
+    expect(loadURL).toHaveBeenCalledTimes(2);
+    expect(
+      (manager as unknown as { active: { activationId: string } | null }).active?.activationId,
+    ).toBe("attempt-2");
+    expect(manager.list()[0]?.digest).toBe(second.digest);
+    expect(coordinator.detachToolView).toHaveBeenCalledTimes(1);
+  });
+
   it("does not roll back a successful replacement when an older load fails late", async () => {
     const { manager, installed, second } = await exchangeUpdateFixture();
     manager.setAssignment(installed.id, {
@@ -1713,8 +1741,9 @@ describe("development extension installation", () => {
       projectId: "project-b",
       profileId: "default",
     });
+    await expect(firstActivation).resolves.toBeUndefined();
     rejectFirst(new Error("old renderer failed"));
-    await expect(firstActivation).rejects.toThrow("old renderer failed");
+    await Promise.resolve();
     expect(manager.list()[0]?.digest).toBe(second.digest);
     expect(coordinator.detachToolView).toHaveBeenCalledTimes(1);
   });
@@ -2339,6 +2368,13 @@ describe("development extension installation", () => {
 
     // Stale hide from attempt-1 cleanup must NOT hide view 2
     manager.hide({ activationId: "attempt-1" });
+    expect((manager as unknown as { active: { activationId: string } }).active?.activationId).toBe(
+      "attempt-2",
+    );
+
+    // A malformed scoped request must not become an unscoped hide.
+    manager.hide({});
+    manager.hide({ activationId: "invalid id" });
     expect((manager as unknown as { active: { activationId: string } }).active?.activationId).toBe(
       "attempt-2",
     );
