@@ -23,25 +23,17 @@ import {
 import { scanExtractedPackage } from "./scan.ts";
 
 /**
- * Full Exchange & Desktop Extension Lifecycle Integration Test
+ * Tabs Exchange Package, Storage, and Crypto Composition Pipeline Test
  *
- * Exercises the end-to-end lifecycle across the entire system:
- * 1. Publisher namespace membership & terms acceptance
- * 2. Quarantine package creation and upload
- * 3. Bounded quarantine scan
- * 4. Reviewer exact-digest inspection & approval
- * 5. TUF signed publication & targets index update
- * 6. Catalog discovery & version route
- * 7. Trusted download, TUF verification & project installation
- * 8. Work and Personal profile isolation (separate namespaces & storage)
- * 9. Approved version update with profile-storage migration
- * 10. Rollback on failed first activation
- * 11. Revocation lifecycle (removal from targets, desktop revocation detection & view closure).
+ * Exercises the composition of packaging, quarantine scanning, TUF signed
+ * targets indexing, storage migrations, and rollback snapshots using real
+ * cryptographic models and package tooling with in-process storage adapters.
  *
- * Test Infrastructure Note:
- * This integration test runs with fast, deterministic in-process mocks for external
- * PostgreSQL, S3/R2 storage, and Electron windows, while exercising the real cryptographic
- * signing, manifest verification, zip inspection, profile migrations, and lifecycle state machines.
+ * Infrastructure Note:
+ * This composition test verifies crypto/storage/packaging primitives. It does
+ * NOT invoke live Exchange HTTP routes, background scan workers, or real
+ * PostgreSQL/R2 storage instances; live end-to-end service execution remains
+ * unverified without external infrastructure.
  */
 
 const temporaryDirectories: string[] = [];
@@ -52,7 +44,7 @@ afterEach(async () => {
   }
 });
 
-describe("Exchange end-to-end lifecycle integration", () => {
+describe("Exchange package, storage, and crypto composition", () => {
   it("exercises the complete publisher -> scan -> review -> publication -> install -> profiles -> update -> rollback -> revocation lifecycle", async () => {
     const tempDir = await FS.mkdtemp(Path.join(OS.tmpdir(), "tabs-exchange-lifecycle-"));
     temporaryDirectories.push(tempDir);

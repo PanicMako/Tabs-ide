@@ -4,6 +4,7 @@ import type { NotificationToastPayload } from "./notificationOverlay.ts";
 import type {
   DesktopExtensionBoundsInput,
   DesktopExtensionViewInput,
+  DesktopExtensionHideInput,
   DesktopExchangeListing,
   DesktopExchangePage,
   DesktopInstalledExtension,
@@ -1192,6 +1193,7 @@ export interface DesktopExtensionViewErrorEvent {
   readonly extensionId: string;
   readonly toolId: string;
   readonly profileId: string;
+  readonly activationId?: string;
   readonly error: string;
 }
 
@@ -1235,7 +1237,7 @@ export interface DesktopBridge {
   ) => Promise<void>;
   activateExtensionTool: (input: DesktopExtensionViewInput) => Promise<void>;
   setExtensionBounds: (input: DesktopExtensionBoundsInput) => Promise<void>;
-  hideExtensionTool: () => Promise<void>;
+  hideExtensionTool: (input?: DesktopExtensionHideInput | string) => Promise<void>;
   writeClipboardText: (text: string) => Promise<void>;
   readClipboardText?: (type?: "clipboard" | "selection") => Promise<string>;
   getDesktopCapturePermissionStatus?: () => Promise<DesktopCapturePermissionStatus>;

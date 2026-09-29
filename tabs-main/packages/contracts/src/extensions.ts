@@ -167,6 +167,7 @@ export interface DesktopExtensionViewInput {
   readonly toolId: string;
   readonly projectId: string;
   readonly profileId: string;
+  readonly activationId?: string;
 }
 
 export interface DesktopExtensionBoundsInput extends DesktopExtensionViewInput {
@@ -175,4 +176,8 @@ export interface DesktopExtensionBoundsInput extends DesktopExtensionViewInput {
   readonly width: number;
   readonly height: number;
   readonly visible: boolean;
+}
+
+export interface DesktopExtensionHideInput {
+  readonly activationId?: string;
 }

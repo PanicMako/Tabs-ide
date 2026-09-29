@@ -2333,6 +2333,15 @@ function registerIpcHandlers(): void {
       )
     )
       throw new Error("Invalid extension view.");
+    if (
+      value.activationId !== undefined &&
+      (typeof value.activationId !== "string" ||
+        value.activationId.length === 0 ||
+        value.activationId.length > 128 ||
+        !/^[a-zA-Z0-9_-]+$/.test(value.activationId))
+    ) {
+      throw new Error("Invalid activation attempt ID.");
+    }
     const before = extensionViewManager.list().find((entry) => entry.id === value.extensionId);
     if (before?.source === "exchange") {
       if (before.revoked) throw new Error("This extension version has been revoked.");
@@ -2348,12 +2357,39 @@ function registerIpcHandlers(): void {
   ipcMain.handle(EXTENSION_SET_BOUNDS_CHANNEL, async (event, input: unknown) => {
     requireMainRenderer(event);
     if (!input || typeof input !== "object") return;
-    extensionViewManager.setBounds(input as DesktopExtensionBoundsInput);
+    const value = input as DesktopExtensionBoundsInput;
+    if (
+      value.activationId !== undefined &&
+      (typeof value.activationId !== "string" ||
+        value.activationId.length === 0 ||
+        value.activationId.length > 128 ||
+        !/^[a-zA-Z0-9_-]+$/.test(value.activationId))
+    ) {
+      return;
+    }
+    extensionViewManager.setBounds(value);
   });
   ipcMain.removeHandler(EXTENSION_HIDE_CHANNEL);
-  ipcMain.handle(EXTENSION_HIDE_CHANNEL, async (event) => {
+  ipcMain.handle(EXTENSION_HIDE_CHANNEL, async (event, input?: unknown) => {
     requireMainRenderer(event);
-    extensionViewManager.hide();
+    let activationId: string | undefined;
+    if (typeof input === "string") {
+      activationId = input;
+    } else if (input && typeof input === "object" && "activationId" in input) {
+      const candidate = (input as { activationId?: unknown }).activationId;
+      if (typeof candidate === "string") {
+        activationId = candidate;
+      }
+    }
+    if (
+      activationId !== undefined &&
+      (activationId.length === 0 ||
+        activationId.length > 128 ||
+        !/^[a-zA-Z0-9_-]+$/.test(activationId))
+    ) {
+      return;
+    }
+    extensionViewManager.hide(activationId ? { activationId } : undefined);
     applyAvailableExchangeUpdates();
   });
   ipcMain.removeHandler(EXTENSION_STORAGE_CHANNEL);

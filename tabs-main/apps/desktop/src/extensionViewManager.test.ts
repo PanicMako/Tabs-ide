@@ -2127,6 +2127,7 @@ describe("development extension installation", () => {
       toolId: "main",
       projectId: "project-a",
       profileId: "default",
+      activationId: "attempt-1",
     };
     await manager.activate(input);
     expect(coordinator.attachToolView).toHaveBeenCalledOnce();
@@ -2140,27 +2141,92 @@ describe("development extension installation", () => {
     expect(viewClose).toHaveBeenCalledOnce();
     expect((manager as unknown as { active: unknown }).active).toBeNull();
 
-    // Host must send EXTENSION_VIEW_ERROR_CHANNEL event with project and tool identity
+    // Host must send EXTENSION_VIEW_ERROR_CHANNEL event with project, tool, and activation identity
     expect(send).toHaveBeenCalledWith("desktop:extension:view-error", {
       projectId: "project-a",
       extensionId: installed.id,
       toolId: "main",
       profileId: "default",
+      activationId: "attempt-1",
       error: "The extension crashed (crashed).",
     });
 
-    // Safe retry: reactivating creates a fresh view
-    await manager.activate(input);
+    // Safe retry: reactivating creates a fresh view with new activationId
+    await manager.activate({ ...input, activationId: "attempt-2" });
     expect(coordinator.attachToolView).toHaveBeenCalledTimes(2);
     expect((manager as unknown as { active: unknown }).active).not.toBeNull();
   });
 
-  it("ignores stale crash event from an older view after user switched project/tool", async () => {
+  it("settles activation as failure and rolls back pending update exactly once on crash during unresolved first load", async () => {
     const { manager, installed } = await exchangeUpdateFixture();
-    manager.setAssignment(installed.id, {
-      ...manager.list()[0]!.assignment,
-      enabledProjectIds: ["project-a", "project-b"],
+    const coordinator = { attachToolView: vi.fn(), detachToolView: vi.fn() };
+    (manager as unknown as { coordinator: unknown }).coordinator = coordinator;
+    const send = vi.fn();
+    (manager as unknown as { getWindow: () => unknown }).getWindow = () => ({
+      isDestroyed: () => false,
+      webContents: { send },
     });
+
+    let crashHandler!: (event: unknown, details: { reason: string }) => void;
+    vi.mocked(electronSession.fromPartition).mockReturnValue({
+      setPermissionRequestHandler: vi.fn(),
+      setPermissionCheckHandler: vi.fn(),
+      webRequest: { onBeforeRequest: vi.fn(), onHeadersReceived: vi.fn() },
+      protocol: { registerFileProtocol: vi.fn() },
+    } as never);
+    vi.mocked(WebContentsView).mockImplementation(function MockExtensionView() {
+      return {
+        webContents: {
+          setWindowOpenHandler: vi.fn(),
+          on: vi.fn((event: string, listener: any) => {
+            if (event === "render-process-gone") crashHandler = listener;
+          }),
+          isDestroyed: vi.fn(() => false),
+          loadURL: vi.fn(async () => {
+            await new Promise<void>(() => {});
+          }),
+          close: vi.fn(),
+        },
+        setBounds: vi.fn(),
+      } as never;
+    });
+
+    const input = {
+      extensionId: installed.id,
+      toolId: "main",
+      projectId: "project-a",
+      profileId: "default",
+      activationId: "update-attempt-1",
+    };
+
+    expect(manager.list()[0]!.manifest.version).toBe("1.0.1");
+    const internalInstalled = (manager as unknown as { installed: Map<string, any> }).installed;
+    expect(internalInstalled.get(installed.id)?.pendingRollback).toBeDefined();
+
+    const activationPromise = manager.activate(input);
+    await new Promise((r) => setTimeout(r, 10));
+
+    // Crash while loadURL is still unresolved
+    crashHandler({}, { reason: "oom" });
+
+    // Activation settles as a failure
+    await expect(activationPromise).rejects.toThrow(/crashed during initial load|rolled back/);
+
+    // Pending update rolls back to 1.0.0 exactly once
+    const rolledBack = manager.list()[0]!;
+    expect(rolledBack.manifest.version).toBe("1.0.0");
+    expect(internalInstalled.get(installed.id)?.pendingRollback).toBeUndefined();
+
+    // Active view must be cleared and detached
+    expect((manager as unknown as { active: unknown }).active).toBeNull();
+    expect(coordinator.detachToolView).toHaveBeenCalled();
+
+    // Unresolved crash must NOT emit a committed view error event
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it("ignores crash from older view after retry with the same project, extension, tool, and profile", async () => {
+    const { manager, installed } = await exchangeUpdateFixture();
     const coordinator = { attachToolView: vi.fn(), detachToolView: vi.fn() };
     (manager as unknown as { coordinator: unknown }).coordinator = coordinator;
     const send = vi.fn();
@@ -2191,44 +2257,152 @@ describe("development extension installation", () => {
       } as never;
     });
 
-    // Activate for project-a (view 1)
+    const input = {
+      extensionId: installed.id,
+      toolId: "main",
+      projectId: "project-a",
+      profileId: "default",
+    };
+
+    // Attempt 1: activate with activationId "attempt-1"
+    await manager.activate({ ...input, activationId: "attempt-1" });
+    const view1Handler = crashHandlers[0]!;
+
+    // Attempt 2: retry with activationId "attempt-2" for SAME project/extension/tool/profile
+    await manager.activate({ ...input, activationId: "attempt-2" });
+    expect((manager as unknown as { active: { activationId: string } }).active?.activationId).toBe(
+      "attempt-2",
+    );
+
+    // Old view 1 crashes delayed
+    view1Handler({}, { reason: "crashed" });
+
+    // Host sends NO error event for stale view 1!
+    expect(send).not.toHaveBeenCalled();
+
+    // Active view 2 remains active and unaffected
+    expect((manager as unknown as { active: { activationId: string } }).active?.activationId).toBe(
+      "attempt-2",
+    );
+  });
+
+  it("rejects stale cleanup and bounds messages from previous activation attempts", async () => {
+    const { manager, installed } = await exchangeUpdateFixture();
+    const coordinator = { attachToolView: vi.fn(), detachToolView: vi.fn() };
+    (manager as unknown as { coordinator: unknown }).coordinator = coordinator;
+
+    const views: any[] = [];
+    vi.mocked(electronSession.fromPartition).mockReturnValue({
+      setPermissionRequestHandler: vi.fn(),
+      setPermissionCheckHandler: vi.fn(),
+      webRequest: { onBeforeRequest: vi.fn(), onHeadersReceived: vi.fn() },
+      protocol: { registerFileProtocol: vi.fn() },
+    } as never);
+    vi.mocked(WebContentsView).mockImplementation(function MockExtensionView() {
+      const v = {
+        webContents: {
+          setWindowOpenHandler: vi.fn(),
+          on: vi.fn(),
+          isDestroyed: vi.fn(() => false),
+          loadURL: vi.fn(async () => undefined),
+          close: vi.fn(),
+        },
+        setBounds: vi.fn(),
+      };
+      views.push(v);
+      return v as never;
+    });
+
+    const input = {
+      extensionId: installed.id,
+      toolId: "main",
+      projectId: "project-a",
+      profileId: "default",
+    };
+
+    await manager.activate({ ...input, activationId: "attempt-1" });
+    await manager.activate({ ...input, activationId: "attempt-2" });
+    expect(views.length).toBe(2);
+    const view2 = views[1]!;
+
+    // Stale bounds from attempt-1 must NOT resize view 2
+    manager.setBounds({
+      ...input,
+      activationId: "attempt-1",
+      x: 999,
+      y: 999,
+      width: 999,
+      height: 999,
+      visible: true,
+    });
+    expect(view2.setBounds).not.toHaveBeenCalledWith(expect.objectContaining({ x: 999 }));
+
+    // Stale hide from attempt-1 cleanup must NOT hide view 2
+    manager.hide({ activationId: "attempt-1" });
+    expect((manager as unknown as { active: { activationId: string } }).active?.activationId).toBe(
+      "attempt-2",
+    );
+
+    // Matching hide for attempt-2 does hide it
+    manager.hide({ activationId: "attempt-2" });
+    expect((manager as unknown as { active: unknown }).active).toBeNull();
+  });
+
+  it("intentional hide emits no crash error", async () => {
+    const { manager, installed } = await exchangeUpdateFixture();
+    const coordinator = { attachToolView: vi.fn(), detachToolView: vi.fn() };
+    (manager as unknown as { coordinator: unknown }).coordinator = coordinator;
+    const send = vi.fn();
+    (manager as unknown as { getWindow: () => unknown }).getWindow = () => ({
+      isDestroyed: () => false,
+      webContents: { send },
+    });
+
+    let crashHandler!: (event: unknown, details: { reason: string }) => void;
+    vi.mocked(electronSession.fromPartition).mockReturnValue({
+      setPermissionRequestHandler: vi.fn(),
+      setPermissionCheckHandler: vi.fn(),
+      webRequest: { onBeforeRequest: vi.fn(), onHeadersReceived: vi.fn() },
+      protocol: { registerFileProtocol: vi.fn() },
+    } as never);
+    vi.mocked(WebContentsView).mockImplementation(function MockExtensionView() {
+      return {
+        webContents: {
+          setWindowOpenHandler: vi.fn(),
+          on: vi.fn((event: string, listener: any) => {
+            if (event === "render-process-gone") crashHandler = listener;
+          }),
+          isDestroyed: vi.fn(() => false),
+          loadURL: vi.fn(async () => undefined),
+          close: vi.fn(() => {
+            crashHandler?.({}, { reason: "killed" });
+          }),
+        },
+        setBounds: vi.fn(),
+      } as never;
+    });
+
     await manager.activate({
       extensionId: installed.id,
       toolId: "main",
       projectId: "project-a",
       profileId: "default",
+      activationId: "intent-hide",
     });
 
-    // Activate for project-b (view 2)
-    await manager.activate({
-      extensionId: installed.id,
-      toolId: "main",
-      projectId: "project-b",
-      profileId: "default",
-    });
-
-    const activeBefore = (manager as unknown as { active: { projectId: string } }).active;
-    expect(activeBefore?.projectId).toBe("project-b");
-
-    // Crash view 1 (from project-a)
-    crashHandlers[0]!({}, { reason: "oom" });
-
-    // Active view for project-b must remain untouched!
-    const activeAfter = (manager as unknown as { active: { projectId: string } }).active;
-    expect(activeAfter?.projectId).toBe("project-b");
-
-    // Sent event must carry project-a, not project-b
-    expect(send).toHaveBeenCalledWith(
-      "desktop:extension:view-error",
-      expect.objectContaining({
-        projectId: "project-a",
-        error: "The extension crashed (oom).",
-      }),
-    );
+    manager.hide();
+    expect(send).not.toHaveBeenCalled();
+    expect((manager as unknown as { active: unknown }).active).toBeNull();
   });
 
-  it("cancels activation and hides view if extension is disabled while loading", async () => {
-    const { manager, installed } = await exchangeUpdateFixture();
+  it("rejects activation and hides view if extension is disabled while loading", async () => {
+    const { directory, manager } = fixture();
+    const installed = manager.installDevelopment(directory);
+    manager.setAssignment(installed.id, {
+      ...installed.assignment,
+      enabledProjectIds: ["project-a"],
+    });
+
     const coordinator = { attachToolView: vi.fn(), detachToolView: vi.fn() };
     (manager as unknown as { coordinator: unknown }).coordinator = coordinator;
 
@@ -2245,19 +2419,20 @@ describe("development extension installation", () => {
       toolId: "main",
       projectId: "project-a",
       profileId: "default",
+      activationId: "disable-test",
     });
 
     // Disable extension while load is in flight
     manager.setDisabled(installed.id, true);
 
     resolveLoad();
-    await activation;
+    await expect(activation).rejects.toThrow(/disabled/);
 
     expect((manager as unknown as { active: unknown }).active).toBeNull();
     expect(coordinator.detachToolView).toHaveBeenCalled();
   });
 
-  it("cancels activation and hides view if extension is revoked while loading", async () => {
+  it("rejects activation and hides view if extension is revoked while loading", async () => {
     const { manager, installed, second } = await exchangeUpdateFixture();
     const coordinator = { attachToolView: vi.fn(), detachToolView: vi.fn() };
     (manager as unknown as { coordinator: unknown }).coordinator = coordinator;
@@ -2275,169 +2450,93 @@ describe("development extension installation", () => {
       toolId: "main",
       projectId: "project-a",
       profileId: "default",
+      activationId: "revoke-test",
     });
 
     // Revoke extension while load is in flight
-    manager.revokeIfCurrent(installed.id, installed.registryOrigin!, second.digest);
+    manager.revokeIfCurrent(installed.id, "https://exchange.tabs.example", second.digest);
 
     resolveLoad();
-    await activation;
+    await expect(activation).rejects.toThrow(/revoked|rolled back/);
 
     expect((manager as unknown as { active: unknown }).active).toBeNull();
     expect(coordinator.detachToolView).toHaveBeenCalled();
   });
 
-  it("rejects in-flight Git status when grant is revoked during execution", async () => {
-    const { directory, manager } = fixture();
+  it("UI-view crash does not cancel agent-origin logic", async () => {
+    let finishLogic!: (value: unknown) => void;
+    const logicRun = vi.fn(
+      async (_source: string, _request: unknown, options?: { signal?: AbortSignal }) =>
+        new Promise((resolve, reject) => {
+          options?.signal?.addEventListener("abort", () => reject(new Error("aborted")));
+          finishLogic = resolve;
+        }),
+    );
+    const { directory, manager } = fixture(undefined, undefined, logicRun);
     const manifestPath = Path.join(directory, "tabs-extension.json");
     const manifest = JSON.parse(FS.readFileSync(manifestPath, "utf8"));
-    manifest.engines.api = "^1.5.0";
-    manifest.capabilities = ["git-status"];
+    manifest.logic = { entry: "dist/logic.js" };
+    manifest.capabilities = ["ai-tools"];
+    manifest.engines = { tabs: ">=1.3.0 <2.0.0", api: "^1.3.0" };
+    manifest.contributes.commands = [
+      { id: "ai-command", label: "AI Cmd", description: "AI Tool", aiCallable: true },
+    ];
     FS.writeFileSync(manifestPath, JSON.stringify(manifest));
+    FS.writeFileSync(Path.join(directory, "dist", "logic.js"), "globalThis.run = () => 42;");
     const installed = manager.installDevelopment(directory);
     manager.setAssignment(installed.id, {
       ...installed.assignment,
       enabledProjectIds: ["project-a"],
-      gitStatusGrantedProjectIds: ["project-a"],
+      aiToolGrantedProjectIds: ["project-a"],
     });
 
-    const sender = { isDestroyed: () => false, close: vi.fn() };
-    const internal = manager as unknown as { active: unknown; coordinator: unknown };
-    internal.coordinator = { detachToolView: vi.fn() };
-    internal.active = {
-      key: "project-a:main",
-      view: { webContents: sender },
+    const coordinator = { attachToolView: vi.fn(), detachToolView: vi.fn() };
+    (manager as unknown as { coordinator: unknown }).coordinator = coordinator;
+
+    let crashHandler!: (event: unknown, details: { reason: string }) => void;
+    vi.mocked(electronSession.fromPartition).mockReturnValue({
+      setPermissionRequestHandler: vi.fn(),
+      setPermissionCheckHandler: vi.fn(),
+      webRequest: { onBeforeRequest: vi.fn(), onHeadersReceived: vi.fn() },
+      protocol: { registerFileProtocol: vi.fn() },
+    } as never);
+    vi.mocked(WebContentsView).mockImplementation(function MockExtensionView() {
+      return {
+        webContents: {
+          setWindowOpenHandler: vi.fn(),
+          on: vi.fn((event: string, listener: any) => {
+            if (event === "render-process-gone") crashHandler = listener;
+          }),
+          isDestroyed: vi.fn(() => false),
+          loadURL: vi.fn(async () => undefined),
+          close: vi.fn(),
+        },
+        setBounds: vi.fn(),
+      } as never;
+    });
+
+    // 1. Activate UI view
+    await manager.activate({
       extensionId: installed.id,
+      toolId: "main",
       projectId: "project-a",
       profileId: "default",
-    };
-
-    let resolveGit!: (val: { branch: string; dirty: boolean }) => void;
-    const pendingGit = new Promise<{ branch: string; dirty: boolean }>((resolve) => {
-      resolveGit = resolve;
+      activationId: "ui-view-1",
     });
 
-    const inFlight = manager.invokeGitStatus(sender as never, async () => pendingGit);
+    // 2. Start agent-origin logic tool
+    const aiToolName = extensionAiToolName(installed.id, "ai-command", undefined, "development");
+    const agentLogicPromise = manager.invokeAiTool("project-a", aiToolName, { input: 123 });
 
-    // Revoke git status grant while in flight
-    manager.setAssignment(installed.id, {
-      ...manager.list()[0]!.assignment,
-      gitStatusGrantedProjectIds: [],
-    });
+    // 3. UI view crashes
+    crashHandler({}, { reason: "crashed" });
 
-    resolveGit({ branch: "main", dirty: false });
-    await expect(inFlight).rejects.toThrow(/changed during Git status request|not granted/);
-  });
+    // Active UI view is cleared
+    expect((manager as unknown as { active: unknown }).active).toBeNull();
 
-  it("rejects in-flight Git status when active project changes during execution", async () => {
-    const { directory, manager } = fixture();
-    const manifestPath = Path.join(directory, "tabs-extension.json");
-    const manifest = JSON.parse(FS.readFileSync(manifestPath, "utf8"));
-    manifest.engines.api = "^1.5.0";
-    manifest.capabilities = ["git-status"];
-    FS.writeFileSync(manifestPath, JSON.stringify(manifest));
-    const installed = manager.installDevelopment(directory);
-    manager.setAssignment(installed.id, {
-      ...installed.assignment,
-      enabledProjectIds: ["project-a", "project-b"],
-      gitStatusGrantedProjectIds: ["project-a", "project-b"],
-    });
-
-    const sender = { isDestroyed: () => false };
-    const internal = manager as unknown as { active: unknown };
-    internal.active = {
-      key: "project-a:main",
-      view: { webContents: sender },
-      extensionId: installed.id,
-      projectId: "project-a",
-      profileId: "default",
-    };
-
-    let resolveGit!: (val: { branch: string; dirty: boolean }) => void;
-    const pendingGit = new Promise<{ branch: string; dirty: boolean }>((resolve) => {
-      resolveGit = resolve;
-    });
-
-    const inFlight = manager.invokeGitStatus(sender as never, async () => pendingGit);
-
-    // Switch active project while in flight
-    internal.active = {
-      key: "project-b:main",
-      view: { webContents: sender },
-      extensionId: installed.id,
-      projectId: "project-b",
-      profileId: "default",
-    };
-
-    resolveGit({ branch: "main", dirty: false });
-    await expect(inFlight).rejects.toThrow(/Extension view changed/);
-  });
-
-  it("rejects in-flight network request when permission is revoked or project switched", async () => {
-    const { directory, manager } = fixture();
-    const manifestPath = Path.join(directory, "tabs-extension.json");
-    const manifest = JSON.parse(FS.readFileSync(manifestPath, "utf8"));
-    manifest.capabilities = ["network", "credentials"];
-    manifest.networkHosts = ["api.example.com"];
-    FS.writeFileSync(manifestPath, JSON.stringify(manifest));
-    const installed = manager.installDevelopment(directory);
-    manager.setAssignment(installed.id, {
-      ...installed.assignment,
-      enabledProjectIds: ["project-a", "project-b"],
-      networkGrantedProjectIds: ["project-a", "project-b"],
-      credentialGrantedProjectIds: ["project-a", "project-b"],
-    });
-
-    const cryptography: CredentialCryptography = {
-      isEncryptionAvailable: () => true,
-      getSelectedStorageBackend: () => "mock",
-      encryptString: (val) => Buffer.from(val),
-      decryptString: (buf) => buf.toString(),
-    };
-    const managerWithCreds = new ExtensionViewManager(
-      () => null,
-      {} as ConstructorParameters<typeof ExtensionViewManager>[1],
-      Path.join(directory, "installed.json"),
-      "1.3.17",
-      true,
-      cryptography,
-      async () => "network result",
-    );
-    managerWithCreds.setProfileCredential(installed.id, "default", "api.example.com", "token123");
-
-    const sender = { isDestroyed: () => false, close: vi.fn() };
-    const internal = managerWithCreds as unknown as { active: unknown; coordinator: unknown };
-    internal.coordinator = { detachToolView: vi.fn() };
-    internal.active = {
-      key: "project-a:main",
-      view: { webContents: sender },
-      extensionId: installed.id,
-      projectId: "project-a",
-      profileId: "default",
-    };
-
-    let resolveNet!: (val: string) => void;
-    const pendingNet = new Promise<string>((resolve) => {
-      resolveNet = resolve;
-    });
-    (managerWithCreds as unknown as { networkGetText: unknown }).networkGetText = vi.fn(
-      async () => pendingNet,
-    );
-
-    const inFlight = managerWithCreds.invokeNetworkGetText(
-      sender as never,
-      "https://api.example.com/data",
-      true,
-    );
-
-    // Revoke network grant while in flight
-    managerWithCreds.setAssignment(installed.id, {
-      ...managerWithCreds.list()[0]!.assignment,
-      networkGrantedProjectIds: [],
-    });
-
-    resolveNet("data");
-    await expect(inFlight).rejects.toThrow(/changed during network request|not granted/);
+    // Agent-origin logic is NOT aborted and successfully finishes
+    finishLogic(42);
+    await expect(agentLogicPromise).resolves.toBe(42);
   });
 
   it("enforces extension-to-extension and sender isolation", async () => {

@@ -39,13 +39,15 @@ test("keeps extension identity visible outside its content area on unsupported c
   );
 });
 
-test("shows accessible crash error with safe retry and ignores stale events from another project/tool", async () => {
+test("shows accessible crash error with safe keyboard retry and ignores stale events from earlier attempts", async () => {
   const listeners = { error: null as ((event: DesktopExtensionViewErrorEvent) => void) | null };
   let activateCalls = 0;
+  let lastActivationInput: any = null;
 
   const mockBridge: Partial<DesktopBridge> = {
-    activateExtensionTool: vi.fn(async () => {
+    activateExtensionTool: vi.fn(async (input) => {
       activateCalls++;
+      lastActivationInput = input;
     }),
     setExtensionBounds: vi.fn(async () => undefined),
     hideExtensionTool: vi.fn(async () => undefined),
@@ -76,6 +78,8 @@ test("shows accessible crash error with safe retry and ignores stale events from
   );
 
   expect(activateCalls).toBe(1);
+  const firstActivationId = lastActivationInput?.activationId;
+  expect(typeof firstActivationId).toBe("string");
   await expect.element(screen.getByRole("alert")).not.toBeInTheDocument();
 
   // Stale event from another project must NOT affect this tool
@@ -84,6 +88,7 @@ test("shows accessible crash error with safe retry and ignores stale events from
     extensionId: "acme.dashboard",
     toolId: "overview",
     profileId: "work",
+    activationId: firstActivationId,
     error: "The extension crashed (crashed).",
   });
   await expect.element(screen.getByRole("alert")).not.toBeInTheDocument();
@@ -94,16 +99,29 @@ test("shows accessible crash error with safe retry and ignores stale events from
     extensionId: "acme.dashboard",
     toolId: "other-tool",
     profileId: "work",
+    activationId: firstActivationId,
     error: "The extension crashed (crashed).",
   });
   await expect.element(screen.getByRole("alert")).not.toBeInTheDocument();
 
-  // Matching crash event for this exact view
+  // Stale event with non-matching activationId must NOT affect this tool
   listeners.error?.({
     projectId: "project-a",
     extensionId: "acme.dashboard",
     toolId: "overview",
     profileId: "work",
+    activationId: "old-stale-attempt-id",
+    error: "Stale crash from prior attempt.",
+  });
+  await expect.element(screen.getByRole("alert")).not.toBeInTheDocument();
+
+  // Matching crash event for this exact instance
+  listeners.error?.({
+    projectId: "project-a",
+    extensionId: "acme.dashboard",
+    toolId: "overview",
+    profileId: "work",
+    activationId: firstActivationId,
     error: "The extension crashed (oom).",
   });
 
@@ -115,9 +133,27 @@ test("shows accessible crash error with safe retry and ignores stale events from
   const retryButton = screen.getByRole("button", { name: "Retry opening Overview" });
   await expect.element(retryButton).toBeVisible();
 
-  // Click retry: resets error and re-activates
+  // Assert retry control receives focus on failure in real Chromium
+  expect(document.activeElement).toBe(retryButton.element());
+
+  // Trigger retry: resets error and re-activates with a new activationId
   await retryButton.click();
   expect(activateCalls).toBe(2);
+  const secondActivationId = lastActivationInput?.activationId;
+  expect(typeof secondActivationId).toBe("string");
+  expect(secondActivationId).not.toBe(firstActivationId);
+  await expect.element(screen.getByRole("alert")).not.toBeInTheDocument();
+
+  // Delayed old view crash with the SAME project/extension/tool/profile after retry:
+  // Must NOT put the new active instance into an error state!
+  listeners.error?.({
+    projectId: "project-a",
+    extensionId: "acme.dashboard",
+    toolId: "overview",
+    profileId: "work",
+    activationId: firstActivationId,
+    error: "Old view crash after retry.",
+  });
   await expect.element(screen.getByRole("alert")).not.toBeInTheDocument();
 
   delete (window as unknown as { desktopBridge?: unknown }).desktopBridge;

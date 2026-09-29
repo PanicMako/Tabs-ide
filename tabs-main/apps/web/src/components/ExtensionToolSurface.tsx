@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { DesktopExtensionViewInput, DesktopInstalledExtension } from "@tabs/contracts";
 
 export function ExtensionToolSurface(props: {
@@ -12,6 +12,11 @@ export function ExtensionToolSurface(props: {
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
   const { input } = props;
+
+  const activationId = useMemo(
+    () => `act_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`,
+    [input.extensionId, input.toolId, input.projectId, input.profileId, retryCount],
+  );
 
   useEffect(() => {
     if (error && retryButtonRef.current) {
@@ -37,6 +42,7 @@ export function ExtensionToolSurface(props: {
       void bridge
         .setExtensionBounds({
           ...input,
+          activationId,
           x: Math.round(rect.left * zoom),
           y: Math.round(rect.top * zoom),
           width: Math.round(rect.width * zoom),
@@ -56,6 +62,7 @@ export function ExtensionToolSurface(props: {
     const unsubscribeError = bridge.onExtensionViewError?.((event) => {
       if (
         !disposed &&
+        event.activationId === activationId &&
         event.projectId === input.projectId &&
         event.extensionId === input.extensionId &&
         event.toolId === input.toolId &&
@@ -66,17 +73,21 @@ export function ExtensionToolSurface(props: {
     });
 
     void bridge
-      .activateExtensionTool(input)
+      .activateExtensionTool({ ...input, activationId })
       .then(() => {
         if (disposed) {
-          void bridge.hideExtensionTool().catch(() => undefined);
+          void bridge.hideExtensionTool({ activationId }).catch(() => undefined);
           return;
         }
         activated = true;
         scheduleBounds();
       })
       .catch((cause) => {
-        if (!disposed) setError(cause instanceof Error ? cause.message : String(cause));
+        if (!disposed) {
+          const msg = cause instanceof Error ? cause.message : String(cause);
+          if (msg.includes("superseded")) return;
+          setError(msg);
+        }
       });
     return () => {
       disposed = true;
@@ -85,9 +96,9 @@ export function ExtensionToolSurface(props: {
       window.removeEventListener("resize", scheduleBounds);
       window.removeEventListener("tabs-zoom-change", scheduleBounds);
       if (frame) window.cancelAnimationFrame(frame);
-      void bridge.hideExtensionTool().catch(() => undefined);
+      void bridge.hideExtensionTool({ activationId }).catch(() => undefined);
     };
-  }, [input.extensionId, input.toolId, input.projectId, input.profileId, retryCount]);
+  }, [input.extensionId, input.toolId, input.projectId, input.profileId, activationId, retryCount]);
 
   const handleRetry = () => {
     setError(null);

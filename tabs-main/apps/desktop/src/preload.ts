@@ -341,7 +341,7 @@ contextBridge.exposeInMainWorld("desktopBridge", {
     ),
   activateExtensionTool: (input) => ipcRenderer.invoke(EXTENSION_ACTIVATE_CHANNEL, input),
   setExtensionBounds: (input) => ipcRenderer.invoke(EXTENSION_SET_BOUNDS_CHANNEL, input),
-  hideExtensionTool: () => ipcRenderer.invoke(EXTENSION_HIDE_CHANNEL),
+  hideExtensionTool: (input) => ipcRenderer.invoke(EXTENSION_HIDE_CHANNEL, input),
   getBrowserSessionState: (input) =>
     ipcRenderer.invoke(BROWSER_HOST_GET_SESSION_STATE_CHANNEL, input),
   ensureBrowserSession: (input) => ipcRenderer.invoke(BROWSER_HOST_ENSURE_SESSION_CHANNEL, input),
