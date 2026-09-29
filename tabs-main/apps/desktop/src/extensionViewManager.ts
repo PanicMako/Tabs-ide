@@ -147,6 +147,8 @@ export class ExtensionViewManager {
   }>();
   private active: ActiveView | null = null;
   private activationSequence = 0;
+  private loadingActivation: { readonly key: string; readonly promise: Promise<void> } | null =
+    null;
   private readonly storage: ExtensionStorage;
   private readonly credentials: ExtensionCredentials | null;
 
@@ -1116,8 +1118,25 @@ export class ExtensionViewManager {
     const key = [input.projectId, input.extensionId, input.toolId, input.profileId].join(":");
     if (this.active?.key === key) {
       this.coordinator.attachToolView(this.active.view);
+      if (this.loadingActivation?.key === key) await this.loadingActivation.promise;
       return;
     }
+    const activation = this.activateNew(installed, input, profile.scope, tool.entry, key);
+    this.loadingActivation = { key, promise: activation };
+    try {
+      await activation;
+    } finally {
+      if (this.loadingActivation?.promise === activation) this.loadingActivation = null;
+    }
+  }
+
+  private async activateNew(
+    installed: StoredExtension,
+    input: DesktopExtensionViewInput,
+    scope: "shared" | "project" | undefined,
+    entry: string,
+    key: string,
+  ): Promise<void> {
     const activationSequence = ++this.activationSequence;
     this.hide();
     const updateIdentity = extensionDataIdentity(
@@ -1138,7 +1157,7 @@ export class ExtensionViewManager {
           installed.manifest.storage?.migrations ?? [],
         );
       }
-      await this.activateView(installed, input, profile.scope, tool.entry, key);
+      await this.activateView(installed, input, scope, entry, key);
       if (this.activationSequence !== activationSequence || this.active?.key !== key) return;
       this.finishPendingUpdate(installed);
     } catch (error) {

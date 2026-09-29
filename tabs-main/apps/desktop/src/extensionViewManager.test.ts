@@ -1657,6 +1657,32 @@ describe("development extension installation", () => {
     expect(coordinator.detachToolView).toHaveBeenCalledTimes(1);
   });
 
+  it("waits for an in-flight activation when the same tool is selected again", async () => {
+    const { manager, installed, first } = await exchangeUpdateFixture();
+    const coordinator = { attachToolView: vi.fn(), detachToolView: vi.fn() };
+    (manager as unknown as { coordinator: unknown }).coordinator = coordinator;
+    let rejectLoad!: (error: Error) => void;
+    const load = new Promise<void>((_resolve, reject) => {
+      rejectLoad = reject;
+    });
+    const loadURL = vi.fn(() => load);
+    mockElectronExtensionView(loadURL);
+    const input = {
+      extensionId: installed.id,
+      toolId: "main",
+      projectId: "project-a",
+      profileId: "default",
+    };
+    const firstActivation = manager.activate(input);
+    const repeatedActivation = manager.activate(input);
+    rejectLoad(new Error("renderer load failed"));
+    await expect(firstActivation).rejects.toThrow(/rolled back/);
+    await expect(repeatedActivation).rejects.toThrow(/rolled back/);
+    expect(manager.list()[0]?.digest).toBe(first.digest);
+    expect(loadURL).toHaveBeenCalledOnce();
+    expect(coordinator.attachToolView).toHaveBeenCalledTimes(2);
+  });
+
   it("does not roll back a successful replacement when an older load fails late", async () => {
     const { manager, installed, second } = await exchangeUpdateFixture();
     manager.setAssignment(installed.id, {
