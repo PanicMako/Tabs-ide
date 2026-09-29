@@ -32,6 +32,8 @@ const MAX_TOTAL_BYTES = 50 * 1024 * 1024;
 const PROFILE_ID = /^[a-z][a-z0-9-]{0,62}$/;
 const MAX_PARTITIONS = 1_024;
 
+class SupersededActivationError extends Error {}
+
 interface StoredExtension extends DesktopInstalledExtension {
   readonly directory: string;
   readonly dataInventoryVersion?: 1;
@@ -151,8 +153,12 @@ export class ExtensionViewManager {
   }>();
   private active: ActiveView | null = null;
   private activationSequence = 0;
-  private loadingActivation: { readonly key: string; readonly promise: Promise<void> } | null =
-    null;
+  private loadingActivation: {
+    readonly key: string;
+    readonly activationId: string;
+    readonly controller: AbortController;
+    readonly promise: Promise<void>;
+  } | null = null;
   private readonly storage: ExtensionStorage;
   private readonly credentials: ExtensionCredentials | null;
 
@@ -1124,7 +1130,10 @@ export class ExtensionViewManager {
         ? input.activationId
         : Crypto.randomBytes(16).toString("hex");
     const key = [input.projectId, input.extensionId, input.toolId, input.profileId].join(":");
-    if (this.loadingActivation?.key === key) {
+    if (
+      this.loadingActivation?.key === key &&
+      (!input.activationId || this.loadingActivation.activationId === activationId)
+    ) {
       if (this.active?.view) this.coordinator.attachToolView(this.active.view);
       await this.loadingActivation.promise;
       return;
@@ -1137,6 +1146,8 @@ export class ExtensionViewManager {
       this.coordinator.attachToolView(this.active.view);
       return;
     }
+    this.loadingActivation?.controller.abort(new SupersededActivationError());
+    const controller = new AbortController();
     const activation = this.activateNew(
       installed,
       input,
@@ -1144,8 +1155,9 @@ export class ExtensionViewManager {
       tool.entry,
       key,
       activationId,
+      controller.signal,
     );
-    this.loadingActivation = { key, promise: activation };
+    this.loadingActivation = { key, activationId, controller, promise: activation };
     try {
       await activation;
     } finally {
@@ -1160,6 +1172,7 @@ export class ExtensionViewManager {
     entry: string,
     key: string,
     activationId: string,
+    signal: AbortSignal,
   ): Promise<void> {
     const activationSequence = ++this.activationSequence;
     this.hide();
@@ -1182,7 +1195,7 @@ export class ExtensionViewManager {
           installed.manifest.storage?.migrations ?? [],
         );
       }
-      await this.activateView(installed, input, scope, entry, key, activationId);
+      await this.activateView(installed, input, scope, entry, key, activationId, signal);
       const current = this.installed.get(installed.id);
       if (this.activationSequence !== activationSequence) {
         if (this.active?.activationId === activationId) {
@@ -1217,6 +1230,7 @@ export class ExtensionViewManager {
       if (this.active?.activationId === activationId) {
         this.hide({ activationId });
       }
+      if (!currentActivation && error instanceof SupersededActivationError) return;
       if (installed.pendingRollback && currentActivation && !rollbackApplied) {
         rollbackApplied = true;
         this.rollbackPendingUpdate(installed);
@@ -1242,6 +1256,7 @@ export class ExtensionViewManager {
     entry: string,
     key: string,
     activationId: string,
+    signal: AbortSignal,
   ): Promise<void> {
     this.resolveAsset(installed.directory, entry);
     const partition = extensionSessionPartition(
@@ -1301,6 +1316,13 @@ export class ExtensionViewManager {
     const crashPromise = new Promise<never>((_, reject) => {
       rejectCrash = reject;
     });
+    let rejectSuperseded!: (error: Error) => void;
+    const supersededPromise = new Promise<never>((_, reject) => {
+      rejectSuperseded = reject;
+    });
+    const onSuperseded = () => rejectSuperseded(new SupersededActivationError());
+    signal.addEventListener("abort", onSuperseded, { once: true });
+    if (signal.aborted) onSuperseded();
 
     view.webContents.on("render-process-gone", (_event, details) => {
       const reason = details?.reason ?? "crashed";
@@ -1316,12 +1338,15 @@ export class ExtensionViewManager {
           `${SCHEME}://${installed.id}/${entry}?project=${encodeURIComponent(input.projectId)}&profile=${encodeURIComponent(input.profileId)}`,
         ),
         crashPromise,
+        supersededPromise,
       ]);
     } catch (loadError) {
       if (this.active?.activationId === activationId) {
         this.hide({ activationId });
       }
       throw loadError;
+    } finally {
+      signal.removeEventListener("abort", onSuperseded);
     }
   }
 
@@ -1482,6 +1507,12 @@ export class ExtensionViewManager {
   hide(input?: { readonly activationId?: string } | string): void {
     if (!this.active) return;
     const targetActivationId = typeof input === "string" ? input : input?.activationId;
+    if (
+      input !== undefined &&
+      (!targetActivationId || !/^[a-zA-Z0-9_-]{1,128}$/.test(targetActivationId))
+    ) {
+      return;
+    }
     if (targetActivationId && this.active.activationId !== targetActivationId) {
       return;
     }

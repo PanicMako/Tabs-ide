@@ -2375,11 +2375,14 @@ function registerIpcHandlers(): void {
     let activationId: string | undefined;
     if (typeof input === "string") {
       activationId = input;
+    } else if (input === undefined) {
+      // Legacy unscoped hide request.
     } else if (input && typeof input === "object" && "activationId" in input) {
       const candidate = (input as { activationId?: unknown }).activationId;
-      if (typeof candidate === "string") {
-        activationId = candidate;
-      }
+      if (typeof candidate !== "string") return;
+      activationId = candidate;
+    } else {
+      return;
     }
     if (
       activationId !== undefined &&
