@@ -20,7 +20,11 @@ export class ExchangeSignedMetadataHints {
     private readonly fetcher: typeof fetch = fetch,
   ) {
     const parsed = new URL(origin);
-    if (parsed.origin !== origin || parsed.protocol !== "https:") {
+    const isLocalDev =
+      (process.env.TABS_DEVELOPMENT === "true" || process.env.TABS_TEST_ALLOW_HTTP === "true") &&
+      parsed.protocol === "http:" &&
+      (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1");
+    if (parsed.origin !== origin || (parsed.protocol !== "https:" && !isLocalDev)) {
       throw new Error("Signed metadata hints require an HTTPS registry origin.");
     }
   }

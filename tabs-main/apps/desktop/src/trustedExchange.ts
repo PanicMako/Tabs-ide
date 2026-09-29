@@ -99,9 +99,13 @@ export class TrustedExchange {
   }) {
     const { origin, trustId, initialRoot, stateRoot } = options;
     const parsed = new URL(origin);
+    const isLocalDev =
+      (process.env.TABS_DEVELOPMENT === "true" || process.env.TABS_TEST_ALLOW_HTTP === "true") &&
+      parsed.protocol === "http:" &&
+      (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1");
     if (
       parsed.origin !== origin ||
-      parsed.protocol !== "https:" ||
+      (parsed.protocol !== "https:" && !isLocalDev) ||
       !/^[a-z0-9-]{1,64}$/.test(trustId)
     ) {
       throw new Error("Invalid trusted Exchange configuration.");
