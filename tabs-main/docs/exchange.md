@@ -51,7 +51,16 @@ machine. The staged directory must contain `root.json`, `timestamp.json`,
 `snapshot.json`, and `targets.json`; include numbered root transitions and
 versioned snapshot/targets files when the repository uses them. Each target
 path is `extensions/:namespace/:name/:version.tabsext` and its SHA-256 and
-length must match an approved database row. On first publication, configure
+length must match an approved database row. Run
+`bun run tuf:export-targets` in `apps/exchange` with `DATABASE_URL` and S3
+credentials to print a deterministic, **unsigned** `targets` map for the offline
+signer. The command reads only approved database rows and verifies every
+referenced private object before printing; it fails without output if any
+object or identity is invalid. Review the proposed additions and removals
+against the previous signed role before signing. This command neither creates
+signatures nor publishes metadata, and a review decision or object can change
+after export; the publication gate rechecks the signed result.
+On first publication, configure
 `EXCHANGE_TUF_BOOTSTRAP_ROOT_SHA256` from an independently verified root file.
 Run `bun run tuf:publish /absolute/staged-directory` in `apps/exchange` with
 `DATABASE_URL` set. The command verifies signatures, freshness, rollback,

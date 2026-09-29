@@ -7,6 +7,7 @@
     "start": "bun src/server.ts",
     "worker": "bun src/worker.ts",
     "migrate": "bun src/migrate.ts",
+    "tuf:export-targets": "bun src/exportTargets.ts",
     "tuf:publish": "bun src/tufPublish.ts",
     "verify:objects": "bun src/verifyObjects.ts",
     "typecheck": "tsc --noEmit",
