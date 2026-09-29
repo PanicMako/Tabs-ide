@@ -328,6 +328,28 @@ describe("offline TUF publication gate", () => {
     expect(subject.published).toHaveLength(1);
   });
 
+  it("rechecks an already published target before publishing newer metadata", async () => {
+    const subject = await fixture();
+    const bootstrap = Crypto.createHash("sha256").update(subject.rootBytes).digest("hex");
+    await publishTufMetadata(
+      subject.pool,
+      subject.storage,
+      "quarantine",
+      subject.directory,
+      bootstrap,
+    );
+    await subject.publishStage(2, true);
+    subject.setObject(Buffer.from("tampered after first publication"));
+    await expect(
+      publishTufMetadata(subject.pool, subject.storage, "quarantine", subject.directory),
+    ).rejects.toThrow(/does not match approved digest/);
+    expect(subject.operations.filter((sql) => sql === "COMMIT")).toHaveLength(1);
+    expect(subject.published).toHaveLength(1);
+    subject.setObject(archive);
+    await publishTufMetadata(subject.pool, subject.storage, "quarantine", subject.directory);
+    expect(subject.operations.filter((sql) => sql === "COMMIT")).toHaveLength(2);
+  });
+
   it("publishes signed metadata, removes revoked targets, and rejects rollback", async () => {
     const subject = await fixture();
     const bootstrap = Crypto.createHash("sha256").update(subject.rootBytes).digest("hex");

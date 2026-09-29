@@ -64,8 +64,8 @@ On first publication, configure
 `EXCHANGE_TUF_BOOTSTRAP_ROOT_SHA256` from an independently verified root file.
 Run `bun run tuf:publish /absolute/staged-directory` in `apps/exchange` with
 `DATABASE_URL` set. The command verifies signatures, freshness, rollback,
-exact approved targets, root transitions, and the bytes and SHA-256 of each
-newly published package object before committing all metadata
+exact approved targets, root transitions, and the bytes and SHA-256 of every
+signed package object before committing all metadata
 and its public-target index in one transaction. Schema migration rebuilds the
 materialized highest-semver search heads from that existing signed-target index.
 An older database without the index still needs a signed republish; approved

@@ -256,27 +256,11 @@ export async function publishTufMetadata(
     await client.query("BEGIN");
     await client.query("SELECT pg_advisory_xact_lock(1261492744)");
     const bundle = await verifiedBundle(client, stageDirectory, bootstrapRootDigest);
-    const prior = await client.query<PublishedTarget>(
-      "SELECT namespace, name, version, digest, bytes FROM exchange_published_targets",
-    );
-    const priorTargets = new Set(
-      prior.rows.map(
-        (target) =>
-          `${target.namespace}/${target.name}/${target.version}/${target.digest}/${target.bytes}`,
-      ),
-    );
     for (const target of bundle.targets) {
       const identity = `${target.namespace}/${target.name}/${target.version}`;
       const key = bundle.objectKeys.get(identity);
       if (key !== `quarantine/${identity}/${target.digest}.tabsext`) {
         throw new Error(`Signed target has an invalid object key: ${identity}`);
-      }
-      if (
-        priorTargets.has(
-          `${target.namespace}/${target.name}/${target.version}/${target.digest}/${target.bytes}`,
-        )
-      ) {
-        continue;
       }
       let bytes: Buffer;
       try {
