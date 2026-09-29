@@ -163,7 +163,7 @@ export default function ExtensionsSettings() {
         title="Extensions"
         description="Full-workspace tools for Tabs projects."
       />
-      <div aria-label="Extension settings" className="flex gap-2 px-6">
+      <div role="group" aria-label="Extension settings views" className="flex gap-2 px-6">
         {(["discover", "installed", "profiles"] as const).map((item) => (
           <Button
             key={item}
@@ -493,6 +493,8 @@ export default function ExtensionsSettings() {
             extensions.map((extension) => (
               <div
                 key={extension.id}
+                role="group"
+                aria-label={`${extension.manifest.displayName} installation and project settings`}
                 className="space-y-3 border-b border-border py-4 last:border-0"
               >
                 <div>
@@ -558,6 +560,7 @@ export default function ExtensionsSettings() {
                         <Button
                           type="button"
                           variant="outline"
+                          aria-label={`Check ${extension.manifest.displayName} for updates`}
                           disabled={busy}
                           onClick={() =>
                             void run(async () => {
@@ -617,6 +620,7 @@ export default function ExtensionsSettings() {
                 <label className="flex items-center gap-2 text-sm">
                   <input
                     type="checkbox"
+                    aria-label={`Enable ${extension.manifest.displayName}`}
                     checked={!extension.disabled}
                     disabled={busy || extension.revoked}
                     onChange={(event) => {
@@ -634,6 +638,7 @@ export default function ExtensionsSettings() {
                 <label className="flex items-center gap-2 text-sm">
                   <input
                     type="checkbox"
+                    aria-label={`Show ${extension.manifest.displayName} in all projects`}
                     checked={extension.assignment.enabledGlobally}
                     disabled={busy || extension.revoked}
                     onChange={(event) =>
@@ -655,6 +660,7 @@ export default function ExtensionsSettings() {
                       <label key={project.id} className="flex items-center gap-2 text-sm">
                         <input
                           type="checkbox"
+                          aria-label={`Show ${extension.manifest.displayName} in ${project.name}`}
                           checked={selected}
                           disabled={busy || extension.revoked}
                           onChange={(event) => {
@@ -807,12 +813,18 @@ export default function ExtensionsSettings() {
             Settings. Start a new agent session after granting AI tools so it discovers them.
           </p>
           {extensions.map((extension) => (
-            <div key={extension.id} className="space-y-3 border-b border-border py-4 last:border-0">
+            <div
+              key={extension.id}
+              role="group"
+              aria-label={`${extension.manifest.displayName} profiles and permissions`}
+              className="space-y-3 border-b border-border py-4 last:border-0"
+            >
               <h3 className="font-medium">{extension.manifest.displayName}</h3>
               <label className="block text-sm">
                 Default profile
                 <select
                   className="ml-2 rounded border border-border bg-background px-2 py-1"
+                  aria-label={`Default profile for ${extension.manifest.displayName}`}
                   value={extension.assignment.defaultProfileId}
                   disabled={busy}
                   onChange={(event) =>
@@ -859,6 +871,7 @@ export default function ExtensionsSettings() {
                 </select>
                 <Button
                   type="button"
+                  aria-label={`Add profile for ${extension.manifest.displayName}`}
                   disabled={busy || !(profileNames[extension.id] ?? "").trim()}
                   onClick={() =>
                     void run(async () => {
@@ -1026,6 +1039,7 @@ export default function ExtensionsSettings() {
                                 <div className="flex gap-2">
                                   <Button
                                     type="button"
+                                    aria-label={`Save token for ${label}`}
                                     disabled={busy || !(credentialValues[key] ?? "").trim()}
                                     onClick={() =>
                                       void run(async () => {
@@ -1056,6 +1070,7 @@ export default function ExtensionsSettings() {
                                   <Button
                                     type="button"
                                     variant="outline"
+                                    aria-label={`Remove token for ${label}`}
                                     disabled={busy || !saved}
                                     onClick={() =>
                                       void run(async () => {
@@ -1105,6 +1120,7 @@ export default function ExtensionsSettings() {
                     <Button
                       type="button"
                       variant="outline"
+                      aria-label={`Remove retained token for ${extension.manifest.displayName} ${saved.profileId}${saved.projectId ? ` in ${saved.projectId}` : ""} at ${saved.host}`}
                       disabled={busy}
                       onClick={() =>
                         void run(async () => {
@@ -1157,6 +1173,7 @@ export default function ExtensionsSettings() {
                     <label className="flex items-center gap-2 text-sm">
                       <input
                         type="checkbox"
+                        aria-label={`Allow ${extension.manifest.displayName} profile storage in ${project.name}`}
                         checked={
                           extension.assignment.storageGrantedProjectIds?.includes(project.id) ??
                           false
@@ -1179,6 +1196,7 @@ export default function ExtensionsSettings() {
                     <label className="flex items-center gap-2 text-sm">
                       <input
                         type="checkbox"
+                        aria-label={`Allow ${extension.manifest.displayName} to read workspace files in ${project.name}`}
                         checked={
                           extension.assignment.workspaceReadGrantedProjectIds?.includes(
                             project.id,
@@ -1202,6 +1220,7 @@ export default function ExtensionsSettings() {
                     <label className="flex items-center gap-2 text-sm">
                       <input
                         type="checkbox"
+                        aria-label={`Allow ${extension.manifest.displayName} to read Git status in ${project.name}`}
                         checked={
                           extension.assignment.gitStatusGrantedProjectIds?.includes(project.id) ??
                           false
@@ -1224,6 +1243,7 @@ export default function ExtensionsSettings() {
                     <label className="flex items-center gap-2 text-sm">
                       <input
                         type="checkbox"
+                        aria-label={`Allow ${extension.manifest.displayName} network access in ${project.name}`}
                         checked={
                           extension.assignment.networkGrantedProjectIds?.includes(project.id) ??
                           false
@@ -1247,6 +1267,7 @@ export default function ExtensionsSettings() {
                     <label className="flex items-center gap-2 text-sm">
                       <input
                         type="checkbox"
+                        aria-label={`Allow ${extension.manifest.displayName} credential use in ${project.name}`}
                         checked={
                           extension.assignment.credentialGrantedProjectIds?.includes(project.id) ??
                           false
@@ -1269,6 +1290,7 @@ export default function ExtensionsSettings() {
                     <label className="flex items-center gap-2 text-sm">
                       <input
                         type="checkbox"
+                        aria-label={`Allow agents to run ${extension.manifest.displayName} commands in ${project.name}`}
                         checked={
                           extension.assignment.aiToolGrantedProjectIds?.includes(project.id) ??
                           false
