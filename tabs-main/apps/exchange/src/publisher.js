@@ -383,6 +383,15 @@ async function refreshReviewAppeals() {
 async function refreshOperations() {
   const data = await requestJson("/v1/review/operations");
   const queue = data.queue;
+  const alerts = document.getElementById("operational-alerts");
+  alerts.replaceChildren();
+  if (data.readiness.alerts.length === 0) {
+    item(alerts, "No operational alerts.");
+  } else {
+    for (const alert of data.readiness.alerts) {
+      item(alerts, `${alert.level}: ${alert.message}`);
+    }
+  }
   document.getElementById("queue-operations").textContent =
     `Worker heartbeat: ${queue.worker_recently_seen ? "recent" : "missing or stale"}. Last heartbeat: ${queue.last_worker_heartbeat_at ?? "none"}. Last completed scan: ${queue.last_scan_at ?? "none"}. ` +
     `Queued: ${queue.queued}. Scanning: ${queue.scanning}. Stale scans: ${queue.stale_scans}. Awaiting review: ${queue.awaiting_review}. ` +

@@ -45,11 +45,7 @@ export function configuredExchangeTrust(
     throw new Error("Invalid Exchange trust-root configuration.");
   }
   const origin = new URL(catalogOrigin);
-  const isLocalDev =
-    (environment.TABS_DEVELOPMENT === "true" || environment.TABS_TEST_ALLOW_HTTP === "true") &&
-    origin.protocol === "http:" &&
-    (origin.hostname === "localhost" || origin.hostname === "127.0.0.1");
-  if (origin.origin !== catalogOrigin || (origin.protocol !== "https:" && !isLocalDev)) {
+  if (origin.origin !== catalogOrigin || origin.protocol !== "https:") {
     throw new Error("Trusted Exchange requires an HTTPS registry origin.");
   }
   const stat = FS.statSync(rootPath);

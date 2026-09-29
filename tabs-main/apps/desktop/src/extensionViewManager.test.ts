@@ -2366,6 +2366,18 @@ describe("development extension installation", () => {
     });
     expect(view2.setBounds).not.toHaveBeenCalledWith(expect.objectContaining({ x: 999 }));
 
+    // Missing activation identity must not resize a replacement with the same tool tuple.
+    manager.setBounds({
+      ...input,
+      activationId: "",
+      x: 998,
+      y: 998,
+      width: 998,
+      height: 998,
+      visible: true,
+    });
+    expect(view2.setBounds).not.toHaveBeenCalledWith(expect.objectContaining({ x: 998 }));
+
     // Stale hide from attempt-1 cleanup must NOT hide view 2
     manager.hide({ activationId: "attempt-1" });
     expect((manager as unknown as { active: { activationId: string } }).active?.activationId).toBe(

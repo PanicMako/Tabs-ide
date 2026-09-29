@@ -1486,7 +1486,7 @@ export class ExtensionViewManager {
 
   setBounds(input: DesktopExtensionBoundsInput): void {
     if (!this.active) return;
-    if (input.activationId && this.active.activationId !== input.activationId) return;
+    if (!input.activationId || this.active.activationId !== input.activationId) return;
     const key = [input.projectId, input.extensionId, input.toolId, input.profileId].join(":");
     if (this.active?.key !== key) return;
     const { view } = this.active;

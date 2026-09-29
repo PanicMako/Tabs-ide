@@ -2334,11 +2334,10 @@ function registerIpcHandlers(): void {
     )
       throw new Error("Invalid extension view.");
     if (
-      value.activationId !== undefined &&
-      (typeof value.activationId !== "string" ||
-        value.activationId.length === 0 ||
-        value.activationId.length > 128 ||
-        !/^[a-zA-Z0-9_-]+$/.test(value.activationId))
+      typeof value.activationId !== "string" ||
+      value.activationId.length === 0 ||
+      value.activationId.length > 128 ||
+      !/^[a-zA-Z0-9_-]+$/.test(value.activationId)
     ) {
       throw new Error("Invalid activation attempt ID.");
     }
@@ -2359,11 +2358,10 @@ function registerIpcHandlers(): void {
     if (!input || typeof input !== "object") return;
     const value = input as DesktopExtensionBoundsInput;
     if (
-      value.activationId !== undefined &&
-      (typeof value.activationId !== "string" ||
-        value.activationId.length === 0 ||
-        value.activationId.length > 128 ||
-        !/^[a-zA-Z0-9_-]+$/.test(value.activationId))
+      typeof value.activationId !== "string" ||
+      value.activationId.length === 0 ||
+      value.activationId.length > 128 ||
+      !/^[a-zA-Z0-9_-]+$/.test(value.activationId)
     ) {
       return;
     }

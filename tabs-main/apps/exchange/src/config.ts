@@ -36,15 +36,6 @@ export function loadConfig(): ExchangeConfig {
     adminGithubIds: new Set(required("EXCHANGE_ADMIN_GITHUB_IDS").split(",")),
     bucket: required("S3_BUCKET"),
     publishingEnabled: process.env.EXCHANGE_PUBLISHING_ENABLED === "true",
-    ...(process.env.NODE_ENV === "test" && process.env.TEST_GITHUB_OAUTH_ORIGIN
-      ? {
-          testGithubAuthUrls: {
-            authorizeUrl: `${new URL(process.env.TEST_GITHUB_OAUTH_ORIGIN).origin}/login/oauth/authorize`,
-            tokenUrl: `${new URL(process.env.TEST_GITHUB_OAUTH_ORIGIN).origin}/login/oauth/access_token`,
-            userUrl: `${new URL(process.env.TEST_GITHUB_OAUTH_ORIGIN).origin}/user`,
-          },
-        }
-      : {}),
   };
 }
 

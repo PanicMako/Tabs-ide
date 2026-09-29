@@ -26,11 +26,12 @@ import {
   Timestamp,
 } from "@tufjs/models";
 import { Pool } from "pg";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createExchangeServer } from "./server.ts";
 import { scanNextVersion } from "./worker.ts";
 import { publishTufMetadata } from "./tufPublish.ts";
 import { migrateExchangeSchema } from "./migration.ts";
+import { backupExchangeData, restoreExchangeData } from "./backupRestore.ts";
 import type { ExchangeConfig } from "./config.ts";
 
 const TEST_POSTGRES_URL =
@@ -56,7 +57,6 @@ interface SessionInfo {
   readonly cookieHeader: string;
 }
 
-let liveStackAvailable = false;
 let rootPool: Pool | null = null;
 let testPool: Pool | null = null;
 let s3Client: S3Client | null = null;
@@ -202,10 +202,13 @@ async function performLogin(identity: UserIdentity): Promise<SessionInfo> {
   };
 }
 
-describe("Exchange Real Local Service Flow (Checkpoint 1)", () => {
+const describeLive = process.env.TABS_EXCHANGE_INTEGRATION === "1" ? describe : describe.skip;
+
+describeLive("Exchange Real Local Service Flow (Checkpoint 1)", () => {
   beforeAll(async () => {
-    liveStackAvailable = await checkPrerequisites();
-    if (!liveStackAvailable) return;
+    if (!(await checkPrerequisites())) {
+      throw new Error("Exchange integration tests require the local PostgreSQL and S3 stack.");
+    }
 
     // Create isolated test database
     rootPool = new Pool({ connectionString: TEST_POSTGRES_URL });
@@ -289,11 +292,6 @@ describe("Exchange Real Local Service Flow (Checkpoint 1)", () => {
   });
 
   it("exercises the full publisher, contributor, reviewer, worker, publication, and revocation lifecycle", async () => {
-    if (!liveStackAvailable) {
-      console.warn("Skipping real service test: prerequisites not running");
-      return;
-    }
-
     expect(testPool).toBeTruthy();
     expect(s3Client).toBeTruthy();
     expect(exchangeConfig).toBeTruthy();
@@ -782,7 +780,6 @@ describe("Exchange Real Local Service Flow (Checkpoint 1)", () => {
 
   describe("Negative Service Boundary Tests", () => {
     it("rejects approval with mismatched digest", async () => {
-      if (!liveStackAvailable) return;
       const reviewerSession = await performLogin(REVIEWER_USER);
       const wrongDigest = "0000000000000000000000000000000000000000000000000000000000000000";
       const res = await fetch(`${exchangeOrigin}/v1/review/acme/dashboard/1.0.0`, {
@@ -799,7 +796,6 @@ describe("Exchange Real Local Service Flow (Checkpoint 1)", () => {
     });
 
     it("rejects approval when quarantine object is mutated in storage", async () => {
-      if (!liveStackAvailable) return;
       const publisherSession = await performLogin(PUBLISHER_USER);
       const reviewerSession = await performLogin(REVIEWER_USER);
 
@@ -863,7 +859,6 @@ describe("Exchange Real Local Service Flow (Checkpoint 1)", () => {
     });
 
     it("rejects approval before scan is completed", async () => {
-      if (!liveStackAvailable) return;
       const publisherSession = await performLogin(PUBLISHER_USER);
       const reviewerSession = await performLogin(REVIEWER_USER);
 
@@ -915,7 +910,6 @@ describe("Exchange Real Local Service Flow (Checkpoint 1)", () => {
     });
 
     it("rejects review decision by non-reviewer", async () => {
-      if (!liveStackAvailable) return;
       const contributorSession = await performLogin(CONTRIBUTOR_USER);
       const res = await fetch(`${exchangeOrigin}/v1/review/acme/dashboard/1.0.0`, {
         method: "POST",
@@ -931,7 +925,6 @@ describe("Exchange Real Local Service Flow (Checkpoint 1)", () => {
     });
 
     it("rejects state-mutating requests with stale or missing CSRF token", async () => {
-      if (!liveStackAvailable) return;
       const publisherSession = await performLogin(PUBLISHER_USER);
       const res = await fetch(`${exchangeOrigin}/v1/namespaces`, {
         method: "POST",
@@ -947,7 +940,6 @@ describe("Exchange Real Local Service Flow (Checkpoint 1)", () => {
     });
 
     it("rejects duplicate version upload with 409", async () => {
-      if (!liveStackAvailable) return;
       const publisherSession = await performLogin(PUBLISHER_USER);
 
       const tempDir = await FS.mkdtemp(Path.join(OS.tmpdir(), "tabs-service-duplicate-"));
@@ -984,8 +976,7 @@ describe("Exchange Real Local Service Flow (Checkpoint 1)", () => {
       expect(res.status).toBe(409);
     });
 
-    it("rejects upload when namespace membership was removed during upload commit boundary", async () => {
-      if (!liveStackAvailable) return;
+    it("rejects upload from a non-member before reading the archive", async () => {
       // Outsider is not a member of acme
       const outsiderSession = await performLogin(OUTSIDER_USER);
 
@@ -1023,13 +1014,225 @@ describe("Exchange Real Local Service Flow (Checkpoint 1)", () => {
       expect(res.status).toBe(403);
     });
 
-    it("returns 404 for unsigned approved version and for revoked TUF target", async () => {
-      if (!liveStackAvailable) return;
-      // Version 1.2.0 or non-existent 9.9.9
+    it("rejects upload when membership is removed after preflight but before commit", async () => {
+      const contributorSession = await performLogin(CONTRIBUTOR_USER);
+      const tempDir = await FS.mkdtemp(Path.join(OS.tmpdir(), "tabs-service-membership-race-"));
+      temporaryDirectories.push(tempDir);
+      const sourceDir = Path.join(tempDir, "pkg");
+      await FS.cp(
+        Path.resolve(import.meta.dirname, "../../../examples/hello-extension"),
+        sourceDir,
+        {
+          recursive: true,
+        },
+      );
+      const manifestPath = Path.join(sourceDir, "tabs-extension.json");
+      const manifest = JSON.parse(await FS.readFile(manifestPath, "utf8"));
+      manifest.publisher = "acme";
+      manifest.name = "dashboard";
+      manifest.version = "1.9.8";
+      await FS.writeFile(manifestPath, JSON.stringify(manifest));
+      const archive = Path.join(tempDir, "dashboard-1.9.8.tabsext");
+      await packTabsext({ directory: sourceDir, destination: archive, tabsVersion: "1.3.17" });
+      const archiveBytes = await FS.readFile(archive);
+
+      let signalPreflight!: () => void;
+      const preflight = new Promise<void>((resolve) => {
+        signalPreflight = resolve;
+      });
+      const originalQuery = testPool!.query.bind(testPool!);
+      const querySpy = vi.spyOn(testPool!, "query").mockImplementation((async (
+        ...args: unknown[]
+      ) => {
+        const result = await (originalQuery as (...values: unknown[]) => Promise<unknown>)(...args);
+        if (
+          typeof args[0] === "string" &&
+          args[0].includes("SELECT role FROM exchange_namespace_members") &&
+          Array.isArray(args[1]) &&
+          args[1][1] === CONTRIBUTOR_USER.id
+        ) {
+          signalPreflight();
+        }
+        return result;
+      }) as Pool["query"]);
+
+      let bodyController!: ReadableStreamDefaultController<Uint8Array>;
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          bodyController = controller;
+          controller.enqueue(new Uint8Array(archiveBytes.subarray(0, 1)));
+        },
+      });
+      let bodyClosed = false;
+      try {
+        const upload = fetch(`${exchangeOrigin}/v1/publisher/acme/dashboard/versions`, {
+          method: "POST",
+          headers: {
+            Origin: exchangeOrigin,
+            Cookie: contributorSession.cookieHeader,
+            "X-CSRF-Token": contributorSession.csrfToken,
+            "Content-Type": "application/octet-stream",
+          },
+          body,
+          duplex: "half",
+        } as RequestInit & { duplex: "half" });
+
+        await preflight;
+        await originalQuery(
+          "DELETE FROM exchange_namespace_members WHERE namespace = $1 AND user_id = $2",
+          ["acme", CONTRIBUTOR_USER.id],
+        );
+        bodyController.enqueue(new Uint8Array(archiveBytes.subarray(1)));
+        bodyController.close();
+        bodyClosed = true;
+        const result = await upload;
+        expect(result.status).toBe(403);
+        const version = await originalQuery(
+          "SELECT status FROM exchange_versions WHERE namespace = $1 AND name = $2 AND version = $3",
+          ["acme", "dashboard", "1.9.8"],
+        );
+        expect(version.rowCount).toBe(0);
+      } finally {
+        if (!bodyClosed) bodyController.close();
+        querySpy.mockRestore();
+        await originalQuery(
+          "INSERT INTO exchange_namespace_members(namespace, user_id, role) VALUES ($1, $2, 'contributor') ON CONFLICT DO NOTHING",
+          ["acme", CONTRIBUTOR_USER.id],
+        );
+      }
+    });
+
+    it("returns 404 for a target that does not exist", async () => {
       const res = await fetch(
         `${exchangeOrigin}/v1/tuf/targets/extensions/acme/dashboard/9.9.9.tabsext`,
       );
       expect(res.status).toBe(404);
     });
+
+    it("reclaims an expired worker claim against PostgreSQL and scans the quarantined object", async () => {
+      const publisherSession = await performLogin(PUBLISHER_USER);
+      const tempDir = await FS.mkdtemp(Path.join(OS.tmpdir(), "tabs-service-reclaim-"));
+      temporaryDirectories.push(tempDir);
+      const sourceDir = Path.join(tempDir, "pkg");
+      await FS.cp(
+        Path.resolve(import.meta.dirname, "../../../examples/hello-extension"),
+        sourceDir,
+        { recursive: true },
+      );
+      const manifestPath = Path.join(sourceDir, "tabs-extension.json");
+      const manifest = JSON.parse(await FS.readFile(manifestPath, "utf8"));
+      manifest.publisher = "acme";
+      manifest.name = "dashboard";
+      manifest.version = "1.9.9";
+      await FS.writeFile(manifestPath, JSON.stringify(manifest));
+      const archive = Path.join(tempDir, "dashboard-1.9.9.tabsext");
+      await packTabsext({ directory: sourceDir, destination: archive, tabsVersion: "1.3.17" });
+      const upload = await fetch(`${exchangeOrigin}/v1/publisher/acme/dashboard/versions`, {
+        method: "POST",
+        headers: {
+          Origin: exchangeOrigin,
+          Cookie: publisherSession.cookieHeader,
+          "X-CSRF-Token": publisherSession.csrfToken,
+          "Content-Type": "application/octet-stream",
+        },
+        body: new Uint8Array(await FS.readFile(archive)),
+      });
+      expect(upload.status).toBe(202);
+      await testPool!.query(
+        "UPDATE exchange_versions SET status = 'scanning', scan_claimed_at = now() - interval '11 minutes', scan_token = $4, submitted_at = now() - interval '1 day' WHERE namespace = $1 AND name = $2 AND version = $3",
+        ["acme", "dashboard", "1.9.9", Crypto.randomUUID()],
+      );
+      expect(await scanNextVersion(testPool!, s3Client!, exchangeConfig!)).toBe(true);
+      const scanned = await testPool!.query(
+        "SELECT status, scan_token, scan_result FROM exchange_versions WHERE namespace = $1 AND name = $2 AND version = $3",
+        ["acme", "dashboard", "1.9.9"],
+      );
+      expect(scanned.rows[0]?.status).toBe("review");
+      expect(scanned.rows[0]?.scan_token).toBeNull();
+      expect(scanned.rows[0]?.scan_result?.passed).toBe(true);
+    });
+  });
+
+  it("restores database audit rows, object bytes, and serial sequence state into fresh services", async () => {
+    const auditUser = "90000001";
+    const auditNamespace = "backup-test";
+    await testPool!.query(
+      "INSERT INTO exchange_users(id, login) VALUES ($1, 'backup-actor') ON CONFLICT DO NOTHING",
+      [auditUser],
+    );
+    await testPool!.query(
+      "INSERT INTO exchange_namespaces(name, terms_version, created_by) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",
+      [auditNamespace, TERMS_VERSION, auditUser],
+    );
+    await testPool!.query(
+      "INSERT INTO exchange_namespace_member_events(namespace, user_id, role, actor_id, action, reason) VALUES ($1, $2, 'contributor', $2, 'remove', 'backup audit test')",
+      [auditNamespace, auditUser],
+    );
+
+    const backup = JSON.parse(
+      JSON.stringify(await backupExchangeData(testPool!, s3Client!, testBucket)),
+    ) as Awaited<ReturnType<typeof backupExchangeData>>;
+    expect(backup.tableCounts.exchange_namespace_member_events).toBeGreaterThan(0);
+
+    const restoredDbName = `tabs_exchange_restore_${Date.now()}_${Crypto.randomBytes(4).toString("hex")}`;
+    const restoredBucket = `tabs-exchange-restore-${Date.now()}-${Crypto.randomBytes(4).toString("hex")}`;
+    let restoredPool: Pool | null = null;
+    try {
+      await rootPool!.query(`CREATE DATABASE ${restoredDbName}`);
+      const restoredUrl = new URL(TEST_POSTGRES_URL);
+      restoredUrl.pathname = `/${restoredDbName}`;
+      restoredPool = new Pool({ connectionString: restoredUrl.toString() });
+      const sql = await FS.readFile(Path.join(import.meta.dirname, "schema.sql"), "utf8");
+      await migrateExchangeSchema(restoredPool, sql);
+      await s3Client!.send(new CreateBucketCommand({ Bucket: restoredBucket }));
+
+      const hostileBackup = JSON.parse(JSON.stringify(backup)) as typeof backup;
+      hostileBackup.tableRows.exchange_users![0]![
+        "login) VALUES ('injected'); DROP TABLE exchange_namespaces; --"
+      ] = "malicious-column";
+      await expect(
+        restoreExchangeData(hostileBackup, restoredPool, s3Client!, restoredBucket),
+      ).rejects.toThrow();
+      expect(
+        (await restoredPool.query("SELECT count(*) AS count FROM exchange_namespaces")).rows[0]
+          ?.count,
+      ).toBe("0");
+
+      const result = await restoreExchangeData(backup, restoredPool, s3Client!, restoredBucket);
+      expect(result.restoredTables).toBe(Object.keys(backup.tableCounts).length);
+      expect(result.restoredObjects).toBe(backup.objectCount);
+      const auditRows = await restoredPool.query(
+        "SELECT reason FROM exchange_namespace_member_events WHERE namespace = $1",
+        [auditNamespace],
+      );
+      expect(auditRows.rows.some((row) => row.reason === "backup audit test")).toBe(true);
+
+      // New audited writes must not collide with IDs restored from the backup.
+      await restoredPool.query(
+        "INSERT INTO exchange_namespace_member_events(namespace, user_id, role, actor_id, action, reason) VALUES ($1, $2, 'contributor', $2, 'remove', 'after restore')",
+        [auditNamespace, auditUser],
+      );
+
+      for (const object of backup.objects) {
+        const fetched = await s3Client!.send(
+          new GetObjectCommand({ Bucket: restoredBucket, Key: object.key }),
+        );
+        const bytes = Buffer.from(await fetched.Body!.transformToByteArray());
+        expect(bytes.length).toBe(object.bytes);
+        expect(Crypto.createHash("sha256").update(bytes).digest("hex")).toBe(object.digest);
+      }
+    } finally {
+      if (restoredPool) await restoredPool.end();
+      const listed = await s3Client!.send(new ListObjectsV2Command({ Bucket: restoredBucket }));
+      for (const object of listed.Contents ?? []) {
+        if (object.Key) {
+          await s3Client!.send(
+            new DeleteObjectCommand({ Bucket: restoredBucket, Key: object.Key }),
+          );
+        }
+      }
+      await s3Client!.send(new DeleteBucketCommand({ Bucket: restoredBucket }));
+      await rootPool!.query(`DROP DATABASE IF EXISTS ${restoredDbName} WITH (FORCE)`);
+    }
   });
 });

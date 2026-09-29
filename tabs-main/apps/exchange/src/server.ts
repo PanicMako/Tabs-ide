@@ -20,6 +20,7 @@ import { decodeSearchCursor, encodeSearchCursor } from "./searchCursor.ts";
 import { decodeVersionCursor, encodeVersionCursor } from "./versionCursor.ts";
 import { SignedMetadataEvents } from "./signedMetadataEvents.ts";
 import { metadataFreshness, type StoredMetadataRow } from "./metadataFreshness.ts";
+import { evaluateOperationalReadiness } from "./operationalAlerts.ts";
 
 const PACKAGE_ROUTE = /^\/v1\/extensions\/([a-z][a-z0-9-]{1,62})\/([a-z][a-z0-9-]{1,62})$/;
 const VERSION_ROUTE =
@@ -1006,10 +1007,15 @@ export function createExchangeServer(
            WHERE name = ANY($1::text[])`,
           [["root.json", "timestamp.json", "snapshot.json", "targets.json"]],
         );
+        const freshness = metadataFreshness(metadata.rows);
         json(response, 200, {
           queue: found.rows[0],
           pendingRevocations: pending.rows,
-          metadataFreshness: metadataFreshness(metadata.rows),
+          metadataFreshness: freshness,
+          readiness: evaluateOperationalReadiness(true, {
+            ...found.rows[0],
+            metadataFreshness: freshness,
+          }),
         });
         return;
       }

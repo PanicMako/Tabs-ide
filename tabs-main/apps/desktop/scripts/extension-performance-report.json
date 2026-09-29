@@ -39,13 +39,7 @@
       "publisher": "tabs-example",
       "extensionName": "project-companion",
       "version": "0.1.0",
-      "capabilities": [
-        "profile-storage",
-        "workspace-read",
-        "network",
-        "credentials",
-        "ai-tools"
-      ],
+      "capabilities": ["profile-storage", "workspace-read", "network", "credentials", "ai-tools"],
       "manifestValidationTimeMs": 0.341,
       "averageLogicExecutionTimeMs": 21.725,
       "logicRuns": [

@@ -635,6 +635,10 @@ describe("Exchange HTTP boundaries", () => {
         { role: "snapshot", status: "missing", expiresAt: null },
         { role: "targets", status: "missing", expiresAt: null },
       ],
+      readiness: {
+        ready: false,
+        healthzOk: true,
+      },
     });
     expect(ready.publicQueries.filter((sql) => sql.includes("AS stale_scans"))).toHaveLength(1);
     expect(

@@ -1,5 +1,6 @@
 import "../index.css";
 import { expect, test, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 import { render } from "vitest-browser-react";
 import type { DesktopBridge, DesktopExtensionViewErrorEvent } from "@tabs/contracts";
 
@@ -136,8 +137,8 @@ test("shows accessible crash error with safe keyboard retry and ignores stale ev
   // Assert retry control receives focus on failure in real Chromium
   expect(document.activeElement).toBe(retryButton.element());
 
-  // Trigger retry: resets error and re-activates with a new activationId
-  await retryButton.click();
+  // Enter activates the focused Retry control.
+  await userEvent.keyboard("{Enter}");
   expect(activateCalls).toBe(2);
   const secondActivationId = lastActivationInput?.activationId;
   expect(typeof secondActivationId).toBe("string");
@@ -154,6 +155,22 @@ test("shows accessible crash error with safe keyboard retry and ignores stale ev
     activationId: firstActivationId,
     error: "Old view crash after retry.",
   });
+  await expect.element(screen.getByRole("alert")).not.toBeInTheDocument();
+
+  // Space also activates Retry on a later crash.
+  listeners.error?.({
+    projectId: "project-a",
+    extensionId: "acme.dashboard",
+    toolId: "overview",
+    profileId: "work",
+    activationId: secondActivationId,
+    error: "The extension crashed again.",
+  });
+  await expect.element(retryButton).toBeVisible();
+  expect(document.activeElement).toBe(retryButton.element());
+  await userEvent.keyboard("{Space}");
+  expect(activateCalls).toBe(3);
+  expect(lastActivationInput?.activationId).not.toBe(secondActivationId);
   await expect.element(screen.getByRole("alert")).not.toBeInTheDocument();
 
   delete (window as unknown as { desktopBridge?: unknown }).desktopBridge;

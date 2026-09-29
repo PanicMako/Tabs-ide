@@ -355,7 +355,7 @@ export default function ExtensionsSettings() {
               aria-labelledby="exchange-install-review"
               className="space-y-2 rounded border border-border p-3"
               onKeyDown={(event) => {
-                if (event.key === "Escape") {
+                if (event.key === "Escape" && !busy) {
                   void run(async () => {
                     await bridge.cancelExchangeInstall(preparedInstall.token);
                     setPreparedInstall(null);
@@ -751,7 +751,7 @@ export default function ExtensionsSettings() {
                     aria-describedby={`uninstall-description-${extension.id}`}
                     className="space-y-2 rounded border border-destructive/50 p-3"
                     onKeyDown={(event) => {
-                      if (event.key === "Escape") {
+                      if (event.key === "Escape" && !busy) {
                         const extId = extension.id;
                         setUninstallingId(null);
                         requestAnimationFrame(() =>

@@ -112,7 +112,8 @@ vi.mock("~/state/workspaceShell", () => ({
 import ExtensionsSettings from "./ExtensionsSettings";
 
 test("ExtensionsSettings: navigates views, manages focus on dialogs, and supports Escape cancellation in browser", async () => {
-  let cancelCalled = false;
+  let cancelCount = 0;
+  const confirmInstall = vi.fn(async () => sampleExtension);
   const mockBridge: Partial<DesktopBridge> = {
     listExtensions: vi.fn(async () => [sampleExtension]),
     onExtensionsChanged: vi.fn(() => () => {}),
@@ -124,9 +125,9 @@ test("ExtensionsSettings: navigates views, manages focus on dialogs, and support
     })),
     exchangeInstallAvailable: vi.fn(async () => true),
     prepareExchangeInstall: vi.fn(async () => samplePreparedInstall),
-    confirmExchangeInstall: vi.fn(async () => sampleExtension),
+    confirmExchangeInstall: confirmInstall,
     cancelExchangeInstall: vi.fn(async () => {
-      cancelCalled = true;
+      cancelCount++;
     }),
     setExtensionUpdatesPinned: vi.fn(async () => undefined),
     checkExtensionUpdate: vi.fn(async () => null),
@@ -214,7 +215,27 @@ test("ExtensionsSettings: navigates views, manages focus on dialogs, and support
 
   // Cancel via Escape key
   await userEvent.keyboard("{Escape}");
-  expect(cancelCalled).toBe(true);
+  expect(cancelCount).toBe(1);
+
+  // Escape must not cancel an install after confirmation has started.
+  await reviewButton.click();
+  let finishConfirm!: (extension: DesktopInstalledExtension) => void;
+  confirmInstall.mockImplementationOnce(
+    () =>
+      new Promise<DesktopInstalledExtension>((resolve) => {
+        finishConfirm = resolve;
+      }),
+  );
+  await screen.getByRole("button", { name: "Install verified package" }).click();
+  await userEvent.keyboard("{Escape}");
+  expect(cancelCount).toBe(1);
+  await expect
+    .element(screen.getByRole("heading", { name: "Review Analytics Tool" }))
+    .toBeVisible();
+  finishConfirm(sampleExtension);
+  await expect
+    .element(screen.getByRole("button", { name: "Installed" }))
+    .toHaveAttribute("aria-pressed", "true");
 
   delete (window as unknown as { desktopBridge?: unknown }).desktopBridge;
 });

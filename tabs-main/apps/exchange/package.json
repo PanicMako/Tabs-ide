@@ -12,7 +12,7 @@
     "verify:objects": "bun src/verifyObjects.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:integration": "vitest run src/exchangeService.integration.test.ts"
+    "test:integration": "TABS_EXCHANGE_INTEGRATION=1 vitest run src/exchangeService.integration.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1139.0",

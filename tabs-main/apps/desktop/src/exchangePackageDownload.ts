@@ -12,11 +12,7 @@ export async function downloadSignedExchangePackage(input: {
 }): Promise<string> {
   const { origin, target, stagingRoot } = input;
   const parsed = new URL(origin);
-  const isLocalDev =
-    (process.env.TABS_DEVELOPMENT === "true" || process.env.TABS_TEST_ALLOW_HTTP === "true") &&
-    parsed.protocol === "http:" &&
-    (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1");
-  if (parsed.origin !== origin || (parsed.protocol !== "https:" && !isLocalDev)) {
+  if (parsed.origin !== origin || parsed.protocol !== "https:") {
     throw new Error("Exchange package origin must be HTTPS.");
   }
   const pieces = /^extensions\/([^/]+)\/([^/]+)\/([^/]+)\.tabsext$/.exec(target.path);

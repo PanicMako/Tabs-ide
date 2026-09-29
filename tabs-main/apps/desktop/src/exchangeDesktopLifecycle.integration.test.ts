@@ -145,6 +145,62 @@ describe("Desktop Install/Update and Isolation Lifecycle (Checkpoint 2)", () => 
     }
   });
 
+  it("keeps trusted registry transport HTTPS-only even if a test or development flag is set", async () => {
+    vi.stubEnv("TABS_TEST_ALLOW_HTTP", "true");
+    vi.stubEnv("TABS_DEVELOPMENT", "true");
+    try {
+      const localOrigin = "http://127.0.0.1:8787";
+      const root = temporaryDirectory();
+      const rootPath = Path.join(root, "root.json");
+      const rootBytes = generateTufRoot();
+      FS.writeFileSync(rootPath, rootBytes);
+      expect(() =>
+        configuredExchangeTrust(
+          {
+            TABS_EXCHANGE_TRUST_ROOT_PATH: rootPath,
+            TABS_EXCHANGE_TRUST_ROOT_SHA256: Crypto.createHash("sha256")
+              .update(rootBytes)
+              .digest("hex"),
+            TABS_EXCHANGE_TRUST_ID: "local-test",
+            TABS_TEST_ALLOW_HTTP: "true",
+            TABS_DEVELOPMENT: "true",
+          },
+          localOrigin,
+        ),
+      ).toThrow(/HTTPS registry origin/);
+      expect(
+        () =>
+          new TrustedExchange({
+            origin: localOrigin,
+            trustId: "local-test",
+            initialRoot: rootBytes,
+            stateRoot: root,
+          }),
+      ).toThrow(/Invalid trusted Exchange configuration/);
+      expect(
+        () =>
+          new ExchangeSignedMetadataHints(
+            localOrigin,
+            () => {},
+            () => {},
+          ),
+      ).toThrow(/HTTPS registry origin/);
+      await expect(
+        downloadSignedExchangePackage({
+          origin: localOrigin,
+          target: {
+            path: exchangeTargetPath("acme", "dashboard", "1.0.0"),
+            bytes: 1,
+            digest: "a".repeat(64),
+          },
+          stagingRoot: root,
+        }),
+      ).rejects.toThrow(/HTTPS/);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("discovers signed release, downloads exact target, verifies identity and compatibility, and requires permission consent before enablement", async () => {
     const root = temporaryDirectory();
     const source = Path.join(root, "source");

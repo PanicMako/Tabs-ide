@@ -652,6 +652,24 @@ describe("Checkpoint 4: Trust, Operations, and Fork Hardening", () => {
         },
       } as any;
 
+      const corruptedBackup = {
+        ...backup,
+        objects: backup.objects.map((object) => ({
+          ...object,
+          dataBase64: Buffer.from("corrupted").toString("base64"),
+        })),
+      };
+      await expect(
+        restoreExchangeData(
+          corruptedBackup,
+          mockEmptyTargetPool,
+          mockEmptyTargetS3,
+          "empty-bucket",
+        ),
+      ).rejects.toThrow(/Corrupted object/);
+      expect(restoredDbRows).toEqual({});
+      expect(restoredS3Objects.size).toBe(0);
+
       const restoreResult = await restoreExchangeData(
         backup,
         mockEmptyTargetPool,
@@ -659,7 +677,7 @@ describe("Checkpoint 4: Trust, Operations, and Fork Hardening", () => {
         "empty-bucket",
       );
 
-      expect(restoreResult.restoredTables).toBe(13);
+      expect(restoreResult.restoredTables).toBe(14);
       expect(restoreResult.restoredObjects).toBe(1);
       expect(restoredS3Objects.has("packages/acme/dashboard/1.0.0.tabsext")).toBe(true);
       expect(restoredS3Objects.get("packages/acme/dashboard/1.0.0.tabsext")).toEqual(packageBytes);
@@ -756,7 +774,7 @@ describe("Checkpoint 4: Trust, Operations, and Fork Hardening", () => {
   });
 
   describe("Multi-Registry Origin Isolation Drill", () => {
-    it("guarantees separate trust state and zero credential/storage leakage across registry origins", async () => {
+    it("keeps pinned roots separate for different registry origins sharing a trust ID", async () => {
       const originA = "https://registry-a.example";
       const originB = "https://registry-b.example";
 
@@ -813,16 +831,26 @@ describe("Checkpoint 4: Trust, Operations, and Fork Hardening", () => {
 
       const clientB = new TrustedExchange({
         origin: originB,
-        trustId: "registry-b",
+        trustId: "registry-a",
         initialRoot: rootBBytes,
         stateRoot: sharedStateRoot,
         fetcher: (async () => new Response(null, { status: 404 })) as unknown as typeof fetch,
       });
 
-      // Verify state directories are isolated on disk
-      const dirA = Path.join(sharedStateRoot, "registry-a");
-      const dirB = Path.join(sharedStateRoot, "registry-b");
+      // Trust state is keyed by origin AND stable trust lineage, not just a label.
+      const stateDirectory = (origin: string) =>
+        Path.join(
+          sharedStateRoot,
+          Crypto.createHash("sha256")
+            .update(JSON.stringify([origin, "registry-a"]))
+            .digest("hex"),
+        );
+      const dirA = stateDirectory(originA);
+      const dirB = stateDirectory(originB);
       expect(dirA).not.toBe(dirB);
+      expect(FS.readFileSync(Path.join(dirA, "root.json"))).toEqual(rootABytes);
+      expect(FS.readFileSync(Path.join(dirB, "root.json"))).toEqual(rootBBytes);
+      expect(clientA).not.toBe(clientB);
 
       // Verify client A and B reject cross-origin requests
       const fetcherA = new ExchangeMetadataFetcher(originA);

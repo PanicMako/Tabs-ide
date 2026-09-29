@@ -171,6 +171,7 @@ export interface DesktopExtensionViewInput {
 }
 
 export interface DesktopExtensionBoundsInput extends DesktopExtensionViewInput {
+  readonly activationId: string;
   readonly x: number;
   readonly y: number;
   readonly width: number;

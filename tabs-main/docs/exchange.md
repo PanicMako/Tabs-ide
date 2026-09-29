@@ -368,11 +368,16 @@ To run the real local Exchange service integration suite against isolated Postgr
 - **Stop test stack & clean up volumes**:
   `docker compose -f apps/exchange/compose.test.yaml down -v`
 
-If Docker is not running, the test command safely detects the absence of services, warns with the start instructions, marks live execution unverified, and skips live operations rather than failing spuriously.
+The opt-in integration command fails if either service is unavailable. Ordinary
+`bun run test` skips this suite and does not count its cases as passes.
 
 ## Operations Hardening & Disaster Recovery Drills
 
-Tabs Exchange includes comprehensive operational procedures and drills implemented and verified in `apps/exchange/src/exchangeHardening.integration.test.ts`.
+Tabs Exchange includes operational helpers and tests in
+`apps/exchange/src/exchangeHardening.integration.test.ts`. That suite uses
+in-memory database and object-store stand-ins for backup/restore and worker
+fault cases. Run the opt-in local service integration suite for PostgreSQL/S3
+coverage; neither suite proves a production recovery drill.
 
 ### 1. TUF Root Rotation Drill
 
@@ -397,14 +402,14 @@ Tabs Exchange includes comprehensive operational procedures and drills implement
 
 ### 4. Database & Storage Backup / Restore Procedures
 
-- **Backup (`backupExchangeData`)**:
-  - Dumps all 13 PostgreSQL tables in topological order (`exchange_users`, `exchange_namespaces`, `exchange_namespace_members`, `exchange_namespace_invitations`, `exchange_namespace_verifications`, `exchange_versions`, `exchange_review_events`, `exchange_appeals`, `exchange_blocked_digests`, `exchange_blocked_digest_events`, `exchange_tuf_metadata`, `exchange_published_targets`, `exchange_published_heads`).
-  - Exports all private S3 objects with cryptographic SHA-256 validation.
+- **Local test backup (`backupExchangeData`)**:
+  - Captures 14 durable PostgreSQL tables, including namespace-member audit events. Sessions, OAuth states, and worker heartbeats are intentionally omitted because they are ephemeral.
+  - Captures S3 object bytes and their SHA-256 digests. This in-memory helper is for small local drills; it is not a scalable production backup command. Stop the API and worker before using it so database rows and objects cannot change during capture.
 - **Restore (`restoreExchangeData`)**:
   - **CRITICAL SAFETY INVARIANT**: Restoration into any non-empty database or non-empty S3 bucket is **strictly rejected**. Never restore over a live database or active bucket.
-  - Restores all table rows in a single atomic database transaction.
-  - Uploads all S3 objects and re-verifies SHA-256 digests against the manifest.
-  - Confirms exact row and object count match between backup and restored instance.
+  - Restores database rows in one transaction and advances serial sequences after restoring audit IDs.
+  - Uploads S3 objects and checks SHA-256 digests against the manifest.
+  - Database and object storage are **not** one atomic transaction. A failed object upload can leave a partial restore; keep the target offline and retry into a fresh empty database and bucket. Use the cold `pg_dump`/object-copy procedure above for operational backups.
 
 ### 5. Worker Recovery & Operational Readiness
 
@@ -412,7 +417,7 @@ Tabs Exchange includes comprehensive operational procedures and drills implement
 - **Quarantine Corruption Detection**: If quarantined object bytes in S3 are mutated or truncated before review, the scan worker detects the digest mismatch, aborts review advancement, and logs `quarantined-digest-changed`.
 - **Operational Readiness beyond `/healthz`**:
   - Database ping `/healthz` verifies basic connectivity but is **insufficient** for production monitoring.
-  - Review queue metrics (`/v1/review/queue`) evaluate:
+  - The reviewer-only `/v1/review/operations` response evaluates readiness and returns alerts; the reviewer page displays them. This is advisory visibility, not an external paging/monitoring service.
     - Worker heartbeat: alert if no worker heartbeat observed within 15 seconds (`worker_recently_seen === false`).
     - Queue backlog: alert if queue depth exceeds 20 packages or oldest queued package exceeds 10 minutes.
     - TUF metadata freshness: alert if any role (`root`, `timestamp`, `snapshot`, `targets`) is expired (`critical`) or expiring within 48 hours (`warning`).
@@ -428,16 +433,16 @@ Tabs Exchange includes comprehensive operational procedures and drills implement
 
 ## Operator Production Go / No-Go Checklist
 
-| Area                | Item                                               |     Status     | Verification & Blocker Notes                                                                                       |
-| :------------------ | :------------------------------------------------- | :------------: | :----------------------------------------------------------------------------------------------------------------- |
-| **Publishing Gate** | `EXCHANGE_PUBLISHING_ENABLED = false`              |  **ENFORCED**  | Public submissions disabled by default in source and configuration.                                                |
-| **Trust Signing**   | Production TUF Root Signing Ceremony               |  **BLOCKED**   | External dependency: requires offline ceremony, air-gapped hardware/YubiKeys, and operator quorum.                 |
-| **OAuth Auth**      | Production GitHub OAuth Application                |  **BLOCKED**   | External dependency: requires official Tabs organization OAuth Client ID & Secret; local fixture used for testing. |
-| **Infrastructure**  | Managed PostgreSQL & S3 Object Storage (R2/Render) | **UNVERIFIED** | Local container and test harnesses verified; production cloud deployment pending ops rollout.                      |
-| **Malware Intel**   | External Threat & Malware Advisory Feed            |  **BLOCKED**   | External dependency: commercial/curated malware feed not configured; local blocked-digest DB active.               |
-| **AI Providers**    | Live Provider Production Credentials               |  **BLOCKED**   | Production API keys withheld per safety instructions; provider mocks active for test suites.                       |
-| **Legal / Terms**   | Final Publisher Terms of Service                   |  **BLOCKED**   | Draft terms version `2026-09-24` active in schema; legal review required before public publishing.                 |
-| **TUF Mechanics**   | Root Rotation & Threshold Verification             |    **PASS**    | Verified via `exchangeHardening.integration.test.ts` (1 -> 2 -> 3 chain, dual signatures, rollback rejected).      |
-| **Data Recovery**   | Atomic Backup & Safe Restore Protocol              |    **PASS**    | Verified via `backupRestore.ts` and automated drill with exact SHA-256 and row count validation.                   |
-| **Worker Faults**   | Expired Claim Reclamation & Tamper Detection       |    **PASS**    | Verified via worker unit and hardening integration suites.                                                         |
-| **Origin Defense**  | Multi-Registry Origin Isolation & Anti-Collision   |    **PASS**    | Verified via client trust isolation and state root partitioning drills.                                            |
+| Area                | Item                                               |     Status     | Verification & Blocker Notes                                                                                                                              |
+| :------------------ | :------------------------------------------------- | :------------: | :-------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Publishing Gate** | `EXCHANGE_PUBLISHING_ENABLED = false`              |  **ENFORCED**  | Public submissions disabled by default in source and configuration.                                                                                       |
+| **Trust Signing**   | Production TUF Root Signing Ceremony               |  **BLOCKED**   | External dependency: requires offline ceremony, air-gapped hardware/YubiKeys, and operator quorum.                                                        |
+| **OAuth Auth**      | Production GitHub OAuth Application                |  **BLOCKED**   | External dependency: requires official Tabs organization OAuth Client ID & Secret; local fixture used for testing.                                        |
+| **Infrastructure**  | Managed PostgreSQL & S3 Object Storage (R2/Render) | **UNVERIFIED** | Local container and test harnesses verified; production cloud deployment pending ops rollout.                                                             |
+| **Malware Intel**   | External Threat & Malware Advisory Feed            |  **BLOCKED**   | External dependency: commercial/curated malware feed not configured; local blocked-digest DB active.                                                      |
+| **AI Providers**    | Live Provider Production Credentials               |  **BLOCKED**   | Production API keys withheld per safety instructions; provider mocks active for test suites.                                                              |
+| **Legal / Terms**   | Final Publisher Terms of Service                   |  **BLOCKED**   | Draft terms version `2026-09-24` active in schema; legal review required before public publishing.                                                        |
+| **TUF Mechanics**   | Root Rotation & Threshold Verification             |    **PASS**    | Verified via `exchangeHardening.integration.test.ts` (1 -> 2 -> 3 chain, dual signatures, rollback rejected).                                             |
+| **Data Recovery**   | Production backup and restore drill                | **UNVERIFIED** | Local helper and tests cover row/object copying, but cross-service atomicity is unavailable; perform a cold restore into a new environment before launch. |
+| **Worker Faults**   | Expired Claim Reclamation & Tamper Detection       |    **PASS**    | Verified via worker unit and hardening integration suites.                                                                                                |
+| **Origin Defense**  | Multi-Registry Origin Isolation & Anti-Collision   |    **PASS**    | Verified via client trust isolation and state root partitioning drills.                                                                                   |
