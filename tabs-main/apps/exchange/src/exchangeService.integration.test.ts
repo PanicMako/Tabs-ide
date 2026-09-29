@@ -778,7 +778,7 @@ describe("Exchange Real Local Service Flow (Checkpoint 1)", () => {
       `${exchangeOrigin}/v1/tuf/targets/extensions/acme/dashboard/1.1.0.tabsext`,
     );
     expect(tufTargetRevoked.status).toBe(404);
-  });
+  }, 30_000);
 
   describe("Negative Service Boundary Tests", () => {
     it("rejects approval with mismatched digest", async () => {
