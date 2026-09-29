@@ -176,6 +176,8 @@ describe("trusted Exchange metadata", () => {
   it("rejects target identities that could escape their namespace", () => {
     expect(() => exchangeTargetPath("../acme", "dashboard", "1.0.0")).toThrow();
     expect(() => exchangeTargetPath("acme", "dashboard", "../../file")).toThrow();
+    expect(() => exchangeTargetPath("acme", "dashboard", "1.0.0-../admin")).toThrow();
+    expect(() => exchangeTargetPath("acme", "dashboard", "1.0.0-%2Fadmin")).toThrow();
   });
 
   it("keeps metadata fetches on the configured origin without redirects", async () => {

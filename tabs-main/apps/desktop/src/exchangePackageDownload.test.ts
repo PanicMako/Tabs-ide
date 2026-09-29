@@ -76,5 +76,12 @@ describe("signed Exchange package download", () => {
         stagingRoot: root,
       }),
     ).rejects.toThrow(/invalid/);
+    await expect(
+      downloadSignedExchangePackage({
+        origin,
+        target: { ...target, path: "extensions/acme/dashboard/1.0.0-%2Fadmin.tabsext" },
+        stagingRoot: root,
+      }),
+    ).rejects.toThrow(/invalid/i);
   });
 });

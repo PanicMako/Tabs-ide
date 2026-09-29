@@ -3,7 +3,7 @@ import * as FS from "node:fs";
 import * as Path from "node:path";
 import { BaseFetcher, Updater, type UpdaterOptions } from "tuf-js";
 import { DownloadHTTPError } from "tuf-js/dist/error";
-import { parseSemver } from "@tabs/shared/semver";
+import { isSafeExtensionPackageVersion } from "@tabs/shared/extensions";
 
 const SEGMENT = /^[a-z][a-z0-9-]{1,62}$/;
 const SHA256 = /^[a-f0-9]{64}$/;
@@ -75,7 +75,7 @@ export class ExchangeMetadataFetcher extends BaseFetcher {
 }
 
 export function exchangeTargetPath(namespace: string, name: string, version: string): string {
-  if (!SEGMENT.test(namespace) || !SEGMENT.test(name) || !parseSemver(version)) {
+  if (!SEGMENT.test(namespace) || !SEGMENT.test(name) || !isSafeExtensionPackageVersion(version)) {
     throw new Error("Invalid Exchange target identity.");
   }
   return `extensions/${namespace}/${name}/${version}.tabsext`;

@@ -8,6 +8,10 @@ const MAX_TOOLS = 12;
 const MAX_COMMANDS = 8;
 const STORAGE_KEY = /^[a-zA-Z][a-zA-Z0-9._-]{0,127}$/;
 
+export function isSafeExtensionPackageVersion(value: unknown): value is string {
+  return typeof value === "string" && PACKAGE_VERSION.test(value) && parseSemver(value) !== null;
+}
+
 export function extensionPermissionIncrease(
   next: TabsExtensionManifest,
   previous?: TabsExtensionManifest,
@@ -136,11 +140,7 @@ export function validateTabsExtensionManifest(
   if (typeof input.name !== "string" || !SEGMENT.test(input.name)) {
     errors.push("name must be a lowercase package name.");
   }
-  if (
-    typeof input.version !== "string" ||
-    !PACKAGE_VERSION.test(input.version) ||
-    !parseSemver(input.version)
-  ) {
+  if (!isSafeExtensionPackageVersion(input.version)) {
     errors.push("version must be URL-safe semantic versioning, at most 128 characters.");
   }
   for (const key of ["displayName", "description"] as const) {

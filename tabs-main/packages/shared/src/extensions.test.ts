@@ -3,6 +3,7 @@ import type { TabsExtensionManifest } from "@tabs/contracts";
 import {
   extensionPermissionIncrease,
   extensionProfileForProject,
+  isSafeExtensionPackageVersion,
   isExtensionEnabledForProject,
   validateTabsExtensionManifest,
 } from "./extensions.ts";
@@ -20,6 +21,10 @@ const manifest = {
 
 describe("Tabs extension manifest", () => {
   it("rejects versions that cannot be used safely in registry paths and cursors", () => {
+    expect(isSafeExtensionPackageVersion("1.0.0-alpha")).toBe(true);
+    for (const version of ["1.0.0-../admin", "1.0.0-foo/bar", "1.0.0-%2Fadmin"]) {
+      expect(isSafeExtensionPackageVersion(version)).toBe(false);
+    }
     expect(
       validateTabsExtensionManifest({ ...manifest, version: "1.0.0-alpha" }, "1.3.17").ok,
     ).toBe(true);
