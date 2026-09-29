@@ -26,6 +26,7 @@ import { extensionNetworkGetText, validateExtensionNetworkUrl } from "./extensio
 import { runExtensionLogicSpike } from "./extensionLogicSpike";
 
 const SCHEME = "tabs-extension";
+const EXTENSION_VIEW_ERROR_CHANNEL = "desktop:extension:view-error";
 const MAX_FILES = 1_000;
 const MAX_TOTAL_BYTES = 50 * 1024 * 1024;
 const PROFILE_ID = /^[a-z][a-z0-9-]{0,62}$/;
@@ -1158,7 +1159,22 @@ export class ExtensionViewManager {
         );
       }
       await this.activateView(installed, input, scope, entry, key);
-      if (this.activationSequence !== activationSequence || this.active?.key !== key) return;
+      const current = this.installed.get(installed.id);
+      if (
+        this.activationSequence !== activationSequence ||
+        this.active?.key !== key ||
+        !current ||
+        current.disabled ||
+        current.revoked ||
+        !isExtensionEnabledForProject(current.assignment, input.projectId) ||
+        extensionProfileForProject(current.assignment, input.projectId) !== input.profileId ||
+        (installed.digest && current.digest !== installed.digest)
+      ) {
+        if (this.activationSequence === activationSequence && this.active?.key === key) {
+          this.hide();
+        }
+        return;
+      }
       this.finishPendingUpdate(installed);
     } catch (error) {
       const currentActivation = this.activationSequence === activationSequence;
@@ -1226,6 +1242,10 @@ export class ExtensionViewManager {
     });
     view.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
     view.webContents.on("will-navigate", (event) => event.preventDefault());
+    view.webContents.on("will-redirect", (event) => event.preventDefault());
+    view.webContents.on("render-process-gone", (_event, details) => {
+      this.handleViewCrash(view, input, details.reason);
+    });
     this.active = {
       key,
       view,
@@ -1237,6 +1257,39 @@ export class ExtensionViewManager {
     await view.webContents.loadURL(
       `${SCHEME}://${installed.id}/${entry}?project=${encodeURIComponent(input.projectId)}&profile=${encodeURIComponent(input.profileId)}`,
     );
+  }
+
+  private handleViewCrash(
+    view: WebContentsView,
+    input: DesktopExtensionViewInput,
+    reason: string,
+  ): void {
+    const isCurrentActive = this.active?.view === view;
+    this.coordinator.detachToolView(view);
+    try {
+      if (!view.webContents.isDestroyed()) {
+        view.webContents.close();
+      }
+    } catch {
+      // ignore
+    }
+    if (isCurrentActive) {
+      this.active = null;
+      this.abortLogicRequests(input.extensionId);
+      for (const request of this.networkRequests) {
+        if (request.extensionId === input.extensionId) request.controller.abort();
+      }
+    }
+    const window = this.getWindow();
+    if (window && !window.isDestroyed()) {
+      window.webContents.send(EXTENSION_VIEW_ERROR_CHANNEL, {
+        projectId: input.projectId,
+        extensionId: input.extensionId,
+        toolId: input.toolId,
+        profileId: input.profileId,
+        error: `The extension crashed (${reason}).`,
+      });
+    }
   }
 
   private finishPendingUpdate(installed: StoredExtension): void {

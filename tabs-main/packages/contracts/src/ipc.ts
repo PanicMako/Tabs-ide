@@ -1187,9 +1187,18 @@ export interface BrowserProfilePermissionInfo {
   readonly updatedAt: number;
 }
 
+export interface DesktopExtensionViewErrorEvent {
+  readonly projectId: string;
+  readonly extensionId: string;
+  readonly toolId: string;
+  readonly profileId: string;
+  readonly error: string;
+}
+
 export interface DesktopBridge {
   listExtensions: () => Promise<DesktopInstalledExtension[]>;
   onExtensionsChanged: (listener: () => void) => () => void;
+  onExtensionViewError?: (listener: (event: DesktopExtensionViewErrorEvent) => void) => () => void;
   discoverExchangeExtensions: (
     query: string,
     cursor?: string,

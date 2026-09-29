@@ -196,6 +196,7 @@ const EXTENSION_ADD_PROFILE_CHANNEL = "desktop:extension:add-profile";
 const EXTENSION_CREDENTIALS_LIST_CHANNEL = "desktop:extension:credentials-list";
 const EXTENSION_CREDENTIAL_SET_CHANNEL = "desktop:extension:credential-set";
 const EXTENSION_ACTIVATE_CHANNEL = "desktop:extension:activate";
+export const EXTENSION_VIEW_ERROR_CHANNEL = "desktop:extension:view-error";
 const EXTENSION_SET_BOUNDS_CHANNEL = "desktop:extension:set-bounds";
 const EXTENSION_HIDE_CHANNEL = "desktop:extension:hide";
 const EXTENSION_STORAGE_CHANNEL = "desktop:extension:storage";

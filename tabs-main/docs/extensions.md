@@ -232,7 +232,10 @@ while a view is active, rather than continuously. A newly installed Exchange or
 local-package update retains the previous package and assignment until its first view loads,
 including across an app restart. A failed first load restores that package
 and the pre-update Tabs profile-storage snapshot. Browser storage and failures
-after first load are not covered by this rollback.
+after first load are not covered by this rollback. When a renderer crashes after
+first load, the host detaches and closes the failed view and surfaces an
+accessible error in the tool surface with a safe retry affordance, ensuring stale
+events cannot affect another project or tool.
 
 ## Not yet supported
 

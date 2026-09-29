@@ -1881,8 +1881,9 @@ describe("development extension installation", () => {
       enabledProjectIds: ["project-a"],
       storageGrantedProjectIds: ["project-a"],
     });
-    const sender = { isDestroyed: () => false };
-    const internal = manager as unknown as { active: unknown };
+    const sender = { isDestroyed: () => false, close: vi.fn() };
+    const internal = manager as unknown as { active: unknown; coordinator: unknown };
+    internal.coordinator = { detachToolView: vi.fn() };
     internal.active = {
       key: "original-registry",
       view: { webContents: sender },
@@ -2086,5 +2087,460 @@ describe("development extension installation", () => {
       false,
     );
     await expect(packaged.installLocalPackage("/tmp/example.tabsext")).rejects.toThrow(/disabled/);
+  });
+
+  it("closes the failed view, clears active state, and surfaces error on renderer crash after first load", async () => {
+    const { manager, installed } = await exchangeUpdateFixture();
+    const coordinator = { attachToolView: vi.fn(), detachToolView: vi.fn() };
+    (manager as unknown as { coordinator: unknown }).coordinator = coordinator;
+    const send = vi.fn();
+    (manager as unknown as { getWindow: () => unknown }).getWindow = () => ({
+      isDestroyed: () => false,
+      webContents: { send },
+    });
+    let crashHandler!: (event: unknown, details: { reason: string }) => void;
+    let viewClose!: () => void;
+    vi.mocked(electronSession.fromPartition).mockReturnValue({
+      setPermissionRequestHandler: vi.fn(),
+      setPermissionCheckHandler: vi.fn(),
+      webRequest: { onBeforeRequest: vi.fn(), onHeadersReceived: vi.fn() },
+      protocol: { registerFileProtocol: vi.fn() },
+    } as never);
+    vi.mocked(WebContentsView).mockImplementation(function MockExtensionView() {
+      viewClose = vi.fn();
+      return {
+        webContents: {
+          setWindowOpenHandler: vi.fn(),
+          on: vi.fn((event: string, listener: any) => {
+            if (event === "render-process-gone") crashHandler = listener;
+          }),
+          isDestroyed: vi.fn(() => false),
+          loadURL: vi.fn(async () => undefined),
+          close: viewClose,
+        },
+        setBounds: vi.fn(),
+      } as never;
+    });
+
+    const input = {
+      extensionId: installed.id,
+      toolId: "main",
+      projectId: "project-a",
+      profileId: "default",
+    };
+    await manager.activate(input);
+    expect(coordinator.attachToolView).toHaveBeenCalledOnce();
+    expect((manager as unknown as { active: unknown }).active).not.toBeNull();
+
+    // Trigger crash after first load
+    crashHandler({}, { reason: "crashed" });
+
+    // Host must detach the view from coordinator and close it
+    expect(coordinator.detachToolView).toHaveBeenCalledOnce();
+    expect(viewClose).toHaveBeenCalledOnce();
+    expect((manager as unknown as { active: unknown }).active).toBeNull();
+
+    // Host must send EXTENSION_VIEW_ERROR_CHANNEL event with project and tool identity
+    expect(send).toHaveBeenCalledWith("desktop:extension:view-error", {
+      projectId: "project-a",
+      extensionId: installed.id,
+      toolId: "main",
+      profileId: "default",
+      error: "The extension crashed (crashed).",
+    });
+
+    // Safe retry: reactivating creates a fresh view
+    await manager.activate(input);
+    expect(coordinator.attachToolView).toHaveBeenCalledTimes(2);
+    expect((manager as unknown as { active: unknown }).active).not.toBeNull();
+  });
+
+  it("ignores stale crash event from an older view after user switched project/tool", async () => {
+    const { manager, installed } = await exchangeUpdateFixture();
+    manager.setAssignment(installed.id, {
+      ...manager.list()[0]!.assignment,
+      enabledProjectIds: ["project-a", "project-b"],
+    });
+    const coordinator = { attachToolView: vi.fn(), detachToolView: vi.fn() };
+    (manager as unknown as { coordinator: unknown }).coordinator = coordinator;
+    const send = vi.fn();
+    (manager as unknown as { getWindow: () => unknown }).getWindow = () => ({
+      isDestroyed: () => false,
+      webContents: { send },
+    });
+
+    const crashHandlers: Array<(event: unknown, details: { reason: string }) => void> = [];
+    vi.mocked(electronSession.fromPartition).mockReturnValue({
+      setPermissionRequestHandler: vi.fn(),
+      setPermissionCheckHandler: vi.fn(),
+      webRequest: { onBeforeRequest: vi.fn(), onHeadersReceived: vi.fn() },
+      protocol: { registerFileProtocol: vi.fn() },
+    } as never);
+    vi.mocked(WebContentsView).mockImplementation(function MockExtensionView() {
+      return {
+        webContents: {
+          setWindowOpenHandler: vi.fn(),
+          on: vi.fn((event: string, listener: any) => {
+            if (event === "render-process-gone") crashHandlers.push(listener);
+          }),
+          isDestroyed: vi.fn(() => false),
+          loadURL: vi.fn(async () => undefined),
+          close: vi.fn(),
+        },
+        setBounds: vi.fn(),
+      } as never;
+    });
+
+    // Activate for project-a (view 1)
+    await manager.activate({
+      extensionId: installed.id,
+      toolId: "main",
+      projectId: "project-a",
+      profileId: "default",
+    });
+
+    // Activate for project-b (view 2)
+    await manager.activate({
+      extensionId: installed.id,
+      toolId: "main",
+      projectId: "project-b",
+      profileId: "default",
+    });
+
+    const activeBefore = (manager as unknown as { active: { projectId: string } }).active;
+    expect(activeBefore?.projectId).toBe("project-b");
+
+    // Crash view 1 (from project-a)
+    crashHandlers[0]!({}, { reason: "oom" });
+
+    // Active view for project-b must remain untouched!
+    const activeAfter = (manager as unknown as { active: { projectId: string } }).active;
+    expect(activeAfter?.projectId).toBe("project-b");
+
+    // Sent event must carry project-a, not project-b
+    expect(send).toHaveBeenCalledWith(
+      "desktop:extension:view-error",
+      expect.objectContaining({
+        projectId: "project-a",
+        error: "The extension crashed (oom).",
+      }),
+    );
+  });
+
+  it("cancels activation and hides view if extension is disabled while loading", async () => {
+    const { manager, installed } = await exchangeUpdateFixture();
+    const coordinator = { attachToolView: vi.fn(), detachToolView: vi.fn() };
+    (manager as unknown as { coordinator: unknown }).coordinator = coordinator;
+
+    let resolveLoad!: () => void;
+    const loadPromise = new Promise<void>((resolve) => {
+      resolveLoad = resolve;
+    });
+    mockElectronExtensionView(async () => {
+      await loadPromise;
+    });
+
+    const activation = manager.activate({
+      extensionId: installed.id,
+      toolId: "main",
+      projectId: "project-a",
+      profileId: "default",
+    });
+
+    // Disable extension while load is in flight
+    manager.setDisabled(installed.id, true);
+
+    resolveLoad();
+    await activation;
+
+    expect((manager as unknown as { active: unknown }).active).toBeNull();
+    expect(coordinator.detachToolView).toHaveBeenCalled();
+  });
+
+  it("cancels activation and hides view if extension is revoked while loading", async () => {
+    const { manager, installed, second } = await exchangeUpdateFixture();
+    const coordinator = { attachToolView: vi.fn(), detachToolView: vi.fn() };
+    (manager as unknown as { coordinator: unknown }).coordinator = coordinator;
+
+    let resolveLoad!: () => void;
+    const loadPromise = new Promise<void>((resolve) => {
+      resolveLoad = resolve;
+    });
+    mockElectronExtensionView(async () => {
+      await loadPromise;
+    });
+
+    const activation = manager.activate({
+      extensionId: installed.id,
+      toolId: "main",
+      projectId: "project-a",
+      profileId: "default",
+    });
+
+    // Revoke extension while load is in flight
+    manager.revokeIfCurrent(installed.id, installed.registryOrigin!, second.digest);
+
+    resolveLoad();
+    await activation;
+
+    expect((manager as unknown as { active: unknown }).active).toBeNull();
+    expect(coordinator.detachToolView).toHaveBeenCalled();
+  });
+
+  it("rejects in-flight Git status when grant is revoked during execution", async () => {
+    const { directory, manager } = fixture();
+    const manifestPath = Path.join(directory, "tabs-extension.json");
+    const manifest = JSON.parse(FS.readFileSync(manifestPath, "utf8"));
+    manifest.engines.api = "^1.5.0";
+    manifest.capabilities = ["git-status"];
+    FS.writeFileSync(manifestPath, JSON.stringify(manifest));
+    const installed = manager.installDevelopment(directory);
+    manager.setAssignment(installed.id, {
+      ...installed.assignment,
+      enabledProjectIds: ["project-a"],
+      gitStatusGrantedProjectIds: ["project-a"],
+    });
+
+    const sender = { isDestroyed: () => false, close: vi.fn() };
+    const internal = manager as unknown as { active: unknown; coordinator: unknown };
+    internal.coordinator = { detachToolView: vi.fn() };
+    internal.active = {
+      key: "project-a:main",
+      view: { webContents: sender },
+      extensionId: installed.id,
+      projectId: "project-a",
+      profileId: "default",
+    };
+
+    let resolveGit!: (val: { branch: string; dirty: boolean }) => void;
+    const pendingGit = new Promise<{ branch: string; dirty: boolean }>((resolve) => {
+      resolveGit = resolve;
+    });
+
+    const inFlight = manager.invokeGitStatus(sender as never, async () => pendingGit);
+
+    // Revoke git status grant while in flight
+    manager.setAssignment(installed.id, {
+      ...manager.list()[0]!.assignment,
+      gitStatusGrantedProjectIds: [],
+    });
+
+    resolveGit({ branch: "main", dirty: false });
+    await expect(inFlight).rejects.toThrow(/changed during Git status request|not granted/);
+  });
+
+  it("rejects in-flight Git status when active project changes during execution", async () => {
+    const { directory, manager } = fixture();
+    const manifestPath = Path.join(directory, "tabs-extension.json");
+    const manifest = JSON.parse(FS.readFileSync(manifestPath, "utf8"));
+    manifest.engines.api = "^1.5.0";
+    manifest.capabilities = ["git-status"];
+    FS.writeFileSync(manifestPath, JSON.stringify(manifest));
+    const installed = manager.installDevelopment(directory);
+    manager.setAssignment(installed.id, {
+      ...installed.assignment,
+      enabledProjectIds: ["project-a", "project-b"],
+      gitStatusGrantedProjectIds: ["project-a", "project-b"],
+    });
+
+    const sender = { isDestroyed: () => false };
+    const internal = manager as unknown as { active: unknown };
+    internal.active = {
+      key: "project-a:main",
+      view: { webContents: sender },
+      extensionId: installed.id,
+      projectId: "project-a",
+      profileId: "default",
+    };
+
+    let resolveGit!: (val: { branch: string; dirty: boolean }) => void;
+    const pendingGit = new Promise<{ branch: string; dirty: boolean }>((resolve) => {
+      resolveGit = resolve;
+    });
+
+    const inFlight = manager.invokeGitStatus(sender as never, async () => pendingGit);
+
+    // Switch active project while in flight
+    internal.active = {
+      key: "project-b:main",
+      view: { webContents: sender },
+      extensionId: installed.id,
+      projectId: "project-b",
+      profileId: "default",
+    };
+
+    resolveGit({ branch: "main", dirty: false });
+    await expect(inFlight).rejects.toThrow(/Extension view changed/);
+  });
+
+  it("rejects in-flight network request when permission is revoked or project switched", async () => {
+    const { directory, manager } = fixture();
+    const manifestPath = Path.join(directory, "tabs-extension.json");
+    const manifest = JSON.parse(FS.readFileSync(manifestPath, "utf8"));
+    manifest.capabilities = ["network", "credentials"];
+    manifest.networkHosts = ["api.example.com"];
+    FS.writeFileSync(manifestPath, JSON.stringify(manifest));
+    const installed = manager.installDevelopment(directory);
+    manager.setAssignment(installed.id, {
+      ...installed.assignment,
+      enabledProjectIds: ["project-a", "project-b"],
+      networkGrantedProjectIds: ["project-a", "project-b"],
+      credentialGrantedProjectIds: ["project-a", "project-b"],
+    });
+
+    const cryptography: CredentialCryptography = {
+      isEncryptionAvailable: () => true,
+      getSelectedStorageBackend: () => "mock",
+      encryptString: (val) => Buffer.from(val),
+      decryptString: (buf) => buf.toString(),
+    };
+    const managerWithCreds = new ExtensionViewManager(
+      () => null,
+      {} as ConstructorParameters<typeof ExtensionViewManager>[1],
+      Path.join(directory, "installed.json"),
+      "1.3.17",
+      true,
+      cryptography,
+      async () => "network result",
+    );
+    managerWithCreds.setProfileCredential(installed.id, "default", "api.example.com", "token123");
+
+    const sender = { isDestroyed: () => false, close: vi.fn() };
+    const internal = managerWithCreds as unknown as { active: unknown; coordinator: unknown };
+    internal.coordinator = { detachToolView: vi.fn() };
+    internal.active = {
+      key: "project-a:main",
+      view: { webContents: sender },
+      extensionId: installed.id,
+      projectId: "project-a",
+      profileId: "default",
+    };
+
+    let resolveNet!: (val: string) => void;
+    const pendingNet = new Promise<string>((resolve) => {
+      resolveNet = resolve;
+    });
+    (managerWithCreds as unknown as { networkGetText: unknown }).networkGetText = vi.fn(
+      async () => pendingNet,
+    );
+
+    const inFlight = managerWithCreds.invokeNetworkGetText(
+      sender as never,
+      "https://api.example.com/data",
+      true,
+    );
+
+    // Revoke network grant while in flight
+    managerWithCreds.setAssignment(installed.id, {
+      ...managerWithCreds.list()[0]!.assignment,
+      networkGrantedProjectIds: [],
+    });
+
+    resolveNet("data");
+    await expect(inFlight).rejects.toThrow(/changed during network request|not granted/);
+  });
+
+  it("enforces extension-to-extension and sender isolation", async () => {
+    const { directory, manager } = fixture();
+    const manifestPath = Path.join(directory, "tabs-extension.json");
+    const manifest = JSON.parse(FS.readFileSync(manifestPath, "utf8"));
+    manifest.capabilities = ["profile-storage"];
+    FS.writeFileSync(manifestPath, JSON.stringify(manifest));
+    const ext1 = manager.installDevelopment(directory);
+    manager.setAssignment(ext1.id, {
+      ...ext1.assignment,
+      enabledProjectIds: ["project-a"],
+      storageGrantedProjectIds: ["project-a"],
+    });
+
+    const sender1 = { isDestroyed: () => false };
+    const alienSender = { isDestroyed: () => false };
+    const internal = manager as unknown as { active: unknown };
+    internal.active = {
+      key: "project-a:ext1",
+      view: { webContents: sender1 },
+      extensionId: ext1.id,
+      projectId: "project-a",
+      profileId: "default",
+    };
+
+    // Extension 1 sets data
+    manager.invokeStorage(sender1 as never, { kind: "set", key: "secret", value: "data1" });
+    expect(manager.invokeStorage(sender1 as never, { kind: "get", key: "secret" })).toBe("data1");
+
+    // Alien sender calling invokeStorage for ext1 must be rejected
+    expect(() =>
+      manager.invokeStorage(alienSender as never, { kind: "get", key: "secret" }),
+    ).toThrow(/Extension view is no longer active/);
+  });
+
+  it("keeps project-isolated credentials strictly segregated between projects", async () => {
+    const { directory, manager } = fixture();
+    const manifestPath = Path.join(directory, "tabs-extension.json");
+    const manifest = JSON.parse(FS.readFileSync(manifestPath, "utf8"));
+    manifest.capabilities = ["network", "credentials"];
+    manifest.networkHosts = ["api.example.com"];
+    FS.writeFileSync(manifestPath, JSON.stringify(manifest));
+    const installed = manager.installDevelopment(directory);
+    manager.addProfile(installed.id, "work", "Work", "project");
+    manager.setAssignment(installed.id, {
+      ...installed.assignment,
+      enabledProjectIds: ["project-a", "project-b"],
+      networkGrantedProjectIds: ["project-a", "project-b"],
+      credentialGrantedProjectIds: ["project-a", "project-b"],
+      defaultProfileId: "work",
+    });
+
+    const cryptography: CredentialCryptography = {
+      isEncryptionAvailable: () => true,
+      getSelectedStorageBackend: () => "mock",
+      encryptString: (val) => Buffer.from(val),
+      decryptString: (buf) => buf.toString(),
+    };
+    const managerWithCreds = new ExtensionViewManager(
+      () => null,
+      {} as ConstructorParameters<typeof ExtensionViewManager>[1],
+      Path.join(directory, "installed.json"),
+      "1.3.17",
+      true,
+      cryptography,
+      async (_url, _hosts, bearer) => `token:${bearer}`,
+    );
+
+    // Save credential in project-a for project-isolated profile "work"
+    managerWithCreds.setProfileCredential(
+      installed.id,
+      "work",
+      "api.example.com",
+      "secret-token-a",
+      "project-a",
+    );
+
+    const sender = { isDestroyed: () => false };
+    const internal = managerWithCreds as unknown as { active: unknown };
+
+    // Active in project-a: can retrieve and use credential
+    internal.active = {
+      key: "a",
+      view: { webContents: sender },
+      extensionId: installed.id,
+      projectId: "project-a",
+      profileId: "work",
+    };
+    await expect(
+      managerWithCreds.invokeNetworkGetText(sender as never, "https://api.example.com/data", true),
+    ).resolves.toBe("token:secret-token-a");
+
+    // Active in project-b: project-isolated profile must NOT see credential from project-a
+    internal.active = {
+      key: "b",
+      view: { webContents: sender },
+      extensionId: installed.id,
+      projectId: "project-b",
+      profileId: "work",
+    };
+    await expect(
+      managerWithCreds.invokeNetworkGetText(sender as never, "https://api.example.com/data", true),
+    ).rejects.toThrow(/No credential is saved/);
   });
 });
