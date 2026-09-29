@@ -146,6 +146,7 @@ export class ExtensionViewManager {
     readonly origin: "view" | "agent";
   }>();
   private active: ActiveView | null = null;
+  private activationSequence = 0;
   private readonly storage: ExtensionStorage;
   private readonly credentials: ExtensionCredentials | null;
 
@@ -1117,6 +1118,7 @@ export class ExtensionViewManager {
       this.coordinator.attachToolView(this.active.view);
       return;
     }
+    const activationSequence = ++this.activationSequence;
     this.hide();
     const updateIdentity = extensionDataIdentity(
       installed.id,
@@ -1137,10 +1139,12 @@ export class ExtensionViewManager {
         );
       }
       await this.activateView(installed, input, profile.scope, tool.entry, key);
+      if (this.activationSequence !== activationSequence || this.active?.key !== key) return;
       this.finishPendingUpdate(installed);
     } catch (error) {
-      this.hide();
-      if (installed.pendingRollback) {
+      const currentActivation = this.activationSequence === activationSequence;
+      if (currentActivation) this.hide();
+      if (installed.pendingRollback && currentActivation) {
         this.rollbackPendingUpdate(installed);
         throw new Error("Extension update failed to activate and was rolled back.", {
           cause: error,
@@ -1148,7 +1152,11 @@ export class ExtensionViewManager {
       }
       throw error;
     }
-    if (installed.pendingRollback && installed.digest) {
+    if (
+      installed.pendingRollback &&
+      installed.digest &&
+      this.activationSequence === activationSequence
+    ) {
       this.cleanupUpdateSnapshots(updateIdentity);
     }
   }

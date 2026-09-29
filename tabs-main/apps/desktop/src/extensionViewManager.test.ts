@@ -1622,6 +1622,77 @@ describe("development extension installation", () => {
     expect(restarted.list()[0]?.digest).toBe(second.digest);
   });
 
+  it("does not let a superseded view commit or close the current view", async () => {
+    const { manager, installed, second } = await exchangeUpdateFixture();
+    manager.setAssignment(installed.id, {
+      ...manager.list()[0]!.assignment,
+      enabledProjectIds: ["project-a", "project-b"],
+    });
+    const coordinator = { attachToolView: vi.fn(), detachToolView: vi.fn() };
+    (manager as unknown as { coordinator: unknown }).coordinator = coordinator;
+    let resolveFirst!: () => void;
+    const firstLoad = new Promise<void>((resolve) => {
+      resolveFirst = resolve;
+    });
+    const loadURL = vi
+      .fn()
+      .mockImplementationOnce(() => firstLoad)
+      .mockResolvedValueOnce(undefined);
+    mockElectronExtensionView(loadURL);
+    const firstActivation = manager.activate({
+      extensionId: installed.id,
+      toolId: "main",
+      projectId: "project-a",
+      profileId: "default",
+    });
+    await manager.activate({
+      extensionId: installed.id,
+      toolId: "main",
+      projectId: "project-b",
+      profileId: "default",
+    });
+    resolveFirst();
+    await firstActivation;
+    expect(manager.list()[0]?.digest).toBe(second.digest);
+    expect(coordinator.detachToolView).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not roll back a successful replacement when an older load fails late", async () => {
+    const { manager, installed, second } = await exchangeUpdateFixture();
+    manager.setAssignment(installed.id, {
+      ...manager.list()[0]!.assignment,
+      enabledProjectIds: ["project-a", "project-b"],
+    });
+    const coordinator = { attachToolView: vi.fn(), detachToolView: vi.fn() };
+    (manager as unknown as { coordinator: unknown }).coordinator = coordinator;
+    let rejectFirst!: (error: Error) => void;
+    const firstLoad = new Promise<void>((_resolve, reject) => {
+      rejectFirst = reject;
+    });
+    mockElectronExtensionView(
+      vi
+        .fn()
+        .mockImplementationOnce(() => firstLoad)
+        .mockResolvedValueOnce(undefined),
+    );
+    const firstActivation = manager.activate({
+      extensionId: installed.id,
+      toolId: "main",
+      projectId: "project-a",
+      profileId: "default",
+    });
+    await manager.activate({
+      extensionId: installed.id,
+      toolId: "main",
+      projectId: "project-b",
+      profileId: "default",
+    });
+    rejectFirst(new Error("old renderer failed"));
+    await expect(firstActivation).rejects.toThrow("old renderer failed");
+    expect(manager.list()[0]?.digest).toBe(second.digest);
+    expect(coordinator.detachToolView).toHaveBeenCalledTimes(1);
+  });
+
   it("rolls back an Exchange update when Electron rejects the first navigation", async () => {
     const { manager, installed, first } = await exchangeUpdateFixture();
     (manager as unknown as { coordinator: unknown }).coordinator = {
