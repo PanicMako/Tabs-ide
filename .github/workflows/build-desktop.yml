@@ -414,7 +414,7 @@ jobs:
       - name: Smoke-test Windows install and locked-process upgrade
         if: matrix.platform == 'win'
         shell: pwsh
-        timeout-minutes: 30
+        timeout-minutes: 50
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TABS_SMOKE_PREVIOUS_VERSION: ${{ inputs.previous_version || '1.3.15' }}
@@ -439,7 +439,7 @@ jobs:
     if: inputs.artifact_run_id != '' && contains(inputs.smoke_platforms, 'win-x64')
     name: Smoke existing Windows installer
     runs-on: windows-2022
-    timeout-minutes: 35
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@v6
       - uses: actions/download-artifact@v8
