@@ -20,7 +20,7 @@ suite('hygiene', () => {
 			fs.writeFileSync(path.join(root, 'outer.js'), '');
 			fs.writeFileSync(path.join(nested, 'allowed.js'), '');
 			fs.writeFileSync(path.join(nested, '.eslint-allowed-javascript-files'), 'allowed.js\n');
-			const env = { ...process.env, GIT_INDEX_FILE: path.join(root, 'index') };
+			const env: NodeJS.ProcessEnv = { ...process.env, GIT_INDEX_FILE: path.join(root, 'index') };
 			delete env.GIT_DIR;
 			delete env.GIT_WORK_TREE;
 			execFileSync('git', ['init', '-q', root], { env });
