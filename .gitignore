@@ -13,3 +13,4 @@ vscode-main/
 synara-main/
 .vercel
 .env*
+/openvsx-main
