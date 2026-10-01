@@ -21,19 +21,19 @@ steps:
       env:
         VSCODE_SKIP_PRELAUNCH: '1'
       displayName: 🧪 Run unit tests (Electron)
-      timeoutInMinutes: 15
+      timeoutInMinutes: 30
     - powershell: |
         New-Item -ItemType Directory -Force -Path .build\crashes | Out-Null
         npm run test-node -- --build
       env:
         NODE_OPTIONS: "--report-on-fatalerror --report-uncaught-exception --report-directory=.build/crashes"
       displayName: 🧪 Run unit tests (node.js)
-      timeoutInMinutes: 15
+      timeoutInMinutes: 30
 
   - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
     - powershell: npm run test-browser-no-install -- --build --browser chromium --tfs "Browser Unit Tests"
       displayName: 🧪 Run unit tests (Browser, Chromium)
-      timeoutInMinutes: 20
+      timeoutInMinutes: 30
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
@@ -47,6 +47,7 @@ steps:
         compile-extension:html-language-features-server `
         compile-extension:ipynb `
         compile-extension:notebook-renderers `
+        compile-extension:json-language-features-client `
         compile-extension:json-language-features-server `
         compile-extension:markdown-language-features `
         compile-extension-media `
@@ -92,7 +93,7 @@ steps:
       env:
         VSCODE_SKIP_PRELAUNCH: '1'
       displayName: 🧪 Run integration tests (Electron)
-      timeoutInMinutes: 20
+      timeoutInMinutes: 30
 
   - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
     - powershell: |
@@ -101,7 +102,7 @@ steps:
         $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\test\vscode-server-win32-$(VSCODE_ARCH)-web"
         exec { .\scripts\test-web-integration.bat --browser firefox }
       displayName: 🧪 Run integration tests (Browser, Firefox)
-      timeoutInMinutes: 20
+      timeoutInMinutes: 30
 
   - ${{ if eq(parameters.VSCODE_RUN_REMOTE_TESTS, true) }}:
     - powershell: |
@@ -117,7 +118,7 @@ steps:
       env:
         VSCODE_SKIP_PRELAUNCH: '1'
       displayName: 🧪 Run integration tests (Remote)
-      timeoutInMinutes: 20
+      timeoutInMinutes: 30
 
   - powershell: .\build\azure-pipelines\win32\listprocesses.bat
     displayName: Diagnostics after integration test runs
@@ -130,26 +131,61 @@ steps:
     condition: succeededOrFailed()
 
   - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
+    - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+      - pwsh: |
+          $day = (Get-Date).ToUniversalTime().ToString('yyyyMMdd')
+          Write-Host "##vso[task.setvariable variable=WSL_KERNEL_CACHE_DAY]$day"
+        displayName: Set WSL kernel cache day
+
+      - task: Cache@2
+        displayName: Restore WSL kernel installer cache
+        inputs:
+          key: '"wsl-kernel" | "win32-x64" | "$(WSL_KERNEL_CACHE_DAY)"'
+          restoreKeys: |
+            "wsl-kernel" | "win32-x64"
+          path: $(Build.SourcesDirectory)/.build/wsl-kernel-cache
+          cacheHitVar: WSL_KERNEL_CACHE_RESULT
+
+      - pwsh: .\test\smoke\wslDevContainer.ps1 -CI AzureDevOps
+        displayName: Prepare WSL Dev Container smoke tests
+        timeoutInMinutes: 15
+        env:
+          WSL_KERNEL_CACHE_PATH: $(Build.SourcesDirectory)/.build/wsl-kernel-cache/wsl_update_x64.msi
+          WSL_KERNEL_CACHE_RESULT: $(WSL_KERNEL_CACHE_RESULT)
+
     - powershell: |
         npm run smoketest-no-compile -- --tracing --build "$(agent.builddirectory)\test\VSCode-win32-$(VSCODE_ARCH)"
       env:
         VSCODE_SMOKE_TEST_POLICY: '1'
+        ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+          VSCODE_SMOKE_TEST_WSL_REQUIRED: '1'
+          VSCODE_SMOKE_TEST_WSL_DISTRO: $(WSL_SMOKE_DISTRO)
+          VSCODE_SMOKE_TEST_WSL_SERVER_PATH: $(WSL_SMOKE_SERVER_PATH)
       displayName: 🧪 Run smoke tests (Electron)
-      timeoutInMinutes: 20
+      timeoutInMinutes: 30
+
+    - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+      - pwsh: .\test\smoke\wslDevContainer.ps1 -CI AzureDevOps -Operation Cleanup -Distribution $env:WSL_SMOKE_DISTRO -Root $env:WSL_SMOKE_ROOT
+        displayName: Clean up WSL Dev Container smoke tests
+        condition: and(always(), ne(variables['WSL_SMOKE_ROOT'], ''))
+        timeoutInMinutes: 5
+        env:
+          WSL_SMOKE_DISTRO: $(WSL_SMOKE_DISTRO)
+          WSL_SMOKE_ROOT: $(WSL_SMOKE_ROOT)
 
   - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
     - powershell: npm run smoketest-no-compile -- --web --tracing --headless
       env:
         VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)\test\vscode-server-win32-$(VSCODE_ARCH)-web
       displayName: 🧪 Run smoke tests (Browser, Chromium)
-      timeoutInMinutes: 20
+      timeoutInMinutes: 30
 
   - ${{ if eq(parameters.VSCODE_RUN_REMOTE_TESTS, true) }}:
     - powershell: npm run smoketest-no-compile -- --tracing --remote --build "$(agent.builddirectory)\test\VSCode-win32-$(VSCODE_ARCH)"
       env:
         VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)\test\vscode-server-win32-$(VSCODE_ARCH)
       displayName: 🧪 Run smoke tests (Remote)
-      timeoutInMinutes: 20
+      timeoutInMinutes: 30
 
   - powershell: .\build\azure-pipelines\win32\listprocesses.bat
     displayName: Diagnostics after smoke test run
@@ -182,4 +218,4 @@ steps:
         }
     displayName: Kill lingering test processes
     continueOnError: true
-    condition: succeededOrFailed()
+    condition: always()

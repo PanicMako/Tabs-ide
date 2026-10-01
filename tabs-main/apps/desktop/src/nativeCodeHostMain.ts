@@ -1,3 +1,4 @@
+import { createNativeCodeHostShutdown } from "./nativeCodeHostShutdown";
 import {
   app,
   BrowserWindow,
@@ -25,7 +26,11 @@ import * as OS from "node:os";
 
 import { loadNativeCodeHostStorage, saveNativeCodeHostStorage } from "./nativeCodeHostStorage";
 import { handleNativeCodeHostCommand } from "./nativeCodeHostCommand";
-import { getNativeCodeOpenTargets } from "./nativeCodeHostOpen";
+import {
+  getNativeCodeOpenTargets,
+  parseNativeAgentsWindowOptions,
+  type NativeAgentsWindowPayload,
+} from "./nativeCodeHostOpen";
 import { parseElectronProxyResult, readProxyEnvironment } from "./nativeCodeHostProxy";
 import { uploadFileViaGitHubMobileApi } from "./nativeCodeHostUpload";
 import { createNativeCodeZip } from "./nativeCodeHostZip";
@@ -76,6 +81,13 @@ type NativeCodeHostModules = {
   NullLogService: new () => unknown;
   NullLoggerService: new () => unknown;
   NullTelemetryService: unknown;
+  ElectronAgentHostStarter: new (...args: unknown[]) => { dispose(): void };
+  AgentHostProcessManager: new (...args: unknown[]) => { dispose(): void };
+  ConfigurationService: new (...args: unknown[]) => {
+    initialize(): Promise<void>;
+    dispose(): void;
+  };
+  NullPolicyService: new () => unknown;
   ExtensionHostStarter: new (...args: unknown[]) => {
     dispose(): void;
   };
@@ -190,7 +202,7 @@ export interface NativeCodeHostMainBackend {
   ): void;
   unregisterWindow(windowId: number): void;
   handleURL(url: string): Promise<boolean>;
-  dispose(): void;
+  dispose(): Promise<void>;
 }
 
 function moduleUrl(vscodeRoot: string, relativePath: string): string {
@@ -242,6 +254,10 @@ async function loadNativeCodeHostModules(vscodeRoot: string): Promise<NativeCode
     buffer,
     ports,
     zip,
+    agentHostStarter,
+    agentHostService,
+    configuration,
+    policy,
   ] = await Promise.all([
     import(moduleUrl(vscodeRoot, "vs/base/parts/ipc/electron-main/ipc.electron.js")),
     import(moduleUrl(vscodeRoot, "vs/base/parts/contextmenu/electron-main/contextmenu.js")),
@@ -301,6 +317,12 @@ async function loadNativeCodeHostModules(vscodeRoot: string): Promise<NativeCode
     import(moduleUrl(vscodeRoot, "vs/base/common/buffer.js")),
     import(moduleUrl(vscodeRoot, "vs/base/node/ports.js")),
     import(moduleUrl(vscodeRoot, "vs/base/node/zip.js")),
+    import(
+      moduleUrl(vscodeRoot, "vs/platform/agentHost/electron-main/electronAgentHostStarter.js")
+    ),
+    import(moduleUrl(vscodeRoot, "vs/platform/agentHost/node/agentHostService.js")),
+    import(moduleUrl(vscodeRoot, "vs/platform/configuration/common/configurationService.js")),
+    import(moduleUrl(vscodeRoot, "vs/platform/policy/common/policy.js")),
   ]);
 
   return {
@@ -359,6 +381,10 @@ async function loadNativeCodeHostModules(vscodeRoot: string): Promise<NativeCode
     isPortFree: ports.isPortFree,
     findFreePort: ports.findFreePort,
     zip: zip.zip,
+    ElectronAgentHostStarter: agentHostStarter.ElectronAgentHostStarter,
+    AgentHostProcessManager: agentHostService.AgentHostProcessManager,
+    ConfigurationService: configuration.ConfigurationService,
+    NullPolicyService: policy.NullPolicyService,
   };
 }
 
@@ -394,6 +420,8 @@ export async function createNativeCodeHostMainBackend(
   callbacks?: {
     openFile?(projectId: string, path: string): void;
     openFolder?(path?: string): void;
+    openAgentsWindow?(payload: NativeAgentsWindowPayload): Promise<void>;
+    onWindowReady?(webContents: WebContents): void;
     dispatchTabAction?(action: "tab-new" | "tab-next" | "tab-prev"): void;
   },
 ): Promise<NativeCodeHostMainBackend> {
@@ -567,6 +595,7 @@ export async function createNativeCodeHostMainBackend(
       "user-data-dir": Path.join(stateDir, "code-oss-desktop", "shared-process"),
     },
     isBuilt: false,
+    userDataPath: Path.join(stateDir, "code-oss-desktop", "shared-process"),
     codeCachePath: Path.join(stateDir, "code-oss-desktop", "shared-process", "cache"),
     logsHome: modules.URI.file(Path.join(OS.tmpdir(), "tabs-code-oss-logs")),
     unsetSnapExportedVariables() {},
@@ -595,6 +624,36 @@ export async function createNativeCodeHostMainBackend(
     lifecycleService,
   );
   const loggerService = new modules.NullLoggerService();
+  const agentHostConfiguration = new modules.ConfigurationService(
+    modules.URI.file(
+      Path.join(stateDir, "code-oss-desktop", "shared-profile", "default", "settings.json"),
+    ),
+    fileService,
+    new modules.NullPolicyService(),
+    logService,
+  );
+  await agentHostConfiguration.initialize();
+  // Keep these identifiers consistent with CodeHostManager's renderer configuration.
+  const agentHostTelemetryIds = {
+    machineId: createHash("sha256").update(`machine:${vscodeRoot}`).digest("hex"),
+    sqmId: createHash("sha256").update(`sqm:${vscodeRoot}`).digest("hex"),
+    devDeviceId: createHash("sha256").update(`dev:${vscodeRoot}`).digest("hex"),
+  };
+  const agentHostStarter = new modules.ElectronAgentHostStarter(
+    agentHostTelemetryIds,
+    agentHostConfiguration,
+    environmentService,
+    lifecycleService,
+    logService,
+    modules.NullTelemetryService,
+  );
+  const agentHostProcessManager = new modules.AgentHostProcessManager(
+    agentHostStarter,
+    process.platform,
+    logService,
+    loggerService,
+    modules.NullTelemetryService,
+  );
   const ptyHostStarter = new modules.ElectronPtyHostStarter(
     { graceTime: 60_000, shortGraceTime: 6_000, scrollback: 100 },
     configurationService,
@@ -795,6 +854,7 @@ export async function createNativeCodeHostMainBackend(
     { serialize: () => ({}) },
   );
 
+  let shuttingDown = false;
   const sharedProcessMainClient = sharedProcess.connect().then((port) => {
     const client = new modules.MessagePortClient(port, "main");
     client.registerChannel(modules.localFileSystemChannelName, diskFileSystemProviderChannel);
@@ -894,10 +954,16 @@ export async function createNativeCodeHostMainBackend(
   );
   ipcServer.registerChannel(modules.ipcBrowserViewChannelName, browserViewChannel);
   ipcServer.registerChannel(modules.ipcBrowserViewGroupChannelName, browserViewGroupChannel);
-  void sharedProcessMainClient.then((client) => {
-    client.registerChannel(modules.ipcBrowserViewChannelName, browserViewChannel);
-    client.registerChannel(modules.ipcBrowserViewGroupChannelName, browserViewGroupChannel);
-  });
+  void sharedProcessMainClient
+    .then((client) => {
+      client.registerChannel(modules.ipcBrowserViewChannelName, browserViewChannel);
+      client.registerChannel(modules.ipcBrowserViewGroupChannelName, browserViewGroupChannel);
+    })
+    .catch((error: unknown) => {
+      if (!shuttingDown) {
+        console.error("[code-oss] Shared process connection failed", error);
+      }
+    });
 
   ipcServer.registerChannel("logger", loggerChannel);
   ipcServer.registerChannel("storage", storageChannel);
@@ -979,7 +1045,12 @@ export async function createNativeCodeHostMainBackend(
         return undefined;
       }
       if (command === "openAgentsWindow") {
-        callbacks?.openFolder?.();
+        if (!callbacks?.openAgentsWindow) throw new Error("Agents window host is unavailable");
+        await callbacks.openAgentsWindow(parseNativeAgentsWindowOptions(args[1]));
+        return undefined;
+      }
+      if (command === "notifyReady") {
+        if (webContents) callbacks?.onWindowReady?.(webContents);
         return undefined;
       }
       if (command === "getWindowCount") return windows.size;
@@ -1704,33 +1775,37 @@ export async function createNativeCodeHostMainBackend(
 
       return false;
     },
-    dispose() {
-      onWillShutdown.fire({
-        reason: 1,
-        join: (_id: string, promise: Promise<void>) => void promise.catch(() => undefined),
-      });
-      windows.clear();
-      browserWindows.clear();
-      projectIdsByWindow.clear();
-      embeddedBounds.clear();
-      ptyHostService.dispose();
-      (loggerService as { dispose(): void }).dispose();
-      utilityProcessWorkerService.dispose();
-      browserViewGroupMainService.dispose();
-      browserViewMainService.dispose();
-      browserInstantiationService.dispose();
-      webviewMainService.dispose();
-      fileProviderRegistration.dispose();
-      fileService.dispose();
-      diskFileSystemProviderChannel.dispose();
-      diskFileSystemProvider.dispose();
-      extensionHostStarter.dispose();
-      void sharedProcessMainClient.then((client) => client.dispose()).catch(() => undefined);
-      sharedProcess.dispose();
-      disposables.dispose();
-      ipcServer.dispose();
-      onWillLoadWindow.dispose();
-      onWillShutdown.dispose();
-    },
+    dispose: createNativeCodeHostShutdown(
+      (event) => {
+        shuttingDown = true;
+        onWillShutdown.fire(event);
+      },
+      () => {
+        windows.clear();
+        browserWindows.clear();
+        projectIdsByWindow.clear();
+        embeddedBounds.clear();
+        agentHostProcessManager.dispose();
+        agentHostConfiguration.dispose();
+        ptyHostService.dispose();
+        (loggerService as { dispose(): void }).dispose();
+        utilityProcessWorkerService.dispose();
+        browserViewGroupMainService.dispose();
+        browserViewMainService.dispose();
+        browserInstantiationService.dispose();
+        webviewMainService.dispose();
+        fileProviderRegistration.dispose();
+        fileService.dispose();
+        diskFileSystemProviderChannel.dispose();
+        diskFileSystemProvider.dispose();
+        extensionHostStarter.dispose();
+        void sharedProcessMainClient.then((client) => client.dispose()).catch(() => undefined);
+        sharedProcess.dispose();
+        disposables.dispose();
+        ipcServer.dispose();
+        onWillLoadWindow.dispose();
+        onWillShutdown.dispose();
+      },
+    ),
   };
 }

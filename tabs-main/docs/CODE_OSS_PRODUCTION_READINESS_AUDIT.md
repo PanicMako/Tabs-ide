@@ -86,3 +86,83 @@ The implementation is materially more reliable, but production readiness should 
 7. Account and secret persistence survives restart without the historical safe-storage decryption errors.
 
 The most important long-term change is procedural: treat the embedded Electron main-process surface as a versioned compatibility layer. Each Code-OSS update should diff the upstream native-host and URL/webview IPC contracts, with automated tests failing when a newly used method is not implemented.
+
+## VS Code 1.140.0 sync verification (2026-10-01)
+
+### Baseline and target
+
+- **Baseline:** Microsoft VS Code `1.138.0` (`7debcd0e2acdea1c52de81bf9ee1620444407dda`).
+- **Target:** Microsoft VS Code `1.140.0` (`07f806f999227108933c2e30515b26eecc1fda74`).
+- **Isolation:** Dedicated worktree at `.worktrees/sync-vscode-1.140.0` on branch `chore/sync-vscode-1.140.0`. Base checkout at `b72332e11c1041802e7117e779a72e69f5bd4877` preserved untouched.
+
+### Patch inventory and disposition
+
+- **Tabs-owned additions (5 files):** Retained and verified:
+  - `tabs-code-main/TABS_ARCHITECTURE.md`
+  - `tabs-code-main/src/vs/workbench/browser/parts/editor/media/tabs-logo.svg`
+  - `tabs-code-main/src/vs/workbench/contrib/tabs/browser/media/tabs.css`
+  - `tabs-code-main/src/vs/workbench/contrib/tabs/browser/tabs.contribution.ts`
+  - `tabs-code-main/src/vs/workbench/contrib/tabs/test/browser/tabs.contribution.test.ts`
+- **Deliberate modifications (26 files):** All 26 modifications replayed and adapted:
+  - Adapted `src/vs/base/parts/contextmenu/electron-main/contextmenu.ts` to retain a strong `menu` reference in the callback closure for garbage-collection protection (Microsoft issue 72447) while ensuring deferred sender notification with destruction guard; verified with `contextmenu-retention.cjs` under `--expose-gc`.
+  - Adapted `src/vs/workbench/contrib/chat/browser/chatParticipant.contribution.ts` to drop the unused `ContextKeyExpr` import (after removing `when: ContextKeyExpr.and(...)` on `chatViewDescriptor`).
+  - Purged 69 upstream-deleted files.
+- **Superseded patches (2 files):**
+  - `.config/1espt/PipelineAutobaseliningConfig.yml`: Upstream LF line endings restored.
+  - `build/.moduleignore`: upstream no longer excludes `@github/copilot/sdk/index.js`; the regression guards against reintroducing the exclusion.
+- **Native-Host / IPC Contract:**
+  - Audited `src/vs/platform/native/common/native.ts` `INativeHostService` / `ICommonNativeHostService` against 1.138.0.
+  - Exactly 0 methods added, 0 methods removed. The 104-method implementation policy remains 100% complete.
+  - Upstream 1.140.0 added two optional options on `IOpenAgentsWindowOptions` (`onboardingSessionResource?: UriComponents`, `draft?: IAgentsWindowDraft`).
+  - The added `parseNativeAgentsWindowOptions` only routes the folder to `openFolder(path)`. It discards the serialized draft, rejects non-file session URIs, and does not forward session/onboarding intent, source, or the default-folder flag. Parser tests do not establish a functioning Agents handoff; this remains an integration gap.
+
+### Completed verification gates
+
+- **Code-OSS compile & typecheck:**
+  - `npm run compile-client`: 0 errors.
+  - `npm run typecheck-client`: 0 errors.
+  - `node build/next/index.ts bundle --nls`: generated `out-build/nls.messages.json`.
+  - Required core assets verified: `preload.js`, `workbench-dev.html`, `nls.messages.json`, `product.json`.
+- **Code-OSS production extensions:**
+  - `npm run compile-extensions-build`: 0 errors (98 extensions bundled).
+  - `npm run gulp compile-copilot-extension-build`: 0 errors (`copilot/.esbuild.mts` bundled).
+- **Code-OSS hygiene:**
+  - `npm run hygiene`: 12,500 files checked, 0 errors.
+- **Code-OSS focused unit tests:**
+  - `Tabs Contribution`: 2 passing (Chromium).
+  - `RequestStore`: 4 passing (node).
+  - `Copilot packaging`: 24 passing (`build/lib/test/copilot.test.ts`).
+  - `Context menu retention`: verified with `contextmenu-retention.cjs` (`menuRetainedWhileNativeCallbackHeld: true`).
+- **Tabs outer application:**
+  - `vp check`: 0 errors across 1888 files.
+  - `vp run typecheck`: 12/12 packages passed with 0 errors.
+  - `vp test`: direct root Vite+ test command exited 1 (17 failed files, 12 failed tests out of 4,777 tests across 583 suites) due to Vitest collecting Playwright specifications in `testing-demo/`, `@effect/vitest` contracts runner config mismatch when invoked without package boundaries, and websocket timeouts under massive parallel load.
+  - `vp run test`: package-configured test suite passed 14/14 packages with 4,948 passing tests (including 1,832 passing tests in the server package alone).
+  - `bun run test:desktop-smoke`: passed with 0 errors.
+
+### Independent Codex review and repairs — 2026-10-01
+
+The preceding verification numbers describe earlier runs. They are not a production approval of the current sync.
+
+- Webview disposal now has one `CancellationTokenSource.dispose(true)` owner. A real-pane regression verifies that disposal cancels pending revival and permits a replacement pane. The test fails against the former disposal order.
+- The normal Chat view now yields to the managed-update view while an update is required. A real view-container model test verifies transitions in both directions without changing the stable container. The test fails without the condition.
+- Native file opens now preserve decoded URI-component paths, including literal percent escapes and `?`/`#` in filenames. The regression fails against the former URL construction and passes after repair.
+- The root test runner uses a canonical test API and separate workspace/server projects, preserving the server package's existing setup and 15-second budgets. Discovery contains 580 unique files, including server integrations, with no duplicates. The full root `vp test` run passes: 574 files passed, six skipped; 4,949 tests passed, 30 skipped. This run preceded the additional native filename regression, whose focused five-test run passes separately.
+- A recognized native-host method name does not establish payload compatibility. The Agents handoff remains unresolved until the actual session/draft intent reaches a renderer that implements the upstream Sessions contract.
+- Antigravity's recent embedded-project script does not prove that Code-OSS rendered: it neither activates the session nor supplies visible bounds, and its open-file call uses the wrong argument shape. Returned default chrome state is not a readiness signal.
+
+Remaining upstream semantic review, valid visible-workbench checks, final packaging after repairs, and the account/platform validation matrix remain required before production readiness can be claimed.
+
+### Windows caption controls and About runtime identification
+
+Independent review corrected Windows caption colors on theme updates and matched the Windows tab header/control overlay height; control spacing observes Electron overlay visibility/geometry and viewport resize instead of a fixed width; hidden fullscreen controls release the inset. macOS uses overlay geometry on both sides; Linux uses native decorations outside the DOM. About now reads the selected embedded Code-OSS package version separately from the Tabs application version. Final focused validation passed 58 tests; the full root runner passed 4,963 tests across 577 files (30 tests and six files skipped). All 12 typecheck tasks and all four production build tasks passed. Check reported zero errors and 437 warnings. Published environment light themes use the same appearance classification for native controls and Code-OSS. Native Windows appearance, DPI and maximized/fullscreen behavior remain to be verified on Windows. The user manually accepted the earlier Mac build; no additional Mac GUI validation or installer rebuild was performed for these changes. Earlier Mac artifacts do not contain the new About row.
+
+### Release preparation checkpoint
+
+The latest root suite passes 4,969 tests (30 skipped), with 578 files passing and six skipped. Typecheck passes all 12 tasks, check reports zero errors/437 warnings, and desktop production build passes all four tasks. macOS/Windows caption spacing now observes both sides of the native overlay rectangle; Linux uses native decorations outside the DOM. A hidden Electron 44.1 geometry probe confirms live macOS geometry changes on resize. Windows/Linux native visual checks remain outstanding.
+
+The real Agent Host starter/manager and configuration service are integrated. A sandboxed hidden renderer received a transferred MessagePort and completed a real management RPC; awaited shutdown completed. The new dedicated Sessions handoff preserves logical URI components and serialized draft attachments, uses a dedicated empty workspace, and waits for notifyReady before six-argument intent delivery. The initial isolated renderer probe omitted privileged protocol registration and timed out. A corrected hidden probe reached genuine native readiness, rendered the Sessions workbench and verified its dedicated workspace configuration. A later hidden probe verified six-argument draft IPC delivery and completed without an unhandled shutdown rejection. Actual composer draft/attachment restoration, session/onboarding precedence and lifecycle races remain unverified and block public release approval. Passing mocks or ordinary workbench checks do not close that blocker. Remaining semantic sync review and account/platform validation also remain outstanding.
+
+The user authorized preserving the coherent commits on main, creating a draft 1.3.29 release and starting installer builds. Public publication remains gated on the outstanding runtime/platform proof. See `code-oss-release-handoff.md` for the release continuation prompt and explicit completion gates.
+
+The pre-commit hygiene script now scopes staged paths and JavaScript allowlisting to the vendored checkout, retaining an explicitly selected Git index while rediscovering repository context. Its regression test verifies that parent JavaScript files are excluded and unexpected vendored JavaScript is rejected. The repaired hook checked 2,208 source files and caught a bootstrap multi-window document reference; that reference was corrected before committing.

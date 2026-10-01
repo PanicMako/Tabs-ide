@@ -5,7 +5,7 @@
 
 /* eslint-disable no-restricted-globals */
 
-import { getPartsSplashColors } from './partsSplash.js';
+import { getPartsSplashColors, getPartsSplashLayoutMetrics } from './partsSplash.js';
 
 (async function () {
 
@@ -96,11 +96,7 @@ import { getPartsSplashColors } from './partsSplash.js';
 		if (data?.layoutInfo) {
 			const { layoutInfo, colorInfo } = data;
 			const modernUI = layoutInfo.modernUI === true;
-			const floatingMargin = layoutInfo.modernUICompact === true ? 0 : 4;
-			// The cluster perimeter is the same in both densities; only the inter-card gap differs.
-			const floatingOuterMargin = 4;
-			const floatingBorderWidth = 1;
-			const floatingBorderRadius = 8;
+			const { floatingMargin, floatingOuterMargin, floatingBorderWidth, floatingBorderRadius } = getPartsSplashLayoutMetrics(layoutInfo);
 			const contentTop = layoutInfo.titleBarHeight;
 			const contentBottom = layoutInfo.statusBarHeight;
 
@@ -725,7 +721,7 @@ import { getPartsSplashColors } from './partsSplash.js';
 			beforeImport: function (windowConfig) {
 				const isTabsEmbeddedWorkbench = typeof windowConfig.userEnv?.TABS_PROJECT_ID === 'string';
 				(globalThis as { __tabsEmbeddedWorkbench?: boolean }).__tabsEmbeddedWorkbench = isTabsEmbeddedWorkbench;
-				document.documentElement.classList.toggle('tabs-embedded-workbench', isTabsEmbeddedWorkbench);
+				window.document.documentElement.classList.toggle('tabs-embedded-workbench', isTabsEmbeddedWorkbench);
 
 				// Show our splash as early as possible
 				showSplash(windowConfig);

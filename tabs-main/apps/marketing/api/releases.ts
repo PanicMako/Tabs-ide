@@ -1,5 +1,5 @@
-const GITHUB_RELEASES_URL = "https://api.github.com/repos/mxyxyz9/Tabs-ide/releases";
-const RELEASES_URL = "https://github.com/mxyxyz9/Tabs-ide/releases";
+const GITHUB_RELEASES_URL = "https://api.github.com/repos/PanicMako/Tabs-ide/releases";
+const RELEASES_URL = "https://github.com/PanicMako/Tabs-ide/releases";
 
 interface GitHubAsset {
   name?: unknown;
@@ -23,7 +23,7 @@ interface GitHubRelease {
 function resolveReleaseNotes(body: string | null): string {
   if (
     body &&
-    /^\s*\*\*Full Changelog\*\*:\s*https:\/\/github\.com\/mxyxyz9\/Tabs-ide\/compare\/v?\d+\.\d+\.\d+\.\.\.v?\d+\.\d+\.\d+\s*$/i.test(
+    /^\s*\*\*Full Changelog\*\*:\s*https:\/\/github\.com\/PanicMako\/Tabs-ide\/compare\/v?\d+\.\d+\.\d+\.\.\.v?\d+\.\d+\.\d+\s*$/i.test(
       body,
     )
   ) {

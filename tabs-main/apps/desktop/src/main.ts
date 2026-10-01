@@ -1,3 +1,6 @@
+import { AgentsWindowManager } from "./agentsWindowManager";
+import { isLightDesktopTheme } from "./desktopTheme";
+import { resolveDesktopTitleBarOptions, updateWindowControlsOverlay } from "./windowTitleBar";
 import { probeBrowserReadiness } from "./browserReadiness";
 import type { BrowserComparisonInput } from "@tabs/contracts";
 import * as ChildProcess from "node:child_process";
@@ -299,11 +302,6 @@ function savePersistedDesktopTheme(theme: PersistedDesktopTheme): void {
   }
 }
 
-function isLightDesktopTheme(themeId: string, customConfig?: any): boolean {
-  return themeId === "custom"
-    ? customConfig?.baseVariant === "light"
-    : themeId === "tabs-light" || themeId === "solarized-light" || themeId === "light";
-}
 const ROOT_DIR = resolveRootDir();
 
 const APP_BASE_NAME = "Tabs";
@@ -461,6 +459,10 @@ const codeHostManager = new CodeHostManager(
   codeControlChannel,
   nativeViewCoordinator,
 );
+const agentsWindowManager = new AgentsWindowManager(
+  codeHostConfig,
+  () => nativeCodeHostMainBackend,
+);
 const persistedDesktopTheme = loadPersistedDesktopTheme();
 if (persistedDesktopTheme) {
   nativeTheme.themeSource =
@@ -487,6 +489,11 @@ if (persistedDesktopTheme) {
 const browserHostManager = new BrowserHostManager(() => mainWindow, nativeViewCoordinator);
 const desktopCaptureCoordinator = new DesktopCaptureCoordinator();
 nativeTheme.on("updated", () => {
+  updateWindowControlsOverlay(
+    process.platform,
+    [mainWindow, ...popoutWindows],
+    nativeTheme.shouldUseDarkColors,
+  );
   if (currentDesktopIconTheme === "system") {
     applyDesktopIconTheme("system");
   }
@@ -722,21 +729,7 @@ function resolveTitleBarOptions(): Pick<
   Electron.BrowserWindowConstructorOptions,
   "titleBarStyle" | "trafficLightPosition" | "titleBarOverlay"
 > {
-  if (process.platform === "darwin") {
-    return {
-      titleBarStyle: "hiddenInset",
-      trafficLightPosition: { x: 16, y: 18 },
-    };
-  }
-  if (process.platform === "win32") {
-    return {
-      titleBarStyle: "hidden",
-      // Matches the app's dark top-bar surface and the 52px header height so the
-      // min/maximize/close buttons sit on the tab bar instead of a native strip.
-      titleBarOverlay: { color: "#161616", symbolColor: "#cfcfcf", height: 52 },
-    };
-  }
-  return { titleBarStyle: "hiddenInset" };
+  return resolveDesktopTitleBarOptions(process.platform, nativeTheme.shouldUseDarkColors);
 }
 let updatePollTimer: ReturnType<typeof setInterval> | null = null;
 let updateStartupTimer: ReturnType<typeof setTimeout> | null = null;
@@ -4030,6 +4023,12 @@ async function bootstrap(): Promise<void> {
               throw new Error(`Code-OSS is not ready to open ${path}`);
             }
           },
+          openAgentsWindow(payload) {
+            return agentsWindowManager.open(payload);
+          },
+          onWindowReady(webContents) {
+            agentsWindowManager.notifyReady(webContents);
+          },
           openFolder(path) {
             if (mainWindow && !mainWindow.isDestroyed()) {
               mainWindow.webContents.send(
@@ -4210,7 +4209,16 @@ app.on("before-quit", (event) => {
       writeDesktopLogHeader(`Code-OSS session flush failed: ${err?.message}`);
     }
 
-    nativeCodeHostMainBackend?.dispose();
+    try {
+      await agentsWindowManager.shutdown();
+    } catch (error) {
+      writeDesktopLogHeader(`Agents window shutdown failed: ${error}`);
+    }
+    try {
+      await nativeCodeHostMainBackend?.dispose();
+    } catch (error) {
+      writeDesktopLogHeader(`Code-OSS native backend shutdown failed: ${error}`);
+    }
     nativeCodeHostMainBackend = null;
     codeHostManager.setNativeWebContentsRegistrar(null);
 

@@ -25,7 +25,7 @@ describe("create-mac-preview-update-manifest", () => {
         scriptPath,
         directory,
         "1.4.0",
-        "mxyxyz9/Tabs-ide",
+        "PanicMako/Tabs-ide",
         releaseNotesPath,
       ],
       {

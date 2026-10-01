@@ -1,4 +1,4 @@
-export const REPO = "mxyxyz9/Tabs-ide";
+export const REPO = "PanicMako/Tabs-ide";
 export const RELEASES_URL = `https://github.com/${REPO}/releases`;
 export const GITHUB_API_URL = `https://api.github.com/repos/${REPO}/releases`;
 export const API_URL = "/releases.json";

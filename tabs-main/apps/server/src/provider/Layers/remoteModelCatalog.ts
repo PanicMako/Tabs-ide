@@ -17,7 +17,7 @@ export interface RemoteCatalogResult {
 
 export const REMOTE_CATALOG_URL =
   process.env.TABS_REMOTE_MODEL_CATALOG_URL ||
-  "https://raw.githubusercontent.com/mxyxyz9/Tabs-ide/main/models-catalog.json";
+  "https://raw.githubusercontent.com/PanicMako/Tabs-ide/main/models-catalog.json";
 
 /**
  * Fetches dynamic remote model catalog registry.

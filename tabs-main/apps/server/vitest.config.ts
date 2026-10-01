@@ -1,11 +1,13 @@
 import { configDefaults, defineConfig, mergeConfig } from "vitest/config";
 
-import baseConfig from "../../vitest.config";
+import { baseConfig } from "../../vitest.config.ts";
 
 export default mergeConfig(
   baseConfig,
   defineConfig({
     test: {
+      name: "server",
+      root: import.meta.dirname,
       setupFiles: ["./vitest.setup.ts"],
       exclude: [...configDefaults.exclude, "_incomplete-synara-port/**"],
       testTimeout: 15_000,

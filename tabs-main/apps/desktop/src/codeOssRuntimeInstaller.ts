@@ -25,7 +25,7 @@ const RUNTIME_ROOT = Path.join(
 );
 
 // Repo that publishes the runtime release assets (override for forks/mirrors).
-const RUNTIME_REPO = process.env.TABS_RUNTIME_REPO?.trim() || "mxyxyz9/Tabs-ide";
+const RUNTIME_REPO = process.env.TABS_RUNTIME_REPO?.trim() || "PanicMako/Tabs-ide";
 // Optional fully-qualified base URL override (e.g. a CDN). When set, assets are
 // fetched from `${base}/${assetName}`.
 const RUNTIME_BASE_URL = process.env.TABS_RUNTIME_BASE_URL?.trim() || null;

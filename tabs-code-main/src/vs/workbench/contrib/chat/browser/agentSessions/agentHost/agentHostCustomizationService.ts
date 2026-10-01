@@ -10,11 +10,13 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { StringSHA1 } from '../../../../../../base/common/hash.js';
 import { Disposable, DisposableResourceMap, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
+import { Schemas } from '../../../../../../base/common/network.js';
 import { AgentHostMcpServers, AgentHostMcpServersConfigKey } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { getEffectiveAgents } from '../../../../../../platform/agentHost/common/customAgents.js';
+import { readMcpServerSource } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
@@ -59,10 +61,10 @@ export interface IAgentHostCustomizationService {
 	 */
 	getFolderPickerDecision(sessionResource: URI): ISessionFolderPickerDecision | undefined;
 
-	/** The primary working-directory URI string in the agent host's URI space. */
+	/** The primary session root as exposed by the owning connection, including editor remote transport mapping. */
 	getWorkingDirectory(sessionResource: URI): string | undefined;
 
-	/** The ordered roots in the Agent Host's URI space, for protocol values and host-side comparisons. */
+	/** Ordered session roots for protocol values and comparisons, including editor remote transport mapping. */
 	getWorkingDirectories(sessionResource: URI): readonly string[];
 
 	/** The ordered roots in the client's URI space for filesystem access. */
@@ -154,14 +156,17 @@ export interface IAgentHostCustomizationTarget {
 	readonly resourceUris: IAgentHostResourceUriMapper;
 	readonly folderPickerDecision?: ISessionFolderPickerDecision;
 	readonly workingDirectory?: string;
-	/** Host-side URI strings, also used in protocol enablement decisions. */
+	/** Session URI strings as exposed by the owning connection, also used in protocol enablement decisions. */
 	readonly workingDirectories?: readonly string[];
+	/** Client-space roots, including provisional roots and transport-mapped session snapshots. */
+	readonly clientWorkingDirectories?: readonly URI[];
 	readonly rootConfig?: RootConfigState;
 	isBundledMcpServer(pluginUri: string, serverName: string): boolean;
 	authenticate(request: { resource: string; scopes?: readonly string[]; token: string }): Promise<unknown>;
 	setCustomizationEnablement(rawId: string, enablement: readonly CustomizationEnablement[]): void;
 	startMcpServer(rawId: string): Promise<void>;
 	stopMcpServer(rawId: string): Promise<void>;
+	backgroundMcpServer(rawId: string): Promise<void>;
 	setRootConfigValue(property: string, value: unknown): void;
 }
 
@@ -226,6 +231,9 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 		if (!target) {
 			return [];
 		}
+		if (target.clientWorkingDirectories !== undefined) {
+			return target.clientWorkingDirectories;
+		}
 		return target.workingDirectories?.map(root => target.resourceUris.fromAgentHost(URI.parse(root))) ?? [];
 	}
 
@@ -240,6 +248,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 				return {
 					id: this._scopedMcpServerId(sessionResource, server.id),
 					name: server.name,
+					source: readMcpServerSource(server),
 					enabled: isCustomizationEnabled(server) && (!plugin || isCustomizationEnabled(plugin)),
 					enablement: server.enablement,
 					isPluginProvided: plugin !== undefined,
@@ -254,6 +263,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 					setEnabled: (enabled: boolean) => target.setCustomizationEnablement(server.id, withCustomizationEnablement(server.enablement, CustomizationEnablementKind.Session, { kind: CustomizationEnablementKind.Session, enabled })),
 					start: () => target.startMcpServer(server.id),
 					stop: () => target.stopMcpServer(server.id),
+					...(server.state.kind === McpServerStatus.Starting && server.state.blocking ? { background: () => target.backgroundMcpServer(server.id) } : {}),
 				};
 			});
 	}
@@ -329,12 +339,12 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 		if (!server || server.state.kind !== McpServerStatus.AuthRequired) {
 			return false;
 		}
-		const scopedServerId = agentHostMcpServerId(sessionResource.authority, server.name, server.state.resource.resource);
 		try {
+			await target.startMcpServer(server.id);
 			return await this._instantiationService.invokeFunction(resolveMcpServerAuthentication, server.state.resource, {
 				allowInteraction: true,
 				logPrefix: '[AgentHost]',
-				mcpServerId: scopedServerId,
+				mcpServerId: agentHostMcpServerId(sessionResource.authority, server.name, server.state.resource.resource),
 				mcpServerName: server.name,
 				mcpServerUrl: server.state.resource.resource,
 				oauthClient: server.state.oauthClient,
@@ -539,9 +549,13 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 		const subscription = this._ensureSessionStateSubscription(sessionResource, target)?.sub;
 		const subscriptionValue = subscription?.value;
 		const sessionState = subscriptionValue && !(subscriptionValue instanceof Error) ? subscriptionValue : subscription?.verifiedValue;
-		const workingDirectories = sessionState
-			? sessionState.workingDirectories ?? []
-			: this._provisionalSessionService.getProvisionalWorkingDirectories(sessionResource)?.map(root => root.toString()) ?? [];
+		const provisionalWorkingDirectories = sessionState ? undefined : this._provisionalSessionService.getProvisionalWorkingDirectories(sessionResource);
+		const workingDirectories = sessionState?.workingDirectories ?? provisionalWorkingDirectories?.map(root => root.toString()) ?? [];
+		const clientWorkingDirectories = provisionalWorkingDirectories ?? workingDirectories.map(directory => {
+			const root = URI.parse(directory);
+			// Editor remote transports already map snapshot roots into the workspace's URI space.
+			return root.scheme === Schemas.vscodeRemote ? root : target.connection.resourceUris.fromAgentHost(root);
+		});
 		const rootState = target.connection.rootState.value;
 		const channel = target.backendSession.toString();
 		return {
@@ -550,6 +564,7 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 			folderPickerDecision: readSessionFolderPickerDecision(sessionState?._meta),
 			workingDirectory: workingDirectories[0],
 			workingDirectories,
+			clientWorkingDirectories,
 			rootConfig: rootState && !(rootState instanceof Error) ? rootState.config : undefined,
 			isBundledMcpServer: (pluginUri, serverName) => this._activeClientService.isBundledMcpServer(pluginUri, serverName),
 			authenticate: request => target.connection.authenticate(request),
@@ -570,6 +585,13 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 			stopMcpServer: rawId => {
 				target.connection.dispatch(channel, {
 					type: ActionType.SessionMcpServerStopRequested,
+					id: rawId,
+				});
+				return Promise.resolve();
+			},
+			backgroundMcpServer: rawId => {
+				target.connection.dispatch(channel, {
+					type: ActionType.SessionMcpServerBackgroundRequested,
 					id: rawId,
 				});
 				return Promise.resolve();

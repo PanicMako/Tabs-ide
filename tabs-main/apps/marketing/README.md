@@ -21,7 +21,7 @@ bun run preview --port 4174
 
 ## What happens when v1.3.2 (or any later stable version) ships?
 
-1. The existing Release Desktop workflow builds and publishes the binaries and updater metadata to `mxyxyz9/Tabs-ide`.
+1. The existing Release Desktop workflow builds and publishes the binaries and updater metadata to `PanicMako/Tabs-ide`.
 2. `.github/workflows/deploy-marketing.yml` runs on website pushes to main, manual dispatch, release publication, and successful Release Desktop completion. The completion trigger is necessary because GitHub does not trigger a `release` workflow for releases created by `GITHUB_TOKEN`. It checks out the trusted default branch, never downloaded workflow artifacts or a pull request head.
 3. The workflow reads GitHub's `/releases/latest` endpoint, validates its assets and manifests, rebuilds the static release history, and deploys to Vercel.
 4. Visitors also fetch `/releases/latest` on page load. The version, current release row, and download links update from the response. Clicking a platform download checks again, so an open browser tab can obtain a newer release. No version is interpolated into an invented asset name: URLs come from `browser_download_url`.

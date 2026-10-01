@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import type { DesktopUpdateState } from "@tabs/contracts";
+import type { DesktopCodeHostState, DesktopUpdateState } from "@tabs/contracts";
 import {
   type DesktopUpdateButtonAction,
   describeDesktopUpdate,
@@ -24,7 +24,7 @@ import {
 import { DesktopUpdateReleaseNotes } from "../DesktopUpdateReleaseNotes";
 import { SettingsRow, SettingsSection, SettingsSectionHeader } from "./SettingsLayout";
 
-const TABS_RELEASES_URL = "https://github.com/mxyxyz9/Tabs-ide/releases";
+const TABS_RELEASES_URL = "https://github.com/PanicMako/Tabs-ide/releases";
 const RESET_CONFIRMATION_PHRASE = "DELETE TABS DATA";
 
 type DesktopOsKind = "mac" | "windows" | "linux" | "unknown";
@@ -126,6 +126,23 @@ function DesktopUpdateControl({
 }
 
 export function AboutSettings() {
+  const [codeHostState, setCodeHostState] = useState<DesktopCodeHostState | null>(null);
+  useEffect(() => {
+    const bridge = window.desktopBridge;
+    if (!bridge) return;
+    let cancelled = false;
+    void bridge.getCodeHostState().then(
+      (state) => {
+        if (!cancelled) setCodeHostState(state);
+      },
+      () => {
+        if (!cancelled) setCodeHostState(null);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const [updateState, setUpdateState] = useState<DesktopUpdateState | null>(null);
   const [updateActionError, setUpdateActionError] = useState<string | null>(null);
   const [resetDialogStep, setResetDialogStep] = useState<"review" | "confirm" | null>(null);
@@ -228,6 +245,19 @@ export function AboutSettings() {
           description="The version of Tabs currently installed."
           control={<code className="text-xs font-medium text-muted-foreground">{APP_VERSION}</code>}
         />
+
+        {isElectron ? (
+          <SettingsRow
+            title="Code-OSS version"
+            description="The embedded editor runtime selected by this Tabs installation."
+            control={
+              <code className="text-xs font-medium text-muted-foreground">
+                {codeHostState?.version ??
+                  (codeHostState?.available === false ? "Unavailable" : "Unknown")}
+              </code>
+            }
+          />
+        ) : null}
 
         {isElectron && updateState ? (
           <SettingsRow

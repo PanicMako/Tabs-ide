@@ -549,6 +549,13 @@ function getRequiredMacArtifactPaths(productName: string, thin = false): readonl
     // dependencies from the checkout's root node_modules.
     join(codeOss, "node_modules"),
     join(codeOss, "node_modules", "minimist", "index.js"),
+    // Agent Host imports the root package; the git extension's private copy
+    // cannot satisfy that module's relative native-binding lookup.
+    join(codeOss, "node_modules", "@vscode", "fs-copyfile", "build", "Release", "vscode_fs.node"),
+    join(codeOss, "node_modules", "@parcel", "watcher", "build", "Release", "watcher.node"),
+    join(codeOss, "node_modules", "@vscode", "sqlite3", "build", "Release", "vscode-sqlite3.node"),
+    join(codeOss, "node_modules", "@vscode", "spdlog", "build", "Release", "spdlog.node"),
+    join(codeOss, "node_modules", "native-keymap", "build", "Release", "keymapping.node"),
     join(codeOss, "extensions", "node_modules", "typescript", "lib", "typescript.js"),
     join(
       codeOss,
@@ -1056,6 +1063,15 @@ const stageVsCodeRuntime = Effect.fn("stageVsCodeRuntime")(function* (
   // fs-copyfile loads its native binding on macOS only; Linux and Windows use
   // its JavaScript fallback. Keep the source package available for packaging.
   compiledMarkers.push("extensions/git/node_modules/@vscode/fs-copyfile/lib/native.js");
+  compiledMarkers.push("node_modules/@vscode/fs-copyfile/lib/native.js");
+  if (platform === "mac") {
+    compiledMarkers.push("node_modules/@vscode/fs-copyfile/build/Release/vscode_fs.node");
+    // The vendored .npmrc requires native modules to build from source.
+    compiledMarkers.push("node_modules/@parcel/watcher/build/Release/watcher.node");
+    compiledMarkers.push("node_modules/@vscode/sqlite3/build/Release/vscode-sqlite3.node");
+    compiledMarkers.push("node_modules/@vscode/spdlog/build/Release/spdlog.node");
+    compiledMarkers.push("node_modules/native-keymap/build/Release/keymapping.node");
+  }
   // Marketplace signature verification runs in the shared process. The
   // verifier lives in build/node_modules in a source checkout and is copied
   // into the packaged runtime below before build/ is removed.

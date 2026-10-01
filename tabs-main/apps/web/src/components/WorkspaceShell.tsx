@@ -1,3 +1,4 @@
+import { useWindowControlsInset } from "../hooks/useWindowControlsInset";
 import { BrowserToolbar } from "./browser/BrowserToolbar";
 import type { FileDiffMetadata, Hunk } from "@pierre/diffs";
 import { createPortal } from "react-dom";
@@ -204,6 +205,8 @@ import { environmentApi, isPrimaryEnvironment } from "../connection/environmentA
 // On Windows the native title bar is hidden and the caption buttons are overlaid
 // (Window Controls Overlay) at the top-right, so the top bar reserves space on
 // the right instead of the macOS traffic-light space on the left.
+const isMacDesktop =
+  isElectron && typeof navigator !== "undefined" && /Mac/i.test(navigator.platform);
 const isWindowsDesktop =
   isElectron && typeof navigator !== "undefined" && isWindowsPlatform(navigator.platform);
 import { ensureNativeApi, readNativeApi } from "../nativeApi";
@@ -951,6 +954,11 @@ function ProjectTabs(props: {
   showSettings?: boolean;
   onOpenSettings?: () => void;
 }) {
+  const windowControlsInset = useWindowControlsInset(
+    isWindowsDesktop || isMacDesktop,
+    isMacDesktop ? { left: 92, right: 0 } : { left: 0, right: 140 },
+  );
+
   // Merge real + pending tabs in a stable order: real projects first (as ordered
   // in openProjects), then pending slots appended at the end.
   type TabEntry = { kind: "project"; project: Project } | { kind: "pending"; pendingId: string };
@@ -975,10 +983,14 @@ function ProjectTabs(props: {
       className={cn(
         "drag-region flex items-end justify-between gap-2 overflow-x-auto border-b px-3 pt-2 select-none backdrop-blur-md transition-colors duration-200",
         "border-border/80 bg-background/95 text-foreground",
-        // Reserve space for the OS window controls: traffic lights (left) on
-        // macOS/Linux, the overlaid caption buttons (right) on Windows.
-        isElectron && (isWindowsDesktop ? "pr-[140px]" : "pl-[92px]"),
+        // Linux uses native decorations outside the DOM. Overlaid controls on
+        // macOS/Windows report the usable area rather than a presumed side.
+        isWindowsDesktop && "h-[52px] shrink-0",
       )}
+      style={{
+        paddingLeft: Math.max(12, windowControlsInset.left),
+        paddingRight: Math.max(12, windowControlsInset.right),
+      }}
     >
       <div className="flex min-w-0 flex-1 items-end gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {tabs.map((entry) => {

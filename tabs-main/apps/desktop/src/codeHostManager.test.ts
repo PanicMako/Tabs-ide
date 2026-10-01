@@ -475,6 +475,20 @@ describe("mergeProductConfigurationDefaults", () => {
 });
 
 describe("CodeHostManager", () => {
+  it("reports the selected runtime version and re-reads it after a runtime changes", async () => {
+    const vscodeRoot = makeTempDir("tabs-runtime-version-");
+    const manager = new CodeHostManager(() => null, {
+      state: { available: true, mode: "embedded", entry: null, reason: null },
+      runtime: { kind: "desktop-renderer", vscodeRoot, stateDir: vscodeRoot },
+    });
+    FS.writeFileSync(Path.join(vscodeRoot, "package.json"), JSON.stringify({ version: "1.140.0" }));
+    expect((await manager.getState()).version).toBe("1.140.0");
+    FS.writeFileSync(Path.join(vscodeRoot, "package.json"), JSON.stringify({ version: "1.138.0" }));
+    expect((await manager.getState()).version).toBe("1.138.0");
+    FS.writeFileSync(Path.join(vscodeRoot, "package.json"), "invalid");
+    expect(await manager.getState()).toMatchObject({ available: true, version: null });
+  });
+
   beforeEach(() => {
     webContentsViews.length = 0;
   });

@@ -2,6 +2,19 @@
 
 All notable changes to Tabs IDE will be documented in this file.
 
+## [v1.3.29] - 2026-10-01
+
+### Code-OSS 1.140 and clearer runtime information
+
+Tabs updates its embedded editor to Code-OSS 1.140.0 and shows the selected editor runtime version in Settings → About. Project tabs now use the space reported by native window controls on macOS and Windows; Linux keeps its system title bar outside the tabs.
+
+### What changed
+
+- **Embedded editor update**: Code-OSS 1.140.0 is included with Tabs.
+- **Editor version in About**: Troubleshooting can distinguish the Tabs application version from the embedded Code-OSS runtime version.
+- **Window-control spacing and themes**: Tabs follow native control geometry, and Windows caption symbols follow light and dark themes.
+- **Updated GitHub links**: Website, downloads, update helpers and model catalog references use the PanicMako account.
+
 ## [v1.3.28] - 2026-09-29
 
 ### Development state isolation, preserved workspace configs, and reactive typography

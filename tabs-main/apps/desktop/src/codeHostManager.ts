@@ -1,3 +1,4 @@
+import { isLightDesktopTheme } from "./desktopTheme";
 import * as Crypto from "node:crypto";
 import * as FS from "node:fs";
 import * as OS from "node:os";
@@ -260,9 +261,11 @@ type DesktopWindowConfiguration = {
   homeDir: string;
   tmpDir: string;
   userDataDir: string;
+  isSessionsWindow?: boolean;
   workspace: {
     id: string;
-    uri: UriComponent;
+    uri?: UriComponent;
+    configPath?: UriComponent;
   };
   logLevel: number;
   loggers: unknown[];
@@ -1060,11 +1063,9 @@ export function resolveCodeOssNodeModulesResource(
 }
 
 export function resolveCodeOssWorkbenchTheme(themeId: string, customConfig?: any): string {
-  const isLight =
-    themeId === "custom"
-      ? customConfig?.baseVariant === "light"
-      : ["tabs-light", "solarized-light", "light"].includes(themeId);
-  return isLight ? "Default Light Modern" : "Default Dark Modern";
+  return isLightDesktopTheme(themeId, customConfig)
+    ? "Default Light Modern"
+    : "Default Dark Modern";
 }
 
 export class CodeHostManager {
@@ -1186,6 +1187,7 @@ export class CodeHostManager {
     private readonly config: CodeHostConfig,
     private readonly controlChannel?: CodeControlChannel,
     private readonly stackCoordinator?: NativeViewStackCoordinator,
+    private readonly agentsWorkspace?: string,
   ) {
     this.controlChannel?.onChromeState((projectId, state) => {
       this.handleChromeStateForTabs(projectId, state);
@@ -1267,7 +1269,23 @@ export class CodeHostManager {
   }
 
   async getState(): Promise<DesktopCodeHostState> {
-    return { ...this.config.state };
+    let version: string | null = null;
+    if (this.config.runtime) {
+      try {
+        const metadata = JSON.parse(
+          await FS.promises.readFile(
+            Path.join(this.config.runtime.vscodeRoot, "package.json"),
+            "utf8",
+          ),
+        ) as { version?: unknown };
+        if (typeof metadata.version === "string" && metadata.version.trim()) {
+          version = metadata.version;
+        }
+      } catch {
+        // An unavailable version must not prevent reporting runtime availability.
+      }
+    }
+    return { ...this.config.state, version };
   }
 
   async recreateSession(projectId: string): Promise<void> {
@@ -1865,7 +1883,7 @@ export class CodeHostManager {
       const loadStartedAt = Date.now();
       try {
         const runtime = await this.ensureSessionRuntime(session);
-        if (!session.lastFocusedPath) {
+        if (!this.agentsWorkspace && !session.lastFocusedPath) {
           session.lastFocusedPath = findDefaultWorkspaceFile(session.workspaceRoot);
         }
         const nextUrl = buildDesktopSessionUrl(runtime.entry, session);
@@ -2006,7 +2024,12 @@ export class CodeHostManager {
     return {
       kind: "desktop-renderer",
       entry: buildVsCodeFileUrl(
-        getRequiredCodeOssPath(runtime.vscodeRoot, CODE_OSS_DESKTOP_WORKBENCH_RELATIVE_PATH),
+        getRequiredCodeOssPath(
+          runtime.vscodeRoot,
+          this.agentsWorkspace
+            ? Path.join("out", "vs", "sessions", "electron-browser", "sessions-dev.html")
+            : CODE_OSS_DESKTOP_WORKBENCH_RELATIVE_PATH,
+        ),
       ),
       workspaceUri: pathToFileURL(session.workspaceRoot).toString(),
     };
@@ -2309,9 +2332,12 @@ export class CodeHostManager {
       homeDir: OS.homedir(),
       tmpDir: OS.tmpdir(),
       userDataDir: sessionStateRoot,
+      ...(this.agentsWorkspace ? { isSessionsWindow: true } : {}),
       workspace: {
-        id: this.hashDesktopIdentity(`workspace:${session.workspaceRoot}`),
-        uri: this.toFileUriComponent(session.workspaceRoot),
+        id: this.hashDesktopIdentity(`workspace:${this.agentsWorkspace ?? session.workspaceRoot}`),
+        ...(this.agentsWorkspace
+          ? { configPath: this.toFileUriComponent(this.agentsWorkspace) }
+          : { uri: this.toFileUriComponent(session.workspaceRoot) }),
       },
       logLevel: 2,
       loggers: [],

@@ -22,7 +22,7 @@ function createSignedManifest(overrides: Record<string, unknown> = {}) {
     schemaVersion: 1,
     version: "1.4.0",
     releaseDate: "2026-09-21T12:00:00.000Z",
-    repository: "mxyxyz9/Tabs-ide",
+    repository: "PanicMako/Tabs-ide",
     releaseNotes: "## What changed\n\n- Faster startup",
     assets: {
       arm64: {
@@ -52,7 +52,7 @@ describe("parseAndVerifyMacPreviewManifest", () => {
     const result = parseAndVerifyMacPreviewManifest(
       fixture.bytes,
       fixture.signature,
-      "mxyxyz9/Tabs-ide",
+      "PanicMako/Tabs-ide",
       fixture.publicKey,
     );
     expect(result.version).toBe("1.4.0");
@@ -67,7 +67,7 @@ describe("parseAndVerifyMacPreviewManifest", () => {
       parseAndVerifyMacPreviewManifest(
         tampered,
         fixture.signature,
-        "mxyxyz9/Tabs-ide",
+        "PanicMako/Tabs-ide",
         fixture.publicKey,
       ),
     ).toThrow("signature is invalid");
@@ -79,7 +79,7 @@ describe("parseAndVerifyMacPreviewManifest", () => {
       parseAndVerifyMacPreviewManifest(
         fixture.bytes,
         fixture.signature,
-        "mxyxyz9/Tabs-ide",
+        "PanicMako/Tabs-ide",
         fixture.publicKey,
       ),
     ).toThrow("targets another project");

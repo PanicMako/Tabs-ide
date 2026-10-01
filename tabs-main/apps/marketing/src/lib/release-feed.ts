@@ -25,7 +25,7 @@ function renderNotes(body: string | null) {
   }
   for (const list of content.querySelectorAll("ul")) list.classList.add("hs-cl-bullet-list");
   for (const link of content.querySelectorAll("a")) {
-    const url = new URL(link.getAttribute("href") ?? "", "https://github.com/mxyxyz9/Tabs-ide/");
+    const url = new URL(link.getAttribute("href") ?? "", "https://github.com/PanicMako/Tabs-ide/");
     if (url.protocol !== "https:" && url.protocol !== "http:") {
       link.replaceWith(...Array.from(link.childNodes));
       continue;

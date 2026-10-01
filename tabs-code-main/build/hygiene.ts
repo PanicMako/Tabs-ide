@@ -50,6 +50,17 @@ export function checkCopilotEnginesVersion(repoRoot: string): string | undefined
  *
  * Returns an error message if there are unknown JS files, or undefined if OK.
  */
+function gitEnvironment(): NodeJS.ProcessEnv {
+	// Hooks export repository discovery variables for their original directory.
+	// Rediscover Git from the vendored checkout, retaining the selected index.
+	const env = { ...process.env };
+	delete env.GIT_DIR;
+	delete env.GIT_WORK_TREE;
+	delete env.GIT_PREFIX;
+	delete env.GIT_COMMON_DIR;
+	return env;
+}
+
 export function checkNoNewJavaScriptFiles(repoRoot: string): string | undefined {
 	const allowlistPath = path.join(repoRoot, '.eslint-allowed-javascript-files');
 	const allowed = new Set(
@@ -60,12 +71,13 @@ export function checkNoNewJavaScriptFiles(repoRoot: string): string | undefined 
 	);
 
 	// `git ls-files` lists tracked files relative to repo root using forward slashes.
-	const out = cp.execSync('git ls-files "*.js" "*.cjs" "*.mjs"', {
+	const out = cp.execFileSync('git', ['ls-files', '-z', '--', '*.js', '*.cjs', '*.mjs'], {
 		cwd: repoRoot,
+		env: gitEnvironment(),
 		encoding: 'utf8',
 		maxBuffer: 10 * 1024 * 1024,
 	});
-	const tracked = out.split(/\r?\n/).filter(line => !!line);
+	const tracked = out.split('\0').filter(line => !!line);
 
 	const unknown = tracked.filter(file => !allowed.has(file));
 	if (unknown.length > 0) {
@@ -303,9 +315,9 @@ function createGitIndexVinyls(paths: string[]): Promise<VinylFile[]> {
 					return e(err);
 				}
 
-				cp.exec(
-					process.platform === 'win32' ? `git show :${relativePath}` : `git show ':${relativePath}'`,
-					{ maxBuffer: Math.max(stat.size * 2, 1024 * 1024), encoding: 'buffer' },
+				cp.execFile(
+					'git', ['show', `:./${relativePath}`],
+					{ cwd: repositoryPath, env: gitEnvironment(), maxBuffer: Math.max(stat.size * 2, 1024 * 1024), encoding: 'buffer' },
 					(err, out) => {
 						if (err) {
 							return e(err);
@@ -340,9 +352,9 @@ if (import.meta.main) {
 			process.exit(1);
 		});
 	} else {
-		cp.exec(
-			'git diff --cached --name-only',
-			{ maxBuffer: 2000 * 1024 },
+		cp.execFile(
+			'git', ['diff', '--cached', '--relative', '--name-only', '-z', '--', '.'],
+			{ env: gitEnvironment(), maxBuffer: 2000 * 1024 },
 			(err, out) => {
 				if (err) {
 					console.error();
@@ -350,7 +362,7 @@ if (import.meta.main) {
 					process.exit(1);
 				}
 
-				const some = out.split(/\r?\n/).filter((l) => !!l);
+				const some = out.split('\0').filter((l) => !!l);
 
 				if (some.length > 0) {
 					// Check copilot engines.vscode version if relevant files are staged
@@ -389,8 +401,7 @@ if (import.meta.main) {
 							process.exit(1);
 						});
 				} else {
-					console.error('No staged files found. Pass file paths to check unstaged files.');
-					process.exit(1);
+					console.log('No staged files in this checkout. Pass file paths to check unstaged files.');
 				}
 			}
 		);

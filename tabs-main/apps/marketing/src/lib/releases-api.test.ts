@@ -4,7 +4,7 @@ import { GET } from "../../api/releases";
 const githubRelease = {
   tag_name: "v1.3.1",
   name: "Tabs v1.3.1",
-  html_url: "https://github.com/mxyxyz9/Tabs-ide/releases/tag/v1.3.1",
+  html_url: "https://github.com/PanicMako/Tabs-ide/releases/tag/v1.3.1",
   published_at: "2026-09-05T16:47:42Z",
   body: "Release notes",
   draft: false,
@@ -13,7 +13,7 @@ const githubRelease = {
     {
       name: "Tabs-1.3.1-x64.exe",
       browser_download_url:
-        "https://github.com/mxyxyz9/Tabs-ide/releases/download/v1.3.1/Tabs-1.3.1-x64.exe",
+        "https://github.com/PanicMako/Tabs-ide/releases/download/v1.3.1/Tabs-1.3.1-x64.exe",
     },
     { name: "external.exe", browser_download_url: "https://example.com/external.exe" },
   ],

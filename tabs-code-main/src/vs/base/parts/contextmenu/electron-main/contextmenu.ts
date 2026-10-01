@@ -28,7 +28,13 @@ export function registerContextMenuListener(resolvePopupContext?: (event: IpcMai
 				// It turns out that the menu gets GC'ed if not referenced anymore
 				// As such we drag it into this scope so that it is not being GC'ed
 				if (menu) {
-					event.sender.send(CONTEXT_MENU_CLOSE_CHANNEL, contextMenuId);
+					// Use setImmediate to allow the menu to completely close
+					// and finish its event handling before notifying the renderer
+					setImmediate(() => {
+						if (!event.sender.isDestroyed()) {
+							event.sender.send(CONTEXT_MENU_CLOSE_CHANNEL, contextMenuId);
+						}
+					});
 				}
 			}
 		});

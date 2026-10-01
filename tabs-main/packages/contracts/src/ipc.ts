@@ -1829,6 +1829,8 @@ export interface CodeChromeState {
 }
 
 export interface DesktopCodeHostState {
+  /** Version read from the selected embedded runtime, not the Tabs app. */
+  version?: string | null;
   available: boolean;
   mode: "embedded" | "external";
   entry: string | null;
