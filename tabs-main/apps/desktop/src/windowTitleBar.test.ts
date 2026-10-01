@@ -1,9 +1,12 @@
-import { describe, expect, it, vi } from "vite-plus/test";
+import { describe, expect, it, vi } from "vitest";
 import { resolveDesktopTitleBarOptions, updateWindowControlsOverlay } from "./windowTitleBar";
 
 describe("Windows window controls", () => {
   it("uses contrasting symbols after switching from dark to light and back", () => {
-    const window = { isDestroyed: () => false, setTitleBarOverlay: vi.fn() };
+    const window = {
+      isDestroyed: () => false,
+      setTitleBarOverlay: vi.fn<(options: Electron.TitleBarOverlayOptions) => void>(),
+    };
     updateWindowControlsOverlay("win32", [window], true);
     updateWindowControlsOverlay("win32", [window], false);
     updateWindowControlsOverlay("win32", [window], true);

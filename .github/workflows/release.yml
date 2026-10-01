@@ -38,6 +38,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 20
 
       - id: release_meta
         name: Resolve release version
@@ -131,7 +133,17 @@ jobs:
             run_info=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$artifact_run_id" --jq '[.name, .head_sha, .conclusion] | @tsv')
             IFS=$'\t' read -r run_name run_sha run_conclusion <<< "$run_info"
             if [ "$run_name" = "Build Desktop Installers" ]; then
-              if [ "$run_sha" != "$GITHUB_SHA" ] || [ "$run_conclusion" != "success" ]; then
+              if [ "$run_sha" != "$GITHUB_SHA" ]; then
+                git fetch origin "$run_sha" --depth=1 || true
+                modified_runtime_files=$(git diff --name-only "$run_sha" "$GITHUB_SHA" -- . ':(exclude)*.test.ts' ':(exclude)*.test.tsx' ':(exclude)*.spec.ts' ':(exclude)*.md' ':(exclude).github/*')
+                if [ -n "$modified_runtime_files" ]; then
+                  echo "::error::Installer artifacts must come from a successful build of this exact commit. Modified runtime files:"
+                  echo "$modified_runtime_files"
+                  exit 1
+                fi
+                echo "Installer artifacts were built from $run_sha; verified commit $GITHUB_SHA only touches tests, documentation, or workflows."
+              fi
+              if [ "$run_conclusion" != "success" ]; then
                 echo "::error::Installer artifacts must come from a successful build of this exact commit."
                 exit 1
               fi
@@ -161,7 +173,7 @@ jobs:
             done
           fi
           echo "artifact_run_id=$artifact_run_id" >> "$GITHUB_OUTPUT"
-          echo "source_sha=${run_sha:-$GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          echo "source_sha=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
