@@ -199,6 +199,8 @@ jobs:
           # out-build/nls.messages.{json,js} : required by the artifact assert and
           # the runtime. without-mangling avoids the protected-fields mangler error.
           npm run gulp compile-build-without-mangling
+          # Code-OSS 1.140 writes nls.messages.json to out-build via bundle --nls
+          test -s out-build/nls.messages.json || node build/next/index.ts bundle --nls
 
       # The embedded workbench activates ALL built-in extensions at startup or on
       # file-open, not a curated few. compile-client above skips EVERY extension,

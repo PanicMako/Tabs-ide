@@ -7,13 +7,15 @@ import * as util from './lib/util.ts';
 import * as date from './lib/date.ts';
 import * as task from './lib/gulp/task.ts';
 import * as compilation from './lib/compilation.ts';
+import { runEsbuildBundle } from './lib/esbuild.ts';
 
 function makeCompileBuildTask(disableMangle: boolean) {
 	return task.series(
 		util.rimraf('out-build'),
 		date.writeISODate('out-build'),
 		compilation.compileApiProposalNamesTask,
-		compilation.compileTask('src', 'out-build', true, { disableMangle })
+		compilation.compileTask('src', 'out-build', true, { disableMangle }),
+		() => runEsbuildBundle('out-vscode', false, true, 'desktop')
 	);
 }
 
