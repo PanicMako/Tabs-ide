@@ -137,6 +137,10 @@ export class DesktopMain extends Disposable {
 		// Listeners
 		this.registerListeners(workbench, services.storageService);
 
+		(mainWindow as typeof mainWindow & { __tabs_codehost_shutdown?: () => Promise<void> }).__tabs_codehost_shutdown = async () => {
+			workbench.dispose();
+		};
+
 		// Startup
 		const instantiationService = workbench.startup();
 
