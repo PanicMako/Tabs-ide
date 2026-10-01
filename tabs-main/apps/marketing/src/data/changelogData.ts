@@ -21,15 +21,53 @@ export interface ChangelogRelease {
   }[];
 }
 
-export const TOTAL_TAGS_COUNT = 171;
+export const TOTAL_TAGS_COUNT = 172;
 
 export const changelogData: ChangelogRelease[] = [
+  {
+    tag: "v1.3.29",
+    title: "Code-OSS 1.140 and clearer runtime information",
+    date: "October 1, 2026",
+    shortDate: "Oct 1",
+    isLatest: true,
+    type: "patch",
+    summary:
+      "Tabs updates its embedded editor to Code-OSS 1.140.0 and shows the selected editor runtime version in Settings → About. Project tabs now use the space reported by native window controls on macOS and Windows; Linux keeps its system title bar outside the tabs.",
+    highlights: [
+      "Code-OSS 1.140.0 is included with Tabs.",
+      "Troubleshooting can distinguish the Tabs application version from the embedded Code-OSS runtime version in Settings → About.",
+      "Tabs follow native control geometry, and Windows caption symbols follow light and dark themes.",
+      "Website, downloads, update helpers and model catalog references use the PanicMako account.",
+    ],
+    categories: [
+      {
+        title: "Editor & Runtime",
+        items: [
+          "Code-OSS 1.140.0 is included with Tabs.",
+          "Settings → About displays the selected editor runtime version alongside the Tabs application version.",
+        ],
+      },
+      {
+        title: "Appearance & Window Controls",
+        items: [
+          "Project tabs use native control geometry on macOS and Windows; Linux keeps system title bar outside tabs.",
+          "Windows caption symbols dynamically follow light and dark desktop themes.",
+        ],
+      },
+      {
+        title: "Ecosystem",
+        items: [
+          "Updated repository, download, and update endpoints to the PanicMako GitHub account.",
+        ],
+      },
+    ],
+  },
   {
     tag: "v1.3.28",
     title: "Development state isolation, preserved workspace configs, and reactive typography",
     date: "September 29, 2026",
     shortDate: "Sep 29",
-    isLatest: true,
+    isLatest: false,
     type: "patch",
     summary:
       "Tabs isolates development state from production profiles, preserves workspace configuration files during data resets, and applies font preference changes immediately across the interface.",
