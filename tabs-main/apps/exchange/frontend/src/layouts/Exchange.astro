@@ -31,7 +31,7 @@ const navigation = [
     <a class="skip-link" href="#main">Skip to content</a>
     <header class="site-header">
       <a class="brand" href="/" aria-label={`${site.name} home`}><svg aria-hidden="true" focusable="false" width="28" height="28" viewBox={extensionMarkViewBox} fill="currentColor"><path d={extensionMarkPath} fill-rule="evenodd" /></svg>{site.name === "Tabs Exchange" ? <span>Tabs <span class="muted">Exchange</span></span> : <span>{site.name}</span>}</a>
-      <nav aria-label="Main navigation">{navigation.map(([label, href, key]) => <a href={href} aria-current={active === key ? "page" : undefined}>{label}</a>)}<a id="reviewer-link" href="/admin" aria-current={active === "review" ? "page" : undefined} hidden>Review</a></nav>
+      <nav aria-label="Main navigation">{navigation.map(([label, href, key]) => <a href={href} aria-current={active === key ? "page" : undefined}>{label}</a>)}<a id="reviewer-link" href="/admin" aria-current={active === "review" ? "page" : undefined} hidden>Review</a><a id="operator-link" href="/admin/reviewers" aria-current={active === "operator" ? "page" : undefined} hidden>Reviewer access</a></nav>
       <a class="account-link" id="account-link" href="/account" aria-current={active === "account" ? "page" : undefined}>Publisher account</a>
     </header>
     <main id="main" tabindex="-1"><slot /></main>

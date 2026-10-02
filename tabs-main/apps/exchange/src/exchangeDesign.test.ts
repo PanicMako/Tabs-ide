@@ -105,3 +105,52 @@ describe("Exchange visual constraints", () => {
     }
   });
 });
+describe("Role-aware navigation (layout and account script)", () => {
+  it("layout contains both reviewer-link and operator-link elements, initially hidden", () => {
+    const layout = readFileSync(
+      new URL("../frontend/src/layouts/Exchange.astro", import.meta.url),
+      "utf8",
+    );
+    expect(layout).toContain('id="reviewer-link"');
+    expect(layout).toContain('id="operator-link"');
+    expect(layout).toMatch(/id="reviewer-link"[^>]*hidden/);
+    expect(layout).toMatch(/id="operator-link"[^>]*hidden/);
+  });
+  it("account navigation lib exposes operator flag for strict boolean only", () => {
+    const source = readFileSync(
+      new URL("../frontend/src/lib/accountNavigation.ts", import.meta.url),
+      "utf8",
+    );
+    // operator flag must be derived from actor.operator === true
+    expect(source).toContain("operator");
+    expect(source).toContain("actor.operator === true");
+  });
+  it("account script manages operator-link visibility alongside reviewer-link", () => {
+    const source = readFileSync(
+      new URL("../frontend/src/scripts/account.ts", import.meta.url),
+      "utf8",
+    );
+    expect(source).toContain("operator-link");
+    expect(source).toContain("navigation.operator");
+    expect(source).toContain("operatorLink.hidden");
+  });
+  it("developers page includes an inline publication flow diagram with accessible alt text", () => {
+    const source = readFileSync(
+      new URL("../frontend/src/pages/developers.astro", import.meta.url),
+      "utf8",
+    );
+    expect(source).toContain("docs-diagram");
+    expect(source).toContain("aria-label");
+    expect(source).toContain("figcaption");
+    expect(source).toContain("signed");
+  });
+  it("homepage editorial heading uses Instrument Serif via editorial-accent class", () => {
+    const source = readFileSync(
+      new URL("../frontend/src/pages/index.astro", import.meta.url),
+      "utf8",
+    );
+    expect(source).toContain("editorial-accent");
+    expect(source).not.toContain("workspace-art");
+    expect(source).not.toContain('role="img"');
+  });
+});
