@@ -4,7 +4,7 @@ import { extensionDetailHref, isExchangeIdentifier, safePublisherUrl } from "./e
 describe("Exchange marketing listing links", () => {
   it("builds local detail links only for valid package identities", () => {
     expect(extensionDetailHref("tabs-example", "project-companion")).toBe(
-      "/extension?namespace=tabs-example&name=project-companion",
+      "/extensions/tabs-example/project-companion",
     );
     expect(extensionDetailHref("../admin", "tool")).toBeNull();
     expect(extensionDetailHref("example", "a/b")).toBeNull();

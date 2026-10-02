@@ -1,6 +1,6 @@
 {
   "name": "@tabs/extension-api",
-  "version": "1.5.0",
+  "version": "1.7.0",
   "description": "Public manifest and host bridge types for Tabs extensions",
   "license": "MIT",
   "repository": {

@@ -85,6 +85,7 @@ import {
 import { CodeHostManager, resolveCodeHostConfig } from "./codeHostManager";
 import { BrowserHostManager } from "./browserHostManager";
 import { ExtensionViewManager } from "./extensionViewManager";
+import { RegistryCredentials, registryFetch } from "./registryCredentials";
 import { ExtensionAiBrokerServer } from "./extensionAiBrokerServer";
 import { configuredExchangeOrigin, discoverExchangePage } from "./exchangeCatalog";
 import { ExchangeUpdateMonitor } from "./exchangeUpdateMonitor";
@@ -190,6 +191,9 @@ const EXTENSION_UNINSTALL_CHANNEL = "desktop:extension:uninstall";
 const EXTENSION_SET_DISABLED_CHANNEL = "desktop:extension:set-disabled";
 const EXTENSION_SET_UPDATES_PINNED_CHANNEL = "desktop:extension:set-updates-pinned";
 const EXTENSION_INSTALL_DEV_CHANNEL = "desktop:extension:install-dev";
+const EXTENSION_RELOAD_DEV_CHANNEL = "desktop:extension:reload-dev";
+const REGISTRY_CONNECTION_CHANNEL = "desktop:extension:registry-connection";
+const REGISTRY_CREDENTIAL_CHANNEL = "desktop:extension:registry-credential";
 const EXTENSION_INSTALL_LOCAL_PACKAGE_CHANNEL = "desktop:extension:install-local-package";
 const EXTENSION_ASSIGN_CHANNEL = "desktop:extension:assign";
 const EXTENSION_ADD_PROFILE_CHANNEL = "desktop:extension:add-profile";
@@ -488,6 +492,11 @@ const extensionViewManager = new ExtensionViewManager(
   safeStorage,
 );
 const extensionAiBrokerServer = new ExtensionAiBrokerServer(extensionViewManager);
+const registryCredentials = new RegistryCredentials(
+  Path.join(STATE_DIR, "registry-credentials"),
+  safeStorage,
+);
+const authenticatedRegistryFetch = registryFetch(registryCredentials);
 let extensionAiBrokerConfig: { readonly endpoint: string; readonly token: string } | null = null;
 let exchangeInstallService: ExchangeInstallService | null = null;
 let exchangeStatusTimer: ReturnType<typeof setInterval> | null = null;
@@ -516,6 +525,7 @@ function requireExchangeInstallService(): ExchangeInstallService {
     () => extensionViewManager.list(),
     (archive, registryOrigin, digest, options) =>
       extensionViewManager.installVerifiedExchangePackage(archive, registryOrigin, digest, options),
+    authenticatedRegistryFetch,
   );
   return exchangeInstallService;
 }
@@ -2165,7 +2175,13 @@ function registerIpcHandlers(): void {
       throw new Error("Invalid Exchange search cursor.");
     const origin = configuredExchangeOrigin(process.env.TABS_EXCHANGE_ORIGIN, !app.isPackaged);
     if (!origin) return null;
-    return discoverExchangePage(origin, app.getVersion(), query, cursor ?? null);
+    return discoverExchangePage(
+      origin,
+      app.getVersion(),
+      query,
+      cursor ?? null,
+      authenticatedRegistryFetch,
+    );
   });
   ipcMain.removeHandler(EXTENSION_CHECK_UPDATE_CHANNEL);
   ipcMain.handle(EXTENSION_CHECK_UPDATE_CHANNEL, async (event, id: unknown) => {
@@ -2261,6 +2277,37 @@ function registerIpcHandlers(): void {
     }
   });
   ipcMain.removeHandler(EXTENSION_INSTALL_DEV_CHANNEL);
+  ipcMain.removeHandler(EXTENSION_RELOAD_DEV_CHANNEL);
+  ipcMain.removeHandler(REGISTRY_CONNECTION_CHANNEL);
+  ipcMain.handle(REGISTRY_CONNECTION_CHANNEL, (event) => {
+    requireMainRenderer(event);
+    const origin = configuredExchangeOrigin(process.env.TABS_EXCHANGE_ORIGIN, !app.isPackaged);
+    return {
+      origin,
+      connected: origin?.startsWith("https:") ? registryCredentials.has(origin) : false,
+    };
+  });
+  ipcMain.removeHandler(REGISTRY_CREDENTIAL_CHANNEL);
+  ipcMain.handle(REGISTRY_CREDENTIAL_CHANNEL, (event, origin: unknown, token: unknown) => {
+    requireMainRenderer(event);
+    const configured = configuredExchangeOrigin(process.env.TABS_EXCHANGE_ORIGIN, !app.isPackaged);
+    if (
+      typeof origin !== "string" ||
+      origin !== configured ||
+      (token !== null && typeof token !== "string")
+    )
+      throw new Error("Registry credential does not match the configured origin.");
+    if (token === null) registryCredentials.remove(origin);
+    else registryCredentials.set(origin, token);
+    exchangeSignedMetadataHints?.stop();
+    exchangeInstallService?.dispose();
+    exchangeInstallService = null;
+  });
+  ipcMain.handle(EXTENSION_RELOAD_DEV_CHANNEL, (event, id: unknown) => {
+    requireMainRenderer(event);
+    if (typeof id !== "string") throw new Error("Invalid extension identity.");
+    return extensionViewManager.reloadDevelopment(id);
+  });
   ipcMain.handle(EXTENSION_INSTALL_DEV_CHANNEL, async (event, directory: unknown) => {
     requireMainRenderer(event);
     if (app.isPackaged || typeof directory !== "string") {
@@ -4417,6 +4464,7 @@ async function bootstrap(): Promise<void> {
             `Exchange signed-metadata hints failed: ${formatErrorMessage(error)}`,
           );
         },
+        authenticatedRegistryFetch,
       );
       exchangeSignedMetadataHints.start();
     } catch (error) {

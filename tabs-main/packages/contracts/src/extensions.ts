@@ -36,6 +36,19 @@ export const TabsExtensionManifest = Schema.Struct({
   sourceUrl: Schema.optionalKey(Schema.String),
   supportUrl: Schema.optionalKey(Schema.String),
   privacyUrl: Schema.optionalKey(Schema.String),
+  listing: Schema.optionalKey(
+    Schema.Struct({
+      readme: Schema.optionalKey(Schema.String),
+      icon: Schema.optionalKey(Schema.String),
+      screenshots: Schema.optionalKey(
+        Schema.Array(Schema.Struct({ path: Schema.String, alt: Schema.String })),
+      ),
+      license: Schema.optionalKey(Schema.String),
+      categories: Schema.optionalKey(Schema.Array(Schema.String)),
+      keywords: Schema.optionalKey(Schema.Array(Schema.String)),
+      externalServices: Schema.optionalKey(Schema.String),
+    }),
+  ),
   engines: Schema.Struct({
     tabs: Schema.String,
     api: Schema.optionalKey(Schema.String),

@@ -20,6 +20,42 @@ const manifest = {
 };
 
 describe("Tabs extension manifest", () => {
+  it("gates packaged screenshots on API 1.7 and rejects unsafe or inaccessible preview declarations", () => {
+    const preview = { path: "preview.png", alt: "Project board showing pending tasks" };
+    const valid = {
+      ...manifest,
+      engines: { ...manifest.engines, api: "^1.7.0" },
+      listing: { screenshots: [preview] },
+    };
+    expect(validateTabsExtensionManifest(valid, "1.3.17").ok).toBe(true);
+    expect(
+      validateTabsExtensionManifest(
+        { ...valid, engines: { ...valid.engines, api: "^1.6.0" } },
+        "1.3.17",
+      ).ok,
+    ).toBe(false);
+    for (const screenshots of [
+      [{ ...preview, path: "https://example.com/preview.png" }],
+      [{ ...preview, path: "../preview.png" }],
+      [{ ...preview, path: "preview.svg" }],
+      [{ ...preview, alt: "" }],
+      [preview, preview],
+      Array.from({ length: 7 }, (_, index) => ({ ...preview, path: `${index}.png` })),
+    ])
+      expect(
+        validateTabsExtensionManifest({ ...valid, listing: { screenshots } }, "1.3.17").ok,
+      ).toBe(false);
+    expect(
+      validateTabsExtensionManifest(
+        {
+          ...manifest,
+          engines: { ...manifest.engines, api: "^1.6.0" },
+          listing: { readme: "README.md" },
+        },
+        "1.3.17",
+      ).ok,
+    ).toBe(true);
+  });
   it("rejects versions that cannot be used safely in registry paths and cursors", () => {
     expect(isSafeExtensionPackageVersion("1.0.0-alpha")).toBe(true);
     for (const version of ["1.0.0-../admin", "1.0.0-foo/bar", "1.0.0-%2Fadmin"]) {

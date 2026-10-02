@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Tabs Exchange public registry API",
-    "version": "1.0.0-draft",
-    "description": "Experimental Tabs-native registry discovery and TUF transport API. Catalog JSON, Digest, and ETag are not installation authority. Clients must independently pin a TUF root, verify current signed metadata and target length/hash, then validate the .tabsext archive."
+    "version": "1.0.0",
+    "description": "Experimental Tabs-native registry discovery and TUF transport API. Catalog JSON, Digest, and ETag are not installation authority. Clients must independently pin a TUF root, verify current signed metadata and target length/hash, then validate the .tabsext archive. Public instances permit anonymous discovery/downloads. Private instances require a current allowlisted session or scoped read bearer token, including signed-metadata transport. Authentication never replaces signature verification."
   },
   "servers": [
     {
@@ -21,29 +21,100 @@
           {
             "name": "q",
             "in": "query",
-            "schema": { "type": "string", "maxLength": 100, "default": "" }
+            "description": "Literal case-insensitive substring match across publisher namespace, package name, qualified identifier, display name, description, and listing keywords. SQL wildcard characters are treated literally.",
+            "schema": {
+              "type": "string",
+              "maxLength": 100,
+              "default": ""
+            }
           },
           {
             "name": "limit",
             "in": "query",
-            "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 30 }
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 30
+            }
           },
           {
             "name": "cursor",
             "in": "query",
-            "description": "Opaque cursor from nextCursor; keep q and limit unchanged.",
-            "schema": { "type": "string", "maxLength": 256 }
+            "description": "Opaque cursor from nextCursor; keep q, category, sort and limit unchanged. Legacy identity-only name cursors and submission-time newest cursors are rejected; restart without a cursor after upgrading.",
+            "schema": {
+              "type": "string",
+              "maxLength": 16384
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{1,39}$"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Defaults to relevance for a nonblank query, newest otherwise. Relevance ranks exact names, partial names, keywords, then descriptions, with identity tie-breakers. Newest orders by the exact release digest's first signed-publication time, descending, with unknown historical dates last and namespace/name tie-breakers. Name orders by trimmed, case-folded display name with namespace/name tie-breakers using PostgreSQL C collation; missing historical display names fall back to the package name.",
+            "schema": {
+              "enum": ["name", "newest", "relevance"]
+            }
           }
         ],
         "responses": {
           "200": {
             "description": "Search page",
             "content": {
-              "application/json": { "schema": { "$ref": "#/components/schemas/SearchPage" } }
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchPage"
+                }
+              }
             }
           },
-          "400": { "$ref": "#/components/responses/BadRequest" }
-        }
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "description": "Current registry authentication required; reconnect after expiry or revocation."
+          }
+        },
+        "security": [
+          {},
+          {
+            "RegistryBearer": []
+          },
+          {
+            "PublisherSession": []
+          }
+        ]
+      }
+    },
+    "/v1/extensions/{namespace}/{name}/overview": {
+      "get": {
+        "operationId": "getExtensionOverview",
+        "summary": "Get the highest signed stable release without loading history",
+        "description": "Selects the highest published stable semantic version. If none exists, returns the highest published prerelease. This is presentation metadata, not installation authority or desktop compatibility resolution.",
+        "parameters": [
+          { "$ref": "#/components/parameters/Namespace" },
+          { "$ref": "#/components/parameters/Name" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current published overview",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Release" } }
+            }
+          },
+          "401": {
+            "description": "Current registry authentication required on private instances."
+          },
+          "404": { "description": "No signed approved release is published." }
+        },
+        "security": [{}, { "RegistryBearer": [] }, { "PublisherSession": [] }]
       }
     },
     "/v1/extensions/{namespace}/{name}": {
@@ -51,25 +122,52 @@
         "operationId": "listExtensionVersions",
         "summary": "List signed, approved versions of one extension",
         "parameters": [
-          { "$ref": "#/components/parameters/Namespace" },
-          { "$ref": "#/components/parameters/Name" },
+          {
+            "$ref": "#/components/parameters/Namespace"
+          },
+          {
+            "$ref": "#/components/parameters/Name"
+          },
           {
             "name": "cursor",
             "in": "query",
             "description": "Opaque cursor from nextCursor.",
-            "schema": { "type": "string", "maxLength": 512 }
+            "schema": {
+              "type": "string",
+              "maxLength": 512
+            }
           }
         ],
         "responses": {
           "200": {
             "description": "Up to 100 versions in descending submission-time order",
             "content": {
-              "application/json": { "schema": { "$ref": "#/components/schemas/VersionPage" } }
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionPage"
+                }
+              }
             }
           },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "404": { "$ref": "#/components/responses/NotFound" }
-        }
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "description": "Current registry authentication required; reconnect after expiry or revocation."
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {},
+          {
+            "RegistryBearer": []
+          },
+          {
+            "PublisherSession": []
+          }
+        ]
       }
     },
     "/v1/extensions/{namespace}/{name}/versions/{version}": {
@@ -77,19 +175,43 @@
         "operationId": "getExtensionVersion",
         "summary": "Get exact published release metadata",
         "parameters": [
-          { "$ref": "#/components/parameters/Namespace" },
-          { "$ref": "#/components/parameters/Name" },
-          { "$ref": "#/components/parameters/Version" }
+          {
+            "$ref": "#/components/parameters/Namespace"
+          },
+          {
+            "$ref": "#/components/parameters/Name"
+          },
+          {
+            "$ref": "#/components/parameters/Version"
+          }
         ],
         "responses": {
           "200": {
             "description": "Exact release, not an installation authorization",
             "content": {
-              "application/json": { "schema": { "$ref": "#/components/schemas/ExactRelease" } }
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExactRelease"
+                }
+              }
             }
           },
-          "404": { "$ref": "#/components/responses/NotFound" }
-        }
+          "401": {
+            "description": "Current registry authentication required; reconnect after expiry or revocation."
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {},
+          {
+            "RegistryBearer": []
+          },
+          {
+            "PublisherSession": []
+          }
+        ]
       }
     },
     "/v1/extensions/{namespace}/{name}/versions/{version}/download": {
@@ -98,9 +220,15 @@
         "summary": "Download an approved archive for inspection",
         "description": "The desktop installer uses the signed TUF target route instead. Digest and ETag alone do not authorize installation.",
         "parameters": [
-          { "$ref": "#/components/parameters/Namespace" },
-          { "$ref": "#/components/parameters/Name" },
-          { "$ref": "#/components/parameters/Version" }
+          {
+            "$ref": "#/components/parameters/Namespace"
+          },
+          {
+            "$ref": "#/components/parameters/Name"
+          },
+          {
+            "$ref": "#/components/parameters/Version"
+          }
         ],
         "responses": {
           "200": {
@@ -108,16 +236,42 @@
             "headers": {
               "Digest": {
                 "description": "sha-256=<base64 SHA-256>",
-                "schema": { "type": "string" }
+                "schema": {
+                  "type": "string"
+                }
               },
-              "ETag": { "description": "Quoted lowercase SHA-256", "schema": { "type": "string" } }
+              "ETag": {
+                "description": "Quoted lowercase SHA-256",
+                "schema": {
+                  "type": "string"
+                }
+              }
             },
             "content": {
-              "application/octet-stream": { "schema": { "type": "string", "format": "binary" } }
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
             }
           },
-          "404": { "$ref": "#/components/responses/NotFound" }
-        }
+          "401": {
+            "description": "Current registry authentication required; reconnect after expiry or revocation."
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {},
+          {
+            "RegistryBearer": []
+          },
+          {
+            "PublisherSession": []
+          }
+        ]
       }
     },
     "/v1/tuf/metadata/{file}": {
@@ -126,15 +280,42 @@
         "summary": "Fetch signed TUF metadata",
         "description": "Supports root.json, timestamp.json, snapshot.json, targets.json, and numbered root/snapshot/targets files. Clients verify signatures, freshness, rollback protection, and root rotation.",
         "parameters": [
-          { "name": "file", "in": "path", "required": true, "schema": { "type": "string" } }
+          {
+            "name": "file",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
         ],
         "responses": {
           "200": {
             "description": "Signed TUF JSON bytes",
-            "content": { "application/json": { "schema": { "type": "object" } } }
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           },
-          "404": { "$ref": "#/components/responses/NotFound" }
-        }
+          "401": {
+            "description": "Current registry authentication required; reconnect after expiry or revocation."
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {},
+          {
+            "RegistryBearer": []
+          },
+          {
+            "PublisherSession": []
+          }
+        ]
       }
     },
     "/v1/tuf/targets/extensions/{namespace}/{name}/{version}.tabsext": {
@@ -143,19 +324,44 @@
         "summary": "Fetch a currently approved signed target",
         "description": "The filename may have a leading SHA-256 and dot for consistent-snapshot clients. The response is served only while the exact version remains approved and indexed by published signed targets.",
         "parameters": [
-          { "$ref": "#/components/parameters/Namespace" },
-          { "$ref": "#/components/parameters/Name" },
-          { "$ref": "#/components/parameters/TargetVersion" }
+          {
+            "$ref": "#/components/parameters/Namespace"
+          },
+          {
+            "$ref": "#/components/parameters/Name"
+          },
+          {
+            "$ref": "#/components/parameters/TargetVersion"
+          }
         ],
         "responses": {
           "200": {
             "description": "Archive bytes; verify against the signed TUF target length and SHA-256",
             "content": {
-              "application/octet-stream": { "schema": { "type": "string", "format": "binary" } }
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
             }
           },
-          "404": { "$ref": "#/components/responses/NotFound" }
-        }
+          "401": {
+            "description": "Current registry authentication required; reconnect after expiry or revocation."
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {},
+          {
+            "RegistryBearer": []
+          },
+          {
+            "PublisherSession": []
+          }
+        ]
       }
     },
     "/v1/tuf/events": {
@@ -166,10 +372,315 @@
         "responses": {
           "200": {
             "description": "Event stream",
-            "content": { "text/event-stream": { "schema": { "type": "string" } } }
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
-          "503": { "$ref": "#/components/responses/Unavailable" }
-        }
+          "401": {
+            "description": "Current registry authentication required; reconnect after expiry or revocation."
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "security": [
+          {},
+          {
+            "RegistryBearer": []
+          },
+          {
+            "PublisherSession": []
+          }
+        ]
+      }
+    },
+    "/v1/registry": {
+      "get": {
+        "operationId": "registryInfo",
+        "summary": "Protocol capabilities and instance limits; no package metadata",
+        "responses": {
+          "200": {
+            "description": "Registry capabilities",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "protocolVersion",
+                    "extensionApiVersion",
+                    "maxPackageBytes",
+                    "visibility",
+                    "authentication",
+                    "publishingEnabled",
+                    "reviewRequired"
+                  ],
+                  "properties": {
+                    "protocolVersion": {
+                      "type": "string"
+                    },
+                    "extensionApiVersion": {
+                      "type": "string"
+                    },
+                    "maxPackageBytes": {
+                      "type": "integer",
+                      "const": 26214400
+                    },
+                    "visibility": {
+                      "enum": ["public", "private"]
+                    },
+                    "authentication": {
+                      "enum": ["anonymous-read", "session-or-read-token"]
+                    },
+                    "publishingEnabled": {
+                      "type": "boolean"
+                    },
+                    "reviewRequired": {
+                      "const": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Current registry authentication required; reconnect after expiry or revocation."
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/publisher/{namespace}/{name}/versions": {
+      "post": {
+        "operationId": "submitPackage",
+        "summary": "Submit immutable bytes for scanning and manual exact-digest review",
+        "description": "Requires namespace-bound publish token or same-origin publisher session and CSRF header. Disabled instances return 503. Token membership is rechecked. Package identity must match URL.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Namespace"
+          },
+          {
+            "$ref": "#/components/parameters/Name"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary",
+                "description": "Validated .tabsext archive, at most 25 MiB"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Queued package digest and version"
+          },
+          "400": {
+            "description": "Invalid archive or manifest"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "No publishing membership"
+          },
+          "409": {
+            "description": "Immutable version already exists"
+          },
+          "413": {
+            "description": "Package too large"
+          },
+          "503": {
+            "description": "Publishing disabled"
+          }
+        },
+        "security": [
+          {
+            "RegistryBearer": []
+          },
+          {
+            "PublisherSession": []
+          }
+        ]
+      }
+    },
+    "/v1/publisher/upload": {
+      "post": {
+        "operationId": "browserSubmitPackage",
+        "summary": "Submit immutable bytes for scanning and manual exact-digest review",
+        "description": "Same submission pipeline as namespace upload. Server derives namespace/name from validated manifest. Requires same-origin publisher session and CSRF header; bearer tokens use the namespace-bound route.",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary",
+                "description": "Validated .tabsext archive, at most 25 MiB"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Queued package digest and version"
+          },
+          "400": {
+            "description": "Invalid archive or manifest"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "No publishing membership"
+          },
+          "409": {
+            "description": "Immutable version already exists"
+          },
+          "413": {
+            "description": "Package too large"
+          },
+          "503": {
+            "description": "Publishing disabled"
+          }
+        },
+        "security": [
+          {
+            "PublisherSession": []
+          }
+        ]
+      }
+    },
+    "/v1/publisher/{namespace}/{name}/versions/{version}": {
+      "get": {
+        "operationId": "submissionStatus",
+        "summary": "Read own namespace submission and signed publication status",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Namespace"
+          },
+          {
+            "$ref": "#/components/parameters/Name"
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          }
+        ],
+        "description": "Requires publisher session or matching publish token. Status is queued/scanning/review/rejected/approved/revoked; approved with published=false awaits signing, approved with published=true is publicly downloadable.",
+        "responses": {
+          "200": {
+            "description": "Immutable digest, lifecycle status, review reason and published boolean"
+          },
+          "401": {
+            "description": "Publisher authentication required"
+          },
+          "404": {
+            "description": "No accessible submission"
+          }
+        },
+        "security": [
+          {
+            "RegistryBearer": []
+          },
+          {
+            "PublisherSession": []
+          }
+        ]
+      }
+    },
+    "/v1/extensions/{namespace}/{name}/versions/{version}/assets/screenshot/{index}": {
+      "get": {
+        "operationId": "listingScreenshot",
+        "summary": "Read a declared screenshot from an approved signed package",
+        "description": "Zero-based manifest listing.screenshots index. PNG/JPEG/WebP only, magic-checked and bounded to 1 MiB. No arbitrary paths, SVG, remote images, or unreviewed versions. Requires package API minimum 1.7.0.",
+        "parameters": [
+          { "$ref": "#/components/parameters/Namespace" },
+          { "$ref": "#/components/parameters/Name" },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "maxLength": 128 }
+          },
+          {
+            "name": "index",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "minimum": 0, "maximum": 5 }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Reviewed packaged raster; private/no-store/nosniff" },
+          "401": { "description": "Private read access required" },
+          "404": { "description": "No published release or declared screenshot" }
+        },
+        "security": [{}, { "RegistryBearer": [] }, { "PublisherSession": [] }]
+      }
+    },
+    "/v1/extensions/{namespace}/{name}/versions/{version}/assets/{kind}": {
+      "get": {
+        "operationId": "listingAsset",
+        "summary": "Read bounded manifest-selected assets from an approved signed package",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Namespace"
+          },
+          {
+            "$ref": "#/components/parameters/Name"
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": ["readme", "icon"]
+            }
+          }
+        ],
+        "description": "README is UTF-8 plain text, at most 512 KiB. Icons are magic-checked PNG/JPEG/WebP at most 1 MiB. No raw HTML/SVG or arbitrary package file access. Private instances require read access.",
+        "responses": {
+          "200": {
+            "description": "Reviewed packaged asset; no-store/nosniff"
+          },
+          "401": {
+            "description": "Private read access required"
+          },
+          "404": {
+            "description": "No published release or declared asset"
+          }
+        },
+        "security": [
+          {},
+          {
+            "RegistryBearer": []
+          },
+          {
+            "PublisherSession": []
+          }
+        ]
       }
     }
   },
@@ -179,19 +690,26 @@
         "name": "namespace",
         "in": "path",
         "required": true,
-        "schema": { "$ref": "#/components/schemas/Segment" }
+        "schema": {
+          "$ref": "#/components/schemas/Segment"
+        }
       },
       "Name": {
         "name": "name",
         "in": "path",
         "required": true,
-        "schema": { "$ref": "#/components/schemas/Segment" }
+        "schema": {
+          "$ref": "#/components/schemas/Segment"
+        }
       },
       "Version": {
         "name": "version",
         "in": "path",
         "required": true,
-        "schema": { "type": "string", "maxLength": 128 }
+        "schema": {
+          "type": "string",
+          "maxLength": 128
+        }
       },
       "TargetVersion": {
         "name": "version",
@@ -205,12 +723,23 @@
       }
     },
     "schemas": {
-      "Segment": { "type": "string", "pattern": "^[a-z][a-z0-9-]{1,62}$" },
-      "Sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+      "Segment": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]{1,62}$"
+      },
+      "Sha256": {
+        "type": "string",
+        "pattern": "^[a-f0-9]{64}$"
+      },
       "Manifest": {
         "type": "object",
         "description": "A tabs-extension.json manifest validated according to the package specification in docs/extensions.md.",
-        "additionalProperties": true
+        "additionalProperties": true,
+        "properties": {
+          "listing": {
+            "$ref": "#/components/schemas/Listing"
+          }
+        }
       },
       "Release": {
         "type": "object",
@@ -224,13 +753,35 @@
           "verified"
         ],
         "properties": {
-          "namespace": { "$ref": "#/components/schemas/Segment" },
-          "name": { "$ref": "#/components/schemas/Segment" },
-          "version": { "type": "string" },
-          "digest": { "$ref": "#/components/schemas/Sha256" },
-          "bytes": { "type": "integer", "minimum": 1, "maximum": 26214400 },
-          "manifest": { "$ref": "#/components/schemas/Manifest" },
-          "submitted_at": { "type": "string", "format": "date-time" },
+          "namespace": {
+            "$ref": "#/components/schemas/Segment"
+          },
+          "name": {
+            "$ref": "#/components/schemas/Segment"
+          },
+          "version": {
+            "type": "string"
+          },
+          "digest": {
+            "$ref": "#/components/schemas/Sha256"
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 26214400
+          },
+          "manifest": {
+            "$ref": "#/components/schemas/Manifest"
+          },
+          "submitted_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "first_published_at": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "Time this exact version and digest first entered signed published targets. Null means the historical publication time is unavailable; it is not the upload time or migration time. Re-signing does not reset it."
+          },
           "verified": {
             "type": "boolean",
             "description": "Namespace ownership proof reviewed by the registry."
@@ -239,14 +790,22 @@
       },
       "SearchPage": {
         "type": "object",
-        "required": ["extensions", "nextCursor"],
+        "required": ["extensions", "nextCursor", "hasMore"],
         "properties": {
+          "hasMore": {
+            "type": "boolean",
+            "description": "Whether another page was observed. The loaded count is not a total result count."
+          },
           "extensions": {
             "type": "array",
             "maxItems": 100,
-            "items": { "$ref": "#/components/schemas/Release" }
+            "items": {
+              "$ref": "#/components/schemas/Release"
+            }
           },
-          "nextCursor": { "type": ["string", "null"] }
+          "nextCursor": {
+            "type": ["string", "null"]
+          }
         }
       },
       "VersionPage": {
@@ -258,45 +817,178 @@
             "maxItems": 100,
             "items": {
               "allOf": [
-                { "$ref": "#/components/schemas/Release" },
-                { "type": "object", "required": ["bytes"] }
+                {
+                  "$ref": "#/components/schemas/Release"
+                },
+                {
+                  "type": "object",
+                  "required": ["bytes"]
+                }
               ]
             }
           },
-          "nextCursor": { "type": ["string", "null"] }
+          "nextCursor": {
+            "type": ["string", "null"]
+          }
         }
       },
       "ExactRelease": {
         "type": "object",
         "required": ["namespace", "name", "version", "digest", "bytes", "manifest", "downloadUrl"],
         "properties": {
-          "namespace": { "$ref": "#/components/schemas/Segment" },
-          "name": { "$ref": "#/components/schemas/Segment" },
-          "version": { "type": "string" },
-          "digest": { "$ref": "#/components/schemas/Sha256" },
-          "bytes": { "type": "integer", "minimum": 1, "maximum": 26214400 },
-          "manifest": { "$ref": "#/components/schemas/Manifest" },
-          "downloadUrl": { "type": "string", "format": "uri" }
+          "namespace": {
+            "$ref": "#/components/schemas/Segment"
+          },
+          "name": {
+            "$ref": "#/components/schemas/Segment"
+          },
+          "version": {
+            "type": "string"
+          },
+          "digest": {
+            "$ref": "#/components/schemas/Sha256"
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 26214400
+          },
+          "manifest": {
+            "$ref": "#/components/schemas/Manifest"
+          },
+          "downloadUrl": {
+            "type": "string",
+            "format": "uri"
+          }
         }
       },
       "Error": {
         "type": "object",
-        "required": ["error"],
-        "properties": { "error": { "type": "string" } }
+        "required": ["error", "message", "code", "recovery"],
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "Compatibility alias for the safe message; clients must not treat arbitrary remote diagnostics as trusted UI text."
+          },
+          "message": {
+            "type": "string",
+            "description": "Safe explanation of the rejected request. Unexpected operational errors are not exposed."
+          },
+          "code": {
+            "type": "string",
+            "description": "Stable machine-readable error category. Unknown codes must fall back to safe guidance based on HTTP status."
+          },
+          "recovery": {
+            "type": "string",
+            "description": "Suggested recovery, never authorization to retry a mutation automatically. Confirm submission state after an uncertain outcome."
+          }
+        }
+      },
+      "Listing": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Requires engines.api minimum 1.6.0; assets reside inside the reviewed archive.",
+        "properties": {
+          "readme": {
+            "type": "string",
+            "description": "Safe relative .md path"
+          },
+          "icon": {
+            "type": "string",
+            "description": "Safe relative PNG/JPEG/WebP path"
+          },
+          "screenshots": {
+            "type": "array",
+            "maxItems": 6,
+            "description": "Requires engines.api minimum 1.7.0. Unique packaged PNG/JPEG/WebP paths with accessible descriptions; each raster is at most 1 MiB.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["path", "alt"],
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 240,
+                  "description": "Safe relative packaged raster path"
+                },
+                "alt": { "type": "string", "minLength": 1, "maxLength": 300 }
+              }
+            }
+          },
+          "license": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9.-]{1,100}$"
+          },
+          "categories": {
+            "type": "array",
+            "maxItems": 12,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{1,39}$"
+            }
+          },
+          "keywords": {
+            "type": "array",
+            "maxItems": 12,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{1,39}$"
+            }
+          },
+          "externalServices": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          }
+        }
       }
     },
     "responses": {
       "BadRequest": {
         "description": "Invalid cursor or query",
-        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
       },
       "NotFound": {
         "description": "Unknown or unpublished resource",
-        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
       },
       "Unavailable": {
         "description": "Event subscriber capacity exhausted",
-        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "RegistryBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "tex_ token. Private discovery uses read scope; submission uses namespace-bound publish scope. Never forward across redirects."
+      },
+      "PublisherSession": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "tabs_exchange_session",
+        "description": "Same-origin secure session. Mutations also require Origin and CSRF validation."
       }
     }
   }

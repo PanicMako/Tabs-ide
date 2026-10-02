@@ -1,0 +1,47 @@
+---
+import Account from "../layouts/Account.astro";
+---
+<Account title="Publish an extension" section="publish">
+  <p>Upload a built .tabsext package. Every version is scanned and manually reviewed before signed publication. Approval is not a safety guarantee.</p>
+  <p>New to development? <a href="/docs/extensions">Build your first tool</a>. Browser publishing does not need a CLI token.</p>
+  <div class="publish-layout">
+  <form id="publish-form" class="publish-panel">
+    <fieldset id="publish-fields" disabled>
+      <legend>Prepare your submission</legend>
+      <section class="publish-step" aria-labelledby="publish-identity-heading">
+      <p class="step-label">01 · Your publisher identity</p>
+      <h2 id="publish-identity-heading">Choose where your tool belongs.</h2>
+      <label for="publish-namespace">Publisher namespace</label>
+      <select id="publish-namespace" required><option value="">Select your namespace</option></select>
+      <p><a href="/account/namespaces">Create or manage a namespace</a>. Namespace membership does not mean verified ownership.</p>
+      <label><input id="publish-agreement" type="checkbox" required /> I have read this instance's <a href="/publisher-terms">publisher terms</a>.</label>
+      <p id="publish-terms">Loading publisher terms version…</p>
+      </section>
+      <section class="publish-step" aria-labelledby="publish-package-heading">
+      <p class="step-label">02 · Your built package</p>
+      <h2 id="publish-package-heading">Ready for its next workspace.</h2>
+      <div id="publish-drop" class="package-drop">
+        <label for="publish-file">Choose one .tabsext package, or drop it here</label>
+        <input id="publish-file" type="file" accept=".tabsext" aria-describedby="publish-file-help" required />
+        <p id="publish-file-help">Maximum 25 MiB. Build and inspect your package locally; server validation checks its identity, compatibility, and contents.</p>
+        <p id="publish-file-summary" aria-live="polite"></p>
+      </div>
+      <button class="button" type="submit">Submit for review</button>
+      </section>
+    </fieldset>
+  <progress id="publish-progress" max="100" value="0" aria-label="Package upload progress" hidden></progress>
+  <button id="publish-cancel" class="button secondary" type="button" hidden>Cancel upload</button>
+  <p id="publish-status" role="status" aria-live="polite">Checking publishing prerequisites…</p>
+  <a href="/account/extensions">View existing submissions</a>
+  </form>
+  <aside class="publication-guide card" aria-labelledby="publication-guide-title">
+    <p class="step-label">What happens next</p>
+    <h2 id="publication-guide-title">A release, not a leap of faith.</h2>
+    <ol class="release-steps"><li><strong>Scan</strong><p>Your exact package digest enters private quarantine for automated checks.</p></li><li><strong>Review</strong><p>Every version needs a manual decision. You can follow findings and correction requests in your account.</p></li><li><strong>Signed publication</strong><p>Approval alone does not publish a package. Only signed releases become discoverable and installable.</p></li></ol>
+    <a href="/docs/extensions/publishing">Read the publishing guide</a>
+  </aside>
+  </div>
+</Account>
+<script>
+  import "../scripts/publish";
+</script>

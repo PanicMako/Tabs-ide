@@ -14,7 +14,7 @@ const example = {
 
 describe("public extension API", () => {
   it("exports the version required by the example manifest", () => {
-    expect(TABS_EXTENSION_API_VERSION).toBe("1.5.0");
+    expect(TABS_EXTENSION_API_VERSION).toBe("1.7.0");
     expect(example.engines.api).toBe("^1.0.0");
   });
 });

@@ -7,7 +7,8 @@ import * as OS from "node:os";
 import * as Path from "node:path";
 import { Readable } from "node:stream";
 import type { AddressInfo } from "node:net";
-import { spawnSync } from "node:child_process";
+import { spawnSync, execFile } from "node:child_process";
+import { promisify } from "node:util";
 import {
   CreateBucketCommand,
   DeleteBucketCommand,
@@ -53,6 +54,7 @@ import {
   type ExchangeTrustConfiguration,
 } from "../../desktop/src/exchangeInstall.ts";
 import { TrustedExchange, ExchangeTransportError } from "../../desktop/src/trustedExchange.ts";
+import { RegistryCredentials, registryFetch } from "../../desktop/src/registryCredentials.ts";
 import { discoverExchangeVersions } from "../../desktop/src/exchangeCatalog.ts";
 import { downloadSignedExchangePackage } from "../../desktop/src/exchangePackageDownload.ts";
 import type { NativeViewStackCoordinator } from "../../desktop/src/nativeViewStackCoordinator.ts";
@@ -61,6 +63,10 @@ const TEST_POSTGRES_URL =
   process.env.TEST_DATABASE_URL ??
   "postgres://tabs_exchange:testpassword@127.0.0.1:5433/tabs_exchange";
 const TEST_S3_ENDPOINT = process.env.TEST_S3_ENDPOINT ?? "http://127.0.0.1:9090";
+const TEST_S3_CREDENTIALS = {
+  accessKeyId: process.env.TEST_S3_ACCESS_KEY_ID ?? "test",
+  secretAccessKey: process.env.TEST_S3_SECRET_ACCESS_KEY ?? "test",
+};
 const TERMS_VERSION = "2026-09-24";
 const TABS_VERSION = "1.3.17";
 
@@ -90,6 +96,7 @@ let oauthServer: Http.Server | null = null;
 let oauthOrigin = "";
 let exchangeHttpsServer: Https.Server | null = null;
 let exchangeOrigin = "";
+let cliCaPath = "";
 let exchangeConfig: ExchangeConfig | null = null;
 let signedMetadataEvents: SignedMetadataEvents;
 
@@ -125,7 +132,7 @@ async function assertPrerequisites(): Promise<void> {
       region: "us-east-1",
       endpoint: TEST_S3_ENDPOINT,
       forcePathStyle: true,
-      credentials: { accessKeyId: "test", secretAccessKey: "test" },
+      credentials: TEST_S3_CREDENTIALS,
     });
     await probeS3
       .send(new ListObjectsV2Command({ Bucket: "probe-nonexistent-bucket" }))
@@ -485,7 +492,7 @@ describeCrossIntegration("Strict Exchange & Desktop Client Cross-Service Integra
       region: "us-east-1",
       endpoint: TEST_S3_ENDPOINT,
       forcePathStyle: true,
-      credentials: { accessKeyId: "test", secretAccessKey: "test" },
+      credentials: TEST_S3_CREDENTIALS,
     });
     await s3Client.send(new CreateBucketCommand({ Bucket: testBucket }));
 
@@ -493,6 +500,7 @@ describeCrossIntegration("Strict Exchange & Desktop Client Cross-Service Integra
     const certDir = await FS.mkdtemp(Path.join(OS.tmpdir(), "tabs-tls-"));
     temporaryDirectories.push(certDir);
     const tls = generateEphemeralTlsCertificates(certDir);
+    cliCaPath = Path.join(certDir, "ca.crt");
     testFetcher = createTlsVerifiedFetcher(tls.caCert);
 
     // 4. Start local OAuth server
@@ -928,6 +936,43 @@ describeCrossIntegration("Strict Exchange & Desktop Client Cross-Service Integra
       [targetPath2]: { length: archiveBytes2.length, sha256: digest2 },
     });
 
+    // Run a clean consumer in real Electron against this exact live, signed registry.
+    // Await an asynchronous subprocess so the parent HTTPS API remains responsive.
+    const electronFixture = Path.join(desktopStateRoot, "electron-registry-fixture.json");
+    await FS.writeFile(
+      electronFixture,
+      JSON.stringify({
+        testOnly: true,
+        origin: exchangeOrigin,
+        namespace: "acme",
+        name: "dashboard",
+        caPath: cliCaPath,
+        root: initialRootBytes.toString("base64"),
+        digest1,
+        digest2,
+      }),
+      { mode: 0o600 },
+    );
+    const electronResult = await promisify(execFile)(
+      "bun",
+      [
+        Path.resolve(import.meta.dirname, "../../desktop/scripts/extension-smoke-test.mjs"),
+        "--registry-fixture",
+        electronFixture,
+      ],
+      {
+        cwd: Path.resolve(import.meta.dirname, "../../.."),
+        env: { ...process.env, NODE_ENV: "test" },
+        timeout: 90000,
+      },
+    );
+    expect(electronResult.stdout).toContain("REGISTRY_ELECTRON_ACCEPTANCE_PASS");
+    console.info(
+      electronResult.stdout
+        .split("\n")
+        .find((line) => line.startsWith("REGISTRY_ELECTRON_ACCEPTANCE_PASS")),
+    );
+
     // Desktop discovers available update
     const currentInstalled = extensionManager.list().find((e) => e.id === "acme.dashboard")!;
     const updateListing1 = await installService.availableUpdate(currentInstalled);
@@ -1024,6 +1069,209 @@ describeCrossIntegration("Strict Exchange & Desktop Client Cross-Service Integra
     expect(afterDecline.digest).toBe(digest2);
 
     // -------------------------------------------------------------------------
+    // Private authentication must protect the real TLS/TUF metadata and package transport.
+    const tokenResponse = await testFetcher(`${exchangeOrigin}/v1/tokens`, {
+      method: "POST",
+      headers: {
+        Origin: exchangeOrigin,
+        Cookie: publisherSession.cookieHeader,
+        "X-CSRF-Token": publisherSession.csrfToken,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ label: "Private desktop integration", scope: "read" }),
+    });
+    expect(tokenResponse.status).toBe(201);
+    const readToken = (await tokenResponse.json()) as { id: string; token: string };
+    const publishTokenResponse = await testFetcher(`${exchangeOrigin}/v1/tokens`, {
+      method: "POST",
+      headers: {
+        Origin: exchangeOrigin,
+        Cookie: publisherSession.cookieHeader,
+        "X-CSRF-Token": publisherSession.csrfToken,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ label: "Real CLI integration", scope: "publish", namespace: "acme" }),
+    });
+    expect(publishTokenResponse.status).toBe(201);
+    const publishToken = (await publishTokenResponse.json()) as { token: string };
+    const cli = Path.resolve(import.meta.dirname, "../../../packages/extension-cli/dist/cli.js");
+    const cliOptions = {
+      env: {
+        ...process.env,
+        NODE_EXTRA_CA_CERTS: cliCaPath,
+        TABS_EXCHANGE_TOKEN: publishToken.token,
+      },
+      timeout: 10000,
+    };
+    const cliStatus = await promisify(execFile)(
+      process.execPath,
+      [cli, "status", "acme", "dashboard", "1.2.0", "--registry", exchangeOrigin, "--json"],
+      cliOptions,
+    );
+    expect(JSON.parse(cliStatus.stdout).digest).toBe(digest3);
+    // Prove a successful compiled CLI upload, not only rejection of a duplicate.
+    // Browser and CLI entrances must bind the same bytes to the same digest.
+    const cliSource = await FS.mkdtemp(Path.join(OS.tmpdir(), "tabs-cli-submit-"));
+    temporaryDirectories.push(cliSource);
+    await FS.cp(pkgDir1, cliSource, { recursive: true });
+    await FS.writeFile(
+      Path.join(cliSource, "tabs-extension.json"),
+      JSON.stringify({ ...manifest1, name: "cli-proof" }),
+    );
+    const cliArchive = Path.join(desktopStateRoot, "cli-proof.tabsext");
+    const cliPacked = await packTabsext({
+      directory: cliSource,
+      destination: cliArchive,
+      tabsVersion: TABS_VERSION,
+    });
+    const cliUpload = await promisify(execFile)(
+      process.execPath,
+      [
+        cli,
+        "publish",
+        cliArchive,
+        "--registry",
+        exchangeOrigin,
+        "--tabs-version",
+        TABS_VERSION,
+        "--json",
+      ],
+      cliOptions,
+    );
+    expect(JSON.parse(cliUpload.stdout)).toMatchObject({
+      digest: cliPacked.digest,
+      status: "queued",
+    });
+    const browserDuplicate = await testFetcher(`${exchangeOrigin}/v1/publisher/upload`, {
+      method: "POST",
+      headers: {
+        Origin: exchangeOrigin,
+        Cookie: publisherSession.cookieHeader,
+        "X-CSRF-Token": publisherSession.csrfToken,
+        "Content-Type": "application/octet-stream",
+      },
+      body: new Uint8Array(await FS.readFile(cliArchive)),
+    });
+    expect(browserDuplicate.status).toBe(409);
+    expect(await scanNextVersion(testPool!, s3Client!, exchangeConfig!)).toBe(true);
+    const cliReview = await promisify(execFile)(
+      process.execPath,
+      [cli, "status", "acme", "cli-proof", "1.0.0", "--registry", exchangeOrigin, "--json"],
+      cliOptions,
+    );
+    expect(JSON.parse(cliReview.stdout)).toMatchObject({
+      digest: cliPacked.digest,
+      status: "review",
+    });
+    // Exercise the distributed watch command over real HTTPS, not only its
+    // injected-reader unit test. A bounded wait must not mislabel pending review.
+    let watchFailure: { stdout?: string; stderr?: string } | undefined;
+    try {
+      await promisify(execFile)(
+        process.execPath,
+        [
+          cli,
+          "status",
+          "acme",
+          "cli-proof",
+          "1.0.0",
+          "--registry",
+          exchangeOrigin,
+          "--json",
+          "--watch",
+          "--watch-timeout",
+          "1",
+        ],
+        cliOptions,
+      );
+    } catch (error) {
+      watchFailure = error as { stdout?: string; stderr?: string };
+    }
+    expect(watchFailure).toBeDefined();
+    expect(JSON.parse(watchFailure!.stdout!.trim())).toMatchObject({
+      digest: cliPacked.digest,
+      status: "review",
+      lifecycle: { terminal: false },
+    });
+    expect(watchFailure!.stderr).toContain("Watch deadline reached");
+    expect(watchFailure!.stderr).toContain("This is not a rejection");
+    expect(watchFailure!.stderr).not.toContain(publishToken.token);
+    try {
+      await promisify(execFile)(
+        process.execPath,
+        [
+          cli,
+          "publish",
+          archive3,
+          "--registry",
+          exchangeOrigin,
+          "--tabs-version",
+          TABS_VERSION,
+          "--json",
+        ],
+        cliOptions,
+      );
+      throw new Error("Duplicate CLI publication unexpectedly succeeded");
+    } catch (error) {
+      const failed = error as { stderr?: string };
+      expect(failed.stderr).toContain("VERSION_ALREADY_SUBMITTED");
+      expect(failed.stderr).toContain("increment the manifest version");
+      expect(failed.stderr).not.toContain(publishToken.token);
+    }
+    const vault = new RegistryCredentials(
+      Path.join(desktopStateRoot, "registry-credentials"),
+      {
+        isEncryptionAvailable: () => true,
+        getSelectedStorageBackend: () => "test",
+        encryptString: (value) => Buffer.from(value).reverse(),
+        decryptString: (value) => Buffer.from(value).reverse().toString(),
+      },
+      "darwin",
+    );
+    vault.set(exchangeOrigin, readToken.token);
+    const authenticatedFetch = registryFetch(vault, testFetcher);
+    Object.assign(exchangeConfig!, {
+      visibility: "private",
+      allowedGithubIds: new Set([PUBLISHER_USER.id, REVIEWER_USER.id]),
+    });
+    const cliSearch = await promisify(execFile)(
+      process.execPath,
+      [cli, "search", "dashboard", "--registry", exchangeOrigin, "--json"],
+      {
+        ...cliOptions,
+        env: { ...cliOptions.env, TABS_EXCHANGE_TOKEN: readToken.token },
+      },
+    );
+    expect(JSON.parse(cliSearch.stdout).extensions[0].name).toBe("dashboard");
+    const privateInstaller = new ExchangeInstallService(
+      { origin: exchangeOrigin, trustId: "private-client", root: initialRootBytes },
+      Path.join(desktopStateRoot, "private-trust"),
+      TABS_VERSION,
+      () => extensionManager.list(),
+      (archive, origin, digest, options) =>
+        extensionManager.installVerifiedExchangePackage(archive, origin, digest, options),
+      authenticatedFetch,
+    );
+    try {
+      const staged = await privateInstaller.prepare(updateListing2!);
+      expect(staged.addedCapabilities).toContain("workspace-read");
+      privateInstaller.cancel(staged.token);
+      expect(extensionManager.list().find((entry) => entry.id === "acme.dashboard")?.digest).toBe(
+        digest2,
+      );
+      await testPool!.query(
+        "UPDATE exchange_access_tokens SET expires_at = now() - interval '1 second' WHERE id = $1",
+        [readToken.id],
+      );
+      await expect(privateInstaller.availableUpdate(afterDecline)).rejects.toThrow(/Reconnect/);
+      expect(
+        extensionManager.list().find((entry) => entry.id === "acme.dashboard")?.revoked,
+      ).toBeUndefined();
+    } finally {
+      privateInstaller.dispose();
+      Object.assign(exchangeConfig!, { visibility: "public", allowedGithubIds: new Set() });
+    }
+
     // Sequence 5: Revoke a version: public routes stop serving immediately; unsigned event alone must NOT disable client; fresh signed target removal disables installed version
     // -------------------------------------------------------------------------
     // Revoke v1.1.0 via reviewer endpoint

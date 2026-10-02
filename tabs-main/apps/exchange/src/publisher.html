@@ -26,6 +26,10 @@
         >Tabs Exchange</a
       >
       <nav aria-label="Exchange navigation">
+        <a href="/extensions">Explore Extensions</a>
+        <a href="https://buildwithtabs.com/docs/extensions" rel="noopener noreferrer"
+          >Developer documentation</a
+        >
         <a href="/v1/extensions">Public catalog API</a>
       </nav>
     </header>
@@ -43,6 +47,32 @@
       </section>
       <div id="signed-in" hidden>
         <p id="identity"></p>
+        <section aria-labelledby="tokens-title">
+          <h2 id="tokens-title">Access tokens</h2>
+          <p>
+            Tokens expire after 30 days. Publish tokens are namespace-bound and cannot manage
+            accounts or approve releases. Read tokens access private catalog and signed downloads.
+            Tokens are shown only once.
+          </p>
+          <form id="token-form">
+            <label for="token-label">Label</label
+            ><input id="token-label" maxlength="100" required autocomplete="off" />
+            <label for="token-scope">Scope</label
+            ><select id="token-scope">
+              <option value="publish">Publish packages</option>
+              <option value="read">Read registry</option>
+            </select>
+            <label for="token-namespace">Publish namespace (leave blank for read access)</label
+            ><input id="token-namespace" pattern="[a-z][a-z0-9-]{1,62}" autocomplete="off" />
+            <button type="submit">Create token</button>
+          </form>
+          <div id="token-result" hidden>
+            <label for="token-value">Copy this token now and store it securely</label
+            ><input id="token-value" readonly autocomplete="off" spellcheck="false" />
+            <button id="token-dismiss" type="button">Clear token from this page</button>
+          </div>
+          <ul id="tokens" aria-label="Your access tokens"></ul>
+        </section>
         <section aria-labelledby="namespace-title">
           <h2 id="namespace-title">Create a publisher namespace</h2>
           <form id="namespace-form">
@@ -102,17 +132,20 @@
             match its manifest.
           </p>
           <form id="upload-form">
-            <label for="upload-namespace">Namespace</label>
-            <input
-              id="upload-namespace"
-              required
-              pattern="[a-z][a-z0-9-]{1,62}"
-              autocomplete="off"
-            />
-            <label for="upload-name">Extension name</label>
-            <input id="upload-name" required pattern="[a-z][a-z0-9-]{1,62}" autocomplete="off" />
             <label for="upload-file">Package file</label>
             <input id="upload-file" type="file" accept=".tabsext" required />
+            <p id="upload-drop">
+              Choose a file above or drop one .tabsext package here (25 MiB maximum). Identity comes
+              from the validated manifest.
+            </p>
+            <progress
+              id="upload-progress"
+              max="100"
+              value="0"
+              aria-label="Package upload progress"
+              hidden
+            ></progress>
+            <p id="upload-status" role="status"></p>
             <button type="submit">Submit for review</button>
           </form>
         </section>

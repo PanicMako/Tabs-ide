@@ -123,6 +123,14 @@ export function validateTabsextDirectory(
   if (parsed.manifest.logic && !files.some((file) => file.path === parsed.manifest.logic?.entry)) {
     throw new Error(`Missing logic entry: ${parsed.manifest.logic.entry}`);
   }
+  for (const asset of [
+    parsed.manifest.listing?.readme,
+    parsed.manifest.listing?.icon,
+    ...(parsed.manifest.listing?.screenshots?.map((screenshot) => screenshot.path) ?? []),
+  ]) {
+    if (asset && !files.some((file) => file.path === asset))
+      throw new Error(`Missing listing asset: ${asset}`);
+  }
   return { id: parsed.id, manifest: parsed.manifest, files: files.map((file) => file.path) };
 }
 
@@ -291,7 +299,62 @@ export async function inspectTabsext(
   if (manifest.logic && !files.includes(manifest.logic.entry)) {
     throw new Error(`Missing logic entry: ${manifest.logic.entry}`);
   }
+  for (const asset of [
+    manifest.listing?.readme,
+    manifest.listing?.icon,
+    ...(manifest.listing?.screenshots?.map((screenshot) => screenshot.path) ?? []),
+  ]) {
+    if (asset && !files.includes(asset)) throw new Error(`Missing listing asset: ${asset}`);
+  }
   return { digest, bytes: stat.size, manifest, id, files };
+}
+
+/** Read only the manifest-selected listing asset from verified immutable bytes. */
+export async function readTabsextListingAsset(
+  archive: string,
+  expectedDigest: string,
+  kind: "readme" | "icon" | "screenshot",
+  screenshotIndex?: number,
+): Promise<{ bytes: Buffer; type: string } | null> {
+  const inspected = await inspectTabsext(archive, null);
+  if (inspected.digest !== expectedDigest) throw new Error("Listing package digest mismatch.");
+  if (
+    kind === "screenshot" &&
+    (!Number.isInteger(screenshotIndex) || screenshotIndex! < 0 || screenshotIndex! > 5)
+  )
+    throw new Error("Invalid screenshot index.");
+  const path =
+    kind === "screenshot"
+      ? inspected.manifest.listing?.screenshots?.[screenshotIndex!]?.path
+      : inspected.manifest.listing?.[kind];
+  if (!path) return null;
+  const zip = await openZip(archive);
+  try {
+    for (;;) {
+      const entry = await nextEntry(zip);
+      if (!entry) break;
+      if (entry.fileName !== path) continue;
+      const limit = kind === "readme" ? 512 * 1024 : 1024 * 1024;
+      if (entry.uncompressedSize > limit) throw new Error("Listing asset exceeds its size limit.");
+      const bytes = await readBounded(await entryStream(zip, entry), limit);
+      if (kind === "readme") {
+        new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+        return { bytes, type: "text/plain; charset=utf-8" };
+      }
+      const suffix = Path.extname(path).toLowerCase();
+      const png = bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+      const jpeg = bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255;
+      const webp =
+        bytes.subarray(0, 4).toString() === "RIFF" && bytes.subarray(8, 12).toString() === "WEBP";
+      if (suffix === ".png" && png) return { bytes, type: "image/png" };
+      if ([".jpg", ".jpeg"].includes(suffix) && jpeg) return { bytes, type: "image/jpeg" };
+      if (suffix === ".webp" && webp) return { bytes, type: "image/webp" };
+      throw new Error("Listing image is not a supported raster image.");
+    }
+    throw new Error("Listing asset is missing.");
+  } finally {
+    zip.close();
+  }
 }
 
 /** Extract only into a new directory; never overwrite an installed package. */

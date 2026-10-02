@@ -1,0 +1,19 @@
+---
+import Exchange from "../../../layouts/Exchange.astro";
+import { extensionDocs, extensionApiVersion } from "../../../../../../marketing/src/lib/extension-docs";
+import { renderReleaseMarkdown } from "../../../../../../marketing/src/lib/release-markdown";
+export function getStaticPaths() {
+  return extensionDocs.map((doc, index) => ({ params: { page: doc.slug || undefined }, props: { doc, index } }));
+}
+const { doc, index } = Astro.props;
+const previous = extensionDocs[index - 1];
+const next = extensionDocs[index + 1];
+const href = (slug: string) => `/docs/extensions${slug ? `/${slug}` : ""}`;
+---
+<Exchange title={doc.title} description="Documentation for Tabs extension authors, publishers, and registry operators." active="docs">
+  <nav class="docs-breadcrumb" aria-label="Breadcrumb"><a href="/developers">Developers</a> / <a href="/docs/extensions">Extensions documentation</a> / <span aria-current="page">{doc.title}</span></nav>
+  <p class="eyebrow">API {extensionApiVersion} · Experimental</p>
+  <section class="docs-search-panel" aria-label="Search documentation"><label for="docs-search">Find your next step.</label><input id="docs-search" type="search" maxlength="200" placeholder="Search guides, SDK methods, or publishing" aria-describedby="docs-search-status" /><p id="docs-search-status" role="status" aria-live="polite"></p><ul id="docs-search-results"></ul></section>
+  <div class="docs-layout"><details class="docs-nav" open><summary>Documentation</summary><nav aria-label="Documentation pages">{extensionDocs.map((page) => <a href={href(page.slug)} aria-current={page.slug === doc.slug ? "page" : undefined}>{page.title}</a>)}</nav></details><article class="prose"><div set:html={renderReleaseMarkdown(doc.body)} /><nav class="docs-pagination" aria-label="Previous and next documentation">{previous ? <a href={href(previous.slug)}>Previous: {previous.title}</a> : <span />}{next && <a href={href(next.slug)}>Next: {next.title}</a>}</nav></article></div>
+</Exchange>
+<script>import "../../../scripts/docs";</script>

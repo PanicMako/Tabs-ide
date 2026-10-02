@@ -3,7 +3,7 @@ import * as FS from "node:fs/promises";
 import * as OS from "node:os";
 import * as Path from "node:path";
 import type { S3Client } from "@aws-sdk/client-s3";
-import { extractTabsext } from "@tabs/extension-package";
+import { extractTabsext, readTabsextListingAsset } from "@tabs/extension-package";
 import { compareSemverVersions } from "@tabs/shared/semver";
 import type { Pool } from "pg";
 import { createPool, createStorage, loadConfig, type ExchangeConfig } from "./config.ts";
@@ -52,7 +52,8 @@ export async function scanNextVersion(
   leaseIntervalMs = 60_000,
 ): Promise<boolean> {
   const claimed = await pool.query<Job>(
-    `UPDATE exchange_versions SET status = 'scanning', scan_claimed_at = now(), scan_token = $1
+    `UPDATE exchange_versions SET status = 'scanning', scan_claimed_at = now(), scan_token = $1,
+       scan_started_at = now(), scan_completed_at = NULL
      WHERE (namespace, name, version) IN (
        SELECT namespace, name, version FROM exchange_versions
        WHERE status = 'queued' OR (status = 'scanning' AND scan_claimed_at < now() - interval '10 minutes')
@@ -106,6 +107,14 @@ export async function scanNextVersion(
     ) {
       throw new Error("Quarantined package identity changed.");
     }
+    // Validate advertised listing assets before a reviewer can approve the
+    // package, not only when a public client asks to render them.
+    if (inspected.manifest.listing?.readme)
+      await readTabsextListingAsset(archive, job.digest, "readme");
+    if (inspected.manifest.listing?.icon)
+      await readTabsextListingAsset(archive, job.digest, "icon");
+    for (let index = 0; index < (inspected.manifest.listing?.screenshots?.length ?? 0); index++)
+      await readTabsextListingAsset(archive, job.digest, "screenshot", index);
     const prior = await pool.query<{
       version: string;
       digest: string;
@@ -209,7 +218,8 @@ export async function scanNextVersion(
   }
   if (!leaseOwned) return false;
   const completed = await pool.query(
-    `UPDATE exchange_versions SET status = 'review', scan_result = $5::jsonb, scan_claimed_at = NULL, scan_token = NULL
+    `UPDATE exchange_versions SET status = 'review', scan_result = $5::jsonb, scan_claimed_at = NULL, scan_token = NULL,
+       scan_completed_at = now()
      WHERE namespace = $1 AND name = $2 AND version = $3 AND digest = $4 AND status = 'scanning' AND scan_token = $6`,
     [job.namespace, job.name, job.version, job.digest, JSON.stringify(result), job.scan_token],
   );

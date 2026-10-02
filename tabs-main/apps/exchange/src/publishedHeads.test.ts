@@ -1,8 +1,21 @@
 import type { PoolClient } from "pg";
 import { describe, expect, it } from "vitest";
-import { rebuildPublishedHeads, refreshPublishedHead } from "./publishedHeads.ts";
+import { publishedHeads, rebuildPublishedHeads, refreshPublishedHead } from "./publishedHeads.ts";
 
 describe("published search head refresh", () => {
+  it("prefers the highest stable release over a newer prerelease, with prerelease-only fallback", () => {
+    const targets = ["1.0.0", "2.0.0-rc.1", "1.9.0", "1.10.0"].map((version) => ({
+      namespace: "acme",
+      name: "tool",
+      version,
+      digest: "a".repeat(64),
+      bytes: 20,
+    }));
+    expect(publishedHeads(targets)[0]?.version).toBe("1.10.0");
+    expect(
+      publishedHeads(targets.filter((target) => target.version.includes("-")))[0]?.version,
+    ).toBe("2.0.0-rc.1");
+  });
   it("rebuilds derived heads from only signed approved targets during migration", async () => {
     const operations: Array<{ sql: string; parameters?: unknown[] }> = [];
     const client = {

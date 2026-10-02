@@ -1,0 +1,27 @@
+---
+import Exchange from "../../layouts/Exchange.astro";
+---
+<Exchange title="Publisher verification and digest blocks" description="Authorized reviewer security controls." active="review">
+  <p class="eyebrow">Reviewer workspace</p><h1>Publisher verification and digest blocks</h1>
+  <a href="/admin">Back to package reviews and signing status</a>
+  <p id="security-status" role="status" aria-live="polite">Checking reviewer access…</p>
+  <button id="security-refresh" type="button">Check access and refresh evidence</button>
+  <a id="security-signin" href="/auth/github/start?returnTo=%2Fadmin%2Fsecurity" hidden>Sign in with GitHub</a>
+  <div id="security-content" hidden>
+    <section aria-labelledby="verification-heading"><h2 id="verification-heading">Namespace ownership verification</h2><p>Namespace membership does not verify ownership. Independently inspect the proof before recording a decision. Verification is not approval of any extension.</p>
+      <form id="security-verification"><fieldset><legend>Record a namespace decision</legend>
+        <label for="security-namespace">Publisher namespace</label><input id="security-namespace" name="namespace" required pattern="[a-z][a-z0-9-]{1,62}" maxlength="63" />
+        <label for="security-verified"><input id="security-verified" name="verified" type="checkbox" /> Mark ownership verified (unchecked removes verification)</label>
+        <label for="security-proof">HTTPS ownership proof URL (required when marking verified)</label><input id="security-proof" name="proof" type="url" maxlength="2000" />
+        <label for="security-verification-reason">Decision reason; describe the evidence reviewed</label><textarea id="security-verification-reason" name="reason" required maxlength="2000"></textarea>
+        <label><input type="checkbox" required /> I have checked the namespace and intended verification state.</label><button type="submit">Record verification decision</button>
+      </fieldset><p role="status" data-result></p></form>
+    </section>
+    <section aria-labelledby="block-heading"><h2 id="block-heading">Block package material</h2><p>A digest may identify an archive or a packaged file. Blocking revokes approved releases that contain it. Publish updated signed metadata promptly; recording a block alone does not deliver authenticated revocation to installed clients.</p>
+      <form id="security-block"><fieldset><legend>Block one digest</legend><label for="security-digest">Exact lowercase SHA-256 digest</label><input id="security-digest" name="digest" required pattern="[a-f0-9]{64}" maxlength="64" autocomplete="off" /><label for="security-block-reason">Block reason</label><textarea id="security-block-reason" name="reason" required maxlength="2000"></textarea><label><input type="checkbox" required /> I understand this can revoke approved releases containing this material.</label><button type="submit">Block digest and affected approved releases</button></fieldset><p role="status" data-result></p></form>
+      <details><summary>Import a bounded digest batch</summary><form id="security-batch"><fieldset><legend>Block 1–100 unique digests</legend><p>One line per digest: lowercase SHA-256, a space, then the reason. The request is limited to 64 KiB and applied atomically.</p><label for="security-batch-value">Digest and reason lines</label><textarea id="security-batch-value" name="entries" required maxlength="65536" rows="8"></textarea><label><input type="checkbox" required /> I reviewed every digest and understand affected approved releases may be revoked.</label><button type="submit">Block all listed digests</button></fieldset><p role="status" data-result></p></form></details>
+    </section>
+    <section aria-labelledby="blocked-heading"><h2 id="blocked-heading">Current digest blocks</h2><p>Up to 500 newest blocks are shown, not a complete lifetime history. Removing a block does not restore revoked releases; review and signed publication remain separate.</p><ul id="security-blocked"></ul></section>
+  </div>
+</Exchange>
+<script>import "../../scripts/review-security";</script>

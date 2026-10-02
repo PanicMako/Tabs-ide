@@ -2,6 +2,7 @@ import * as Crypto from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Pool } from "pg";
 import type { ExchangeConfig } from "./config.ts";
+import { loginReturnRoute } from "./loginReturn.ts";
 
 const SESSION_AGE_SECONDS = 60 * 60 * 24 * 7;
 const STATE_AGE_SECONDS = 60 * 10;
@@ -83,18 +84,22 @@ export interface ExchangeActor {
   readonly id: string;
   readonly login: string;
   readonly admin: boolean;
+  readonly operator?: boolean;
   readonly csrf: string;
+  readonly tokenScope?: "read" | "publish";
+  readonly tokenNamespace?: string;
 }
 
 export async function startGithubLogin(
   response: ServerResponse,
   pool: Pool,
   config: ExchangeConfig,
+  returnTo?: string | null,
 ): Promise<void> {
   const state = token();
   await pool.query(
-    "INSERT INTO exchange_oauth_states(state_hash, expires_at) VALUES ($1, now() + interval '10 minutes')",
-    [hash(state)],
+    "INSERT INTO exchange_oauth_states(state_hash, expires_at, return_route) VALUES ($1, now() + interval '10 minutes', $2)",
+    [hash(state), loginReturnRoute(returnTo)],
   );
   response.setHeader(
     "Set-Cookie",
@@ -129,7 +134,7 @@ export async function completeGithubLogin(
     throw new Error("OAuth state mismatch.");
   }
   const consumed = await pool.query(
-    "DELETE FROM exchange_oauth_states WHERE state_hash = $1 AND expires_at > now() RETURNING state_hash",
+    "DELETE FROM exchange_oauth_states WHERE state_hash = $1 AND expires_at > now() RETURNING state_hash, return_route",
     [hash(state)],
   );
   if (consumed.rowCount !== 1) throw new Error("OAuth state expired or already used.");
@@ -174,6 +179,10 @@ export async function completeGithubLogin(
     throw new Error("Invalid GitHub identity response.");
   }
   const id = String(user.id);
+  if (config.visibility === "private" && !config.allowedGithubIds?.has(id))
+    throw new Error(
+      "Authentication required: this account is not allowed on this private registry.",
+    );
   await pool.query(
     "INSERT INTO exchange_users(id, login) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET login = EXCLUDED.login",
     [id, user.login],
@@ -189,7 +198,11 @@ export async function completeGithubLogin(
     cookie("tabs_exchange_csrf", csrf, config.origin, SESSION_AGE_SECONDS, false),
     cookie("tabs_exchange_oauth", "", config.origin, 0),
   ]);
-  response.writeHead(302, { Location: `${config.origin}/publisher` }).end();
+  response
+    .writeHead(302, {
+      Location: `${config.origin}${loginReturnRoute(consumed.rows[0]?.return_route)}`,
+    })
+    .end();
 }
 
 export async function actorFor(
@@ -197,23 +210,56 @@ export async function actorFor(
   pool: Pool,
   config: ExchangeConfig,
 ): Promise<ExchangeActor | null> {
+  if (request.headers.authorization !== undefined) {
+    const authorization = request.headers.authorization;
+    if (!/^Bearer tex_[A-Za-z0-9_-]{43}$/.test(authorization)) return null;
+    const result = await pool.query<{
+      id: string;
+      login: string;
+      scope: "read" | "publish";
+      namespace: string | null;
+    }>(
+      `SELECT u.id, u.login, t.scope, t.namespace FROM exchange_access_tokens t
+       JOIN exchange_users u ON u.id = t.user_id
+       WHERE t.token_hash = $1 AND t.revoked_at IS NULL AND t.expires_at > now()
+       AND (t.scope = 'read' OR EXISTS (SELECT 1 FROM exchange_namespace_members m WHERE m.namespace = t.namespace AND m.user_id = t.user_id))`,
+      [hash(authorization.slice(7))],
+    );
+    const row = result.rows[0];
+    if (!row || (config.visibility === "private" && !config.allowedGithubIds?.has(String(row.id))))
+      return null;
+    return {
+      id: String(row.id),
+      login: row.login,
+      admin: false,
+      csrf: "invalid",
+      tokenScope: row.scope,
+      ...(row.namespace ? { tokenNamespace: row.namespace } : {}),
+    };
+  }
   const value = cookies(request).tabs_exchange_session;
   if (!value) return null;
   const result = await pool.query<{
     id: string;
     login: string;
     csrf_hash: string;
+    reviewer_active?: boolean;
   }>(
-    "SELECT u.id, u.login, s.csrf_hash FROM exchange_sessions s JOIN exchange_users u ON u.id = s.user_id WHERE s.token_hash = $1 AND s.expires_at > now()",
+    "SELECT u.id, u.login, s.csrf_hash, EXISTS(SELECT 1 FROM exchange_reviewers r WHERE r.user_id = u.id AND r.active) AS reviewer_active FROM exchange_sessions s JOIN exchange_users u ON u.id = s.user_id WHERE s.token_hash = $1 AND s.expires_at > now()",
     [hash(value)],
   );
   const row = result.rows[0];
   if (!row) return null;
+  if (config.visibility === "private" && !config.allowedGithubIds?.has(String(row.id))) return null;
   const csrf = request.headers["x-csrf-token"];
   return {
     id: row.id,
     login: row.login,
-    admin: config.adminGithubIds.has(row.id),
+    admin:
+      config.adminGithubIds.has(String(row.id)) ||
+      config.operatorGithubIds?.has(String(row.id)) === true ||
+      row.reviewer_active === true,
+    operator: config.operatorGithubIds?.has(String(row.id)) === true,
     csrf: typeof csrf === "string" && hash(csrf) === row.csrf_hash ? "valid" : "invalid",
   };
 }
@@ -224,7 +270,7 @@ export function requireMutation(
   config: ExchangeConfig,
 ): ExchangeActor {
   if (!actor) throw new Error("Authentication required.");
-  if (request.headers.origin !== config.origin || actor.csrf !== "valid") {
+  if (actor.tokenScope || request.headers.origin !== config.origin || actor.csrf !== "valid") {
     throw new Error("CSRF validation failed.");
   }
   return actor;

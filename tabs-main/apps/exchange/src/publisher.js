@@ -37,6 +37,76 @@ function item(list, text) {
   return li;
 }
 
+async function refreshTokens() {
+  const body = await requestJson("/v1/tokens");
+  const list = document.getElementById("tokens");
+  list.replaceChildren();
+  for (const token of body.tokens) {
+    const row = item(
+      list,
+      `${token.label}: ${token.scope}${token.namespace ? ` (${token.namespace})` : ""}; expires ${token.expires_at}${token.revoked_at ? "; revoked" : ""}. `,
+    );
+    if (!token.revoked_at) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = `Revoke ${token.label}`;
+      button.addEventListener("click", async () => {
+        button.disabled = true;
+        try {
+          const response = await fetch(
+            `/v1/tokens/${token.id}`,
+            mutation("DELETE", "", "application/json"),
+          );
+          if (!response.ok) throw new Error("Token revocation failed.");
+          await refreshTokens();
+          announce("Token revoked.");
+        } catch (error) {
+          button.disabled = false;
+          announce(String(error), true);
+        }
+      });
+      row.append(button);
+    }
+  }
+}
+document.getElementById("token-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const button = event.currentTarget.querySelector("button");
+  button.disabled = true;
+  const scope = document.getElementById("token-scope").value;
+  try {
+    const token = await requestJson(
+      "/v1/tokens",
+      mutation(
+        "POST",
+        JSON.stringify({
+          label: document.getElementById("token-label").value,
+          scope,
+          ...(scope === "publish"
+            ? { namespace: document.getElementById("token-namespace").value }
+            : {}),
+        }),
+        "application/json",
+      ),
+    );
+    document.getElementById("token-result").hidden = false;
+    const value = document.getElementById("token-value");
+    value.value = token.token;
+    value.focus();
+    value.select();
+    await refreshTokens();
+  } catch (error) {
+    announce(String(error), true);
+  } finally {
+    button.disabled = false;
+  }
+});
+document.getElementById("token-dismiss").addEventListener("click", () => {
+  document.getElementById("token-value").value = "";
+  document.getElementById("token-result").hidden = true;
+  document.getElementById("token-label").focus();
+});
+
 function listText(value) {
   return Array.isArray(value) && value.length ? value.join(", ") : "none";
 }
@@ -290,7 +360,7 @@ async function refreshSubmissions() {
   for (const entry of data.submissions) {
     const li = item(
       list,
-      `${entry.namespace}.${entry.name}@${entry.version}: ${entry.status === "approved" && !entry.published ? "approved, awaiting signed publication" : entry.status}. SHA-256 ${entry.digest}${entry.review_reason ? `. Reviewer: ${entry.review_reason}` : ""}`,
+      `${entry.namespace}.${entry.name}@${entry.version}: ${entry.status === "approved" ? (entry.published ? "published" : "approved, awaiting signed publication") : entry.status === "queued" ? "uploaded, awaiting scanning" : entry.status === "review" ? "awaiting manual review" : entry.status}. SHA-256 ${entry.digest}${entry.review_reason ? `. Reviewer: ${entry.review_reason}` : ""}`,
     );
     if (entry.status !== "rejected" && entry.status !== "revoked") continue;
     const form = document.createElement("form");
@@ -738,21 +808,67 @@ document.getElementById("member-form").addEventListener("submit", async (event) 
   }
 });
 
+const uploadInput = document.getElementById("upload-file");
+const dropArea = document.getElementById("upload-drop");
+for (const event of ["dragover", "drop"])
+  dropArea.addEventListener(event, (event) => event.preventDefault());
+dropArea.addEventListener("drop", (event) => {
+  if (!publishingEnabled || uploadInput.disabled) return;
+  if (event.dataTransfer.files.length !== 1) {
+    announce("Choose one package at a time.", true);
+    return;
+  }
+  uploadInput.files = event.dataTransfer.files;
+  document.getElementById("upload-status").textContent =
+    `Selected ${uploadInput.files[0].name}. Submit when ready.`;
+});
 document.getElementById("upload-form").addEventListener("submit", async (event) => {
   event.preventDefault();
-  const namespace = document.getElementById("upload-namespace").value;
-  const name = document.getElementById("upload-name").value;
-  const file = document.getElementById("upload-file").files[0];
+  const file = uploadInput.files[0];
   if (!file) return;
+  if (!file.name.endsWith(".tabsext") || file.size > 25 * 1024 * 1024) {
+    announce("Choose a .tabsext file no larger than 25 MiB.", true);
+    return;
+  }
+  const button = event.currentTarget.querySelector("button[type=submit]");
+  const progress = document.getElementById("upload-progress");
+  button.disabled = true;
+  progress.hidden = false;
+  progress.value = 0;
   try {
-    const body = await requestJson(
-      `/v1/publisher/${namespace}/${name}/versions`,
-      mutation("POST", file, "application/octet-stream"),
-    );
-    announce(`Submitted ${namespace}.${name}@${body.version} for review. SHA-256 ${body.digest}.`);
+    const body = await new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", "/v1/publisher/upload");
+      xhr.timeout = 90_000;
+      xhr.setRequestHeader("X-CSRF-Token", csrfToken());
+      xhr.setRequestHeader("Content-Type", "application/octet-stream");
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) progress.value = Math.floor((event.loaded / event.total) * 100);
+      };
+      xhr.onload = () => {
+        try {
+          const result = JSON.parse(xhr.responseText);
+          if (xhr.status < 200 || xhr.status >= 300)
+            reject(new Error(result.error ?? `Upload failed (${xhr.status}).`));
+          else resolve(result);
+        } catch {
+          reject(new Error("Invalid upload response."));
+        }
+      };
+      xhr.onerror = xhr.ontimeout = () =>
+        reject(
+          new Error(
+            "Upload interrupted. Refresh submissions before retrying; an immutable version may already have been recorded.",
+          ),
+        );
+      xhr.send(file);
+    });
+    announce(`Submitted version ${body.version} for review. SHA-256 ${body.digest}.`);
     await refreshSubmissions();
   } catch (error) {
     announce(String(error), true);
+  } finally {
+    button.disabled = !publishingEnabled;
   }
 });
 
@@ -861,6 +977,7 @@ try {
     document.getElementById("verification-section").hidden = !me.admin;
     document.getElementById("blocked-digests-section").hidden = !me.admin;
     await Promise.all([
+      refreshTokens(),
       refreshNamespaces(),
       refreshInvitations(),
       refreshSubmissions(),

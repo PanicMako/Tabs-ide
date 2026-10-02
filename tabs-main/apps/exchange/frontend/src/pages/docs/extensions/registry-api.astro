@@ -1,0 +1,19 @@
+---
+import Exchange from "../../../layouts/Exchange.astro";
+import contract from "../../../../../src/public-openapi.json";
+import { openapiParameters } from "../../../lib/openapiParameters";
+const operations = Object.entries(contract.paths).flatMap(([path, methods]) => Object.entries(methods).map(([method, operation]) => ({ path, method, operation: operation as { operationId: string; summary?: string; description?: string; parameters?: Array<{ name: string; in: string; required?: boolean; description?: string; schema?: unknown }>; requestBody?: unknown; responses?: Record<string, { description?: string }> } })));
+---
+<Exchange title="Registry API reference" description="Browsable Tabs-native registry API reference." active="docs">
+  <p><a href="/docs/extensions/registry">Registry integration guide</a> / API reference</p>
+  <h1>{contract.info.title}</h1><p>Contract version {contract.info.version} · Experimental</p>
+  <p>{contract.info.description}</p><p>Requests target the registry origin you configured. The example origin in the contract is not a hosted service.</p>
+  <p><a href="/v1/openapi.json">Download OpenAPI JSON</a>. Account and reviewer operations are management interfaces, not installation authority.</p>
+  <nav aria-label="API operations"><ul>{operations.map(({ method, path, operation }) => <li><a href={`#${operation.operationId}`}>{method.toUpperCase()} {path}</a></li>)}</ul></nav>
+  {operations.map(({ method, path, operation }) => <section class="card" id={operation.operationId}>
+    <h2>{operation.summary ?? operation.operationId}</h2><p><code>{method.toUpperCase()} {path}</code></p><p>{operation.description}</p>
+    {operation.parameters?.length ? <><h3>Parameters</h3><dl>{openapiParameters(contract, operation.parameters).map((parameter) => <><dt><code>{parameter.name}</code> — {parameter.in}{parameter.required ? ", required" : ", optional"}</dt><dd>{parameter.description}<details><summary>Type and limits</summary><pre>{JSON.stringify(parameter.schema, null, 2)}</pre></details></dd></>)}</dl></> : <p>No parameters declared.</p>}
+    {operation.requestBody && <details><summary>Request body contract</summary><pre>{JSON.stringify(operation.requestBody, null, 2)}</pre></details>}
+    <h3>Responses</h3><dl>{Object.entries(operation.responses ?? {}).map(([code, response]) => <><dt>{code}</dt><dd>{response.description}</dd></>)}</dl>
+  </section>)}
+</Exchange>

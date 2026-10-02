@@ -1,0 +1,12 @@
+---
+import Account from "../../layouts/Account.astro";
+---
+<Account title="Extensions and submissions" section="extensions">
+  <p>Recent submissions across namespaces you currently belong to. Each version has its own review and signing status.</p>
+  <ul id="account-submissions"></ul>
+  <p id="submissions-count" role="status"></p>
+  <div class="actions"><a class="button" href="/publish">Submit a package</a><button class="button secondary" id="submissions-refresh" type="button">Refresh submissions</button></div>
+</Account>
+<script>
+  import "../../scripts/submissions";
+</script>

@@ -23,6 +23,11 @@ export default function ExtensionsSettings() {
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [registryConnection, setRegistryConnection] = useState<{
+    origin: string | null;
+    connected: boolean;
+  } | null>(null);
+  const [registryToken, setRegistryToken] = useState("");
   const [profileNames, setProfileNames] = useState<Record<string, string>>({});
   const [profileScopes, setProfileScopes] = useState<Record<string, "shared" | "project">>({});
   const [credentialValues, setCredentialValues] = useState<Record<string, string>>({});
@@ -67,6 +72,20 @@ export default function ExtensionsSettings() {
     : extensions[0]?.id;
   const projects = useAtomValue(projectsAtom);
   const bridge = window.desktopBridge;
+  useEffect(() => {
+    let disposed = false;
+    void bridge
+      ?.getRegistryConnection?.()
+      .then((connection) => {
+        if (!disposed) setRegistryConnection(connection);
+      })
+      .catch(() => {
+        if (!disposed) setError("Could not load registry connection status.");
+      });
+    return () => {
+      disposed = true;
+    };
+  }, [bridge]);
   const availableUpdate = (extension: DesktopInstalledExtension) =>
     Object.hasOwn(checkedUpdates, extension.id)
       ? checkedUpdates[extension.id]
@@ -196,6 +215,67 @@ export default function ExtensionsSettings() {
           />
         </div>
       </div>
+      {registryConnection && bridge?.setRegistryCredential && (
+        <section
+          aria-labelledby="registry-connection-title"
+          className="space-y-2 rounded-xl border border-border p-4"
+        >
+          <h3 id="registry-connection-title" className="font-medium">
+            Registry connection
+          </h3>
+          <p className="text-sm text-muted-foreground">
+            {registryConnection.origin ?? "No registry configured."}{" "}
+            {registryConnection.connected
+              ? "A read credential is saved."
+              : "Public registries need no credential."}{" "}
+            Registry credentials are separate from extension accounts. A separately provisioned
+            trust root is still required.
+          </p>
+          {registryConnection.origin?.startsWith("https:") && (
+            <form
+              className="space-y-2"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void run(async () => {
+                  await bridge.setRegistryCredential!(registryConnection.origin!, registryToken);
+                  setRegistryToken("");
+                  setRegistryConnection(await bridge.getRegistryConnection!());
+                });
+              }}
+            >
+              <label htmlFor="registry-read-token" className="text-sm">
+                Private registry read token
+              </label>
+              <Input
+                id="registry-read-token"
+                type="password"
+                autoComplete="off"
+                value={registryToken}
+                onChange={(event) => setRegistryToken(event.target.value)}
+              />
+              <div className="flex flex-wrap gap-2">
+                <Button type="submit" disabled={busy || !registryToken}>
+                  Save read credential
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={busy || !registryConnection.connected}
+                  onClick={() =>
+                    void run(async () => {
+                      await bridge.setRegistryCredential!(registryConnection.origin!, null);
+                      setRegistryToken("");
+                      setRegistryConnection(await bridge.getRegistryConnection!());
+                    })
+                  }
+                >
+                  Disconnect registry credential
+                </Button>
+              </div>
+            </form>
+          )}
+        </section>
+      )}
       <div
         role="group"
         aria-label="Extension settings views"
@@ -510,7 +590,28 @@ export default function ExtensionsSettings() {
                   disabled={busy}
                   onClick={() =>
                     void run(async () => {
-                      await bridge.confirmExchangeInstall(preparedInstall.token);
+                      try {
+                        await bridge.confirmExchangeInstall(preparedInstall.token);
+                      } catch (cause) {
+                        // Confirmation consumes its preparation token, even on
+                        // failure. Require fresh verification before retrying.
+                        const returnId = reviewReturnExtensionId.current;
+                        setPreparedInstall(null);
+                        if (returnId) setTab("installed");
+                        requestAnimationFrame(() =>
+                          (
+                            (returnId
+                              ? document.getElementById(`extension-update-${returnId}`)
+                              : reviewTrigger.current?.isConnected
+                                ? reviewTrigger.current
+                                : null) ??
+                            (returnId ? installedTabButton.current : discoverTabButton.current)
+                          )?.focus(),
+                        );
+                        throw new Error(
+                          `${cause instanceof Error ? cause.message : "Installation failed."} Review the package again before retrying.`,
+                        );
+                      }
                       setCheckedUpdates((current) => {
                         const next = { ...current };
                         delete next[
@@ -823,6 +924,20 @@ export default function ExtensionsSettings() {
                     );
                   })}
                 </div>
+                {extension.source === "development" && bridge.reloadDevelopmentExtension && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={busy}
+                    onClick={() =>
+                      void run(async () => {
+                        await bridge.reloadDevelopmentExtension!(extension.id);
+                      })
+                    }
+                  >
+                    Reload development build
+                  </Button>
+                )}
                 {uninstallingId === extension.id ? (
                   <section
                     aria-labelledby={`uninstall-${extension.id}`}

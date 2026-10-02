@@ -1,5 +1,19 @@
 # Tabs Exchange (in development)
 
+## Developer toolkit release retention
+
+`bun run --cwd apps/exchange build:web` preserves versioned toolkit assets in
+`apps/exchange/developer-releases` before rebuilding the frontend and restores
+them afterward. The latest `manifest.json` is regenerated, not restored from
+an older build. A collision at an existing versioned path fails the build;
+existing bytes are never silently replaced.
+
+The archive is ignored build data, not a source-controlled release catalog.
+For a fresh checkout, container build or CI runner, supply the previous archive
+as a trusted build artifact before running the build. Back it up alongside
+published website artifacts. A clean build without that artifact cannot retain
+releases it has never received. Toolkit checksums are not a signing trust root.
+
 Tabs Exchange is a separate service from the static marketing website. The
 implementation lives in `apps/exchange` and has an HTTP API, PostgreSQL state,
 an S3-compatible quarantine bucket, and a polling scan worker. It uses GitHub
@@ -22,8 +36,58 @@ Experimental permission-neutral automatic updates are available only with an
 independently pinned trust root and explicit desktop opt-in. Desktop builds can
 display compatible approved listings from
 `TABS_EXCHANGE_ORIGIN`; a separately provisioned trust root is required for
-manual installation. The public API is therefore an experimental shape, not a
-stable protocol for forks yet.
+manual installation. The versioned native `/v1` interface is described by
+`/v1/openapi.json`; it is not VS Code gallery or Open VSX package compatibility.
+This testing branch has not launched a production registry or published its SDK.
+
+## Developer ecosystem and private registries
+
+The website documentation at `/docs/extensions` is generated partly from the
+actual manifest contract and SDK declarations. The staging SDK/CLI bundle is
+version 1.7.0 and supports a standalone React/TypeScript/Vite starter and a plain
+HTML alternative. Authors obtain the versioned download from `/developers`;
+they do not need to clone Tabs or prepare internal release tarballs. npm
+publication remains separately gated on namespace ownership and release approval. Run
+`node scripts/verify-extension-tutorial.mjs` to exercise both starters outside
+the repository, including deterministic packaging and dependency audit.
+On a machine with Electron GUI support, run
+`TABS_TUTORIAL_ELECTRON=1 node scripts/verify-extension-tutorial.mjs` to additionally
+load the downloaded React starter in a real `WebContentsView` and exercise
+host-owned development reload. The default tutorial command does not prove
+desktop loading. Neither command proves live GitHub publishing or a clean
+desktop registry installation/update journey.
+
+Optional manifest `listing` metadata requires API 1.6.0 compatibility. README
+paths must be packaged Markdown; icons must be PNG/JPEG/WebP. Raw HTML is escaped,
+unsafe link schemes removed, and images are restricted to declared reviewed
+assets. Packaged screenshot metadata requires API 1.7.0 compatibility. No ratings,
+download counts, or purported popularity are fabricated.
+
+The registry itself serves `/extensions` and `/publisher` on its own origin.
+Use these surfaces for authenticated/private deployments, not cross-site cookie
+access from the static website. Set `EXCHANGE_VISIBILITY=private` and
+`EXCHANGE_ALLOWED_GITHUB_IDS` to numeric account IDs. Private catalog, assets,
+downloads, and TUF transport require current allowlisted authentication and use
+no-store caching. Private event streams are disabled; desktop signed polling
+continues. Signing is mandatory even on a private instance.
+
+Publisher sessions can create show-once, hashed, 30-day read tokens or
+namespace-bound publish tokens. Tokens are revocable and cannot administer
+accounts or approve packages. Membership and private allowlisting are rechecked
+per request. Browser upload derives identity from the validated manifest;
+CLI upload uses the same immutable review service. The public upload limit is
+25 MiB, two concurrent uploads per process, with a two-minute deadline.
+Operators must configure distributed request/account limits at their proxy;
+the service does not claim built-in distributed abuse prevention.
+
+Desktop registry read credentials use an OS-backed vault separate from extension
+profiles. They are bound to the exact HTTPS origin and never forwarded across
+redirects. Expiry/revocation prompts reconnection, not a false package-revocation
+message. Private hosting cannot erase previously downloaded packages.
+
+Portable JSON recovery excludes OAuth state, sessions, and token hashes. Full
+PostgreSQL snapshots contain them: revoke restored sessions/tokens before
+reopening access so recovery cannot resurrect old credentials.
 
 ## Metadata trust work in progress
 
@@ -67,7 +131,10 @@ Run `bun run tuf:publish /absolute/staged-directory` in `apps/exchange` with
 exact approved targets, root transitions, and the bytes and SHA-256 of every
 signed package object before committing all metadata
 and its public-target index in one transaction. Schema migration rebuilds the
-materialized highest-semver search heads from that existing signed-target index.
+materialized search heads from that existing signed-target index. Heads prefer
+the highest stable semantic version; prerelease-only extensions use their highest
+prerelease. Run the schema migration when upgrading to apply this selection policy
+to existing derived heads without changing installed package selection.
 An older database without the index still needs a signed republish; approved
 versions remain private until then. A local revocation immediately selects the highest
 remaining signed, approved release as its search head, if one exists. It does
@@ -106,9 +173,23 @@ cd apps/exchange
 docker compose up --build
 ```
 
-The API listens on port 8787 and `/publisher` serves the publisher/reviewer
-page. This checkout could not execute the stack because the Docker daemon was
-not running; only `docker compose config` was validated.
+The single-node object store is pinned SeaweedFS 4.48, with a persistent volume,
+mandatory initial S3 credentials, and a pre-created private bucket. S3 is exposed
+only on loopback port 8333 (override `EXCHANGE_S3_PORT`); internal management and
+filer ports are not published. The authenticated readiness service prevents API
+and worker startup before the bucket is accessible. This replaces unavailable
+MinIO container tags, not the registry's S3 protocol or production R2 topology.
+See [SeaweedFS mini configuration](https://github.com/seaweedfs/seaweedfs/wiki/Quick-Start-with-weed-mini).
+This single-node recipe is not high availability; configure replication and
+tested backups before relying on it for production.
+
+The API listens on port 8787; `/extensions` serves its same-origin marketplace
+and `/publisher` serves the publisher/reviewer page. This testing branch built
+the registry image and ran its migration, private API health/capabilities,
+compiled marketplace transport, and worker heartbeat against isolated Docker
+PostgreSQL/S3 services. That is local evidence, not a deployed Render/R2 service
+or a real GitHub OAuth account acceptance test. Production credentials remain
+unconfigured and submissions remain disabled.
 
 ### Cold backup and restore drill
 
@@ -125,6 +206,12 @@ publication command until the copy is complete. Replace the example absolute
 path below with a new private directory **outside the Git checkout** for each
 backup, then run the object verifier before restarting writes:
 
+Install the AWS CLI on the operator host. Supply `AWS_ACCESS_KEY_ID` and
+`AWS_SECRET_ACCESS_KEY` through your secret mechanism, matching the private
+Compose S3 account; never put secrets in command history. Substitute your
+loopback S3 port if changed. The remote object-store equivalent uses its HTTPS
+endpoint and appropriately scoped backup credentials.
+
 ```sh
 set -e
 exchange_backup_dir=/absolute/private/tabs-exchange-backup-2026-09-28
@@ -132,8 +219,8 @@ cd apps/exchange
 docker compose stop api worker
 mkdir -m 700 "$exchange_backup_dir"
 docker compose exec -T postgres pg_dump -U tabs_exchange -d tabs_exchange -Fc > "$exchange_backup_dir/exchange.pgcustom"
-docker compose run --rm --no-deps -v "$exchange_backup_dir:/backup" --entrypoint sh bucket -c 'mc alias set exchange http://minio:9000 "$S3_ACCESS_KEY_ID" "$S3_SECRET_ACCESS_KEY" && mc mirror exchange/tabs-exchange /backup/objects'
-docker compose run --rm --no-deps api bun --cwd apps/exchange run verify:objects > "$exchange_backup_dir/object-verification.json"
+AWS_DEFAULT_REGION=us-east-1 aws --endpoint-url http://127.0.0.1:8333 s3 sync s3://tabs-exchange "$exchange_backup_dir/objects/"
+docker compose run --rm --no-deps api bun run --cwd apps/exchange verify:objects > "$exchange_backup_dir/object-verification.json"
 ```
 
 The verifier reads every `exchange_versions` row, including private and
@@ -154,10 +241,10 @@ the restore host, restore with:
 set -e
 exchange_backup_dir=/absolute/private/tabs-exchange-backup-2026-09-28
 cd apps/exchange
-docker compose up -d postgres minio bucket
+docker compose up -d postgres objects bucket
 docker compose exec -T postgres pg_restore -U tabs_exchange -d tabs_exchange --no-owner < "$exchange_backup_dir/exchange.pgcustom"
-docker compose run --rm --no-deps -v "$exchange_backup_dir:/backup:ro" --entrypoint sh bucket -c 'mc alias set exchange http://minio:9000 "$S3_ACCESS_KEY_ID" "$S3_SECRET_ACCESS_KEY" && mc mirror /backup/objects exchange/tabs-exchange'
-docker compose run --rm --no-deps api bun --cwd apps/exchange run verify:objects
+AWS_DEFAULT_REGION=us-east-1 aws --endpoint-url http://127.0.0.1:8333 s3 sync "$exchange_backup_dir/objects/" s3://tabs-exchange
+docker compose run --rm --no-deps api bun run --cwd apps/exchange verify:objects
 ```
 
 Run `docker compose up -d api worker` only after verification succeeds. Confirm published TUF
@@ -364,7 +451,7 @@ To run the real local Exchange service integration suite against isolated Postgr
 - **Start test stack**:
   `docker compose -f apps/exchange/compose.test.yaml up -d`
 - **Execute integration tests**:
-  `bun --cwd apps/exchange run test:integration`
+  `bun run --cwd apps/exchange test:integration`
 - **Stop test stack & clean up volumes**:
   `docker compose -f apps/exchange/compose.test.yaml down -v`
 
@@ -403,11 +490,13 @@ coverage; neither suite proves a production recovery drill.
 ### 4. Database & Storage Backup / Restore Procedures
 
 - **Local test backup (`backupExchangeData`)**:
-  - Captures 14 durable PostgreSQL tables, including namespace-member audit events. Sessions, OAuth states, and worker heartbeats are intentionally omitted because they are ephemeral.
+  - Version 3 captures 18 durable PostgreSQL tables, including delegated reviewer assignments and grant/revoke audit events, namespace-member audit events, publisher agreement records, and exact-digest first-publication history. Sessions, OAuth states, access tokens, and worker heartbeats are intentionally omitted; users must reconnect and reissue tokens. Operator identities remain explicit deployment configuration, not database-assigned privileges.
   - Captures S3 object bytes and their SHA-256 digests. This in-memory helper is for small local drills; it is not a scalable production backup command. Stop the API and worker before using it so database rows and objects cannot change during capture.
 - **Restore (`restoreExchangeData`)**:
   - **CRITICAL SAFETY INVARIANT**: Restoration into any non-empty database or non-empty S3 bucket is **strictly rejected**. Never restore over a live database or active bucket.
   - Restores database rows in one transaction and advances serial sequences after restoring audit IDs.
+  - Version 1 backups remain accepted. Missing agreement/history tables restore empty: publishers must accept current terms again, and historical publication dates remain unavailable. No consent or date is inferred from namespace membership. Run the schema migration afterward to rebuild derived heads and mark existing signed targets with unknown historical publication dates.
+  - Version 1 and 2 backups have no delegated reviewer tables; those restore empty. Restore never invents reviewer access from publisher membership or historical decisions. Reprovision explicit operator configuration and deliberately reassign reviewers where necessary.
   - Uploads S3 objects and checks SHA-256 digests against the manifest.
   - Database and object storage are **not** one atomic transaction. A failed object upload can leave a partial restore; keep the target offline and retry into a fresh empty database and bucket. Use the cold `pg_dump`/object-copy procedure above for operational backups.
 
@@ -432,6 +521,19 @@ coverage; neither suite proves a production recovery drill.
 ---
 
 ## Operator Production Go / No-Go Checklist
+
+### Self-hosted presentation settings
+
+Set `EXCHANGE_WEB_SITE_NAME` (up to 80 printable characters),
+`EXCHANGE_WEB_DOCS_URL` (default `/docs/extensions`) and optional
+`EXCHANGE_WEB_SUPPORT_URL` before building the Exchange frontend. Links accept
+local paths or HTTPS URLs without embedded credentials. These are public,
+build-time values, not authentication configuration; Docker Compose passes them
+as image build arguments. Rebuild the image/frontend after changing them.
+The bundled documentation remains available when the navigation points to an
+operator's external documentation. Account and API calls stay same-origin.
+`EXCHANGE_ORIGIN` remains the runtime canonical registry/OAuth origin; branding
+does not change installed extension identity, trust roots, or API permissions.
 
 | Area                | Item                                               |     Status     | Verification & Blocker Notes                                                                                                                              |
 | :------------------ | :------------------------------------------------- | :------------: | :-------------------------------------------------------------------------------------------------------------------------------------------------------- |

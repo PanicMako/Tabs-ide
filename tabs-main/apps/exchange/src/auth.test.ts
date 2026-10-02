@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Pool } from "pg";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { completeGithubLogin } from "./auth.ts";
+import { completeGithubLogin, startGithubLogin } from "./auth.ts";
 import type { ExchangeConfig } from "./config.ts";
 
 const origin = "https://exchange.tabs.example";
@@ -16,7 +16,7 @@ const config: ExchangeConfig = {
   publishingEnabled: false,
 };
 
-function fixture() {
+function fixture(returnRoute = "/publisher") {
   const request = { headers: { cookie: `tabs_exchange_oauth=${state}` } } as IncomingMessage;
   const headers = new Map<string, unknown>();
   const response = {
@@ -30,7 +30,12 @@ function fixture() {
   const pool = {
     query: vi.fn(async (sql: string) => {
       queries.push(sql);
-      return { rowCount: sql.startsWith("DELETE FROM exchange_oauth_states") ? 1 : 0, rows: [] };
+      return {
+        rowCount: sql.startsWith("DELETE FROM exchange_oauth_states") ? 1 : 0,
+        rows: sql.startsWith("DELETE FROM exchange_oauth_states")
+          ? [{ return_route: returnRoute }]
+          : [],
+      };
     }),
   } as unknown as Pool;
   return { request, response, headers, queries, pool };
@@ -45,6 +50,36 @@ function githubResponse(value: unknown, url: string): Response {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("Exchange GitHub OAuth transport", () => {
+  it("stores the return route with the expiring state, not in an editable callback parameter", async () => {
+    const subject = fixture();
+    await startGithubLogin(subject.response, subject.pool, config, "/extensions?q=git");
+    expect(subject.pool.query).toHaveBeenCalledWith(expect.stringContaining("return_route"), [
+      expect.any(String),
+      "/extensions?q=git",
+    ]);
+    const redirect = vi.mocked(subject.response.writeHead).mock.calls[0]![1] as {
+      Location: string;
+    };
+    expect(new URL(redirect.Location).origin).toBe("https://github.com");
+    expect(redirect.Location).not.toContain("returnTo");
+  });
+  it("returns to the saved task and ignores callback redirect tampering", async () => {
+    const subject = fixture("/extensions?q=git&sort=newest");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) =>
+        url === "https://github.com/login/oauth/access_token"
+          ? githubResponse({ access_token: "gho_test" }, url)
+          : githubResponse({ id: 42, login: "publisher" }, url),
+      ),
+    );
+    const tampered = new URL(callback);
+    tampered.searchParams.set("returnTo", "https://evil.example");
+    await completeGithubLogin(subject.request, subject.response, tampered, subject.pool, config);
+    expect(subject.response.writeHead).toHaveBeenCalledWith(302, {
+      Location: `${origin}/extensions?q=git&sort=newest`,
+    });
+  });
   it("uses bounded, non-redirecting JSON requests before creating a publisher session", async () => {
     const subject = fixture();
     const request = vi.fn(async (url: string, init: RequestInit) => {

@@ -9,7 +9,7 @@ import {
 import type { Pool } from "pg";
 
 export interface ExchangeBackupManifest {
-  readonly version: 1;
+  readonly version: 1 | 2 | 3;
   readonly createdAt: string;
   readonly tableRows: Record<string, ReadonlyArray<Record<string, unknown>>>;
   readonly objects: ReadonlyArray<{
@@ -23,13 +23,19 @@ export interface ExchangeBackupManifest {
 }
 
 const BACKUP_TABLES_ORDER = [
+  // Sessions, OAuth state and access tokens intentionally do not survive this
+  // portable restore. Operators reauthenticate and issue new tokens afterward.
   "exchange_users",
+  "exchange_reviewers",
+  "exchange_reviewer_events",
+  "exchange_publisher_agreements",
   "exchange_namespaces",
   "exchange_namespace_members",
   "exchange_namespace_member_events",
   "exchange_namespace_invitations",
   "exchange_namespace_verifications",
   "exchange_versions",
+  "exchange_publication_history",
   "exchange_review_events",
   "exchange_appeals",
   "exchange_blocked_digests",
@@ -40,6 +46,7 @@ const BACKUP_TABLES_ORDER = [
 ] as const;
 
 const SERIAL_TABLES = [
+  "exchange_reviewer_events",
   "exchange_namespace_member_events",
   "exchange_namespace_invitations",
   "exchange_namespace_verifications",
@@ -64,6 +71,8 @@ export async function backupExchangeData(
       for (const [k, v] of Object.entries(copy)) {
         if (Buffer.isBuffer(v)) {
           copy[k] = `\\x${v.toString("hex")}`;
+        } else if (v instanceof Date) {
+          copy[k] = v.toISOString();
         }
       }
       return copy;
@@ -116,7 +125,7 @@ export async function backupExchangeData(
   } while (continuationToken);
 
   return {
-    version: 1,
+    version: 3,
     createdAt: new Date().toISOString(),
     tableRows,
     objects,
@@ -131,12 +140,32 @@ export async function restoreExchangeData(
   storage: S3Client,
   bucket: string,
 ): Promise<{ restoredTables: number; restoredObjects: number }> {
-  if (manifest.version !== 1 || manifest.objectCount !== manifest.objects.length) {
+  if (![1, 2, 3].includes(manifest.version) || manifest.objectCount !== manifest.objects.length) {
     throw new Error("Invalid Exchange backup manifest.");
   }
+  const tableRows = { ...manifest.tableRows };
+  const tableCounts = { ...manifest.tableCounts };
+  if (manifest.version < 3) {
+    for (const table of ["exchange_reviewers", "exchange_reviewer_events"]) {
+      if (tableRows[table] === undefined && tableCounts[table] === undefined) {
+        tableRows[table] = [];
+        tableCounts[table] = 0;
+      }
+    }
+  }
+  // Old backups cannot prove agreement acceptance or a first-publication date.
+  // Preserve their absence instead of inferring either from namespace membership.
+  if (manifest.version === 1) {
+    for (const table of ["exchange_publisher_agreements", "exchange_publication_history"]) {
+      if (tableRows[table] === undefined && tableCounts[table] === undefined) {
+        tableRows[table] = [];
+        tableCounts[table] = 0;
+      }
+    }
+  }
   for (const table of BACKUP_TABLES_ORDER) {
-    const rows = manifest.tableRows[table];
-    if (!Array.isArray(rows) || manifest.tableCounts[table] !== rows.length) {
+    const rows = tableRows[table];
+    if (!Array.isArray(rows) || tableCounts[table] !== rows.length) {
       throw new Error(`Invalid Exchange backup row count for '${table}'.`);
     }
     if (rows.some((row) => !row || typeof row !== "object" || Array.isArray(row))) {
@@ -184,11 +213,12 @@ export async function restoreExchangeData(
     await client.query("BEGIN");
 
     for (const table of BACKUP_TABLES_ORDER) {
-      const rows = manifest.tableRows[table] ?? [];
+      const rows = tableRows[table] ?? [];
       for (const row of rows) {
         const columns = Object.keys(row);
         if (columns.length === 0) continue;
         const values = Object.values(row).map((val) => {
+          if (val instanceof Date) return val.toISOString();
           if (typeof val === "object" && val !== null && !Buffer.isBuffer(val)) {
             return JSON.stringify(val);
           }
@@ -237,7 +267,7 @@ export async function restoreExchangeData(
   for (const table of BACKUP_TABLES_ORDER) {
     const countResult = await pool.query<{ count: string }>(`SELECT count(*) FROM ${table}`);
     const actual = Number.parseInt(countResult.rows[0]?.count ?? "0", 10);
-    const expected = manifest.tableCounts[table] ?? 0;
+    const expected = tableCounts[table] ?? 0;
     if (actual !== expected) {
       throw new Error(
         `Restoration row count mismatch on table '${table}': expected ${expected}, got ${actual}.`,
@@ -246,7 +276,7 @@ export async function restoreExchangeData(
   }
 
   return {
-    restoredTables: Object.keys(manifest.tableRows).length,
+    restoredTables: BACKUP_TABLES_ORDER.length,
     restoredObjects: manifest.objects.length,
   };
 }

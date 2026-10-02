@@ -18,6 +18,10 @@ const exchange = configuredExchangeOrigin(import.meta.env.PUBLIC_TABS_EXCHANGE_U
     {exchange ? (
       <div id="catalog" data-exchange-url={exchange} data-preview={import.meta.env.DEV && import.meta.env.PUBLIC_TABS_EXCHANGE_PREVIEW === "true" ? "true" : undefined}>
         <div class="exchange-toolbar"><h2>Explore extensions</h2><label class="exchange-search" for="search"><Icon name="Search" size={18} /><span class="sr-only">Search extensions</span><input id="search" type="search" placeholder="Search by name or publisher" /></label></div>
+        <div class="exchange-actions">
+          <label>Category <select id="catalog-category"><option value="">All categories</option><option value="productivity">Productivity</option><option value="development">Development</option><option value="collaboration">Collaboration</option><option value="utilities">Utilities</option><option value="ai">AI</option></select></label>
+          <label>Sort <select id="catalog-sort"><option value="name">Name</option><option value="newest">Newest release</option></select></label>
+        </div>
         <p class="exchange-status" id="catalog-status" role="status" aria-live="polite">Loading approved extensions...</p>
         <ul class="exchange-catalog" id="catalog-list" aria-label="Approved extensions"></ul>
         <div class="exchange-empty" id="catalog-empty" hidden><div class="exchange-card-icon"><Icon name="Puzzle" size={24} /></div><h2 id="catalog-empty-title">No matching tools yet.</h2><p id="catalog-empty-description">Try another name or publisher.</p><div class="exchange-actions"><button class="exchange-button secondary" id="catalog-retry" type="button">Try again</button></div></div>
@@ -44,6 +48,8 @@ const exchange = configuredExchangeOrigin(import.meta.env.PUBLIC_TABS_EXCHANGE_U
     const preview = catalog.dataset.preview === "true";
     if (preview) document.getElementById("catalog-list")?.setAttribute("aria-label", "Sample extensions");
     const input = document.getElementById("search") as HTMLInputElement;
+    const category = document.getElementById("catalog-category") as HTMLSelectElement;
+    const sort = document.getElementById("catalog-sort") as HTMLSelectElement;
     const status = document.getElementById("catalog-status")!;
     const list = document.getElementById("catalog-list")!;
     const moreButton = document.getElementById("catalog-more") as HTMLButtonElement;
@@ -64,6 +70,8 @@ const exchange = configuredExchangeOrigin(import.meta.env.PUBLIC_TABS_EXCHANGE_U
       }
       const url = new URL("/v1/extensions", origin);
       url.searchParams.set("q", input.value.trim());
+      url.searchParams.set("category", category.value);
+      url.searchParams.set("sort", sort.value);
       url.searchParams.set("limit", "30");
       if (append && nextCursor) url.searchParams.set("cursor", nextCursor);
       moreButton.hidden = !append;
@@ -137,6 +145,8 @@ const exchange = configuredExchangeOrigin(import.meta.env.PUBLIC_TABS_EXCHANGE_U
       }
     };
     input.addEventListener("input", () => { void load(); });
+    category.addEventListener("change", () => { void load(); });
+    sort.addEventListener("change", () => { void load(); });
     moreButton.addEventListener("click", () => { void load(true); });
     retry.addEventListener("click", () => { void load(); });
     void load();

@@ -1,0 +1,26 @@
+---
+import Account from "../../layouts/Account.astro";
+---
+<Account title="CLI access tokens" section="tokens">
+  <p>Browser publishing needs no token. CLI tokens expire after 30 days and cannot manage namespaces, approve submissions, or bypass review.</p>
+  <form id="token-create" class="card token-create-panel" aria-labelledby="token-create-title">
+    <div class="token-panel-intro"><span class="eyebrow">Scoped access</span><h2 id="token-create-title">Create a CLI token</h2><p>Choose only the access your workflow needs. Browser submissions never require a token.</p></div>
+    <div class="token-fields">
+    <div><label for="token-label">Token label</label><input id="token-label" required maxlength="100" autocomplete="off" placeholder="For example, release workstation" /></div>
+    <div><label for="token-scope">Access</label><select id="token-scope"><option value="publish">Publish in one namespace</option><option value="read">Read private registry</option></select></div>
+    <div><label for="token-namespace">Publisher namespace</label><select id="token-namespace" required aria-describedby="token-namespace-help"></select><p id="token-namespace-help" class="muted">Publish access requires current namespace membership. Read tokens do not use a namespace.</p></div>
+    </div>
+    <button class="button" id="token-create-button" type="submit" disabled>Create token</button>
+  </form>
+  <section id="token-secret-section" hidden class="card" aria-labelledby="token-secret-title">
+    <h2 id="token-secret-title" tabindex="-1">Save this token now</h2><p>The secret is shown only once. Keep it out of source code, URLs, logs, and screenshots.</p>
+    <label for="token-secret">New token</label><input id="token-secret" readonly autocomplete="off" spellcheck="false" />
+    <div class="actions"><button class="button secondary" id="token-copy" type="button">Copy token</button><button class="button secondary" id="token-hide" type="button">Hide secret</button></div>
+    <p id="token-expiry"></p>
+  </section>
+  <h2>Use with the standalone CLI</h2><p>In your shell, set TABS_EXCHANGE_ORIGIN to this registry and TABS_EXCHANGE_TOKEN to your secret. Do not persist credentials in the CLI or commit them.</p>
+  <pre><code id="token-instructions"></code></pre>
+  <p id="token-status" role="status" aria-live="polite">Loading tokens…</p><ul id="token-list"></ul>
+  <button class="button secondary" id="token-refresh" type="button">Refresh token list</button>
+</Account>
+<script>import "../../scripts/tokens";</script>

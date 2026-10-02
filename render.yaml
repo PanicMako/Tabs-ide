@@ -4,7 +4,7 @@ services:
     runtime: docker
     dockerContext: tabs-main
     dockerfilePath: tabs-main/apps/exchange/Dockerfile
-    preDeployCommand: bun --cwd apps/exchange run migrate
+    preDeployCommand: bun run --cwd apps/exchange migrate
     healthCheckPath: /healthz
     envVars:
       - key: DATABASE_URL
@@ -15,6 +15,10 @@ services:
         sync: false
       - key: EXCHANGE_PUBLISHING_ENABLED
         value: "false"
+      - key: EXCHANGE_VISIBILITY
+        value: "public"
+      - key: EXCHANGE_ALLOWED_GITHUB_IDS
+        sync: false
       - key: GITHUB_CLIENT_ID
         sync: false
       - key: GITHUB_CLIENT_SECRET
@@ -35,7 +39,7 @@ services:
     runtime: docker
     dockerContext: tabs-main
     dockerfilePath: tabs-main/apps/exchange/Dockerfile
-    dockerCommand: bun --cwd apps/exchange run worker
+    dockerCommand: bun run --cwd apps/exchange worker
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -45,6 +49,10 @@ services:
         sync: false
       - key: EXCHANGE_PUBLISHING_ENABLED
         value: "false"
+      - key: EXCHANGE_VISIBILITY
+        value: "public"
+      - key: EXCHANGE_ALLOWED_GITHUB_IDS
+        sync: false
       - key: GITHUB_CLIENT_ID
         sync: false
       - key: GITHUB_CLIENT_SECRET

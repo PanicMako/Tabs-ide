@@ -15,6 +15,19 @@ await writeFile(
       },
       { src: "/download/?", dest: "/download/index.html" },
       { src: "/changelog/?", dest: "/changelog/index.html" },
+      {
+        src: "/extension/?",
+        has: [
+          { type: "query", key: "namespace", value: "(?<publisher>[a-z][a-z0-9-]{1,62})" },
+          { type: "query", key: "name", value: "(?<extension>[a-z][a-z0-9-]{1,62})" },
+        ],
+        status: 308,
+        headers: { Location: "/extensions/$publisher/$extension" },
+      },
+      {
+        src: "/extensions/[a-z][a-z0-9-]{1,62}/[a-z][a-z0-9-]{1,62}/?",
+        dest: "/extension/index.html",
+      },
       { handle: "filesystem" },
     ],
   }),

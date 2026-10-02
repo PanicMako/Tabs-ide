@@ -12,8 +12,11 @@ export interface ExchangeConfig {
   readonly githubClientId: string;
   readonly githubClientSecret: string;
   readonly adminGithubIds: ReadonlySet<string>;
+  readonly operatorGithubIds?: ReadonlySet<string>;
   readonly bucket: string;
   readonly publishingEnabled: boolean;
+  readonly visibility?: "public" | "private";
+  readonly allowedGithubIds?: ReadonlySet<string>;
   readonly testGithubAuthUrls?: {
     readonly authorizeUrl: string;
     readonly tokenUrl: string;
@@ -22,6 +25,14 @@ export interface ExchangeConfig {
 }
 
 export function loadConfig(): ExchangeConfig {
+  const operatorGithubIds = new Set(
+    (process.env.EXCHANGE_OPERATOR_GITHUB_IDS ?? "")
+      .split(",")
+      .map((id) => id.trim())
+      .filter(Boolean),
+  );
+  if ([...operatorGithubIds].some((id) => !/^[1-9][0-9]*$/.test(id)))
+    throw new Error("Operator accounts require numeric GitHub IDs.");
   const origin = new URL(required("EXCHANGE_ORIGIN"));
   if (origin.pathname !== "/" || origin.search || origin.hash) {
     throw new Error("EXCHANGE_ORIGIN must be an origin without a path.");
@@ -29,13 +40,30 @@ export function loadConfig(): ExchangeConfig {
   if (origin.protocol !== "https:" && origin.hostname !== "localhost") {
     throw new Error("EXCHANGE_ORIGIN must use HTTPS outside localhost.");
   }
+  const visibility = process.env.EXCHANGE_VISIBILITY ?? "public";
+  if (visibility !== "public" && visibility !== "private")
+    throw new Error("EXCHANGE_VISIBILITY must be public or private.");
+  const allowedGithubIds = new Set(
+    (process.env.EXCHANGE_ALLOWED_GITHUB_IDS ?? "")
+      .split(",")
+      .map((id) => id.trim())
+      .filter(Boolean),
+  );
+  if (
+    visibility === "private" &&
+    (!allowedGithubIds.size || [...allowedGithubIds].some((id) => !/^[1-9][0-9]*$/.test(id)))
+  )
+    throw new Error("Private Exchange requires an explicit GitHub numeric ID allowlist.");
   return {
     origin: origin.origin,
     githubClientId: required("GITHUB_CLIENT_ID"),
     githubClientSecret: required("GITHUB_CLIENT_SECRET"),
     adminGithubIds: new Set(required("EXCHANGE_ADMIN_GITHUB_IDS").split(",")),
+    operatorGithubIds,
     bucket: required("S3_BUCKET"),
     publishingEnabled: process.env.EXCHANGE_PUBLISHING_ENABLED === "true",
+    visibility,
+    allowedGithubIds,
   };
 }
 

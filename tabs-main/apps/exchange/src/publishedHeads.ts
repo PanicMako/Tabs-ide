@@ -16,7 +16,14 @@ export function publishedHeads(
   for (const target of targets) {
     const identity = `${target.namespace}.${target.name}`;
     const current = heads.get(identity);
-    if (!current || compareSemverVersions(target.version, current.version) > 0) {
+    const prerelease = target.version.split("+")[0]!.includes("-");
+    const currentPrerelease = current?.version.split("+")[0]!.includes("-");
+    if (
+      !current ||
+      (currentPrerelease && !prerelease) ||
+      (prerelease === currentPrerelease &&
+        compareSemverVersions(target.version, current.version) > 0)
+    ) {
       heads.set(identity, target);
     }
   }

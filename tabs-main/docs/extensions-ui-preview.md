@@ -68,3 +68,25 @@ The vendored Code-OSS commit hook cannot start because its `event-stream` depend
 is missing. The hook was attempted; scoped commits bypass it without changing the
 hook configuration or any Code-OSS files. This limitation is separate from the Tabs
 workspace checks above.
+
+# Developer onboarding follow-up
+
+The local website now includes `/developers/extensions`, linked from the home
+header/footer, Exchange navigation/footer, and publishing page. The guide covers
+creation, local testing, capabilities, package validation, submission, signing,
+hosting, user discovery, and updates. Official public publishing remains closed.
+
+The repository CLI adds `init <new-directory> <publisher> <name>` with a
+zero-permission static starter. It refuses existing destinations and invalid
+identities. The SDK remains repository-local; no npm publication was performed.
+
+Follow-up verification: extension-package 13 tests and marketing 18 tests passed;
+marketing static build passed; workspace typecheck passed all 15 tasks;
+`vp check` passed with 421 existing warnings. Mobile guide width and keyboard
+anchor navigation were checked in Chromium, as was the homepage Developers link.
+The full forced suite completed 16 of 17 tasks; the server task reported one Git
+test failure then stalled in WebSocket tests, and was interrupted after five
+minutes. The unchanged Git test file passed independently (63 tests). Therefore
+the full suite is not certified green for this follow-up. The vendored hygiene
+runner remains unavailable because its `event-stream` dependency is missing.
+No merge, push, deployment, or public publishing occurred.

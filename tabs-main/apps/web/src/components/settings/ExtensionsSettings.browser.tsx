@@ -217,8 +217,26 @@ test("ExtensionsSettings: navigates views, manages focus on dialogs, and support
   // Cancel via Escape key
   await userEvent.keyboard("{Escape}");
   expect(cancelCount).toBe(1);
+  await expect
+    .element(screen.getByRole("heading", { name: "Review Analytics Tool" }))
+    .not.toBeInTheDocument();
+  await expect.poll(() => document.activeElement).toBe(reviewButton.element());
 
   // Escape must not cancel an install after confirmation has started.
+  await reviewButton.click();
+  confirmInstall.mockRejectedValueOnce(new Error("Verified installation could not be completed."));
+  await screen.getByRole("button", { name: "Install verified package" }).click();
+  await expect
+    .element(
+      screen.getByText(
+        "Verified installation could not be completed. Review the package again before retrying.",
+        { exact: true },
+      ),
+    )
+    .toBeVisible();
+  await expect.element(reviewHeading).not.toBeInTheDocument();
+  await expect.poll(() => document.activeElement).toBe(reviewButton.element());
+  expect(cancelCount).toBe(1);
   await reviewButton.click();
   let finishConfirm!: (extension: DesktopInstalledExtension) => void;
   confirmInstall.mockImplementationOnce(
@@ -237,6 +255,7 @@ test("ExtensionsSettings: navigates views, manages focus on dialogs, and support
   await expect
     .element(screen.getByRole("button", { name: "Installed" }))
     .toHaveAttribute("aria-pressed", "true");
+  await expect.poll(() => document.activeElement).toBe(installedTab.element());
 
   delete (window as unknown as { desktopBridge?: unknown }).desktopBridge;
 });

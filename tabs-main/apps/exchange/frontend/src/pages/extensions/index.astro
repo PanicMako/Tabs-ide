@@ -1,0 +1,23 @@
+---
+import Exchange from "../../layouts/Exchange.astro";
+---
+<Exchange title="Explore extensions" description="Find reviewed, signed Tabs-native workspace tools." active="extensions">
+  <p class="eyebrow">Tabs-native tools</p>
+  <h1>Find your next workspace tool.</h1>
+  <p class="lead">Browse published extensions by what they do. Inspect compatibility and permissions before installing through Tabs.</p>
+  <form id="catalog-search" class="catalog-filters" role="search" method="get" action="/extensions">
+    <label>Search extensions<input id="catalog-query" name="q" type="search" maxlength="100" placeholder="Search names, descriptions, or keywords" /></label>
+    <label>Category<input id="catalog-category" name="category" maxlength="40" placeholder="All categories" list="catalog-categories" /></label>
+    <datalist id="catalog-categories"><option value="productivity" /><option value="development" /><option value="collaboration" /><option value="utilities" /></datalist>
+    <label>Sort<select id="catalog-sort" name="sort"><option value="">Recommended</option><option value="relevance">Relevance</option><option value="newest">Newest published</option><option value="name">Name</option></select></label>
+    <button type="submit" class="button">Search</button>
+  </form>
+  <p class="muted">Recommended uses relevance when searching and newest otherwise. Categories are publisher-supplied.</p>
+  <p id="catalog-status" role="status" aria-live="polite" aria-atomic="true">Loading published extensions…</p>
+  <div id="catalog-error" hidden><p id="catalog-error-message"></p><button id="catalog-retry" class="button secondary" type="button">Retry search</button><a id="catalog-signin" href="/auth/github/start">Sign in to reconnect</a></div>
+  <section aria-label="Extension search results" id="catalog-region" aria-busy="true"><ul id="catalog-results" class="catalog-results"></ul></section>
+  <button id="catalog-more" class="button secondary" type="button" hidden>Load more extensions</button>
+  <noscript><p class="notice">Enable JavaScript to search this registry. The <a href="/docs/extensions/registry-api">public API reference</a> describes alternative compatible clients.</p></noscript>
+  <p class="notice">Manual review is not a security guarantee. Installation requires Tabs to verify signed metadata and request your permission. Browsing never grants access to your projects.</p>
+</Exchange>
+<script>import "../../scripts/catalog";</script>

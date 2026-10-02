@@ -287,6 +287,11 @@ export async function publishTufMetadata(
     await client.query("DELETE FROM exchange_published_targets");
     for (const target of bundle.targets) {
       await client.query(
+        `INSERT INTO exchange_publication_history(namespace, name, version, digest, first_published_at)
+         VALUES ($1, $2, $3, $4, now()) ON CONFLICT DO NOTHING`,
+        [target.namespace, target.name, target.version, target.digest],
+      );
+      await client.query(
         `INSERT INTO exchange_published_targets(namespace, name, version, digest, bytes)
          VALUES ($1, $2, $3, $4, $5)`,
         [target.namespace, target.name, target.version, target.digest, target.bytes],

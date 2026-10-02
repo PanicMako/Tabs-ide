@@ -1,0 +1,50 @@
+---
+import Layout from "../../../layouts/ExchangeLayout.astro";
+import { extensionDocs, extensionApiVersion } from "../../../lib/extension-docs";
+import { renderReleaseMarkdown } from "../../../lib/release-markdown";
+export function getStaticPaths() {
+  return extensionDocs.map((doc) => ({ params: {page: doc.slug || undefined}, props: {doc} }));
+}
+const { doc } = Astro.props;
+---
+<Layout title={doc.title} description="Documentation for building and publishing Tabs-native extensions." active="develop">
+  <p class="exchange-eyebrow">Extension docs · API {extensionApiVersion} · Experimental / unpublished</p>
+  <label for="docs-search">Search documentation</label>
+  <input class="exchange-search" id="docs-search" type="search" placeholder="Search SDK, permissions, publishing…" autocomplete="off" />
+  <p id="docs-search-status" role="status" aria-live="polite"></p>
+  <ul id="docs-search-results" hidden></ul>
+  <div class="exchange-guide-layout">
+    <details class="docs-navigation" id="docs-navigation"><summary>Documentation pages</summary><nav class="exchange-guide-toc" aria-label="Extension documentation"><h2>Documentation</h2>{extensionDocs.map((page) => <a href={`/docs/extensions${page.slug ? `/${page.slug}` : ""}`} aria-current={page.slug === doc.slug ? "page" : undefined}>{page.title}</a>)}</nav></details>
+    <article class="exchange-guide-content exchange-doc-prose" set:html={renderReleaseMarkdown(doc.body)} />
+  </div>
+  <script is:inline type="application/json" id="docs-index" set:html={JSON.stringify(extensionDocs).replaceAll("<", "\u003c")} />
+</Layout>
+<script>
+  const navigation = document.getElementById("docs-navigation") as HTMLDetailsElement;
+  const desktop = window.matchMedia("(min-width: 801px)");
+  navigation.open = desktop.matches;
+  desktop.addEventListener("change", () => { navigation.open = desktop.matches; });
+  const index = JSON.parse(document.getElementById("docs-index")!.textContent!) as Array<{slug:string;title:string;body:string}>;
+  const search = document.getElementById("docs-search") as HTMLInputElement;
+  const results = document.getElementById("docs-search-results")!;
+  search.addEventListener("input", () => {
+    const query = search.value.trim().toLowerCase().slice(0, 100);
+    results.replaceChildren();
+    const found = query ? index.filter((doc) => `${doc.title} ${doc.body}`.toLowerCase().includes(query)) : [];
+    results.hidden = !query;
+    for (const doc of found) {
+      const item = document.createElement("li"); const link = document.createElement("a");
+      link.href = `/docs/extensions${doc.slug ? `/${doc.slug}` : ""}`; link.textContent = doc.title; item.append(link); results.append(item);
+    }
+    document.getElementById("docs-search-status")!.textContent = query ? `${found.length} matching documentation pages.` : "";
+  });
+  for (const block of document.querySelectorAll(".exchange-doc-prose pre")) {
+    block.setAttribute("tabindex", "0"); block.setAttribute("aria-label", "Code example");
+    const button = document.createElement("button"); button.type = "button"; button.className = "exchange-button secondary compact"; button.textContent = "Copy code";
+    button.addEventListener("click", async () => {
+      try { await navigator.clipboard.writeText(block.querySelector("code")?.textContent ?? ""); document.getElementById("docs-search-status")!.textContent = "Code copied."; }
+      catch { document.getElementById("docs-search-status")!.textContent = "Copy unavailable. Select the code and copy it manually."; }
+    });
+    block.after(button);
+  }
+</script>

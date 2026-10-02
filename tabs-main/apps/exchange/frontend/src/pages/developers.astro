@@ -1,0 +1,14 @@
+---
+import Exchange from "../layouts/Exchange.astro";
+---
+<Exchange title="Build a Tabs extension" description="Start building a Tabs-native full-workspace tool." active="developers">
+  <p class="eyebrow">Developer toolkit</p>
+  <h1>Build a tool that feels<br /><em class="editorial-accent">at home in Tabs.</em></h1>
+  <p class="lead">A Tabs extension is a full-workspace tool, not a VS Code VSIX. Start with a zero-permission React/TypeScript tool, then request only the capabilities you need.</p>
+  <div class="actions"><a class="button" href="/docs/extensions">Start here</a><a class="button secondary" href="/docs/extensions/reference">SDK reference</a></div>
+  <div class="cards developer-steps"><section class="card"><p class="step-label">01 · Make it yours</p><h2>Create your tool.</h2><p>Use the standalone CLI and supplied SDK tarball to scaffold React or plain HTML.</p><a href="/docs/extensions">Build your first extension</a></section><section class="card"><p class="step-label">02 · Give it a workspace</p><h2>Run inside Tabs.</h2><p>Build packaged assets and load the staging folder in a compatible desktop development build.</p><a href="/docs/extensions/development">Load, debug, and reload</a></section><section class="card"><p class="step-label">03 · Share what's next</p><h2>Prepare a release.</h2><p>Validate and pack a .tabsext archive, then follow its review from your publisher account.</p><a href="/docs/extensions/publishing">Understand publication</a></section></div>
+  <section class="notice" aria-labelledby="release-status"><h2 id="release-status">Download the experimental developer bundle</h2><p id="release-status-message" role="status">Checking this instance's SDK and CLI release bundle…</p><div class="actions"><a class="button" id="release-download" hidden download>Download SDK + CLI bundle</a><a id="release-checksums" hidden>Checksums</a></div><p id="release-digest"></p><p>No npm publication or public desktop release is implied. The bundle includes standalone tarballs and setup instructions. You do not need to clone Tabs.</p></section>
+</Exchange>
+<script>
+  import "../scripts/developer-release";
+</script>

@@ -483,6 +483,11 @@
   margin-bottom: 24px;
 }
 @media (max-width: 800px) {
+  .docs-navigation summary {
+    padding: 0.75rem 0;
+    cursor: pointer;
+    font-weight: 600;
+  }
   .exchange-catalog {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -493,6 +498,11 @@
     width: 80px;
     height: 80px;
     border-radius: 22px;
+  }
+}
+@media (min-width: 801px) {
+  .docs-navigation summary {
+    display: none;
   }
 }
 @media (max-width: 560px) {
@@ -544,5 +554,95 @@
 @media (prefers-reduced-motion: reduce) {
   .exchange-site * {
     transition: none !important;
+  }
+}
+.exchange-guide-layout {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  gap: 32px;
+  margin-top: 40px;
+}
+.exchange-guide-toc {
+  align-self: start;
+  position: sticky;
+  top: 24px;
+  display: grid;
+  gap: 14px;
+}
+.exchange-guide-toc h2 {
+  font-size: 16px;
+}
+.exchange-guide-toc a,
+.exchange-guide-content a {
+  color: var(--ex-blue);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.exchange-guide-content {
+  display: grid;
+  gap: 24px;
+  min-width: 0;
+}
+.exchange-guide-content section {
+  scroll-margin-top: 24px;
+}
+.exchange-guide-content pre {
+  background: var(--ex-bg);
+  border: 1px solid var(--ex-line);
+  border-radius: 12px;
+  padding: 20px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 1.8;
+}
+.exchange-guide-content p {
+  line-height: 1.8;
+}
+.exchange-doc-prose {
+  display: block;
+}
+.exchange-doc-prose h1 {
+  font-size: clamp(32px, 5vw, 54px);
+  margin-top: 0;
+}
+.exchange-doc-prose h2 {
+  margin-top: 40px;
+}
+.exchange-doc-prose table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.exchange-doc-prose td,
+.exchange-doc-prose th {
+  border: 1px solid var(--ex-line);
+  padding: 12px;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.exchange-doc-prose pre {
+  max-height: 560px;
+  overflow: auto;
+}
+.exchange-doc-prose code {
+  overflow-wrap: anywhere;
+}
+.exchange-guide-content li {
+  margin: 12px 0;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 800px) {
+  .exchange-guide-layout {
+    grid-template-columns: 1fr;
+  }
+  .exchange-guide-toc {
+    position: static;
+  }
+}
+@media (max-width: 560px) {
+  .exchange-nav nav {
+    flex-wrap: wrap;
+    justify-content: flex-start;
   }
 }

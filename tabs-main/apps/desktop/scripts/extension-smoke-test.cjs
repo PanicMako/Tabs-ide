@@ -1,6 +1,6 @@
 /* Run with Electron and bundled extension manager module as argv[2], temporary dir as argv[3].
  * Exercises a real packaged Tabs extension in actual Electron WebContentsView with strict security. */
-const { app, BrowserWindow, protocol } = require("electron");
+const { app, BrowserWindow, protocol, ipcMain } = require("electron");
 const fs = require("node:fs");
 const http = require("node:http");
 const path = require("node:path");
@@ -70,6 +70,12 @@ app.whenReady().then(async () => {
     const { ExtensionViewManager, NativeViewStackCoordinator, packTabsext } = require(bundlePath);
     const root = path.resolve(__dirname, "../../..");
     const helloExtensionDir = path.join(root, "examples/hello-extension");
+    const storageSource = path.join(temporary, "storage-example-source");
+    fs.cpSync(helloExtensionDir, storageSource, { recursive: true });
+    const storageManifestPath = path.join(storageSource, "tabs-extension.json");
+    const storageManifest = JSON.parse(fs.readFileSync(storageManifestPath, "utf8"));
+    storageManifest.capabilities = ["profile-storage"];
+    fs.writeFileSync(storageManifestPath, JSON.stringify(storageManifest));
 
     // -------------------------------------------------------------
     // Step 1: Package actual Tabs extension into .tabsext archive
@@ -77,7 +83,7 @@ app.whenReady().then(async () => {
     const archivePath = path.join(temporary, "tabs-example.hello-0.1.0.tabsext");
     const packStart = performance.now();
     const packed = await packTabsext({
-      directory: helloExtensionDir,
+      directory: storageSource,
       destination: archivePath,
       tabsVersion: "1.3.17",
     });
@@ -136,6 +142,14 @@ app.whenReady().then(async () => {
       true,
       { encrypt: (b) => b, decrypt: (b) => b },
     );
+    // Synthetic host transport, real preload and production manager/storage.
+    // Keep the production main-frame boundary rather than accepting child IPC.
+    ipcMain.handle("desktop:extension:storage", (event, operation) => {
+      if (event.senderFrame !== event.sender.mainFrame) {
+        throw new Error("Extension storage is available only to the main frame.");
+      }
+      return manager.invokeStorage(event.sender, operation);
+    });
     console.log("[2/13] Host BrowserWindow, ViewCoordinator, and ExtensionViewManager initialized");
 
     // -------------------------------------------------------------
@@ -277,6 +291,34 @@ app.whenReady().then(async () => {
     console.log(
       "[8/13] Security isolation verified: Node/Electron globals strictly unavailable, contextBridge properly bound",
     );
+    const documentationExamples = JSON.parse(
+      fs.readFileSync(path.join(temporary, "documentation-examples.json"), "utf8"),
+    );
+    const storageExamples = documentationExamples.filter((source) =>
+      source.includes("window.tabsExtension.storage.set"),
+    );
+    assert.equal(
+      storageExamples.length,
+      1,
+      "Exactly one documented storage workflow must be covered",
+    );
+    await currentView.webContents.executeJavaScript(`(async () => {${storageExamples[0]}\n})()`);
+    assert.equal(
+      await currentView.webContents.executeJavaScript("window.tabsExtension.storage.get('draft')"),
+      null,
+    );
+    await currentView.webContents.executeJavaScript(
+      "window.tabsExtension.storage.set('account-proof', 'Work')",
+    );
+    assert.equal(
+      await currentView.webContents.executeJavaScript(
+        "window.tabsExtension.storage.get('account-proof')",
+      ),
+      "Work",
+    );
+    console.log(
+      "Documented storage example executed through real contextBridge/IPC and host storage.",
+    );
 
     // -------------------------------------------------------------
     // Step 9: Negative assertions - Unauthorized popups, navigation, direct network blocked
@@ -409,6 +451,53 @@ app.whenReady().then(async () => {
       null,
       "Second project/profile partition must not read first partition's browser storage",
     );
+    assert.equal(
+      await currentView.webContents.executeJavaScript(
+        "window.tabsExtension.storage.get('account-proof')",
+      ),
+      null,
+    );
+    await currentView.webContents.executeJavaScript(
+      "window.tabsExtension.storage.set('account-proof', 'Personal')",
+    );
+    manager.setAssignment(installed.id, {
+      ...manager.list().find((entry) => entry.id === installed.id).assignment,
+      storageGrantedProjectIds: ["project-smoke-1"],
+    });
+    // Assignment changes intentionally retire the old view; denial must be
+    // checked in a freshly activated view, not a destroyed WebContents.
+    await manager.activate({
+      projectId: "project-smoke-2",
+      extensionId: installed.id,
+      toolId: "hello",
+      profileId: "profile-smoke-2",
+      activationId: "act-smoke-2",
+    });
+    currentView = coordinator.attachedViews[coordinator.attachedViews.length - 1];
+    await assert.rejects(
+      currentView.webContents.executeJavaScript(
+        "window.tabsExtension.storage.get('account-proof')",
+      ),
+      /not granted/,
+    );
+    manager.setAssignment(installed.id, {
+      ...manager.list().find((entry) => entry.id === installed.id).assignment,
+      storageGrantedProjectIds: ["project-smoke-1", "project-smoke-2"],
+    });
+    await manager.activate({
+      projectId: "project-smoke-2",
+      extensionId: installed.id,
+      toolId: "hello",
+      profileId: "profile-smoke-2",
+      activationId: "act-smoke-2",
+    });
+    currentView = coordinator.attachedViews[coordinator.attachedViews.length - 1];
+    assert.equal(
+      await currentView.webContents.executeJavaScript(
+        "window.tabsExtension.storage.get('account-proof')",
+      ),
+      "Personal",
+    );
 
     // Stale activation request: calling hide with previous activationId must NOT hide current view
     manager.hide({ activationId: "act-smoke-1" });
@@ -497,6 +586,12 @@ app.whenReady().then(async () => {
     assert.equal(recoveredView.webContents.isDestroyed(), false);
     const recoveredHeading = await waitForText(recoveredView.webContents, "h1");
     assert.equal(recoveredHeading, "Hello from a Tabs extension");
+    assert.equal(
+      await recoveredView.webContents.executeJavaScript(
+        "window.tabsExtension.storage.get('account-proof')",
+      ),
+      "Work",
+    );
     const recoveryDurationMs = performance.now() - recoveryStart;
     assert.equal(
       await recoveredView.webContents.executeJavaScript(
@@ -510,11 +605,52 @@ app.whenReady().then(async () => {
     );
 
     // -------------------------------------------------------------
+    // Optionally prove a CLI-generated React starter loads as real local assets.
+    let standaloneStarterVerified = false;
+    if (process.env.TABS_EXTENSION_SMOKE_STARTER) {
+      const starter = manager.installDevelopment(
+        path.resolve(process.env.TABS_EXTENSION_SMOKE_STARTER),
+      );
+      const expectedApiVersion = process.env.TABS_EXTENSION_SMOKE_API_VERSION;
+      assert.match(expectedApiVersion ?? "", /^\d+\.\d+\.\d+$/);
+      assert.equal(starter.manifest.engines.api, `^${expectedApiVersion}`);
+      assert.equal(starter.manifest.capabilities, undefined);
+      manager.setAssignment(starter.id, { ...starter.assignment, enabledGlobally: true });
+      const activation = {
+        extensionId: starter.id,
+        projectId: "standalone-starter",
+        profileId: "default",
+        toolId: starter.manifest.contributes.tools[0].id,
+      };
+      await manager.activate(activation);
+      let view = coordinator.attachedViews[coordinator.attachedViews.length - 1];
+      assert.equal(await waitForText(view.webContents, "h1"), "My first Tabs tool");
+      await view.webContents.executeJavaScript("document.querySelector('button').click()");
+      assert.equal(
+        await waitForText(view.webContents, "[role=status]"),
+        "Hello from your extension!",
+      );
+      const staleWebContents = view.webContents;
+      const staleDestroyed = new Promise((resolve) => staleWebContents.once("destroyed", resolve));
+      manager.reloadDevelopment(starter.id);
+      await staleDestroyed;
+      assert.equal(staleWebContents.isDestroyed(), true);
+      await manager.activate(activation);
+      view = coordinator.attachedViews[coordinator.attachedViews.length - 1];
+      assert.equal(await waitForText(view.webContents, "h1"), "My first Tabs tool");
+      standaloneStarterVerified = true;
+      console.log(
+        "Standalone React starter rendered and development reload destroyed the stale view.",
+      );
+    }
+
     // Final Summary & Performance Report
     // -------------------------------------------------------------
     const report = {
       test: "real-electron-extension-smoke",
       status: "PASS",
+      standaloneStarterVerified,
+      documentedStorageExampleVerified: true,
       timestamp: new Date().toISOString(),
       environment: {
         electron: process.versions.electron,
@@ -558,6 +694,8 @@ app.whenReady().then(async () => {
         "Real WebContentsView UI load and DOM rendering via custom tabs-extension:// protocol",
         "Strict unavailability of Node.js and Electron APIs in guest renderer content",
         "Presence of the tabsExtension bridge namespaces in the guest main world",
+        "Exact documented storage workflow through real preload IPC and production host storage",
+        "Host storage separates Work/Personal profiles and rejects calls after project grant revocation",
         "Denial of unauthorized window.open popups via setWindowOpenHandler",
         "Rejection of direct requests and navigation to a listening loopback server, with zero server hits",
         "Top-level navigation attempt does not leave the extension URL",

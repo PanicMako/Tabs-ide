@@ -1,0 +1,35 @@
+---
+import Exchange from "../../layouts/Exchange.astro";
+---
+<Exchange title="Reviewer access" description="Operator-controlled reviewer assignments." active="review">
+  <p class="eyebrow">Operator workspace</p>
+  <h1>People you trust to review.</h1>
+  <p>Reviewers can inspect quarantined packages and make exact-digest decisions. They cannot delegate access or obtain signing keys.</p>
+  <p id="roles-status" role="status" aria-live="polite">Checking operator access…</p>
+  <a href="/admin">Back to package review</a>
+  <a id="roles-signin" href="/auth/github/start?returnTo=%2Fadmin%2Freviewers" hidden>Sign in with GitHub</a>
+  <section id="roles-content" hidden aria-label="Reviewer access management">
+    <p id="roles-identity"></p>
+    <p>Only accounts that have signed in to this Exchange can receive access. Configured operators and legacy reviewers are managed through server configuration, not this form.</p>
+    <form id="roles-form">
+      <fieldset id="roles-fields">
+        <legend>Prepare an access change</legend>
+        <label for="roles-login">GitHub username</label><input id="roles-login" required pattern="[a-zA-Z0-9][a-zA-Z0-9-]{0,38}" maxlength="39" autocomplete="off" />
+        <label for="roles-action">Access change</label><select id="roles-action"><option value="grant">Grant reviewer access</option><option value="revoke">Revoke reviewer access</option></select>
+        <label for="roles-reason">Reason (recorded in the audit history)</label><textarea id="roles-reason" required maxlength="1000"></textarea>
+        <button id="roles-prepare" type="submit">Review access change</button>
+      </fieldset>
+    </form>
+    <section id="roles-confirmation" hidden aria-labelledby="roles-confirm-title" tabindex="-1">
+      <h2 id="roles-confirm-title">Confirm access change</h2><p id="roles-summary"></p>
+      <p>Granting access permits inspection of all quarantined submissions and review decisions. Revocation applies to existing sessions on their next request. No automatic retry is made.</p>
+      <div class="actions"><button id="roles-confirm" type="button">Confirm access change</button><button id="roles-cancel" type="button">Cancel</button></div>
+    </section>
+    <button id="roles-refresh" type="button">Refresh assignments and history</button>
+    <h2>Latest assignments</h2><p>Up to 100 most recently changed assignments.</p><ul id="roles-assignments"></ul>
+    <h2>Audit history</h2><p>Up to 100 most recent grant and revoke events, newest first. Repeat requests do not create duplicate changes.</p><ul id="roles-events"></ul>
+  </section>
+</Exchange>
+<script>
+  import "../../scripts/reviewer-roles";
+</script>

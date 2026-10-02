@@ -1,0 +1,45 @@
+---
+import Exchange from "../../layouts/Exchange.astro";
+---
+<Exchange title="Review queue" description="Authorized reviewer workspace." active="review">
+  <p class="eyebrow">Reviewer workspace</p>
+  <h1>Package review queue</h1>
+  <p>Scanning is evidence, not approval. Every decision must identify the exact package digest.</p>
+  <p id="review-status" role="status" aria-live="polite">Checking reviewer access…</p>
+  <button id="review-refresh" type="button">Refresh queue</button>
+  <a id="review-signin" href="/auth/github/start?returnTo=%2Fadmin" hidden>Sign in with GitHub</a>
+  <section id="review-content" hidden aria-label="Pending package reviews">
+    <div class="actions"><a href="/admin/security">Publisher verification and digest blocks</a><a href="/admin/reviewers">Reviewer access (operators only)</a><a href="/publisher">Legacy reviewer controls</a></div>
+    <p>The first 100 pending submissions are shown oldest first, followed by up to 100 recently approved releases. Approval requires a passing scan for the exact digest. Approval does not guarantee safety or publish a release.</p>
+    <p>Signing remains an operator workflow outside the browser. After approval or revocation, publish updated TUF metadata using the documented operator procedure. Never upload signing keys here.</p>
+    <a href="/docs/extensions/self-hosting">Operator and signing documentation</a>
+    <section aria-labelledby="review-operations-heading">
+      <h2 id="review-operations-heading">Signing backlog and worker status</h2>
+      <p id="review-operations" role="status" aria-live="polite">Operational status has not been loaded.</p>
+      <p>This is a server-reported operational snapshot, not verification of signatures or confirmation that every installed client received a revocation.</p>
+      <div id="review-operations-details" hidden>
+        <p id="review-operations-advisory"></p>
+        <h3>Operational alerts</h3><ul id="review-operations-alerts"></ul>
+        <h3>Recent activity (UTC)</h3><ul id="review-operations-activity"></ul>
+        <h3>Stored signing metadata</h3><p>Expiry is advisory: signatures are not verified by this view. Missing, invalid or expired roles need operator attention; an expiring role should be refreshed before expiry.</p><ul id="review-operations-metadata"></ul>
+        <h3>Revocations awaiting signed publication</h3><p>Publish updated signed metadata promptly. These identities remain in published targets despite the recorded review revocation.</p><ul id="review-operations-revocations"></ul><p id="review-operations-remaining"></p>
+      </div>
+    </section>
+    <section aria-labelledby="review-history-heading">
+      <h2 id="review-history-heading">Publisher and review history</h2>
+      <form id="review-history-form">
+        <label for="review-history-namespace">Publisher namespace</label><input id="review-history-namespace" required pattern="[a-z][a-z0-9-]{1,62}" maxlength="63" />
+        <label for="review-history-name">Extension name</label><input id="review-history-name" required pattern="[a-z][a-z0-9-]{1,62}" maxlength="63" />
+        <button type="submit">Look up history</button>
+      </form>
+      <p id="review-history-status" role="status" aria-live="polite">Look up an extension to inspect its recent history.</p>
+      <h3>Submitted versions</h3><ul id="review-history-versions"></ul>
+      <h3>Review actions</h3><ul id="review-history-decisions"></ul>
+    </section>
+    <section aria-labelledby="review-appeals-heading"><h2 id="review-appeals-heading">Open publisher appeals</h2><p>Responding records an explanation only. Approval, rejection, revocation and signed publication remain separate actions.</p><p id="review-appeals-status" role="status" aria-live="polite">Appeals have not been loaded.</p><ul id="review-appeals"></ul></section>
+    <ul id="review-items"></ul>
+  </section>
+</Exchange>
+<script>
+  import "../../scripts/review";
+</script>

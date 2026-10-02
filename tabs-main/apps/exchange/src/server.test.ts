@@ -49,6 +49,7 @@ async function fixture(
     ownerCount?: number;
     targetRole?: "owner" | "contributor";
     finalGranted?: boolean;
+    agreementAccepted?: boolean;
   },
 ) {
   const actions: string[] = [];
@@ -57,6 +58,14 @@ async function fixture(
   const client = {
     async query(sql: string, params?: unknown[]) {
       actions.push(sql);
+      if (sql.includes("SELECT accepted_at FROM exchange_publisher_agreements"))
+        return {
+          rows:
+            membership?.agreementAccepted === false
+              ? []
+              : [{ accepted_at: "2026-10-01T00:00:00Z" }],
+          rowCount: membership?.agreementAccepted === false ? 0 : 1,
+        };
       if (duplicateUpload && sql.startsWith("INSERT INTO exchange_versions")) {
         throw Object.assign(new Error("duplicate version"), { code: "23505" });
       }
@@ -189,6 +198,14 @@ async function fixture(
   const pool = {
     async query(sql: string, params?: unknown[]) {
       publicQueries.push(sql);
+      if (sql.includes("SELECT accepted_at FROM exchange_publisher_agreements"))
+        return {
+          rows:
+            membership?.agreementAccepted === false
+              ? []
+              : [{ accepted_at: "2026-10-01T00:00:00Z" }],
+          rowCount: membership?.agreementAccepted === false ? 0 : 1,
+        };
       if (sql.includes("AS stale_scans")) {
         return {
           rows: [
@@ -281,14 +298,32 @@ async function fixture(
               },
             ])
           : [];
-        const after = rows
+        if (sql.includes("LIMIT 1")) {
+          const matched = rows
+            .filter((entry) => entry.namespace === params?.[0] && entry.name === params?.[1])
+            .slice(0, 1);
+          return { rows: matched, rowCount: matched.length };
+        }
+        const named: Array<Record<string, unknown>> = rows.map((entry) => ({
+          ...entry,
+          sort_name: String((entry.manifest as { displayName?: string })?.displayName || entry.name)
+            .trim()
+            .toLowerCase(),
+        }));
+        const key = (entry: Record<string, unknown>) =>
+          `${entry.sort_name}\0${entry.namespace}\0${entry.name}`;
+        const after = named
           .filter(
             (entry) =>
               params?.[1] === null ||
-              `${entry.namespace}.${entry.name}` > `${params?.[1]}.${params?.[2]}`,
+              (params?.[6] === "name"
+                ? key(entry) > `${params?.[9]}\0${params?.[1]}\0${params?.[2]}`
+                : `${entry.namespace}.${entry.name}` > `${params?.[1]}.${params?.[2]}`),
           )
           .sort((left, right) =>
-            `${left.namespace}.${left.name}`.localeCompare(`${right.namespace}.${right.name}`),
+            params?.[6] === "name"
+              ? key(left).localeCompare(key(right))
+              : `${left.namespace}.${left.name}`.localeCompare(`${right.namespace}.${right.name}`),
           )
           .slice(0, Number(params?.[3]));
         return { rows: after, rowCount: after.length };
@@ -500,6 +535,10 @@ describe("Exchange HTTP boundaries", () => {
     expect(response.status).toBe(409);
     expect(await response.json()).toEqual({
       error: "This extension version was already submitted.",
+      message: "This extension version was already submitted.",
+      code: "VERSION_ALREADY_SUBMITTED",
+      recovery:
+        "Check submission status. For corrected content, increment the manifest version and rebuild.",
     });
     expect(ready.actions.some((sql) => sql.startsWith("INSERT INTO exchange_versions"))).toBe(true);
   });
@@ -514,12 +553,19 @@ describe("Exchange HTTP boundaries", () => {
     expect(contract.info.description).toContain("not installation authority");
     expect(Object.keys(contract.paths)).toEqual([
       "/v1/extensions",
+      "/v1/extensions/{namespace}/{name}/overview",
       "/v1/extensions/{namespace}/{name}",
       "/v1/extensions/{namespace}/{name}/versions/{version}",
       "/v1/extensions/{namespace}/{name}/versions/{version}/download",
       "/v1/tuf/metadata/{file}",
       "/v1/tuf/targets/extensions/{namespace}/{name}/{version}.tabsext",
       "/v1/tuf/events",
+      "/v1/registry",
+      "/v1/publisher/{namespace}/{name}/versions",
+      "/v1/publisher/upload",
+      "/v1/publisher/{namespace}/{name}/versions/{version}",
+      "/v1/extensions/{namespace}/{name}/versions/{version}/assets/screenshot/{index}",
+      "/v1/extensions/{namespace}/{name}/versions/{version}/assets/{kind}",
     ]);
   });
 
@@ -534,6 +580,70 @@ describe("Exchange HTTP boundaries", () => {
     ]) {
       expect((await fetch(`${ready.base}/v1/extensions?${query}`)).status).toBe(400);
     }
+  });
+
+  it("serves a signed overview without loading release history", async () => {
+    const ready = await fixture(true, digest, "approved", {
+      target: Buffer.from("signed"),
+      targetStatus: "approved",
+    });
+    const response = await fetch(`${ready.base}/v1/extensions/example/dashboard/overview`);
+    expect(response.status).toBe(200);
+    expect((await response.json()).version).toBe("1.0.0");
+    expect(ready.publicQueries.some((sql) => sql.includes("ORDER BY v.submitted_at DESC"))).toBe(
+      false,
+    );
+    const unpublished = await fixture(true, digest, "approved", {
+      target: Buffer.from("unsigned"),
+      targetStatus: "approved",
+      publishedTarget: false,
+    });
+    expect(
+      (await fetch(`${unpublished.base}/v1/extensions/example/dashboard/overview`)).status,
+    ).toBe(404);
+  });
+
+  it("paginates display names independently of package names with identity tie-breakers", async () => {
+    const rows = [
+      { namespace: "zulu", name: "first", manifest: { displayName: "Alpha" } },
+      { namespace: "acme", name: "second", manifest: { displayName: "alpha" } },
+      { namespace: "acme", name: "aardvark", manifest: { displayName: "Zulu" } },
+    ].map((entry) => ({ ...entry, version: "1.0.0", digest, verified: false }));
+    const ready = await fixture(
+      true,
+      digest,
+      "approved",
+      {
+        target: Buffer.from("signed test package"),
+        targetStatus: "approved",
+      },
+      undefined,
+      rows,
+    );
+    const path = `${ready.base}/v1/extensions?sort=name&limit=1`;
+    let cursor: string | null = null;
+    const identities: string[] = [];
+    for (let index = 0; index < 3; index++) {
+      const response: Response = await fetch(
+        `${path}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`,
+      );
+      expect(response.status).toBe(200);
+      const page: {
+        extensions: Array<{ namespace: string; name: string }>;
+        hasMore: boolean;
+        nextCursor: string | null;
+      } = await response.json();
+      expect(page.extensions).toHaveLength(1);
+      identities.push(`${page.extensions[0]!.namespace}.${page.extensions[0]!.name}`);
+      expect(page.hasMore).toBe(index < 2);
+      cursor = page.nextCursor;
+    }
+    expect(identities).toEqual(["acme.second", "zulu.first", "acme.aardvark"]);
+    expect(cursor).toBeNull();
+    const query = ready.publicQueries.find((sql) =>
+      sql.includes("FROM exchange_published_heads h"),
+    );
+    expect(query).toContain('sort_name, v.namespace COLLATE "C", v.name COLLATE "C"');
   });
 
   it("paginates public search without repeating an extension", async () => {
@@ -554,7 +664,7 @@ describe("Exchange HTTP boundaries", () => {
       undefined,
       rows,
     );
-    const path = `${ready.base}/v1/extensions?limit=2`;
+    const path = `${ready.base}/v1/extensions?limit=2&sort=name`;
     const first = await fetch(path);
     expect(first.status).toBe(200);
     const firstPage = await first.json();
@@ -1107,6 +1217,76 @@ describe("Exchange HTTP boundaries", () => {
     expect(response.headers.connection).toBe("close");
     response.resume();
   });
+  it("rejects browser and named uploads without current account terms acceptance before storage", async () => {
+    const ready = await fixture(
+      true,
+      digest,
+      "review",
+      undefined,
+      undefined,
+      undefined,
+      true,
+      undefined,
+      false,
+      reviewObject,
+      undefined,
+      { agreementAccepted: false },
+    );
+    for (const route of ["/v1/publisher/upload", "/v1/publisher/example/dashboard/versions"]) {
+      const response = await fetch(`${ready.base}${route}`, {
+        method: "POST",
+        headers: {
+          Origin: config.origin,
+          Cookie: "tabs_exchange_session=opaque",
+          "X-CSRF-Token": csrf,
+          "Content-Type": "application/octet-stream",
+        },
+        body: "untrusted package",
+      });
+      expect(response.status).toBe(403);
+      expect((await response.json()).error).toContain("Accept the current publisher terms");
+    }
+    expect(ready.actions.some((sql) => sql.startsWith("INSERT INTO exchange_versions"))).toBe(
+      false,
+    );
+  });
+
+  it("requires a publisher session and the exact current version for agreement acceptance", async () => {
+    const ready = await fixture(true, digest, "review", undefined, undefined, undefined, true);
+    expect((await fetch(`${ready.base}/v1/publisher/agreement`)).status).toBe(401);
+    const headers = {
+      Origin: config.origin,
+      Cookie: "tabs_exchange_session=opaque",
+      "X-CSRF-Token": csrf,
+      "Content-Type": "application/json",
+    };
+    const stale = await fetch(`${ready.base}/v1/publisher/agreement`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ acceptTermsVersion: "old-terms" }),
+    });
+    expect(stale.status).toBe(400);
+    expect(
+      ready.publicQueries.some((sql) =>
+        sql.startsWith("INSERT INTO exchange_publisher_agreements"),
+      ),
+    ).toBe(false);
+    const accepted = await fetch(`${ready.base}/v1/publisher/agreement`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ acceptTermsVersion: "2026-09-24" }),
+    });
+    expect(accepted.status).toBe(200);
+    expect(await accepted.json()).toEqual({
+      termsVersion: "2026-09-24",
+      acceptedAt: "2026-10-01T00:00:00Z",
+    });
+    expect(
+      ready.publicQueries.some((sql) =>
+        sql.startsWith("INSERT INTO exchange_publisher_agreements"),
+      ),
+    ).toBe(true);
+  });
 
   it("serves the signed-publication head without ranking historical releases on each search", async () => {
     const target = Buffer.from("approved extension archive");
@@ -1169,6 +1349,23 @@ describe("Exchange HTTP boundaries", () => {
       targetStatus: "revoked",
     });
     expect((await fetch(`${revoked.base}${path}`)).status).toBe(404);
+  });
+
+  it("includes description and keyword matching in the parameterized signed catalog query", async () => {
+    const ready = await fixture(true, digest, "approved", {
+      target: Buffer.from("signed test package"),
+      targetStatus: "approved",
+    });
+    const response = await fetch(`${ready.base}/v1/extensions?q=purpose`);
+    expect(response.status).toBe(200);
+    const query = ready.publicQueries.find((sql) =>
+      sql.includes("FROM exchange_published_heads h"),
+    );
+    expect(query).toContain("v.manifest->>'description' ILIKE $1");
+    expect(query).toContain("keyword.value ILIKE $1");
+    expect(query).toContain("jsonb_typeof(v.manifest->'listing'->'keywords') = 'array'");
+    expect(query).toContain("exchange_published_targets");
+    expect(query).not.toContain("purpose");
   });
 
   it("keeps approved versions out of discovery and downloads until signed publication", async () => {
@@ -1357,6 +1554,10 @@ describe("Exchange HTTP boundaries", () => {
     expect(result.status).toBe(409);
     expect(await result.json()).toEqual({
       error: "Quarantined package no longer matches the reviewed digest.",
+      message: "Quarantined package no longer matches the reviewed digest.",
+      code: "STATE_CONFLICT",
+      recovery:
+        "Refresh status and inspect the recorded result before retrying. No automatic retry was made.",
     });
     expect(ready.actions.some((sql) => sql.includes("UPDATE exchange_versions SET status"))).toBe(
       false,
@@ -1542,6 +1743,23 @@ describe("Exchange HTTP boundaries", () => {
     expect(ready.actions.indexOf("SELECT pg_advisory_xact_lock(1261492744)")).toBeLessThan(
       ready.actions.findIndex((sql) => sql.includes("UPDATE exchange_versions SET status = $5")),
     );
+  });
+
+  it("bounds publisher appeal history to an authenticated exact-digest query", async () => {
+    const ready = await fixture(true, digest, "rejected");
+    const headers = { Cookie: "tabs_exchange_session=opaque" };
+    const invalid = await fetch(`${ready.base}/v1/publisher/appeals?digest=invalid`, { headers });
+    expect(invalid.status).toBe(400);
+    expect(ready.publicQueries.some((sql) => sql.includes("FROM exchange_appeals a"))).toBe(false);
+    const valid = await fetch(`${ready.base}/v1/publisher/appeals?digest=${digest}`, { headers });
+    expect(valid.status).toBe(200);
+    expect(
+      ready.publicQueries.some((sql) =>
+        sql.includes("m.user_id = $1 AND ($2::text IS NULL OR a.digest = $2)"),
+      ),
+    ).toBe(true);
+    const anonymous = await fetch(`${ready.base}/v1/publisher/appeals?digest=${digest}`);
+    expect(anonymous.status).toBe(401);
   });
 
   it("accepts an exact-digest appeal only for a rejected or revoked version", async () => {

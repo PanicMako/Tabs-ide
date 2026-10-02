@@ -1,0 +1,11 @@
+---
+import Account from "../../layouts/Account.astro";
+---
+<Account title="Publisher namespaces" section="namespaces">
+  <p>A namespace identifies your publisher. Creating one does not confer verified status.</p>
+  <section class="card"><h2>Your memberships</h2><ul id="account-namespaces"></ul><p>Manage collaborators and pending invitations below. For ownership verification and invitation revocation, use <a href="/publisher#namespace-title">advanced namespace management</a> until those controls move here.</p></section>
+  <section class="card"><h2>Create a namespace</h2><p id="publishing-availability"></p><form id="create-namespace"><label for="new-namespace">Namespace name</label><input id="new-namespace" name="name" required pattern="[a-z][a-z0-9-]{1,62}" minlength="2" maxlength="63" autocomplete="off" /><p>2–63 lowercase letters, numbers, or hyphens; begin with a letter.</p><label><input type="checkbox" id="accept-terms" required /> I have read and accept this instance's <a href="/publisher-terms">publisher terms</a>.</label><div class="actions"><button class="button" type="submit">Create namespace</button></div></form></section>
+</Account>
+<script>import "../../scripts/collaborators";</script>
+<script>import "../../scripts/invitations";</script>
+<script>import "../../scripts/members";</script>

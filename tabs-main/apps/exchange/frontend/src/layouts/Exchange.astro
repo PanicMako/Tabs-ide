@@ -1,0 +1,45 @@
+---
+import "@fontsource-variable/dm-sans";
+import "@fontsource/instrument-serif/400-italic.css";
+import "../styles/exchange.css";
+import CustomCursor from "../../../../marketing/src/components/CustomCursor.astro";
+import { exchangeSiteConfiguration } from "../lib/siteConfiguration";
+import { extensionMarkPath, extensionMarkViewBox } from "../lib/extensionMark";
+const site = exchangeSiteConfiguration(process.env);
+interface Props { title: string; description: string; active?: string }
+const { title, description, active } = Astro.props;
+const showSignature = true;
+const navigation = [
+  ["Extensions", "/extensions", "extensions"],
+  ["Developers", "/developers", "developers"],
+  ["Docs", site.docs, "docs"],
+  ["Publish", "/publish", "publish"],
+  ["Resources", "/resources", "resources"],
+];
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title} · {site.name}</title>
+    <meta name="description" content={description} />
+    <meta name="exchange-site-name" content={site.name} />
+  </head>
+  <body>
+    <CustomCursor />
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <a class="brand" href="/" aria-label={`${site.name} home`}><svg aria-hidden="true" focusable="false" width="28" height="28" viewBox={extensionMarkViewBox} fill="currentColor"><path d={extensionMarkPath} fill-rule="evenodd" /></svg>{site.name === "Tabs Exchange" ? <span>Tabs <span class="muted">Exchange</span></span> : <span>{site.name}</span>}</a>
+      <nav aria-label="Main navigation">{navigation.map(([label, href, key]) => <a href={href} aria-current={active === key ? "page" : undefined}>{label}</a>)}<a id="reviewer-link" href="/admin" aria-current={active === "review" ? "page" : undefined} hidden>Review</a></nav>
+      <a class="account-link" id="account-link" href="/account" aria-current={active === "account" ? "page" : undefined}>Publisher account</a>
+    </header>
+    <main id="main" tabindex="-1"><slot /></main>
+    <footer class="site-footer"><p class="eyebrow">A space for what's next</p><p class="footer-intro">Tools built for your workflow.<br />An ecosystem built in the open.</p><nav aria-label="Footer navigation"><a href="/extensions">Extensions</a><a href="/developers">Developers</a><a href={site.docs}>Documentation</a><a href="/resources">Resources and community</a>{site.support && <a href={site.support}>Instance support</a>}<a href="/publisher-terms">Publisher terms</a><a href="/docs/extensions/registry-api">Registry API reference</a></nav><p class="muted">Review is not a security guarantee. Install through Tabs using a trusted registry.</p>{showSignature && <><div class="exchange-signature" data-official={site.name === "Tabs Exchange" ? "true" : undefined} aria-label={site.name}>{site.name === "Tabs Exchange" ? <><span aria-hidden="true">Tabs</span><span aria-hidden="true">Exchange</span></> : <span aria-hidden="true">{site.name}</span>}</div><div class="exchange-baseline"><span>Make room for your next tool.</span><span>Built in the open.</span></div></>}</footer>
+  </body>
+</html>
+<script>
+  import "../scripts/account";
+  import "../scripts/wordmark";
+  import "../scripts/custom-select";
+</script>

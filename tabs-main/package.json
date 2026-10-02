@@ -53,7 +53,7 @@
     "release:smoke": "bun scripts/release-smoke.ts",
     "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules apps/*/dist apps/*/dist-electron packages/*/dist .turbo apps/*/.turbo packages/*/.turbo",
     "sync:vscode-icons": "node scripts/sync-vscode-icons.mjs",
-    "test:cross-integration": "bun --cwd=apps/exchange run test:cross-integration"
+    "test:cross-integration": "bun run --cwd=apps/exchange test:cross-integration"
   },
   "devDependencies": {
     "@types/node": "catalog:",

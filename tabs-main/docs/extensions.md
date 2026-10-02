@@ -24,6 +24,22 @@ only writes to a new directory. Neither command runs extension code.
 
 ## Manifest
 
+### Start a new tool
+
+From `tabs-main` in a checkout with the experimental starter command:
+
+```sh
+bun packages/extension-package/src/cli.ts init ./my-tool my-publisher my-tool
+```
+
+The command creates a new folder with a zero-permission manifest, static HTML,
+CSS, JavaScript, and a README. It refuses an existing destination, including
+symlinks. Edit the `dist` files directly; no build step is required. Validate,
+pack, and inspect using the commands above with your folder and target Tabs
+version. The website's `/developers/extensions` guide covers local testing,
+publisher submission, and the distinction between approval and signed publication.
+Neither the CLI nor this guide enables official public publishing.
+
 Place `tabs-extension.json` at the root of a local folder. The dependency-free
 [`@tabs/extension-api`](../packages/extension-api/README.md) package exports
 the public manifest and bridge types plus the current API version. New manifests

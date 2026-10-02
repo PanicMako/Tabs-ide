@@ -25,6 +25,7 @@ const exchange = configuredExchangeOrigin(import.meta.env.PUBLIC_TABS_EXCHANGE_U
 
 <script>
   import { isExchangeIdentifier, safePublisherUrl } from "../lib/extension-listing";
+  import { extensionMarkdown } from "../lib/extension-markdown";
 
   interface PublicVersion {
     namespace: string;
@@ -44,6 +45,7 @@ const exchange = configuredExchangeOrigin(import.meta.env.PUBLIC_TABS_EXCHANGE_U
       sourceUrl?: string;
       supportUrl?: string;
       privacyUrl?: string;
+      listing?: { readme?: string; icon?: string; license?: string; categories?: string[]; keywords?: string[]; externalServices?: string };
     };
   }
 
@@ -83,11 +85,13 @@ const exchange = configuredExchangeOrigin(import.meta.env.PUBLIC_TABS_EXCHANGE_U
     const identity = document.getElementById("extension-identity")!;
     const list = document.getElementById("version-list")!;
     const params = new URLSearchParams(window.location.search);
-    const namespace = params.get("namespace");
-    const name = params.get("name");
+    const path = /^\/extensions\/([a-z][a-z0-9-]{1,62})\/([a-z][a-z0-9-]{1,62})\/?$/.exec(window.location.pathname);
+    const namespace = path?.[1] ?? params.get("namespace");
+    const name = path?.[2] ?? params.get("name");
     if (!isExchangeIdentifier(namespace) || !isExchangeIdentifier(name)) {
       status.textContent = "Choose an extension from Explore Extensions.";
     } else {
+      if (!path) window.history.replaceState(null, "", `/extensions/${namespace}/${name}`);
       const selectedNamespace = namespace;
       const selectedName = name;
       void (async () => {
@@ -148,6 +152,31 @@ const exchange = configuredExchangeOrigin(import.meta.env.PUBLIC_TABS_EXCHANGE_U
             const metadata = document.createElement("dl");
             detail(metadata, "Review status", preview ? "Local sample only - not reviewed or published" : "Approved and included in signed registry metadata");
             detail(metadata, "Tabs compatibility", entry.manifest.engines?.tabs ?? "Not specified");
+            detail(metadata, "License", entry.manifest.listing?.license ?? "Not specified");
+            detail(metadata, "Categories", entry.manifest.listing?.categories?.join(", ") ?? "Not specified");
+            detail(metadata, "External services", entry.manifest.listing?.externalServices ?? "No external service disclosure supplied");
+            const assetBase = `${origin}/v1/extensions/${selectedNamespace}/${selectedName}/versions/${encodeURIComponent(entry.version)}/assets`;
+            if (!preview && entry.manifest.listing?.icon) {
+              const icon = document.createElement("img"); icon.src = `${assetBase}/icon`; icon.alt = ""; icon.width = 64; icon.height = 64; icon.loading = "lazy"; icon.referrerPolicy = "no-referrer"; item.append(icon);
+            }
+            if (!preview && entry.manifest.listing?.readme) {
+              const readme = document.createElement("details"); const heading = document.createElement("summary"); heading.textContent = "README";
+              const content = document.createElement("div"); content.className = "extension-doc-prose"; readme.append(heading, content); item.append(readme);
+              let loaded = false;
+              readme.addEventListener("toggle", async () => {
+                if (!readme.open || loaded) return; loaded = true; content.textContent = "Loading README…";
+                try {
+                  const response = await fetch(`${assetBase}/readme`, { redirect: "error", credentials: "omit", signal: AbortSignal.timeout(8000) });
+                  if (!response.ok || Number(response.headers.get("Content-Length")) > 512 * 1024) throw new Error("README unavailable");
+                  const reader = response.body?.getReader(); if (!reader) throw new Error("Missing README");
+                  const chunks: Uint8Array[] = []; let bytes = 0;
+                  try { for (;;) { const chunk = await reader.read(); if (chunk.done) break; bytes += chunk.value.length; if (bytes > 512 * 1024) throw new Error("README too large"); chunks.push(chunk.value); } } finally { await reader.cancel(); }
+                  const data = new Uint8Array(bytes); let offset = 0; for (const chunk of chunks) { data.set(chunk, offset); offset += chunk.length; }
+                  const body = new TextDecoder("utf-8", { fatal: true }).decode(data);
+                  content.replaceChildren(extensionMarkdown(body, entry.manifest.listing?.icon, `${assetBase}/icon`));
+                } catch { loaded = false; content.textContent = "README unavailable. Close and reopen to retry."; }
+              });
+            }
             detail(metadata, "Requested permissions", entry.manifest.capabilities?.length ? entry.manifest.capabilities.join(", ") : "None");
             detail(metadata, "Permitted network hosts", entry.manifest.networkHosts?.length ? entry.manifest.networkHosts.join(", ") : "None");
             const packageDetails = document.createElement("details");

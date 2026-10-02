@@ -4,6 +4,22 @@ CREATE TABLE IF NOT EXISTS exchange_users (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS exchange_reviewers (
+  user_id BIGINT PRIMARY KEY REFERENCES exchange_users(id),
+  active BOOLEAN NOT NULL DEFAULT false,
+  changed_by BIGINT NOT NULL REFERENCES exchange_users(id),
+  reason TEXT NOT NULL,
+  changed_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS exchange_reviewer_events (
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT NOT NULL REFERENCES exchange_users(id),
+  actor_id BIGINT NOT NULL REFERENCES exchange_users(id),
+  action TEXT NOT NULL CHECK (action IN ('grant', 'revoke')),
+  reason TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS exchange_sessions (
   token_hash TEXT PRIMARY KEY,
   user_id BIGINT NOT NULL REFERENCES exchange_users(id),
@@ -12,9 +28,31 @@ CREATE TABLE IF NOT EXISTS exchange_sessions (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS exchange_publisher_agreements (
+  user_id BIGINT NOT NULL REFERENCES exchange_users(id),
+  terms_version TEXT NOT NULL,
+  accepted_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, terms_version)
+);
+
 CREATE TABLE IF NOT EXISTS exchange_oauth_states (
   state_hash TEXT PRIMARY KEY,
   expires_at TIMESTAMPTZ NOT NULL
+);
+
+ALTER TABLE exchange_oauth_states ADD COLUMN IF NOT EXISTS return_route TEXT NOT NULL DEFAULT '/publisher';
+
+CREATE TABLE IF NOT EXISTS exchange_access_tokens (
+  id UUID PRIMARY KEY,
+  token_hash TEXT UNIQUE NOT NULL,
+  user_id BIGINT NOT NULL REFERENCES exchange_users(id),
+  label TEXT NOT NULL,
+  scope TEXT NOT NULL CHECK (scope IN ('read', 'publish')),
+  namespace TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at TIMESTAMPTZ NOT NULL,
+  revoked_at TIMESTAMPTZ,
+  CHECK ((scope = 'read' AND namespace IS NULL) OR (scope = 'publish' AND namespace ~ '^[a-z][a-z0-9-]{1,62}$'))
 );
 
 CREATE TABLE IF NOT EXISTS exchange_namespaces (
@@ -119,6 +157,10 @@ CREATE INDEX IF NOT EXISTS exchange_versions_public_search
   ON exchange_versions (namespace, name, submitted_at DESC)
   WHERE status = 'approved';
 
+-- Lifecycle history is distinct from the renewable worker lease.
+ALTER TABLE exchange_versions ADD COLUMN IF NOT EXISTS scan_started_at TIMESTAMPTZ;
+ALTER TABLE exchange_versions ADD COLUMN IF NOT EXISTS scan_completed_at TIMESTAMPTZ;
+
 CREATE INDEX IF NOT EXISTS exchange_versions_review_history
   ON exchange_versions (namespace, name, submitted_at DESC);
 
@@ -209,6 +251,27 @@ CREATE TABLE IF NOT EXISTS exchange_published_targets (
   FOREIGN KEY (namespace, name, version)
     REFERENCES exchange_versions(namespace, name, version)
 );
+
+-- Materialized from the same verified targets bundle as published_targets.
+-- Durable first-publication history survives replacement of current signed targets.
+CREATE TABLE IF NOT EXISTS exchange_publication_history (
+  namespace TEXT NOT NULL,
+  name TEXT NOT NULL,
+  version TEXT NOT NULL,
+  digest TEXT NOT NULL CHECK (digest ~ '^[a-f0-9]{64}$'),
+  first_published_at TIMESTAMPTZ,
+  PRIMARY KEY (namespace, name, version, digest),
+  FOREIGN KEY (namespace, name, version) REFERENCES exchange_versions(namespace, name, version)
+);
+
+-- Existing signed targets prove publication, but not its first date. Preserve
+-- unknown dates rather than using migration, upload, or metadata-refresh time.
+INSERT INTO exchange_publication_history(namespace, name, version, digest, first_published_at)
+SELECT p.namespace, p.name, p.version, p.digest, NULL
+FROM exchange_published_targets p JOIN exchange_versions v
+  ON v.namespace = p.namespace AND v.name = p.name AND v.version = p.version
+  AND v.digest = p.digest AND v.bytes = p.bytes
+ON CONFLICT DO NOTHING;
 
 -- Materialized from the same verified targets bundle as published_targets.
 -- Search reads one semantic-version head per extension instead of ranking

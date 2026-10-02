@@ -123,6 +123,7 @@ export function validateTabsExtensionManifest(
     "sourceUrl",
     "supportUrl",
     "privacyUrl",
+    "listing",
     "engines",
     "networkHosts",
     "storage",
@@ -182,6 +183,102 @@ export function validateTabsExtensionManifest(
     );
   }
   const contributes = input.contributes;
+  if (input.listing !== undefined) {
+    const listing = input.listing;
+    if (
+      !record(listing) ||
+      Object.keys(listing).some(
+        (key) =>
+          ![
+            "readme",
+            "icon",
+            "screenshots",
+            "license",
+            "categories",
+            "keywords",
+            "externalServices",
+          ].includes(key),
+      )
+    ) {
+      errors.push("listing must contain only supported presentation fields.");
+    } else {
+      if (listing.screenshots !== undefined) {
+        const screenshots = listing.screenshots;
+        if (
+          !Array.isArray(screenshots) ||
+          screenshots.length > 6 ||
+          screenshots.some(
+            (screenshot) =>
+              !record(screenshot) ||
+              Object.keys(screenshot).some((key) => !["path", "alt"].includes(key)) ||
+              !safePackagePath(screenshot.path) ||
+              !/\.(png|jpg|jpeg|webp)$/i.test(screenshot.path) ||
+              typeof screenshot.alt !== "string" ||
+              !screenshot.alt.trim() ||
+              screenshot.alt.length > 300,
+          ) ||
+          (Array.isArray(screenshots) &&
+            new Set(
+              screenshots.map((screenshot) => (record(screenshot) ? screenshot.path : undefined)),
+            ).size !== screenshots.length)
+        )
+          errors.push(
+            "listing.screenshots must contain at most six unique packaged raster paths with nonempty descriptions of at most 300 characters.",
+          );
+        if (
+          !record(engines) ||
+          typeof engines.api !== "string" ||
+          !apiRangeIsSafe(engines.api, "1.7.0")
+        )
+          errors.push("listing.screenshots requires engines.api to start at 1.7.0 or later.");
+      }
+      for (const key of ["readme", "icon"] as const) {
+        if (listing[key] !== undefined && !safePackagePath(listing[key]))
+          errors.push(`listing.${key} must be a relative packaged path.`);
+      }
+      if (
+        listing.readme !== undefined &&
+        (typeof listing.readme !== "string" || !listing.readme.endsWith(".md"))
+      )
+        errors.push("listing.readme must be a Markdown file.");
+      if (
+        listing.icon !== undefined &&
+        (typeof listing.icon !== "string" || !/\.(png|jpg|jpeg|webp)$/i.test(listing.icon))
+      )
+        errors.push("listing.icon must be a PNG, JPEG, or WebP image.");
+      if (
+        listing.license !== undefined &&
+        (typeof listing.license !== "string" || !/^[A-Za-z0-9.-]{1,100}$/.test(listing.license))
+      )
+        errors.push("listing.license must be a bounded license identifier.");
+      for (const key of ["categories", "keywords"] as const) {
+        const values = listing[key];
+        if (
+          values !== undefined &&
+          (!Array.isArray(values) ||
+            values.length > 12 ||
+            new Set(values).size !== values.length ||
+            values.some(
+              (value) => typeof value !== "string" || !/^[a-z][a-z0-9-]{1,39}$/.test(value),
+            ))
+        )
+          errors.push(`listing.${key} must contain at most 12 unique lowercase tags.`);
+      }
+      if (
+        listing.externalServices !== undefined &&
+        (typeof listing.externalServices !== "string" ||
+          !listing.externalServices.trim() ||
+          listing.externalServices.length > 2000)
+      )
+        errors.push("listing.externalServices must be nonempty text of at most 2000 characters.");
+    }
+    if (
+      !record(engines) ||
+      typeof engines.api !== "string" ||
+      !apiRangeIsSafe(engines.api, "1.6.0")
+    )
+      errors.push("listing metadata requires engines.api to start at 1.6.0 or later.");
+  }
   if (input.logic !== undefined) {
     if (
       !record(input.logic) ||

@@ -374,6 +374,11 @@ describe("offline TUF publication gate", () => {
     ).toBe(4);
     expect(subject.stored.has("timestamp.json")).toBe(true);
     expect(subject.published).toEqual([["acme", "dashboard", "1.0.0", digest, archive.length]]);
+    const publicationHistory = subject.operations.find((sql) =>
+      sql.startsWith("INSERT INTO exchange_publication_history"),
+    );
+    expect(publicationHistory).toContain("now()");
+    expect(publicationHistory).toContain("ON CONFLICT DO NOTHING");
     expect(subject.heads).toEqual([["acme", "dashboard", "1.0.0"]]);
     subject.revoke();
     await subject.publishStage(2, false);

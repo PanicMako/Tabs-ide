@@ -68,6 +68,13 @@ import { AnalyticsService } from "./telemetry/Services/AnalyticsService.ts";
 import { ServerSettingsService } from "./serverSettings.ts";
 import * as BackgroundPolicy from "./background/BackgroundPolicy.ts";
 
+// These tests exercise HTTP/WebSocket transport and orchestration routing, not
+// installed agent discovery. Keep the real registry/hydration wiring, but give
+// it no native drivers so host-installed CLIs cannot launch health probes or
+// account discovery during fixture startup. Driver and registry behavior have
+// their own suites; transport statuses are provided explicitly below.
+vi.mock("./provider/builtInDrivers", () => ({ BUILT_IN_DRIVERS: [] }));
+
 const asEventId = (value: string): EventId => value as EventId;
 const asProviderItemId = (value: string): ProviderItemId => value as ProviderItemId;
 const asThreadId = (value: string): ThreadId => value as ThreadId;
@@ -527,6 +534,12 @@ describe("WebSocket Server", () => {
       serverSettings?: Partial<ServerSettings>;
     } = {},
   ): Promise<Http.Server> {
+    const startedAt = performance.now();
+    const traceStartup = (phase: string) => {
+      if (process.env.TABS_WS_STARTUP_TRACE === "1") {
+        console.info(`[ws-test-startup] ${phase} ${Math.round(performance.now() - startedAt)}ms`);
+      }
+    };
     if (serverScope) {
       throw new Error("Test server is already running");
     }
@@ -535,6 +548,7 @@ describe("WebSocket Server", () => {
     const devUrl = options.devUrl ? new URL(options.devUrl) : undefined;
     const derivedPaths = deriveServerPathsSync(baseDir, devUrl);
     const scope = await Effect.runPromise(Scope.make("sequential"));
+    traceStartup("scope-ready");
     const persistenceLayer = options.persistenceLayer ?? SqlitePersistenceMemory;
     const providerLayer = options.providerLayer ?? makeServerProviderLayer();
     const providerRegistryLayer = Layer.succeed(
@@ -605,15 +619,19 @@ describe("WebSocket Server", () => {
       Layer.provideMerge(NodeServices.layer),
     );
     const dependenciesLayer = Layer.merge(dependenciesLayerBase, providerRegistryLayer);
+    traceStartup("dependencies-start");
     const runtimeServices = await Effect.runPromise(
       Layer.build(dependenciesLayer).pipe(Scope.provide(scope)),
     );
+    traceStartup("dependencies-ready");
 
     try {
+      traceStartup("http-start");
       const runtime = await Effect.runPromise(
         createServer().pipe(Effect.provide(runtimeServices), Scope.provide(scope)),
       );
       serverScope = scope;
+      traceStartup("http-ready");
       return runtime;
     } catch (error) {
       await Effect.runPromise(Scope.close(scope, Exit.void));

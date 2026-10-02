@@ -1,0 +1,45 @@
+<details class="tool-puzzle" data-tool-puzzle>
+  <summary>Take a little break · Connect the tools</summary>
+  <div class="tool-puzzle-body">
+    <p>Connect input 1 to output 9 by arranging consecutive numbers next to each other, horizontally or vertically. Select two middle tools to swap them. Input and output stay fixed.</p>
+    <p>Use Tab to reach each tool, Enter or Space to select, and arrow keys to move between tools. Escape closes the puzzle. No timer, account, or saved score.</p>
+    <div class="tool-puzzle-board" data-puzzle-board role="group" aria-label="Nine tool positions"></div>
+    <p data-puzzle-status role="status" aria-live="polite" aria-atomic="true">Open the puzzle to load it.</p>
+    <button type="button" class="button secondary" data-puzzle-reset>Reset puzzle</button>
+    <noscript><p>JavaScript is needed for this optional puzzle. The rest of this page does not depend on it.</p></noscript>
+  </div>
+</details>
+<script>
+  for (const root of document.querySelectorAll<HTMLDetailsElement>("[data-tool-puzzle]")) {
+    let loading = false;
+    root.addEventListener("toggle", async () => {
+      if (!root.open || loading || root.dataset.ready === "true") return;
+      loading = true;
+      try {
+        const { mountToolPuzzle } = await import("../scripts/toolPuzzle");
+        mountToolPuzzle(root);
+      } catch {
+        const status = root.querySelector<HTMLElement>("[data-puzzle-status]");
+        if (status) status.textContent = "The puzzle could not load. Close and reopen it to retry. Other features are unaffected.";
+      } finally {
+        loading = false;
+      }
+    });
+    root.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && root.open) {
+        event.preventDefault();
+        root.open = false;
+        root.querySelector("summary")?.focus();
+      }
+    });
+  }
+</script>
+<style>
+  .tool-puzzle { margin-top: 32px; padding: 24px; border: 1px solid var(--line); border-radius: 20px; background: var(--surface); }
+  summary { cursor: pointer; font-size: 18px; font-weight: 600; }
+  .tool-puzzle-body { max-width: 680px; }
+  .tool-puzzle-board { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; max-width: 400px; margin: 24px 0; }
+  .tool-puzzle-board :global(button) { min-height: 72px; padding: 12px 4px; border: 1px solid var(--line); border-radius: 14px; background: var(--background); color: var(--ink); cursor: pointer; font-weight: 600; }
+  .tool-puzzle-board :global(button[aria-pressed="true"]) { border: 3px solid var(--accent); background: #eef2fa; }
+  .tool-puzzle-board :global(button[data-connected="true"]) { background: #e5f5ea; border-color: #35774a; }
+</style>

@@ -1,0 +1,38 @@
+{
+  "name": "@tabs/extension-cli",
+  "version": "1.7.0",
+  "description": "Standalone tooling for Tabs-native extensions",
+  "license": "MIT",
+  "bin": {
+    "tabsext": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "bun build src/cli.ts --target=node --outfile=dist/cli.js --external=yauzl --external=yazl",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "yauzl": "3.4.0",
+    "yazl": "3.3.1"
+  },
+  "devDependencies": {
+    "@tabs/extension-api": "workspace:*",
+    "@tabs/extension-package": "workspace:*",
+    "@tabs/shared": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  }
+}

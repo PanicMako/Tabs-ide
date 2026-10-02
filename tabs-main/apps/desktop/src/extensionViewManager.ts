@@ -545,6 +545,21 @@ export class ExtensionViewManager {
     return [...this.installed.values()].map((entry) => this.publicEntry(entry));
   }
 
+  reloadDevelopment(id: string): DesktopInstalledExtension {
+    const installed = this.requireInstalled(id);
+    if (installed.source !== "development")
+      throw new Error("Only development extensions can be reloaded.");
+    const manifest = validateTabsExtensionManifest(
+      JSON.parse(FS.readFileSync(Path.join(installed.directory, "tabs-extension.json"), "utf8")),
+      this.tabsVersion,
+    );
+    if (!manifest.ok || JSON.stringify(manifest.manifest) !== JSON.stringify(installed.manifest))
+      throw new Error(
+        "Manifest changed. Re-import the folder and review its identity and permissions.",
+      );
+    return this.installDevelopment(installed.directory);
+  }
+
   installDevelopment(directory: string): DesktopInstalledExtension {
     if (!this.allowDevelopment)
       throw new Error("Development extensions are disabled in this build.");
@@ -1471,6 +1486,26 @@ export class ExtensionViewManager {
       throw error;
     }
     this.cleanupUpdateSnapshots(identity);
+    this.retireFailedUpdatePackage(installed);
+  }
+
+  private retireFailedUpdatePackage(failed: StoredExtension): void {
+    const root = Path.join(Path.dirname(this.statePath), "extension-packages");
+    const parent = Path.join(root, failed.id);
+    const expected = Path.join(parent, failed.digest!);
+    if (
+      !failed.digest ||
+      !/^[a-f0-9]{64}$/.test(failed.digest) ||
+      Path.resolve(failed.directory) !== expected ||
+      [root, parent, expected].some((entry) => FS.lstatSync(entry).isSymbolicLink()) ||
+      !FS.lstatSync(expected).isDirectory() ||
+      FS.realpathSync(expected) !== Path.join(FS.realpathSync(root), failed.id, failed.digest)
+    ) {
+      throw new Error("Extension rolled back, but the failed package path requires recovery.");
+    }
+    // Keep the failed bytes for diagnosis, outside the executable digest path.
+    // A retry must extract the freshly verified archive rather than reuse them.
+    FS.renameSync(expected, Path.join(parent, `failed-${failed.digest}-${Crypto.randomUUID()}`));
   }
 
   private cleanupUpdateSnapshots(identity: string): void {

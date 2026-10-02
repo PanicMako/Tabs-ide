@@ -109,6 +109,21 @@ async function exchangeUpdateFixture() {
   return { directory, manager, installed, first, second };
 }
 
+it("reloads local development assets but requires re-import for manifest changes", () => {
+  const { directory, manager } = fixture();
+  const installed = manager.installDevelopment(directory);
+  FS.writeFileSync(
+    Path.join(directory, "dist/index.html"),
+    "<!doctype html><title>Changed assets</title>",
+  );
+  expect(manager.reloadDevelopment(installed.id).id).toBe(installed.id);
+  const manifest = JSON.parse(FS.readFileSync(Path.join(directory, "tabs-extension.json"), "utf8"));
+  manifest.capabilities = ["workspace-read"];
+  FS.writeFileSync(Path.join(directory, "tabs-extension.json"), JSON.stringify(manifest));
+  expect(() => manager.reloadDevelopment(installed.id)).toThrow(/Re-import/);
+  expect(manager.list()[0]?.manifest.capabilities).toBeUndefined();
+});
+
 function mockElectronExtensionView(loadURL: (url: string) => Promise<unknown>): void {
   vi.mocked(electronSession.fromPartition).mockReturnValue({
     setPermissionRequestHandler: vi.fn(),
@@ -1515,6 +1530,42 @@ describe("development extension installation", () => {
       false,
     );
     expect(recovered.list()[0]?.digest).toBe(first.digest);
+    const failedDirectory = Path.join(directory, "extension-packages", installed.id, second.digest);
+    expect(FS.existsSync(failedDirectory)).toBe(false);
+    expect(
+      FS.readdirSync(Path.dirname(failedDirectory)).some((entry) =>
+        entry.startsWith(`failed-${second.digest}-`),
+      ),
+    ).toBe(true);
+    expect(
+      (
+        await recovered.installVerifiedExchangePackage(
+          Path.join(directory, "second.tabsext"),
+          "https://exchange.tabs.example",
+          second.digest,
+        )
+      ).digest,
+    ).toBe(second.digest);
+  });
+
+  it("does not retire a failed digest path replaced by an external symlink", async () => {
+    const { directory, manager, installed, first, second } = await exchangeUpdateFixture();
+    const outside = fixture().directory;
+    const failed = Path.join(directory, "extension-packages", installed.id, second.digest);
+    FS.renameSync(failed, `${failed}.held`);
+    FS.symlinkSync(outside, failed, "dir");
+    const manifestBefore = FS.readFileSync(Path.join(outside, "tabs-extension.json"), "utf8");
+    await expect(
+      manager.activate({
+        extensionId: installed.id,
+        toolId: "main",
+        projectId: "project-a",
+        profileId: "default",
+      }),
+    ).rejects.toThrow("failed package path requires recovery");
+    expect(manager.list()[0]?.digest).toBe(first.digest);
+    expect(FS.lstatSync(failed).isSymbolicLink()).toBe(true);
+    expect(FS.readFileSync(Path.join(outside, "tabs-extension.json"), "utf8")).toBe(manifestBefore);
   });
 
   it.each([

@@ -1,0 +1,15 @@
+---
+import Exchange from "./Exchange.astro";
+interface Props { title: string; section: string }
+const { title, section } = Astro.props;
+---
+<Exchange title={title} description="Manage your Tabs Exchange publisher account." active="account">
+  <p class="eyebrow">Publisher account</p><h1>{title}</h1>
+  <nav class="actions" aria-label="Account sections"><a href="/account" aria-current={section === "overview" ? "page" : undefined}>Overview</a><a href="/account/namespaces" aria-current={section === "namespaces" ? "page" : undefined}>Namespaces</a><a href="/account/extensions" aria-current={section === "extensions" ? "page" : undefined}>Extensions and submissions</a><a href="/account/tokens" aria-current={section === "tokens" ? "page" : undefined}>CLI tokens</a><a href="/publisher">Advanced management</a></nav>
+  <p id="account-status" role="status" aria-live="polite">Loading your account…</p>
+  <section id="account-signin" hidden><h2>Sign in to continue</h2><p>Publisher accounts are separate from extension Work/Personal profiles.</p><a class="button" id="account-signin-link" href="/auth/github/start">Sign in with GitHub</a></section>
+  <div id="account-content" hidden data-account-section={section}><slot /></div>
+</Exchange>
+<script>
+  import "../scripts/account-pages";
+</script>

@@ -1,4 +1,4 @@
-export declare const TABS_EXTENSION_API_VERSION: "1.5.0";
+export declare const TABS_EXTENSION_API_VERSION: "1.7.0";
 
 export interface TabsExtensionStorageMigration {
   readonly from: number;
@@ -42,6 +42,17 @@ export interface TabsExtensionManifest {
   readonly sourceUrl?: string;
   readonly supportUrl?: string;
   readonly privacyUrl?: string;
+  /** Packaged presentation metadata; requires engines.api >=1.6.0. */
+  readonly listing?: {
+    readonly readme?: string;
+    readonly icon?: string;
+    /** Up to six packaged raster previews with accessible descriptions; requires engines.api >=1.7.0. */
+    readonly screenshots?: ReadonlyArray<{ readonly path: string; readonly alt: string }>;
+    readonly license?: string;
+    readonly categories?: ReadonlyArray<string>;
+    readonly keywords?: ReadonlyArray<string>;
+    readonly externalServices?: string;
+  };
   readonly engines: {
     readonly tabs: string;
     /** Omission is treated as API v1 for older packages. New packages should declare it. */

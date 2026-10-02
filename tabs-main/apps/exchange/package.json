@@ -3,31 +3,42 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun src/server.ts",
+    "build:web": "bun ../../scripts/build-exchange-web.mjs",
+    "check:web": "astro check --root frontend",
+    "verify:docs": "bun ../../scripts/verify-extension-docs.mjs",
+    "build:portal": "bun run build:web && bun build src/marketplace.js --target=browser --outfile=dist/marketplace.js",
+    "dev": "bun run build:portal && bun src/server.ts",
     "start": "bun src/server.ts",
     "worker": "bun src/worker.ts",
     "migrate": "bun src/migrate.ts",
+    "storage:ready": "bun src/storageReady.ts",
     "tuf:export-targets": "bun src/exportTargets.ts",
     "tuf:publish": "bun src/tufPublish.ts",
     "verify:objects": "bun src/verifyObjects.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:integration": "TABS_EXCHANGE_INTEGRATION=1 vitest run src/exchangeService.integration.test.ts",
-    "test:cross-integration": "TABS_EXCHANGE_CROSS_INTEGRATION=1 vitest run src/exchangeDesktopCrossService.integration.test.ts"
+    "test:cross-integration": "bun run --cwd ../../packages/extension-cli build && TABS_EXCHANGE_CROSS_INTEGRATION=1 vitest run src/exchangeDesktopCrossService.integration.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1139.0",
+    "@fontsource-variable/dm-sans": "^5.3.0",
+    "@fontsource/instrument-serif": "^5.3.0",
+    "@tabs/extension-api": "workspace:*",
     "@tabs/extension-package": "workspace:*",
     "@tabs/shared": "workspace:*",
+    "astro": "^6.0.4",
     "diff": "8.0.3",
     "pg": "^8.23.0",
     "tuf-js": "6.0.0"
   },
   "devDependencies": {
+    "@astrojs/check": "^0.9.7",
     "@tufjs/models": "5.0.0",
     "@types/bun": "catalog:",
     "@types/node": "catalog:",
     "@types/pg": "^8.15.5",
+    "happy-dom": "^20.14.5",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

@@ -5,6 +5,7 @@ node_modules
 *.log
 *.tsbuildinfo
 apps/*/dist
+apps/exchange/developer-releases/
 .astro
 packages/*/dist
 .env
@@ -27,3 +28,4 @@ __screenshots__/
 .claude.json
 scratch/
 .test-data/
+.repos/openvsx-reference/

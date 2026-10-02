@@ -1,0 +1,28 @@
+---
+import Exchange from "../layouts/Exchange.astro";
+import { exchangeSiteConfiguration } from "../lib/siteConfiguration";
+const site = exchangeSiteConfiguration(process.env);
+---
+<Exchange title="Resources and community" description="Build extensions, contribute improvements, and find support for this Exchange." active="resources">
+  <p class="eyebrow">Build in the open</p>
+  <h1>A home for your tools.<br />And the people building them.</h1>
+  <p class="lead">Find the right guide for your next step, from your first extension to running a compatible registry.</p>
+  <div class="cards">
+    <section class="card"><h2>Build an extension</h2><p>Download the staging SDK and CLI, create your first tool, and load it in desktop Tabs.</p><a href="/developers">Developer toolkit</a><p><a href={site.docs}>Documentation</a></p></section>
+    <section class="card"><h2>Publish and manage</h2><p>Use a publisher account and namespace to submit packages, follow review, and manage releases. Approval and signed publication are separate steps.</p><a href="/publish">Publish an extension</a><p><a href="/account">Publisher account</a></p></section>
+    <section class="card"><h2>Run your own Exchange</h2><p>Learn about storage, signing, backups, private access, and compatible-client integration.</p><a href="/docs/extensions/self-hosting">Operator guide</a><p><a href="/docs/extensions/registry-api">Registry API reference</a></p></section>
+  </div>
+  <section class="prose" aria-labelledby="contribute-title">
+    <h2 id="contribute-title">Contribute with useful evidence</h2>
+    <p>For ordinary bugs, use the source repository's issue tracker. Include the desktop and SDK/API versions, operating system, registry visibility, expected behavior, and minimal reproduction steps. Remove tokens, credentials, private project paths and account data from logs.</p>
+    <p>For code contributions, describe the affected user flow, preserve existing packages and account data, and include regression tests. Documentation corrections should reproduce the documented command against the supported developer bundle. Discuss changes to package identity, permissions or signing before proposing protocol changes.</p>
+    <p>This instance does not advertise a working group, sponsor program or public status service unless its operator provides those resources.</p>
+  </section>
+  <section class="prose" aria-labelledby="security-title">
+    <h2 id="security-title">Report a suspected vulnerability privately</h2>
+    <p>Do not post exploit details, credentials, malicious packages or private data in a public issue. Use the source repository's published security policy or an operator-designated private security channel. Ordinary support is not automatically a confidential vulnerability inbox.</p>
+    <p>Provide the affected versions, registry origin, package identity and digest if relevant, impact, and a minimal non-destructive reproduction. Do not test against other people's projects or accounts. Revoke exposed credentials and retain sanitized evidence.</p>
+    <p>If no private reporting channel is published, ask the operator how to report securely without disclosing exploit details. This staging page does not promise a response deadline or a bug bounty.</p>
+    {site.support ? <p><a href={site.support}>Contact this instance's support</a> to request the appropriate private reporting channel.</p> : <p class="notice">This instance has not configured a support link. Operators must establish support and private security-reporting ownership before public launch.</p>}
+  </section>
+</Exchange>

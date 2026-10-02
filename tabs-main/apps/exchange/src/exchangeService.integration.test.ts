@@ -33,11 +33,22 @@ import { publishTufMetadata } from "./tufPublish.ts";
 import { migrateExchangeSchema } from "./migration.ts";
 import { backupExchangeData, restoreExchangeData } from "./backupRestore.ts";
 import type { ExchangeConfig } from "./config.ts";
+import { reviewOperationsDetail } from "../frontend/src/lib/reviewOperations.ts";
+import {
+  digestBlock,
+  digestBlockBatch,
+  digestUnblock,
+  namespaceVerification,
+} from "../frontend/src/lib/reviewSecurity.ts";
 
 const TEST_POSTGRES_URL =
   process.env.TEST_DATABASE_URL ??
   "postgres://tabs_exchange:testpassword@127.0.0.1:5433/tabs_exchange";
 const TEST_S3_ENDPOINT = process.env.TEST_S3_ENDPOINT ?? "http://127.0.0.1:9090";
+const TEST_S3_CREDENTIALS = {
+  accessKeyId: process.env.TEST_S3_ACCESS_KEY_ID ?? "test",
+  secretAccessKey: process.env.TEST_S3_SECRET_ACCESS_KEY ?? "test",
+};
 const TERMS_VERSION = "2026-09-24";
 
 interface UserIdentity {
@@ -84,7 +95,7 @@ async function checkPrerequisites(): Promise<boolean> {
       region: "us-east-1",
       endpoint: TEST_S3_ENDPOINT,
       forcePathStyle: true,
-      credentials: { accessKeyId: "test", secretAccessKey: "test" },
+      credentials: TEST_S3_CREDENTIALS,
     });
     // Check S3 availability via list or head
     await probeS3
@@ -229,7 +240,7 @@ describeLive("Exchange Real Local Service Flow (Checkpoint 1)", () => {
       region: "us-east-1",
       endpoint: TEST_S3_ENDPOINT,
       forcePathStyle: true,
-      credentials: { accessKeyId: "test", secretAccessKey: "test" },
+      credentials: TEST_S3_CREDENTIALS,
     });
     await s3Client.send(new CreateBucketCommand({ Bucket: testBucket }));
 
@@ -244,6 +255,7 @@ describeLive("Exchange Real Local Service Flow (Checkpoint 1)", () => {
       githubClientId: "test-client-id",
       githubClientSecret: "test-client-secret",
       adminGithubIds: new Set([REVIEWER_USER.id]),
+      operatorGithubIds: new Set(["5001"]),
       bucket: testBucket,
       publishingEnabled: true,
       testGithubAuthUrls: {
@@ -259,6 +271,58 @@ describeLive("Exchange Real Local Service Flow (Checkpoint 1)", () => {
     (exchangeConfig as { origin: string }).origin = exchangeOrigin;
   });
 
+  it("delegates review access with immediate revocation and immutable audit history", async () => {
+    const operator = await performLogin({ id: "5001", login: "test-operator" });
+    const candidate = await performLogin(OUTSIDER_USER);
+    const legacyReviewer = await performLogin(REVIEWER_USER);
+    const endpoint = `${exchangeOrigin}/v1/operator/reviewers`;
+    const me = async () =>
+      (
+        await fetch(`${exchangeOrigin}/v1/me`, {
+          headers: { Cookie: candidate.cookieHeader },
+        })
+      ).json();
+    const change = (session: SessionInfo, action: string, csrf = session.csrfToken) =>
+      fetch(endpoint, {
+        method: "POST",
+        headers: {
+          Cookie: session.cookieHeader,
+          Origin: exchangeOrigin,
+          "X-CSRF-Token": csrf,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          login: OUTSIDER_USER.login,
+          action,
+          reason: "Integration delegation",
+        }),
+      });
+    expect((await me()).admin).toBe(false);
+    expect((await change(candidate, "grant")).status).toBe(403);
+    expect((await change(legacyReviewer, "grant")).status).toBe(403);
+    expect((await change(operator, "grant", "invalid")).status).toBe(403);
+    const grants = await Promise.all([change(operator, "grant"), change(operator, "grant")]);
+    expect(grants.map((r) => r.status)).toEqual([200, 200]);
+    expect((await me()).admin).toBe(true);
+    expect((await me()).operator).toBe(false);
+    expect((await change(candidate, "grant")).status).toBe(403);
+    expect((await change(operator, "revoke")).status).toBe(200);
+    expect((await me()).admin).toBe(false);
+    const history = await (
+      await fetch(endpoint, {
+        headers: { Cookie: operator.cookieHeader },
+      })
+    ).json();
+    expect(
+      history.events
+        .filter((e: { login: string }) => e.login === OUTSIDER_USER.login)
+        .map((e: { action: string }) => e.action),
+    ).toEqual(["revoke", "grant"]);
+    expect((await fetch(endpoint, { headers: { Cookie: candidate.cookieHeader } })).status).toBe(
+      403,
+    );
+  });
+
   afterAll(async () => {
     if (exchangeServer) {
       await new Promise((resolve) => exchangeServer!.close(resolve));
@@ -270,7 +334,7 @@ describeLive("Exchange Real Local Service Flow (Checkpoint 1)", () => {
       await testPool.end();
     }
     if (rootPool && testDbName) {
-      await rootPool.query(`DROP DATABASE IF EXISTS ${testDbName} WITH (FORCE)`);
+      await rootPool.query(`DROP DATABASE IF EXISTS ${testDbName}`);
       await rootPool.end();
     }
     if (s3Client && testBucket) {
@@ -289,6 +353,116 @@ describeLive("Exchange Real Local Service Flow (Checkpoint 1)", () => {
     for (const dir of temporaryDirectories.splice(0)) {
       await FS.rm(dir, { recursive: true, force: true });
     }
+  });
+
+  it("renders real reviewer operational evidence without exposing it to publishers", async () => {
+    const reviewer = await performLogin(REVIEWER_USER);
+    const response = await fetch(`${exchangeOrigin}/v1/review/operations`, {
+      headers: { Cookie: reviewer.cookieHeader },
+    });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toContain("no-store");
+    const details = reviewOperationsDetail(await response.json());
+    expect(details.metadata).toHaveLength(4);
+    expect(details.activity).toHaveLength(5);
+    expect(details.advisory).toContain("Server advisory");
+    const publisher = await performLogin(PUBLISHER_USER);
+    for (const headers of [{}, { Cookie: publisher.cookieHeader }]) {
+      const denied = await fetch(`${exchangeOrigin}/v1/review/operations`, { headers });
+      expect(denied.status).toBe(403);
+      expect(await denied.json()).not.toHaveProperty("metadataFreshness");
+    }
+  });
+
+  it("applies reviewer security forms through the real audited and authorized service", async () => {
+    const publisher = await performLogin(PUBLISHER_USER);
+    const reviewer = await performLogin(REVIEWER_USER);
+    const mutate = (session: SessionInfo, mutation: { path: string; body: unknown }) =>
+      fetch(`${exchangeOrigin}${mutation.path}`, {
+        method: "POST",
+        headers: {
+          Cookie: session.cookieHeader,
+          Origin: exchangeOrigin,
+          "X-CSRF-Token": session.csrfToken,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(mutation.body),
+      });
+    const namespace = "security-controls";
+    expect(
+      (
+        await mutate(publisher, {
+          path: "/v1/namespaces",
+          body: { name: namespace, acceptTermsVersion: TERMS_VERSION },
+        })
+      ).status,
+    ).toBe(201);
+    const verify = namespaceVerification(
+      namespace,
+      true,
+      "https://example.com/ownership",
+      "Ownership fixture inspected",
+    );
+    expect((await mutate(publisher, verify)).status).toBe(403);
+    expect((await mutate(reviewer, verify)).status).toBe(200);
+    expect(
+      (
+        await testPool!.query("SELECT verified FROM exchange_namespaces WHERE name = $1", [
+          namespace,
+        ])
+      ).rows[0].verified,
+    ).toBe(true);
+    for (const proofUrl of [
+      "https://name:secret@example.com/proof",
+      "https://example.com/proof#fragment",
+    ])
+      expect(
+        (await mutate(reviewer, { ...verify, body: { ...verify.body, proofUrl } })).status,
+      ).toBe(400);
+    expect(
+      (
+        await mutate(
+          reviewer,
+          namespaceVerification(namespace, false, "", "Verification corrected"),
+        )
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await testPool!.query("SELECT verified FROM exchange_namespaces WHERE name = $1", [
+          namespace,
+        ])
+      ).rows[0].verified,
+    ).toBe(false);
+    const digest = Crypto.createHash("sha256").update("security-controls-fixture").digest("hex");
+    expect((await mutate(publisher, digestBlock(digest, "Known fixture material"))).status).toBe(
+      403,
+    );
+    expect((await mutate(reviewer, digestBlock(digest, "Known fixture material"))).status).toBe(
+      201,
+    );
+    expect((await mutate(reviewer, digestUnblock(digest, "Fixture correction"))).status).toBe(200);
+    const batchDigest = Crypto.createHash("sha256")
+      .update("security-controls-batch-fixture")
+      .digest("hex");
+    expect((await mutate(reviewer, digestBlockBatch(`${batchDigest} Fixture block`))).status).toBe(
+      201,
+    );
+    expect((await mutate(reviewer, digestUnblock(batchDigest, "Fixture correction"))).status).toBe(
+      200,
+    );
+    const decisions = await testPool!.query(
+      "SELECT verified, proof_url, reason FROM exchange_namespace_verifications WHERE namespace = $1 ORDER BY id",
+      [namespace],
+    );
+    expect(decisions.rows.map((entry) => entry.verified)).toEqual([true, false]);
+    expect(decisions.rows[0].proof_url).toBe("https://example.com/ownership");
+    const events = await testPool!.query(
+      "SELECT action, reason FROM exchange_blocked_digest_events WHERE digest = $1 ORDER BY id",
+      [digest],
+    );
+    expect(events.rows.map((entry) => entry.action)).toEqual(["add", "remove"]);
+    expect(events.rows[1].reason).toBe("Fixture correction");
   });
 
   it("exercises the full publisher, contributor, reviewer, worker, publication, and revocation lifecycle", async () => {
@@ -383,7 +557,21 @@ describeLive("Exchange Real Local Service Flow (Checkpoint 1)", () => {
     manifest1.publisher = "acme";
     manifest1.name = "dashboard";
     manifest1.version = "1.0.0";
+    manifest1.description = "Review orchestration for project teams.";
+    manifest1.engines.api = "^1.7.0";
+    manifest1.listing = {
+      readme: "README.md",
+      categories: ["productivity"],
+      keywords: ["kanban"],
+      screenshots: [{ path: "preview.png", alt: "Test workspace preview" }],
+      license: "MIT",
+    };
     await FS.writeFile(manifestPath, JSON.stringify(manifest1, null, 2));
+    const previewBytes = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aM3sAAAAASUVORK5CYII=",
+      "base64",
+    );
+    await FS.writeFile(Path.join(sourceDir, "preview.png"), previewBytes);
 
     const archive1 = Path.join(tempDir, "dashboard-1.0.0.tabsext");
     await packTabsext({ directory: sourceDir, destination: archive1, tabsVersion: "1.3.17" });
@@ -424,11 +612,18 @@ describeLive("Exchange Real Local Service Flow (Checkpoint 1)", () => {
     expect(scanned1).toBe(true);
 
     const versionRow1 = await testPool!.query(
-      "SELECT status, digest, bytes, scan_result FROM exchange_versions WHERE namespace = 'acme' AND name = 'dashboard' AND version = '1.0.0'",
+      "SELECT status, digest, bytes, scan_result, scan_started_at, scan_completed_at, scan_claimed_at, scan_token FROM exchange_versions WHERE namespace = 'acme' AND name = 'dashboard' AND version = '1.0.0'",
     );
     expect(versionRow1.rows[0].status).toBe("review");
     expect(versionRow1.rows[0].scan_result.passed).toBe(true);
     expect(versionRow1.rows[0].scan_result.digest).toBe(digest1);
+    expect(versionRow1.rows[0].scan_started_at).toBeInstanceOf(Date);
+    expect(versionRow1.rows[0].scan_completed_at).toBeInstanceOf(Date);
+    expect(versionRow1.rows[0].scan_completed_at.getTime()).toBeGreaterThanOrEqual(
+      versionRow1.rows[0].scan_started_at.getTime(),
+    );
+    expect(versionRow1.rows[0].scan_claimed_at).toBeNull();
+    expect(versionRow1.rows[0].scan_token).toBeNull();
 
     // 6. Verify NOT public before signed publication
     const publicExtsBefore = await fetch(`${exchangeOrigin}/v1/extensions`);
@@ -553,6 +748,58 @@ describeLive("Exchange Real Local Service Flow (Checkpoint 1)", () => {
     expect(extsData1.extensions[0].namespace).toBe("acme");
     expect(extsData1.extensions[0].name).toBe("dashboard");
     expect(extsData1.extensions[0].version).toBe("1.0.0");
+    expect(Number.isFinite(Date.parse(extsData1.extensions[0].first_published_at))).toBe(true);
+    for (const term of ["orchestration", "kanban", "acme.dashboard"]) {
+      const matched = await fetch(`${exchangeOrigin}/v1/extensions?q=${encodeURIComponent(term)}`);
+      expect(matched.status).toBe(200);
+      expect(
+        (await matched.json()).extensions.map((entry: { name: string }) => entry.name),
+      ).toEqual(["dashboard"]);
+    }
+    for (const term of ["%", "_", "\\"]) {
+      const literal = await fetch(`${exchangeOrigin}/v1/extensions?q=${encodeURIComponent(term)}`);
+      expect(literal.status).toBe(200);
+      expect((await literal.json()).extensions).toEqual([]);
+    }
+    const newest = await fetch(`${exchangeOrigin}/v1/extensions?sort=newest&limit=1`);
+    expect(newest.status).toBe(200);
+    expect((await newest.json()).extensions[0].version).toBe("1.0.0");
+    const filtered = await fetch(
+      `${exchangeOrigin}/v1/extensions?category=nonexistent&sort=newest`,
+    );
+    expect(filtered.status).toBe(200);
+    expect((await filtered.json()).extensions).toEqual([]);
+    const category = await fetch(
+      `${exchangeOrigin}/v1/extensions?category=productivity&sort=newest`,
+    );
+    expect((await category.json()).extensions).toHaveLength(1);
+    const readme = await fetch(
+      `${exchangeOrigin}/v1/extensions/acme/dashboard/versions/1.0.0/assets/readme`,
+    );
+    expect(readme.status).toBe(200);
+    expect(readme.headers.get("X-Content-Type-Options")).toBe("nosniff");
+    expect(await readme.text()).toBe(await FS.readFile(Path.join(sourceDir, "README.md"), "utf8"));
+    const preview = await fetch(
+      `${exchangeOrigin}/v1/extensions/acme/dashboard/versions/1.0.0/assets/screenshot/0`,
+    );
+    expect(preview.status).toBe(200);
+    expect(preview.headers.get("Content-Type")).toBe("image/png");
+    expect(preview.headers.get("Cache-Control")).toBe("private, no-store");
+    expect(Buffer.from(await preview.arrayBuffer())).toEqual(previewBytes);
+    expect(
+      (
+        await fetch(
+          `${exchangeOrigin}/v1/extensions/acme/dashboard/versions/1.0.0/assets/screenshot/1`,
+        )
+      ).status,
+    ).toBe(404);
+    expect(
+      (
+        await fetch(
+          `${exchangeOrigin}/v1/extensions/acme/dashboard/versions/1.0.0/assets/screenshot/6`,
+        )
+      ).status,
+    ).toBe(404);
 
     const packageRes1 = await fetch(`${exchangeOrigin}/v1/extensions/acme/dashboard`);
     expect(packageRes1.status).toBe(200);
@@ -777,6 +1024,234 @@ describeLive("Exchange Real Local Service Flow (Checkpoint 1)", () => {
     );
     expect(tufTargetRevoked.status).toBe(404);
   }, 30_000);
+
+  it("uses real PostgreSQL relevance, display-name and first-publication keyset ordering", async () => {
+    // Seed catalog metadata only: this test does not assert a signed publication flow.
+    const fixtures = [
+      {
+        name: "search-exact",
+        displayName: "needle",
+        description: "ordinary",
+        keywords: [],
+        published: "2026-01-01T00:00:00Z",
+      },
+      {
+        name: "search-partial",
+        displayName: "needle companion",
+        description: "ordinary",
+        keywords: [],
+        published: "2026-01-02T00:00:00Z",
+      },
+      {
+        name: "search-keyword",
+        displayName: "Alpha",
+        description: "ordinary",
+        keywords: ["needle"],
+        published: "2026-01-03T00:00:00Z",
+      },
+      {
+        name: "search-description",
+        displayName: "alpha",
+        description: "needle and literal 100%_value",
+        keywords: [],
+        published: "2026-01-03T00:00:00Z",
+      },
+      {
+        name: "search-unknown",
+        displayName: "Zulu",
+        description: "ordinary",
+        keywords: [],
+        published: null,
+      },
+    ];
+    const names = fixtures.map((entry) => entry.name);
+    try {
+      for (const entry of fixtures) {
+        const digest = Crypto.createHash("sha256").update(entry.name).digest("hex");
+        const manifest = {
+          displayName: entry.displayName,
+          description: entry.description,
+          listing: { categories: ["catalog-fixture"], keywords: entry.keywords },
+        };
+        await testPool!.query(
+          `INSERT INTO exchange_versions(namespace, name, version, digest, bytes, manifest, object_key, status, uploaded_by, submitted_at)
+           VALUES ('acme', $1, '1.0.0', $2, 1, $3::jsonb, $4, 'approved', $5, '2026-09-01')`,
+          [
+            entry.name,
+            digest,
+            JSON.stringify(manifest),
+            `catalog-fixture/${entry.name}`,
+            PUBLISHER_USER.id,
+          ],
+        );
+        await testPool!.query(
+          "INSERT INTO exchange_published_targets(namespace, name, version, digest, bytes) VALUES ('acme', $1, '1.0.0', $2, 1)",
+          [entry.name, digest],
+        );
+        await testPool!.query(
+          "INSERT INTO exchange_published_heads(namespace, name, version) VALUES ('acme', $1, '1.0.0')",
+          [entry.name],
+        );
+        await testPool!.query(
+          "INSERT INTO exchange_publication_history(namespace, name, version, digest, first_published_at) VALUES ('acme', $1, '1.0.0', $2, $3)",
+          [entry.name, digest, entry.published],
+        );
+      }
+      const collect = async (sort: string, query = "") => {
+        const found: string[] = [];
+        let cursor: string | null = null;
+        for (let page = 0; page < 10; page++) {
+          const params = new URLSearchParams({
+            category: "catalog-fixture",
+            sort,
+            q: query,
+            limit: "1",
+          });
+          if (cursor) params.set("cursor", cursor);
+          const response = await fetch(`${exchangeOrigin}/v1/extensions?${params}`);
+          expect(response.status).toBe(200);
+          const data = await response.json();
+          expect(data.extensions.length).toBeLessThanOrEqual(1);
+          found.push(...data.extensions.map((entry: { name: string }) => entry.name));
+          expect(data.hasMore).toBe(data.nextCursor !== null);
+          if (!data.hasMore) return found;
+          expect(data.nextCursor).not.toBe(cursor);
+          cursor = data.nextCursor;
+        }
+        throw new Error("Catalog cursor failed to terminate.");
+      };
+      expect(await collect("relevance", "needle")).toEqual([
+        "search-exact",
+        "search-partial",
+        "search-keyword",
+        "search-description",
+      ]);
+      expect(await collect("name")).toEqual([
+        "search-description",
+        "search-keyword",
+        "search-exact",
+        "search-partial",
+        "search-unknown",
+      ]);
+      expect(await collect("newest")).toEqual([
+        "search-keyword",
+        "search-description",
+        "search-partial",
+        "search-exact",
+        "search-unknown",
+      ]);
+      expect(await collect("relevance", "100%_value")).toEqual(["search-description"]);
+      expect(await collect("relevance", "%_")).toEqual(["search-description"]);
+    } finally {
+      await testPool!.query(
+        "DELETE FROM exchange_published_targets WHERE namespace = 'acme' AND name = ANY($1::text[])",
+        [names],
+      );
+      await testPool!.query(
+        "DELETE FROM exchange_publication_history WHERE namespace = 'acme' AND name = ANY($1::text[])",
+        [names],
+      );
+      await testPool!.query(
+        "DELETE FROM exchange_versions WHERE namespace = 'acme' AND name = ANY($1::text[])",
+        [names],
+      );
+    }
+  });
+
+  it("keeps exact-digest appeal history and reviewer responses behind current membership", async () => {
+    const publisher = await performLogin(PUBLISHER_USER);
+    const reviewer = await performLogin(REVIEWER_USER);
+    const outsider = await performLogin(OUTSIDER_USER);
+    const versions = await testPool!.query(
+      "SELECT version, digest FROM exchange_versions WHERE namespace = 'acme' AND name = 'dashboard' AND version IN ('1.0.0', '1.1.0')",
+    );
+    const revoked = versions.rows.find((entry) => entry.version === "1.1.0")!;
+    const previous = versions.rows.find((entry) => entry.version === "1.0.0")!;
+    const mutationHeaders = (session: SessionInfo) => ({
+      Cookie: session.cookieHeader,
+      Origin: exchangeOrigin,
+      "X-CSRF-Token": session.csrfToken,
+      "Content-Type": "application/json",
+    });
+    const created = await fetch(
+      `${exchangeOrigin}/v1/publisher/acme/dashboard/versions/1.1.0/appeals`,
+      {
+        method: "POST",
+        headers: mutationHeaders(publisher),
+        body: JSON.stringify({
+          digest: revoked.digest,
+          message: "Please reconsider the reported vulnerability.",
+        }),
+      },
+    );
+    expect(created.status).toBe(201);
+    // More recent unrelated history must not hide the requested digest before filtering.
+    await testPool!.query(
+      `INSERT INTO exchange_appeals(namespace, name, version, digest, actor_id, message, response, responded_at)
+       SELECT 'acme', 'dashboard', '1.0.0', $1, $2, 'Historical appeal', 'Historical response', now()
+       FROM generate_series(1, 101)`,
+      [previous.digest, PUBLISHER_USER.id],
+    );
+    const historyUrl = `${exchangeOrigin}/v1/publisher/appeals?digest=${revoked.digest}`;
+    const history = await fetch(historyUrl, { headers: { Cookie: publisher.cookieHeader } });
+    expect(history.status).toBe(200);
+    const data = await history.json();
+    expect(data.appeals).toHaveLength(1);
+    expect(data.appeals[0].digest).toBe(revoked.digest);
+    const id = data.appeals[0].id;
+    const responseUrl = `${exchangeOrigin}/v1/review/appeals/${id}/response`;
+    const forbidden = await fetch(responseUrl, {
+      method: "POST",
+      headers: mutationHeaders(publisher),
+      body: JSON.stringify({ response: "Not a reviewer" }),
+    });
+    expect(forbidden.status).toBe(403);
+    const answered = await fetch(responseUrl, {
+      method: "POST",
+      headers: mutationHeaders(reviewer),
+      body: JSON.stringify({
+        response: "Submit a corrected version; revocation remains in effect.",
+      }),
+    });
+    expect(answered.status).toBe(200);
+    const duplicate = await fetch(responseUrl, {
+      method: "POST",
+      headers: mutationHeaders(reviewer),
+      body: JSON.stringify({ response: "Replace response" }),
+    });
+    expect(duplicate.status).toBe(409);
+    const updated = await fetch(historyUrl, { headers: { Cookie: publisher.cookieHeader } });
+    const updatedData = await updated.json();
+    expect(updatedData.appeals[0].response).toBe(
+      "Submit a corrected version; revocation remains in effect.",
+    );
+    expect(updatedData.appeals[0].responded_at).toBeTruthy();
+    const status = await testPool!.query(
+      "SELECT status FROM exchange_versions WHERE namespace = 'acme' AND name = 'dashboard' AND version = '1.1.0'",
+    );
+    expect(status.rows[0].status).toBe("revoked");
+    const outsiderHistory = await fetch(historyUrl, { headers: { Cookie: outsider.cookieHeader } });
+    expect((await outsiderHistory.json()).appeals).toEqual([]);
+    const membership = await testPool!.query(
+      "SELECT role FROM exchange_namespace_members WHERE namespace = 'acme' AND user_id = $1",
+      [PUBLISHER_USER.id],
+    );
+    expect(membership.rows).toHaveLength(1);
+    try {
+      await testPool!.query(
+        "DELETE FROM exchange_namespace_members WHERE namespace = 'acme' AND user_id = $1",
+        [PUBLISHER_USER.id],
+      );
+      const removed = await fetch(historyUrl, { headers: { Cookie: publisher.cookieHeader } });
+      expect((await removed.json()).appeals).toEqual([]);
+    } finally {
+      await testPool!.query(
+        "INSERT INTO exchange_namespace_members(namespace, user_id, role) VALUES ('acme', $1, $2)",
+        [PUBLISHER_USER.id, membership.rows[0].role],
+      );
+    }
+    expect((await fetch(historyUrl)).status).toBe(401);
+  });
 
   describe("Negative Service Boundary Tests", () => {
     it("rejects approval with mismatched digest", async () => {
@@ -1153,6 +1628,153 @@ describeLive("Exchange Real Local Service Flow (Checkpoint 1)", () => {
     });
   });
 
+  it("enforces real publisher/read tokens, immutable browser uploads and private-instance access", async () => {
+    const session = await performLogin(PUBLISHER_USER);
+    const headers = {
+      Origin: exchangeOrigin,
+      Cookie: session.cookieHeader,
+      "X-CSRF-Token": session.csrfToken,
+      "Content-Type": "application/json",
+    };
+    expect(
+      (
+        await fetch(`${exchangeOrigin}/v1/namespaces`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ name: "token-test", acceptTermsVersion: TERMS_VERSION }),
+        })
+      ).status,
+    ).toBe(201);
+    async function issue(scope: "read" | "publish") {
+      const response = await fetch(`${exchangeOrigin}/v1/tokens`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          label: `Integration ${scope}`,
+          scope,
+          ...(scope === "publish" ? { namespace: "token-test" } : {}),
+        }),
+      });
+      expect(response.status).toBe(201);
+      return (await response.json()) as { id: string; token: string; expiresAt: string };
+    }
+    const read = await issue("read");
+    const publish = await issue("publish");
+    const stored = await testPool!.query(
+      "SELECT token_hash, expires_at FROM exchange_access_tokens WHERE id = $1",
+      [publish.id],
+    );
+    expect(stored.rows[0].token_hash).toBe(
+      Crypto.createHash("sha256").update(publish.token).digest("hex"),
+    );
+    expect(stored.rows[0].expires_at.getTime() - Date.now()).toBeGreaterThan(29 * 86400000);
+    const temporary = await FS.mkdtemp(Path.join(OS.tmpdir(), "tabs-token-integration-"));
+    temporaryDirectories.push(temporary);
+    const source = Path.join(temporary, "source");
+    await FS.mkdir(source);
+    await FS.writeFile(Path.join(source, "index.html"), "<!doctype html><title>Token test</title>");
+    await FS.writeFile(
+      Path.join(source, "tabs-extension.json"),
+      JSON.stringify({
+        manifestVersion: 1,
+        publisher: "token-test",
+        name: "tool",
+        version: "1.0.0",
+        displayName: "Token Test",
+        description: "Immutable submission",
+        engines: { tabs: ">=1.3.0 <2.0.0" },
+        contributes: { tools: [{ id: "main", label: "Main", entry: "index.html" }] },
+      }),
+    );
+    const archive = Path.join(temporary, "tool.tabsext");
+    const packed = await packTabsext({
+      directory: source,
+      destination: archive,
+      tabsVersion: "1.3.17",
+    });
+    const bytes = await FS.readFile(archive);
+    const browser = await fetch(`${exchangeOrigin}/v1/publisher/upload`, {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "application/octet-stream" },
+      body: bytes,
+    });
+    expect(browser.status).toBe(202);
+    expect((await browser.json()).digest).toBe(packed.digest);
+    const duplicate = await fetch(`${exchangeOrigin}/v1/publisher/token-test/tool/versions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${publish.token}`,
+        "Content-Type": "application/octet-stream",
+      },
+      body: bytes,
+    });
+    expect(duplicate.status).toBe(409);
+    const status = await fetch(`${exchangeOrigin}/v1/publisher/token-test/tool/versions/1.0.0`, {
+      headers: { Authorization: `Bearer ${publish.token}` },
+    });
+    expect(status.status).toBe(200);
+    expect((await status.json()).digest).toBe(packed.digest);
+    Object.assign(exchangeConfig!, {
+      visibility: "private",
+      allowedGithubIds: new Set([PUBLISHER_USER.id, REVIEWER_USER.id]),
+    });
+    try {
+      expect((await fetch(`${exchangeOrigin}/v1/extensions`)).status).toBe(401);
+      const catalog = await fetch(`${exchangeOrigin}/v1/extensions`, {
+        headers: { Authorization: `Bearer ${read.token}` },
+      });
+      expect(catalog.status).toBe(200);
+      expect(catalog.headers.get("Cache-Control")).toBe("private, no-store");
+      expect(catalog.headers.get("Access-Control-Allow-Origin")).toBeNull();
+      expect(
+        (
+          await fetch(`${exchangeOrigin}/v1/tuf/metadata/timestamp.json`, {
+            headers: { Authorization: `Bearer ${read.token}` },
+          })
+        ).status,
+      ).toBe(200);
+      await testPool!.query(
+        "UPDATE exchange_access_tokens SET expires_at = now() - interval '1 second' WHERE id = $1",
+        [read.id],
+      );
+      expect(
+        (
+          await fetch(`${exchangeOrigin}/v1/extensions`, {
+            headers: { Authorization: `Bearer ${read.token}` },
+          })
+        ).status,
+      ).toBe(401);
+      await testPool!.query(
+        "UPDATE exchange_access_tokens SET expires_at = now() + interval '1 day' WHERE id = $1",
+        [read.id],
+      );
+      expect(
+        (await fetch(`${exchangeOrigin}/v1/tokens/${read.id}`, { method: "DELETE", headers }))
+          .status,
+      ).toBe(204);
+      expect(
+        (
+          await fetch(`${exchangeOrigin}/v1/extensions`, {
+            headers: { Authorization: `Bearer ${read.token}` },
+          })
+        ).status,
+      ).toBe(401);
+      await testPool!.query(
+        "DELETE FROM exchange_namespace_members WHERE namespace = 'token-test' AND user_id = $1",
+        [PUBLISHER_USER.id],
+      );
+      expect(
+        (
+          await fetch(`${exchangeOrigin}/v1/publisher/token-test/tool/versions/1.0.0`, {
+            headers: { Authorization: `Bearer ${publish.token}` },
+          })
+        ).status,
+      ).toBe(401);
+    } finally {
+      Object.assign(exchangeConfig!, { visibility: "public", allowedGithubIds: new Set() });
+    }
+  });
+
   it("restores database audit rows, object bytes, and serial sequence state into fresh services", async () => {
     const auditUser = "90000001";
     const auditNamespace = "backup-test";
@@ -1169,10 +1791,21 @@ describeLive("Exchange Real Local Service Flow (Checkpoint 1)", () => {
       [auditNamespace, auditUser],
     );
 
+    await testPool!.query(
+      "INSERT INTO exchange_reviewers(user_id, active, changed_by, reason) VALUES ($1, true, $1, 'backup reviewer test')",
+      [auditUser],
+    );
+    await testPool!.query(
+      "INSERT INTO exchange_reviewer_events(user_id, actor_id, action, reason) VALUES ($1, $1, 'grant', 'backup reviewer test')",
+      [auditUser],
+    );
     const backup = JSON.parse(
       JSON.stringify(await backupExchangeData(testPool!, s3Client!, testBucket)),
     ) as Awaited<ReturnType<typeof backupExchangeData>>;
     expect(backup.tableCounts.exchange_namespace_member_events).toBeGreaterThan(0);
+    expect(backup.version).toBe(3);
+    expect(backup.tableCounts.exchange_publisher_agreements).toBeGreaterThan(0);
+    expect(backup.tableCounts.exchange_publication_history).toBeGreaterThan(0);
 
     const restoredDbName = `tabs_exchange_restore_${Date.now()}_${Crypto.randomBytes(4).toString("hex")}`;
     const restoredBucket = `tabs-exchange-restore-${Date.now()}-${Crypto.randomBytes(4).toString("hex")}`;
@@ -1206,6 +1839,17 @@ describeLive("Exchange Real Local Service Flow (Checkpoint 1)", () => {
         [auditNamespace],
       );
       expect(auditRows.rows.some((row) => row.reason === "backup audit test")).toBe(true);
+      for (const table of [
+        "exchange_publisher_agreements",
+        "exchange_publication_history",
+        "exchange_reviewers",
+        "exchange_reviewer_events",
+      ]) {
+        const restored = await restoredPool.query(`SELECT * FROM ${table}`);
+        const normalized = JSON.parse(JSON.stringify(restored.rows));
+        expect(normalized).toEqual(expect.arrayContaining([...backup.tableRows[table]!]));
+        expect(normalized).toHaveLength(backup.tableCounts[table]!);
+      }
 
       // New audited writes must not collide with IDs restored from the backup.
       await restoredPool.query(
@@ -1232,7 +1876,7 @@ describeLive("Exchange Real Local Service Flow (Checkpoint 1)", () => {
         }
       }
       await s3Client!.send(new DeleteBucketCommand({ Bucket: restoredBucket }));
-      await rootPool!.query(`DROP DATABASE IF EXISTS ${restoredDbName} WITH (FORCE)`);
+      await rootPool!.query(`DROP DATABASE IF EXISTS ${restoredDbName}`);
     }
   });
 });

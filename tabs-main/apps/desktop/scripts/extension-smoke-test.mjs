@@ -13,8 +13,29 @@ const entry = join(temporary, "entry.ts");
 const bundle = join(temporary, "extensionHostBundle.cjs");
 const preload = join(temporary, "extensionPreload.js");
 const scriptCjs = fileURLToPath(new URL("./extension-smoke-test.cjs", import.meta.url));
+const registryFixture = process.argv[2] === "--registry-fixture" ? process.argv[3] : undefined;
+if (registryFixture && process.env.NODE_ENV !== "test") {
+  throw new Error("Registry Electron acceptance is restricted to NODE_ENV=test.");
+}
 
 try {
+  const documentation = spawnSync(
+    "bun",
+    [
+      "-e",
+      `import { extensionDocs } from ${JSON.stringify(join(root, "apps/marketing/src/lib/extension-docs.ts"))}; process.stdout.write(JSON.stringify(extensionDocs));`,
+    ],
+    { cwd: root, encoding: "utf8" },
+  );
+  if (documentation.error) throw documentation.error;
+  if (documentation.status !== 0) throw new Error("Could not load SDK documentation examples.");
+  const pages = JSON.parse(documentation.stdout);
+  const snippets = pages.flatMap((page) =>
+    [...page.body.matchAll(/```ts\n([\s\S]*?)```/g)]
+      .map((match) => match[1])
+      .filter((source) => source.includes("window.tabsExtension.")),
+  );
+  writeFileSync(join(temporary, "documentation-examples.json"), JSON.stringify(snippets));
   // Create an explicit entrypoint that exports required desktop and packaging modules
   writeFileSync(
     entry,
@@ -22,6 +43,8 @@ try {
       `export { ExtensionViewManager, extensionSessionPartition, extensionDataIdentity } from "${desktopDir}/src/extensionViewManager";`,
       `export { NativeViewStackCoordinator } from "${desktopDir}/src/nativeViewStackCoordinator";`,
       `export { packTabsext } from "${root}/packages/extension-package/src/index";`,
+      `export { ExchangeInstallService } from "${desktopDir}/src/exchangeInstall";`,
+      `export { discoverExchangeVersions } from "${desktopDir}/src/exchangeCatalog";`,
     ].join("\n"),
   );
 
@@ -78,12 +101,23 @@ try {
   const electronBin = require("electron");
   console.log("Launching Electron extension smoke test with:", electronBin);
 
-  const test = spawnSync(electronBin, [scriptCjs, bundle, temporary], {
-    cwd: root,
-    env,
-    stdio: "inherit",
-    timeout: 90000,
-  });
+  const test = spawnSync(
+    electronBin,
+    [
+      registryFixture
+        ? fileURLToPath(new URL("./extension-registry-smoke.cjs", import.meta.url))
+        : scriptCjs,
+      bundle,
+      temporary,
+      ...(registryFixture ? [registryFixture] : []),
+    ],
+    {
+      cwd: root,
+      env,
+      stdio: "inherit",
+      timeout: 90000,
+    },
+  );
 
   if (test.error) throw test.error;
   process.exitCode = test.status ?? 1;

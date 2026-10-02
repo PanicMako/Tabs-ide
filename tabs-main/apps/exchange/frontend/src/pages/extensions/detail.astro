@@ -1,0 +1,21 @@
+---
+import Exchange from "../../layouts/Exchange.astro";
+---
+<Exchange title="Extension overview" description="Review a Tabs-native extension before installation." active="extensions">
+  <a href="/extensions">Back to extensions</a>
+  <p id="extension-status" role="status" aria-live="polite">Loading the published overview…</p>
+  <div id="extension-error" hidden><p id="extension-error-message"></p><button id="extension-retry" class="button secondary" type="button">Retry overview</button><a id="extension-signin" href="/auth/github/start">Sign in to reconnect</a></div>
+  <article id="extension-overview" hidden>
+    <header><img id="extension-icon" width="64" height="64" alt="" hidden /><h1 id="extension-title"></h1><p id="extension-identity" class="muted"></p><p id="extension-description" class="lead"></p></header>
+    <label for="extension-version">Selected release</label><select id="extension-version"><option value="">Latest published stable release</option><optgroup id="extension-stable" label="Stable releases"></optgroup><optgroup id="extension-prerelease" label="Prereleases"></optgroup></select>
+    <p class="muted">The default falls back to a prerelease only when no stable release is published. Tabs chooses a release compatible with your actual desktop version.</p>
+    <section class="card"><h2>Compatibility and access</h2><dl id="extension-metadata"></dl><h3>Requested capabilities</h3><ul id="extension-permissions"></ul><p id="extension-services"></p><nav id="extension-links" aria-label="Publisher resources"></nav></section>
+    <section class="card"><h2>Install in Tabs</h2><p>Open Tabs → Settings → Extensions → Discover. Connect to the registry below using its independently provisioned trust root, then search for this extension. Review permissions before enabling it for your projects.</p><p id="extension-install-identity"></p><p>Project enablement and account-profile selection are separate controls. Browser downloads are not verified installations.</p><a id="extension-download" class="button secondary">Download package for inspection</a></section>
+    <section id="extension-previews" hidden><h2>Packaged previews</h2><div id="extension-preview-images" class="extension-previews"></div></section>
+    <section><h2>Overview</h2><p id="extension-readme-status" role="status" aria-live="polite"></p><div id="extension-readme" class="prose"></div><button id="extension-readme-retry" type="button" hidden>Retry README</button></section>
+    <section><h2>Release notes</h2><p id="extension-release-notes"></p></section>
+  </article>
+  <details id="extension-history"><summary>Published release history</summary><p id="extension-history-status" role="status" aria-live="polite">Open to load releases independently of the overview.</p><ul id="extension-history-list"></ul><button id="extension-history-more" class="button secondary" type="button">Load releases</button></details>
+  <p class="notice">Every published version has been manually reviewed and entered signed metadata. Review is not a security guarantee.</p>
+</Exchange>
+<script>import "../../scripts/extension";</script>

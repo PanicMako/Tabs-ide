@@ -4,7 +4,9 @@ import * as Http from "node:http";
 import * as OS from "node:os";
 import * as Path from "node:path";
 import type { S3Client } from "@aws-sdk/client-s3";
-import { inspectTabsext } from "@tabs/extension-package";
+import { inspectTabsext, readTabsextListingAsset } from "@tabs/extension-package";
+import { TABS_EXTENSION_API_VERSION } from "@tabs/extension-api";
+import { exchangeErrorCode, exchangeErrorGuidance } from "@tabs/shared/exchangeErrors";
 import type { Pool, PoolClient } from "pg";
 import {
   actorFor,
@@ -21,6 +23,13 @@ import { decodeVersionCursor, encodeVersionCursor } from "./versionCursor.ts";
 import { SignedMetadataEvents } from "./signedMetadataEvents.ts";
 import { metadataFreshness, type StoredMetadataRow } from "./metadataFreshness.ts";
 import { evaluateOperationalReadiness } from "./operationalAlerts.ts";
+import { issueAccessToken } from "./accessTokens.ts";
+import { changeReviewerRole, ReviewerRoleError } from "./reviewerRoles.ts";
+import { acceptPublisherAgreement, publisherAgreement } from "./publisherAgreement.ts";
+import { resolveInviteIdentity, validInviteIdentity } from "./inviteIdentity.ts";
+import { serveFrontend } from "./frontend.ts";
+import { listingMetadata } from "./listingMetadata.ts";
+import { CATALOG_DISPLAY_NAME, CATALOG_RELEVANCE, catalogPattern } from "./catalogSearch.ts";
 
 const PACKAGE_ROUTE = /^\/v1\/extensions\/([a-z][a-z0-9-]{1,62})\/([a-z][a-z0-9-]{1,62})$/;
 const VERSION_ROUTE =
@@ -54,6 +63,9 @@ const PUBLISHED_RELEASE_JOIN = `JOIN exchange_published_targets p
   ON p.namespace = v.namespace AND p.name = v.name AND p.version = v.version
   AND p.digest = v.digest AND p.bytes = v.bytes`;
 const VERSION_PAGE_SIZE = 100;
+const PUBLICATION_HISTORY_JOIN = `LEFT JOIN exchange_publication_history publication
+  ON publication.namespace = v.namespace AND publication.name = v.name
+  AND publication.version = v.version AND publication.digest = v.digest`;
 const MAX_BLOCKED_DIGEST_BATCH = 100;
 const MAX_CONCURRENT_UPLOADS = 2;
 const UPLOAD_DEADLINE_MS = 120_000;
@@ -62,17 +74,23 @@ class HttpError extends Error {
   constructor(
     readonly status: number,
     message: string,
+    readonly code?: string,
+    readonly recovery?: string,
   ) {
     super(message);
   }
 }
 
+const privateResponses = new WeakSet<Http.ServerResponse>();
+function publicCors(response: Http.ServerResponse): Record<string, string> {
+  return privateResponses.has(response) ? {} : { "Access-Control-Allow-Origin": "*" };
+}
 function json(response: Http.ServerResponse, status: number, body: unknown): void {
   response.writeHead(status, {
     "Content-Type": "application/json; charset=utf-8",
-    "Cache-Control": "no-store",
+    "Cache-Control": privateResponses.has(response) ? "private, no-store" : "no-store",
     "X-Content-Type-Options": "nosniff",
-    "Access-Control-Allow-Origin": "*",
+    ...publicCors(response),
   });
   response.end(JSON.stringify(body));
 }
@@ -221,7 +239,139 @@ export function createExchangeServer(
     try {
       const url = new URL(request.url ?? "/", config.origin);
       const path = url.pathname;
+      if (
+        config.visibility === "private" ||
+        request.headers.authorization ||
+        request.headers.cookie
+      ) {
+        privateResponses.add(response);
+        response.setHeader("Cache-Control", "private, no-store");
+        response.setHeader("Vary", "Authorization, Cookie");
+      }
+      if (request.method === "GET" && path === "/v1/registry") {
+        json(response, 200, {
+          protocolVersion: "1.0.0",
+          extensionApiVersion: TABS_EXTENSION_API_VERSION,
+          maxPackageBytes: 25 * 1024 * 1024,
+          visibility: config.visibility ?? "public",
+          authentication:
+            config.visibility === "private" ? "session-or-read-token" : "anonymous-read",
+          publishingEnabled: config.publishingEnabled,
+          reviewRequired: true,
+        });
+        return;
+      }
+      if (request.headers.authorization) {
+        const actor = await actorFor(request, pool, config);
+        const publishRoute =
+          /^\/v1\/publisher\/([a-z][a-z0-9-]{1,62})\/[a-z][a-z0-9-]{1,62}\/versions(?:\/[0-9A-Za-z.+-]{1,128})?$/.exec(
+            path,
+          );
+        const readRoute =
+          request.method === "GET" &&
+          (path.startsWith("/v1/extensions") ||
+            TUF_METADATA_ROUTE.test(path) ||
+            TUF_TARGET_ROUTE.test(path));
+        const canRead = actor?.tokenScope === "read" && readRoute;
+        const canPublish =
+          actor?.tokenScope === "publish" &&
+          publishRoute?.[1] === actor.tokenNamespace &&
+          (request.method === "GET" || (request.method === "POST" && UPLOAD_ROUTE.test(path)));
+        if (!canRead && !canPublish)
+          throw new HttpError(401, "This token cannot access this operation.");
+      }
+      if (
+        config.visibility === "private" &&
+        path.startsWith("/v1/") &&
+        path !== "/v1/openapi.json" &&
+        path !== "/v1/me" &&
+        !path.startsWith("/v1/publisher/") &&
+        !path.startsWith("/v1/tokens")
+      ) {
+        const actor = await actorFor(request, pool, config);
+        if (!actor || (actor.tokenScope && actor.tokenScope !== "read"))
+          throw new HttpError(401, "Private registry access requires a current read credential.");
+      }
+      if (path === "/v1/tokens" && request.method === "GET") {
+        const actor = await actorFor(request, pool, config);
+        if (!actor || actor.tokenScope) throw new HttpError(401, "Sign in to manage tokens.");
+        const result = await pool.query(
+          "SELECT id, label, scope, namespace, created_at, expires_at, revoked_at FROM exchange_access_tokens WHERE user_id = $1 ORDER BY created_at DESC LIMIT 100",
+          [actor.id],
+        );
+        json(response, 200, { tokens: result.rows });
+        return;
+      }
+      if (path === "/v1/tokens" && request.method === "POST") {
+        const actor = requireMutation(request, await actorFor(request, pool, config), config);
+        try {
+          json(response, 201, await issueAccessToken(pool, actor, await readJson(request)));
+        } catch {
+          throw new HttpError(400, "Invalid token request or namespace access.");
+        }
+        return;
+      }
+      if (/^\/v1\/tokens\/[0-9a-f-]{36}$/.test(path) && request.method === "DELETE") {
+        const actor = requireMutation(request, await actorFor(request, pool, config), config);
+        await pool.query(
+          "UPDATE exchange_access_tokens SET revoked_at = now() WHERE id = $1 AND user_id = $2",
+          [path.split("/").at(-1), actor.id],
+        );
+        response.writeHead(204).end();
+        return;
+      }
+      const submissionStatus =
+        /^\/v1\/publisher\/([a-z][a-z0-9-]{1,62})\/([a-z][a-z0-9-]{1,62})\/versions\/([0-9A-Za-z.+-]{1,128})$/.exec(
+          path,
+        );
+      if (submissionStatus && request.method === "GET") {
+        const actor = await actorFor(request, pool, config);
+        if (
+          !actor ||
+          (actor.tokenScope &&
+            (actor.tokenScope !== "publish" || actor.tokenNamespace !== submissionStatus[1]))
+        )
+          throw new HttpError(401, "Publisher access required.");
+        const found = await pool.query(
+          `SELECT v.namespace, v.name, v.version, v.digest, v.status, v.review_reason,
+                  v.manifest, v.scan_result, v.submitted_at, v.reviewed_at, v.scan_claimed_at,
+                  v.scan_started_at, v.scan_completed_at,
+                  (p.digest IS NOT NULL) AS published FROM exchange_versions v
+           JOIN exchange_namespace_members m ON m.namespace = v.namespace
+           LEFT JOIN exchange_published_targets p ON p.namespace = v.namespace AND p.name = v.name
+             AND p.version = v.version AND p.digest = v.digest AND p.bytes = v.bytes
+           WHERE v.namespace = $1 AND v.name = $2 AND v.version = $3 AND m.user_id = $4`,
+          [submissionStatus[1], submissionStatus[2], submissionStatus[3], actor.id],
+        );
+        if (!found.rows[0]) throw new HttpError(404, "Submission not found.");
+        json(response, 200, found.rows[0]);
+        return;
+      }
+      const submissionDetail = /^\/v1\/publisher\/submissions\/([a-f0-9]{64})$/.exec(path);
+      if (submissionDetail && request.method === "GET") {
+        const actor = await actorFor(request, pool, config);
+        if (!actor || actor.tokenScope) throw new HttpError(401, "Publisher session required.");
+        const found = await pool.query(
+          `SELECT v.namespace, v.name, v.version, v.digest, v.status, v.review_reason,
+                  v.manifest, v.scan_result, v.submitted_at, v.reviewed_at, v.scan_claimed_at,
+                  v.scan_started_at, v.scan_completed_at,
+                  (p.digest IS NOT NULL) AS published FROM exchange_versions v
+           JOIN exchange_namespace_members m ON m.namespace = v.namespace
+           LEFT JOIN exchange_published_targets p ON p.namespace = v.namespace AND p.name = v.name
+             AND p.version = v.version AND p.digest = v.digest AND p.bytes = v.bytes
+           WHERE v.digest = $1 AND m.user_id = $2 LIMIT 2`,
+          [submissionDetail[1], actor.id],
+        );
+        if (found.rows.length !== 1) throw new HttpError(404, "Submission not found.");
+        json(response, 200, found.rows[0]);
+        return;
+      }
       if (request.method === "GET" && path === "/v1/tuf/events") {
+        if (config.visibility === "private")
+          throw new HttpError(
+            503,
+            "Private registry clients use authenticated polling for signed metadata.",
+          );
         if (!signedMetadataEvents.subscribe(response)) {
           throw new HttpError(503, "Too many signed-metadata listeners.");
         }
@@ -281,6 +431,33 @@ export function createExchangeServer(
         response.end(bytes);
         return;
       }
+      if (
+        request.method === "GET" &&
+        (await serveFrontend(
+          path,
+          response,
+          undefined,
+          config.visibility === "private"
+            ? undefined
+            : async () => {
+                const identity =
+                  /^\/extensions\/([a-z][a-z0-9-]{1,62})\/([a-z][a-z0-9-]{1,62})\/?$/.exec(path);
+                if (!identity) return undefined;
+                const version = url.searchParams.get("version");
+                if (version !== null && !/^[0-9A-Za-z.+-]{1,128}$/.test(version)) return undefined;
+                const found = await pool.query(
+                  `SELECT v.manifest FROM exchange_versions v ${PUBLISHED_RELEASE_JOIN}
+             ${version === null ? "JOIN exchange_published_heads h ON h.namespace = v.namespace AND h.name = v.name AND h.version = v.version" : ""}
+             WHERE v.namespace = $1 AND v.name = $2 AND v.status = 'approved'
+               ${version === null ? "" : "AND v.version = $3"} LIMIT 1`,
+                  [identity[1], identity[2], ...(version === null ? [] : [version])],
+                );
+                const canonical = `/extensions/${identity[1]}/${identity[2]}${version === null ? "" : `?${new URLSearchParams({ version })}`}`;
+                return listingMetadata(found.rows[0]?.manifest, config.origin, canonical);
+              },
+        ))
+      )
+        return;
       const publicFiles: Record<string, { file: string; type: string }> = {
         "/v1/openapi.json": {
           file: "public-openapi.json",
@@ -289,6 +466,11 @@ export function createExchangeServer(
         "/publisher": {
           file: "publisher.html",
           type: "text/html; charset=utf-8",
+        },
+        "/extensions": { file: "marketplace.html", type: "text/html; charset=utf-8" },
+        "/marketplace.js": {
+          file: "../dist/marketplace.js",
+          type: "text/javascript; charset=utf-8",
         },
         "/publisher-terms": {
           file: "publisher-terms.html",
@@ -307,15 +489,18 @@ export function createExchangeServer(
           type: "text/css; charset=utf-8",
         },
       };
-      if (request.method === "GET" && publicFiles[path]) {
-        const asset = publicFiles[path]!;
+      const portalAsset = /^\/extensions\/[a-z][a-z0-9-]{1,62}\/[a-z][a-z0-9-]{1,62}\/?$/.test(path)
+        ? publicFiles["/extensions"]
+        : publicFiles[path];
+      if (request.method === "GET" && portalAsset) {
+        const asset = portalAsset;
         const bytes = await FS.readFile(Path.join(import.meta.dirname, asset.file));
         response.writeHead(200, {
           "Content-Type": asset.type,
           "Cache-Control": "no-store",
           "X-Content-Type-Options": "nosniff",
           "Content-Security-Policy":
-            "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; form-action 'self'; base-uri 'none'",
+            "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; form-action 'self'; base-uri 'none'",
         });
         response.end(bytes);
         return;
@@ -326,7 +511,7 @@ export function createExchangeServer(
         return;
       }
       if (request.method === "GET" && path === "/auth/github/start") {
-        await startGithubLogin(response, pool, config);
+        await startGithubLogin(response, pool, config, url.searchParams.get("returnTo"));
         return;
       }
       if (request.method === "GET" && path === "/auth/github/callback") {
@@ -343,11 +528,71 @@ export function createExchangeServer(
                 id: actor.id,
                 login: actor.login,
                 admin: actor.admin,
+                operator: actor.operator === true,
                 publishingEnabled: config.publishingEnabled,
                 termsVersion: TERMS_VERSION,
               }
             : null,
         );
+        return;
+      }
+      if (path === "/v1/operator/reviewers" && request.method === "GET") {
+        const actor = await actorFor(request, pool, config);
+        if (!actor?.operator || actor.tokenScope)
+          throw new HttpError(403, "Operator session required.");
+        const reviewers =
+          await pool.query(`SELECT u.login, r.active, r.reason, r.changed_at, a.login AS changed_by
+          FROM exchange_reviewers r JOIN exchange_users u ON u.id = r.user_id
+          JOIN exchange_users a ON a.id = r.changed_by ORDER BY r.changed_at DESC LIMIT 100`);
+        const events =
+          await pool.query(`SELECT e.id, u.login, a.login AS actor, e.action, e.reason, e.created_at
+          FROM exchange_reviewer_events e JOIN exchange_users u ON u.id = e.user_id
+          JOIN exchange_users a ON a.id = e.actor_id ORDER BY e.id DESC LIMIT 100`);
+        json(response, 200, { reviewers: reviewers.rows, events: events.rows });
+        return;
+      }
+      if (path === "/v1/operator/reviewers" && request.method === "POST") {
+        const actor = requireMutation(request, await actorFor(request, pool, config), config);
+        if (!actor.operator || actor.tokenScope)
+          throw new HttpError(403, "Operator session required.");
+        try {
+          json(
+            response,
+            200,
+            await changeReviewerRole(pool, actor, config, await readJson(request)),
+          );
+        } catch (error) {
+          if (error instanceof ReviewerRoleError) throw new HttpError(400, error.message);
+          throw error;
+        }
+        return;
+      }
+      if (path === "/v1/publisher/agreement" && request.method === "GET") {
+        const actor = await actorFor(request, pool, config);
+        if (!actor || actor.tokenScope) throw new HttpError(401, "Publisher session required.");
+        json(response, 200, {
+          termsVersion: TERMS_VERSION,
+          acceptedAt: await publisherAgreement(pool, actor.id, TERMS_VERSION),
+        });
+        return;
+      }
+      if (path === "/v1/publisher/agreement" && request.method === "POST") {
+        if (!config.publishingEnabled)
+          throw new HttpError(
+            503,
+            "Publisher submissions are not enabled.",
+            "PUBLISHING_DISABLED",
+            "Contact the registry operator. Do not retry automatically.",
+          );
+        const actor = requireMutation(request, await actorFor(request, pool, config), config);
+        const body = await readJson(request);
+        if (body.acceptTermsVersion !== TERMS_VERSION)
+          throw new HttpError(400, "Accept the current publisher terms version.");
+        await acceptPublisherAgreement(pool, actor.id, TERMS_VERSION);
+        json(response, 200, {
+          termsVersion: TERMS_VERSION,
+          acceptedAt: await publisherAgreement(pool, actor.id, TERMS_VERSION),
+        });
         return;
       }
       if (request.method === "GET" && path === "/v1/publisher/namespaces") {
@@ -395,12 +640,16 @@ export function createExchangeServer(
       if (request.method === "GET" && path === "/v1/publisher/appeals") {
         const actor = await actorFor(request, pool, config);
         if (!actor) throw new HttpError(401, "Authentication required.");
+        const digest = url.searchParams.get("digest");
+        if (digest !== null && !/^[a-f0-9]{64}$/.test(digest))
+          throw new HttpError(400, "Invalid package digest.");
         const found = await pool.query(
           `SELECT a.id, a.namespace, a.name, a.version, a.digest, a.message, a.created_at,
                   a.response, a.responded_at FROM exchange_appeals a
            JOIN exchange_namespace_members m ON m.namespace = a.namespace
-           WHERE m.user_id = $1 ORDER BY a.created_at DESC LIMIT 100`,
-          [actor.id],
+           WHERE m.user_id = $1 AND ($2::text IS NULL OR a.digest = $2)
+           ORDER BY a.created_at DESC, a.id DESC LIMIT 100`,
+          [actor.id, digest],
         );
         json(response, 200, { appeals: found.rows });
         return;
@@ -476,6 +725,7 @@ export function createExchangeServer(
             "INSERT INTO exchange_namespace_members(namespace, user_id, role) VALUES ($1, $2, 'owner')",
             [name, actor.id],
           );
+          await acceptPublisherAgreement(client, actor.id, TERMS_VERSION);
         });
         json(response, 201, { name, verified: false });
         return;
@@ -577,16 +827,10 @@ export function createExchangeServer(
           throw new HttpError(503, "Publisher submissions are not enabled.");
         const actor = requireMutation(request, await actorFor(request, pool, config), config);
         const body = await readJson(request);
-        if (
-          typeof body.githubUserId !== "string" ||
-          !/^\d{1,19}$/.test(body.githubUserId) ||
-          (body.role !== "owner" && body.role !== "contributor")
-        ) {
-          throw new HttpError(400, "Member requires a GitHub user ID and role.");
+        if (!validInviteIdentity(body) || (body.role !== "owner" && body.role !== "contributor")) {
+          throw new HttpError(400, "Member requires a GitHub username and role.");
         }
-        if (BigInt(body.githubUserId) > 9223372036854775807n) {
-          throw new HttpError(400, "Invalid GitHub user ID.");
-        }
+        let targetId: string | undefined;
         const invitationId = await inTransaction(pool, async (client) => {
           const namespace = await client.query(
             "SELECT name FROM exchange_namespaces WHERE name = $1 FOR UPDATE",
@@ -599,25 +843,22 @@ export function createExchangeServer(
           );
           if (owner.rowCount !== 1)
             throw new HttpError(403, "Only namespace owners can invite members.");
-          const member = await client.query("SELECT id FROM exchange_users WHERE id = $1", [
-            body.githubUserId,
-          ]);
-          if (member.rowCount !== 1)
-            throw new HttpError(404, "That GitHub user must sign in first.");
+          targetId = await resolveInviteIdentity(client, body);
+          if (!targetId) throw new HttpError(404, "That GitHub user must sign in first.");
           const existing = await client.query(
             "SELECT role FROM exchange_namespace_members WHERE namespace = $1 AND user_id = $2",
-            [memberMatch[1], body.githubUserId],
+            [memberMatch[1], targetId],
           );
           if (existing.rowCount) throw new HttpError(409, "That user is already a member.");
           await client.query(
             `UPDATE exchange_namespace_invitations SET status = 'expired', decided_at = now()
              WHERE namespace = $1 AND user_id = $2 AND status = 'pending' AND expires_at <= now()`,
-            [memberMatch[1], body.githubUserId],
+            [memberMatch[1], targetId],
           );
           const invited = await client.query<{ id: string }>(
             `INSERT INTO exchange_namespace_invitations(namespace, user_id, role, invited_by, status, expires_at)
              VALUES ($1, $2, $3, $4, 'pending', now() + interval '14 days') RETURNING id`,
-            [memberMatch[1], body.githubUserId, body.role, actor.id],
+            [memberMatch[1], targetId, body.role, actor.id],
           );
           return invited.rows[0]!.id;
         }).catch((error: unknown) => {
@@ -628,7 +869,7 @@ export function createExchangeServer(
         });
         json(response, 202, {
           namespace: memberMatch[1],
-          userId: body.githubUserId,
+          userId: targetId,
           role: body.role,
           invitationId,
         });
@@ -676,6 +917,7 @@ export function createExchangeServer(
              WHERE id = $1`,
             [invitationAccept[1], TERMS_VERSION, actor.id],
           );
+          await acceptPublisherAgreement(client, actor.id, TERMS_VERSION);
           return invitation;
         });
         json(response, 200, { namespace: accepted.namespace, role: accepted.role });
@@ -748,20 +990,38 @@ export function createExchangeServer(
         return;
       }
       const uploadMatch = request.method === "POST" ? UPLOAD_ROUTE.exec(path) : null;
-      if (uploadMatch) {
+      if (uploadMatch || (request.method === "POST" && path === "/v1/publisher/upload")) {
         if (!config.publishingEnabled)
-          throw new HttpError(503, "Publisher submissions are not enabled.");
-        const actor = requireMutation(request, await actorFor(request, pool, config), config);
-        const namespace = uploadMatch[1]!;
-        const name = uploadMatch[2]!;
-        const member = await pool.query(
-          "SELECT role FROM exchange_namespace_members WHERE namespace = $1 AND user_id = $2",
-          [namespace, actor.id],
-        );
-        if (member.rowCount !== 1) throw new HttpError(403, "Not a namespace publisher.");
+          throw new HttpError(
+            503,
+            "Publisher submissions are not enabled.",
+            "PUBLISHING_DISABLED",
+            "Contact the registry operator. Do not retry automatically.",
+          );
+        const authenticated = await actorFor(request, pool, config);
+        const actor =
+          uploadMatch &&
+          authenticated?.tokenScope === "publish" &&
+          authenticated.tokenNamespace === uploadMatch[1]
+            ? authenticated
+            : requireMutation(request, authenticated, config);
+        if (uploadMatch) {
+          const member = await pool.query(
+            "SELECT role FROM exchange_namespace_members WHERE namespace = $1 AND user_id = $2",
+            [uploadMatch[1], actor.id],
+          );
+          if (member.rowCount !== 1) throw new HttpError(403, "Not a namespace publisher.");
+        }
         if (request.headers["content-type"] !== "application/octet-stream") {
           throw new HttpError(415, "Upload a raw .tabsext archive.");
         }
+        if (!(await publisherAgreement(pool, actor.id, TERMS_VERSION)))
+          throw new HttpError(
+            403,
+            "Accept the current publisher terms on this registry's Publish page before uploading, including through the CLI.",
+            "TERMS_ACCEPTANCE_REQUIRED",
+            "Sign in to /account on this registry and accept its current publisher terms.",
+          );
         if (activeUploads >= MAX_CONCURRENT_UPLOADS) {
           response.setHeader("Connection", "close");
           throw new HttpError(429, "Too many extension uploads are in progress.");
@@ -776,9 +1036,19 @@ export function createExchangeServer(
             const inspected = await inspectTabsext(archive, null).catch(() => {
               throw new HttpError(400, "Invalid Tabs extension package.");
             });
-            if (inspected.manifest.publisher !== namespace || inspected.manifest.name !== name) {
+            const namespace = inspected.manifest.publisher;
+            const selectedNamespace = request.headers["x-tabs-publisher-namespace"];
+            if (selectedNamespace !== undefined && selectedNamespace !== namespace)
+              throw new HttpError(400, "The package publisher must match the selected namespace.");
+            const name = inspected.manifest.name;
+            if (uploadMatch && (namespace !== uploadMatch[1] || name !== uploadMatch[2])) {
               throw new HttpError(400, "Package identity does not match the namespace and name.");
             }
+            const member = await pool.query(
+              "SELECT role FROM exchange_namespace_members WHERE namespace = $1 AND user_id = $2",
+              [namespace, actor.id],
+            );
+            if (member.rowCount !== 1) throw new HttpError(403, "Not a namespace publisher.");
             const key = `quarantine/${namespace}/${name}/${inspected.manifest.version}/${inspected.digest}.tabsext`;
             await putImmutablePackageObject(storage, config.bucket, key, bytes, inspected.digest);
             try {
@@ -811,7 +1081,12 @@ export function createExchangeServer(
               });
             } catch (error) {
               if ((error as { code?: unknown }).code === "23505") {
-                throw new HttpError(409, "This extension version was already submitted.");
+                throw new HttpError(
+                  409,
+                  "This extension version was already submitted.",
+                  "VERSION_ALREADY_SUBMITTED",
+                  "Check submission status. For corrected content, increment the manifest version and rebuild.",
+                );
               }
               throw error;
             }
@@ -821,6 +1096,7 @@ export function createExchangeServer(
               version: inspected.manifest.version,
               digest: inspected.digest,
               status: "queued",
+              submissionId: inspected.digest,
             });
           } finally {
             await FS.rm(temporary, { recursive: true, force: true });
@@ -832,6 +1108,13 @@ export function createExchangeServer(
       }
       if (request.method === "GET" && path === "/v1/extensions") {
         const query = url.searchParams.get("q") ?? "";
+        const category = url.searchParams.get("category") ?? "";
+        const sort = url.searchParams.get("sort") ?? (query.trim() ? "relevance" : "newest");
+        if (
+          (category && !/^[a-z][a-z0-9-]{1,39}$/.test(category)) ||
+          !["name", "newest", "relevance"].includes(sort)
+        )
+          throw new HttpError(400, "Invalid catalog filter or sort.");
         if (query.length > 100) throw new HttpError(400, "Search query is too long.");
         const rawLimit = url.searchParams.get("limit");
         const limit = rawLimit === null ? 30 : Number(rawLimit);
@@ -841,32 +1124,134 @@ export function createExchangeServer(
         const cursorValue = url.searchParams.get("cursor");
         const cursor = cursorValue === null ? null : decodeSearchCursor(cursorValue);
         if (cursorValue !== null && !cursor) throw new HttpError(400, "Invalid search cursor.");
+        if (
+          cursor &&
+          ((sort === "newest") !== (cursor.publishedAt !== undefined) ||
+            (sort === "relevance") !== (cursor.relevance !== undefined) ||
+            (sort === "name") !== (cursor.sortName !== undefined) ||
+            cursor.submittedAt)
+        )
+          throw new HttpError(400, "Cursor does not match catalog sorting.");
         const heads = await pool.query(
-          `SELECT v.namespace, v.name, v.version, v.digest, v.manifest, v.submitted_at, n.verified
+          `SELECT v.namespace, v.name, v.version, v.digest, v.manifest, v.submitted_at, n.verified,
+                  publication.first_published_at,
+                  ${CATALOG_RELEVANCE} AS relevance,
+                  ${CATALOG_DISPLAY_NAME} AS sort_name,
+                  to_char(publication.first_published_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_time
            FROM exchange_published_heads h
            JOIN exchange_versions v ON v.namespace = h.namespace AND v.name = h.name AND v.version = h.version
            ${PUBLISHED_RELEASE_JOIN}
+           ${PUBLICATION_HISTORY_JOIN}
            JOIN exchange_namespaces n ON n.name = v.namespace
            WHERE v.status = 'approved'
-             AND (v.namespace ILIKE $1 OR v.name ILIKE $1 OR v.manifest->>'displayName' ILIKE $1)
-             AND ($2::text IS NULL OR (v.namespace, v.name) > ($2::text, $3::text))
-           ORDER BY v.namespace, v.name LIMIT $4`,
+             AND (v.namespace ILIKE $1 OR v.name ILIKE $1
+               OR (v.namespace || '.' || v.name) ILIKE $1
+               OR v.manifest->>'displayName' ILIKE $1
+               OR v.manifest->>'description' ILIKE $1
+               OR EXISTS (
+                 SELECT 1 FROM jsonb_array_elements_text(
+                   CASE WHEN jsonb_typeof(v.manifest->'listing'->'keywords') = 'array'
+                     THEN v.manifest->'listing'->'keywords' ELSE '[]'::jsonb END
+                 ) AS keyword(value) WHERE keyword.value ILIKE $1
+               ))
+             AND ($5::text = '' OR v.manifest->'listing'->'categories' @> jsonb_build_array($5::text))
+             AND ($2::text IS NULL OR ($7::text = 'newest' AND (COALESCE(publication.first_published_at, '0001-01-01 UTC'::timestamptz), v.namespace, v.name) < (COALESCE($6::timestamptz, '0001-01-01 UTC'::timestamptz), $2::text, $3::text)) OR ($7::text = 'name' AND (${CATALOG_DISPLAY_NAME}, v.namespace COLLATE "C", v.name COLLATE "C") > ($10::text COLLATE "C", $2::text COLLATE "C", $3::text COLLATE "C")) OR ($7::text = 'relevance' AND (-(${CATALOG_RELEVANCE}), v.namespace, v.name) > (-$9::integer, $2::text, $3::text)))
+           ORDER BY ${sort === "newest" ? "COALESCE(publication.first_published_at, '0001-01-01 UTC'::timestamptz) DESC, v.namespace DESC, v.name DESC" : sort === "relevance" ? "relevance DESC, v.namespace, v.name" : 'sort_name, v.namespace COLLATE "C", v.name COLLATE "C"'} LIMIT $4`,
           [
-            `%${query.replaceAll("\\", "\\\\").replaceAll("%", "\\%").replaceAll("_", "\\_")}%`,
+            catalogPattern(query),
             cursor?.namespace ?? null,
             cursor?.name ?? null,
             limit + 1,
+            category,
+            cursor?.publishedAt ?? null,
+            sort,
+            query,
+            cursor?.relevance ?? null,
+            cursor?.sortName ?? null,
           ],
         );
         const page = heads.rows.slice(0, limit);
         const last = page.at(-1);
         json(response, 200, {
           extensions: page,
+          hasMore: heads.rows.length > limit,
           nextCursor:
             heads.rows.length > limit && last
-              ? encodeSearchCursor({ namespace: last.namespace, name: last.name })
+              ? encodeSearchCursor({
+                  namespace: last.namespace,
+                  name: last.name,
+                  ...(sort === "newest" ? { publishedAt: last.cursor_time ?? null } : {}),
+                  ...(sort === "relevance" ? { relevance: last.relevance } : {}),
+                  ...(sort === "name" ? { sortName: last.sort_name } : {}),
+                })
               : null,
         });
+        return;
+      }
+      const listingAsset =
+        request.method === "GET"
+          ? /^\/v1\/extensions\/([a-z][a-z0-9-]{1,62})\/([a-z][a-z0-9-]{1,62})\/versions\/([0-9A-Za-z.+-]{1,128})\/assets\/(readme|icon|screenshot\/([0-5]))$/.exec(
+              path,
+            )
+          : null;
+      if (listingAsset) {
+        const found = await pool.query(
+          `SELECT v.digest, v.bytes, v.object_key FROM exchange_versions v ${PUBLISHED_RELEASE_JOIN} WHERE v.namespace = $1 AND v.name = $2 AND v.version = $3 AND v.status = 'approved'`,
+          listingAsset.slice(1, 4),
+        );
+        const release = found.rows[0];
+        if (!release) throw new HttpError(404, "Published listing asset not found.");
+        const bytes = await boundedObject(storage, config.bucket, release.object_key);
+        if (
+          bytes.length !== release.bytes ||
+          Crypto.createHash("sha256").update(bytes).digest("hex") !== release.digest
+        )
+          throw new Error("Listing package failed integrity verification.");
+        const temporary = await FS.mkdtemp(Path.join(OS.tmpdir(), "tabs-listing-"));
+        try {
+          const archive = Path.join(temporary, "package.tabsext");
+          await FS.writeFile(archive, bytes, { flag: "wx", mode: 0o600 });
+          const asset = await readTabsextListingAsset(
+            archive,
+            release.digest,
+            listingAsset[5] === undefined ? (listingAsset[4] as "readme" | "icon") : "screenshot",
+            listingAsset[5] === undefined ? undefined : Number(listingAsset[5]),
+          );
+          if (!asset) throw new HttpError(404, "This release has no requested listing asset.");
+          response.writeHead(200, {
+            "Content-Type": asset.type,
+            "Content-Length": asset.bytes.length,
+            "Cache-Control": "private, no-store",
+            "X-Content-Type-Options": "nosniff",
+            "Content-Security-Policy": "default-src 'none'; sandbox",
+            ...publicCors(response),
+          });
+          response.end(asset.bytes);
+        } finally {
+          await FS.rm(temporary, { recursive: true, force: true });
+        }
+        return;
+      }
+      const overviewMatch =
+        request.method === "GET"
+          ? /^\/v1\/extensions\/([a-z][a-z0-9-]{1,62})\/([a-z][a-z0-9-]{1,62})\/overview$/.exec(
+              path,
+            )
+          : null;
+      if (overviewMatch) {
+        const found = await pool.query(
+          `SELECT v.namespace, v.name, v.version, v.digest, v.bytes, v.manifest, v.submitted_at, n.verified,
+                  publication.first_published_at
+           FROM exchange_published_heads h
+           JOIN exchange_versions v ON v.namespace = h.namespace AND v.name = h.name AND v.version = h.version
+           ${PUBLISHED_RELEASE_JOIN}
+           ${PUBLICATION_HISTORY_JOIN}
+           JOIN exchange_namespaces n ON n.name = v.namespace
+           WHERE v.namespace = $1 AND v.name = $2 AND v.status = 'approved' LIMIT 1`,
+          overviewMatch.slice(1),
+        );
+        if (!found.rows[0]) throw new HttpError(404, "Published extension not found.");
+        json(response, 200, found.rows[0]);
         return;
       }
       const packageMatch = request.method === "GET" ? PACKAGE_ROUTE.exec(path) : null;
@@ -876,8 +1261,10 @@ export function createExchangeServer(
         if (cursorValue !== null && !cursor) throw new HttpError(400, "Invalid version cursor.");
         const found = await pool.query(
           `SELECT v.namespace, v.name, v.version, v.digest, v.bytes, v.manifest, v.submitted_at, n.verified,
+                  publication.first_published_at,
                   to_char(v.submitted_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_time
            FROM exchange_versions v ${PUBLISHED_RELEASE_JOIN}
+           ${PUBLICATION_HISTORY_JOIN}
            JOIN exchange_namespaces n ON n.name = v.namespace
            WHERE v.namespace = $1 AND v.name = $2 AND v.status = 'approved'
              AND ($3::timestamptz IS NULL OR (v.submitted_at, v.version) < ($3::timestamptz, $4::text))
@@ -911,9 +1298,11 @@ export function createExchangeServer(
           bytes: number;
           manifest: unknown;
           object_key: string;
+          first_published_at: string | Date | null;
         }>(
-          `SELECT v.digest, v.bytes, v.manifest, v.object_key
+          `SELECT v.digest, v.bytes, v.manifest, v.object_key, publication.first_published_at
            FROM exchange_versions v ${PUBLISHED_RELEASE_JOIN}
+           ${PUBLICATION_HISTORY_JOIN}
            WHERE v.namespace = $1 AND v.name = $2 AND v.version = $3 AND v.status = 'approved'`,
           [versionMatch[1], versionMatch[2], version],
         );
@@ -927,6 +1316,7 @@ export function createExchangeServer(
             digest: release.digest,
             bytes: release.bytes,
             manifest: release.manifest,
+            first_published_at: release.first_published_at ?? null,
             downloadUrl: `${config.origin}${path}/download`,
           });
           return;
@@ -957,7 +1347,7 @@ export function createExchangeServer(
           "Content-Length": bytes.length,
           "Content-Disposition": `attachment; filename="${downloadVersion[1]}.${downloadVersion[2]}-${version}.tabsext"`,
           "X-Content-Type-Options": "nosniff",
-          "Cache-Control": "private, max-age=0",
+          "Cache-Control": "private, no-store",
           ETag: `"${release.digest}"`,
           Digest: `sha-256=${Buffer.from(release.digest, "hex").toString("base64")}`,
         });
@@ -1193,7 +1583,8 @@ export function createExchangeServer(
           }
           try {
             const parsed = new URL(body.proofUrl);
-            if (parsed.protocol !== "https:") throw new Error("HTTPS required.");
+            if (parsed.protocol !== "https:" || parsed.username || parsed.password || parsed.hash)
+              throw new Error("HTTPS ownership proof without credentials or fragment required.");
             proofUrl = parsed.toString();
           } catch {
             throw new HttpError(400, "Ownership proof must be an HTTPS URL.");
@@ -1411,15 +1802,33 @@ export function createExchangeServer(
       if (response.headersSent || (request.destroyed && !request.complete)) return;
       if (error instanceof HttpError) {
         if (error.status === 413) response.setHeader("Connection", "close");
-        json(response, error.status, { error: error.message });
+        json(response, error.status, {
+          error: error.message,
+          message: error.message,
+          code: error.code ?? exchangeErrorCode(error.status),
+          recovery:
+            error.recovery ?? exchangeErrorGuidance(error.status, { code: error.code }).message,
+        });
       } else if (
         error instanceof Error &&
         /^(Authentication required|CSRF validation failed)/.test(error.message)
       ) {
-        json(response, 403, { error: error.message });
+        const guidance = exchangeErrorGuidance(403, null);
+        json(response, 403, {
+          error: error.message,
+          message: error.message,
+          code: guidance.code,
+          recovery: guidance.message,
+        });
       } else {
         process.stderr.write(`Exchange request error: ${String(error)}\n`);
-        json(response, 500, { error: "Internal Exchange error." });
+        const guidance = exchangeErrorGuidance(500, null);
+        json(response, 500, {
+          error: "Internal Exchange error.",
+          message: "Internal Exchange error.",
+          code: guidance.code,
+          recovery: guidance.message,
+        });
       }
     }
   });

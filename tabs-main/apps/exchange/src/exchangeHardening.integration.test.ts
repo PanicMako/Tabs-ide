@@ -586,7 +586,7 @@ describe("Checkpoint 4: Trust, Operations, and Fork Hardening", () => {
 
       // 1. Run backup
       const backup = await backupExchangeData(mockSourcePool, mockSourceS3, "source-bucket");
-      expect(backup.version).toBe(1);
+      expect(backup.version).toBe(3);
       expect(backup.objectCount).toBe(1);
       expect(backup.tableCounts.exchange_users).toBe(1);
       expect(backup.tableCounts.exchange_versions).toBe(1);
@@ -677,7 +677,7 @@ describe("Checkpoint 4: Trust, Operations, and Fork Hardening", () => {
         "empty-bucket",
       );
 
-      expect(restoreResult.restoredTables).toBe(14);
+      expect(restoreResult.restoredTables).toBe(18);
       expect(restoreResult.restoredObjects).toBe(1);
       expect(restoredS3Objects.has("packages/acme/dashboard/1.0.0.tabsext")).toBe(true);
       expect(restoredS3Objects.get("packages/acme/dashboard/1.0.0.tabsext")).toEqual(packageBytes);

@@ -6,8 +6,7 @@ export function isExchangeIdentifier(value: unknown): value is string {
 
 export function extensionDetailHref(namespace: unknown, name: unknown): string | null {
   if (!isExchangeIdentifier(namespace) || !isExchangeIdentifier(name)) return null;
-  const search = new URLSearchParams({ namespace, name });
-  return `/extension?${search.toString()}`;
+  return `/extensions/${namespace}/${name}`;
 }
 
 export function safePublisherUrl(value: unknown): string | null {

@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Extensions — Tabs Exchange</title>
+    <link rel="stylesheet" href="/publisher.css" />
+    <script type="module" src="/marketplace.js"></script>
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+    <header>
+      <a href="/extensions"
+        ><svg
+          aria-hidden="true"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.6"
+        >
+          <path
+            d="M9 3H5a2 2 0 0 0-2 2v4a2.5 2.5 0 1 1 0 6v4a2 2 0 0 0 2 2h4a2.5 2.5 0 1 1 6 0h4a2 2 0 0 0 2-2v-4a2.5 2.5 0 1 1 0-6V5a2 2 0 0 0-2-2h-4a2.5 2.5 0 1 0-6 0Z"
+          /></svg
+        >Tabs Exchange</a
+      >
+      <nav aria-label="Exchange navigation">
+        <a href="/extensions">Extensions</a> <a href="/publisher">Publish · Publisher dashboard</a>
+        <a href="https://buildwithtabs.com/docs/extensions" rel="noopener noreferrer">Docs</a>
+        <a href="/v1/openapi.json">API documentation</a>
+      </nav>
+    </header>
+    <main id="main">
+      <h1 id="title">Extensions for your Tabs workspace</h1>
+      <p id="visibility"></p>
+      <p>
+        Publishing, downloading and compatible-client access are free. Every version requires
+        review, but review is not a security guarantee. Install through Tabs with independently
+        trusted signed metadata and permission consent.
+      </p>
+      <p id="status" role="status" aria-live="polite" tabindex="-1">Loading registry…</p>
+      <button id="retry" type="button" hidden>Retry loading registry</button>
+      <section id="signin" hidden>
+        <h2>Private registry sign-in</h2>
+        <p>
+          This instance permits only operator-allowlisted GitHub accounts. No package names or
+          assets are shown before authentication.
+        </p>
+        <a class="button" href="/auth/github/start">Sign in with GitHub</a>
+      </section>
+      <section id="catalog" hidden>
+        <h2>Explore extensions</h2>
+        <form id="search-form">
+          <label for="search">Search by name or publisher</label
+          ><input id="search" type="search" maxlength="100" /><label for="category">Category</label
+          ><input
+            id="category"
+            placeholder="All, or a category such as productivity"
+            pattern="[a-z][a-z0-9-]{1,39}"
+          /><label for="sort">Sort</label
+          ><select id="sort">
+            <option value="name">Name</option>
+            <option value="newest">Newest release</option></select
+          ><button type="submit">Search</button>
+        </form>
+        <ul id="results" aria-label="Published extensions"></ul>
+        <button id="more" type="button" hidden>Load more extensions</button>
+      </section>
+      <section id="detail" hidden>
+        <a href="/extensions">Back to extensions</a>
+        <div id="releases"></div>
+        <button id="more-versions" type="button" hidden>Load more versions</button>
+      </section>
+    </main>
+  </body>
+</html>

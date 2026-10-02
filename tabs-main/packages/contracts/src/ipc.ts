@@ -1216,6 +1216,9 @@ export interface DesktopBridge {
   setExtensionDisabled: (extensionId: string, disabled: boolean) => Promise<void>;
   setExtensionUpdatesPinned: (extensionId: string, pinned: boolean) => Promise<void>;
   installDevelopmentExtension: (directory: string) => Promise<DesktopInstalledExtension>;
+  reloadDevelopmentExtension?: (extensionId: string) => Promise<DesktopInstalledExtension>;
+  getRegistryConnection?: () => Promise<{ origin: string | null; connected: boolean }>;
+  setRegistryCredential?: (origin: string, token: string | null) => Promise<void>;
   installLocalExtensionPackage: (archive: string) => Promise<DesktopInstalledExtension>;
   setExtensionAssignment: (
     extensionId: string,

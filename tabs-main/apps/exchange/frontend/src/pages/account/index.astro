@@ -1,0 +1,17 @@
+---
+import Account from "../../layouts/Account.astro";
+---
+<Account title="Your publishing workspace" section="overview">
+  <p id="account-identity"></p>
+  <p class="notice" id="publishing-availability"></p>
+  <section aria-labelledby="publishing-steps-title">
+    <h2 id="publishing-steps-title">From your idea to someone else's workspace.</h2>
+    <ol class="account-steps" role="list">
+      <li><span class="eyebrow">01 / Make it yours</span><h3>Set up your publisher</h3><p>Read the <a href="/publisher-terms">publisher terms</a>, then create or join a namespace. Membership permits publishing; it does not verify ownership.</p><a class="button secondary" href="/account/namespaces">Manage namespaces</a></li>
+      <li><span class="eyebrow">02 / Build your tool</span><h3>Start with the SDK</h3><p>Get the developer bundle, build your tool, and validate its package before submitting.</p><a class="button secondary" href="/developers">Explore developer tools</a></li>
+      <li><span class="eyebrow">03 / Share your work</span><h3>Submit for review</h3><p>Follow your submission through scanning, manual review, and signed publication. Approval alone does not publish a release.</p><a class="button secondary" href="/publish">Submit a package</a></li>
+    </ol>
+  </section>
+  <section class="card account-namespace-panel" aria-labelledby="your-namespaces-title"><div><span class="eyebrow">Your publishing identity</span><h2 id="your-namespaces-title">Your namespaces</h2><ul id="account-namespaces"></ul></div><a class="button secondary" href="/account/namespaces">Manage namespaces</a></section>
+</Account>
+<script>import "../../scripts/agreement";</script>
