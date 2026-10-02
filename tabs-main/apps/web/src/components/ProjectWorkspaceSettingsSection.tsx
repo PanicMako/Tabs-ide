@@ -39,7 +39,7 @@ import { ServerPresetFormFields, resolvePresetIconElement } from "./ServerPreset
 
 import { projectsAtom } from "../state/threads";
 import { useAtomValue } from "@effect/atom-react";
-import { useTheme } from "../hooks/useTheme";
+import { SettingsSectionHeader } from "./settings/SettingsLayout";
 import { useSettings, useUpdateSettings } from "../hooks/useSettings";
 import type { BrowserProfileDefinition } from "@tabs/contracts/settings";
 import type { ProjectIconOverride } from "@tabs/contracts";
@@ -47,7 +47,6 @@ import { ProjectFavicon } from "./ProjectFavicon";
 import { ProjectIconPickerDialog } from "./settings/ProjectIconPickerDialog";
 import { ensureNativeApi } from "~/nativeApi";
 import { newCommandId } from "~/lib/utils";
-import { getActiveFontCombo } from "../lib/themes";
 import {
   AlertDialog,
   AlertDialogClose,
@@ -356,8 +355,6 @@ function SortableToolRow({
 }
 
 export function ProjectWorkspaceSettingsSection() {
-  const { fontPreferences } = useTheme();
-  const activeFontCombo = getActiveFontCombo(fontPreferences);
   const { confirmDialog } = useConfirm();
   const activeProjectId = useWorkspaceActiveProjectId();
   const activeProject = useAtomValue(projectsAtom, (state) =>
@@ -776,21 +773,10 @@ export function ProjectWorkspaceSettingsSection() {
   if (!activeProjectId || !activeProject || !projectSettings) {
     return (
       <section className="space-y-3">
-        {activeFontCombo.isNeutral ? (
-          <h2 className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
-            Project Workspace
-          </h2>
-        ) : (
-          <h2
-            className={cn(
-              "text-[18px] leading-relaxed pb-1 text-foreground/80 mb-3",
-              activeFontCombo.serifClass,
-            )}
-            style={{ fontFamily: "var(--font-display)" }}
-          >
-            Project Workspace
-          </h2>
-        )}
+        <SettingsSectionHeader
+          title="Workspace"
+          description="Configure tools and settings for your project."
+        />
         <Card>
           <CardHeader>
             <CardTitle>No active project</CardTitle>
@@ -951,27 +937,10 @@ export function ProjectWorkspaceSettingsSection() {
     <>
       {confirmDialog}
       <section className="space-y-6">
-        <div>
-          <div className="flex items-start justify-between">
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-3">
-                <h2
-                  className={cn(
-                    "text-[28px] leading-relaxed pb-1 text-foreground mb-2 font-bold",
-                    activeFontCombo.sansClass,
-                  )}
-                  style={{ fontFamily: "var(--font-sans)", textTransform: "capitalize" }}
-                >
-                  Workspace
-                </h2>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                Configure tools, browser tabs, terminals, and workspace settings for
-                {` ${activeProject?.name || "this project"}.`}
-              </p>
-            </div>
-          </div>
-        </div>
+        <SettingsSectionHeader
+          title="Workspace"
+          description={`Configure tools, browser tabs, and terminals for ${activeProject.name || "this project"}.`}
+        />
 
         <Card>
           <CardHeader className="pb-3">

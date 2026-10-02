@@ -33,7 +33,7 @@ import { workspaceShellActions, workspaceShellAtom } from "../../state/workspace
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Badge } from "../ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
+import { SettingsSection, SettingsSectionHeader, SettingsRow } from "./SettingsLayout";
 import {
   Dialog,
   DialogContent,
@@ -641,416 +641,423 @@ export function BrowserProfilesSettings() {
     <div className="space-y-6">
       {confirmDialog}
 
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
-            <FingerprintIcon className="size-5 text-primary" />
-            Browser Profiles & Login Isolation
-          </h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Create named profiles (e.g. Work, Personal, Client A) to share logins across tabs and
-            projects while keeping separate accounts completely isolated.
-          </p>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <Button
-            variant="outline"
-            onClick={openImportModal}
-            title="Import cookies from installed desktop browsers"
-            disabled={isLoadingImportSources}
-            aria-busy={isLoadingImportSources}
-            className="gap-1.5 cursor-pointer"
-          >
-            {isLoadingImportSources ? (
-              <LoaderCircleIcon className="size-4 animate-spin" aria-hidden="true" />
-            ) : (
-              <DownloadIcon className="size-4" aria-hidden="true" />
-            )}
-            {isLoadingImportSources ? "Scanning browsers…" : "Import Sessions"}
-          </Button>
-          <Button onClick={openCreateModal} className="gap-1.5 cursor-pointer">
-            <PlusIcon className="size-4" />
-            Create Profile
-          </Button>
-        </div>
+      <div className="[&>div>div:first-child]:flex-wrap [&>div>div:first-child]:gap-4">
+        <SettingsSectionHeader
+          title="Browser Profiles"
+          description="Keep separate accounts across tabs and projects."
+          actions={
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                variant="outline"
+                onClick={openImportModal}
+                title="Import cookies from installed desktop browsers"
+                disabled={isLoadingImportSources}
+                aria-busy={isLoadingImportSources}
+                className="gap-1.5 cursor-pointer"
+              >
+                {isLoadingImportSources ? (
+                  <LoaderCircleIcon className="size-4 animate-spin" aria-hidden="true" />
+                ) : (
+                  <DownloadIcon className="size-4" aria-hidden="true" />
+                )}
+                {isLoadingImportSources ? "Scanning browsers…" : "Import Sessions"}
+              </Button>
+              <Button onClick={openCreateModal} className="gap-1.5 cursor-pointer">
+                <PlusIcon className="size-4" />
+                Create Profile
+              </Button>
+            </div>
+          }
+        />
       </div>
 
-      <Card className="border border-border/70 bg-card shadow-xs">
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <ExternalLinkIcon className="size-4" />
-            Open links in
-          </CardTitle>
-          <CardDescription>
-            Choose where links from chat open. Hold Command or Control while clicking to always use
-            your system browser.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Select
-            value={settings.browserLinkTarget ?? DEFAULT_BROWSER_LINK_TARGET}
-            onValueChange={(value) => {
-              if (value) {
-                updateSettings({ browserLinkTarget: value as BrowserLinkTarget });
-              }
-            }}
-          >
-            <SelectTrigger aria-label="Open chat links in" className="h-9 w-full max-w-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectPopup>
-              <SelectItem value="system">Default system browser</SelectItem>
-              <SelectItem value="app">Tabs integrated browser</SelectItem>
-            </SelectPopup>
-          </Select>
-        </CardContent>
-      </Card>
-
-      {!hasNamedProfileAssignments ? (
-        <div
-          role="note"
-          className="rounded-xl border border-border/70 bg-muted/30 px-4 py-3 text-sm text-muted-foreground"
-        >
-          <span className="font-medium text-foreground">Your current logins are per project.</span>{" "}
-          Personal and Work are optional named profiles and currently have no assigned browser tabs,
-          so project cookies do not appear in these cards. Per-project sessions remain isolated and
-          do not keep an extra browser process running.
-        </div>
-      ) : null}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {profiles.map((profile) => {
-          const usage = usageByProfileId.get(profile.id) ?? [];
-          const inspectionState = profileInspections[profile.id] ?? {
-            status: "idle",
-            data: null,
-            error: null,
-          };
-          const inspection = inspectionState.data;
-          const domains = inspection?.domains ?? profileDomains[profile.id] ?? [];
-          const permissions = profilePermissions[profile.id] ?? [];
-          const sessionHintDomains = domains.filter((d) => d.hasSessionHint);
-          const otherDomains = domains.filter((d) => !d.hasSessionHint);
-          const isClearing = clearingProfileId === profile.id;
-          const isDeleting = deletingProfileId === profile.id;
-
-          return (
-            <Card
-              key={profile.id}
-              className="relative overflow-hidden border border-border/70 bg-card hover:border-border transition-all shadow-xs"
+      <SettingsSection title="Browsing">
+        <SettingsRow
+          title="Open links in"
+          description="Choose where links from chat open."
+          control={
+            <Select
+              value={settings.browserLinkTarget ?? DEFAULT_BROWSER_LINK_TARGET}
+              onValueChange={(value) => {
+                if (value) {
+                  updateSettings({ browserLinkTarget: value as BrowserLinkTarget });
+                }
+              }}
             >
-              <CardHeader className="pt-4 pb-2">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div
-                      className="size-3.5 rounded-full shrink-0 ring-1 ring-border"
-                      style={{ backgroundColor: profile.color || "#3b82f6" }}
-                    />
-                    <CardTitle className="text-base font-semibold truncate">
-                      {profile.label}
-                    </CardTitle>
-                    <Badge variant="outline" className="text-[11px] font-mono shrink-0">
-                      profile:{profile.id}
-                    </Badge>
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <Button
-                      size="icon-xs"
-                      variant="ghost"
-                      onClick={() => openEditModal(profile)}
-                      title="Edit Profile"
-                      aria-label={`Edit profile ${profile.label}`}
-                      disabled={deletingProfileId !== null}
-                      className="text-muted-foreground hover:text-foreground cursor-pointer"
-                    >
-                      <PencilIcon className="size-3.5" />
-                    </Button>
-                    <Button
-                      size="icon-xs"
-                      variant="ghost"
-                      onClick={() => handleDeleteProfile(profile)}
-                      title="Delete Profile"
-                      aria-label={
-                        isDeleting
-                          ? `Deleting profile ${profile.label}`
-                          : `Delete profile ${profile.label}`
-                      }
-                      aria-busy={isDeleting}
-                      disabled={deletingProfileId !== null || isClearing}
-                      className="text-muted-foreground hover:text-destructive cursor-pointer"
-                    >
-                      {isDeleting ? (
-                        <LoaderCircleIcon className="size-3.5 animate-spin" aria-hidden="true" />
-                      ) : (
-                        <Trash2Icon className="size-3.5" aria-hidden="true" />
-                      )}
-                    </Button>
-                  </div>
-                </div>
-                {profile.description ? (
-                  <CardDescription className="text-xs text-muted-foreground mt-1">
-                    {profile.description}
-                  </CardDescription>
-                ) : (
-                  <CardDescription className="text-xs text-muted-foreground/60 italic mt-1">
-                    No description provided
-                  </CardDescription>
-                )}
-              </CardHeader>
+              <SelectTrigger
+                aria-label="Open chat links in"
+                title="Hold Command or Control while clicking a link to use your system browser."
+                className="h-9 w-full sm:w-48"
+              >
+                <SelectValue>
+                  {settings.browserLinkTarget === "app" ? "Tabs browser" : "System browser"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectPopup>
+                <SelectItem value="system">Default system browser</SelectItem>
+                <SelectItem value="app">Tabs integrated browser</SelectItem>
+              </SelectPopup>
+            </Select>
+          }
+        />
+      </SettingsSection>
 
-              <CardContent className="pt-0 space-y-3">
-                {/* Active Assignments */}
-                <div className="rounded-lg bg-muted/40 border border-border/50 p-2.5 text-xs space-y-1.5">
-                  <div className="font-medium text-foreground flex items-center justify-between">
-                    <span className="flex items-center gap-1.5 text-muted-foreground">
-                      <LayersIcon className="size-3.5 text-foreground/70" />
-                      Active Assignments
-                    </span>
-                    <span className="font-mono text-[11px]">
-                      {usage.length} {usage.length === 1 ? "tab" : "tabs"}
-                    </span>
-                  </div>
-                  {usage.length > 0 ? (
-                    <div className="flex flex-wrap gap-1.5 pt-0.5">
-                      {usage.map((u) => (
-                        <span
-                          key={`${u.projectName}:${u.tabName}`}
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-background/80 border border-border/60 text-[11px] text-foreground"
-                        >
-                          <span className="font-medium">{u.projectName}:</span>
-                          <span className="text-muted-foreground">{u.tabName}</span>
-                        </span>
-                      ))}
+      <SettingsSection
+        title="Profiles"
+        description={
+          !hasNamedProfileAssignments
+            ? "Tabs use separate project sessions until you assign a profile."
+            : undefined
+        }
+      >
+        <div className="divide-y divide-border">
+          {profiles.map((profile) => {
+            const usage = usageByProfileId.get(profile.id) ?? [];
+            const inspectionState = profileInspections[profile.id] ?? {
+              status: "idle",
+              data: null,
+              error: null,
+            };
+            const inspection = inspectionState.data;
+            const domains = inspection?.domains ?? profileDomains[profile.id] ?? [];
+            const permissions = profilePermissions[profile.id] ?? [];
+            const sessionHintDomains = domains.filter((d) => d.hasSessionHint);
+            const otherDomains = domains.filter((d) => !d.hasSessionHint);
+            const isClearing = clearingProfileId === profile.id;
+            const isDeleting = deletingProfileId === profile.id;
+
+            return (
+              <div key={profile.id} className="px-4 py-4 sm:px-5">
+                <div className="space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div
+                        className="size-3.5 rounded-full shrink-0 ring-1 ring-border"
+                        style={{ backgroundColor: profile.color || "#3b82f6" }}
+                      />
+                      <h3 className="text-[14.5px] font-bold truncate">{profile.label}</h3>
                     </div>
-                  ) : (
-                    <div className="text-[11px] text-muted-foreground/70">
-                      Not currently assigned to any tabs or projects.
-                    </div>
-                  )}
-                </div>
-
-                {/* Cookie Domains & Heuristic Sessions */}
-                <div className="rounded-lg bg-muted/30 border border-border/50 p-2.5 text-xs space-y-2">
-                  <div className="font-medium text-foreground flex items-center justify-between">
-                    <span className="flex items-center gap-1.5 text-muted-foreground">
-                      <ShieldCheckIcon className="size-3.5 text-primary" />
-                      Cookie Domains in This Profile
-                    </span>
-                    {inspection && (
-                      <span className="font-mono text-[11px] text-muted-foreground">
-                        {inspection.totalDomains}{" "}
-                        {inspection.totalDomains === 1 ? "domain" : "domains"} (
-                        {inspection.totalCookies}{" "}
-                        {inspection.totalCookies === 1 ? "cookie" : "cookies"})
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Partition Metadata */}
-                  <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground font-mono">
-                    <span className="bg-background/80 px-1.5 py-0.5 rounded border border-border/60">
-                      Partition:{" "}
-                      {inspection?.partition ?? `persist:tabs-browser:profile:${profile.id}`}
-                    </span>
-                    {inspection && (
-                      <span className="bg-background/80 px-1.5 py-0.5 rounded border border-border/60">
-                        {inspection.isPersistent ? "Persistent partition" : "In-memory partition"}
-                      </span>
-                    )}
-                    {inspection?.inspectedAt && (
-                      <span className="text-[10px] text-muted-foreground/70 not-italic font-sans">
-                        Refreshed: {new Date(inspection.inspectedAt).toLocaleTimeString()}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* State: Loading */}
-                  {inspectionState.status === "loading" && (
-                    <div className="py-2 text-center text-xs text-muted-foreground">
-                      Inspecting cookie domains...
-                    </div>
-                  )}
-
-                  {/* State: Failed */}
-                  {inspectionState.status === "failed" && (
-                    <div className="flex items-center justify-between p-2 rounded-md bg-destructive/10 border border-destructive/30 text-destructive text-xs">
-                      <span>Inspection failed: {inspectionState.error ?? "Unknown error"}</span>
+                    <div className="flex items-center gap-1 shrink-0">
                       <Button
-                        size="xs"
-                        variant="outline"
-                        className="h-6 px-2 text-xs border-destructive/40 hover:bg-destructive/20 text-foreground"
-                        onClick={() => inspectSingleProfile(profile.id)}
+                        size="icon-xs"
+                        variant="ghost"
+                        onClick={() => openEditModal(profile)}
+                        title="Edit Profile"
+                        aria-label={`Edit profile ${profile.label}`}
                         disabled={deletingProfileId !== null}
+                        className="text-muted-foreground hover:text-foreground cursor-pointer"
                       >
-                        Retry
+                        <PencilIcon className="size-3.5" />
+                      </Button>
+                      <Button
+                        size="icon-xs"
+                        variant="ghost"
+                        onClick={() => handleDeleteProfile(profile)}
+                        title="Delete Profile"
+                        aria-label={
+                          isDeleting
+                            ? `Deleting profile ${profile.label}`
+                            : `Delete profile ${profile.label}`
+                        }
+                        aria-busy={isDeleting}
+                        disabled={deletingProfileId !== null || isClearing}
+                        className="text-muted-foreground hover:text-destructive cursor-pointer"
+                      >
+                        {isDeleting ? (
+                          <LoaderCircleIcon className="size-3.5 animate-spin" aria-hidden="true" />
+                        ) : (
+                          <Trash2Icon className="size-3.5" aria-hidden="true" />
+                        )}
                       </Button>
                     </div>
-                  )}
-
-                  {/* State: Loaded */}
-                  {(inspectionState.status === "loaded" ||
-                    (inspectionState.status === "idle" && domains.length > 0)) && (
-                    <>
-                      {domains.length === 0 ? (
-                        <div className="text-[11px] text-muted-foreground/70">
-                          No cookie domains detected. Existing per-project logins and unpartitioned
-                          web data are stored separately. Authentication cannot be inferred without
-                          cookies.
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          {sessionHintDomains.length > 0 && (
-                            <div className="space-y-1">
-                              <div className="text-[10px] uppercase font-semibold text-muted-foreground/80 tracking-wider">
-                                Possible session cookies (heuristic only):
-                              </div>
-                              <div className="flex flex-wrap gap-1.5">
-                                {sessionHintDomains.map((item) => (
-                                  <span
-                                    key={item.domain}
-                                    className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-primary/10 border border-primary/30 text-[11px] text-foreground group"
-                                    title="A session cookie was detected, but this is a heuristic and does not guarantee that an account is active or signed in."
-                                  >
-                                    <span
-                                      className="size-1.5 rounded-full bg-amber-500 shrink-0"
-                                      aria-hidden="true"
-                                    />
-                                    <span className="font-medium">{item.domain}</span>
-                                    <span className="text-[10px] text-muted-foreground">
-                                      ({item.cookieCount})
-                                    </span>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleClearSingleDomain(profile, item.domain)}
-                                      disabled={deletingProfileId !== null}
-                                      title={`Clear cookies for ${item.domain}`}
-                                      className="text-muted-foreground hover:text-destructive cursor-pointer opacity-70 hover:opacity-100"
-                                    >
-                                      <XIcon className="size-3" />
-                                    </button>
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-
-                          {otherDomains.length > 0 && (
-                            <div className="space-y-1">
-                              {sessionHintDomains.length > 0 && (
-                                <div className="text-[10px] uppercase font-semibold text-muted-foreground/80 tracking-wider pt-1">
-                                  Other cookie domains:
-                                </div>
-                              )}
-                              <div className="flex flex-wrap gap-1.5">
-                                {otherDomains.map((item) => (
-                                  <span
-                                    key={item.domain}
-                                    className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-background/90 border border-border/70 text-[11px] text-muted-foreground group"
-                                  >
-                                    <span>{item.domain}</span>
-                                    <span className="text-[10px] opacity-60 font-mono">
-                                      ({item.cookieCount})
-                                    </span>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleClearSingleDomain(profile, item.domain)}
-                                      disabled={deletingProfileId !== null}
-                                      title={`Clear cookies for ${item.domain}`}
-                                      className="text-muted-foreground hover:text-destructive cursor-pointer opacity-70 hover:opacity-100"
-                                    >
-                                      <XIcon className="size-3" />
-                                    </button>
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-
-                {/* Remembered Website Permissions */}
-                <div className="pt-2 border-t border-border/40">
-                  <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                    <ShieldCheckIcon className="size-3 text-primary" />
-                    Website Permissions
                   </div>
-                  {permissions.length > 0 ? (
-                    <div className="flex flex-wrap gap-1.5">
-                      {permissions.map((perm) => (
-                        <span
-                          key={`${perm.origin}-${perm.permission}`}
-                          className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-background/90 border border-border/70 text-[11px] text-foreground group"
-                        >
-                          <span className="font-mono text-[10px]">{perm.origin}</span>
-                          <span className="text-[10px] font-medium text-primary">
-                            {perm.permission}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              void handleRevokePermission(profile.id, perm.origin, perm.permission)
-                            }
-                            disabled={deletingProfileId !== null}
-                            title={`Revoke ${perm.permission} for ${perm.origin}`}
-                            className="text-muted-foreground hover:text-destructive cursor-pointer opacity-70 hover:opacity-100"
-                          >
-                            <XIcon className="size-3" />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  ) : isLoadingPermissions ? (
-                    <div
-                      className="flex items-center gap-1.5 text-[11px] text-muted-foreground"
-                      role="status"
-                    >
-                      <LoaderCircleIcon className="size-3 animate-spin" aria-hidden="true" />
-                      Checking permissions…
-                    </div>
-                  ) : (
-                    <div className="text-[11px] text-muted-foreground/70">
-                      No custom permissions remembered for this profile.
-                    </div>
+                  {profile.description && (
+                    <p className="text-xs text-muted-foreground">{profile.description}</p>
                   )}
-                </div>
-
-                <div className="flex items-center justify-between pt-1">
-                  <div className="text-[11px] text-muted-foreground font-mono">
-                    persist:tabs-browser:profile:{profile.id}
-                  </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                      <span>
+                        {usage.length} {usage.length === 1 ? "tab" : "tabs"}
+                      </span>
+                      <span aria-hidden="true" className="size-1 rounded-full bg-border" />
+                      <span role="status">
+                        {inspectionState.status === "loading"
+                          ? "Checking sites..."
+                          : inspectionState.status === "failed"
+                            ? "Could not load sites"
+                            : inspectionState.status === "idle" && !inspection
+                              ? "Sites unavailable"
+                              : `${domains.length} ${domains.length === 1 ? "stored site" : "stored sites"}`}
+                      </span>
+                    </div>
                     <Button
-                      size="xs"
+                      size="sm"
                       variant="outline"
                       onClick={() => openLoginModal(profile)}
                       disabled={deletingProfileId !== null}
-                      className="h-7 text-xs text-foreground hover:bg-accent cursor-pointer gap-1.5"
-                      title="Log in or test website logins for this profile"
+                      aria-label={`Open profile ${profile.label}`}
+                      className="gap-1.5 cursor-pointer"
                     >
-                      <GlobeIcon className="size-3 text-primary" />
-                      Open Profile
-                    </Button>
-                    <Button
-                      size="xs"
-                      variant="outline"
-                      onClick={() => handleClearSessionData(profile)}
-                      disabled={isClearing || deletingProfileId !== null}
-                      className="h-7 text-xs text-muted-foreground hover:text-foreground cursor-pointer gap-1.5"
-                      title="Clear cookies, storage, and log out of all tabs using this profile"
-                    >
-                      <RotateCcwIcon className={cn("size-3", isClearing && "animate-spin")} />
-                      Clear All Sessions
+                      <GlobeIcon className="size-3.5" aria-hidden="true" />
+                      Open profile
                     </Button>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+
+                <details className="group mt-3">
+                  <summary className="w-fit cursor-pointer rounded-sm text-xs text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-4">
+                    Profile details<span className="sr-only"> for {profile.label}</span>
+                  </summary>
+                  <div className="mt-3 space-y-3">
+                    {/* Assigned tabs */}
+                    <div className="rounded-lg bg-muted/40 border border-border/50 p-2.5 text-xs space-y-1.5">
+                      <div className="font-medium text-foreground flex items-center justify-between">
+                        <span className="flex items-center gap-1.5 text-muted-foreground">
+                          <LayersIcon className="size-3.5 text-foreground/70" />
+                          Assigned tabs
+                        </span>
+                        <span className="font-mono text-[11px]">
+                          {usage.length} {usage.length === 1 ? "tab" : "tabs"}
+                        </span>
+                      </div>
+                      {usage.length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5 pt-0.5">
+                          {usage.map((u) => (
+                            <span
+                              key={`${u.projectName}:${u.tabName}`}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-background/80 border border-border/60 text-[11px] text-foreground"
+                            >
+                              <span className="font-medium">{u.projectName}:</span>
+                              <span className="text-muted-foreground">{u.tabName}</span>
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-[11px] text-muted-foreground/70">
+                          No assigned tabs.
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Cookie Domains & Heuristic Sessions */}
+                    <div className="rounded-lg bg-muted/30 border border-border/50 p-2.5 text-xs space-y-2">
+                      <div className="font-medium text-foreground flex items-center justify-between">
+                        <span className="flex items-center gap-1.5 text-muted-foreground">
+                          <ShieldCheckIcon className="size-3.5 text-primary" />
+                          Stored sites
+                        </span>
+                        {inspection && (
+                          <span className="font-mono text-[11px] text-muted-foreground">
+                            {inspection.totalDomains}{" "}
+                            {inspection.totalDomains === 1 ? "domain" : "domains"} (
+                            {inspection.totalCookies}{" "}
+                            {inspection.totalCookies === 1 ? "cookie" : "cookies"})
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Partition Metadata */}
+                      <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground font-mono">
+                        <span className="break-all bg-background/80 px-1.5 py-0.5 rounded border border-border/60">
+                          Partition:{" "}
+                          {inspection?.partition ?? `persist:tabs-browser:profile:${profile.id}`}
+                        </span>
+                        {inspection && (
+                          <span className="break-all bg-background/80 px-1.5 py-0.5 rounded border border-border/60">
+                            {inspection.isPersistent
+                              ? "Persistent partition"
+                              : "In-memory partition"}
+                          </span>
+                        )}
+                        {inspection?.inspectedAt && (
+                          <span className="text-[10px] text-muted-foreground/70 not-italic font-sans">
+                            Refreshed: {new Date(inspection.inspectedAt).toLocaleTimeString()}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* State: Loading */}
+                      {inspectionState.status === "loading" && (
+                        <div className="py-2 text-center text-xs text-muted-foreground">
+                          Inspecting cookie domains...
+                        </div>
+                      )}
+
+                      {/* State: Failed */}
+                      {inspectionState.status === "failed" && (
+                        <div className="flex items-center justify-between p-2 rounded-md bg-destructive/10 border border-destructive/30 text-destructive text-xs">
+                          <span>Inspection failed: {inspectionState.error ?? "Unknown error"}</span>
+                          <Button
+                            size="xs"
+                            variant="outline"
+                            className="h-6 px-2 text-xs border-destructive/40 hover:bg-destructive/20 text-foreground"
+                            onClick={() => inspectSingleProfile(profile.id)}
+                            disabled={deletingProfileId !== null}
+                          >
+                            Retry
+                          </Button>
+                        </div>
+                      )}
+
+                      {/* State: Loaded */}
+                      {(inspectionState.status === "loaded" ||
+                        (inspectionState.status === "idle" && domains.length > 0)) && (
+                        <>
+                          {domains.length === 0 ? (
+                            <div className="text-[11px] text-muted-foreground/70">
+                              No stored sites in this profile.
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              {sessionHintDomains.length > 0 && (
+                                <div className="space-y-1">
+                                  <div className="text-[10px] uppercase font-semibold text-muted-foreground/80 tracking-wider">
+                                    Session cookies (sign-in unverified):
+                                  </div>
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {sessionHintDomains.map((item) => (
+                                      <span
+                                        key={item.domain}
+                                        className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-primary/10 border border-primary/30 text-[11px] text-foreground group"
+                                        title="A session cookie was detected, but this is a heuristic and does not guarantee that an account is active or signed in."
+                                      >
+                                        <span
+                                          className="size-1.5 rounded-full bg-amber-500 shrink-0"
+                                          aria-hidden="true"
+                                        />
+                                        <span className="font-medium">{item.domain}</span>
+                                        <span className="text-[10px] text-muted-foreground">
+                                          ({item.cookieCount})
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            handleClearSingleDomain(profile, item.domain)
+                                          }
+                                          disabled={deletingProfileId !== null}
+                                          title={`Clear cookies for ${item.domain}`}
+                                          aria-label={`Clear cookies for ${item.domain} in ${profile.label}`}
+                                          className="text-muted-foreground hover:text-destructive cursor-pointer opacity-70 hover:opacity-100"
+                                        >
+                                          <XIcon className="size-3" />
+                                        </button>
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {otherDomains.length > 0 && (
+                                <div className="space-y-1">
+                                  {sessionHintDomains.length > 0 && (
+                                    <div className="text-[10px] uppercase font-semibold text-muted-foreground/80 tracking-wider pt-1">
+                                      Other sites:
+                                    </div>
+                                  )}
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {otherDomains.map((item) => (
+                                      <span
+                                        key={item.domain}
+                                        className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-background/90 border border-border/70 text-[11px] text-muted-foreground group"
+                                      >
+                                        <span>{item.domain}</span>
+                                        <span className="text-[10px] opacity-60 font-mono">
+                                          ({item.cookieCount})
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            handleClearSingleDomain(profile, item.domain)
+                                          }
+                                          disabled={deletingProfileId !== null}
+                                          title={`Clear cookies for ${item.domain}`}
+                                          aria-label={`Clear cookies for ${item.domain} in ${profile.label}`}
+                                          className="text-muted-foreground hover:text-destructive cursor-pointer opacity-70 hover:opacity-100"
+                                        >
+                                          <XIcon className="size-3" />
+                                        </button>
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+
+                    {/* Remembered Website Permissions */}
+                    <div className="pt-2 border-t border-border/40">
+                      <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                        <ShieldCheckIcon className="size-3 text-primary" />
+                        Website Permissions
+                      </div>
+                      {permissions.length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5">
+                          {permissions.map((perm) => (
+                            <span
+                              key={`${perm.origin}-${perm.permission}`}
+                              className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-background/90 border border-border/70 text-[11px] text-foreground group"
+                            >
+                              <span className="font-mono text-[10px]">{perm.origin}</span>
+                              <span className="text-[10px] font-medium text-primary">
+                                {perm.permission}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void handleRevokePermission(
+                                    profile.id,
+                                    perm.origin,
+                                    perm.permission,
+                                  )
+                                }
+                                disabled={deletingProfileId !== null}
+                                title={`Revoke ${perm.permission} for ${perm.origin}`}
+                                aria-label={`Revoke ${perm.permission} for ${perm.origin}`}
+                                className="text-muted-foreground hover:text-destructive cursor-pointer opacity-70 hover:opacity-100"
+                              >
+                                <XIcon className="size-3" />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      ) : isLoadingPermissions ? (
+                        <div
+                          className="flex items-center gap-1.5 text-[11px] text-muted-foreground"
+                          role="status"
+                        >
+                          <LoaderCircleIcon className="size-3 animate-spin" aria-hidden="true" />
+                          Checking permissions…
+                        </div>
+                      ) : (
+                        <div className="text-[11px] text-muted-foreground/70">
+                          No saved permissions.
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex justify-end">
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        onClick={() => handleClearSessionData(profile)}
+                        disabled={isClearing || deletingProfileId !== null}
+                        className="h-7 text-xs text-muted-foreground hover:text-foreground cursor-pointer gap-1.5"
+                        title="Clear cookies, storage, and log out of all tabs using this profile"
+                      >
+                        <RotateCcwIcon className={cn("size-3", isClearing && "animate-spin")} />
+                        Clear All Sessions
+                      </Button>
+                    </div>
+                  </div>
+                </details>
+              </div>
+            );
+          })}
+        </div>
+      </SettingsSection>
 
       {/* Native profile-window launcher and stored-site inspector */}
       <Dialog
@@ -1071,7 +1078,7 @@ export function BrowserProfilesSettings() {
                   style={{ backgroundColor: testingProfile?.color || "#3b82f6" }}
                 />
                 <DialogTitle className="text-base font-semibold truncate">
-                  Profile Session & Login: {testingProfile?.label}
+                  {testingProfile?.label}
                 </DialogTitle>
                 <Badge variant="outline" className="text-[11px] font-mono shrink-0">
                   profile:{testingProfile?.id}
@@ -1095,8 +1102,7 @@ export function BrowserProfilesSettings() {
               </div>
             </div>
             <DialogDescription className="text-xs">
-              Open a native browser window backed by this profile. Chromium stores its cookies and
-              site data in the profile partition and shares them only with tabs assigned to it.
+              Sign in to websites using this profile’s separate session.
             </DialogDescription>
           </DialogHeader>
 
@@ -1107,17 +1113,16 @@ export function BrowserProfilesSettings() {
             <ShieldCheckIcon className="mt-0.5 size-3.5 text-primary shrink-0" aria-hidden="true" />
             <div className="flex items-center gap-2 min-w-0">
               <span className="text-muted-foreground text-[11px] leading-relaxed">
-                A stored cookie is not proof that an account is currently signed in. Google and some
-                OAuth providers may reject application-controlled browser windows; use their native
-                Tabs integration when available.
+                Stored cookies do not confirm sign-in. Some providers require their Tabs
+                integration.
               </span>
             </div>
           </div>
 
-          {/* Quick Login Portals Bar */}
+          {/* Websites Bar */}
           <div className="space-y-2">
             <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-              <span>Quick Login Portals</span>
+              <span>Websites</span>
               {!isAddingPortal && (
                 <button
                   type="button"
@@ -1125,7 +1130,7 @@ export function BrowserProfilesSettings() {
                   className="text-xs text-primary hover:underline font-normal normal-case flex items-center gap-1 cursor-pointer"
                 >
                   <PlusIcon className="size-3" />
-                  Add Custom Portal
+                  Add website
                 </button>
               )}
             </div>

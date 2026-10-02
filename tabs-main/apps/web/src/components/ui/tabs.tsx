@@ -1,3 +1,4 @@
+import { useGsapSurface } from "~/hooks/useGsapSurface";
 import * as React from "react";
 import { cn } from "../../lib/utils";
 
@@ -120,10 +121,13 @@ export function TabsContent({
   const context = React.useContext(TabsContext);
   if (!context) throw new Error("TabsContent must be used within Tabs");
 
+  const motionRef = useGsapSurface<HTMLDivElement>();
+
   if (context.value !== value) return null;
 
   return (
     <div
+      ref={motionRef}
       role="tabpanel"
       className={cn(
         "mt-2 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",

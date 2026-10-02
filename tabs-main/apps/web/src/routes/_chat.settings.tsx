@@ -1,3 +1,4 @@
+import { useGsapSurface } from "~/hooks/useGsapSurface";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
@@ -106,6 +107,11 @@ const ThemesSettings = lazy(() => import("~/components/settings/ThemesSettings")
 const AnimationsSettings = lazy(() => import("~/components/settings/AnimationsSettings"));
 const ProvidersSettings = lazy(() => import("~/components/settings/ProvidersSettings"));
 const AboutSettings = lazy(() => import("~/components/settings/AboutSettings"));
+function SettingsSurface({ children }: { children: React.ReactNode }) {
+  const ref = useGsapSurface<HTMLDivElement>();
+  return <div ref={ref}>{children}</div>;
+}
+
 const ProjectWorkspaceSettingsSection = lazy(() =>
   import("~/components/ProjectWorkspaceSettingsSection").then((m) => ({
     default: m.ProjectWorkspaceSettingsSection,
@@ -603,7 +609,7 @@ function SettingsRouteView() {
                     />
                   }
                 >
-                  <div key={activeSettingsSection} className="tabs-surface-enter">
+                  <SettingsSurface key={activeSettingsSection}>
                     {activeSettingsSection === "general" ? <GeneralSettings /> : null}
                     {activeSettingsSection === "notifications" ? <NotificationsSettings /> : null}
                     {activeSettingsSection === "themes" ? <ThemesSettings /> : null}
@@ -644,7 +650,7 @@ function SettingsRouteView() {
                     {activeSettingsSection === "usage" ? <UsageLimitsPage /> : null}
                     {activeSettingsSection === "diagnostics" ? <DiagnosticsSettings /> : null}
                     {activeSettingsSection === "about" ? <AboutSettings /> : null}
-                  </div>
+                  </SettingsSurface>
                 </Suspense>
               </div>
             </div>

@@ -1,5 +1,7 @@
 "use client";
 
+import { useGsapSurface } from "~/hooks/useGsapSurface";
+
 import { mergeProps } from "@base-ui/react/merge-props";
 import { Select as SelectPrimitive } from "@base-ui/react/select";
 import { useRender } from "@base-ui/react/use-render";
@@ -121,6 +123,8 @@ function SelectPopup({
   alignItemWithTrigger?: SelectPrimitive.Positioner.Props["alignItemWithTrigger"];
   anchor?: SelectPrimitive.Positioner.Props["anchor"];
 }) {
+  const motionRef = useGsapSurface(props.ref);
+
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Positioner
@@ -137,6 +141,7 @@ function SelectPopup({
           className="origin-(--transform-origin) text-foreground"
           data-slot="select-popup"
           {...props}
+          ref={motionRef}
         >
           <SelectPrimitive.ScrollUpArrow
             className="top-0 z-50 flex h-6 w-full cursor-default items-center justify-center before:pointer-events-none before:absolute before:inset-x-px before:top-px before:h-[200%] before:rounded-t-[calc(var(--radius-lg)-1px)] before:bg-linear-to-b before:from-50% before:from-popover"

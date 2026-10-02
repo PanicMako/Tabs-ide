@@ -1,5 +1,7 @@
 "use client";
 
+import { useGsapSurface } from "~/hooks/useGsapSurface";
+
 import { Menu as MenuPrimitive } from "@base-ui/react/menu";
 import { ChevronRightIcon } from "lucide-react";
 import { type ReactNode } from "react";
@@ -42,6 +44,8 @@ function MenuPopup({
   collisionPadding?: MenuPrimitive.Positioner.Props["collisionPadding"];
   collisionBoundary?: MenuPrimitive.Positioner.Props["collisionBoundary"];
 }) {
+  const motionRef = useGsapSurface(props.ref);
+
   const isUnstyled =
     typeof className === "string" &&
     (className.includes("bg-transparent") || className.includes("p-0"));
@@ -73,6 +77,7 @@ function MenuPopup({
             }}
             data-slot="menu-popup"
             {...props}
+            ref={motionRef}
           >
             {children}
           </MenuPrimitive.Popup>
@@ -96,12 +101,13 @@ function MenuPopup({
       >
         <MenuPrimitive.Popup
           className={cn(
-            "relative flex not-[class*='w-']:min-w-32 origin-(--transform-origin) rounded-lg border bg-popover not-dark:bg-clip-padding shadow-lg/5 outline-none before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--radius-lg)-1px)] before:shadow-[0_1px_--theme(--color-black/4%)] focus:outline-none dark:before:shadow-[0_-1px_--theme(--color-white/6%)]",
+            "transition-opacity duration-150 ease-out motion-reduce:transition-none data-ending-style:opacity-0 relative flex not-[class*='w-']:min-w-32 origin-(--transform-origin) rounded-lg border bg-popover not-dark:bg-clip-padding shadow-lg/5 outline-none before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--radius-lg)-1px)] before:shadow-[0_1px_--theme(--color-black/4%)] focus:outline-none dark:before:shadow-[0_-1px_--theme(--color-white/6%)]",
             className,
           )}
           style={style}
           data-slot="menu-popup"
           {...props}
+          ref={motionRef}
         >
           <div className="max-h-(--available-height) w-full overflow-y-auto p-1">{children}</div>
         </MenuPrimitive.Popup>

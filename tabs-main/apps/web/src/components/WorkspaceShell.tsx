@@ -1,3 +1,4 @@
+import { useGsapInsets } from "../hooks/useGsapInsets";
 import { useWindowControlsInset } from "../hooks/useWindowControlsInset";
 import { BrowserToolbar } from "./browser/BrowserToolbar";
 import type { FileDiffMetadata, Hunk } from "@pierre/diffs";
@@ -959,6 +960,11 @@ function ProjectTabs(props: {
     isMacDesktop ? { left: 92, right: 0 } : { left: 0, right: 140 },
   );
 
+  const titlebarRef = useGsapInsets(
+    Math.max(12, windowControlsInset.left),
+    Math.max(12, windowControlsInset.right),
+  );
+
   // Merge real + pending tabs in a stable order: real projects first (as ordered
   // in openProjects), then pending slots appended at the end.
   type TabEntry = { kind: "project"; project: Project } | { kind: "pending"; pendingId: string };
@@ -980,6 +986,7 @@ function ProjectTabs(props: {
 
   return (
     <div
+      ref={titlebarRef}
       className={cn(
         "drag-region flex items-end justify-between gap-2 overflow-x-auto border-b px-3 pt-2 select-none backdrop-blur-md transition-colors duration-200",
         "border-border/80 bg-background/95 text-foreground",
