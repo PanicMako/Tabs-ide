@@ -7,6 +7,27 @@ import Exchange from "../layouts/Exchange.astro";
   <p class="lead">A Tabs extension is a full-workspace tool, not a VS Code VSIX. Start with a zero-permission React/TypeScript tool, then request only the capabilities you need.</p>
   <div class="actions"><a class="button" href="/docs/extensions">Start here</a><a class="button secondary" href="/docs/extensions/reference">SDK reference</a></div>
   <div class="cards developer-steps"><section class="card"><p class="step-label">01 · Make it yours</p><h2>Create your tool.</h2><p>Use the standalone CLI and supplied SDK tarball to scaffold React or plain HTML.</p><a href="/docs/extensions">Build your first extension</a></section><section class="card"><p class="step-label">02 · Give it a workspace</p><h2>Run inside Tabs.</h2><p>Build packaged assets and load the staging folder in a compatible desktop development build.</p><a href="/docs/extensions/development">Load, debug, and reload</a></section><section class="card"><p class="step-label">03 · Share what's next</p><h2>Prepare a release.</h2><p>Validate and pack a .tabsext archive, then follow its review from your publisher account.</p><a href="/docs/extensions/publishing">Understand publication</a></section></div>
+  <figure class="docs-diagram" aria-label="Package review and publication flow diagram">
+    <svg role="img" aria-label="Diagram showing the publication flow: package file becomes a quarantined submission, then passes automated scanning, then manual review, then signed publication to the registry" viewBox="0 0 700 120" fill="none" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:700px;height:auto;display:block">
+      <rect x="0" y="40" width="130" height="44" rx="8" fill="#eef2ff" stroke="#dce3ff" stroke-width="1.5"/>
+      <text x="65" y="58" text-anchor="middle" font-family="DM Sans,sans-serif" font-size="11" fill="#202b44" font-weight="600">.tabsext</text>
+      <text x="65" y="74" text-anchor="middle" font-family="DM Sans,sans-serif" font-size="10" fill="#636c7b">package file</text>
+      <path d="M130 62 L160 62" stroke="#dce2ee" stroke-width="1.5" marker-end="url(#arrow)"/>
+      <rect x="160" y="40" width="130" height="44" rx="8" fill="#fff0e4" stroke="#f2ddcc" stroke-width="1.5"/>
+      <text x="225" y="58" text-anchor="middle" font-family="DM Sans,sans-serif" font-size="11" fill="#202b44" font-weight="600">Quarantine</text>
+      <text x="225" y="74" text-anchor="middle" font-family="DM Sans,sans-serif" font-size="10" fill="#636c7b">automated scan</text>
+      <path d="M290 62 L320 62" stroke="#dce2ee" stroke-width="1.5" marker-end="url(#arrow)"/>
+      <rect x="320" y="40" width="130" height="44" rx="8" fill="#fff0e4" stroke="#f2ddcc" stroke-width="1.5"/>
+      <text x="385" y="58" text-anchor="middle" font-family="DM Sans,sans-serif" font-size="11" fill="#202b44" font-weight="600">Manual review</text>
+      <text x="385" y="74" text-anchor="middle" font-family="DM Sans,sans-serif" font-size="10" fill="#636c7b">exact digest decision</text>
+      <path d="M450 62 L480 62" stroke="#dce2ee" stroke-width="1.5" marker-end="url(#arrow)"/>
+      <rect x="480" y="40" width="140" height="44" rx="8" fill="#eaf5ee" stroke="#d0e5d8" stroke-width="1.5"/>
+      <text x="550" y="58" text-anchor="middle" font-family="DM Sans,sans-serif" font-size="11" fill="#202b44" font-weight="600">Signed registry</text>
+      <text x="550" y="74" text-anchor="middle" font-family="DM Sans,sans-serif" font-size="10" fill="#636c7b">TUF publication</text>
+      <defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6 Z" fill="#dce2ee"/></marker></defs>
+    </svg>
+    <figcaption>A submitted package moves through automated scanning and manual review. Approval alone does not publish a release — a separate signed publication step delivers authenticated metadata to compatible clients.</figcaption>
+  </figure>
   <section class="notice" aria-labelledby="release-status"><h2 id="release-status">Download the experimental developer bundle</h2><p id="release-status-message" role="status">Checking this instance's SDK and CLI release bundle…</p><div class="actions"><a class="button" id="release-download" hidden download>Download SDK + CLI bundle</a><a id="release-checksums" hidden>Checksums</a></div><p id="release-digest"></p><p>No npm publication or public desktop release is implied. The bundle includes standalone tarballs and setup instructions. You do not need to clone Tabs.</p></section>
 </Exchange>
 <script>
