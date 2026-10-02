@@ -1,5 +1,58 @@
 [
   {
+    "tag_name": "v1.3.30",
+    "name": "Tabs v1.3.30",
+    "published_at": "2026-10-02T10:07:35Z",
+    "body": "## GSAP surface animations, redesigned browser profiles, and workspace settings polish\n\nTabs introduces smooth entrance motion for dialogs, popovers, menus, and settings views, refines the browser profiles settings layout with streamlined session management, and enhances workspace settings and window control alignment.\n\n### What changed\n\n- **Smooth surface entrance animations**: Popups, dialogs, dropdown menus, sheets, and settings surfaces now animate into view smoothly with GSAP while strictly respecting user reduced-motion preferences.\n- **Redesigned browser profiles settings**: Browser profiles now feature a cleaner header layout, simplified session cards, direct website launch actions, and clearer partition management.\n- **Workspace settings and tab bar insets**: Modernized section headers in workspace settings, and added smooth transitions for native window control insets in the project tab bar.",
+    "html_url": "https://github.com/PanicMako/Tabs-ide/releases/tag/v1.3.30",
+    "assets": [
+      {
+        "name": "latest-linux.yml",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v1.3.30/latest-linux.yml"
+      },
+      {
+        "name": "latest.yml",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v1.3.30/latest.yml"
+      },
+      {
+        "name": "Tabs-1.3.30-arm64.dmg",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v1.3.30/Tabs-1.3.30-arm64.dmg"
+      },
+      {
+        "name": "Tabs-1.3.30-arm64.zip",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v1.3.30/Tabs-1.3.30-arm64.zip"
+      },
+      {
+        "name": "Tabs-1.3.30-x64.dmg",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v1.3.30/Tabs-1.3.30-x64.dmg"
+      },
+      {
+        "name": "Tabs-1.3.30-x64.exe",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v1.3.30/Tabs-1.3.30-x64.exe"
+      },
+      {
+        "name": "Tabs-1.3.30-x64.exe.blockmap",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v1.3.30/Tabs-1.3.30-x64.exe.blockmap"
+      },
+      {
+        "name": "Tabs-1.3.30-x64.zip",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v1.3.30/Tabs-1.3.30-x64.zip"
+      },
+      {
+        "name": "Tabs-1.3.30-x86_64.AppImage",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v1.3.30/Tabs-1.3.30-x86_64.AppImage"
+      },
+      {
+        "name": "tabs-mac-preview-update.json",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v1.3.30/tabs-mac-preview-update.json"
+      },
+      {
+        "name": "tabs-mac-preview-update.json.sig",
+        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v1.3.30/tabs-mac-preview-update.json.sig"
+      }
+    ]
+  },
+  {
     "tag_name": "v1.3.29",
     "name": "Tabs v1.3.29",
     "published_at": "2026-10-01T20:01:26Z",
@@ -208,59 +261,6 @@
       {
         "name": "tabs-mac-preview-update.json.sig",
         "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v1.3.26/tabs-mac-preview-update.json.sig"
-      }
-    ]
-  },
-  {
-    "tag_name": "v1.3.25",
-    "name": "Tabs v1.3.25",
-    "published_at": "2026-09-27T21:03:08Z",
-    "body": "## Packaged desktop font rendering, editor font synchronization, and dynamic provider models\n\nTabs improves desktop font rendering with proper cross-origin headers, adds instant font preference synchronization for the embedded editor, and switches provider models to dynamic capability snapshots.\n\n### What changed\n\n- **Packaged desktop font rendering**: Resolved cross-origin asset restrictions when loading local application fonts in packaged desktop builds, ensuring custom UI fonts render cleanly.\n- **Embedded editor font synchronization**: Updated editor typography settings so font family and code font size preferences apply immediately to the embedded Code-OSS editor and persist across restarts.\n- **Dynamic provider model discovery**: Provider model menus now rely strictly on live provider capability snapshots, keeping available models accurate and up to date.\n- **Reliable offline font selections**: Curated the font picker to bundled local typefaces so your selected typography renders consistently with or without network access.",
-    "html_url": "https://github.com/PanicMako/Tabs-ide/releases/tag/v1.3.25",
-    "assets": [
-      {
-        "name": "latest-linux.yml",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v1.3.25/latest-linux.yml"
-      },
-      {
-        "name": "latest.yml",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v1.3.25/latest.yml"
-      },
-      {
-        "name": "Tabs-1.3.25-arm64.dmg",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v1.3.25/Tabs-1.3.25-arm64.dmg"
-      },
-      {
-        "name": "Tabs-1.3.25-arm64.zip",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v1.3.25/Tabs-1.3.25-arm64.zip"
-      },
-      {
-        "name": "Tabs-1.3.25-x64.dmg",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v1.3.25/Tabs-1.3.25-x64.dmg"
-      },
-      {
-        "name": "Tabs-1.3.25-x64.exe",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v1.3.25/Tabs-1.3.25-x64.exe"
-      },
-      {
-        "name": "Tabs-1.3.25-x64.exe.blockmap",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v1.3.25/Tabs-1.3.25-x64.exe.blockmap"
-      },
-      {
-        "name": "Tabs-1.3.25-x64.zip",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v1.3.25/Tabs-1.3.25-x64.zip"
-      },
-      {
-        "name": "Tabs-1.3.25-x86_64.AppImage",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v1.3.25/Tabs-1.3.25-x86_64.AppImage"
-      },
-      {
-        "name": "tabs-mac-preview-update.json",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v1.3.25/tabs-mac-preview-update.json"
-      },
-      {
-        "name": "tabs-mac-preview-update.json.sig",
-        "browser_download_url": "https://github.com/PanicMako/Tabs-ide/releases/download/v1.3.25/tabs-mac-preview-update.json.sig"
       }
     ]
   }
