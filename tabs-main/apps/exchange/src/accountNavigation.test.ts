@@ -24,7 +24,9 @@ describe("role-specific account navigation", () => {
     ).toContain("<script>text</script>");
   });
   it("shows operator navigation only for an explicit boolean operator role", () => {
-    expect(accountNavigation({ login: "operator", admin: true, operator: true }, "/admin/reviewers")).toEqual({
+    expect(
+      accountNavigation({ login: "operator", admin: true, operator: true }, "/admin/reviewers"),
+    ).toEqual({
       label: "operator · Account",
       href: "/account",
       reviewer: true,
