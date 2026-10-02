@@ -21,15 +21,52 @@ export interface ChangelogRelease {
   }[];
 }
 
-export const TOTAL_TAGS_COUNT = 172;
+export const TOTAL_TAGS_COUNT = 173;
 
 export const changelogData: ChangelogRelease[] = [
+  {
+    tag: "v1.3.30",
+    title: "GSAP surface animations, redesigned browser profiles, and workspace settings polish",
+    date: "October 2, 2026",
+    shortDate: "Oct 2",
+    isLatest: true,
+    type: "patch",
+    summary:
+      "Tabs introduces smooth entrance motion for dialogs, popovers, menus, and settings views, refines the browser profiles settings layout with streamlined session management, and enhances workspace settings and window control alignment.",
+    highlights: [
+      "Smooth surface entrance animations across dialogs, popovers, dropdown menus, sheets, and settings surfaces.",
+      "Redesigned browser profiles settings with clean headers, direct portal access, and session management.",
+      "Polished workspace settings and smooth window control inset transitions in the project tab bar.",
+    ],
+    categories: [
+      {
+        title: "Animations & Motion",
+        items: [
+          "Smooth surface entrance animations for popups, dialogs, dropdown menus, sheets, and settings panels with GSAP.",
+          "Strict respect for user reduced-motion preferences.",
+        ],
+      },
+      {
+        title: "Browser Profiles",
+        items: [
+          "Streamlined browser profiles settings layout with direct website login actions and clean profile cards.",
+        ],
+      },
+      {
+        title: "Workspace & Window Controls",
+        items: [
+          "Modernized workspace settings section headers.",
+          "Smooth transitions for native window control insets in project tab bar.",
+        ],
+      },
+    ],
+  },
   {
     tag: "v1.3.29",
     title: "Code-OSS 1.140 and clearer runtime information",
     date: "October 1, 2026",
     shortDate: "Oct 1",
-    isLatest: true,
+    isLatest: false,
     type: "patch",
     summary:
       "Tabs updates its embedded editor to Code-OSS 1.140.0 and shows the selected editor runtime version in Settings → About. Project tabs now use the space reported by native window controls on macOS and Windows; Linux keeps its system title bar outside the tabs.",
