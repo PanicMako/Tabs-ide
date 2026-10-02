@@ -8,18 +8,30 @@ describe("role-specific account navigation", () => {
       "/extensions/acme/tool?version=1.0.0#overview",
     );
     expect(navigation.reviewer).toBe(false);
+    expect(navigation.operator).toBe(false);
   });
   it("shows reviewer navigation only for an explicit boolean reviewer role", () => {
     expect(accountNavigation({ login: "reviewer", admin: true }, "/admin")).toEqual({
       label: "reviewer · Account",
       href: "/account",
       reviewer: true,
+      operator: false,
     });
     for (const admin of [false, undefined, "true", 1])
       expect(accountNavigation({ login: "publisher", admin }, "/publish").reviewer).toBe(false);
     expect(
       accountNavigation({ login: "<script>text</script>", admin: false }, "/account").label,
     ).toContain("<script>text</script>");
+  });
+  it("shows operator navigation only for an explicit boolean operator role", () => {
+    expect(accountNavigation({ login: "operator", admin: true, operator: true }, "/admin/reviewers")).toEqual({
+      label: "operator · Account",
+      href: "/account",
+      reviewer: true,
+      operator: true,
+    });
+    for (const operator of [false, undefined, "true", 1])
+      expect(accountNavigation({ login: "publisher", operator }, "/publish").operator).toBe(false);
   });
   it("rejects malformed identity rather than guessing reviewer access", () => {
     for (const actor of [

@@ -4,6 +4,7 @@ export function accountNavigation(actor: unknown, returnTo: string) {
       label: "Sign in with GitHub",
       href: `/auth/github/start?${new URLSearchParams({ returnTo })}`,
       reviewer: false,
+      operator: false,
     };
   }
   if (
@@ -20,5 +21,6 @@ export function accountNavigation(actor: unknown, returnTo: string) {
     label: `${actor.login} · Account`,
     href: "/account",
     reviewer: "admin" in actor && actor.admin === true,
+    operator: "operator" in actor && actor.operator === true,
   };
 }
