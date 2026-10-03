@@ -89,7 +89,7 @@ export const MessageQueuePanel = memo(function MessageQueuePanel({
       {/* Header */}
       <div className="flex shrink-0 items-center justify-between border-b border-border/60 p-3">
         <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-          <ListOrderedIcon className="size-4 text-primary" />
+          <ListOrderedIcon className="size-4 text-foreground" />
           <span>Message Queue</span>
           <span className="ml-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-mono tabular-nums text-muted-foreground">
             {queuedMessages.length}
@@ -147,7 +147,7 @@ export const MessageQueuePanel = memo(function MessageQueuePanel({
                 >
                   <div className="flex items-center justify-between text-[11px] text-muted-foreground">
                     <div className="flex items-center gap-1.5 font-semibold text-foreground">
-                      <span className="flex size-5 items-center justify-center rounded-full bg-primary/10 text-[10px] font-bold text-primary">
+                      <span className="flex size-5 items-center justify-center rounded-full bg-primary/10 text-[10px] font-bold text-foreground">
                         #{index + 1}
                       </span>
                       <span>{isFirst ? "Up Next" : `Queue Position ${index + 1}`}</span>
@@ -241,7 +241,7 @@ export const MessageQueuePanel = memo(function MessageQueuePanel({
                                 isScheduled
                                   ? isPastScheduled
                                     ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
-                                    : "bg-primary/10 text-primary hover:bg-primary/20"
+                                    : "bg-primary/10 text-foreground hover:bg-primary/20"
                                   : "bg-muted/70 text-muted-foreground hover:text-foreground",
                               )}
                             >
@@ -299,7 +299,7 @@ export const MessageQueuePanel = memo(function MessageQueuePanel({
                         onClick={() => onSendNow(msg)}
                         className="h-6 gap-1 px-2 text-[11px] font-medium text-foreground hover:bg-accent cursor-pointer"
                       >
-                        <SendIcon className="size-3 text-primary" />
+                        <SendIcon className="size-3 text-foreground" />
                         <span>Dispatch Now</span>
                       </Button>
                     )}

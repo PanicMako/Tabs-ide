@@ -698,7 +698,7 @@ export const AppleTimePicker = memo(function AppleTimePicker({
       {/* Top Header Bar matching Apple layout with interactive typing input */}
       <div className="flex items-center justify-between pb-3 border-b border-border/50">
         <div className="flex items-center gap-2">
-          <ClockIcon className="size-4 text-primary" />
+          <ClockIcon className="size-4 text-foreground" />
           <span className="text-sm font-semibold tracking-tight text-foreground">Time</span>
         </div>
 
@@ -754,7 +754,7 @@ export const AppleTimePicker = memo(function AppleTimePicker({
           <button
             type="button"
             onClick={() => setPeriod(!isPM)}
-            className="ml-1 rounded px-1 text-[11px] font-bold text-primary hover:bg-primary/10 transition-colors cursor-pointer select-none"
+            className="ml-1 rounded px-1 text-[11px] font-bold text-foreground hover:bg-primary/10 transition-colors cursor-pointer select-none"
             title="Toggle AM / PM (or press A / P)"
           >
             {isPM ? "PM" : "AM"}
@@ -870,7 +870,7 @@ export const AppleTimePicker = memo(function AppleTimePicker({
       {/* Common Presets for AI Coding Workflows */}
       <div className="space-y-1.5 pb-2">
         <div className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
-          <SparklesIcon className="size-3 text-primary" />
+          <SparklesIcon className="size-3 text-foreground" />
           <span>Quick presets</span>
         </div>
         <div className="grid grid-cols-2 gap-1.5">

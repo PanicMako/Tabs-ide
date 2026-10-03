@@ -843,7 +843,7 @@ export function BrowserProfilesSettings() {
                     <div className="rounded-lg bg-muted/30 border border-border/50 p-2.5 text-xs space-y-2">
                       <div className="font-medium text-foreground flex items-center justify-between">
                         <span className="flex items-center gap-1.5 text-muted-foreground">
-                          <ShieldCheckIcon className="size-3.5 text-primary" />
+                          <ShieldCheckIcon className="size-3.5 text-foreground" />
                           Stored sites
                         </span>
                         {inspection && (
@@ -990,7 +990,7 @@ export function BrowserProfilesSettings() {
                     {/* Remembered Website Permissions */}
                     <div className="pt-2 border-t border-border/40">
                       <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                        <ShieldCheckIcon className="size-3 text-primary" />
+                        <ShieldCheckIcon className="size-3 text-foreground" />
                         Website Permissions
                       </div>
                       {permissions.length > 0 ? (
@@ -1001,7 +1001,7 @@ export function BrowserProfilesSettings() {
                               className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-background/90 border border-border/70 text-[11px] text-foreground group"
                             >
                               <span className="font-mono text-[10px]">{perm.origin}</span>
-                              <span className="text-[10px] font-medium text-primary">
+                              <span className="text-[10px] font-medium text-foreground">
                                 {perm.permission}
                               </span>
                               <button
@@ -1110,7 +1110,10 @@ export function BrowserProfilesSettings() {
             className="flex items-start gap-2 px-3 py-2.5 bg-muted/30 border border-border/50 rounded-lg text-xs"
             role="note"
           >
-            <ShieldCheckIcon className="mt-0.5 size-3.5 text-primary shrink-0" aria-hidden="true" />
+            <ShieldCheckIcon
+              className="mt-0.5 size-3.5 text-foreground shrink-0"
+              aria-hidden="true"
+            />
             <div className="flex items-center gap-2 min-w-0">
               <span className="text-muted-foreground text-[11px] leading-relaxed">
                 Stored cookies do not confirm sign-in. Some providers require their Tabs
@@ -1127,7 +1130,7 @@ export function BrowserProfilesSettings() {
                 <button
                   type="button"
                   onClick={() => setIsAddingPortal(true)}
-                  className="text-xs text-primary hover:underline font-normal normal-case flex items-center gap-1 cursor-pointer"
+                  className="text-xs text-foreground hover:underline font-normal normal-case flex items-center gap-1 cursor-pointer"
                 >
                   <PlusIcon className="size-3" />
                   Add website
@@ -1280,7 +1283,7 @@ export function BrowserProfilesSettings() {
           <DialogHeader className="p-0 space-y-1">
             <div className="flex items-center justify-between gap-3">
               <DialogTitle className="text-base font-semibold flex items-center gap-2">
-                <FingerprintIcon className="size-5 text-primary" />
+                <FingerprintIcon className="size-5 text-foreground" />
                 {editingProfile ? "Edit Browser Profile" : "Create Browser Profile"}
               </DialogTitle>
               <Button
@@ -1400,7 +1403,7 @@ export function BrowserProfilesSettings() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="text-sm font-semibold flex items-center gap-2">
-              <DownloadIcon className="size-4 text-primary" />
+              <DownloadIcon className="size-4 text-foreground" />
               Import Browser Session
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">

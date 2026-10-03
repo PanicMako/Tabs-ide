@@ -162,7 +162,7 @@ export function ServerReadinessBadge({
       <MenuPopup align="start" className="w-80 p-1 text-xs">
         <div className="flex items-center justify-between border-b px-2 py-1.5 pb-2">
           <div className="flex items-center gap-1.5 font-semibold text-foreground">
-            <ServerIcon className="size-3.5 text-primary" />
+            <ServerIcon className="size-3.5 text-foreground" />
             <span>Local Server Status</span>
           </div>
           <Badge variant={badgeVariant} className="text-[10px] capitalize">
@@ -212,7 +212,7 @@ export function ServerReadinessBadge({
                 >
                   <div className="flex items-center gap-1.5">
                     <CheckCircle2Icon
-                      className={`size-3 ${isCurrent ? "text-primary" : "opacity-0"}`}
+                      className={`size-3 ${isCurrent ? "text-foreground" : "opacity-0"}`}
                     />
                     <span className="font-mono font-medium">{server.port}</span>
                     <span className="text-[10px] text-muted-foreground">

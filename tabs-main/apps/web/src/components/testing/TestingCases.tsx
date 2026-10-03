@@ -425,7 +425,7 @@ export const TestingCases = memo(function TestingCases({
                       className={cn(
                         "size-4 shrink-0 transition-colors",
                         isSelected
-                          ? "text-primary"
+                          ? "text-foreground"
                           : "text-muted-foreground group-hover:text-foreground",
                       )}
                       aria-hidden="true"
@@ -639,7 +639,7 @@ export const TestingCases = memo(function TestingCases({
                   }}
                   className="group flex cursor-pointer flex-col items-center justify-center gap-2.5 rounded-xl border-2 border-dashed border-border/80 bg-background/60 px-4 py-7 text-center transition-all hover:border-primary/50 hover:bg-muted/20 focus:outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20 dark:bg-background/30"
                 >
-                  <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary transition-transform group-hover:scale-105">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-foreground transition-transform group-hover:scale-105">
                     <UploadCloudIcon className="h-5 w-5" aria-hidden="true" />
                   </div>
                   <div className="space-y-1">
@@ -805,7 +805,7 @@ export const TestingCases = memo(function TestingCases({
                 <div className="flex flex-col gap-3 rounded-xl border border-primary/30 bg-primary/5 p-4 transition-all dark:bg-primary/10">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex min-w-0 items-center gap-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-foreground">
                         <BookOpenIcon className="h-5 w-5" aria-hidden="true" />
                       </div>
                       <div className="min-w-0 space-y-0.5">
@@ -815,7 +815,7 @@ export const TestingCases = memo(function TestingCases({
                           </span>
                           <Badge
                             variant="secondary"
-                            className="border-primary/30 bg-primary/10 px-1.5 py-0 text-[10px] font-medium text-primary"
+                            className="border-primary/30 bg-primary/10 px-1.5 py-0 text-[10px] font-medium text-foreground"
                           >
                             Document attached
                           </Badge>
@@ -959,7 +959,7 @@ export const TestingCases = memo(function TestingCases({
                     <div className="flex flex-col gap-1 rounded-lg border border-border/50 bg-background/50 p-3.5">
                       <div className="flex items-center justify-between text-muted-foreground">
                         <span className="text-xs font-medium">Reachable States</span>
-                        <LayersIcon className="h-3.5 w-3.5 text-primary/70" aria-hidden="true" />
+                        <LayersIcon className="h-3.5 w-3.5 text-foreground/70" aria-hidden="true" />
                       </div>
                       <div className="text-xl font-bold text-foreground">
                         {status?.nodeCount ?? 0}
@@ -1105,7 +1105,7 @@ export const TestingCases = memo(function TestingCases({
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border/80 bg-muted/10 p-8 text-center">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-foreground">
                     <CompassIcon className="h-6 w-6" aria-hidden="true" />
                   </div>
                   <div className="max-w-md space-y-1">
@@ -1593,7 +1593,7 @@ const TestingCaseQueue = memo(function TestingCaseQueue({
                     className={cn(
                       "font-medium tabular-nums",
                       selectedGenerationCaseIds.size > 0
-                        ? "text-primary font-semibold"
+                        ? "text-foreground font-semibold"
                         : "text-foreground",
                     )}
                   >

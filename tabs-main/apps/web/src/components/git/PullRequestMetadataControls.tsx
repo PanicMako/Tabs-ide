@@ -97,7 +97,7 @@ export function PullRequestReviewersSection({
                 key={reviewer.login}
                 className="inline-flex items-center gap-1.5 rounded-md border border-border/80 bg-muted/30 px-2 py-1 text-xs font-medium text-foreground"
               >
-                <span className="size-4 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary">
+                <span className="size-4 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-foreground">
                   {reviewer.login.slice(0, 1).toUpperCase()}
                 </span>
                 <span>@{reviewer.login}</span>
@@ -306,7 +306,7 @@ export function PullRequestActivityView({
                 >
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
-                      <span className="size-5 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
+                      <span className="size-5 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-foreground">
                         {review.author?.login?.slice(0, 1).toUpperCase() ?? "?"}
                       </span>
                       <span className="text-xs font-semibold text-foreground">
@@ -348,7 +348,7 @@ export function PullRequestActivityView({
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <span className="size-5 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
+                    <span className="size-5 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-foreground">
                       {comment.author?.login?.slice(0, 1).toUpperCase() ?? "?"}
                     </span>
                     <span className="text-xs font-semibold text-foreground">

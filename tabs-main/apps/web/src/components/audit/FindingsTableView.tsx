@@ -264,7 +264,7 @@ export function FindingsTableView({
                           e.stopPropagation();
                           onOpenPatchModal(finding);
                         }}
-                        className="text-xs font-semibold text-primary hover:underline cursor-pointer"
+                        className="text-xs font-semibold text-foreground hover:underline cursor-pointer"
                       >
                         Preview Patch
                       </button>

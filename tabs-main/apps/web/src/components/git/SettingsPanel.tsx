@@ -626,7 +626,7 @@ export function SettingsPanel({
               variant="ghost"
               size="sm"
               onClick={() => setModelSourceMode("direct_gemini")}
-              className="text-primary hover:text-primary text-[11px]"
+              className="text-foreground hover:text-foreground text-[11px]"
             >
               Use Gemini API Key
             </Button>

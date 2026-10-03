@@ -37,7 +37,7 @@ function ReleaseNotesLink({
   return (
     <a
       href={href}
-      className="text-primary underline underline-offset-2"
+      className="text-foreground underline underline-offset-2"
       onClick={(event) => {
         if (!window.desktopBridge) return;
         event.preventDefault();
@@ -76,7 +76,7 @@ export function DesktopUpdateReleaseNotes({ state }: { readonly state: DesktopUp
           className="pointer-events-none absolute inset-x-0 top-0 h-36 bg-gradient-to-b from-primary/12 to-transparent"
         />
         <DialogHeader className="relative gap-0 border-b border-border/60 px-7 pt-7 pb-6 pr-16 sm:px-9 sm:pt-9 sm:pb-7 sm:pr-20">
-          <span className="mb-3 w-fit rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-[10px] font-semibold tracking-[0.16em] text-primary uppercase">
+          <span className="mb-3 w-fit rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-[10px] font-semibold tracking-[0.16em] text-foreground uppercase">
             Tabs {version}
           </span>
           <DialogTitle className="text-2xl leading-tight tracking-tight sm:text-3xl">

@@ -5626,8 +5626,6 @@ export function evaluateThemeTokens(
         ) {
           minRatio = 1.8;
         } else if (
-          token.id === "button.foreground" ||
-          token.id === "app.primaryForeground" ||
           token.id === "extensionButton.prominentForeground" ||
           token.id === "activityBarBadge.foreground" ||
           token.id === "badge.foreground"

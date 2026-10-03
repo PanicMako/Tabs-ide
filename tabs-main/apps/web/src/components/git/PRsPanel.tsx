@@ -619,7 +619,7 @@ export function PRsPanel({
                           setDetailTab("summary");
                         }}
                       >
-                        <Layers className="size-3 text-primary" aria-hidden="true" />
+                        <Layers className="size-3 text-foreground" aria-hidden="true" />
                         {pr.stackMembership.position}/{pr.stackMembership.size}
                       </Badge>
                     ) : null}
@@ -651,7 +651,7 @@ export function PRsPanel({
                       <Button
                         variant="outline"
                         size="sm"
-                        className="gap-1.5 text-xs text-primary border-primary/30 bg-primary/5 hover:bg-primary/10 h-7 px-2 shrink-0"
+                        className="gap-1.5 text-xs text-foreground border-primary/30 bg-primary/5 hover:bg-primary/10 h-7 px-2 shrink-0"
                         title={
                           linkedThreads.length === 1
                             ? `Open linked agent thread: ${linkedThreads[0]!.title}`
@@ -1284,7 +1284,7 @@ export function PRsPanel({
                                                   <button
                                                     key={side}
                                                     type="button"
-                                                    className="border-r border-border/40 px-1 text-right text-muted-foreground hover:bg-primary/20 hover:text-primary focus-visible:z-10 cursor-pointer"
+                                                    className="border-r border-border/40 px-1 text-right text-muted-foreground hover:bg-primary/20 hover:text-foreground focus-visible:z-10 cursor-pointer"
                                                     aria-label={`Comment on ${side === "left" ? "original" : "new"} line ${lineNumber}`}
                                                     title={`Click to comment on line ${lineNumber}`}
                                                     onClick={() => {

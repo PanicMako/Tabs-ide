@@ -70,9 +70,9 @@ export function BrowserSecurityBadge({
               <Badge
                 tabIndex={0}
                 variant="outline"
-                className="h-6 px-1.5 py-0 text-[10px] font-medium bg-primary/5 text-primary border-primary/20 flex items-center gap-1 cursor-default"
+                className="h-6 px-1.5 py-0 text-[10px] font-medium bg-primary/5 text-foreground border-primary/20 flex items-center gap-1 cursor-default"
               >
-                <ShieldCheckIcon className="size-2.5 text-primary" />
+                <ShieldCheckIcon className="size-2.5 text-foreground" />
                 <span className={compact ? "sr-only" : "font-mono text-[10px]"}>
                   {registrableDomain || "Secure"}
                 </span>
@@ -80,7 +80,7 @@ export function BrowserSecurityBadge({
             }
           />
           <TooltipPopup side="bottom" className="max-w-xs text-xs space-y-1">
-            <div className="font-semibold flex items-center gap-1 text-primary">
+            <div className="font-semibold flex items-center gap-1 text-foreground">
               <ShieldCheckIcon className="size-3" />
               Verified Secure Connection
             </div>

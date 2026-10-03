@@ -135,7 +135,7 @@ export function AgentsSplitResizer({
         className={cn(
           "group relative z-30 flex w-2 flex-none cursor-col-resize items-center justify-center select-none transition-colors",
           "hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-          isDragging && "bg-accent text-primary",
+          isDragging && "bg-accent text-foreground",
           className,
         )}
       >

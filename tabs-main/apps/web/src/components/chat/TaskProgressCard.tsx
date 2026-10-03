@@ -53,7 +53,7 @@ const TaskRow = memo(function TaskRow({ task }: { task: TaskNode }) {
       {/* Status icon */}
       <span className="shrink-0 flex size-4 items-center justify-center">
         {isRunning ? (
-          <LoaderIcon className="size-3 animate-spin text-primary/70" />
+          <LoaderIcon className="size-3 animate-spin text-foreground/70" />
         ) : isFailed || isStopped ? (
           <XIcon
             className={cn(

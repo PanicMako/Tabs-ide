@@ -53,7 +53,7 @@ function ActionMenu({
             onClick={action.onClick}
             className="gap-2.5 py-2"
           >
-            <span className={action.active ? "text-primary" : "text-muted-foreground"}>
+            <span className={action.active ? "text-foreground" : "text-muted-foreground"}>
               {action.icon}
             </span>
             <span className="flex min-w-0 flex-col">

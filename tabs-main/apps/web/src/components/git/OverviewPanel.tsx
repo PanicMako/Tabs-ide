@@ -682,7 +682,7 @@ export function OverviewPanel({
                 size="sm"
                 disabled={isStagingAll}
                 onClick={() => void handleStageAll()}
-                className="h-6 px-2 text-[10px] font-semibold text-primary hover:text-primary gap-1 cursor-pointer"
+                className="h-6 px-2 text-[10px] font-semibold text-foreground hover:text-foreground gap-1 cursor-pointer"
               >
                 {isStagingAll ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
                 Stage All ({unstagedFiles.length})

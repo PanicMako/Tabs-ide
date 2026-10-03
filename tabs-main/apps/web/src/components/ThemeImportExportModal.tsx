@@ -131,7 +131,7 @@ export const ThemeImportExportModal: React.FC<ThemeImportExportModalProps> = ({
         {/* Header Bar */}
         <div className="flex items-center justify-between border-b border-border/70 px-6 py-4 bg-background/60 shrink-0">
           <div className="flex items-center gap-2.5">
-            <FileCode2 className="size-5 text-primary" />
+            <FileCode2 className="size-5 text-foreground" />
             <div>
               <h3 className="text-base font-bold text-foreground tracking-tight">
                 Import & Export Theme
@@ -216,8 +216,8 @@ export const ThemeImportExportModal: React.FC<ThemeImportExportModalProps> = ({
                 </p>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
                   Accepts standard VS Code{" "}
-                  <code className="font-mono text-primary">*-color-theme.json</code> or Tabs custom
-                  theme files (max 256 KB)
+                  <code className="font-mono text-foreground">*-color-theme.json</code> or Tabs
+                  custom theme files (max 256 KB)
                 </p>
               </div>
 
@@ -302,7 +302,7 @@ export const ThemeImportExportModal: React.FC<ThemeImportExportModalProps> = ({
                         <AlertCircle className="size-3.5 text-amber-500 shrink-0 mt-0.5" />
                         <p className="text-[11px] text-muted-foreground leading-relaxed">
                           <span className="font-semibold text-amber-500">Note:</span>{" "}
-                          <code className="font-mono text-primary">tokenColors</code> (syntax
+                          <code className="font-mono text-foreground">tokenColors</code> (syntax
                           highlighting rules) are not imported — only UI workbench colors are
                           mapped. The editor will use Tabs' default syntax theme.
                         </p>

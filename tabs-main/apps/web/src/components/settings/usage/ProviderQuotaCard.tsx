@@ -114,7 +114,7 @@ export function ProviderQuotaCard({ snapshot, isEnabled = true }: ProviderQuotaC
             <div className="flex items-center gap-2">
               <span className="font-semibold text-foreground text-sm">{displayName}</span>
               {snapshot.planName ? (
-                <span className="rounded-full bg-primary/10 border border-primary/20 px-2 py-0.5 text-[11px] font-medium text-primary">
+                <span className="rounded-full bg-primary/10 border border-primary/20 px-2 py-0.5 text-[11px] font-medium text-foreground">
                   {snapshot.planName}
                 </span>
               ) : null}

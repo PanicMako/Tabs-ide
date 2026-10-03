@@ -274,7 +274,7 @@ export function BrowserComparisonView({
         {/* Header toolbar */}
         <div className="flex items-center justify-between border-b px-4 py-3 bg-muted/30 shrink-0">
           <div className="flex items-center gap-2">
-            <Columns2Icon className="size-4 text-primary" />
+            <Columns2Icon className="size-4 text-foreground" />
             <DialogTitle className="text-sm font-semibold">
               Side-by-Side Browser Comparison
             </DialogTitle>
@@ -362,7 +362,7 @@ export function BrowserComparisonView({
               title="Synchronize scrolling between panes"
             >
               {syncScroll ? (
-                <Link2Icon className="size-3 text-primary" />
+                <Link2Icon className="size-3 text-foreground" />
               ) : (
                 <Link2OffIcon className="size-3" />
               )}

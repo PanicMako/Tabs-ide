@@ -32,7 +32,7 @@ export const ComposerStashBadge = memo(function ComposerStashBadge({
       className={cn(
         "shrink-0 gap-1 px-1.5 h-7 text-xs font-medium transition-colors duration-200",
         pulsing
-          ? "text-primary bg-primary/10 shadow-xs ring-1 ring-primary/30"
+          ? "text-foreground bg-primary/10 shadow-xs ring-1 ring-primary/30"
           : menuOpen
             ? "text-foreground bg-accent"
             : "text-muted-foreground/80 hover:text-foreground",

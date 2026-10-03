@@ -178,7 +178,7 @@ export function PullRequestStackView({
       {/* Header bar */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 pb-2.5">
         <div className="flex items-center gap-2">
-          <div className="flex size-6 items-center justify-center rounded-md bg-primary/10 text-primary">
+          <div className="flex size-6 items-center justify-center rounded-md bg-primary/10 text-foreground">
             <Layers className="size-3.5" aria-hidden="true" />
           </div>
           <div>

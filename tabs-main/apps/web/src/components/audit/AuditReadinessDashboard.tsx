@@ -127,7 +127,7 @@ export function AuditReadinessDashboard({
                 <div className="flex items-center gap-2 font-semibold text-foreground mb-1">
                   <IconComponent
                     size={14}
-                    className={isSelected ? "text-primary" : "text-muted-foreground"}
+                    className={isSelected ? "text-foreground" : "text-muted-foreground"}
                   />
                   <span>{preset.title}</span>
                 </div>

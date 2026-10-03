@@ -1133,7 +1133,7 @@ function OpenCommandPaletteDialog(props: {
             </div>
           ) : isRemoteProjectCloning ? (
             <div className="py-12 text-center text-sm text-muted-foreground flex flex-col items-center justify-center gap-2">
-              <LoaderCircleIcon className="size-6 animate-spin text-primary" />
+              <LoaderCircleIcon className="size-6 animate-spin text-foreground" />
               <span>Cloning repository to destination...</span>
             </div>
           ) : isBrowsePending ? (

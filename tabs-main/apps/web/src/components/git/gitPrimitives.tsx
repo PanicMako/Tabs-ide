@@ -505,11 +505,11 @@ export function DiffSummaryCard({
     <div className="rounded-xl border border-primary/20 bg-card p-4 shadow-lg space-y-3 mb-4 relative">
       <div className="flex items-center justify-between border-b border-border/50 pb-2.5">
         <div className="flex items-center gap-2 flex-wrap">
-          <Wand2 className="size-4 text-primary shrink-0" />
+          <Wand2 className="size-4 text-foreground shrink-0" />
           <span className="text-xs font-semibold text-foreground tracking-tight">
             AI Diff Summary
           </span>
-          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-primary/10 text-foreground border border-primary/20">
             {scopeLabel}
           </span>
           <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-muted/80 text-muted-foreground border border-border/60">
@@ -635,7 +635,7 @@ export function GitModelPicker({
             name: opt.name || opt.slug,
             description: `${entry.displayName} subscription backend`,
             badge: "Fusion",
-            badgeColor: "bg-primary/10 text-primary border-primary/20",
+            badgeColor: "bg-primary/10 text-foreground border-primary/20",
           })),
         };
       })
@@ -719,7 +719,7 @@ export function GitModelPicker({
                   name: "Codex (GPT-5.4 Mini)",
                   description: "Codex subscription backend",
                   badge: "Fusion",
-                  badgeColor: "bg-primary/10 text-primary border-primary/20",
+                  badgeColor: "bg-primary/10 text-foreground border-primary/20",
                 },
                 {
                   instanceId: "codex" as ProviderInstanceId,
@@ -727,7 +727,7 @@ export function GitModelPicker({
                   name: "Codex (GPT-5.4)",
                   description: "Codex subscription backend",
                   badge: "Fusion",
-                  badgeColor: "bg-primary/10 text-primary border-primary/20",
+                  badgeColor: "bg-primary/10 text-foreground border-primary/20",
                 },
                 {
                   instanceId: "claudeAgent" as ProviderInstanceId,
@@ -735,7 +735,7 @@ export function GitModelPicker({
                   name: "Claude (Haiku 4.5)",
                   description: "Claude Agent backend",
                   badge: "Fusion",
-                  badgeColor: "bg-primary/10 text-primary border-primary/20",
+                  badgeColor: "bg-primary/10 text-foreground border-primary/20",
                 },
                 {
                   instanceId: "claudeAgent" as ProviderInstanceId,
@@ -743,7 +743,7 @@ export function GitModelPicker({
                   name: "Claude (Sonnet 5)",
                   description: "Claude Agent backend",
                   badge: "Fusion",
-                  badgeColor: "bg-primary/10 text-primary border-primary/20",
+                  badgeColor: "bg-primary/10 text-foreground border-primary/20",
                 },
                 {
                   instanceId: "grok" as ProviderInstanceId,
@@ -751,7 +751,7 @@ export function GitModelPicker({
                   name: "Grok (Build)",
                   description: "xAI Grok backend",
                   badge: "Fusion",
-                  badgeColor: "bg-primary/10 text-primary border-primary/20",
+                  badgeColor: "bg-primary/10 text-foreground border-primary/20",
                 },
                 {
                   instanceId: "cursor" as ProviderInstanceId,
@@ -759,7 +759,7 @@ export function GitModelPicker({
                   name: "Cursor (Composer 2)",
                   description: "Cursor subscription backend",
                   badge: "Fusion",
-                  badgeColor: "bg-primary/10 text-primary border-primary/20",
+                  badgeColor: "bg-primary/10 text-foreground border-primary/20",
                 },
               ],
             },

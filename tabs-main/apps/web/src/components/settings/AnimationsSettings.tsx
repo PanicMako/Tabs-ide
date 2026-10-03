@@ -578,7 +578,7 @@ export function AnimationsSettings() {
                   className={cn(
                     "flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[11px] font-semibold transition-all duration-200 cursor-pointer",
                     activeFontComboId === "app-default"
-                      ? "border-primary bg-primary/10 text-primary shadow-[0_0_10px_hsl(var(--primary)/0.2)]"
+                      ? "border-primary bg-primary/10 text-foreground shadow-[0_0_10px_hsl(var(--primary)/0.2)]"
                       : "border-border/70 bg-card text-muted-foreground hover:border-border hover:text-foreground",
                   )}
                 >
@@ -596,7 +596,7 @@ export function AnimationsSettings() {
                     </svg>
                   )}
                   App Theme Font
-                  <span className="text-[8px] font-bold tracking-widest px-1 py-0.5 rounded border border-primary/30 text-primary/70 bg-primary/5">
+                  <span className="text-[8px] font-bold tracking-widest px-1 py-0.5 rounded border border-primary/30 text-foreground/70 bg-primary/5">
                     DEFAULT
                   </span>
                 </button>
@@ -613,7 +613,7 @@ export function AnimationsSettings() {
                       className={cn(
                         "flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[11px] font-semibold transition-all duration-200 cursor-pointer",
                         isActive
-                          ? "border-primary bg-primary/10 text-primary shadow-[0_0_10px_hsl(var(--primary)/0.2)]"
+                          ? "border-primary bg-primary/10 text-foreground shadow-[0_0_10px_hsl(var(--primary)/0.2)]"
                           : "border-border/70 bg-card text-muted-foreground hover:border-border hover:text-foreground",
                       )}
                       style={{
@@ -638,7 +638,7 @@ export function AnimationsSettings() {
                         className={cn(
                           "text-[8px] font-bold tracking-widest px-1 py-0.5 rounded border",
                           isActive
-                            ? "border-primary/30 text-primary/70 bg-primary/5"
+                            ? "border-primary/30 text-foreground/70 bg-primary/5"
                             : "border-border/50 text-muted-foreground/50",
                         )}
                       >
@@ -660,7 +660,7 @@ export function AnimationsSettings() {
                         Select a custom typography font for startup and close loader animations.
                       </p>
                     </div>
-                    <span className="text-[9px] font-bold tracking-widest px-2 py-0.5 rounded border border-primary/30 text-primary bg-primary/5 uppercase">
+                    <span className="text-[9px] font-bold tracking-widest px-2 py-0.5 rounded border border-primary/30 text-foreground bg-primary/5 uppercase">
                       CUSTOM
                     </span>
                   </div>
@@ -813,7 +813,7 @@ export function AnimationsSettings() {
                           <div
                             className={cn(
                               "text-xs font-bold leading-tight",
-                              isActive ? "text-primary" : "text-foreground",
+                              isActive ? "text-foreground" : "text-foreground",
                             )}
                           >
                             {combo.name}
@@ -826,7 +826,7 @@ export function AnimationsSettings() {
                           className={cn(
                             "text-[9px] font-mono font-semibold px-1.5 py-0.5 rounded border uppercase tracking-wider shrink-0 ml-1",
                             isActive
-                              ? "border-primary/40 bg-primary/10 text-primary"
+                              ? "border-primary/40 bg-primary/10 text-foreground"
                               : "border-border/60 bg-muted/40 text-muted-foreground",
                           )}
                         >

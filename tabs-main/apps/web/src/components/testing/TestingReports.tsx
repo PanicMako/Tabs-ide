@@ -37,7 +37,7 @@ export const TestingReports = memo(function TestingReports() {
 
       <div className="grid gap-3 sm:grid-cols-2" aria-label="Available report actions">
         <div className="flex gap-3 rounded-xl border border-border/70 bg-card p-4">
-          <FileCheck2Icon aria-hidden="true" className="mt-0.5 size-5 text-primary" />
+          <FileCheck2Icon aria-hidden="true" className="mt-0.5 size-5 text-foreground" />
           <div>
             <p className="text-sm font-semibold">Share the latest run</p>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
@@ -46,7 +46,7 @@ export const TestingReports = memo(function TestingReports() {
           </div>
         </div>
         <div className="flex gap-3 rounded-xl border border-border/70 bg-card p-4">
-          <SearchIcon aria-hidden="true" className="mt-0.5 size-5 text-primary" />
+          <SearchIcon aria-hidden="true" className="mt-0.5 size-5 text-foreground" />
           <div>
             <p className="text-sm font-semibold">Investigate one test</p>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">

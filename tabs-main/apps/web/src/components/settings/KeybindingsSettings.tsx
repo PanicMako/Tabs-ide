@@ -1226,7 +1226,7 @@ export function KeybindingsSettings({
                 >
                   Keybindings
                 </h2>
-                <span className="flex h-5 items-center justify-center rounded-full bg-primary/10 px-2 text-[11px] font-medium text-primary">
+                <span className="flex h-5 items-center justify-center rounded-full bg-primary/10 px-2 text-[11px] font-medium text-foreground">
                   {rows.length} {rows.length === 1 ? "binding" : "bindings"}
                 </span>
               </div>
@@ -1502,7 +1502,7 @@ export function KeybindingsSettings({
                             >
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2.5">
-                                  <div className="flex size-8 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary transition-colors">
+                                  <div className="flex size-8 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground group-hover:bg-primary/10 group-hover:text-foreground transition-colors">
                                     {categoryIcons[category] ?? <KeyboardIcon className="size-5" />}
                                   </div>
                                   <span className="text-sm font-semibold text-foreground">

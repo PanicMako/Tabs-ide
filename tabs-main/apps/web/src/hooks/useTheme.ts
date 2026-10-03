@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useSyncExternalStore } from "react";
-import { evaluateThemeTokens } from "@tabs/shared/themeDerivation";
+import { evaluateThemeTokens, ensureMinContrast } from "@tabs/shared/themeDerivation";
 import {
   DEFAULT_CUSTOM_THEME,
   DEFAULT_FONT_PREFERENCES,
@@ -388,7 +388,7 @@ function applyTheme(
     style.setProperty("--accent-foreground", accentFg);
     style.setProperty("--border", border);
     style.setProperty("--input", border);
-    style.setProperty("--ring", primary);
+    style.setProperty("--ring", ensureMinContrast(primary, background, 3));
     style.setProperty("--primary", primary);
     style.setProperty("--primary-foreground", primaryFg);
     style.setProperty("--destructive", destructiveBg);

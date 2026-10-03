@@ -121,7 +121,7 @@ export function FindingDetailDrawer({
         {/* Suggested Fix Summary */}
         {finding.suggestedFix && (
           <div className="p-3 bg-primary/10 border border-primary/30 rounded-lg text-xs space-y-2">
-            <h4 className="font-semibold text-primary">Suggested Safe Repair Plan</h4>
+            <h4 className="font-semibold text-foreground">Suggested Safe Repair Plan</h4>
             <p className="text-foreground">{finding.suggestedFix.description}</p>
             <Button
               onClick={() => onOpenPatchModal(finding)}

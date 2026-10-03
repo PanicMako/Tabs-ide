@@ -119,7 +119,7 @@ export const TestingOverview = memo(function TestingOverview({
           />
           <div>
             <div className="flex items-center justify-between gap-3">
-              <div className="flex size-9 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary">
+              <div className="flex size-9 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-foreground">
                 <FolderSearchIcon aria-hidden="true" className="size-5" />
               </div>
               <Badge variant="success">Best for QA batches</Badge>

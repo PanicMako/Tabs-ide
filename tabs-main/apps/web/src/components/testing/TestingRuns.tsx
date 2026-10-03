@@ -339,7 +339,7 @@ export const TestingRuns = memo(function TestingRuns() {
                                           className={cn(
                                             "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-muted",
                                             effectiveFile?.id === file.id &&
-                                              "bg-primary/10 text-primary",
+                                              "bg-primary/10 text-foreground",
                                           )}
                                           onClick={() => setSelectedFile(file)}
                                           aria-current={

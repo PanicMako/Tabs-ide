@@ -109,7 +109,7 @@ export const RightPanelTabs = memo(function RightPanelTabs({
                 : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
             )}
           >
-            <BookmarkIcon className="size-3.5 text-primary" />
+            <BookmarkIcon className="size-3.5 text-foreground" />
             <span>Stash</span>
             {stashes.length > 0 && (
               <span

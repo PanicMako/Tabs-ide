@@ -298,7 +298,7 @@ export function PullRequestChecksView({ checks }: { checks: ReadonlyArray<GitPul
                   href={check.detailsUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-primary hover:underline"
+                  className="inline-flex items-center gap-1 text-foreground hover:underline"
                   title="View details on source forge"
                 >
                   <span>Details</span>

@@ -1005,7 +1005,7 @@ export default function ProvidersSettings(props: ProvidersSettingsProps) {
               onClick={() => void refreshProviders()}
             >
               {isRefreshingProviders ? (
-                <LoaderIcon className="size-3.5 animate-spin text-primary" />
+                <LoaderIcon className="size-3.5 animate-spin text-foreground" />
               ) : (
                 <RefreshCwIcon className="size-3.5" />
               )}
@@ -2241,7 +2241,7 @@ export default function ProvidersSettings(props: ProvidersSettingsProps) {
                           {/* Save Order Footer Bar */}
                           {providerCard.hasPendingOrderChanges ? (
                             <div className="flex items-center justify-between p-2.5 bg-primary/10 border-t border-primary/20">
-                              <span className="text-xs text-primary font-medium">
+                              <span className="text-xs text-foreground font-medium">
                                 Model preference order changed.
                               </span>
                               <Button

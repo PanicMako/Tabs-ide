@@ -121,7 +121,7 @@ export function LimitsTab() {
 
       {/* Footer Note */}
       <div className="flex items-start gap-2.5 rounded-xl border border-border/60 bg-muted/30 p-4 text-xs text-muted-foreground backdrop-blur-sm">
-        <InfoIcon className="mt-0.5 size-4 shrink-0 text-primary" />
+        <InfoIcon className="mt-0.5 size-4 shrink-0 text-foreground" />
         <p className="leading-relaxed">
           Usage is read locally from each provider CLI&apos;s stored credentials and fetched
           directly from the provider. Short-lived tokens are refreshed through the provider&apos;s

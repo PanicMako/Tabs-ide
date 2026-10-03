@@ -469,7 +469,9 @@ export function SearchableBranchSelect({
                   }`}
                 >
                   <span className="truncate">{b.name}</span>
-                  {b.name === value && <Check size={13} className="text-primary shrink-0 ml-2" />}
+                  {b.name === value && (
+                    <Check size={13} className="text-foreground shrink-0 ml-2" />
+                  )}
                 </button>
               ))
             )}

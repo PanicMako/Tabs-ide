@@ -3190,8 +3190,8 @@ export function TestingTool(props: {
                     Testing
                   </h1>
                   {activeTestingSection === "overview" ? (
-                    <div className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 px-2.5 py-0.5 text-[11px] font-semibold text-primary">
-                      <FlaskConicalIcon aria-hidden="true" className="size-3 text-primary" />
+                    <div className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 px-2.5 py-0.5 text-[11px] font-semibold text-foreground">
+                      <FlaskConicalIcon aria-hidden="true" className="size-3 text-foreground" />
                       <span>Private Workspace</span>
                     </div>
                   ) : null}
@@ -3316,7 +3316,7 @@ export function TestingTool(props: {
                               className={cn(
                                 "rounded-full px-2 py-0.5 text-xs font-semibold",
                                 active
-                                  ? "bg-primary/15 text-primary"
+                                  ? "bg-primary/15 text-foreground"
                                   : "bg-muted text-muted-foreground group-hover:text-foreground",
                               )}
                             >
@@ -3335,7 +3335,7 @@ export function TestingTool(props: {
                         {recommended && (
                           <span
                             className={cn(
-                              "mt-1.5 inline-flex items-center rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary",
+                              "mt-1.5 inline-flex items-center rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-foreground",
                               active ? "ml-2.5" : "",
                             )}
                           >

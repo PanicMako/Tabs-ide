@@ -669,7 +669,7 @@ export const TestingDiscover = memo(function TestingDiscover({ projectId }: Test
                     className={cn(
                       "flex items-center gap-1.5 rounded-full px-3 py-1 font-medium transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                       workflowStep === 1
-                        ? "border border-primary/30 bg-primary/10 font-semibold text-primary shadow-xs"
+                        ? "border border-primary/30 bg-primary/10 font-semibold text-foreground shadow-xs"
                         : step1Done
                           ? "border border-emerald-500/25 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/15 dark:text-emerald-300"
                           : "border border-transparent text-muted-foreground hover:text-foreground",
@@ -706,7 +706,7 @@ export const TestingDiscover = memo(function TestingDiscover({ projectId }: Test
                     className={cn(
                       "flex items-center gap-1.5 rounded-full px-3 py-1 font-medium transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                       workflowStep === 2
-                        ? "border border-primary/30 bg-primary/10 font-semibold text-primary shadow-xs"
+                        ? "border border-primary/30 bg-primary/10 font-semibold text-foreground shadow-xs"
                         : step2Done
                           ? "border border-emerald-500/25 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/15 dark:text-emerald-300"
                           : "border border-transparent text-muted-foreground hover:text-foreground",
@@ -743,7 +743,7 @@ export const TestingDiscover = memo(function TestingDiscover({ projectId }: Test
                     className={cn(
                       "flex items-center gap-1.5 rounded-full px-3 py-1 font-medium transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                       workflowStep === 3
-                        ? "border border-primary/30 bg-primary/10 font-semibold text-primary shadow-xs"
+                        ? "border border-primary/30 bg-primary/10 font-semibold text-foreground shadow-xs"
                         : step3Done
                           ? "border border-emerald-500/25 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/15 dark:text-emerald-300"
                           : "border border-transparent text-muted-foreground hover:text-foreground",
@@ -786,7 +786,7 @@ export const TestingDiscover = memo(function TestingDiscover({ projectId }: Test
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="rounded-md bg-primary/15 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-primary">
+                          <span className="rounded-md bg-primary/15 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-foreground">
                             Step 1 of 3
                           </span>
                           <span className="text-xs text-muted-foreground font-medium">
@@ -898,7 +898,7 @@ export const TestingDiscover = memo(function TestingDiscover({ projectId }: Test
                     >
                       <HelpCircleIcon
                         aria-hidden="true"
-                        className="mt-0.5 size-4 shrink-0 text-primary"
+                        className="mt-0.5 size-4 shrink-0 text-foreground"
                       />
                       <div className="text-xs leading-5">
                         <span className="font-semibold text-foreground">
@@ -923,7 +923,7 @@ export const TestingDiscover = memo(function TestingDiscover({ projectId }: Test
                           <CollapsibleTrigger className="inline-flex items-center gap-2 rounded-xl border border-border/70 bg-card/70 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-all">
                             <SlidersHorizontalIcon
                               aria-hidden="true"
-                              className="size-3.5 text-primary"
+                              className="size-3.5 text-foreground"
                             />
                             <span>Advanced options</span>
                             <ChevronDownIcon
@@ -1352,7 +1352,7 @@ export const TestingDiscover = memo(function TestingDiscover({ projectId }: Test
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="rounded-md bg-primary/15 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-primary">
+                        <span className="rounded-md bg-primary/15 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-foreground">
                           Step 2 of 3
                         </span>
                         <span className="text-xs text-muted-foreground font-medium">
@@ -1493,7 +1493,7 @@ export const TestingDiscover = memo(function TestingDiscover({ projectId }: Test
                     <div className="flex flex-wrap items-start justify-between gap-4">
                       <div className="space-y-1.5">
                         <div className="flex items-center gap-2">
-                          <span className="rounded-md bg-primary/15 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-primary">
+                          <span className="rounded-md bg-primary/15 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-foreground">
                             Step 3 of 3
                           </span>
                           <span className="text-xs text-muted-foreground font-medium">
@@ -1529,7 +1529,7 @@ export const TestingDiscover = memo(function TestingDiscover({ projectId }: Test
                           key={number}
                           className="flex gap-3 rounded-xl border border-border/60 bg-muted/15 p-3"
                         >
-                          <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                          <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-foreground">
                             {number}
                           </span>
                           <div>

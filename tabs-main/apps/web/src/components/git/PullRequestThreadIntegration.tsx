@@ -104,7 +104,7 @@ export function PullRequestThreadIntegration({
       {/* Header with counts and shortcut action */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 font-semibold text-foreground text-xs">
-          <Bot className="size-3.5 text-primary" />
+          <Bot className="size-3.5 text-foreground" />
           <span>Linked Agent Threads ({linkedThreads.length})</span>
         </div>
 

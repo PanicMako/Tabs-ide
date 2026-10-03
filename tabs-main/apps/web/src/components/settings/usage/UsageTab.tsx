@@ -379,7 +379,7 @@ export function UsageTab() {
               <div className="flex flex-col gap-1 rounded-xl border border-border/80 bg-card/30 p-4 shadow-xs backdrop-blur-sm">
                 <div className="flex items-center justify-between text-muted-foreground">
                   <span className="text-xs font-medium">Processed Tokens</span>
-                  <CpuIcon className="size-4 text-primary" />
+                  <CpuIcon className="size-4 text-foreground" />
                 </div>
                 <span className="text-xl font-bold tracking-tight text-foreground tabular-nums">
                   {formatTokens(merged.totalTokens)}

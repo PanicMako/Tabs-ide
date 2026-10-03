@@ -636,7 +636,7 @@ export function NotificationsSettings() {
                       <button
                         type="button"
                         onClick={() => markNotificationRead(entry.id)}
-                        className="opacity-0 group-hover:opacity-100 text-[11px] text-primary hover:underline transition-opacity cursor-pointer font-medium"
+                        className="opacity-0 group-hover:opacity-100 text-[11px] text-foreground hover:underline transition-opacity cursor-pointer font-medium"
                       >
                         Mark read
                       </button>

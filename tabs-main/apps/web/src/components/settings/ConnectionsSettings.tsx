@@ -364,7 +364,7 @@ export function ConnectionsSettings() {
                   <DialogContent className="max-w-[520px]">
                     <DialogHeader>
                       <DialogTitle className="flex items-center gap-2 text-[18px]">
-                        <Link2Icon className="size-5 text-primary" />
+                        <Link2Icon className="size-5 text-foreground" />
                         Tailscale HTTPS
                       </DialogTitle>
                       <DialogDescription className="text-[13px]">
@@ -374,7 +374,7 @@ export function ConnectionsSettings() {
                     <DialogPanel className="space-y-6 pt-5 pb-3">
                       {httpsStep === 1 && (
                         <div className="space-y-4 text-center py-4">
-                          <div className="mx-auto size-16 rounded-full bg-primary/10 flex items-center justify-center border border-primary/20 text-primary">
+                          <div className="mx-auto size-16 rounded-full bg-primary/10 flex items-center justify-center border border-primary/20 text-foreground">
                             <ShieldCheckIcon className="size-8" />
                           </div>
                           <div className="space-y-2">
@@ -553,7 +553,7 @@ export function ConnectionsSettings() {
             <DialogContent className="max-w-[520px]">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2 text-[18px]">
-                  <MonitorIcon className="size-5 text-primary" />
+                  <MonitorIcon className="size-5 text-foreground" />
                   Connections Guide
                 </DialogTitle>
                 <DialogDescription className="text-[13px]">
@@ -563,7 +563,7 @@ export function ConnectionsSettings() {
               <DialogPanel className="space-y-6 pt-5 pb-3">
                 {guideStep === 1 && (
                   <div className="space-y-4 text-center py-4">
-                    <div className="mx-auto size-16 rounded-full bg-primary/10 flex items-center justify-center border border-primary/20 text-primary">
+                    <div className="mx-auto size-16 rounded-full bg-primary/10 flex items-center justify-center border border-primary/20 text-foreground">
                       <MonitorIcon className="size-8" />
                     </div>
                     <div className="space-y-2">
@@ -817,7 +817,7 @@ export function ConnectionsSettings() {
                 <DialogContent className="max-w-[520px]">
                   <DialogHeader>
                     <DialogTitle className="flex items-center gap-2 text-[18px]">
-                      <MonitorIcon className="size-5 text-primary" />
+                      <MonitorIcon className="size-5 text-foreground" />
                       Add Environment
                     </DialogTitle>
                     <DialogDescription className="text-[13px]">

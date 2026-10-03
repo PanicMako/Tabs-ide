@@ -321,7 +321,7 @@ export const CustomThemeStudioModal: React.FC<CustomThemeStudioModalProps> = ({
             <button
               type="button"
               onClick={() => setIsPreviewModalOpen(true)}
-              className="flex items-center gap-1.5 rounded-xl border border-primary/40 bg-primary/10 px-3.5 py-1.5 text-xs font-bold text-primary hover:bg-primary/20 transition-colors cursor-pointer shadow-xs whitespace-nowrap"
+              className="flex items-center gap-1.5 rounded-xl border border-primary/40 bg-primary/10 px-3.5 py-1.5 text-xs font-bold text-foreground hover:bg-primary/20 transition-colors cursor-pointer shadow-xs whitespace-nowrap"
             >
               <Maximize2 className="size-3.5" />
               <span>Live Preview</span>
@@ -543,7 +543,7 @@ export const CustomThemeStudioModal: React.FC<CustomThemeStudioModalProps> = ({
                 <button
                   type="button"
                   onClick={handleAutoFixContrast}
-                  className="ms-2 px-2.5 py-1 rounded-lg bg-primary/10 text-primary text-xs font-bold hover:bg-primary/20 cursor-pointer flex items-center gap-1 whitespace-nowrap"
+                  className="ms-2 px-2.5 py-1 rounded-lg bg-primary/10 text-foreground text-xs font-bold hover:bg-primary/20 cursor-pointer flex items-center gap-1 whitespace-nowrap"
                   title="Optimize button & token contrast"
                 >
                   <Wand2 className="size-3.5" />

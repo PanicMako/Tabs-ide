@@ -1355,7 +1355,7 @@ export function DiagnosticsSettings() {
                 size="xs"
                 variant="outline"
                 onClick={handleQuickResourceCheck}
-                className="h-6.5 px-2 text-[11px] cursor-pointer border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary transition-all font-medium"
+                className="h-6.5 px-2 text-[11px] cursor-pointer border-primary/40 bg-primary/10 text-foreground hover:bg-primary/20 hover:text-foreground transition-all font-medium"
               >
                 <ActivityIcon className="mr-1 size-3" aria-hidden="true" />
                 Run quick check
@@ -1444,7 +1444,7 @@ export function DiagnosticsSettings() {
                   size="xs"
                   variant="outline"
                   onClick={handleQuickResourceCheck}
-                  className="cursor-pointer border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary transition-all font-medium"
+                  className="cursor-pointer border-primary/40 bg-primary/10 text-foreground hover:bg-primary/20 hover:text-foreground transition-all font-medium"
                 >
                   <ActivityIcon className="mr-1.5 size-3.5" aria-hidden="true" />
                   Run quick check

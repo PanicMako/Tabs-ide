@@ -303,7 +303,7 @@ function StudioColorPickerPopover({
               className="p-1 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
             >
               {copied ? (
-                <CheckIcon className="size-3.5 text-primary" />
+                <CheckIcon className="size-3.5 text-foreground" />
               ) : (
                 <CopyIcon className="size-3.5" />
               )}
@@ -1052,7 +1052,7 @@ export function ThemesSettings() {
                 className={cn(
                   "flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[11px] font-semibold transition-all duration-200 cursor-pointer",
                   isActive
-                    ? "border-primary bg-primary/10 text-primary shadow-[0_0_10px_hsl(var(--primary)/0.2)]"
+                    ? "border-primary bg-primary/10 text-foreground shadow-[0_0_10px_hsl(var(--primary)/0.2)]"
                     : "border-border/70 bg-card text-muted-foreground hover:border-border hover:text-foreground",
                 )}
                 style={{
@@ -1077,7 +1077,7 @@ export function ThemesSettings() {
                   className={cn(
                     "text-[8px] font-bold tracking-widest px-1 py-0.5 rounded border",
                     isActive
-                      ? "border-primary/30 text-primary/70 bg-primary/5"
+                      ? "border-primary/30 text-foreground/70 bg-primary/5"
                       : "border-border/50 text-muted-foreground/50",
                   )}
                 >
@@ -1169,7 +1169,7 @@ export function ThemesSettings() {
                   <div
                     className={cn(
                       "text-[11px] font-semibold leading-tight truncate",
-                      isActive ? "text-primary" : "text-foreground",
+                      isActive ? "text-foreground" : "text-foreground",
                     )}
                     style={{ fontFamily: combo.uiFont }}
                   >
@@ -1183,7 +1183,7 @@ export function ThemesSettings() {
                       className={cn(
                         "text-[7.5px] font-bold tracking-widest px-1.5 py-0.5 rounded border shrink-0",
                         isActive
-                          ? "border-primary/40 text-primary bg-primary/10"
+                          ? "border-primary/40 text-foreground bg-primary/10"
                           : "border-border/50 text-muted-foreground/50",
                       )}
                     >

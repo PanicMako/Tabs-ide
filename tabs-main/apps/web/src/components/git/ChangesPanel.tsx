@@ -989,7 +989,7 @@ export function ChangesPanel({
                 {isSummarizing ? (
                   <Loader2 size={13} className="animate-spin" />
                 ) : (
-                  <Wand2 className="size-3.5 text-primary" />
+                  <Wand2 className="size-3.5 text-foreground" />
                 )}
                 {isSummarizing ? "Summarizing…" : "Summarize changes"}
               </Button>

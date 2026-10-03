@@ -29,7 +29,7 @@ function GateShell(props: {
   return (
     <div className="flex h-full min-h-0 items-center justify-center px-6 py-12">
       <div className="w-full max-w-lg rounded-3xl border border-border/40 bg-background/60 p-8 text-center shadow-sm backdrop-blur-xl">
-        <div className="mx-auto mb-5 flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+        <div className="mx-auto mb-5 flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-foreground">
           {props.icon}
         </div>
         <h2 className="text-xl font-semibold tracking-tight text-foreground">{props.title}</h2>

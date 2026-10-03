@@ -5081,7 +5081,7 @@ export default function ChatView({
               role="status"
               aria-label="This thread is settled. Sending a message will return it to Unsettled."
             >
-              <CircleCheckIcon aria-hidden="true" className="size-3.5 shrink-0 text-primary" />
+              <CircleCheckIcon aria-hidden="true" className="size-3.5 shrink-0 text-foreground" />
               <span className="truncate font-medium text-foreground">Thread settled</span>
               <span aria-hidden="true" className="hidden text-muted-foreground sm:inline">
                 Send a message to resume
@@ -5330,7 +5330,7 @@ export default function ChatView({
                             onClick={() => void stashCurrentPrompt()}
                             aria-label={`Stash current draft (${typeof navigator !== "undefined" && isMacPlatform(navigator.platform) ? "⌘S" : "Ctrl+S"})`}
                           >
-                            <BookmarkPlusIcon className="size-3.5 text-primary" />
+                            <BookmarkPlusIcon className="size-3.5 text-foreground" />
                           </Button>
                         }
                       />
@@ -5546,7 +5546,7 @@ export default function ChatView({
               {threadQueuedMessages.length > 0 && (
                 <div className="mb-2 flex items-center justify-between rounded-lg border border-border/80 bg-muted/40 px-3 py-1.5 text-xs text-foreground/90 backdrop-blur-xs">
                   <div className="flex items-center gap-1.5 font-medium">
-                    <ListOrderedIcon className="size-3.5 text-primary" />
+                    <ListOrderedIcon className="size-3.5 text-foreground" />
                     <span>
                       {threadQueuedMessages.length} message
                       {threadQueuedMessages.length === 1 ? "" : "s"} queued
@@ -5559,7 +5559,7 @@ export default function ChatView({
                     <button
                       type="button"
                       onClick={() => openRightPanelSurface("queue")}
-                      className="rounded px-2 py-0.5 text-[11px] font-semibold text-primary hover:bg-primary/10 cursor-pointer"
+                      className="rounded px-2 py-0.5 text-[11px] font-semibold text-foreground hover:bg-primary/10 cursor-pointer"
                     >
                       View Queue
                     </button>
@@ -5736,7 +5736,7 @@ export default function ChatView({
                             className="h-8 gap-1.5 rounded-l-lg rounded-r-none border border-r-0 border-border/80 bg-secondary/90 px-2.5 text-xs font-medium text-foreground hover:bg-secondary transition-all cursor-pointer shadow-2xs"
                             title="Queue message for when agent finishes (Enter)"
                           >
-                            <ListOrderedIcon className="size-3.5 text-primary" />
+                            <ListOrderedIcon className="size-3.5 text-foreground" />
                             <span>Queue</span>
                           </Button>
                           <Popover

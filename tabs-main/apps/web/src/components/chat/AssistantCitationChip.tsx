@@ -27,7 +27,7 @@ import { composerFloatingLayerProps } from "./composerEventScope";
 
 const CITATION_ACTION_BUTTON_CLASS_NAME = cn(
   COMPOSER_INLINE_CHIP_DISMISS_BUTTON_CLASS_NAME,
-  "text-primary/80 hover:bg-primary/10 hover:text-primary",
+  "text-foreground/80 hover:bg-primary/10 hover:text-foreground",
 );
 
 export function AssistantCitationChip({
@@ -114,7 +114,7 @@ export function AssistantCitationChip({
     <span
       className={cn(
         onRemove ? COMPOSER_INLINE_CHIP_CLASS_NAME : CHAT_INLINE_CHIP_CLASS_NAME,
-        "border-primary/20 bg-primary/8 text-primary",
+        "border-primary/20 bg-primary/8 text-foreground",
       )}
       contentEditable={false}
       data-assistant-citation-chip="true"
@@ -188,7 +188,7 @@ export function AssistantCitationChip({
           aria-label="Remove assistant citation"
           className={cn(
             COMPOSER_INLINE_CHIP_DISMISS_BUTTON_CLASS_NAME,
-            "text-primary/85 hover:bg-primary/10 hover:text-primary",
+            "text-foreground/85 hover:bg-primary/10 hover:text-foreground",
           )}
         >
           <XIcon aria-hidden="true" className="size-[0.85em]" />

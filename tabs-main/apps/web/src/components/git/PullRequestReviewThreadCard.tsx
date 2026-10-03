@@ -110,7 +110,7 @@ export function PullRequestReviewThreadCard({
         <div className="flex items-center gap-2">
           <button
             type="button"
-            className="flex items-center gap-1.5 font-medium text-foreground hover:text-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className="flex items-center gap-1.5 font-medium text-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             aria-expanded={isExpanded}
             onClick={() => setIsExpanded((prev) => !prev)}
           >
@@ -145,7 +145,7 @@ export function PullRequestReviewThreadCard({
               type="button"
               variant="ghost"
               size="sm"
-              className="h-6 gap-1 px-1.5 text-[11px] text-primary hover:bg-primary/10"
+              className="h-6 gap-1 px-1.5 text-[11px] text-foreground hover:bg-primary/10"
               title="Fix in an agent thread"
               disabled={isPending}
               onClick={() => onFixInThread(thread)}
@@ -298,7 +298,7 @@ export function PullRequestReviewThreadCard({
                           type="button"
                           className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] transition-colors ${
                             reaction.viewerHasReacted
-                              ? "border-primary/40 bg-primary/10 text-primary"
+                              ? "border-primary/40 bg-primary/10 text-foreground"
                               : "border-border/60 bg-background text-muted-foreground hover:bg-muted/40"
                           }`}
                           disabled={isPending}

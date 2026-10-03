@@ -529,7 +529,7 @@ export function RecordIssueDialog({
           <div className="flex items-center justify-between gap-2">
             <DialogTitle className="flex items-center gap-2 text-base font-semibold">
               <RadioIcon
-                className={`size-4 ${phase === "recording" ? "animate-pulse text-red-500" : "text-primary"}`}
+                className={`size-4 ${phase === "recording" ? "animate-pulse text-red-500" : "text-foreground"}`}
               />
               Record Issue Reproduction
             </DialogTitle>

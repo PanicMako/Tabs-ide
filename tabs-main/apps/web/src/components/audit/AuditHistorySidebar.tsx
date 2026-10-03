@@ -60,9 +60,11 @@ export function AuditHistorySidebar({
         {isRunning && (
           <div className="px-3 py-2.5 mx-2 my-1 rounded-lg bg-primary/8 border border-primary/20">
             <div className="flex items-center gap-2">
-              <Loader2 size={12} className="animate-spin text-primary shrink-0" />
-              <span className="text-xs font-medium text-primary font-sans truncate">Scanning…</span>
-              <span className="ml-auto text-[9px] font-mono font-bold text-primary/60 uppercase">
+              <Loader2 size={12} className="animate-spin text-foreground shrink-0" />
+              <span className="text-xs font-medium text-foreground font-sans truncate">
+                Scanning…
+              </span>
+              <span className="ml-auto text-[9px] font-mono font-bold text-foreground/60 uppercase">
                 Live
               </span>
             </div>

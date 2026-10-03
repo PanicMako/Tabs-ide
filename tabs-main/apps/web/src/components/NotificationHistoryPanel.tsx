@@ -313,7 +313,7 @@ export function NotificationHistoryPanel({
             <button
               type="button"
               onClick={handleOpenSettings}
-              className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:text-primary/80 transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1 text-xs font-medium text-foreground hover:text-foreground/80 transition-colors cursor-pointer"
             >
               <span>Notification settings</span>
               <ChevronRightIcon className="size-3.5" />

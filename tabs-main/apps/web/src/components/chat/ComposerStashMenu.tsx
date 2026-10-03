@@ -133,7 +133,7 @@ export const ComposerStashMenu = memo(function ComposerStashMenu({
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border/60 px-3 py-2 text-xs">
         <div className="flex items-center gap-1.5 font-medium text-foreground">
-          <BookmarkIcon className="size-3.5 text-primary" />
+          <BookmarkIcon className="size-3.5 text-foreground" />
           <span>Stashed Prompts</span>
           <span className="rounded-full bg-muted px-1.5 py-0.2 text-[10px] tabular-nums text-muted-foreground">
             {entries.length}

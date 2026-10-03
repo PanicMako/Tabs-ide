@@ -159,7 +159,7 @@ const ComposerPendingUserInputCard = memo(function ComposerPendingUserInputCard(
                   className={cn(
                     "flex size-5 shrink-0 items-center justify-center rounded text-[11px] font-medium tabular-nums transition-colors duration-150",
                     isSelected
-                      ? "bg-primary/20 text-primary"
+                      ? "bg-primary/20 text-foreground"
                       : "bg-muted/40 text-muted-foreground/50 group-hover:bg-muted/60 group-hover:text-muted-foreground/70",
                   )}
                 >
@@ -174,7 +174,7 @@ const ComposerPendingUserInputCard = memo(function ComposerPendingUserInputCard(
                   </span>
                 ) : null}
               </div>
-              {isSelected ? <CheckIcon className="size-3.5 shrink-0 text-primary" /> : null}
+              {isSelected ? <CheckIcon className="size-3.5 shrink-0 text-foreground" /> : null}
             </button>
           );
         })}

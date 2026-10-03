@@ -113,7 +113,7 @@ export function UsageLimitsPage() {
             className={cn(
               "flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-semibold transition-all",
               activeSubTab === "usage"
-                ? "bg-primary/10 text-primary border border-primary/20 shadow-xs"
+                ? "bg-primary/10 text-foreground border border-primary/20 shadow-xs"
                 : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
             )}
           >
@@ -127,7 +127,7 @@ export function UsageLimitsPage() {
             className={cn(
               "flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-semibold transition-all",
               activeSubTab === "limits"
-                ? "bg-primary/10 text-primary border border-primary/20 shadow-xs"
+                ? "bg-primary/10 text-foreground border border-primary/20 shadow-xs"
                 : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
             )}
           >

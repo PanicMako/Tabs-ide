@@ -126,7 +126,7 @@ export function GitAccountMenu(props: {
                 <span
                   className={cn(
                     "flex size-4 items-center justify-center shrink-0",
-                    isActive ? "text-primary" : "text-transparent",
+                    isActive ? "text-foreground" : "text-transparent",
                   )}
                 >
                   <CheckIcon className="size-4" />

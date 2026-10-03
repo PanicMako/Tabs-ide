@@ -311,7 +311,7 @@ export function CommitDetailModal({
                 {isSummarizing ? (
                   <Loader2 size={12} className="animate-spin" />
                 ) : (
-                  <Wand2 size={12} className="text-primary" />
+                  <Wand2 size={12} className="text-foreground" />
                 )}
                 {isSummarizing ? "Summarizing…" : "Summarize commit"}
               </Button>

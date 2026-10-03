@@ -227,7 +227,7 @@ export const PromptStashPanel = memo(function PromptStashPanel({
       <div className="flex shrink-0 flex-col gap-2 border-b border-border/60 p-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-            <BookmarkIcon className="size-4 text-primary" />
+            <BookmarkIcon className="size-4 text-foreground" />
             <span>Stashed Prompts</span>
             <span className="ml-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-mono tabular-nums text-muted-foreground">
               {entries.length}
@@ -244,7 +244,7 @@ export const PromptStashPanel = memo(function PromptStashPanel({
                 className="h-6 gap-1 px-2 text-[11px] font-semibold text-foreground hover:bg-accent"
                 title="Stash the current composer draft"
               >
-                <BookmarkPlusIcon className="size-3 text-primary" />
+                <BookmarkPlusIcon className="size-3 text-foreground" />
                 <span>Stash Draft</span>
               </Button>
             )}
@@ -297,7 +297,7 @@ export const PromptStashPanel = memo(function PromptStashPanel({
               onClick={() => void handleStashCurrentDraft()}
               className="mt-3 gap-1.5 text-xs font-semibold"
             >
-              <BookmarkPlusIcon className="size-3.5 text-primary" />
+              <BookmarkPlusIcon className="size-3.5 text-foreground" />
               Stash Current Draft Now
             </Button>
           )}
@@ -347,7 +347,7 @@ export const PromptStashPanel = memo(function PromptStashPanel({
                             activeThreadId ? "Unstash prompt into composer" : "Open a thread first"
                           }
                         >
-                          <Undo2Icon className="size-3 text-primary" />
+                          <Undo2Icon className="size-3 text-foreground" />
                           <span>Unstash</span>
                         </Button>
                         <Button
@@ -373,7 +373,7 @@ export const PromptStashPanel = memo(function PromptStashPanel({
                         </span>
                       )}
                       {entry.attachments.length > 0 && (
-                        <span className="flex items-center gap-0.5 text-primary font-medium">
+                        <span className="flex items-center gap-0.5 text-foreground font-medium">
                           · {entry.attachments.length} image
                           {entry.attachments.length === 1 ? "" : "s"}
                         </span>
@@ -397,7 +397,7 @@ export const PromptStashPanel = memo(function PromptStashPanel({
               {/* Preview Header */}
               <div className="flex shrink-0 items-center justify-between px-3 py-2 border-b border-border/40 text-[11px] font-medium text-muted-foreground bg-muted/20">
                 <span className="flex items-center gap-1.5">
-                  <FileTextIcon className="size-3.5 text-primary" />
+                  <FileTextIcon className="size-3.5 text-foreground" />
                   <span>Stash Preview</span>
                   <span className="text-[10px] text-muted-foreground/70">
                     ({activeEntry.prompt.length} chars)

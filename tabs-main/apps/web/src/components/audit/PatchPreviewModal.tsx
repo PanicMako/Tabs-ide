@@ -48,7 +48,7 @@ export function PatchPreviewModal({ finding, isOpen, onClose }: PatchPreviewModa
                 color = "text-emerald-500 bg-emerald-500/10 font-semibold";
               else if (line.startsWith("-") && !line.startsWith("---"))
                 color = "text-red-500 bg-red-500/10 font-semibold";
-              else if (line.startsWith("@")) color = "text-primary font-bold";
+              else if (line.startsWith("@")) color = "text-foreground font-bold";
 
               return (
                 <div key={idx} className={color}>

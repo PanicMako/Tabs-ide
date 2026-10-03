@@ -108,7 +108,7 @@ export const TaskListPanel = memo(function TaskListPanel({ tasks }: TaskListPane
                       isDone
                         ? "text-muted-foreground/50"
                         : isRunning
-                          ? "text-primary/70"
+                          ? "text-foreground/70"
                           : "text-foreground/30",
                     )}
                   >

@@ -1513,7 +1513,7 @@ export default function Sidebar() {
                 </span>
               )}
               {!threadStatus && lifecycleEntry.pinnedAt && (
-                <PinIcon aria-label="Pinned" className="size-3 text-primary" />
+                <PinIcon aria-label="Pinned" className="size-3 text-foreground" />
               )}
               {!threadStatus && isSnoozed(lifecycleEntry) && (
                 <Clock3Icon aria-label="Snoozed" className="size-3 text-blue-500" />

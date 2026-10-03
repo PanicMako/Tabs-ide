@@ -35,7 +35,7 @@ it("groups secondary actions and keeps the address usable at desktop and narrow 
                     submit(url);
                   }}
                 >
-                  <ShieldCheckIcon className="size-3.5 shrink-0 text-primary" />
+                  <ShieldCheckIcon className="size-3.5 shrink-0 text-foreground" />
                   <input
                     className="min-w-0 flex-1 bg-transparent font-mono text-xs outline-none"
                     aria-label="chatgpt URL"

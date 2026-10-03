@@ -842,7 +842,7 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
                         className={cn(
                           "flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-xs font-medium transition-all cursor-pointer border",
                           groupPinnedByProvider
-                            ? "bg-primary/10 text-primary hover:bg-primary/15 border-primary/25 shadow-2xs"
+                            ? "bg-primary/10 text-foreground hover:bg-primary/15 border-primary/25 shadow-2xs"
                             : "text-muted-foreground hover:text-foreground hover:bg-muted/50 border-border/40",
                         )}
                       >

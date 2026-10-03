@@ -36,7 +36,7 @@ export function AuditProgressView({
         <h3 className="text-lg font-semibold text-foreground font-sans">
           {latestProgress?.message ?? "Reading codebase..."}
         </h3>
-        <p className="text-xs font-mono text-primary font-medium">
+        <p className="text-xs font-mono text-foreground font-medium">
           Active Stage: {latestProgress?.stage ?? "assembling_context"}
         </p>
       </div>
