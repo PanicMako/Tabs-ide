@@ -520,6 +520,24 @@ describe("CodeHostManager", () => {
     expect(registrar.mock.calls[0]?.[2]).toBe("project-owner");
   });
 
+  it.each(["Bloomberg Terminal Alternative", "literal%20folder", "hash#question?", "café folder"])(
+    "passes decoded URI components to Code-OSS for %s",
+    (folderName) => {
+      const manager = new CodeHostManager(() => createMockWindow() as never, {
+        state: { available: true, mode: "embedded", entry: "http://127.0.0.1:3000", reason: null },
+        runtime: null,
+      });
+      const folderPath = Path.join(Path.sep, "projects", folderName);
+      const component = (
+        manager as unknown as {
+          toFileUriComponent(path: string): { scheme: string; path: string };
+        }
+      ).toFileUriComponent(folderPath);
+      expect(component.scheme).toBe("file");
+      expect(component.path).toBe(folderPath.replaceAll(Path.sep, "/"));
+    },
+  );
+
   it("does not create a workbench or extension host for a missing project folder", async () => {
     const window = createMockWindow();
     const missingWorkspace = Path.join(makeTempDir("tabs-deleted-session-"), "gone");

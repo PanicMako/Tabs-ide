@@ -2493,8 +2493,9 @@ export class CodeHostManager {
     const fileUrl = pathToFileURL(pathname);
     return {
       scheme: "file",
-      authority: "",
-      path: fileUrl.pathname,
+      authority: fileUrl.hostname,
+      // URI.revive expects a decoded path; URL.pathname is already percent-encoded.
+      path: decodeURIComponent(fileUrl.pathname),
       query: "",
       fragment: "",
     };
