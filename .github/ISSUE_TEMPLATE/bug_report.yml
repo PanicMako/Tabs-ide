@@ -1,0 +1,44 @@
+name: Bug report
+description: Report a reproducible Tabs public-beta problem.
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: "Never paste API keys, auth tokens, cookies, credentials, private source code, proprietary prompts, sensitive terminal output, or secret-bearing repository URLs. Follow SECURITY.md for vulnerabilities."
+  - type: input
+    id: version
+    attributes:
+      label: Tabs version / beta tag
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: OS version and architecture
+    validations:
+      required: true
+  - type: input
+    id: provider
+    attributes:
+      label: Provider and setup method (CLI auth or API key; no credentials)
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: input
+    id: restart
+    attributes:
+      label: Does this still happen after restarting Tabs?
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Sanitized diagnostics / relevant logs
+      description: Review for private information before submitting. Copy basic diagnostics from Settings → About.

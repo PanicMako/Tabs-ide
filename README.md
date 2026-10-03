@@ -26,7 +26,7 @@
 </p>
 
 > [!NOTE]
-> Tabs is under active development. Interfaces, workflows, and packaging may change between releases.
+> **Public Beta.** Tabs is in active development. Expect some bugs and rough edges. Feedback and bug reports are welcome. [Download installers](https://tabside.vercel.app/downloads) or build from source below.
 
 > [!IMPORTANT]
 > **macOS Gatekeeper & Notarization Notice**:
@@ -36,11 +36,7 @@
 > 2. Scroll down to the **Security** section where Tabs is listed as blocked.
 > 3. Click **Open Anyway** (and confirm with **Open**).
 > 
-> *Alternatively*, you can remove the quarantine attribute via Terminal:
-> ```bash
-> xattr -cr /Applications/Tabs.app
-> ```
-> Or compile and run Tabs locally from source following the steps below.
+> Build and run Tabs locally from source below if you prefer not to override the warning. [Apple’s guidance](https://support.apple.com/102445) explains this first-launch approval.
 
 ## Why Tabs
 
@@ -58,7 +54,7 @@ Coding with an agent usually means juggling a chat window, an editor, terminals,
 
 ## Supported providers
 
-Tabs is built on top of [T3 Code](https://github.com/t3tools/t3code) and extends its agent harness design. Rather than locking you into a proprietary API subscription or proxy markup, Tabs lets you **bring your own keys and subscriptions (BYOK / BYOS)**. If an agent or CLI is set up on your machine, or you have an API key, Tabs connects directly to it.
+Tabs is built on top of [T3 Code](https://github.com/pingdotgg/t3code) and extends its agent harness design. Rather than locking you into a proprietary API subscription or proxy markup, Tabs lets you **bring your own keys and subscriptions (BYOK / BYOS)**. If an agent or CLI is set up on your machine, or you have an API key, Tabs connects directly to it.
 
 <p align="center">
   <img src="tabs-main/apps/marketing/public/product/agents-dark.png" alt="Tabs Agents View with Model Picker and Provider Rail" width="100%" />
@@ -211,7 +207,7 @@ Sites remain responsible for their own authentication policies. Tabs does not co
 Desktop installers are self-contained and bundle the compiled Code-OSS runtime.
 
 > [!NOTE]
-> **macOS Gatekeeper**: As noted above, pre-built `.dmg` releases are not notarized through an Apple Developer account. If macOS blocks the app on first launch, go to **System Settings > Privacy & Security** and click **Open Anyway**, or run `xattr -cr /Applications/Tabs.app`. Alternatively, compile and run Tabs locally from source.
+> **macOS Gatekeeper**: These public-beta builds are not Apple Developer ID signed or notarized. After attempting to open Tabs, use **System Settings > Privacy & Security > Open Anyway**. Building from source is an alternative.
 
 ```bash
 cd tabs-main
@@ -222,9 +218,24 @@ bun run dist:desktop:win         # Windows NSIS installer
 bun run dist:desktop:linux       # Linux AppImage
 ```
 
-Windows installers should be built on Windows or in CI because the application includes native modules. Production tags use the release workflow and require a matching file in `.github/release-notes/`.
+Windows installers should be built on Windows or in CI because the application includes native modules. Release tags use the release workflow and require a matching file in `.github/release-notes/`.
 
 See [CHANGELOG.md](CHANGELOG.md) for shipped changes.
+
+## Public-beta privacy and feedback
+
+Tabs-owned product analytics is **off by default**. Explicit opt-in uses a random
+Tabs installation ID, never a provider account ID. See [privacy details](tabs-main/docs/privacy.md)
+for collected fields, opt-out, and separate provider/browser/extension traffic.
+
+Testing is unfinished **Early access**, hidden by default, and available through
+Workspace settings for deliberate opt-in. Provider integrations require their
+own authentication or credentials; availability does not mean they are preconfigured.
+
+Installers target macOS arm64/x64, Windows x64, and Linux x64. Each platform still
+needs native installer QA before publication. [Report a bug](https://github.com/PanicMako/Tabs-ide/issues/new?template=bug_report.yml)
+with version, OS, architecture, reproduction steps, and sanitized diagnostics.
+For vulnerabilities, follow [SECURITY.md](SECURITY.md).
 
 ## Contributing
 
@@ -241,10 +252,10 @@ Performance, reliability, and predictable recovery behavior take priority over c
 
 Tabs is built on top of and inspired by incredible open-source projects and developer tools:
 
-- **[T3 Code](https://github.com/t3tools/t3code)** — The foundational base upon which the Tabs IDE application was built and evolved.
+- **[T3 Code](https://github.com/pingdotgg/t3code)** — The foundational base upon which the Tabs IDE application was built and evolved.
 - **[Code-OSS](https://github.com/microsoft/vscode)** — The open-source core of Visual Studio Code powering Tabs' embedded editor runtime and desktop workbench.
 - **[Synara](https://trysynara.com)** — A key inspiration for multi-agent workflows, provider integration patterns, and code analysis capabilities.
 
 ## License
 
-Tabs is available under the [MIT License](tabs-main/LICENSE).
+The product’s existing [MIT License](LICENSE) retains T3 Tools Inc.’s notice. Code-OSS retains Microsoft’s separate MIT notice. See [LICENSING.md](LICENSING.md) for component scope, bundled notices, and the outstanding Tabs-original copyright-holder decision.
