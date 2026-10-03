@@ -1,6 +1,6 @@
 import * as Context from "effect/Context";
 /**
- * AnalyticsService - Anonymous telemetry capture contract.
+ * AnalyticsService - Opt-in pseudonymous telemetry capture contract.
  *
  * Provides a best-effort event API for runtime telemetry and a strict
  * `captureImmediate` method for call sites that need explicit error handling.

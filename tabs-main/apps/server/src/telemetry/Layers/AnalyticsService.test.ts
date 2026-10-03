@@ -1,7 +1,7 @@
 import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
-import { ConfigProvider, Effect, Layer } from "effect";
+import { ConfigProvider, Effect, FileSystem, Layer } from "effect";
 import * as HttpServer from "effect/unstable/http/HttpServer";
 import * as HttpServerRequest from "effect/unstable/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
@@ -9,7 +9,11 @@ import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import { ServerConfig } from "../../config.ts";
 import { getTelemetryIdentifier } from "../Identify.ts";
 import { AnalyticsService } from "../Services/AnalyticsService.ts";
-import { AnalyticsServiceLayerLive, telemetryRetryDelayMs } from "./AnalyticsService.ts";
+import {
+  AnalyticsServiceLayerLive,
+  telemetryRetryDelayMs,
+  safeTelemetryProperties,
+} from "./AnalyticsService.ts";
 
 it("backs telemetry retries off to a five-minute ceiling", () => {
   assert.equal(telemetryRetryDelayMs(1), 5_000);
@@ -24,7 +28,7 @@ interface RecordedBatchRequest {
     readonly batch?: ReadonlyArray<{
       readonly event?: string;
       readonly properties?: {
-        readonly index?: number;
+        readonly attachmentCount?: number;
         readonly clientType?: string;
       };
     }>;
@@ -35,13 +39,34 @@ interface RecordedBatchBody {
   readonly batch: ReadonlyArray<{
     readonly event?: string;
     readonly properties?: {
-      readonly index?: number;
+      readonly attachmentCount?: number;
       readonly clientType?: string;
     };
   }>;
 }
 
 it.layer(NodeServices.layer)("AnalyticsService test", (it) => {
+  it.effect("defaults off, removes legacy identity, and never sends before consent", () =>
+    Effect.gen(function* () {
+      const configLayer = ServerConfig.layerTest(process.cwd(), { prefix: "tabs-no-consent-" });
+      yield* Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const config = yield* ServerConfig;
+        yield* fs.writeFileString(config.anonymousIdPath, "legacy-identifier");
+        yield* Effect.gen(function* () {
+          const analytics = yield* AnalyticsService;
+          yield* analytics.record("server.boot.heartbeat", { threadCount: 1 });
+          yield* analytics.flush;
+          assert.equal(yield* fs.exists(config.anonymousIdPath), false);
+        }).pipe(Effect.provide(AnalyticsServiceLayerLive));
+      }).pipe(
+        Effect.provide(configLayer),
+        Effect.provide(NodeHttpServer.layerTest),
+        Effect.provide(ConfigProvider.layer(ConfigProvider.fromUnknown({}))),
+      );
+    }),
+  );
+
   it.effect("flush drains all buffered events across multiple batches", () =>
     Effect.gen(function* () {
       const capturedRequests: Array<RecordedBatchRequest> = [];
@@ -87,7 +112,7 @@ it.layer(NodeServices.layer)("AnalyticsService test", (it) => {
         const analytics = yield* AnalyticsService;
 
         for (let index = 0; index < 45; index += 1) {
-          yield* analytics.record("test.flush.drain", { index });
+          yield* analytics.record("test.flush.drain", { attachmentCount: index });
         }
 
         yield* analytics.flush;
@@ -105,7 +130,7 @@ it.layer(NodeServices.layer)("AnalyticsService test", (it) => {
       const deliveredIndexes = batchRequests.flatMap((request) =>
         request.body.batch
           .filter((event) => event.event === "test.flush.drain")
-          .map((event) => event.properties?.index)
+          .map((event) => event.properties?.attachmentCount)
           .filter((index): index is number => typeof index === "number"),
       );
 
@@ -122,5 +147,23 @@ it.layer(NodeServices.layer)("AnalyticsService test", (it) => {
         true,
       );
     }),
+  );
+});
+
+it("drops secret-bearing and unbounded telemetry properties", () => {
+  assert.deepEqual(
+    safeTelemetryProperties({
+      provider: "codex",
+      hasInput: true,
+      attachmentCount: 2,
+      model: "private/custom-model",
+      apiKey: "secret",
+      cwd: "/private/repo",
+      input: "private prompt",
+      providerInstanceId: "personal-account",
+      decision: "secret",
+      count: Infinity,
+    }),
+    { provider: "codex", hasInput: true, attachmentCount: 2 },
   );
 });
