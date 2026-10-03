@@ -21,9 +21,82 @@ export interface ChangelogRelease {
   }[];
 }
 
-export const TOTAL_TAGS_COUNT = 173;
+export const TOTAL_TAGS_COUNT = 174;
 
 export const changelogData: ChangelogRelease[] = [
+  {
+    tag: "v1.3.31",
+    title: "Public Beta: clearer defaults and privacy",
+    date: "October 3, 2026",
+    shortDate: "Oct 3",
+    isLatest: false,
+    type: "patch",
+    summary:
+      "Tabs is a desktop workspace for coding with agents, an embedded Code-OSS editor, Launchpad terminals, Git, and a browser. This public beta is in active development; expect bugs and rough edges. Feedback and reproducible bug reports are welcome.",
+    highlights: [
+      "Folders with spaces or special characters open correctly in the embedded editor, including empty project folders.",
+      "Connection-error logs no longer include authenticated WebSocket URLs.",
+      "Tabs-owned analytics is off by default, with random installation IDs upon opt-in.",
+      "Testing starts hidden in new workspaces while preserving explicit preferences.",
+      "Neutral workspace actions and icons with contrast-aware primary controls.",
+      "Downloads support complete public-beta prereleases and retain update-metadata validation.",
+      "Desktop trust checks restrict privileged calls and remote popout navigation; diagnostic exports redact sensitive fields.",
+      "About includes beta identity, a bug-report link, and basic diagnostic copying.",
+    ],
+    categories: [
+      {
+        title: "Workspace & Editor",
+        items: [
+          "Folders with spaces or special characters open correctly in the embedded editor, including empty project folders.",
+          "Testing starts hidden in new workspaces; Workspace settings still offers it as Early access.",
+          "Ordinary workspace actions and icons use neutral foregrounds. Filled primary controls retain their accent with contrast-aware text.",
+        ],
+      },
+      {
+        title: "Privacy & Diagnostics",
+        items: [
+          "Tabs-owned analytics is off by default. Explicit opt-in uses a random Tabs installation identifier instead of a provider account identifier.",
+          "Connection-error logs no longer include authenticated WebSocket URLs.",
+          "Desktop trust checks restrict privileged calls and remote popout navigation.",
+          "Diagnostic exports redact sensitive fields before serialization.",
+          "About includes beta identity, a bug-report link, and basic diagnostic copying.",
+        ],
+      },
+      {
+        title: "Releases & Updates",
+        items: [
+          "Downloads support complete public-beta prereleases and retain update-metadata validation. Beta installs can discover later beta updates.",
+          "macOS builds are not Apple Developer ID signed or notarized; use System Settings → Privacy & Security → Open Anyway after downloading.",
+        ],
+      },
+    ],
+    installers: [
+      {
+        platform: "macOS",
+        arch: "Apple Silicon",
+        filename: "Tabs-1.3.31-arm64.dmg",
+        url: "https://github.com/PanicMako/Tabs-ide/releases/download/v1.3.31/Tabs-1.3.31-arm64.dmg",
+      },
+      {
+        platform: "macOS",
+        arch: "Intel",
+        filename: "Tabs-1.3.31-x64.dmg",
+        url: "https://github.com/PanicMako/Tabs-ide/releases/download/v1.3.31/Tabs-1.3.31-x64.dmg",
+      },
+      {
+        platform: "Windows",
+        arch: "x64",
+        filename: "Tabs-1.3.31-x64.exe",
+        url: "https://github.com/PanicMako/Tabs-ide/releases/download/v1.3.31/Tabs-1.3.31-x64.exe",
+      },
+      {
+        platform: "Linux",
+        arch: "x64 AppImage",
+        filename: "Tabs-1.3.31-x86_64.AppImage",
+        url: "https://github.com/PanicMako/Tabs-ide/releases/download/v1.3.31/Tabs-1.3.31-x86_64.AppImage",
+      },
+    ],
+  },
   {
     tag: "v1.3.30",
     title: "GSAP surface animations, redesigned browser profiles, and workspace settings polish",
