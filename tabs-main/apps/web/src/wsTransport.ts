@@ -338,17 +338,14 @@ export class WsTransport {
         this.url = this.resolveUrl(this.configuredUrl);
       }
       ws = new WebSocket(this.url);
-    } catch (error) {
-      console.warn("WebSocket failed to initialize; scheduling reconnect", {
-        error,
-        url: this.url,
-      });
+    } catch {
+      console.warn("WebSocket failed to initialize; scheduling reconnect");
       this.scheduleReconnect();
       return;
     }
 
     this.connectionTimeoutTimer = setTimeout(() => {
-      console.warn("WebSocket connection timed out; forcefully closing", { url: this.url });
+      console.warn("WebSocket connection timed out; forcefully closing");
       this.connectionTimeoutTimer = null;
       ws.close();
     }, 5000);

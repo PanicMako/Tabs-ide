@@ -534,7 +534,9 @@ describe("CodeHostManager", () => {
         }
       ).toFileUriComponent(folderPath);
       expect(component.scheme).toBe("file");
-      expect(component.path).toBe(folderPath.replaceAll(Path.sep, "/"));
+      expect(component.path).toBe(
+        `${process.platform === "win32" ? "/" : ""}${Path.resolve(folderPath).replaceAll(Path.sep, "/")}`,
+      );
     },
   );
 

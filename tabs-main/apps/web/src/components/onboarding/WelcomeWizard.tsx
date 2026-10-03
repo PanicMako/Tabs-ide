@@ -93,7 +93,7 @@ const INITIAL_PROJECTS: readonly PrototypeProject[] = [
       { id: "agents", label: "Agents", iconKind: "agents" },
       { id: "git", label: "Git", iconKind: "git" },
       { id: "browser", label: "Browser", iconKind: "browser" },
-      { id: "testing", label: "Testing", iconKind: "testing" },
+      { id: "testing", label: "Testing (optional)", iconKind: "testing" },
     ],
   },
   {
@@ -110,7 +110,7 @@ const INITIAL_PROJECTS: readonly PrototypeProject[] = [
       { id: "browser", label: "Browser", iconKind: "browser" },
       { id: "figma", label: "figma", iconKind: "figma" },
       { id: "chatgpt", label: "chatgpt", iconKind: "chatgpt" },
-      { id: "testing", label: "Testing", iconKind: "testing" },
+      { id: "testing", label: "Testing (optional)", iconKind: "testing" },
     ],
   },
   {
@@ -124,7 +124,7 @@ const INITIAL_PROJECTS: readonly PrototypeProject[] = [
       { id: "launchpad", label: "Launchpad", iconKind: "launchpad" },
       { id: "git", label: "Git", iconKind: "git" },
       { id: "terminal", label: "Terminal", iconKind: "terminal" },
-      { id: "testing", label: "Testing", iconKind: "testing" },
+      { id: "testing", label: "Testing (optional)", iconKind: "testing" },
     ],
   },
 ];
@@ -1091,7 +1091,7 @@ export function WelcomeWizard({ onDone }: WelcomeWizardProps) {
         { id: "launchpad", label: "Launchpad", iconKind: "launchpad" },
         { id: "git", label: "Git", iconKind: "git" },
         { id: "browser", label: "Browser", iconKind: "browser" },
-        { id: "testing", label: "Testing", iconKind: "testing" },
+        { id: "testing", label: "Testing (optional)", iconKind: "testing" },
       ],
     };
     setProjectsList((prev) => [...prev, newProj]);
@@ -1144,7 +1144,7 @@ export function WelcomeWizard({ onDone }: WelcomeWizardProps) {
             { id: "agents", label: "Agents", iconKind: "agents" },
             { id: "launchpad", label: "Launchpad", iconKind: "launchpad" },
             { id: "git", label: "Git", iconKind: "git" },
-            { id: "testing", label: "Testing", iconKind: "testing" },
+            { id: "testing", label: "Testing (optional)", iconKind: "testing" },
           ],
         };
         setActiveProjectId(newProj.id);

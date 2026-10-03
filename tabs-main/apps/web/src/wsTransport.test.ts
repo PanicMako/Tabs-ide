@@ -407,3 +407,22 @@ it("does not log the authenticated WebSocket URL on connection failure", () => {
   transport.dispose();
   warn.mockRestore();
 });
+
+it("omits credentials from initialization errors and connection timeouts", () => {
+  vi.useFakeTimers();
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  const transport = new WsTransport({ url: "ws://localhost:3020/?token=private-credential" });
+  vi.advanceTimersByTime(5000);
+  transport.dispose();
+  globalThis.WebSocket = class {
+    constructor() {
+      throw new Error("ws://localhost/?token=private-credential");
+    }
+  } as unknown as typeof WebSocket;
+  const failing = new WsTransport({ url: "ws://localhost:3020/?token=private-credential" });
+  expect(warn.mock.calls.length).toBeGreaterThanOrEqual(2);
+  expect(JSON.stringify(warn.mock.calls)).not.toContain("private-credential");
+  failing.dispose();
+  warn.mockRestore();
+  vi.useRealTimers();
+});
