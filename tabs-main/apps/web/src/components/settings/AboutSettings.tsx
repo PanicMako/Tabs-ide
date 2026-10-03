@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import type { DesktopCodeHostState, DesktopUpdateState } from "@tabs/contracts";
+import type { DesktopBuildInfo, DesktopCodeHostState, DesktopUpdateState } from "@tabs/contracts";
 import {
   type DesktopUpdateButtonAction,
   describeDesktopUpdate,
@@ -126,6 +126,22 @@ function DesktopUpdateControl({
 }
 
 export function AboutSettings() {
+  const [showBuildDetails, setShowBuildDetails] = useState(false);
+  const [buildInfo, setBuildInfo] = useState<DesktopBuildInfo | null>(null);
+  useEffect(() => {
+    let active = true;
+    void window.desktopBridge
+      ?.getBuildInfo?.()
+      .then((info) => {
+        if (active) setBuildInfo(info);
+      })
+      .catch(() => {
+        if (active) setBuildInfo(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
   const [codeHostState, setCodeHostState] = useState<DesktopCodeHostState | null>(null);
   useEffect(() => {
     const bridge = window.desktopBridge;
@@ -242,8 +258,26 @@ export function AboutSettings() {
       <SettingsSection title="Application Details">
         <SettingsRow
           title="Version"
-          description="The version of Tabs currently installed."
-          control={<code className="text-xs font-medium text-muted-foreground">{APP_VERSION}</code>}
+          description="Public Beta · Active development. Expect some bugs and rough edges."
+          control={
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-expanded={showBuildDetails}
+              onClick={() => setShowBuildDetails((shown) => !shown)}
+            >
+              {showBuildDetails
+                ? `${APP_VERSION} · ${buildInfo?.channel ?? "beta"} · ${buildInfo?.commit ?? "build unknown"}`
+                : APP_VERSION}
+            </Button>
+          }
+          status={
+            showBuildDetails && buildInfo ? (
+              <span>
+                {buildInfo.platform} · {buildInfo.arch} · Electron {buildInfo.electron}
+              </span>
+            ) : null
+          }
         />
 
         {isElectron ? (
@@ -300,6 +334,41 @@ export function AboutSettings() {
             }
           />
         ) : null}
+        <SettingsRow
+          title="Beta feedback"
+          description="Include reproduction steps and sanitized diagnostics. Never share credentials, private code, or prompts."
+          control={
+            <Button
+              variant="outline"
+              render={
+                <a
+                  href="https://github.com/PanicMako/Tabs-ide/issues/new?template=bug_report.yml"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                />
+              }
+            >
+              Report a Bug
+            </Button>
+          }
+        />
+        <SettingsRow
+          title="Basic diagnostics"
+          description="Copies only version, platform, browser runtime, and editor version; no logs, provider identifiers, paths, or credentials."
+          control={
+            <Button
+              variant="outline"
+              onClick={() => {
+                const summary = `Tabs ${APP_VERSION} (Public Beta)\nPlatform: ${window.desktopBridge?.getClientPlatform?.() ?? "unknown"}\nBuild: ${buildInfo?.commit ?? "unknown"}\nArchitecture: ${buildInfo?.arch ?? "unknown"}\nElectron: ${buildInfo?.electron ?? "unknown"}\nCode-OSS: ${codeHostState?.version ?? "unknown"}`;
+                void navigator.clipboard
+                  .writeText(summary)
+                  .catch(() => setUpdateActionError("Could not copy diagnostics. Try again."));
+              }}
+            >
+              Copy Diagnostics
+            </Button>
+          }
+        />
       </SettingsSection>
 
       {isElectron && isPrimaryWindow && window.desktopBridge?.resetTabsUserData ? (

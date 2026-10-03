@@ -61,7 +61,8 @@ jobs:
 
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=v$version" >> "$GITHUB_OUTPUT"
-          if [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          release_channel=$(node -p "require('./tabs-main/apps/desktop/package.json').tabsReleaseChannel || 'stable'")
+          if [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && "$release_channel" != "beta" ]]; then
             echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
             echo "make_latest=true" >> "$GITHUB_OUTPUT"
           else
@@ -90,6 +91,20 @@ jobs:
             echo "::error::Configure the repository secret TABS_RELEASE_TOKEN with release write access before starting a release."
             exit 1
           fi
+
+      - name: Verify independent macOS update signing key
+        env:
+          TABS_MAC_UPDATE_PRIVATE_KEY: ${{ secrets.TABS_MAC_UPDATE_PRIVATE_KEY }}
+        run: |
+          node --experimental-strip-types --input-type=module <<'NODE'
+          import { createPublicKey } from 'node:crypto';
+          import { UPDATE_PUBLIC_KEY } from './tabs-main/apps/desktop/src/macPreviewUpdater.ts';
+          const key = process.env.TABS_MAC_UPDATE_PRIVATE_KEY?.trim();
+          if (!key) throw new Error('TABS_MAC_UPDATE_PRIVATE_KEY is required; Apple signing is separate and optional.');
+          const actual = createPublicKey(key).export({ type: 'spki', format: 'pem' }).trim();
+          if (actual !== UPDATE_PUBLIC_KEY.trim()) throw new Error('Update signing key does not match the embedded public key. Do not rotate it silently.');
+          console.log('Independent macOS update signing key matches the embedded public key.');
+          NODE
 
       - id: validate_release
         name: Verify release version and tag availability
@@ -584,6 +599,7 @@ jobs:
             "tabs-main/release/*.AppImage.blockmap" \
             "tabs-main/release/*.exe" \
             "tabs-main/release/*.exe.blockmap" \
+            "tabs-main/release/beta*.yml" \
             "tabs-main/release/latest.yml" \
             "tabs-main/release/latest-linux.yml"; do
             for file in $pattern; do
@@ -774,6 +790,7 @@ jobs:
             release-assets/*.exe.blockmap
             release-assets/latest.yml
             release-assets/latest-linux.yml
+            release-assets/beta*.yml
             release-assets/tabs-mac-preview-update.json
             release-assets/tabs-mac-preview-update.json.sig
 
@@ -803,6 +820,7 @@ jobs:
             release-assets/*.exe.blockmap
             release-assets/latest.yml
             release-assets/latest-linux.yml
+            release-assets/beta*.yml
             release-assets/tabs-mac-preview-update.json
             release-assets/tabs-mac-preview-update.json.sig
           )

@@ -397,6 +397,7 @@ jobs:
             "tabs-main/release/*.exe" \
             "tabs-main/release/*.blockmap" \
             "tabs-main/release/latest*.yml" \
+            "tabs-main/release/beta*.yml" \
             "tabs-main/release/builder-debug.yml"; do
             for file in $pattern; do
               cp "$file" artifacts/

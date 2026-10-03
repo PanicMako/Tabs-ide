@@ -1268,6 +1268,15 @@ export class CodeHostManager {
     });
   }
 
+  ownsWebContents(id: number): boolean {
+    return [...this.sessions.values()].some(
+      (session) =>
+        session.view &&
+        !session.view.webContents.isDestroyed() &&
+        session.view.webContents.id === id,
+    );
+  }
+
   async getState(): Promise<DesktopCodeHostState> {
     let version: string | null = null;
     if (this.config.runtime) {

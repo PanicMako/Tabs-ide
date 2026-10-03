@@ -140,6 +140,7 @@ contextBridge.exposeInMainWorld("desktopBridge", {
     ipcRenderer.invoke(DESKTOP_CAPTURE_REQUEST_PERMISSION_CHANNEL),
   captureDesktopScreen: (options) => ipcRenderer.invoke(DESKTOP_CAPTURE_SCREEN_CHANNEL, options),
   getClientPlatform: () => process.platform,
+  getBuildInfo: () => ipcRenderer.invoke("desktop:build-info"),
   getLocalEnvironmentBootstraps: () => {
     const result = ipcRenderer.sendSync(GET_LOCAL_ENVIRONMENT_BOOTSTRAPS_CHANNEL);
     return Array.isArray(result) ? result : [];

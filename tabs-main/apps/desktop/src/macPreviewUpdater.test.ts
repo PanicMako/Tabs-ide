@@ -8,6 +8,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   compareMacPreviewVersions,
+  selectMacPreviewRelease,
   createMacPreviewStageDirectory,
   MAC_PREVIEW_INSTALL_SCRIPT,
   parseAndVerifyMacPreviewManifest,
@@ -220,4 +221,61 @@ describe("MAC_PREVIEW_INSTALL_SCRIPT", () => {
       await FSPromises.rm(installDirectory, { recursive: true, force: true });
     }
   });
+});
+
+describe("public macOS update release selection", () => {
+  const release = (tag: string, prerelease = false) => ({
+    tag_name: tag,
+    prerelease,
+    draft: false,
+    assets: [
+      "tabs-mac-preview-update.json",
+      "tabs-mac-preview-update.json.sig",
+      `Tabs-${tag.slice(1)}-arm64.zip`,
+      `Tabs-${tag.slice(1)}-x64.zip`,
+    ].map((name) => ({ name })),
+  });
+  it("selects beta for beta installs, while stable installs stay stable", () => {
+    const stable = release("v1.3.30");
+    const beta = release("v1.3.31-beta.2", true);
+    expect(selectMacPreviewRelease([beta, stable], "1.3.31-beta.1")).toBe(beta.tag_name);
+    expect(selectMacPreviewRelease([beta, stable], "1.3.30")).toBe(stable.tag_name);
+  });
+  it("rejects drafts, internal prereleases, incomplete assets and empty feeds", () => {
+    expect(
+      selectMacPreviewRelease(
+        [
+          release("v9.0.0-internal.1", true),
+          { ...release("v2.0.0-beta.1", true), draft: true },
+          { ...release("v3.0.0-beta.1", true), assets: [] },
+        ],
+        "1.3.31-beta.1",
+      ),
+    ).toBeNull();
+    expect(selectMacPreviewRelease([], "1.3.31-beta.1")).toBeNull();
+  });
+  it("lets beta installs move to a newer stable version", () => {
+    expect(
+      selectMacPreviewRelease(
+        [release("v1.3.31-beta.2", true), release("v1.3.31")],
+        "1.3.31-beta.1",
+      ),
+    ).toBe("v1.3.31");
+  });
+});
+
+it("uses explicit beta channel for plain prerelease versions", () => {
+  const tag = "v1.3.31";
+  const release = {
+    tag_name: tag,
+    prerelease: true,
+    assets: [
+      "tabs-mac-preview-update.json",
+      "tabs-mac-preview-update.json.sig",
+      "Tabs-1.3.31-arm64.zip",
+      "Tabs-1.3.31-x64.zip",
+    ].map((name) => ({ name })),
+  };
+  expect(selectMacPreviewRelease([release], "1.3.30", "beta")).toBe(tag);
+  expect(selectMacPreviewRelease([release], "1.3.30", "stable")).toBeNull();
 });

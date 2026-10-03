@@ -2358,7 +2358,9 @@ export function WelcomeWizard({ onDone }: WelcomeWizardProps) {
           </div>
         )}
 
-        <span className="text-[11px] font-mono text-white/50">Tabs IDE • v{APP_VERSION}</span>
+        <span className="text-[11px] font-mono text-white/50">
+          Tabs IDE Public Beta • v{APP_VERSION}
+        </span>
       </footer>
     </div>
   );

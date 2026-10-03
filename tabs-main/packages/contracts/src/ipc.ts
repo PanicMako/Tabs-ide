@@ -1179,6 +1179,15 @@ export interface BrowserProfilePermissionInfo {
   readonly updatedAt: number;
 }
 
+export interface DesktopBuildInfo {
+  readonly version: string;
+  readonly channel: "beta" | "stable";
+  readonly commit: string | null;
+  readonly platform: string;
+  readonly arch: string;
+  readonly electron: string;
+}
+
 export interface DesktopBridge {
   writeClipboardText: (text: string) => Promise<void>;
   readClipboardText?: (type?: "clipboard" | "selection") => Promise<string>;
@@ -1186,6 +1195,7 @@ export interface DesktopBridge {
   requestDesktopCapturePermission?: () => Promise<boolean>;
   captureDesktopScreen?: (options?: DesktopCaptureOptions) => Promise<DesktopCaptureResult>;
   getClientPlatform?: () => string;
+  getBuildInfo?: () => Promise<DesktopBuildInfo>;
   getLocalEnvironmentBootstraps: () => readonly DesktopEnvironmentBootstrap[];
   getConnectionCatalog?: () => Promise<string | null>;
   setConnectionCatalog?: (catalog: string) => Promise<boolean>;

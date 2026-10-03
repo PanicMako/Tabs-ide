@@ -87,7 +87,7 @@ import { RELEASES_URL } from "../../lib/releases";
           <div class="hs-cl-release-header">
             <div class="hs-cl-tag-row">
               <h2>{release.tag}</h2>
-              {release.isLatest && <span class="hs-cl-badge hs-cl-badge-latest">● LATEST STABLE</span>}
+              {release.isLatest && <span class="hs-cl-badge hs-cl-badge-latest">● LATEST RELEASE</span>}
               {release.type === "major" && <span class="hs-cl-badge hs-cl-badge-major">★ MAJOR ARCHITECTURE</span>}
               {release.type === "feature" && <span class="hs-cl-badge hs-cl-badge-feature">FEATURE RELEASE</span>}
               {release.type === "patch" && !release.isLatest && <span class="hs-cl-badge hs-cl-badge-patch">PATCH</span>}

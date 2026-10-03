@@ -510,6 +510,12 @@ describe("CodeHostManager", () => {
 
     await manager.ensureSession({ projectId: "project-owner", workspaceRoot });
 
+    const contents = webContentsViews[0]!.webContents;
+    Object.assign(contents, { id: 42 });
+    expect(manager.ownsWebContents(42)).toBe(true);
+    expect(manager.ownsWebContents(43)).toBe(false);
+    contents.isDestroyed.mockReturnValueOnce(true);
+    expect(manager.ownsWebContents(42)).toBe(false);
     expect(registrar).toHaveBeenCalledOnce();
     expect(registrar.mock.calls[0]?.[2]).toBe("project-owner");
   });

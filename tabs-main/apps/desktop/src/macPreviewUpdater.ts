@@ -6,7 +6,7 @@ import { spawn } from "node:child_process";
 import type { ReadableStream as NodeReadableStream } from "node:stream/web";
 
 const MANIFEST_NAME = "tabs-mac-preview-update.json";
-const UPDATE_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
+export const UPDATE_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
 MCowBQYDK2VwAyEAhDgnyPlvyYHwvS9U5TV6PXtVi0Du03HWviLL6cCxSsg=
 -----END PUBLIC KEY-----`;
 const EXPECTED_BUNDLE_IDENTIFIER = "com.tabs.app";
@@ -144,6 +144,7 @@ export interface MacPreviewUpdaterOptions {
   readonly repository: string;
   readonly arch: "arm64" | "x64";
   readonly tempDirectory: string;
+  readonly releaseChannel?: "beta" | "stable";
   readonly requestHeaders?: Readonly<Record<string, string>>;
 }
 
@@ -245,8 +246,41 @@ export function compareMacPreviewVersions(left: string, right: string): number {
   return 0;
 }
 
-function releaseAssetUrl(repository: string, assetName: string): string {
-  return `https://github.com/${repository}/releases/latest/download/${encodeURIComponent(assetName)}`;
+function releaseAssetUrl(repository: string, tag: string, assetName: string): string {
+  return `https://github.com/${repository}/releases/download/${encodeURIComponent(tag)}/${encodeURIComponent(assetName)}`;
+}
+
+export function selectMacPreviewRelease(
+  payload: unknown,
+  currentVersion: string,
+  channel?: "beta" | "stable",
+): string | null {
+  if (!Array.isArray(payload)) throw new Error("Invalid GitHub release response");
+  const acceptsBeta =
+    channel === "beta" ||
+    (channel === undefined && /^\d+\.\d+\.\d+-beta\.(?:0|[1-9]\d*)$/.test(currentVersion));
+  const releases = payload.filter(
+    (r) =>
+      isRecord(r) &&
+      !r.draft &&
+      typeof r.tag_name === "string" &&
+      (r.prerelease === true
+        ? acceptsBeta && /^v?\d+\.\d+\.\d+(?:-beta\.(?:0|[1-9]\d*))?$/.test(r.tag_name)
+        : /^v?\d+\.\d+\.\d+$/.test(r.tag_name)) &&
+      Array.isArray(r.assets) &&
+      [
+        MANIFEST_NAME,
+        `${MANIFEST_NAME}.sig`,
+        `Tabs-${r.tag_name.replace(/^v/, "")}-arm64.zip`,
+        `Tabs-${r.tag_name.replace(/^v/, "")}-x64.zip`,
+      ].every((name) =>
+        (r.assets as unknown[]).some((a: unknown) => isRecord(a) && a.name === name),
+      ),
+  );
+  releases.sort((a, b) =>
+    compareMacPreviewVersions(b.tag_name.replace(/^v/, ""), a.tag_name.replace(/^v/, "")),
+  );
+  return releases[0]?.tag_name ?? null;
 }
 
 export async function reuseVerifiedMacPreviewStage(
@@ -267,7 +301,11 @@ async function fetchRequired(
   url: string,
   headers: Readonly<Record<string, string>>,
 ): Promise<Response> {
-  const response = await fetch(url, { headers, redirect: "follow" });
+  const response = await fetch(url, {
+    headers,
+    redirect: "follow",
+    signal: AbortSignal.timeout(120_000),
+  });
   if (!response.ok) {
     throw new Error(`Update server returned HTTP ${response.status} for ${Path.basename(url)}.`);
   }
@@ -291,15 +329,8 @@ async function validateBundle(bundlePath: string, expectedVersion: string): Prom
   if ((await readPlistValue("CFBundleShortVersionString")) !== expectedVersion) {
     throw new Error("The downloaded update version does not match its signed manifest.");
   }
-  // Strip the com.apple.quarantine extended attribute that macOS applies to
-  // files downloaded from the internet. The quarantine bit can prevent the
-  // installed app from launching (Gatekeeper blocks execution). This is a
-  // best-effort cleanup; failures are non-fatal.
-  try {
-    await runCommand("/usr/bin/xattr", ["-rd", "com.apple.quarantine", bundlePath]);
-  } catch {
-    // Non-fatal: the attribute may not be present.
-  }
+  // Preserve quarantine. The signed update digest authenticates the payload;
+  // it does not replace Apple's Gatekeeper approval or notarization.
   // NOTE: We intentionally skip `codesign --verify --deep --strict` here.
   // The ZIP's SHA-512 hash was already verified against an Ed25519-signed
   // manifest during download, which cryptographically guarantees the bundle
@@ -310,6 +341,7 @@ async function validateBundle(bundlePath: string, expectedVersion: string): Prom
 
 export class MacPreviewUpdater {
   readonly #options: MacPreviewUpdaterOptions;
+  #availableTag: string | null = null;
   #availableManifest: MacPreviewUpdateManifest | null = null;
   #downloadedUpdate: DownloadedUpdate | null = null;
   #stagedBundlePath: string | null = null;
@@ -322,7 +354,19 @@ export class MacPreviewUpdater {
   }
 
   async checkForUpdates(): Promise<MacPreviewUpdateManifest | null> {
-    const manifestUrl = releaseAssetUrl(this.#options.repository, MANIFEST_NAME);
+    const releaseResponse = await fetchRequired(
+      `https://api.github.com/repos/${this.#options.repository}/releases?per_page=100`,
+      this.#options.requestHeaders ?? {},
+    );
+    const tag = selectMacPreviewRelease(
+      await releaseResponse.json(),
+      this.#options.currentVersion,
+      this.#options.releaseChannel,
+    );
+    this.#availableManifest = null;
+    this.#availableTag = null;
+    if (!tag) return null;
+    const manifestUrl = releaseAssetUrl(this.#options.repository, tag, MANIFEST_NAME);
     const [manifestResponse, signatureResponse] = await Promise.all([
       fetchRequired(manifestUrl, this.#options.requestHeaders ?? {}),
       fetchRequired(`${manifestUrl}.sig`, this.#options.requestHeaders ?? {}),
@@ -334,6 +378,14 @@ export class MacPreviewUpdater {
       signatureText,
       this.#options.repository,
     );
+    if (
+      manifest.version !== tag.replace(/^v/, "") ||
+      manifest.assets.arm64.name !== `Tabs-${manifest.version}-arm64.zip` ||
+      manifest.assets.x64.name !== `Tabs-${manifest.version}-x64.zip`
+    ) {
+      throw new Error("Signed macOS update does not match the selected release");
+    }
+    this.#availableTag = tag;
     this.#availableManifest =
       compareMacPreviewVersions(manifest.version, this.#options.currentVersion) > 0
         ? manifest
@@ -343,7 +395,7 @@ export class MacPreviewUpdater {
 
   async downloadUpdate(onProgress: (percent: number) => void): Promise<string> {
     const manifest = this.#availableManifest;
-    if (!manifest) throw new Error("No verified macOS update is available.");
+    if (!manifest || !this.#availableTag) throw new Error("No verified macOS update is available.");
     const asset = manifest.assets[this.#options.arch];
     const downloadDirectory = await FSPromises.mkdtemp(
       Path.join(this.#options.tempDirectory, "tabs-preview-update-"),
@@ -352,7 +404,7 @@ export class MacPreviewUpdater {
     const temporaryPath = `${archivePath}.download`;
     try {
       const response = await fetchRequired(
-        releaseAssetUrl(this.#options.repository, asset.name),
+        releaseAssetUrl(this.#options.repository, this.#availableTag, asset.name),
         this.#options.requestHeaders ?? {},
       );
       if (!response.body) throw new Error("The update server returned an empty download.");

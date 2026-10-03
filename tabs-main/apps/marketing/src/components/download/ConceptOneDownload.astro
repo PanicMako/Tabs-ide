@@ -23,9 +23,9 @@ const labels: Record<Platform, string> = { "mac-arm64": "Apple Silicon", "mac-x6
         <span>Tabs<span class="hs-brand-suffix">IDE</span></span>
       </a>
       <span class="hs-brand-divider" aria-hidden="true"></span>
-      <div class="hs-access-tag" aria-label="Early Access">
-        <span>EARLY</span>
-        <span>ACCESS</span>
+      <div class="hs-access-tag" aria-label="Public Beta">
+        <span>PUBLIC</span>
+        <span>BETA</span>
       </div>
     </div>
     <nav aria-label="Page navigation">
@@ -45,12 +45,12 @@ const labels: Record<Platform, string> = { "mac-arm64": "Apple Silicon", "mac-x6
       <div class="hs-dl-hero-right">
         <p class="hs-lead">
           Install the complete Tabs workspace for macOS, Windows, or Linux. Code OSS, terminals,
-          browser tabs, Git, and your choice of AI collaborators. Your projects and tools, together.
+          browser tabs, Git, and your choice of AI collaborators. Tabs is in active development. Expect some bugs and rough edges; feedback is welcome.
         </p>
         <div class="hs-dl-version-pill">
           <span class="hs-spark">✳</span>
           <span>Version <span data-version>{latest.tag_name}</span></span>
-          <span class="hs-dl-badge">DESKTOP RELEASE</span>
+          <span class="hs-dl-badge">PUBLIC BETA</span>
         </div>
       </div>
     </div>
@@ -70,7 +70,7 @@ const labels: Record<Platform, string> = { "mac-arm64": "Apple Silicon", "mac-x6
               return <div class="platform-option"><span>{labels[platform]}<small>{platform.startsWith("mac") ? ".dmg" : platform === "windows-x64" ? ".exe" : ".AppImage"}</small></span><a class="platform-download" href={url ?? latest.html_url} data-platform={platform} aria-label={`Download Tabs for ${family.name}, ${labels[platform]}`}><span class="btn-fill" aria-hidden="true"></span><span>Download</span> <Icon name="ArrowDown" size={14} /></a></div>;
             })}
           </div>
-          {index === 0 && <small class="platform-help">Find your chip in Apple menu → About This Mac.</small>}
+          {index === 0 && <small class="platform-help">Find your chip in Apple menu → About This Mac. This beta is not Apple Developer ID signed or notarized. After attempting to open Tabs, use System Settings → Privacy &amp; Security → Open Anyway. Alternatively, <a href="https://github.com/PanicMako/Tabs-ide#quick-start">build from source</a>.</small>}
         </section>
       ))}
     </div>

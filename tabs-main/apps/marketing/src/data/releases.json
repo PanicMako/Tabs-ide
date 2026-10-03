@@ -1,6 +1,8 @@
 [
   {
     "tag_name": "v1.3.30",
+    "prerelease": false,
+    "channel": "stable",
     "name": "Tabs v1.3.30",
     "published_at": "2026-10-02T10:07:35Z",
     "body": "## GSAP surface animations, redesigned browser profiles, and workspace settings polish\n\nTabs introduces smooth entrance motion for dialogs, popovers, menus, and settings views, refines the browser profiles settings layout with streamlined session management, and enhances workspace settings and window control alignment.\n\n### What changed\n\n- **Smooth surface entrance animations**: Popups, dialogs, dropdown menus, sheets, and settings surfaces now animate into view smoothly with GSAP while strictly respecting user reduced-motion preferences.\n- **Redesigned browser profiles settings**: Browser profiles now feature a cleaner header layout, simplified session cards, direct website launch actions, and clearer partition management.\n- **Workspace settings and tab bar insets**: Modernized section headers in workspace settings, and added smooth transitions for native window control insets in the project tab bar.",
@@ -54,6 +56,8 @@
   },
   {
     "tag_name": "v1.3.29",
+    "prerelease": false,
+    "channel": "stable",
     "name": "Tabs v1.3.29",
     "published_at": "2026-10-01T20:01:26Z",
     "body": "## Code-OSS 1.140 and clearer runtime information\n\nTabs updates its embedded editor to Code-OSS 1.140.0 and shows the selected editor runtime version in Settings → About. Project tabs now use the space reported by native window controls on macOS and Windows; Linux keeps its system title bar outside the tabs.\n\n### What changed\n\n- **Embedded editor update**: Code-OSS 1.140.0 is included with Tabs.\n- **Editor version in About**: Troubleshooting can distinguish the Tabs application version from the embedded Code-OSS runtime version.\n- **Window-control spacing and themes**: Tabs follow native control geometry, and Windows caption symbols follow light and dark themes.\n- **Updated GitHub links**: Website, downloads, update helpers and model catalog references use the PanicMako account.",
@@ -107,6 +111,8 @@
   },
   {
     "tag_name": "v1.3.28",
+    "prerelease": false,
+    "channel": "stable",
     "name": "Tabs v1.3.28",
     "published_at": "2026-09-29T12:41:51Z",
     "body": "## Development state isolation, preserved workspace configs, and reactive typography\n\nTabs isolates development state from production profiles, preserves workspace configuration files during data resets, and applies font preference changes immediately across the interface.\n\n### What changed\n\n- **Desktop development state isolation**: Development launches now use a dedicated state directory, keeping local development sessions separated from your production profiles and caches.\n- **Workspace configuration preservation during reset**: Local data reset flows now preserve active workspace configuration files alongside editor runtime data and settings.\n- **Immediate typography and theme reactivity**: Font family, heading font, and custom theme adjustments apply instantly across all open views without requiring a page reload.",
@@ -160,6 +166,8 @@
   },
   {
     "tag_name": "v1.3.27",
+    "prerelease": false,
+    "channel": "stable",
     "name": "Tabs v1.3.27",
     "published_at": "2026-09-28T18:22:01Z",
     "body": "## Orphaned provider process cleanup and theme typography combination persistence\n\nTabs automatically detects and shuts down orphaned local provider process groups when the parent process exits unexpectedly, and preserves selected font preset combinations when client settings update.\n\n### What changed\n\n- **Detached provider process watchdog**: Adds a process watchdog to monitor local provider servers, terminating detached provider process groups cleanly if the Tabs backend process exits unexpectedly.\n- **Font combination preference persistence**: Selected typography presets in Themes settings now take precedence when restoring saved configurations, preventing older client font settings from reverting your active font combo.\n- **Development instance and provider process cleanup**: Stale development instance termination now tracks complete process groups and cleans up orphaned OpenCode and Kilo server instances across worktrees.",
@@ -213,6 +221,8 @@
   },
   {
     "tag_name": "v1.3.26",
+    "prerelease": false,
+    "channel": "stable",
     "name": "Tabs v1.3.26",
     "published_at": "2026-09-27T23:53:09Z",
     "body": "## Font picker selection highlight and persistent typography synchronization\n\nTabs restores the active selection highlight for typography presets in Themes settings and synchronizes font family preferences to persistent storage.\n\n### What changed\n\n- **Font picker selection highlight**: Selecting a preset font combination or choosing individual interface and editor fonts in Themes settings now immediately displays the active selection highlight.\n- **Typography settings synchronization**: Font family choices now synchronize directly to the persistent settings store alongside font size preferences, ensuring your active typography state remains consistent across restarts.",

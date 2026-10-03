@@ -24,6 +24,13 @@ export class AgentsWindowManager {
     private readonly getBackend: () => NativeCodeHostMainBackend | null,
   ) {}
 
+  ownsWebContents(id: number): boolean {
+    const record = this.windows.get(id);
+    return Boolean(
+      record?.content && !record.window.isDestroyed() && !record.content.isDestroyed(),
+    );
+  }
+
   notifyReady(webContents: WebContents): void {
     this.windows.get(webContents.id)?.ready();
   }

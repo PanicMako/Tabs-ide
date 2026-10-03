@@ -14,8 +14,8 @@ after installation.
   - Linux `x64` AppImage
   - Windows `x64` NSIS installer
 - Publishes one GitHub Release with all produced files.
-  - Versions with a suffix after `X.Y.Z` (for example `1.2.3-alpha.1`) are published as GitHub prereleases.
-  - Only plain `X.Y.Z` releases are marked as the repository's latest release.
+  - The package field `tabsReleaseChannel: "beta"` publishes even a plain version such as `v1.3.31` as a GitHub prerelease. Suffixed versions are also prereleases.
+  - Only stable-channel plain versions are marked as the repository's latest release. Public Beta uses `make_latest: false`.
 - Includes Electron auto-update metadata (for example `latest*.yml` and `*.blockmap`) in release assets.
 - Signing is optional and auto-detected per platform from secrets.
 - Runs a Windows install and locked-process upgrade smoke test before publishing.
@@ -103,12 +103,12 @@ Run the repository-root `Build Desktop Installers` workflow with all four
 platforms selected. It uploads installers as workflow artifacts and runs the
 Windows upgrade smoke test without publishing a GitHub Release.
 
-The root `Build Desktop Installers` workflow has a smoke-only mode that reuses platform artifacts from an existing build run. Set `artifact_run_id` and set `smoke_platforms` to `win-x64`, `linux-x64`, `mac`, or a comma-separated combination. Dispatch that existing workflow on `codex/windows-release-repair` for focused native checks after a script-only test change; the build matrix is skipped. The Windows smoke installs a previous release, upgrades it with a process holding an installation file, and launches the upgraded app. Failed Windows runs upload installer and startup logs.
+The root `Build Desktop Installers` workflow has a smoke-only mode that reuses platform artifacts from an existing build run. Set `artifact_run_id` and set `smoke_platforms` to `win-x64`, `linux-x64`, `mac`, or a comma-separated combination. Dispatch that existing workflow on `main` for focused native checks after a script-only test change; the build matrix is skipped. The Windows smoke installs a previous release, upgrades it with a process holding an installation file, and launches the upgraded app. Failed Windows runs upload installer and startup logs.
 
 For example, to retest Windows without recompiling after changing only the smoke script:
 
 ```bash
-gh workflow run build-desktop.yml --ref codex/windows-release-repair -f artifact_run_id=<build-run-id> -f smoke_platforms=win-x64
+gh workflow run build-desktop.yml --ref main -f artifact_run_id=<build-run-id> -f smoke_platforms=win-x64
 ```
 
 After all four jobs pass, the repository-root `Release Desktop` workflow can
@@ -195,3 +195,66 @@ Checklist:
 - Build fails with signing error:
   - Retry with secrets removed to confirm unsigned path still works.
   - Re-check certificate/profile names and tenant/client credentials.
+
+## First Public Beta: v1.3.31
+
+All release packages use `1.3.31`. The desktop package sets
+`tabsReleaseChannel: "beta"`; keep that field when building this release. About
+shows the ordinary version, with channel and commit available by clicking it.
+The release notes are `.github/release-notes/v1.3.31.md`.
+
+Required Actions secrets are `TABS_RELEASE_TOKEN` and
+`TABS_MAC_UPDATE_PRIVATE_KEY`. Preflight checks that the latter matches the
+embedded Ed25519 public key before building. This key authenticates preview
+updates; it is independent of Apple signing. Never generate a replacement
+without a deliberate client migration. Website deployment requires
+`VERCEL_TOKEN`, `VERCEL_ORG_ID`, and `VERCEL_PROJECT_ID`. Apple and Azure signing
+credentials are optional for this public beta.
+
+After reviewing the local commits and performing local QA, the maintainer can
+run these commands (these are instructions, not automated publication):
+
+```bash
+git switch main
+git status --short
+cd tabs-main
+bun run fmt:check
+bun run lint
+bun run typecheck
+bun run test
+bun run release:smoke
+bun run build:marketing
+cd ..
+git push origin main
+gh workflow run build-desktop.yml --ref main -f version=1.3.31 -f previous_version=1.3.30 -f platforms=mac-arm64,mac-x64,linux-x64,win-x64
+gh run list --workflow build-desktop.yml --limit 3
+```
+
+Pushing main may trigger the existing website deployment. Record the successful
+build run ID. Reuse that ID for native smoke on all targets:
+
+```bash
+read -r 'BUILD_RUN_ID?Successful installer build run ID: '
+gh run watch "$BUILD_RUN_ID" --exit-status
+gh workflow run build-desktop.yml --ref main -f version=1.3.31 -f previous_version=1.3.30 -f artifact_run_id="$BUILD_RUN_ID" -f smoke_platforms=mac,linux-x64,win-x64
+gh run list --workflow build-desktop.yml --limit 3
+```
+
+Wait for the smoke run, download and manually test all installers, and verify
+secret validity before publishing. Keep the source commit unchanged between
+build and tag. A tag push triggers publication automatically; to reuse the
+verified build without a duplicate tag-triggered build, use the manual release
+workflow, which creates the tag if absent:
+
+```bash
+gh secret list --repo PanicMako/Tabs-ide
+gh workflow run release.yml --ref main -f version=1.3.31 -f artifact_run_id="$BUILD_RUN_ID"
+gh run list --workflow release.yml --limit 3
+```
+
+Verify GitHub reports `v1.3.31` as Pre-release, not Latest, and verify all four
+installers, both mac ZIPs, signed mac JSON/signature, blockmaps, and Windows/Linux
+`beta*.yml` plus compatibility `latest*.yml`. The website synchronizer verifies
+complete installer sets and manifests before selecting a beta download. Confirm
+the deployed homepage, downloads page, all four links, and normal quarantined
+macOS installation. No `xattr` command is part of the primary installation test.

@@ -37,9 +37,12 @@ function sanitizeRelease(value: unknown) {
   if (
     !release ||
     release.draft === true ||
-    release.prerelease === true ||
     typeof release.tag_name !== "string" ||
-    !/^v?\d+\.\d+\.\d+$/.test(release.tag_name) ||
+    !(
+      release.prerelease === true
+        ? /^v?\d+\.\d+\.\d+(?:-beta\.(?:0|[1-9]\d*))?$/
+        : /^v?\d+\.\d+\.\d+$/
+    ).test(release.tag_name) ||
     release.html_url !== `${RELEASES_URL}/tag/${release.tag_name}` ||
     typeof release.name !== "string" ||
     typeof release.published_at !== "string" ||
@@ -60,6 +63,7 @@ function sanitizeRelease(value: unknown) {
 
   return {
     tag_name: release.tag_name,
+    prerelease: release.prerelease === true,
     name: release.name,
     html_url: release.html_url,
     published_at: release.published_at,
@@ -98,7 +102,7 @@ export async function GET(request: Request): Promise<Response> {
 
     const payload = await response.json();
     const releases = Array.isArray(payload) ? payload.map(sanitizeRelease).filter(Boolean) : [];
-    if (releases.length === 0) throw new Error("GitHub returned no valid stable releases");
+    if (releases.length === 0) throw new Error("GitHub returned no valid public releases");
 
     return Response.json(releases, {
       headers: {

@@ -876,6 +876,8 @@ const createBuildConfig = Effect.fn("createBuildConfig")(function* (
     appId: "com.tabs.app",
     productName,
     artifactName: "Tabs-${version}-${arch}.${ext}",
+    detectUpdateChannel: false,
+    extraResources: [{ from: "build/notices", to: "notices" }],
     directories: {
       buildResources: "apps/desktop/resources",
     },
@@ -909,7 +911,12 @@ const createBuildConfig = Effect.fn("createBuildConfig")(function* (
   };
   const publishConfig = resolveGitHubPublishConfig();
   if (publishConfig) {
-    buildConfig.publish = [publishConfig];
+    buildConfig.publish = [
+      {
+        ...publishConfig,
+        channel: desktopPackageJson.tabsReleaseChannel === "beta" ? "beta" : "latest",
+      },
+    ];
   }
 
   if (platform === "mac") {
@@ -1531,6 +1538,22 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
     installerNshStaged = true;
   }
 
+  const noticesDir = path.join(stageAppDir, "build", "notices");
+  yield* fs.makeDirectory(noticesDir, { recursive: true });
+  for (const [source, name] of [
+    [path.join(repoRoot, "LICENSE"), "T3-Tools-MIT-LICENSE.txt"],
+    [path.join(repoRoot, "..", "LICENSING.md"), "LICENSING.md"],
+    [path.join(repoRoot, "..", "tabs-code-main", "LICENSE.txt"), "Code-OSS-LICENSE.txt"],
+    [
+      path.join(repoRoot, "..", "tabs-code-main", "ThirdPartyNotices.txt"),
+      "Code-OSS-ThirdPartyNotices.txt",
+    ],
+  ] as const) {
+    if (!(yield* fs.exists(source)))
+      return yield* new BuildScriptError({ message: `Missing distribution notice: ${name}` });
+    yield* fs.copyFile(source, path.join(noticesDir, name));
+  }
+
   const stagePackageJson: StagePackageJson = {
     name: "tabs-desktop",
     version: appVersion,
@@ -1679,6 +1702,15 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
   );
 
   const stageDistDir = path.join(stageAppDir, "dist");
+  if (desktopPackageJson.tabsReleaseChannel === "beta") {
+    for (const suffix of [".yml", "-linux.yml", "-mac.yml"]) {
+      const betaPath = path.join(stageDistDir, `beta${suffix}`);
+      const latestPath = path.join(stageDistDir, `latest${suffix}`);
+      if (yield* fs.exists(betaPath)) yield* fs.copyFile(betaPath, latestPath);
+      else if (yield* fs.exists(latestPath)) yield* fs.copyFile(latestPath, betaPath);
+    }
+  }
+
   if (!(yield* fs.exists(stageDistDir))) {
     return yield* new BuildScriptError({
       message: `Build completed but dist directory was not found at ${stageDistDir}`,

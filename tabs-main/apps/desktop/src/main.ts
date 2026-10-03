@@ -1,3 +1,5 @@
+import desktopPackage from "../package.json" with { type: "json" };
+import { isTrustedIpcFrame, isTrustedTabsUrl } from "./ipcSecurity";
 import { AgentsWindowManager } from "./agentsWindowManager";
 import { isLightDesktopTheme } from "./desktopTheme";
 import { resolveDesktopTitleBarOptions, updateWindowControlsOverlay } from "./windowTitleBar";
@@ -348,8 +350,8 @@ type DesktopPreferences = {
 const APP_RUN_ID = Crypto.randomBytes(6).toString("hex");
 const AUTO_UPDATE_STARTUP_DELAY_MS = 15_000;
 const AUTO_UPDATE_POLL_INTERVAL_MS = 4 * 60 * 60 * 1000;
-const DESKTOP_UPDATE_CHANNEL = "latest";
-const DESKTOP_UPDATE_ALLOW_PRERELEASE = false;
+const DESKTOP_UPDATE_ALLOW_PRERELEASE = desktopPackage.tabsReleaseChannel === "beta";
+const DESKTOP_UPDATE_CHANNEL = DESKTOP_UPDATE_ALLOW_PRERELEASE ? "beta" : "latest";
 
 type DesktopUpdateErrorContext = DesktopUpdateState["errorContext"];
 
@@ -1846,6 +1848,7 @@ function configureAutoUpdater(): void {
     macPreviewUpdater = new MacPreviewUpdater({
       appBundlePath,
       currentVersion: app.getVersion(),
+      releaseChannel: DESKTOP_UPDATE_ALLOW_PRERELEASE ? "beta" : "stable",
       repository: `${owner}/${repo}`,
       arch: desktopRuntimeInfo.hostArch === "arm64" ? "arm64" : "x64",
       tempDirectory: app.getPath("temp"),
@@ -2199,16 +2202,34 @@ const shutdownPromise = Effect.runPromise(
 );
 
 function registerIpcHandlers(): void {
+  ipcMain.removeHandler("desktop:build-info");
+  handleTabsIpc("desktop:build-info", () => ({
+    version: app.getVersion(),
+    channel: DESKTOP_UPDATE_ALLOW_PRERELEASE ? "beta" : "stable",
+    commit: resolveAboutCommitHash(),
+    platform: process.platform,
+    arch: process.arch,
+    electron: process.versions.electron,
+  }));
+
   ipcMain.removeHandler(HOST_POWER_GET_CHANNEL);
-  ipcMain.handle(HOST_POWER_GET_CHANNEL, () => readHostPowerSnapshot());
+  handleTabsIpc(HOST_POWER_GET_CHANNEL, () => readHostPowerSnapshot());
 
   ipcMain.removeAllListeners(GET_WS_URL_CHANNEL);
   ipcMain.on(GET_WS_URL_CHANNEL, (event) => {
+    if (!isTrustedTabsSender(event)) {
+      event.returnValue = null;
+      return;
+    }
     event.returnValue = backendWsUrl;
   });
 
   ipcMain.removeAllListeners(GET_LOCAL_ENVIRONMENT_BOOTSTRAPS_CHANNEL);
   ipcMain.on(GET_LOCAL_ENVIRONMENT_BOOTSTRAPS_CHANNEL, (event) => {
+    if (!isTrustedTabsSender(event)) {
+      event.returnValue = null;
+      return;
+    }
     event.returnValue =
       backendHttpUrl && backendWsUrl
         ? [
@@ -2224,7 +2245,7 @@ function registerIpcHandlers(): void {
 
   const connectionCatalogPath = Path.join(app.getPath("userData"), "connection-catalog.json");
   ipcMain.removeHandler(GET_CONNECTION_CATALOG_CHANNEL);
-  ipcMain.handle(GET_CONNECTION_CATALOG_CHANNEL, async () => {
+  handleTabsIpc(GET_CONNECTION_CATALOG_CHANNEL, async () => {
     try {
       return await FS.promises.readFile(connectionCatalogPath, "utf8");
     } catch (error) {
@@ -2232,7 +2253,7 @@ function registerIpcHandlers(): void {
     }
   });
   ipcMain.removeHandler(SET_CONNECTION_CATALOG_CHANNEL);
-  ipcMain.handle(SET_CONNECTION_CATALOG_CHANNEL, async (_event, catalog: unknown) => {
+  handleTabsIpc(SET_CONNECTION_CATALOG_CHANNEL, async (_event, catalog: unknown) => {
     if (typeof catalog !== "string") return false;
     await FS.promises.mkdir(Path.dirname(connectionCatalogPath), {
       recursive: true,
@@ -2244,16 +2265,16 @@ function registerIpcHandlers(): void {
     return true;
   });
   ipcMain.removeHandler(CLEAR_CONNECTION_CATALOG_CHANNEL);
-  ipcMain.handle(CLEAR_CONNECTION_CATALOG_CHANNEL, async () => {
+  handleTabsIpc(CLEAR_CONNECTION_CATALOG_CHANNEL, async () => {
     await FS.promises.rm(connectionCatalogPath, { force: true });
   });
 
   ipcMain.removeHandler(DISCOVER_SSH_HOSTS_CHANNEL);
-  ipcMain.handle(DISCOVER_SSH_HOSTS_CHANNEL, async () =>
+  handleTabsIpc(DISCOVER_SSH_HOSTS_CHANNEL, async () =>
     (await getSshEnvironmentBridge()).discoverHosts(),
   );
   ipcMain.removeHandler(ENSURE_SSH_ENVIRONMENT_CHANNEL);
-  ipcMain.handle(
+  handleTabsIpc(
     ENSURE_SSH_ENVIRONMENT_CHANNEL,
     async (
       _event,
@@ -2268,19 +2289,19 @@ function registerIpcHandlers(): void {
       ),
   );
   ipcMain.removeHandler(DISCONNECT_SSH_ENVIRONMENT_CHANNEL);
-  ipcMain.handle(
+  handleTabsIpc(
     DISCONNECT_SSH_ENVIRONMENT_CHANNEL,
     async (_event, target: DesktopSshEnvironmentTarget) =>
       (await getSshEnvironmentBridge()).disconnectEnvironment(target),
   );
   ipcMain.removeHandler(FETCH_SSH_ENVIRONMENT_DESCRIPTOR_CHANNEL);
-  ipcMain.handle(
+  handleTabsIpc(
     FETCH_SSH_ENVIRONMENT_DESCRIPTOR_CHANNEL,
     async (_event, input: { httpBaseUrl: string }) =>
       (await getSshEnvironmentBridge()).fetchDescriptor(input.httpBaseUrl),
   );
   ipcMain.removeHandler(BOOTSTRAP_SSH_BEARER_SESSION_CHANNEL);
-  ipcMain.handle(
+  handleTabsIpc(
     BOOTSTRAP_SSH_BEARER_SESSION_CHANNEL,
     async (
       _event,
@@ -2292,7 +2313,7 @@ function registerIpcHandlers(): void {
       (await getSshEnvironmentBridge()).bootstrapBearerSession(input.httpBaseUrl, input.credential),
   );
   ipcMain.removeHandler(FETCH_SSH_SESSION_STATE_CHANNEL);
-  ipcMain.handle(
+  handleTabsIpc(
     FETCH_SSH_SESSION_STATE_CHANNEL,
     async (
       _event,
@@ -2303,7 +2324,7 @@ function registerIpcHandlers(): void {
     ) => (await getSshEnvironmentBridge()).fetchSessionState(input.httpBaseUrl, input.bearerToken),
   );
   ipcMain.removeHandler(ISSUE_SSH_WEBSOCKET_TOKEN_CHANNEL);
-  ipcMain.handle(
+  handleTabsIpc(
     ISSUE_SSH_WEBSOCKET_TOKEN_CHANNEL,
     async (
       _event,
@@ -2315,7 +2336,7 @@ function registerIpcHandlers(): void {
       (await getSshEnvironmentBridge()).issueWebSocketTicket(input.httpBaseUrl, input.bearerToken),
   );
   ipcMain.removeHandler(RESOLVE_SSH_PASSWORD_PROMPT_CHANNEL);
-  ipcMain.handle(
+  handleTabsIpc(
     RESOLVE_SSH_PASSWORD_PROMPT_CHANNEL,
     async (
       _event,
@@ -2327,23 +2348,23 @@ function registerIpcHandlers(): void {
   );
 
   ipcMain.removeHandler(GET_CONFIRM_BEFORE_QUIT_CHANNEL);
-  ipcMain.handle(GET_CONFIRM_BEFORE_QUIT_CHANNEL, async () => shouldConfirmBeforeQuit());
+  handleTabsIpc(GET_CONFIRM_BEFORE_QUIT_CHANNEL, async () => shouldConfirmBeforeQuit());
 
   ipcMain.removeHandler(SET_CONFIRM_BEFORE_QUIT_CHANNEL);
-  ipcMain.handle(SET_CONFIRM_BEFORE_QUIT_CHANNEL, async (_event, value: unknown) => {
+  handleTabsIpc(SET_CONFIRM_BEFORE_QUIT_CHANNEL, async (_event, value: unknown) => {
     if (typeof value === "boolean") {
       setConfirmBeforeQuit(value);
     }
   });
 
   ipcMain.removeHandler(GET_TABS_DATA_RESET_STARTUP_ERROR_CHANNEL);
-  ipcMain.handle(GET_TABS_DATA_RESET_STARTUP_ERROR_CHANNEL, (event) => {
+  handleTabsIpc(GET_TABS_DATA_RESET_STARTUP_ERROR_CHANNEL, (event) => {
     if (event.sender !== mainWindow?.webContents) return null;
     return tabsDataResetStartupError;
   });
 
   ipcMain.removeHandler(RESET_TABS_USER_DATA_CHANNEL);
-  ipcMain.handle(RESET_TABS_USER_DATA_CHANNEL, (event) => {
+  handleTabsIpc(RESET_TABS_USER_DATA_CHANNEL, (event) => {
     if (event.sender !== mainWindow?.webContents || tabsDataResetPending) {
       return false;
     }
@@ -2356,7 +2377,9 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeAllListeners(QUIT_CONFIRMATION_RESPONSE_CHANNEL);
-  ipcMain.on(QUIT_CONFIRMATION_RESPONSE_CHANNEL, (_event, choice: unknown) => {
+  ipcMain.on(QUIT_CONFIRMATION_RESPONSE_CHANNEL, (event, choice: unknown) => {
+    if (event.sender !== mainWindow?.webContents || event.senderFrame !== event.sender.mainFrame)
+      return;
     if (!isQuitConfirmationOpen) return;
     if (choice === "cancel") {
       isQuitConfirmationOpen = false;
@@ -2371,12 +2394,12 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler("get-tailscale-status");
-  ipcMain.handle("get-tailscale-status", async () => {
+  handleTabsIpc("get-tailscale-status", async () => {
     return getTailscaleStatus();
   });
 
   ipcMain.removeHandler(PICK_FOLDER_CHANNEL);
-  ipcMain.handle(PICK_FOLDER_CHANNEL, async (_event, rawOptions?: unknown) => {
+  handleTabsIpc(PICK_FOLDER_CHANNEL, async (_event, rawOptions?: unknown) => {
     const options = (rawOptions ?? null) as Partial<PickFolderOptions> | null;
     const owner = BrowserWindow.getFocusedWindow() ?? mainWindow;
     const openOptions: Electron.OpenDialogOptions = {
@@ -2391,7 +2414,7 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(PICK_FILE_CHANNEL);
-  ipcMain.handle(PICK_FILE_CHANNEL, async (_event, rawOptions?: unknown) => {
+  handleTabsIpc(PICK_FILE_CHANNEL, async (_event, rawOptions?: unknown) => {
     const options = (rawOptions ?? null) as Partial<PickFileOptions> | null;
     const owner = BrowserWindow.getFocusedWindow() ?? mainWindow;
     const openOptions: Electron.OpenDialogOptions = {
@@ -2411,7 +2434,7 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(CLONE_REPOSITORY_CHANNEL);
-  ipcMain.handle(
+  handleTabsIpc(
     CLONE_REPOSITORY_CHANNEL,
     async (_event, rawInput: unknown): Promise<DesktopCloneRepositoryResult> => {
       const input = (rawInput ?? null) as Partial<DesktopCloneRepositoryInput> | null;
@@ -2487,7 +2510,7 @@ function registerIpcHandlers(): void {
   );
 
   ipcMain.removeHandler(CONFIRM_CHANNEL);
-  ipcMain.handle(CONFIRM_CHANNEL, async (_event, message: unknown) => {
+  handleTabsIpc(CONFIRM_CHANNEL, async (_event, message: unknown) => {
     if (typeof message !== "string") {
       return false;
     }
@@ -2497,7 +2520,7 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(SET_THEME_CHANNEL);
-  ipcMain.handle(SET_THEME_CHANNEL, async (_event, payload: unknown) => {
+  handleTabsIpc(SET_THEME_CHANNEL, async (_event, payload: unknown) => {
     let themeId: string | null = null;
     let preference: string | null = null;
     let customConfig: any = null;
@@ -2537,7 +2560,7 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(SET_ICON_THEME_CHANNEL);
-  ipcMain.handle(SET_ICON_THEME_CHANNEL, async (_event, rawTheme: unknown) => {
+  handleTabsIpc(SET_ICON_THEME_CHANNEL, async (_event, rawTheme: unknown) => {
     const theme = getSafeIconTheme(rawTheme);
     if (!theme) {
       return;
@@ -2547,14 +2570,14 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(SET_AI_PROVIDER_CHANNEL);
-  ipcMain.handle(SET_AI_PROVIDER_CHANNEL, async (_event, rawProvider: unknown) => {
+  handleTabsIpc(SET_AI_PROVIDER_CHANNEL, async (_event, rawProvider: unknown) => {
     if (rawProvider === "tabs" || rawProvider === "copilot") {
       codeHostManager.setAiProvider(rawProvider);
     }
   });
 
   ipcMain.removeHandler(SET_ZOOM_FACTOR_CHANNEL);
-  ipcMain.handle(SET_ZOOM_FACTOR_CHANNEL, async (_event, rawFactor: unknown) => {
+  handleTabsIpc(SET_ZOOM_FACTOR_CHANNEL, async (_event, rawFactor: unknown) => {
     if (typeof rawFactor === "number" && !isNaN(rawFactor) && rawFactor > 0) {
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.setZoomFactor(rawFactor);
@@ -2563,7 +2586,7 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(CONTEXT_MENU_CHANNEL);
-  ipcMain.handle(
+  handleTabsIpc(
     CONTEXT_MENU_CHANNEL,
     async (_event, items: ContextMenuItem[], position?: { x: number; y: number }) => {
       const normalizedItems = items
@@ -2624,7 +2647,7 @@ function registerIpcHandlers(): void {
   );
 
   ipcMain.removeHandler(OPEN_EXTERNAL_CHANNEL);
-  ipcMain.handle(OPEN_EXTERNAL_CHANNEL, async (_event, rawUrl: unknown) => {
+  handleTabsIpc(OPEN_EXTERNAL_CHANNEL, async (_event, rawUrl: unknown) => {
     const externalUrl = getSafeExternalUrl(rawUrl);
     if (!externalUrl) {
       return false;
@@ -2639,7 +2662,7 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(OPEN_POPOUT_WINDOW_CHANNEL);
-  ipcMain.handle(OPEN_POPOUT_WINDOW_CHANNEL, async (_event, input: unknown) => {
+  handleTabsIpc(OPEN_POPOUT_WINDOW_CHANNEL, async (_event, input: unknown) => {
     if (typeof input !== "object" || input === null) return;
     const { url, title, width, height } = input as {
       url?: unknown;
@@ -2656,10 +2679,10 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(UPDATE_GET_STATE_CHANNEL);
-  ipcMain.handle(UPDATE_GET_STATE_CHANNEL, async () => updateState);
+  handleTabsIpc(UPDATE_GET_STATE_CHANNEL, async () => updateState);
 
   ipcMain.removeHandler(UPDATE_DOWNLOAD_CHANNEL);
-  ipcMain.handle(UPDATE_DOWNLOAD_CHANNEL, async () => {
+  handleTabsIpc(UPDATE_DOWNLOAD_CHANNEL, async () => {
     const result = await downloadAvailableUpdate();
     return {
       accepted: result.accepted,
@@ -2669,7 +2692,7 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(UPDATE_INSTALL_CHANNEL);
-  ipcMain.handle(UPDATE_INSTALL_CHANNEL, async () => {
+  handleTabsIpc(UPDATE_INSTALL_CHANNEL, async () => {
     if (isQuitting) {
       return {
         accepted: false,
@@ -2686,10 +2709,10 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(CODE_HOST_GET_STATE_CHANNEL);
-  ipcMain.handle(CODE_HOST_GET_STATE_CHANNEL, async () => codeHostManager.getState());
+  handleTabsIpc(CODE_HOST_GET_STATE_CHANNEL, async () => codeHostManager.getState());
 
   ipcMain.removeHandler(CODE_HOST_ENSURE_SESSION_CHANNEL);
-  ipcMain.handle(CODE_HOST_ENSURE_SESSION_CHANNEL, async (_event, input: unknown) => {
+  handleTabsIpc(CODE_HOST_ENSURE_SESSION_CHANNEL, async (_event, input: unknown) => {
     if (
       typeof input !== "object" ||
       input === null ||
@@ -2709,7 +2732,7 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(CODE_HOST_ACTIVATE_SESSION_CHANNEL);
-  ipcMain.handle(CODE_HOST_ACTIVATE_SESSION_CHANNEL, async (_event, input: unknown) => {
+  handleTabsIpc(CODE_HOST_ACTIVATE_SESSION_CHANNEL, async (_event, input: unknown) => {
     if (
       typeof input !== "object" ||
       input === null ||
@@ -2727,12 +2750,12 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(CODE_HOST_HIDE_SESSION_CHANNEL);
-  ipcMain.handle(CODE_HOST_HIDE_SESSION_CHANNEL, async () => {
+  handleTabsIpc(CODE_HOST_HIDE_SESSION_CHANNEL, async () => {
     codeHostManager.hideActiveSession();
   });
 
   ipcMain.removeHandler(CODE_HOST_CAPTURE_SESSION_CHANNEL);
-  ipcMain.handle(CODE_HOST_CAPTURE_SESSION_CHANNEL, async (_event, input: unknown) => {
+  handleTabsIpc(CODE_HOST_CAPTURE_SESSION_CHANNEL, async (_event, input: unknown) => {
     if (
       typeof input !== "object" ||
       input === null ||
@@ -2744,7 +2767,7 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(CODE_HOST_OPEN_FILE_CHANNEL);
-  ipcMain.handle(CODE_HOST_OPEN_FILE_CHANNEL, async (_event, input: unknown) => {
+  handleTabsIpc(CODE_HOST_OPEN_FILE_CHANNEL, async (_event, input: unknown) => {
     if (
       typeof input !== "object" ||
       input === null ||
@@ -2762,7 +2785,7 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(CODE_HOST_SET_BOUNDS_CHANNEL);
-  ipcMain.handle(CODE_HOST_SET_BOUNDS_CHANNEL, async (_event, input: unknown) => {
+  handleTabsIpc(CODE_HOST_SET_BOUNDS_CHANNEL, async (_event, input: unknown) => {
     if (
       typeof input !== "object" ||
       input === null ||
@@ -2786,7 +2809,7 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(CODE_HOST_SYNC_SESSIONS_CHANNEL);
-  ipcMain.handle(CODE_HOST_SYNC_SESSIONS_CHANNEL, async (_event, projectIds: unknown) => {
+  handleTabsIpc(CODE_HOST_SYNC_SESSIONS_CHANNEL, async (_event, projectIds: unknown) => {
     if (
       !Array.isArray(projectIds) ||
       !projectIds.every((projectId) => typeof projectId === "string")
@@ -2797,7 +2820,7 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(CODE_HOST_RECREATE_SESSION_CHANNEL);
-  ipcMain.handle(CODE_HOST_RECREATE_SESSION_CHANNEL, async (_event, input: unknown) => {
+  handleTabsIpc(CODE_HOST_RECREATE_SESSION_CHANNEL, async (_event, input: unknown) => {
     if (
       typeof input !== "object" ||
       input === null ||
@@ -2809,7 +2832,7 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(CODE_HOST_RUN_COMMAND_CHANNEL);
-  ipcMain.handle(CODE_HOST_RUN_COMMAND_CHANNEL, async (_event, input: unknown) => {
+  handleTabsIpc(CODE_HOST_RUN_COMMAND_CHANNEL, async (_event, input: unknown) => {
     // The control channel re-validates against the allowlist; this is just the
     // shape guard for the IPC boundary.
     if (
@@ -2827,7 +2850,7 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(CODE_HOST_GET_CHROME_STATE_CHANNEL);
-  ipcMain.handle(CODE_HOST_GET_CHROME_STATE_CHANNEL, async (_event, input: unknown) => {
+  handleTabsIpc(CODE_HOST_GET_CHROME_STATE_CHANNEL, async (_event, input: unknown) => {
     if (
       typeof input !== "object" ||
       input === null ||
@@ -2842,7 +2865,7 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(WRITE_CLIPBOARD_TEXT_CHANNEL);
-  ipcMain.handle(WRITE_CLIPBOARD_TEXT_CHANNEL, async (_event, value: unknown) => {
+  handleTabsIpc(WRITE_CLIPBOARD_TEXT_CHANNEL, async (_event, value: unknown) => {
     if (typeof value !== "string" || value.length > 1_000_000) {
       throw new Error("Invalid clipboard text payload.");
     }
@@ -2850,7 +2873,7 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(READ_CLIPBOARD_TEXT_CHANNEL);
-  ipcMain.handle(READ_CLIPBOARD_TEXT_CHANNEL, async (_event, type: unknown) => {
+  handleTabsIpc(READ_CLIPBOARD_TEXT_CHANNEL, async (_event, type: unknown) => {
     const clipboardType = type === "selection" ? "selection" : "clipboard";
     return (clipboard as unknown as { readText: (type?: string) => string }).readText(
       clipboardType,
@@ -2858,7 +2881,7 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(NOTIFICATION_OVERLAY_SYNC_CHANNEL);
-  ipcMain.handle(NOTIFICATION_OVERLAY_SYNC_CHANNEL, async (event, rawToasts: unknown) => {
+  handleTabsIpc(NOTIFICATION_OVERLAY_SYNC_CHANNEL, async (event, rawToasts: unknown) => {
     if (!mainWindow || event.sender !== mainWindow.webContents) return;
     notificationOverlayManager.setToasts(normalizeNotificationToasts(rawToasts));
   });
@@ -2916,25 +2939,25 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(DESKTOP_CAPTURE_GET_PERMISSION_CHANNEL);
-  ipcMain.handle(DESKTOP_CAPTURE_GET_PERMISSION_CHANNEL, async () =>
+  handleTabsIpc(DESKTOP_CAPTURE_GET_PERMISSION_CHANNEL, async () =>
     desktopCaptureCoordinator.getPermissionStatus(),
   );
 
   ipcMain.removeHandler(DESKTOP_CAPTURE_REQUEST_PERMISSION_CHANNEL);
-  ipcMain.handle(DESKTOP_CAPTURE_REQUEST_PERMISSION_CHANNEL, async () =>
+  handleTabsIpc(DESKTOP_CAPTURE_REQUEST_PERMISSION_CHANNEL, async () =>
     desktopCaptureCoordinator.requestPermission(),
   );
 
   ipcMain.removeHandler(DESKTOP_CAPTURE_SCREEN_CHANNEL);
-  ipcMain.handle(DESKTOP_CAPTURE_SCREEN_CHANNEL, async (_event, options: unknown) =>
+  handleTabsIpc(DESKTOP_CAPTURE_SCREEN_CHANNEL, async (_event, options: unknown) =>
     desktopCaptureCoordinator.captureScreen((options as DesktopCaptureOptions) ?? {}),
   );
 
   ipcMain.removeHandler(BROWSER_HOST_GET_STATE_CHANNEL);
-  ipcMain.handle(BROWSER_HOST_GET_STATE_CHANNEL, async () => browserHostManager.getState());
+  handleTabsIpc(BROWSER_HOST_GET_STATE_CHANNEL, async () => browserHostManager.getState());
 
   ipcMain.removeHandler(BROWSER_HOST_GET_SESSION_STATE_CHANNEL);
-  ipcMain.handle(BROWSER_HOST_GET_SESSION_STATE_CHANNEL, async (_event, input: unknown) => {
+  handleTabsIpc(BROWSER_HOST_GET_SESSION_STATE_CHANNEL, async (_event, input: unknown) => {
     if (
       typeof input !== "object" ||
       input === null ||
@@ -2949,7 +2972,7 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler("desktop:browser-readiness");
-  ipcMain.handle("desktop:browser-readiness", (_event, input) => {
+  handleTabsIpc("desktop:browser-readiness", (_event, input) => {
     if (!input || typeof input.url !== "string") throw new Error("Invalid readiness probe.");
     return probeBrowserReadiness(
       input.url,
@@ -2976,7 +2999,7 @@ function registerIpcHandlers(): void {
     ],
   ] as const) {
     ipcMain.removeHandler(channel);
-    ipcMain.handle(channel, (_event, input) => {
+    handleTabsIpc(channel, (_event, input) => {
       if (!input || typeof input.projectId !== "string" || typeof input.comparisonId !== "string")
         throw new Error("Invalid comparison request.");
       return action(input);
@@ -2984,7 +3007,7 @@ function registerIpcHandlers(): void {
   }
 
   ipcMain.removeHandler(BROWSER_HOST_ENSURE_SESSION_CHANNEL);
-  ipcMain.handle(BROWSER_HOST_ENSURE_SESSION_CHANNEL, async (_event, input: unknown) => {
+  handleTabsIpc(BROWSER_HOST_ENSURE_SESSION_CHANNEL, async (_event, input: unknown) => {
     if (
       typeof input !== "object" ||
       input === null ||
@@ -3022,7 +3045,7 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(BROWSER_HOST_ACTIVATE_SESSION_CHANNEL);
-  ipcMain.handle(BROWSER_HOST_ACTIVATE_SESSION_CHANNEL, async (_event, input: unknown) => {
+  handleTabsIpc(BROWSER_HOST_ACTIVATE_SESSION_CHANNEL, async (_event, input: unknown) => {
     if (
       typeof input !== "object" ||
       input === null ||
@@ -3037,12 +3060,12 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(BROWSER_HOST_HIDE_SESSION_CHANNEL);
-  ipcMain.handle(BROWSER_HOST_HIDE_SESSION_CHANNEL, async () => {
+  handleTabsIpc(BROWSER_HOST_HIDE_SESSION_CHANNEL, async () => {
     browserHostManager.hideActiveSession();
   });
 
   ipcMain.removeHandler(BROWSER_HOST_NAVIGATE_SESSION_CHANNEL);
-  ipcMain.handle(BROWSER_HOST_NAVIGATE_SESSION_CHANNEL, async (_event, input: unknown) => {
+  handleTabsIpc(BROWSER_HOST_NAVIGATE_SESSION_CHANNEL, async (_event, input: unknown) => {
     if (
       typeof input !== "object" ||
       input === null ||
@@ -3063,7 +3086,7 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(BROWSER_HOST_RELOAD_SESSION_CHANNEL);
-  ipcMain.handle(BROWSER_HOST_RELOAD_SESSION_CHANNEL, async (_event, input: unknown) => {
+  handleTabsIpc(BROWSER_HOST_RELOAD_SESSION_CHANNEL, async (_event, input: unknown) => {
     if (
       typeof input !== "object" ||
       input === null ||
@@ -3079,7 +3102,7 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(BROWSER_HOST_SET_ZOOM_CHANNEL);
-  ipcMain.handle(BROWSER_HOST_SET_ZOOM_CHANNEL, async (_event, input: unknown) => {
+  handleTabsIpc(BROWSER_HOST_SET_ZOOM_CHANNEL, async (_event, input: unknown) => {
     if (
       typeof input !== "object" ||
       input === null ||
@@ -3096,7 +3119,7 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(BROWSER_HOST_SET_AUDIO_MUTED_CHANNEL);
-  ipcMain.handle(BROWSER_HOST_SET_AUDIO_MUTED_CHANNEL, async (_event, input: unknown) => {
+  handleTabsIpc(BROWSER_HOST_SET_AUDIO_MUTED_CHANNEL, async (_event, input: unknown) => {
     if (
       typeof input !== "object" ||
       input === null ||
@@ -3113,7 +3136,7 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(BROWSER_HOST_OPEN_PICTURE_IN_PICTURE_CHANNEL);
-  ipcMain.handle(BROWSER_HOST_OPEN_PICTURE_IN_PICTURE_CHANNEL, async (_event, input: unknown) => {
+  handleTabsIpc(BROWSER_HOST_OPEN_PICTURE_IN_PICTURE_CHANNEL, async (_event, input: unknown) => {
     if (
       typeof input !== "object" ||
       input === null ||
@@ -3128,7 +3151,7 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(BROWSER_HOST_CLOSE_PICTURE_IN_PICTURE_CHANNEL);
-  ipcMain.handle(BROWSER_HOST_CLOSE_PICTURE_IN_PICTURE_CHANNEL, async (_event, input: unknown) => {
+  handleTabsIpc(BROWSER_HOST_CLOSE_PICTURE_IN_PICTURE_CHANNEL, async (_event, input: unknown) => {
     if (
       typeof input !== "object" ||
       input === null ||
@@ -3143,7 +3166,7 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(BROWSER_HOST_SET_COLOR_SCHEME_CHANNEL);
-  ipcMain.handle(BROWSER_HOST_SET_COLOR_SCHEME_CHANNEL, async (_event, input: unknown) => {
+  handleTabsIpc(BROWSER_HOST_SET_COLOR_SCHEME_CHANNEL, async (_event, input: unknown) => {
     const colorScheme =
       typeof input === "object" && input !== null
         ? (input as { colorScheme?: unknown }).colorScheme
@@ -3164,7 +3187,7 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(BROWSER_HOST_BACK_SESSION_CHANNEL);
-  ipcMain.handle(BROWSER_HOST_BACK_SESSION_CHANNEL, async (_event, input: unknown) => {
+  handleTabsIpc(BROWSER_HOST_BACK_SESSION_CHANNEL, async (_event, input: unknown) => {
     if (
       typeof input !== "object" ||
       input === null ||
@@ -3179,7 +3202,7 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(BROWSER_HOST_FORWARD_SESSION_CHANNEL);
-  ipcMain.handle(BROWSER_HOST_FORWARD_SESSION_CHANNEL, async (_event, input: unknown) => {
+  handleTabsIpc(BROWSER_HOST_FORWARD_SESSION_CHANNEL, async (_event, input: unknown) => {
     if (
       typeof input !== "object" ||
       input === null ||
@@ -3194,7 +3217,7 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(BROWSER_HOST_TOGGLE_DEVTOOLS_CHANNEL);
-  ipcMain.handle(BROWSER_HOST_TOGGLE_DEVTOOLS_CHANNEL, async (_event, input: unknown) => {
+  handleTabsIpc(BROWSER_HOST_TOGGLE_DEVTOOLS_CHANNEL, async (_event, input: unknown) => {
     if (
       typeof input !== "object" ||
       input === null ||
@@ -3210,7 +3233,7 @@ function registerIpcHandlers(): void {
 
   ipcMain.removeHandler(BROWSER_HOST_SET_BOUNDS_CHANNEL);
   ipcMain.removeHandler(BROWSER_HOST_AUTOMATION_CHANNEL);
-  ipcMain.handle(BROWSER_HOST_AUTOMATION_CHANNEL, async (_event, input: unknown) => {
+  handleTabsIpc(BROWSER_HOST_AUTOMATION_CHANNEL, async (_event, input: unknown) => {
     if (
       typeof input !== "object" ||
       input === null ||
@@ -3229,7 +3252,7 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(BROWSER_HOST_CAPTURE_SCREENSHOT_CHANNEL);
-  ipcMain.handle(BROWSER_HOST_CAPTURE_SCREENSHOT_CHANNEL, async (_event, input: unknown) => {
+  handleTabsIpc(BROWSER_HOST_CAPTURE_SCREENSHOT_CHANNEL, async (_event, input: unknown) => {
     if (
       typeof input !== "object" ||
       input === null ||
@@ -3244,7 +3267,7 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(BROWSER_HOST_MEDIA_SOURCE_CHANNEL);
-  ipcMain.handle(BROWSER_HOST_MEDIA_SOURCE_CHANNEL, async (_event, input: unknown) => {
+  handleTabsIpc(BROWSER_HOST_MEDIA_SOURCE_CHANNEL, async (_event, input: unknown) => {
     if (
       typeof input !== "object" ||
       input === null ||
@@ -3259,7 +3282,7 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(BROWSER_HOST_SAVE_RECORDING_CHANNEL);
-  ipcMain.handle(BROWSER_HOST_SAVE_RECORDING_CHANNEL, async (_event, input: unknown) => {
+  handleTabsIpc(BROWSER_HOST_SAVE_RECORDING_CHANNEL, async (_event, input: unknown) => {
     if (
       typeof input !== "object" ||
       input === null ||
@@ -3278,7 +3301,7 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(BROWSER_HOST_PICK_ELEMENT_CHANNEL);
-  ipcMain.handle(BROWSER_HOST_PICK_ELEMENT_CHANNEL, async (_event, input: unknown) => {
+  handleTabsIpc(BROWSER_HOST_PICK_ELEMENT_CHANNEL, async (_event, input: unknown) => {
     if (
       typeof input !== "object" ||
       input === null ||
@@ -3293,18 +3316,18 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(BROWSER_HOST_REVEAL_ARTIFACT_CHANNEL);
-  ipcMain.handle(BROWSER_HOST_REVEAL_ARTIFACT_CHANNEL, async (_event, artifactPath: unknown) => {
+  handleTabsIpc(BROWSER_HOST_REVEAL_ARTIFACT_CHANNEL, async (_event, artifactPath: unknown) => {
     if (typeof artifactPath !== "string") throw new Error("Invalid browser artifact path.");
     browserHostManager.revealArtifact(artifactPath);
   });
 
   ipcMain.removeHandler(BROWSER_HOST_COPY_ARTIFACT_CHANNEL);
-  ipcMain.handle(BROWSER_HOST_COPY_ARTIFACT_CHANNEL, async (_event, artifactPath: unknown) => {
+  handleTabsIpc(BROWSER_HOST_COPY_ARTIFACT_CHANNEL, async (_event, artifactPath: unknown) => {
     if (typeof artifactPath !== "string") throw new Error("Invalid browser artifact path.");
     await browserHostManager.copyArtifactToClipboard(artifactPath);
   });
 
-  ipcMain.handle(BROWSER_HOST_SET_BOUNDS_CHANNEL, async (_event, input: unknown) => {
+  handleTabsIpc(BROWSER_HOST_SET_BOUNDS_CHANNEL, async (_event, input: unknown) => {
     if (
       typeof input !== "object" ||
       input === null ||
@@ -3329,7 +3352,7 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(BROWSER_HOST_SYNC_SESSIONS_CHANNEL);
-  ipcMain.handle(BROWSER_HOST_SYNC_SESSIONS_CHANNEL, async (_event, projectIds: unknown) => {
+  handleTabsIpc(BROWSER_HOST_SYNC_SESSIONS_CHANNEL, async (_event, projectIds: unknown) => {
     if (
       !Array.isArray(projectIds) ||
       !projectIds.every((projectId) => typeof projectId === "string")
@@ -3340,7 +3363,7 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(BROWSER_HOST_RECREATE_SESSION_CHANNEL);
-  ipcMain.handle(BROWSER_HOST_RECREATE_SESSION_CHANNEL, async (_event, input: unknown) => {
+  handleTabsIpc(BROWSER_HOST_RECREATE_SESSION_CHANNEL, async (_event, input: unknown) => {
     if (
       typeof input !== "object" ||
       input === null ||
@@ -3360,7 +3383,7 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(BROWSER_HOST_CLEAR_PROFILE_DATA_CHANNEL);
-  ipcMain.handle(BROWSER_HOST_CLEAR_PROFILE_DATA_CHANNEL, async (_event, input: unknown) => {
+  handleTabsIpc(BROWSER_HOST_CLEAR_PROFILE_DATA_CHANNEL, async (_event, input: unknown) => {
     if (
       typeof input !== "object" ||
       input === null ||
@@ -3372,7 +3395,7 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(BROWSER_HOST_CLEAR_SESSION_DATA_CHANNEL);
-  ipcMain.handle(BROWSER_HOST_CLEAR_SESSION_DATA_CHANNEL, async (_event, input: unknown) => {
+  handleTabsIpc(BROWSER_HOST_CLEAR_SESSION_DATA_CHANNEL, async (_event, input: unknown) => {
     if (
       typeof input !== "object" ||
       input === null ||
@@ -3387,7 +3410,7 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(BROWSER_HOST_OPEN_PROFILE_LOGIN_WINDOW_CHANNEL);
-  ipcMain.handle(BROWSER_HOST_OPEN_PROFILE_LOGIN_WINDOW_CHANNEL, async (_event, input: unknown) => {
+  handleTabsIpc(BROWSER_HOST_OPEN_PROFILE_LOGIN_WINDOW_CHANNEL, async (_event, input: unknown) => {
     if (
       typeof input !== "object" ||
       input === null ||
@@ -3404,7 +3427,7 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(BROWSER_HOST_GET_PROFILE_DOMAINS_CHANNEL);
-  ipcMain.handle(BROWSER_HOST_GET_PROFILE_DOMAINS_CHANNEL, async (_event, input: unknown) => {
+  handleTabsIpc(BROWSER_HOST_GET_PROFILE_DOMAINS_CHANNEL, async (_event, input: unknown) => {
     if (
       typeof input !== "object" ||
       input === null ||
@@ -3416,7 +3439,7 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(BROWSER_HOST_INSPECT_PROFILE_CHANNEL);
-  ipcMain.handle(BROWSER_HOST_INSPECT_PROFILE_CHANNEL, async (_event, input: unknown) => {
+  handleTabsIpc(BROWSER_HOST_INSPECT_PROFILE_CHANNEL, async (_event, input: unknown) => {
     if (
       typeof input !== "object" ||
       input === null ||
@@ -3428,7 +3451,7 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(BROWSER_HOST_CLEAR_PROFILE_DOMAIN_CHANNEL);
-  ipcMain.handle(BROWSER_HOST_CLEAR_PROFILE_DOMAIN_CHANNEL, async (_event, input: unknown) => {
+  handleTabsIpc(BROWSER_HOST_CLEAR_PROFILE_DOMAIN_CHANNEL, async (_event, input: unknown) => {
     if (
       typeof input !== "object" ||
       input === null ||
@@ -3445,23 +3468,23 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(BROWSER_HOST_LIST_IMPORT_SOURCES_CHANNEL);
-  ipcMain.handle(BROWSER_HOST_LIST_IMPORT_SOURCES_CHANNEL, async () => {
+  handleTabsIpc(BROWSER_HOST_LIST_IMPORT_SOURCES_CHANNEL, async () => {
     return await browserHostManager.listBrowserImportSources();
   });
 
   ipcMain.removeHandler("desktop:browser-host:cancel-import");
-  ipcMain.handle("desktop:browser-host:cancel-import", (_event, requestId: unknown) => {
+  handleTabsIpc("desktop:browser-host:cancel-import", (_event, requestId: unknown) => {
     if (typeof requestId === "string") browserHostManager.cancelBrowserImport(requestId);
   });
 
   ipcMain.removeHandler(BROWSER_HOST_IMPORT_COOKIES_CHANNEL);
-  ipcMain.handle(BROWSER_HOST_IMPORT_COOKIES_CHANNEL, async (_event, input: unknown) => {
+  handleTabsIpc(BROWSER_HOST_IMPORT_COOKIES_CHANNEL, async (_event, input: unknown) => {
     const decoded = Schema.decodeUnknownSync(BrowserImportInput)(input);
     return await browserHostManager.importBrowserCookies(decoded);
   });
 
   ipcMain.removeHandler(BROWSER_HOST_RESPOND_PERMISSION_CHANNEL);
-  ipcMain.handle(BROWSER_HOST_RESPOND_PERMISSION_CHANNEL, async (_event, input: unknown) => {
+  handleTabsIpc(BROWSER_HOST_RESPOND_PERMISSION_CHANNEL, async (_event, input: unknown) => {
     if (typeof input !== "object" || input === null) return;
     const { requestId, granted, remember } = input as {
       requestId: string;
@@ -3473,7 +3496,7 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(BROWSER_HOST_GET_PROFILE_PERMISSIONS_CHANNEL);
-  ipcMain.handle(BROWSER_HOST_GET_PROFILE_PERMISSIONS_CHANNEL, async (_event, input: unknown) => {
+  handleTabsIpc(BROWSER_HOST_GET_PROFILE_PERMISSIONS_CHANNEL, async (_event, input: unknown) => {
     if (typeof input !== "object" || input === null) return [];
     const profileId = (input as { profileId?: unknown }).profileId;
     if (typeof profileId !== "string") return [];
@@ -3481,7 +3504,7 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(BROWSER_HOST_REVOKE_PROFILE_PERMISSION_CHANNEL);
-  ipcMain.handle(BROWSER_HOST_REVOKE_PROFILE_PERMISSION_CHANNEL, async (_event, input: unknown) => {
+  handleTabsIpc(BROWSER_HOST_REVOKE_PROFILE_PERMISSION_CHANNEL, async (_event, input: unknown) => {
     if (typeof input !== "object" || input === null) return;
     const { profileId, origin, permission } = input as {
       profileId: string;
@@ -3498,7 +3521,7 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(BROWSER_HOST_TAKE_CONTROL_CHANNEL);
-  ipcMain.handle(BROWSER_HOST_TAKE_CONTROL_CHANNEL, async (_event, input: unknown) => {
+  handleTabsIpc(BROWSER_HOST_TAKE_CONTROL_CHANNEL, async (_event, input: unknown) => {
     if (
       typeof input !== "object" ||
       input === null ||
@@ -3512,7 +3535,7 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(BROWSER_HOST_RESUME_AGENT_CHANNEL);
-  ipcMain.handle(BROWSER_HOST_RESUME_AGENT_CHANNEL, async (_event, input: unknown) => {
+  handleTabsIpc(BROWSER_HOST_RESUME_AGENT_CHANNEL, async (_event, input: unknown) => {
     if (
       typeof input !== "object" ||
       input === null ||
@@ -3531,7 +3554,7 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(BROWSER_HOST_ASSIGN_TAB_TASK_CHANNEL);
-  ipcMain.handle(BROWSER_HOST_ASSIGN_TAB_TASK_CHANNEL, async (_event, input: unknown) => {
+  handleTabsIpc(BROWSER_HOST_ASSIGN_TAB_TASK_CHANNEL, async (_event, input: unknown) => {
     if (
       typeof input !== "object" ||
       input === null ||
@@ -3550,7 +3573,7 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(BROWSER_HOST_RETAIN_TAB_CHANNEL);
-  ipcMain.handle(BROWSER_HOST_RETAIN_TAB_CHANNEL, async (_event, input: unknown) => {
+  handleTabsIpc(BROWSER_HOST_RETAIN_TAB_CHANNEL, async (_event, input: unknown) => {
     if (
       typeof input !== "object" ||
       input === null ||
@@ -3564,7 +3587,7 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(BROWSER_HOST_CLEANUP_AGENT_TABS_CHANNEL);
-  ipcMain.handle(BROWSER_HOST_CLEANUP_AGENT_TABS_CHANNEL, async (_event, input: unknown) => {
+  handleTabsIpc(BROWSER_HOST_CLEANUP_AGENT_TABS_CHANNEL, async (_event, input: unknown) => {
     if (
       typeof input !== "object" ||
       input === null ||
@@ -3580,7 +3603,7 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(BROWSER_HOST_DESTROY_SESSION_CHANNEL);
-  ipcMain.handle(BROWSER_HOST_DESTROY_SESSION_CHANNEL, async (_event, input: unknown) => {
+  handleTabsIpc(BROWSER_HOST_DESTROY_SESSION_CHANNEL, async (_event, input: unknown) => {
     if (
       typeof input !== "object" ||
       input === null ||
@@ -3594,13 +3617,13 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(BROWSER_HOST_GET_RECENTLY_CLOSED_CHANNEL);
-  ipcMain.handle(BROWSER_HOST_GET_RECENTLY_CLOSED_CHANNEL, async (_event, input: unknown) => {
+  handleTabsIpc(BROWSER_HOST_GET_RECENTLY_CLOSED_CHANNEL, async (_event, input: unknown) => {
     if (typeof input !== "string") return [];
     return browserHostManager.getRecentlyClosedTabs(input);
   });
 
   ipcMain.removeHandler(BROWSER_HOST_RESTORE_RECENTLY_CLOSED_CHANNEL);
-  ipcMain.handle(BROWSER_HOST_RESTORE_RECENTLY_CLOSED_CHANNEL, async (_event, input: unknown) => {
+  handleTabsIpc(BROWSER_HOST_RESTORE_RECENTLY_CLOSED_CHANNEL, async (_event, input: unknown) => {
     if (
       typeof input !== "object" ||
       input === null ||
@@ -3616,22 +3639,55 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(VSCODE_FETCH_SHELL_ENV_CHANNEL);
-  ipcMain.handle(VSCODE_FETCH_SHELL_ENV_CHANNEL, async () => ({
-    ...process.env,
-  }));
+  ipcMain.handle(VSCODE_FETCH_SHELL_ENV_CHANNEL, async (event) => {
+    if (
+      event.senderFrame !== event.sender.mainFrame ||
+      !(
+        codeHostManager.ownsWebContents(event.sender.id) ||
+        agentsWindowManager.ownsWebContents(event.sender.id)
+      )
+    ) {
+      throw new Error("Untrusted Code-OSS IPC sender");
+    }
+    return { ...process.env };
+  });
 
   ipcMain.removeAllListeners(VSCODE_TOGGLE_DEVTOOLS_CHANNEL);
   ipcMain.on(VSCODE_TOGGLE_DEVTOOLS_CHANNEL, (event) => {
+    if (
+      event.senderFrame !== event.sender.mainFrame ||
+      !(
+        codeHostManager.ownsWebContents(event.sender.id) ||
+        agentsWindowManager.ownsWebContents(event.sender.id)
+      )
+    )
+      return;
     event.sender.toggleDevTools();
   });
 
   ipcMain.removeAllListeners(VSCODE_OPEN_DEVTOOLS_CHANNEL);
   ipcMain.on(VSCODE_OPEN_DEVTOOLS_CHANNEL, (event) => {
+    if (
+      event.senderFrame !== event.sender.mainFrame ||
+      !(
+        codeHostManager.ownsWebContents(event.sender.id) ||
+        agentsWindowManager.ownsWebContents(event.sender.id)
+      )
+    )
+      return;
     event.sender.openDevTools({ mode: "detach" });
   });
 
   ipcMain.removeAllListeners(VSCODE_RELOAD_WINDOW_CHANNEL);
   ipcMain.on(VSCODE_RELOAD_WINDOW_CHANNEL, (event) => {
+    if (
+      event.senderFrame !== event.sender.mainFrame ||
+      !(
+        codeHostManager.ownsWebContents(event.sender.id) ||
+        agentsWindowManager.ownsWebContents(event.sender.id)
+      )
+    )
+      return;
     event.sender.reload();
   });
 
@@ -3648,22 +3704,38 @@ function getIconOption(): { icon: string } | Record<string, never> {
 
 const popoutWindows = new Set<BrowserWindow>();
 
+function isTrustedTabsSender(event: {
+  sender: Electron.WebContents;
+  senderFrame: Electron.WebFrameMain | null;
+}): boolean {
+  const windows = [mainWindow, ...popoutWindows].filter((window): window is BrowserWindow =>
+    Boolean(window && !window.isDestroyed()),
+  );
+  return isTrustedIpcFrame({
+    senderId: event.sender.id,
+    trustedIds: windows.map((window) => window.webContents.id),
+    isMainFrame: event.senderFrame === event.sender.mainFrame,
+    frameUrl: event.senderFrame?.url ?? "",
+    scheme: DESKTOP_SCHEME,
+    ...(isDevelopment && process.env.VITE_DEV_SERVER_URL
+      ? { devUrl: process.env.VITE_DEV_SERVER_URL }
+      : {}),
+  });
+}
+
+function handleTabsIpc(channel: string, listener: Parameters<typeof ipcMain.handle>[1]): void {
+  ipcMain.handle(channel, (event, ...args) => {
+    if (!isTrustedTabsSender(event)) throw new Error("Untrusted desktop IPC sender");
+    return listener(event, ...args);
+  });
+}
+
 function isInternalTabsUrl(rawUrl: string): boolean {
-  if (typeof rawUrl !== "string" || rawUrl.length === 0) return false;
-  if (rawUrl.includes("popout=true") || rawUrl.includes("section=diagnostics")) {
-    return true;
-  }
-  if (isDevelopment && process.env.VITE_DEV_SERVER_URL) {
-    try {
-      const devOrigin = new URL(process.env.VITE_DEV_SERVER_URL).origin;
-      const targetOrigin = new URL(rawUrl).origin;
-      if (devOrigin === targetOrigin) return true;
-    } catch {}
-  }
-  if (rawUrl.startsWith(`${DESKTOP_SCHEME}://app`) || rawUrl.startsWith("/")) {
-    return true;
-  }
-  return false;
+  return isTrustedTabsUrl(
+    rawUrl,
+    DESKTOP_SCHEME,
+    isDevelopment ? process.env.VITE_DEV_SERVER_URL : undefined,
+  );
 }
 
 function resolveInternalTabsUrl(rawUrl: string): string {
@@ -3826,6 +3898,10 @@ function createTabsWindow(): BrowserWindow {
       void shell.openExternal(externalUrl);
     }
     return { action: "deny" };
+  });
+
+  window.webContents.on("will-navigate", (event, url) => {
+    if (!isInternalTabsUrl(url)) event.preventDefault();
   });
 
   window.on("page-title-updated", (event) => {

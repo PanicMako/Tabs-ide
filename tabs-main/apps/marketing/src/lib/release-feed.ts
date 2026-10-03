@@ -49,7 +49,7 @@ function buildReleaseCard(release: Release, isLatest: boolean) {
   tagRow.append(heading);
   if (isLatest) {
     const badge = el("span", "hs-cl-badge hs-cl-badge-latest");
-    badge.textContent = "● LATEST STABLE";
+    badge.textContent = release.prerelease ? "● PUBLIC BETA" : "● LATEST RELEASE";
     tagRow.append(badge);
   }
   const date = el("time", "hs-cl-date");
