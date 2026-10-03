@@ -251,7 +251,7 @@ export function ServerPresetFormFields(props: {
                   className={cn(
                     "flex size-7 items-center justify-center rounded-lg border text-xs transition-all cursor-pointer",
                     isSelected
-                      ? "border-primary/50 bg-primary/15 text-primary shadow-xs"
+                      ? "border-primary/50 bg-primary/15 text-foreground shadow-xs"
                       : "border-transparent text-muted-foreground hover:bg-muted/70 hover:text-foreground",
                   )}
                 >

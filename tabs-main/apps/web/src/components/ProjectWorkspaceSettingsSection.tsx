@@ -133,7 +133,7 @@ function createServerProcessId() {
 function BrowserGoogleSignInGuidance() {
   return (
     <Alert className="border-blue-500/25 bg-blue-500/5 text-foreground">
-      <InfoIcon aria-hidden="true" className="size-4 text-blue-500" />
+      <InfoIcon aria-hidden="true" className="size-4 text-muted-foreground" />
       <AlertDescription className="text-xs leading-relaxed text-muted-foreground">
         <span className="font-medium text-foreground">Google sign-in workaround:</span> Google may
         block a fresh third-party login inside an embedded browser. Choose Shared (Project), or
@@ -243,7 +243,7 @@ function BrowserProfileSelector({
                     <span className="font-medium truncate">{p.label}</span>
                     <span className="text-[10px] text-muted-foreground font-mono">({p.id})</span>
                   </div>
-                  {isSelected && <CheckIcon className="size-3.5 text-primary shrink-0" />}
+                  {isSelected && <CheckIcon className="size-3.5 text-foreground shrink-0" />}
                 </MenuItem>
               );
             })}
@@ -253,7 +253,7 @@ function BrowserProfileSelector({
                 setNewLabel("");
                 setModalOpen(true);
               }}
-              className="flex items-center gap-1.5 text-xs text-primary font-medium py-1.5 px-2 cursor-pointer"
+              className="flex items-center gap-1.5 text-xs text-foreground font-medium py-1.5 px-2 cursor-pointer"
             >
               <PlusIcon className="size-3.5" />
               <span>Create new profile...</span>
@@ -267,7 +267,7 @@ function BrowserProfileSelector({
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-base font-semibold flex items-center gap-2">
-              <PlusIcon className="size-4 text-primary" />
+              <PlusIcon className="size-4 text-foreground" />
               Create Browser Profile
             </DialogTitle>
             <DialogDescription className="text-xs">

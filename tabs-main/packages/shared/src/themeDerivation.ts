@@ -346,7 +346,8 @@ export function getOptimalPrimaryForeground(primaryHex: string): string {
   if (!primaryHex) return "#ffffff";
   const whiteRatio = calculateContrastRatio("#ffffff", primaryHex).ratio;
   const darkRatio = calculateContrastRatio("#0f172a", primaryHex).ratio;
-  if (whiteRatio >= 3.0) return "#ffffff";
+  if (whiteRatio >= 4.5) return "#ffffff";
+  if (darkRatio < 4.5) return "#000000";
   return darkRatio >= whiteRatio ? "#0f172a" : "#ffffff";
 }
 

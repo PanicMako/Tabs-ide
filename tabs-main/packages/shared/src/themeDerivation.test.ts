@@ -174,8 +174,12 @@ describe("themeDerivation shared module", () => {
   });
 
   it("ensures white text foreground for medium & dark brand primary colors (e.g. Solarized Light blue #268bd2)", () => {
-    expect(getOptimalPrimaryForeground("#268bd2")).toBe("#ffffff");
-    expect(getOptimalPrimaryForeground("#366ffb")).toBe("#ffffff");
+    expect(
+      calculateContrastRatio(getOptimalPrimaryForeground("#268bd2"), "#268bd2").ratio,
+    ).toBeGreaterThanOrEqual(4.5);
+    expect(
+      calculateContrastRatio(getOptimalPrimaryForeground("#366ffb"), "#366ffb").ratio,
+    ).toBeGreaterThanOrEqual(4.5);
     expect(getOptimalPrimaryForeground("#2563eb")).toBe("#ffffff");
     expect(getOptimalPrimaryForeground("#ffcc00")).toBe("#0f172a");
   });
@@ -209,3 +213,12 @@ describe("themeDerivation shared module", () => {
     expect(tokens["diffEditor.removedTextBackground"]).toBe("#fb923c40");
   });
 });
+
+it.each(["#000000", "#ffffff", "#ffff00", "#00ffff", "#2563eb", "#ff0000", "#800080", "#777777"])(
+  "keeps filled-button text at AA contrast on %s",
+  (accent) => {
+    expect(
+      calculateContrastRatio(getOptimalPrimaryForeground(accent), accent).ratio,
+    ).toBeGreaterThanOrEqual(4.5);
+  },
+);

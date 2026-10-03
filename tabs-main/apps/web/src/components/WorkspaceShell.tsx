@@ -2212,7 +2212,7 @@ function AgentsThreadList(props: {
                             return (
                               <span className="absolute -bottom-1 -right-1 flex size-3.5 items-center justify-center rounded-full bg-background border border-border/40">
                                 {attn.spin ? (
-                                  <Spinner className="size-2.5 text-primary" />
+                                  <Spinner className="size-2.5 text-foreground" />
                                 ) : (
                                   <span
                                     className={cn(
@@ -2271,7 +2271,7 @@ function AgentsThreadList(props: {
                                 const attn = deriveThreadAttention(thread);
                                 if (!attn) return null;
                                 if (attn.spin) {
-                                  return <Spinner className="size-3 shrink-0 text-primary" />;
+                                  return <Spinner className="size-3 shrink-0 text-foreground" />;
                                 }
                                 return (
                                   <span
@@ -2436,7 +2436,7 @@ function AgentsThreadList(props: {
                                       className={cn(
                                         "flex size-6 items-center justify-center rounded-md text-foreground/80 hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring transition-colors",
                                         lifecycleEntry.pinnedAt &&
-                                          "bg-primary/15 text-primary hover:text-primary",
+                                          "bg-primary/15 text-foreground hover:text-foreground",
                                       )}
                                       onClick={() => void dispatchLifecycle(thread, "pin")}
                                     />
@@ -5140,7 +5140,7 @@ function GitTool(props: {
           <div className="flex flex-col min-h-0 min-w-0 gap-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="min-w-0 flex items-center gap-3">
-                <div className="flex size-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                <div className="flex size-10 items-center justify-center rounded-2xl bg-primary/10 text-foreground">
                   <GitBranchIcon className="size-5" />
                 </div>
                 <div className="min-w-0">
@@ -5218,7 +5218,7 @@ function GitTool(props: {
                       />
                     }
                   >
-                    <GitBranchIcon className="size-4 shrink-0 text-primary" />
+                    <GitBranchIcon className="size-4 shrink-0 text-foreground" />
                     <span className="max-w-[220px] truncate text-sm font-semibold text-foreground">
                       {branchHeadline}
                     </span>
@@ -5245,7 +5245,7 @@ function GitTool(props: {
                           <span
                             className={cn(
                               "flex size-4 shrink-0 items-center justify-center",
-                              branch.current ? "text-primary" : "text-transparent",
+                              branch.current ? "text-foreground" : "text-transparent",
                             )}
                           >
                             <CheckIcon className="size-4" />
@@ -5296,7 +5296,7 @@ function GitTool(props: {
                   <ArrowDownIcon className="size-3.5" />
                   Pull
                   {behindCount > 0 ? (
-                    <span className="rounded-full bg-primary/15 px-1.5 text-[11px] font-semibold text-primary">
+                    <span className="rounded-full bg-primary/15 px-1.5 text-[11px] font-semibold text-foreground">
                       {behindCount}
                     </span>
                   ) : null}
@@ -7994,7 +7994,9 @@ function DesktopBrowserChrome(props: {
                   <>
                     {activeRecordingControls}
                     {pickingElement && (
-                      <span className="text-xs text-primary">Select an element on the page…</span>
+                      <span className="text-xs text-foreground">
+                        Select an element on the page…
+                      </span>
                     )}
                     {props.sessionState.assignedTaskId ? (
                       <Badge
@@ -8739,7 +8741,7 @@ function DesktopBrowserTool(props: {
                   <p className="text-[11px] text-muted-foreground font-mono">{normalizedUrl}</p>
                 </div>
               </div>
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-[10px] font-medium text-primary">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-[10px] font-medium text-foreground">
                 <Spinner className="size-3" />
                 Starting
               </span>
@@ -10316,7 +10318,7 @@ function ServerTool(props: {
       <div className="border-b border-border/60 px-5 py-3.5 flex flex-col gap-3 bg-card/30">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="flex size-9 items-center justify-center rounded-xl bg-primary/10 border border-primary/20 text-primary shrink-0 shadow-2xs">
+            <div className="flex size-9 items-center justify-center rounded-xl bg-primary/10 border border-primary/20 text-foreground shrink-0 shadow-2xs">
               <RocketIcon className="size-4.5" />
             </div>
             <div className="min-w-0">
@@ -10468,7 +10470,7 @@ function ServerTool(props: {
                       className={cn(
                         "group flex h-7 shrink-0 cursor-pointer items-center gap-1.5 overflow-hidden rounded-full border px-3 text-xs font-medium transition-all disabled:cursor-not-allowed disabled:opacity-50",
                         isActive
-                          ? "border-primary/50 bg-primary/10 text-primary shadow-2xs ring-1 ring-primary/25"
+                          ? "border-primary/50 bg-primary/10 text-foreground shadow-2xs ring-1 ring-primary/25"
                           : isRunning
                             ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shadow-2xs"
                             : "border-border/70 bg-card text-foreground/90 hover:bg-accent hover:text-accent-foreground hover:border-border",
@@ -10517,7 +10519,7 @@ function ServerTool(props: {
                   setEditingPresetId(null);
                   setIsPresetDialogOpen(true);
                 }}
-                className="text-primary hover:underline font-medium inline-flex items-center gap-1"
+                className="text-foreground hover:underline font-medium inline-flex items-center gap-1"
               >
                 <PlusIcon className="size-3" />
                 Add your first preset
