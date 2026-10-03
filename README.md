@@ -17,6 +17,7 @@
 
 <p align="center">
   <a href="#why-tabs">Why Tabs</a> ·
+  <a href="#supported-providers">Supported providers</a> ·
   <a href="#quick-start">Quick start</a> ·
   <a href="#how-it-works">How it works</a> ·
   <a href="#development">Development</a> ·
@@ -47,13 +48,43 @@ Coding with an agent usually means juggling a chat window, an editor, terminals,
 
 ### One workspace, fewer handoffs
 
-- **Agent conversations** with streaming responses and support for Codex and Claude
+- **Agent conversations** with streaming responses across 11 supported providers (Codex, Claude, Cursor, Copilot, Antigravity, and more)
 - **Code-OSS editor** embedded as a native desktop workbench
 - **Terminal sessions** backed by local PTYs
 - **Browser tools** with shared, isolated, or named persistent profiles
 - **Git workflows** for branches, commits, diffs, stashes, merges, rebases, and pull requests
 - **Project sessions** that preserve state across restarts
 - **Cross-platform packaging** for macOS, Windows, and Linux
+
+## Supported providers
+
+Tabs is built on top of [T3 Code](https://github.com/t3tools/t3code) and extends its agent harness design. Rather than locking you into a proprietary API subscription or proxy markup, Tabs lets you **bring your own keys and subscriptions (BYOK / BYOS)**. If an agent or CLI is set up on your machine, or you have an API key, Tabs connects directly to it.
+
+<p align="center">
+  <img src="tabs-main/apps/marketing/public/product/agents-dark.png" alt="Tabs Agents View with Model Picker and Provider Rail" width="100%" />
+</p>
+
+Tabs currently supports **11 model and agent providers**:
+
+| Provider | Integration | Setup & Authentication |
+| --- | --- | --- |
+| **OpenAI Codex** | Native App-Server / CLI | Install [Codex CLI](https://developers.openai.com/codex/cli) and run `codex login` |
+| **Anthropic Claude** | Claude Code / Agent SDK | Install [Claude Code](https://claude.com/product/claude-code) and run `claude auth login` |
+| **Cursor** | Cursor Agent CLI / ACP | Install [Cursor CLI](https://cursor.com/cli) and run `agent login` |
+| **GitHub Copilot** | Copilot SDK / ACP | Authenticate via GitHub account or configure Copilot token |
+| **xAI Grok Build** | Grok CLI / ACP | Install [Grok Build CLI](https://x.ai/cli) and run `grok login` |
+| **OpenCode** | OpenCode Runtime | Install [OpenCode](https://opencode.ai) and run `opencode auth login` |
+| **Google Antigravity** | Built-in ACP | Enable in Settings, then click **Install Antigravity** & **Sign in with Google** (no CLI required) |
+| **Google Gemini** | Google Generative AI API | Set `GEMINI_API_KEY` or configure API key in Settings |
+| **Droid** | Native CLI / ACP | Install Droid CLI or configure runtime path in Settings |
+| **Kilo** | Kilo Runtime | Install `kilo` (`~/.kilo/bin/kilo`) or configure in Settings |
+| **OpenRouter** | Direct API | Configure OpenRouter API key in Settings for unified access to 100+ models |
+
+### Multi-instance & custom models
+
+- **Multiple Instances**: Run multiple accounts simultaneously for the same provider (e.g. `codex_personal` alongside `codex_work`).
+- **Custom Model Slugs**: Save additional model slugs and reasoning effort parameters directly in Settings or switch them using `/model`.
+- **Live Token & Cost Tracking**: Built-in usage metrics monitor token consumption, prompt caching, context limits, and cost across all active providers in real time.
 
 ## Quick start
 
@@ -62,7 +93,7 @@ Coding with an agent usually means juggling a chat window, an editor, terminals,
 - [Bun](https://bun.sh/) 1.3.9 or newer in the 1.3 line
 - [Node.js](https://nodejs.org/) 22.12 or newer (and `npm` for building the Code-OSS runtime)
 - Build tools (Python 3, C/C++ compiler toolchain) for compiling Code-OSS native modules
-- A local [Codex CLI](https://github.com/openai/codex) and/or Claude CLI installation
+- At least one authenticated provider CLI or API key (e.g., Codex, Claude Code, Cursor, Antigravity, or a Gemini/OpenRouter API key)
 
 ### 1. Compile the Code-OSS runtime (`tabs-code-main`)
 
@@ -117,13 +148,13 @@ The Electron shell owns the desktop window and native integrations. The React wo
 
 ### Technology
 
-| Area            | Stack                                                            |
-| --------------- | ---------------------------------------------------------------- |
-| Workspace UI    | React 19, Vite, Tailwind CSS, Zustand, TanStack Router and Query |
-| Desktop         | Electron with an embedded Code-OSS workbench                     |
-| Server          | Node.js, Effect, WebSocket, SQLite                               |
-| Agent providers | Codex app-server and Claude Agent SDK                            |
-| Tooling         | Bun, Turborepo, Vitest, Playwright, oxlint, oxfmt                |
+| Area            | Stack                                                                                       |
+| --------------- | ------------------------------------------------------------------------------------------- |
+| Workspace UI    | React 19, Vite, Tailwind CSS, Zustand, TanStack Router and Query                            |
+| Desktop         | Electron with an embedded Code-OSS workbench                                                |
+| Server          | Node.js, Effect, WebSocket, SQLite                                                          |
+| Agent providers | 11 drivers: Codex, Claude, Cursor, Copilot, Grok, OpenCode, Antigravity, Gemini, Droid, Kilo, OpenRouter |
+| Tooling         | Bun, Turborepo, Vitest, Playwright, oxlint, oxfmt                                           |
 
 ## Repository map
 
