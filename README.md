@@ -27,6 +27,20 @@
 > [!NOTE]
 > Tabs is under active development. Interfaces, workflows, and packaging may change between releases.
 
+> [!IMPORTANT]
+> **macOS Gatekeeper & Notarization Notice**:
+> Pre-built macOS releases are currently unsigned and not notarized because we do not have an active Apple Developer account.
+> If macOS blocks the app with a security warning (*"Tabs cannot be opened because Apple cannot check it for malicious software"* or *"unidentified developer"*):
+> 1. Open **System Settings** > **Privacy & Security**.
+> 2. Scroll down to the **Security** section where Tabs is listed as blocked.
+> 3. Click **Open Anyway** (and confirm with **Open**).
+> 
+> *Alternatively*, you can remove the quarantine attribute via Terminal:
+> ```bash
+> xattr -cr /Applications/Tabs.app
+> ```
+> Or compile and run Tabs locally from source following the steps below.
+
 ## Why Tabs
 
 Coding with an agent usually means juggling a chat window, an editor, terminals, Git tools, and browser tabs. Tabs brings those surfaces into one project-aware desktop app so the agent and the developer work from the same context.
@@ -46,29 +60,43 @@ Coding with an agent usually means juggling a chat window, an editor, terminals,
 ### Prerequisites
 
 - [Bun](https://bun.sh/) 1.3.9 or newer in the 1.3 line
-- Node.js 22.12 or newer
-- A local Codex CLI and/or Claude CLI installation
-- The compiled Code-OSS runtime in `tabs-code-main/`
+- [Node.js](https://nodejs.org/) 22.12 or newer (and `npm` for building the Code-OSS runtime)
+- Build tools (Python 3, C/C++ compiler toolchain) for compiling Code-OSS native modules
+- A local [Codex CLI](https://github.com/openai/codex) and/or Claude CLI installation
 
-### Install dependencies
+### 1. Compile the Code-OSS runtime (`tabs-code-main`)
+
+Tabs embeds a full Code-OSS (VS Code) workbench inside the desktop app. Before running Tabs locally, compile the sibling `tabs-code-main` runtime:
 
 ```bash
-cd tabs-main
+cd tabs-code-main
+npm install
+npm run compile
+```
+
+Tabs auto-detects `tabs-code-main` and verifies the core compiled assets:
+- `out/vs/base/parts/sandbox/electron-browser/preload.js`
+- `out/vs/code/electron-browser/workbench/workbench-dev.html`
+- `out-build/nls.messages.json`
+- `product.json`
+
+*(Tip: Run `npm run watch` if you are actively modifying the Code-OSS workbench).*
+
+### 2. Install Tabs dependencies
+
+```bash
+cd ../tabs-main
 bun install
 ```
 
-### Prepare Code-OSS
-
-The desktop app requires a compiled sibling checkout of `tabs-code-main`. If its compiled assets are missing, build that runtime using its documented toolchain before starting Tabs.
-
-### Launch the desktop app
+### 3. Launch the desktop app
 
 ```bash
-cd tabs-main
 bun run dev:desktop
 ```
 
-`dev:desktop` is the supported development entry point. The plain web development server does not provide Electron IPC, native editor hosting, or the desktop authentication bridge.
+> [!NOTE]
+> `bun run dev:desktop` is the ONLY supported development entry point. Never run `bun run dev` (without `:desktop`), which only opens a plain browser tab and lacks native Electron IPC, Code-OSS editor hosting, and the desktop authentication bridge.
 
 ## How it works
 
@@ -150,6 +178,9 @@ Sites remain responsible for their own authentication policies. Tabs does not co
 ## Releases
 
 Desktop installers are self-contained and bundle the compiled Code-OSS runtime.
+
+> [!NOTE]
+> **macOS Gatekeeper**: As noted above, pre-built `.dmg` releases are not notarized through an Apple Developer account. If macOS blocks the app on first launch, go to **System Settings > Privacy & Security** and click **Open Anyway**, or run `xattr -cr /Applications/Tabs.app`. Alternatively, compile and run Tabs locally from source.
 
 ```bash
 cd tabs-main
