@@ -1,0 +1,120 @@
+---
+import Download from "./Download.astro";
+import FooterSignature from "./FooterSignature.astro";
+import Icon from "./Icon.astro";
+import AgentRoster from "./AgentRoster.astro";
+import ReleaseLog from "./ReleaseLog.astro";
+import TabsLogo from "./TabsLogo.astro";
+import Workspace from "./Workspace.astro";
+import ConceptFiveWorkflow from "./ConceptFiveWorkflow.astro";
+import "../styles/concept-five.css";
+
+const repo = "https://github.com/PanicMako/Tabs-ide";
+---
+
+<article data-concept="5" class="sides" hidden>
+  <header class="sides-nav">
+    <a class="sides-mark" href="/#concept-5" aria-label="Tabs IDE home">
+      <TabsLogo size={30} /><span>Tabs<span class="sides-mark-ide">IDE</span></span>
+    </a>
+    <nav aria-label="Page navigation">
+      <a href="#sides-workspace" data-sides-work-link>The workspace</a>
+      <a href="/changelog">What's new</a>
+    </nav>
+    <a class="sides-nav-download" href="/downloads">Get Tabs <Icon name="ArrowUpRight" size={16} /></a>
+  </header>
+
+  <section class="sides-hero" aria-labelledby="sides-title">
+    <div class="sides-hero-copy">
+      <span class="sides-eyebrow"><span class="sides-little-tab" aria-hidden="true"></span>MORE THAN AN IDE · ALL YOUR PROJECTS IN ONE WINDOW</span>
+      <h1 id="sides-title">Bigger than<br />an IDE.<br /><em>One window.</em></h1>
+      <p>Work across multiple projects inside a single window. Switch codebases like browser tabs—zero window juggling, zero clutter, and nothing in your way.</p>
+      <Download compact />
+    </div>
+
+    <figure class="sides-hero-figure">
+      <div class="sides-project-composition" aria-hidden="true">
+        <div class="sides-project sides-project-back">
+          <div class="sides-project-label"><span class="sides-project-dot"></span>the side project <span class="sides-plus">+</span></div>
+          <div class="sides-back-content"><span>Just one more<br />good idea.</span><div class="sides-back-lines"><i></i><i></i><i></i></div></div>
+        </div>
+        <div class="sides-project sides-project-front">
+          <div class="sides-project-label"><span class="sides-project-dot"></span>the main thing <Icon name="ArrowUpRight" size={17} /></div>
+          <div class="sides-front-content">
+            <div class="sides-project-tools"><span><Icon name="Code2" size={14} /> Code</span><span><Icon name="Bot" size={14} /> Agent</span><span><Icon name="GitBranch" size={14} /> Git</span></div>
+            <span class="sides-project-greeting">Hello,<br /><em>possibility.</em></span>
+            <div class="sides-preview-row">
+              <div class="sides-code-fragment"><span>app.tsx</span><i></i><i></i><i></i></div>
+              <div class="sides-browser-fragment"><span><Icon name="Globe" size={12} /> localhost</span><b>It’s coming<br />together.</b><i></i></div>
+            </div>
+          </div>
+        </div>
+        <div class="sides-project-next"><span class="sides-project-dot"></span>the next idea <span class="sides-plus">+</span></div>
+        <span class="sides-art-note">Your whole project.<br /><em>Right here.</em><svg viewBox="0 0 72 45" fill="none"><path d="M3 5C10 32 38 42 63 21M46 22L65 20L63 38" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg></span>
+      </div>
+      <figcaption><span class="sides-caption-dot" aria-hidden="true"></span>Different projects. One familiar place.</figcaption>
+    </figure>
+  </section>
+
+  <div class="sides-tools-line" aria-label="Tools available in Tabs">
+    <span>Keep good company.</span>
+    <div><span>Code</span><i aria-hidden="true">/</i><span>Agents</span><i aria-hidden="true">/</i><span>Launchpad</span><i aria-hidden="true">/</i><span>Git</span><i aria-hidden="true">/</i><span>Browser</span><i aria-hidden="true">/</i><span>Testing</span></div>
+  </div>
+
+  <section class="sides-belief">
+    <div class="sides-belief-top"><span class="sides-eyebrow">A small change of scenery</span><span class="sides-belief-symbol" aria-hidden="true"><i></i><i></i></span></div>
+    <h2>Your attention<br />has better places<br />to <em>be.</em></h2>
+    <div class="sides-belief-bottom"><span class="sides-belief-aside">Less finding your place.<br />More going places.</span><p>An editor over here. An agent over there. A browser buried somewhere behind both. Tabs gives the whole project a home, with the tools you need sitting comfortably side by side.</p></div>
+  </section>
+
+  <section class="sides-details" aria-labelledby="sides-details-title">
+    <div class="sides-section-intro"><span class="sides-eyebrow">It all belongs together</span><h2 id="sides-details-title">All the little things.<br /><em>One bigger picture.</em></h2></div>
+    <div class="sides-detail-row">
+      <span class="sides-detail-number">01</span>
+      <h3>A tab for every<br />train of thought.</h3>
+      <p>The main project, a quick fix, that idea you had at lunch. Each project gets its own tab. Move between codebases without a new collection of windows.</p>
+      <div class="sides-mini-tabs" aria-hidden="true"><span><i></i>website</span><span><i></i>api</span><span>+</span></div>
+    </div>
+    <div class="sides-detail-row">
+      <span class="sides-detail-number">02</span>
+      <h3>Conversation meets<br />craft.</h3>
+      <p>Work through an idea with an agent, then get your hands on the code. The embedded Code OSS editor, terminal, and Git tools are always close.</p>
+      <div class="sides-mini-pair" aria-hidden="true"><span><Icon name="Bot" size={30} /></span><i>+</i><span><Icon name="Code2" size={30} /></span></div>
+    </div>
+    <div class="sides-detail-row">
+      <span class="sides-detail-number">03</span>
+      <h3>Make it.<br />Meet the result.</h3>
+      <p>Launch your local dev apps, open the browser, and inspect what changed. Keep the feedback loop beside the work that started it.</p>
+      <div class="sides-mini-preview" aria-hidden="true"><span><i></i>localhost:4173</span><div><i></i><i></i><i></i></div></div>
+    </div>
+  </section>
+
+  <div class="sides-providers"><AgentRoster eyebrow="GOOD COMPANY FOR GOOD IDEAS" title="Work with your kind of minds." description="Claude, Codex, and other supported agents. Bring your preferred collaborators through native and ACP integrations, with your code and tools right beside the conversation." /></div>
+
+  <section id="sides-workspace" class="sides-workspace" tabindex="-1" aria-label="Explore the Tabs workspace">
+    <div class="sides-workspace-note"><span class="sides-eyebrow">Make yourself at home</span><p>Here’s how everything fits.<br /><em>Take a look around.</em></p><Icon name="ArrowDown" size={30} /></div>
+    <Workspace variant="light" instance="concept-5" />
+  </section>
+
+  <ConceptFiveWorkflow />
+
+  <section class="sides-release" aria-label="Tabs releases"><ReleaseLog /></section>
+
+  <footer class="sides-end">
+    <div class="sides-end-heading"><span class="sides-eyebrow">A good place to begin</span><h2>Make yourself<br /><em>something.</em></h2><p>Your next project has a home.</p></div>
+    <Download />
+    <a class="sides-source" href={repo}>Made in the open. Come have a look. <Icon name="ArrowUpRight" size={18} /></a>
+    <FooterSignature concept={5} />
+  </footer>
+</article>
+
+<script>
+  document.querySelector("[data-sides-work-link]")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    const workspace = document.querySelector<HTMLElement>("#sides-workspace");
+    workspace?.focus({ preventScroll: true });
+    workspace?.scrollIntoView({
+      behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth",
+    });
+  });
+</script>

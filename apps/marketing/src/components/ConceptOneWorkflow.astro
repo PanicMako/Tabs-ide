@@ -1,0 +1,93 @@
+---
+import Icon from "./Icon.astro";
+import ToolSetupPaths from "./ToolSetupPaths.astro";
+---
+<section class="hs-workflow hs-wrap wf-editorial" aria-labelledby="hs-workflow-title">
+  <div class="hs-workflow-heading">
+    <div><span class="hs-eyebrow">ADD YOUR OWN TOOLS.</span><h2 id="hs-workflow-title">A URL. A CLI. A preset.<br /><em>At home in Tabs.</em></h2></div>
+    <p>Paste a website URL, save a terminal command, or configure the steps that start your app. Workspace settings turn them into browser tabs, terminal tabs, and Launchpad presets for this project.</p>
+  </div>
+  <ToolSetupPaths />
+
+  <article class="wf-row wf-web">
+    <div class="wf-copy"><span class="wf-index">01 / BROWSER TABS</span><h3>That other tab?<br /><em>Bring it here.</em></h3><p>Your Figma file. The docs you always reopen. A dashboard, a conversation, the team’s issue board. Save a URL and give it a name. Now it lives in this project’s toolbar.</p><div class="wf-detail"><Icon name="Globe" size={17}/><span>Choose a browser profile.<br />Pick up on the page you left open.</span></div></div>
+    <div class="wf-web-stage" aria-label="Illustration of web tools added to a project">
+      <div class="wf-stage-label"><span>YOUR PROJECT / YOUR TOOLS</span><Icon name="ArrowDown" size={16}/></div>
+      <div class="hs-custom-toolbar"><span class="wf-web-active"><Icon name="Globe" size={14}/> Design</span><span>Docs</span><span>Issues</span><span class="wf-web-plus">+</span></div>
+      <div class="wf-design-canvas" aria-hidden="true"><span class="wf-canvas-ruler">DESIGN FILE / CHECKOUT</span><div class="wf-design-art"><div class="wf-art-label">the next<br /><em>good idea.</em></div><div class="wf-art-shape"><span>✳</span></div><div class="wf-art-selection"><span>your idea, in view</span></div></div><div class="wf-url-slip"><Icon name="Globe" size={14}/><span>figma.com / your-project</span><Icon name="ArrowUpRight" size={14}/></div></div>
+      <p class="wf-embed-note">Some services restrict embedded pages or sign-in. Open them externally when needed; the shortcut stays in Tabs.</p>
+    </div>
+  </article>
+
+  <article class="wf-row wf-cli">
+    <div class="wf-copy"><span class="wf-index">02 / TERMINAL TABS</span><h3>A command line.<br /><em>A place of its own.</em></h3><p>Work with Claude Code or Codex CLI. Run a database console, a script, or your team’s own tools. Give each one a terminal tab, with its commands and working folder saved.</p><div class="wf-detail"><Icon name="Terminal" size={17}/><span>Your shell. Your commands.<br />One click from the rest of your work.</span></div></div>
+    <div class="wf-terminal" aria-label="Example terminal tool: Codex CLI">
+      <div class="wf-terminal-tabs"><span><i></i> Codex CLI</span><span>database</span><span>+</span></div>
+      <div class="wf-terminal-body"><span class="wf-terminal-path">~/projects/the-next-idea</span><p><b>❯</b> codex<span class="wf-terminal-caret" aria-hidden="true"></span></p><div class="wf-terminal-rule"></div><span class="wf-terminal-caption">The tools you already reach for.<br /><em>Right where the project is.</em></span></div>
+      <div class="wf-terminal-foot"><span>TERMINAL TOOL</span><span>Configured in Workspace</span></div>
+    </div>
+  </article>
+
+  <article class="wf-row wf-preset">
+    <div class="wf-copy"><span class="wf-index">03 / LAUNCHPAD PRESETS</span><h3>From “run this”<br /><em>to right here.</em></h3><p>Save the steps that start your app. Link your frontend and backend presets, set a preview URL, and enable auto-switch. Run the preset and arrive in Browser with your app in view.</p><div class="wf-detail"><Icon name="ArrowUpRight" size={17}/><span>Commands → local app → preview.<br />Try the example to follow the flow.</span></div></div>
+      <div class="hs-preset-console" data-preset-demo>
+        <div class="hs-preset-head"><span>CHECKOUT WORKSPACE</span><b>INTERACTIVE EXAMPLE</b></div>
+        <div class="hs-preset-stack">
+          <div data-preset-step><i>01</i><span>FRONTEND</span><code>cd apps/web &amp;&amp; bun dev</code><b>4173</b></div>
+          <div data-preset-step><i>02</i><span>API</span><code>cd apps/api &amp;&amp; bun start</code><b>3000</b></div>
+          <div data-preset-step><i>03</i><span>WORKER</span><code>cd workers/jobs &amp;&amp; bun dev</code><b>WORKER</b></div>
+        </div>
+        <button type="button" class="hs-preset-action" data-preset-run>Run example <span aria-hidden="true">↗</span></button>
+        <div class="hs-preset-preview" data-preset-preview hidden><Icon name="Globe" size={18} /><span><small>BROWSER / localhost:4173</small>Your preview. Already open.</span><span aria-hidden="true">↗</span></div>
+        <p class="hs-demo-status" data-preset-status role="status">Try the flow: saved steps → running app → Browser.</p>
+      </div>
+
+  </article>
+</section>
+<style>
+  .wf-editorial { padding-block:110px; }
+  .wf-editorial .hs-workflow-heading { margin-bottom:72px; }
+  .wf-row { display:grid; grid-template-columns:.85fr 1.15fr; gap:9%; padding:64px 0; border-top:1px solid #dce3f0; align-items:center; }
+  .wf-index { color:#758097; font:11px monospace; letter-spacing:.09em; }
+  .wf-copy h3 { font-size:clamp(32px,3.4vw,48px); font-weight:500; letter-spacing:-2px; line-height:1.08; margin:24px 0; }
+  .wf-copy h3 em { font-style:normal; color:#3458f5; }
+  .wf-copy > p { color:#657087; font-size:16px; line-height:1.75; max-width:380px; }
+  .wf-detail { display:flex; gap:12px; align-items:flex-start; border-top:1px solid #e4e9f3; padding-top:22px; margin-top:30px; color:#657087; font-size:12px; line-height:1.75; }
+  .wf-detail :global(svg) { color:#3458f5; flex-shrink:0; margin-top:3px; }
+  .wf-web-stage { background:#edf2fc; padding:28px; border-radius:4px; }
+  .wf-stage-label { display:flex; justify-content:space-between; align-items:center; font:10px monospace; letter-spacing:.06em; color:#697b9c; margin-bottom:25px; }
+  .wf-web-stage .hs-custom-toolbar { margin:0; padding:0 0 0 12px; border:0; border-radius:0; box-shadow:none; gap:3px; background:none; }
+  .wf-web-stage .hs-custom-toolbar > span { border:0; border-radius:8px 8px 0 0; padding:12px 18px; background:#e0e8f8; color:#6a7c9f; font-size:12px; font-weight:400; }
+  .wf-web-stage .hs-custom-toolbar > .wf-web-active { background:white; color:#3458f5; }
+  .wf-web-stage .hs-custom-toolbar > .wf-web-plus { background:none; margin-left:auto; font-size:18px; padding-inline:8px; }
+  .wf-design-canvas { padding:20px; background:white; border-radius:10px; box-shadow:0 12px 25px #26314908; }
+  .wf-canvas-ruler { font:9px monospace; color:#9ba4b4; letter-spacing:.07em; }
+  .wf-design-art { display:flex; align-items:center; position:relative; min-height:175px; margin:20px 0; padding:22px; background:#f4f6fb; }
+  .wf-art-label { position:relative; z-index:1; font-size:32px; letter-spacing:-1.5px; line-height:1.04; color:#293859; }
+  .wf-art-label em { font-weight:400; font-style:normal; color:#3458f5; }
+  .wf-art-shape { margin-left:auto; background:#d3eade; width:106px; height:120px; border-radius:60px 60px 8px 8px; display:grid; place-items:center; transform:rotate(10deg); }
+  .wf-art-shape span { font-size:65px; color:#537867; }
+  .wf-art-selection { position:absolute; inset:13px; border:1px solid #809af3; pointer-events:none; }
+  .wf-art-selection::before,.wf-art-selection::after { content:""; position:absolute; width:5px; height:5px; border:1px solid #809af3; background:white; top:-3px; left:-3px; }
+  .wf-art-selection::after { top:auto; left:auto; bottom:-3px; right:-3px; }
+  .wf-art-selection span { position:absolute; right:-1px; bottom:-18px; background:#3458f5; color:white; font:9px monospace; padding:4px 7px; }
+  .wf-url-slip { display:flex; align-items:center; gap:9px; padding-top:18px; color:#8894ab; font:11px monospace; }
+  .wf-url-slip :global(svg:last-child) { margin-left:auto; }
+  .wf-embed-note { font-size:12px; line-height:1.65; margin:20px 0 0; color:#73829c; }
+  .wf-terminal { border-radius:10px; background:#222d46; color:#dce4f4; overflow:hidden; box-shadow:10px 12px 0 #edf1f9; transform:rotate(-1deg); }
+  .wf-terminal-tabs { display:flex; gap:26px; border-bottom:1px solid #ffffff15; padding:18px 24px; font-size:12px; color:#9eaecb; }
+  .wf-terminal-tabs span:first-child { color:white; }
+  .wf-terminal-tabs i { display:inline-block; width:5px; height:5px; border-radius:50%; background:#b8d9c9; margin-right:7px; }
+  .wf-terminal-body { padding:36px; }
+  .wf-terminal-path { font:11px monospace; color:#92a5c6; }
+  .wf-terminal-body p { font:24px monospace; margin:22px 0 36px; }
+  .wf-terminal-body b { color:#b8d9c9; font-weight:400; margin-right:10px; }
+  .wf-terminal-caret { display:inline-block; height:22px; width:9px; background:#c9d6f1; vertical-align:middle; margin-left:5px; }
+  .wf-terminal-rule { width:45px; height:1px; background:#6d7fa1; margin-bottom:22px; }
+  .wf-terminal-caption { font-size:16px; color:#a5b4cd; line-height:1.6; }
+  .wf-terminal-caption em { font-style:normal; color:#f0f3fb; }
+  .wf-terminal-foot { display:flex; justify-content:space-between; padding:16px 24px; border-top:1px solid #ffffff15; font:10px monospace; color:#92a5c6; gap:15px; }
+  .wf-preset :global(.hs-preset-console) { padding:26px; }
+  @media(max-width:800px) { .wf-row { grid-template-columns:1fr; gap:32px; padding:44px 0; } .wf-copy > p { max-width:100%; } .wf-editorial { padding-block:65px; } .wf-editorial .hs-workflow-heading { margin-bottom:40px; } .wf-detail { margin-top:20px; } }
+  @media(max-width:450px) { .wf-web-stage { padding:18px; } .wf-design-canvas { padding:15px; } .wf-art-label { font-size:26px; } .wf-art-shape { width:65px; height:90px; } .wf-art-shape span { font-size:42px; } .wf-terminal-body { padding:26px; } .wf-preset :global(.hs-preset-console) { padding:16px; } .wf-terminal { transform:none; } }
+</style>

@@ -1,0 +1,42 @@
+---
+import Layout from "../layouts/Layout.astro";
+---
+<Layout title="Feedback | Tabs IDE" description="Share feedback, report a bug, or suggest an improvement to Tabs IDE.">
+  <section class="feedback" aria-labelledby="feedback-heading">
+    <a class="back" href="/">&larr; Back to Tabs</a>
+    <p class="eyebrow">BUILT IN THE OPEN</p>
+    <h1 id="feedback-heading">Help shape Tabs.</h1>
+    <p class="intro">Something broken? Have an idea? Tell us what would make your workspace better.</p>
+    <form action="https://github.com/PanicMako/Tabs-ide/issues/new" method="get" aria-describedby="submission-note">
+      <input type="hidden" name="template" value="feedback.md" />
+      <label for="feedback-title">Summary</label>
+      <input id="feedback-title" name="title" required maxlength="120" placeholder="A short description of your feedback" />
+      <label for="feedback-body">Your feedback</label>
+      <textarea id="feedback-body" name="body" required maxlength="1500" rows="8" placeholder="Describe your idea or issue. For bugs, include your operating system, Tabs version, and steps to reproduce."></textarea>
+      <p id="submission-note">Continue to GitHub to review and submit. A GitHub account is required. Submissions are public; leave out passwords, API keys, and personal information.</p>
+      <button type="submit">Continue to GitHub &rarr;</button>
+    </form>
+    <div class="inbox"><h2>Follow the conversation.</h2><p>Browse submitted feedback and issues, see replies, and check progress.</p><a href="https://github.com/PanicMako/Tabs-ide/issues">View feedback and issues &rarr;</a></div>
+    <noscript><p>This form works without JavaScript.</p></noscript>
+  </section>
+</Layout>
+<style>
+  .feedback { width: min(100%, 720px); padding: 3rem 1.5rem 6rem; }
+  .back { display: inline-block; color: var(--fg-muted); margin-bottom: 4rem; }
+  .eyebrow { font-size: .75rem; letter-spacing: .16em; color: var(--fg-muted); margin-bottom: 1rem; }
+  h1 { font-size: clamp(2.5rem, 7vw, 4.5rem); line-height: 1.08; letter-spacing: -.045em; }
+  .intro { color: var(--fg-muted); line-height: 1.7; margin: 1.5rem 0 2.5rem; font-size: 1.1rem; }
+  form { display: grid; gap: .85rem; }
+  label { font-size: .9rem; font-weight: 500; }
+  input:not([type="hidden"]), textarea { width: 100%; background: #141417; border: 1px solid #414149; border-radius: 12px; color: var(--fg); font: inherit; padding: 1rem; }
+  textarea { resize: vertical; min-height: 160px; }
+  label:not(:first-of-type) { margin-top: .75rem; }
+  #submission-note { font-size: .85rem; line-height: 1.6; color: var(--fg-muted); }
+  button { justify-self: start; margin-top: .75rem; padding: 1rem 1.5rem; border: 1px solid transparent; border-radius: 999px; background: var(--fg); color: var(--bg); font: inherit; font-weight: 600; cursor: pointer; }
+  button:hover { background: #d4d4d8; }
+  a:hover { color: var(--fg); text-decoration: underline; }
+  :is(a, button, input, textarea):focus-visible { outline: 3px solid #a5b4fc; outline-offset: 4px; }
+  .inbox { margin-top: 3rem; padding-top: 2rem; border-top: 1px solid #414149; }
+  h2 { font-size: 1.25rem; }
+  .inbox p { color: var(--fg-muted); line-height: 1.6; margin: .75rem 0 1rem; }
+</style>

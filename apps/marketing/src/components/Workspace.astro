@@ -1,0 +1,760 @@
+---
+import Icon from "./Icon.astro";
+const { variant = "light", instance = "default" } = Astro.props;
+
+const tools = [
+  ["code",    "Code",    "Edit in Code OSS with native file access and real VS Code extensions.",               "Code2",      ["Code OSS Core", "VS Code Extensions", "Native FS"]],
+  ["agents",  "Agents",  "Project conversations with your agents. Start a thread, choose a model, work through changes.", "Bot",  ["Conversations", "Provider Choice", "ACP Integrations"]],
+  ["server",  "Launchpad",  "Save frontend and backend presets or open terminal sessions. Auto-open previews in Browser.", "Rocket",   ["Launchpad Presets", "Dedicated Terminals", "Port Status"]],
+  ["git",     "Git",     "Review diffs, manage branches, and work with Git through a visual interface.",         "GitBranch",  ["Staged Diffs", "Branch & PR Sync", "Commit Graphs"]],
+  ["browser", "Browser", "Open any URL, preview local apps, inspect the DOM beside your code.",                  "Globe",      ["Browser Tabs", "App Previews", "DevTools"]],
+  ["testing", "Testing", "Early access. Recorded journeys and repeatable checks. Enable in Workspace settings.", "CheckCircle",["Disabled by Default", "Journeys", "Screenshots"]],
+] as const;
+const headlines: Record<string, string> = {
+  code: "Your editor. Fully at home.", agents: "A conversation that stays with the project.",
+  server: "From saved presets to running terminals and apps.", git: "See the change before you ship it.",
+  browser: "Your app, ready for a closer look.", testing: "Turn a journey into a repeatable check.",
+};
+---
+
+<section
+  class:list={["product-tour", variant]}
+  data-product-tour
+  data-instance={instance}
+>
+  <div class="tour-kicker">
+    <span>INSIDE TABS</span>
+    <span>ONE WINDOW / ALL YOUR PROJECTS &amp; TOOLS</span>
+  </div>
+
+  <!-- Studio: One unified container -->
+  <div class="tour-studio tour-gallery" data-preview-theme={variant === "light" ? "light" : "dark"}>
+
+    <!-- Sidebar: Navigation + active tool details live here -->
+    <div class="tour-sidebar">
+
+      <nav class="tour-nav" role="tablist" aria-label="Tabs IDE tools" aria-orientation="horizontal">
+        {tools.map(([id, name, , icon], i) => (
+          <div class:list={["tour-tool-slot", { "is-active": i === 0 }]} data-tool-slot={id}>
+            <button
+              type="button"
+              role="tab"
+              id={`tour-tab-${instance}-${id}`}
+              aria-controls={`panel-screen-${instance}-${id}`}
+              aria-selected={i === 0}
+              tabindex={i === 0 ? 0 : -1}
+              data-tour-tab={id}
+              class="tour-tool-btn"
+            >
+              <span class="tool-num" aria-hidden="true">0{i + 1}</span>
+              <span class="tool-icon"><Icon name={icon} size={16} /></span>
+              <span class="tool-name">{name}</span>
+            </button>
+
+          </div>
+        ))}
+      </nav>
+
+      <!-- Sidebar Footer: Theme Toggle + Keyboard Hint -->
+      <div class="tour-sidebar-foot">
+        <span class="gallery-label">THE WORKSPACE, UP CLOSE <span aria-hidden="true">↘</span></span>
+        <div class="tour-theme-pill" role="group" aria-label="Screenshot theme">
+          <button type="button" data-tour-theme="light" aria-pressed={variant === "light" ? "true" : "false"} class="theme-seg">
+            <Icon name="Sun" size={14} />
+            <span>Light</span>
+          </button>
+          <button type="button" data-tour-theme="dark" aria-pressed={variant !== "light" ? "true" : "false"} class="theme-seg">
+            <Icon name="Moon" size={14} />
+            <span>Dark</span>
+          </button>
+        </div>
+        <span class="tour-keys" aria-hidden="true">← → · 1–6</span>
+      </div>
+    </div>
+
+    <!-- Preview: Full desktop window -->
+    <div class="tour-preview">
+      <div class="tour-chrome">
+        <div class="chrome-dots" aria-hidden="true"><i></i><i></i><i></i></div>
+        <span class="chrome-path">Tabs — <span data-active-window-title>Code</span></span>
+        <span class="chrome-badge" data-active-window-badge>CODE</span>
+      </div>
+      <div class="tour-viewport">
+        {tools.map(([id, name, copy, , details], i) => (
+          <div
+            role="tabpanel"
+            id={`panel-screen-${instance}-${id}`}
+            aria-label={`Tabs ${name} tool window preview`}
+            aria-labelledby={`tour-tab-${instance}-${id}`}
+            tabindex="0"
+            hidden={i !== 0}
+            data-screen-panel={id}
+            class="tour-screen"
+          >
+            <div class="gallery-summary">
+              <div><span class="gallery-chapter">0{i+1} / {id === "testing" ? "TESTING · EARLY ACCESS" : name.toUpperCase()}</span><h3>{headlines[id]}</h3></div>
+              <div class="gallery-description"><p>{copy}</p><ul>{details.map(detail=><li>{detail}</li>)}</ul></div>
+            </div>
+            <div class="gallery-image-stage">
+            <img
+              data-tour-image
+              data-light={`/product/${id}-light.png`}
+              data-dark={`/product/${id}-dark.png`}
+              src={variant === "light" ? `/product/${id}-light.png` : `/product/${id}-dark.png`}
+              alt={`Tabs IDE ${name} tool preview`}
+              width="1920"
+              height="1204"
+              loading={i === 0 ? "eager" : "lazy"}
+              decoding="async"
+              onerror="this.closest('.tour-screen')?.classList.add('image-missing')"
+            />
+            <div class="tour-fallback" aria-hidden="true">
+              <span>{name}</span>
+              <strong>{copy}</strong>
+              <div><i></i><i></i><i></i></div>
+            </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Diagnostics Window Showcase (Performance Monitor) -->
+  <div class="diagnostics-window-showcase">
+    <div class="diagnostics-window-stage">
+      <div class="diagnostics-window-frame">
+        <img
+          src="/product/resources-explorer.png"
+          alt="Tabs Resources Explorer showing CPU, memory, disk, network, and per-process diagnostics"
+          width="1010"
+          height="689"
+          loading="lazy"
+          decoding="async"
+          class="resources-explorer-window"
+        />
+      </div>
+    </div>
+    <div class="diagnostics-window-content">
+      <div class="diagnostics-kicker">
+        <span class="eyebrow">RESOURCE EXPLORER · BUILT-IN PERFORMANCE MONITOR</span>
+      </div>
+      <h3 class="diagnostics-heading">
+        See what's using<br />
+        <em>your CPU and memory.</em>
+      </h3>
+      <p class="diagnostics-intro">
+        Check CPU, memory, disk, and network usage without leaving Tabs. Open Resource Explorer over your current tool to inspect running processes and investigate slowdowns.
+      </p>
+      <div class="diagnostics-facts">
+        <div><b>01</b><span><strong>Check resource usage</strong><small>See live CPU, memory, disk, and network activity.</small></span></div>
+        <div><b>02</b><span><strong>Inspect running processes</strong><small>Explore the process tree and see which processes are using resources.</small></span></div>
+        <div><b>03</b><span><strong>Investigate a slowdown</strong><small>Use AI Diagnose for help or export a report to share.</small></span></div>
+      </div>
+      <div class="diagnostics-meta-row" aria-hidden="true">
+        <span class="diag-meta-tag">OPEN FROM ANY TOOL</span>
+        <span class="diag-meta-tag shortcut"><kbd>⌥⌘E</kbd> OPEN POP-UP</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+/* ==========================================================================
+   Workspace Product Tour — Studio Showcase
+   ========================================================================== */
+
+.product-tour {
+  margin: 0 0 80px;
+  color: inherit;
+}
+
+.tour-kicker {
+  display: flex;
+  justify-content: space-between;
+  gap: 28px;
+  border-bottom: 1px solid currentColor;
+  padding-bottom: 15px;
+  font: 10px/1.4 monospace;
+  letter-spacing: 0.14em;
+  margin-bottom: 28px;
+  opacity: 0.75;
+}
+
+/* --------------------------------------------------------------------------
+   Studio Container
+   -------------------------------------------------------------------------- */
+.tour-studio {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  border-radius: 20px;
+  overflow: hidden;
+  background: #ffffff;
+  border: 1px solid #dce2ee;
+  box-shadow:
+    0 0 0 1px rgba(50, 89, 237, 0.04),
+    0 2px 4px rgba(32, 43, 68, 0.02),
+    0 12px 40px -8px rgba(32, 43, 68, 0.08);
+}
+
+@media (max-width: 920px) {
+  .tour-studio { grid-template-columns: 1fr; }
+}
+
+/* --------------------------------------------------------------------------
+   Sidebar
+   -------------------------------------------------------------------------- */
+.tour-sidebar {
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, #f7f9fe 0%, #f0f3fb 100%);
+  border-right: 1px solid #e4e9f3;
+  padding: 0;
+}
+
+@media (max-width: 920px) {
+  .tour-sidebar { border-right: 0; border-bottom: 1px solid #e4e9f3; }
+}
+
+.tour-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 10px;
+  flex: 1;
+}
+
+@media (max-width: 920px) {
+  .tour-nav {
+    flex-direction: row;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 10px;
+    gap: 6px;
+  }
+}
+
+/* --- Tool Slot: button + expandable detail --- */
+.tour-tool-slot {
+  border-radius: 12px;
+  transition: background 0.25s ease;
+}
+
+.tour-tool-slot.is-active {
+  background: #ffffff;
+  box-shadow:
+    0 1px 3px rgba(32, 43, 68, 0.06),
+    0 6px 16px -4px rgba(50, 89, 237, 0.08);
+}
+
+@media (max-width: 920px) {
+  .tour-tool-slot {
+    flex: 0 0 auto;
+  }
+  .tour-tool-slot.is-active {
+    box-shadow: 0 1px 4px rgba(32, 43, 68, 0.08);
+  }
+}
+
+.tour-tool-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 14px 16px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: #636c7b;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.tour-tool-btn:hover {
+  color: var(--hs-ink, #202b44);
+}
+
+.tour-tool-slot.is-active .tour-tool-btn {
+  color: var(--hs-ink, #202b44);
+  font-weight: 600;
+}
+
+.tool-num {
+  font: 10px/1 monospace;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #b0b8ca;
+  min-width: 16px;
+  transition: color 0.2s ease;
+}
+
+.tour-tool-slot.is-active .tool-num {
+  color: var(--hs-blue, #3259ed);
+}
+
+.tool-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  color: #9aa5be;
+  transition: color 0.2s ease;
+}
+
+.tour-tool-slot.is-active .tool-icon {
+  color: var(--hs-blue, #3259ed);
+}
+
+.tool-name {
+  flex: 1;
+}
+
+/* Expanded Tool Detail — only visible on active slot */
+.tour-tool-detail {
+  display: none;
+  padding: 0 16px 14px;
+  animation: detail-enter 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.tour-tool-slot.is-active .tour-tool-detail {
+  display: block;
+}
+
+@media (max-width: 920px) {
+  .tour-tool-detail { display: none !important; }
+}
+
+@keyframes detail-enter {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.tool-copy {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: #636c7b;
+  margin: 0 0 10px;
+  padding-left: 26px;
+}
+
+.tool-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding-left: 26px;
+}
+
+.tool-tag {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 5px;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--hs-blue, #3259ed);
+  background: rgba(50, 89, 237, 0.06);
+}
+
+/* --- Sidebar Footer: Theme Toggle + Shortcut --- */
+.tour-sidebar-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 14px 16px;
+  border-top: 1px solid #e4e9f3;
+  gap: 10px;
+}
+
+@media (max-width: 920px) {
+  .tour-sidebar-foot { display: none; }
+}
+
+/* Premium Theme Pill Toggle */
+.tour-theme-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 10px;
+  padding: 3px;
+  background: #e8ecf5;
+  gap: 2px;
+}
+
+.theme-seg {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #7b8ba8;
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  line-height: 1;
+}
+
+.theme-seg:hover:not([aria-pressed="true"]) {
+  color: var(--hs-ink, #202b44);
+}
+
+.theme-seg[aria-pressed="true"] {
+  background: #ffffff;
+  color: var(--hs-ink, #202b44);
+  font-weight: 600;
+  box-shadow:
+    0 1px 3px rgba(32, 43, 68, 0.08),
+    0 4px 12px -2px rgba(32, 43, 68, 0.06);
+}
+
+.theme-seg[aria-pressed="true"][data-tour-theme="light"] svg {
+  color: #d97706;
+}
+
+.theme-seg[aria-pressed="true"][data-tour-theme="dark"] svg {
+  color: var(--hs-blue, #3259ed);
+}
+
+.tour-keys {
+  font: 9px monospace;
+  letter-spacing: 0.1em;
+  color: #b0b8ca;
+}
+
+/* --------------------------------------------------------------------------
+   Preview Area
+   -------------------------------------------------------------------------- */
+.tour-preview {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: #ffffff;
+}
+
+/* Preview Chrome / Titlebar */
+.tour-chrome {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 38px;
+  padding: 0 16px;
+  background: #f5f7fc;
+  border-bottom: 1px solid #e8ecf5;
+  flex-shrink: 0;
+  transition: background 0.3s ease, border-color 0.3s ease;
+}
+
+.chrome-dots {
+  display: flex;
+  gap: 5px;
+}
+
+.chrome-dots i {
+  display: block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+.chrome-dots i:nth-child(1) { background: #ff5f56; }
+.chrome-dots i:nth-child(2) { background: #ffbd2e; }
+.chrome-dots i:nth-child(3) { background: #27c93f; }
+
+.chrome-path {
+  flex: 1;
+  font: 10.5px/1 monospace;
+  color: #636c7b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: color 0.3s ease;
+}
+
+.chrome-badge {
+  font: 9px/1 monospace;
+  font-weight: 700;
+  padding: 3px 7px;
+  border-radius: 5px;
+  background: rgba(50, 89, 237, 0.08);
+  color: var(--hs-blue, #3259ed);
+  letter-spacing: 0.06em;
+}
+
+/* Screenshot Viewport */
+.tour-viewport {
+  position: relative;
+  width: 100%;
+  background: #0e1117;
+  aspect-ratio: 16 / 10.04;
+  overflow: hidden;
+}
+
+.tour-screen {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.tour-screen[hidden] { display: none; }
+
+.tour-screen img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top center;
+  display: block;
+}
+
+.tour-fallback {
+  position: absolute;
+  inset: 0;
+  display: none;
+  padding: 7%;
+  background:
+    radial-gradient(circle at 80% 10%, #4265ff55, transparent 40%),
+    linear-gradient(145deg, #171719, #26262b);
+  color: #fff;
+}
+
+.tour-screen.image-missing img { display: none; }
+.tour-screen.image-missing .tour-fallback { display: block; }
+
+.tour-fallback span { font: 12px monospace; letter-spacing: 0.15em; }
+.tour-fallback strong { display: block; max-width: 650px; font-size: 24px; margin: 12px 0 20px; line-height: 1.35; }
+
+/* --------------------------------------------------------------------------
+   Dark Preview Theme — shifts only the preview chrome
+   -------------------------------------------------------------------------- */
+.tour-studio[data-preview-theme="dark"] .tour-chrome {
+  background: #171d2b;
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+
+.tour-studio[data-preview-theme="dark"] .chrome-path {
+  color: #8a95b0;
+}
+
+.tour-studio[data-preview-theme="dark"] .chrome-badge {
+  background: rgba(50, 89, 237, 0.18);
+  color: #8aa4ff;
+}
+
+/* --------------------------------------------------------------------------
+   Intrinsic dark page variant
+   -------------------------------------------------------------------------- */
+.product-tour.dark .tour-studio {
+  background: #131824;
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 16px 50px -10px rgba(0, 0, 0, 0.45);
+}
+
+.product-tour.dark .tour-sidebar {
+  background: linear-gradient(180deg, #111622 0%, #0f1320 100%);
+  border-right-color: rgba(255, 255, 255, 0.06);
+}
+
+.product-tour.dark .tour-tool-slot.is-active {
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.product-tour.dark .tour-tool-btn { color: #7b8ba8; }
+.product-tour.dark .tour-tool-slot.is-active .tour-tool-btn { color: #e7edff; }
+.product-tour.dark .tool-copy { color: #7b8ba8; }
+.product-tour.dark .tool-tag {
+  color: #8aa4ff;
+  background: rgba(50, 89, 237, 0.12);
+}
+
+.product-tour.dark .tour-sidebar-foot {
+  border-top-color: rgba(255, 255, 255, 0.06);
+}
+
+.product-tour.dark .tour-theme-pill {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.product-tour.dark .theme-seg { color: #7b8ba8; }
+.product-tour.dark .theme-seg:hover:not([aria-pressed="true"]) { color: #e7edff; }
+.product-tour.dark .theme-seg[aria-pressed="true"] {
+  background: rgba(255, 255, 255, 0.1);
+  color: #e7edff;
+  box-shadow: none;
+}
+
+.product-tour.dark .tour-preview { background: #131824; }
+.product-tour.dark .tour-chrome {
+  background: #171d2b;
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+.product-tour.dark .chrome-path { color: #7b8ba8; }
+
+/* Reduced Motion */
+.tour-studio.tour-gallery { display:flex; flex-direction:column; border:0; border-radius:0; overflow:visible; background:transparent; box-shadow:none; }
+.tour-studio.tour-gallery .tour-sidebar { display:flex; flex-direction:column; padding:0; gap:0; background:transparent; border:0; }
+.tour-studio.tour-gallery .tour-sidebar-foot { display:flex; order:-1; padding:0 0 22px; border:0; gap:16px; }
+.tour-gallery .gallery-label { margin-right:auto; font:9px/1.5 monospace; letter-spacing:.12em; color:#636c7b; }
+.tour-gallery .gallery-label span { color:#3259ed; margin-left:15px; font-size:22px; }
+.tour-gallery .tour-keys { display:none; }
+.tour-studio.tour-gallery .tour-nav { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); padding:0; gap:0; overflow:visible; border-block:1px solid #dce2ee; }
+.tour-studio.tour-gallery .tour-tool-slot { border-radius:0; background:transparent; box-shadow:none; min-width:0; }
+.tour-studio.tour-gallery .tour-tool-btn { position:relative; display:grid; grid-template-columns:20px 1fr; gap:10px; padding:24px 18px; border-radius:0; transition:background .25s,color .25s; }
+.tour-gallery .tour-tool-btn::after { content:""; position:absolute; bottom:-1px; left:16px; right:16px; height:3px; background:#3259ed; transform:scaleX(0); transform-origin:left; transition:transform .35s cubic-bezier(.22,1,.36,1); }
+.tour-gallery .is-active .tour-tool-btn::after { transform:scaleX(1); }
+.tour-studio.tour-gallery .is-active .tour-tool-btn { color:#3259ed; background:#f0f3ff; }
+.tour-studio.tour-gallery .tour-tool-btn:hover { background:#f0f3ff; }
+.tour-gallery .tool-num { grid-column:1 / -1; font-size:9px; font-weight:400; }
+.tour-gallery .tour-preview { background:transparent; }
+.tour-gallery .tour-chrome { display:none; }
+.tour-studio.tour-gallery .tour-viewport { aspect-ratio:auto; background:transparent; overflow:visible; }
+.tour-studio.tour-gallery .tour-screen { position:relative; inset:auto; height:auto; background:transparent; border:0; border-radius:0; overflow:visible; }
+.tour-gallery .gallery-summary { display:grid; grid-template-columns:1fr 1fr; align-items:center; gap:60px; padding:38px 8px; min-height:190px; box-sizing:border-box; }
+.tour-gallery .gallery-chapter { font:9px/1.6 monospace; letter-spacing:.1em; color:#636c7b; }
+.tour-gallery .gallery-summary h3 { margin:12px 0 0; font-family:"Instrument Serif",Georgia,serif; font-style:italic; font-weight:400; font-size:clamp(32px,3.5vw,48px); line-height:1.05; letter-spacing:-.025em; color:#3259ed; max-width:500px; }
+.tour-gallery .gallery-description p { margin:0; font-size:14px; line-height:1.75; color:#636c7b; }
+.tour-gallery .gallery-description ul { display:flex; flex-wrap:wrap; gap:9px 20px; padding:0; margin:16px 0 0; list-style:none; }
+.tour-gallery .gallery-description li { font-size:10px; line-height:1.6; color:#354461; }
+.tour-gallery .gallery-description li::before { content:"+"; color:#3259ed; margin-right:7px; }
+.tour-gallery .gallery-image-stage { position:relative; padding:22px; background:#eaf0fb; border:1px solid #d4def1; border-radius:18px; }
+.tour-studio.tour-gallery .tour-screen img { width:100%; max-width:1040px; margin-inline:auto; height:auto; aspect-ratio:1920 / 1204; object-fit:contain; background:#fff; border:1px solid #cad4e8; border-radius:10px; box-shadow:0 15px 35px #20345c12; box-sizing:border-box; }
+.tour-gallery[data-preview-theme="dark"] .gallery-image-stage { background:#e2e9f8; }
+.tour-gallery .tour-screen.image-missing .gallery-image-stage { min-height:360px; }
+.tour-gallery .tour-fallback { border-radius:16px; }
+.tour-gallery :is(button,[role="tabpanel"]):focus-visible { outline:2px solid #3259ed; outline-offset:4px; }
+@media(max-width:700px) {
+  .tour-studio.tour-gallery .tour-nav { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .tour-studio.tour-gallery .tour-tool-btn { padding:15px 12px; font-size:12px; gap:7px; }
+  .tour-gallery .tool-num { display:none; }
+  .tour-gallery .gallery-summary { grid-template-columns:1fr; gap:20px; padding:28px 0; min-height:0; }
+  .tour-gallery .gallery-image-stage { padding:8px; border-radius:12px; }
+  .tour-gallery .gallery-label { font-size:8px; max-width:130px; }
+  .tour-gallery .gallery-label span { display:none; }
+  .tour-gallery .gallery-summary h3 { font-size:36px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tour-gallery .tour-tool-btn::after { transition:none; }
+  .tour-tool-detail,
+  .tour-tool-btn,
+  .theme-seg,
+  .tour-chrome { transition: none !important; animation: none !important; }
+}
+</style>
+
+<script>
+const toolNames: Record<string, string> = {
+  code: "Code", agents: "Agents", server: "Launchpad",
+  git: "Git", browser: "Browser", testing: "Testing",
+};
+
+const toolOrder = ["code", "agents", "server", "git", "browser", "testing"] as const;
+
+for (const tour of document.querySelectorAll<HTMLElement>("[data-product-tour]")) {
+  const motion = matchMedia("(prefers-reduced-motion: reduce)");
+  const animations = new Set<Animation>();
+  let themeRevision = 0;
+  let activeToolId = "code";
+
+  const reveal = (el: Element | null) => {
+    if (!el || motion.matches) return;
+    el.getAnimations().forEach((a) => a.cancel());
+    const anim = el.animate(
+      [{ opacity: 0.3, transform: "translateY(5px) scale(0.998)" },
+       { opacity: 1, transform: "translateY(0) scale(1)" }],
+      { duration: 360, easing: "cubic-bezier(0.16, 1, 0.3, 1)" },
+    );
+    animations.add(anim);
+    const forget = () => animations.delete(anim);
+    anim.addEventListener("finish", forget, { once: true });
+    anim.addEventListener("cancel", forget, { once: true });
+  };
+
+  motion.addEventListener("change", () => {
+    if (motion.matches) animations.forEach((a) => a.cancel());
+  });
+
+  const selectTool = (id: string, animate = true) => {
+    if (!id) return;
+    const changed = activeToolId !== id;
+    activeToolId = id;
+
+    // Sync nav buttons
+    tour.querySelectorAll<HTMLButtonElement>(".tour-tool-btn").forEach((btn) => {
+      const on = btn.dataset.tourTab === id;
+      btn.setAttribute("aria-selected", String(on));
+      btn.tabIndex = on ? 0 : -1;
+    });
+
+    // Sync tool slots (expand/collapse)
+    tour.querySelectorAll<HTMLElement>("[data-tool-slot]").forEach((slot) => {
+      slot.classList.toggle("is-active", slot.dataset.toolSlot === id);
+    });
+
+    // Sync screens
+    tour.querySelectorAll<HTMLElement>("[data-screen-panel]").forEach((p) => {
+      p.hidden = p.dataset.screenPanel !== id;
+    });
+
+    // Titlebar
+    const titleEl = tour.querySelector<HTMLElement>("[data-active-window-title]");
+    if (titleEl) titleEl.textContent = toolNames[id] ?? id;
+    const badgeEl = tour.querySelector<HTMLElement>("[data-active-window-badge]");
+    if (badgeEl) badgeEl.textContent = id.toUpperCase();
+
+    if (changed && animate) reveal(tour.querySelector("[data-screen-panel]:not([hidden]) .gallery-image-stage"));
+  };
+
+  // Nav clicks
+  tour.querySelectorAll<HTMLButtonElement>(".tour-tool-btn").forEach((btn) => {
+    const id = btn.dataset.tourTab;
+    if (id) btn.addEventListener("click", () => selectTool(id));
+  });
+
+  // Keyboard
+  tour.addEventListener("keydown", (e) => {
+    const t = e.target as HTMLElement | null;
+    if (e.key >= "1" && e.key <= "6") {
+      const tool = toolOrder[Number(e.key) - 1];
+      if (tool) { e.preventDefault(); selectTool(tool); tour.querySelector<HTMLButtonElement>(`[data-tour-tab="${tool}"]`)?.focus(); }
+      return;
+    }
+    if (t?.matches(".tour-tool-btn") && ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) {
+      e.preventDefault();
+      const ci = toolOrder.indexOf(activeToolId as typeof toolOrder[number]);
+      const ni = e.key === "Home" ? 0 : e.key === "End" ? toolOrder.length - 1 : (ci + (["ArrowDown", "ArrowRight"].includes(e.key) ? 1 : -1) + toolOrder.length) % toolOrder.length;
+      const nid = toolOrder[ni];
+      if (nid) { selectTool(nid); tour.querySelector<HTMLButtonElement>(`[data-tour-tab="${nid}"]`)?.focus(); }
+    }
+  });
+
+  // Theme toggle
+  tour.querySelectorAll<HTMLButtonElement>("[data-tour-theme]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const theme = button.dataset.tourTheme!;
+      const studio = tour.querySelector<HTMLElement>(".tour-studio");
+      if (studio?.dataset.previewTheme === theme) return;
+      const rev = ++themeRevision;
+      if (studio) studio.dataset.previewTheme = theme;
+      tour.querySelectorAll<HTMLButtonElement>("[data-tour-theme]").forEach((b) => {
+        b.setAttribute("aria-pressed", String(b === button));
+      });
+      tour.querySelectorAll<HTMLImageElement>("[data-tour-image]").forEach((img) => {
+        img.closest(".tour-screen")?.classList.remove("image-missing");
+        img.src = theme === "light" ? img.dataset.light! : img.dataset.dark!;
+      });
+      const active = tour.querySelector<HTMLImageElement>("[data-screen-panel]:not([hidden]) [data-tour-image]");
+      if (active) {
+        void active.decode().then(() => {
+          if (rev === themeRevision) reveal(tour.querySelector(".tour-viewport"));
+        }).catch(() => {});
+      }
+    });
+  });
+}
+</script>

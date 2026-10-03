@@ -1,0 +1,128 @@
+---
+import TabsLogo from "./TabsLogo.astro";
+import Icon from "./Icon.astro";
+import Download from "./Download.astro";
+import ProjectSketch from "./ProjectSketch.astro";
+import Workspace from "./Workspace.astro";
+import AgentRoster from "./AgentRoster.astro";
+import ReleaseLog from "./ReleaseLog.astro";
+import FooterSignature from "./FooterSignature.astro";
+import ToolSetupPaths from "./ToolSetupPaths.astro";
+import "../styles/concept-one.css";
+import "../styles/concept-two-refined.css";
+const projects = [
+  { id:"studio", name:"The studio site", file:"homepage.tsx", task:"Give the studio a new home.", branch:"design/studio", port:"localhost:3000", label:"A little room for big ideas." },
+  { id:"product", name:"The next product", file:"workspace.tsx", task:"Build the next version together.", branch:"feature/workspace", port:"localhost:5173", label:"Something worth making." },
+  { id:"weekend", name:"The weekend idea", file:"experiment.ts", task:"Try something we have not tried before.", branch:"experiment/one", port:"localhost:4321", label:"What if we just tried it?" },
+];
+const workflows = [
+  {id:"web",number:"01",title:"Your web, within reach.",label:"Browser tabs",copy:"A design file, your team’s docs, the issue board. Save a URL in Workspace settings and give it a place in this project’s toolbar.",detail:"Choose shared or isolated browser sessions. Resume the page you left open."},
+  {id:"terminal",number:"02",title:"A home for your commands.",label:"Terminal tabs",copy:"Claude Code, Codex CLI, a database console, your own scripts. Save the command and working folder, then open a dedicated terminal from the toolbar.",detail:"Keep the command-line tools you know, one click from your code."},
+  {id:"server",number:"03",title:"One click. Up and running.",label:"Launchpad presets",copy:"Save the steps that start your app. Link frontend and backend presets, set a preview URL, and switch automatically to Browser when it opens.",detail:"Commands, dependencies, and a preview URL. Your setup, ready to repeat."},
+];
+---
+<article data-concept="2" class="headspace edition-two">
+  <header class="hs-nav hs-wrap">
+    <div class="hs-brand-lockup">
+      <a class="hs-brand" href="/" aria-label="Tabs IDE home"><TabsLogo size={32}/><span>Tabs<span class="hs-brand-suffix">IDE</span></span></a>
+      <span class="hs-brand-divider" aria-hidden="true"></span>
+      <div class="hs-access-tag" aria-label="Early Access">
+        <span>EARLY</span>
+        <span>ACCESS</span>
+      </div>
+    </div>
+    <nav aria-label="Page navigation"><a href="#v2-workspace">Inside Tabs</a><a href="/changelog">What's new</a><a href="https://github.com/PanicMako/Tabs-ide">GitHub <Icon name="ArrowUpRight" size={14}/></a></nav>
+    <a class="hs-nav-download" href="/downloads"><span class="btn-fill" aria-hidden="true"></span><span>Get Tabs</span> <Icon name="ArrowDown" size={16}/></a>
+  </header>
+
+  <section class="e2-hero hs-wrap">
+    <p class="e2-eyebrow"><span aria-hidden="true">✳</span> THE DESKTOP WORKSPACE FOR YOUR PROJECTS &amp; TOOLS</p>
+    <h1>Bigger than an IDE.<br/><span>All your work. One window.</span></h1>
+    <div class="e2-hero-bottom"><p>Work across projects in browser-style tabs. Each project brings together a Code OSS editor, AI agents, servers, Git, and a browser. Add your own web tools and CLIs to its toolbar.</p>
+      <div class="e2-hero-actions">
+        <a class="e2-github-star" href="https://github.com/PanicMako/Tabs-ide" target="_blank" rel="noopener noreferrer">
+          <span class="btn-fill" aria-hidden="true"></span>
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .75a11.25 11.25 0 0 0-3.558 21.922c.563.104.768-.244.768-.542 0-.267-.01-.975-.015-1.913-3.13.68-3.79-1.51-3.79-1.51-.512-1.3-1.25-1.646-1.25-1.646-1.023-.7.078-.686.078-.686 1.131.08 1.726 1.161 1.726 1.161 1.006 1.724 2.64 1.226 3.282.938.102-.729.394-1.226.716-1.508-2.499-.284-5.126-1.25-5.126-5.565 0-1.23.44-2.233 1.16-3.02-.116-.285-.503-1.43.11-2.98 0 0 .945-.303 3.094 1.154a10.78 10.78 0 0 1 5.634 0c2.148-1.457 3.092-1.154 3.092-1.154.614 1.55.227 2.695.112 2.98.722.787 1.158 1.79 1.158 3.02 0 4.326-2.631 5.278-5.138 5.557.404.349.765 1.038.765 2.092 0 1.51-.014 2.728-.014 3.098 0 .3.203.65.774.54A11.252 11.252 0 0 0 12 .75Z"/></svg>
+          <span>Star on GitHub</span>
+        </a>
+        <Download compact/>
+      </div>
+    </div>
+    <div class="e2-stage" data-e2-projects>
+      <div class="e2-stage-note"><span>YOUR PROJECTS</span><span>Pick a tab. Change your whole workspace. ↓</span></div>
+      <div class="e2-project-tabs" role="tablist" aria-label="Example projects in version 2">
+        {projects.map((project,i)=><button type="button" role="tab" id={`e2-tab-${project.id}`} aria-controls={`e2-panel-${project.id}`} aria-selected={i===0} tabindex={i===0?0:-1} data-e2-project={project.id}><span class="e2-project-number">0{i+1}</span>{project.name}<span aria-hidden="true">↗</span></button>)}
+      </div>
+      {projects.map((project,i)=><div class="e2-project-body" id={`e2-panel-${project.id}`} role="tabpanel" aria-labelledby={`e2-tab-${project.id}`} hidden={i!==0} data-e2-panel={project.id}>
+        <div class="e2-stage-sidebar"><TabsLogo size={42}/><h2>One project.<br/>Room for<br/><em>all of it.</em></h2><p>Tools below.<br/>Your next move, right here.</p><span aria-hidden="true">→</span></div>
+        <ProjectSketch project={{...project,id:`edition-${project.id}`}}/>
+      </div>)}
+      <div class="e2-stage-caption"><span>INTERACTIVE WORKSPACE SKETCH</span><span>Try Code → Agents → Browser</span></div>
+    </div>
+    <div class="e2-tool-index"><span>ALREADY AT HOME</span>{([['Code2','Code'],['Bot','Agents'],['Rocket','Launchpad'],['GitBranch','Git'],['Globe','Browser']] as const).map(([icon,name])=><span><Icon name={icon} size={18}/>{name}</span>)}</div>
+  </section>
+
+  <section class="e2-manifesto">
+    <div class="hs-wrap e2-manifesto-grid"><div><p class="e2-eyebrow">01 / THE BIG IDEA</p><h2>Keep the work.<br/><em>Lose the<br/>window shuffle.</em></h2><p class="e2-manifesto-intro">An idea becomes a conversation, code, a running app, a review. Tabs gives that whole journey a home.</p><span class="e2-cross" aria-hidden="true">✳</span></div>
+      <div class="e2-principles">{[["01","Projects across the top.","Client work, your own app, the next experiment. Move between codebases by choosing a project tab."],["02","Tools with room to breathe.","Your editor, agent conversations, launchpad presets, Git, and browser each get their own view. Choose the tool you need from the toolbar."],["03","A workspace that fits you.","Add your web tools and command-line tools. Save launchpad presets. Arrange each project around how you actually work."]].map(([n,title,copy])=><div class="e2-principle"><span>{n}</span><div><h3>{title}</h3><p>{copy}</p></div></div>)}</div>
+    </div>
+  </section>
+
+  <section class="e2-tools hs-wrap" id="v2-workspace">
+    <div class="e2-section-heading"><p class="e2-eyebrow">02 / BUILT IN, NOT BOLTED ON</p><div><h2>Get into the work.<br/><em>Stay in your element.</em></h2><p>A Code OSS editor. Project conversations with your agents. Saved launchpad presets, visual Git, and an integrated browser. Follow the process, one view at a time.</p></div></div>
+    <Workspace instance="edition-two" variant="light"/>
+    <p class="e2-footnote"><span>EARLY ACCESS</span> Testing is optional and disabled by default. Enable it in Workspace settings to try recorded journeys and repeatable checks.</p>
+  </section>
+
+  <section class="e2-workflows hs-wrap">
+    <div class="e2-section-heading"><p class="e2-eyebrow">03 / ADD YOUR OWN TOOLS</p><div><h2>A URL. A CLI. A preset.<br/><em>Make it part of Tabs.</em></h2><p>Open Workspace settings, add a website or terminal command, and save. It gets its own place in your project’s toolbar. Save Launchpad presets to start your app and open its preview.</p></div></div>
+    <ToolSetupPaths />
+    <div class="e2-workflow-studio" data-e2-workflows>
+      <div class="e2-workflow-options" role="tablist" aria-label="Ways to customize Tabs" aria-orientation="vertical">{workflows.map((flow,i)=><button type="button" role="tab" id={`e2-flow-${flow.id}`} aria-controls={`e2-flow-panel-${flow.id}`} aria-selected={i===0} tabindex={i===0?0:-1} data-e2-flow={flow.id}><span>{flow.number}</span><strong>{flow.label}</strong><span aria-hidden="true">↗</span></button>)}</div>
+      {workflows.map((flow,i)=><div class={`e2-workflow-panel e2-workflow-${flow.id}`} id={`e2-flow-panel-${flow.id}`} role="tabpanel" aria-labelledby={`e2-flow-${flow.id}`} tabindex="0" hidden={i!==0} data-e2-flow-panel={flow.id}>
+        <div class="e2-flow-visual" aria-label={`${flow.label} illustration`}>
+          {flow.id==="web" && <div class="e2-browser-illustration"><div class="e2-mini-bar"><span>● ● ●</span><span>your creative corner ↗</span></div><div class="e2-design-canvas"><span class="e2-design-tag">DESIGN / UNTITLED</span><span class="e2-design-circle"></span><span class="e2-design-square"></span><strong>Good things<br/><em>start here.</em></strong><span class="e2-design-pointer">↖ you</span></div><div class="e2-mini-tabs"><span>Design file</span><span>Team docs</span><span>Issue board</span><span>+</span></div></div>}
+          {flow.id==="terminal" && <div class="e2-terminal-illustration"><div class="e2-mini-bar"><span>~/your-project</span><span>TERMINAL</span></div><p><span>→</span> codex</p><h3>What are we<br/>making today?</h3><p class="e2-terminal-prompt">› Build something worth opening.<span aria-hidden="true"> ▍</span></p><div class="e2-terminal-bottom"><span>YOUR CLI. YOUR WORKFLOW.</span><span>↵</span></div></div>}
+          {flow.id==="server" && <div class="e2-server-illustration"><div class="e2-mini-bar"><span>Frontend / saved preset</span><span>→ BROWSER</span></div><div class="e2-server-steps"><span>01 <code>npm install</code></span><span>02 <code>npm run dev</code></span><span>03 <code>localhost:5173 ↗</code></span></div><button type="button" data-e2-run>Run the example <span>↗</span></button><p role="status" data-e2-run-status>Illustration only. No commands are executed.</p></div>}
+        </div>
+        <div class="e2-flow-copy"><h3>{flow.title}</h3><p>{flow.copy}</p><small>{flow.detail}</small>{flow.id==="web" && <small>Some services restrict embedded pages or sign-in; open them externally when needed.</small>}</div>
+      </div>)}
+    </div>
+  </section>
+
+  <section class="e2-agents"><div class="hs-wrap"><AgentRoster eyebrow="04 / YOUR AGENTS. YOUR CALL." title="Different minds. Shared momentum." description="Choose a supported agent for your project conversations. Native connections and Agent Client Protocol (ACP) integrations keep your collaborators close to the work."/></div></section>
+  <div class="e2-release hs-wrap"><span class="e2-eyebrow">05 / ALWAYS MAKING ROOM</span><ReleaseLog/></div>
+  <footer class="hs-end"><div class="hs-wrap"><div class="hs-end-top"><span class="hs-end-mark" aria-hidden="true">✳</span><p>Make space for<br/><span>what's next.</span></p><Download compact/></div><div class="hs-platforms"><a href="/downloads">Find your download for macOS, Windows, or Linux <Icon name="ArrowUpRight" size={17}/></a></div><FooterSignature concept={1}/></div></footer>
+</article>
+
+<script>
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)");
+  function connectTabs(root: HTMLElement, tabSelector: string, panelSelector: string, vertical = false) {
+    const tabs = [...root.querySelectorAll<HTMLButtonElement>(tabSelector)];
+    const panels = [...root.querySelectorAll<HTMLElement>(panelSelector)];
+    const select = (index: number) => {
+      tabs.forEach((tab,i) => { tab.setAttribute("aria-selected",String(i===index)); tab.tabIndex=i===index?0:-1; });
+      panels.forEach((panel,i) => panel.hidden=i!==index);
+      const panel=panels[index];
+      if(panel && !reduced.matches) { panel.getAnimations().forEach(a=>a.cancel()); panel.animate([{opacity:.3,transform:"translateY(16px)"},{opacity:1,transform:"translateY(0)"}],{duration:550,easing:"cubic-bezier(.22,1,.36,1)"}); }
+    };
+    tabs.forEach((tab,i)=>{
+      tab.addEventListener("click",()=>select(i));
+      tab.addEventListener("keydown",event=>{
+        const next = event.key===(vertical?"ArrowDown":"ArrowRight")?(i+1)%tabs.length:event.key===(vertical?"ArrowUp":"ArrowLeft")?(i-1+tabs.length)%tabs.length:event.key==="Home"?0:event.key==="End"?tabs.length-1:-1;
+        if(next<0)return; event.preventDefault();select(next);tabs[next]?.focus();
+      });
+    });
+  }
+  document.querySelectorAll<HTMLElement>("[data-e2-projects]").forEach(root=>connectTabs(root,"[data-e2-project]","[data-e2-panel]"));
+  document.querySelectorAll<HTMLElement>("[data-e2-workflows]").forEach(root=>connectTabs(root,"[data-e2-flow]","[data-e2-flow-panel]",true));
+  const run=document.querySelector<HTMLButtonElement>("[data-e2-run]");
+  run?.addEventListener("click",()=>{
+    if(run.getAttribute("aria-disabled")==="true")return;
+    const status=document.querySelector<HTMLElement>("[data-e2-run-status]")!;
+    const steps=[...document.querySelectorAll<HTMLElement>(".e2-server-steps > span")];
+    run.setAttribute("aria-disabled","true"); status.textContent="Example: starting your saved command steps…";
+    steps.forEach(step=>step.classList.remove("is-ready"));
+    steps.forEach((step,i)=>window.setTimeout(()=>{step.classList.add("is-ready");if(i===steps.length-1){status.textContent="Preview ready. Tabs opens localhost:5173 and switches to Browser.";run.setAttribute("aria-disabled","false");}},reduced.matches?0:450*(i+1)));
+  });
+</script>

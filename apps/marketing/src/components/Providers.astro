@@ -1,0 +1,177 @@
+---
+const providers = [
+  { id: "claude", name: "Claude", badge: "SUBSIDIZED BY ANTHROPIC", color: "#eeb0d3" },
+  { id: "codex", name: "Codex", badge: "SUBSIDIZED BY OPENAI", color: "#e9ff7d" },
+  { id: "antigravity", name: "Antigravity", badge: "SUBSIDIZED BY GOOGLE", color: "#d4d4fe" },
+  { id: "cursor", name: "Cursor", badge: "PRO QUOTAS VIA ACP", color: "#ffffff" },
+  { id: "copilot", name: "Copilot", badge: "SUBSIDIZED BY GITHUB", color: "#eef0e8" },
+  { id: "gemini", name: "Gemini", badge: "GOOGLE AI SUBSIDIZED", color: "#d4d4fe" },
+  { id: "grok", name: "Grok", badge: "XAI INTEGRATION", color: "#e9ff7d" },
+  { id: "opencode", name: "OpenCode", badge: "LOCAL & PRIVATE", color: "#ffffff" },
+  { id: "kilo", name: "Kilo", badge: "FAST STREAMING", color: "#eeb0d3" },
+  { id: "factory-droid", name: "Factory Droid", badge: "AGENTIC AUTOMATION", color: "#eef0e8" },
+  { id: "openrouter", name: "OpenRouter", badge: "MULTI-MODEL ROUTER", color: "#ffffff" },
+];
+---
+
+<section class="providers-fullwidth-section" data-provider-carousel>
+  <!-- Concise ACP Subsidized Explanation Header -->
+  <div class="providers-intro-container">
+    <span class="eyebrow">AGENT CLIENT PROTOCOL (ACP) · ZERO API MARKUP</span>
+    <h2 class="providers-title">Bring your subscriptions.<br /><em>Keep your subsidizations.</em></h2>
+    <p class="providers-lead">
+      Different AI providers subsidize their consumer and team plans. Tabs connects directly to your accounts via the open Agent Client Protocol (ACP)—so you never pay per-token API markups or middleman proxy fees. Your existing subscriptions and provider quotas work right inside Tabs.
+    </p>
+  </div>
+
+  <!-- Full-Width Edge-to-Edge Carousel Track -->
+  <div class="carousel-marquee" role="region" aria-label="Infinite provider showcase">
+    <div class="carousel-track" data-carousel-track>
+      <!-- Sequence 1 -->
+      {providers.map((p) => (
+        <div class="provider-pill-card">
+          <div class="card-icon-wrap" style={`background: ${p.color};`}>
+            <img src={`/providers/${p.id}.svg`} width="22" height="22" alt="" loading="lazy" />
+          </div>
+          <div class="card-text">
+            <strong class="card-name">{p.name}</strong>
+            <span class="card-badge">{p.badge}</span>
+          </div>
+        </div>
+      ))}
+
+      <!-- Sequence 2 for seamless continuous infinite loop -->
+      {providers.map((p) => (
+        <div class="provider-pill-card duplicate" aria-hidden="true">
+          <div class="card-icon-wrap" style={`background: ${p.color};`}>
+            <img src={`/providers/${p.id}.svg`} width="22" height="22" alt="" loading="lazy" />
+          </div>
+          <div class="card-text">
+            <strong class="card-name">{p.name}</strong>
+            <span class="card-badge">{p.badge}</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>
+
+<style>
+  .providers-fullwidth-section {
+    width: 100vw;
+    margin-left: calc(50% - 50vw);
+    margin-right: calc(50% - 50vw);
+    padding: 80px 0 75px;
+    background: #eef0e6;
+    border-top: 2px solid #1d25b9;
+    border-bottom: 2px solid #1d25b9;
+    color: #1d25b9;
+    overflow: hidden;
+  }
+
+  .providers-intro-container {
+    max-width: 1180px;
+    width: 100%;
+    margin: 0 auto 48px;
+    padding: 0 6%;
+    box-sizing: border-box;
+  }
+
+  .providers-title {
+    font-family: "Space Grotesk", sans-serif;
+    font-size: clamp(38px, 5.5vw, 76px);
+    font-weight: 700;
+    line-height: 0.96;
+    letter-spacing: -0.06em;
+    margin: 14px 0 18px;
+  }
+  .providers-title em {
+    font-style: normal;
+    background: #e8ff73;
+    padding: 0 10px;
+    display: inline-block;
+    transform: rotate(-2deg);
+  }
+
+  .providers-lead {
+    font-size: clamp(15px, 1.6vw, 19px);
+    line-height: 1.5;
+    color: #262c97;
+    max-width: 860px;
+    margin: 0;
+  }
+
+  /* Full-width Carousel Marquee */
+  .carousel-marquee {
+    overflow: hidden;
+    position: relative;
+    width: 100%;
+    padding: 12px 0;
+    mask-image: linear-gradient(to right, transparent 0%, black 5%, black 95%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, transparent 0%, black 5%, black 95%, transparent 100%);
+  }
+
+  .carousel-track {
+    display: flex;
+    gap: 14px;
+    width: max-content;
+    animation: marquee-providers 36s linear infinite;
+  }
+
+  .carousel-marquee:hover .carousel-track {
+    animation-play-state: paused;
+  }
+
+  @keyframes marquee-providers {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(calc(-50% - 7px)); }
+  }
+
+  .provider-pill-card {
+    background: #ffffff;
+    border: 1.5px solid #1d25b9;
+    border-radius: 9999px;
+    padding: 8px 18px 8px 10px;
+    box-shadow: 2px 3px 0 #1d25b9;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: default;
+    text-align: left;
+    white-space: nowrap;
+    user-select: none;
+  }
+
+  .card-icon-wrap {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 1px solid #1d25b930;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .card-text {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .card-name {
+    font-family: "Space Grotesk", sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    color: #1d25b9;
+    line-height: 1.1;
+  }
+
+  .card-badge {
+    font-family: monospace;
+    font-size: 8.5px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    color: #434cb8;
+  }
+</style>

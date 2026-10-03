@@ -1,0 +1,180 @@
+---
+import TabsLogo from "../TabsLogo.astro";
+import Icon from "../Icon.astro";
+import FooterSignature from "../FooterSignature.astro";
+import { changelogData, TOTAL_TAGS_COUNT } from "../../data/changelogData";
+import { RELEASES_URL } from "../../lib/releases";
+---
+
+<article data-concept="5" class="sides sides-changelog-article" hidden>
+  <header class="sides-nav">
+    <a class="sides-brand" href="/#concept-5" aria-label="Tabs IDE home">
+      <TabsLogo size={32} />
+      <span>Tabs</span>
+    </a>
+    <nav aria-label="Page navigation">
+      <a href="/#concept-5">Inside Tabs</a>
+      <a href="/changelog#concept-5" aria-current="page">Ship log</a>
+      <a href="https://github.com/PanicMako/Tabs-ide">GitHub <Icon name="ArrowUpRight" size={14} /></a>
+    </nav>
+    <a class="sides-nav-download" href="/download#concept-5">
+      <span>Get Tabs</span>
+      <Icon name="ArrowDown" size={15} />
+    </a>
+  </header>
+
+  <section class="sides-cl-hero">
+    <div class="sides-cl-hero-copy">
+      <span class="sides-eyebrow">
+        <span class="sides-little-tab" aria-hidden="true"></span>
+        THE SHIP LOG · DISPATCHES &amp; MILESTONES
+      </span>
+      <h1>What's new in<br /><em>the craft.</em></h1>
+      <p>
+        A clear, patient record of every update made to the Tabs workspace.
+        Read each release by outcome, inspect the changes, and find the corresponding desktop packages.
+      </p>
+
+      <div class="sides-cl-stamp-row">
+        <span>LATEST SHIP: <b>{changelogData[0].tag}</b></span>
+        <i>·</i>
+        <span>{changelogData[0].date}</span>
+        <i>·</i>
+        <a href={RELEASES_URL} target="_blank" rel="noopener noreferrer">All GitHub Releases ↗</a>
+      </div>
+    </div>
+  </section>
+
+  <main class="sides-cl-stage">
+    <!-- TWO-COLUMN EDITORIAL LAYOUT -->
+    <div class="sides-cl-layout">
+      <!-- LEFT EDITORIAL TABLE OF CONTENTS -->
+      <aside class="sides-cl-sidebar" aria-label="Editions directory">
+        <div class="sides-sidebar-card">
+          <div class="sides-sidebar-head">
+            <span class="sides-sidebar-title">THE CHRONICLE</span>
+            <span class="sides-sidebar-count">{changelogData.length} Editions</span>
+          </div>
+
+          <nav class="sides-sidebar-nav">
+            {changelogData.map((release) => (
+              <a
+                href={`#${release.tag}`}
+                class:list={["sides-sidebar-link", { "is-latest": release.isLatest }]}
+                data-sidebar-target={release.tag}
+              >
+                <div class="sides-sidebar-ver-row">
+                  {release.isLatest && <span class="sides-sidebar-dot" aria-hidden="true">✳</span>}
+                  <span class="sides-sidebar-tag">{release.tag}</span>
+                </div>
+                <span class="sides-sidebar-date">{release.shortDate || release.date}</span>
+              </a>
+            ))}
+          </nav>
+
+          <div class="sides-sidebar-foot">
+            <a
+              href={RELEASES_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="sides-sidebar-gh"
+            >
+              <span>All {TOTAL_TAGS_COUNT} editions on GitHub</span>
+              <Icon name="ArrowUpRight" size={12} />
+            </a>
+          </div>
+        </div>
+      </aside>
+
+      <!-- RIGHT DISPATCH FEED -->
+      <div class="sides-cl-feed">
+        {changelogData.map((release) => (
+          <article class="sides-cl-entry" id={release.tag} data-release-card={release.tag}>
+            <div class="sides-cl-entry-header">
+              <div class="sides-cl-meta">
+                <span class="sides-cl-version">Release {release.tag}</span>
+                {release.isLatest && <span class="sides-cl-tag-pill sides-tag-latest">Current Stable</span>}
+                {release.type === "major" && <span class="sides-cl-tag-pill sides-tag-major">Major Architecture</span>}
+                {release.type === "feature" && <span class="sides-cl-tag-pill sides-tag-feature">Feature</span>}
+                {release.type === "patch" && !release.isLatest && <span class="sides-cl-tag-pill sides-tag-patch">Patch</span>}
+                <time class="sides-cl-date">{release.date}</time>
+              </div>
+              <a
+                href={`${RELEASES_URL}/tag/${release.tag}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="sides-cl-github-link"
+              >
+                GitHub Tag <Icon name="ArrowUpRight" size={13} />
+              </a>
+            </div>
+
+            <div class="sides-cl-entry-body">
+              <h3 class="sides-cl-title">{release.title}</h3>
+              <p class="sides-cl-summary">{release.summary}</p>
+
+              {release.installers && release.installers.length > 0 && (
+                <div class="sides-cl-binaries">
+                  <span class="sides-cl-binaries-label">DOWNLOAD BINARIES:</span>
+                  <div class="sides-cl-binaries-list">
+                    {release.installers.map((inst) => (
+                      <a href={inst.url} class="sides-cl-bin-btn" download={inst.filename}>
+                        <span>{inst.platform} ({inst.arch})</span>
+                        <span>↓</span>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <!-- EXPANDABLE NOTABLE CHANGES (Minimized by default) -->
+              <details class="sides-cl-details">
+                <summary class="sides-cl-summary">
+                  <div class="sides-summary-left">
+                    <span class="sides-arrow-toggle" aria-hidden="true">▶</span>
+                    <span class="sides-summary-title">Notable Changes &amp; Dispatch Details</span>
+                  </div>
+                  <span class="sides-summary-badge">
+                    {release.highlights.length + (release.categories ? release.categories.reduce((a, c) => a + c.items.length, 0) : 0)} notes
+                  </span>
+                </summary>
+
+                <div class="sides-cl-details-inner">
+                  <ul class="sides-cl-bullet-list">
+                    {release.highlights.map((item) => (
+                      <li>
+                        <span class="sides-cl-bullet-mark">✳</span>
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+
+                  {release.categories && release.categories.map((cat) => (
+                    <div class="sides-cl-cat-block">
+                      <h5 class="sides-cl-cat-title">{cat.title}</h5>
+                      <ul class="sides-cl-bullet-list">
+                        {cat.items.map((item) => (
+                          <li>
+                            <span class="sides-cl-bullet-mark">✳</span>
+                            <span>{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            </div>
+          </article>
+        ))}
+      </div>
+    </div>
+  </main>
+
+  <footer class="sides-footer">
+    <div class="sides-footer-inner">
+      <p>Tabs IDE · Handcrafted software for local developer autonomy · Verified desktop distribution</p>
+      <FooterSignature concept={5} />
+    </div>
+  </footer>
+</article>

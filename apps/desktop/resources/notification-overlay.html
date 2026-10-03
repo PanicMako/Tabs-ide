@@ -1,0 +1,908 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:"
+    />
+    <title>Tabs Notifications</title>
+    <style>
+      :root {
+        --bg: #18181b;
+        --fg: #f4f4f5;
+        --border: rgba(255, 255, 255, 0.12);
+        --popover: #18181b;
+        --popover-fg: #f4f4f5;
+        --muted: #a1a1aa;
+        --accent: #27272a;
+        --accent-fg: #fafafa;
+        --destructive: #ef4444;
+        --success: #22c55e;
+        --warning: #f59e0b;
+        --info: #3b82f6;
+        --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.35), 0 4px 6px -4px rgba(0, 0, 0, 0.3);
+        --radius: 10px;
+        --font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      }
+
+      html.theme-light {
+        --bg: #ffffff;
+        --fg: #09090b;
+        --border: rgba(0, 0, 0, 0.12);
+        --popover: #ffffff;
+        --popover-fg: #09090b;
+        --muted: #71717a;
+        --accent: #f4f4f5;
+        --accent-fg: #18181b;
+        --destructive: #dc2626;
+        --success: #16a34a;
+        --warning: #d97706;
+        --info: #2563eb;
+        --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        background: transparent !important;
+        color: var(--fg);
+        font-family: var(--font-family);
+        overflow: hidden;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+
+      #toast-container {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 8px;
+        width: 100%;
+        max-width: 384px;
+        padding: 2px 2px 4px 2px;
+        transition: padding 0.25s ease;
+      }
+
+      /* When stacked and not hovered, reserve space for peek cards */
+      #toast-container.is-stacked:not(.is-expanded) {
+        padding-bottom: 24px;
+      }
+
+      /* Stack Toolbar (appears on hover when multiple notifications exist) */
+      .stack-toolbar {
+        display: none;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+        padding: 2px 6px 4px 6px;
+        animation: toolbar-fade 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      }
+
+      #toast-container.is-expanded .stack-toolbar {
+        display: flex;
+      }
+
+      @keyframes toolbar-fade {
+        from {
+          opacity: 0;
+          transform: translateY(-4px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .stack-toolbar-left {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .stack-toolbar-title {
+        font-size: 11.5px;
+        font-weight: 600;
+        color: var(--muted);
+        letter-spacing: 0.02em;
+      }
+
+      .stack-toolbar-pill {
+        font-size: 10px;
+        font-weight: 700;
+        background: var(--accent);
+        color: var(--accent-fg);
+        border: 1px solid var(--border);
+        border-radius: 9999px;
+        padding: 1px 6px;
+      }
+
+      .stack-toolbar-right {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+
+      .toolbar-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 11px;
+        font-weight: 500;
+        background: var(--accent);
+        color: var(--muted);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 3px 8px;
+        cursor: pointer;
+        outline: none;
+        transition:
+          color 0.15s ease,
+          background 0.15s ease,
+          border-color 0.15s ease;
+      }
+
+      .toolbar-btn:hover {
+        color: var(--fg);
+        background: var(--popover);
+        border-color: var(--muted);
+      }
+
+      .toolbar-btn:focus-visible {
+        box-shadow: 0 0 0 2px var(--info);
+      }
+
+      /* Toast Cards */
+      .toast-card {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        background: var(--popover);
+        color: var(--popover-fg);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        padding: 12px 14px;
+        pointer-events: auto;
+        transform-origin: top center;
+        transition:
+          transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+          opacity 0.25s ease,
+          filter 0.25s ease,
+          box-shadow 0.25s ease,
+          border-color 0.2s ease;
+        animation: toast-enter 0.38s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+      }
+
+      @keyframes toast-enter {
+        from {
+          opacity: 0;
+          transform: translateX(calc(100% + 16px));
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+      }
+
+      .toast-card.toast-exit {
+        pointer-events: none !important;
+        animation: toast-exit 0.25s cubic-bezier(0.4, 0, 1, 1) forwards !important;
+      }
+
+      @keyframes toast-exit {
+        to {
+          opacity: 0;
+          transform: translateX(calc(100% + 16px));
+        }
+      }
+
+      /* Stack Deck Transformations (When multiple toasts and collapsed) */
+      #toast-container.is-stacked:not(.is-expanded) .toast-card {
+        position: absolute;
+        top: 2px;
+        right: 2px;
+        pointer-events: none;
+      }
+
+      #toast-container.is-stacked:not(.is-expanded) .toast-card[data-stack-index="0"] {
+        position: relative;
+        top: auto;
+        right: auto;
+        z-index: 10;
+        transform: translateY(0) scale(1);
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      #toast-container.is-stacked:not(.is-expanded) .toast-card[data-stack-index="1"] {
+        z-index: 9;
+        transform: translateY(10px) scale(0.96);
+        opacity: 0.88;
+        filter: brightness(0.93);
+      }
+
+      #toast-container.is-stacked:not(.is-expanded) .toast-card[data-stack-index="2"] {
+        z-index: 8;
+        transform: translateY(20px) scale(0.92);
+        opacity: 0.68;
+        filter: brightness(0.86);
+      }
+
+      #toast-container.is-stacked:not(.is-expanded)
+        .toast-card[data-stack-index]:not([data-stack-index="0"]):not([data-stack-index="1"]):not(
+          [data-stack-index="2"]
+        ) {
+        z-index: 7;
+        transform: translateY(28px) scale(0.88);
+        opacity: 0;
+      }
+
+      /* Expanded State */
+      #toast-container.is-expanded .toast-card {
+        position: relative;
+        top: auto;
+        right: auto;
+        transform: translateY(0) scale(1);
+        opacity: 1;
+        filter: none;
+        pointer-events: auto;
+        z-index: 1;
+      }
+
+      #toast-container.is-expanded .toast-card:hover {
+        border-color: rgba(255, 255, 255, 0.24);
+        box-shadow: 0 12px 20px -3px rgba(0, 0, 0, 0.45);
+      }
+
+      html.theme-light #toast-container.is-expanded .toast-card:hover {
+        border-color: rgba(0, 0, 0, 0.22);
+        box-shadow: 0 12px 20px -3px rgba(0, 0, 0, 0.15);
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .toast-card {
+          animation: none !important;
+          transition: none !important;
+        }
+        .spin-icon {
+          animation: none !important;
+        }
+      }
+
+      .toast-body {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        width: 100%;
+      }
+
+      .toast-icon-wrapper {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        width: 18px;
+        height: 18px;
+        margin-top: 1px;
+      }
+
+      .toast-content {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-width: 0;
+        gap: 3px;
+      }
+
+      .toast-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 6px;
+      }
+
+      .toast-title {
+        font-size: 13.5px;
+        font-weight: 600;
+        line-height: 1.35;
+        word-break: break-word;
+      }
+
+      .toast-description {
+        font-size: 12.5px;
+        line-height: 1.4;
+        color: var(--muted);
+        word-break: break-word;
+        user-select: text;
+        -webkit-user-select: text;
+      }
+
+      .toast-actions {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 8px;
+      }
+
+      /* Stack indicator badge on front card */
+      .stack-badge {
+        display: none;
+        align-items: center;
+        gap: 4px;
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--fg);
+        background: var(--accent);
+        border: 1px solid var(--border);
+        border-radius: 9999px;
+        padding: 2px 8px;
+        margin-top: 6px;
+        align-self: flex-start;
+        cursor: pointer;
+      }
+
+      #toast-container.is-stacked:not(.is-expanded) .toast-card[data-stack-index="0"] .stack-badge {
+        display: inline-flex;
+      }
+
+      .toast-header-actions {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        flex-shrink: 0;
+        margin-left: 4px;
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        font-weight: 500;
+        padding: 4px 10px;
+        border-radius: 6px;
+        border: 1px solid var(--border);
+        background: var(--accent);
+        color: var(--accent-fg);
+        cursor: pointer;
+        outline: none;
+        transition:
+          background 0.15s ease,
+          opacity 0.15s ease;
+      }
+
+      .btn:hover {
+        opacity: 0.9;
+      }
+
+      .btn:focus-visible {
+        box-shadow: 0 0 0 2px var(--info);
+      }
+
+      .icon-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        height: 24px;
+        padding: 0;
+        border: none;
+        background: transparent;
+        color: var(--muted);
+        border-radius: 4px;
+        cursor: pointer;
+        flex-shrink: 0;
+        transition:
+          color 0.15s ease,
+          background 0.15s ease;
+      }
+
+      .icon-btn:hover {
+        color: var(--fg);
+        background: var(--accent);
+      }
+
+      .icon-btn.mark-read-btn:hover {
+        color: var(--success);
+      }
+
+      .icon-btn.dismiss-btn:hover {
+        color: var(--destructive);
+      }
+
+      .icon-btn:focus-visible {
+        outline: 2px solid var(--info);
+      }
+
+      .spin-icon {
+        animation: spin 1s linear infinite;
+      }
+
+      @keyframes spin {
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+
+      /* Type-specific colors */
+      .icon-error {
+        color: var(--destructive);
+      }
+      .icon-success {
+        color: var(--success);
+      }
+      .icon-warning {
+        color: var(--warning);
+      }
+      .icon-info {
+        color: var(--info);
+      }
+      .icon-loading {
+        color: var(--info);
+        opacity: 0.85;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="toast-container" role="region" aria-label="Notifications" aria-live="polite"></div>
+
+    <script>
+      (function () {
+        const container = document.getElementById("toast-container");
+        let activeToasts = [];
+        let currentTheme = { themeId: "tabs-dark", isDark: true };
+        let isHovered = false;
+        let collapseTimer = null;
+
+        const ICONS = {
+          error:
+            '<svg class="icon-error" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>',
+          success:
+            '<svg class="icon-success" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>',
+          warning:
+            '<svg class="icon-warning" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+          info: '<svg class="icon-info" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>',
+          loading:
+            '<svg class="icon-loading spin-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>',
+          close:
+            '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>',
+          check:
+            '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+          checkCheck:
+            '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/></svg>',
+          trash:
+            '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>',
+          copy: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>',
+        };
+
+        function escapeHtml(str) {
+          if (!str) return "";
+          return String(str)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+        }
+
+        function applyTheme(theme) {
+          currentTheme = theme;
+          if (theme.isDark) {
+            document.documentElement.classList.remove("theme-light");
+            document.documentElement.classList.add("theme-dark");
+          } else {
+            document.documentElement.classList.remove("theme-dark");
+            document.documentElement.classList.add("theme-light");
+          }
+        }
+
+        const toastTimers = new Map();
+
+        function clearAllToastTimers() {
+          for (const timer of toastTimers.values()) {
+            if (timer.timeoutId) clearTimeout(timer.timeoutId);
+          }
+          toastTimers.clear();
+        }
+
+        function clearSingleToastTimer(toastId) {
+          const key = String(toastId);
+          const timer = toastTimers.get(key);
+          if (timer) {
+            if (timer.timeoutId) clearTimeout(timer.timeoutId);
+            toastTimers.delete(key);
+          }
+        }
+
+        function startToastTimer(toastId) {
+          const key = String(toastId);
+          const timer = toastTimers.get(key);
+          if (!timer || timer.timeoutId || timer.remainingMs <= 0) return;
+          timer.startedAt = Date.now();
+          timer.timeoutId = setTimeout(() => {
+            toastTimers.delete(key);
+            dismissToastOptimistically(key);
+            window.notificationOverlayBridge?.dismissToast(key);
+          }, timer.remainingMs);
+        }
+
+        function pauseToastTimer(toastId) {
+          const key = String(toastId);
+          const timer = toastTimers.get(key);
+          if (!timer || !timer.timeoutId) return;
+          clearTimeout(timer.timeoutId);
+          timer.timeoutId = null;
+          if (timer.startedAt) {
+            timer.remainingMs = Math.max(0, timer.remainingMs - (Date.now() - timer.startedAt));
+            timer.startedAt = null;
+          }
+        }
+
+        function registerToastTimer(toast) {
+          const key = String(toast.id);
+          if (toast.type === "loading") {
+            clearSingleToastTimer(key);
+            return;
+          }
+          const duration =
+            typeof toast.duration === "number" && toast.duration > 0 ? toast.duration : 5000;
+          if (toastTimers.has(key)) {
+            return;
+          }
+          const timer = {
+            timeoutId: null,
+            remainingMs: duration,
+            startedAt: null,
+            duration,
+          };
+          toastTimers.set(key, timer);
+          if (!isHovered) {
+            startToastTimer(key);
+          }
+        }
+
+        function setExpanded(expanded) {
+          isHovered = expanded;
+          if (expanded) {
+            if (collapseTimer) {
+              clearTimeout(collapseTimer);
+              collapseTimer = null;
+            }
+            container.classList.add("is-expanded");
+          } else {
+            container.classList.remove("is-expanded");
+          }
+          reportMeasuredBounds();
+        }
+
+        container.addEventListener("mouseenter", () => {
+          isHovered = true;
+          if (activeToasts.length > 1) {
+            setExpanded(true);
+          }
+          for (const key of toastTimers.keys()) {
+            pauseToastTimer(key);
+          }
+        });
+
+        container.addEventListener("mouseleave", () => {
+          isHovered = false;
+          if (collapseTimer) clearTimeout(collapseTimer);
+          collapseTimer = setTimeout(() => {
+            setExpanded(false);
+          }, 220);
+          for (const key of toastTimers.keys()) {
+            startToastTimer(key);
+          }
+        });
+
+        function dismissToastOptimistically(toastId) {
+          clearSingleToastTimer(toastId);
+          const card = Array.from(container.querySelectorAll(".toast-card")).find(
+            (candidate) => candidate.dataset.toastId === String(toastId),
+          );
+          activeToasts = activeToasts.filter((toast) => String(toast.id) !== String(toastId));
+          if (!card) {
+            updateStackState();
+            reportMeasuredBounds();
+            return;
+          }
+          card.classList.add("toast-exit");
+          setTimeout(() => {
+            card.remove();
+            updateStackState();
+            reportMeasuredBounds();
+          }, 250);
+        }
+
+        function updateStackState() {
+          const count = activeToasts.length;
+          if (count > 1) {
+            container.classList.add("is-stacked");
+          } else {
+            container.classList.remove("is-stacked");
+            container.classList.remove("is-expanded");
+            isHovered = false;
+          }
+
+          // Update stack-index attribute on remaining cards
+          const cards = container.querySelectorAll(".toast-card:not(.toast-exit)");
+          cards.forEach((card, idx) => {
+            card.dataset.stackIndex = String(idx);
+          });
+
+          // Update toolbar count
+          const pill = container.querySelector(".stack-toolbar-pill");
+          if (pill) pill.textContent = String(count);
+
+          const badgeCount = container.querySelector(".stack-badge-count");
+          if (badgeCount) badgeCount.textContent = `+${count - 1} more`;
+        }
+
+        function renderToasts(toasts) {
+          if (JSON.stringify(activeToasts) === JSON.stringify(toasts)) {
+            return;
+          }
+          activeToasts = toasts;
+
+          if (!toasts || toasts.length === 0) {
+            clearAllToastTimers();
+            const cards = container.querySelectorAll(".toast-card");
+            if (cards.length === 0) {
+              container.innerHTML = "";
+              container.classList.remove("is-stacked", "is-expanded");
+              isHovered = false;
+              reportMeasuredBounds();
+              return;
+            }
+            cards.forEach((card) => card.classList.add("toast-exit"));
+            setTimeout(() => {
+              container.innerHTML = "";
+              container.classList.remove("is-stacked", "is-expanded");
+              isHovered = false;
+              reportMeasuredBounds();
+            }, 260);
+            return;
+          }
+
+          // Clean up timers for toasts that no longer exist
+          const incomingIds = new Set(toasts.map((t) => String(t.id)));
+          for (const key of toastTimers.keys()) {
+            if (!incomingIds.has(key)) {
+              clearSingleToastTimer(key);
+            }
+          }
+
+          // Register / update timer for each incoming toast
+          toasts.forEach((toast) => {
+            registerToastTimer(toast);
+          });
+
+          container.innerHTML = "";
+
+          // If multiple toasts, render stack toolbar at top
+          if (toasts.length > 1) {
+            const toolbar = document.createElement("div");
+            toolbar.className = "stack-toolbar";
+            toolbar.innerHTML = `
+              <div class="stack-toolbar-left">
+                <span class="stack-toolbar-title">Notifications</span>
+                <span class="stack-toolbar-pill">${toasts.length}</span>
+              </div>
+              <div class="stack-toolbar-right">
+                <button type="button" class="toolbar-btn mark-all-btn" title="Mark all notifications as read">
+                  ${ICONS.checkCheck} Mark all read
+                </button>
+                <button type="button" class="toolbar-btn clear-all-btn" title="Clear all notifications">
+                  ${ICONS.trash} Clear all
+                </button>
+              </div>
+            `;
+
+            toolbar.querySelector(".mark-all-btn")?.addEventListener("click", (e) => {
+              e.stopPropagation();
+              const copy = [...activeToasts];
+              for (const t of copy) {
+                dismissToastOptimistically(t.id);
+                window.notificationOverlayBridge?.dismissToast(t.id);
+              }
+            });
+
+            toolbar.querySelector(".clear-all-btn")?.addEventListener("click", (e) => {
+              e.stopPropagation();
+              const copy = [...activeToasts];
+              for (const t of copy) {
+                dismissToastOptimistically(t.id);
+                window.notificationOverlayBridge?.dismissToast(t.id);
+              }
+            });
+
+            container.appendChild(toolbar);
+          }
+
+          toasts.forEach((toast, idx) => {
+            const card = document.createElement("div");
+            card.className = "toast-card";
+            card.setAttribute(
+              "role",
+              toast.type === "error" || toast.type === "warning" ? "alert" : "status",
+            );
+            card.dataset.toastId = String(toast.id);
+            card.dataset.stackIndex = String(idx);
+
+            const type = toast.type || "info";
+            const iconSvg = ICONS[type] || ICONS.info;
+
+            let actionsHtml = "";
+            if (toast.action) {
+              actionsHtml += `
+              <div class="toast-actions">
+                <button type="button" class="btn" data-action-id="${escapeHtml(toast.action.actionId)}">
+                  ${escapeHtml(toast.action.label)}
+                </button>
+              </div>
+            `;
+            }
+
+            let copyBtnHtml = "";
+            if (toast.type === "error" && toast.description) {
+              copyBtnHtml = `
+              <button type="button" class="icon-btn copy-btn" title="Copy error" aria-label="Copy error">
+                ${ICONS.copy}
+              </button>
+            `;
+            }
+
+            const stackBadgeHtml =
+              idx === 0 && toasts.length > 1
+                ? `<div class="stack-badge" title="Hover to view all notifications"><span class="stack-badge-count">+${toasts.length - 1} more</span></div>`
+                : "";
+
+            card.innerHTML = `
+            <div class="toast-body">
+              <div class="toast-icon-wrapper">
+                ${iconSvg}
+              </div>
+              <div class="toast-content">
+                <div class="toast-header">
+                  <span class="toast-title">${escapeHtml(toast.title)}</span>
+                  <div class="toast-header-actions">
+                    ${copyBtnHtml}
+                    <button type="button" class="icon-btn mark-read-btn" title="Mark as read" aria-label="Mark as read">
+                      ${ICONS.check}
+                    </button>
+                    <button type="button" class="icon-btn dismiss-btn" title="Dismiss notification" aria-label="Dismiss notification">
+                      ${ICONS.close}
+                    </button>
+                  </div>
+                </div>
+                ${toast.description ? `<span class="toast-description">${escapeHtml(toast.description)}</span>` : ""}
+                ${actionsHtml}
+                ${stackBadgeHtml}
+              </div>
+            </div>
+          `;
+
+            // Dismiss (✕) button
+            const dismissBtn = card.querySelector(".dismiss-btn");
+            if (dismissBtn) {
+              dismissBtn.addEventListener("click", (e) => {
+                e.stopPropagation();
+                dismissToastOptimistically(toast.id);
+                window.notificationOverlayBridge?.dismissToast(toast.id);
+              });
+            }
+
+            // Mark read (✓) button
+            const markReadBtn = card.querySelector(".mark-read-btn");
+            if (markReadBtn) {
+              markReadBtn.addEventListener("click", (e) => {
+                e.stopPropagation();
+                dismissToastOptimistically(toast.id);
+                window.notificationOverlayBridge?.dismissToast(toast.id);
+              });
+            }
+
+            // Expand badge click
+            const stackBadge = card.querySelector(".stack-badge");
+            if (stackBadge) {
+              stackBadge.addEventListener("click", (e) => {
+                e.stopPropagation();
+                setExpanded(true);
+              });
+            }
+
+            const actionBtn = card.querySelector(".btn[data-action-id]");
+            if (actionBtn) {
+              actionBtn.addEventListener("click", (e) => {
+                e.stopPropagation();
+                const actionId = actionBtn.getAttribute("data-action-id");
+                if (actionId) {
+                  window.notificationOverlayBridge?.triggerAction(toast.id, actionId);
+                }
+              });
+            }
+
+            const copyBtn = card.querySelector(".copy-btn");
+            if (copyBtn && toast.description) {
+              copyBtn.addEventListener("click", (e) => {
+                e.stopPropagation();
+                window.notificationOverlayBridge?.copyText(toast.description);
+                copyBtn.innerHTML = ICONS.check;
+                setTimeout(() => {
+                  copyBtn.innerHTML = ICONS.copy;
+                }, 1500);
+              });
+            }
+
+            container.appendChild(card);
+          });
+
+          updateStackState();
+          if (isHovered && toasts.length > 1) {
+            container.classList.add("is-expanded");
+          }
+          reportMeasuredBounds();
+        }
+
+        let reportRafId = null;
+        function reportMeasuredBounds() {
+          if (reportRafId) cancelAnimationFrame(reportRafId);
+          reportRafId = requestAnimationFrame(() => {
+            reportRafId = null;
+            if (!activeToasts || activeToasts.length === 0) {
+              window.notificationOverlayBridge?.reportBounds({ width: 0, height: 0 });
+              return;
+            }
+
+            const rect = container.getBoundingClientRect();
+            const width = Math.ceil(rect.width) || 380;
+            const height = Math.ceil(rect.height) || 60;
+            window.notificationOverlayBridge?.reportBounds({ width, height });
+          });
+        }
+
+        // ResizeObserver to watch for dynamic DOM size changes
+        const observer = new ResizeObserver(() => {
+          reportMeasuredBounds();
+        });
+        observer.observe(container);
+
+        // Keyboard navigation: Escape dismisses top-most toast
+        window.addEventListener("keydown", (e) => {
+          if (e.key === "Escape" && activeToasts.length > 0) {
+            const topmost = activeToasts[0];
+            if (topmost) {
+              dismissToastOptimistically(topmost.id);
+              window.notificationOverlayBridge?.dismissToast(topmost.id);
+            }
+          }
+        });
+
+        // Hook up preload listeners
+        if (window.notificationOverlayBridge) {
+          window.notificationOverlayBridge.onSyncToasts((toasts) => {
+            renderToasts(toasts);
+          });
+
+          window.notificationOverlayBridge.onSyncTheme((theme) => {
+            applyTheme(theme);
+          });
+        }
+
+        window.addEventListener("beforeunload", () => {
+          clearAllToastTimers();
+        });
+      })();
+    </script>
+  </body>
+</html>

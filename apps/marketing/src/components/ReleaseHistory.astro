@@ -1,0 +1,299 @@
+---
+import { changelogData } from "../data/changelogData";
+import { RELEASES_URL } from "../lib/releases";
+---
+
+<section class="changelog-section" aria-label="Detailed release history">
+  <div class="changelog-station-bar">
+    <div class="telemetry-item">
+      <span class="telemetry-label" style="color: rgba(255, 255, 255, 0.7);">Current Version</span>
+      <div style="display: flex; align-items: center; gap: 8px; margin-top: 2px;">
+        <span class="telemetry-value" style="color: #ffffff; font-size: 15px; font-weight: 800;">v1.3.1</span>
+        <span class="badge-chip" style="background: #e8ff73; color: #1d25b9; font-weight: 800; font-size: 10px;">● LATEST STABLE</span>
+      </div>
+    </div>
+    <div class="telemetry-item">
+      <span class="telemetry-label" style="color: rgba(255, 255, 255, 0.7);">Core Architecture</span>
+      <span class="telemetry-value" style="color: #ffffff; font-size: 14px;">Code OSS Engine + Native Electron Shell</span>
+    </div>
+    <div class="telemetry-item">
+      <span class="telemetry-label" style="color: rgba(255, 255, 255, 0.7);">Verified Targets</span>
+      <span class="telemetry-value" style="color: #ffffff; font-size: 14px;">macOS (arm64/x64), Windows x64, Linux</span>
+    </div>
+    <div>
+      <a
+        href={RELEASES_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        class="installer-play-btn"
+        style="background: #e8ff73; color: #1d25b9; border-color: #e8ff73;"
+      >
+        GitHub Releases ↗
+      </a>
+    </div>
+  </div>
+
+  <div class="changelog-feed-play">
+    {
+      changelogData.map((release) => {
+        const totalItems =
+          (release.highlights?.length ?? 0) +
+          (release.categories ? release.categories.reduce((acc, c) => acc + c.items.length, 0) : 0);
+
+        if (release.isLatest) {
+          return (
+            <article class="flagship-release-card" id={release.tag}>
+              <div class="flagship-header-bar">
+                <div class="flagship-version-stamp">
+                  <h2>{release.tag}</h2>
+                  <span class="badge-chip" style="background: #e8ff73; color: #1d25b9; font-weight: 800;">● CURRENT PRODUCTION STABLE</span>
+                  <span class="release-date-stamp" style="color: rgba(255, 255, 255, 0.85);">{release.date}</span>
+                </div>
+                <a
+                  href={`${RELEASES_URL}/tag/${release.tag}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="release-github-tag"
+                  style="border-color: #e8ff73; color: #e8ff73; background: rgba(255, 255, 255, 0.1);"
+                >
+                  GitHub Tag ↗
+                </a>
+              </div>
+
+              <div class="flagship-body">
+                <h3 class="flagship-title">{release.title}</h3>
+                <p class="flagship-summary">{release.summary}</p>
+
+                {release.installers && release.installers.length > 0 && (
+                  <div class="installer-buttons-row">
+                    <span class="installer-row-label">DOWNLOAD VERIFIED BINARIES:</span>
+                    <div class="installer-buttons-list">
+                      {release.installers.map((inst) => (
+                        <a
+                          href={inst.url}
+                          class="installer-play-btn"
+                          download={inst.filename}
+                          title={`Download ${inst.filename}`}
+                        >
+                          <span>{inst.platform}</span>
+                          <span style="opacity: 0.75; font-size: 10px;">({inst.arch})</span>
+                          <span>↓</span>
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {totalItems > 0 && (
+                  <section class="latest-release-notes" aria-labelledby={`notes-${release.tag}`}>
+                    <div class="latest-notes-heading">
+                      <span id={`notes-${release.tag}`}>Release notes</span>
+                      <span>{totalItems} verified updates</span>
+                    </div>
+                    <div class="latest-notes-grid">
+                      <div class="release-note-column release-note-highlight">
+                        <div class="changelog-category-title">What matters</div>
+                        <ul class="changelog-category-list">
+                          {release.highlights.map((item) => <li>{item}</li>)}
+                        </ul>
+                      </div>
+                      {(release.categories ?? []).map((cat) => (
+                        <div class="release-note-column">
+                          <div class="changelog-category-title">{cat.title}</div>
+                          <ul class="changelog-category-list">
+                            {cat.items.map((item) => <li>{item}</li>)}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
+              </div>
+            </article>
+          );
+        }
+
+        if (release.type === "major") {
+          return (
+            <article class="milestone-release-card" id={release.tag}>
+              <div class="release-card-header">
+                <div class="release-version-row">
+                  <h2>{release.tag}</h2>
+                  <span class="milestone-tag">★ MAJOR ARCHITECTURE MILESTONE</span>
+                  <span class="release-date-stamp">{release.date}</span>
+                </div>
+                <a
+                  href={`${RELEASES_URL}/tag/${release.tag}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="release-github-tag"
+                >
+                  GitHub Tag ↗
+                </a>
+              </div>
+
+              <h3>{release.title}</h3>
+              <p>{release.summary}</p>
+
+              <div class="milestone-chips-row">
+                <span class="milestone-chip">CODE OSS WORKBENCH</span>
+                <span class="milestone-chip">AGENT BROWSER</span>
+                <span class="milestone-chip">REMOTE SSH / TAILSCALE</span>
+                <span class="milestone-chip">PULL REQUESTS</span>
+                <span class="milestone-chip">PLAYWRIGHT SUITE</span>
+              </div>
+
+              {release.installers && release.installers.length > 0 && (
+                <div class="installer-buttons-row">
+                  <span class="installer-row-label">HISTORIC BINARIES:</span>
+                  <div class="installer-buttons-list">
+                    {release.installers.map((inst) => (
+                      <a
+                        href={inst.url}
+                        class="installer-play-btn"
+                        download={inst.filename}
+                        title={`Download ${inst.filename}`}
+                      >
+                        <span>{inst.platform}</span>
+                        <span style="opacity: 0.75; font-size: 10px;">({inst.arch})</span>
+                        <span>↓</span>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {totalItems > 0 && (
+                <details class="release-accordion">
+                  <summary class="release-accordion-summary">
+                    <span class="accordion-summary-text">
+                      <span class="accordion-icon">▾</span>
+                      <strong>Milestone Highlights &amp; Changes</strong>
+                      <span class="accordion-count">({totalItems} updates)</span>
+                    </span>
+                    <span class="accordion-status-pill">Click to view</span>
+                  </summary>
+                  <div class="release-accordion-content">
+                    {release.highlights && release.highlights.length > 0 && (
+                      <div class="changelog-highlights-box">
+                        <div class="changelog-highlights-title">
+                          <span>MILESTONE HIGHLIGHTS</span>
+                          <span style="opacity: 0.6;">· ARCHITECTURAL SHIFT</span>
+                        </div>
+                        <ul class="changelog-highlights-list">
+                          {release.highlights.map((item) => (
+                            <li>{item}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {release.categories && release.categories.length > 0 && (
+                      <div class="changelog-categories-grid">
+                        {release.categories.map((cat) => (
+                          <div class="changelog-category">
+                            <div class="changelog-category-title">{cat.title}</div>
+                            <ul class="changelog-category-list">
+                              {cat.items.map((item) => (
+                                <li>{item}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </details>
+              )}
+            </article>
+          );
+        }
+
+        return (
+          <article class="regular-release-card" id={release.tag}>
+            <div class="release-card-header">
+              <div class="release-version-row">
+                <h2>{release.tag}</h2>
+                <span class="badge-chip" style="background: rgba(29, 37, 185, 0.08); font-size: 10px;">
+                  {release.type.toUpperCase()} RELEASE
+                </span>
+                <span class="release-date-stamp">{release.date}</span>
+              </div>
+              <a
+                href={`${RELEASES_URL}/tag/${release.tag}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="release-github-tag"
+              >
+                GitHub Tag ↗
+              </a>
+            </div>
+
+            <h3>{release.title}</h3>
+            <p style="color: rgba(29, 37, 185, 0.85); line-height: 1.6; font-size: 15px; margin: 0 0 16px;">
+              {release.summary}
+            </p>
+
+            {totalItems > 0 && (
+              <details class="release-accordion">
+                <summary class="release-accordion-summary">
+                  <span class="accordion-summary-text">
+                    <span class="accordion-icon">▾</span>
+                    <strong>Release Updates &amp; Changes</strong>
+                    <span class="accordion-count">({totalItems} updates)</span>
+                  </span>
+                  <span class="accordion-status-pill">Click to view</span>
+                </summary>
+                <div class="release-accordion-content">
+                  {release.highlights && release.highlights.length > 0 && (
+                    <div class="changelog-highlights-box">
+                      <div class="changelog-highlights-title">KEY UPDATES</div>
+                      <ul class="changelog-highlights-list">
+                        {release.highlights.map((item) => (
+                          <li>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {release.categories && release.categories.length > 0 && (
+                    <div class="changelog-categories-grid">
+                      {release.categories.map((cat) => (
+                        <div class="changelog-category">
+                          <div class="changelog-category-title">{cat.title}</div>
+                          <ul class="changelog-category-list">
+                            {cat.items.map((item) => (
+                              <li>{item}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </details>
+            )}
+          </article>
+        );
+      })
+    }
+  </div>
+
+  <div class="telemetry-console" style="margin-top: 40px;">
+    <div>
+      <span class="telemetry-label">Looking for older versions?</span>
+      <p style="margin: 6px 0 0; font-size: 14px; color: #1d25b9; line-height: 1.5;">
+        Browse full tag histories, commit digests, and release assets dating back to v1.0.0 on GitHub.
+      </p>
+    </div>
+    <a
+      href={RELEASES_URL}
+      target="_blank"
+      rel="noopener noreferrer"
+      class="cta-btn"
+      style="text-decoration: none; font-family: monospace; font-size: 12px; font-weight: 700; background: #1d25b9; color: #e8ff73; padding: 12px 20px; border-radius: 4px; border: 1.5px solid #1d25b9; box-shadow: 3px 3px 0 #1d25b9;"
+    >
+      View All GitHub Releases ↗
+    </a>
+  </div>
+</section>

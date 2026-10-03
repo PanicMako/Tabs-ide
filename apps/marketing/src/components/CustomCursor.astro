@@ -1,0 +1,115 @@
+<div class="tabs-cursor" aria-hidden="true">
+  <span class="cursor-pointer"><i class="cursor-hotspot"></i></span>
+  <div class="cursor-toy"><i class="cursor-tab cursor-tab-peach"></i><i class="cursor-tab cursor-tab-mint"></i><i class="cursor-tab cursor-tab-blue"><span data-cursor-symbol>✳</span><svg class="cursor-download-arrow" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v10m-4-4 4 4 4-4"/></svg></i></div>
+</div>
+<style is:global>
+  .tabs-cursor { display:none; position:fixed; left:0; top:0; pointer-events:none; z-index:10000; color:#3259ed; }
+  .cursor-pointer { position:absolute; left:0; top:0; width:18px; height:18px; translate:-50% -50%; border:1px solid currentColor; border-radius:50%; box-sizing:border-box; transform-origin:center; transition:width .25s,height .25s,rotate .3s,scale .2s; }
+  .cursor-hotspot { position:absolute; left:50%; top:50%; translate:-50% -50%; width:4px; height:4px; border-radius:50%; background:currentColor; }
+  .tabs-cursor[data-mode="action"] .cursor-pointer, .tabs-cursor[data-mode="download"] .cursor-pointer { width:14px; height:14px; border-inline-color:transparent; rotate:45deg; }
+  .tabs-cursor[data-scrolling="true"] .cursor-pointer { width:18px; height:18px; border-color:currentColor; rotate:0deg; }
+  .tabs-cursor[data-pointer-light="true"] .cursor-pointer { color:white; }
+  .cursor-toy { position:absolute; left:0; top:0; width:25px; height:28px; will-change:transform; }
+  .cursor-tab { position:absolute; inset:4px 0 0; border-radius:3px 5px 5px 5px; transform-origin:50% 85%; box-shadow:0 2px 4px #202b4415; }
+  .cursor-tab::before { content:""; position:absolute; top:-3px; left:0; width:12px; height:5px; background:inherit; border-radius:3px 3px 0 0; }
+  .cursor-tab-peach { background:#f6b88c; }
+  .cursor-tab-mint { background:#a4d6be; }
+  .cursor-tab-blue { display:grid; place-items:center; background:#3259ed; color:#fff; }
+  .cursor-tab-blue span { display:block; position:relative; font:18px/1 Arial,sans-serif; font-style:normal; }
+  .cursor-download-arrow { display:none; }
+  .tabs-cursor[data-mode="download"] .cursor-tab-blue span { display:none; }
+  .tabs-cursor[data-mode="download"] .cursor-download-arrow { display:block; }
+  .tabs-cursor[data-footer="true"] .cursor-pointer { color:white; }
+  .tabs-cursor[data-footer="true"] .cursor-tab-blue { background:#fff; color:#3259ed; }
+  .tabs-cursor[data-pressed="true"] .cursor-pointer { scale:.72; }
+  @media (hover:hover) and (pointer:fine) and (prefers-reduced-motion:no-preference) {
+    html.tabs-cursor-active .tabs-cursor { display:block; }
+    html.tabs-cursor-active, html.tabs-cursor-active body, html.tabs-cursor-active body * { cursor:none !important; }
+  }
+</style>
+<script>
+  const cursor=document.querySelector<HTMLElement>(".tabs-cursor");
+  if(cursor){
+    const enabled=matchMedia("(hover:hover) and (pointer:fine) and (prefers-reduced-motion:no-preference)");
+    const toy=cursor.querySelector<HTMLElement>(".cursor-toy")!;
+    const sheets=[...cursor.querySelectorAll<HTMLElement>(".cursor-tab")];
+    const symbol=cursor.querySelector<HTMLElement>("[data-cursor-symbol]")!;
+    let frame=0, lastTime=0, px=0, py=0, fx=0, fy=0, angle=0, spin=0, targetSpin=0, spread=0, flick=0;
+    let overAction=false, pressed=false;
+    let scrollFrame=0, scrollTimer=0;
+    const hide=()=>{cancelAnimationFrame(frame);cancelAnimationFrame(scrollFrame);clearTimeout(scrollTimer);scrollFrame=0;cursor.dataset.scrolling="false";frame=0;lastTime=0;pressed=false;cursor.dataset.pressed="false";document.documentElement.classList.remove("tabs-cursor-active");};
+    const draw=(now:number)=>{
+      const dt=Math.min((now-(lastTime||now-16))/1000,.032);lastTime=now;
+      const follow=1-Math.exp(-18*dt), settle=1-Math.exp(-12*dt);
+      const dx=px-fx, dy=py-fy;
+      fx+=dx*follow;fy+=dy*follow;
+      // The toy trails, but the dot always remains on the real hit point.
+      const lean=Math.max(-32,Math.min(32,dx*.8));
+      angle+=(lean-angle)*settle;
+      spin+=(targetSpin-spin)*(1-Math.exp(-10*dt));
+      flick*=Math.exp(-6*dt);
+      const targetSpread=(overAction?0:9)+Math.min(13,Math.hypot(dx,dy)*.15)+flick*20;
+      spread+=(targetSpread-spread)*settle;
+      const side=px>innerWidth-65?-34:19;
+      const above=py>innerHeight-65?-36:20;
+      const scale=(pressed?.78:overAction?.9:1)+flick*.08;
+      toy.style.transform=`translate(${fx-px+side}px,${fy-py+above}px) rotate(${angle}deg) scale(${scale})`;
+      sheets[0]!.style.transform=`translate(${-spread*.45}px,${spread*.12}px) rotate(${-spread*2.3}deg)`;
+      sheets[1]!.style.transform=`translate(${spread*.4}px,${-spread*.18}px) rotate(${spread*1.9}deg)`;
+      sheets[2]!.style.transform=`translateY(${-flick*4}px) rotate(${-angle*.25}deg)`;
+      symbol.style.transform=`rotate(${overAction?0:spin}deg)`;
+      const unsettled=Math.abs(px-fx)+Math.abs(py-fy)+Math.abs(angle)+Math.abs(targetSpread-spread)+Math.abs(targetSpin-spin)+flick;
+      frame=unsettled>.12?requestAnimationFrame(draw):0;
+      if(!frame)lastTime=0;
+    };
+    const wake=()=>{if(!frame)frame=requestAnimationFrame(draw);};
+    const updateTarget=(target:Element)=>{
+      const action=target.closest("a[href],button:not(:disabled):not([aria-disabled=true]),summary");
+      overAction=Boolean(action);
+      const download=action instanceof HTMLAnchorElement && (action.hasAttribute("download") || action.matches(".cta,.platform-download,.hs-nav-download") || /download/i.test(action.textContent??""));
+      symbol.textContent=overAction?(download?"↓":action?.matches("[role=tab]")?"+":"↗"):"✳";
+      cursor.dataset.mode=overAction?(download?"download":"action"):"play";
+      cursor.dataset.footer=String(Boolean(target.closest("footer")));
+      // Match the pointer to the first opaque surface under it; never recolor the toy.
+      let surface:Element|null=target;
+      let light=false;
+      while(surface){
+        const rgb=getComputedStyle(surface).backgroundColor.match(/[\d.]+/g)?.map(Number);
+        if(rgb && rgb.length>=3 && (rgb[3]??1)>.8){light=(rgb[0]!*.2126+rgb[1]!*.7152+rgb[2]!*.0722)<140;break;}
+        surface=surface.parentElement;
+      }
+      cursor.dataset.pointerLight=String(light);
+    };
+    document.addEventListener("pointermove",event=>{
+      const target=event.target instanceof Element?event.target:null;
+      if(!enabled.matches || event.pointerType!=="mouse" || !target || target.closest("input,textarea,select,[contenteditable],iframe,[inert]")){hide();return;}
+      px=event.clientX;py=event.clientY;
+      if(!document.documentElement.classList.contains("tabs-cursor-active")){fx=px;fy=py;angle=0;spread=0;}
+      updateTarget(target);
+      cursor.style.transform=`translate(${px}px,${py}px)`;
+      document.documentElement.classList.add("tabs-cursor-active");wake();
+    },{passive:true});
+    document.addEventListener("pointerdown",event=>{
+      if(event.pointerType!=="mouse" || event.button!==0 || !document.documentElement.classList.contains("tabs-cursor-active"))return;
+      pressed=true;flick=1;targetSpin+=90;cursor.dataset.pressed="true";wake();
+    });
+    document.addEventListener("pointerup",()=>{pressed=false;cursor.dataset.pressed="false";if(document.documentElement.classList.contains("tabs-cursor-active")){flick=Math.max(flick,.6);wake();}});
+    document.addEventListener("pointercancel",hide);
+    document.documentElement.addEventListener("pointerleave",hide);
+    document.addEventListener("keydown",hide);
+    window.addEventListener("scroll",()=>{
+      if(!enabled.matches || !document.documentElement.classList.contains("tabs-cursor-active"))return;
+      cursor.dataset.scrolling="true";
+      clearTimeout(scrollTimer);
+      scrollTimer=window.setTimeout(()=>{cursor.dataset.scrolling="false";},160);
+      if(!scrollFrame)scrollFrame=requestAnimationFrame(()=>{
+        scrollFrame=0;
+        const target=document.elementFromPoint(px,py);
+        if(!target || target.closest("input,textarea,select,[contenteditable],iframe,[inert]")){hide();return;}
+        updateTarget(target);wake();
+      });
+    },{capture:true,passive:true});
+    window.addEventListener("resize",hide);window.addEventListener("blur",hide);enabled.addEventListener("change",hide);
+    document.addEventListener("visibilitychange",()=>{if(document.hidden)hide();});
+  }
+</script>

@@ -1,0 +1,72 @@
+---
+import DownloadButtons from "../Download.astro";
+import Icon from "../Icon.astro";
+import TabsLogo from "../TabsLogo.astro";
+import FooterSignature from "../FooterSignature.astro";
+import releases from "../../data/releases.json";
+
+const latest = releases[0];
+---
+
+<article data-concept="2" class="play">
+  <header class="nav">
+    <a class="wordmark" href="/#concept-2">
+      <TabsLogo size={36} class="wordmark-logo" />
+      Tabs<span class="wordmark-ide">IDE</span>
+    </a>
+    <span class="nav-caption">MORE THAN AN IDE · ALL YOUR PROJECTS IN ONE WINDOW</span>
+    <div class="nav-actions">
+      <a href="/download#concept-2" aria-current="page">Downloads</a>
+      <a href="/changelog#concept-2">Changelog</a>
+      <a href="/#concept-2" class="nav-cta">Explore Workspace ↗</a>
+    </div>
+  </header>
+
+  <section class="play-page-hero">
+    <div class="play-sticker-dl sticker-dl-pink" aria-hidden="true">
+      ZERO CLOUD<br />
+      <b>DESKTOP</b>
+      <span>↙</span>
+    </div>
+    <div class="play-sticker-dl sticker-dl-round" aria-hidden="true">
+      {latest.tag_name}<br />
+      STABLE
+    </div>
+
+    <div class="eyebrow">DOWNLOAD TABS · FOUR NATIVE BUILDS · ONE COMPLETE WORKSPACE</div>
+    <h1>Choose your<br /><span>machine.</span></h1>
+    <p class="lead-copy">
+      Install the complete Tabs workspace for macOS, Windows, or Linux. Code OSS, terminal and CLI tools,
+      URL-based browser tabs, Git, testing, diagnostics, and your AI collaborators all ship together.
+    </p>
+  </section>
+
+  <div class="ticker" aria-hidden="true">
+    <div>
+      DOWNLOAD TABS ✳ 100% LOCAL WORKSPACE ✳ ZERO CLOUD REQUIRED ✳ APPLE SILICON · INTEL MAC · WINDOWS X64 · LINUX APPIMAGE ✳ CODE · AGENTS · SERVER · GIT · BROWSER · TESTING ✳ DOWNLOAD TABS ✳ 100% LOCAL WORKSPACE ✳ ZERO CLOUD REQUIRED ✳ APPLE SILICON · INTEL MAC · WINDOWS X64 · LINUX APPIMAGE ✳
+    </div>
+  </div>
+
+  <main class="download-content-stage">
+    <DownloadButtons />
+
+    <section class="download-summary" aria-labelledby="download-summary-title">
+      <div class="download-summary-lead">
+        <span class="current-build-pill"><i></i> {latest.tag_name} · CURRENT STABLE</span>
+        <h2 id="download-summary-title">One download.<br />Everything included.</h2>
+        <p>Your editor, agents, Launchpad, Git, Browser, Testing, and diagnostics arrive together—ready to open and work.</p>
+        <a href="/changelog#concept-2">See what’s inside {latest.tag_name} <Icon name="ArrowUpRight" size={16} /></a>
+      </div>
+      <div class="download-assurances">
+        <div><Icon name="CheckCircle" size={23} /><span><b>Self-contained</b><small>No separate runtime setup.</small></span></div>
+        <div><Icon name="ArrowDown" size={23} /><span><b>Automatic updates</b><small>Stay current from the app.</small></span></div>
+        <div><Icon name="Layers" size={23} /><span><b>Built for your OS</b><small>Native packages, clearly labeled.</small></span></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="play-simple-footer">
+    <p>Tabs IDE · Built in the open · 100% local workspace · Zero cloud required</p>
+    <FooterSignature concept={2} />
+  </footer>
+</article>

@@ -1,0 +1,85 @@
+/* Close Animation Keyframes & Utilities */
+
+/* Molten Glass — word drain (squash Y, fade out) */
+.cq-word-drain {
+  animation: cqWordDrain 1000ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+@keyframes cqWordDrain {
+  0% {
+    transform: scaleY(1) translateY(0);
+    opacity: 1;
+  }
+  35% {
+    transform: scaleY(1.06) translateY(2px);
+    opacity: 1;
+  }
+  100% {
+    transform: scaleY(0.12) translateY(26px);
+    opacity: 0;
+  }
+}
+
+/* Molten Glass — card fade + blur + scale down */
+.cq-card-fade {
+  animation: cqCardFade 1200ms ease forwards;
+  animation-delay: 80ms;
+}
+@keyframes cqCardFade {
+  0% {
+    opacity: 1;
+    filter: blur(0px);
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    filter: blur(8px);
+    transform: scale(0.96);
+  }
+}
+
+/* Solari — tile dim (applied per-tile with staggered transition-delay) */
+.cq-tile-dim {
+  background: rgba(255, 255, 255, 0.02) !important;
+  border-color: rgba(255, 255, 255, 0.03) !important;
+  color: rgba(255, 255, 255, 0.15) !important;
+}
+/* Light-mode tile dim */
+.cq-tile-dim-light {
+  background: rgba(0, 0, 0, 0.02) !important;
+  border-color: rgba(0, 0, 0, 0.06) !important;
+  color: rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Solari — card collapse */
+.cq-card-collapse {
+  animation: cqCollapse 800ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  animation-delay: calc(8 * 70ms + 260ms);
+}
+@keyframes cqCollapse {
+  0% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+  70% {
+    transform: scaleY(0.035);
+    opacity: 1;
+  }
+  100% {
+    transform: scaleY(0.035) scaleX(0.15);
+    opacity: 0;
+  }
+}
+
+/* Caption hide */
+.cq-caption-hide {
+  opacity: 0;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .close-screen * {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

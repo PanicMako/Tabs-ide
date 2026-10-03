@@ -1,0 +1,97 @@
+---
+import Icon from "./Icon.astro";
+---
+
+<section class="workflow-demo section-pad" aria-labelledby="workflow-demo-title">
+  <div class="workflow-demo-heading">
+    <div>
+      <span class="eyebrow">YOUR WORKSPACE · YOUR TOOLBAR</span>
+      <h2 id="workflow-demo-title">Add the tools<br /><em>you actually use.</em></h2>
+    </div>
+    <p>
+      The six built-in tools are only the starting point. Add websites, browser tabs, server tabs,
+      and reusable Launchpad presets to each project—then keep them one click away in the toolbar.
+    </p>
+  </div>
+
+  <div class="custom-toolbar" aria-label="Example customized Tabs toolbar">
+    <span class="toolbar-project">checkout-app</span>
+    <span><Icon name="Code2" size={16} /> Code</span>
+    <span><Icon name="Bot" size={16} /> Agents</span>
+    <span><Icon name="Rocket" size={16} /> Launchpad</span>
+    <span><Icon name="Globe" size={16} /> Browser</span>
+    <span class="toolbar-added"><img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/figma/figma-original.svg" alt="" width="16" height="16" /> <b>Figma</b></span>
+    <span class="toolbar-added toolbar-chatgpt"><img src="/providers/codex.svg" alt="" width="16" height="16" /> <b>ChatGPT</b></span>
+    <span class="toolbar-added"><Icon name="Terminal" size={16} /> <b>Claude CLI</b></span>
+    <span class="toolbar-add">＋ Add tool</span>
+  </div>
+
+  <div class="possibility-strip" aria-hidden="true">
+    <span>ONE PROJECT</span><i></i><span>ANY URL</span><i></i><span>ANY COMMAND</span><i></i><span>PICK UP ANYWHERE</span>
+  </div>
+
+  <div class="workflow-capability-grid">
+    <article class="workflow-capability web-tool-card">
+      <div class="web-tool-intro">
+        <div>
+          <span class="capability-index">01 / ANY WEBSITE · ANY DOMAIN</span>
+          <h3>Any URL can become a tool.</h3>
+          <p>Design files, documentation, dashboards, chats, admin panels—give the page a name, paste its URL, and it gets its own place in your project toolbar.</p>
+        </div>
+        <div class="url-builder" aria-label="Example website tool configuration">
+          <span class="url-builder-label">ADD WEBSITE TOOL</span>
+          <div><img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/figma/figma-original.svg" alt="" width="16" height="16" /><strong>https://figma.com</strong><b>＋ ADD</b></div>
+          <small>Choose a label · Pick a browser profile · Resume where you left off</small>
+        </div>
+      </div>
+      <div class="domain-showcase" aria-label="Examples of websites that can be added">
+        <span><img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/figma/figma-original.svg" alt="" width="24" height="24" /><b>Figma</b><small>Design</small></span>
+        <span class="domain-chatgpt"><img src="/providers/codex.svg" alt="" width="24" height="24" /><b>ChatGPT</b><small>AI workspace</small></span>
+        <span><img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/github/github-original.svg" alt="" width="24" height="24" /><b>GitHub</b><small>Code &amp; reviews</small></span>
+        <span class="domain-notion"><img src="https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/notion.svg" alt="" width="24" height="24" /><b>Notion</b><small>Docs</small></span>
+        <span class="domain-linear"><img src="https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/linear.svg" alt="" width="24" height="24" /><b>Linear</b><small>Issues</small></span>
+        <span class="domain-custom"><i>＋</i><b>Your URL</b><small>Anything else</small></span>
+      </div>
+      <div class="embed-note">
+        <strong>Some services restrict embedded pages or sign-in.</strong>
+        <span>Use “Open externally” to continue in your system browser, while keeping the shortcut in Tabs.</span>
+      </div>
+    </article>
+
+    <article class="workflow-capability cli-tool-card">
+      <div class="capability-topline"><span class="capability-index">02 / ANY CLI</span><span>INSIDE LAUNCHPAD</span></div>
+      <div class="cli-tool-layout">
+        <div>
+          <h3>Type any command.<br />Give it a tab.</h3>
+          <p>Claude, GitHub, Docker, database consoles, deploy scripts—or something only your team knows. If it runs in your shell, you can pin it inside Launchpad.</p>
+          <div class="cli-chip-row" aria-label="Example command-line tools">
+            <span>⌁ claude</span><span>⌁ gh</span><span>⌁ docker</span><span>＋ yours</span>
+          </div>
+        </div>
+        <div class="command-builder" aria-label="Example launchpad command configuration">
+          <span class="url-builder-label">ADD LAUNCHPAD COMMAND</span>
+          <div><span>$</span><strong>your command here</strong><b>＋ PIN</b></div>
+          <small>Name the tool · Choose its folder · Add environment values · Run in its own tab</small>
+        </div>
+      </div>
+    </article>
+
+    <article class="workflow-capability preset-tool-card">
+      <div class="preset-copy">
+        <div class="capability-topline"><span class="capability-index">03 / YOUR STACK, AS A PRESET</span><span>REPEATABLE</span></div>
+        <h3>Turn any setup into one click.</h3>
+        <p>Save any combination of commands, folders, environment values, dependencies, and preview URLs. From a two-process app to your strangest local stack—Tabs starts it the same way every time.</p>
+        <div class="preset-tags" aria-label="Preset capabilities"><span>commands</span><span>working folders</span><span>environment</span><span>dependencies</span><span>preview URL</span></div>
+      </div>
+      <div class="preset-console">
+        <div class="preset-console-head"><span>CHECKOUT WORKSPACE</span><b>3 PROCESSES</b></div>
+        <div class="preset-stack">
+          <div><i>01</i><span>FRONTEND</span><code>cd apps/web &amp;&amp; bun dev</code><b>4173</b></div>
+          <div><i>02</i><span>API</span><code>cd apps/api &amp;&amp; bun start</code><b>3000</b></div>
+          <div><i>03</i><span>WORKER</span><code>cd workers/jobs &amp;&amp; bun dev</code><b>● LIVE</b></div>
+        </div>
+        <span class="preset-action">▶ START EVERYTHING</span>
+      </div>
+    </article>
+  </div>
+</section>

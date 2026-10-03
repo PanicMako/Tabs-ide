@@ -1,0 +1,112 @@
+---
+import TabsLogo from "./TabsLogo.astro";
+import Icon from "./Icon.astro";
+import Download from "./Download.astro";
+import Workspace from "./Workspace.astro";
+import ProjectSketch from "./ProjectSketch.astro";
+import ConceptOneWorkflow from "./ConceptOneWorkflow.astro";
+import AgentRoster from "./AgentRoster.astro";
+import ReleaseLog from "./ReleaseLog.astro";
+import FooterSignature from "./FooterSignature.astro";
+import "../styles/concept-one.css";
+
+const projects = [
+  { id: "web", name: "the website", file: "homepage.tsx", task: "Give the homepage a fresh start.", branch: "design/new-home", port: "localhost:3000", label: "Make a good first impression.", tint: "blue" },
+  { id: "app", name: "the app", file: "workspace.tsx", task: "Make room for the next big idea.", branch: "feature/workspace", port: "localhost:5173", label: "Turn a what-if into a what's-next.", tint: "orange" },
+  { id: "idea", name: "the next idea", file: "experiment.ts", task: "Let's see where this could go.", branch: "experiment/first-step", port: "localhost:4321", label: "Leave a little room for possibility.", tint: "mint" },
+];
+---
+
+<article data-concept="1" class="headspace">
+  <header class="hs-nav hs-wrap">
+    <div class="hs-brand-lockup">
+      <a class="hs-brand" href="/" aria-label="Tabs IDE home"><TabsLogo size={32} /><span>Tabs<span class="hs-brand-suffix">IDE</span></span></a>
+      <span class="hs-brand-divider" aria-hidden="true"></span>
+      <div class="hs-access-tag" aria-label="Public Beta">
+        <span>PUBLIC</span>
+        <span>BETA</span>
+      </div>
+    </div>
+    <nav aria-label="Page navigation"><a href="#hs-workspace" data-hs-scroll>Inside Tabs</a><a href="/changelog">What's new</a><a href="https://github.com/PanicMako/Tabs-ide">GitHub <Icon name="ArrowUpRight" size={14} /></a></nav>
+    <a class="hs-nav-download" href="/downloads"><span class="btn-fill" aria-hidden="true"></span><span>Get Tabs</span> <Icon name="ArrowDown" size={16} /></a>
+  </header>
+
+  <section class="hs-hero hs-wrap">
+    <div class="hs-hero-copy">
+      <p class="hs-eyebrow"><span class="hs-spark" aria-hidden="true">✳</span> MORE THAN AN IDE · ALL YOUR PROJECTS IN ONE WINDOW</p>
+      <h1>Bigger than<br />an IDE.<br /><span>One window.</span></h1>
+      <p class="hs-lead">Work across projects in browser-style tabs. Each project has a Code OSS editor, AI agents, servers, Git, and a browser. Add your own web tools and CLIs to its toolbar—all in one desktop window.</p>
+      <div class="hs-hero-actions"><Download compact /></div>
+    </div>
+
+    <div class="hs-hero-art">
+      <div class="hs-art-caption"><span>Everything has its place.</span><span aria-hidden="true">↙</span></div>
+      <div class="hs-project-demo" data-hs-project-demo data-active-project="web">
+        <div class="hs-project-tabs" role="tablist" aria-label="Explore example projects">
+          {projects.map((project, index) => <button type="button" role="tab" class={`hs-project-tab hs-tab-${project.tint}`} id={`hs-tab-${project.id}`} aria-controls={`hs-project-${project.id}`} aria-selected={index === 0} tabindex={index === 0 ? 0 : -1} data-hs-project={project.id}><span class="hs-project-dot" aria-hidden="true"></span><span>{project.name}</span><Icon name="ArrowUpRight" size={16} /></button>)}
+        </div>
+        {projects.map((project, index) => <div class={`hs-project-panel hs-panel-${project.tint}`} role="tabpanel" id={`hs-project-${project.id}`} aria-labelledby={`hs-tab-${project.id}`} tabindex="0" hidden={index !== 0} data-hs-panel={project.id}>
+          <div class="hs-panel-heading"><TabsLogo size={34} /><span>One tab.<br /><b>A whole project.</b></span><span class="hs-panel-plus" aria-hidden="true">+</span></div>
+          <ProjectSketch project={project} />
+          <p class="hs-project-line">{project.label}</p>
+        </div>)}
+      </div>
+      <div class="hs-art-baseline"><span>PROJECTS ABOVE. TOOLS BELOW.</span><span class="hs-demo-hint"><span aria-hidden="true">↑</span> Try both rows</span></div>
+    </div>
+  </section>
+
+  <div class="hs-tools-strip hs-wrap"><span>Built in. Ready when you are.</span><div>{([["Code2", "Code"], ["Bot", "Agents"], ["Rocket", "Launchpad"], ["GitBranch", "Git"], ["Globe", "Browser"]] as const).map(([icon, name]) => <span><Icon name={icon} size={16} />{name}</span>)}</div></div>
+
+  <section class="hs-room hs-wrap">
+    <div class="hs-room-heading"><p class="hs-eyebrow">PROJECT TABS. TOOLBAR TOOLS.</p><h2>Switch projects.<br /><span>Keep your<br />workspace.</span></h2></div>
+    <div class="hs-room-copy"><p class="hs-big-copy">A code editor is one part of your workflow. Tabs brings the rest into the same window.</p><p>Edit in Code OSS, talk to an agent, run your app, and review Git changes. Your design pages and command-line tools can live here too. Switch projects across the top; switch tools in the project’s toolbar.</p><a class="hs-text-link" href="#hs-workspace" data-hs-scroll>Explore the built-in tools <Icon name="ArrowDown" size={18} /></a></div>
+    <div class="hs-principles">
+      <div><span class="hs-principle-icon"><Icon name="Layers" size={26} /></span><h3>01. Choose a project.</h3><p>Client work, side project, next experiment. Move between codebases without taking your workspace apart.</p></div>
+      <div><span class="hs-principle-icon"><Icon name="Code2" size={26} /></span><h3>02. Switch your tool.</h3><p>Write in Code OSS. Talk to an agent. Review a diff. Each tool has its own view, so your workflow can grow without squeezing everything into side panels.</p></div>
+      <div><span class="hs-principle-icon"><Icon name="Globe" size={26} /></span><h3>03. Make it yours.</h3><p>Add a design page, your team’s docs, or a command-line tool. Save a Launchpad preset. Arrange the toolbar around the way this project works.</p></div>
+    </div>
+  </section>
+
+  <section class="hs-work" id="hs-workspace"><div class="hs-wrap"><p class="hs-eyebrow">BUILT-IN TOOLS. A VIEW FOR EACH.</p><div class="hs-work-heading"><h2>From first edit<br /><span>to running app.</span></h2><p>Code, Agents, Launchpad, Git, and Browser work together inside your project. Explore each view below. Testing is optional, in early access, and disabled by default.</p></div><Workspace instance="concept-1" variant="light" /></div></section>
+  <ConceptOneWorkflow />
+  <div class="hs-agents hs-wrap"><AgentRoster eyebrow="YOUR AGENTS. YOUR CHOICE." title="Choose who you build with." description="Choose a supported agent for your project conversations. Keep the discussion, code, and tools in the same workspace, with native connections and Agent Client Protocol (ACP) integrations." /></div>
+  <div class="hs-release hs-wrap"><ReleaseLog /></div>
+  <footer class="hs-end"><div class="hs-wrap"><div class="hs-end-top"><span class="hs-end-mark" aria-hidden="true">✳</span><p>Make space for<br /><span>what's next.</span></p><Download compact /></div><div class="hs-platforms"><a href="/downloads">Find your download for macOS, Windows, or Linux <Icon name="ArrowUpRight" size={17} /></a></div><FooterSignature concept={1} /></div></footer>
+</article>
+
+<script>
+  const demo = document.querySelector<HTMLElement>("[data-hs-project-demo]");
+  if (demo) {
+    const tabs = [...demo.querySelectorAll<HTMLButtonElement>("[data-hs-project]")];
+    const panels = [...demo.querySelectorAll<HTMLElement>("[data-hs-panel]")];
+    const select = (tab: HTMLButtonElement) => {
+      tabs.forEach(item => { item.setAttribute("aria-selected", String(item === tab)); item.tabIndex = item === tab ? 0 : -1; });
+      panels.forEach(panel => panel.hidden = panel.dataset.hsPanel !== tab.dataset.hsProject);
+      demo.dataset.activeProject = tab.dataset.hsProject;
+      const visiblePanel = panels.find(panel => !panel.hidden);
+      if (visiblePanel && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        visiblePanel.getAnimations().forEach(animation => animation.cancel());
+        visiblePanel.animate([{ opacity: .45, transform: "translateY(10px) scale(.985)" }, { opacity: 1, transform: "translateY(0) scale(1)" }], { duration: 550, easing: "cubic-bezier(.22,1,.36,1)" });
+      }
+    };
+    tabs.forEach((tab, index) => {
+      tab.addEventListener("click", () => select(tab));
+      tab.addEventListener("keydown", event => {
+        const indexForKey: Record<string, number> = { ArrowRight: (index + 1) % tabs.length, ArrowLeft: (index - 1 + tabs.length) % tabs.length, Home: 0, End: tabs.length - 1 };
+        const next = indexForKey[event.key];
+        if (next === undefined) return;
+        event.preventDefault();
+        const target = tabs[next];
+        if (target) { select(target); target.focus(); }
+      });
+    });
+  }
+  document.querySelectorAll<HTMLAnchorElement>("[data-hs-scroll]").forEach(link => link.addEventListener("click", event => {
+    const target = document.querySelector<HTMLElement>(link.hash);
+    if (!target) return;
+    event.preventDefault();
+    target.scrollIntoView({ behavior: document.documentElement.classList.contains("motion-paused") ? "instant" : "smooth" });
+    target.setAttribute("tabindex", "-1");
+    target.focus({ preventScroll: true });
+  }));
+</script>

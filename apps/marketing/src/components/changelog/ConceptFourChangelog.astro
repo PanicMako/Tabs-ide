@@ -1,0 +1,180 @@
+---
+import TabsLogo from "../TabsLogo.astro";
+import Icon from "../Icon.astro";
+import FooterSignature from "../FooterSignature.astro";
+import { changelogData, TOTAL_TAGS_COUNT } from "../../data/changelogData";
+import { RELEASES_URL } from "../../lib/releases";
+---
+
+<article data-concept="4" class="current current-changelog-article" hidden>
+  <header class="current-nav current-container">
+    <a class="current-brand" href="/#concept-4" aria-label="Tabs IDE home">
+      <TabsLogo size={31} />
+      <span>Tabs<span class="current-brand-accent">IDE</span></span>
+    </a>
+    <nav aria-label="Page navigation">
+      <a href="/#concept-4">Inside Tabs</a>
+      <a href="/changelog#concept-4" aria-current="page">Changelog</a>
+      <a href="https://github.com/PanicMako/Tabs-ide">GitHub <Icon name="ArrowUpRight" size={14} /></a>
+    </nav>
+    <a class="current-nav-download" href="/download#concept-4">
+      <span>Get Tabs</span>
+      <Icon name="ArrowDown" size={14} />
+    </a>
+  </header>
+
+  <section class="current-cl-hero current-container">
+    <p class="current-eyebrow">
+      <span class="current-live-dot" aria-hidden="true"></span>
+      TELEMETRY // REVISION MANIFEST &amp; SHIP LOG
+    </p>
+    <h1>Revisions &amp;<br /><span>telemetry.</span></h1>
+    <p class="current-cl-lead">
+      Structured engineering log of product changes, architectural milestones, and verified production builds.
+    </p>
+
+    <div class="current-cl-telemetry-bar">
+      <div><span>LATEST REVISION</span><strong>{changelogData[0].tag} // STABLE</strong></div>
+      <div><span>PRODUCTION TARGETS</span><strong>Darwin · Win32 · Linux</strong></div>
+      <div><span>VERIFIED RELEASES</span><strong>{changelogData.length} Built &amp; Signed</strong></div>
+      <div>
+        <a href={RELEASES_URL} target="_blank" rel="noopener noreferrer" class="current-cl-gh-btn">
+          [ RELEASES ↗ ]
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <main class="current-cl-stage current-container">
+    <!-- TWO-COLUMN TELEMETRY GRID -->
+    <div class="current-cl-layout">
+      <!-- LEFT HUD RELEASES INDEX -->
+      <aside class="current-cl-sidebar" aria-label="Revision telemetry index">
+        <div class="current-sidebar-card">
+          <div class="current-sidebar-head">
+            <span class="current-sidebar-title">// REVISION_INDEX</span>
+            <span class="current-sidebar-count">[{changelogData.length}]</span>
+          </div>
+
+          <nav class="current-sidebar-nav">
+            {changelogData.map((release) => (
+              <a
+                href={`#${release.tag}`}
+                class:list={["current-sidebar-link", { "is-latest": release.isLatest }]}
+                data-sidebar-target={release.tag}
+              >
+                <div class="current-sidebar-tag-box">
+                  <span class="current-sidebar-dot" aria-hidden="true"></span>
+                  <span class="current-sidebar-tag">{release.tag}</span>
+                </div>
+                <span class="current-sidebar-date">{release.shortDate || release.date}</span>
+              </a>
+            ))}
+          </nav>
+
+          <div class="current-sidebar-foot">
+            <a
+              href={RELEASES_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="current-sidebar-gh"
+            >
+              [ ARCHIVE // {TOTAL_TAGS_COUNT} TAGS ↗ ]
+            </a>
+          </div>
+        </div>
+      </aside>
+
+      <!-- RIGHT CHRONOLOGICAL FEED -->
+      <div class="current-cl-feed">
+        {changelogData.map((release) => (
+          <article class="current-cl-card" id={release.tag} data-release-card={release.tag}>
+            <div class="current-cl-card-header">
+              <div class="current-cl-stamp">
+                <span class="current-cl-tag">{release.tag}</span>
+                {release.isLatest && <span class="current-cl-pill current-pill-prod">● LIVE PROD</span>}
+                {release.type === "major" && <span class="current-cl-pill current-pill-major">★ MAJOR ARCHITECTURE</span>}
+                {release.type === "feature" && <span class="current-cl-pill current-pill-feat">FEATURE</span>}
+                {release.type === "patch" && !release.isLatest && <span class="current-cl-pill current-pill-patch">PATCH</span>}
+                <time class="current-cl-date">{release.date}</time>
+              </div>
+              <a
+                href={`${RELEASES_URL}/tag/${release.tag}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="current-cl-tag-link"
+              >
+                [ GITHUB TAG ↗ ]
+              </a>
+            </div>
+
+            <div class="current-cl-card-body">
+              <h3 class="current-cl-title">{release.title}</h3>
+              <p class="current-cl-summary">{release.summary}</p>
+
+              {release.installers && release.installers.length > 0 && (
+                <div class="current-cl-binaries">
+                  <span class="current-cl-bin-label">VERIFIED BINARIES:</span>
+                  <div class="current-cl-bin-list">
+                    {release.installers.map((inst) => (
+                      <a href={inst.url} class="current-cl-bin-btn" download={inst.filename}>
+                        <span>{inst.platform} ({inst.arch})</span>
+                        <span>↓</span>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <!-- EXPANDABLE TELEMETRY DETAILS (Minimized by default) -->
+              <details class="current-cl-details">
+                <summary class="current-cl-summary">
+                  <div class="current-summary-left">
+                    <span class="current-arrow-toggle" aria-hidden="true">[+]</span>
+                    <span class="current-summary-title">WHAT CHANGED</span>
+                  </div>
+                  <span class="current-summary-badge">
+                    <code>{release.highlights.length + (release.categories ? release.categories.reduce((a, c) => a + c.items.length, 0) : 0)} UPDATES</code>
+                  </span>
+                </summary>
+
+                <div class="current-cl-details-inner">
+                  <ul class="current-cl-bullet-list">
+                    {release.highlights.map((item) => (
+                      <li>
+                        <span class="current-bullet-mark">+</span>
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+
+                  {release.categories && release.categories.map((cat) => (
+                    <div class="current-cl-cat-group">
+                      <span class="current-cl-cat-title">→ {cat.title.toUpperCase()}</span>
+                      <ul class="current-cl-bullet-list">
+                        {cat.items.map((item) => (
+                          <li>
+                            <span class="current-bullet-mark">+</span>
+                            <span>{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            </div>
+          </article>
+        ))}
+      </div>
+    </div>
+  </main>
+
+  <footer class="current-footer current-container">
+    <div>
+      <span>TABS_IDE // BUILD_SYSTEM_READY</span>
+      <span>ALL_TARGETS_SIGNED</span>
+    </div>
+    <FooterSignature concept={4} />
+  </footer>
+</article>

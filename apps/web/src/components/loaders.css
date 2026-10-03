@@ -1,0 +1,57 @@
+/* Mercury Chrome Loader */
+@keyframes mo-spin {
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.ms-w1 {
+  animation: mo-spin 2s cubic-bezier(0.6, 0.1, 0.4, 0.9) infinite;
+}
+.ms-w2 {
+  animation: mo-spin 2s cubic-bezier(0.6, 0.1, 0.4, 0.9) infinite 0.15s;
+}
+.ms-w3 {
+  animation: mo-spin 2s cubic-bezier(0.6, 0.1, 0.4, 0.9) infinite 0.3s;
+}
+.ms-w4 {
+  animation: mo-spin 2s cubic-bezier(0.6, 0.1, 0.4, 0.9) infinite 0.45s;
+}
+
+/* Rotating Status Label */
+@keyframes rl-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes rl-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+
+.rl-in {
+  animation: rl-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.rl-out {
+  animation: rl-out 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Pre-fers reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .loader-respect-motion * {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

@@ -1,0 +1,379 @@
+---
+interface Props {
+  eyebrow?: string;
+  title?: string;
+  description?: string;
+}
+
+const {
+  eyebrow = "YOUR AGENTS. YOUR CALL.",
+  title = "Different minds. Same workspace.",
+  description = "Work with Claude, Codex, and other supported agents through native and ACP integrations. Keep your code, tools, and project in view.",
+} = Astro.props;
+
+const providers = [
+  { id: "claude", name: "Claude" },
+  { id: "codex", name: "Codex" },
+  { id: "antigravity", name: "Antigravity" },
+  { id: "cursor", name: "Cursor" },
+  { id: "copilot", name: "Copilot" },
+  { id: "gemini", name: "Gemini" },
+  { id: "grok", name: "Grok" },
+  { id: "opencode", name: "OpenCode" },
+  { id: "kilo", name: "Kilo" },
+  { id: "factory-droid", name: "Factory Droid" },
+  { id: "openrouter", name: "OpenRouter" },
+];
+---
+
+<section class="agent-roster">
+  <div class="agent-roster-intro">
+    <span class="agent-roster-eyebrow">{eyebrow}</span>
+    <h2 class="agent-roster-title">{title}</h2>
+    <p class="agent-roster-description">{description}</p>
+  </div>
+  <div class="agent-roster-navigation">
+    <span><span class="roster-star" aria-hidden="true">✳</span> DIFFERENT MINDS. SAME WORKSPACE.</span>
+    <div class="roster-status" aria-label="11 supported agent collaborators">
+      <span class="roster-status-dot" aria-hidden="true"></span>
+      <span>11 COLLABORATORS</span>
+    </div>
+  </div>
+  <div class="agent-roster-marquee" tabindex="0" role="region" aria-label="Supported agents continuous marquee">
+    <div class="agent-roster-track">
+      <ul class="agent-roster-list" role="list">
+        {providers.map((provider, index) => (
+          <li class={`agent-roster-item roster-tint-${index % 3}`}>
+            <span class="roster-number" aria-hidden="true">{String(index + 1).padStart(2, "0")} / 11</span>
+            <span class="agent-roster-icon" aria-hidden="true">
+              <img
+                src={`/providers/${provider.id}.svg`}
+                width="26"
+                height="26"
+                alt=""
+                loading="lazy"
+                decoding="async"
+              />
+            </span>
+            <span class="agent-roster-name">{provider.name}</span>
+          </li>
+        ))}
+      </ul>
+      <ul class="agent-roster-list" role="list" aria-hidden="true">
+        {providers.map((provider, index) => (
+          <li class={`agent-roster-item roster-tint-${index % 3}`}>
+            <span class="roster-number" aria-hidden="true">{String(index + 1).padStart(2, "0")} / 11</span>
+            <span class="agent-roster-icon" aria-hidden="true">
+              <img
+                src={`/providers/${provider.id}.svg`}
+                width="26"
+                height="26"
+                alt=""
+                loading="lazy"
+                decoding="async"
+              />
+            </span>
+            <span class="agent-roster-name">{provider.name}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </div>
+  <div class="roster-baseline"><span>Your choice of collaborator.</span><span>One place to keep building. <span aria-hidden="true">↗</span></span></div>
+</section>
+
+<style>
+  .agent-roster {
+    padding: clamp(64px, 8vw, 112px) 7%;
+    background: var(--roster-bg, transparent);
+    color: var(--roster-ink, inherit);
+    font-family: var(--roster-font, inherit);
+  }
+
+  .agent-roster-intro {
+    max-width: 740px;
+    margin-bottom: 44px;
+  }
+
+  .agent-roster-eyebrow {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.13em;
+    line-height: 1.5;
+  }
+
+  .agent-roster-title {
+    margin: 18px 0 20px;
+    font-family: var(--roster-font, inherit);
+    font-size: clamp(36px, 4.5vw, 64px);
+    font-weight: 500;
+    line-height: 1.04;
+    letter-spacing: -0.055em;
+    text-wrap: balance;
+  }
+
+  .agent-roster-description {
+    max-width: 610px;
+    margin: 0;
+    color: var(--roster-muted, inherit);
+    font-size: 16px;
+    line-height: 1.65;
+  }
+
+  .agent-roster-navigation, .roster-baseline {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+  }
+
+  .agent-roster-navigation {
+    margin-bottom: 20px;
+    font-size: 10px;
+    letter-spacing: .1em;
+  }
+
+  .agent-roster-navigation > span {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .roster-star {
+    color: #3155f5;
+    font-size: 28px;
+  }
+
+  .roster-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.09em;
+    color: #556077;
+    padding: 5px 12px;
+    border-radius: 999px;
+    background: rgba(49, 85, 245, 0.05);
+    border: 1px solid rgba(49, 85, 245, 0.12);
+  }
+
+  .roster-status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #3155f5;
+    box-shadow: 0 0 0 2px rgba(49, 85, 245, 0.25);
+    animation: roster-pulse 2.2s infinite ease-in-out;
+  }
+
+  @keyframes roster-pulse {
+    0%, 100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.45;
+      transform: scale(0.85);
+    }
+  }
+
+  /* Continuous Floating Marquee */
+  .agent-roster-marquee {
+    position: relative;
+    width: 100%;
+    overflow: hidden;
+    border-block: 1px solid var(--roster-line, #e0e5ef);
+    mask-image: linear-gradient(
+      to right,
+      transparent 0%,
+      black 32px,
+      black calc(100% - 32px),
+      transparent 100%
+    );
+    -webkit-mask-image: linear-gradient(
+      to right,
+      transparent 0%,
+      black 32px,
+      black calc(100% - 32px),
+      transparent 100%
+    );
+  }
+
+  .agent-roster-track {
+    display: flex;
+    width: max-content;
+    animation: roster-float-west 40s linear infinite;
+    will-change: transform;
+  }
+
+  .agent-roster-marquee:hover .agent-roster-track,
+  .agent-roster-marquee:focus-within .agent-roster-track {
+    animation-play-state: paused;
+  }
+
+  @keyframes roster-float-west {
+    0% {
+      transform: translate3d(0, 0, 0);
+    }
+    100% {
+      transform: translate3d(-50%, 0, 0);
+    }
+  }
+
+  .agent-roster-list {
+    display: flex;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    flex-shrink: 0;
+  }
+
+  .agent-roster-item {
+    display: flex;
+    flex: 0 0 240px;
+    width: 240px;
+    min-height: 240px;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 14px;
+    position: relative;
+    padding: 45px 18px 30px;
+    border-right: 1px solid var(--roster-line, #e0e5ef);
+    text-align: center;
+    cursor: default;
+    transition: background-color 0.25s ease, filter 0.25s ease;
+  }
+
+  .agent-roster-icon {
+    display: grid;
+    width: 74px;
+    height: 74px;
+    place-items: center;
+    border-radius: 50%;
+    background: #ffffff;
+    box-shadow: 0 2px 8px rgba(32, 43, 68, 0.05);
+    transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .agent-roster-icon img {
+    display: block;
+    object-fit: contain;
+    width: 40px;
+    height: 40px;
+    transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .agent-roster-name {
+    font-size: 17px;
+    font-weight: 500;
+    line-height: 1.4;
+    color: var(--roster-ink, #202b44);
+    transition: color 0.25s ease;
+  }
+
+  .roster-number {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    font: 10px monospace;
+    color: #697184;
+    letter-spacing: 0.08em;
+    transition: color 0.25s ease;
+  }
+
+  /* Harmonic Card Tints */
+  .roster-tint-0 { background: #f0f3ff; }
+  .roster-tint-1 { background: #f9f4ed; }
+  .roster-tint-2 { background: #eff6f2; }
+
+  /* Refined, Premium Hover State */
+  .agent-roster-item:hover {
+    filter: brightness(0.985);
+  }
+
+  .agent-roster-item:hover .agent-roster-icon {
+    transform: translateY(-5px) scale(1.04);
+    box-shadow: 0 12px 28px -4px rgba(32, 43, 68, 0.12), 0 4px 12px -2px rgba(49, 85, 245, 0.1);
+  }
+
+  .agent-roster-item:hover .agent-roster-icon img {
+    transform: scale(1.05);
+  }
+
+  .agent-roster-item:hover .roster-number {
+    color: #3155f5;
+  }
+
+  .agent-roster-item:hover .agent-roster-name {
+    color: #0c1529;
+  }
+
+  .roster-baseline {
+    margin-top: 18px;
+    color: #636c7b;
+    font-size: 12px;
+  }
+
+  .roster-baseline span:last-child span {
+    display: inline-block;
+    margin-left: 16px;
+    color: #3155f5;
+  }
+
+  @media (max-width: 760px) {
+    .agent-roster-item {
+      flex: 0 0 190px;
+      width: 190px;
+      min-height: 210px;
+      padding: 36px 14px 22px;
+      gap: 11px;
+    }
+
+    .agent-roster-icon {
+      width: 62px;
+      height: 62px;
+    }
+
+    .agent-roster-icon img {
+      width: 34px;
+      height: 34px;
+    }
+
+    .agent-roster-navigation > span {
+      max-width: 190px;
+      font-size: 9px;
+    }
+
+    .roster-status {
+      font-size: 9px;
+      padding: 4px 9px;
+    }
+
+    .roster-baseline {
+      align-items: flex-start;
+      font-size: 10px;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .agent-roster-track {
+      animation: none;
+    }
+    .agent-roster-marquee {
+      overflow-x: auto;
+      scroll-snap-type: x mandatory;
+    }
+    .agent-roster-item {
+      scroll-snap-align: start;
+    }
+    .agent-roster-icon,
+    .agent-roster-item {
+      transition: none;
+    }
+    .agent-roster-item:hover .agent-roster-icon {
+      transform: none;
+    }
+  }
+</style>

@@ -1,0 +1,21 @@
+---
+import Icon from "./Icon.astro";
+---
+<div class="tool-setup-paths" aria-label="Three ways to add your own tools">
+  {([
+    ["Globe", "Paste a URL", "figma.com/your-design", "A browser tab in your toolbar"],
+    ["Terminal", "Add a CLI command", "claude · codex · your script", "A terminal tab for your tool"],
+    ["Rocket", "Save a Launchpad preset", "Install → start → preview", "Run your app from one button"],
+  ] as const).map(([icon, title, example, result]) => <div class="tool-setup-path"><span class="setup-icon"><Icon name={icon} size={21}/></span><h3>{title}</h3><code>{example}</code><span class="setup-arrow" aria-hidden="true">↓</span><p>{result}</p></div>)}
+</div>
+<style>
+  .tool-setup-paths { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); border-block:1px solid #dce2ee; margin:0 0 44px; }
+  .tool-setup-path { position:relative; padding:25px 24px; text-align:center; }
+  .tool-setup-path + .tool-setup-path { border-left:1px solid #dce2ee; }
+  .setup-icon { display:flex; justify-content:center; color:#3259ed; margin-bottom:12px; }
+  .tool-setup-path h3 { font-size:17px; font-weight:500; letter-spacing:-.02em; margin:0 0 10px; }
+  .tool-setup-path code { display:block; font:11px monospace; color:#636c7b; line-height:1.6; }
+  .setup-arrow { display:block; color:#3259ed; margin:12px 0; font-size:20px; }
+  .tool-setup-path p { font-size:12px; line-height:1.5; margin:0; }
+  @media(max-width:600px) { .tool-setup-paths { grid-template-columns:1fr; } .tool-setup-path { padding:20px; } .tool-setup-path + .tool-setup-path { border-left:0; border-top:1px solid #dce2ee; } }
+</style>

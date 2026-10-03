@@ -1,0 +1,137 @@
+---
+import Download from "./Download.astro";
+import FooterSignature from "./FooterSignature.astro";
+import Icon from "./Icon.astro";
+import AgentRoster from "./AgentRoster.astro";
+import ReleaseLog from "./ReleaseLog.astro";
+import TabsLogo from "./TabsLogo.astro";
+import Workspace from "./Workspace.astro";
+import ConceptFourWorkflow from "./ConceptFourWorkflow.astro";
+import "../styles/concept-four.css";
+
+const repo = "https://github.com/PanicMako/Tabs-ide";
+const lanes = Array.from({ length: 6 }, (_, index) => {
+  const inset = index * 32;
+  return `M 700 ${42 + inset} H 420 A ${192 - inset} ${192 - inset} 0 0 0 ${228 + inset} 234 V 266 A ${162 + inset} ${162 + inset} 0 0 1 66 ${428 + inset} H -30`;
+});
+const tools = ["Code", "Agents", "Launchpad", "Git", "Browser", "Testing"];
+---
+
+<article data-concept="4" class="current" hidden>
+  <header class="current-nav current-container">
+    <a href="/#concept-4" class="current-brand" aria-label="Tabs IDE home">
+      <TabsLogo size={34} /><span>Tabs<span class="current-brand-ide">IDE</span></span>
+    </a>
+    <nav aria-label="Page navigation">
+      <a href="#current-workspace" data-current-scroll>The workspace</a>
+      <a href="/changelog">Changelog</a>
+      <a href={repo}>GitHub <Icon name="ArrowUpRight" size={14} /></a>
+    </nav>
+    <a class="current-nav-download" href="/downloads">Get Tabs <Icon name="ArrowDown" size={16} /></a>
+  </header>
+
+  <section class="current-hero current-container" aria-labelledby="current-title">
+    <div class="current-hero-copy">
+      <p class="current-eyebrow"><span class="current-live-dot" aria-hidden="true"></span> BIGGER THAN AN IDE // ALL YOUR PROJECTS IN ONE WINDOW</p>
+      <h1 id="current-title">Bigger than<br />an IDE. <span>One window.</span></h1>
+      <div class="current-hero-intro">
+        <p>Switch across active codebases like browser tabs.<br />Zero window juggling. Zero desktop chaos.</p>
+        <p>Real Code OSS, terminals, Git diffs, browser previews, and your choice of AI agents—unified in a single desktop frame.</p>
+        <Download compact />
+      </div>
+    </div>
+
+    <div class="current-graphic" data-current-graphic aria-hidden="true">
+      <div class="current-graphic-label"><span>Everything, in its element.</span><span>↙</span></div>
+      <svg class="current-lanes" viewBox="0 0 660 650" fill="none">
+        {lanes.map((path, index) => <path class:list={["current-lane", { "current-lane-blue": index === 4 }]} d={path} />)}
+        <path class="current-route-pulse" d={lanes[1]} />
+        <path class="current-route-pulse current-pulse-second" d={lanes[4]} />
+      </svg>
+      <div class="current-project-node">
+        <div class="current-node-tab"><span></span> Your project <span>↗</span></div>
+        <div class="current-node-body">
+          <TabsLogo size={50} />
+          <span>All here.<br /><b>All yours.</b></span>
+          <span class="current-node-index">01 — ∞</span>
+        </div>
+      </div>
+      <div class="current-graphic-foot"><span>One tab.<br />The whole project.</span><span class="current-lane-key">{tools.map((tool) => <span>{tool}</span>)}</span></div>
+    </div>
+    <div class="current-hero-baseline"><span>Built around your project. Open to your way of working.</span><a href="#current-perspective" data-current-scroll>Get into it <Icon name="ArrowDown" size={15} /></a></div>
+  </section>
+
+  <section id="current-perspective" class="current-perspective">
+    <div class="current-container">
+      <div class="current-perspective-top">
+        <div>
+          <span class="current-eyebrow">A little less elsewhere</span>
+          <h2>Keep your head<br />in the project.</h2>
+        </div>
+        <p>The editor over here. An agent over there. A terminal somewhere underneath.<br /><br />Tabs gives the whole project a place to live. So getting into the work doesn’t mean getting everything into position.</p>
+      </div>
+      <div class="current-project-story">
+        <div class="current-project-explanation">
+          <span class="current-story-number">01 / A place for each project</span>
+          <h3>Switch projects.<br />Keep your place.</h3>
+          <p>A client app, the API behind it, that idea on the side. Each gets its own tab, with its code and tools together.</p>
+          <a href="#current-workspace" data-current-scroll>Meet your next workspace <Icon name="ArrowUpRight" size={18} /></a>
+        </div>
+        <div class="current-project-diagram" aria-label="Every project tab contains its own code, agents, server, Git, browser and testing tools">
+          <div class="current-diagram-tabs" aria-hidden="true"><span class="current-diagram-active"><i></i> storefront <b>×</b></span><span>api <b>×</b></span><span>side-project <b>×</b></span><span>+</span></div>
+          <div class="current-diagram-body" aria-hidden="true"><span class="current-diagram-caption">A whole workspace, inside a tab.</span><div class="current-tool-grid">{tools.map((tool, index) => <div><span>0{index + 1}</span><b>{tool}</b><span>↗</span></div>)}</div><div class="current-diagram-baseline"><span><i></i> storefront</span><span>Everything comes with you.</span></div></div>
+        </div>
+      </div>
+      <div class="current-principles">
+        <div><span class="current-principle-icon"><Icon name="Code2" size={23} /></span><span class="current-story-number">02 / Close to the code</span><h3>Go hands-on.</h3><p>A full Code OSS editor, your extensions, and your files. Get into the details whenever the work calls for it.</p></div>
+        <div><span class="current-principle-icon"><Icon name="Bot" size={23} /></span><span class="current-story-number">03 / Room to collaborate</span><h3>Think it through.</h3><p>Bring an agent into the project. Pick a provider, open a thread, and move between the conversation and the code.</p></div>
+        <div><span class="current-principle-icon"><Icon name="Globe" size={23} /></span><span class="current-story-number">04 / The rest of the loop</span><h3>See it working.</h3><p>Run the server, inspect the diff, open a preview. The next step is right there, in the same window.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="current-agents current-container" aria-labelledby="current-agents-title">
+    <div class="current-section-intro"><div><span class="current-eyebrow">Good company. Your choice.</span><h2 id="current-agents-title">Your agent.<br /><span>Your call.</span></h2></div><p>Different tasks bring out different ways of thinking. Connect the providers you use through native and ACP integrations. Keep your tools close, whichever agent you choose.</p></div>
+    <AgentRoster />
+    <div class="current-agents-foot"><span>Built for a changing cast of collaborators.</span><span>One familiar place to work.</span></div>
+  </section>
+
+  <section id="current-workspace" class="current-workspace current-container" aria-label="Explore the Tabs workspace">
+    <Workspace variant="dark" instance="concept-4" />
+  </section>
+
+  <ConceptFourWorkflow />
+
+  <section class="current-releases current-container" aria-label="Tabs releases"><div class="current-release-mark" aria-hidden="true"><Icon name="GitBranch" size={38} /></div><ReleaseLog /></section>
+
+  <footer class="current-end">
+    <div class="current-container">
+      <div class="current-close-heading"><div><span class="current-eyebrow">Make yourself at home</span><h2>Good work<br />starts <span>here.</span></h2></div><div class="current-close-aside"><TabsLogo size={70} /><p>Your next project.<br />Your familiar tools.<br />A little more room to build.</p><a href={repo}>Built in the open <Icon name="ArrowUpRight" size={16} /></a></div></div>
+      <Download />
+      <FooterSignature concept={4} />
+    </div>
+  </footer>
+</article>
+
+<script>
+  for (const link of document.querySelectorAll<HTMLAnchorElement>("[data-current-scroll]")) {
+    link.addEventListener("click", (event) => {
+      const target = document.querySelector<HTMLElement>(link.hash);
+      if (!target) return;
+      event.preventDefault();
+      target.tabIndex = -1;
+      target.focus({ preventScroll: true });
+      target.scrollIntoView({
+        behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth",
+        block: "start",
+      });
+    });
+  }
+  const graphic = document.querySelector<HTMLElement>("[data-current-graphic]");
+  if (graphic) {
+    const observer = new IntersectionObserver(([entry]) => {
+      graphic.dataset.inView = String(entry?.isIntersecting ?? false);
+    });
+    observer.observe(graphic);
+  }
+</script>

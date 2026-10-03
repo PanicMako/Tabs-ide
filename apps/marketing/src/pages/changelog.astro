@@ -1,0 +1,71 @@
+---
+import ConceptOneChangelog from "../components/changelog/ConceptOneChangelog.astro";
+// Concepts 2-5 imports preserved while unified on Concept 1
+/*
+import ConceptTwoChangelog from "../components/changelog/ConceptTwoChangelog.astro";
+import ConceptThreeChangelog from "../components/changelog/ConceptThreeChangelog.astro";
+import ConceptFourChangelog from "../components/changelog/ConceptFourChangelog.astro";
+import ConceptFiveChangelog from "../components/changelog/ConceptFiveChangelog.astro";
+*/
+import SiteScripts from "../components/SiteScripts.astro";
+import SiteThemeHead from "../components/SiteThemeHead.astro";
+import SeoHead from "../components/SeoHead.astro";
+
+import "../styles/concepts.css";
+import "../styles/concept-one.css";
+import "../styles/changelog-refined.css";
+// import "../styles/concept-four.css";
+// import "../styles/concept-five.css";
+const title = "Tabs IDE Changelog — Release Notes and Downloads";
+const description = "Read the latest Tabs IDE release notes, features, fixes, and download links, updated automatically from verified GitHub releases.";
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <SiteThemeHead />
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content={description}
+    />
+    <title>{title}</title>
+    <SeoHead title={title} description={description} path="/changelog" type="article" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <main id="main">
+      <ConceptOneChangelog />
+      {/*
+      <ConceptTwoChangelog />
+      <ConceptThreeChangelog />
+      <ConceptFourChangelog />
+      <ConceptFiveChangelog />
+      */}
+    </main>
+
+    {/*
+    <nav class="concept-rail" aria-label="Landing page concepts">
+      <span>EXPLORE</span>
+      <a href="#concept-1" data-concept-link="1" aria-label="Show concept 1">1</a>
+      <a href="#concept-2" data-concept-link="2" aria-label="Show concept 2" aria-current="page">2</a>
+      <a href="#concept-3" data-concept-link="3" aria-label="Show concept 3">3</a>
+      <a href="#concept-4" data-concept-link="4" aria-label="Show concept 4">4</a>
+      <a href="#concept-5" data-concept-link="5" aria-label="Show concept 5">5</a>
+      <button data-motion-toggle aria-pressed="false" aria-label="Pause animations">Ⅱ</button>
+    </nav>
+    */}
+
+    <noscript>
+      <style>
+        [data-concept][hidden] { display: block !important; }
+        .concept-rail { display: none; }
+      </style>
+    </noscript>
+
+    <SiteScripts />
+    <script>import "../lib/motion";</script>
+  </body>
+</html>

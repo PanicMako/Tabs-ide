@@ -1,0 +1,172 @@
+---
+import TabsLogo from "../TabsLogo.astro";
+import Icon from "../Icon.astro";
+import FooterSignature from "../FooterSignature.astro";
+import { changelogData, TOTAL_TAGS_COUNT } from "../../data/changelogData";
+import { RELEASES_URL } from "../../lib/releases";
+---
+
+<article data-concept="1" class="headspace hs-changelog-article">
+  <header class="hs-nav hs-wrap">
+    <div class="hs-brand-lockup">
+      <a class="hs-brand" href="/" aria-label="Tabs IDE home">
+        <TabsLogo size={32} />
+        <span>Tabs<span class="hs-brand-suffix">IDE</span></span>
+      </a>
+      <span class="hs-brand-divider" aria-hidden="true"></span>
+      <div class="hs-access-tag" aria-label="Early Access">
+        <span>EARLY</span>
+        <span>ACCESS</span>
+      </div>
+    </div>
+    <nav aria-label="Page navigation">
+      <a href="/#v2-workspace">Inside Tabs</a>
+      <a href="/changelog" aria-current="page">What's new</a>
+      <a href="https://github.com/PanicMako/Tabs-ide">GitHub <Icon name="ArrowUpRight" size={14} /></a>
+    </nav>
+    <a class="hs-nav-download" href="/downloads"><span class="btn-fill" aria-hidden="true"></span><span>Get Tabs</span> <Icon name="ArrowDown" size={16} /></a>
+  </header>
+
+  <section class="hs-cl-hero hs-wrap">
+    <div class="hs-cl-intro">
+    <p class="hs-eyebrow"><span class="hs-spark" aria-hidden="true">✳</span> THE SHIP LOG</p>
+    <h1>What changed.<br /><span>Why it matters.</span></h1>
+    <p class="hs-lead">
+      New tools. Thoughtful improvements. The little fixes that make a big difference.
+      Follow along as Tabs gets better, release by release.
+    </p>
+    </div>
+    <a class="hs-cl-latest-ticket" href={`#${changelogData[0].tag}`} data-latest-release-link>
+      <span class="hs-cl-ticket-top"><span><i aria-hidden="true"></i> THE LATEST RELEASE</span><Icon name="ArrowDown" size={20} /></span>
+      <strong data-latest-release-tag>{changelogData[0].tag}</strong>
+      <span class="hs-cl-ticket-title" data-latest-release-title>{changelogData[0].title}</span>
+      <span class="hs-cl-ticket-bottom"><time data-latest-release-date>{changelogData[0].date}</time><span>Explore the update ↗</span></span>
+    </a>
+  </section>
+
+  <!-- TWO-COLUMN STICKY LAYOUT -->
+  <div class="hs-cl-layout hs-wrap">
+    <aside class="hs-cl-sidebar" aria-label="Releases sidebar">
+      <div class="hs-cl-sidebar-card">
+        <div class="hs-cl-sidebar-heading">
+          <span class="hs-cl-sidebar-title">THE RELEASE INDEX</span>
+          <span class="hs-cl-sidebar-count" data-release-count>{changelogData.length}</span>
+        </div>
+        <nav class="hs-cl-sidebar-nav" aria-label="Jump to a release" data-live-release-index>
+          {changelogData.map((release) => (
+            <a
+              href={`#${release.tag}`}
+              class:list={["hs-cl-sidebar-link", { "is-latest": release.isLatest }]}
+              data-sidebar-target={release.tag}
+            >
+              <div class="hs-cl-link-left">
+                {release.isLatest && <span class="hs-cl-sidebar-dot" aria-hidden="true">●</span>}
+                <span class="hs-cl-sidebar-tag">{release.tag}</span>
+              </div>
+              <span class="hs-cl-sidebar-date">{release.shortDate || release.date}</span>
+            </a>
+          ))}
+        </nav>
+        <div class="hs-cl-sidebar-foot">
+          <a
+            href={RELEASES_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="hs-cl-sidebar-all-link"
+          >
+            <span>All {TOTAL_TAGS_COUNT} tags on GitHub</span>
+            <Icon name="ArrowUpRight" size={12} />
+          </a>
+        </div>
+      </div>
+    </aside>
+
+    <div class="hs-cl-feed" data-live-release-feed>
+      {changelogData.map((release) => (
+        <article class:list={["hs-cl-release", { "hs-cl-release-latest": release.isLatest }]} id={release.tag} data-release-card={release.tag}>
+          <div class="hs-cl-release-header">
+            <div class="hs-cl-tag-row">
+              <h2>{release.tag}</h2>
+              {release.isLatest && <span class="hs-cl-badge hs-cl-badge-latest">● LATEST RELEASE</span>}
+              {release.type === "major" && <span class="hs-cl-badge hs-cl-badge-major">★ MAJOR ARCHITECTURE</span>}
+              {release.type === "feature" && <span class="hs-cl-badge hs-cl-badge-feature">FEATURE RELEASE</span>}
+              {release.type === "patch" && !release.isLatest && <span class="hs-cl-badge hs-cl-badge-patch">PATCH</span>}
+              <time class="hs-cl-date">{release.date}</time>
+            </div>
+            <a
+              href={`${RELEASES_URL}/tag/${release.tag}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="hs-cl-tag-link"
+            >
+              View on GitHub <Icon name="ArrowUpRight" size={13} />
+            </a>
+          </div>
+
+          <div class="hs-cl-release-body">
+            <h3 class="hs-cl-title">{release.title}</h3>
+            <p class="hs-cl-summary">{release.summary}</p>
+
+            {release.installers && release.installers.length > 0 && (
+              <div class="hs-cl-binaries">
+                <span class="hs-cl-binaries-label">GET THIS RELEASE</span>
+                <div class="hs-cl-binaries-list">
+                  {release.installers.map((inst) => (
+                    <a href={inst.url} class="hs-cl-binary-btn" download={inst.filename}>
+                      <span><strong>{inst.platform}</strong><small>{inst.arch}</small></span>
+                      <Icon name="ArrowDown" size={12} />
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <details class="hs-cl-details" open={release.isLatest}>
+              <summary class="hs-cl-summary-trigger">
+                <span class="hs-cl-trigger-left">
+                  <span class="hs-cl-arrow" aria-hidden="true">+</span>
+                  <span class="hs-cl-trigger-text">Release notes</span>
+                </span>
+                <span class="hs-cl-trigger-badge">
+                  {release.highlights.length + (release.categories ? release.categories.reduce((a, c) => a + c.items.length, 0) : 0)} updates
+                </span>
+              </summary>
+
+              <div class="hs-cl-details-content">
+                <ul class="hs-cl-bullet-list">
+                  {release.highlights.map((item) => (
+                    <li>{item}</li>
+                  ))}
+                </ul>
+
+                {release.categories && release.categories.length > 0 && (
+                  <div class="hs-cl-categories">
+                    {release.categories.map((cat) => (
+                      <div class="hs-cl-category-block">
+                        <h4 class="hs-cl-category-title">{cat.title}</h4>
+                        <ul class="hs-cl-bullet-list">
+                          {cat.items.map((item) => (
+                            <li>{item}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </details>
+          </div>
+        </article>
+      ))}
+    </div>
+  </div>
+
+  <footer class="hs-end">
+    <div class="hs-wrap">
+      <div class="hs-platforms">
+        <a href="/downloads">Install Tabs for macOS, Windows, or Linux <Icon name="ArrowUpRight" size={17} /></a>
+      </div>
+      <FooterSignature concept={1} />
+    </div>
+  </footer>
+</article>

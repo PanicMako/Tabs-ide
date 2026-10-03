@@ -1,0 +1,16 @@
+---
+import Icon from './Icon.astro';
+const { concept = 1 } = Astro.props;
+---
+<div class="footer-signature">
+  <nav class="signature-nav" aria-label="Footer navigation">
+    <div><span class="eyebrow">A SPACE FOR WHAT'S NEXT</span><p>Your code. Your agents. Your IDE.</p></div>
+    <a href="/downloads">Download <Icon name="ArrowDown" /></a>
+    <a href="/community">Community <Icon name="ArrowUpRight" /></a>
+    <a href="/changelog">Changelog <Icon name="ArrowUpRight" /></a>
+    <a href="https://github.com/PanicMako/Tabs-ide">GitHub <Icon name="ArrowUpRight" /></a>
+    <a href={`/#concept-${concept}`} onclick="window.scrollTo({top:0,behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'})" aria-label="Back to top"><Icon name="ArrowUp" /></a>
+  </nav>
+  <div class="signature-stage"><span class="signature-orbit" aria-hidden="true"></span><div class="signature-type" aria-label="Tabs IDE"><span>Tabs</span><span>IDE</span></div></div>
+  <div class="signature-baseline"><span>MAKE ROOM FOR YOUR NEXT IDEA.</span><span>BUILT IN THE OPEN.</span></div>
+</div>

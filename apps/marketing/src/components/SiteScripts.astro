@@ -1,0 +1,147 @@
+---
+import CustomCursor from "./CustomCursor.astro";
+import "../styles/site-motion.css";
+---
+<CustomCursor />
+<script>
+import "../lib/site-choreography";
+import "../lib/button-liquid";
+import { fetchLatestRelease, detectPlatform, pickAsset, type Platform } from "../lib/releases";
+import { refreshReleaseFeed } from "../lib/release-feed";
+async function refreshRelease() {
+  try {
+    const release = await fetchLatestRelease();
+    document.querySelectorAll('[data-version]').forEach(el => el.textContent = release.tag_name);
+    document.querySelectorAll<HTMLAnchorElement>('[data-latest-row]').forEach(row => {
+      row.href = release.html_url;
+      if (row.firstElementChild) row.firstElementChild.textContent = release.tag_name;
+      const time = row.querySelector('time');
+      if (time && release.published_at) { time.dateTime = release.published_at; time.textContent = release.published_at.slice(0,10); }
+    });
+    const detected = detectPlatform(navigator.userAgent);
+    document.querySelectorAll<HTMLAnchorElement>('[data-platform]').forEach(el => {
+      const asset = pickAsset(release, el.dataset.platform as Platform);
+      if (asset) el.href = asset;
+    });
+    document.querySelectorAll<HTMLAnchorElement>('[data-smart-download]').forEach(el => {
+      const url = detected ? pickAsset(release, detected) : null;
+      el.href = url ?? '/downloads';
+      if (url) el.setAttribute('aria-label', `Download Tabs ${release.tag_name} for ${detected}`);
+    });
+    document.querySelectorAll('[data-release-status]').forEach(el => el.textContent = `Live on GitHub: ${release.tag_name}. Download links are up to date.`);
+  } catch {
+    // Live lookup unavailable; keep the verified static snapshot binary URLs rather than redirecting to GitHub.
+    document.querySelectorAll<HTMLAnchorElement>('[data-smart-download]').forEach(el => el.href = '/downloads');
+    document.querySelectorAll('[data-release-status]').forEach(el => el.textContent = 'Showing verified release snapshot. Download links are ready.');
+  }
+}
+void refreshRelease();
+void refreshReleaseFeed().then(setupChangelogSidebar).catch(() => {
+  // Keep the fully rendered release snapshot when the live feed is unavailable.
+});
+
+// Re-resolve an explicit platform download click with fresh binary asset if available.
+for (const link of document.querySelectorAll<HTMLAnchorElement>('[data-platform]')) {
+  link.addEventListener('click', async event => {
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+    const platform = link.dataset.platform as Platform | undefined;
+    if (!platform) return;
+    const currentHref = link.getAttribute('href') || link.href;
+    if (link.getAttribute('aria-busy') === 'true') {
+      event.preventDefault();
+      return;
+    }
+    try {
+      link.setAttribute('aria-busy', 'true');
+      const release = await fetchLatestRelease();
+      const freshUrl = pickAsset(release, platform);
+      if (freshUrl && freshUrl !== currentHref) {
+        event.preventDefault();
+        location.assign(freshUrl);
+      }
+    } catch {
+      // Keep verified static binary download URL on error; never redirect away to GitHub releases page.
+    } finally {
+      link.removeAttribute('aria-busy');
+    }
+  });
+}
+const pages = [...document.querySelectorAll<HTMLElement>('article[data-concept]')];
+const links = [...document.querySelectorAll<HTMLAnchorElement>('[data-concept-link]')];
+function selectConcept() {
+  const match = location.hash.match(/^#concept-([1-5])$/);
+  const stored = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('tabs_concept') : null;
+  const candidate = match ? match[1] : (stored && /^[1-5]$/.test(stored) ? stored : '1');
+  const selected = pages.some(page => page.dataset.concept === candidate) ? candidate : (pages[0]?.dataset.concept ?? '1');
+  pages.forEach(page => page.hidden = page.dataset.concept !== selected);
+  links.forEach(link => { if (link.dataset.conceptLink === selected) link.setAttribute('aria-current', 'page'); else link.removeAttribute('aria-current'); });
+  document.body.dataset.concept = selected;
+  try { if (pages.length > 1) sessionStorage.setItem('tabs_concept', selected); } catch {}
+  if (match) window.scrollTo({ top: 0, behavior: 'instant' });
+
+  // Keep intra-site navigation pinned to the selected concept if multiple concepts exist
+  if (pages.length > 1) {
+    document.querySelectorAll<HTMLAnchorElement>('a[href^="/download"], a[href^="/downloads"], a[href^="/changelog"]').forEach(a => {
+      const path = a.getAttribute('href')?.split('#')[0];
+      if (path === '/download' || path === '/downloads' || path === '/changelog') {
+        a.setAttribute('href', `${path}#concept-${selected}`);
+      }
+    });
+  }
+}
+if (pages.length) { selectConcept(); window.addEventListener('hashchange', selectConcept); }
+
+// Changelog sidebar smooth scrolling and scroll-spy
+function setupChangelogSidebar() {
+  const sidebarLinks = document.querySelectorAll<HTMLAnchorElement>('[data-sidebar-target]');
+  if (!sidebarLinks.length) return;
+
+  sidebarLinks.forEach(link => {
+    if (link.dataset.sidebarReady === 'true') return;
+    link.dataset.sidebarReady = 'true';
+    link.addEventListener('click', (e) => {
+      const targetTag = link.getAttribute('data-sidebar-target');
+      if (!targetTag) return;
+      const activeArticle = document.querySelector<HTMLElement>('article[data-concept]:not([hidden])');
+      const targetCard = activeArticle?.querySelector<HTMLElement>(`[data-release-card="${targetTag}"]`) || document.getElementById(targetTag);
+      if (targetCard) {
+        e.preventDefault();
+        targetCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        activeArticle?.querySelectorAll('[data-sidebar-target]').forEach(el => el.classList.remove('is-active'));
+        link.classList.add('is-active');
+      }
+    });
+  });
+
+  const cards = document.querySelectorAll<HTMLElement>('[data-release-card]');
+  if ('IntersectionObserver' in window && cards.length) {
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const tag = (entry.target as HTMLElement).dataset.releaseCard;
+          if (!tag) return;
+          const activeArticle = document.querySelector<HTMLElement>('article[data-concept]:not([hidden])');
+          if (!activeArticle?.contains(entry.target)) return;
+          activeArticle.querySelectorAll<HTMLAnchorElement>('[data-sidebar-target]').forEach(link => {
+            if (link.dataset.sidebarTarget === tag) {
+              link.classList.add('is-active');
+            } else {
+              link.classList.remove('is-active');
+            }
+          });
+        }
+      });
+    }, {
+      rootMargin: '-10% 0px -75% 0px',
+      threshold: 0
+    });
+
+    cards.forEach(card => observer.observe(card));
+  }
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', setupChangelogSidebar);
+} else {
+  setupChangelogSidebar();
+}
+</script>

@@ -1,0 +1,107 @@
+---
+import ConceptTwoRefined from "./ConceptTwoRefined.astro";
+// Concepts 2-5 imports preserved while unified on Concept 1
+/*
+import ConceptFour from "./ConceptFour.astro";
+import ConceptFive from "./ConceptFive.astro";
+import FooterSignature from "./FooterSignature.astro";
+import Icon from "./Icon.astro";
+import Download from "./Download.astro";
+import ReleaseLog from "./ReleaseLog.astro";
+import Providers from "./Providers.astro";
+import Workspace from "./Workspace.astro";
+import TabsLogo from "./TabsLogo.astro";
+import ScrollStory from "./ScrollStory.astro";
+import WorkflowDemo from "./WorkflowDemo.astro";
+const repo = "https://github.com/PanicMako/Tabs-ide";
+*/
+---
+<ConceptTwoRefined />
+
+{/* --- CONCEPTS 2-5 COMMENTED OUT TO UNIFY ON CONCEPT 1 ---
+<article data-concept="2" class="playground">
+  <header class="nav"><a href="/#concept-2" class="wordmark"><TabsLogo size={36} class="wordmark-logo" />Tabs<span class="wordmark-ide">IDE</span></a><span class="nav-caption">MORE THAN AN IDE · ALL YOUR PROJECTS IN ONE WINDOW</span><a href="/downloads">LET'S BUILD ↗</a></header>
+  <section class="play-hero">
+    <div class="eyebrow">BEYOND THE AGENT WINDOW · BUILT FOR REAL DEVELOPER WORKFLOWS</div>
+    <h1>Bigger than an IDE.<br/><span>Every project,</span> one window.</h1>
+    <div class="play-sticker sticker-one" aria-hidden="true">EACH TAB =<br/><b>A PROJECT</b><span>↙</span></div>
+    <div class="play-sticker sticker-two" aria-hidden="true">100%<br/>UNIFIED</div>
+    <p>While others build standalone agent windows, Tabs unifies your real Code OSS editor, terminal, Git diffs, in-app browser previews, and choice of AI collaborators into a single workspace. Switch projects like browser tabs—zero window juggling, zero desktop chaos.</p>
+    <Download compact />
+  </section>
+  <div class="ticker" aria-hidden="true"><div>BIGGER THAN AN IDE　✳　SWITCH PROJECTS LIKE BROWSER TABS　✳　ALL YOUR TOOLS IN ONE WINDOW　✳　CODE · AGENTS · LAUNCHPAD · GIT · BROWSER · TESTING　✳　BIGGER THAN AN IDE　✳　SWITCH PROJECTS LIKE BROWSER TABS　✳　ALL YOUR TOOLS IN ONE WINDOW　✳　CODE · AGENTS · LAUNCHPAD · GIT · BROWSER · TESTING　✳　</div></div>
+  <section class="play-story section-pad">
+    <div>
+      <span class="eyebrow">WHY WE BUILT TABS</span>
+      <h2>Why settle<br/>for just an<br/><em>agent window?</em></h2>
+    </div>
+    <div class="play-right">
+      <p class="big-copy">Most AI tools hand you an isolated chat panel. Tabs unifies your entire build into one desktop window.</p>
+      <div class="story-cards">
+        <div class="story-card">
+          <div class="card-tag">01 · THE PROBLEM</div>
+          <h4>Isolated Chat Windows</h4>
+          <p>Fragmented screens for Figma, CLI servers, Git diffs, and chat. Constantly swiping between desktop spaces.</p>
+        </div>
+        <div class="story-card highlight">
+          <div class="card-tag">02 · THE ARCHITECTURE</div>
+          <h4>Bigger than an IDE</h4>
+          <p>Embedded Code OSS, reusable Launchpad presets, Git diffs, and live browser previews unified in one frame.</p>
+        </div>
+        <div class="story-card lime">
+          <div class="card-tag">03 · THE SUPERPOWER</div>
+          <h4>Multi-Project Tabs</h4>
+          <p>Each tab is an entire isolated codebase. Switch client apps, backend APIs, and experiments in one click.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+  <Providers />
+  <section class="play-features section-pad">
+    <h2>Every tool.<br/>Unified in play.</h2>
+    <div class="play-tiles" data-reveal>
+      <div>
+        <b><Icon name="Layers" size={48} /></b>
+        <h3>Projects as tabs.</h3>
+        <p>Just like browser tabs, each tab represents an independent project. Jump across multiple active codebases instantly—without managing messy desktop window piles.</p>
+      </div>
+      <div>
+        <b><Icon name="Code2" size={48} /></b>
+        <h3>Hands-on code &amp; tools.</h3>
+        <p>Never get locked behind a chat prompt. Full Code OSS editing, integrated terminal execution, and Git diff inspection keep you close to your actual codebase.</p>
+      </div>
+      <div>
+        <b><Icon name="Globe" size={48} /></b>
+        <h3>Browser &amp; agents together.</h3>
+        <p>Preview web apps directly beside your code, run automated tests, and collaborate with your choice of AI agents without losing your context.</p>
+      </div>
+    </div>
+  </section>
+  <section class="play-workspace-stage section-pad"><Workspace variant="light" instance="concept-2" /></section>
+  <WorkflowDemo />
+  <ScrollStory />
+  <section class="play-releaselog-stage section-pad"><ReleaseLog /></section>
+  <footer class="play-end section-pad">
+    <h2>Your move</h2>
+    <div class="your-move-cta">
+      <span class="try-cta-label">Try Tabs IDE now.</span>
+      <svg class="try-cta-arrow" viewBox="0 0 100 200" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path d="M 76 8 C 74 65, 52 135, 26 192" stroke="#1d25b9" stroke-width="4.5" stroke-linecap="round" />
+        <path d="M 14 170 C 17 180, 21 187, 26 194 C 32 188, 38 181, 44 174" stroke="#1d25b9" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+    </div>
+    <Download />
+    <a class="footer-source" href={repo}>Peek under the hood ↗</a>
+    <FooterSignature concept={2} />
+  </footer>
+</article>
+<article data-concept="3" class="flow" hidden>
+  <header class="nav"><a href="/#concept-3" class="wordmark"><TabsLogo size={36} class="wordmark-logo" />Tabs<span class="wordmark-ide">IDE</span></a><span class="nav-caption">ONE CONTINUOUS LOOP</span><a href="/downloads">ENTER YOUR FLOW ↗</a></header>
+  <section class="flow-hero"><div class="flow-vertical eyebrow">AN UNINTERRUPTED TRAIN OF THOUGHT / TABS</div><div class="flow-heading"><span class="eyebrow">FOR THE WAY YOUR MIND WORKS.</span><h1>Keep<br/>a good<br/><em>thing going.</em></h1><p>Thought to agent. Agent to code. Code to running.<br/>Tabs is the desktop workspace that keeps it together.</p><Download compact /></div><div class="flow-sculpture interactive-art" data-art="ribbons"><canvas aria-hidden="true"></canvas><div class="flow-chip">◈ idea.tsx <span>→</span></div><div class="flow-chip second">✳ Agent <span>→</span></div><div class="flow-chip third">⌥ main <span>→</span></div></div></section>
+  <section class="flow-journey"><div class="flow-sticky"><span class="eyebrow">ONE CONTINUOUS LOOP</span><h2>Follow the work.</h2><p>Scroll through your workspace ↓</p></div><div class="flow-steps">{[["01", "Think with an agent.", "Choose a connected provider for your session. A shared workspace keeps your project close."], ["02", "Make it real.", "Get hands-on in the embedded Code OSS editor. Run the next command in Terminal."], ["03", "Look at what changed.", "Inspect your Git changes and open Browser to see the result. Keep moving without rebuilding your setup."]].map(([n,t,p])=><div class="flow-step" data-reveal><span>{n}</span><h3>{t}</h3><p>{p}</p><div class="flow-line" aria-hidden="true">{n==='01'?'✳　→　◈':n==='02'?'〈/〉　→　⌘':'⌥　→　◎'}</div></div>)}</div></section>
+  <section class="flow-providers section-pad"><span class="eyebrow">MANY ENGINES. ONE PLACE TO GO.</span><h2>Change the agent.<br/>Keep your bearings.</h2><p class="big-copy">ACP-compatible integrations and native provider drivers connect different ways of working to Tabs. Code, Git, Terminal, Browser, and Agent stay in reach.</p><Providers /></section>
+  <div class="section-pad"><Workspace variant="light" instance="concept-3" /><ReleaseLog /></div><footer class="flow-end section-pad"><h2>Find your<br/><em>next flow.</em></h2><Download /><a class="footer-source" href={repo}>Explore Tabs on GitHub ↗</a><FooterSignature concept={3} /></footer>
+</article>
+<ConceptFour />
+<ConceptFive />
+--- */}

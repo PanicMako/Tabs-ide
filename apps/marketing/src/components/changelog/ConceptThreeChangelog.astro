@@ -1,0 +1,173 @@
+---
+import TabsLogo from "../TabsLogo.astro";
+import Icon from "../Icon.astro";
+import FooterSignature from "../FooterSignature.astro";
+import { changelogData, TOTAL_TAGS_COUNT } from "../../data/changelogData";
+import { RELEASES_URL } from "../../lib/releases";
+---
+
+<article data-concept="3" class="flow flow-changelog-article" hidden>
+  <header class="nav">
+    <a href="/#concept-3" class="wordmark">
+      <TabsLogo size={36} class="wordmark-logo" />Tabs<span class="wordmark-ide">IDE</span>
+    </a>
+    <span class="nav-caption">ONE CONTINUOUS LOOP · THE SHIP LOG</span>
+    <div class="flow-nav-actions">
+      <a href="/download#concept-3" class="flow-nav-link">Downloads</a>
+      <a href="/changelog#concept-3" class="flow-nav-link" aria-current="page">Changelog</a>
+      <a href="/#concept-3" class="flow-nav-cta">ENTER YOUR FLOW ↗</a>
+    </div>
+  </header>
+
+  <section class="flow-hero flow-cl-hero">
+    <div class="flow-vertical eyebrow">AN UNINTERRUPTED TRAIN OF THOUGHT / CHRONICLE</div>
+    <div class="flow-heading">
+      <span class="eyebrow">CHRONOLOGICAL WORKSPACE RECORD</span>
+      <h1>The continuous<br /><em>flow.</em></h1>
+      <p>
+        Thought to agent. Agent to code. Code to running.<br />
+        Every release adds to the stream. Review new capabilities, installer updates, and architectural milestones.
+      </p>
+      <div class="flow-cl-meta-strip">
+        <span>CURRENT SHIP: <b>{changelogData[0].tag}</b></span>
+        <i>·</i>
+        <span>{changelogData.length} VERIFIED RELEASES</span>
+        <i>·</i>
+        <a href={RELEASES_URL} target="_blank" rel="noopener noreferrer">GitHub Releases ↗</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- TWO-COLUMN STREAM CONTAINER -->
+  <main class="flow-cl-stream-container">
+    <div class="flow-cl-layout">
+      <!-- LEFT STICKY SIDEBAR -->
+      <aside class="flow-cl-sidebar" aria-label="Releases sidebar">
+        <div class="flow-sidebar-card">
+          <div class="flow-sidebar-head">
+            <span class="flow-sidebar-title">RELEASES</span>
+            <span class="flow-sidebar-count">{changelogData.length}</span>
+          </div>
+
+          <nav class="flow-sidebar-nav">
+            {changelogData.map((release) => (
+              <a
+                href={`#${release.tag}`}
+                class:list={["flow-sidebar-item", { "is-latest": release.isLatest }]}
+                data-sidebar-target={release.tag}
+              >
+                <div class="flow-sidebar-tag-line">
+                  <span class="flow-sidebar-dot" aria-hidden="true"></span>
+                  <span class="flow-sidebar-tag">{release.tag}</span>
+                </div>
+                <span class="flow-sidebar-date">{release.shortDate || release.date}</span>
+              </a>
+            ))}
+          </nav>
+
+          <div class="flow-sidebar-foot">
+            <a
+              href={RELEASES_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="flow-sidebar-gh"
+            >
+              <span>All {TOTAL_TAGS_COUNT} tags on GitHub</span>
+              <Icon name="ArrowUpRight" size={12} />
+            </a>
+          </div>
+        </div>
+      </aside>
+
+      <!-- RIGHT CHRONOLOGICAL STREAM -->
+      <div class="flow-cl-stream-col">
+        <div class="flow-cl-ribbon-line" aria-hidden="true"></div>
+
+        <div class="flow-cl-releases">
+          {changelogData.map((release) => (
+            <article class="flow-cl-item" id={release.tag} data-release-card={release.tag}>
+              <div class="flow-cl-node" aria-hidden="true">
+                <span class="flow-cl-dot"></span>
+              </div>
+
+              <div class="flow-cl-card">
+                <div class="flow-cl-card-top">
+                  <div class="flow-cl-tag-group">
+                    <span class="flow-cl-version">{release.tag}</span>
+                    {release.isLatest && <span class="flow-cl-chip flow-chip-latest">CURRENT STABLE</span>}
+                    {release.type === "major" && <span class="flow-cl-chip flow-chip-major">MAJOR MILESTONE</span>}
+                    {release.type === "feature" && <span class="flow-cl-chip flow-chip-feature">FEATURE</span>}
+                    {release.type === "patch" && !release.isLatest && <span class="flow-cl-chip flow-chip-patch">PATCH</span>}
+                    <time class="flow-cl-date">{release.date}</time>
+                  </div>
+                  <a
+                    href={`${RELEASES_URL}/tag/${release.tag}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="flow-cl-github-link"
+                  >
+                    GitHub Tag <Icon name="ArrowUpRight" size={13} />
+                  </a>
+                </div>
+
+                <h3 class="flow-cl-title">{release.title}</h3>
+                <p class="flow-cl-summary">{release.summary}</p>
+
+                {release.installers && release.installers.length > 0 && (
+                  <div class="flow-cl-installers">
+                    <span class="flow-cl-installers-label">BINARIES:</span>
+                    <div class="flow-cl-installers-list">
+                      {release.installers.map((inst) => (
+                        <a href={inst.url} class="flow-cl-inst-btn" download={inst.filename}>
+                          <span>{inst.platform} ({inst.arch})</span>
+                          <span>↓</span>
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <!-- COLLAPSIBLE RELEASE NOTES (Minimized by default) -->
+                <details class="flow-cl-details">
+                  <summary class="flow-cl-summary">
+                    <div class="flow-summary-left">
+                      <span class="flow-arrow-icon" aria-hidden="true">▶</span>
+                      <span class="flow-summary-title">Release Notes</span>
+                    </div>
+                    <span class="flow-summary-badge">
+                      {release.highlights.length + (release.categories ? release.categories.reduce((a, c) => a + c.items.length, 0) : 0)} items
+                    </span>
+                  </summary>
+
+                  <div class="flow-cl-details-body">
+                    <ul class="flow-cl-list">
+                      {release.highlights.map((item) => (
+                        <li>{item}</li>
+                      ))}
+                    </ul>
+
+                    {release.categories && release.categories.map((cat) => (
+                      <div class="flow-cl-cat-block">
+                        <h5 class="flow-cl-cat-title">{cat.title}</h5>
+                        <ul class="flow-cl-list">
+                          {cat.items.map((item) => (
+                            <li>{item}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              </div>
+            </article>
+          ))}
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="flow-footer">
+    <p>Tabs IDE · Continuous development stream · Verified production packages</p>
+    <FooterSignature concept={3} />
+  </footer>
+</article>

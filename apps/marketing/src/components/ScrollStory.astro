@@ -1,0 +1,1562 @@
+---
+import Icon from "./Icon.astro";
+---
+<section class="scroll-story-section section-pad" data-scroll-story>
+  <div class="scroll-story-heading">
+    <span class="eyebrow">THE ARCHITECTURE OF TABS</span>
+    <h2 class="section-title">One window.<br /><em>Every project.</em></h2>
+  </div>
+
+  <div class="scroll-story-grid">
+    <div class="scroll-lines" data-scroll-lines>
+      <div class="scroll-line highlighted" data-line="1">
+        Building real software isn't just a <em>chatbot prompt.</em>
+      </div>
+      <div class="scroll-line" data-line="2">
+        You need your <em>Code OSS editor</em>, terminal servers, Git diffs, and live browser previews.
+      </div>
+      <div class="scroll-line" data-line="3">
+        And you never work on just <em>one project</em> at a single stretch.
+      </div>
+      <div class="scroll-line" data-line="4">
+        Tabs turns each codebase into a <em>browser-like tab</em> at the top.
+      </div>
+      <div class="scroll-line" data-line="5">
+        Switch entire repositories, server processes, and agent threads in <em>a single click.</em>
+      </div>
+      <div class="scroll-line" data-line="6">
+        No frantic desktop swiping. No window clutter. <em>Bigger than an IDE.</em>
+      </div>
+    </div>
+
+    <div class="showcase-sticky-wrap">
+      <div class="mock-tabs-window" data-tabs-mock>
+        <div class="mock-titlebar">
+          <div class="mock-traffic-lights" aria-hidden="true">
+            <span class="light red"></span>
+            <span class="light yellow"></span>
+            <span class="light green"></span>
+          </div>
+          <div class="mock-tabs-rail" role="tablist" aria-label="Project tabs">
+            <button type="button" role="tab" class="mock-tab active" data-proj="throttle" aria-selected="true">
+              <span>ThrottleClan</span>
+              <span class="mock-tab-close" aria-hidden="true">✕</span>
+            </button>
+            <button type="button" role="tab" class="mock-tab" data-proj="intern" aria-selected="false">
+              <span>intern-batch-08</span>
+              <span class="mock-tab-close" aria-hidden="true">✕</span>
+            </button>
+            <button type="button" role="tab" class="mock-tab" data-proj="api" aria-selected="false">
+              <span>payment-api</span>
+              <span class="mock-tab-close" aria-hidden="true">✕</span>
+            </button>
+            <button type="button" class="mock-tab-add" aria-label="Open new project tab">+</button>
+          </div>
+        </div>
+
+        <div class="mock-toolbar">
+          <div class="mock-tool-chips" role="tablist" aria-label="IDE Tools">
+            <button type="button" class="tool-chip active" data-tool-btn="agents" aria-selected="true"><Icon name="Bot" size={13} /> Agents</button>
+            <button type="button" class="tool-chip" data-tool-btn="code" aria-selected="false"><Icon name="Code2" size={13} /> Code</button>
+            <button type="button" class="tool-chip" data-tool-btn="server" aria-selected="false"><Icon name="Rocket" size={13} /> Launchpad</button>
+            <button type="button" class="tool-chip" data-tool-btn="git" aria-selected="false"><Icon name="GitBranch" size={13} /> Git</button>
+            <button type="button" class="tool-chip" data-tool-btn="browser" aria-selected="false"><Icon name="Globe" size={13} /> Browser</button>
+            <button type="button" class="tool-chip" data-tool-btn="testing" aria-selected="false"><Icon name="CheckCircle" size={13} /> Testing</button>
+          </div>
+          <div class="mock-actions">
+            <span class="nav-arrow">←</span>
+            <span class="nav-arrow">→</span>
+            <span class="nav-reload">↻</span>
+            <span class="settings-chip">⚙ Settings</span>
+          </div>
+        </div>
+
+        <div class="mock-stage">
+          <div class="mock-meta-row">
+            <span class="badge repo" data-proj-meta="repo">~/dev/throttle-clan</span>
+            <span class="badge git-branch" data-proj-meta="branch">feature/checkout</span>
+            <span class="badge server" data-proj-meta="server">port: 3000 (Vite)</span>
+          </div>
+
+          <!-- 1. AGENTS VIEW -->
+          <div class="mock-tool-view" data-tool-view="agents">
+            <div class="agents-panel">
+              <div class="agent-cockpit-bar">
+                <div class="agent-model-select">
+                  <Icon name="Bot" size={14} />
+                  <strong>Codex (o3-mini)</strong>
+                  <span class="agent-driver-tag">ACP Driver</span>
+                </div>
+                <div class="agent-reasoning-pill">
+                  <span class="pulse-dot"></span>
+                  <span>Reasoning: MAX</span>
+                </div>
+              </div>
+
+              <div class="agent-messages-container">
+                <div class="agent-chat-msg user">
+                  <div class="msg-author">You</div>
+                  <div class="msg-bubble">
+                    Refactor checkout middleware to support idempotent webhook retries and verify test coverage.
+                  </div>
+                </div>
+
+                <div class="agent-thinking-pill">
+                  <span class="spark">✦</span>
+                  <span>Reasoned for 3.2s · Inspected 4 payment modules in codebase</span>
+                </div>
+
+                <div class="agent-chat-msg bot">
+                  <div class="msg-author bot">Codex</div>
+                  <div class="msg-bubble bot">
+                    <p>I've implemented the idempotency check in <code>CheckoutSession.ts</code> using Redis locks, and added an automated Playwright regression suite.</p>
+                    <div class="inline-diff-card">
+                      <div class="diff-card-head">
+                        <span class="tag-diff">[DIFF]</span>
+                        <strong>src/services/CheckoutSession.ts</strong>
+                        <span class="diff-stat">+24 -6</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="agent-composer-mock">
+                <div class="composer-mock-input">
+                  <span>Ask anything, @tag files, or run /tools...</span>
+                </div>
+                <div class="composer-mock-bottom">
+                  <div class="composer-mock-chips">
+                    <span class="chip-model">GPT-5.6-Sol · MAX</span>
+                    <span class="chip-access">Full Access</span>
+                  </div>
+                  <div class="composer-send-arrow">↑</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 2. CODE VIEW -->
+          <div class="mock-tool-view" data-tool-view="code" hidden>
+            <div class="code-panel">
+              <div class="code-tabs-strip">
+                <div class="code-editor-tab active">
+                  <span class="file-badge ts">TS</span>
+                  <span>CheckoutSession.ts</span>
+                  <span class="tab-close">✕</span>
+                </div>
+                <div class="code-editor-tab">
+                  <span class="file-badge tsx">TSX</span>
+                  <span>App.tsx</span>
+                </div>
+                <div class="code-editor-tab">
+                  <span class="file-badge config">⚙</span>
+                  <span>vite.config.ts</span>
+                </div>
+              </div>
+              <div class="code-breadcrumbs-bar">
+                src <span>›</span> services <span>›</span> payments <span>›</span> <strong>CheckoutSession.ts</strong> <span>›</span> processOrder()
+              </div>
+              <div class="code-editor-canvas">
+                <div class="editor-gutter">
+                  <span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>10</span><span>11</span><span>12</span><span>13</span><span>14</span>
+                </div>
+                <pre class="editor-code-lines"><code><span class="tok-kw">import</span> &#123; Effect, Schema &#125; <span class="tok-kw">from</span> <span class="tok-str">"effect"</span>;
+<span class="tok-kw">import</span> &#123; redis &#125; <span class="tok-kw">from</span> <span class="tok-str">"../infra/redis"</span>;
+<span class="tok-kw">import type</span> &#123; PaymentIntent, OrderReceipt &#125; <span class="tok-kw">from</span> <span class="tok-str">"./types"</span>;
+
+<span class="tok-kw">export const</span> <span class="tok-fn">processOrder</span> = (orderId: <span class="tok-type">string</span>, idempotencyKey: <span class="tok-type">string</span>) =&gt;
+  Effect.gen(<span class="tok-kw">function*</span> () &#123;
+    <span class="tok-kw">const</span> lock = <span class="tok-kw">yield*</span> redis.<span class="tok-fn">acquireLock</span>(<span class="tok-str">`order:$&#123;idempotencyKey&#125;`</span>, 10_000);
+    <span class="tok-kw">const</span> intent = <span class="tok-kw">yield*</span> <span class="tok-fn">createPaymentIntent</span>(orderId);
+    <span class="tok-kw">yield*</span> <span class="tok-fn">verifyInventory</span>(intent.items);
+    <span class="tok-kw">const</span> charged = <span class="tok-kw">yield*</span> <span class="tok-fn">executeCharge</span>(intent.amount);
+    <span class="tok-kw">yield*</span> lock.<span class="tok-fn">release</span>();
+    
+    <span class="tok-cmt">// Idempotency token verified via Redis locks</span>
+    <span class="tok-kw">return</span> &#123; success: <span class="tok-kw">true</span>, tx: charged.id, orderId &#125;;
+  &#125;).pipe(Effect.<span class="tok-fn">catchTag</span>(<span class="tok-str">"LockTimeout"</span>, () =&gt; Effect.<span class="tok-fn">fail</span>(<span class="tok-str">"Concurrent request"</span>)));</code></pre>
+              </div>
+              <div class="editor-statusbar">
+                <span>Ln 11, Col 28</span>
+                <span>UTF-8</span>
+                <span>TypeScript 5.8</span>
+                <span>Git: +24 -6</span>
+                <span class="status-clean">✓ 0 Errors</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 3. SERVER VIEW -->
+          <div class="mock-tool-view" data-tool-view="server" hidden>
+            <div class="server-panel">
+              <div class="server-tabs-bar">
+                <span class="server-terminal-tab active">&gt;_ vite dev (port 3000)</span>
+                <span class="server-terminal-tab">&gt;_ redis-server</span>
+                <span class="server-terminal-tab">&gt;_ worker:payments</span>
+              </div>
+              <div class="server-terminal-body">
+                <div class="term-row cmd"><span class="term-p">$</span> bun run dev:desktop</div>
+                <div class="term-row ok">  VITE v6.1.2  ready in 184 ms</div>
+                <div class="term-row empty"></div>
+                <div class="term-row">  ➜  <span class="term-hl">Local:</span>   <span class="term-link" data-server-link>http://localhost:3000/</span></div>
+                <div class="term-row">  ➜  <span class="term-hl">Network:</span> <span class="term-link">http://192.168.1.42:3000/</span></div>
+                <div class="term-row dim">  ➜  press h + enter to show help</div>
+                <div class="term-row empty"></div>
+                <div class="term-row info">[tabs-acp] provider session connected (codex-o3-mini)</div>
+                <div class="term-row info">[vite] hmr update /src/services/CheckoutSession.ts (x2)</div>
+                <div class="term-row ok-log"><span class="code-badge">200 OK</span> GET /api/v1/health 1.4ms</div>
+                <div class="term-row ok-log"><span class="code-badge">200 OK</span> POST /api/v1/checkout/session 14.8ms</div>
+                <div class="term-row dim">[redis] key lock:order:idemp_892 expired gracefully</div>
+                <div class="term-row input-prompt"><span class="term-p">$</span> <span class="term-cursor">█</span></div>
+              </div>
+              <div class="server-metrics-bar">
+                <span>CPU: 1.4%</span>
+                <span>MEM: 84.2 MB</span>
+                <span>HMR: Active</span>
+                <span class="pill-up">● UP 18m</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 4. GIT VIEW -->
+          <div class="mock-tool-view" data-tool-view="git" hidden>
+            <div class="git-panel">
+              <div class="git-top-summary">
+                <div class="git-branch-tag">
+                  <Icon name="GitBranch" size={13} />
+                  <strong data-git-branch-display>feature/checkout</strong>
+                  <span class="diff-numbers">+24 / -6</span>
+                </div>
+                <span class="staged-count-pill">3 Staged Files</span>
+              </div>
+              <div class="git-files-list">
+                <div class="git-file staged">
+                  <span class="git-badge m">M</span>
+                  <span class="file-path">src/services/CheckoutSession.ts</span>
+                  <span class="file-stat">+18 -4</span>
+                </div>
+                <div class="git-file staged">
+                  <span class="git-badge a">A</span>
+                  <span class="file-path">tests/checkout.spec.ts</span>
+                  <span class="file-stat">+6 -0</span>
+                </div>
+                <div class="git-file staged">
+                  <span class="git-badge m">M</span>
+                  <span class="file-path">src/infra/redis.ts</span>
+                  <span class="file-stat">+2 -2</span>
+                </div>
+              </div>
+              <div class="git-diff-box">
+                <div class="diff-header-line">@@ -14,7 +14,10 @@ export const handleWebhook = async (req) =&gt; &#123;</div>
+                <div class="diff-row del"><span class="sign">-</span>  const session = await findSession(req.body.id);</div>
+                <div class="diff-row add"><span class="sign">+</span>  const token = req.headers["x-idempotency-key"];</div>
+                <div class="diff-row add"><span class="sign">+</span>  const session = await findOrCreateSession(token);</div>
+                <div class="diff-row add"><span class="sign">+</span>  await redis.set(`session:$&#123;token&#125;`, "DONE", "EX", 86400);</div>
+                <div class="diff-row ctx"><span class="sign"> </span>  return &#123; status: "success", session &#125;;</div>
+              </div>
+              <div class="git-commit-strip">
+                <span class="commit-placeholder">fix(checkout): enforce idempotency key on webhooks</span>
+                <button type="button" class="btn-mock-commit">Commit &amp; Push ↗</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 5. BROWSER VIEW -->
+          <div class="mock-tool-view" data-tool-view="browser" hidden>
+            <div class="browser-panel">
+              <div class="browser-url-strip">
+                <div class="nav-arrows"><span>←</span><span>→</span><span>↻</span></div>
+                <div class="url-input-box">
+                  <span class="lock-icon">🔒</span>
+                  <span class="url-address" data-browser-url>http://localhost:3000/checkout</span>
+                  <span class="url-status-tag">200 OK</span>
+                </div>
+                <div class="viewport-toggle">
+                  <span class="vp-chip active">Desktop</span>
+                  <span class="vp-chip">Mobile</span>
+                </div>
+              </div>
+              <div class="browser-canvas-area">
+                <div class="web-preview-store">
+                  <div class="preview-navbar">
+                    <span class="brand-text">ThrottleClan Store</span>
+                    <span class="cart-pill">Cart (1)</span>
+                  </div>
+                  <div class="preview-hero-card">
+                    <div class="product-thumb"></div>
+                    <div class="product-info">
+                      <h4>Carbon Aero Handlebars</h4>
+                      <p>$320.00 · In Stock (Express Shipping)</p>
+                      <div class="preview-success-badge">Order Processed Successfully ✓</div>
+                    </div>
+                  </div>
+                  <div class="preview-details-row">
+                    <div class="detail-item">
+                      <span class="detail-lbl">Idempotency Key:</span>
+                      <span class="detail-val">idemp_live_89bf2a</span>
+                    </div>
+                    <div class="detail-item">
+                      <span class="detail-lbl">Payment Status:</span>
+                      <span class="detail-val text-green">Captured ($320.00)</span>
+                    </div>
+                  </div>
+                  <div class="preview-hmr-bubble">
+                    <span>⚡ Fast Refresh Connected · 0 Errors</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 6. TESTING VIEW -->
+          <div class="mock-tool-view" data-tool-view="testing" hidden>
+            <div class="testing-panel">
+              <div class="testing-top-bar">
+                <div class="testing-title-pill">
+                  <Icon name="CheckCircle" size={14} />
+                  <strong>Playwright Test Suite</strong>
+                  <span class="test-pass-count">8 / 8 Passed</span>
+                </div>
+                <span class="test-duration">1.24s</span>
+              </div>
+              <div class="testing-specs-list">
+                <div class="test-row pass">
+                  <span class="check-icon">✓</span>
+                  <span class="spec-desc">checkout.spec.ts &gt; idempotency token prevents double charge</span>
+                  <span class="spec-time">142ms</span>
+                </div>
+                <div class="test-row pass">
+                  <span class="check-icon">✓</span>
+                  <span class="spec-desc">checkout.spec.ts &gt; recovers gracefully from network timeout</span>
+                  <span class="spec-time">88ms</span>
+                </div>
+                <div class="test-row pass">
+                  <span class="check-icon">✓</span>
+                  <span class="spec-desc">auth.spec.ts &gt; refreshes expired ACP session tokens</span>
+                  <span class="spec-time">210ms</span>
+                </div>
+                <div class="test-row pass">
+                  <span class="check-icon">✓</span>
+                  <span class="spec-desc">visual-regression &gt; payment success dialog matches baseline</span>
+                  <span class="spec-time">305ms</span>
+                </div>
+                <div class="test-row pass">
+                  <span class="check-icon">✓</span>
+                  <span class="spec-desc">redis-lock.spec.ts &gt; auto-releases lock after transaction commits</span>
+                  <span class="spec-time">94ms</span>
+                </div>
+              </div>
+              <div class="testing-footer-bar">
+                <div class="test-meter-track">
+                  <div class="test-meter-fill"></div>
+                </div>
+                <div class="test-meter-labels">
+                  <span>100% Passing · All assertions verified</span>
+                  <strong>Zero Flakiness</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mock-footer">
+          <span>Click any project tab above to switch codebases instantly.</span>
+          <strong>1 Window · 6 Tools · 0 Clutter</strong>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</section>
+
+<style>
+  .scroll-story-section {
+    padding: 90px 6%;
+    border-top: 1px solid #1d25b925;
+    background: #eff0e8;
+    color: #1d25b9;
+  }
+  .scroll-story-heading {
+    margin-bottom: 50px;
+  }
+  .section-title {
+    font-family: "Space Grotesk", sans-serif;
+    font-size: clamp(45px, 6.5vw, 88px);
+    font-weight: 700;
+    line-height: 0.95;
+    letter-spacing: -0.06em;
+    margin: 15px 0 0;
+  }
+  .section-title em {
+    font-style: normal;
+    background: #e8ff73;
+    padding: 0 10px;
+    display: inline-block;
+    transform: rotate(-2deg);
+  }
+  .scroll-story-grid {
+    display: grid;
+    grid-template-columns: 1.15fr 1fr;
+    gap: 50px;
+    align-items: start;
+  }
+  .scroll-lines {
+    padding-top: 20px;
+    padding-bottom: 40px;
+  }
+  .scroll-line {
+    font-family: "Space Grotesk", sans-serif;
+    font-size: clamp(24px, 3vw, 42px);
+    font-weight: 600;
+    line-height: 1.25;
+    letter-spacing: -0.04em;
+    color: #1d25b9;
+    opacity: 0.22;
+    transform: translateY(8px);
+    transition: opacity 0.35s ease, transform 0.35s ease, color 0.35s ease;
+    margin-bottom: 42px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .scroll-line:hover {
+    opacity: 0.6;
+  }
+  .scroll-line.highlighted {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .scroll-line em {
+    font-style: normal;
+    background: #e8ff73;
+    color: #1d25b9;
+    padding: 2px 8px;
+    border-radius: 4px;
+    display: inline-block;
+    transform: rotate(-1.5deg);
+    transition: background 0.3s ease;
+  }
+  .scroll-line:nth-child(even) em {
+    background: #ecb3ce;
+    transform: rotate(1deg);
+  }
+  .scroll-line:nth-child(3n) em {
+    background: #d4d3f8;
+    transform: rotate(-1deg);
+  }
+
+  /* Mock Tabs Window Showcase */
+  .showcase-sticky-wrap {
+    position: sticky;
+    top: 90px;
+  }
+  .mock-tabs-window {
+    background: #ffffff;
+    border: 2px solid #1d25b9;
+    border-radius: 14px;
+    box-shadow: 8px 10px 0 #172294;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .mock-titlebar {
+    background: #e2e4d9;
+    border-bottom: 1px solid #1d25b940;
+    padding: 8px 12px 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .mock-traffic-lights {
+    display: flex;
+    gap: 5px;
+    margin-bottom: 8px;
+  }
+  .light {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 1px solid rgba(0, 0, 0, 0.2);
+  }
+  .light.red { background: #ff5f56; }
+  .light.yellow { background: #ffbd2e; }
+  .light.green { background: #27c93f; }
+  .mock-tabs-rail {
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+    overflow-x: auto;
+  }
+  .mock-tab {
+    font-family: monospace;
+    font-size: 11px;
+    padding: 6px 12px;
+    background: #d5d8cc;
+    color: #555;
+    border: 1px solid #1d25b930;
+    border-bottom: 0;
+    border-radius: 6px 6px 0 0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+  }
+  .mock-tab:hover {
+    background: #eceee5;
+    color: #1d25b9;
+  }
+  .mock-tab.active {
+    background: #ffffff;
+    color: #1d25b9;
+    font-weight: 700;
+    border-color: #1d25b9;
+  }
+  .mock-tab-close {
+    font-size: 9px;
+    opacity: 0.6;
+  }
+  .mock-tab-add {
+    background: transparent;
+    border: 0;
+    font-size: 15px;
+    font-weight: bold;
+    color: #1d25b9;
+    padding: 4px 8px;
+    cursor: pointer;
+    margin-bottom: 3px;
+  }
+  .mock-toolbar {
+    background: #f7f8f4;
+    border-bottom: 1px solid #1d25b920;
+    padding: 6px 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+  }
+  .mock-tool-chips {
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
+  }
+  .tool-chip {
+    font-family: monospace;
+    font-size: 10px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: #eef0e8;
+    color: #555;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .tool-chip:hover {
+    background: #e2e5d9;
+    color: #1d25b9;
+  }
+  .tool-chip.active {
+    background: #1d25b9;
+    color: #f4ff82;
+    font-weight: 700;
+    border-color: #1d25b9;
+  }
+  .mock-actions {
+    font-family: monospace;
+    font-size: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #777;
+  }
+  .nav-arrow, .nav-reload {
+    cursor: default;
+    opacity: 0.7;
+  }
+  .settings-chip {
+    font-size: 9px;
+    background: #e9ebd9;
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: #333;
+  }
+  .mock-stage {
+    padding: 14px;
+    min-height: 520px;
+    height: 520px;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    overflow: hidden;
+  }
+  .mock-meta-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+  .badge {
+    font-family: monospace;
+    font-size: 9px;
+    padding: 3px 7px;
+    border-radius: 4px;
+    border: 1px solid;
+    position: static !important;
+  }
+  .badge.repo { background: #f0f2eb; color: #333; border-color: #ccc; }
+  .badge.git-branch { background: #e0e7ff; color: #1d25b9; border-color: #93c5fd; }
+  .badge.server { background: #dcfce7; color: #166534; border-color: #86efac; }
+  
+  @keyframes toolFadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  .mock-tool-view {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+  }
+  .mock-tool-view:not([hidden]) {
+    animation: toolFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .mock-tool-view[hidden] {
+    display: none !important;
+  }
+
+  /* 1. Agents View */
+  .agents-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex: 1;
+    min-height: 0;
+  }
+  .agent-cockpit-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #f0f2eb;
+    border: 1px solid #1d25b920;
+    border-radius: 8px;
+    padding: 6px 12px;
+  }
+  .agent-model-select {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11.5px;
+    color: #1d25b9;
+  }
+  .agent-driver-tag {
+    font-family: monospace;
+    font-size: 8px;
+    background: #d4d3f8;
+    color: #1d25b9;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-weight: bold;
+  }
+  .agent-reasoning-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: monospace;
+    font-size: 9.5px;
+    font-weight: 700;
+    background: #e8ff73;
+    color: #1d25b9;
+    padding: 3px 8px;
+    border-radius: 999px;
+  }
+  .pulse-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #27c93f;
+    animation: pulse-dot 1.5s infinite ease-in-out;
+  }
+  .agent-messages-container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+  }
+  .agent-chat-msg {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .msg-author {
+    font-family: monospace;
+    font-size: 9px;
+    font-weight: 700;
+    color: #888;
+    padding-left: 2px;
+  }
+  .msg-author.bot {
+    color: #1d25b9;
+  }
+  .msg-bubble {
+    font-size: 11.5px;
+    line-height: 1.45;
+    padding: 8px 12px;
+    border-radius: 8px;
+  }
+  .agent-chat-msg.user .msg-bubble {
+    background: #e0e7ff;
+    color: #1d25b9;
+    align-self: flex-start;
+    border: 1px solid #c7d2fe;
+  }
+  .agent-chat-msg.bot .msg-bubble {
+    background: #fbfbfa;
+    border: 1px solid #1d25b925;
+    color: #333;
+  }
+  .agent-chat-msg.bot .msg-bubble p {
+    margin: 0 0 6px;
+  }
+  .agent-thinking-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: monospace;
+    font-size: 9.5px;
+    background: #f4f5ee;
+    border: 1px solid #1d25b920;
+    color: #555;
+    padding: 3px 8px;
+    border-radius: 6px;
+    align-self: flex-start;
+  }
+  .spark {
+    color: #7c3aed;
+  }
+  .inline-diff-card {
+    background: #ffffff;
+    border: 1px solid #1d25b930;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-family: monospace;
+    font-size: 10px;
+  }
+  .diff-card-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .tag-diff {
+    background: #d4d3f8;
+    color: #1d25b9;
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-weight: bold;
+    font-size: 8px;
+  }
+  .diff-stat {
+    margin-left: auto;
+    color: #15803d;
+    font-weight: bold;
+  }
+  .agent-composer-mock {
+    background: #ffffff;
+    border: 1.5px solid #1d25b9;
+    border-radius: 8px;
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .composer-mock-input {
+    font-size: 11px;
+    color: #888;
+  }
+  .composer-mock-bottom {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .composer-mock-chips {
+    display: flex;
+    gap: 6px;
+  }
+  .chip-model, .chip-access {
+    font-family: monospace;
+    font-size: 8.5px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+  .chip-model { background: #e8ff73; color: #1d25b9; }
+  .chip-access { background: #f0f2eb; color: #555; }
+  .composer-send-arrow {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #1d25b9;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: bold;
+  }
+
+  /* 2. Code View */
+  .code-panel {
+    background: #ffffff;
+    border: 1px solid #1d25b925;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .code-tabs-strip {
+    display: flex;
+    background: #f0f2eb;
+    border-bottom: 1px solid #1d25b920;
+    padding: 4px 6px 0;
+    gap: 3px;
+  }
+  .code-editor-tab {
+    font-family: monospace;
+    font-size: 10px;
+    padding: 4px 8px;
+    background: #e2e4d9;
+    border-radius: 4px 4px 0 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #666;
+  }
+  .code-editor-tab.active {
+    background: #ffffff;
+    color: #1d25b9;
+    font-weight: bold;
+    border-top: 2px solid #1d25b9;
+  }
+  .file-badge {
+    font-size: 8px;
+    font-weight: bold;
+    padding: 1px 3px;
+    border-radius: 2px;
+  }
+  .file-badge.ts { background: #3178c6; color: #fff; }
+  .file-badge.tsx { background: #61dafb; color: #000; }
+  .file-badge.config { color: #888; }
+  .tab-close { font-size: 8px; opacity: 0.6; }
+  .code-breadcrumbs-bar {
+    font-family: monospace;
+    font-size: 9.5px;
+    padding: 4px 10px;
+    background: #fafaf8;
+    border-bottom: 1px solid #f0f0ea;
+    color: #777;
+  }
+  .code-breadcrumbs-bar strong { color: #1d25b9; }
+  .code-editor-canvas {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    font-family: monospace;
+    font-size: 11px;
+    line-height: 1.5;
+    background: #ffffff;
+    overflow: hidden;
+  }
+  .editor-gutter {
+    padding: 8px 6px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    color: #aaa;
+    user-select: none;
+    background: #fafaf8;
+    border-right: 1px solid #f0f0ea;
+    width: 22px;
+  }
+  .editor-code-lines {
+    margin: 0;
+    padding: 8px 10px;
+    flex: 1;
+    overflow-x: auto;
+  }
+  .tok-kw { color: #1d25b9; font-weight: bold; }
+  .tok-fn { color: #7c3aed; }
+  .tok-type { color: #0891b2; }
+  .tok-str { color: #059669; }
+  .tok-cmt { color: #9ca3af; font-style: italic; }
+  .editor-statusbar {
+    background: #f0f2eb;
+    border-top: 1px solid #1d25b920;
+    padding: 3px 10px;
+    font-family: monospace;
+    font-size: 9px;
+    display: flex;
+    gap: 12px;
+    color: #666;
+  }
+  .status-clean { margin-left: auto; color: #15803d; font-weight: bold; }
+
+  /* 3. Server View */
+  .server-panel {
+    background: #ffffff;
+    border: 1px solid #1d25b925;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    color: #1e293b;
+  }
+  .server-tabs-bar {
+    display: flex;
+    background: #f0f2eb;
+    border-bottom: 1px solid #1d25b920;
+    padding: 4px 6px 0;
+    gap: 3px;
+  }
+  .server-terminal-tab {
+    font-family: monospace;
+    font-size: 9.5px;
+    padding: 4px 8px;
+    background: #e2e4d9;
+    color: #555;
+    border-radius: 4px 4px 0 0;
+  }
+  .server-terminal-tab.active {
+    background: #ffffff;
+    color: #1d25b9;
+    font-weight: bold;
+    border-top: 2px solid #1d25b9;
+  }
+  .server-terminal-body {
+    padding: 10px 12px;
+    font-family: monospace;
+    font-size: 10.5px;
+    line-height: 1.5;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    overflow: hidden;
+    background: #ffffff;
+  }
+  .term-row { color: #334155; }
+  .term-row.cmd { color: #0f172a; font-weight: bold; }
+  .term-row.ok { color: #15803d; font-weight: bold; }
+  .term-row.info { color: #0284c7; }
+  .term-row.ok-log { color: #475569; }
+  .term-row.dim { color: #94a3b8; }
+  .term-row.empty { height: 6px; }
+  .term-p { color: #1d25b9; font-weight: bold; margin-right: 6px; }
+  .term-hl { color: #1d25b9; font-weight: bold; }
+  .term-link { color: #2563eb; text-decoration: underline; }
+  .code-badge { background: #dcfce7; color: #166534; padding: 1px 4px; border-radius: 3px; font-size: 8.5px; margin-right: 4px; font-weight: bold; border: 1px solid #86efac; }
+  .term-cursor { color: #1d25b9; animation: pulse-dot 1s infinite; }
+  .server-metrics-bar {
+    background: #f0f2eb;
+    border-top: 1px solid #1d25b920;
+    padding: 4px 10px;
+    font-family: monospace;
+    font-size: 9px;
+    display: flex;
+    gap: 14px;
+    color: #64748b;
+  }
+  .pill-up { margin-left: auto; color: #15803d; font-weight: bold; }
+
+  /* 4. Git View */
+  .git-panel {
+    background: #ffffff;
+    border: 1px solid #1d25b925;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .git-top-summary {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 10px;
+    background: #f0f2eb;
+    border-bottom: 1px solid #1d25b920;
+  }
+  .git-branch-tag {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: #1d25b9;
+  }
+  .diff-numbers {
+    font-family: monospace;
+    font-size: 9px;
+    background: #dcfce7;
+    color: #15803d;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-weight: bold;
+  }
+  .staged-count-pill {
+    font-family: monospace;
+    font-size: 9px;
+    color: #555;
+  }
+  .git-files-list {
+    display: flex;
+    flex-direction: column;
+    padding: 4px 8px;
+    background: #fafaf8;
+    border-bottom: 1px solid #e5e7eb;
+    gap: 3px;
+  }
+  .git-file {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: monospace;
+    font-size: 10px;
+  }
+  .git-badge {
+    font-size: 8px;
+    font-weight: bold;
+    padding: 1px 3px;
+    border-radius: 2px;
+  }
+  .git-badge.m { background: #fef08a; color: #854d0e; }
+  .git-badge.a { background: #bbf7d0; color: #166534; }
+  .file-path { color: #333; }
+  .file-stat { margin-left: auto; color: #15803d; font-size: 9px; }
+  .git-diff-box {
+    padding: 8px 10px;
+    font-family: monospace;
+    font-size: 10px;
+    line-height: 1.45;
+    background: #ffffff;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .diff-header-line { color: #6b7280; margin-bottom: 4px; }
+  .diff-row { display: flex; gap: 4px; padding: 1px 0; }
+  .diff-row.del { background: #fee2e2; color: #991b1b; }
+  .diff-row.add { background: #dcfce7; color: #166534; }
+  .diff-row.ctx { color: #4b5563; }
+  .sign { width: 10px; text-align: center; font-weight: bold; }
+  .git-commit-strip {
+    background: #f0f2eb;
+    border-top: 1px solid #1d25b920;
+    padding: 6px 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .commit-placeholder {
+    font-size: 10.5px;
+    color: #444;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .btn-mock-commit {
+    background: #1d25b9;
+    color: #ffffff;
+    border: none;
+    padding: 4px 9px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: bold;
+    cursor: pointer;
+  }
+
+  /* 5. Browser View */
+  .browser-panel {
+    background: #ffffff;
+    border: 1px solid #1d25b925;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .browser-url-strip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    background: #f0f2eb;
+    border-bottom: 1px solid #1d25b920;
+  }
+  .nav-arrows {
+    display: flex;
+    gap: 4px;
+    font-family: monospace;
+    font-size: 10px;
+    color: #666;
+  }
+  .url-input-box {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #ffffff;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    padding: 3px 8px;
+    flex: 1;
+    font-family: monospace;
+    font-size: 9.5px;
+  }
+  .url-address { color: #333; flex: 1; }
+  .url-status-tag { color: #15803d; font-weight: bold; font-size: 8.5px; }
+  .viewport-toggle {
+    display: flex;
+    gap: 3px;
+  }
+  .vp-chip {
+    font-family: monospace;
+    font-size: 8.5px;
+    padding: 2px 5px;
+    border-radius: 3px;
+    background: #e2e4d9;
+    color: #555;
+  }
+  .vp-chip.active {
+    background: #1d25b9;
+    color: #fff;
+    font-weight: bold;
+  }
+  .browser-canvas-area {
+    padding: 12px;
+    background: #fafaf8;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+  .web-preview-store {
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    flex: 1;
+  }
+  .preview-navbar {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11.5px;
+    font-weight: bold;
+    color: #1d25b9;
+    border-bottom: 1px solid #f3f4f6;
+    padding-bottom: 6px;
+  }
+  .cart-pill {
+    font-family: monospace;
+    font-size: 9px;
+    background: #e8ff73;
+    padding: 1px 6px;
+    border-radius: 999px;
+  }
+  .preview-hero-card {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 10px;
+  }
+  .product-thumb {
+    width: 48px;
+    height: 48px;
+    background: #1d25b9;
+    border-radius: 6px;
+  }
+  .product-info h4 {
+    margin: 0 0 2px;
+    font-size: 12px;
+    color: #1e293b;
+  }
+  .product-info p {
+    margin: 0 0 6px;
+    font-size: 10px;
+    color: #64748b;
+  }
+  .preview-success-badge {
+    display: inline-block;
+    font-size: 9px;
+    font-weight: bold;
+    color: #15803d;
+    background: #dcfce7;
+    padding: 2px 6px;
+    border-radius: 3px;
+  }
+  .preview-details-row {
+    display: flex;
+    justify-content: space-between;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-family: monospace;
+    font-size: 9px;
+  }
+  .detail-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .detail-lbl {
+    color: #64748b;
+    font-size: 8px;
+  }
+  .detail-val {
+    color: #1e293b;
+    font-weight: bold;
+  }
+  .detail-val.text-green {
+    color: #15803d;
+  }
+  .preview-hmr-bubble {
+    margin-top: auto;
+    font-family: monospace;
+    font-size: 9px;
+    color: #7c3aed;
+    background: #f5f3ff;
+    border: 1px solid #ddd6fe;
+    padding: 4px 8px;
+    border-radius: 4px;
+    align-self: flex-start;
+  }
+
+  /* 6. Testing View */
+  .testing-panel {
+    background: #ffffff;
+    border: 1px solid #1d25b925;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .testing-top-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 10px;
+    background: #f0f2eb;
+    border-bottom: 1px solid #1d25b920;
+  }
+  .testing-title-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: #1d25b9;
+  }
+  .tests-count {
+    font-family: monospace;
+    font-size: 8.5px;
+    background: #dcfce7;
+    color: #15803d;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-weight: bold;
+  }
+  .test-duration {
+    font-family: monospace;
+    font-size: 9.5px;
+    color: #64748b;
+  }
+  .testing-specs-list {
+    display: flex;
+    flex-direction: column;
+    padding: 8px;
+    gap: 6px;
+    flex: 1;
+    background: #fafaf8;
+  }
+  .test-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: monospace;
+    font-size: 10px;
+    padding: 6px 8px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 5px;
+  }
+  .test-row.pass .check-icon {
+    color: #15803d;
+    font-weight: bold;
+  }
+  .spec-desc {
+    color: #334155;
+    flex: 1;
+  }
+  .spec-time {
+    color: #94a3b8;
+    font-size: 9px;
+  }
+  .testing-footer-bar {
+    background: #f0f2eb;
+    border-top: 1px solid #1d25b920;
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .test-meter-track {
+    height: 5px;
+    background: #e2e8f0;
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .test-meter-fill {
+    width: 100%;
+    height: 100%;
+    background: #22c55e;
+  }
+  .test-meter-labels {
+    display: flex;
+    justify-content: space-between;
+    font-family: monospace;
+    font-size: 9px;
+    color: #1d25b9;
+  }
+  .mock-footer {
+    background: #eff0e8;
+    border-top: 1px solid #1d25b930;
+    padding: 8px 14px;
+    font-family: monospace;
+    font-size: 9px;
+    display: flex;
+    justify-content: space-between;
+    color: #1d25b9;
+  }
+
+  /* 3-column spec cards */
+  .scroll-story-specs {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+    margin-top: 80px;
+    padding-top: 50px;
+    border-top: 1px solid #1d25b920;
+  }
+  .spec-card {
+    background: #ffffff;
+    border: 2px solid #1d25b9;
+    border-radius: 14px;
+    padding: 28px 24px;
+    box-shadow: 6px 6px 0 #1d25b9;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .spec-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 8px 8px 0 #1d25b9;
+  }
+  .spec-card.alt {
+    background: #d4d3f8;
+  }
+  .spec-card.lime {
+    background: #e8ff73;
+  }
+  .spec-num {
+    font-family: monospace;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    display: block;
+    margin-bottom: 12px;
+    opacity: 0.7;
+  }
+  .spec-card h4 {
+    font-family: "Space Grotesk", sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    margin: 0 0 10px;
+    line-height: 1.15;
+    color: #1d25b9;
+  }
+  .spec-card p {
+    font-size: 14px;
+    line-height: 1.5;
+    margin: 0;
+    color: #262c97;
+  }
+
+  @media (max-width: 900px) {
+    .scroll-story-grid {
+      grid-template-columns: 1fr;
+    }
+    .showcase-sticky-wrap {
+      position: static;
+      margin-top: 30px;
+    }
+    .scroll-story-specs {
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+  }
+</style>
+
+<script>
+  // Scroll-driven progressive text highlight & tool view synchronization
+  const lines = document.querySelectorAll<HTMLElement>("[data-scroll-lines] .scroll-line");
+  const mockTabs = document.querySelectorAll<HTMLButtonElement>("[data-tabs-mock] .mock-tab");
+  const toolBtns = document.querySelectorAll<HTMLButtonElement>("[data-tabs-mock] [data-tool-btn]");
+  const toolViews = document.querySelectorAll<HTMLElement>("[data-tabs-mock] [data-tool-view]");
+
+  const projectData: Record<string, { repo: string; branch: string; server: string; url: string }> = {
+    throttle: {
+      repo: "~/dev/throttle-clan",
+      branch: "feature/checkout",
+      server: "port: 3000 (Vite)",
+      url: "http://localhost:3000/checkout",
+    },
+    intern: {
+      repo: "~/projects/intern-batch-08",
+      branch: "main",
+      server: "port: 5173 (Astro)",
+      url: "http://localhost:5173/preview",
+    },
+    api: {
+      repo: "~/services/payment-api",
+      branch: "staging",
+      server: "port: 8080 (Go)",
+      url: "http://localhost:8080/health",
+    },
+  };
+
+  const lineToToolMap = ["agents", "code", "server", "git", "browser", "testing"];
+  const lineToProjectMap = ["throttle", "throttle", "intern", "intern", "api", "api"];
+
+  let currentActiveIndex = 0;
+
+  const setIndex = (index: number) => {
+    if (index < 0 || index >= lines.length) return;
+    currentActiveIndex = index;
+    lines.forEach((l, i) => l.classList.toggle("highlighted", i === index));
+    if (index < lineToToolMap.length) {
+      activateTool(lineToToolMap[index]!);
+      activateTab(lineToProjectMap[index]!);
+    }
+  };
+
+  const activateTool = (tool: string) => {
+    toolBtns.forEach((btn) => {
+      const active = btn.dataset.toolBtn === tool;
+      btn.classList.toggle("active", active);
+      btn.setAttribute("aria-selected", String(active));
+    });
+    toolViews.forEach((view) => {
+      view.hidden = view.dataset.toolView !== tool;
+    });
+  };
+
+  const activateTab = (proj: string) => {
+    mockTabs.forEach((t) => {
+      const active = t.dataset.proj === proj;
+      t.classList.toggle("active", active);
+      t.setAttribute("aria-selected", String(active));
+    });
+    const data = projectData[proj];
+    if (data) {
+      const repoEl = document.querySelector<HTMLElement>("[data-proj-meta='repo']");
+      const branchEl = document.querySelector<HTMLElement>("[data-proj-meta='branch']");
+      const serverEl = document.querySelector<HTMLElement>("[data-proj-meta='server']");
+      const urlEl = document.querySelector<HTMLElement>("[data-browser-url]");
+      const serverLinkEl = document.querySelector<HTMLElement>("[data-server-link]");
+      const branchDisplayEl = document.querySelector<HTMLElement>("[data-git-branch-display]");
+      if (repoEl) repoEl.textContent = data.repo;
+      if (branchEl) branchEl.textContent = data.branch;
+      if (serverEl) serverEl.textContent = data.server;
+      if (urlEl) urlEl.textContent = data.url;
+      if (serverLinkEl) serverLinkEl.textContent = data.url;
+      if (branchDisplayEl) branchDisplayEl.textContent = data.branch;
+    }
+  };
+
+  if (lines.length) {
+    const updateLines = () => {
+      const vh = window.innerHeight;
+      const targetY = vh * 0.45;
+      let closestDist = Infinity;
+      let closestIndex = 0;
+
+      lines.forEach((line, index) => {
+        const rect = line.getBoundingClientRect();
+        const lineCenter = rect.top + rect.height / 2;
+        const dist = Math.abs(lineCenter - targetY);
+        if (dist < closestDist) {
+          closestDist = dist;
+          closestIndex = index;
+        }
+      });
+
+      if (closestIndex !== currentActiveIndex) {
+        setIndex(closestIndex);
+      }
+    };
+
+    window.addEventListener("scroll", updateLines, { passive: true });
+    updateLines();
+
+    // Clicking any line on the left activates its tool and project immediately
+    lines.forEach((line, index) => {
+      line.addEventListener("click", () => {
+        setIndex(index);
+        line.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+    });
+  }
+
+  // Interactive project tabs
+  mockTabs.forEach((tab) => {
+    tab.addEventListener("click", () => {
+      const proj = tab.dataset.proj;
+      if (proj) activateTab(proj);
+    });
+  });
+
+  // Interactive tool buttons
+  toolBtns.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const tool = btn.dataset.toolBtn;
+      if (tool) {
+        activateTool(tool);
+        const lineIdx = lineToToolMap.indexOf(tool);
+        if (lineIdx !== -1 && lines[lineIdx]) {
+          lines.forEach((l, i) => l.classList.toggle("highlighted", i === lineIdx));
+          currentActiveIndex = lineIdx;
+        }
+      }
+    });
+  });
+</script>

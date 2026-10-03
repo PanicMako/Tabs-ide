@@ -1,0 +1,112 @@
+---
+import Icon from "./Icon.astro";
+---
+
+<section class="current-workflow current-container" aria-labelledby="current-workflow-title">
+  <div class="current-workflow-heading">
+    <div>
+      <span class="current-eyebrow"><span class="current-live-dot" aria-hidden="true"></span> YOUR WORKSPACE · YOUR TOOLBAR</span>
+      <h2 id="current-workflow-title">Add the tools<br /><em>you actually use.</em></h2>
+    </div>
+    <p>
+      The six built-in tools are only the starting point. Add websites, browser tabs, server tabs,
+      and reusable Launchpad presets to each project—then keep them one click away in the toolbar.
+    </p>
+  </div>
+
+  <div class="current-wf-toolbar" aria-label="Example customized Tabs toolbar">
+    <span class="current-wf-toolbar-project">checkout-app</span>
+    <span><Icon name="Code2" size={15} /> Code</span>
+    <span><Icon name="Bot" size={15} /> Agents</span>
+    <span><Icon name="Rocket" size={15} /> Launchpad</span>
+    <span><Icon name="Globe" size={15} /> Browser</span>
+    <span class="current-wf-added"><img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/figma/figma-original.svg" alt="" width="15" height="15" /> <b>Figma</b></span>
+    <span class="current-wf-added current-wf-chatgpt"><img src="/providers/codex.svg" alt="" width="15" height="15" /> <b>ChatGPT</b></span>
+    <span class="current-wf-added"><Icon name="Terminal" size={15} /> <b>Claude CLI</b></span>
+    <span class="current-wf-add">＋ Add tool</span>
+  </div>
+
+  <div class="current-possibility-strip" aria-hidden="true">
+    <span>ONE PROJECT</span><i></i><span>ANY URL</span><i></i><span>ANY COMMAND</span><i></i><span>PICK UP ANYWHERE</span>
+  </div>
+
+  <div class="current-wf-grid">
+    <!-- Card 01: Any URL -->
+    <article class="current-wf-card current-wf-url">
+      <div class="current-wf-url-intro">
+        <div>
+          <span class="current-wf-index">01 / ANY WEBSITE · ANY DOMAIN</span>
+          <h3>Any URL can become a tool.</h3>
+          <p>Design files, documentation, dashboards, chats, admin panels—give the page a name, paste its URL, and it gets its own place in your project toolbar.</p>
+        </div>
+        <div class="current-wf-url-builder" aria-label="Example website tool configuration">
+          <span class="current-wf-label">ADD WEBSITE TOOL</span>
+          <div>
+            <img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/figma/figma-original.svg" alt="" width="15" height="15" />
+            <strong>https://figma.com</strong>
+            <b>＋ ADD</b>
+          </div>
+          <small>Choose a label · Pick a browser profile · Resume where you left off</small>
+        </div>
+      </div>
+      <div class="current-wf-domains" aria-label="Examples of websites that can be added">
+        <span><img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/figma/figma-original.svg" alt="" width="20" height="20" /><b>Figma</b><small>Design</small></span>
+        <span class="current-wf-domain-chatgpt"><img src="/providers/codex.svg" alt="" width="20" height="20" /><b>ChatGPT</b><small>AI workspace</small></span>
+        <span><img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/github/github-original.svg" alt="" width="20" height="20" /><b>GitHub</b><small>Code &amp; reviews</small></span>
+        <span class="current-wf-domain-notion"><img src="https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/notion.svg" alt="" width="20" height="20" /><b>Notion</b><small>Docs</small></span>
+        <span class="current-wf-domain-linear"><img src="https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/linear.svg" alt="" width="20" height="20" /><b>Linear</b><small>Issues</small></span>
+        <span class="current-wf-domain-custom"><i>＋</i><b>Your URL</b><small>Anything else</small></span>
+      </div>
+      <div class="current-wf-embed-note">
+        <strong>Some services restrict embedded pages or sign-in.</strong>
+        <span>Use "Open externally" to continue in your system browser, while keeping the shortcut in Tabs.</span>
+      </div>
+    </article>
+
+    <!-- Card 02: Any CLI -->
+    <article class="current-wf-card current-wf-cli">
+      <div class="current-wf-topline">
+        <span class="current-wf-index">02 / ANY CLI</span>
+        <span>INSIDE LAUNCHPAD</span>
+      </div>
+      <div class="current-wf-cli-layout">
+        <div>
+          <h3>Type any command.<br />Give it a tab.</h3>
+          <p>Claude, GitHub, Docker, database consoles, deploy scripts—or something only your team knows. If it runs in your shell, you can pin it inside Launchpad.</p>
+          <div class="current-wf-cli-chips" aria-label="Example command-line tools">
+            <span>⌁ claude</span><span>⌁ gh</span><span>⌁ docker</span><span>＋ yours</span>
+          </div>
+        </div>
+        <div class="current-wf-cmd-builder" aria-label="Example launchpad command configuration">
+          <span class="current-wf-label">ADD LAUNCHPAD COMMAND</span>
+          <div><span>$</span><strong>your command here</strong><b>＋ PIN</b></div>
+          <small>Name the tool · Choose its folder · Add environment values · Run in its own tab</small>
+        </div>
+      </div>
+    </article>
+
+    <!-- Card 03: Preset -->
+    <article class="current-wf-card current-wf-preset">
+      <div class="current-wf-preset-copy">
+        <div class="current-wf-topline">
+          <span class="current-wf-index">03 / YOUR STACK, AS A PRESET</span>
+          <span>REPEATABLE</span>
+        </div>
+        <h3>Turn any setup<br />into one click.</h3>
+        <p>Save any combination of commands, folders, environment values, dependencies, and preview URLs. From a two-process app to your strangest local stack—Tabs starts it the same way every time.</p>
+        <div class="current-wf-preset-tags" aria-label="Preset capabilities">
+          <span>commands</span><span>working folders</span><span>environment</span><span>dependencies</span><span>preview URL</span>
+        </div>
+      </div>
+      <div class="current-wf-console">
+        <div class="current-wf-console-head"><span>CHECKOUT WORKSPACE</span><b>3 PROCESSES</b></div>
+        <div class="current-wf-stack">
+          <div><i>01</i><span>FRONTEND</span><code>cd apps/web &amp;&amp; bun dev</code><b>4173</b></div>
+          <div><i>02</i><span>API</span><code>cd apps/api &amp;&amp; bun start</code><b>3000</b></div>
+          <div><i>03</i><span>WORKER</span><code>cd workers/jobs &amp;&amp; bun dev</code><b class="current-wf-live">● LIVE</b></div>
+        </div>
+        <span class="current-wf-start">▶ START EVERYTHING</span>
+      </div>
+    </article>
+  </div>
+</section>

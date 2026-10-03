@@ -1,0 +1,141 @@
+---
+import TabsLogo from "../TabsLogo.astro";
+import FooterSignature from "../FooterSignature.astro";
+import releases from "../../data/releases.json";
+import { platforms, pickAsset, type Platform } from "../../lib/releases";
+
+const latest = releases[0];
+
+const platformSpecs: Record<Platform, { chip: string; archTag: string; subtext: string; ext: string; icon: string }> = {
+  "mac-arm64": {
+    chip: "◈ Apple Silicon",
+    archTag: "M1 / M2 / M3 / M4",
+    subtext: "Native ARM64 binary with Metal-backed acceleration. macOS 11.0 Big Sur or later.",
+    ext: ".dmg",
+    icon: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/apple/apple-original.svg",
+  },
+  "mac-x64": {
+    chip: "✳ Intel Mac",
+    archTag: "x86_64 Architecture",
+    subtext: "Validated for Intel-based MacBooks and desktop Macs. macOS 10.15 Catalina or later.",
+    ext: ".dmg",
+    icon: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/apple/apple-original.svg",
+  },
+  "windows-x64": {
+    chip: "⌥ Windows",
+    archTag: "x64 (Win 10/11)",
+    subtext: "Self-contained NSIS executable with seamless background differential update manifests.",
+    ext: ".exe",
+    icon: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/windows11/windows11-original.svg",
+  },
+  "linux-x64": {
+    chip: "◎ Linux",
+    archTag: "Universal AppImage",
+    subtext: "Portable AppImage compatible across Ubuntu, Fedora, Arch, and openSUSE distributions.",
+    ext: ".AppImage",
+    icon: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/linux/linux-original.svg",
+  },
+};
+---
+
+<article data-concept="3" class="flow flow-download-article" hidden>
+  <header class="nav">
+    <a href="/#concept-3" class="wordmark">
+      <TabsLogo size={36} class="wordmark-logo" />Tabs<span class="wordmark-ide">IDE</span>
+    </a>
+    <span class="nav-caption">ONE CONTINUOUS LOOP · NATIVE DESKTOP BUILDS</span>
+    <div class="flow-nav-actions">
+      <a href="/download#concept-3" class="flow-nav-link" aria-current="page">Downloads</a>
+      <a href="/changelog#concept-3" class="flow-nav-link">Changelog</a>
+      <a href="/#concept-3" class="flow-nav-cta">ENTER YOUR FLOW ↗</a>
+    </div>
+  </header>
+
+  <section class="flow-hero flow-dl-hero">
+    <div class="flow-vertical eyebrow">AN UNINTERRUPTED TRAIN OF THOUGHT / DOWNLOAD</div>
+    <div class="flow-heading">
+      <span class="eyebrow">FOR THE WAY YOUR MIND WORKS.</span>
+      <h1>Pick up<br /><em>where you are.</em></h1>
+      <p>
+        Thought to agent. Agent to code. Code to running.<br />
+        Install Tabs on macOS, Windows, or Linux and keep your entire workspace in one continuous flow.
+      </p>
+      <div class="flow-dl-chips">
+        {platforms.map((p) => (
+          <span class="flow-chip">{platformSpecs[p.id as Platform].chip}</span>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <main class="flow-dl-stage">
+    <div class="flow-dl-grid">
+      {platforms.map((p) => {
+        const spec = platformSpecs[p.id as Platform];
+        const downloadUrl = pickAsset(latest, p.id as Platform) ?? latest.html_url;
+        const filename = downloadUrl.split("/").pop() ?? p.label;
+
+        return (
+          <div class="flow-dl-card">
+            <div class="flow-dl-card-header">
+              <div class="flow-dl-icon-badge">
+                <img src={spec.icon} alt="" width="26" height="26" loading="lazy" />
+              </div>
+              <div class="flow-dl-title-wrap">
+                <h3>{p.label}</h3>
+                <span class="flow-dl-arch">{filename}</span>
+              </div>
+            </div>
+            <a
+              href={downloadUrl}
+              class="flow-dl-btn"
+              data-platform={p.id}
+              download={filename}
+              aria-label={`Download ${p.label}: ${filename}`}
+            >
+              <span>Download</span>
+              <span aria-hidden="true">↓</span>
+            </a>
+          </div>
+        );
+      })}
+    </div>
+
+    <section class="flow-journey flow-dl-journey">
+      <div class="flow-sticky">
+        <span class="eyebrow">VERIFIED DESKTOP RUNTIMES</span>
+        <h2>Everything bundled.</h2>
+        <p>Your workspace is self-contained ↓</p>
+      </div>
+      <div class="flow-steps">
+        <div class="flow-step">
+          <span>01</span>
+          <h3>Native Code OSS Core</h3>
+          <p>Full editor workbench, real terminal multiplexing, and Git management embedded directly into the native Electron window.</p>
+          <div class="flow-line" aria-hidden="true">✳　→　◈</div>
+        </div>
+        <div class="flow-step">
+          <span>02</span>
+          <h3>Zero-Dependency Installers</h3>
+          <p>No separate node, git, or agent CLI installation required. Everything ships bundled inside the signed platform binary.</p>
+          <div class="flow-line" aria-hidden="true">〈/〉　→　⌘</div>
+        </div>
+        <div class="flow-step">
+          <span>03</span>
+          <h3>Differential In-App Updates</h3>
+          <p>Signed background updates download only changed binary blockmaps, ensuring your environment is always up to date.</p>
+          <div class="flow-line" aria-hidden="true">⌥　→　◎</div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="flow-end section-pad">
+    <h2>Find your<br /><em>next flow.</em></h2>
+    <div class="flow-footer-nav">
+      <a href="/changelog#concept-3">View the Ship Log for {latest.tag_name} ↗</a>
+      <a href="https://github.com/PanicMako/Tabs-ide">Explore Tabs on GitHub ↗</a>
+    </div>
+    <FooterSignature concept={3} />
+  </footer>
+</article>

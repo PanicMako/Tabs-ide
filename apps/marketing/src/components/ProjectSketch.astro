@@ -1,0 +1,89 @@
+---
+import Icon from "./Icon.astro";
+interface Props { project: { id: string; file: string; task: string; branch: string; port: string; label: string }; }
+const { project } = Astro.props;
+const tools = [["code", "Code", "Code2"], ["agents", "Agents", "Bot"], ["server", "Launchpad", "Rocket"], ["git", "Git", "GitBranch"], ["browser", "Browser", "Globe"]] as const;
+---
+<div class="sketch" data-project-sketch>
+  <div class="sketch-toolbar" role="tablist" aria-label={`Tools for ${project.id} example project`}>
+    {tools.map(([id, name, icon], i) => <button type="button" role="tab" id={`sketch-tab-${project.id}-${id}`} aria-controls={`sketch-panel-${project.id}-${id}`} aria-selected={i === 0} tabindex={i === 0 ? 0 : -1} data-sketch-tool={id}><Icon name={icon} size={14} /><span>{name}</span></button>)}
+  </div>
+  {tools.map(([id, ,], i) => <div class="sketch-panel" role="tabpanel" id={`sketch-panel-${project.id}-${id}`} aria-labelledby={`sketch-tab-${project.id}-${id}`} hidden={i !== 0} data-sketch-view={id} tabindex="0">
+    {id === "code" && <><div class="sketch-file"><span>{project.file}</span><small>CODE OSS</small></div><div class="sketch-code"><span><i>01</i><b>const</b> workspace = {"{"}</span><span><i>02</i>  project: <em>"{project.id}"</em>,</span><span><i>03</i>  tools: <em>"your choice"</em>,</span><span><i>04</i>  roomToMake: <b>true</b></span><span><i>05</i>{"};"}<span class="sketch-caret" aria-hidden="true"></span></span></div></>}
+    {id === "agents" && <><div class="sketch-file"><span>A new conversation</span><small>AGENTS</small></div><div class="sketch-conversation"><p>{project.task}</p><div><img src="/providers/claude.svg" width="22" height="22" alt=""/><span>Let's work through it.<small>Your conversation stays with this project.</small></span></div></div></>}
+    {id === "server" && <><div class="sketch-file"><span>Saved launchpad preset</span><small>LAUNCHPAD</small></div><div class="sketch-commands"><span><i>01</i> npm install</span><span><i>02</i> npm run dev</span><div><span class="sketch-dot"></span> Preview URL <b>{project.port}</b></div><p>Save the steps. Run them together.</p></div></>}
+    {id === "git" && <><div class="sketch-file"><span>{project.file}</span><small>GIT / CHANGES</small></div><div class="sketch-diff"><p>− workspace: "somewhere else"</p><p>+ workspace: "all right here"</p><div><Icon name="GitBranch" size={14}/>{project.branch}</div><small>See the change before you commit.</small></div></>}
+    {id === "browser" && <><div class="sketch-file"><span><span class="sketch-dot"></span>{project.port}</span><small>BROWSER</small></div><div class="sketch-site"><span class="sketch-site-star" aria-hidden="true">✳</span><small>YOUR APP, IN VIEW</small><h3>{project.label}</h3><div class="sketch-site-lines" aria-hidden="true"><i></i><i></i></div></div></>}
+  </div>)}
+  <div class="sketch-bottom"><span><Icon name="GitBranch" size={12}/>{project.branch}</span><span>Interactive sketch</span></div>
+</div>
+<style>
+  .sketch { background:#fbfcfe; border-radius:12px; color:#263149; overflow:hidden; border:1px solid #ffffff80; box-shadow:0 10px 30px #14214b12; }
+  .sketch-toolbar { display:flex; background:#ecf0fb; gap:2px; padding:8px 8px 0; }
+  .sketch-toolbar button { flex:1; min-width:0; display:flex; align-items:center; justify-content:center; gap:6px; padding:12px 4px; border:0; border-radius:7px 7px 0 0; background:transparent; color:#66718a; font:inherit; font-size:11px; cursor:pointer; transition:background .25s,color .25s; }
+  .sketch-toolbar button[aria-selected="true"] { background:#fbfcfe; color:#3458f5; }
+  .sketch-toolbar button:hover { color:#3458f5; }
+  .sketch-toolbar button:focus-visible, .sketch-panel:focus-visible { outline:2px solid #3458f5; outline-offset:-3px; }
+  .sketch-panel { min-height:236px; }
+  .sketch-panel[hidden] { display:none; }
+  .sketch-file { display:flex; justify-content:space-between; align-items:center; padding:17px 18px; border-bottom:1px solid #e8ecf5; gap:10px; font-size:11px; }
+  .sketch-file > span { display:flex; align-items:center; gap:6px; }
+  .sketch-file small { color:#8c94a5; font:9px monospace; white-space:nowrap; }
+  .sketch-code { display:grid; gap:10px; padding:22px 18px; font:12px monospace; }
+  .sketch-code > span { white-space:pre; }
+  .sketch-code i { color:#a7adba; font-style:normal; margin-right:16px; }
+  .sketch-code b { color:#8b6295; font-weight:400; }
+  .sketch-code em { color:#6f8856; font-style:normal; }
+  .sketch-caret { display:inline-block; width:1px; height:13px; vertical-align:middle; background:#3458f5; margin-left:3px; }
+  .sketch-conversation { padding:20px; font-size:13px; }
+  .sketch-conversation p { background:#eaf0ff; padding:13px; border-radius:10px 10px 0 10px; margin:0 0 24px 28px; }
+  .sketch-conversation > div { display:flex; gap:12px; align-items:flex-start; }
+  .sketch-conversation small { display:block; color:#7a8499; font-size:11px; margin-top:10px; }
+  .sketch-commands { padding:22px 18px; font:12px monospace; display:grid; gap:14px; }
+  .sketch-commands i { color:#99a2b3; font-style:normal; margin-right:15px; }
+  .sketch-commands > div { display:flex; align-items:center; gap:8px; border-top:1px solid #e8ecf5; padding-top:15px; font-size:10px; }
+  .sketch-commands b { margin-left:auto; font-weight:400; color:#3458f5; }
+  .sketch-commands p { font:11px sans-serif; color:#7a8499; margin:0; }
+  .sketch-dot { display:inline-block; width:5px; height:5px; border-radius:50%; background:#70a288; }
+  .sketch-diff { padding:20px 16px; font:11px monospace; }
+  .sketch-diff p { padding:10px; margin:0; background:#fbeae7; color:#ae6156; }
+  .sketch-diff p + p { background:#e9f4ec; color:#508160; }
+  .sketch-diff > div { display:flex; gap:8px; align-items:center; margin:20px 0 12px; }
+  .sketch-diff small { color:#7a8499; font:11px sans-serif; }
+  .sketch-site { position:relative; margin:12px; padding:24px; background:#edf1fd; border-radius:8px; }
+  .sketch-site > small { font:9px monospace; letter-spacing:.1em; color:#7a8499; }
+  .sketch-site h3 { font-size:24px; letter-spacing:-1px; line-height:1.1; width:80%; margin:14px 0; color:#3458f5; }
+  .sketch-site-star { position:absolute; right:20px; top:20px; color:#3458f5; font-size:24px; }
+  .sketch-site-lines { display:grid; gap:5px; }
+  .sketch-site-lines i { width:70%; height:3px; background:#d1daf4; }
+  .sketch-site-lines i:last-child { width:45%; }
+  .sketch-bottom { display:flex; justify-content:space-between; gap:12px; padding:12px 15px; border-top:1px solid #e8ecf5; font-size:9px; color:#7a8499; }
+  .sketch-bottom > span:first-child { display:flex; align-items:center; gap:5px; }
+  @media(max-width:450px) { .sketch-toolbar button { flex-direction:column; gap:5px; font-size:10px; padding:9px 3px; } .sketch-file { padding-inline:12px; } .sketch-code { font-size:10px; padding-inline:12px; } .sketch-panel { min-height:232px; } .sketch-bottom { font-size:8px; padding-inline:10px; } .sketch-diff { font-size:10px; } }
+  @media(prefers-reduced-motion:reduce) { .sketch-toolbar button { transition:none; } }
+</style>
+<script>
+  document.querySelectorAll<HTMLElement>("[data-project-sketch]").forEach(sketch => {
+    const tabs = [...sketch.querySelectorAll<HTMLButtonElement>("[data-sketch-tool]")];
+    const views = [...sketch.querySelectorAll<HTMLElement>("[data-sketch-view]")];
+    const select = (tab: HTMLButtonElement) => {
+      tabs.forEach(item => { item.setAttribute("aria-selected", String(item === tab)); item.tabIndex = item === tab ? 0 : -1; });
+      views.forEach(view => {
+        view.hidden = view.dataset.sketchView !== tab.dataset.sketchTool;
+        view.getAnimations().forEach(animation => animation.cancel());
+        if (!view.hidden && !matchMedia("(prefers-reduced-motion: reduce)").matches) view.animate([{ opacity:0, transform:"translateY(7px)" }, { opacity:1, transform:"translateY(0)" }], { duration:400, easing:"cubic-bezier(.22,1,.36,1)" });
+      });
+    };
+    tabs.forEach((tab, index) => {
+      tab.addEventListener("click", () => select(tab));
+      tab.addEventListener("keydown", event => {
+        const positions: Record<string, number> = { ArrowRight:(index + 1) % tabs.length, ArrowLeft:(index + tabs.length - 1) % tabs.length, Home:0, End:tabs.length - 1 };
+        const position = positions[event.key];
+        if (position === undefined) return;
+        event.preventDefault();
+        const next = tabs[position];
+        if (next) { select(next); next.focus(); }
+      });
+    });
+  });
+</script>

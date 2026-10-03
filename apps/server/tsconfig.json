@@ -1,0 +1,32 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": false,
+    "declaration": false,
+    "types": ["node", "bun"],
+    "lib": ["ES2023", "esnext.disposable"],
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "plugins": [
+      {
+        "name": "@effect/language-service",
+        "namespaceImportPackages": ["@effect/platform-node"],
+        "diagnosticSeverity": {
+          "importFromBarrel": "error",
+          "anyUnknownInErrorContext": "off",
+          "instanceOfSchema": "off",
+          "deterministicKeys": "off",
+          "preferSchemaOverJson": "off",
+          "globalErrorInEffectFailure": "off",
+          "globalErrorInEffectCatch": "off",
+          "runEffectInsideEffect": "off",
+          "unnecessaryEffectGen": "off",
+          "layerMergeAllWithDependencies": "off",
+          "unknownInEffectCatch": "off",
+          "effectSucceedWithVoid": "off"
+        }
+      }
+    ]
+  },
+  "include": ["src", "tsdown.config.ts", "scripts", "integration", "../../scripts/lib"]
+}

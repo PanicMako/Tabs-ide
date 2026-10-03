@@ -1,0 +1,10 @@
+<nav class="edition-selector" aria-label="Compare landing page designs"><span>DESIGN</span><a href="#concept-1" data-concept-link="1" aria-label="Version 1: original design" aria-current="page">01 <span>Original</span></a><a href="#concept-2" data-concept-link="2" aria-label="Version 2: redesigned page">02 <span>Reimagined</span></a></nav>
+<style>
+  .edition-selector { position:fixed; z-index:900; bottom:18px; left:50%; transform:translateX(-50%); display:flex; align-items:center; gap:5px; padding:7px; border:1px solid #dce2ee; border-radius:50px; background:#fffffff2; backdrop-filter:blur(16px); box-shadow:0 6px 35px #202b4420; color:#202b44; font-family:"DM Sans",sans-serif; white-space:nowrap; }
+  .edition-selector > span { padding:0 12px; font:9px monospace; letter-spacing:.1em; color:#68738a; }
+  .edition-selector a { display:flex; gap:9px; align-items:center; padding:10px 16px; border-radius:25px; font-size:11px; text-decoration:none; transition:background .25s,color .25s; }
+  .edition-selector a[aria-current] { background:#3259ed; color:#fff; }
+  .edition-selector a:focus-visible { outline:2px solid #3259ed; outline-offset:3px; }
+  @media (max-width:400px) { .edition-selector > span { display:none; } }
+  @media (prefers-reduced-motion:reduce) { .edition-selector a { transition:none; } }
+</style>

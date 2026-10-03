@@ -1,0 +1,153 @@
+---
+import TabsLogo from "../TabsLogo.astro";
+import Icon from "../Icon.astro";
+import FooterSignature from "../FooterSignature.astro";
+import releases from "../../data/releases.json";
+import { platforms, pickAsset, type Platform } from "../../lib/releases";
+
+const latest = releases[0];
+
+const platformSpecs: Record<Platform, { index: string; archTag: string; note: string; ext: string; icon: string }> = {
+  "mac-arm64": {
+    index: "01",
+    archTag: "Apple Silicon · M1–M4",
+    note: "Built specifically for Apple Silicon processors. Compatible with macOS 11.0 Big Sur and newer.",
+    ext: ".dmg",
+    icon: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/apple/apple-original.svg",
+  },
+  "mac-x64": {
+    index: "02",
+    archTag: "Intel Mac · x86_64",
+    note: "Prepared for Intel MacBooks, iMacs, and Mac Minis running macOS 10.15 Catalina or later.",
+    ext: ".dmg",
+    icon: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/apple/apple-original.svg",
+  },
+  "windows-x64": {
+    index: "03",
+    archTag: "Windows 10/11 · x64",
+    note: "Standalone Windows installer with background differential updates and taskbar integration.",
+    ext: ".exe",
+    icon: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/windows11/windows11-original.svg",
+  },
+  "linux-x64": {
+    index: "04",
+    archTag: "Universal Linux AppImage",
+    note: "Portable binary tested across modern Ubuntu, Debian, Fedora, Arch, and openSUSE systems.",
+    ext: ".AppImage",
+    icon: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/linux/linux-original.svg",
+  },
+};
+---
+
+<article data-concept="5" class="sides sides-download-article" hidden>
+  <header class="sides-nav">
+    <a class="sides-brand" href="/#concept-5" aria-label="Tabs IDE home">
+      <TabsLogo size={32} />
+      <span>Tabs</span>
+    </a>
+    <nav aria-label="Page navigation">
+      <a href="/#concept-5">Inside Tabs</a>
+      <a href="/changelog#concept-5">Ship log</a>
+      <a href="https://github.com/PanicMako/Tabs-ide">GitHub <Icon name="ArrowUpRight" size={14} /></a>
+    </nav>
+    <a class="sides-nav-download" href="/download#concept-5" aria-current="page">
+      <span>Get Tabs {latest.tag_name}</span>
+      <Icon name="ArrowDown" size={15} />
+    </a>
+  </header>
+
+  <section class="sides-dl-hero">
+    <div class="sides-dl-hero-copy">
+      <span class="sides-eyebrow">
+        <span class="sides-little-tab" aria-hidden="true"></span>
+        A GOOD PLACE TO BEGIN · NATIVE INSTALLERS
+      </span>
+      <h1>Pick your<br /><em>machine.</em></h1>
+      <p>
+        An editor, an agent, a browser, and your tools together.
+        Choose your platform binary and start building with room to think.
+      </p>
+      <div class="sides-dl-stamp">
+        <span>CURRENT SHIP: {latest.tag_name}</span>
+        <i>·</i>
+        <span>100% LOCAL WORKSPACE</span>
+      </div>
+    </div>
+  </section>
+
+  <main class="sides-dl-stage">
+    <div class="sides-dl-grid">
+      {platforms.map((p) => {
+        const spec = platformSpecs[p.id as Platform];
+        const downloadUrl = pickAsset(latest, p.id as Platform) ?? latest.html_url;
+        const filename = downloadUrl.split("/").pop() ?? p.label;
+
+        return (
+          <div class="sides-dl-card">
+            <div class="sides-dl-card-head">
+              <span class="sides-dl-index">{spec.index}</span>
+              <div class="sides-dl-icon">
+                <img src={spec.icon} alt="" width="24" height="24" loading="lazy" />
+              </div>
+              <div class="sides-dl-title-wrap">
+                <h3>{p.label}</h3>
+                <span class="sides-dl-arch">{filename}</span>
+              </div>
+            </div>
+            <a
+              href={downloadUrl}
+              class="sides-dl-btn"
+              data-platform={p.id}
+              download={filename}
+              aria-label={`Download ${p.label}: ${filename}`}
+            >
+              <span>Download</span>
+              <span aria-hidden="true">↓</span>
+            </a>
+          </div>
+        );
+      })}
+    </div>
+
+    <section class="sides-dl-manifest">
+      <div class="sides-section-intro">
+        <span class="sides-eyebrow">What ships in the box</span>
+        <h2>Everything you need.<br /><em>Nothing in the way.</em></h2>
+      </div>
+      <div class="sides-dl-manifest-grid">
+        <div class="sides-dl-manifest-item">
+          <span>01</span>
+          <h4>Embedded Code OSS Engine</h4>
+          <p>Full editor workbench with extensions and familiar keyboard shortcuts, running directly inside your workspace tab.</p>
+        </div>
+        <div class="sides-dl-manifest-item">
+          <span>02</span>
+          <h4>Launchpad &amp; Terminal Harness</h4>
+          <p>Pin custom shell commands, multi-process presets, and database monitors right beside your code.</p>
+        </div>
+        <div class="sides-dl-manifest-item">
+          <span>03</span>
+          <h4>Live Browser Previews</h4>
+          <p>Built-in Chromium preview tab with DOM inspection, journey recording, and automated test generation.</p>
+        </div>
+        <div class="sides-dl-manifest-item">
+          <span>04</span>
+          <h4>Your Preferred Agents</h4>
+          <p>Native and ACP protocol connectors for Codex, Claude, Copilot, and local models alongside your codebase.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="sides-end">
+    <div class="sides-end-heading">
+      <span class="sides-eyebrow">Stay up to date</span>
+      <h2>Read the<br /><em>ship log.</em></h2>
+      <p>Explore every release notes and architectural update in Tabs.</p>
+    </div>
+    <div class="sides-footer-links">
+      <a class="sides-source" href="/changelog#concept-5">View complete changelog for {latest.tag_name} <Icon name="ArrowUpRight" size={18} /></a>
+    </div>
+    <FooterSignature concept={5} />
+  </footer>
+</article>

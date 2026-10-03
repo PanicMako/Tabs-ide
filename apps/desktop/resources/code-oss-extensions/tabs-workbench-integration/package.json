@@ -1,0 +1,76 @@
+{
+  "name": "tabs-workbench-integration",
+  "displayName": "Tabs Workbench Integration",
+  "version": "0.0.1",
+  "description": "Runs Tabs tools inside a Code-OSS-first desktop shell.",
+  "publisher": "tabs",
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "tabs.openShell",
+        "title": "Tabs: Open Workspace Panel",
+        "category": "Tabs"
+      },
+      {
+        "command": "tabs.openAgents",
+        "title": "Tabs: Open Agents",
+        "category": "Tabs"
+      },
+      {
+        "command": "tabs.openServer",
+        "title": "Tabs: Open Server",
+        "category": "Tabs"
+      },
+      {
+        "command": "tabs.openBrowser",
+        "title": "Tabs: Open Browser",
+        "category": "Tabs"
+      },
+      {
+        "command": "tabs.openProjectTab",
+        "title": "Tabs: New Project Tab",
+        "category": "Tabs"
+      },
+      {
+        "command": "tabs.focusCode",
+        "title": "Tabs: Focus Code",
+        "category": "Tabs"
+      },
+      {
+        "command": "tabs.focusGit",
+        "title": "Tabs: Focus Git",
+        "category": "Tabs"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "tabs.openAgents",
+        "key": "ctrl+shift+i",
+        "mac": "cmd+shift+i"
+      },
+      {
+        "command": "tabs.openProjectTab",
+        "key": "ctrl+shift+n",
+        "mac": "cmd+shift+n"
+      }
+    ]
+  },
+  "activationEvents": [
+    "*"
+  ],
+  "extensionKind": [
+    "workspace"
+  ],
+  "engines": {
+    "vscode": "^1.70.0"
+  },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
+  "enabledApiProposals": [
+    "testObserver"
+  ]
+}

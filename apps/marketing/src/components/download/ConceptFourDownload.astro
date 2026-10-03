@@ -1,0 +1,151 @@
+---
+import TabsLogo from "../TabsLogo.astro";
+import Icon from "../Icon.astro";
+import FooterSignature from "../FooterSignature.astro";
+import releases from "../../data/releases.json";
+import { platforms, pickAsset, type Platform } from "../../lib/releases";
+
+const latest = releases[0];
+
+const platformSpecs: Record<Platform, { index: string; arch: string; runtime: string; ext: string; icon: string }> = {
+  "mac-arm64": {
+    index: "01 // DARWIN_ARM64",
+    arch: "Apple Silicon (M1/M2/M3/M4)",
+    runtime: "Native arm64 binary · Metal GPU pipeline · macOS 11.0+",
+    ext: ".dmg",
+    icon: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/apple/apple-original.svg",
+  },
+  "mac-x64": {
+    index: "02 // DARWIN_X64",
+    arch: "Intel x86_64 Architecture",
+    runtime: "Native x86_64 binary · macOS 10.15 Catalina or later",
+    ext: ".dmg",
+    icon: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/apple/apple-original.svg",
+  },
+  "windows-x64": {
+    index: "03 // WIN32_X64",
+    arch: "Windows 10 / 11 (64-bit)",
+    runtime: "NSIS installer · Background differential blockmap updates",
+    ext: ".exe",
+    icon: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/windows11/windows11-original.svg",
+  },
+  "linux-x64": {
+    index: "04 // LINUX_X64",
+    arch: "Universal Linux AppImage",
+    runtime: "Universal AppImage · glibc 2.31+ binary compatibility",
+    ext: ".AppImage",
+    icon: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/linux/linux-original.svg",
+  },
+};
+---
+
+<article data-concept="4" class="current current-download-article" hidden>
+  <header class="current-nav current-container">
+    <a class="current-brand" href="/#concept-4" aria-label="Tabs IDE home">
+      <TabsLogo size={31} />
+      <span>Tabs<span class="current-brand-accent">IDE</span></span>
+    </a>
+    <nav aria-label="Page navigation">
+      <a href="/#concept-4">Inside Tabs</a>
+      <a href="/changelog#concept-4">Changelog</a>
+      <a href="https://github.com/PanicMako/Tabs-ide">GitHub <Icon name="ArrowUpRight" size={14} /></a>
+    </nav>
+    <div class="current-nav-status" aria-hidden="true">
+      <span class="current-live-dot"></span>
+      <span>PRODUCTION {latest.tag_name}</span>
+    </div>
+  </header>
+
+  <section class="current-dl-hero current-container">
+    <div class="current-dl-hero-copy">
+      <p class="current-eyebrow">
+        <span class="current-live-dot" aria-hidden="true"></span>
+        HARDWARE MATRIX // VERIFIED NATIVE PACKAGES
+      </p>
+      <h1>Stay in<br />your <span>element.</span></h1>
+      <p class="current-dl-lead">
+        Code, agents, and everything around them. Install the standalone desktop workspace with
+        embedded Code OSS, integrated server terminals, browser preview, and native model harnesses.
+      </p>
+    </div>
+
+    <div class="current-dl-telemetry" aria-label="System verification telemetry">
+      <div><span>CORE ENGINE</span><strong>Code OSS 1.96</strong></div>
+      <div><span>PACKAGING</span><strong>Native Electron Shell</strong></div>
+      <div><span>TARGET ARCHS</span><strong>4/4 Verified</strong></div>
+      <div><span>RELEASE STATUS</span><b class="current-telemetry-live">● LIVE ({latest.tag_name})</b></div>
+    </div>
+  </section>
+
+  <main class="current-dl-stage current-container">
+    <div class="current-dl-grid">
+      {platforms.map((p) => {
+        const spec = platformSpecs[p.id as Platform];
+        const downloadUrl = pickAsset(latest, p.id as Platform) ?? latest.html_url;
+        const filename = downloadUrl.split("/").pop() ?? p.label;
+
+        return (
+          <div class="current-dl-card">
+            <div class="current-dl-card-main">
+              <div class="current-dl-icon">
+                <img src={spec.icon} alt="" width="24" height="24" loading="lazy" />
+              </div>
+              <div class="current-dl-title-box">
+                <div class="current-dl-meta-line">
+                  <span class="current-dl-index">{spec.index}</span>
+                  <span class="current-dl-verified">● SHA-256</span>
+                </div>
+                <h3>{p.label}</h3>
+                <span class="current-dl-arch">{filename}</span>
+              </div>
+            </div>
+            <a
+              href={downloadUrl}
+              class="current-dl-btn"
+              data-platform={p.id}
+              download={filename}
+              aria-label={`Download ${p.label}: ${filename}`}
+            >
+              <span>[ DOWNLOAD ↓ ]</span>
+            </a>
+          </div>
+        );
+      })}
+    </div>
+
+    <section class="current-dl-specs">
+      <div class="current-dl-spec-card">
+        <span class="current-live-dot" aria-hidden="true"></span>
+        <h4>Standalone Bundled Runtimes</h4>
+        <p>No separate node, git, or compiler setup required. Everything executes inside the self-contained app.</p>
+      </div>
+      <div class="current-dl-spec-card">
+        <span class="current-live-dot" aria-hidden="true"></span>
+        <h4>Differential In-App Upgrades</h4>
+        <p>Verified blockmap updates ensure downloads remain tiny while preserving your extensions and local state.</p>
+      </div>
+      <div class="current-dl-spec-card">
+        <span class="current-live-dot" aria-hidden="true"></span>
+        <h4>Air-Gapped Local Privacy</h4>
+        <p>Zero cloud requirement. Terminals, browser sessions, and workspace storage remain 100% on your device.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="current-end">
+    <div class="current-container">
+      <div class="current-close-heading">
+        <div>
+          <span class="current-eyebrow">Make yourself at home</span>
+          <h2>Good work<br />starts <span>here.</span></h2>
+        </div>
+        <div class="current-close-aside">
+          <TabsLogo size={70} />
+          <p>Your next project.<br />Your familiar tools.<br />A little more room to build.</p>
+          <a href="/changelog#concept-4">Inspect the complete telemetry changelog <Icon name="ArrowUpRight" size={16} /></a>
+        </div>
+      </div>
+      <FooterSignature concept={4} />
+    </div>
+  </footer>
+</article>

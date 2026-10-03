@@ -1,0 +1,129 @@
+---
+import releases from "../data/releases.json";
+import { platforms, pickAsset, type Platform } from "../lib/releases";
+
+interface Props {
+  compact?: boolean;
+}
+
+const { compact = false } = Astro.props;
+const latest = releases[0];
+const hardwareThemes: Record<
+  Platform,
+  {
+    themeClass: string;
+    icon: string;
+    archTag: string;
+    subtext: string;
+    ext: string;
+    btnLabel: string;
+  }
+> = {
+  "mac-arm64": {
+    themeClass: "theme-silicon",
+    icon: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/apple/apple-original.svg",
+    archTag: "APPLE SILICON · M1–M4",
+    subtext: "Native ARM64 build optimized for Apple Silicon hardware acceleration. macOS 11.0 Big Sur or later.",
+    ext: ".DMG",
+    btnLabel: "DOWNLOAD ARM64 ↓",
+  },
+  "mac-x64": {
+    themeClass: "theme-intel",
+    icon: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/apple/apple-original.svg",
+    archTag: "INTEL X86_64 ARCH",
+    subtext: "Compatible with Intel-based MacBooks, iMacs, and Mac Minis. macOS 10.15 Catalina or later.",
+    ext: ".DMG",
+    btnLabel: "DOWNLOAD INTEL ↓",
+  },
+  "windows-x64": {
+    themeClass: "theme-windows",
+    icon: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/windows11/windows11-original.svg",
+    archTag: "WINDOWS 10/11 · X64",
+    subtext: "Self-contained NSIS installer with automatic in-app differential updates and desktop shortcuts.",
+    ext: ".EXE",
+    btnLabel: "DOWNLOAD .EXE ↓",
+  },
+  "linux-x64": {
+    themeClass: "theme-linux",
+    icon: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/linux/linux-original.svg",
+    archTag: "UNIVERSAL LINUX",
+    subtext: "Universal standalone binary tested on Ubuntu, Debian, Fedora, Arch, and openSUSE. glibc 2.31+.",
+    ext: ".APPIMAGE",
+    btnLabel: "DOWNLOAD .APPIMAGE ↓",
+  },
+};
+---
+
+{
+  compact ? (
+    <div class="download-block compact">
+      <a class="cta" href="/downloads">
+        <canvas class="cta-liquid-canvas" aria-hidden="true"></canvas>
+        <span class="cta-label">Download Tabs IDE</span>
+        <span class="cta-arrow" aria-hidden="true">↗</span>
+      </a>
+      <span class="download-meta">
+        <span data-version>{latest.tag_name}</span> / macOS, Windows &amp; Linux
+      </span>
+    </div>
+  ) : (
+    <div class="hardware-grid-container">
+      <div class="hardware-grid">
+        {platforms.map((p) => {
+          const theme = hardwareThemes[p.id as Platform];
+          const downloadUrl = pickAsset(latest, p.id as Platform) ?? latest.html_url;
+          const filename = downloadUrl.split("/").pop() ?? p.label;
+
+          return (
+            <div class:list={["hardware-card", theme.themeClass]} data-platform-card={p.id}>
+              <div>
+                <div class="hardware-card-header">
+                  <div class="hardware-icon" aria-hidden="true">
+                    <img src={theme.icon} alt="" width="28" height="28" loading="lazy" />
+                  </div>
+                  <div class="hardware-name"><h3>{p.label}</h3><span>{theme.archTag}</span></div>
+                </div>
+                <div class="hardware-arch">{filename}</div>
+              </div>
+
+              <a
+                href={downloadUrl}
+                class="hardware-btn platform-btn"
+                data-platform={p.id}
+                download={filename}
+                aria-label={`Download ${p.label}: ${filename}`}
+              >
+                <span>DOWNLOAD</span><b>↓</b>
+              </a>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  )
+}
+
+<script>
+  // Smart platform detection to highlight the visitor's OS
+  const ua = navigator.userAgent;
+  let targetPlatformId = "";
+
+  if (/Macintosh|Mac OS X/i.test(ua)) {
+    targetPlatformId = "mac-arm64";
+  } else if (/Windows/i.test(ua)) {
+    targetPlatformId = "windows-x64";
+  } else if (/Linux/i.test(ua)) {
+    targetPlatformId = "linux-x64";
+  }
+
+  if (targetPlatformId) {
+    const card = document.querySelector(`[data-platform-card="${targetPlatformId}"]`);
+    if (card) {
+      card.classList.add("is-detected");
+      const tag = card.querySelector(".platform-tag");
+      if (tag) {
+        tag.textContent = "● DETECTED FOR YOUR SYSTEM";
+      }
+    }
+  }
+</script>

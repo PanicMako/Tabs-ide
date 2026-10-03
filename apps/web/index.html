@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.ico" sizes="48x48" />
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="/icon-light.svg"
+      media="(prefers-color-scheme: light)"
+    />
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="/icon-dark.svg"
+      media="(prefers-color-scheme: dark)"
+    />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <script>
+      (() => {
+        let dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        try {
+          const preference = localStorage.getItem("tabs:theme") || "system";
+          if (preference === "custom") {
+            const customTheme = JSON.parse(localStorage.getItem("tabs:custom-theme") || "null");
+            dark = customTheme?.baseVariant !== "light";
+          } else if (preference !== "system") {
+            dark = !["light", "tabs-light", "solarized-light"].includes(preference);
+          }
+        } catch {
+          // The operating-system preference remains a safe first-paint fallback.
+        }
+        document.documentElement.classList.toggle("dark", dark);
+        document.documentElement.style.colorScheme = dark ? "dark" : "light";
+        document.documentElement.style.backgroundColor = dark ? "#141414" : "#f8f8f8";
+      })();
+    </script>
+    <title>Tabs</title>
+  </head>
+  <body style="margin: 0; background: inherit">
+    <div
+      id="root"
+      aria-busy="true"
+      style="
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        color: #888;
+        font: 13px system-ui;
+      "
+    ></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

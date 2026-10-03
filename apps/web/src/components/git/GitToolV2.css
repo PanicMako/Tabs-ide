@@ -1,0 +1,64 @@
+.git-tool-v2 {
+  --gt-accent: var(--primary, #ffffff);
+  --gt-accent-contrast: var(--primary-foreground, #ffffff);
+  --accent: color-mix(in srgb, var(--foreground) 8%, transparent);
+  --accent-foreground: var(--foreground);
+  --bg-base: var(--background, #09090b);
+  --bg-surface: var(--card, #121215);
+  --fg: var(--foreground, #fafafa);
+  --fg-80: color-mix(in srgb, var(--foreground) 80%, transparent);
+  --fg-60: color-mix(in srgb, var(--foreground) 60%, transparent);
+  --fg-40: color-mix(in srgb, var(--foreground) 40%, transparent);
+  --fg-30: color-mix(in srgb, var(--foreground) 30%, transparent);
+  --fg-25: color-mix(in srgb, var(--foreground) 25%, transparent);
+  --fg-20: color-mix(in srgb, var(--foreground) 20%, transparent);
+  --overlay-5: color-mix(in srgb, var(--foreground) 5%, transparent);
+  --overlay-10: color-mix(in srgb, var(--foreground) 10%, transparent);
+  --overlay-20: color-mix(in srgb, var(--foreground) 20%, transparent);
+  --overlay-30: color-mix(in srgb, var(--foreground) 30%, transparent);
+
+  /* Default / Light mode semantic tokens */
+  --sem-emerald: #047857;
+  --sem-emerald-soft: rgba(5, 150, 105, 0.12);
+  --sem-emerald-border: rgba(5, 150, 105, 0.3);
+  --sem-emerald-text: #047857;
+  --sem-amber: #b45309;
+  --sem-amber-soft: rgba(217, 119, 6, 0.12);
+  --sem-amber-border: rgba(217, 119, 6, 0.3);
+  --sem-red: #b91c1c;
+  --sem-red-soft: rgba(220, 38, 38, 0.12);
+  --sem-red-border: rgba(220, 38, 38, 0.3);
+  --sem-red-text: #b91c1c;
+  --sem-sky: #0369a1;
+  --sem-sky-soft: rgba(2, 132, 199, 0.12);
+  --sem-sky-border: rgba(2, 132, 199, 0.3);
+  --sem-purple: #7e22ce;
+  --sem-purple-soft: rgba(147, 51, 234, 0.12);
+}
+
+/* Dark mode semantic tokens override */
+.dark .git-tool-v2,
+:root.dark .git-tool-v2,
+[data-theme="tabs-dark"] .git-tool-v2,
+[data-theme="tabs-monotone"] .git-tool-v2,
+[data-theme="true-black"] .git-tool-v2,
+[data-theme="abyss"] .git-tool-v2,
+[data-theme="dracula"] .git-tool-v2,
+[data-theme="deep-blue"] .git-tool-v2 {
+  --sem-emerald: #34d399;
+  --sem-emerald-soft: rgba(52, 211, 153, 0.1);
+  --sem-emerald-border: rgba(52, 211, 153, 0.25);
+  --sem-emerald-text: #6ee7b7;
+  --sem-amber: #fbbf24;
+  --sem-amber-soft: rgba(251, 191, 36, 0.1);
+  --sem-amber-border: rgba(251, 191, 36, 0.25);
+  --sem-red: #f87171;
+  --sem-red-soft: rgba(248, 113, 113, 0.1);
+  --sem-red-border: rgba(248, 113, 113, 0.25);
+  --sem-red-text: #fca5a5;
+  --sem-sky: #38bdf8;
+  --sem-sky-soft: rgba(56, 189, 248, 0.1);
+  --sem-sky-border: rgba(56, 189, 248, 0.25);
+  --sem-purple: #c084fc;
+  --sem-purple-soft: rgba(192, 132, 252, 0.1);
+}

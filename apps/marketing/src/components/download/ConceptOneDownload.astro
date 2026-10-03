@@ -1,0 +1,109 @@
+---
+import TabsLogo from "../TabsLogo.astro";
+import Icon from "../Icon.astro";
+import FooterSignature from "../FooterSignature.astro";
+import releases from "../../data/releases.json";
+import { pickAsset, type Platform } from "../../lib/releases";
+
+const latest = releases[0];
+
+const families = [
+  { name: "macOS", note: "Choose the chip inside your Mac.", icon: "apple/apple-original.svg", ids: ["mac-arm64", "mac-x64"] },
+  { name: "Windows", note: "A workspace for your next build.", icon: "windows11/windows11-original.svg", ids: ["windows-x64"] },
+  { name: "Linux", note: "Your tools. Your environment.", icon: "linux/linux-original.svg", ids: ["linux-x64"] },
+];
+const labels: Record<Platform, string> = { "mac-arm64": "Apple Silicon", "mac-x64": "Intel", "windows-x64": "x64 installer", "linux-x64": "x64 AppImage" };
+---
+
+<article data-concept="1" class="headspace hs-download-article">
+  <header class="hs-nav hs-wrap">
+    <div class="hs-brand-lockup">
+      <a class="hs-brand" href="/" aria-label="Tabs IDE home">
+        <TabsLogo size={32} />
+        <span>Tabs<span class="hs-brand-suffix">IDE</span></span>
+      </a>
+      <span class="hs-brand-divider" aria-hidden="true"></span>
+      <div class="hs-access-tag" aria-label="Public Beta">
+        <span>PUBLIC</span>
+        <span>BETA</span>
+      </div>
+    </div>
+    <nav aria-label="Page navigation">
+      <a href="/#hs-workspace">Inside Tabs</a>
+      <a href="/changelog">What's new</a>
+      <a href="https://github.com/PanicMako/Tabs-ide">GitHub <Icon name="ArrowUpRight" size={14} /></a>
+    </nav>
+    <a class="hs-nav-download" href="/downloads" aria-current="page"><span class="btn-fill" aria-hidden="true"></span><span>Get Tabs</span> <Icon name="ArrowDown" size={16} /></a>
+  </header>
+
+  <section class="hs-dl-hero hs-wrap">
+    <div class="hs-dl-hero-grid">
+      <div class="hs-dl-hero-left">
+        <p class="hs-eyebrow"><span class="hs-spark" aria-hidden="true">✳</span> A little more room to make.</p>
+        <h1>Choose your<br /><span>workspace.</span></h1>
+      </div>
+      <div class="hs-dl-hero-right">
+        <p class="hs-lead">
+          Install the complete Tabs workspace for macOS, Windows, or Linux. Code OSS, terminals,
+          browser tabs, Git, and your choice of AI collaborators. Tabs is in active development. Expect some bugs and rough edges; feedback is welcome.
+        </p>
+        <div class="hs-dl-version-pill">
+          <span class="hs-spark">✳</span>
+          <span>Version <span data-version>{latest.tag_name}</span></span>
+          <span class="hs-dl-badge">PUBLIC BETA</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <main class="hs-dl-grid-section hs-wrap">
+    <div class="platform-shelves">
+      {families.map((family, index) => (
+        <section class="platform-shelf" aria-label={`${family.name} downloads`}>
+          <div class="platform-heading"><img src={`https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/${family.icon}`} alt="" width="22" height="22" /><span>0{index + 1}</span></div>
+          <h2>{family.name}</h2>
+          <p>{family.note}</p>
+          <div class="platform-options">
+            {family.ids.map((id) => {
+              const platform = id as Platform;
+              const url = pickAsset(latest, platform);
+              return <div class="platform-option"><span>{labels[platform]}<small>{platform.startsWith("mac") ? ".dmg" : platform === "windows-x64" ? ".exe" : ".AppImage"}</small></span><a class="platform-download" href={url ?? latest.html_url} data-platform={platform} aria-label={`Download Tabs for ${family.name}, ${labels[platform]}`}><span class="btn-fill" aria-hidden="true"></span><span>Download</span> <Icon name="ArrowDown" size={14} /></a></div>;
+            })}
+          </div>
+          {index === 0 && <small class="platform-help">Find your chip in Apple menu → About This Mac. This beta is not Apple Developer ID signed or notarized. After attempting to open Tabs, use System Settings → Privacy &amp; Security → Open Anyway. Alternatively, <a href="https://github.com/PanicMako/Tabs-ide#quick-start">build from source</a>.</small>}
+        </section>
+      ))}
+    </div>
+    <p class="download-status" data-release-status role="status">Showing saved release {latest.tag_name}. Checking for the latest downloads.</p>
+  </main>
+
+  <footer class="hs-end">
+    <div class="hs-wrap">
+      <div class="hs-platforms">
+        <a href="/changelog">Read the complete ship log for {latest.tag_name} <Icon name="ArrowUpRight" size={17} /></a>
+      </div>
+      <FooterSignature concept={1} />
+    </div>
+  </footer>
+</article>
+
+<style>
+  .platform-shelves { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:24px; }
+  .platform-shelf { display:flex; flex-direction:column; border-top:2px solid #3458f5; border-radius:0 0 18px 18px; padding:28px; background:#f0f4fc; min-width:0; }
+  .platform-shelf:nth-child(2) { background:#fff1e6; border-color:#d79462; }
+  .platform-shelf:nth-child(3) { background:#eaf5ef; border-color:#73a38d; }
+  .platform-heading { display:flex; align-items:center; justify-content:space-between; color:#778093; font:12px monospace; }
+  .platform-shelf h2 { font-size:36px; letter-spacing:-1.5px; margin:28px 0 8px; }
+  .platform-shelf > p { font-size:14px; color:#657087; margin:0 0 32px; }
+  .platform-options { border-top:1px solid #202b4518; }
+  .platform-option { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:20px 0; border-bottom:1px solid #202b4518; }
+  .platform-option > span { font-size:15px; font-weight:600; }
+  .platform-option small { display:block; margin-top:5px; color:#657087; font:12px monospace; }
+  .platform-download { display:inline-flex; align-items:center; gap:7px; font-size:12px; border:1px solid #202b4525; border-radius:30px; padding:10px 12px; background:#ffffff9c; white-space:nowrap; }
+  .platform-download:hover { background:transparent; color:white; border-color:transparent; }
+  .platform-download:focus-visible { outline:2px solid #3458f5; outline-offset:4px; }
+  .platform-help { display:block; margin-top:20px; color:#657087; font-size:12px; line-height:1.6; }
+  .download-status { font-size:13px; color:#657087; margin:24px 0 64px; }
+  @media(max-width:1000px) { .platform-shelves { gap:16px; } .platform-shelf { padding:20px; } .platform-option { flex-wrap:wrap; } }
+  @media(max-width:700px) { .headspace .hs-dl-hero-grid { grid-template-columns:1fr; gap:24px; } .headspace .hs-dl-hero-right { align-items:flex-start; } .headspace .hs-dl-hero-left h1 { font-size:52px; } .platform-shelves { grid-template-columns:1fr; } .platform-shelf { padding:24px; } .platform-shelf > p { margin-bottom:20px; } }
+</style>

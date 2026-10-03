@@ -1,0 +1,26 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist-electron/**"],
+    },
+    "dev": {
+      // Vite and both tsdown watchers resolve @tabs/contracts from its source
+      // exports, so a separate declaration build would add ~15s before any
+      // development process can start.
+      "persistent": true,
+    },
+    "start": {
+      "dependsOn": ["build", "@tabs/web#build", "tabs#build"],
+      "cache": false,
+      "persistent": true,
+    },
+    "smoke-test": {
+      "dependsOn": ["build", "@tabs/web#build", "tabs#build"],
+      "cache": false,
+      "outputs": [],
+    },
+  },
+}
