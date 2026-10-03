@@ -295,6 +295,7 @@ try {
   $smokeHome = Join-Path $env:RUNNER_TEMP "TabsLaunchSmoke"
   $desktopLog = Join-Path $smokeHome "userdata/logs/desktop-main.log"
   $env:TABS_HOME = $smokeHome
+  $env:TABS_DESKTOP_USER_DATA_DIR = Join-Path $smokeHome "electron-profile"
   $env:TABS_DISABLE_AUTO_UPDATE = "1"
   Write-Host "Launching upgraded Tabs with isolated state..."
   $installedApp = Start-Process (Join-Path $installDir "Tabs.exe") -PassThru

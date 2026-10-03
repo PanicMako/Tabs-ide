@@ -19,6 +19,7 @@ cleanup() {
 trap cleanup EXIT
 
 export TABS_HOME="$smoke_root/home"
+export TABS_DESKTOP_USER_DATA_DIR="$smoke_root/electron-profile"
 export TABS_DISABLE_AUTO_UPDATE=1
 log_file="$TABS_HOME/userdata/logs/desktop-main.log"
 launch_output="$smoke_root/launch-output.log"
