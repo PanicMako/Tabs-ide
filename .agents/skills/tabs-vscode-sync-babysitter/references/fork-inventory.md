@@ -1,15 +1,15 @@
 # Tabs Code-OSS fork inventory
 
-This document tracks the reviewed patch surface between Microsoft VS Code upstream and Tabs' embedded `tabs-code-main` runtime.
+This document tracks the reviewed patch surface between Microsoft VS Code upstream and Tabs' embedded `tabs-code-oss` runtime.
 Updated for **VS Code 1.140.0** (`07f806f999227108933c2e30515b26eecc1fda74`) synced from 1.138.0 (`7debcd0e2acdea1c52de81bf9ee1620444407dda`).
 
 ## Tabs-owned Code-OSS additions (5 files)
 
-- `tabs-code-main/TABS_ARCHITECTURE.md`: Tabs embedded Code-OSS runtime architecture documentation.
-- `tabs-code-main/src/vs/workbench/browser/parts/editor/media/tabs-logo.svg`: Tabs branded SVG logo for editor watermark and branding.
-- `tabs-code-main/src/vs/workbench/contrib/tabs/browser/media/tabs.css`: Styling for Tabs workbench integrations.
-- `tabs-code-main/src/vs/workbench/contrib/tabs/browser/tabs.contribution.ts`: Primary Tabs workbench contribution, auxiliary bar assistant placement, and secondary container stability.
-- `tabs-code-main/src/vs/workbench/contrib/tabs/test/browser/tabs.contribution.test.ts`: Browser tests verifying Claude and auxiliary container placement invariants, plus mutually exclusive regular and managed-update Chat views through policy transitions.
+- `tabs-code-oss/TABS_ARCHITECTURE.md`: Tabs embedded Code-OSS runtime architecture documentation.
+- `tabs-code-oss/src/vs/workbench/browser/parts/editor/media/tabs-logo.svg`: Tabs branded SVG logo for editor watermark and branding.
+- `tabs-code-oss/src/vs/workbench/contrib/tabs/browser/media/tabs.css`: Styling for Tabs workbench integrations.
+- `tabs-code-oss/src/vs/workbench/contrib/tabs/browser/tabs.contribution.ts`: Primary Tabs workbench contribution, auxiliary bar assistant placement, and secondary container stability.
+- `tabs-code-oss/src/vs/workbench/contrib/tabs/test/browser/tabs.contribution.test.ts`: Browser tests verifying Claude and auxiliary container placement invariants, plus mutually exclusive regular and managed-update Chat views through policy transitions.
 
 ## Retained and adapted upstream modifications (27 files)
 
@@ -55,14 +55,14 @@ Updated for **VS Code 1.140.0** (`07f806f999227108933c2e30515b26eecc1fda74`) syn
 
 Always review these alongside fork changes:
 
-- `tabs-main/apps/desktop/src/codeHostManager.ts`
-- `tabs-main/apps/desktop/src/nativeCodeHostMain.ts`
-- `tabs-main/apps/desktop/src/browserHostManager.ts`
-- `tabs-main/apps/desktop/resources/code-oss-extensions/tabs-workbench-integration/`
-- `tabs-main/apps/web/src/components/WorkspaceShell.tsx`
-- `tabs-main/apps/web/src/components/code/`
-- `tabs-main/apps/web/src/nativeSurfaceOverlay.ts`
-- `tabs-main/scripts/build-desktop-artifact.ts`
+- `tabs-app/apps/desktop/src/codeHostManager.ts`
+- `tabs-app/apps/desktop/src/nativeCodeHostMain.ts`
+- `tabs-app/apps/desktop/src/browserHostManager.ts`
+- `tabs-app/apps/desktop/resources/code-oss-extensions/tabs-workbench-integration/`
+- `tabs-app/apps/web/src/components/WorkspaceShell.tsx`
+- `tabs-app/apps/web/src/components/code/`
+- `tabs-app/apps/web/src/nativeSurfaceOverlay.ts`
+- `tabs-app/scripts/build-desktop-artifact.ts`
 - `.github/workflows/build-desktop.yml` and `.github/workflows/release.yml`
 
 ## Historical commits worth reading

@@ -67,7 +67,7 @@ _Note to Agents: When architectural changes are made (e.g., new packages, major 
 ## Native Code-OSS Embedding
 
 The desktop app has one Code-OSS runtime path: the compiled Electron desktop renderer loaded from
-`tabs-code-main` over `vscode-file://`. There is no Remote Extension Host web server, served
+`tabs-code-oss` over `vscode-file://`. There is no Remote Extension Host web server, served
 workbench URL, loopback editor port, or `vscode-remote` filesystem transport.
 
 The Tabs React workspace remains the top-level Electron window and owns the project tabs, tool
@@ -88,14 +88,14 @@ hides that view while preserving its project session.
   its extension host can be addressed by webContents ID.
 - `Schemas.file` operations use the renderer's `DiskFileSystemProvider` backed by the main-process
   `localFilesystem` channel. They do not pass through the Tabs WebSocket backend.
-- `TABS_CODE_OSS_BUILD_DIR` can override runtime discovery with a compiled `tabs-code-main` root.
+- `TABS_CODE_OSS_BUILD_DIR` can override runtime discovery with a compiled `tabs-code-oss` root.
   Runtime selection does not support HTTP entries or a web-server fallback.
 - **Packaged App Runtime Packaging**: Production desktop installers (`.dmg`, `.exe`, `.AppImage`) are
-  self-contained fat bundles containing `tabs-code-main` inside `Resources/tabs-code-main` (macOS) or
-  `resources/tabs-code-main` (Linux/Windows). Standard releases never ship as thin installers requiring
+  self-contained fat bundles containing `tabs-code-oss` inside `Resources/tabs-code-oss` (macOS) or
+  `resources/tabs-code-oss` (Linux/Windows). Standard releases never ship as thin installers requiring
   on-demand downloads.
 - **Development Resolution**: In local development (`bun run dev:desktop`), the Code-OSS runtime always
-  resolves from the sibling `tabs-code-main` checkout (or `TABS_CODE_OSS_BUILD_DIR`). It never triggers
+  resolves from the sibling `tabs-code-oss` checkout (or `TABS_CODE_OSS_BUILD_DIR`). It never triggers
   on-demand downloads from GitHub release assets. Required compiled assets are `preload.js`,
   `workbench-dev.html`, `nls.messages.json`, and `product.json`.
 

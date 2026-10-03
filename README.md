@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="tabs-main/apps/desktop/resources/icon.png" width="112" alt="Tabs IDE app icon" />
+  <img src="tabs-app/apps/desktop/resources/icon.png" width="112" alt="Tabs IDE app icon" />
 </p>
 
 <h1 align="center">Tabs IDE</h1>
@@ -57,7 +57,7 @@ Coding with an agent usually means juggling a chat window, an editor, terminals,
 Tabs is built on top of [T3 Code](https://github.com/pingdotgg/t3code) and extends its agent harness design. Rather than locking you into a proprietary API subscription or proxy markup, Tabs lets you **bring your own keys and subscriptions (BYOK / BYOS)**. If an agent or CLI is set up on your machine, or you have an API key, Tabs connects directly to it.
 
 <p align="center">
-  <img src="tabs-main/apps/marketing/public/product/agents-dark.png" alt="Tabs Agents View with Model Picker and Provider Rail" width="100%" />
+  <img src="tabs-app/apps/marketing/public/product/agents-dark.png" alt="Tabs Agents View with Model Picker and Provider Rail" width="100%" />
 </p>
 
 Tabs currently supports **11 model and agent providers**:
@@ -91,17 +91,17 @@ Tabs currently supports **11 model and agent providers**:
 - Build tools (Python 3, C/C++ compiler toolchain) for compiling Code-OSS native modules
 - At least one authenticated provider CLI or API key (e.g., Codex, Claude Code, Cursor, Antigravity, or a Gemini/OpenRouter API key)
 
-### 1. Compile the Code-OSS runtime (`tabs-code-main`)
+### 1. Compile the Code-OSS runtime (`tabs-code-oss`)
 
-Tabs embeds a full Code-OSS (VS Code) workbench inside the desktop app. Before running Tabs locally, compile the sibling `tabs-code-main` runtime:
+Tabs embeds a full Code-OSS (VS Code) workbench inside the desktop app. Before running Tabs locally, compile the sibling `tabs-code-oss` runtime:
 
 ```bash
-cd tabs-code-main
+cd tabs-code-oss
 npm install
 npm run compile
 ```
 
-Tabs auto-detects `tabs-code-main` and verifies the core compiled assets:
+Tabs auto-detects `tabs-code-oss` and verifies the core compiled assets:
 - `out/vs/base/parts/sandbox/electron-browser/preload.js`
 - `out/vs/code/electron-browser/workbench/workbench-dev.html`
 - `out-build/nls.messages.json`
@@ -112,7 +112,7 @@ Tabs auto-detects `tabs-code-main` and verifies the core compiled assets:
 ### 2. Install Tabs dependencies
 
 ```bash
-cd ../tabs-main
+cd ../tabs-app
 bun install
 ```
 
@@ -156,7 +156,7 @@ The Electron shell owns the desktop window and native integrations. The React wo
 
 ```text
 tabs/
-├── tabs-main/          Product monorepo
+├── tabs-app/          Product monorepo
 │   ├── apps/
 │   │   ├── desktop/    Electron shell and native integrations
 │   │   ├── marketing/  Public website
@@ -164,16 +164,16 @@ tabs/
 │   │   └── web/        React workspace UI
 │   ├── packages/       Shared contracts and runtime libraries
 │   └── scripts/        Development, build, and release tooling
-├── tabs-code-main/     Tabs' Code-OSS runtime fork
+├── tabs-code-oss/     Tabs' Code-OSS runtime fork
 ├── .github/            CI, release workflows, and release notes
 └── README.md
 ```
 
-The two source trees have different responsibilities: `tabs-main/` is the Tabs product, while `tabs-code-main/` is the editor runtime bundled into desktop builds. Neither is generated output.
+The two source trees have different responsibilities: `tabs-app/` is the Tabs product, while `tabs-code-oss/` is the editor runtime bundled into desktop builds. Neither is generated output.
 
 ## Development
 
-Run project commands from `tabs-main/`:
+Run project commands from `tabs-app/`:
 
 ```bash
 bun run dev:desktop   # Start the complete Electron application
@@ -210,7 +210,7 @@ Desktop installers are self-contained and bundle the compiled Code-OSS runtime.
 > **macOS Gatekeeper**: These public-beta builds are not Apple Developer ID signed or notarized. After attempting to open Tabs, use **System Settings > Privacy & Security > Open Anyway**. Building from source is an alternative.
 
 ```bash
-cd tabs-main
+cd tabs-app
 bun run dist:desktop:dmg         # macOS, current architecture
 bun run dist:desktop:dmg:arm64   # macOS, Apple Silicon
 bun run dist:desktop:dmg:x64     # macOS, Intel
@@ -225,7 +225,7 @@ See [CHANGELOG.md](CHANGELOG.md) for shipped changes.
 ## Public-beta privacy and feedback
 
 Tabs-owned product analytics is **off by default**. Explicit opt-in uses a random
-Tabs installation ID, never a provider account ID. See [privacy details](tabs-main/docs/privacy.md)
+Tabs installation ID, never a provider account ID. See [privacy details](tabs-app/docs/privacy.md)
 for collected fields, opt-out, and separate provider/browser/extension traffic.
 
 Testing is unfinished **Early access**, hidden by default, and available through
@@ -241,8 +241,8 @@ For vulnerabilities, follow [SECURITY.md](SECURITY.md).
 
 Before opening a change:
 
-1. Read the [contribution guide](tabs-main/CONTRIBUTING.md).
-2. Keep product changes in `tabs-main/` and editor-runtime changes in `tabs-code-main/`.
+1. Read the [contribution guide](tabs-app/CONTRIBUTING.md).
+2. Keep product changes in `tabs-app/` and editor-runtime changes in `tabs-code-oss/`.
 3. Run formatting, lint, type checking, and the relevant tests.
 4. Document user-visible changes in the appropriate release notes.
 

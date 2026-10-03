@@ -1,0 +1,80 @@
+---
+import ConceptOneLayout from "../layouts/ConceptOneLayout.astro";
+import Icon from "../components/Icon.astro";
+import TabsLogo from "../components/TabsLogo.astro";
+const discussions = "https://github.com/PanicMako/Tabs-ide/discussions";
+const categories = [
+  { title: "Questions & help", slug: "q-a", description: "Get help with setup, providers, and your workspace. Mark the reply that solves your problem.", action: "Ask a question" },
+  { title: "Ideas & feedback", slug: "ideas", description: "Suggest improvements and talk through what you would like Tabs to do next.", action: "Share an idea" },
+  { title: "General discussion", slug: "general", description: "Discuss your workflow, compare experiences, and connect with other Tabs users.", action: "Start a conversation" },
+];
+---
+<ConceptOneLayout title="Community | Tabs IDE" description="Ask questions, discuss ideas, and get help from the Tabs IDE community." path="/community">
+  <section class="community-hero hs-wrap" aria-labelledby="community-heading">
+    <div class="community-copy">
+      <p class="hs-eyebrow"><span class="hs-spark" aria-hidden="true">✳</span> A LITTLE ROOM FOR CONVERSATION</p>
+      <h1 id="community-heading">Good questions.<br /><span>Better together.</span></h1>
+      <p class="hs-lead">Ideas worth sharing. Problems worth solving. A space for the people making things with Tabs.</p>
+      <a class="community-primary" href={discussions}>Join the conversation <Icon name="ArrowUpRight" size={20} /></a>
+      <p class="community-note">Read freely. Sign in with GitHub to post or reply.</p>
+    </div>
+    <div class="community-board" aria-label="Community conversation categories">
+      <div class="board-heading"><TabsLogo size={26} /><span>A SHARED WORKSPACE</span><span aria-hidden="true">✳</span></div>
+      {categories.map((category, index) => <a class={`board-topic topic-${index}`} href={`${discussions}/categories/${category.slug}`}><span class="board-index">0{index + 1}</span><span>{category.title}</span><Icon name="ArrowUpRight" size={20} /></a>)}
+      <div class="board-baseline"><span>YOUR EXPERIENCE BELONGS HERE.</span><span aria-hidden="true">↗</span></div>
+    </div>
+  </section>
+  <section class="community-topics hs-wrap" aria-labelledby="topics-heading">
+    <div class="section-heading"><p class="hs-eyebrow">FIND YOUR CORNER</p><h2 id="topics-heading">Every conversation<br />starts somewhere.</h2><p>Ask, share, or simply follow along.</p></div>
+    <div class="topic-grid">{categories.map((category, index) => <article class={`topic-card topic-${index}`}><div class="topic-meta"><span>0{index + 1}</span><Icon name={index === 0 ? "CheckCircle" : index === 1 ? "Layers" : "Globe"} size={24} /></div><h3>{category.title}</h3><p>{category.description}</p><a class="topic-start" href={`${discussions}/new?category=${category.slug}`}>{category.action}<Icon name="ArrowUpRight" size={18} /></a><a class="topic-browse" href={`${discussions}/categories/${category.slug}`}>Browse conversations <Icon name="ArrowUpRight" size={14} /></a></article>)}</div>
+  </section>
+  <section class="community-help hs-wrap" aria-labelledby="help-heading">
+    <div><p class="hs-eyebrow"><span class="hs-spark" aria-hidden="true">✳</span> MAKE IT EASY TO HELP</p><h2 id="help-heading">A little context.<br /><span>A lot of progress.</span></h2></div>
+    <div class="help-copy"><p>When something feels off, tell us your Tabs version, operating system, and what you expected to happen. Steps and screenshots help everyone find an answer.</p><p>Keep API keys and personal details out of public posts. You can follow replies and updates by subscribing to a discussion on GitHub.</p><a class="bug-link" href="/feedback">Found a bug? Send a report <Icon name="ArrowUpRight" size={18} /></a></div>
+  </section>
+  <div class="community-footnote hs-wrap"><span>OPEN CONVERSATIONS. SHARED POSSIBILITIES.</span><a href={discussions}>Hosted on GitHub Discussions <Icon name="ArrowUpRight" size={14} /></a></div>
+</ConceptOneLayout>
+<style>
+  .community-hero { display: grid; grid-template-columns: 1.15fr 1fr; gap: 7%; align-items: center; padding-block: 88px 100px; }
+  .community-hero h1 { font-size: clamp(48px, 5.9vw, 82px); line-height: 1.04; letter-spacing: -.055em; margin: 26px 0; }
+  .community-hero h1 span, .community-help h2 span { font-family: "Instrument Serif", serif; font-weight: 400; font-style: italic; color: var(--hs-blue); letter-spacing: -.035em; }
+  .community-copy .hs-lead { max-width: 490px; }
+  .community-primary { display: inline-flex; align-items: center; gap: 28px; padding: 18px 24px; border-radius: 12px; background: var(--hs-blue); color: white; font-weight: 600; margin-top: 32px; transition: background .2s; }
+  .community-primary:hover { background: #2446cd; }
+  .community-note { font-size: 12px; color: var(--hs-muted); margin-top: 16px; }
+  .community-board { border: 1px solid #dce3f3; border-radius: 18px; background: #fff; padding: 22px; box-shadow: 0 24px 70px #202b440d; transform: rotate(-3deg); }
+  .board-heading { display: flex; align-items: center; gap: 12px; color: var(--hs-blue); padding: 4px 0 24px; }
+  .board-heading > span:first-of-type { flex: 1; font-size: 10px; letter-spacing: .12em; font-weight: 700; }
+  .board-heading > span:last-child { font-size: 28px; }
+  .board-topic { display: flex; align-items: center; gap: 16px; margin-bottom: 12px; padding: 25px 18px; border-radius: 9px; font-size: 18px; font-weight: 600; }
+  .board-topic > span:nth-child(2) { flex: 1; }
+  .board-index { font: 11px monospace; opacity: .65; }
+  .board-topic:hover { outline: 2px solid var(--hs-blue); outline-offset: 2px; }
+  .topic-0 { background: #eaf0fc; }
+  .topic-1 { background: #fff0e4; }
+  .topic-2 { background: #eaf5ee; }
+  .board-baseline { display: flex; justify-content: space-between; font-size: 9px; letter-spacing: .12em; color: var(--hs-muted); padding-top: 12px; }
+  .community-topics { padding-block: 28px 100px; }
+  .section-heading { display: grid; grid-template-columns: 1fr 2fr 1fr; align-items: end; gap: 24px; margin-bottom: 42px; padding-top: 28px; border-top: 1px solid #dce3f3; }
+  .section-heading h2, .community-help h2 { font-size: clamp(30px, 3.5vw, 48px); line-height: 1.12; letter-spacing: -.04em; }
+  .section-heading > p:last-child { color: var(--hs-muted); font-size: 14px; line-height: 1.6; }
+  .topic-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
+  .topic-card { padding: 28px; border-radius: 14px; display: flex; flex-direction: column; }
+  .topic-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 38px; }
+  .topic-meta span { font: 12px monospace; color: var(--hs-muted); }
+  h3 { font-size: 26px; letter-spacing: -.04em; }
+  .topic-card p { font-size: 15px; line-height: 1.7; color: var(--hs-muted); margin: 16px 0 28px; }
+  .topic-start { margin-top: auto; padding-block: 16px; border-top: 1px solid #202b4420; font-size: 14px; font-weight: 600; }
+  .topic-start, .topic-browse, .bug-link, .community-footnote a { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .topic-browse { font-size: 12px; color: var(--hs-muted); }
+  .topic-card a:hover, .bug-link:hover { color: var(--hs-blue); }
+  .community-help { display: grid; grid-template-columns: 1fr 1fr; gap: 10%; border-top: 1px solid #dce3f3; padding-block: 54px 64px; }
+  .community-help h2 { margin-top: 24px; }
+  .help-copy p { line-height: 1.8; color: var(--hs-muted); font-size: 15px; margin-bottom: 20px; }
+  .bug-link { justify-content: start; font-size: 14px; font-weight: 600; margin-top: 28px; }
+  .community-footnote { display: flex; justify-content: space-between; gap: 20px; padding-block: 24px 48px; color: var(--hs-muted); font-size: 10px; letter-spacing: .06em; }
+  a:focus-visible { outline: 3px solid var(--hs-blue); outline-offset: 5px; }
+  .community-copy, .community-board { min-width: 0; }
+  @media (max-width: 900px) { .community-hero { gap: 5%; } .community-board { padding: 16px; } .board-topic { font-size: 15px; padding: 22px 14px; gap: 10px; } .topic-card { padding: 22px; } h3 { font-size: 22px; } .section-heading { grid-template-columns: 1fr 2fr; } .section-heading > p:last-child { grid-column: 2; } }
+  @media (max-width: 700px) { .community-hero { grid-template-columns: minmax(0, 1fr); gap: 52px; padding-block: 48px 64px; } .community-hero h1 { font-size: clamp(32px, 10vw, 68px); } .community-board { transform: none; } .section-heading, .topic-grid, .community-help { grid-template-columns: 1fr; } .section-heading { gap: 20px; } .section-heading > p:last-child { grid-column: auto; } .community-topics { padding-bottom: 56px; } .community-help { gap: 32px; padding-block: 40px; } .community-footnote { flex-direction: column; } .community-footnote a { justify-content: start; } }
+</style>

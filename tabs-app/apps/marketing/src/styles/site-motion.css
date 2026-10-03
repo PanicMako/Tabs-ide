@@ -1,0 +1,223 @@
+@media (prefers-reduced-motion: no-preference) {
+  /* ─── Aurora Liquid: Wave animation for primary and footer CTA buttons ─── */
+  .headspace .cta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+    padding: 17px 22px;
+    border-radius: 8px;
+    gap: 35px;
+    background: var(--hs-blue);
+    color: white;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    transition:
+      transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .headspace .cta .cta-label {
+    font-family: inherit;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    line-height: 1;
+    position: relative;
+    z-index: 1;
+    pointer-events: none;
+  }
+  .headspace .cta .cta-liquid-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    border-radius: inherit;
+    z-index: 0;
+  }
+  .headspace .cta .cta-arrow {
+    font-size: 22px !important;
+    line-height: 1;
+    position: relative;
+    z-index: 1;
+    pointer-events: none;
+    transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .headspace .cta:hover .cta-arrow {
+    transform: translate(2px, -2px);
+  }
+  .headspace .cta:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px -4px rgba(45, 91, 255, 0.4);
+  }
+  .headspace .cta:active {
+    transform: translateY(0) scale(0.98);
+    box-shadow: none;
+  }
+  /* Footer CTA specifically: Inverted white button with blue text on blue footer */
+  .headspace .hs-end .cta {
+    background: #ffffff !important;
+    color: #2544b2 !important;
+    box-shadow: 0 4px 18px -2px rgba(0, 0, 0, 0.12);
+  }
+  .headspace .hs-end .cta .cta-label,
+  .headspace .hs-end .cta .cta-arrow {
+    color: #2544b2 !important;
+  }
+  .headspace .hs-end .cta:hover {
+    background: #ffffff !important;
+    color: #2544b2 !important;
+    box-shadow:
+      0 8px 24px -2px rgba(0, 0, 0, 0.18),
+      0 0 16px rgba(255, 255, 255, 0.3);
+  }
+  .headspace .hs-end .cta:hover .cta-label,
+  .headspace .hs-end .cta:hover .cta-arrow {
+    color: #2544b2 !important;
+  }
+  .headspace .e2-server-illustration button {
+    transition:
+      transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 0.3s,
+      background 0.3s;
+  }
+  .headspace .e2-server-illustration button:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 9px 22px #3259ed25;
+  }
+  .headspace .e2-server-illustration button:active {
+    transform: translateY(0) scale(0.98);
+    box-shadow: none;
+  }
+
+  /* ─── Chroma Stagger: Sweep fill for white/outline buttons ─── */
+  .headspace :is(.hs-nav-download, .e2-github-star, .platform-download) {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+    transition:
+      border-color 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  /* Layer 1 — light blue */
+  .headspace :is(.hs-nav-download, .e2-github-star, .platform-download)::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -3;
+    background: #c7d8fc;
+    transform: translateX(-101%);
+    transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  /* Layer 2 — medium blue */
+  .headspace :is(.hs-nav-download, .e2-github-star, .platform-download)::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -2;
+    background: #6b94f5;
+    transform: translateX(-101%);
+    transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.04s;
+  }
+  /* Layer 3 — brand blue via inner span */
+  .headspace :is(.hs-nav-download, .e2-github-star, .platform-download) .btn-fill {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: var(--hs-blue, #3259ed);
+    transform: translateX(-101%);
+    transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.08s;
+    pointer-events: none;
+  }
+  /* Trigger on hover */
+  .headspace :is(.hs-nav-download, .e2-github-star, .platform-download):hover::before,
+  .headspace :is(.hs-nav-download, .e2-github-star, .platform-download):hover::after,
+  .headspace :is(.hs-nav-download, .e2-github-star, .platform-download):hover .btn-fill {
+    transform: translateX(0);
+  }
+  .headspace :is(.hs-nav-download, .e2-github-star, .platform-download):hover {
+    border-color: transparent;
+    box-shadow: 0 8px 26px -4px rgba(50, 89, 237, 0.35);
+  }
+  /* Text & icon → white on hover */
+  .headspace :is(.hs-nav-download, .e2-github-star, .platform-download) > span,
+  .headspace :is(.hs-nav-download, .e2-github-star, .platform-download) > svg {
+    position: relative;
+    z-index: 1;
+    transition: color 0.25s 0.06s;
+  }
+  .headspace :is(.hs-nav-download, .platform-download) svg {
+    position: relative;
+    z-index: 1;
+    transition:
+      color 0.25s 0.06s,
+      transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .headspace :is(.hs-nav-download, .e2-github-star, .platform-download):hover > span,
+  .headspace :is(.hs-nav-download, .e2-github-star, .platform-download):hover > svg,
+  .headspace :is(.hs-nav-download, .platform-download):hover svg {
+    color: white;
+  }
+  /* Active press */
+  .headspace :is(.hs-nav-download, .e2-github-star, .platform-download):active {
+    transform: scale(0.97);
+    box-shadow: none;
+  }
+
+  .headspace .hs-nav nav a {
+    position: relative;
+  }
+  .headspace .hs-nav nav a::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -6px;
+    height: 1px;
+    background: currentColor;
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.3s;
+  }
+  .headspace .hs-nav nav a:hover::after {
+    transform: scaleX(1);
+  }
+  .headspace .tool-setup-path .setup-icon {
+    transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .headspace .tool-setup-path:hover .setup-icon {
+    transform: translateY(-4px) rotate(-9deg);
+  }
+  .headspace .tool-setup-path .setup-arrow {
+    transition: transform 0.4s;
+  }
+  .headspace .tool-setup-path:hover .setup-arrow {
+    transform: translateY(5px);
+  }
+  .headspace .e2-workflow-options button > span:last-child {
+    transition: transform 0.3s;
+  }
+  .headspace .e2-workflow-options button:hover > span:last-child {
+    transform: translate(3px, -3px);
+  }
+  .headspace .platform-shelf {
+    transition:
+      transform 0.4s,
+      border-color 0.4s;
+  }
+  .headspace .platform-shelf:hover {
+    transform: translateY(-5px);
+    border-color: #8099ed;
+  }
+}
+
+/* Reduced motion: instant color swap, no sweep */
+@media (prefers-reduced-motion: reduce) {
+  .headspace a:is(.hs-nav-download, .e2-github-star, .platform-download):hover {
+    background: var(--hs-blue, #3259ed);
+    color: white;
+    border-color: transparent;
+  }
+}

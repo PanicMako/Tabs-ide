@@ -23,7 +23,7 @@ description: Strict rules enforcing TDD, pre-flight CI checks, and T3-level code
 ### 3. Match `t3code-main` Repository Quality
 - **Performant & Straightforward:** Write code that is highly performant and easy to read. Do not use lazy shortcuts or "clever" unreadable one-liners.
 - **Architecture Alignment:** Mimic the clean, strict structural standards of the reference repository (`../t3code-main`). You MUST read and obey `instructions/t3-standards.instructions.md` to understand these exact structural rules (e.g., barrel index bans, schema protocols).
-- **Proactive Quality Audit:** If you are working on a file in `tabs-main` and notice that the existing code quality, structure, or maintainability falls short of the `t3code-main` benchmark, you MUST report this to the user. Do not silently ignore bad code. Tell the user: *"This code does not meet the t3code-main standard. Here is how we can implement it better."*
+- **Proactive Quality Audit:** If you are working on a file in `tabs-app` and notice that the existing code quality, structure, or maintainability falls short of the `t3code-main` benchmark, you MUST report this to the user. Do not silently ignore bad code. Tell the user: *"This code does not meet the t3code-main standard. Here is how we can implement it better."*
 - **Error Handling:** Never swallow errors silently. Use proper error boundaries, typed errors, and logging.
 
 ### 4. Shippable by Default

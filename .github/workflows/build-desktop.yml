@@ -134,10 +134,10 @@ jobs:
       - name: Check Windows installer process closer
         if: matrix.platform == 'win'
         shell: pwsh
-        run: ./tabs-main/scripts/test-windows-install-processes.ps1
+        run: ./tabs-app/scripts/test-windows-install-processes.ps1
 
       - name: Install dependencies
-        working-directory: tabs-main
+        working-directory: tabs-app
         run: bun install --frozen-lockfile
 
       - name: Install Linux system dependencies
@@ -147,7 +147,7 @@ jobs:
           sudo apt-get install -y libkrb5-dev libsecret-1-dev libxkbfile-dev
 
       - name: Install VS Code dependencies
-        working-directory: tabs-code-main
+        working-directory: tabs-code-oss
         shell: bash
         env:
           NODE_OPTIONS: "--max-old-space-size=12288"
@@ -177,18 +177,18 @@ jobs:
           # against modern Electron/V8 due to nan pointer tagging deprecation.
           rm -rf node_modules/cpu-features
           # Target the Electron that RUNS these modules at runtime (from Tabs'
-          # desktop package) — not tabs-code-main's development Electron. The
+          # desktop package) — not tabs-code-oss's development Electron. The
           # Code-OSS server runs via ELECTRON_RUN_AS_NODE
           # on Tabs' Electron, so native modules must match its ABI.
           # `--arch` cross-builds x64 natives for the mac-x64 artifact on the
           # arm64 macos-14 runner.
           # `--types prod` skips dev and optional dependencies (such as cpu-features).
-          electron_version="$(node -p "const p = require('../tabs-main/apps/desktop/package.json'); (p.dependencies && p.dependencies.electron) || (p.devDependencies && p.devDependencies.electron)")"
+          electron_version="$(node -p "const p = require('../tabs-app/apps/desktop/package.json'); (p.dependencies && p.dependencies.electron) || (p.devDependencies && p.devDependencies.electron)")"
           echo "Rebuilding Code-OSS native modules for Tabs Electron $electron_version"
           npx --yes @electron/rebuild -v "$electron_version" --arch "${{ matrix.arch }}" --types prod
 
       - name: Compile VS Code workbench
-        working-directory: tabs-code-main
+        working-directory: tabs-code-oss
         shell: bash
         env:
           NODE_OPTIONS: "--max-old-space-size=12288"
@@ -213,10 +213,10 @@ jobs:
       # extension's deps and compile every product built-in to extensions/<ext>/
       # out (the dev built-in layout the runtime uses). Run unconditionally so the
       # out/ build cache above can't mask a missing extension compile. The
-      # compiled-runtime guard in tabs-main/scripts/build-desktop-artifact.ts
+      # compiled-runtime guard in tabs-app/scripts/build-desktop-artifact.ts
       # verifies the result.
       - name: Compile built-in extensions
-        working-directory: tabs-code-main
+        working-directory: tabs-code-oss
         shell: bash
         env:
           NODE_OPTIONS: "--max-old-space-size=12288"
@@ -226,7 +226,7 @@ jobs:
           # Shared extensions package (extensions/package.json → vscode-extensions)
           # provides extensions/node_modules/typescript, which
           # typescript-language-features compiles against (referenced literally as
-          # ../../../../node_modules/typescript). The parent tabs-code-main install
+          # ../../../../node_modules/typescript). The parent tabs-code-oss install
           # already has typescript 6.0.0-dev at the root, which npm can dedupe
           # against — leaving extensions/node_modules/typescript MISSING and the
           # compile failing with ~48 cascading type errors. Use `npm ci` for the
@@ -285,7 +285,7 @@ jobs:
             exit 1
           }
           if [[ "${{ matrix.platform }}" == "mac" ]]; then
-            electron_version="$(node -p "const p = require('../tabs-main/apps/desktop/package.json'); (p.dependencies && p.dependencies.electron) || (p.devDependencies && p.devDependencies.electron)")"
+            electron_version="$(node -p "const p = require('../tabs-app/apps/desktop/package.json'); (p.dependencies && p.dependencies.electron) || (p.devDependencies && p.devDependencies.electron)")"
             npx --yes @electron/rebuild -v "$electron_version" --arch "${{ matrix.arch }}" \
               --module-dir "$native_runtime_dir" --force
             test -f "$native_runtime_dir/build/Release/vscode_fs.node" || {
@@ -297,7 +297,7 @@ jobs:
           test -f .build/extensions/copilot/package.json
 
       - name: Build desktop artifact
-        working-directory: tabs-main
+        working-directory: tabs-app
         shell: bash
         env:
           REQUESTED_VERSION: ${{ inputs.version }}
@@ -325,16 +325,16 @@ jobs:
         run: |
           version="$REQUESTED_VERSION"
           if [[ -z "$version" ]]; then
-            version="$(node -p "require('./tabs-main/apps/desktop/package.json').version")"
+            version="$(node -p "require('./tabs-app/apps/desktop/package.json').version")"
           fi
-          node --experimental-strip-types tabs-main/scripts/verify-desktop-update-artifact.ts tabs-main/release "${{ matrix.platform }}" "${version#v}"
+          node --experimental-strip-types tabs-app/scripts/verify-desktop-update-artifact.ts tabs-app/release "${{ matrix.platform }}" "${version#v}"
 
       - name: Inspect Linux AppImage update payload
         if: matrix.platform == 'linux'
         shell: bash
         run: |
           set -euo pipefail
-          appimage="$(find tabs-main/release -maxdepth 1 -type f -name '*.AppImage' -print -quit)"
+          appimage="$(find tabs-app/release -maxdepth 1 -type f -name '*.AppImage' -print -quit)"
           [[ -n "$appimage" ]]
           extract_root="$RUNNER_TEMP/tabs-appimage"
           mkdir -p "$extract_root"
@@ -344,12 +344,12 @@ jobs:
           )
           test -s "$extract_root/squashfs-root/resources/app.asar"
           test -s "$extract_root/squashfs-root/resources/app-update.yml"
-          test -s "$extract_root/squashfs-root/resources/tabs-code-main/out/vs/code/electron-browser/workbench/workbench-dev.html"
-          test -s "$extract_root/squashfs-root/resources/tabs-code-main/out-build/nls.messages.json"
-          test -s "$extract_root/squashfs-root/resources/tabs-code-main/node_modules/minimist/index.js"
-          test -s "$extract_root/squashfs-root/resources/tabs-code-main/extensions/node_modules/typescript/lib/typescript.js"
-          test -s "$extract_root/squashfs-root/resources/tabs-code-main/extensions/git/node_modules/@vscode/fs-copyfile/lib/native.js"
-          test -s "$extract_root/squashfs-root/resources/tabs-code-main/extensions/copilot/node_modules/@anthropic-ai/sdk/package.json"
+          test -s "$extract_root/squashfs-root/resources/tabs-code-oss/out/vs/code/electron-browser/workbench/workbench-dev.html"
+          test -s "$extract_root/squashfs-root/resources/tabs-code-oss/out-build/nls.messages.json"
+          test -s "$extract_root/squashfs-root/resources/tabs-code-oss/node_modules/minimist/index.js"
+          test -s "$extract_root/squashfs-root/resources/tabs-code-oss/extensions/node_modules/typescript/lib/typescript.js"
+          test -s "$extract_root/squashfs-root/resources/tabs-code-oss/extensions/git/node_modules/@vscode/fs-copyfile/lib/native.js"
+          test -s "$extract_root/squashfs-root/resources/tabs-code-oss/extensions/copilot/node_modules/@anthropic-ai/sdk/package.json"
           grep -Eq '^provider:[[:space:]]*github[[:space:]]*$' "$extract_root/squashfs-root/resources/app-update.yml"
 
       - name: Inspect Windows NSIS update payload
@@ -357,7 +357,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          $installer = Get-ChildItem tabs-main/release -Filter *.exe | Select-Object -First 1
+          $installer = Get-ChildItem tabs-app/release -Filter *.exe | Select-Object -First 1
           if (-not $installer) { throw "Windows installer was not generated." }
           $extractRoot = Join-Path $env:RUNNER_TEMP "tabs-nsis"
           New-Item $extractRoot -ItemType Directory -Force | Out-Null
@@ -370,7 +370,7 @@ jobs:
           & 7z x $appArchive.FullName "-o$appRoot" -y | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "Could not extract the NSIS application archive." }
           if (-not (Test-Path (Join-Path $appRoot "resources/app.asar") -PathType Leaf)) { throw "Packaged app.asar is missing." }
-          $runtimeRoot = Join-Path $appRoot "resources/tabs-code-main"
+          $runtimeRoot = Join-Path $appRoot "resources/tabs-code-oss"
           if (-not (Test-Path (Join-Path $runtimeRoot "out/vs/code/electron-browser/workbench/workbench-dev.html") -PathType Leaf)) { throw "The full Code OSS runtime is missing from Windows installer." }
           if (-not (Test-Path (Join-Path $runtimeRoot "out-build/nls.messages.json") -PathType Leaf)) { throw "Code OSS localization data is missing from Windows installer." }
           if (-not (Test-Path (Join-Path $runtimeRoot "node_modules/minimist/index.js") -PathType Leaf)) { throw "Code OSS runtime dependencies are missing from Windows installer." }
@@ -391,14 +391,14 @@ jobs:
 
           shopt -s nullglob
           for pattern in \
-            "tabs-main/release/*.dmg" \
-            "tabs-main/release/*.zip" \
-            "tabs-main/release/*.AppImage" \
-            "tabs-main/release/*.exe" \
-            "tabs-main/release/*.blockmap" \
-            "tabs-main/release/latest*.yml" \
-            "tabs-main/release/beta*.yml" \
-            "tabs-main/release/builder-debug.yml"; do
+            "tabs-app/release/*.dmg" \
+            "tabs-app/release/*.zip" \
+            "tabs-app/release/*.AppImage" \
+            "tabs-app/release/*.exe" \
+            "tabs-app/release/*.blockmap" \
+            "tabs-app/release/latest*.yml" \
+            "tabs-app/release/beta*.yml" \
+            "tabs-app/release/builder-debug.yml"; do
             for file in $pattern; do
               cp "$file" artifacts/
             done
@@ -419,7 +419,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TABS_SMOKE_PREVIOUS_VERSION: ${{ inputs.previous_version || '1.3.15' }}
-        run: ./tabs-main/scripts/smoke-windows-installer.ps1
+        run: ./tabs-app/scripts/smoke-windows-installer.ps1
 
       - name: Upload Windows installer process log on failure
         if: failure() && matrix.platform == 'win'
@@ -446,7 +446,7 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           name: desktop-win-x64
-          path: tabs-main/release
+          path: tabs-app/release
           run-id: ${{ inputs.artifact_run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Smoke-test Windows install and locked-process upgrade
@@ -457,7 +457,7 @@ jobs:
           TABS_SMOKE_DIAGNOSE_UNINSTALL: ${{ inputs.diagnose_uninstall }}
           TABS_SMOKE_DIAGNOSE_SHORT_TEMP: ${{ inputs.diagnose_short_temp }}
           TABS_SMOKE_DIAGNOSE_SUBST_TEMP: ${{ inputs.diagnose_subst_temp }}
-        run: ./tabs-main/scripts/smoke-windows-installer.ps1
+        run: ./tabs-app/scripts/smoke-windows-installer.ps1
       - name: Upload Windows installer and app logs on failure
         if: failure()
         uses: actions/upload-artifact@v7
@@ -483,7 +483,7 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           name: desktop-linux-x64
-          path: tabs-main/release
+          path: tabs-app/release
           run-id: ${{ inputs.artifact_run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Install virtual display
@@ -494,9 +494,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          appimage="$(find tabs-main/release -maxdepth 1 -name '*.AppImage' -type f -print -quit)"
+          appimage="$(find tabs-app/release -maxdepth 1 -name '*.AppImage' -type f -print -quit)"
           test -n "$appimage"
-          bash tabs-main/scripts/smoke-linux-appimage.sh "$appimage"
+          bash tabs-app/scripts/smoke-linux-appimage.sh "$appimage"
 
   mac_artifact_smoke:
     needs: resolve
@@ -517,13 +517,13 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           name: desktop-mac-${{ matrix.arch }}
-          path: tabs-main/release
+          path: tabs-app/release
           run-id: ${{ inputs.artifact_run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Launch packaged app from DMG
         shell: bash
         run: |
           set -euo pipefail
-          dmg="$(find tabs-main/release -maxdepth 1 -name '*.dmg' -type f -print -quit)"
+          dmg="$(find tabs-app/release -maxdepth 1 -name '*.dmg' -type f -print -quit)"
           test -n "$dmg"
-          bash tabs-main/scripts/smoke-macos-dmg.sh "$dmg" "${{ matrix.arch }}"
+          bash tabs-app/scripts/smoke-macos-dmg.sh "$dmg" "${{ matrix.arch }}"

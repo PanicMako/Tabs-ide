@@ -10,7 +10,7 @@ Release notes are for someone deciding whether to install or update Tabs. Descri
 ## Where the copy goes
 
 - For a new release, write `.github/release-notes/<tag>.md` before tagging. The release workflow publishes that file as the GitHub Release body; the website displays it.
-- Update the matching entry in `CHANGELOG.md` to agree with the release notes. If the marketing fallback in `tabs-main/apps/marketing/src/data/changelogData.ts` has the same tag, keep its headline and summary consistent too.
+- Update the matching entry in `CHANGELOG.md` to agree with the release notes. If the marketing fallback in `tabs-app/apps/marketing/src/data/changelogData.ts` has the same tag, keep its headline and summary consistent too.
 - When correcting an already-published release, distinguish editing repository files from editing the live GitHub Release body. Updating a file alone will not change the live page. Confirm authority before changing the published release, and verify the website after the change.
 
 ## Editorial review

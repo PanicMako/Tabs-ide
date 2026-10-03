@@ -3,8 +3,8 @@ on:
   push:
     branches: [main]
     paths:
-      - tabs-main/apps/marketing/**
-      - tabs-main/bun.lock
+      - tabs-app/apps/marketing/**
+      - tabs-app/bun.lock
       - .github/workflows/deploy-marketing.yml
   release:
     types: [published]
@@ -44,24 +44,24 @@ jobs:
         with:
           node-version: 22
       - name: Install marketing dependencies
-        working-directory: tabs-main
+        working-directory: tabs-app
         run: bun install --frozen-lockfile
       - name: Refresh and verify live release assets
-        working-directory: tabs-main/apps/marketing
+        working-directory: tabs-app/apps/marketing
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: bun run sync:releases
       - name: Validate release resolver
-        working-directory: tabs-main/apps/marketing
+        working-directory: tabs-app/apps/marketing
         run: bun run test
       - name: Typecheck site
-        working-directory: tabs-main/apps/marketing
+        working-directory: tabs-app/apps/marketing
         run: bun run typecheck
       - name: Build site
-        working-directory: tabs-main/apps/marketing
+        working-directory: tabs-app/apps/marketing
         run: bun run build
       - name: Package Vercel Build Output API artifact
-        working-directory: tabs-main/apps/marketing
+        working-directory: tabs-app/apps/marketing
         run: |
           bun scripts/vercel-output.ts
           mkdir -p ../../../.vercel
@@ -86,4 +86,4 @@ jobs:
           fi
       - name: Verify production matches the built site
         shell: bash
-        run: bash tabs-main/apps/marketing/scripts/verify-live-deployment.sh
+        run: bash tabs-app/apps/marketing/scripts/verify-live-deployment.sh

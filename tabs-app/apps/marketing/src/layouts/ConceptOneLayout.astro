@@ -1,0 +1,40 @@
+---
+import TabsLogo from "../components/TabsLogo.astro";
+import Icon from "../components/Icon.astro";
+import FooterSignature from "../components/FooterSignature.astro";
+import SiteThemeHead from "../components/SiteThemeHead.astro";
+import SeoHead from "../components/SeoHead.astro";
+import SiteScripts from "../components/SiteScripts.astro";
+import "../styles/concepts.css";
+import "../styles/concept-one.css";
+interface Props { title: string; description: string; path: string; }
+const { title, description, path } = Astro.props;
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <title>{title}</title>
+    <SiteThemeHead />
+    <SeoHead title={title} description={description} path={path} />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <div class="headspace" data-concept="1">
+      <header class="hs-nav hs-wrap">
+        <div class="hs-brand-lockup">
+          <a class="hs-brand" href="/" aria-label="Tabs IDE home"><TabsLogo size={32} /><span>Tabs<span class="hs-brand-suffix">IDE</span></span></a>
+          <span class="hs-brand-divider" aria-hidden="true"></span>
+          <div class="hs-access-tag" aria-label="Public Beta"><span>PUBLIC</span><span>BETA</span></div>
+        </div>
+        <nav aria-label="Page navigation"><a href="/#hs-workspace">Inside Tabs</a><a href="/changelog">What's new</a><a href="/community" aria-current={path === "/community" ? "page" : undefined}>Community</a></nav>
+        <a class="hs-nav-download" href="/downloads"><span class="btn-fill" aria-hidden="true"></span><span>Get Tabs</span><Icon name="ArrowDown" size={16} /></a>
+      </header>
+      <main id="main"><slot /></main>
+      <footer class="hs-end"><div class="hs-wrap"><FooterSignature concept={1} /></div></footer>
+    </div>
+    <SiteScripts />
+  </body>
+</html>

@@ -97,15 +97,15 @@
 
 ## Bundled (Fat) Desktop Installers and Development Runtime Protocol
 
-1. **Self-contained desktop installers only:** All desktop installers (`.dmg`, `.exe`, `.AppImage`) MUST bundle the Code-OSS runtime (`tabs-code-main`) directly inside the package (`Resources/tabs-code-main` on macOS, `resources/tabs-code-main` on Linux/Windows), matching standard IDE distributions like Cursor, Antigravity, and VS Code. Desktop releases must NEVER rely on on-demand downloads or external runtime zips.
-2. **No silent thin fallback:** The desktop packaging script (`scripts/build-desktop-artifact.ts`) must never silently fall back to thin mode if `tabs-code-main` is missing or uncompiled. Any desktop artifact build command without explicit `--thin` must fail loudly if the runtime cannot be staged.
-3. **Development mode isolation:** In dev mode (`bun run dev:desktop`), Tabs must ALWAYS resolve the editor runtime from the local checkout (`../tabs-code-main` or `TABS_CODE_OSS_BUILD_DIR`). It must NEVER attempt to download release zips from GitHub releases.
-4. **Required Code-OSS compiled assets:** For `bun run dev:desktop` or desktop builds to succeed, `tabs-code-main` must have its core build assets present:
+1. **Self-contained desktop installers only:** All desktop installers (`.dmg`, `.exe`, `.AppImage`) MUST bundle the Code-OSS runtime (`tabs-code-oss`) directly inside the package (`Resources/tabs-code-oss` on macOS, `resources/tabs-code-oss` on Linux/Windows), matching standard IDE distributions like Cursor, Antigravity, and VS Code. Desktop releases must NEVER rely on on-demand downloads or external runtime zips.
+2. **No silent thin fallback:** The desktop packaging script (`scripts/build-desktop-artifact.ts`) must never silently fall back to thin mode if `tabs-code-oss` is missing or uncompiled. Any desktop artifact build command without explicit `--thin` must fail loudly if the runtime cannot be staged.
+3. **Development mode isolation:** In dev mode (`bun run dev:desktop`), Tabs must ALWAYS resolve the editor runtime from the local checkout (`../tabs-code-oss` or `TABS_CODE_OSS_BUILD_DIR`). It must NEVER attempt to download release zips from GitHub releases.
+4. **Required Code-OSS compiled assets:** For `bun run dev:desktop` or desktop builds to succeed, `tabs-code-oss` must have its core build assets present:
    - `out/vs/base/parts/sandbox/electron-browser/preload.js`
    - `out/vs/code/electron-browser/workbench/workbench-dev.html`
    - `out-build/nls.messages.json`
    - `product.json`
-   If any are missing, run `cd ../tabs-code-main && npm install && npm run compile`.
+   If any are missing, run `cd ../tabs-code-oss && npm install && npm run compile`.
 
 ## Task Completion Requirements
 

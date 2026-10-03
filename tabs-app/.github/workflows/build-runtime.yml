@@ -1,0 +1,142 @@
+name: Build VS Code Runtime Zips
+
+# Builds the tabs-code-runtime-*.zip release assets for a given version and
+# attaches them to the matching GitHub Release.  Run this workflow from a
+# machine (or a runner) that has the compiled tabs-code-oss source available
+# via the TABS_CODE_OSS_BUILD_DIR environment variable.
+#
+# Typical release flow:
+#   1. Trigger the release tag (v*.*.*) → the release.yml workflow builds thin
+#      installers.  Each installer shows a "downloading runtime…" progress bar
+#      on first launch because no runtime zip exists yet.
+#   2. On your local machine (where ../tabs-code-oss is compiled) run:
+#        bun run dist:desktop:artifact -- --thin --platform mac  --arch arm64
+#        bun run dist:desktop:artifact -- --thin --platform mac  --arch x64
+#        bun run dist:desktop:artifact -- --thin --platform linux --arch x64
+#        bun run dist:desktop:artifact -- --thin --platform win  --arch x64
+#      Each command emits release/tabs-code-runtime-<ver>-<os>-<arch>.zip (+ .sha256).
+#   3. Upload those zips to the GitHub Release for the tag (drag-and-drop into
+#      the release assets panel or use `gh release upload <tag> release/*.zip`).
+#   4. On the next launch the app downloads and caches the runtime silently.
+#
+# Alternatively, you can use this workflow_dispatch trigger when a self-hosted
+# runner has the compiled tabs-code-oss available.  Set the TABS_CODE_OSS_BUILD_DIR
+# secret on that runner environment and trigger with the desired version tag.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release tag to attach zips to (e.g. v1.2.3)"
+        required: true
+        type: string
+      platforms:
+        description: "Platforms to build (comma-separated: mac-arm64, mac-x64, linux-x64, win-x64)"
+        required: false
+        default: "mac-arm64,mac-x64,linux-x64,win-x64"
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  resolve:
+    name: Resolve build matrix
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.matrix.outputs.result }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - id: version
+        name: Normalise version
+        run: |
+          raw="${{ inputs.version }}"
+          version="${raw#v}"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid version: $raw" >&2; exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - id: matrix
+        name: Build matrix from input
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const allTargets = {
+              'mac-arm64':  { label: 'macOS arm64',  runner: 'macos-14',       platform: 'mac',   arch: 'arm64' },
+              'mac-x64':    { label: 'macOS x64',    runner: 'macos-13',       platform: 'mac',   arch: 'x64'   },
+              'linux-x64':  { label: 'Linux x64',    runner: 'ubuntu-24.04',   platform: 'linux', arch: 'x64'   },
+              'win-x64':    { label: 'Windows x64',  runner: 'windows-2022',   platform: 'win',   arch: 'x64'   },
+            };
+            const input = '${{ inputs.platforms }}'.trim();
+            const keys = input ? input.split(',').map(k => k.trim()).filter(Boolean) : Object.keys(allTargets);
+            const include = [];
+            for (const key of keys) {
+              const entry = allTargets[key];
+              if (!entry) { core.setFailed(`Unknown platform key: ${key}`); return; }
+              include.push(entry);
+            }
+            if (include.length === 0) { core.setFailed('No platforms selected.'); return; }
+            return { include };
+
+  build:
+    name: Build runtime zip — ${{ matrix.label }}
+    needs: resolve
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.resolve.outputs.matrix) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: "v${{ needs.resolve.outputs.version }}"
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: package.json
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # Self-hosted runners: set TABS_CODE_OSS_BUILD_DIR in the runner environment
+      # or as a repository secret/variable pointing to the compiled tabs-code-oss.
+      - name: Build thin runtime zip
+        shell: bash
+        env:
+          TABS_CODE_OSS_BUILD_DIR: ${{ vars.TABS_CODE_OSS_BUILD_DIR || secrets.TABS_CODE_OSS_BUILD_DIR || '' }}
+        run: |
+          if [[ -z "$TABS_CODE_OSS_BUILD_DIR" ]]; then
+            echo "::error::TABS_CODE_OSS_BUILD_DIR is not set. Configure it as a repository variable or secret, or run this workflow on a self-hosted runner that has the compiled tabs-code-oss."
+            exit 1
+          fi
+          bun run dist:desktop:artifact -- \
+            --platform "${{ matrix.platform }}" \
+            --arch    "${{ matrix.arch }}" \
+            --thin \
+            --skip-build \
+            --build-version "${{ needs.resolve.outputs.version }}" \
+            --verbose
+
+      - name: Collect runtime zips
+        shell: bash
+        run: |
+          mkdir -p runtime-assets
+          shopt -s nullglob
+          for f in release/tabs-code-runtime-* release/*.sha256; do
+            cp "$f" runtime-assets/
+          done
+          ls runtime-assets/
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "v${{ needs.resolve.outputs.version }}"
+          files: runtime-assets/*
+          fail_on_unmatched_files: true

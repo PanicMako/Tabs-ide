@@ -20,7 +20,7 @@ description: Strict operational guardrails to prevent workspace corruption, unin
 - Do not attempt to "help" the user by auto-committing your work. They will review and commit the code themselves.
 
 ### 3. The Workspace Sandbox Rule (with DB Exception)
-- You must confine all of your file reads, writes, and terminal commands to the `tabs-main` workspace directory.
+- You must confine all of your file reads, writes, and terminal commands to the `tabs-app` workspace directory.
 - You are **FORBIDDEN** from reading, modifying, or creating files outside of this workspace (e.g., you cannot edit `~/.bashrc`, `~/.profile`, `/tmp`, or sibling directories).
 - **EXCEPTION:** The application stores its SQLite database and server state in `~/.t3` (`T3CODE_HOME`). You are explicitly allowed to read/write to `~/.t3` for the sole purpose of managing or debugging the backend database.
 

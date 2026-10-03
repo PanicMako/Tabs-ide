@@ -6,7 +6,7 @@ component. Tabs is derived from [T3 Code](https://github.com/pingdotgg/t3code),
 whose [upstream license](https://github.com/pingdotgg/t3code/blob/main/LICENSE)
 retains that notice. No upstream copyright has been replaced.
 
-`tabs-code-main` is the Code-OSS fork. Its `LICENSE.txt` retains Microsoft's MIT
+`tabs-code-oss` is the Code-OSS fork. Its `LICENSE.txt` retains Microsoft's MIT
 notice; `ThirdPartyNotices.txt` and extension notices remain applicable. See the
 [upstream license](https://github.com/microsoft/vscode/blob/main/LICENSE.txt).
 Other reference trees and dependencies retain their own licenses; the root
