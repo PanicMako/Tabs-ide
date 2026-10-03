@@ -64,6 +64,7 @@ jobs:
         working-directory: tabs-app/apps/marketing
         run: |
           bun scripts/vercel-output.ts
+          rm -rf ../../../.vercel/output
           mkdir -p ../../../.vercel
           cp -r .vercel/output ../../../.vercel/output
       - name: Request Vercel production deployment

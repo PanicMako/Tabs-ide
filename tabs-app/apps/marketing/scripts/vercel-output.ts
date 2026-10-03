@@ -1,6 +1,7 @@
-import { mkdir, cp, writeFile } from "node:fs/promises";
+import { mkdir, cp, writeFile, rm } from "node:fs/promises";
 // A static Build Output API deployment keeps Vercel independent of the desktop build.
 const root = new URL("../", import.meta.url);
+await rm(new URL(".vercel/output", root), { recursive: true, force: true });
 await mkdir(new URL(".vercel/output/static/", root), { recursive: true });
 await cp(new URL("dist/", root), new URL(".vercel/output/static/", root), { recursive: true });
 await writeFile(
