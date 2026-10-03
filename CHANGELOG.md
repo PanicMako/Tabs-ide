@@ -2,9 +2,9 @@
 
 All notable changes to Tabs IDE will be documented in this file.
 
-## [v1.3.31] - Unreleased
+## [v1.3.31] - 2026-10-03
 
-## Public Beta: clearer defaults and privacy
+### Public Beta: clearer defaults and privacy
 
 Tabs is a desktop workspace for coding with agents, an embedded Code-OSS editor,
 Launchpad terminals, Git, and a browser. This public beta is in active development;
@@ -12,6 +12,9 @@ expect bugs and rough edges. Feedback and reproducible bug reports are welcome.
 
 ### What changed
 
+- Folders with spaces or special characters open correctly in the embedded
+  editor, including empty project folders.
+- Connection-error logs no longer include authenticated WebSocket URLs.
 - Tabs-owned analytics is off by default. Explicit opt-in uses a random Tabs
   installation identifier instead of a provider account identifier.
 - Testing starts hidden in new workspaces. Existing explicit Testing preferences
