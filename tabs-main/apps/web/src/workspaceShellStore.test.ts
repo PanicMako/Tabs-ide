@@ -136,6 +136,55 @@ describe("workspaceShellStore", () => {
     expect(state.session.activeToolIdByProjectId[projectId]).toBe("agents");
   });
 
+  it("hides Testing in a brand-new project without changing other defaults", async () => {
+    const { createDefaultProjectWorkspaceSettings, resolveProjectTools } =
+      await import("./workspaceShellStore");
+    const defaults = createDefaultProjectWorkspaceSettings();
+    expect(defaults.tools.find((tool) => tool.kind === "testing")?.visible).toBe(false);
+    expect(defaults.tools.filter((tool) => tool.visible).map((tool) => tool.id)).toEqual([
+      "code",
+      "agents",
+      "server",
+      "git",
+      "browser",
+    ]);
+    const project = makeProject("fresh-beta-project");
+    const synced = syncWorkspaceShellState(
+      createDefaultWorkspaceShellPersistedState(),
+      [project],
+      [],
+    );
+    expect(
+      synced.projectSettingsByProjectId[project.id]?.tools.find((tool) => tool.kind === "testing")
+        ?.visible,
+    ).toBe(false);
+    expect(
+      resolveProjectTools({
+        ...defaults,
+        tools: defaults.tools.map((tool) => ({ ...tool, visible: false })),
+      }).some((tool) => tool.kind === "testing"),
+    ).toBe(false);
+  });
+
+  it.each([true, false])(
+    "preserves explicitly persisted Testing=%s across synchronization",
+    async (visible) => {
+      const { createDefaultProjectWorkspaceSettings } = await import("./workspaceShellStore");
+      const project = makeProject("testing-preference");
+      const settings = createDefaultProjectWorkspaceSettings();
+      const tools = settings.tools.map((tool) =>
+        tool.kind === "testing" ? { ...tool, visible } : tool,
+      );
+      const input = {
+        ...createDefaultWorkspaceShellPersistedState(),
+        projectSettingsByProjectId: { [project.id]: { ...settings, tools } },
+      };
+      const next = syncWorkspaceShellState(input, [project], []);
+      const restarted = syncWorkspaceShellState(next, [project], []);
+      expect(restarted.projectSettingsByProjectId[project.id]?.tools).toEqual(tools);
+    },
+  );
+
   it("merges newly registered built-in tools into persisted project tool lists", () => {
     const project = makeProject("project-before-testing-tool");
     const baseState = createDefaultWorkspaceShellPersistedState();

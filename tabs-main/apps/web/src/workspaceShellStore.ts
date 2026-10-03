@@ -734,7 +734,9 @@ function resolveVisibleTools(settings: ProjectWorkspaceSettingsType): ProjectToo
     }
     return true;
   });
-  return visible.length > 0 ? visible : [...createDefaultProjectWorkspaceSettings().tools];
+  return visible.length > 0
+    ? visible
+    : createDefaultProjectWorkspaceSettings().tools.filter((tool) => tool.visible);
 }
 
 export function resolveActiveToolId(
@@ -1452,7 +1454,7 @@ export function useProjectWorkspaceSettings(
 export function useResolvedProjectTools(projectId: ProjectId | null): ProjectToolDefinition[] {
   return useWorkspaceShellStore((state) => {
     if (!projectId) {
-      return [...createDefaultProjectWorkspaceSettings().tools];
+      return createDefaultProjectWorkspaceSettings().tools.filter((tool) => tool.visible);
     }
     return resolveProjectTools(
       state.projectSettingsByProjectId[projectId] ?? createDefaultProjectWorkspaceSettings(),

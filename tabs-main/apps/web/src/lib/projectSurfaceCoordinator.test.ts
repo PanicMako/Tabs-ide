@@ -249,7 +249,9 @@ describe("projectSurfaceCoordinator & Per-Project Tool Restoration", () => {
     const customSettings: ProjectWorkspaceSettings = {
       ...createDefaultProjectWorkspaceSettings(),
       tools: [
-        ...createDefaultProjectWorkspaceSettings().tools,
+        ...createDefaultProjectWorkspaceSettings().tools.map((tool) =>
+          tool.kind === "testing" ? { ...tool, visible: true } : tool,
+        ),
         {
           id: "custom-tab-1",
           kind: "custom_embed",

@@ -1465,7 +1465,7 @@ export const ProjectWorkspaceSettings = Schema.Struct({
                     : kind === "browser"
                       ? "Browser"
                       : "Testing",
-          visible: true,
+          visible: kind !== "testing",
         })),
       ),
     ),
