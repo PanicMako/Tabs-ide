@@ -101,15 +101,15 @@ bun run dev:desktop
 ## How it works
 
 ```text
-┌──────────────────────────── Tabs desktop (Electron) ────────────────────────┐
+┌────────────────────────── Tabs desktop (Electron) ──────────────────────────┐
 │                                                                             │
 │   React workspace        Code-OSS workbench       Browser / terminals       │
-│          │                       │                         │                  │
-│          └────────────── project and session context ──────┘                  │
+│          │                       │                         │                │
+│          └────────────── project and session context ──────┘                │
 │                                  │                                          │
 │                         local WebSocket server                              │
 │                     ┌────────────┼────────────┐                             │
-│                 agent runtime    Git       persistence                       │
+│                 agent runtime    Git       persistence                      │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
