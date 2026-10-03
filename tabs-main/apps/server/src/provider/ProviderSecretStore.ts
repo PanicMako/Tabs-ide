@@ -39,10 +39,8 @@ export async function setProviderSecret(name: ProviderSecretName, value: string)
 }
 
 export async function deleteProviderSecret(name: ProviderSecretName): Promise<void> {
-  try {
-    const location = keychainLocation(name);
-    await keytar.deletePassword(location.service, location.account);
-  } catch {
-    return;
-  }
+  const location = keychainLocation(name);
+  // Surface secure-store failures so callers cannot report a successful reset
+  // while the credential is still retained by the operating system.
+  await keytar.deletePassword(location.service, location.account);
 }

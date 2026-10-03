@@ -54,10 +54,10 @@ describe("ProviderSecretStore", () => {
     );
   });
 
-  it("safely handles delete failures when keychain is unavailable", async () => {
+  it("reports delete failures rather than claiming credentials were removed", async () => {
     keytarMock.deletePassword.mockRejectedValueOnce(
       new Error("No such interface 'org.freedesktop.Secret.Collection'"),
     );
-    await expect(deleteProviderSecret("gemini.api-key")).resolves.toBeUndefined();
+    await expect(deleteProviderSecret("gemini.api-key")).rejects.toThrow("No such interface");
   });
 });
