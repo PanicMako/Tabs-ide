@@ -8,6 +8,12 @@ import {
   releaseChannel,
 } from "./releases";
 import snapshot from "../data/releases.json";
+
+const stableSnapshot = validateRelease(
+  snapshot.find((r: { prerelease?: boolean }) => !r.prerelease) ?? snapshot[0],
+);
+const stableVersion = stableSnapshot.tag_name.replace(/^v/, "");
+
 describe("latest-release downloads", () => {
   it("selects the correct architecture without downloading a blockmap", () => {
     const r = validateRelease(snapshot[0]);
@@ -52,9 +58,13 @@ describe("latest-release downloads", () => {
 });
 
 describe("public beta channel", () => {
-  const stable = validateRelease(snapshot[0]);
+  const stable = stableSnapshot;
   const beta = {
-    ...JSON.parse(JSON.stringify(stable).replaceAll("1.3.30", "1.3.31-beta.1")),
+    ...JSON.parse(
+      JSON.stringify(stable)
+        .replaceAll(stableVersion, "1.3.31-beta.1")
+        .replaceAll(`v${stableVersion}`, "v1.3.31-beta.1"),
+    ),
     prerelease: true,
     published_at: "2026-10-03T12:00:00Z",
   };
@@ -110,7 +120,9 @@ describe("public beta channel", () => {
 });
 
 it("accepts a plain v1.3.31 tag explicitly marked Pre-release", () => {
-  const release = JSON.parse(JSON.stringify(snapshot[0]).replaceAll("1.3.30", "1.3.31"));
+  const release = JSON.parse(
+    JSON.stringify(stableSnapshot).replaceAll(stableVersion, "1.3.31"),
+  );
   release.prerelease = true;
   expect(releaseChannel(validateRelease(release))).toBe("beta");
 });
