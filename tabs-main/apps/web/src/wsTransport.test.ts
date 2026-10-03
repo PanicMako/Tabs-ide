@@ -46,6 +46,10 @@ class MockWebSocket {
     this.emit("message", { data });
   }
 
+  error() {
+    this.emit("error", { data: undefined });
+  }
+
   private emit(type: WsEventType, event?: { data?: unknown }) {
     const listeners = this.listeners.get(type);
     if (!listeners) return;
@@ -391,4 +395,15 @@ describe("WsTransport", () => {
     transport.dispose();
     vi.useRealTimers();
   });
+});
+
+it("does not log the authenticated WebSocket URL on connection failure", () => {
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  const transport = new WsTransport({ url: "ws://localhost:3020/?token=private-credential" });
+  getSocket().error();
+  expect(warn).toHaveBeenCalled();
+  expect(JSON.stringify(warn.mock.calls)).not.toContain("private-credential");
+  expect(JSON.stringify(warn.mock.calls)).not.toContain("token=");
+  transport.dispose();
+  warn.mockRestore();
 });

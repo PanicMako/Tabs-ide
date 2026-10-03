@@ -401,7 +401,7 @@ export class WsTransport {
       // reliable `close` in every runtime — so schedule a reconnect here too.
       // `scheduleReconnect` is idempotent (guards on an in-flight timer), so the
       // subsequent `close` (if any) won't double-connect.
-      console.warn("WebSocket connection error", { type: event.type, url: this.url });
+      console.warn("WebSocket connection error", { type: event.type });
       if (this.ws !== ws && !this.disposed) {
         this.scheduleReconnect();
       }
