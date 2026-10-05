@@ -1,5 +1,6 @@
 ---
 import Icon from "./Icon.astro";
+import ResourceIllustration from "./ResourceIllustration.astro";
 const { variant = "light", instance = "default" } = Astro.props;
 
 const tools = [
@@ -120,27 +121,14 @@ const headlines: Record<string, string> = {
   <!-- Diagnostics Window Showcase (Performance Monitor) -->
   <div class="diagnostics-window-showcase">
     <div class="diagnostics-window-stage">
-      <div class="diagnostics-window-frame">
-        <img
-          src="/product/resources-explorer.png"
-          alt="Tabs Resources Explorer showing CPU, memory, disk, network, and per-process diagnostics"
-          width="1010"
-          height="689"
-          loading="lazy"
-          decoding="async"
-          class="resources-explorer-window"
-        />
-      </div>
+      <div class="diagnostics-window-frame"><img src="/product/resources-explorer.png" alt="Tabs Resource Explorer showing CPU, memory, disk, network and per-process diagnostics" width="1010" height="689" loading="lazy" decoding="async" class="resources-explorer-window"/></div>
     </div>
     <div class="diagnostics-window-content">
       <div class="diagnostics-kicker"><span class="eyebrow">RESOURCE EXPLORER</span><span class="diagnostics-live"><i aria-hidden="true"></i> BUILT IN</span></div>
       <h3 class="diagnostics-heading">Know what’s running.<br/><em>Keep work flowing.</em></h3>
       <p class="diagnostics-intro">A clear view of your machine, right inside your workspace.</p>
       <div class="diagnostics-signals" aria-label="Monitored resources"><span>CPU</span><span>Memory</span><span>Disk</span><span>Network</span></div>
-      <div class="diagnostics-cards">
-        <div><span class="diagnostics-card-icon"><Icon name="GitBranch" size={22}/></span><small>FOLLOW THE WORK</small><strong>Every process.<br/>In view.</strong><p>Explore the process tree and see where resources go.</p></div>
-        <div><span class="diagnostics-card-icon" aria-hidden="true">✳</span><small>FIND A WAY FORWARD</small><strong>A slowdown?<br/>Start here.</strong><p>Use AI Diagnose for help, or export a report to share.</p></div>
-      </div>
+      <ResourceIllustration />
       <div class="diagnostics-access"><span>Open over any tool</span><span><kbd>⌥</kbd><kbd>⌘</kbd><kbd>E</kbd></span></div>
     </div>
   </div>
