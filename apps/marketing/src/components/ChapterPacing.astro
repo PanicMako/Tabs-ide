@@ -9,7 +9,7 @@ const { tone = "paper" } = Astro.props;
   .chapter-pacing { position: relative; padding-bottom: clamp(48px, 14svh, 150px); background: #fbfcfe; }
   .chapter-pacing-blue { background-color: #3259ed; background-image: linear-gradient(#ffffff0b 1px, transparent 1px), linear-gradient(90deg, #ffffff0b 1px, transparent 1px); background-size: 54px 54px; }
   .chapter-pacing-mist { background: #f0f3fc; }
-  .chapter-pacing.is-held { min-height: calc(var(--chapter-height) + 38svh); padding-bottom: 0; }
+  .chapter-pacing.is-held { min-height: calc(var(--chapter-height) + var(--chapter-runway, 38svh)); padding-bottom: 0; }
   .is-held > .chapter-stage { position: sticky; top: var(--chapter-top, 0px); }
   @media (max-width: 700px), (prefers-reduced-motion: reduce) {
     .chapter-pacing, .chapter-pacing.is-held { min-height: 0; padding-bottom: 44px; }
@@ -32,9 +32,11 @@ const { tone = "paper" } = Astro.props;
       const stage = chapter.querySelector<HTMLElement>("[data-chapter-stage]");
       if (!stage) return;
       const height = stage.offsetHeight;
+      const continuity = !!stage.querySelector("[data-continuity]");
       chapter.style.setProperty("--chapter-height", `${height}px`);
-      chapter.style.setProperty("--chapter-top", `${Math.max(0, (innerHeight - height) / 2)}px`);
-      chapter.classList.toggle("is-held", motionAllowed() && !narrow.matches && height <= innerHeight + 1);
+      chapter.style.setProperty("--chapter-top", `${height > innerHeight ? innerHeight - height : Math.max(0, (innerHeight - height) / 2)}px`);
+      chapter.style.setProperty("--chapter-runway", continuity ? "75svh" : "38svh");
+      chapter.classList.toggle("is-held", motionAllowed() && !narrow.matches && (height <= innerHeight + 1 || (continuity && height <= innerHeight * 1.35)));
     });
     if (!motionAllowed()) animations.forEach(animation => animation.cancel());
   };

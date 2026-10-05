@@ -7,6 +7,7 @@ import Workspace from "./Workspace.astro";
 import AgentRoster from "./AgentRoster.astro";
 import ReleaseLog from "./ReleaseLog.astro";
 import FooterSignature from "./FooterSignature.astro";
+import TabHop from "./TabHop.astro";
 import ToolSetupPaths from "./ToolSetupPaths.astro";
 import WorkspaceManifesto from "./WorkspaceManifesto.astro";
 import ProjectContinuity from "./ProjectContinuity.astro";
@@ -94,6 +95,7 @@ const workflows = [
   <ChapterPacing tone="mist"><section class="e2-agents"><div class="hs-wrap"><AgentRoster eyebrow="04 / YOUR AGENTS. YOUR CALL." title="Different minds. Shared momentum." description="Choose a supported agent for your project conversations. Native connections and Agent Client Protocol (ACP) integrations keep your collaborators close to the work."/></div></section></ChapterPacing>
   <div class="e2-release hs-wrap"><span class="e2-eyebrow">05 / ALWAYS MAKING ROOM</span><ReleaseLog/></div>
   <footer class="hs-end"><div class="hs-wrap"><div class="hs-end-top"><span class="hs-end-mark" aria-hidden="true">✳</span><p>Make space for<br/><span>what's next.</span></p><Download compact/></div><div class="hs-platforms"><a href="/downloads">Find your download for macOS, Windows, or Linux <Icon name="ArrowUpRight" size={17}/></a></div><FooterSignature concept={1}/></div></footer>
+  <TabHop />
 </article>
 
 <script>

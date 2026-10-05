@@ -162,6 +162,18 @@ const projects = [
     let motion: Animation[] = [];
     let ghosts: HTMLElement[] = [];
     let motionRun = 0;
+    let scrollHoldUntil = 0;
+    // Let the window finish assembling before wheel momentum reveals the next chapter.
+    window.addEventListener("wheel", event => {
+      if (performance.now() < scrollHoldUntil && !event.ctrlKey) event.preventDefault();
+    }, { passive: false, signal: controller.signal });
+    window.addEventListener("touchmove", event => {
+      if (performance.now() < scrollHoldUntil && event.touches.length === 1) event.preventDefault();
+    }, { passive: false, signal: controller.signal });
+    window.addEventListener("keydown", event => {
+      if (event.key === "Escape") scrollHoldUntil = 0;
+      if (performance.now() < scrollHoldUntil && ["PageDown", "ArrowDown"].includes(event.key) && !(event.target as HTMLElement).closest("button,input,textarea,select")) event.preventDefault();
+    }, { signal: controller.signal });
     const stopMotion = () => {
       motionRun++;
       motion.forEach(animation => animation.cancel());
@@ -202,6 +214,15 @@ const projects = [
     });
     const setAssembly = (assembled: boolean) => {
       stopMotion();
+      if (assembled && !reduced.matches && !document.documentElement.classList.contains("motion-paused")) {
+        scrollHoldUntil = performance.now() + 2000;
+        // The taller assembled view can change the chapter's sticky eligibility.
+        // Align after that resize has settled, rather than using its old position.
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          if (!root.classList.contains("is-assembled")) return;
+          window.scrollTo({ top: window.scrollY + root.getBoundingClientRect().top, behavior: "instant" });
+        }));
+      } else scrollHoldUntil = 0;
       const panel = panels.find(item => !item.hidden);
       const animated = assembled && panel && !reduced.matches && !document.documentElement.classList.contains("motion-paused");
       const chrome = root.querySelector<HTMLElement>(".pc-window-chrome");
