@@ -1,5 +1,5 @@
 /**
- * AnalyticsServiceLive - Opt-in pseudonymous PostHog telemetry layer.
+ * AnalyticsServiceLive - Basic pseudonymous PostHog telemetry layer.
  *
  * Persists a random installation-scoped anonymous id to state dir, buffers
  * events in memory, and flushes batches to PostHog over Effect HttpClient.
@@ -7,7 +7,11 @@
  * @module AnalyticsServiceLive
  */
 
-import { Config, DateTime, Effect, Layer, Ref } from "effect";
+import { Config, DateTime, Effect, FileSystem, Layer, Ref } from "effect";
+import * as Semaphore from "effect/Semaphore";
+import { basicUsageEvent, dailyUsageEventUuid } from "../UsageEvents.ts";
+import { ServerSettingsService } from "../../serverSettings.ts";
+import { TABS_ANALYTICS_PROJECT } from "../ProjectConfig.ts";
 import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/unstable/http";
 
 import { ServerConfig } from "../../config.ts";
@@ -17,46 +21,9 @@ import { version } from "../../../package.json" with { type: "json" };
 
 interface BufferedAnalyticsEvent {
   readonly event: string;
-  readonly properties?: Readonly<Record<string, unknown>>;
+  readonly uuid: string;
+  readonly identifier: string;
   readonly capturedAt: string;
-}
-
-/** Only bounded operational fields are permitted; arbitrary strings never leave the process. */
-export function safeTelemetryProperties(properties?: Readonly<Record<string, unknown>>) {
-  const safe: Record<string, boolean | number | string> = {};
-  const booleanKeys = new Set(["hasResumeCursor", "hasCwd", "hasModel", "hasInput"]);
-  const countKeys = new Set(["threadCount", "projectCount", "attachmentCount", "turns", "count"]);
-  const enums: Record<string, readonly string[]> = {
-    provider: [
-      "codex",
-      "claude",
-      "cursor",
-      "copilot",
-      "grok",
-      "opencode",
-      "antigravity",
-      "gemini",
-      "droid",
-      "kilo",
-      "openrouter",
-    ],
-    strategy: ["adopt-existing", "resume-thread", "replace-legacy-session"],
-    runtimeMode: ["full-access", "approval-required"],
-    interactionMode: ["default", "plan"],
-    decision: ["accept", "decline", "cancel", "acceptForSession"],
-  };
-  for (const [key, value] of Object.entries(properties ?? {})) {
-    if (booleanKeys.has(key) && typeof value === "boolean") safe[key] = value;
-    else if (
-      countKeys.has(key) &&
-      typeof value === "number" &&
-      Number.isSafeInteger(value) &&
-      value >= 0
-    )
-      safe[key] = value;
-    else if (typeof value === "string" && enums[key]?.includes(value)) safe[key] = value;
-  }
-  return safe;
 }
 
 const TELEMETRY_RETRY_BASE_MS = 5_000;
@@ -69,12 +36,12 @@ export function telemetryRetryDelayMs(consecutiveFailures: number): number {
 
 const TelemetryEnvConfig = Config.all({
   posthogKey: Config.string("TABS_POSTHOG_KEY").pipe(
-    Config.withDefault("phc_XOWci4oZP4VvLiEyrFqkFjP4CZn55mjYYBMREK5Wd6m"),
+    Config.withDefault(TABS_ANALYTICS_PROJECT.key),
   ),
   posthogHost: Config.string("TABS_POSTHOG_HOST").pipe(
-    Config.withDefault("https://us.i.posthog.com"),
+    Config.withDefault(TABS_ANALYTICS_PROJECT.host),
   ),
-  enabled: Config.boolean("TABS_TELEMETRY_ENABLED").pipe(Config.withDefault(false)),
+  enabled: Config.boolean("TABS_TELEMETRY_ENABLED").pipe(Config.withDefault(true)),
   flushBatchSize: Config.number("TABS_TELEMETRY_FLUSH_BATCH_SIZE").pipe(Config.withDefault(20)),
   maxBufferedEvents: Config.number("TABS_TELEMETRY_MAX_BUFFERED_EVENTS").pipe(
     Config.withDefault(1_000),
@@ -85,54 +52,79 @@ const makeAnalyticsService = Effect.gen(function* () {
   const telemetryConfig = yield* TelemetryEnvConfig;
   const httpClient = yield* HttpClient.HttpClient;
   const serverConfig = yield* ServerConfig;
-  if (!telemetryConfig.enabled) {
-    yield* clearTelemetryIdentifier;
+  const fileSystem = yield* FileSystem.FileSystem;
+  // An unconfigured project or the environment kill switch must be a complete no-op.
+  if (!telemetryConfig.enabled || !telemetryConfig.posthogKey.trim()) {
+    yield* clearTelemetryIdentifier.pipe(Effect.ignore);
     return { record: () => Effect.void, flush: Effect.void } satisfies AnalyticsServiceShape;
   }
-  const identifier = yield* getTelemetryIdentifier;
+  const settingsService = yield* ServerSettingsService;
+  const identifierRef = yield* Ref.make<string | null>(null);
   const bufferRef = yield* Ref.make<ReadonlyArray<BufferedAnalyticsEvent>>([]);
+  const recordedDaysRef = yield* Ref.make<Readonly<Record<string, string>>>({});
+  const stateLock = yield* Semaphore.make(1);
+  const deliveryLock = yield* Semaphore.make(1);
+  const synchronizeConsent = Effect.gen(function* () {
+    const enabled = yield* settingsService.getSettings.pipe(
+      Effect.map((settings) => settings.enableUsageAnalytics),
+      Effect.orElseSucceed(() => false),
+    );
+    if (!enabled) {
+      yield* Ref.set(bufferRef, []);
+      yield* Ref.set(recordedDaysRef, {});
+      yield* Ref.set(identifierRef, null);
+      yield* clearTelemetryIdentifier.pipe(Effect.ignore);
+      return null;
+    }
+    const existing = yield* Ref.get(identifierRef);
+    if (existing) return existing;
+    const identifier = yield* getTelemetryIdentifier;
+    yield* Ref.set(identifierRef, identifier);
+    return identifier;
+  }).pipe(
+    Effect.provideService(FileSystem.FileSystem, fileSystem),
+    Effect.provideService(ServerConfig, serverConfig),
+  );
+  yield* stateLock.withPermits(1)(synchronizeConsent);
   const consecutiveFailuresRef = yield* Ref.make(0);
   const retryAfterRef = yield* Ref.make(0);
   const clientType = serverConfig.mode === "desktop" ? "desktop-app" : "cli-web-client";
 
-  const enqueueBufferedEvent = (event: string, properties?: Readonly<Record<string, unknown>>) =>
-    Effect.flatMap(DateTime.now, (now) =>
-      Ref.modify(bufferRef, (current) => {
-        const appended = [
+  const enqueueBufferedEvent = (event: string, identifier: string) =>
+    Effect.gen(function* () {
+      const now = yield* DateTime.now;
+      const day = DateTime.formatIso(now).slice(0, 10);
+      const recorded = yield* Ref.get(recordedDaysRef);
+      if (recorded[event] === day) return;
+      yield* Ref.set(recordedDaysRef, { ...recorded, [event]: day });
+      yield* Ref.update(bufferRef, (current) =>
+        [
           ...current,
           {
             event,
-            ...(properties ? { properties } : {}),
-            capturedAt: DateTime.formatIso(now),
-          } satisfies BufferedAnalyticsEvent,
-        ];
-
-        const next =
-          appended.length > telemetryConfig.maxBufferedEvents
-            ? appended.slice(appended.length - telemetryConfig.maxBufferedEvents)
-            : appended;
-
-        return [
-          {
-            size: next.length,
-            dropped: next.length !== appended.length,
-          } as const,
-          next,
-        ] as const;
-      }),
-    );
+            identifier,
+            uuid: dailyUsageEventUuid(identifier, event, day),
+            // Day-level timestamps avoid collecting precise launch or prompt times.
+            capturedAt: `${day}T00:00:00.000Z`,
+          },
+        ].slice(-Math.max(1, telemetryConfig.maxBufferedEvents)),
+      );
+    });
 
   const sendBatch = (events: ReadonlyArray<BufferedAnalyticsEvent>) =>
     Effect.gen(function* () {
-      if (!telemetryConfig.enabled || !identifier) return;
+      const identifier = yield* stateLock.withPermits(1)(synchronizeConsent);
+      const currentEvents = events.filter((event) => event.identifier === identifier);
+      if (!identifier || currentEvents.length === 0) return;
 
       const payload = {
         api_key: telemetryConfig.posthogKey,
-        batch: events.map((event) => ({
+        batch: currentEvents.map((event) => ({
           event: event.event,
+          uuid: event.uuid,
           distinct_id: identifier,
           properties: {
-            ...safeTelemetryProperties(event.properties),
+            $geoip_disable: true,
             $process_person_profile: false,
             platform: process.platform,
             arch: process.arch,
@@ -147,17 +139,19 @@ const makeAnalyticsService = Effect.gen(function* () {
         HttpClientRequest.bodyJson(payload),
         Effect.flatMap(httpClient.execute),
         Effect.flatMap(HttpClientResponse.filterStatusOk),
+        Effect.timeout("5 seconds"),
       );
     });
 
   const flush: AnalyticsServiceShape["flush"] = Effect.gen(function* () {
+    if (!(yield* stateLock.withPermits(1)(synchronizeConsent))) return;
     if (Date.now() < (yield* Ref.get(retryAfterRef))) return;
     while (true) {
       const batch = yield* Ref.modify(bufferRef, (current) => {
         if (current.length === 0) {
           return [[] as ReadonlyArray<BufferedAnalyticsEvent>, current] as const;
         }
-        const nextBatch = current.slice(0, telemetryConfig.flushBatchSize);
+        const nextBatch = current.slice(0, Math.max(1, telemetryConfig.flushBatchSize));
         const remaining = current.slice(nextBatch.length);
         return [nextBatch, remaining] as const;
       });
@@ -173,9 +167,9 @@ const makeAnalyticsService = Effect.gen(function* () {
           ),
         ),
         Effect.catch((error) =>
-          Ref.update(bufferRef, (current) => [...batch, ...current]).pipe(
-            Effect.flatMap(() => Effect.fail(error)),
-          ),
+          Ref.update(bufferRef, (current) =>
+            [...batch, ...current].slice(-Math.max(1, telemetryConfig.maxBufferedEvents)),
+          ).pipe(Effect.flatMap(() => Effect.fail(error))),
         ),
       );
     }
@@ -191,19 +185,19 @@ const makeAnalyticsService = Effect.gen(function* () {
         });
       }),
     ),
+    deliveryLock.withPermits(1),
   );
 
-  const record: AnalyticsServiceShape["record"] = Effect.fnUntraced(function* (event, properties) {
-    if (!telemetryConfig.enabled || !identifier) return;
-
-    const enqueueResult = yield* enqueueBufferedEvent(event, properties);
-    if (enqueueResult.dropped) {
-      yield* Effect.logDebug("analytics buffer full; dropping oldest event", {
-        size: enqueueResult.size,
-        event,
-      });
-    }
-  });
+  const record: AnalyticsServiceShape["record"] = (event) =>
+    stateLock.withPermits(1)(
+      Effect.gen(function* () {
+        const usageEvent = basicUsageEvent(event);
+        if (!usageEvent) return;
+        const identifier = yield* synchronizeConsent;
+        if (!identifier) return;
+        yield* enqueueBufferedEvent(usageEvent, identifier);
+      }),
+    );
 
   yield* Effect.forever(Effect.sleep(1000).pipe(Effect.flatMap(() => flush)), {
     disableYield: true,

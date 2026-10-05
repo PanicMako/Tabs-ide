@@ -1,3 +1,4 @@
+import { UsageAnalyticsSettings } from "./UsageAnalyticsSettings";
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { LoaderCircleIcon, MinusIcon, PlusIcon, RotateCcwIcon } from "lucide-react";
 import {
@@ -237,6 +238,8 @@ export function GeneralSettings() {
           </SettingsHeaderPortal>
         }
       />
+
+      <UsageAnalyticsSettings />
 
       {/* Group 1: Appearance & Interface */}
       <SettingsSection title="Appearance & Interface">

@@ -14,7 +14,7 @@ after installation.
   - Linux `x64` AppImage
   - Windows `x64` NSIS installer
 - Publishes one GitHub Release with all produced files.
-  - The package field `tabsReleaseChannel: "beta"` publishes even a plain version such as `v1.3.31` as a GitHub prerelease. Suffixed versions are also prereleases.
+  - By default, the package field `tabsReleaseChannel: "beta"` publishes even a plain version as a GitHub prerelease. Suffixed versions are always prereleases. For an explicitly requested Latest release, dispatch `release.yml` with `-f make_latest=true` and a plain version; this publishes a non-prerelease as Latest while retaining the desktop beta update channel.
   - Only stable-channel plain versions are marked as the repository's latest release. Public Beta uses `make_latest: false`.
 - Includes Electron auto-update metadata (for example `latest*.yml` and `*.blockmap`) in release assets.
 - Signing is optional and auto-detected per platform from secrets.

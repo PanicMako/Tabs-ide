@@ -1,9 +1,9 @@
 import * as Context from "effect/Context";
 /**
- * AnalyticsService - Opt-in pseudonymous telemetry capture contract.
+ * AnalyticsService - Basic pseudonymous telemetry capture contract.
  *
- * Provides a best-effort event API for runtime telemetry and a strict
- * `captureImmediate` method for call sites that need explicit error handling.
+ * Provides best-effort daily adoption markers. Caller properties and other
+ * operational events are not delivered.
  *
  * @module AnalyticsService
  */
@@ -11,7 +11,7 @@ import { Effect, Layer } from "effect";
 
 export interface AnalyticsServiceShape {
   /**
-   * Capture an event immediately; returns typed failure when capture fails.
+   * Queue a permitted daily usage marker for best-effort delivery.
    */
   readonly record: (
     event: string,

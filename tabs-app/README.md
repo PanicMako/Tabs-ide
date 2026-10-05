@@ -153,6 +153,18 @@ From the repo root:
 bun run build
 ```
 
+## Basic usage analytics
+
+Configured releases enable basic usage analytics by default, with no popup.
+Tabs sends daily launch/activity markers with a random installation ID and basic
+OS/version metadata. It does not send names, provider logins, prompts, code, model
+choices, reasoning settings, or recordings. Turn it off in **Settings > General >
+Privacy > Share basic usage analytics**, or start Tabs with
+`TABS_TELEMETRY_ENABLED=false`.
+
+See the [privacy details](docs/privacy.md) and
+[owner setup and adoption dashboard guide](docs/usage-analytics.md).
+
 ## Notes
 
 - This project is still under active development.

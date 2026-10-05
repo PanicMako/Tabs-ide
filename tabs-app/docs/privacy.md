@@ -1,20 +1,41 @@
 # Public-beta privacy
 
-Tabs-owned product analytics is off by default. To opt in explicitly, start Tabs
-with `TABS_TELEMETRY_ENABLED=true` in its environment. There is currently no UI
-consent setting. Remove that variable or set it to `false`, then restart, to opt
-out. On startup with analytics disabled, Tabs removes its saved analytics ID;
-a later opt-in generates a new random installation UUID. It never reads Codex,
-Claude, or other provider account files to identify analytics users.
+Basic Tabs-owned usage analytics is enabled by default when a dedicated Tabs
+PostHog project is configured. There is no consent popup. Turn off **Share basic
+usage analytics** in **Settings > General > Privacy** to stop collection without
+restarting. `TABS_TELEMETRY_ENABLED=false` disables collection at process start,
+even when the setting is on. No project key means no collection or saved
+analytics ID; Tabs never falls back to another project's key.
 
-Opted-in analytics is pseudonymous, not anonymous. Batches go to PostHog at
-`https://us.i.posthog.com` by default. They contain operational event names,
-installation UUID, OS platform, architecture, Tabs version, and client type.
-Allowed event properties are provider kind, bounded operation/approval enums,
-boolean capability/presence flags, and nonnegative integer usage counts.
-Custom model names, source, prompts, terminal/browser contents, paths, repository
-names, provider account IDs, tokens, API keys, and arbitrary properties are not
-serialized. Request payloads are not logged on analytics failure.
+Analytics uses a random installation UUID and never reads Codex, Claude, or other
+provider account files for identity. Turning analytics off drops unsent markers
+and removes the saved UUID when the runtime next checks the setting (normally
+within one second). Requests already in flight may finish; already delivered
+records are not deleted. Re-enabling analytics creates a new UUID.
+
+This is pseudonymous measurement: the UUID groups repeat activity from one
+installation, without linking it to a name, email, or provider account. It does
+not establish the number of unique people across devices or reinstallations.
+
+Batches go to the dedicated Tabs PostHog project (`https://us.i.posthog.com` by
+default). Only two day-level markers are delivered:
+
+- `tabs.installation.opened`: the backend started that day.
+- `tabs.installation.active`: a connected foreground client reported interaction,
+  or an agent request was successfully sent that day.
+
+Each marker uses a UTC date with a midnight timestamp and a stable daily event
+UUID to deduplicate restarts and retries. Payload properties are limited to OS,
+architecture, Tabs version, and server app type. Person profiles are disabled;
+geographic enrichment is disabled. There is no browser analytics SDK,
+autocapture, session replay, or model/reasoning tracking.
+
+Caller-supplied event properties and all other operational events are excluded.
+Names, email addresses, provider logins, custom model names, source, prompts,
+terminal/browser contents, paths, repository names, tokens, API keys, attachment
+counts, and precise interaction timestamps are not serialized. PostHog still
+receives network requests and their source IPs; omitting identity fields does
+not make transport anonymous. Request payloads are not logged on delivery failure.
 
 This setting controls Tabs-owned analytics only. Configured provider APIs and
 CLIs send requests under their own policies; extensions may make network

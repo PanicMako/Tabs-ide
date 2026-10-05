@@ -921,6 +921,7 @@ export const UsageModelPriceOverride = Schema.Struct({
 export type UsageModelPriceOverride = typeof UsageModelPriceOverride.Type;
 
 export const ServerSettings = Schema.Struct({
+  enableUsageAnalytics: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   enableAssistantStreaming: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   alwaysCreateTasks: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   enableProviderUpdateChecks: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
@@ -1176,6 +1177,7 @@ const GitAiSettingsPatch = Schema.Struct({
 });
 
 export const ServerSettingsPatch = Schema.Struct({
+  enableUsageAnalytics: Schema.optionalKey(Schema.Boolean),
   // Server settings
   enableAssistantStreaming: Schema.optionalKey(Schema.Boolean),
   alwaysCreateTasks: Schema.optionalKey(Schema.Boolean),

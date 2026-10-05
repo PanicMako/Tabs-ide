@@ -202,6 +202,18 @@ Tabs keeps embedded-browser data in persistent Electron partitions:
 
 Sites remain responsible for their own authentication policies. Tabs does not copy cookies from external browsers, and some providers may block sign-in from an embedded browser.
 
+## Basic usage analytics
+
+Configured releases enable basic analytics by default, with no popup. Tabs sends
+only daily launch/activity markers with a random installation ID and basic
+OS/version metadata. It does not send names, provider logins, prompts, code, model
+choices, reasoning settings, or recordings. Turn it off in **Settings > General >
+Privacy > Share basic usage analytics**, or start Tabs with
+`TABS_TELEMETRY_ENABLED=false`.
+
+Read the [privacy details](tabs-app/docs/privacy.md) and
+[owner setup and adoption dashboard guide](tabs-app/docs/usage-analytics.md).
+
 ## Releases
 
 Desktop installers are self-contained and bundle the compiled Code-OSS runtime.
