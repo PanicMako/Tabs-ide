@@ -10,9 +10,19 @@
 </p>
 
 <p align="center">
-  <a href="https://notacent.app/en/app/tabs-ide">
-    <img src="https://notacent.app/api/badge/tabs-ide.svg?style=card&lang=en" alt="75 active days, verified by Not a Cent" />
+  <a href="https://buildwithtabs.com/downloads">
+    <img src="https://img.shields.io/badge/Download_Tabs-v1.3.33-6366f1?style=for-the-badge&logo=electron&logoColor=white" alt="Download Tabs" />
   </a>
+  <a href="https://buildwithtabs.com">
+    <img src="https://img.shields.io/badge/Website-buildwithtabs.com-0ea5e9?style=for-the-badge" alt="Website" />
+  </a>
+  <a href="https://notacent.app/en/app/tabs-ide">
+    <img src="https://notacent.app/api/badge/tabs-ide.svg?style=for-the-badge&lang=en" alt="75 active days, verified by Not a Cent" />
+  </a>
+</p>
+
+<p align="center">
+  <img src="tabs-app/apps/marketing/public/product/agents-dark.png" alt="Tabs Desktop Workspace" width="100%" />
 </p>
 
 <p align="center">
@@ -26,7 +36,7 @@
 </p>
 
 > [!NOTE]
-> **Public Beta.** Tabs is in active development. Expect some bugs and rough edges. Feedback and bug reports are welcome. [Download installers](https://tabside.vercel.app/downloads) or build from source below.
+> **Public Beta.** Tabs is in active development. Expect some bugs and rough edges. Feedback and bug reports are welcome. [Download installers](https://buildwithtabs.com/downloads) or build from source below.
 
 > [!IMPORTANT]
 > **macOS Gatekeeper & Notarization Notice**:
@@ -81,6 +91,19 @@ Tabs currently supports **11 model and agent providers**:
 - **Multiple Instances**: Run multiple accounts simultaneously for the same provider (e.g. `codex_personal` alongside `codex_work`).
 - **Custom Model Slugs**: Save additional model slugs and reasoning effort parameters directly in Settings or switch them using `/model`.
 - **Live Token & Cost Tracking**: Built-in usage metrics monitor token consumption, prompt caching, context limits, and cost across all active providers in real time.
+
+### Provider authentication & billing (BYOK / BYOS)
+
+Tabs operates strictly on a **Bring Your Own Key / Subscription (BYOK / BYOS)** model:
+- **Anthropic Claude**: Authenticates via the official Claude Code CLI (`claude auth login`). Tabs coordinates directly with your local Claude agent process. Your existing Claude Pro, Team, or Anthropic Console API billing applies directly according to Anthropic's terms. Tabs never proxies or resells API access.
+- **OpenAI Codex**: Uses the official Codex CLI (`codex login`). Your OpenAI developer subscription or API tier applies directly.
+- **Other Providers**: Cursor, Copilot, Grok, Gemini, Antigravity, and OpenRouter all authenticate through their official CLIs, OAuth logins, or direct local API keys.
+
+Tabs charges no subscription markup, takes no platform fee, and never stores your provider credentials in the cloud.
+
+### Built with agents
+
+Tabs is designed for coding with agents—and it was built the same way. A significant portion of Tabs has been developed pair-programming directly with AI agents (including Claude Code, Codex, and Antigravity). We believe dogfooding agentic workflows is the only genuine way to build the future of agentic developer environments.
 
 ## Quick start
 
@@ -202,21 +225,9 @@ Tabs keeps embedded-browser data in persistent Electron partitions:
 
 Sites remain responsible for their own authentication policies. Tabs does not copy cookies from external browsers, and some providers may block sign-in from an embedded browser.
 
-## Basic usage analytics
-
-Configured releases enable basic analytics by default, with no popup. Tabs sends
-only daily launch/activity markers with a random installation ID and basic
-OS/version metadata. It does not send names, provider logins, prompts, code, model
-choices, reasoning settings, or recordings. Turn it off in **Settings > General >
-Privacy > Share basic usage analytics**, or start Tabs with
-`TABS_TELEMETRY_ENABLED=false`.
-
-Read the [privacy details](tabs-app/docs/privacy.md) and
-[owner setup and adoption dashboard guide](tabs-app/docs/usage-analytics.md).
-
 ## Releases
 
-Desktop installers are self-contained and bundle the compiled Code-OSS runtime.
+Desktop installers are self-contained fat bundles that include the compiled Code-OSS runtime.
 
 > [!NOTE]
 > **macOS Gatekeeper**: These public-beta builds are not Apple Developer ID signed or notarized. After attempting to open Tabs, use **System Settings > Privacy & Security > Open Anyway**. Building from source is an alternative.
@@ -234,20 +245,17 @@ Windows installers should be built on Windows or in CI because the application i
 
 See [CHANGELOG.md](CHANGELOG.md) for shipped changes.
 
-## Public-beta privacy and feedback
+Installers are available for macOS (Apple Silicon and Intel), Windows (x64), and Linux (x64). [Report a bug](https://github.com/PanicMako/Tabs-ide/issues/new?template=bug_report.yml) with your version, OS, architecture, reproduction steps, and sanitized diagnostics. For security vulnerabilities, follow [SECURITY.md](SECURITY.md).
 
-Tabs-owned product analytics is **off by default**. Explicit opt-in uses a random
-Tabs installation ID, never a provider account ID. See [privacy details](tabs-app/docs/privacy.md)
-for collected fields, opt-out, and separate provider/browser/extension traffic.
+## Privacy & telemetry
 
-Testing is unfinished **Early access**, hidden by default, and available through
-Workspace settings for deliberate opt-in. Provider integrations require their
-own authentication or credentials; availability does not mean they are preconfigured.
+Tabs is built on respect for developer privacy:
 
-Installers target macOS arm64/x64, Windows x64, and Linux x64. Each platform still
-needs native installer QA before publication. [Report a bug](https://github.com/PanicMako/Tabs-ide/issues/new?template=bug_report.yml)
-with version, OS, architecture, reproduction steps, and sanitized diagnostics.
-For vulnerabilities, follow [SECURITY.md](SECURITY.md).
+- **Zero telemetry on your code or chats**: Tabs NEVER collects, records, or transmits your code, prompts, completions, agent reasoning, model choices, file contents, or provider API keys. All agent activity runs directly between your machine and your configured providers.
+- **Daily active ping**: Pre-built desktop releases send an anonymous daily active ping with a random installation UUID and basic OS/architecture/version metadata to help us understand release adoption.
+- **Complete opt-out**: You can completely disable all telemetry at any time by starting Tabs with the environment variable `TABS_TELEMETRY_ENABLED=false`.
+
+Read our [privacy details](tabs-app/docs/privacy.md) and [usage analytics documentation](tabs-app/docs/usage-analytics.md).
 
 ## Contributing
 
@@ -270,4 +278,4 @@ Tabs is built on top of and inspired by incredible open-source projects and deve
 
 ## License
 
-The product’s existing [MIT License](LICENSE) retains T3 Tools Inc.’s notice. Code-OSS retains Microsoft’s separate MIT notice. See [LICENSING.md](LICENSING.md) for component scope, bundled notices, and the outstanding Tabs-original copyright-holder decision.
+The product is licensed under the [MIT License](LICENSE) (Copyright (c) 2026 Tabs Contributors and T3 Tools Inc.). Embedded Code-OSS retains Microsoft’s separate MIT notice. See [LICENSING.md](LICENSING.md) for component scope, bundled notices, and attribution.
