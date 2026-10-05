@@ -25,11 +25,37 @@ export const TOTAL_TAGS_COUNT = 176;
 
 export const changelogData: ChangelogRelease[] = [
   {
+    tag: "v1.3.34",
+    title: "Refined setup typography and interactive workspace previews",
+    date: "October 5, 2026",
+    shortDate: "Oct 5",
+    isLatest: true,
+    type: "patch",
+    summary:
+      "Tabs refines onboarding headings with balanced typography, and the site now showcases an interactive manifesto covering supported coding agents, web tools, and project tabs.",
+    highlights: [
+      "Onboarding wizard screens use semibold Syne headings for balanced contrast and clear reading hierarchy.",
+      "The marketing website adds an interactive workspace manifesto highlighting 11 supported agent providers, integrated web tools, and custom CLI workflows with scroll-linked reveal animations.",
+      "Project continuity previews demonstrate how Code OSS, agent conversations, development servers, and live browser previews coordinate across project tabs.",
+      "Documentation clarifies pseudonymous installation metrics with a clear environment opt-out and outlines provider authentication options.",
+    ],
+    categories: [
+      {
+        title: "Typography and onboarding",
+        items: [
+          "Refined setup headings to semibold weight for crisp rendering.",
+          "Updated marketing manifesto with agent rosters, CLI stack, and project continuity previews.",
+        ],
+      },
+    ],
+  },
+
+  {
     tag: "v1.3.33",
     title: "A clearer welcome to Tabs",
     date: "October 5, 2026",
     shortDate: "Oct 5",
-    isLatest: true,
+    isLatest: false,
     type: "patch",
     summary:
       "Simpler setup, an interactive workspace preview, larger icon choices, and Solari Grid animations for new installations.",

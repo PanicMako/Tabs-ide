@@ -2,6 +2,23 @@
 
 All notable changes to Tabs IDE will be documented in this file.
 
+## [v1.3.34] - 2026-10-05
+
+### Refined setup typography and interactive workspace previews
+
+Tabs refines onboarding headings with balanced typography, and the site now showcases an interactive manifesto covering supported coding agents, web tools, and project tabs.
+
+### What changed
+
+- Onboarding wizard screens use semibold Syne headings for balanced contrast and clear reading hierarchy.
+- The marketing website adds an interactive workspace manifesto highlighting 11 supported agent providers, integrated web tools, and custom CLI workflows with scroll-linked reveal animations.
+- Project continuity previews demonstrate how Code OSS, agent conversations, development servers, and live browser previews coordinate across project tabs.
+- Documentation clarifies pseudonymous installation metrics with a clear environment opt-out and outlines provider authentication options.
+
+### Upgrade notes
+
+macOS builds are not Apple Developer ID signed or notarized. After attempting to open a downloaded build, use System Settings → Privacy & Security → Open Anyway.
+
 ## [v1.3.33] - 2026-10-05
 
 ### A clearer welcome to Tabs
