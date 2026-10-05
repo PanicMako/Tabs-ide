@@ -279,10 +279,19 @@ export function Sidebar({
     <div className="w-64 flex flex-col border-r border-border/50 shrink-0 h-full" style={wrapStyle}>
       <div className="p-4 pb-3 flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <span className="text-xs font-mono tracking-widest text-muted-foreground/70 uppercase">
-            Source control
-          </span>
-          <div className="text-base font-semibold text-foreground tracking-tight mt-0.5 truncate">
+          <div className="flex items-center gap-1.5 text-muted-foreground/70">
+            <Github aria-hidden="true" size={13} className="shrink-0" />
+            <span
+              className="text-xs font-semibold tracking-wider uppercase"
+              style={{ fontFamily: "var(--font-sans)" }}
+            >
+              Source control
+            </span>
+          </div>
+          <div
+            className="text-base font-semibold text-foreground tracking-tight mt-0.5 truncate"
+            style={{ fontFamily: "var(--font-sans)" }}
+          >
             {repoName}
           </div>
         </div>

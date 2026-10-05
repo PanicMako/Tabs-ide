@@ -32,4 +32,12 @@ describe("Git sidebar accessibility", () => {
     expect(markup).toContain('aria-label="Expand source control sidebar"');
     expect(markup).toContain('aria-label="Overview. Repo health, quick actions, and sync status"');
   });
+
+  it("renders GitHub icon and theme font for expanded source control header", () => {
+    const markup = renderToStaticMarkup(<Sidebar {...baseProps} collapsed={false} />);
+
+    expect(markup).toContain("lucide-github");
+    expect(markup).toContain("Source control");
+    expect(markup).toContain("var(--font-sans)");
+  });
 });

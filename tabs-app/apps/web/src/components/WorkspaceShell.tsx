@@ -84,6 +84,7 @@ import {
   FlaskConicalIcon,
   FolderSearchIcon,
   GitBranchIcon,
+  GithubIcon,
   GlobeIcon,
   HelpCircleIcon,
   HistoryIcon,
@@ -566,7 +567,7 @@ function toolIcon(tool: ProjectToolKind) {
     case "server":
       return <RocketIcon className="size-3.5" />;
     case "git":
-      return <GitBranchIcon className="size-3.5" />;
+      return <GithubIcon className="size-3.5" />;
     case "browser":
     case "custom_embed":
       return <GlobeIcon className="size-3.5" />;
