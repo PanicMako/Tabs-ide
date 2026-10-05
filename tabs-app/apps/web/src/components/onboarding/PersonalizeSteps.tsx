@@ -63,7 +63,7 @@ export function AppIconStep({
           <h2
             id="setup-icon-title"
             style={{ fontFamily: "'Syne', sans-serif" }}
-            className="text-[38px] font-extrabold leading-[1.08] tracking-[-0.05em] text-white sm:text-[46px]"
+            className="text-[38px] font-semibold leading-[1.08] tracking-[-0.05em] text-white sm:text-[46px]"
           >
             Choose your
             <br />
@@ -137,7 +137,7 @@ export function AppearanceStep({
           <h2
             id="setup-appearance-title"
             style={{ fontFamily: "'Syne', sans-serif" }}
-            className="text-[38px] font-extrabold leading-[1.08] tracking-[-0.05em] text-white sm:text-[46px]"
+            className="text-[38px] font-semibold leading-[1.08] tracking-[-0.05em] text-white sm:text-[46px]"
           >
             Choose your
             <br />

@@ -1,0 +1,118 @@
+---
+import Icon from "./Icon.astro";
+import { agentProviders } from "../data/agentProviders";
+const phrases = [
+  { text: "A tab for every project.", badge: "code", tail: "A full IDE," },
+  { text: "your choice of agents", badge: "agents", tail: "and your tools." },
+  { text: "Add websites", badge: "tools", tail: "or run your favorite CLIs." },
+  { text: "All together.", badge: "ship", tail: "One window. Made yours." },
+];
+---
+<section class="workspace-manifesto" id="workspace-manifesto" aria-labelledby="manifesto-heading" data-workspace-manifesto>
+  <div class="wm-stage hs-wrap">
+    <div class="wm-overline"><span>YOUR PROJECTS. YOUR AGENTS. YOUR TOOLS.</span><span aria-hidden="true">MEET YOUR WORKSPACE ↘</span></div>
+    <h2 id="manifesto-heading" class="wm-copy">
+      {phrases.map((phrase, index) => <Fragment>
+        {phrase.text.split(" ").filter(Boolean).map(word => <Fragment><span data-wm-word class:list={["wm-word", { "wm-emphasis": index === 3 }]}>{word}</span>{" "}</Fragment>)}
+        <span class={`wm-badge wm-badge-${phrase.badge}`} data-wm-word aria-hidden="true">
+          {phrase.badge === "agents" && <span class="wm-providers">{agentProviders.map(provider => <span title={provider.name}><img src={`/providers/${provider.id}.svg`} width="28" height="28" alt="" /></span>)}</span>}
+          {phrase.badge === "code" && <span class="wm-editor"><span class="wm-editor-tab"></span><span class="wm-editor-body"><i></i><span><b></b><b></b><b></b><b></b></span></span></span>}
+          {phrase.badge === "tools" && <span class="wm-tools"><span title="Figma"><svg width="27" height="36" viewBox="0 0 30 45" fill="none"><path d="M7.5 45A7.5 7.5 0 0 0 15 37.5V30H7.5a7.5 7.5 0 0 0 0 15Z" fill="#0ACF83"/><path d="M0 22.5A7.5 7.5 0 0 1 7.5 15H15v15H7.5A7.5 7.5 0 0 1 0 22.5Z" fill="#A259FF"/><path d="M0 7.5A7.5 7.5 0 0 1 7.5 0H15v15H7.5A7.5 7.5 0 0 1 0 7.5Z" fill="#F24E1E"/><path d="M15 0h7.5a7.5 7.5 0 0 1 0 15H15V0Z" fill="#FF7262"/><circle cx="22.5" cy="22.5" r="7.5" fill="#1ABCFE"/></svg></span><span title="ChatGPT"><img src="/providers/codex.svg" width="30" height="30" alt="" /></span><span title="Claude website"><img src="/providers/claude.svg" width="30" height="30" alt="" /></span></span>}
+          {phrase.badge === "ship" && <Icon name="ArrowUpRight" size={42} />}
+        </span>{" "}
+        {phrase.tail.split(" ").map(word => <Fragment><span data-wm-word class:list={["wm-word", { "wm-final": index === 3 }]}>{word}</span>{" "}</Fragment>)}
+
+        {" "}
+      </Fragment>)}
+    </h2>
+    <div class="wm-bottom">
+      <div class="wm-track" aria-hidden="true"><span data-wm-progress></span></div>
+      <span class="wm-count" aria-hidden="true"><span data-wm-count>01</span> / 04</span>
+    </div>
+    <p class="wm-caption">11 supported agents. Figma, ChatGPT, Claude, or your own website and CLI tools.</p>
+  </div>
+</section>
+<style>
+  .workspace-manifesto { position: relative; min-height: 210vh; background: #f5f7fc; border-block: 1px solid #e3e8f1; }
+  .wm-stage { position: sticky; top: 0; min-height: 100svh; display: flex; flex-direction: column; justify-content: center; padding-block: 65px 40px; }
+  .wm-overline { display: flex; justify-content: space-between; gap: 20px; color: var(--hs-muted); font: 500 10px/1.6 "DM Sans", sans-serif; letter-spacing: .12em; margin-bottom: 42px; }
+  .wm-copy { margin: 0 auto; max-width: 1120px; text-align: center; font-family: "Instrument Serif", Georgia, serif; font-size: clamp(46px, 5.8vw, 88px); line-height: 1.1; font-weight: 400; letter-spacing: -.035em; text-wrap: pretty; }
+  .wm-word { display: inline-block; }
+  .wm-emphasis { font-style: italic; }
+  .wm-final { color: var(--hs-blue); }
+  .wm-animated .wm-word, .wm-animated .wm-badge { opacity: var(--wm-opacity, 1); transform: translateY(var(--wm-rise, 0px)); }
+  .wm-badge { display: inline-flex; vertical-align: middle; margin-top: -.13em; align-items: center; justify-content: center; width: .98em; height: .98em; border-radius: 50%; margin-inline: .03em; }
+  .wm-badge-code { width: 1.3em; height: .93em; background: #fff; border: 1px solid #dce2ee; border-radius: .15em; overflow: hidden; box-shadow: .07em .07em 0 #e1e7ff; transform: rotate(-5deg); }
+  .wm-editor { display: flex; flex-direction: column; width: 100%; height: 100%; }
+  .wm-editor-tab { height: .16em; border-bottom: 1px solid #e4e7ef; background: linear-gradient(90deg, #e1e7ff 35%, #f5f7fc 35%); }
+  .wm-editor-body { display: flex; flex: 1; }
+  .wm-editor-body > i { width: 24%; border-right: 1px solid #e4e7ef; background: #f5f7fc; }
+  .wm-editor-body > span { display: flex; flex-direction: column; justify-content: center; gap: .065em; flex: 1; padding: .1em; }
+  .wm-editor-body b { display: block; height: .045em; width: 83%; border-radius: 9px; background: #8291bc; }
+  .wm-editor-body b:nth-child(2) { width: 57%; margin-left: .08em; background: #3259ed; }
+  .wm-editor-body b:nth-child(3) { width: 68%; margin-left: .08em; background: #8bbba4; }
+  .wm-editor-body b:nth-child(4) { width: 42%; }
+  .wm-badge-tools { width: 2em; }
+  .wm-tools { display: flex; }
+  .wm-tools > span { display: grid; place-items: center; width: .82em; height: .85em; border-radius: .18em; border: 2px solid #f5f7fc; margin-left: -.12em; background: #e2e9fc; color: #3259ed; transform: rotate(-8deg); }
+  .wm-tools > span:nth-child(2) { background: #e4f0e9; color: #3b6b54; transform: rotate(3deg); }
+  .wm-tools > span:nth-child(3) { background: #f8e9de; color: #a76738; transform: rotate(10deg); }
+  .wm-badge-ship { background: var(--hs-blue); color: #fff; }
+  .wm-badge-agents { width: auto; height: .95em; margin-inline: .08em; }
+  .wm-providers { display: inline-flex; align-items: center; }
+  .wm-providers > span { display: grid; place-items: center; width: .82em; height: .82em; margin-left: -.33em; border: 3px solid #f5f7fc; border-radius: 50%; background: #fff; box-shadow: 0 3px 8px #202b4408; }
+  .wm-providers > span:first-child { margin-left: 0; }
+  .wm-providers > span:nth-child(3n + 1) { background: #eee5dc; }
+  .wm-providers > span:nth-child(3n + 2) { background: #e1e7ff; }
+  .wm-providers > span:nth-child(3n) { background: #e4f0e9; }
+  .wm-providers img { width: .39em; height: .39em; object-fit: contain; }
+  .wm-tools img { width: .36em; height: .36em; object-fit: contain; }
+  .wm-bottom { display: flex; align-items: center; gap: 25px; width: min(620px, 100%); margin: 45px auto 0; }
+  .wm-track { flex: 1; height: 2px; background: #dce2ee; overflow: hidden; }
+  .wm-track > span { display: block; width: 100%; height: 100%; background: var(--hs-blue); transform: scaleX(var(--wm-progress, 1)); transform-origin: left; }
+  .wm-count { font: 11px/1 monospace; white-space: nowrap; color: var(--hs-muted); }
+  .wm-caption { margin: 16px auto 0; text-align: center; color: var(--hs-muted); font-size: 12px; line-height: 1.6; }
+  @media (min-width: 800px) and (max-height: 750px) { .wm-copy { font-size: min(5.4vw, 66px); } .wm-overline { margin-bottom: 25px; } .wm-bottom { margin-top: 25px; } }
+  @media (max-width: 700px) { .workspace-manifesto { min-height: 180vh; } .wm-stage { padding-block: 40px; } .wm-copy { font-size: clamp(34px, 7.2vw, 48px); line-height: 1.17; } .wm-overline { font-size: 8px; margin-bottom: 30px; } .wm-overline > span:last-child { display: none; } .wm-badge svg { width: .55em; height: .55em; } .wm-providers > span { border-width: 2px; } .wm-bottom { gap: 12px; margin-top: 32px; } .wm-count { font-size: 10px; } }
+  @media (prefers-reduced-motion: reduce) { .workspace-manifesto { min-height: auto; } .wm-stage { position: relative; min-height: auto; padding-block: 80px; } .wm-animated .wm-word, .wm-animated .wm-badge { opacity: 1; transform: none; } }
+  :global(.motion-paused) .workspace-manifesto { min-height: auto; }
+  :global(.motion-paused) .wm-stage { position: relative; min-height: auto; padding-block: 80px; }
+</style>
+<script>
+  const section = document.querySelector<HTMLElement>("[data-workspace-manifesto]");
+  if (section) {
+    const words = [...section.querySelectorAll<HTMLElement>("[data-wm-word]")];
+    const progressBar = section.querySelector<HTMLElement>("[data-wm-progress]");
+    const count = section.querySelector<HTMLElement>("[data-wm-count]");
+    const preference = matchMedia("(prefers-reduced-motion: reduce)");
+    const controller = new AbortController();
+    let frame = 0;
+    let visible = false;
+    const render = () => {
+      frame = 0;
+      const paused = preference.matches || document.documentElement.classList.contains("motion-paused");
+      section.classList.toggle("wm-animated", !paused);
+      const rect = section.getBoundingClientRect();
+      const travel = Math.max(1, section.offsetHeight - window.innerHeight);
+      const progress = paused ? 1 : Math.max(0, Math.min(1, (window.innerHeight * .12 - rect.top) / travel));
+      words.forEach((word, index) => {
+        const reveal = Math.max(0, Math.min(1, (progress * (words.length + 5) - index) / 5));
+        word.style.setProperty("--wm-opacity", String(.16 + reveal * .84));
+        word.style.setProperty("--wm-rise", `${(1 - reveal) * 7}px`);
+      });
+      progressBar?.style.setProperty("--wm-progress", String(progress));
+      if (count) count.textContent = String(Math.min(4, Math.floor(progress * 4) + 1)).padStart(2, "0");
+      if (paused) words.forEach(word => { word.style.removeProperty("--wm-opacity"); word.style.removeProperty("--wm-rise"); });
+    };
+    const schedule = () => { if (!frame && visible) frame = requestAnimationFrame(render); };
+    const observer = new IntersectionObserver(entries => { visible = entries.some(entry => entry.isIntersecting); if (visible) schedule(); }, { rootMargin: "100px" });
+    observer.observe(section);
+    window.addEventListener("scroll", schedule, { passive: true, signal: controller.signal });
+    window.addEventListener("resize", schedule, { passive: true, signal: controller.signal });
+    preference.addEventListener("change", render, { signal: controller.signal });
+    const motionObserver = new MutationObserver(render);
+    motionObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    document.addEventListener("astro:before-swap", () => { controller.abort(); observer.disconnect(); motionObserver.disconnect(); cancelAnimationFrame(frame); }, { once: true });
+    render();
+  }
+</script>
