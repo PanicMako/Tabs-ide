@@ -2,6 +2,23 @@
 
 All notable changes to Tabs IDE will be documented in this file.
 
+## [v1.3.32] - 2026-10-05
+
+### GitHub branding for Source Control and workspace refinements
+
+Tabs includes updated Git identity across the workspace, cleaner Source Control headers matching your theme typography, and improved website release detection.
+
+### What changed
+
+- Git tool icons in the workspace shell and onboarding wizard now display the GitHub mascot for immediate visual recognition.
+- The Source Control sidebar header now includes the GitHub icon and renders repository names with your configured UI font and clean uppercase tracking.
+- The download and release resolver dynamically surfaces the latest desktop builds across release channels.
+- Source trees are reorganized into isolated application and Code-OSS runtime packages to streamline desktop builds.
+
+### Upgrade notes
+
+macOS builds are not Apple Developer ID signed or notarized. After attempting to open a downloaded build, use System Settings → Privacy & Security → Open Anyway. The macOS updater preserves quarantine; its independent update signature does not replace Apple approval.
+
 ## [v1.3.31] - 2026-10-03
 
 ### Public Beta: clearer defaults and privacy

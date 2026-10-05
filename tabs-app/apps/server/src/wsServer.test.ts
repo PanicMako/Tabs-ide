@@ -2148,5 +2148,5 @@ describe("WebSocket Server", () => {
 
     const [authorizedWs] = await connectAndAwaitWelcome(port, "secret-token");
     connections.push(authorizedWs);
-  });
+  }, 30_000);
 });

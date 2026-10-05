@@ -1,6 +1,6 @@
 {
   "name": "@tabs/contracts",
-  "version": "1.3.31",
+  "version": "1.3.32",
   "private": true,
   "files": [
     "dist"
