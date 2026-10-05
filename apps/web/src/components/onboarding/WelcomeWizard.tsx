@@ -1,40 +1,6 @@
 import { useAtomValue } from "@effect/atom-react";
 import type { DesktopCodeHostState } from "@tabs/contracts";
-import {
-  ArrowRightIcon,
-  BotIcon,
-  CheckCircle2Icon,
-  CheckIcon,
-  ChevronDownIcon,
-  ChevronUpIcon,
-  CodeIcon,
-  CopyIcon,
-  CpuIcon,
-  ExternalLinkIcon,
-  FileDiffIcon,
-  FlaskConicalIcon,
-  FolderIcon,
-  FolderPlusIcon,
-  GitBranchIcon,
-  GithubIcon,
-  GlobeIcon,
-  LaptopIcon,
-  MoonIcon,
-  MonitorIcon,
-  SunIcon,
-  PlayIcon,
-  PlusIcon,
-  RefreshCwIcon,
-  RocketIcon,
-  PaletteIcon,
-  TerminalIcon,
-  TerminalSquareIcon,
-  Volume2Icon,
-  VolumeXIcon,
-  WorkflowIcon,
-  XIcon,
-  LayersIcon,
-} from "lucide-react";
+import { VolumeXIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useCompleteOnboarding } from "../../onboarding/firstRun";
@@ -42,6 +8,7 @@ import { readNativeApi } from "../../nativeApi";
 import { newCommandId, newProjectId, cn } from "../../lib/utils";
 import { readModelStateAtom } from "../../state/readModel";
 import { updateClientSettings } from "../../state/settings";
+import { isElectron } from "../../env";
 import { APP_VERSION } from "../../branding";
 import { ClaudeAI, GoogleGemini, OpenAI, OpenCodeIcon } from "../Icons";
 import { Badge } from "../ui/badge";
@@ -52,109 +19,13 @@ import {
   getInitialWallpaper,
   saveWallpaperPreference,
 } from "./wallpapers";
+import { AppIconStep, AppearanceStep } from "./PersonalizeSteps";
+import { WelcomeOverview } from "./WelcomeOverview";
 import { WallpaperTopBar } from "./WallpaperTopBar";
 import { WallpaperGalleryModal } from "./WallpaperGalleryModal";
 
 export interface WelcomeWizardProps {
   readonly onDone?: () => void;
-}
-
-interface PrototypeTool {
-  readonly id: string;
-  readonly label: string;
-  readonly iconKind:
-    | "code"
-    | "agents"
-    | "launchpad"
-    | "claude"
-    | "git"
-    | "browser"
-    | "figma"
-    | "chatgpt"
-    | "testing"
-    | "terminal";
-}
-
-interface PrototypeProject {
-  readonly id: string;
-  readonly name: string;
-  readonly branch: string;
-  readonly description: string;
-  readonly tools: readonly PrototypeTool[];
-}
-
-const INITIAL_PROJECTS: readonly PrototypeProject[] = [
-  {
-    id: "project-1",
-    name: "Project 1",
-    branch: "main",
-    description: "Production Web Service • 5 dedicated tools",
-    tools: [
-      { id: "code", label: "Code", iconKind: "code" },
-      { id: "agents", label: "Agents", iconKind: "agents" },
-      { id: "git", label: "Git", iconKind: "git" },
-      { id: "browser", label: "Browser", iconKind: "browser" },
-      { id: "testing", label: "Testing (optional)", iconKind: "testing" },
-    ],
-  },
-  {
-    id: "project-2",
-    name: "Project 2",
-    branch: "feat/ai-onboarding",
-    description: "Full-Stack AI Application • 9 dedicated tools",
-    tools: [
-      { id: "code", label: "Code", iconKind: "code" },
-      { id: "agents", label: "Agents", iconKind: "agents" },
-      { id: "launchpad", label: "Launchpad", iconKind: "launchpad" },
-      { id: "claude", label: "claude", iconKind: "claude" },
-      { id: "git", label: "Git", iconKind: "git" },
-      { id: "browser", label: "Browser", iconKind: "browser" },
-      { id: "figma", label: "figma", iconKind: "figma" },
-      { id: "chatgpt", label: "chatgpt", iconKind: "chatgpt" },
-      { id: "testing", label: "Testing (optional)", iconKind: "testing" },
-    ],
-  },
-  {
-    id: "project-3",
-    name: "Project 3",
-    branch: "main",
-    description: "Native Desktop Runtime • 6 dedicated tools",
-    tools: [
-      { id: "code", label: "Code", iconKind: "code" },
-      { id: "agents", label: "Agents", iconKind: "agents" },
-      { id: "launchpad", label: "Launchpad", iconKind: "launchpad" },
-      { id: "git", label: "Git", iconKind: "git" },
-      { id: "terminal", label: "Terminal", iconKind: "terminal" },
-      { id: "testing", label: "Testing (optional)", iconKind: "testing" },
-    ],
-  },
-];
-
-const PROTOTYPE_PROJECTS = INITIAL_PROJECTS;
-const SAMPLE_PROJECTS = INITIAL_PROJECTS;
-
-function renderToolIcon(iconKind: PrototypeTool["iconKind"]) {
-  switch (iconKind) {
-    case "code":
-      return <WorkflowIcon className="size-3.5" />;
-    case "agents":
-      return <BotIcon className="size-3.5" />;
-    case "launchpad":
-      return <RocketIcon className="size-3.5" />;
-    case "claude":
-      return <ClaudeAI className="size-3.5" />;
-    case "git":
-      return <GithubIcon className="size-3.5" />;
-    case "browser":
-    case "figma":
-      return <GlobeIcon className="size-3.5" />;
-    case "chatgpt":
-      return <OpenAI className="size-3.5" />;
-    case "testing":
-      return <FlaskConicalIcon className="size-3.5" />;
-    case "terminal":
-      return <TerminalSquareIcon className="size-3.5" />;
-  }
 }
 
 const PROVIDERS = [
@@ -737,15 +608,6 @@ export function WelcomeWizard({ onDone }: WelcomeWizardProps) {
       : true,
   );
 
-  // Prototype interactive state: dynamic project list and per-project tool state
-  const [projectsList, setProjectsList] = useState<PrototypeProject[]>([...INITIAL_PROJECTS]);
-  const [activeProjectId, setActiveProjectId] = useState<string>("project-2");
-  const [activeToolsByProject, setActiveToolsByProject] = useState<Record<string, string>>({
-    "project-1": "agents",
-    "project-2": "agents",
-    "project-3": "code",
-  });
-
   const readModel = useAtomValue(readModelStateAtom);
   const projects = readModel.projects;
 
@@ -1076,47 +938,6 @@ export function WelcomeWizard({ onDone }: WelcomeWizardProps) {
     setTimeout(() => setCopiedCommand(false), 2000);
   }, []);
 
-  const handleAddProject = useCallback(() => {
-    void playClick();
-    const nextNum = projectsList.length + 1;
-    const newId = `project-${nextNum}`;
-    const newName = `Project ${nextNum}`;
-    const newProj: PrototypeProject = {
-      id: newId,
-      name: newName,
-      branch: "main",
-      description: `Workspace ${nextNum} • Custom tool set`,
-      tools: [
-        { id: "code", label: "Code", iconKind: "code" },
-        { id: "agents", label: "Agents", iconKind: "agents" },
-        { id: "launchpad", label: "Launchpad", iconKind: "launchpad" },
-        { id: "git", label: "Git", iconKind: "git" },
-        { id: "browser", label: "Browser", iconKind: "browser" },
-        { id: "testing", label: "Testing (optional)", iconKind: "testing" },
-      ],
-    };
-    setProjectsList((prev) => [...prev, newProj]);
-    setActiveProjectId(newId);
-    setActiveToolsByProject((prev) => ({ ...prev, [newId]: "code" }));
-  }, [projectsList.length, playClick]);
-
-  const handleCloseProject = useCallback(
-    (projId: string) => {
-      void playClick();
-      if (projectsList.length <= 1) return;
-      setProjectsList((prev) => {
-        const next = prev.filter((p) => p.id !== projId);
-        if (activeProjectId === projId) {
-          const idx = prev.findIndex((p) => p.id === projId);
-          const fallback = next[Math.max(0, idx - 1)] ?? next[0];
-          if (fallback) setActiveProjectId(fallback.id);
-        }
-        return next;
-      });
-    },
-    [projectsList.length, activeProjectId, playClick],
-  );
-
   const handlePickFolder = useCallback(async () => {
     void playClick();
     const api = readNativeApi();
@@ -1128,29 +949,6 @@ export function WelcomeWizard({ onDone }: WelcomeWizardProps) {
     }
     if (folder) {
       setSelectedFolder(folder);
-      const folderName = folder.split(/[/\\]/).findLast((s) => s.trim().length > 0) ?? folder;
-      setProjectsList((prev) => {
-        const existing = prev.find((p) => p.name === folderName);
-        if (existing) {
-          setActiveProjectId(existing.id);
-          return prev;
-        }
-        const newProj: PrototypeProject = {
-          id: `project-${prev.length + 1}`,
-          name: folderName,
-          branch: "main",
-          description: `Imported local workspace: ${folder}`,
-          tools: [
-            { id: "code", label: "Code", iconKind: "code" },
-            { id: "agents", label: "Agents", iconKind: "agents" },
-            { id: "launchpad", label: "Launchpad", iconKind: "launchpad" },
-            { id: "git", label: "Git", iconKind: "git" },
-            { id: "testing", label: "Testing (optional)", iconKind: "testing" },
-          ],
-        };
-        setActiveProjectId(newProj.id);
-        return [...prev, newProj];
-      });
     }
   }, [playClick]);
 
@@ -1357,13 +1155,6 @@ export function WelcomeWizard({ onDone }: WelcomeWizardProps) {
   const currentProviderMeta = PROVIDERS.find((p) => p.id === selectedProvider) ?? PROVIDERS[0];
   const CurrentProviderIcon = currentProviderMeta.icon;
 
-  const currentProject =
-    projectsList.find((p) => p.id === activeProjectId) ?? projectsList[0] ?? INITIAL_PROJECTS[0]!;
-  const activeToolId =
-    activeToolsByProject[activeProjectId] ?? currentProject.tools[0]?.id ?? "code";
-  const activeToolMeta =
-    currentProject.tools.find((t) => t.id === activeToolId) ?? currentProject.tools[0]!;
-
   const isSystemDark = systemPrefersDark;
 
   const resolvedThemeVariant: "dark" | "light" =
@@ -1382,6 +1173,9 @@ export function WelcomeWizard({ onDone }: WelcomeWizardProps) {
     effectiveAppIconVariant === "light"
       ? "/onboarding/app-icon-light.png"
       : "/onboarding/app-icon-dark.png";
+
+  const clientPlatform = window.desktopBridge?.getClientPlatform?.() ?? navigator.platform;
+  const hasNativeWindowControls = isElectron && /darwin|mac|win/i.test(clientPlatform);
 
   return (
     <div className="relative flex min-h-screen w-full flex-col justify-between overflow-x-hidden overflow-y-auto bg-black text-white select-none antialiased">
@@ -1437,15 +1231,24 @@ export function WelcomeWizard({ onDone }: WelcomeWizardProps) {
       ────────────────────────────────────────────────────────────────────── */}
       <AnimatedHalftoneCanvas isLaunching={isLaunching} isSkipping={isSkipping} />
 
+      {/* Keep setup content below the same native control strip used by the desktop window. */}
+      {hasNativeWindowControls && (
+        <div
+          aria-hidden="true"
+          data-onboarding-titlebar
+          className="drag-region relative z-40 h-[env(titlebar-area-height,52px)] min-h-[44px] w-full shrink-0"
+        />
+      )}
+
       {/* Top Header with Authentic App Icon & Ambient Music Controls */}
       <header
         className={cn(
-          "relative z-40 mx-auto flex w-full max-w-5xl items-center justify-between px-6 py-5 sm:px-8 transition-all duration-700 ease-in-out",
+          "relative z-40 mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-4 px-6 py-5 sm:px-8 transition-all duration-700 ease-in-out",
           isLaunching && "-translate-y-16 opacity-0 pointer-events-none",
           isSkipping && "-translate-y-10 opacity-0 pointer-events-none",
         )}
       >
-        <div className="flex items-center gap-3.5">
+        <div className="flex shrink-0 items-center gap-3.5">
           {/* Authentic Tabs Desktop App Icon: Clean, prominent, natural squircle without any enclosing border ring */}
           <img
             src={currentLogoSrc}
@@ -1459,12 +1262,12 @@ export function WelcomeWizard({ onDone }: WelcomeWizardProps) {
                 Setup
               </span>
             </div>
-            <p className="text-xs text-white/60">Unified AI Pair-Programming Workbench</p>
+            <p className="text-xs text-white/60">Make yourself at home.</p>
           </div>
         </div>
 
         {/* Ambient Lo-Fi & Wallpaper Controls */}
-        <div className="flex items-center gap-2.5">
+        <div className="flex min-w-0 flex-wrap items-center gap-2.5">
           {/* Ambient Music Control */}
           <button
             type="button"
@@ -1532,7 +1335,7 @@ export function WelcomeWizard({ onDone }: WelcomeWizardProps) {
         </div>
       </header>
 
-      {/* Main: Card carousel — card 0 = prototype, card 1 = icon, card 2 = theme */}
+      {/* Main: Card carousel — card 0 = welcome, card 1 = icon, card 2 = theme */}
       <main
         className={cn(
           "relative z-10 flex w-full flex-1 flex-col justify-center py-2 transition-all duration-1000 ease-[cubic-bezier(0.16,1,0.3,1)]",
@@ -1547,767 +1350,66 @@ export function WelcomeWizard({ onDone }: WelcomeWizardProps) {
             className="flex w-full items-center transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-transform"
             style={{ transform: `translateX(-${setupStep * 100}%)` }}
           >
-            {/* ── SLIDE 0: Interactive Workbench Prototype ── */}
+            {/* ── SLIDE 0: Welcome overview ── */}
             <div
               inert={setupStep !== 0 ? true : undefined}
+              aria-hidden={setupStep !== 0}
               className={cn(
                 "w-full shrink-0 flex items-center justify-center px-4 sm:px-6",
                 setupStep === 0 ? "pointer-events-auto" : "pointer-events-none",
               )}
             >
-              <div className="w-full max-w-5xl mx-auto">
-                <div className="relative rounded-3xl border border-white/15 bg-black/50 p-6 sm:p-8 backdrop-blur-3xl shadow-2xl shadow-black/80 space-y-6">
-                  {/* Hero Banner: Clean, Punchy & Clear */}
-                  <div className="border-b border-white/10 pb-5">
-                    <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
-                      All Your Projects &amp; Tools in One Window
-                    </h2>
-                    <p className="mt-1.5 text-xs text-white/60 max-w-2xl leading-relaxed">
-                      Tabs lets you manage multiple projects simultaneously without window clutter.
-                      Each project has its own dedicated tool shelf, embedded Code-OSS editor,
-                      autonomous agents, and background dev processes.
-                    </p>
-                  </div>
-
-                  {/* 1-to-1 Interactive Tabs Workbench Prototype (Matching Real App Screenshot) */}
-                  <div className="rounded-2xl border border-white/20 bg-black/70 shadow-2xl overflow-hidden backdrop-blur-xl transition-all">
-                    {/* Top Window Bar: Real Tabs Project Chrome (1-to-1 with screenshot) */}
-                    <div className="flex items-end justify-between border-b border-white/10 bg-white/[0.04] px-3 pt-2.5 select-none overflow-x-auto [scrollbar-width:none]">
-                      <div className="flex items-end gap-1 min-w-0">
-                        {/* Traffic Lights (macOS Native Aesthetic) */}
-                        <div className="flex items-center gap-1.5 px-2 py-2 mr-2">
-                          <span className="size-2.5 rounded-full bg-[#ff5f57] border border-[#e0443e]/60 shadow-xs" />
-                          <span className="size-2.5 rounded-full bg-[#febc2e] border border-[#d89e24]/60 shadow-xs" />
-                          <span className="size-2.5 rounded-full bg-[#28c840] border border-[#1aab29]/60 shadow-xs" />
-                        </div>
-
-                        {/* Project Tabs */}
-                        {projectsList.map((proj) => {
-                          const isActive = proj.id === activeProjectId;
-                          return (
-                            <button
-                              key={proj.id}
-                              type="button"
-                              onClick={() => {
-                                setActiveProjectId(proj.id);
-                                void playClick();
-                              }}
-                              className={cn(
-                                "group relative inline-flex items-center gap-2 rounded-t-xl px-4 py-2 text-xs transition-all duration-150 cursor-pointer select-none",
-                                isActive
-                                  ? "-mb-[1px] bg-white text-black font-bold shadow-lg shadow-black/30 border-t border-x border-white z-10"
-                                  : "text-white/60 hover:text-white hover:bg-white/10 border-t border-x border-transparent font-medium",
-                              )}
-                            >
-                              <span className="truncate max-w-[130px]">{proj.name}</span>
-                              <span
-                                className={cn(
-                                  "size-3.5 rounded-full flex items-center justify-center transition-colors",
-                                  isActive
-                                    ? "text-black/50 hover:bg-black/10 hover:text-black"
-                                    : "text-white/30 hover:bg-white/15 hover:text-white",
-                                )}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleCloseProject(proj.id);
-                                }}
-                                title={`Close ${proj.name}`}
-                              >
-                                <XIcon className="size-2.5" />
-                              </span>
-                            </button>
-                          );
-                        })}
-
-                        {/* New Project Tab Button */}
-                        <button
-                          type="button"
-                          onClick={handleAddProject}
-                          title="Add New Project Workspace (e.g. Project 4)"
-                          className="p-1.5 mb-1 rounded-lg text-white/50 hover:text-white hover:bg-white/15 transition-colors cursor-pointer"
-                        >
-                          <PlusIcon className="size-3.5" />
-                        </button>
-                      </div>
-
-                      {/* Active Workspace Info on Right */}
-                      <div className="hidden sm:flex items-center gap-2 pb-2 text-[11px] text-white/50">
-                        <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                        <GitBranchIcon className="size-3 text-emerald-400" />
-                        <span className="font-mono text-white/70">{currentProject.branch}</span>
-                        <span className="text-white/30">•</span>
-                        <span className="text-[10px] text-white/50">
-                          {currentProject.tools.length} tools
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Docked Tool Shelf: Frosted Lens with Dotted Grid Pattern */}
-                    <div className="flex items-center justify-center py-2.5 px-4 border-b border-white/10 bg-black/40">
-                      <div
-                        role="tablist"
-                        aria-label="Project tool shelf"
-                        className="relative inline-flex max-w-full items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-full border border-white/20 p-1 shadow-2xl backdrop-blur-2xl"
-                        style={{
-                          backgroundImage: `radial-gradient(rgba(255, 255, 255, 0.22) 1.2px, transparent 1.2px)`,
-                          backgroundSize: "6px 6px",
-                          backgroundColor: "rgba(16, 16, 20, 0.8)",
-                        }}
-                      >
-                        {currentProject.tools.map((tool) => {
-                          const isActive = tool.id === activeToolId;
-                          return (
-                            <button
-                              key={tool.id}
-                              type="button"
-                              role="tab"
-                              aria-selected={isActive}
-                              onClick={() => {
-                                setActiveToolsByProject((prev) => ({
-                                  ...prev,
-                                  [activeProjectId]: tool.id,
-                                }));
-                                void playClick();
-                              }}
-                              className={cn(
-                                "relative z-10 flex items-center gap-1.5 rounded-full px-3.5 py-1 text-xs font-medium transition-all duration-200 cursor-pointer select-none whitespace-nowrap",
-                                isActive
-                                  ? "bg-white text-black font-bold shadow-md shadow-white/15 scale-[1.02]"
-                                  : "text-white/70 hover:text-white hover:bg-white/10",
-                              )}
-                            >
-                              {renderToolIcon(tool.iconKind)}
-                              <span>{tool.label}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Dedicated Project Tool Header (Explains multi-project architecture clearly) */}
-                    <div className="flex flex-wrap items-center justify-between border-b border-white/10 bg-white/[0.02] px-4 py-2 gap-2 text-xs">
-                      <div className="flex items-center gap-2">
-                        <div className="flex size-5 items-center justify-center rounded-md bg-white/10 text-white">
-                          {renderToolIcon(activeToolMeta.iconKind)}
-                        </div>
-                        <span className="font-semibold text-white capitalize">
-                          {activeToolMeta.label}
-                        </span>
-                        <span className="text-white/30">•</span>
-                        <span className="text-[11px] text-white/60">
-                          {activeToolId === "code" &&
-                            "Full Code-OSS editor with Monaco buffers & language servers"}
-                          {activeToolId === "agents" &&
-                            "Autonomous AI coding agents with multi-turn diff execution"}
-                          {activeToolId === "launchpad" &&
-                            "Background dev servers & process supervisor"}
-                          {activeToolId === "git" && "Visual branch history, staging, and sync"}
-                          {activeToolId === "browser" &&
-                            "Integrated Chromium tab with live DOM inspection"}
-                          {activeToolId === "testing" && "Automated test watcher & runner"}
-                          {activeToolId === "terminal" && "Dedicated interactive zsh/bash shell"}
-                          {(activeToolId === "claude" ||
-                            activeToolId === "chatgpt" ||
-                            activeToolId === "figma") &&
-                            `Integrated ${activeToolMeta.label} tool tab`}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 text-[10px] text-white/40 font-mono">
-                        <span className="rounded bg-white/5 px-1.5 py-0.5 border border-white/5 text-emerald-400/90 font-medium">
-                          {currentProject.name}
-                        </span>
-                        <span>Isolated Workspace</span>
-                      </div>
-                    </div>
-
-                    {/* Sandbox Canvas Body: Real Visual Representations of Each Tool */}
-                    <div className="p-4 sm:p-5 min-h-[190px] flex flex-col justify-center bg-black/50">
-                      {activeToolId === "agents" && (
-                        <div className="space-y-3 font-mono text-xs">
-                          <div className="flex items-start gap-2.5">
-                            <span className="text-white/40 font-bold shrink-0">
-                              user@{currentProject.name.toLowerCase().replace(/\s+/g, "-")}:
-                            </span>
-                            <span className="text-white/90">
-                              Refactor session tokens to support zero-trust credentials and refresh
-                              silently.
-                            </span>
-                          </div>
-                          <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3 space-y-2">
-                            <div className="flex items-center justify-between text-[11px] text-white/60">
-                              <div className="flex items-center gap-1.5">
-                                <CurrentProviderIcon className="size-3.5 text-white" />
-                                <span className="font-bold text-white capitalize">
-                                  {currentProviderMeta.name} Agent
-                                </span>
-                                <span className="text-white/40">•</span>
-                                <span className="text-emerald-400 font-medium">
-                                  3 tools executed
-                                </span>
-                              </div>
-                              <span className="text-[10px] font-mono text-white/40">
-                                auth/session.ts
-                              </span>
-                            </div>
-                            <div className="rounded-lg bg-black/60 p-2.5 text-[11px] leading-relaxed select-text font-mono border border-white/5">
-                              <div className="text-red-400/80">- return verifyToken(rawToken);</div>
-                              <div className="text-emerald-400/90">
-                                + return await zeroTrustAuth.verifyAndRefreshAsync(rawToken, &#123;
-                                autoRotate: true &#125;);
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2 pt-1">
-                              <span className="rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-bold">
-                                ✓ Accept Diff
-                              </span>
-                              <span className="rounded-md bg-white/10 text-white/70 px-2 py-0.5 text-[10px]">
-                                ⚡ Run Tests
-                              </span>
-                              <span className="rounded-md bg-white/10 text-white/70 px-2 py-0.5 text-[10px]">
-                                💬 Ask Follow-up
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {activeToolId === "code" && (
-                        <div className="rounded-xl border border-white/10 bg-black/80 p-3.5 space-y-2 font-mono text-xs">
-                          <div className="flex items-center justify-between text-[11px] border-b border-white/10 pb-2">
-                            <div className="flex items-center gap-2 text-white/70">
-                              <CodeIcon className="size-3.5 text-cyan-400" />
-                              <span className="text-white font-semibold">
-                                src/core/sessionManager.ts
-                              </span>
-                              <span className="text-white/40">&gt; verifyAndRefreshAsync()</span>
-                            </div>
-                            <span className="text-[10px] text-emerald-400 font-mono">
-                              Embedded Code-OSS
-                            </span>
-                          </div>
-                          <div className="grid grid-cols-12 gap-3 text-[11px] pt-1">
-                            <div className="col-span-3 border-r border-white/10 pr-2 space-y-1 text-white/50 text-[10px]">
-                              <div className="text-white/70 font-bold">▾ src/core/</div>
-                              <div className="pl-2 text-cyan-300 bg-white/5 rounded px-1">
-                                sessionManager.ts
-                              </div>
-                              <div className="pl-2">tokenDaemon.ts</div>
-                              <div className="pl-2">cryptoEngine.ts</div>
-                              <div className="text-white/40">package.json</div>
-                            </div>
-                            <div className="col-span-9 leading-relaxed text-white/80">
-                              <div>
-                                <span className="text-purple-400">export async function</span>{" "}
-                                <span className="text-blue-300">verifyAndRefreshAsync</span>(token:
-                                string) &#123;
-                              </div>
-                              <div className="pl-4 text-white/60">
-                                const session = <span className="text-purple-400">await</span>{" "}
-                                cryptoEngine.decrypt(token);
-                              </div>
-                              <div className="pl-4 text-emerald-400 font-bold">
-                                + if (session.ttl &lt; 300) return tokenDaemon.refresh(session);
-                              </div>
-                              <div className="pl-4 text-white/60">
-                                <span className="text-purple-400">return</span> session;
-                              </div>
-                              <div>&#125;</div>
-                            </div>
-                          </div>
-                          <div className="pt-1 flex items-center justify-between text-[10px] text-white/40 border-t border-white/5">
-                            <span>⌘K to prompt AI directly in line</span>
-                            <span>Language Server: TypeScript 5.8 • Ready</span>
-                          </div>
-                        </div>
-                      )}
-
-                      {activeToolId === "launchpad" && (
-                        <div className="rounded-xl border border-white/10 bg-black/80 p-3.5 space-y-2.5 font-mono text-xs">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <RocketIcon className="size-3.5 text-amber-400" />
-                              <span className="font-bold text-white">
-                                Preset: bun run dev:desktop
-                              </span>
-                              <span className="rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.2 text-[10px] font-bold">
-                                ● RUNNING
-                              </span>
-                            </div>
-                            <span className="text-[10px] text-cyan-300">
-                              port: 3000 (HTTP) • ws: 49152
-                            </span>
-                          </div>
-                          <div className="rounded-lg bg-black/90 p-2.5 text-[11px] text-white/70 space-y-0.5 border border-white/5">
-                            <div className="text-emerald-400">
-                              [vite] ready in 184ms • Vite v6.2.0 • HMR active
-                            </div>
-                            <div className="text-white/60">
-                              [server] WebSocket daemon listening on ws://localhost:49152
-                            </div>
-                            <div className="text-cyan-400/90">
-                              [electron] main window ready (renderer client id: 4)
-                            </div>
-                          </div>
-                          <div className="flex items-center justify-between text-[10px] text-white/40">
-                            <span>
-                              Background process managed independently for {currentProject.name}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={playClick}
-                              className="text-cyan-400 hover:underline"
-                            >
-                              Open in Internal Browser Tab &rarr;
-                            </button>
-                          </div>
-                        </div>
-                      )}
-
-                      {activeToolId === "git" && (
-                        <div className="space-y-2 text-xs">
-                          <div className="flex items-center justify-between text-white/60 text-[11px]">
-                            <div className="flex items-center gap-2">
-                              <GitBranchIcon className="size-3.5 text-cyan-400" />
-                              <span className="font-semibold text-white">
-                                Branch: {currentProject.branch}
-                              </span>
-                            </div>
-                            <span className="font-mono text-emerald-400">
-                              2 staged files ready to commit
-                            </span>
-                          </div>
-                          <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3 space-y-2 font-mono text-[11px]">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <span className="size-2 rounded-full bg-emerald-400" />
-                                <span className="text-white font-bold">auth/session.ts</span>
-                                <span className="text-emerald-400">(+14, -2)</span>
-                              </div>
-                              <span className="text-[10px] text-white/40">Staged</span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <span className="size-2 rounded-full bg-emerald-400" />
-                                <span className="text-white font-bold">contracts/tokens.ts</span>
-                                <span className="text-emerald-400">(+8, -0)</span>
-                              </div>
-                              <span className="text-[10px] text-white/40">Staged</span>
-                            </div>
-                            <div className="pt-2 border-t border-white/10 flex items-center justify-between">
-                              <span className="text-white/60 text-[11px]">
-                                Commit: feat(auth): add zero-trust token rotation
-                              </span>
-                              <button
-                                type="button"
-                                onClick={playClick}
-                                className="rounded-md bg-white text-black font-bold px-2.5 py-1 text-[10px] hover:bg-white/90"
-                              >
-                                Commit &amp; Sync
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {activeToolId === "browser" && (
-                        <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs space-y-2.5">
-                          <div className="flex items-center justify-between text-[11px] text-white/60">
-                            <div className="flex items-center gap-2">
-                              <GlobeIcon className="size-3.5 text-cyan-400" />
-                              <span className="font-medium text-white">
-                                Built-in Chromium Browser Tab
-                              </span>
-                            </div>
-                            <span className="font-mono text-emerald-400 text-[10px]">
-                              Zero Window Switching
-                            </span>
-                          </div>
-                          <div className="rounded-lg bg-black/60 p-2 font-mono text-[11px] text-cyan-300 flex items-center justify-between border border-white/5">
-                            <span>http://localhost:3000/dashboard</span>
-                            <span className="text-[10px] text-white/40">
-                              DevTools Attached • DOM Sync
-                            </span>
-                          </div>
-                          <div className="p-3 rounded-lg border border-white/5 bg-black/40 text-center text-white/60 text-[11px]">
-                            Interactive web application preview running inside {currentProject.name}
-                            . AI agents can inspect DOM elements and diagnose frontend errors live.
-                          </div>
-                        </div>
-                      )}
-
-                      {activeToolId === "testing" && (
-                        <div className="rounded-xl border border-white/10 bg-black/80 p-3.5 space-y-2 font-mono text-xs">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <FlaskConicalIcon className="size-3.5 text-emerald-400" />
-                              <span className="font-bold text-white">Automated Test Watcher</span>
-                            </div>
-                            <span className="text-emerald-400 font-bold text-[11px]">
-                              25 passed • 0 failed (461ms)
-                            </span>
-                          </div>
-                          <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden">
-                            <div className="bg-emerald-400 h-full w-full" />
-                          </div>
-                          <div className="space-y-1 text-[11px] text-white/70 pt-1">
-                            <div className="flex items-center justify-between">
-                              <span className="text-emerald-300">
-                                ✓ src/auth/session.test.ts (12 tests)
-                              </span>
-                              <span className="text-white/40 text-[10px]">14ms</span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <span className="text-emerald-300">
-                                ✓ src/contracts/tokens.test.ts (13 tests)
-                              </span>
-                              <span className="text-white/40 text-[10px]">8ms</span>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {activeToolId === "terminal" && (
-                        <div className="rounded-xl border border-white/10 bg-black/80 p-3 font-mono text-xs space-y-1">
-                          <div className="text-emerald-400">
-                            tabs/{currentProject.name} ({currentProject.branch}) $ bun run build
-                          </div>
-                          <div className="text-white/70 text-[11px]">
-                            $ turbo run build --filter={currentProject.id}
-                          </div>
-                          <div className="text-white/50 text-[11px]">
-                            ✓ Compiled in 1.42s • zero errors • artifact ready
-                          </div>
-                        </div>
-                      )}
-
-                      {(activeToolId === "claude" ||
-                        activeToolId === "chatgpt" ||
-                        activeToolId === "figma") && (
-                        <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3 text-xs space-y-2 font-mono">
-                          <div className="flex items-center justify-between text-[11px] text-white/70">
-                            <span className="font-bold text-white capitalize">
-                              {activeToolMeta.label} Embedded Tool Tab
-                            </span>
-                            <span className="text-cyan-400 text-[10px]">Project Webview</span>
-                          </div>
-                          <div className="rounded-lg bg-black/70 p-2 text-cyan-300 text-[11px] border border-white/5">
-                            https://app.{activeToolId}.com/project/{currentProject.id}
-                          </div>
-                          <p className="text-[11px] text-white/60 font-sans">
-                            Pin live Figma canvases, external provider consoles, or team
-                            documentation directly inside this project tab for friction-free
-                            reference.
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Next → footer inside prototype card */}
-                  <div className="flex items-center justify-between pt-2 border-t border-white/10">
-                    <span className="text-[11px] text-white/40">1 of 3 · Workspace overview</span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSetupStep(1);
-                        playClick();
-                      }}
-                      className="flex items-center gap-2 rounded-xl bg-white text-black font-bold text-xs px-5 py-2.5 hover:bg-neutral-100 transition-all duration-150 shadow-lg hover:shadow-white/20 cursor-pointer"
-                    >
-                      Next <ArrowRightIcon className="size-3.5" />
-                    </button>
-                  </div>
-                </div>
-              </div>
+              <WelcomeOverview
+                onNext={() => {
+                  setSetupStep(1);
+                  void playClick();
+                }}
+              />
             </div>
 
             {/* ── SLIDE 1: App Icon Picker ── */}
             <div
               inert={setupStep !== 1 ? true : undefined}
+              aria-hidden={setupStep !== 1}
               className={cn(
                 "w-full shrink-0 flex items-center justify-center px-4 sm:px-6",
                 setupStep === 1 ? "pointer-events-auto" : "pointer-events-none",
               )}
             >
-              <div className="w-full max-w-xl mx-auto">
-                <div className="relative rounded-3xl border border-white/15 bg-black/50 p-8 sm:p-10 backdrop-blur-3xl shadow-2xl shadow-black/80 space-y-8">
-                  {/* Header */}
-                  <div className="space-y-1.5">
-                    <p className="text-[11px] text-white/40 font-mono uppercase tracking-widest">
-                      Step 2 of 3
-                    </p>
-                    <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
-                      Choose your app icon
-                    </h2>
-                    <p className="text-sm text-white/55 leading-relaxed">
-                      This is the icon that appears in your Dock and application switcher when Tabs
-                      is running.
-                    </p>
-                  </div>
-
-                  {/* 3 real icon options: System (left), Dark (middle), Light (right) */}
-                  <div className="grid grid-cols-3 gap-4 sm:gap-5">
-                    {(
-                      [
-                        {
-                          id: "system" as const,
-                          label: "System",
-                          desc: "Follows your theme",
-                          src: "/onboarding/app-icon-system.png",
-                        },
-                        {
-                          id: "dark" as const,
-                          label: "Dark",
-                          desc: "Default dark shell",
-                          src: "/onboarding/app-icon-dark.png",
-                        },
-                        {
-                          id: "light" as const,
-                          label: "Light",
-                          desc: "Classic light shell",
-                          src: "/onboarding/app-icon-light.png",
-                        },
-                      ] as const
-                    ).map((icon) => (
-                      <button
-                        key={icon.id}
-                        type="button"
-                        onClick={() => handleAppIconSelect(icon.id)}
-                        className={cn(
-                          "group flex flex-col items-center gap-3.5 p-5 sm:p-6 rounded-2xl border transition-all duration-200 cursor-pointer",
-                          selectedAppIcon === icon.id
-                            ? "border-white/40 bg-white/12 shadow-xl ring-1 ring-white/30 scale-[1.03]"
-                            : "border-white/10 bg-white/[0.04] hover:bg-white/[0.08] hover:border-white/25 hover:scale-[1.01]",
-                        )}
-                      >
-                        <div
-                          className={cn(
-                            "w-20 h-20 rounded-3xl overflow-hidden shadow-2xl transition-transform duration-200",
-                            selectedAppIcon === icon.id
-                              ? "shadow-white/20 ring-2 ring-white/40"
-                              : "group-hover:scale-[1.04]",
-                          )}
-                        >
-                          <img
-                            src={icon.src}
-                            alt={icon.label}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                        <div className="text-center space-y-0.5">
-                          <p
-                            className={cn(
-                              "text-sm font-bold transition-colors",
-                              selectedAppIcon === icon.id
-                                ? "text-white"
-                                : "text-white/70 group-hover:text-white/90",
-                            )}
-                          >
-                            {icon.label}
-                          </p>
-                          <p
-                            className={cn(
-                              "text-[11px] leading-tight transition-colors",
-                              selectedAppIcon === icon.id
-                                ? "text-white/60"
-                                : "text-white/35 group-hover:text-white/50",
-                            )}
-                          >
-                            {icon.desc}
-                          </p>
-                          {selectedAppIcon === icon.id && (
-                            <div className="flex justify-center pt-1">
-                              <div className="size-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]" />
-                            </div>
-                          )}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Footer nav */}
-                  <div className="flex items-center justify-between pt-2 border-t border-white/10">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSetupStep(0);
-                        void playClick();
-                      }}
-                      className="flex items-center gap-1.5 text-xs text-white/50 hover:text-white/80 transition-colors cursor-pointer"
-                    >
-                      <ArrowRightIcon className="size-3 rotate-180" /> Back
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSetupStep(2);
-                        void playClick();
-                      }}
-                      className="flex items-center gap-2 rounded-xl bg-white text-black font-bold text-xs px-5 py-2.5 hover:bg-neutral-100 transition-all duration-150 shadow-lg hover:shadow-white/20 cursor-pointer"
-                    >
-                      Choose appearance <ArrowRightIcon className="size-3.5" />
-                    </button>
-                  </div>
-                </div>
-              </div>
+              <AppIconStep
+                selected={selectedAppIcon}
+                onSelect={handleAppIconSelect}
+                onBack={() => {
+                  setSetupStep(0);
+                  void playClick();
+                }}
+                onNext={() => {
+                  setSetupStep(2);
+                  void playClick();
+                }}
+              />
             </div>
 
             {/* ── SLIDE 2: Appearance Picker ── */}
             <div
               inert={setupStep !== 2 ? true : undefined}
+              aria-hidden={setupStep !== 2}
               className={cn(
                 "w-full shrink-0 flex items-center justify-center px-4 sm:px-6",
                 setupStep === 2 ? "pointer-events-auto" : "pointer-events-none",
               )}
             >
-              <div className="w-full max-w-xl mx-auto">
-                <div className="relative rounded-3xl border border-white/15 bg-black/50 p-8 sm:p-10 backdrop-blur-3xl shadow-2xl shadow-black/80 space-y-7">
-                  {/* Header */}
-                  <div className="space-y-1.5">
-                    <p className="text-[11px] text-white/40 font-mono uppercase tracking-widest">
-                      Step 3 of 3
-                    </p>
-                    <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
-                      Choose your appearance
-                    </h2>
-                    <p className="text-sm text-white/55 leading-relaxed">
-                      Pick your preferred color theme for Tabs. You can customize fonts and syntax
-                      themes later in Settings.
-                    </p>
-                  </div>
-
-                  {/* Color mode: System / Dark / Light */}
-                  <div className="space-y-3">
-                    <p className="text-[11px] text-white/40 uppercase tracking-widest font-semibold">
-                      Interface color mode
-                    </p>
-                    <div className="grid grid-cols-3 gap-3.5">
-                      {(
-                        [
-                          {
-                            id: "system" as const,
-                            label: "System",
-                            icon: MonitorIcon,
-                            desc: "Follows OS appearance",
-                          },
-                          {
-                            id: "dark" as const,
-                            label: "Dark",
-                            icon: MoonIcon,
-                            desc: "Default dark theme",
-                          },
-                          {
-                            id: "light" as const,
-                            label: "Light",
-                            icon: SunIcon,
-                            desc: "Crisp light theme",
-                          },
-                        ] as const
-                      ).map(({ id, label, icon: Icon, desc }) => (
-                        <button
-                          key={id}
-                          type="button"
-                          onClick={() => handleAppearanceSelect(id)}
-                          className={cn(
-                            "group flex flex-col items-center gap-3 p-5 rounded-2xl border transition-all duration-200 cursor-pointer",
-                            selectedAppearance === id
-                              ? "border-white/40 bg-white/12 shadow-xl ring-1 ring-white/30 scale-[1.02]"
-                              : "border-white/10 bg-white/[0.04] hover:bg-white/[0.08] hover:border-white/20 hover:scale-[1.01]",
-                          )}
-                        >
-                          <div
-                            className={cn(
-                              "size-12 rounded-xl flex items-center justify-center transition-colors",
-                              selectedAppearance === id
-                                ? "bg-white/15 text-white"
-                                : "bg-white/5 text-white/50 group-hover:text-white/80",
-                            )}
-                          >
-                            <Icon className="size-6" />
-                          </div>
-                          <div className="text-center space-y-0.5">
-                            <p
-                              className={cn(
-                                "text-sm font-bold transition-colors",
-                                selectedAppearance === id
-                                  ? "text-white"
-                                  : "text-white/70 group-hover:text-white/90",
-                              )}
-                            >
-                              {label}
-                            </p>
-                            <p
-                              className={cn(
-                                "text-[11px] leading-tight transition-colors",
-                                selectedAppearance === id ? "text-white/60" : "text-white/35",
-                              )}
-                            >
-                              {desc}
-                            </p>
-                          </div>
-                          {selectedAppearance === id && (
-                            <div className="flex justify-center pt-0.5">
-                              <div className="size-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]" />
-                            </div>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Reassurance / More themes note (replacing workbench theme palette as requested) */}
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 flex items-start gap-3.5 backdrop-blur-md">
-                    <div className="size-8 rounded-xl bg-white/10 flex items-center justify-center shrink-0 text-white/70 mt-0.5">
-                      <PaletteIcon className="size-4" />
-                    </div>
-                    <div className="space-y-0.5 text-left">
-                      <p className="text-xs font-semibold text-white/90">More themes in Settings</p>
-                      <p className="text-[11px] text-white/50 leading-relaxed">
-                        Additional themes (Dracula, Abyss, True Black), custom editor fonts, and
-                        syntax palettes can be configured anytime in Settings.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* CTA + back */}
-                  <div className="flex items-center gap-3 pt-2 border-t border-white/10">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSetupStep(1);
-                        void playClick();
-                      }}
-                      className="flex items-center gap-1.5 text-xs text-white/50 hover:text-white/80 transition-colors cursor-pointer shrink-0"
-                    >
-                      <ArrowRightIcon className="size-3 rotate-180" /> Back
-                    </button>
-                    <button
-                      type="button"
-                      disabled={isLaunching}
-                      onClick={triggerLaunch}
-                      className={cn(
-                        "flex-1 text-sm gap-2.5 rounded-xl px-6 py-3.5 font-bold transition-all duration-300 cursor-pointer flex items-center justify-center select-none shadow-lg",
-                        isLaunching
-                          ? "bg-white text-black shadow-[0_0_40px_rgba(255,255,255,0.9)] scale-105 border border-white"
-                          : "bg-white text-black hover:bg-neutral-100 hover:shadow-xl hover:shadow-white/25 active:scale-[0.98] border border-white/90",
-                      )}
-                    >
-                      {isLaunching ? (
-                        <>
-                          <RocketIcon className="size-4 fill-current animate-bounce text-cyan-500" />
-                          <span className="tracking-wide">Entering Workbench...</span>
-                        </>
-                      ) : (
-                        <>
-                          <PlayIcon className="size-4 fill-current" />
-                          <span>Enter Tabs Workbench</span>
-                          <ArrowRightIcon className="size-4 text-black/60" />
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              </div>
+              <AppearanceStep
+                selected={selectedAppearance}
+                resolvedMode={resolvedThemeVariant}
+                onSelect={handleAppearanceSelect}
+                onBack={() => {
+                  setSetupStep(1);
+                  void playClick();
+                }}
+                onLaunch={triggerLaunch}
+                launching={isLaunching}
+              />
             </div>
           </div>
         </div>
@@ -2316,7 +1418,7 @@ export function WelcomeWizard({ onDone }: WelcomeWizardProps) {
       {/* Subtle Footer with Diagnostics */}
       <footer
         className={cn(
-          "relative z-10 mx-auto flex w-full max-w-5xl items-center justify-between px-6 py-4 sm:px-8 text-xs text-white/40 transition-all duration-500 ease-in-out",
+          "relative z-10 mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-3 px-6 py-4 sm:px-8 text-xs text-white/40 transition-all duration-500 ease-in-out",
           isLaunching && "translate-y-8 opacity-0 pointer-events-none",
           isSkipping && "translate-y-6 opacity-0 pointer-events-none",
         )}

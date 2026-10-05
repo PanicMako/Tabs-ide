@@ -73,6 +73,7 @@ function Invoke-SilentInstaller {
     [Parameter(Mandatory)] [string]$InstallDir,
     [Parameter(Mandatory)] [string]$Label,
     [Diagnostics.Process]$LockHolder,
+    [string[]]$AdditionalArguments = @(),
     [int]$TimeoutSeconds = 1200
   )
 
@@ -85,7 +86,8 @@ function Invoke-SilentInstaller {
 
   # NSIS requires /D= to be the final installer argument.
   $arguments = @(
-    '/S',
+    '/S'
+  ) + $AdditionalArguments + @(
     "/D=$InstallDir"
   )
 
@@ -193,6 +195,28 @@ function Invoke-SilentInstaller {
   }
 }
 
+# Resolve redirected Desktop/Start Menu locations through the Windows shell.
+$shell = New-Object -ComObject WScript.Shell
+$shortcutPaths = @(
+  (Join-Path $shell.SpecialFolders.Item('Desktop') 'Tabs.lnk'),
+  (Join-Path $shell.SpecialFolders.Item('Programs') 'Tabs.lnk')
+)
+
+function Assert-TabsShortcuts {
+  param([string]$InstallDir)
+  $expectedTarget = Join-Path $InstallDir 'Tabs.exe'
+  foreach ($shortcutPath in $shortcutPaths) {
+    if (-not (Test-Path $shortcutPath -PathType Leaf)) {
+      throw "Tabs shortcut is missing: $shortcutPath"
+    }
+    $target = $shell.CreateShortcut($shortcutPath).TargetPath
+    if ($target -ine $expectedTarget -or -not (Test-Path $target -PathType Leaf)) {
+      throw "Tabs shortcut has an invalid target: $shortcutPath -> $target (expected $expectedTarget)"
+    }
+    Write-Host "Verified shortcut: $shortcutPath -> $target"
+  }
+}
+
 $installer = (Get-ChildItem tabs-app/release -Filter *.exe | Select-Object -First 1).FullName
 $initialInstaller = $installer
 if ($env:TABS_SMOKE_PREVIOUS_VERSION) {
@@ -222,7 +246,14 @@ try {
   Write-Host "Installing previous version into $installDir..."
   Invoke-SilentInstaller -Path $initialInstaller -InstallDir $installDir -Label "Initial NSIS install" -TimeoutSeconds 1200
   if (-not (Test-Path (Join-Path $installDir "Tabs.exe"))) { throw "Tabs.exe was not installed." }
-  Write-Host "Initial install completed."
+  Assert-TabsShortcuts -InstallDir $installDir
+  # Reproduce an existing Desktop link pointing to a missing old executable,
+  # and a Start Menu link the user deleted after an unsuccessful upgrade.
+  $staleShortcut = $shell.CreateShortcut($shortcutPaths[0])
+  $staleShortcut.TargetPath = Join-Path $installDir 'MissingOldTabs.exe'
+  $staleShortcut.Save()
+  Remove-Item $shortcutPaths[1]
+  Write-Host "Initial install completed; stale/missing shortcut fixtures prepared."
 
   $holderExe = Join-Path $installDir "TabsSmokeHold.exe"
   $unrelatedExe = Join-Path $unrelatedDir "rg.exe"
@@ -282,7 +313,7 @@ try {
     Write-Host "Direct old-version uninstall passed."
     return
   }
-  Invoke-SilentInstaller -Path $installer -InstallDir $installDir -Label "NSIS upgrade" -LockHolder $holder -TimeoutSeconds 1200
+  Invoke-SilentInstaller -Path $installer -InstallDir $installDir -Label "NSIS upgrade" -LockHolder $holder -AdditionalArguments @('--updated') -TimeoutSeconds 1200
   $holder.Refresh()
   $unrelated.Refresh()
   if (-not $holder.HasExited) { throw "Installer did not close a process running from its installation." }
@@ -290,7 +321,12 @@ try {
   if (-not (Test-Path (Join-Path $installDir "Tabs.exe"))) { throw "Tabs.exe is missing after upgrade." }
   if (-not (Test-Path (Join-Path $installDir "resources/tabs-code-oss/out/vs/code/electron-browser/workbench/workbench-dev.html") -PathType Leaf)) { throw "Upgrade is missing the bundled editor." }
   if (-not (Test-Path (Join-Path $installDir "resources/tabs-code-oss/node_modules/minimist/index.js") -PathType Leaf)) { throw "Upgrade is missing editor runtime dependencies." }
-  Write-Host "Windows legacy upgrade and process-scope checks passed."
+  Assert-TabsShortcuts -InstallDir $installDir
+  # A manual reinstall must also restore missing Desktop and Start Menu links.
+  foreach ($shortcutPath in $shortcutPaths) { Remove-Item $shortcutPath }
+  Invoke-SilentInstaller -Path $installer -InstallDir $installDir -Label "NSIS shortcut repair reinstall" -TimeoutSeconds 1200
+  Assert-TabsShortcuts -InstallDir $installDir
+  Write-Host "Windows legacy upgrade, shortcut repair, and process-scope checks passed."
 
   $smokeHome = Join-Path $env:RUNNER_TEMP "TabsLaunchSmoke"
   $desktopLog = Join-Path $smokeHome "userdata/logs/desktop-main.log"

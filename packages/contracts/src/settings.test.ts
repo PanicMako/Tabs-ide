@@ -498,3 +498,22 @@ describe("basic usage analytics settings", () => {
     );
   });
 });
+
+describe("ClientSettings animation preferences", () => {
+  it("defaults unsaved animations to Solari Grid and Monochrome", () => {
+    const settings = decodeClientSettings({});
+    expect([settings.splashLoaderStyle, settings.closeLoaderStyle]).toEqual(["solari", "solari"]);
+    expect([settings.splashLoaderPalette, settings.closeLoaderPalette]).toEqual(["mono", "mono"]);
+  });
+
+  it("preserves saved Molten Glass and colored palette selections", () => {
+    const settings = decodeClientSettings({
+      splashLoaderStyle: "glass",
+      closeLoaderStyle: "glass",
+      splashLoaderPalette: "block",
+      closeLoaderPalette: "block",
+    });
+    expect([settings.splashLoaderStyle, settings.closeLoaderStyle]).toEqual(["glass", "glass"]);
+    expect([settings.splashLoaderPalette, settings.closeLoaderPalette]).toEqual(["block", "block"]);
+  });
+});
