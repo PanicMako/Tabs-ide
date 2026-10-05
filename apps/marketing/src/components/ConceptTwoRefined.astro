@@ -8,6 +8,8 @@ import AgentRoster from "./AgentRoster.astro";
 import ReleaseLog from "./ReleaseLog.astro";
 import FooterSignature from "./FooterSignature.astro";
 import ToolSetupPaths from "./ToolSetupPaths.astro";
+import WorkspaceManifesto from "./WorkspaceManifesto.astro";
+import ProjectContinuity from "./ProjectContinuity.astro";
 import "../styles/concept-one.css";
 import "../styles/concept-two-refined.css";
 const projects = [
@@ -62,11 +64,9 @@ const workflows = [
     <div class="e2-tool-index"><span>ALREADY AT HOME</span>{([['Code2','Code'],['Bot','Agents'],['Rocket','Launchpad'],['GitBranch','Git'],['Globe','Browser']] as const).map(([icon,name])=><span><Icon name={icon} size={18}/>{name}</span>)}</div>
   </section>
 
-  <section class="e2-manifesto">
-    <div class="hs-wrap e2-manifesto-grid"><div><p class="e2-eyebrow">01 / THE BIG IDEA</p><h2>Keep the work.<br/><em>Lose the<br/>window shuffle.</em></h2><p class="e2-manifesto-intro">An idea becomes a conversation, code, a running app, a review. Tabs gives that whole journey a home.</p><span class="e2-cross" aria-hidden="true">✳</span></div>
-      <div class="e2-principles">{[["01","Projects across the top.","Client work, your own app, the next experiment. Move between codebases by choosing a project tab."],["02","Tools with room to breathe.","Your editor, agent conversations, launchpad presets, Git, and browser each get their own view. Choose the tool you need from the toolbar."],["03","A workspace that fits you.","Add your web tools and command-line tools. Save launchpad presets. Arrange each project around how you actually work."]].map(([n,title,copy])=><div class="e2-principle"><span>{n}</span><div><h3>{title}</h3><p>{copy}</p></div></div>)}</div>
-    </div>
-  </section>
+  <ProjectContinuity />
+
+  <WorkspaceManifesto />
 
   <section class="e2-tools hs-wrap" id="v2-workspace">
     <div class="e2-section-heading"><p class="e2-eyebrow">02 / BUILT IN, NOT BOLTED ON</p><div><h2>Get into the work.<br/><em>Stay in your element.</em></h2><p>A Code OSS editor. Project conversations with your agents. Saved launchpad presets, visual Git, and an integrated browser. Follow the process, one view at a time.</p></div></div>

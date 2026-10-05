@@ -13,7 +13,7 @@ export function WelcomeOverview({ onNext }: { readonly onNext: () => void }) {
           <h2
             id="welcome-overview-title"
             style={{ fontFamily: "'Syne', sans-serif" }}
-            className="text-[42px] font-extrabold leading-[1.04] tracking-[-0.055em] text-white sm:text-[54px]"
+            className="text-[42px] font-semibold leading-[1.04] tracking-[-0.055em] text-white sm:text-[54px]"
           >
             Bigger than
             <br />
