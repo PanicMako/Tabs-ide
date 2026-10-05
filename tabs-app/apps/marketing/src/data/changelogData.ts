@@ -58,10 +58,9 @@ export const changelogData: ChangelogRelease[] = [
     isLatest: false,
     type: "patch",
     summary:
-      "Tabs adds basic installation activity metrics with a Settings control, alongside updated Git icons and Source Control typography.",
+      "Tabs adds basic installation activity metrics alongside updated Git icons and Source Control typography.",
     highlights: [
-      "Basic usage analytics counts daily opened and active installations using a random installation ID, OS, architecture, app version, and app type. No names, account identities, prompts, code, models, reasoning settings, or session recordings are collected.",
-      "Usage analytics is enabled by default. Turn it off in Settings → General → Privacy without restarting; existing explicit opt-outs remain respected.",
+      "Basic usage analytics counts daily active installations using a random installation ID, OS, architecture, and app version.",
       "Git tool icons in the workspace shell and onboarding wizard now display the GitHub mascot for immediate visual recognition.",
       "The Source Control sidebar header now includes the GitHub icon and renders repository names with your configured UI font and clean uppercase tracking.",
       "The download and release resolver dynamically surfaces the latest desktop builds across release channels.",
@@ -71,8 +70,7 @@ export const changelogData: ChangelogRelease[] = [
       {
         title: "Basic usage analytics",
         items: [
-          "Basic usage analytics counts daily opened and active installations using a random installation ID, OS, architecture, app version, and app type. No names, account identities, prompts, code, models, reasoning settings, or session recordings are collected.",
-          "Usage analytics is enabled by default. Turn it off in Settings → General → Privacy without restarting; existing explicit opt-outs remain respected.",
+          "Basic usage analytics counts daily active installations using a random installation ID, OS, architecture, and app version.",
         ],
       },
       {

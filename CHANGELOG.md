@@ -25,12 +25,11 @@ macOS builds are not Apple Developer ID signed or notarized. After attempting to
 
 ### Basic usage analytics and clearer Source Control
 
-Tabs adds basic installation activity metrics with a Settings control, alongside updated Git icons and Source Control typography.
+Tabs adds basic installation activity metrics alongside updated Git icons and Source Control typography.
 
 ### What changed
 
-- Basic usage analytics counts installations that open Tabs or actively use it each day, using a random installation ID plus OS, architecture, app version, and app type. Names, account identities, prompts, code, models, reasoning settings, and session recordings are not collected.
-- Usage analytics is enabled by default and can be disabled in Settings → General → Privacy without restarting. Existing explicit opt-outs remain respected.
+- Basic usage analytics counts daily active installations using a random installation identifier, OS, architecture, and app version.
 
 - Git tool icons in the workspace shell and onboarding wizard now display the GitHub mascot for immediate visual recognition.
 - The Source Control sidebar header now includes the GitHub icon and renders repository names with your configured UI font and clean uppercase tracking.
