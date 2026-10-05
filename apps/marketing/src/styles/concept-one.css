@@ -60,7 +60,7 @@
 .headspace .hs-brand-divider {
   display: inline-block;
   width: 1.5px;
-  height: 20px;
+  height: 23px;
   background: #e2e8f0;
   margin: 0 15px;
   flex-shrink: 0;
@@ -71,7 +71,7 @@
   justify-content: center;
   font-family: inherit;
   font-size: 8px;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: 0.14em;
   line-height: 1.15;
   color: #0e172a;
@@ -1458,12 +1458,13 @@
     margin-left: 7px;
   }
   .headspace .hs-brand-divider {
-    height: 17px;
+    height: 19px;
     margin: 0 12px;
   }
   .headspace .hs-access-tag {
     font-size: 7px;
     letter-spacing: 0.12em;
+    font-weight: 700;
   }
   .headspace .hs-access-badge {
     font-size: 7.5px;
@@ -1677,12 +1678,13 @@
     margin-left: 5px;
   }
   .headspace .hs-brand-divider {
-    height: 14px;
+    height: 16px;
     margin: 0 8px;
   }
   .headspace .hs-access-tag {
     font-size: 6.5px;
     letter-spacing: 0.1em;
+    font-weight: 700;
   }
   .headspace .hs-access-badge {
     font-size: 7px;
