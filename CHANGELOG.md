@@ -2,6 +2,25 @@
 
 All notable changes to Tabs IDE will be documented in this file.
 
+## [v1.3.33] - 2026-10-05
+
+### A clearer welcome to Tabs
+
+Setup now offers a simpler introduction, an interactive preview of the workspace, and larger app icon choices. New installations use Solari Grid animations in Monochrome.
+
+### What changed
+
+- Explore miniature Code, Agents, Launchpad, Git, and Browser views with a tab for each example project.
+- See how to add websites or terminal commands to your toolbar and keep the tools you use.
+- Choose an app icon and appearance in refreshed setup screens with Syne headings. Finishing setup opens Themes for further customization.
+- Setup keeps its header clear of native macOS and Windows window controls, including at smaller window sizes.
+- New installations use Solari Grid with the Monochrome palette for startup and close animations. Saved animation choices remain unchanged.
+- Windows installation and updates refresh Desktop and Start menu shortcuts so they point to the installed application.
+
+### Upgrade notes
+
+macOS builds are not Apple Developer ID signed or notarized. After attempting to open a downloaded build, use System Settings → Privacy & Security → Open Anyway.
+
 ## [v1.3.32] - 2026-10-05
 
 ### Basic usage analytics and clearer Source Control

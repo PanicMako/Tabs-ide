@@ -92,7 +92,7 @@ export const DEFAULT_PROMPT_FONT_SIZE = 13;
 
 export const SplashLoaderStyle = Schema.Literals(["glass", "solari"]);
 export type SplashLoaderStyle = typeof SplashLoaderStyle.Type;
-export const DEFAULT_SPLASH_LOADER_STYLE: SplashLoaderStyle = "glass";
+export const DEFAULT_SPLASH_LOADER_STYLE: SplashLoaderStyle = "solari";
 
 export const SplashLoaderPalette = Schema.Literals(["block", "mono"]);
 export type SplashLoaderPalette = typeof SplashLoaderPalette.Type;
@@ -109,7 +109,7 @@ export type SplashMinimumHoldSeconds = typeof SplashMinimumHoldSeconds.Type;
 export const DEFAULT_SPLASH_MINIMUM_HOLD_SECONDS: SplashMinimumHoldSeconds = 2;
 
 // Close animation — independent from startup, reuses same enum types
-export const DEFAULT_CLOSE_LOADER_STYLE: SplashLoaderStyle = "glass";
+export const DEFAULT_CLOSE_LOADER_STYLE: SplashLoaderStyle = "solari";
 export const DEFAULT_CLOSE_LOADER_PALETTE: SplashLoaderPalette = "mono";
 export const DEFAULT_CLOSE_LOADER_THEME: SplashLoaderTheme = "system";
 

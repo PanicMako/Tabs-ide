@@ -966,6 +966,8 @@ const createBuildConfig = Effect.fn("createBuildConfig")(function* (
         oneClick: true,
         perMachine: false,
         runAfterFinish: false,
+        createDesktopShortcut: true,
+        createStartMenuShortcut: true,
       };
       if (installerNshStaged) {
         nsisConfig.include = "./build/installer.nsh";

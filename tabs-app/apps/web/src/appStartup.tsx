@@ -28,7 +28,7 @@ export function readFirstPaintSplashSettings(storage: Pick<Storage, "getItem">):
       unknown
     > | null;
     return {
-      loader: parsed?.splashLoaderStyle === "solari" ? "solari" : "glass",
+      loader: parsed?.splashLoaderStyle === "glass" ? "glass" : "solari",
       palette: parsed?.splashLoaderPalette === "block" ? "block" : "mono",
       theme:
         parsed?.splashLoaderTheme === "light" || parsed?.splashLoaderTheme === "dark"
@@ -36,7 +36,7 @@ export function readFirstPaintSplashSettings(storage: Pick<Storage, "getItem">):
           : "system",
     };
   } catch {
-    return { loader: "glass", palette: "mono", theme: "system" };
+    return { loader: "solari", palette: "mono", theme: "system" };
   }
 }
 

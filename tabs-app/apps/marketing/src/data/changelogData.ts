@@ -21,9 +21,35 @@ export interface ChangelogRelease {
   }[];
 }
 
-export const TOTAL_TAGS_COUNT = 175;
+export const TOTAL_TAGS_COUNT = 176;
 
 export const changelogData: ChangelogRelease[] = [
+  {
+    tag: "v1.3.33",
+    title: "A clearer welcome to Tabs",
+    date: "October 5, 2026",
+    shortDate: "Oct 5",
+    isLatest: true,
+    type: "patch",
+    summary:
+      "Simpler setup, an interactive workspace preview, larger icon choices, and Solari Grid animations for new installations.",
+    highlights: [
+      "Explore Code, Agents, Launchpad, Git, and Browser in a miniature workspace.",
+      "Customize your app icon and appearance, then continue to Themes.",
+      "New installations use Solari Grid animations in Monochrome.",
+      "Windows installs and updates refresh Desktop and Start menu shortcuts.",
+    ],
+    categories: [
+      {
+        title: "Setup and defaults",
+        items: [
+          "Refreshed setup screens use Syne headings and keep native window controls clear.",
+          "Saved animation preferences remain unchanged.",
+        ],
+      },
+    ],
+  },
+
   {
     tag: "v1.3.32",
     title: "Basic usage analytics and clearer Source Control",

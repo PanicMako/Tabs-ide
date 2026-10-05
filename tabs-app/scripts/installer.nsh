@@ -40,6 +40,15 @@
 !macroend
 
 !ifndef BUILD_UNINSTALLER
+# Upgrades can preserve a shortcut whose target no longer exists. Refresh both
+# shell links after extraction, including missing links on a repair install.
+# Use the builder macros to retain AppUserModelID and --no-desktop-shortcut.
+!macro customInstall
+  StrCpy $keepShortcuts "false"
+  !insertmacro addStartMenuLink $keepShortcuts
+  !insertmacro addDesktopLink $keepShortcuts
+!macroend
+
 Function cleanupOldUninstallTempDrive
   IfFileExists "$PLUGINSDIR\tabs-temp-drive.txt" 0 cleanupDone
   FileOpen $1 "$PLUGINSDIR\tabs-temp-drive.txt" r

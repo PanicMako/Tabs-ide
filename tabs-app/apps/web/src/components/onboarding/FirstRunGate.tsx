@@ -1,5 +1,7 @@
 import { useAtomValue } from "@effect/atom-react";
 import { useEffect, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
+import { useSettingsViewState } from "../../state/scopedStateStore";
 
 import {
   closeWelcomeWizard,
@@ -25,6 +27,8 @@ export interface FirstRunGateProps {
 }
 
 export function FirstRunGate({ enabled = true, children }: FirstRunGateProps) {
+  const navigate = useNavigate();
+  const [, updateSettingsViewState] = useSettingsViewState();
   const clientSettings = useClientSettings();
   const onboardingCompletedAt = clientSettings.onboardingCompletedAt;
   const manualOnboardingActive = useAtomValue(manualOnboardingActiveAtom);
@@ -103,6 +107,8 @@ export function FirstRunGate({ enabled = true, children }: FirstRunGateProps) {
           onDone={() => {
             closeWelcomeWizard();
             setGateState({ decision: "app", stalled: false });
+            updateSettingsViewState({ activeSection: "themes" });
+            void navigate({ to: "/settings" });
           }}
         />
       </div>
