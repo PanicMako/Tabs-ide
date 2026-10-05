@@ -495,6 +495,7 @@ if (root) {
     }),
   );
   start.addEventListener("click", begin);
+  get("[data-restart]").addEventListener("click", begin);
   get("[data-jump]").addEventListener("click", hop);
   pause.addEventListener("click", togglePause);
   laneButtons.forEach((b, i) => b.addEventListener("click", () => select(i)));
