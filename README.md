@@ -153,14 +153,13 @@ From the repo root:
 bun run build
 ```
 
-## Basic usage analytics
+## Privacy & telemetry
 
-Configured releases enable basic usage analytics by default, with no popup.
-Tabs sends daily launch/activity markers with a random installation ID and basic
-OS/version metadata. It does not send names, provider logins, prompts, code, model
-choices, reasoning settings, or recordings. Turn it off in **Settings > General >
-Privacy > Share basic usage analytics**, or start Tabs with
-`TABS_TELEMETRY_ENABLED=false`.
+Pre-built desktop releases send an anonymous daily active installation ping (a random
+installation UUID, OS, architecture, and Tabs version) to help us measure release
+adoption. Tabs NEVER collects or transmits names, provider logins, prompts, code, model
+choices, reasoning settings, or recordings. You can completely disable all telemetry at any
+time by starting Tabs with the environment variable `TABS_TELEMETRY_ENABLED=false`.
 
 See the [privacy details](docs/privacy.md) and
 [owner setup and adoption dashboard guide](docs/usage-analytics.md).

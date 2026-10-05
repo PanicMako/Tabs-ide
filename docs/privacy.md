@@ -1,10 +1,8 @@
 # Public-beta privacy
 
 Basic Tabs-owned usage analytics is enabled by default when a dedicated Tabs
-PostHog project is configured. There is no consent popup. Turn off **Share basic
-usage analytics** in **Settings > General > Privacy** to stop collection without
-restarting. `TABS_TELEMETRY_ENABLED=false` disables collection at process start,
-even when the setting is on. No project key means no collection or saved
+PostHog project is configured. Setting `TABS_TELEMETRY_ENABLED=false` completely
+disables collection at process start. No project key means no collection or saved
 analytics ID; Tabs never falls back to another project's key.
 
 Analytics uses a random installation UUID and never reads Codex, Claude, or other
