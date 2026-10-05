@@ -16,6 +16,7 @@ import {
   FolderIcon,
   FolderPlusIcon,
   GitBranchIcon,
+  GithubIcon,
   GlobeIcon,
   LaptopIcon,
   MoonIcon,
@@ -143,7 +144,7 @@ function renderToolIcon(iconKind: PrototypeTool["iconKind"]) {
     case "claude":
       return <ClaudeAI className="size-3.5" />;
     case "git":
-      return <GitBranchIcon className="size-3.5" />;
+      return <GithubIcon className="size-3.5" />;
     case "browser":
     case "figma":
       return <GlobeIcon className="size-3.5" />;
