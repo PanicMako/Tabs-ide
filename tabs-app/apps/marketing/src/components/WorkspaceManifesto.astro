@@ -22,6 +22,7 @@ const phrases = [
         </span>{" "}
         {phrase.tail.split(" ").map(word => <Fragment><span data-wm-word class:list={["wm-word", { "wm-final": index === 3 }]}>{word}</span>{" "}</Fragment>)}
 
+        {index === 2 && <Fragment><span class="wm-cli-stack" data-wm-word aria-hidden="true"><span title="Claude Code"><img src="/providers/claude.svg" width="25" height="25" alt=""/><span>claude</span></span><span title="Codex CLI"><img src="/providers/codex.svg" width="25" height="25" alt=""/><span>codex</span></span><span title="Your command"><Icon name="Terminal" size={25}/><span>your CLI</span></span></span>{" "}</Fragment>}
         {" "}
       </Fragment>)}
     </h2>
@@ -67,6 +68,13 @@ const phrases = [
   .wm-providers > span:nth-child(3n) { background: #e4f0e9; }
   .wm-providers img { width: .39em; height: .39em; object-fit: contain; }
   .wm-tools img { width: .36em; height: .36em; object-fit: contain; }
+  .wm-cli-stack { display: inline-flex; vertical-align: middle; margin: -.1em .08em 0; }
+  .wm-cli-stack > span { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .07em; width: .88em; height: .85em; background: #202b44; color: #fff; border: 2px solid #f5f7fc; border-radius: .14em; margin-left: -.16em; transform: rotate(-8deg); box-shadow: 0 4px 10px #202b440a; }
+  .wm-cli-stack > span:nth-child(2) { background: #fff; color: #202b44; transform: rotate(2deg); }
+  .wm-cli-stack > span:nth-child(3) { background: #e1e7ff; color: #3259ed; transform: rotate(9deg); }
+  .wm-cli-stack img, .wm-cli-stack svg { width: .3em; height: .3em; object-fit: contain; }
+  .wm-cli-stack > span:first-child img { filter: invert(1); }
+  .wm-cli-stack > span > span { font: .1em/1.2 monospace; letter-spacing: 0; }
   .wm-bottom { display: flex; align-items: center; gap: 25px; width: min(620px, 100%); margin: 45px auto 0; }
   .wm-track { flex: 1; height: 2px; background: #dce2ee; overflow: hidden; }
   .wm-track > span { display: block; width: 100%; height: 100%; background: var(--hs-blue); transform: scaleX(var(--wm-progress, 1)); transform-origin: left; }
