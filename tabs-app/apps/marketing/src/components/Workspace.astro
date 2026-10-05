@@ -6,7 +6,7 @@ const tools = [
   ["code",    "Code",    "Edit in Code OSS with native file access and real VS Code extensions.",               "Code2",      ["Code OSS Core", "VS Code Extensions", "Native FS"]],
   ["agents",  "Agents",  "Project conversations with your agents. Start a thread, choose a model, work through changes.", "Bot",  ["Conversations", "Provider Choice", "ACP Integrations"]],
   ["server",  "Launchpad",  "Save frontend and backend presets or open terminal sessions. Auto-open previews in Browser.", "Rocket",   ["Launchpad Presets", "Dedicated Terminals", "Port Status"]],
-  ["git",     "Git",     "Review diffs, manage branches, and work with Git through a visual interface.",         "GitBranch",  ["Staged Diffs", "Branch & PR Sync", "Commit Graphs"]],
+  ["git",     "Git",     "Review diffs, manage branches, and work with Git through a visual interface.",         "Github",  ["Staged Diffs", "Branch & PR Sync", "Commit Graphs"]],
   ["browser", "Browser", "Open any URL, preview local apps, inspect the DOM beside your code.",                  "Globe",      ["Browser Tabs", "App Previews", "DevTools"]],
   ["testing", "Testing", "Early access. Recorded journeys and repeatable checks. Enable in Workspace settings.", "CheckCircle",["Disabled by Default", "Journeys", "Screenshots"]],
 ] as const;
@@ -58,16 +58,12 @@ const headlines: Record<string, string> = {
       <!-- Sidebar Footer: Theme Toggle + Keyboard Hint -->
       <div class="tour-sidebar-foot">
         <span class="gallery-label">THE WORKSPACE, UP CLOSE <span aria-hidden="true">↘</span></span>
-        <div class="tour-theme-pill" role="group" aria-label="Screenshot theme">
-          <button type="button" data-tour-theme="light" aria-pressed={variant === "light" ? "true" : "false"} class="theme-seg">
-            <Icon name="Sun" size={14} />
-            <span>Light</span>
-          </button>
-          <button type="button" data-tour-theme="dark" aria-pressed={variant !== "light" ? "true" : "false"} class="theme-seg">
-            <Icon name="Moon" size={14} />
-            <span>Dark</span>
-          </button>
-        </div>
+        <button type="button" class="theme-switch" role="switch" aria-label="Dark screenshot previews" aria-checked={variant !== "light"} data-tour-theme-toggle>
+          <Icon name="Sun" size={16} />
+          <span class="theme-switch-track" aria-hidden="true"><span></span></span>
+          <Icon name="Moon" size={16} />
+          <span data-tour-theme-label aria-hidden="true">{variant === "light" ? "Light" : "Dark"}</span>
+        </button>
         <span class="tour-keys" aria-hidden="true">← → · 1–6</span>
       </div>
     </div>
@@ -374,52 +370,14 @@ const headlines: Record<string, string> = {
 }
 
 /* Premium Theme Pill Toggle */
-.tour-theme-pill {
-  display: inline-flex;
-  align-items: center;
-  border-radius: 10px;
-  padding: 3px;
-  background: #e8ecf5;
-  gap: 2px;
-}
-
-.theme-seg {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: #7b8ba8;
-  font-family: inherit;
-  font-size: 11.5px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
-  line-height: 1;
-}
-
-.theme-seg:hover:not([aria-pressed="true"]) {
-  color: var(--hs-ink, #202b44);
-}
-
-.theme-seg[aria-pressed="true"] {
-  background: #ffffff;
-  color: var(--hs-ink, #202b44);
-  font-weight: 600;
-  box-shadow:
-    0 1px 3px rgba(32, 43, 68, 0.08),
-    0 4px 12px -2px rgba(32, 43, 68, 0.06);
-}
-
-.theme-seg[aria-pressed="true"][data-tour-theme="light"] svg {
-  color: #d97706;
-}
-
-.theme-seg[aria-pressed="true"][data-tour-theme="dark"] svg {
-  color: var(--hs-blue, #3259ed);
-}
+.theme-switch { display: inline-flex; align-items: center; gap: 10px; border: 1px solid #dce2ef; border-radius: 99px; padding: 10px 14px; background: #f0f3fa; color: #657393; font: 500 11px "DM Sans", sans-serif; cursor: pointer; }
+.theme-switch > span:last-child { min-width: 28px; color: #202b44; }
+.theme-switch-track { width: 34px; height: 20px; padding: 3px; border-radius: 99px; background: #d9e0f0; transition: background .25s; }
+.theme-switch-track > span { display: block; width: 14px; height: 14px; background: #fff; border-radius: 50%; box-shadow: 0 2px 4px #202b4425; transition: transform .25s cubic-bezier(.22,1,.36,1); }
+.theme-switch[aria-checked="true"] .theme-switch-track { background: #3259ed; }
+.theme-switch[aria-checked="true"] .theme-switch-track > span { transform: translateX(14px); }
+.theme-switch:focus-visible { outline: 2px solid #3259ed; outline-offset: 4px; }
+:global(.motion-paused) .theme-switch-track, :global(.motion-paused) .theme-switch-track > span { transition: none; }
 
 .tour-keys {
   font: 9px monospace;
@@ -577,17 +535,8 @@ const headlines: Record<string, string> = {
   border-top-color: rgba(255, 255, 255, 0.06);
 }
 
-.product-tour.dark .tour-theme-pill {
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.product-tour.dark .theme-seg { color: #7b8ba8; }
-.product-tour.dark .theme-seg:hover:not([aria-pressed="true"]) { color: #e7edff; }
-.product-tour.dark .theme-seg[aria-pressed="true"] {
-  background: rgba(255, 255, 255, 0.1);
-  color: #e7edff;
-  box-shadow: none;
-}
+.product-tour.dark .theme-switch { background: #20283a; border-color: #34415b; color: #a0afca; }
+.product-tour.dark .theme-switch > span:last-child { color: #e7edff; }
 
 .product-tour.dark .tour-preview { background: #131824; }
 .product-tour.dark .tour-chrome {
@@ -642,7 +591,8 @@ const headlines: Record<string, string> = {
   .tour-gallery .tour-tool-btn::after { transition:none; }
   .tour-tool-detail,
   .tour-tool-btn,
-  .theme-seg,
+  .theme-switch-track,
+  .theme-switch-track > span,
   .tour-chrome { transition: none !important; animation: none !important; }
 }
 </style>
@@ -734,16 +684,15 @@ for (const tour of document.querySelectorAll<HTMLElement>("[data-product-tour]")
   });
 
   // Theme toggle
-  tour.querySelectorAll<HTMLButtonElement>("[data-tour-theme]").forEach((button) => {
+  tour.querySelectorAll<HTMLButtonElement>("[data-tour-theme-toggle]").forEach((button) => {
     button.addEventListener("click", () => {
-      const theme = button.dataset.tourTheme!;
       const studio = tour.querySelector<HTMLElement>(".tour-studio");
-      if (studio?.dataset.previewTheme === theme) return;
+      const theme = studio?.dataset.previewTheme === "light" ? "dark" : "light";
       const rev = ++themeRevision;
       if (studio) studio.dataset.previewTheme = theme;
-      tour.querySelectorAll<HTMLButtonElement>("[data-tour-theme]").forEach((b) => {
-        b.setAttribute("aria-pressed", String(b === button));
-      });
+      button.setAttribute("aria-checked", String(theme === "dark"));
+      const label = button.querySelector<HTMLElement>("[data-tour-theme-label]");
+      if (label) label.textContent = theme === "light" ? "Light" : "Dark";
       tour.querySelectorAll<HTMLImageElement>("[data-tour-image]").forEach((img) => {
         img.closest(".tour-screen")?.classList.remove("image-missing");
         img.src = theme === "light" ? img.dataset.light! : img.dataset.dark!;
