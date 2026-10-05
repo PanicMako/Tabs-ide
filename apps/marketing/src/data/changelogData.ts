@@ -21,9 +21,67 @@ export interface ChangelogRelease {
   }[];
 }
 
-export const TOTAL_TAGS_COUNT = 174;
+export const TOTAL_TAGS_COUNT = 175;
 
 export const changelogData: ChangelogRelease[] = [
+  {
+    tag: "v1.3.32",
+    title: "GitHub branding for Source Control and workspace refinements",
+    date: "October 5, 2026",
+    shortDate: "Oct 5",
+    isLatest: false,
+    type: "patch",
+    summary:
+      "Tabs includes updated Git identity across the workspace, cleaner Source Control headers matching your theme typography, and improved website release detection.",
+    highlights: [
+      "Git tool icons in the workspace shell and onboarding wizard now display the GitHub mascot for immediate visual recognition.",
+      "The Source Control sidebar header now includes the GitHub icon and renders repository names with your configured UI font and clean uppercase tracking.",
+      "The download and release resolver dynamically surfaces the latest desktop builds across release channels.",
+      "Source trees are reorganized into isolated application and Code-OSS runtime packages to streamline desktop builds.",
+    ],
+    categories: [
+      {
+        title: "Workspace & Source Control",
+        items: [
+          "Git tool icons in the workspace shell and onboarding wizard now display the GitHub mascot for immediate visual recognition.",
+          "The Source Control sidebar header now includes the GitHub icon and renders repository names with your configured UI font and clean uppercase tracking.",
+        ],
+      },
+      {
+        title: "Releases & Infrastructure",
+        items: [
+          "The download and release resolver dynamically surfaces the latest desktop builds across release channels.",
+          "Source trees are reorganized into isolated application and Code-OSS runtime packages to streamline desktop builds.",
+        ],
+      },
+    ],
+    installers: [
+      {
+        platform: "macOS",
+        arch: "Apple Silicon",
+        filename: "Tabs-1.3.32-arm64.dmg",
+        url: "https://github.com/PanicMako/Tabs-ide/releases/download/v1.3.32/Tabs-1.3.32-arm64.dmg",
+      },
+      {
+        platform: "macOS",
+        arch: "Intel",
+        filename: "Tabs-1.3.32-x64.dmg",
+        url: "https://github.com/PanicMako/Tabs-ide/releases/download/v1.3.32/Tabs-1.3.32-x64.dmg",
+      },
+      {
+        platform: "Windows",
+        arch: "x64",
+        filename: "Tabs-1.3.32-x64.exe",
+        url: "https://github.com/PanicMako/Tabs-ide/releases/download/v1.3.32/Tabs-1.3.32-x64.exe",
+      },
+      {
+        platform: "Linux",
+        arch: "x64 AppImage",
+        filename: "Tabs-1.3.32-x86_64.AppImage",
+        url: "https://github.com/PanicMako/Tabs-ide/releases/download/v1.3.32/Tabs-1.3.32-x86_64.AppImage",
+      },
+    ],
+  },
   {
     tag: "v1.3.31",
     title: "Public Beta: clearer defaults and privacy",
