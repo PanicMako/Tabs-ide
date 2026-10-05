@@ -22,7 +22,7 @@ const phrases = [
         </span>{" "}
         {phrase.tail.split(" ").map(word => <Fragment><span data-wm-word class:list={["wm-word", { "wm-final": index === 3 }]}>{word}</span>{" "}</Fragment>)}
 
-        {index === 2 && <Fragment><span class="wm-cli-stack" data-wm-word aria-hidden="true"><span title="Claude Code"><img src="/providers/claude.svg" width="25" height="25" alt=""/><span>claude</span></span><span title="Codex CLI"><img src="/providers/codex.svg" width="25" height="25" alt=""/><span>codex</span></span><span title="Your command"><Icon name="Terminal" size={25}/><span>your CLI</span></span></span>{" "}</Fragment>}
+        {index === 2 && <Fragment><span class="wm-cli-stack wm-word" data-wm-word aria-hidden="true"><span title="Claude Code"><img src="/providers/claude.svg" width="25" height="25" alt=""/><span>claude</span></span><span title="Codex CLI"><img src="/providers/codex.svg" width="25" height="25" alt=""/><span>codex</span></span><span title="GitHub CLI"><Icon name="GitBranch" size={25}/><span>gh</span></span></span>{" "}</Fragment>}
         {" "}
       </Fragment>)}
     </h2>

@@ -8,8 +8,8 @@ const projects = [
 ---
 <section class="project-continuity" id="project-continuity" aria-labelledby="continuity-heading" data-continuity>
   <div class="hs-wrap pc-layout">
-    <header class="pc-heading"><div><p class="pc-eyebrow">01 / EVERYTHING IN ITS ELEMENT</p><h2 id="continuity-heading">Many moving parts.<br/><em>One place to make.</em></h2></div><p>Your code. Your collaborators. Your tools.<br/>A different world in every project tab.</p></header>
-    <div class="pc-board">
+    <header class="pc-heading"><div><p class="pc-eyebrow">01 / EVERYTHING IN ITS ELEMENT</p><h2 id="continuity-heading">All the moving parts.<br/><em>One window.</em></h2></div><p>Your code. Your collaborators. Your tools.<br/>Together, for every project.</p></header>
+    <div class="pc-board" id="pc-window"><div class="pc-window-chrome"><span class="pc-window-name">tabs<span aria-hidden="true">✳</span></span><div class="pc-tabs" role="tablist" aria-label="Example project workspaces">{projects.map((project, index) => <button type="button" role="tab" id={`pc-tab-${index}`} aria-controls={`pc-panel-${index}`} aria-selected={index === 0} tabindex={index === 0 ? 0 : -1} data-pc-tab><span>0{index + 1}</span>{project.name}<span class="pc-tab-arrow" aria-hidden="true">↗</span></button>)}</div><span class="pc-window-controls" aria-hidden="true">− □ ×</span></div>
       {projects.map((project, index) => <div class="pc-project" style={`--pc-tint: ${project.color}`} role="tabpanel" id={`pc-panel-${index}`} aria-labelledby={`pc-tab-${index}`} tabindex="0" hidden={index !== 0} data-pc-panel>
         <div class="pc-code pc-tile"><div class="pc-bar"><span><Icon name="Layers" size={15}/> CODE OSS</span><span>01 / CODE</span></div><div class="pc-code-title">{project.file}<span>×</span></div><div class="pc-code-body"><div class="pc-explorer"><small>EXPLORER</small><span>⌄ src</span><span class="pc-file-active">{project.file}</span><span>styles.css</span><span>package.json</span></div><div class="pc-source"><span><i>01</i><b>import</b> {'{ useState }'} <b>from</b></span><span><i>02</i><em>'react';</em></span><span><i>03</i></span><span><i>04</i><b>export default function</b></span><span><i>05</i>Workspace() {'{'}</span><span><i>06</i>  <b>return</b> (</span><span><i>07</i>    &lt;<em>main</em>&gt;</span><span><i>08</i>      {project.name}</span><span><i>09</i>    &lt;/<em>main</em>&gt;</span><span><i>10</i>  );</span><span><i>11</i>{'}'}</span><span class="pc-caret" aria-hidden="true"></span></div></div><div class="pc-code-footer"><span><Icon name="GitBranch" size={13}/>{project.branch}</span><span>TypeScript · UTF-8</span></div></div>
         <div class="pc-agent pc-tile"><div class="pc-bar"><span>02 / AGENTS</span><span aria-hidden="true">↗</span></div><img src={`/providers/${project.agent}.svg`} width="34" height="34" alt=""/><h3>{project.task}</h3><div class="pc-message">Let’s make it happen.<span aria-hidden="true">✳</span></div><span class="pc-agent-footer">Code and conversation, together.</span></div>
@@ -18,21 +18,21 @@ const projects = [
       </div>)}
       <span class="pc-board-note" aria-hidden="true">A LITTLE ORDER. A LOT OF POSSIBILITY.</span>
     </div>
-    <footer class="pc-footer"><div class="pc-tabs" role="tablist" aria-label="Example project workspaces">{projects.map((project, index) => <button type="button" role="tab" id={`pc-tab-${index}`} aria-controls={`pc-panel-${index}`} aria-selected={index === 0} tabindex={index === 0 ? 0 : -1} data-pc-tab><span>0{index + 1}</span>{project.name}<span class="pc-tab-arrow" aria-hidden="true">↗</span></button>)}</div><span>SWITCH THE PROJECT. CHANGE THE WHOLE WORKSPACE.</span></footer>
+    <footer class="pc-footer"><button type="button" class="pc-assemble" data-pc-assemble aria-controls="pc-window" aria-pressed="false">Bring it together <span aria-hidden="true">↗</span></button><span>YOUR PROJECTS. YOUR TOOLS. ONE HOME.</span></footer>
   </div>
 </section>
 <style>
-  .project-continuity { background-color: #e9edf8; background-image: linear-gradient(#3259ed0c 1px, transparent 1px), linear-gradient(90deg, #3259ed0c 1px, transparent 1px); background-size: 54px 54px; min-height: 100svh; display: flex; align-items: center; padding-block: 45px; overflow: clip; border-block: 1px solid #d8dfef; }
+  .project-continuity { background-color: #3259ed; color: #fff; background-image: linear-gradient(#ffffff0b 1px, transparent 1px), linear-gradient(90deg, #ffffff0b 1px, transparent 1px); background-size: 54px 54px; min-height: 100svh; display: flex; align-items: center; padding-block: 45px; overflow: clip; border-block: 1px solid #3259ed; }
   .pc-layout { width: 100%; display: flex; flex-direction: column; gap: clamp(22px, 3vh, 36px); }
   .pc-heading { display: flex; justify-content: space-between; align-items: end; gap: 30px; }
-  .pc-eyebrow { font: 500 9px/1.6 "DM Sans", sans-serif; letter-spacing: .12em; color: #6d7b9c; margin: 0 0 17px; }
+  .pc-eyebrow { font: 500 9px/1.6 "DM Sans", sans-serif; letter-spacing: .12em; color: #c1ceff; margin: 0 0 17px; }
   .pc-heading h2 { margin: 0; font: 500 clamp(40px, 4vw, 65px)/.98 "DM Sans", sans-serif; letter-spacing: -.055em; }
-  .pc-heading h2 em { font: 400 1.13em/1.08 "Instrument Serif", Georgia, serif; color: var(--hs-blue); letter-spacing: -.035em; }
-  .pc-heading > p { font-size: 12px; color: #6c7892; line-height: 1.8; margin-bottom: 5px; }
-  .pc-board { position: relative; padding: 20px 8px 27px; }
-  .pc-project { display: grid; grid-template-columns: 1.45fr .95fr .92fr; grid-template-rows: 1fr .82fr; gap: 19px; min-height: 360px; height: clamp(360px, 46vh, 480px); }
+  .pc-heading h2 em { font: 400 1.13em/1.08 "Instrument Serif", Georgia, serif; color: #d4deff; letter-spacing: -.035em; }
+  .pc-heading > p { font-size: 12px; color: #c5d2ff; line-height: 1.8; margin-bottom: 5px; }
+  .pc-board { position: relative; padding: 20px 8px 27px; border: 1px solid transparent; border-radius: 19px; transition: background .65s, border-color .65s, padding .65s, box-shadow .65s; }
+  .pc-project { display: grid; grid-template-columns: 1.45fr .95fr .92fr; grid-template-rows: 1fr .82fr; gap: 19px; transition: gap .65s; min-height: 360px; height: clamp(360px, 46vh, 480px); }
   .pc-project[hidden] { display: none; }
-  .pc-tile { min-width: 0; border: 1px solid #ffffff; border-radius: 17px; background: #fff; box-shadow: 0 13px 24px #293d7310; overflow: hidden; transition: transform .3s, box-shadow .3s; }
+  .pc-tile { color: #202b44; min-width: 0; border: 1px solid #ffffff; border-radius: 17px; background: #fff; box-shadow: 0 13px 24px #293d7310; overflow: hidden; transition: transform .75s cubic-bezier(.22,1,.36,1), border-radius .65s, box-shadow .65s; }
   .pc-tile:hover { transform: translateY(-5px); box-shadow: 0 20px 35px #293d7320; }
   .pc-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: #8a94a8; font: 8px/1.4 monospace; letter-spacing: .06em; }
   .pc-bar > span:first-child { display: flex; gap: 7px; align-items: center; }
@@ -83,20 +83,35 @@ const projects = [
   .pc-site-link { font-size: 8px; color: #8090af; }
   .pc-site-link > span { margin-left: 12px; }
   .pc-browser-footer { display: flex; justify-content: space-between; padding: 12px; font: 7px monospace; color: #8c98ae; }
-  .pc-board-note { position: absolute; bottom: 0; left: 8px; font: 7px monospace; color: #8d9aba; letter-spacing: .14em; }
-  .pc-footer { display: flex; justify-content: space-between; gap: 25px; align-items: center; border-top: 1px solid #3259ed1a; padding-top: 22px; }
+  .pc-board-note { position: absolute; bottom: 0; left: 8px; font: 7px monospace; color: #c1ceff; letter-spacing: .14em; }
+  .pc-footer { display: flex; justify-content: space-between; gap: 25px; align-items: center; border-top: 1px solid #ffffff30; padding-top: 22px; }
   .pc-tabs { display: flex; gap: 5px; }
-  .pc-tabs button { display: flex; align-items: center; gap: 12px; background: transparent; border: 1px solid transparent; border-radius: 99px; padding: 14px 18px; font: 500 11px "DM Sans", sans-serif; color: #7e8aa3; cursor: pointer; }
+  .pc-tabs button { display: flex; align-items: center; gap: 12px; background: transparent; border: 1px solid transparent; border-radius: 99px; padding: 14px 18px; font: 500 11px "DM Sans", sans-serif; color: #657393; cursor: pointer; }
   .pc-tabs button > span:first-child { font: 8px monospace; opacity: .7; }
-  .pc-tabs button[aria-selected="true"] { color: #fff; background: #3259ed; box-shadow: 0 6px 12px #3259ed18; }
+  .pc-tabs button[aria-selected="true"] { color: #202b44; background: #fff; box-shadow: 0 3px 8px #202b4410; }
   .pc-tab-arrow { opacity: 0; }
   [aria-selected="true"] > .pc-tab-arrow { opacity: 1; }
-  .pc-footer > span { font: 7px monospace; letter-spacing: .07em; color: #8694b1; text-align: right; }
-  button:focus-visible, .pc-project:focus-visible { outline: 2px solid var(--hs-blue); outline-offset: 5px; }
+  .pc-footer > span { font: 7px monospace; letter-spacing: .07em; color: #c1ceff; text-align: right; }
+
+  .pc-window-chrome { display: flex; align-items: center; gap: 20px; background: #e9edff; border-radius: 13px; margin-bottom: 22px; padding: 8px 16px; color: #202b44; transition: margin .65s, border-radius .65s; }
+  .pc-window-name { display: flex; align-items: center; gap: 12px; font: 600 17px "DM Sans", sans-serif; letter-spacing: -.07em; }
+  .pc-window-name > span { color: #3259ed; font-size: 23px; }
+  .pc-window-controls { margin-left: auto; font: 12px monospace; color: #8b97b8; }
+  .pc-assemble { border: 1px solid #ffffff60; background: #ffffff10; border-radius: 99px; padding: 13px 21px; color: #fff; cursor: pointer; font: 500 11px "DM Sans", sans-serif; }
+  .pc-assemble > span { margin-left: 15px; }
+  .is-assembled .pc-board { background: #fff; border-color: #fff; padding: 0; box-shadow: 0 25px 70px #152ea845; overflow: hidden; }
+  .is-assembled .pc-window-chrome { border-radius: 0; margin-bottom: 0; padding: 11px 19px; border-bottom: 1px solid #dfe4f2; }
+  .is-assembled .pc-project { gap: 0; color: #202b44; }
+  .is-assembled .pc-tile, .is-assembled .pc-tile:hover { transform: none; border-radius: 0; box-shadow: none; }
+  .is-assembled .pc-code { border-right: 1px solid #e3e7f1; }
+  .is-assembled .pc-browser { border-left: 1px solid #e3e7f1; }
+  .is-assembled .pc-board-note { display: none; }
+  @media(max-width:650px) { .pc-window-chrome { padding: 8px 5px; gap: 5px; } .pc-window-name, .pc-window-controls { display: none; } .is-assembled .pc-window-chrome { padding: 8px 5px; } }
+  button:focus-visible, .pc-project:focus-visible { outline: 2px solid #fff; outline-offset: 5px; }
   @media(max-width: 900px) { .pc-heading > p { max-width: 210px; font-size: 10px; } .pc-tabs button { padding: 12px; font-size: 10px; } .pc-footer > span { display: none; } .pc-project { gap: 12px; } .pc-agent-footer { display: none; } }
   @media(max-width: 650px) { .project-continuity { min-height: 100svh; padding-block: 45px; } .pc-heading { display: block; } .pc-heading h2 { font-size: clamp(35px, 9vw, 48px); } .pc-heading > p { max-width: none; margin-top: 20px; } .pc-project { grid-template-columns: 1fr 1fr; grid-template-rows: 270px 205px; height: auto; min-height: 0; gap: 12px; } .pc-code { grid-column: 1 / 3; grid-row: 1; } .pc-agent { grid-column: 1; grid-row: 2; padding: 15px; transform: rotate(-2deg); } .pc-browser { grid-column: 2; grid-row: 2; transform: rotate(3deg); } .pc-terminal { grid-column: 1 / 3; min-height: 145px; transform: rotate(-1deg); } .pc-source { font-size: 10px; } .pc-explorer { width: 30%; font-size: 10px; } .pc-agent h3 { font-size: 25px; } .pc-agent > img { margin-top: 15px; } .pc-site { padding: 12px 5px; } .pc-site-orb { width: 43px; height: 43px; margin-top: 12px; } .pc-site-orb > span { font-size: 30px; } .pc-site h3 { font-size: 27px; margin: 12px 0; } .pc-site-link, .pc-browser-footer > span { display: none; } .pc-browser-bar { padding: 9px 6px; } .pc-browser-bar > span:nth-child(2) { padding: 4px 6px; font-size: 6px; } .pc-tabs { width: 100%; justify-content: space-between; gap: 2px; } .pc-tabs button { padding: 11px 9px; font-size: 9px; gap: 5px; } .pc-tab-arrow { display: none; } .pc-footer { padding-top: 18px; } }
-  @media(prefers-reduced-motion: reduce) { .pc-tile { transition: none; } }
-  :global(.motion-paused) .pc-tile { transition: none; }
+  @media(prefers-reduced-motion: reduce) { .pc-tile, .pc-board, .pc-project, .pc-window-chrome { transition: none; } }
+  :global(.motion-paused) .pc-tile, :global(.motion-paused) .pc-board, :global(.motion-paused) .pc-project, :global(.motion-paused) .pc-window-chrome { transition: none; }
 </style>
 <script>
   const root = document.querySelector<HTMLElement>("[data-continuity]");
@@ -105,6 +120,13 @@ const projects = [
     const panels = [...root.querySelectorAll<HTMLElement>("[data-pc-panel]")];
     const controller = new AbortController();
     const reduced = matchMedia("(prefers-reduced-motion: reduce)");
+    const assemble = root.querySelector<HTMLButtonElement>("[data-pc-assemble]");
+    const setAssembly = (assembled: boolean) => {
+      root.classList.toggle("is-assembled", assembled);
+      assemble?.setAttribute("aria-pressed", String(assembled));
+      if (assemble) assemble.innerHTML = assembled ? 'Spread it out <span aria-hidden="true">↗</span>' : 'Bring it together <span aria-hidden="true">↗</span>';
+    };
+    assemble?.addEventListener("click", () => setAssembly(!root.classList.contains("is-assembled")), { signal: controller.signal });
     const select = (index: number) => {
       tabs.forEach((tab, i) => { tab.setAttribute("aria-selected", String(i === index)); tab.tabIndex = i === index ? 0 : -1; });
       panels.forEach((panel, i) => { panel.getAnimations().forEach(animation => animation.cancel()); panel.hidden = i !== index; });
