@@ -133,25 +133,15 @@ const headlines: Record<string, string> = {
       </div>
     </div>
     <div class="diagnostics-window-content">
-      <div class="diagnostics-kicker">
-        <span class="eyebrow">RESOURCE EXPLORER · BUILT-IN PERFORMANCE MONITOR</span>
+      <div class="diagnostics-kicker"><span class="eyebrow">RESOURCE EXPLORER</span><span class="diagnostics-live"><i aria-hidden="true"></i> BUILT IN</span></div>
+      <h3 class="diagnostics-heading">Know what’s running.<br/><em>Keep work flowing.</em></h3>
+      <p class="diagnostics-intro">A clear view of your machine, right inside your workspace.</p>
+      <div class="diagnostics-signals" aria-label="Monitored resources"><span>CPU</span><span>Memory</span><span>Disk</span><span>Network</span></div>
+      <div class="diagnostics-cards">
+        <div><span class="diagnostics-card-icon"><Icon name="GitBranch" size={22}/></span><small>FOLLOW THE WORK</small><strong>Every process.<br/>In view.</strong><p>Explore the process tree and see where resources go.</p></div>
+        <div><span class="diagnostics-card-icon" aria-hidden="true">✳</span><small>FIND A WAY FORWARD</small><strong>A slowdown?<br/>Start here.</strong><p>Use AI Diagnose for help, or export a report to share.</p></div>
       </div>
-      <h3 class="diagnostics-heading">
-        See what's using<br />
-        <em>your CPU and memory.</em>
-      </h3>
-      <p class="diagnostics-intro">
-        Check CPU, memory, disk, and network usage without leaving Tabs. Open Resource Explorer over your current tool to inspect running processes and investigate slowdowns.
-      </p>
-      <div class="diagnostics-facts">
-        <div><b>01</b><span><strong>Check resource usage</strong><small>See live CPU, memory, disk, and network activity.</small></span></div>
-        <div><b>02</b><span><strong>Inspect running processes</strong><small>Explore the process tree and see which processes are using resources.</small></span></div>
-        <div><b>03</b><span><strong>Investigate a slowdown</strong><small>Use AI Diagnose for help or export a report to share.</small></span></div>
-      </div>
-      <div class="diagnostics-meta-row" aria-hidden="true">
-        <span class="diag-meta-tag">OPEN FROM ANY TOOL</span>
-        <span class="diag-meta-tag shortcut"><kbd>⌥⌘E</kbd> OPEN POP-UP</span>
-      </div>
+      <div class="diagnostics-access"><span>Open over any tool</span><span><kbd>⌥</kbd><kbd>⌘</kbd><kbd>E</kbd></span></div>
     </div>
   </div>
 </section>
@@ -555,7 +545,7 @@ const headlines: Record<string, string> = {
 .tour-studio.tour-gallery .tour-nav { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); padding:0; gap:0; overflow:visible; border-block:1px solid #dce2ee; }
 .tour-studio.tour-gallery .tour-tool-slot { border-radius:0; background:transparent; box-shadow:none; min-width:0; }
 .tour-studio.tour-gallery .tour-tool-btn { position:relative; display:grid; grid-template-columns:20px 1fr; gap:10px; padding:24px 18px; border-radius:0; transition:background .25s,color .25s; }
-.tour-gallery .tour-tool-btn::after { content:""; position:absolute; bottom:-1px; left:16px; right:16px; height:3px; background:#3259ed; transform:scaleX(0); transform-origin:left; transition:transform .35s cubic-bezier(.22,1,.36,1); }
+.tour-gallery .tour-tool-btn::after { content:""; position:absolute; bottom:-1px; left:0; right:0; height:3px; background:#3259ed; transform:scaleX(0); transform-origin:left; transition:transform .35s cubic-bezier(.22,1,.36,1); }
 .tour-gallery .is-active .tour-tool-btn::after { transform:scaleX(1); }
 .tour-studio.tour-gallery .is-active .tour-tool-btn { color:#3259ed; background:#f0f3ff; }
 .tour-studio.tour-gallery .tour-tool-btn:hover { background:#f0f3ff; }

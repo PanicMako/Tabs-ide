@@ -912,3 +912,147 @@
     transition: none !important;
   }
 }
+
+/* Resource Explorer: a quiet editorial companion to the real app preview. */
+.edition-two .diagnostics-kicker {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.edition-two .diagnostics-kicker .eyebrow {
+  font-size: 9px;
+  letter-spacing: 0.13em;
+}
+.edition-two .diagnostics-live {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: 8px monospace;
+  letter-spacing: 0.08em;
+  color: #6d8290;
+}
+.edition-two .diagnostics-live i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #7a9c8b;
+}
+.edition-two .diagnostics-heading {
+  font:
+    500 clamp(29px, 2.9vw, 44px)/1.08 "DM Sans",
+    sans-serif;
+  letter-spacing: -0.055em;
+  margin: 22px 0 18px;
+}
+.edition-two .diagnostics-heading em {
+  display: inline;
+  font:
+    400 1.25em/1.04 "Instrument Serif",
+    Georgia,
+    serif;
+  letter-spacing: -0.035em;
+  color: #3259ed;
+}
+.edition-two .diagnostics-intro {
+  max-width: 360px;
+  font-size: 13px;
+  line-height: 1.7;
+  margin: 0;
+}
+.edition-two .diagnostics-signals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: 18px 0 26px;
+}
+.edition-two .diagnostics-signals span {
+  background: #e9edfa;
+  border: 1px solid #dfe5f2;
+  border-radius: 99px;
+  padding: 6px 11px;
+  font:
+    10px "DM Sans",
+    sans-serif;
+  color: #687895;
+}
+.edition-two .diagnostics-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.edition-two .diagnostics-cards > div {
+  background: #fbfcff;
+  border: 1px solid #dfe5f2;
+  border-radius: 18px;
+  padding: 20px;
+}
+.edition-two .diagnostics-card-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #e9edff;
+  color: #3259ed;
+  margin-bottom: 20px;
+  font-size: 28px;
+}
+.edition-two .diagnostics-cards small {
+  display: block;
+  color: #8490a6;
+  font: 7px monospace;
+  letter-spacing: 0.09em;
+  margin-bottom: 9px;
+}
+.edition-two .diagnostics-cards strong {
+  display: block;
+  font:
+    500 20px/1.15 "DM Sans",
+    sans-serif;
+  letter-spacing: -0.04em;
+  color: #202b44;
+}
+.edition-two .diagnostics-cards p {
+  font-size: 10px;
+  line-height: 1.65;
+  color: #7b879b;
+  margin: 12px 0 0;
+}
+.edition-two .diagnostics-access {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  margin-top: 20px;
+  padding-top: 17px;
+  border-top: 1px solid #dfe5f2;
+  font-size: 10px;
+  color: #7b879b;
+}
+.edition-two .diagnostics-access > span:last-child {
+  display: flex;
+  gap: 4px;
+}
+.edition-two .diagnostics-access kbd {
+  display: grid;
+  place-items: center;
+  min-width: 24px;
+  height: 24px;
+  border: 1px solid #dce2ef;
+  border-radius: 6px;
+  background: #fbfcff;
+  box-shadow: 0 2px 0 #dce2ef;
+  font:
+    11px "DM Sans",
+    sans-serif;
+  color: #62708c;
+}
+@media (max-width: 650px) {
+  .edition-two .diagnostics-cards > div {
+    padding: 16px;
+  }
+  .edition-two .diagnostics-cards strong {
+    font-size: 18px;
+  }
+}
