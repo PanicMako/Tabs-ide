@@ -26,20 +26,29 @@ export const TOTAL_TAGS_COUNT = 175;
 export const changelogData: ChangelogRelease[] = [
   {
     tag: "v1.3.32",
-    title: "GitHub branding for Source Control and workspace refinements",
+    title: "Basic usage analytics and clearer Source Control",
     date: "October 5, 2026",
     shortDate: "Oct 5",
     isLatest: false,
     type: "patch",
     summary:
-      "Tabs includes updated Git identity across the workspace, cleaner Source Control headers matching your theme typography, and improved website release detection.",
+      "Tabs adds basic installation activity metrics with a Settings control, alongside updated Git icons and Source Control typography.",
     highlights: [
+      "Basic usage analytics counts daily opened and active installations using a random installation ID, OS, architecture, app version, and app type. No names, account identities, prompts, code, models, reasoning settings, or session recordings are collected.",
+      "Usage analytics is enabled by default. Turn it off in Settings → General → Privacy without restarting; existing explicit opt-outs remain respected.",
       "Git tool icons in the workspace shell and onboarding wizard now display the GitHub mascot for immediate visual recognition.",
       "The Source Control sidebar header now includes the GitHub icon and renders repository names with your configured UI font and clean uppercase tracking.",
       "The download and release resolver dynamically surfaces the latest desktop builds across release channels.",
       "Source trees are reorganized into isolated application and Code-OSS runtime packages to streamline desktop builds.",
     ],
     categories: [
+      {
+        title: "Basic usage analytics",
+        items: [
+          "Basic usage analytics counts daily opened and active installations using a random installation ID, OS, architecture, app version, and app type. No names, account identities, prompts, code, models, reasoning settings, or session recordings are collected.",
+          "Usage analytics is enabled by default. Turn it off in Settings → General → Privacy without restarting; existing explicit opt-outs remain respected.",
+        ],
+      },
       {
         title: "Workspace & Source Control",
         items: [

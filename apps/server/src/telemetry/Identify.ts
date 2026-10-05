@@ -2,7 +2,7 @@ import { Effect, FileSystem } from "effect";
 import * as Crypto from "node:crypto";
 import { ServerConfig } from "../config";
 
-/** Called only after explicit opt-in. Never reads provider account/authentication files. */
+/** Called only when basic analytics is enabled and a Tabs project is configured. Never reads provider account/authentication files. */
 export const getTelemetryIdentifier = Effect.gen(function* () {
   const fileSystem = yield* FileSystem.FileSystem;
   const { anonymousIdPath } = yield* ServerConfig;

@@ -487,3 +487,14 @@ describe("Browser resumeLastVisitedPage defaults and migrations", () => {
     expect(optInEmbed.resumeLastVisitedPage).toBe(true);
   });
 });
+
+describe("basic usage analytics settings", () => {
+  it("defaults existing installations to enabled and preserves an explicit opt-out", () => {
+    expect(decodeServerSettings({}).enableUsageAnalytics).toBe(true);
+    const optedOut = decodeServerSettings({ enableUsageAnalytics: false });
+    expect(decodeServerSettings(encodeServerSettings(optedOut)).enableUsageAnalytics).toBe(false);
+    expect(decodeServerSettingsPatch({ enableUsageAnalytics: false }).enableUsageAnalytics).toBe(
+      false,
+    );
+  });
+});
