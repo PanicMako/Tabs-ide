@@ -1,0 +1,125 @@
+---
+import Icon from "./Icon.astro";
+const projects = [
+  { name: "Studio site", kind: "A new home for your work", file: "homepage.tsx", agent: "claude", task: "Refine the landing page", branch: "design/studio", command: "npm run dev", port: "localhost:3000", color: "#e7ecff" },
+  { name: "Next product", kind: "Something worth building", file: "workspace.tsx", agent: "codex", task: "Build the next workspace", branch: "feature/workspace", command: "bun dev", port: "localhost:5173", color: "#e5eee7" },
+  { name: "Weekend idea", kind: "A little room to experiment", file: "experiment.ts", agent: "gemini", task: "Explore a new approach", branch: "experiment/one", command: "npm start", port: "localhost:4321", color: "#f3e8de" },
+];
+---
+<section class="project-continuity" id="project-continuity" aria-labelledby="continuity-heading" data-continuity>
+  <div class="hs-wrap pc-layout">
+    <header class="pc-heading"><div><p class="pc-eyebrow">01 / EVERYTHING IN ITS ELEMENT</p><h2 id="continuity-heading">Many moving parts.<br/><em>One place to make.</em></h2></div><p>Your code. Your collaborators. Your tools.<br/>A different world in every project tab.</p></header>
+    <div class="pc-board">
+      {projects.map((project, index) => <div class="pc-project" style={`--pc-tint: ${project.color}`} role="tabpanel" id={`pc-panel-${index}`} aria-labelledby={`pc-tab-${index}`} tabindex="0" hidden={index !== 0} data-pc-panel>
+        <div class="pc-code pc-tile"><div class="pc-bar"><span><Icon name="Layers" size={15}/> CODE OSS</span><span>01 / CODE</span></div><div class="pc-code-title">{project.file}<span>×</span></div><div class="pc-code-body"><div class="pc-explorer"><small>EXPLORER</small><span>⌄ src</span><span class="pc-file-active">{project.file}</span><span>styles.css</span><span>package.json</span></div><div class="pc-source"><span><i>01</i><b>import</b> {'{ useState }'} <b>from</b></span><span><i>02</i><em>'react';</em></span><span><i>03</i></span><span><i>04</i><b>export default function</b></span><span><i>05</i>Workspace() {'{'}</span><span><i>06</i>  <b>return</b> (</span><span><i>07</i>    &lt;<em>main</em>&gt;</span><span><i>08</i>      {project.name}</span><span><i>09</i>    &lt;/<em>main</em>&gt;</span><span><i>10</i>  );</span><span><i>11</i>{'}'}</span><span class="pc-caret" aria-hidden="true"></span></div></div><div class="pc-code-footer"><span><Icon name="GitBranch" size={13}/>{project.branch}</span><span>TypeScript · UTF-8</span></div></div>
+        <div class="pc-agent pc-tile"><div class="pc-bar"><span>02 / AGENTS</span><span aria-hidden="true">↗</span></div><img src={`/providers/${project.agent}.svg`} width="34" height="34" alt=""/><h3>{project.task}</h3><div class="pc-message">Let’s make it happen.<span aria-hidden="true">✳</span></div><span class="pc-agent-footer">Code and conversation, together.</span></div>
+        <div class="pc-terminal pc-tile"><div class="pc-bar"><span>03 / TERMINAL</span><span aria-hidden="true">_ □ ×</span></div><p><span>~/</span> {project.name.toLowerCase().replaceAll(' ', '-')}</p><code><span>❯</span> {project.command}</code><div class="pc-terminal-ready"><i></i> {project.port}</div><span class="pc-terminal-note">Your commands. Your workflow.</span></div>
+        <div class="pc-browser pc-tile"><div class="pc-browser-bar"><span aria-hidden="true">← →</span><span>{project.port}</span><span aria-hidden="true">↗</span></div><div class="pc-site"><small>{project.name.toUpperCase()}</small><div class="pc-site-orb" aria-hidden="true"><span>✳</span></div><h3>{index === 0 ? 'Make a little' : index === 1 ? 'The next' : 'What if'}<br/><em>{index === 0 ? 'space.' : index === 1 ? 'big thing.' : 'we tried?'}</em></h3><span class="pc-site-link">A work in progress <span aria-hidden="true">↗</span></span></div><div class="pc-browser-footer">04 / BROWSER <span>Preview your work.</span></div></div>
+      </div>)}
+      <span class="pc-board-note" aria-hidden="true">A LITTLE ORDER. A LOT OF POSSIBILITY.</span>
+    </div>
+    <footer class="pc-footer"><div class="pc-tabs" role="tablist" aria-label="Example project workspaces">{projects.map((project, index) => <button type="button" role="tab" id={`pc-tab-${index}`} aria-controls={`pc-panel-${index}`} aria-selected={index === 0} tabindex={index === 0 ? 0 : -1} data-pc-tab><span>0{index + 1}</span>{project.name}<span class="pc-tab-arrow" aria-hidden="true">↗</span></button>)}</div><span>SWITCH THE PROJECT. CHANGE THE WHOLE WORKSPACE.</span></footer>
+  </div>
+</section>
+<style>
+  .project-continuity { background-color: #e9edf8; background-image: linear-gradient(#3259ed0c 1px, transparent 1px), linear-gradient(90deg, #3259ed0c 1px, transparent 1px); background-size: 54px 54px; min-height: 100svh; display: flex; align-items: center; padding-block: 45px; overflow: clip; border-block: 1px solid #d8dfef; }
+  .pc-layout { width: 100%; display: flex; flex-direction: column; gap: clamp(22px, 3vh, 36px); }
+  .pc-heading { display: flex; justify-content: space-between; align-items: end; gap: 30px; }
+  .pc-eyebrow { font: 500 9px/1.6 "DM Sans", sans-serif; letter-spacing: .12em; color: #6d7b9c; margin: 0 0 17px; }
+  .pc-heading h2 { margin: 0; font: 500 clamp(40px, 4vw, 65px)/.98 "DM Sans", sans-serif; letter-spacing: -.055em; }
+  .pc-heading h2 em { font: 400 1.13em/1.08 "Instrument Serif", Georgia, serif; color: var(--hs-blue); letter-spacing: -.035em; }
+  .pc-heading > p { font-size: 12px; color: #6c7892; line-height: 1.8; margin-bottom: 5px; }
+  .pc-board { position: relative; padding: 20px 8px 27px; }
+  .pc-project { display: grid; grid-template-columns: 1.45fr .95fr .92fr; grid-template-rows: 1fr .82fr; gap: 19px; min-height: 360px; height: clamp(360px, 46vh, 480px); }
+  .pc-project[hidden] { display: none; }
+  .pc-tile { min-width: 0; border: 1px solid #ffffff; border-radius: 17px; background: #fff; box-shadow: 0 13px 24px #293d7310; overflow: hidden; transition: transform .3s, box-shadow .3s; }
+  .pc-tile:hover { transform: translateY(-5px); box-shadow: 0 20px 35px #293d7320; }
+  .pc-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: #8a94a8; font: 8px/1.4 monospace; letter-spacing: .06em; }
+  .pc-bar > span:first-child { display: flex; gap: 7px; align-items: center; }
+  .pc-code { grid-column: 1; grid-row: 1 / 3; display: flex; flex-direction: column; transform: rotate(-2deg); }
+  .pc-code:hover { transform: rotate(-2deg) translateY(-5px); }
+  .pc-code .pc-bar { padding: 17px; background: #f8f9fc; border-bottom: 1px solid #ecedf2; }
+  .pc-code-title { display: flex; justify-content: space-between; padding: 14px 18px; font-size: 11px; border-bottom: 1px solid #ecedf2; }
+  .pc-code-title > span { color: #a2aaba; }
+  .pc-code-body { display: flex; flex: 1; min-height: 0; }
+  .pc-explorer { width: 29%; padding: 16px 8px; background: #f8f9fc; border-right: 1px solid #ecedf2; display: flex; flex-direction: column; gap: 15px; font-size: 9px; color: #939bae; overflow: hidden; }
+  .pc-explorer small { font: 7px monospace; letter-spacing: .08em; margin-bottom: 3px; }
+  .pc-explorer .pc-file-active { color: #556383; background: #e9edf8; border-radius: 5px; padding: 7px 5px; margin: -7px -4px; white-space: nowrap; }
+  .pc-source { padding: 20px 9px; overflow: hidden; font: clamp(8px, .8vw, 11px)/1.95 monospace; white-space: pre; }
+  .pc-source > span { display: block; }
+  .pc-source i { display: inline-block; width: 25px; font-style: normal; color: #bdc4d2; }
+  .pc-source b { color: #8474b7; font-weight: 400; }
+  .pc-source em { color: #729780; font-style: normal; }
+  .pc-source .pc-caret { width: 1px; height: 14px; background: #3259ed; margin-left: 25px; }
+  .pc-code-footer { display: flex; justify-content: space-between; gap: 8px; padding: 11px; background: #f3f6fd; color: #8996b2; font: 7px monospace; }
+  .pc-code-footer > span:first-child { display: flex; gap: 5px; align-items: center; }
+  .pc-agent { padding: 19px; background: #fdfbf7; transform: rotate(1.5deg) translateY(-12px); }
+  .pc-agent:hover { transform: rotate(1.5deg) translateY(-17px); }
+  .pc-agent > img { margin-top: 20px; width: 30px; height: 30px; }
+  .pc-agent h3 { font: 400 clamp(19px, 2vw, 30px)/1.05 "Instrument Serif", Georgia, serif; letter-spacing: -.015em; margin: 10px 0 15px; }
+  .pc-message { display: flex; align-items: center; justify-content: space-between; font-size: 9px; color: #9b8d75; padding-top: 10px; border-top: 1px solid #ece5d9; }
+  .pc-message > span { font-size: 19px; }
+  .pc-agent-footer { display: block; font-size: 8px; color: #ac9f8b; margin-top: 9px; }
+  .pc-terminal { background: #202b44; color: #c6d1ed; border-color: #202b44; padding: 18px; transform: rotate(-1deg) translateX(9px); }
+  .pc-terminal:hover { transform: rotate(-1deg) translate(9px, -5px); }
+  .pc-terminal .pc-bar { color: #6f7c99; }
+  .pc-terminal p { font: 9px monospace; margin-top: 17px; color: #8f9cba; }
+  .pc-terminal p > span { color: #7687ae; }
+  .pc-terminal code { font: 12px monospace; }
+  .pc-terminal code > span { color: #a7bdfd; margin-right: 6px; }
+  .pc-terminal-ready { display: flex; align-items: center; gap: 7px; font: 9px monospace; color: #a5c1b6; margin-top: 18px; }
+  .pc-terminal-ready i { width: 5px; height: 5px; background: #89b69b; border-radius: 50%; }
+  .pc-terminal-note { display: block; font-size: 8px; margin-top: 14px; color: #73819e; }
+  .pc-browser { grid-column: 3; grid-row: 1 / 3; transform: rotate(3deg) translateY(8px); display: flex; flex-direction: column; }
+  .pc-browser:hover { transform: rotate(3deg) translateY(3px); }
+  .pc-browser-bar { display: flex; align-items: center; justify-content: space-between; gap: 6px; background: #f8f9fc; padding: 14px 12px; color: #9ba6ba; font-size: 9px; }
+  .pc-browser-bar > span:nth-child(2) { font: 8px monospace; padding: 7px 12px; border: 1px solid #e5e9f2; border-radius: 99px; background: #fff; }
+  .pc-site { flex: 1; background: var(--pc-tint); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px 10px; }
+  .pc-site > small { font: 7px monospace; letter-spacing: .15em; color: #7a88a5; }
+  .pc-site-orb { display: grid; place-items: center; width: 76px; height: 76px; background: #ffffff70; border: 1px solid #ffffffb0; border-radius: 50%; margin-top: 24px; }
+  .pc-site-orb > span { font-size: 54px; color: #3259ed; }
+  .pc-site h3 { text-align: center; font: 400 clamp(28px, 3.2vw, 46px)/.97 "Instrument Serif", Georgia, serif; letter-spacing: -.03em; margin: 20px 0; }
+  .pc-site h3 em { color: var(--hs-blue); }
+  .pc-site-link { font-size: 8px; color: #8090af; }
+  .pc-site-link > span { margin-left: 12px; }
+  .pc-browser-footer { display: flex; justify-content: space-between; padding: 12px; font: 7px monospace; color: #8c98ae; }
+  .pc-board-note { position: absolute; bottom: 0; left: 8px; font: 7px monospace; color: #8d9aba; letter-spacing: .14em; }
+  .pc-footer { display: flex; justify-content: space-between; gap: 25px; align-items: center; border-top: 1px solid #3259ed1a; padding-top: 22px; }
+  .pc-tabs { display: flex; gap: 5px; }
+  .pc-tabs button { display: flex; align-items: center; gap: 12px; background: transparent; border: 1px solid transparent; border-radius: 99px; padding: 14px 18px; font: 500 11px "DM Sans", sans-serif; color: #7e8aa3; cursor: pointer; }
+  .pc-tabs button > span:first-child { font: 8px monospace; opacity: .7; }
+  .pc-tabs button[aria-selected="true"] { color: #fff; background: #3259ed; box-shadow: 0 6px 12px #3259ed18; }
+  .pc-tab-arrow { opacity: 0; }
+  [aria-selected="true"] > .pc-tab-arrow { opacity: 1; }
+  .pc-footer > span { font: 7px monospace; letter-spacing: .07em; color: #8694b1; text-align: right; }
+  button:focus-visible, .pc-project:focus-visible { outline: 2px solid var(--hs-blue); outline-offset: 5px; }
+  @media(max-width: 900px) { .pc-heading > p { max-width: 210px; font-size: 10px; } .pc-tabs button { padding: 12px; font-size: 10px; } .pc-footer > span { display: none; } .pc-project { gap: 12px; } .pc-agent-footer { display: none; } }
+  @media(max-width: 650px) { .project-continuity { min-height: 100svh; padding-block: 45px; } .pc-heading { display: block; } .pc-heading h2 { font-size: clamp(35px, 9vw, 48px); } .pc-heading > p { max-width: none; margin-top: 20px; } .pc-project { grid-template-columns: 1fr 1fr; grid-template-rows: 270px 205px; height: auto; min-height: 0; gap: 12px; } .pc-code { grid-column: 1 / 3; grid-row: 1; } .pc-agent { grid-column: 1; grid-row: 2; padding: 15px; transform: rotate(-2deg); } .pc-browser { grid-column: 2; grid-row: 2; transform: rotate(3deg); } .pc-terminal { grid-column: 1 / 3; min-height: 145px; transform: rotate(-1deg); } .pc-source { font-size: 10px; } .pc-explorer { width: 30%; font-size: 10px; } .pc-agent h3 { font-size: 25px; } .pc-agent > img { margin-top: 15px; } .pc-site { padding: 12px 5px; } .pc-site-orb { width: 43px; height: 43px; margin-top: 12px; } .pc-site-orb > span { font-size: 30px; } .pc-site h3 { font-size: 27px; margin: 12px 0; } .pc-site-link, .pc-browser-footer > span { display: none; } .pc-browser-bar { padding: 9px 6px; } .pc-browser-bar > span:nth-child(2) { padding: 4px 6px; font-size: 6px; } .pc-tabs { width: 100%; justify-content: space-between; gap: 2px; } .pc-tabs button { padding: 11px 9px; font-size: 9px; gap: 5px; } .pc-tab-arrow { display: none; } .pc-footer { padding-top: 18px; } }
+  @media(prefers-reduced-motion: reduce) { .pc-tile { transition: none; } }
+  :global(.motion-paused) .pc-tile { transition: none; }
+</style>
+<script>
+  const root = document.querySelector<HTMLElement>("[data-continuity]");
+  if (root) {
+    const tabs = [...root.querySelectorAll<HTMLButtonElement>("[data-pc-tab]")];
+    const panels = [...root.querySelectorAll<HTMLElement>("[data-pc-panel]")];
+    const controller = new AbortController();
+    const reduced = matchMedia("(prefers-reduced-motion: reduce)");
+    const select = (index: number) => {
+      tabs.forEach((tab, i) => { tab.setAttribute("aria-selected", String(i === index)); tab.tabIndex = i === index ? 0 : -1; });
+      panels.forEach((panel, i) => { panel.getAnimations().forEach(animation => animation.cancel()); panel.hidden = i !== index; });
+      if (!reduced.matches && !document.documentElement.classList.contains("motion-paused")) {
+        panels[index]?.animate([{ opacity: .3, transform: "translateY(12px) rotate(2deg)" }, { opacity: 1, transform: "none" }], { duration: 350, easing: "cubic-bezier(.22,1,.36,1)" });
+      }
+    };
+    tabs.forEach((tab, index) => {
+      tab.addEventListener("click", () => select(index), { signal: controller.signal });
+      tab.addEventListener("keydown", event => {
+        const next = event.key === "ArrowRight" ? (index + 1) % tabs.length : event.key === "ArrowLeft" ? (index - 1 + tabs.length) % tabs.length : event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : -1;
+        if (next < 0) return;
+        event.preventDefault(); select(next); tabs[next]?.focus();
+      }, { signal: controller.signal });
+    });
+    document.addEventListener("astro:before-swap", () => { controller.abort(); panels.forEach(panel => panel.getAnimations().forEach(animation => animation.cancel())); }, { once: true });
+  }
+</script>
