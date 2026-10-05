@@ -24,7 +24,8 @@ const projects = [
 </section>
 <style>
   .project-continuity { background-color: #3259ed; color: #fff; background-image: linear-gradient(#ffffff0b 1px, transparent 1px), linear-gradient(90deg, #ffffff0b 1px, transparent 1px); background-size: 54px 54px; min-height: 100svh; display: flex; align-items: center; padding-block: 45px; overflow: clip; border-block: 1px solid #3259ed; }
-  .pc-layout { width: 100%; display: flex; flex-direction: column; gap: clamp(22px, 3vh, 36px); }
+  .project-continuity .pc-layout { width: min(1280px, 89%); margin-inline: auto; min-width: 0; display: flex; flex-direction: column; gap: clamp(22px, 3vh, 36px); }
+  @media (max-width: 760px) { .project-continuity .pc-layout { width: calc(100% - 40px); } }
   .pc-heading { display: flex; justify-content: space-between; align-items: end; gap: 30px; }
   .pc-eyebrow { font: 500 9px/1.6 "DM Sans", sans-serif; letter-spacing: .12em; color: #c1ceff; margin: 0 0 17px; }
   .pc-heading h2 { margin: 0; font: 500 clamp(40px, 4vw, 65px)/.98 "DM Sans", sans-serif; letter-spacing: -.055em; }
