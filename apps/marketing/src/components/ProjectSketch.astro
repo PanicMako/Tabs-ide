@@ -2,7 +2,7 @@
 import Icon from "./Icon.astro";
 interface Props { project: { id: string; file: string; task: string; branch: string; port: string; label: string }; }
 const { project } = Astro.props;
-const tools = [["code", "Code", "Code2"], ["agents", "Agents", "Bot"], ["server", "Launchpad", "Rocket"], ["git", "Git", "GitBranch"], ["browser", "Browser", "Globe"]] as const;
+const tools = [["code", "Code", "Code2"], ["agents", "Agents", "Bot"], ["server", "Launchpad", "Rocket"], ["git", "Git", "Github"], ["browser", "Browser", "Globe"]] as const;
 ---
 <div class="sketch" data-project-sketch>
   <div class="sketch-toolbar" role="tablist" aria-label={`Tools for ${project.id} example project`}>

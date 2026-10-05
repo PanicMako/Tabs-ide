@@ -10,6 +10,7 @@ import FooterSignature from "./FooterSignature.astro";
 import ToolSetupPaths from "./ToolSetupPaths.astro";
 import WorkspaceManifesto from "./WorkspaceManifesto.astro";
 import ProjectContinuity from "./ProjectContinuity.astro";
+import ChapterPacing from "./ChapterPacing.astro";
 import "../styles/concept-one.css";
 import "../styles/concept-two-refined.css";
 const projects = [
@@ -61,20 +62,20 @@ const workflows = [
       </div>)}
       <div class="e2-stage-caption"><span>INTERACTIVE WORKSPACE SKETCH</span><span>Try Code → Agents → Browser</span></div>
     </div>
-    <div class="e2-tool-index"><span>ALREADY AT HOME</span>{([['Code2','Code'],['Bot','Agents'],['Rocket','Launchpad'],['GitBranch','Git'],['Globe','Browser']] as const).map(([icon,name])=><span><Icon name={icon} size={18}/>{name}</span>)}</div>
+    <div class="e2-tool-index"><span>ALREADY AT HOME</span>{([['Code2','Code'],['Bot','Agents'],['Rocket','Launchpad'],['Github','Git'],['Globe','Browser']] as const).map(([icon,name])=><span><Icon name={icon} size={18}/>{name}</span>)}</div>
   </section>
 
-  <ProjectContinuity />
+  <ChapterPacing tone="blue"><ProjectContinuity /></ChapterPacing>
 
   <WorkspaceManifesto />
 
-  <section class="e2-tools hs-wrap" id="v2-workspace">
+  <ChapterPacing><section class="e2-tools hs-wrap" id="v2-workspace">
     <div class="e2-section-heading"><p class="e2-eyebrow">02 / BUILT IN, NOT BOLTED ON</p><div><h2>Get into the work.<br/><em>Stay in your element.</em></h2><p>A Code OSS editor. Project conversations with your agents. Saved launchpad presets, visual Git, and an integrated browser. Follow the process, one view at a time.</p></div></div>
     <Workspace instance="edition-two" variant="light"/>
     <p class="e2-footnote"><span>EARLY ACCESS</span> Testing is optional and disabled by default. Enable it in Workspace settings to try recorded journeys and repeatable checks.</p>
-  </section>
+  </section></ChapterPacing>
 
-  <section class="e2-workflows hs-wrap">
+  <ChapterPacing><section class="e2-workflows hs-wrap">
     <div class="e2-section-heading"><p class="e2-eyebrow">03 / ADD YOUR OWN TOOLS</p><div><h2>A URL. A CLI. A preset.<br/><em>Make it part of Tabs.</em></h2><p>Open Workspace settings, add a website or terminal command, and save. It gets its own place in your project’s toolbar. Save Launchpad presets to start your app and open its preview.</p></div></div>
     <ToolSetupPaths />
     <div class="e2-workflow-studio" data-e2-workflows>
@@ -88,9 +89,9 @@ const workflows = [
         <div class="e2-flow-copy"><h3>{flow.title}</h3><p>{flow.copy}</p><small>{flow.detail}</small>{flow.id==="web" && <small>Some services restrict embedded pages or sign-in; open them externally when needed.</small>}</div>
       </div>)}
     </div>
-  </section>
+  </section></ChapterPacing>
 
-  <section class="e2-agents"><div class="hs-wrap"><AgentRoster eyebrow="04 / YOUR AGENTS. YOUR CALL." title="Different minds. Shared momentum." description="Choose a supported agent for your project conversations. Native connections and Agent Client Protocol (ACP) integrations keep your collaborators close to the work."/></div></section>
+  <ChapterPacing tone="mist"><section class="e2-agents"><div class="hs-wrap"><AgentRoster eyebrow="04 / YOUR AGENTS. YOUR CALL." title="Different minds. Shared momentum." description="Choose a supported agent for your project conversations. Native connections and Agent Client Protocol (ACP) integrations keep your collaborators close to the work."/></div></section></ChapterPacing>
   <div class="e2-release hs-wrap"><span class="e2-eyebrow">05 / ALWAYS MAKING ROOM</span><ReleaseLog/></div>
   <footer class="hs-end"><div class="hs-wrap"><div class="hs-end-top"><span class="hs-end-mark" aria-hidden="true">✳</span><p>Make space for<br/><span>what's next.</span></p><Download compact/></div><div class="hs-platforms"><a href="/downloads">Find your download for macOS, Windows, or Linux <Icon name="ArrowUpRight" size={17}/></a></div><FooterSignature concept={1}/></div></footer>
 </article>

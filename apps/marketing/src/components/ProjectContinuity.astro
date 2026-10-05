@@ -9,12 +9,13 @@ const projects = [
 <section class="project-continuity" id="project-continuity" aria-labelledby="continuity-heading" data-continuity>
   <div class="hs-wrap pc-layout">
     <header class="pc-heading"><div><p class="pc-eyebrow">01 / EVERYTHING IN ITS ELEMENT</p><h2 id="continuity-heading">All the moving parts.<br/><em>One window.</em></h2></div><p>Your code. Your collaborators. Your tools.<br/>Together, for every project.</p></header>
-    <div class="pc-board" id="pc-window"><div class="pc-window-chrome"><span class="pc-window-name">tabs<span aria-hidden="true">✳</span></span><div class="pc-tabs" role="tablist" aria-label="Example project workspaces">{projects.map((project, index) => <button type="button" role="tab" id={`pc-tab-${index}`} aria-controls={`pc-panel-${index}`} aria-selected={index === 0} tabindex={index === 0 ? 0 : -1} data-pc-tab><span>0{index + 1}</span>{project.name}<span class="pc-tab-arrow" aria-hidden="true">↗</span></button>)}</div><span class="pc-window-controls" aria-hidden="true">− □ ×</span></div>
+    <div class="pc-board" id="pc-window"><div class="pc-window-chrome"><span class="pc-window-name">tabs<span aria-hidden="true">✳</span></span><div class="pc-tabs" role="tablist" aria-label="Example project workspaces">{projects.map((project, index) => <button type="button" role="tab" id={`pc-tab-${index}`} aria-controls={`pc-panel-${index}`} aria-selected={index === 0} tabindex={index === 0 ? 0 : -1} data-pc-tab><span>0{index + 1}</span>{project.name}<span class="pc-tab-arrow" aria-hidden="true">↗</span></button>)}</div><span class="pc-window-controls" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none"><path d="M4 13h12"/></svg><svg viewBox="0 0 20 20" fill="none"><rect x="4" y="4" width="12" height="12" rx="1"/></svg><svg viewBox="0 0 20 20" fill="none"><path d="m5 5 10 10M15 5 5 15"/></svg></span></div>
       {projects.map((project, index) => <div class="pc-project" style={`--pc-tint: ${project.color}`} role="tabpanel" id={`pc-panel-${index}`} aria-labelledby={`pc-tab-${index}`} tabindex="0" hidden={index !== 0} data-pc-panel>
-        <div class="pc-code pc-tile"><div class="pc-bar"><span><Icon name="Layers" size={15}/> CODE OSS</span><span>01 / CODE</span></div><div class="pc-code-title">{project.file}<span>×</span></div><div class="pc-code-body"><div class="pc-explorer"><small>EXPLORER</small><span>⌄ src</span><span class="pc-file-active">{project.file}</span><span>styles.css</span><span>package.json</span></div><div class="pc-source"><span><i>01</i><b>import</b> {'{ useState }'} <b>from</b></span><span><i>02</i><em>'react';</em></span><span><i>03</i></span><span><i>04</i><b>export default function</b></span><span><i>05</i>Workspace() {'{'}</span><span><i>06</i>  <b>return</b> (</span><span><i>07</i>    &lt;<em>main</em>&gt;</span><span><i>08</i>      {project.name}</span><span><i>09</i>    &lt;/<em>main</em>&gt;</span><span><i>10</i>  );</span><span><i>11</i>{'}'}</span><span class="pc-caret" aria-hidden="true"></span></div></div><div class="pc-code-footer"><span><Icon name="GitBranch" size={13}/>{project.branch}</span><span>TypeScript · UTF-8</span></div></div>
-        <div class="pc-agent pc-tile"><div class="pc-bar"><span>02 / AGENTS</span><span aria-hidden="true">↗</span></div><img src={`/providers/${project.agent}.svg`} width="34" height="34" alt=""/><h3>{project.task}</h3><div class="pc-message">Let’s make it happen.<span aria-hidden="true">✳</span></div><span class="pc-agent-footer">Code and conversation, together.</span></div>
-        <div class="pc-terminal pc-tile"><div class="pc-bar"><span>03 / TERMINAL</span><span aria-hidden="true">_ □ ×</span></div><p><span>~/</span> {project.name.toLowerCase().replaceAll(' ', '-')}</p><code><span>❯</span> {project.command}</code><div class="pc-terminal-ready"><i></i> {project.port}</div><span class="pc-terminal-note">Your commands. Your workflow.</span></div>
-        <div class="pc-browser pc-tile"><div class="pc-browser-bar"><span aria-hidden="true">← →</span><span>{project.port}</span><span aria-hidden="true">↗</span></div><div class="pc-site"><small>{project.name.toUpperCase()}</small><div class="pc-site-orb" aria-hidden="true"><span>✳</span></div><h3>{index === 0 ? 'Make a little' : index === 1 ? 'The next' : 'What if'}<br/><em>{index === 0 ? 'space.' : index === 1 ? 'big thing.' : 'we tried?'}</em></h3><span class="pc-site-link">A work in progress <span aria-hidden="true">↗</span></span></div><div class="pc-browser-footer">04 / BROWSER <span>Preview your work.</span></div></div>
+        <div class="pc-tool-tabs" role="tablist" aria-label={`Tools for ${project.name}`} hidden data-pc-tools>{([{key:"code",label:"Code",icon:"Code2"},{key:"agent",label:"Agents",icon:"Bot"},{key:"terminal",label:"Terminal",icon:"Terminal"},{key:"browser",label:"Browser",icon:"Globe"}] as const).map((tool, toolIndex) => <button type="button" role="tab" id={`pc-tool-${index}-${tool.key}`} aria-controls={`pc-view-${index}-${tool.key}`} aria-selected={toolIndex === 0} tabindex={toolIndex === 0 ? 0 : -1} data-pc-tool={tool.key}><Icon name={tool.icon} size={16}/>{tool.label}</button>)}</div>
+        <div class="pc-code pc-tile" id={`pc-view-${index}-code`} aria-labelledby={`pc-tool-${index}-code`} data-pc-view="code"><div class="pc-bar"><span><Icon name="Layers" size={15}/> CODE OSS</span><span>01 / CODE</span></div><div class="pc-code-title">{project.file}<span>×</span></div><div class="pc-code-body"><div class="pc-explorer"><small>EXPLORER</small><span>⌄ src</span><span class="pc-file-active">{project.file}</span><span>styles.css</span><span>package.json</span></div><div class="pc-source"><span><i>01</i><b>import</b> {'{ useState }'} <b>from</b></span><span><i>02</i><em>'react';</em></span><span><i>03</i></span><span><i>04</i><b>export default function</b></span><span><i>05</i>Workspace() {'{'}</span><span><i>06</i>  <b>return</b> (</span><span><i>07</i>    &lt;<em>main</em>&gt;</span><span><i>08</i>      {project.name}</span><span><i>09</i>    &lt;/<em>main</em>&gt;</span><span><i>10</i>  );</span><span><i>11</i>{'}'}</span><span class="pc-caret" aria-hidden="true"></span></div></div><div class="pc-code-footer"><span><Icon name="GitBranch" size={13}/>{project.branch}</span><span>TypeScript · UTF-8</span></div></div>
+        <div class="pc-agent pc-tile" id={`pc-view-${index}-agent`} aria-labelledby={`pc-tool-${index}-agent`} data-pc-view="agent"><div class="pc-bar"><span>02 / AGENTS</span><span aria-hidden="true">↗</span></div><img src={`/providers/${project.agent}.svg`} width="34" height="34" alt=""/><h3>{project.task}</h3><div class="pc-message">Let’s make it happen.<span aria-hidden="true">✳</span></div><span class="pc-agent-footer">Code and conversation, together.</span></div>
+        <div class="pc-terminal pc-tile" id={`pc-view-${index}-terminal`} aria-labelledby={`pc-tool-${index}-terminal`} data-pc-view="terminal"><div class="pc-bar"><span>03 / TERMINAL</span><span aria-hidden="true">_ □ ×</span></div><p><span>~/</span> {project.name.toLowerCase().replaceAll(' ', '-')}</p><code><span>❯</span> {project.command}</code><div class="pc-terminal-ready"><i></i> {project.port}</div><span class="pc-terminal-note">Your commands. Your workflow.</span></div>
+        <div class="pc-browser pc-tile" id={`pc-view-${index}-browser`} aria-labelledby={`pc-tool-${index}-browser`} data-pc-view="browser"><div class="pc-browser-bar"><span aria-hidden="true">← →</span><span>{project.port}</span><span aria-hidden="true">↗</span></div><div class="pc-site"><small>{project.name.toUpperCase()}</small><div class="pc-site-orb" aria-hidden="true"><span>✳</span></div><h3>{index === 0 ? 'Make a little' : index === 1 ? 'The next' : 'What if'}<br/><em>{index === 0 ? 'space.' : index === 1 ? 'big thing.' : 'we tried?'}</em></h3><span class="pc-site-link">A work in progress <span aria-hidden="true">↗</span></span></div><div class="pc-browser-footer">04 / BROWSER <span>Preview your work.</span></div></div>
       </div>)}
       <span class="pc-board-note" aria-hidden="true">A LITTLE ORDER. A LOT OF POSSIBILITY.</span>
     </div>
@@ -96,11 +97,12 @@ const projects = [
   .pc-window-chrome { display: flex; align-items: center; gap: 20px; background: #e9edff; border-radius: 13px; margin-bottom: 22px; padding: 8px 16px; color: #202b44; transition: margin .65s, border-radius .65s; }
   .pc-window-name { display: flex; align-items: center; gap: 12px; font: 600 17px "DM Sans", sans-serif; letter-spacing: -.07em; }
   .pc-window-name > span { color: #3259ed; font-size: 23px; }
-  .pc-window-controls { margin-left: auto; font: 12px monospace; color: #8b97b8; }
+  .pc-window-controls { display: flex; align-items: center; gap: 14px; margin-left: auto; padding-bottom: 8px; color: #687797; }
+  .pc-window-controls svg { width: 20px; height: 20px; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
   .pc-assemble { border: 1px solid #ffffff60; background: #ffffff10; border-radius: 99px; padding: 13px 21px; color: #fff; cursor: pointer; font: 500 11px "DM Sans", sans-serif; }
   .pc-assemble > span { margin-left: 15px; }
-  .is-assembled .pc-board { background: #fff; border-color: #fff; padding: 0; box-shadow: 0 25px 70px #152ea845; overflow: hidden; }
-  .is-assembled .pc-window-chrome { border-radius: 0; margin-bottom: 0; padding: 11px 19px; border-bottom: 1px solid #dfe4f2; }
+  .is-assembled .pc-board { width: min(100%, 1040px); margin-inline: auto; background: #fff; border-color: #fff; padding: 0; box-shadow: 0 25px 70px #152ea845; overflow: hidden; }
+  .is-assembled .pc-window-chrome { border-radius: 0; margin-bottom: 0; padding: 8px 19px 0; border-bottom: 1px solid #dfe4f2; }
   .is-assembled .pc-project { gap: 0; color: #202b44; }
   .is-assembled .pc-tile, .is-assembled .pc-tile:hover { transform: none; border-radius: 0; box-shadow: none; }
   .is-assembled .pc-code { border-right: 1px solid #e3e7f1; }
@@ -112,6 +114,41 @@ const projects = [
   @media(max-width: 650px) { .project-continuity { min-height: 100svh; padding-block: 45px; } .pc-heading { display: block; } .pc-heading h2 { font-size: clamp(35px, 9vw, 48px); } .pc-heading > p { max-width: none; margin-top: 20px; } .pc-project { grid-template-columns: 1fr 1fr; grid-template-rows: 270px 205px; height: auto; min-height: 0; gap: 12px; } .pc-code { grid-column: 1 / 3; grid-row: 1; } .pc-agent { grid-column: 1; grid-row: 2; padding: 15px; transform: rotate(-2deg); } .pc-browser { grid-column: 2; grid-row: 2; transform: rotate(3deg); } .pc-terminal { grid-column: 1 / 3; min-height: 145px; transform: rotate(-1deg); } .pc-source { font-size: 10px; } .pc-explorer { width: 30%; font-size: 10px; } .pc-agent h3 { font-size: 25px; } .pc-agent > img { margin-top: 15px; } .pc-site { padding: 12px 5px; } .pc-site-orb { width: 43px; height: 43px; margin-top: 12px; } .pc-site-orb > span { font-size: 30px; } .pc-site h3 { font-size: 27px; margin: 12px 0; } .pc-site-link, .pc-browser-footer > span { display: none; } .pc-browser-bar { padding: 9px 6px; } .pc-browser-bar > span:nth-child(2) { padding: 4px 6px; font-size: 6px; } .pc-tabs { width: 100%; justify-content: space-between; gap: 2px; } .pc-tabs button { padding: 11px 9px; font-size: 9px; gap: 5px; } .pc-tab-arrow { display: none; } .pc-footer { padding-top: 18px; } }
   @media(prefers-reduced-motion: reduce) { .pc-tile, .pc-board, .pc-project, .pc-window-chrome { transition: none; } }
   :global(.motion-paused) .pc-tile, :global(.motion-paused) .pc-board, :global(.motion-paused) .pc-project, :global(.motion-paused) .pc-window-chrome { transition: none; }
+
+  .pc-tool-tabs { display: flex; align-items: center; gap: 5px; padding: 8px 14px; height: 57px; background: #fafbff; border-bottom: 1px solid #e5e9f2; }
+  .is-converging .pc-board, .is-converging .pc-project, .is-converging .pc-tile, .is-converging .pc-window-chrome { transition: none; }
+  .pc-tool-tabs[hidden], .pc-tile[hidden] { display: none !important; }
+  .pc-tool-tabs button { display: flex; align-items: center; gap: 7px; border: 1px solid transparent; border-radius: 99px; padding: 8px 15px; background: transparent; color: #828ca1; font: 500 11px "DM Sans", sans-serif; cursor: pointer; }
+  .pc-tool-tabs button[aria-selected="true"] { color: #202b44; background: #fff; border-color: #e0e5ef; box-shadow: 0 2px 5px #202b440a; }
+  .is-assembled .pc-project:not([hidden]) { display: block; height: clamp(520px, 62vh, 720px); }
+  .is-assembled .pc-tile { height: calc(100% - 57px); }
+  .is-assembled .pc-source { padding: 20px 26px; font-size: 12px; line-height: 1.8; }
+  .is-assembled .pc-explorer { width: 21%; gap: 18px; font-size: 11px; padding: 20px; }
+  .is-assembled .pc-code .pc-bar { display: none; }
+  .is-assembled .pc-agent { padding: 30px 45px; }
+  .is-assembled .pc-agent h3 { font-size: clamp(30px, 4vw, 48px); max-width: 650px; margin-top: 20px; }
+  .is-assembled .pc-agent > img { width: 38px; height: 38px; }
+  .is-assembled .pc-message { max-width: 650px; font-size: 12px; padding-top: 20px; }
+  .is-assembled .pc-agent-footer { display: block; margin-top: 18px; font-size: 10px; }
+  .is-assembled .pc-terminal { padding: 30px 45px; }
+  .is-assembled .pc-terminal p { font-size: 12px; margin-top: 28px; }
+  .is-assembled .pc-terminal code { font-size: 19px; }
+  .is-assembled .pc-terminal-ready { font-size: 12px; margin-top: 26px; }
+  .is-assembled .pc-browser { display: flex; }
+  .is-assembled .pc-site { padding: 15px; }
+  .is-assembled .pc-site-orb { width: 65px; height: 65px; margin-top: 14px; }
+  .is-assembled .pc-site h3 { font-size: 44px; margin: 14px 0; }
+  .is-assembled .pc-window-chrome .pc-tabs button { border-radius: 13px 13px 0 0; padding-block: 15px; }
+  .is-assembled .pc-tool-tabs button:focus-visible { outline-color: #3259ed; }
+  @media(max-width:650px) {
+    .is-assembled .pc-project:not([hidden]) { height: 510px; }
+    .pc-tool-tabs { padding: 8px; gap: 2px; }
+    .pc-tool-tabs button { padding: 8px 9px; font-size: 9px; gap: 5px; }
+    .pc-tool-tabs button svg { width: 13px; height: 13px; }
+    .is-assembled .pc-source { padding: 20px 10px; font-size: 9px; }
+    .is-assembled .pc-explorer { width: 28%; padding: 18px 8px; font-size: 9px; }
+    .is-assembled .pc-agent, .is-assembled .pc-terminal { padding: 24px; }
+  }
 </style>
 <script>
   const root = document.querySelector<HTMLElement>("[data-continuity]");
@@ -121,13 +158,106 @@ const projects = [
     const controller = new AbortController();
     const reduced = matchMedia("(prefers-reduced-motion: reduce)");
     const assemble = root.querySelector<HTMLButtonElement>("[data-pc-assemble]");
+    let motion: Animation[] = [];
+    let ghosts: HTMLElement[] = [];
+    let motionRun = 0;
+    const stopMotion = () => {
+      motionRun++;
+      motion.forEach(animation => animation.cancel());
+      ghosts.forEach(ghost => ghost.remove());
+      motion = []; ghosts = [];
+      root.classList.remove("is-converging");
+    };
+    const play = (element: HTMLElement, frames: Keyframe[], options: KeyframeAnimationOptions) => {
+      const animation = element.animate(frames, options);
+      motion.push(animation);
+      return animation;
+    };
+    const syncTools = (panel: HTMLElement) => {
+      const assembled = root.classList.contains("is-assembled");
+      const toolTabs = panel.querySelector<HTMLElement>("[data-pc-tools]");
+      if (toolTabs) toolTabs.hidden = !assembled;
+      const selected = panel.querySelector<HTMLButtonElement>('[data-pc-tool][aria-selected="true"]')?.dataset.pcTool;
+      panel.querySelectorAll<HTMLElement>("[data-pc-view]").forEach(view => {
+        view.hidden = assembled && view.dataset.pcView !== selected;
+        if (assembled) view.setAttribute("role", "tabpanel"); else view.removeAttribute("role");
+      });
+    };
+    panels.forEach(panel => {
+      const tools = [...panel.querySelectorAll<HTMLButtonElement>("[data-pc-tool]")];
+      const selectTool = (index: number) => {
+        stopMotion();
+        tools.forEach((tool, i) => { tool.setAttribute("aria-selected", String(i === index)); tool.tabIndex = i === index ? 0 : -1; });
+        syncTools(panel);
+      };
+      tools.forEach((tool, index) => {
+        tool.addEventListener("click", () => selectTool(index), { signal: controller.signal });
+        tool.addEventListener("keydown", event => {
+          const next = event.key === "ArrowRight" ? (index + 1) % tools.length : event.key === "ArrowLeft" ? (index - 1 + tools.length) % tools.length : event.key === "Home" ? 0 : event.key === "End" ? tools.length - 1 : -1;
+          if (next < 0) return;
+          event.preventDefault(); selectTool(next); tools[next]?.focus();
+        }, { signal: controller.signal });
+      });
+    });
     const setAssembly = (assembled: boolean) => {
+      stopMotion();
+      const panel = panels.find(item => !item.hidden);
+      const animated = assembled && panel && !reduced.matches && !document.documentElement.classList.contains("motion-paused");
+      const chrome = root.querySelector<HTMLElement>(".pc-window-chrome");
+      const chromeBefore = chrome?.getBoundingClientRect();
+      const tiles = animated ? [...panel.querySelectorAll<HTMLElement>("[data-pc-view]")].map(tile => {
+        const bounds = tile.getBoundingClientRect();
+        const ghost = tile.cloneNode(true) as HTMLElement;
+        ghost.removeAttribute("id");
+        ghost.querySelectorAll("[id]").forEach(element => element.removeAttribute("id"));
+        ghost.setAttribute("aria-hidden", "true");
+        ghost.inert = true;
+        ghost.style.cssText = `position:fixed;left:${bounds.left}px;top:${bounds.top}px;width:${bounds.width}px;height:${bounds.height}px;min-height:0;margin:0;transform:none;transform-origin:0 0;pointer-events:none;z-index:100;transition:none;--pc-tint:${getComputedStyle(panel).getPropertyValue("--pc-tint")};box-shadow:0 20px 60px #152ea840;`;
+        document.body.append(ghost);
+        ghosts.push(ghost);
+        return { tile, ghost, bounds };
+      }) : [];
+      if (animated) root.classList.add("is-converging");
       root.classList.toggle("is-assembled", assembled);
+      panels.forEach(syncTools);
       assemble?.setAttribute("aria-pressed", String(assembled));
       if (assemble) assemble.innerHTML = assembled ? 'Spread it out <span aria-hidden="true">↗</span>' : 'Bring it together <span aria-hidden="true">↗</span>';
+      if (!animated) return;
+      const run = motionRun;
+      const easing = "cubic-bezier(.22,1,.36,1)";
+      const selected = panel.querySelector<HTMLElement>('[data-pc-view]:not([hidden])');
+      const toolbar = panel.querySelector<HTMLElement>("[data-pc-tools]");
+      const board = root.querySelector<HTMLElement>(".pc-board");
+      if (board) play(board, [{ opacity: 0, boxShadow: "0 0 0 #152ea800" }, { opacity: 1, boxShadow: "0 25px 70px #152ea845" }], { duration: 650, delay: 200, easing, fill: "backwards" });
+      if (chrome && chromeBefore) {
+        const after = chrome.getBoundingClientRect();
+        play(chrome, [{ transform: `translate(${chromeBefore.left - after.left}px,${chromeBefore.top - after.top}px) scale(${chromeBefore.width / after.width},1)` }, { transform: "none" }], { duration: 950, easing });
+      }
+      if (toolbar) play(toolbar, [{ opacity: 0, transform: "translateY(-12px)" }, { opacity: 1, transform: "none" }], { duration: 450, delay: 480, easing, fill: "backwards" });
+      if (selected) play(selected, [{ opacity: 0 }, { opacity: 1 }], { duration: 420, delay: 680, easing, fill: "backwards" });
+      tiles.forEach(({ tile, ghost, bounds }, index) => {
+        const active = tile === selected;
+        const destination = active ? selected : panel.querySelector<HTMLElement>(`[data-pc-tool="${tile.dataset.pcView}"]`);
+        if (!destination) return;
+        const target = destination.getBoundingClientRect();
+        const x = target.left - bounds.left;
+        const y = target.top - bounds.top;
+        const scaleX = target.width / bounds.width;
+        const scaleY = target.height / bounds.height;
+        play(ghost, [
+          { transform: "translate(0,0) scale(1)", opacity: 1, borderRadius: "17px", offset: 0 },
+          { transform: `translate(${x * .35}px,${y * .35 - 24}px) scale(${active ? 1.02 : .86})`, opacity: 1, borderRadius: "17px", offset: .32 },
+          { transform: `translate(${x}px,${y}px) scale(${scaleX},${scaleY})`, opacity: active ? .9 : .65, borderRadius: active ? "0" : "99px", offset: .82 },
+          { transform: `translate(${x}px,${y}px) scale(${scaleX},${scaleY})`, opacity: 0, borderRadius: active ? "0" : "99px", offset: 1 },
+        ], { duration: active ? 1100 : 900, delay: active ? 0 : index * 55, easing, fill: "forwards" });
+      });
+      void Promise.allSettled(motion.map(animation => animation.finished)).then(() => {
+        if (run === motionRun) stopMotion();
+      });
     };
     assemble?.addEventListener("click", () => setAssembly(!root.classList.contains("is-assembled")), { signal: controller.signal });
     const select = (index: number) => {
+      stopMotion();
       tabs.forEach((tab, i) => { tab.setAttribute("aria-selected", String(i === index)); tab.tabIndex = i === index ? 0 : -1; });
       panels.forEach((panel, i) => { panel.getAnimations().forEach(animation => animation.cancel()); panel.hidden = i !== index; });
       if (!reduced.matches && !document.documentElement.classList.contains("motion-paused")) {
@@ -142,6 +272,6 @@ const projects = [
         event.preventDefault(); select(next); tabs[next]?.focus();
       }, { signal: controller.signal });
     });
-    document.addEventListener("astro:before-swap", () => { controller.abort(); panels.forEach(panel => panel.getAnimations().forEach(animation => animation.cancel())); }, { once: true });
+    document.addEventListener("astro:before-swap", () => { stopMotion(); controller.abort(); panels.forEach(panel => panel.getAnimations().forEach(animation => animation.cancel())); }, { once: true });
   }
 </script>
