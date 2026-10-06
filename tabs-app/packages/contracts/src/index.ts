@@ -54,3 +54,27 @@ export * from "./browserComparison.ts";
 export * from "./browserReadiness.ts";
 
 export * from "./notificationOverlay.ts";
+
+export * from "./composerContext.ts";
+export * from "./composerContextClipboard.ts";
+export * from "./acpRegistry.ts";
+export * from "./modelSelection.ts";
+export * from "./chatAttachment.ts";
+export * from "./checkpointDiff.ts";
+export * from "./orchestrationDispatch.ts";
+export * from "./orchestrationProject.ts";
+export * from "./orchestrationV2.ts";
+export * from "./applicationEvent.ts";
+export * from "./orchestratorMcp.ts";
+export * from "./threadMetadataMcp.ts";
+export * from "./threadPullRequest.ts";
+export * from "./threadSearch.ts";
+export * from "./threadTitle.ts";
+export * from "./scheduledTask.ts";
+export * from "./worktreeMcp.ts";
+export * from "./worktreeSetup.ts";
+export * from "./secretRequest.ts";
+export * from "./providerPolicy.ts";
+export * from "./desktopAppActivation.ts";
+export * from "./projectClone.ts";
+export * from "./browserProfile.ts";
