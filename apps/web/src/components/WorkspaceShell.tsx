@@ -11625,7 +11625,7 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
       setActiveProject(projectId);
       setActiveTool(projectId, "agents");
       await handleNewThread(projectId, {
-        envMode: settings.defaultThreadEnvMode,
+        ...(settings.defaultThreadEnvMode ? { envMode: settings.defaultThreadEnvMode } : {}),
       });
     },
     [handleNewThread, setActiveProject, setActiveTool, settings.defaultThreadEnvMode],
@@ -11782,7 +11782,7 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
         event.stopPropagation();
         if (workspaceState.session.activeProjectId) {
           void handleNewThread(workspaceState.session.activeProjectId, {
-            envMode: command === "chat.newLocal" ? "local" : settings.defaultThreadEnvMode,
+            envMode: command === "chat.newLocal" ? "local" : (settings.defaultThreadEnvMode ?? "local"),
           });
         }
         return;
@@ -12953,7 +12953,7 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
           if (!activeProject.environmentId) return;
           const tid = await handleNewThread(activeProject.id, {
             environmentId: activeProject.environmentId,
-            envMode: settings.defaultThreadEnvMode,
+            ...(settings.defaultThreadEnvMode ? { envMode: settings.defaultThreadEnvMode } : {}),
           });
           if (tid) {
             const pKey = projectUiStateKey(activeProject.environmentId, activeProject.id);

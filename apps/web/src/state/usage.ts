@@ -57,7 +57,7 @@ export function presetToSummaryInput(preset: UsageWindowPreset): UsageSummaryInp
       const standard = makeWindow(3650); // 10 years
       return {
         ...standard,
-        sinceDay: "2020-01-01",
+        sinceDay: "2020-01-01" as UsageSummaryInput["sinceDay"],
       };
     }
   }

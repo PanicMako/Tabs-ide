@@ -648,7 +648,7 @@ export default function Sidebar() {
           createdAt,
         });
         await handleNewThread(projectId, {
-          envMode: appSettings.defaultThreadEnvMode,
+          ...(appSettings.defaultThreadEnvMode ? { envMode: appSettings.defaultThreadEnvMode } : {}),
         }).catch(() => undefined);
       } catch (error) {
         const description =
@@ -1662,7 +1662,7 @@ export default function Sidebar() {
                     void handleNewThread(project.id, {
                       environmentId: project.environmentId,
                       envMode: resolveSidebarNewThreadEnvMode({
-                        defaultEnvMode: appSettings.defaultThreadEnvMode,
+                        defaultEnvMode: appSettings.defaultThreadEnvMode ?? "local",
                       }),
                     });
                   }}

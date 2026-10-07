@@ -73,7 +73,7 @@ interface PullRequestRow {
   state: "open" | "draft" | "merged" | "closed";
   branch: string;
   url: string;
-  provider?: "github" | "gitlab" | "azure-devops" | "bitbucket" | "unknown";
+  provider?: "github" | "gitlab" | "azure-devops" | "bitbucket" | "forgejo" | "unknown";
   isDraft: boolean;
   author: string | null;
   labels: ReadonlyArray<{ name: string; color?: string | undefined }>;

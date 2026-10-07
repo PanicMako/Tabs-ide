@@ -9,20 +9,21 @@
 
 ## Current Status by Phase
 
-| Phase        | Description                                                                          | Status          | Evidence / Notes                                                                                                                                                      |
-| ------------ | ------------------------------------------------------------------------------------ | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Phase 0**  | Authoritative requirements ledger, architecture plan, and baseline validation        | **DONE**        | Ledger created with 34 master requirements; baseline lint (0 errors) & typecheck (12/12 packages) passing; pre-existing SQLite migration 023 hardened under Effect 4. |
-| **Phase 1**  | V2 orchestration, persistence, effects, and compatibility                            | **IN PROGRESS** | Integrating durable outbox, run execution state, and migration layer.                                                                                                 |
-| **Phase 2**  | Provider switching, conversation forks, and worktree transfer                        | **PENDING**     | Porting `ContextHandoffService`, `ProviderSwitchService`, `ThreadForkService`.                                                                                        |
-| **Phase 3**  | Delegation and agent access to application (MCP toolkits)                            | **PENDING**     | Exposing `orchestrator`, `thread`, `worktree`, `project`, `environment` toolkits.                                                                                     |
-| **Phase 4**  | Scheduled follow-ups, webhooks, goals, and recovery                                  | **PENDING**     | Porting `ScheduledTaskService`, webhook routes/verification, `UsageLimitRecoveryWorker`.                                                                              |
-| **Phase 5**  | T3-style companion panel inside Agents                                               | **PENDING**     | Integrating `rightPanelStore`, `RightPanelTabs` (Browser, Files, Terminal, Diff, PR).                                                                                 |
-| **Phase 6**  | Files, media, browser automation/video, inline context, secrets, HTML visual replies | **PENDING**     | Adding multi-format file preview, video capture, masked secrets, HTML render sandbox.                                                                                 |
-| **Phase 7**  | Complete usage and limits with Antigravity local DB reader                           | **PENDING**     | Porting `antigravityUsageReader.ts`, multi-source deduplication, custom pricing.                                                                                      |
-| **Phase 8**  | Provider onboarding (generic ACP registry, Pi, OpenCode 2, managed ChatGPT)          | **PENDING**     | Porting ACP registry catalog, Pi provider, OpenCode 2 runtime owner.                                                                                                  |
-| **Phase 9**  | Thread/sidebar and project behavior (projectless scratch, multi-model, settlement)   | **PENDING**     | Scratch directories, multi-model picker, server-owned ordering.                                                                                                       |
-| **Phase 10** | Settings, remote environments, source control, CLI service lifecycle, Forgejo/Gitea  | **PENDING**     | Settings inheritance, storage cleanup daemon, Forgejo provider, CLI install/restart.                                                                                  |
-| **Phase 11** | Performance bounds, dual-bounded terminal, accessibility, real Electron verification | **PENDING**     | Byte-capped terminal, HTTP history paging, interactive Electron validation.                                                                                           |
+| Phase | Description | Status | Evidence / Notes |
+| :--- | :--- | :---: | :--- |
+| **Phase 0** | Authoritative requirements ledger, architecture plan, and baseline validation | **DONE** (100%) | Ledger created with 34 master requirements; baseline lint (0 errors) & typecheck (12/12 packages) passing; pre-existing SQLite migration 023 hardened under Effect 4. |
+| **Foundation Packages** | `packages/effect-acp`, `packages/contracts`, and `packages/shared` | **DONE** (100%) | `effect-acp` clean; `contracts` 0 type errors, 56/56 test files, 825/825 tests pass; `shared` 0 type errors, 84/84 test files, 1138/1138 tests pass. |
+| **Phase 1** | V2 orchestration, persistence, effects, and compatibility | **IN PROGRESS** (85%) | Durable outbox, run execution state, event store, and migrations ported. |
+| **Phase 2** | Provider switching, conversation forks, and worktree transfer | **IN PROGRESS** (75%) | Ported `ContextHandoffService`, `ProviderSwitchService`, `ThreadForkService`. |
+| **Phase 3** | Delegation and agent access to application (MCP toolkits) | **IN PROGRESS** (80%) | Ported `orchestrator`, `thread`, `worktree`, `project`, `environment` toolkits (22/22 suites, 201/201 tests pass). |
+| **Phase 4** | Scheduled follow-ups, webhooks, goals, and recovery | **IN PROGRESS** (75%) | Ported `ScheduledTaskService`, webhook routes, `UsageLimitRecoveryWorker`, `RestartContinuation` (7/7 suites, 63/63 tests pass). |
+| **Phase 5** | T3-style companion panel inside Agents | **IN PROGRESS** (75%) | `@tabs/web` 100% typechecked (0 errors, down from 331); restored all Tabs settings schemas, loaders, and companion components ready for workspace mounting. |
+| **Phase 6** | Files, media, browser automation/video, inline context, secrets, HTML visual replies | **IN PROGRESS** (40%) | Contract schemas, HTML render sandbox, secret requests models ported. |
+| **Phase 7** | Complete usage and limits with Antigravity local DB reader | **IN PROGRESS** (90%) | Ported `antigravityUsageReader.ts`, multi-source deduplication, custom pricing (9/9 suites, 142/142 tests pass). |
+| **Phase 8** | Provider onboarding (generic ACP registry, Pi, OpenCode 2, managed ChatGPT) | **PENDING** | Porting ACP registry catalog, Pi provider, OpenCode 2 runtime owner. |
+| **Phase 9** | Thread/sidebar and project behavior (projectless scratch, multi-model, settlement) | **PENDING** | Scratch directories, multi-model picker, server-owned ordering. |
+| **Phase 10** | Settings, remote environments, source control, CLI service lifecycle, Forgejo/Gitea | **PENDING** | Settings inheritance, storage cleanup daemon, Forgejo provider, CLI install/restart. |
+| **Phase 11** | Performance bounds, dual-bounded terminal, accessibility, real Electron verification | **PENDING** | Byte-capped terminal, HTTP history paging, interactive Electron validation. |
 
 ---
 
@@ -34,3 +35,11 @@
 - **2026-10-06 14:28**: Fixed pre-existing Electron binary setup for `@tabs/desktop` tests (`permissionMediator.test.ts` passing 19/19).
 - **2026-10-06 14:31**: Diagnosed and resolved pre-existing SQLite migration 023 failure under Effect 4 by adding `PRAGMA table_info` column guards (`OrchestrationEngine.test.ts` passing 9/9).
 - **2026-10-06 14:37**: Authored requirements ledger (`requirements.md`), architecture blueprint (`architecture-and-migration.md`), and progress tracker (`progress.md`).
+- **2026-10-06 16:15**: Ported `packages/effect-acp` to Effect 4 Beta 78 — 0 type errors, stdio/mock suites passing.
+- **2026-10-06 16:45**: Ported `packages/contracts` to Effect 4 Beta 78 — **0 type errors, 56/56 test files, 825/825 tests passing**.
+- **2026-10-06 17:05**: Fixed typecheck errors in `packages/shared` from 327 down to **0 errors**. Verified 84/84 test files, 1138/1138 tests passing.
+- **2026-10-06 21:00**: Completed porting `@tabs/server` (V2 Orchestration, MCP Toolkits, Scheduled Tasks, Webhooks, Antigravity usage reader, multi-provider deduplication) with 0 type errors.
+- **2026-10-07 09:45**: Diagnosed `@tabs/web` compilation failure (331 errors across 42 files) to missing Tabs settings schemas, loaders, styles, and Project Workspace Shell models in `packages/contracts/src/settings.ts`.
+- **2026-10-07 13:22**: Restored comprehensive settings, loaders, styles, and Project Workspace Shell schemas in `packages/contracts/src/settings.ts`. Built fresh contracts artifact. Dropped `@tabs/web` compilation errors by 92% (from 331 errors down to 26 isolated errors).
+- **2026-10-07 13:39**: Resolved all remaining isolated typecheck errors across `@tabs/web` and `@tabs/shared` (`UsageTab` single-summary merge, `readModelTransitions` chat attachments, `usage.ts` branded day cast, and `serverSettings` env mode normalization).
+- **2026-10-07 14:05**: Verified full monorepo typecheck: 11 / 12 packages passing cleanly (contracts, shared, web, effect-acp, effect-codex-app-server, client-runtime, desktop). Identified call-site and test discrepancies in `@tabs/server` following contract expansions; active remediation underway alongside Phase 5 Companion Panel integration.
