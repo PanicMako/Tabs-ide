@@ -27,6 +27,7 @@ describe("Window Surfer pace controls", () => {
   let levels: Control[];
   let frame: (time: number) => void;
   let root: Control;
+  let drawText: ReturnType<typeof vi.fn>;
   const control = (selector: string) => controls.get(selector)!;
   const stats = () =>
     ["[data-score]", "[data-time]", "[data-lives]"].map(
@@ -59,10 +60,14 @@ describe("Window Surfer pace controls", () => {
       },
     });
     const noop = () => {};
+    drawText = vi.fn();
     const context = new Proxy(
       {},
       {
-        get: (_, name) => (name === "createLinearGradient" ? () => ({ addColorStop: noop }) : noop),
+        get: (_, name) => {
+          if (name === "fillText") return drawText;
+          return name === "createLinearGradient" ? () => ({ addColorStop: noop }) : noop;
+        },
       },
     );
     Object.assign(get("[data-canvas]"), {
@@ -71,7 +76,7 @@ describe("Window Surfer pace controls", () => {
     });
     Object.assign(get("[data-pause]"), { querySelector: get });
     vi.stubGlobal("document", { querySelector: () => root, addEventListener: noop });
-    vi.stubGlobal("window", { matchMedia: () => ({ matches: true }), devicePixelRatio: 1 });
+    vi.stubGlobal("window", { matchMedia: () => ({ matches: false }), devicePixelRatio: 1 });
     vi.stubGlobal("Image", class {});
     const observer = class {
       observe() {}
@@ -120,6 +125,21 @@ describe("Window Surfer pace controls", () => {
     expect(stats()[1]).toBe("1:20");
     expect(stats()[2]).toBe("♥ ♥ ♥ ");
     expect(control("[data-pause]").attributes.get("aria-label")).toBe("Pause game");
+  });
+
+  it("records repeated tools in the collection shelf and clears it on restart", () => {
+    control("[data-start]").click();
+    vi.spyOn(Math, "random").mockReturnValue(0.9);
+    control('[data-lane="2"]').click();
+    for (let time = 40; time <= 5000; time += 40) frame(time);
+    expect(drawText).toHaveBeenCalledWith("ON BOARD / YOUR TOOLS", expect.any(Number), 15);
+    expect(drawText).toHaveBeenCalledWith("1", 17.5, -19);
+    expect(drawText).toHaveBeenCalledWith("2", 17.5, -19);
+    control("[data-restart]").click();
+    drawText.mockClear();
+    frame(40);
+    expect(drawText).not.toHaveBeenCalledWith("1", 17.5, -19);
+    expect(drawText).not.toHaveBeenCalledWith("2", 17.5, -19);
   });
 
   it("leaves native button keyboard activation available during a ride", () => {
