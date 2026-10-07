@@ -1,5 +1,5 @@
 import { FitAddon } from "@xterm/addon-fit";
-import { Plus, SquareSplitHorizontal, TerminalSquare, Trash2, XIcon } from "lucide-react";
+import { Plus, RotateCcwIcon, SquareSplitHorizontal, TerminalSquare, Trash2, XIcon } from "lucide-react";
 import { type ThreadId } from "@tabs/contracts";
 import { Terminal, type ITheme } from "@xterm/xterm";
 import {
@@ -707,6 +707,8 @@ interface ThreadTerminalDrawerProps {
   closeShortcutLabel?: string | undefined;
   onActiveTerminalChange: (terminalId: string) => void;
   onCloseTerminal: (terminalId: string) => void;
+  /** Optional kill/reset callback: closes the current session and opens a fresh one. */
+  onKillTerminal?: ((terminalId: string) => void) | undefined;
   onHeightChange: (height: number) => void;
   onAddTerminalContext: (selection: TerminalContextSelection) => void;
 }
@@ -760,6 +762,7 @@ export default function ThreadTerminalDrawer({
   closeShortcutLabel,
   onActiveTerminalChange,
   onCloseTerminal,
+  onKillTerminal,
   onHeightChange,
   onAddTerminalContext,
 }: ThreadTerminalDrawerProps) {
@@ -1030,6 +1033,18 @@ export default function ThreadTerminalDrawer({
             >
               <Plus className="size-3.25" />
             </TerminalActionButton>
+            {onKillTerminal && (
+              <>
+                <div className="h-4 w-px bg-border/80" />
+                <TerminalActionButton
+                  className="p-1 text-amber-500/80 transition-colors hover:bg-amber-500/10 hover:text-amber-500"
+                  onClick={() => onKillTerminal(resolvedActiveTerminalId)}
+                  label="Reset terminal (kill process and restart)"
+                >
+                  <RotateCcwIcon className="size-3.25" />
+                </TerminalActionButton>
+              </>
+            )}
             <div className="h-4 w-px bg-border/80" />
             <TerminalActionButton
               className="p-1 text-foreground/90 transition-colors hover:bg-accent"

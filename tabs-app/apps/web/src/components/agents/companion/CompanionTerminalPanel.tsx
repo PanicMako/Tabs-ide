@@ -3,6 +3,8 @@ import type { ThreadId } from "@tabs/contracts";
 import { TerminalSquare } from "lucide-react";
 import { useThreadTerminalState, terminalActions } from "~/state/terminal";
 import { useActiveProjectTarget } from "~/hooks/useActiveProjectTarget";
+import { useComposerDraftStore } from "~/composerDraftStore";
+import { scopedComposerThreadId } from "~/state/composerDrafts";
 import ThreadTerminalDrawer from "~/components/ThreadTerminalDrawer";
 
 function createTerminalId(): string {
@@ -18,7 +20,7 @@ export interface CompanionTerminalPanelProps {
 export const CompanionTerminalPanel = memo(function CompanionTerminalPanel({
   threadId,
 }: CompanionTerminalPanelProps) {
-  const target = useActiveProjectTarget();
+  const target = useActiveProjectTarget(threadId);
   const effectiveThreadId = threadId ?? target?.threadId ?? null;
   const terminalState = useThreadTerminalState(effectiveThreadId);
   const [focusRequestId, setFocusRequestId] = useState(0);
@@ -53,6 +55,19 @@ export const CompanionTerminalPanel = memo(function CompanionTerminalPanel({
     [effectiveThreadId],
   );
 
+  const handleKill = useCallback(
+    (terminalId: string) => {
+      if (!effectiveThreadId) return;
+      // Close and immediately open a fresh terminal at the same ID.
+      // This is a "reset": terminate the current process, start fresh.
+      terminalActions.close(effectiveThreadId, terminalId);
+      const newId = createTerminalId();
+      terminalActions.new(effectiveThreadId, newId);
+      setFocusRequestId((n) => n + 1);
+    },
+    [effectiveThreadId],
+  );
+
   if (!effectiveThreadId || !target || !terminalState) {
     return (
       <div className="flex h-full flex-col items-center justify-center p-4 text-center text-muted-foreground">
@@ -82,8 +97,19 @@ export const CompanionTerminalPanel = memo(function CompanionTerminalPanel({
         onNewTerminal={handleNew}
         onActiveTerminalChange={handleActiveChange}
         onCloseTerminal={handleClose}
+        onKillTerminal={handleKill}
         onHeightChange={() => {}}
-        onAddTerminalContext={() => {}}
+        onAddTerminalContext={(selection) => {
+          const composerId = target.environmentId
+            ? scopedComposerThreadId(target.environmentId, effectiveThreadId)
+            : effectiveThreadId;
+          useComposerDraftStore.getState().addTerminalContext(composerId, {
+            id: crypto.randomUUID(),
+            threadId: composerId,
+            createdAt: new Date().toISOString(),
+            ...selection,
+          });
+        }}
       />
     </div>
   );
