@@ -321,7 +321,10 @@ export const resolveServerConfig = (
     ).pipe(Option.filter((value) => value.trim().length > 0));
     const baseDir = yield* resolveBaseDir(
       Option.getOrUndefined(
-        resolveOptionPrecedence(explicitBaseDir, Option.fromUndefinedOr(bootstrap?.t3Home)),
+        resolveOptionPrecedence(
+          explicitBaseDir,
+          Option.fromUndefinedOr(bootstrap?.t3Home ?? bootstrap?.tabsHome),
+        ),
       ),
     );
     const rawCwd = Option.getOrElse(normalizedFlags.cwd, () => process.cwd());
@@ -357,7 +360,7 @@ export const resolveServerConfig = (
       ),
       () => mode === "desktop",
     );
-    const desktopBootstrapToken = bootstrap?.desktopBootstrapToken;
+    const desktopBootstrapToken = bootstrap?.desktopBootstrapToken ?? bootstrap?.authToken;
     const desktopBootstrapSecret = bootstrap?.desktopBootstrapSecret;
     const desktopTelemetryFd = bootstrap?.desktopTelemetryFd;
     const desktopTelemetryControlFd = bootstrap?.desktopTelemetryControlFd;

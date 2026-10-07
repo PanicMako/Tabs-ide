@@ -79,10 +79,12 @@ export const OpenInPicker = memo(function OpenInPicker({
   keybindings,
   availableEditors,
   openInCwd,
+  showEditorName = false,
 }: {
   keybindings: ResolvedKeybindingsConfig;
   availableEditors: ReadonlyArray<EditorId>;
   openInCwd: string | null;
+  showEditorName?: boolean;
 }) {
   const [preferredEditor, setPreferredEditor] = usePreferredEditor(availableEditors);
   const options = useMemo(
@@ -143,7 +145,9 @@ export const OpenInPicker = memo(function OpenInPicker({
           {primaryOption?.Icon && (
             <primaryOption.Icon aria-hidden="true" className="size-3.5 shrink-0" />
           )}
-          <span className="text-xs font-medium">Open</span>
+          <span className="text-xs font-medium">
+            {showEditorName && primaryOption ? `Open in ${primaryOption.label}` : "Open"}
+          </span>
         </TooltipTrigger>
         <TooltipPopup side="bottom">
           {primaryOption

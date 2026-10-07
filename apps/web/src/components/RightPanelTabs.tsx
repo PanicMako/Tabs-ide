@@ -1,17 +1,7 @@
-import {
-  BookmarkIcon,
-  FileDiffIcon,
-  FolderTreeIcon,
-  GitPullRequestIcon,
-  GlobeIcon,
-  ListOrderedIcon,
-  TerminalSquareIcon,
-  XIcon,
-} from "lucide-react";
 import { memo, useCallback } from "react";
 import type { EnvironmentId, ThreadId } from "@tabs/contracts";
 import { isElectron } from "~/env";
-import { cn } from "~/lib/utils";
+import { SurfaceTabs, SurfaceChooser } from "./agents/companion/SurfaceTabs";
 import { usePromptStashStore } from "~/promptStashStore";
 import { useMessageQueueStore, getThreadQueuedMessages } from "~/stores/messageQueueStore";
 import { useRightPanelStore, type RightPanelTab } from "~/stores/rightPanelStore";
@@ -41,6 +31,10 @@ export const RightPanelTabs = memo(function RightPanelTabs({
   environmentId,
   onClose,
 }: RightPanelTabsProps) {
+  const maximized = useRightPanelStore((state) => state.maximized);
+  const setMaximized = useRightPanelStore((state) => state.setMaximized);
+  const choosing = useRightPanelStore((state) => state.choosingSurface);
+  const setChoosing = useRightPanelStore((state) => state.setChoosingSurface);
   const activeTab = useRightPanelStore((state) => state.activeTab);
   const setActiveTab = useRightPanelStore((state) => state.setActiveTab);
 
@@ -52,211 +46,36 @@ export const RightPanelTabs = memo(function RightPanelTabs({
 
   const handleSelectTab = useCallback(
     (tab: RightPanelTab) => {
+      setChoosing(false);
       setActiveTab(tab);
     },
-    [setActiveTab],
+    [setActiveTab, setChoosing],
   );
 
   return (
-    <div className="flex h-full min-w-0 flex-col bg-background text-foreground">
-      {/* Top Level Surface Switcher Header */}
-      <div
-        className={cn(
-          "flex shrink-0 items-center justify-between border-b border-border/70 bg-muted/20 px-3 py-1.5",
-          shouldUseDragRegion ? "drag-region h-[46px]" : "h-11",
-        )}
-      >
-        {/* Tab switcher buttons */}
-        <div
-          className="tabs-segmented flex items-center gap-0.5 overflow-x-auto [-webkit-app-region:no-drag]"
-          role="tablist"
-          aria-label="Side panel views"
-          onKeyDown={(event) => {
-            if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
-            const tabs = [
-              ...event.currentTarget.querySelectorAll<HTMLButtonElement>('button[role="tab"]'),
-            ];
-            const current = tabs.indexOf(document.activeElement as HTMLButtonElement);
-            if (current < 0 || tabs.length === 0) return;
-            event.preventDefault();
-            const next =
-              event.key === "Home"
-                ? 0
-                : event.key === "End"
-                  ? tabs.length - 1
-                  : (current + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
-            tabs[next]?.focus();
-            tabs[next]?.click();
-          }}
-        >
-          {/* Diffs tab */}
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === "diff"}
-            tabIndex={activeTab === "diff" ? 0 : -1}
-            onClick={() => handleSelectTab("diff")}
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-all duration-150 cursor-pointer select-none",
-              activeTab === "diff"
-                ? "bg-accent text-accent-foreground shadow-2xs"
-                : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-            )}
-          >
-            <FileDiffIcon className="size-3.5" />
-            <span>Diffs</span>
-          </button>
-
-          {/* Browser tab */}
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === "browser"}
-            tabIndex={activeTab === "browser" ? 0 : -1}
-            onClick={() => handleSelectTab("browser")}
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-all duration-150 cursor-pointer select-none",
-              activeTab === "browser"
-                ? "bg-accent text-accent-foreground shadow-2xs"
-                : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-            )}
-          >
-            <GlobeIcon className="size-3.5" />
-            <span>Browser</span>
-          </button>
-
-          {/* Files tab */}
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === "files"}
-            tabIndex={activeTab === "files" ? 0 : -1}
-            onClick={() => handleSelectTab("files")}
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-all duration-150 cursor-pointer select-none",
-              activeTab === "files"
-                ? "bg-accent text-accent-foreground shadow-2xs"
-                : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-            )}
-          >
-            <FolderTreeIcon className="size-3.5" />
-            <span>Files</span>
-          </button>
-
-          {/* Terminal tab */}
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === "terminal"}
-            tabIndex={activeTab === "terminal" ? 0 : -1}
-            onClick={() => handleSelectTab("terminal")}
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-all duration-150 cursor-pointer select-none",
-              activeTab === "terminal"
-                ? "bg-accent text-accent-foreground shadow-2xs"
-                : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-            )}
-          >
-            <TerminalSquareIcon className="size-3.5" />
-            <span>Terminal</span>
-          </button>
-
-          {/* PRs tab */}
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === "pr"}
-            tabIndex={activeTab === "pr" ? 0 : -1}
-            onClick={() => handleSelectTab("pr")}
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-all duration-150 cursor-pointer select-none",
-              activeTab === "pr"
-                ? "bg-accent text-accent-foreground shadow-2xs"
-                : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-            )}
-          >
-            <GitPullRequestIcon className="size-3.5" />
-            <span>PRs</span>
-          </button>
-
-          {/* Stash tab */}
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === "stash"}
-            tabIndex={activeTab === "stash" ? 0 : -1}
-            onClick={() => handleSelectTab("stash")}
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-all duration-150 cursor-pointer select-none",
-              activeTab === "stash"
-                ? "bg-accent text-accent-foreground shadow-2xs"
-                : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-            )}
-          >
-            <BookmarkIcon className="size-3.5 text-foreground" />
-            <span>Stash</span>
-            {stashes.length > 0 && (
-              <span
-                className={cn(
-                  "rounded-full px-1.5 py-0.2 text-[10px] font-mono tabular-nums leading-none",
-                  activeTab === "stash"
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-muted-foreground",
-                )}
-              >
-                {stashes.length}
-              </span>
-            )}
-          </button>
-
-          {/* Queue tab */}
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === "queue"}
-            tabIndex={activeTab === "queue" ? 0 : -1}
-            onClick={() => handleSelectTab("queue")}
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-all duration-150 cursor-pointer select-none",
-              activeTab === "queue"
-                ? "bg-accent text-accent-foreground shadow-2xs"
-                : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-            )}
-          >
-            <ListOrderedIcon className="size-3.5 text-sky-500" />
-            <span>Queue</span>
-            {queuedMessages.length > 0 && (
-              <span
-                className={cn(
-                  "rounded-full px-1.5 py-0.2 text-[10px] font-mono tabular-nums leading-none",
-                  activeTab === "queue"
-                    ? "bg-sky-500 text-white"
-                    : "bg-muted text-muted-foreground",
-                )}
-              >
-                {queuedMessages.length}
-              </span>
-            )}
-          </button>
-        </div>
-
-        {/* Global right panel close button */}
-        <div className="flex items-center gap-1 [-webkit-app-region:no-drag]">
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close side panel"
-            title="Close side panel"
-            className="inline-flex size-6 items-center justify-center rounded-md border border-border/70 bg-background/90 text-muted-foreground transition-colors hover:border-border hover:text-foreground cursor-pointer"
-          >
-            <XIcon className="size-3.5" />
-          </button>
-        </div>
-      </div>
+    <div className="companion-frame flex h-full min-w-0 flex-col bg-background text-foreground">
+      <SurfaceTabs
+        maximized={maximized}
+        onToggleMaximized={() => setMaximized(!maximized)}
+        choosing={choosing}
+        activeTab={activeTab}
+        onSelect={handleSelectTab}
+        onClosePanel={onClose}
+        dragRegion={shouldUseDragRegion}
+        counts={{ stash: stashes.length, queue: queuedMessages.length }}
+        onChooserChange={setChoosing}
+      />
 
       {/* Surface Body */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        {activeTab === "diff" ? (
+      <div
+        id="companion-surface-body"
+        role={choosing ? undefined : "tabpanel"}
+        aria-labelledby={choosing ? undefined : `surface-tab-${activeTab}`}
+        className="flex min-h-0 flex-1 flex-col overflow-hidden"
+      >
+        {choosing ? (
+          <SurfaceChooser onSelect={handleSelectTab} />
+        ) : activeTab === "diff" ? (
           <DiffWorkerPoolProvider>
             <Suspense
               fallback={

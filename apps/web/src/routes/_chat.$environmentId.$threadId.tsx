@@ -27,11 +27,16 @@ const DiffPanelSheet = (props: {
   diffOpen: boolean;
   onCloseDiff: () => void;
 }) => {
+  const maximized = useRightPanelStore((state) => state.maximized);
   return (
     <Sheet
       open={props.diffOpen}
       onOpenChange={(open) => {
         if (!open) {
+          if (maximized) {
+            useRightPanelStore.getState().setMaximized(false);
+            return;
+          }
           props.onCloseDiff();
         }
       }}
@@ -40,7 +45,7 @@ const DiffPanelSheet = (props: {
         side="right"
         showCloseButton={false}
         keepMounted
-        className="w-[min(88vw,820px)] max-w-[820px] p-0"
+        className={maximized ? "w-screen max-w-none p-0" : "w-[min(88vw,820px)] max-w-[820px] p-0"}
       >
         {props.children}
       </SheetPopup>
@@ -58,6 +63,7 @@ const DiffPanelInlineSidebar = (props: {
   threadId?: ThreadId;
   environmentId?: EnvironmentId;
 }) => {
+  const maximized = useRightPanelStore((state) => state.maximized);
   const { panelOpen, onClose, onOpen, renderPanelContent, threadId, environmentId } = props;
   const onOpenChange = useCallback(
     (open: boolean) => {
@@ -73,7 +79,12 @@ const DiffPanelInlineSidebar = (props: {
   useEffect(() => {
     if (!panelOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
+      if (e.key === "Escape" && !e.defaultPrevented) {
+        if (useRightPanelStore.getState().maximized) {
+          e.preventDefault();
+          useRightPanelStore.getState().setMaximized(false);
+          return;
+        }
         onClose();
       }
     };
@@ -110,7 +121,7 @@ const DiffPanelInlineSidebar = (props: {
           Number.parseFloat(window.getComputedStyle(composerFooter).gap) ||
           0
         : 0;
-      const minimumComposerWidth =
+      const _minimumComposerWidth =
         COMPOSER_COMPACT_MIN_LEFT_CONTROLS_WIDTH_PX + composerRightActionsWidth + composerFooterGap;
       const availableLeftControlsWidth =
         formRect.width - composerRightActionsWidth - composerFooterGap;
@@ -133,18 +144,26 @@ const DiffPanelInlineSidebar = (props: {
       defaultOpen={true}
       open={panelOpen}
       onOpenChange={onOpenChange}
-      className="w-auto min-h-0 flex-none bg-transparent"
+      className={
+        maximized
+          ? "companion-expanded relative min-h-0 min-w-0 flex-1 bg-transparent"
+          : "w-auto min-h-0 flex-none bg-transparent"
+      }
       style={{ "--sidebar-width": DIFF_INLINE_DEFAULT_WIDTH } as React.CSSProperties}
     >
       <Sidebar
         side="right"
         collapsible="offcanvas"
         className="border-l border-border bg-card text-foreground z-30 shadow-2xl"
-        resizable={{
-          minWidth: DIFF_INLINE_SIDEBAR_MIN_WIDTH,
-          shouldAcceptWidth: shouldAcceptInlineSidebarWidth,
-          storageKey: DIFF_INLINE_SIDEBAR_WIDTH_STORAGE_KEY,
-        }}
+        resizable={
+          maximized
+            ? false
+            : {
+                minWidth: DIFF_INLINE_SIDEBAR_MIN_WIDTH,
+                shouldAcceptWidth: shouldAcceptInlineSidebarWidth,
+                storageKey: DIFF_INLINE_SIDEBAR_WIDTH_STORAGE_KEY,
+              }
+        }
       >
         {renderPanelContent ? (
           <RightPanelTabs
@@ -154,7 +173,7 @@ const DiffPanelInlineSidebar = (props: {
             onClose={onClose}
           />
         ) : null}
-        <SidebarRail />
+        {!maximized && <SidebarRail />}
       </Sidebar>
     </SidebarProvider>
   );
@@ -183,6 +202,10 @@ function ChatThreadRouteView() {
   );
   const routeThreadExists = threadExists || draftThreadExists;
   const diffOpen = search.diff === "1";
+  const maximized = useRightPanelStore((state) => state.maximized);
+  useEffect(() => {
+    useRightPanelStore.getState().setMaximized(false);
+  }, [threadId]);
   const rightPanelStoreIsOpen = useRightPanelStore((s) => s.isOpen);
   const isRightPanelOpen = diffOpen || rightPanelStoreIsOpen;
   const shouldUseDiffSheet = useMediaQuery(DIFF_INLINE_LAYOUT_MEDIA_QUERY);
@@ -254,16 +277,18 @@ function ChatThreadRouteView() {
   if (!shouldUseDiffSheet) {
     return (
       <div className="flex h-full min-h-0 min-w-0 flex-1 flex-row overflow-hidden">
-        <AgentsSplitWorkspace
-          environmentId={environmentId}
-          routeThreadId={threadId}
-          diffOpen={diffOpen}
-          rightPanelOpen={isRightPanelOpen}
-          onOpenDiff={openDiff}
-          onCloseDiff={closePanel}
-          onToggleRightPanel={toggleRightPanel}
-          onDiffThreadChange={setDiffTargetThreadId}
-        />
+        <div className={maximized && isRightPanelOpen ? "hidden" : "flex min-h-0 min-w-0 flex-1"}>
+          <AgentsSplitWorkspace
+            environmentId={environmentId}
+            routeThreadId={threadId}
+            diffOpen={diffOpen}
+            rightPanelOpen={isRightPanelOpen}
+            onOpenDiff={openDiff}
+            onCloseDiff={closePanel}
+            onToggleRightPanel={toggleRightPanel}
+            onDiffThreadChange={setDiffTargetThreadId}
+          />
+        </div>
         <DiffPanelInlineSidebar
           panelOpen={isRightPanelOpen}
           onClose={closePanel}

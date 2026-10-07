@@ -30,6 +30,8 @@ import {
   makeServerRuntimeServicesLayer,
 } from "./serverLayers";
 import * as NodeServices from "@effect/platform-node/NodeServices";
+import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
+import * as ServerSecretStore from "./auth/ServerSecretStore.ts";
 import { ProjectionSnapshotQuery } from "./orchestration/Services/ProjectionSnapshotQuery";
 import { Server } from "./wsServer";
 import { ObservabilityLive } from "./observability/Observability";
@@ -342,11 +344,13 @@ const LayerLive = (input: CliInput) =>
     ),
     Layer.provideMerge(makeProviderInstanceRegistryLayer()),
     Layer.provideMerge(makeRemoteAccessServicesLayer()),
-    Layer.provideMerge(SqlitePersistence.layerConfig),
     Layer.provideMerge(ObservabilityLive),
     Layer.provideMerge(AnalyticsServiceLayerLive),
     Layer.provideMerge(BackgroundPolicy.layer.pipe(Layer.provideMerge(ServerSettingsLive))),
+    Layer.provideMerge(ServerSecretStore.layer),
+    Layer.provideMerge(SqlitePersistence.layerConfig),
     Layer.provideMerge(ServerConfigLive(input)),
+    Layer.provideMerge(NodeCrypto.layer),
     Layer.provideMerge(NodeServices.layer),
   );
 
