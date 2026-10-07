@@ -78,7 +78,7 @@ export function BrowserToolbar(props: {
   onForward: () => void;
   onReload: (ignoreCache: boolean) => void;
   onExternal: () => void;
-  onCollapse: () => void;
+  onCollapse?: (() => void) | undefined;
   address: ReactNode;
   captureActions: BrowserToolbarAction[];
   toolActions: BrowserToolbarAction[];
@@ -179,16 +179,18 @@ export function BrowserToolbar(props: {
             <ExternalLinkIcon className="size-3.5" />
           </Button>
         </div>
-        <Button
-          size="icon-sm"
-          variant="ghost"
-          className="col-start-3 row-start-1 text-muted-foreground @min-[700px]/browser-toolbar:col-start-4"
-          onClick={props.onCollapse}
-          aria-label={`Collapse ${props.title} controls`}
-          title="Hide address bar"
-        >
-          <PanelTopCloseIcon className="size-3.5" />
-        </Button>
+        {props.onCollapse && (
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            className="col-start-3 row-start-1 text-muted-foreground @min-[700px]/browser-toolbar:col-start-4"
+            onClick={props.onCollapse}
+            aria-label={`Collapse ${props.title} controls`}
+            title="Hide address bar"
+          >
+            <PanelTopCloseIcon className="size-3.5" />
+          </Button>
+        )}
       </div>
     </div>
   );

@@ -7334,6 +7334,7 @@ function GitConflictTextPane(props: {
 }
 
 function DesktopBrowserChrome(props: {
+  companion?: boolean | undefined;
   projectId: ProjectId;
   projectCwd: string;
   sessionId?: string | undefined;
@@ -7686,7 +7687,7 @@ function DesktopBrowserChrome(props: {
               onExternal={() =>
                 void api?.shell.openExternal(props.sessionState.currentUrl ?? props.normalizedUrl)
               }
-              onCollapse={() => props.setIsChromeExpanded(false)}
+              onCollapse={props.companion ? undefined : () => props.setIsChromeExpanded(false)}
               onViewOpenChange={(open) => {
                 setActiveToolbarMenu(open ? "view" : null);
               }}
@@ -9191,7 +9192,8 @@ function BrowserTool(props: {
   );
 }
 
-function DesktopCustomEmbedTool(props: {
+export function DesktopCustomEmbedTool(props: {
+  companion?: boolean | undefined;
   project: Project;
   title: string;
   url: string;
@@ -9204,6 +9206,10 @@ function DesktopCustomEmbedTool(props: {
   const api = readNativeApi();
   const bridge = window.desktopBridge;
   const projectSettings = useProjectWorkspaceSettings(props.project.id);
+  const initialUrl =
+    props.companion && projectSettings
+      ? resolveProjectDefaultBrowserUrl(props.project, projectSettings)
+      : props.url;
   const sessionKey = `${projectUiStateKey(props.project.environmentId, props.project.id)}:${props.sessionId}`;
   const browserState = useAtomValue(workspaceShellAtom, (state) => {
     const existing =
@@ -9212,7 +9218,7 @@ function DesktopCustomEmbedTool(props: {
       return existing;
     }
     return {
-      currentUrl: normalizeBrowserUrl(props.url),
+      currentUrl: normalizeBrowserUrl(initialUrl),
       devicePreset: "project-default",
       customWidth: null,
       customHeight: null,
@@ -9259,9 +9265,9 @@ function DesktopCustomEmbedTool(props: {
   const setBrowserSessionUrl = workspaceShellActions.setBrowserSessionUrl;
   // A custom tab optionally reopens at the URL the user last navigated to (persisted),
   // falling back to its configured URL; editing the configured URL takes over.
-  const configuredUrl = normalizeBrowserUrl(props.url);
+  const configuredUrl = normalizeBrowserUrl(initialUrl);
   const normalizedUrl = normalizeBrowserUrl(
-    props.resumeLastVisitedPage ? (storedUrl ?? props.lastVisitedUrl ?? props.url) : props.url,
+    props.resumeLastVisitedPage ? (storedUrl ?? props.lastVisitedUrl ?? initialUrl) : initialUrl,
   );
   // Editable address bar for the custom embed. Navigating here writes the
   // per-session URL (NOT the shared per-project browser state — see the
@@ -9400,6 +9406,11 @@ function DesktopCustomEmbedTool(props: {
         return;
       }
       setSessionState(nextState);
+      // Save immediately: switching Agents surfaces can unmount before the
+      // custom-embed debounce has elapsed.
+      if (props.companion && !nextState.loading && !nextState.lastError && nextState.currentUrl) {
+        setBrowserSessionUrl(props.project.id, props.sessionId, nextState.currentUrl);
+      }
     });
 
     return () => {
@@ -9595,11 +9606,12 @@ function DesktopCustomEmbedTool(props: {
 
   return (
     <DesktopBrowserChrome
+      companion={props.companion}
       projectCwd={props.project.cwd}
       projectId={props.project.id}
       sessionId={props.sessionId}
       title={props.title}
-      isChromeExpanded={isChromeExpanded}
+      isChromeExpanded={props.companion || isChromeExpanded}
       setIsChromeExpanded={setIsChromeExpanded}
       sessionState={sessionState}
       browserState={browserState}
@@ -9610,7 +9622,7 @@ function DesktopCustomEmbedTool(props: {
       setBrowserViewport={setBrowserViewport}
       setViewportSelectorOpen={setViewportSelectorOpen}
       viewportSelectorOpen={viewportSelectorOpen}
-      toolbarTarget={toolbarTarget}
+      toolbarTarget={props.companion ? null : toolbarTarget}
     >
       <BrowserViewportResizeFrame
         width={viewportWidth}
@@ -11624,9 +11636,10 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
     async (projectId: ProjectId) => {
       setActiveProject(projectId);
       setActiveTool(projectId, "agents");
-      await handleNewThread(projectId, {
-        ...(settings.defaultThreadEnvMode ? { envMode: settings.defaultThreadEnvMode } : {}),
-      });
+      await handleNewThread(
+        projectId,
+        settings.defaultThreadEnvMode ? { envMode: settings.defaultThreadEnvMode } : {},
+      );
     },
     [handleNewThread, setActiveProject, setActiveTool, settings.defaultThreadEnvMode],
   );
@@ -11782,7 +11795,8 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
         event.stopPropagation();
         if (workspaceState.session.activeProjectId) {
           void handleNewThread(workspaceState.session.activeProjectId, {
-            envMode: command === "chat.newLocal" ? "local" : (settings.defaultThreadEnvMode ?? "local"),
+            envMode:
+              command === "chat.newLocal" ? "local" : (settings.defaultThreadEnvMode ?? "local"),
           });
         }
         return;

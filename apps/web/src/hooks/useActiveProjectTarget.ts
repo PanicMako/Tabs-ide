@@ -2,6 +2,7 @@ import type { EnvironmentId, ProjectId, ThreadId } from "@tabs/contracts";
 import { useAtomValue } from "@effect/atom-react";
 import { projectsAtom, threadsAtom } from "../state/threads";
 import { useWorkspaceActiveProjectId } from "../state/workspaceShell";
+import { useDraftThread } from "../state/composerDrafts";
 import { useHandleNewThread } from "./useHandleNewThread";
 
 export interface ActiveProjectTarget {
@@ -12,13 +13,20 @@ export interface ActiveProjectTarget {
   readonly threadId?: ThreadId | null;
 }
 
-export function useActiveProjectTarget(): ActiveProjectTarget | null {
-  const { activeDraftThread, activeThread } = useHandleNewThread();
+export function useActiveProjectTarget(
+  requestedThreadId?: ThreadId | null,
+): ActiveProjectTarget | null {
+  const { activeThread, routeThreadId } = useHandleNewThread();
+  const draftThread = useDraftThread(requestedThreadId ?? routeThreadId);
   const projects = useAtomValue(projectsAtom);
+  const threads = useAtomValue(threadsAtom);
   const activeProjectId = useWorkspaceActiveProjectId();
 
-  const thread = activeThread ?? activeDraftThread;
-  const threadId = activeThread?.id ?? null;
+  const thread = requestedThreadId
+    ? (threads.find((candidate) => candidate.id === requestedThreadId) ?? draftThread)
+    : (activeThread ?? draftThread);
+  const threadId = requestedThreadId ?? activeThread?.id ?? (draftThread ? routeThreadId : null);
+  if (requestedThreadId && !thread) return null;
 
   const project = thread
     ? projects.find((candidate) => candidate.id === thread.projectId)
