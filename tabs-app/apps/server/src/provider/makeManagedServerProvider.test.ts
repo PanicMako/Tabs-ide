@@ -8,7 +8,17 @@ import * as PubSub from "effect/PubSub";
 import * as Ref from "effect/Ref";
 import * as Stream from "effect/Stream";
 
+import * as Layer from "effect/Layer";
+import * as BackgroundPolicy from "../background/BackgroundPolicy.ts";
+import * as ServerSettings from "../serverSettings.ts";
 import { makeManagedServerProvider } from "./makeManagedServerProvider";
+
+const testLayer = Layer.mergeAll(
+  Layer.mock(BackgroundPolicy.BackgroundPolicy)({}),
+  Layer.mock(ServerSettings.ServerSettingsService)({
+    getSettings: Effect.succeed({} as any),
+  }),
+);
 
 const emptyCapabilities = createModelCapabilities({ optionDescriptors: [] });
 const fastModeCapabilities = createModelCapabilities({
@@ -139,7 +149,7 @@ describe("makeManagedServerProvider", () => {
           assert.deepStrictEqual(latest, refreshedSnapshot);
           assert.strictEqual(yield* Ref.get(checkCalls), 1);
         }),
-      ),
+      ).pipe(Effect.provide(testLayer)) as any,
   );
 
   it.effect("reruns the provider check when streamed settings change", () =>
@@ -184,7 +194,7 @@ describe("makeManagedServerProvider", () => {
         assert.deepStrictEqual(latest, refreshedSnapshotSecond);
         assert.strictEqual(yield* Ref.get(checkCalls), 2);
       }),
-    ),
+    ).pipe(Effect.provide(testLayer)) as any,
   );
 
   it.effect("streams supplemental snapshot updates after the base provider check completes", () =>
@@ -222,7 +232,7 @@ describe("makeManagedServerProvider", () => {
         assert.deepStrictEqual(updates, [refreshedSnapshot, enrichedSnapshot]);
         assert.deepStrictEqual(latest, enrichedSnapshot);
       }),
-    ),
+    ).pipe(Effect.provide(testLayer)) as any,
   );
 
   it.effect("ignores stale enrichment callbacks after a newer refresh advances generation", () =>
@@ -283,6 +293,6 @@ describe("makeManagedServerProvider", () => {
         ]);
         assert.deepStrictEqual(latest, enrichedSnapshotSecond);
       }),
-    ),
+    ).pipe(Effect.provide(testLayer)) as any,
   );
 });

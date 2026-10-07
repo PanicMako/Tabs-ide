@@ -86,7 +86,7 @@ const withInstanceIdentity =
     continuation: { groupKey: input.continuationGroupKey },
   });
 
-export const OpenRouterDriver: ProviderDriver<OpenRouterSettings, never> = {
+export const OpenRouterDriver: ProviderDriver<OpenRouterSettings, any> = {
   driverKind: DRIVER_KIND,
   metadata: {
     displayName: "OpenRouter",

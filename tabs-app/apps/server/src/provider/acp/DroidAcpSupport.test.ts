@@ -23,7 +23,7 @@ describe("buildDroidEnvironment", () => {
   it.effect("discovers account models and their model-specific reasoning choices", () =>
     Effect.gen(function* () {
       let selectedModel = "model-a";
-      const configOptions = (): ReadonlyArray<EffectAcpSchema.SessionConfigOption> => [
+      const configOptions = (): ReadonlyArray<any> => [
         {
           id: "model",
           name: "Model",

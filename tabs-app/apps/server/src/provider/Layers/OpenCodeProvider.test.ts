@@ -54,9 +54,12 @@ const runtimeMock = {
 
 const OpenCodeRuntimeTestDouble: OpenCodeRuntimeShape = {
   loadOpenCodeSkills: () => Effect.succeed([]),
+  loadInventoryFromCli: () => Effect.succeed({ models: [], slashCommands: [] } as any),
+  loadSkillsFromCli: () => Effect.succeed([]),
   startOpenCodeServerProcess: () =>
     Effect.succeed({
       url: "http://127.0.0.1:4301",
+      version: "1.0.0",
       isRunning: Effect.succeed(true),
       exitCode: Effect.never,
     }),
@@ -71,6 +74,7 @@ const OpenCodeRuntimeTestDouble: OpenCodeRuntimeShape = {
       }
       return {
         url: serverUrl ?? "http://127.0.0.1:4301",
+        version: "1.0.0",
         exitCode: null,
         external: Boolean(serverUrl),
       };

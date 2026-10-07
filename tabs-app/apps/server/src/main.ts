@@ -18,6 +18,8 @@ import {
   type RuntimeMode,
   type ServerConfigShape,
 } from "./config";
+import { DEFAULT_SIGNAL_EXPORT } from "@tabs/shared/observability";
+import * as OtelEnvironment from "@tabs/shared/otelEnvironment";
 import { fixPath, resolveBaseDir } from "./os-jank";
 import { Open } from "./open";
 import * as SqlitePersistence from "./persistence/Layers/Sqlite";
@@ -61,6 +63,7 @@ const BootstrapEnvelopeSchema = Schema.Struct({
   devUrl: Schema.optional(Schema.URLFromString),
   noBrowser: Schema.optional(Schema.Boolean),
   authToken: Schema.optional(Schema.String),
+  bootstrapToken: Schema.optional(Schema.String),
   autoBootstrapProjectFromCwd: Schema.optional(Schema.Boolean),
   logWebSocketEvents: Schema.optional(Schema.Boolean),
 });
@@ -286,6 +289,19 @@ const ServerConfigLive = (input: CliInput) =>
       );
 
       const config: ServerConfigShape = {
+        logLevel: "Error",
+        traceMinLevel: "Info",
+        traceTimingEnabled: true,
+        traceBatchWindowMs: 200,
+        traceMaxBytes: 10 * 1024 * 1024,
+        traceMaxFiles: 10,
+        otlpTracesUrl: undefined,
+        otlpMetricsUrl: undefined,
+        otlpLogsUrl: undefined,
+        otlpTracesExport: DEFAULT_SIGNAL_EXPORT,
+        otlpMetricsExport: DEFAULT_SIGNAL_EXPORT,
+        otlpLogsExport: DEFAULT_SIGNAL_EXPORT,
+        otelEnvironment: OtelEnvironment.none,
         mode,
         port,
         cwd: cliConfig.cwd,
@@ -294,10 +310,19 @@ const ServerConfigLive = (input: CliInput) =>
         ...derivedPaths,
         staticDir,
         devUrl,
+        devAllowedOrigins: [],
         noBrowser,
+        startupPresentation: "browser",
         authToken: Option.getOrUndefined(authToken),
+        desktopBootstrapToken: Option.getOrUndefined(
+          Option.flatMap(bootstrapEnvelope, (bootstrap) =>
+            Option.fromUndefinedOr(bootstrap.bootstrapToken),
+          ),
+        ),
         autoBootstrapProjectFromCwd,
         logWebSocketEvents,
+        tailscaleServeEnabled: false,
+        tailscaleServePort: 443,
       } satisfies ServerConfigShape;
 
       return config;

@@ -176,7 +176,7 @@ export function normalizeClaudeTodoTasks(input: Record<string, unknown>): {
     const status = normalizeRuntimeTaskStatus(todo.status);
     const content = readTaskString(todo, "content");
     const activeForm = readTaskString(todo, "activeForm");
-    const rawTask = status === "inProgress" ? (activeForm ?? content) : (content ?? activeForm);
+    const rawTask = status === "running" ? (activeForm ?? content) : (content ?? activeForm);
     const task = rawTask ?? "Task";
     const item = makeRuntimeTaskListItem(task, status);
     return item ? [item] : [];

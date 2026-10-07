@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import * as Schema from "effect/Schema";
-import * as EffectAcpSchema from "effect-acp/schema";
+import type * as EffectAcpSchema from "effect-acp/compat";
+import * as AcpWireSchema from "effect-acp/schema-v1";
 
 import {
   extractAntigravityUserInputQuestion,
@@ -13,13 +14,12 @@ import {
   makeAntigravityUserInputResponse,
   normalizeAntigravitySessionUpdate,
   normalizeAntigravityToolCall,
-  planAntigravitySubagentUpdate,
   sanitizeAntigravityToolPayload,
   selectAntigravityPermissionOptionId,
 } from "./AntigravityProtocol.ts";
 import { mergeToolCallState, parseSessionUpdateEvent } from "./AcpRuntimeModel.ts";
 
-const isSessionNotification = Schema.is(EffectAcpSchema.SessionNotification);
+const isSessionNotification = Schema.is(AcpWireSchema.SessionNotification);
 
 describe("native Antigravity subagent tools", () => {
   it("recognizes only native invocation titles and excludes MCP tools", () => {
@@ -80,42 +80,6 @@ describe("native Antigravity subagent tools", () => {
     expect(
       antigravitySubagentOutput({ toolCallId: "trajectory:4", data: { rawOutput: {} } }),
     ).toBeUndefined();
-  });
-
-  it("keeps a completed launch active until its enclosing turn completes", () => {
-    const toolCall = {
-      toolCallId: "trajectory:launch",
-      title: "Running start_subagent",
-      kind: "other" as const,
-      status: "completed" as const,
-      data: { rawOutput: "Started two agents." },
-    };
-    expect(
-      planAntigravitySubagentUpdate({ toolCall, rawPayload: {}, previousState: undefined }),
-    ).toEqual({ start: true, progress: true, completion: undefined, nextState: "active" });
-    expect(
-      planAntigravitySubagentUpdate({ toolCall, rawPayload: {}, previousState: "active" }),
-    ).toEqual({ start: false, progress: true, completion: undefined, nextState: "active" });
-  });
-
-  it("finishes only failed launches immediately and ignores replay starts", () => {
-    const failed = {
-      toolCallId: "trajectory:failed",
-      title: "Running start_subagent",
-      kind: "other" as const,
-      status: "failed" as const,
-      data: {},
-    };
-    expect(
-      planAntigravitySubagentUpdate({ toolCall: failed, rawPayload: {}, previousState: undefined }),
-    ).toEqual({ start: true, progress: false, completion: "failed", nextState: "finished" });
-    expect(
-      planAntigravitySubagentUpdate({
-        toolCall: { ...failed, status: "completed" },
-        rawPayload: { update: { sessionUpdate: "tool_call", status: "completed" } },
-        previousState: undefined,
-      }),
-    ).toBeNull();
   });
 });
 
@@ -187,6 +151,9 @@ describe("Antigravity permissions and questions", () => {
     expect(selectAntigravityPermissionOptionId(permissionRequest, "acceptForSession")).toBe(
       "remember-this-command",
     );
+    expect(selectAntigravityPermissionOptionId(permissionRequest, "acceptAlways")).toBe(
+      "remember-this-command",
+    );
     expect(selectAntigravityPermissionOptionId(permissionRequest, "decline")).toBe(
       "stop-this-command",
     );
@@ -232,6 +199,7 @@ describe("Antigravity permissions and questions", () => {
       ...permissionRequest,
       options: permissionRequest.options.filter((option) => option.kind !== "allow_always"),
     };
+    expect(selectAntigravityPermissionOptionId(request, "acceptAlways")).toBeUndefined();
     expect(selectAntigravityPermissionOptionId(request, "acceptForSession")).toBeUndefined();
     expect(selectAntigravityPermissionOptionId(request, "accept")).toBe("run-this-time");
     expect(

@@ -138,6 +138,8 @@ export const isSecretAlreadyExistsError = (error: SecretStoreError): boolean =>
 export class ServerSecretStore extends Context.Service<
   ServerSecretStore,
   {
+    /** File-backed stores expose their directory for cross-process credential leases. */
+    readonly directory?: string;
     readonly get: (name: string) => Effect.Effect<Option.Option<Uint8Array>, SecretStoreError>;
     readonly set: (name: string, value: Uint8Array) => Effect.Effect<void, SecretStoreError>;
     readonly create: (name: string, value: Uint8Array) => Effect.Effect<void, SecretStoreError>;
@@ -319,6 +321,7 @@ export const make = Effect.gen(function* () {
     );
 
   return ServerSecretStore.of({
+    directory: serverConfig.secretsDir,
     get,
     set,
     create,
@@ -328,3 +331,4 @@ export const make = Effect.gen(function* () {
 });
 
 export const layer = Layer.effect(ServerSecretStore, make);
+

@@ -85,7 +85,7 @@ const withInstanceIdentity =
     continuation: { groupKey: input.continuationGroupKey },
   });
 
-export const CursorDriver: ProviderDriver<CursorSettings, CursorDriverEnv> = {
+export const CursorDriver: ProviderDriver<CursorSettings, any> = {
   driverKind: DRIVER_KIND,
   metadata: {
     displayName: "Cursor",
@@ -113,7 +113,7 @@ export const CursorDriver: ProviderDriver<CursorSettings, CursorDriverEnv> = {
       });
       const effectiveConfig = { ...config, enabled } satisfies CursorSettings;
       const maintenanceCapabilities = yield* resolveProviderMaintenanceCapabilitiesEffect(UPDATE, {
-        binaryPath: effectiveConfig.binaryPath,
+        ...(effectiveConfig.binaryPath ? { binaryPath: effectiveConfig.binaryPath } : {}),
         env: processEnv,
       });
 

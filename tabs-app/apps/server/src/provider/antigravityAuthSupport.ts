@@ -4,7 +4,9 @@ import * as NodePath from "node:path";
 
 import type { AntigravityAuthMethod, ProviderInstanceId } from "@tabs/contracts";
 import { HostProcessExecutablePath, HostProcessPlatform } from "@tabs/shared/hostProcess";
+import * as Crypto from "effect/Crypto";
 import * as Effect from "effect/Effect";
+import * as Encoding from "effect/Encoding";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import type * as PlatformError from "effect/PlatformError";
@@ -177,6 +179,28 @@ export function isAntigravitySignInRequiredError(error: unknown): boolean {
 }
 
 /** Keeps case-sensitive instance IDs separate on case-insensitive filesystems. */
+export interface AntigravityInstanceDirectories {
+  /** GEMINI_HOME for the agent. Holds the instance's Google sign-in. */
+  readonly profile: string;
+  /**
+   * Parent of the per-process directories the agent unpacks into.
+   */
+  readonly runtimeTemp: string;
+}
+
+/** Hashes the instance ID so case-only differences stay separate on case-insensitive filesystems. */
+export const resolveAntigravityInstanceDirectories = Effect.fn(
+  "resolveAntigravityInstanceDirectories",
+)(function* (stateDir: string, instanceId: ProviderInstanceId) {
+  const crypto = yield* Crypto.Crypto;
+  const path = yield* Path.Path;
+  const key = Encoding.encodeHex(yield* crypto.digest("SHA-256", new TextEncoder().encode(instanceId)));
+  return {
+    profile: path.join(stateDir, "providers", "antigravity", key),
+    runtimeTemp: path.join(stateDir, "antigravity-tmp", key.slice(0, 12)),
+  } satisfies AntigravityInstanceDirectories;
+});
+
 export function resolveAntigravityProfileDirectory(
   stateDir: string,
   instanceId: ProviderInstanceId,

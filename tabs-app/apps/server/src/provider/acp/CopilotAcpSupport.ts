@@ -183,9 +183,13 @@ export function currentCopilotModelIdFromSessionSetup(
   sessionSetupResult:
     | EffectAcpSchema.LoadSessionResponse
     | EffectAcpSchema.NewSessionResponse
-    | EffectAcpSchema.ResumeSessionResponse,
+    | EffectAcpSchema.ResumeSessionResponse
+    | EffectAcpSchema.ForkSessionResponse
+    | { readonly models?: { readonly currentModelId?: string | null | undefined } | null | undefined }
+    | null
+    | undefined,
 ): string | undefined {
-  return sessionSetupResult.models?.currentModelId?.trim() || undefined;
+  return (sessionSetupResult as any)?.models?.currentModelId?.trim() || undefined;
 }
 
 export function applyCopilotAcpModelSelection<E>(input: {

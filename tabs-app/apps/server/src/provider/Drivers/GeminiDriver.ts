@@ -79,7 +79,7 @@ const withInstanceIdentity =
     continuation: { groupKey: input.continuationGroupKey },
   });
 
-export const GeminiDriver: ProviderDriver<GeminiSettings, never> = {
+export const GeminiDriver: ProviderDriver<GeminiSettings, any> = {
   driverKind: DRIVER_KIND,
   metadata: {
     displayName: "Google Gemini",

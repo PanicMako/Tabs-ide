@@ -1,10 +1,11 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { DEFAULT_SERVER_SETTINGS, ServerSettingsPatch, ProviderInstanceId } from "@tabs/contracts";
 import { assert, it } from "@effect/vitest";
-import { Effect, FileSystem, Layer, Schema } from "effect";
+import { Effect, FileSystem, Layer, Option, Schema } from "effect";
 import { vi } from "vitest";
 import { ServerConfig } from "./config";
-import { ServerSettingsLive, ServerSettingsService } from "./serverSettings";
+import { redactServerSettingsForClient, ServerSettingsLive, ServerSettingsService } from "./serverSettings";
+import * as ServerSecretStore from "./auth/ServerSecretStore.ts";
 
 const keytarMock = vi.hoisted(() => ({
   deletePassword: vi.fn(async () => true),
@@ -12,10 +13,14 @@ const keytarMock = vi.hoisted(() => ({
   setPassword: vi.fn(async () => undefined),
 }));
 
+import * as SqlitePersistence from "./persistence/Sqlite.ts";
+
 vi.mock("keytar", () => ({ default: keytarMock }));
 
 const makeServerSettingsLayer = () =>
   ServerSettingsLive.pipe(
+    Layer.provideMerge(ServerSecretStore.layer),
+    Layer.provideMerge(SqlitePersistence.layerConfig),
     Layer.provideMerge(
       Layer.fresh(
         ServerConfig.layerTest(process.cwd(), {
@@ -68,7 +73,7 @@ it.layer(NodeServices.layer)("server settings", (it) => {
         },
         textGenerationModelSelection: {
           instanceId: "codex" as ProviderInstanceId,
-          model: DEFAULT_SERVER_SETTINGS.textGenerationModelSelection.model,
+          model: DEFAULT_SERVER_SETTINGS.textGenerationModelSelection!.model,
           options: [
             { id: "reasoningEffort", value: "high" },
             { id: "fastMode", value: true },
@@ -92,6 +97,7 @@ it.layer(NodeServices.layer)("server settings", (it) => {
         binaryPath: "/opt/homebrew/bin/codex",
         homePath: "/Users/julius/.codex",
         shadowHomePath: "",
+        launchArgs: "",
         customModels: [],
       });
       assert.deepEqual(next.providers.claudeAgent, {
@@ -100,12 +106,13 @@ it.layer(NodeServices.layer)("server settings", (it) => {
         homePath: "",
         customModels: ["claude-custom"],
         launchArgs: "",
+        autoCompactWindow: "",
       });
       // Option selections are merged by id under the canonical array shape,
       // so reasoningEffort is preserved and fastMode is updated.
       assert.deepEqual(next.textGenerationModelSelection, {
         instanceId: "codex" as ProviderInstanceId,
-        model: DEFAULT_SERVER_SETTINGS.textGenerationModelSelection.model,
+        model: DEFAULT_SERVER_SETTINGS.textGenerationModelSelection!.model,
         options: [
           { id: "reasoningEffort", value: "high" },
           { id: "fastMode", value: false },
@@ -121,7 +128,7 @@ it.layer(NodeServices.layer)("server settings", (it) => {
       yield* serverSettings.updateSettings({
         textGenerationModelSelection: {
           instanceId: "codex" as ProviderInstanceId,
-          model: DEFAULT_SERVER_SETTINGS.textGenerationModelSelection.model,
+          model: DEFAULT_SERVER_SETTINGS.textGenerationModelSelection!.model,
           options: [{ id: "reasoningEffort", value: "high" }],
         },
       });
@@ -147,7 +154,7 @@ it.layer(NodeServices.layer)("server settings", (it) => {
       yield* serverSettings.updateSettings({
         textGenerationModelSelection: {
           instanceId: "codex" as ProviderInstanceId,
-          model: DEFAULT_SERVER_SETTINGS.textGenerationModelSelection.model,
+          model: DEFAULT_SERVER_SETTINGS.textGenerationModelSelection!.model,
           options: [{ id: "reasoningEffort", value: "high" }],
         },
       });
@@ -187,6 +194,7 @@ it.layer(NodeServices.layer)("server settings", (it) => {
         binaryPath: "/opt/homebrew/bin/codex",
         homePath: "",
         shadowHomePath: "",
+        launchArgs: "",
         customModels: [],
       });
       assert.deepEqual(next.providers.claudeAgent, {
@@ -195,6 +203,7 @@ it.layer(NodeServices.layer)("server settings", (it) => {
         homePath: "",
         customModels: [],
         launchArgs: "",
+        autoCompactWindow: "",
       });
     }).pipe(Effect.provide(makeServerSettingsLayer())),
   );
@@ -240,93 +249,54 @@ it.layer(NodeServices.layer)("server settings", (it) => {
           codex: {
             binaryPath: "/opt/homebrew/bin/codex",
           },
+          cursor: {
+            enabled: false,
+          },
+          grok: {
+            enabled: false,
+          },
+          opencode: {
+            enabled: false,
+          },
         },
       });
     }).pipe(Effect.provide(makeServerSettingsLayer())),
   );
 
-  it.effect("stores Copilot tokens securely without persisting plaintext", () =>
-    Effect.gen(function* () {
-      keytarMock.setPassword.mockClear();
-      const serverSettings = yield* ServerSettingsService;
-      const serverConfig = yield* ServerConfig;
-      const fileSystem = yield* FileSystem.FileSystem;
+  it.effect(
+    "keeps Bitbucket tokens in the secret store and tells clients only that one is set",
+    () =>
+      Effect.gen(function* () {
+        const serverSettings = yield* ServerSettingsService;
+        const secrets = yield* ServerSecretStore.ServerSecretStore;
+        const serverConfig = yield* ServerConfig;
+        const fileSystem = yield* FileSystem.FileSystem;
 
-      const next = yield* serverSettings.updateSettings({
-        providers: { copilot: { token: "github_pat_secure_test" } },
-      });
+        const saved = yield* serverSettings.updateSettings({
+          bitbucket: { email: "me@example.com", accessToken: "bb-access", apiToken: "bb-api" },
+        });
+        assert.deepEqual(saved.bitbucket, {
+          email: "me@example.com",
+          accessToken: "bb-access",
+          apiToken: "bb-api",
+        });
 
-      assert.equal(next.providers.copilot.token, "");
-      assert.deepEqual(keytarMock.setPassword.mock.calls, [
-        ["Tabs GitHub Copilot", "github-token", "github_pat_secure_test"],
-      ]);
-      const raw = yield* fileSystem.readFileString(serverConfig.settingsPath);
-      assert.equal(raw.includes("github_pat_secure_test"), false);
-    }).pipe(Effect.provide(makeServerSettingsLayer())),
-  );
+        const raw = yield* fileSystem.readFileString(serverConfig.settingsPath);
+        assert.equal(raw.includes("bb-access"), false);
+        assert.equal(raw.includes("bb-api"), false);
+        assert.equal(raw.includes("me@example.com"), true);
 
-  it.effect("stores every app-managed provider secret in the OS credential store", () =>
-    Effect.gen(function* () {
-      keytarMock.setPassword.mockClear();
-      const serverSettings = yield* ServerSettingsService;
-      const serverConfig = yield* ServerConfig;
-      const fileSystem = yield* FileSystem.FileSystem;
+        const forClient = redactServerSettingsForClient(saved).bitbucket;
+        assert.equal(forClient.email, "me@example.com");
+        assert.equal(forClient.accessToken.includes("bb-access"), false);
+        assert.equal(forClient.apiToken.includes("bb-api"), false);
+        assert.isAbove(forClient.accessToken.length, 0);
+        assert.isAbove(forClient.apiToken.length, 0);
 
-      const next = yield* serverSettings.updateSettings({
-        providers: {
-          copilot: { byokApiKey: "copilot-byok-secret" },
-          gemini: { apiKey: "gemini-secret" },
-          droid: { apiKey: "droid-secret" },
-          antigravity: { apiKey: "antigravity-secret" },
-          openrouter: { apiKey: "openrouter-secret" },
-          opencode: { serverPassword: "opencode-secret" },
-          kilo: { serverPassword: "kilo-secret" },
-        },
-      });
-
-      assert.equal(next.providers.copilot.byokApiKey, "");
-      assert.equal(next.providers.gemini.apiKey, "");
-      assert.equal(next.providers.droid.apiKey, "");
-      assert.equal(next.providers.antigravity.apiKey, "");
-      assert.equal(next.providers.openrouter.apiKey, "");
-      assert.equal(next.providers.opencode.serverPassword, "");
-      assert.equal(next.providers.kilo.serverPassword, "");
-      assert.deepEqual(keytarMock.setPassword.mock.calls, [
-        ["Tabs Provider Credentials", "copilot.byok-api-key", "copilot-byok-secret"],
-        ["Tabs Provider Credentials", "gemini.api-key", "gemini-secret"],
-        ["Tabs Provider Credentials", "droid.api-key", "droid-secret"],
-        ["Tabs Provider Credentials", "antigravity.api-key", "antigravity-secret"],
-        ["Tabs Provider Credentials", "openrouter.api-key", "openrouter-secret"],
-        ["Tabs Provider Credentials", "opencode.server-password", "opencode-secret"],
-        ["Tabs Provider Credentials", "kilo.server-password", "kilo-secret"],
-      ]);
-      const raw = yield* fileSystem.readFileString(serverConfig.settingsPath);
-      assert.equal(raw.includes("droid-secret"), false);
-      assert.equal(raw.includes("antigravity-secret"), false);
-      assert.equal(raw.includes("openrouter-secret"), false);
-    }).pipe(Effect.provide(makeServerSettingsLayer())),
-  );
-
-  it.effect("migrates a legacy plaintext Copilot token during startup", () =>
-    Effect.gen(function* () {
-      keytarMock.setPassword.mockClear();
-      const serverSettings = yield* ServerSettingsService;
-      const serverConfig = yield* ServerConfig;
-      const fileSystem = yield* FileSystem.FileSystem;
-
-      yield* fileSystem.makeDirectory(serverConfig.stateDir, { recursive: true });
-      yield* fileSystem.writeFileString(
-        serverConfig.settingsPath,
-        JSON.stringify({ providers: { copilot: { token: "github_pat_legacy_test" } } }),
-      );
-      yield* serverSettings.start;
-
-      assert.deepEqual(keytarMock.setPassword.mock.calls, [
-        ["Tabs GitHub Copilot", "github-token", "github_pat_legacy_test"],
-      ]);
-      const raw = yield* fileSystem.readFileString(serverConfig.settingsPath);
-      assert.equal(raw.includes("github_pat_legacy_test"), false);
-      assert.equal((yield* serverSettings.getSettings).providers.copilot.token, "");
-    }).pipe(Effect.provide(makeServerSettingsLayer())),
+        const cleared = yield* serverSettings.updateSettings({ bitbucket: { accessToken: "" } });
+        assert.equal(cleared.bitbucket.accessToken, "");
+        assert.equal(cleared.bitbucket.apiToken, "bb-api");
+        assert.isTrue(Option.isNone(yield* secrets.get("bitbucket-access-token")));
+      }).pipe(Effect.provide(makeServerSettingsLayer())),
   );
 });

@@ -148,7 +148,7 @@ import { listProviderUsageSnapshotsEffect } from "./providerUsage/index.ts";
 import { PreviewManager } from "./preview/Manager.ts";
 import { PortDiscovery } from "./preview/PortScanner.ts";
 import { AgentSessionScanner } from "./project/AgentSessionScanner.ts";
-import { importRecentAgentThreads } from "./project/AgentSessionImporter.ts";
+import { AgentSessionImporter, importRecentAgentThreads } from "./project/AgentSessionImporter.ts";
 import { ProjectSetupScriptRunner } from "./project/ProjectSetupScriptRunner.ts";
 import { ProjectFileLoader } from "./project/ProjectFileLoader.ts";
 import { ServerEnvironment } from "./environment/ServerEnvironment.ts";
@@ -365,6 +365,7 @@ export type ServerRuntimeServices =
   | TraceDiagnostics.TraceDiagnostics
   | UsageLimitSources.UsageLimitSources
   | AgentSessionScanner
+  | AgentSessionImporter
   | ProjectSetupScriptRunner
   | ProjectFileLoader
   | ProviderInstanceRegistry;
@@ -642,7 +643,8 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
   const runtimeServices = yield* Effect.context<
     ServerRuntimeServices | ServerConfig | FileSystem.FileSystem | Path.Path
   >();
-  const runPromise = Effect.runPromiseWith(runtimeServices);
+  const runPromise: <A, E>(effect: Effect.Effect<A, E, any>) => Promise<A> =
+    Effect.runPromiseWith(runtimeServices) as any;
 
   // HTTP server — serves static files or redirects to Vite dev server
   const httpServer = http.createServer((req, res) => {
@@ -1059,6 +1061,7 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
   const orchestrationReactor = yield* OrchestrationReactor;
   const { openInEditor } = yield* Open;
   const agentSessionScanner = yield* AgentSessionScanner;
+  const agentSessionImporter = yield* AgentSessionImporter;
   const projectSetupScriptRunner = yield* ProjectSetupScriptRunner;
   const projectFileLoader = yield* ProjectFileLoader;
 
@@ -1230,7 +1233,7 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
   }
 
   const unsubscribeTerminalEvents = yield* terminalManager.subscribe(
-    (event: any) => void runPromise(pushBus.publishAll(WS_CHANNELS.terminalEvent, event)),
+    (event) => pushBus.publishAll(WS_CHANNELS.terminalEvent, event),
   );
   yield* Effect.addFinalizer(() => Effect.sync(() => unsubscribeTerminalEvents()));
   yield* readiness.markTerminalSubscriptionsReady;
@@ -1601,7 +1604,7 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
               })
               .pipe(
                 Effect.matchEffect({
-                  onFailure: (error) => {
+                  onFailure: (error: any) => {
                     const detail =
                       error._tag === "ProjectSetupScriptOperationError"
                         ? error.cause instanceof Error
@@ -2785,6 +2788,14 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
               nameWithOwner: repository,
               url: `https://bitbucket.org/${repository}.git`,
               sshUrl: `git@bitbucket.org:${repository}.git`,
+            };
+          }
+          case "forgejo": {
+            return {
+              provider: "forgejo" as const,
+              nameWithOwner: repository,
+              url: `https://codeberg.org/${repository}.git`,
+              sshUrl: `git@codeberg.org:${repository}.git`,
             };
           }
           case "unknown": {

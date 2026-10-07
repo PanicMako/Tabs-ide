@@ -30,6 +30,7 @@ import * as SynchronizedRef from "effect/SynchronizedRef";
 import { ChildProcessSpawner } from "effect/unstable/process";
 import * as EffectAcpErrors from "effect-acp/errors";
 import type * as EffectAcpSchema from "effect-acp/schema";
+import * as NodeServices from "@effect/platform-node/NodeServices";
 
 import { resolveAttachmentPath } from "../../attachmentStore";
 import { ServerConfig } from "../../config";
@@ -295,7 +296,7 @@ export function makeGrokAdapter(grokSettings: GrokSettings, options?: GrokAdapte
             provider: PROVIDER,
             threadId: ctx.threadId,
             turnId: ctx.activeTurnId,
-            payload,
+            payload: payload as any,
             source: "acp.jsonrpc",
             method,
             rawPayload,
@@ -386,6 +387,7 @@ export function makeGrokAdapter(grokSettings: GrokSettings, options?: GrokAdapte
             clientInfo: { name: "t3-code", version: "0.0.0" },
             ...acpNativeLoggers,
           }).pipe(
+            Effect.provide(NodeServices.layer),
             Effect.provideService(Scope.Scope, sessionScope),
             Effect.mapError(
               (cause) =>
@@ -456,7 +458,7 @@ export function makeGrokAdapter(grokSettings: GrokSettings, options?: GrokAdapte
                 Effect.gen(function* () {
                   yield* logNative(input.threadId, "session/request_permission", params);
                   if (input.runtimeMode === "full-access") {
-                    const autoApprovedOptionId = selectAutoApprovedPermissionOption(params);
+                    const autoApprovedOptionId = selectAutoApprovedPermissionOption(params as any);
                     if (autoApprovedOptionId !== undefined) {
                       return {
                         outcome: {
@@ -503,7 +505,7 @@ export function makeGrokAdapter(grokSettings: GrokSettings, options?: GrokAdapte
                     }),
                   );
                   const selectedOptionId =
-                    resolved === "cancel" ? undefined : selectPermissionOptionId(params, resolved);
+                    resolved === "cancel" ? undefined : selectPermissionOptionId(params as any, resolved);
                   return {
                     outcome: selectedOptionId
                       ? {
@@ -609,7 +611,7 @@ export function makeGrokAdapter(grokSettings: GrokSettings, options?: GrokAdapte
                     return;
                   case "PlanUpdated":
                     yield* logNative(ctx.threadId, "session/update", event.rawPayload);
-                    yield* emitPlanUpdate(ctx, event.payload, event.rawPayload, "session/update");
+                    yield* emitPlanUpdate(ctx, event.payload as any, event.rawPayload, "session/update");
                     return;
                   case "ToolCallUpdated":
                     yield* logNative(ctx.threadId, "session/update", event.rawPayload);
@@ -793,7 +795,7 @@ export function makeGrokAdapter(grokSettings: GrokSettings, options?: GrokAdapte
 
         const result = yield* prepared.acp
           .prompt({
-            prompt: prepared.promptParts,
+            prompt: prepared.promptParts as any,
           })
           .pipe(
             Effect.mapError((error) =>

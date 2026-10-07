@@ -32,6 +32,11 @@ const serverStart = Effect.acquireRelease(
 );
 const findAvailablePort = vi.fn((preferred: number) => Effect.succeed(preferred));
 
+import * as Option from "effect/Option";
+import * as ServerSecretStore from "./auth/ServerSecretStore";
+import * as ServerEnvironment from "./environment/ServerEnvironment";
+import { SqlitePersistenceMemory } from "./persistence/Layers/Sqlite";
+
 // Shared service layer used by this CLI test suite.
 const testLayer = Layer.mergeAll(
   Layer.succeed(CliConfig, {
@@ -58,6 +63,19 @@ const testLayer = Layer.mergeAll(
   AnalyticsService.layerTest,
   FetchHttpClient.layer,
   NodeServices.layer,
+  Layer.mock(ServerSecretStore.ServerSecretStore)({
+    directory: "/tmp/tabs-test-secrets",
+    get: () => Effect.succeed(Option.none()),
+    set: () => Effect.void,
+    create: () => Effect.void,
+    getOrCreateRandom: () => Effect.succeed(new Uint8Array(32)),
+    remove: () => Effect.void,
+  }),
+  Layer.mock(ServerEnvironment.ServerEnvironment)({
+    getEnvironmentId: Effect.succeed("env_test" as any),
+    getDescriptor: Effect.succeed({} as any),
+  }),
+  SqlitePersistenceMemory,
 );
 
 const runCli = (
