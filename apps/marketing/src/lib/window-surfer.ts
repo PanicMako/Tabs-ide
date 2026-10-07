@@ -10,6 +10,7 @@ if (root) {
   const laneButtons = Array.from(root.querySelectorAll<HTMLButtonElement>("[data-lane]"));
   let level: Intensity = "chill";
   let config: (typeof intensity)[Intensity] = intensity[level];
+  let challenge: (typeof intensity)[Intensity] = config;
   const levelButtons = Array.from(root.querySelectorAll<HTMLButtonElement>("[data-level]"));
   const names = ["STUDIO SITE", "NEXT PRODUCT", "WEEKEND IDEA"];
   const colors = ["#3259ed", "#509981", "#c49664"];
@@ -305,7 +306,6 @@ if (root) {
   }
   function select(n: number) {
     lane = Math.max(0, Math.min(2, n));
-    get(".arcade-projects").style.setProperty("--lane-index", String(lane));
     laneButtons.forEach((b, i) => b.setAttribute("aria-pressed", String(i === lane)));
     if (!running || paused) {
       visualLane = lane;
@@ -313,21 +313,25 @@ if (root) {
     }
   }
   function stats() {
-    get("[data-score]").textContent = `BAG ${String(score).padStart(2, "0")} / ${config.goal}`;
-    const seconds = Math.max(0, Math.ceil(config.duration - clock));
+    get("[data-score]").textContent = `BAG ${String(score).padStart(2, "0")} / ${challenge.goal}`;
+    const seconds = Math.max(0, Math.ceil(challenge.duration - clock));
     get("[data-time]").textContent =
       `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
     get("[data-time]").classList.toggle("is-urgent", seconds <= 15);
     root!.querySelectorAll("[data-lane-count]").forEach((el, i) => {
-      el.textContent = `${laneCounts[i]}/${config.quota}`;
+      el.textContent = `${laneCounts[i]}/${challenge.quota}`;
+      laneButtons[i].style.setProperty(
+        "--progress",
+        String(Math.min(1, laneCounts[i] / challenge.quota)),
+      );
     });
-    get("[data-lives]").textContent = "♥ ".repeat(lives) + "♡ ".repeat(config.lives - lives);
+    get("[data-lives]").textContent = "♥ ".repeat(lives) + "♡ ".repeat(challenge.lives - lives);
   }
   function end(won: boolean) {
     running = false;
+    updateLevelNote();
     cancelAnimationFrame(frame);
     overlay.hidden = false;
-    levelButtons.forEach((b) => (b.disabled = false));
     pause.disabled = true;
     get("[data-overlay-kicker]").textContent = won
       ? "YOUR TOOLS. THREE PROJECTS. ONE WINDOW."
@@ -335,7 +339,7 @@ if (root) {
     get("[data-overlay-title]").textContent = won ? "You found your flow." : "Another little ride?";
     get("[data-overlay-copy]").textContent = won
       ? "That’s the idea: your code, agents, websites, and CLI tools stay together in Tabs."
-      : `${score} tools collected. ${clock >= config.duration ? "Time ran out." : "The clutter caught you."} Collect tools in every project, and time your jumps.`;
+      : `${score} tools collected. ${clock >= challenge.duration ? "Time ran out." : "The clutter caught you."} Collect tools in every project, and time your jumps.`;
     start.textContent = won ? "Surf again ↗" : "Try again ↗";
     get("[data-message]").textContent = won
       ? "Nice ride. Now make something real in Tabs."
@@ -348,7 +352,7 @@ if (root) {
     clock += dt;
     spawn += dt;
     stats();
-    if (clock >= config.duration) {
+    if (clock >= challenge.duration) {
       end(false);
       return;
     }
@@ -399,7 +403,7 @@ if (root) {
               color: colors[lane],
               mark: tools[item.tool].mark,
             });
-          if (runComplete(score, laneCounts, config.goal, config.quota)) {
+          if (runComplete(score, laneCounts, challenge.goal, challenge.quota)) {
             end(true);
             return;
           }
@@ -430,7 +434,8 @@ if (root) {
     score = 0;
     laneCounts = [0, 0, 0];
     config = intensity[level];
-    lives = config.lives;
+    challenge = config;
+    lives = challenge.lives;
     combo = 0;
     shake = 0;
     held = [];
@@ -442,11 +447,12 @@ if (root) {
     items = [];
     particles = [];
     running = true;
+    updateLevelNote();
     paused = false;
     overlay.hidden = true;
-    levelButtons.forEach((b) => (b.disabled = true));
     pause.disabled = false;
-    pause.textContent = "Ⅱ";
+    pause.querySelector("[data-pause-symbol]")!.textContent = "Ⅱ";
+    pause.querySelector("[data-pause-label]")!.textContent = "Pause";
     pause.setAttribute("aria-label", "Pause game");
     select(1);
     stats();
@@ -462,7 +468,8 @@ if (root) {
   function togglePause() {
     if (!running) return;
     paused = !paused;
-    pause.textContent = paused ? "▶" : "Ⅱ";
+    pause.querySelector("[data-pause-symbol]")!.textContent = paused ? "▶" : "Ⅱ";
+    pause.querySelector("[data-pause-label]")!.textContent = paused ? "Resume" : "Pause";
     pause.setAttribute("aria-label", paused ? "Resume game" : "Pause game");
     get("[data-message]").textContent = paused
       ? "Taking a breath. Resume whenever you’re ready."
@@ -474,23 +481,35 @@ if (root) {
       frame = requestAnimationFrame(tick);
     }
   }
+  function updateLevelNote() {
+    const nextChallenge = intensity[level];
+    get("[data-level-note]").textContent = running
+      ? "Pace changes live · your progress stays"
+      : `${nextChallenge.duration} seconds · ${nextChallenge.lives} hearts · ${nextChallenge.quota} tools per project`;
+  }
   levelButtons.forEach((button) =>
     button.addEventListener("click", () => {
+      if (level === button.dataset.level) return;
+      const previous = config;
       level = button.dataset.level as Intensity;
       config = intensity[level];
-      get(".arcade-selector").style.setProperty(
-        "--level-index",
-        String(["chill", "flow", "turbo"].indexOf(level)),
-      );
-      get("[data-level-note]").textContent =
-        `${config.duration} seconds · ${config.lives} hearts · ${config.quota} tools per project`;
+      // Preserve the board's height and spawn rhythm when changing speed mid-ride.
+      jump = (jump / previous.jumpDuration) * config.jumpDuration;
+      spawn = (spawn / previous.spawn) * config.spawn;
+      if (!running) challenge = config;
+      updateLevelNote();
       levelButtons.forEach((b) => b.setAttribute("aria-pressed", String(b === button)));
       get("[data-overlay-copy]").textContent =
-        `Collect ${config.goal} tools. ${config.lives} hearts. ${level === "turbo" ? "Fast waves. Stay sharp." : level === "flow" ? "Find your rhythm." : "Easy waves. Plenty of room to learn."}`;
-      score = 0;
-      laneCounts = [0, 0, 0];
-      clock = 0;
-      lives = config.lives;
+        `Collect ${challenge.goal} tools. ${challenge.lives} hearts. ${level === "turbo" ? "Fast waves. Stay sharp." : level === "flow" ? "Find your rhythm." : "Easy waves. Plenty of room to learn."}`;
+      if (!running) {
+        score = 0;
+        laneCounts = [0, 0, 0];
+        clock = 0;
+        lives = challenge.lives;
+      }
+      get("[data-message]").textContent = running
+        ? `${level[0].toUpperCase() + level.slice(1)} pace. Your tools, hearts, and time stay with you.${paused ? " Resume when you’re ready." : ""}`
+        : "Pace set. Let’s catch some waves.";
       stats();
     }),
   );
@@ -500,7 +519,7 @@ if (root) {
   pause.addEventListener("click", togglePause);
   laneButtons.forEach((b, i) => b.addEventListener("click", () => select(i)));
   root.addEventListener("keydown", (e) => {
-    if (!running || e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
+    if (e.target !== canvas || !running || e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
     const key = e.key;
     if (["ArrowUp", "ArrowDown", " ", "1", "2", "3"].includes(key)) {
       e.preventDefault();
@@ -526,7 +545,7 @@ if (root) {
   observer.observe(root);
   const sizeObserver = new ResizeObserver(resize);
   sizeObserver.observe(canvas);
-  lives = config.lives;
+  lives = challenge.lives;
   stats();
   resize();
   document.addEventListener(
