@@ -2,7 +2,7 @@ import { EditorId, type ResolvedKeybindingsConfig } from "@tabs/contracts";
 import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import { isOpenFavoriteEditorShortcut, shortcutLabelForCommand } from "../../keybindings";
 import { usePreferredEditor } from "../../editorPreferences";
-import { ChevronDownIcon, FolderClosedIcon } from "lucide-react";
+import { ChevronDownIcon, FolderClosedIcon, CheckIcon } from "lucide-react";
 import { Menu, MenuItem, MenuPopup, MenuShortcut, MenuTrigger } from "../ui/menu";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import {
@@ -181,9 +181,11 @@ export const OpenInPicker = memo(function OpenInPicker({
             <MenuItem key={value} onClick={() => openInEditor(value)} className="gap-2">
               <Icon aria-hidden="true" className="size-4 shrink-0 text-foreground" />
               <span className="truncate flex-1 text-left">{label}</span>
-              {value === preferredEditor && openFavoriteEditorShortcutLabel && (
+              {value === preferredEditor ? (
+                <CheckIcon className="size-3.5 shrink-0 text-primary" />
+              ) : value === preferredEditor && openFavoriteEditorShortcutLabel ? (
                 <MenuShortcut>{openFavoriteEditorShortcutLabel}</MenuShortcut>
-              )}
+              ) : null}
             </MenuItem>
           ))}
         </MenuPopup>

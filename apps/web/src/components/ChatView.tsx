@@ -6003,6 +6003,17 @@ export default function ChatView({
             activeThreadId={activeThread.id}
             activeThreadTitle={activeThread.title}
             activeProjectName={activeProject?.name}
+            activeProjectFavicon={
+              activeProject
+                ? {
+                    workspaceRoot: activeProject.cwd,
+                    title: activeProject.name,
+                    faviconPath: activeProject.faviconPath,
+                    projectIcon: activeProject.projectIcon,
+                    environmentId: activeProject.environmentId,
+                  }
+                : null
+            }
             isGitRepo={isGitRepo}
             openInCwd={gitCwd}
             keybindings={keybindings}
