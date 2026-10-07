@@ -355,7 +355,7 @@ function formatOutgoingPrompt(params: {
   text: string;
 }): string {
   const caps = getProviderModelCapabilities(params.models, params.model, params.provider);
-  if (params.effort && caps.promptInjectedEffortLevels.includes(params.effort)) {
+  if (params.effort && caps.promptInjectedEffortLevels?.includes(params.effort)) {
     return applyClaudePromptEffortPrefix(params.text, params.effort as ClaudeCodeEffort | null);
   }
   return params.text;
@@ -414,6 +414,8 @@ interface ChatViewProps {
   onActivatePane?: (() => void) | undefined;
   onToggleDiff?: (() => void) | undefined;
   diffOpen?: boolean | undefined;
+  rightPanelOpen?: boolean | undefined;
+  onToggleRightPanel?: (() => void) | undefined;
   isSplitActive?: boolean | undefined;
   isMaximized?: boolean | undefined;
   onToggleMaximize?: (() => void) | undefined;
@@ -429,6 +431,8 @@ export default function ChatView({
   onActivatePane,
   onToggleDiff: propOnToggleDiff,
   diffOpen: propDiffOpen,
+  rightPanelOpen: propRightPanelOpen,
+  onToggleRightPanel: propOnToggleRightPanel,
   isSplitActive = false,
   isMaximized = false,
   onToggleMaximize,
@@ -5244,7 +5248,7 @@ export default function ChatView({
                           "full-access",
                         ] as const;
                         const currentMode = runtimeMode || "approval-required";
-                        const nextIndex = (modes.indexOf(currentMode) + 1) % modes.length;
+                        const nextIndex = ((modes as readonly string[]).indexOf(currentMode) + 1) % modes.length;
                         const nextMode = modes[nextIndex];
                         if (nextMode) {
                           void handleRuntimeModeChange(nextMode);
@@ -6009,8 +6013,10 @@ export default function ChatView({
             gitCwd={gitCwd}
             environmentId={activeProject?.environmentId}
             diffOpen={diffOpen}
+            rightPanelOpen={propRightPanelOpen}
             onToggleTerminal={toggleTerminalVisibility}
             onToggleDiff={onToggleDiff}
+            onToggleRightPanel={propOnToggleRightPanel}
             isSplitActive={isSplitActive}
             isActivePane={isActivePane}
             isMaximized={isMaximized}

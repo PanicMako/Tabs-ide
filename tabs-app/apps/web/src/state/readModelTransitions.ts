@@ -315,9 +315,13 @@ export function syncServerReadModel(
             attachment.type === "image"
               ? {
                   ...attachment,
+                  type: "image" as const,
                   previewUrl: toAttachmentPreviewUrl(attachmentPreviewRoutePath(attachment.id)),
                 }
-              : attachment,
+              : {
+                  ...attachment,
+                  type: "file" as const,
+                },
           );
           const normalizedMessage: ChatMessage = {
             id: message.id,

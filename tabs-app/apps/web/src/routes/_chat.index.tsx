@@ -87,7 +87,7 @@ function ChatIndexRouteView() {
               onClick={() =>
                 void handleNewThread(activeProject.id, {
                   environmentId: activeProject.environmentId,
-                  envMode: settings.defaultThreadEnvMode,
+                  ...(settings.defaultThreadEnvMode ? { envMode: settings.defaultThreadEnvMode } : {}),
                 })
               }
             >

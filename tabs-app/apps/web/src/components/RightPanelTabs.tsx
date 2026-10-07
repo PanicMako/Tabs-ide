@@ -1,4 +1,13 @@
-import { BookmarkIcon, Columns2Icon, FileDiffIcon, ListOrderedIcon, XIcon } from "lucide-react";
+import {
+  BookmarkIcon,
+  FileDiffIcon,
+  FolderTreeIcon,
+  GitPullRequestIcon,
+  GlobeIcon,
+  ListOrderedIcon,
+  TerminalSquareIcon,
+  XIcon,
+} from "lucide-react";
 import { memo, useCallback } from "react";
 import type { EnvironmentId, ThreadId } from "@tabs/contracts";
 import { isElectron } from "~/env";
@@ -8,7 +17,10 @@ import { useMessageQueueStore, getThreadQueuedMessages } from "~/stores/messageQ
 import { useRightPanelStore, type RightPanelTab } from "~/stores/rightPanelStore";
 import { PromptStashPanel } from "./chat/PromptStashPanel";
 import { MessageQueuePanel } from "./chat/MessageQueuePanel";
-import { Button } from "./ui/button";
+import { CompanionBrowserPanel } from "./agents/companion/CompanionBrowserPanel";
+import { CompanionFilesPanel } from "./agents/companion/CompanionFilesPanel";
+import { CompanionTerminalPanel } from "./agents/companion/CompanionTerminalPanel";
+import { CompanionPRPanel } from "./agents/companion/CompanionPRPanel";
 import type { DiffPanelMode } from "./DiffPanelShell";
 import { lazy, Suspense } from "react";
 import { DiffWorkerPoolProvider } from "./DiffWorkerPoolProvider";
@@ -56,7 +68,7 @@ export const RightPanelTabs = memo(function RightPanelTabs({
       >
         {/* Tab switcher buttons */}
         <div
-          className="tabs-segmented flex items-center [-webkit-app-region:no-drag]"
+          className="tabs-segmented flex items-center gap-0.5 overflow-x-auto [-webkit-app-region:no-drag]"
           role="tablist"
           aria-label="Side panel views"
           onKeyDown={(event) => {
@@ -93,6 +105,78 @@ export const RightPanelTabs = memo(function RightPanelTabs({
           >
             <FileDiffIcon className="size-3.5" />
             <span>Diffs</span>
+          </button>
+
+          {/* Browser tab */}
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "browser"}
+            tabIndex={activeTab === "browser" ? 0 : -1}
+            onClick={() => handleSelectTab("browser")}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-all duration-150 cursor-pointer select-none",
+              activeTab === "browser"
+                ? "bg-accent text-accent-foreground shadow-2xs"
+                : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+            )}
+          >
+            <GlobeIcon className="size-3.5" />
+            <span>Browser</span>
+          </button>
+
+          {/* Files tab */}
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "files"}
+            tabIndex={activeTab === "files" ? 0 : -1}
+            onClick={() => handleSelectTab("files")}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-all duration-150 cursor-pointer select-none",
+              activeTab === "files"
+                ? "bg-accent text-accent-foreground shadow-2xs"
+                : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+            )}
+          >
+            <FolderTreeIcon className="size-3.5" />
+            <span>Files</span>
+          </button>
+
+          {/* Terminal tab */}
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "terminal"}
+            tabIndex={activeTab === "terminal" ? 0 : -1}
+            onClick={() => handleSelectTab("terminal")}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-all duration-150 cursor-pointer select-none",
+              activeTab === "terminal"
+                ? "bg-accent text-accent-foreground shadow-2xs"
+                : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+            )}
+          >
+            <TerminalSquareIcon className="size-3.5" />
+            <span>Terminal</span>
+          </button>
+
+          {/* PRs tab */}
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "pr"}
+            tabIndex={activeTab === "pr" ? 0 : -1}
+            onClick={() => handleSelectTab("pr")}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-all duration-150 cursor-pointer select-none",
+              activeTab === "pr"
+                ? "bg-accent text-accent-foreground shadow-2xs"
+                : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+            )}
+          >
+            <GitPullRequestIcon className="size-3.5" />
+            <span>PRs</span>
           </button>
 
           {/* Stash tab */}
@@ -163,7 +247,7 @@ export const RightPanelTabs = memo(function RightPanelTabs({
             onClick={onClose}
             aria-label="Close side panel"
             title="Close side panel"
-            className="inline-flex size-6 items-center justify-center rounded-md border border-border/70 bg-background/90 text-muted-foreground transition-colors hover:border-border hover:text-foreground"
+            className="inline-flex size-6 items-center justify-center rounded-md border border-border/70 bg-background/90 text-muted-foreground transition-colors hover:border-border hover:text-foreground cursor-pointer"
           >
             <XIcon className="size-3.5" />
           </button>
@@ -184,6 +268,14 @@ export const RightPanelTabs = memo(function RightPanelTabs({
               <DiffPanel mode={mode} />
             </Suspense>
           </DiffWorkerPoolProvider>
+        ) : activeTab === "browser" ? (
+          <CompanionBrowserPanel />
+        ) : activeTab === "files" ? (
+          <CompanionFilesPanel />
+        ) : activeTab === "terminal" ? (
+          <CompanionTerminalPanel threadId={threadId} />
+        ) : activeTab === "pr" ? (
+          <CompanionPRPanel />
         ) : activeTab === "stash" ? (
           <PromptStashPanel
             activeThreadId={threadId}

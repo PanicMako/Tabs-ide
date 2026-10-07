@@ -1,12 +1,13 @@
 import { type EditorId, type ResolvedKeybindingsConfig, type ThreadId } from "@tabs/contracts";
 import { memo } from "react";
-import { DiffIcon, Maximize2Icon, Minimize2Icon, TerminalSquareIcon, XIcon } from "lucide-react";
+import { DiffIcon, Maximize2Icon, Minimize2Icon, PanelRightIcon, TerminalSquareIcon, XIcon } from "lucide-react";
 import GitActionsControl from "../GitActionsControl";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { Toggle } from "../ui/toggle";
 import { SidebarTrigger } from "../ui/sidebar";
 import { OpenInPicker } from "./OpenInPicker";
 import { cn } from "~/lib/utils";
+import { useRightPanelStore } from "~/stores/rightPanelStore";
 
 interface ChatHeaderProps {
   activeThreadId: ThreadId;
@@ -23,8 +24,11 @@ interface ChatHeaderProps {
   gitCwd: string | null;
   environmentId?: string | undefined;
   diffOpen: boolean;
+  rightPanelOpen?: boolean | undefined;
   onToggleTerminal: () => void;
   onToggleDiff: () => void;
+  onToggleRightPanel?: (() => void) | undefined;
+  rightPanelShortcutLabel?: string | null | undefined;
   isSplitActive?: boolean | undefined;
   isActivePane?: boolean | undefined;
   isMaximized?: boolean | undefined;
@@ -47,14 +51,22 @@ export const ChatHeader = memo(function ChatHeader({
   gitCwd,
   environmentId,
   diffOpen,
+  rightPanelOpen,
   onToggleTerminal,
   onToggleDiff,
+  onToggleRightPanel,
+  rightPanelShortcutLabel,
   isSplitActive = false,
   isActivePane = true,
   isMaximized = false,
   onToggleMaximize,
   onClosePane,
 }: ChatHeaderProps) {
+  const storeIsOpen = useRightPanelStore((s) => s.isOpen);
+  const storeToggle = useRightPanelStore((s) => s.toggleOpen);
+  const effectiveRightPanelOpen = rightPanelOpen ?? storeIsOpen;
+  const handleToggleRightPanel = onToggleRightPanel ?? (() => storeToggle());
+
   const formattedProjectName = activeProjectName
     ? activeProjectName.toLowerCase().includes("tabs")
       ? "Tabs IDE"
@@ -158,6 +170,26 @@ export const ChatHeader = memo(function ChatHeader({
               : diffToggleShortcutLabel
                 ? `Toggle diff panel (${diffToggleShortcutLabel})`
                 : "Toggle diff panel"}
+          </TooltipPopup>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Toggle
+                className="size-7 sm:size-7 rounded-lg border border-border/80 bg-background hover:bg-accent/40 hover:border-border text-foreground transition-colors shrink-0 p-0 shadow-2xs data-pressed:bg-accent data-pressed:text-accent-foreground data-pressed:border-border cursor-pointer"
+                pressed={effectiveRightPanelOpen}
+                onPressedChange={handleToggleRightPanel}
+                aria-label="Toggle companion side panel"
+              >
+                <PanelRightIcon className="size-3.5" />
+              </Toggle>
+            }
+          />
+          <TooltipPopup side="bottom">
+            {rightPanelShortcutLabel
+              ? `Toggle companion side panel (${rightPanelShortcutLabel})`
+              : "Toggle companion side panel (Browser, Files, Terminal, Diffs, PRs)"}
           </TooltipPopup>
         </Tooltip>
 
