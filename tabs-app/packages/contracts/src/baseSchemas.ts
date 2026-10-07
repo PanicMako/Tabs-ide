@@ -48,6 +48,9 @@ export type DpopFailureReason = typeof DpopFailureReason.Type;
 export const IsoDateTime = Schema.String;
 export type IsoDateTime = typeof IsoDateTime.Type;
 
+export const DateTimeUtc = Schema.Union([Schema.DateTimeUtc, Schema.DateTimeUtcFromString]);
+export type DateTimeUtc = typeof DateTimeUtc.Type;
+
 /**
  * Same idea for one optional value whose literal set grows over time: a
  * member this build does not know decodes as absent rather than failing the

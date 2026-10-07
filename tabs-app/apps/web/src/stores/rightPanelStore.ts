@@ -6,7 +6,11 @@ export type RightPanelTab = "diff" | "browser" | "files" | "terminal" | "pr" | "
 
 interface RightPanelState {
   readonly isOpen: boolean;
+  readonly maximized: boolean;
+  setMaximized: (maximized: boolean) => void;
   readonly activeTab: RightPanelTab;
+  readonly choosingSurface: boolean;
+  setChoosingSurface: (choosing: boolean) => void;
   setIsOpen: (isOpen: boolean) => void;
   setActiveTab: (tab: RightPanelTab) => void;
   toggleOpen: (tab?: RightPanelTab) => void;
@@ -20,20 +24,27 @@ export const useRightPanelStore = create<RightPanelState>()(
   persist(
     (set) => ({
       isOpen: true,
+      maximized: false,
+      setMaximized: (maximized) => set({ maximized }),
       activeTab: "diff",
-      setIsOpen: (isOpen) => set({ isOpen }),
-      setActiveTab: (tab) => set({ activeTab: tab }),
+      choosingSurface: true,
+      setChoosingSurface: (choosingSurface) => set({ choosingSurface }),
+      setIsOpen: (isOpen) => set({ isOpen, ...(isOpen ? {} : { maximized: false }) }),
+      setActiveTab: (tab) => set({ activeTab: tab, choosingSurface: false }),
       toggleOpen: (tab) =>
         set((state) => ({
           isOpen: !state.isOpen,
+          maximized: state.isOpen ? false : state.maximized,
           activeTab: tab ?? state.activeTab,
+          choosingSurface: tab ? false : state.choosingSurface,
         })),
       openPanel: (tab) =>
         set((state) => ({
           isOpen: true,
           activeTab: tab ?? state.activeTab,
+          choosingSurface: tab ? false : state.choosingSurface,
         })),
-      closePanel: () => set({ isOpen: false }),
+      closePanel: () => set({ isOpen: false, maximized: false }),
     }),
     {
       name: "tabs:right-panel-state:v3",

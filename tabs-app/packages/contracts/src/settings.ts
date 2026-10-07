@@ -1971,7 +1971,22 @@ const ClaudeSettingsPatch = Schema.Struct({
 const CursorSettingsPatch = Schema.Struct({
   enabled: Schema.optionalKey(Schema.Boolean),
   customModels: Schema.optionalKey(Schema.Array(CustomModelSetting)),
-});
+  binaryPath: Schema.optionalKey(TrimmedString),
+  apiEndpoint: Schema.optionalKey(TrimmedString),
+}).pipe(
+  Schema.decodeTo(
+    Schema.Struct({
+      enabled: Schema.optionalKey(Schema.Boolean),
+      customModels: Schema.optionalKey(Schema.Array(CustomModelSetting)),
+      binaryPath: Schema.optionalKey(TrimmedString),
+      apiEndpoint: Schema.optionalKey(TrimmedString),
+    }),
+    SchemaTransformation.transform({
+      decode: ({ binaryPath: _bp, apiEndpoint: _ae, ...rest }) => rest,
+      encode: (val) => val,
+    }),
+  ),
+);
 
 const GrokSettingsPatch = Schema.Struct({
   enabled: Schema.optionalKey(Schema.Boolean),

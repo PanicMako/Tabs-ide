@@ -46,3 +46,11 @@
 - **2026-10-07 23:45**: Systematically resolved all 348 server typecheck errors down to 0 errors under `NODE_OPTIONS=--max-old-space-size=8192 tsc --noEmit`.
 - **2026-10-07 23:51**: Executed full monorepo typecheck via `turbo run typecheck`: **12 / 12 packages passing cleanly** (`@tabs/client-runtime`, `@tabs/contracts`, `@tabs/desktop`, `@tabs/marketing`, `@tabs/scripts`, `@tabs/shared`, `@tabs/ssh`, `@tabs/tailscale`, `@tabs/web`, `effect-acp`, `effect-codex-app-server`, `tabs`/server).
 - **2026-10-07 23:54**: Verified unit tests: **823/823 contracts tests pass**, **1,159/1,159 shared tests pass**. Verified zero orphaned processes and clean git working tree on `codex/t3-parity-goal-2026-10-06`.
+- **2026-10-08 00:25**: Diagnosed and resolved desktop startup hydration freeze ("Still connecting to your workspace" / splash animation stuck):
+  1. Restored desktop bootstrap optional keys in `packages/contracts/src/desktopBootstrap.ts` and `apps/desktop/src/main.ts`.
+  2. Fixed CLI entrypoint in `apps/server/src/index.ts` to launch `tabsCli` native WebSocket server instead of T3 Effect-RPC binCli.
+  3. Fixed Effect Layer dependency ordering in `apps/server/src/main.ts` so `ServerSecretStore.layer` and `SqlitePersistence.layerConfig` are provided to `ServerSettingsLive`.
+  4. Added `AND application_event_version = 1` guard to V1 `readEventRowsFromSequence` query in `apps/server/src/persistence/Layers/OrchestrationEventStore.ts`, preventing decode crashes on V2 events.
+  5. Updated `DateTimeUtc` in `packages/contracts/src/baseSchemas.ts` and `background.ts` to union string decoding with `DateTime.Utc`, eliminating dropped inbound WebSocket envelopes.
+  6. Verified complete end-to-end launch via `bun run dev:desktop` with CDP inspection and visual screenshot: workspace workbench loads completely without freezing on splash animation. Monorepo typecheck (12/12 packages) and contracts tests (823/823 tests) passing cleanly.
+
