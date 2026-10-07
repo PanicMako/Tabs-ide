@@ -7,7 +7,7 @@ import * as SchemaTransformation from "effect/SchemaTransformation";
 export const TrimmedString = Schema.String.pipe(
   Schema.decodeTo(
     Schema.String,
-    SchemaTransformation.transformEffect({
+    SchemaTransformation.transformOrFail({
       decode: (value) => Effect.succeed(value.trim()),
       encode: (value) => Effect.succeed(value.trim()),
     }),
@@ -21,7 +21,8 @@ export const TrimmedString = Schema.String.pipe(
  */
 const isNonBlank = Schema.makeFilter((value: string) => value.trim().length > 0, {
   expected: "a non-blank string",
-  toJsonSchema: () => [{ minLength: 1 }, true],
+  meta: { _tag: "isMinLength", minLength: 1 },
+  ["@effect/schema/annotation/Structural"]: true,
   arbitraryConstraint: { minLength: 1 },
 });
 export const TrimmedNonEmptyString = TrimmedString.check(isNonBlank);
@@ -290,7 +291,10 @@ const knownTags = (
  * Construct a branded identifier. Enforces non-empty trimmed strings
  */
 const makeEntityId = <Brand extends string>(brand: Parameters<typeof Schema.brand<Brand>>[0]) => {
-  return TrimmedNonEmptyString.pipe(Schema.brand<Brand>(brand));
+  const schema = TrimmedNonEmptyString.pipe(Schema.brand<Brand>(brand));
+  return Object.assign(schema, {
+    makeUnsafe: (value: string) => value as typeof schema.Type,
+  });
 };
 
 export const ThreadId = makeEntityId("ThreadId");

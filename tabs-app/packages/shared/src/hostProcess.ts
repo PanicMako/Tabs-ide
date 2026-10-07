@@ -1,6 +1,17 @@
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
+import * as NodeDns from "node:dns";
 import * as NodeOS from "node:os";
+
+const checkIsSea = (): boolean => {
+  try {
+    // Dynamic lookup so environments without node:sea (e.g. Bun) don't fail module load
+    const req = typeof require !== "undefined" ? require : null;
+    return Boolean(req?.("node:sea")?.isSea?.());
+  } catch {
+    return false;
+  }
+};
 
 export const HostProcessPlatform = Context.Reference<NodeJS.Platform>(
   "@tabs/shared/hostProcess/HostProcessPlatform",
@@ -48,6 +59,60 @@ export const HostProcessArguments = Context.Reference<ReadonlyArray<string>>(
   "@tabs/shared/hostProcess/HostProcessArguments",
   {
     defaultValue: () => process.argv,
+  },
+);
+
+/**
+ * The command the shell was given, before Node resolved it to the binary:
+ * `tabs` for a PATH lookup, `./tabs` or the launcher symlink for an explicit
+ * path. `process.argv[0]` and `execPath` are always the resolved binary.
+ */
+export const HostProcessInvokedAs = Context.Reference<string>(
+  "@tabs/shared/hostProcess/HostProcessInvokedAs",
+  {
+    defaultValue: () => process.argv0,
+  },
+);
+
+/**
+ * Whether this process is a Node single-executable rather than a script run
+ * by a Node on the machine. Code that needs a sibling file or a Node to run
+ * one branches on this: an executable hosts such things as hidden
+ * subcommands of itself.
+ */
+export const HostProcessIsExecutable = Context.Reference<boolean>(
+  "@tabs/shared/hostProcess/HostProcessIsExecutable",
+  {
+    defaultValue: () => checkIsSea(),
+  },
+);
+
+/**
+ * Every IP address this machine answers to: the interface addresses, plus
+ * whatever the resolver returns for the machine's own hostname. The latter
+ * matters because a hostname can map to an address no interface carries —
+ * Debian-style hosts put `127.0.1.1` in `/etc/hosts` — and a program that
+ * records "its" address by resolving its hostname (Firefox's profile lock
+ * does) will write that one. "Is this address ours" has to accept both.
+ *
+ * Best effort: a failed lookup just leaves the interface set.
+ */
+export const HostProcessAddresses = Context.Reference<Effect.Effect<ReadonlySet<string>>>(
+  "@tabs/shared/hostProcess/HostProcessAddresses",
+  {
+    defaultValue: () =>
+      Effect.gen(function* () {
+        const interfaces = Object.values(NodeOS.networkInterfaces())
+          .flat()
+          .flatMap((entry) => (entry ? [entry.address] : []));
+        const resolved = yield* Effect.tryPromise(() =>
+          NodeDns.promises.lookup(NodeOS.hostname(), { all: true }),
+        ).pipe(
+          Effect.map((entries) => entries.map((entry) => entry.address)),
+          Effect.orElseSucceed(() => [] as ReadonlyArray<string>),
+        );
+        return new Set([...interfaces, ...resolved]);
+      }),
   },
 );
 

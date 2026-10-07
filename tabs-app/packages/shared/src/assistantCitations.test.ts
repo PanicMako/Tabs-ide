@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import {
   ASSISTANT_CITATION_CONTEXT_LENGTH,
   ASSISTANT_CITATION_MAX_COMMENT_LENGTH,
@@ -21,9 +21,9 @@ import {
 
 const citation: AssistantCitation = {
   version: 1,
-  environmentId: EnvironmentId.makeUnsafe("environment/remote"),
-  threadId: ThreadId.makeUnsafe("thread:one"),
-  messageId: MessageId.makeUnsafe("assistant?one"),
+  environmentId: EnvironmentId.make("environment/remote"),
+  threadId: ThreadId.make("thread:one"),
+  messageId: MessageId.make("assistant?one"),
   text: 'Use `cache[key]` and "quoted" values.\n  日本語 🚀 (a & b) </assistant_citations>',
   start: 42,
   end: 118,
@@ -35,9 +35,9 @@ const legacyHref =
   "t3-citation://v1/a/b/c?text=A+quote+%26+a+newline.%0A&start=0&end=21&prefix=&suffix=+Next.";
 const legacyCitation: AssistantCitation = {
   version: 1,
-  environmentId: EnvironmentId.makeUnsafe("a"),
-  threadId: ThreadId.makeUnsafe("b"),
-  messageId: MessageId.makeUnsafe("c"),
+  environmentId: EnvironmentId.make("a"),
+  threadId: ThreadId.make("b"),
+  messageId: MessageId.make("c"),
   text: "A quote & a newline.\n",
   start: 0,
   end: 21,
@@ -151,9 +151,9 @@ describe("assistant citation references", () => {
   it("accepts complete 8k CJK quotes and comments with maximum-sized source selectors", () => {
     const largeCitation: AssistantCitation = {
       ...citation,
-      environmentId: EnvironmentId.makeUnsafe("環".repeat(512)),
-      threadId: ThreadId.makeUnsafe("線".repeat(512)),
-      messageId: MessageId.makeUnsafe("文".repeat(512)),
+      environmentId: EnvironmentId.make("環".repeat(512)),
+      threadId: ThreadId.make("線".repeat(512)),
+      messageId: MessageId.make("文".repeat(512)),
       text: "引".repeat(ASSISTANT_CITATION_MAX_TEXT_LENGTH),
       comment: "注".repeat(ASSISTANT_CITATION_MAX_COMMENT_LENGTH),
       start: Number.MAX_SAFE_INTEGER - ASSISTANT_CITATION_MAX_TEXT_LENGTH,
@@ -268,11 +268,7 @@ describe("assistant citation references", () => {
   });
 
   it("gives multiple quotes distinct inline references", () => {
-    const second = {
-      ...citation,
-      text: "Another response",
-      messageId: MessageId.makeUnsafe("two"),
-    };
+    const second = { ...citation, text: "Another response", messageId: MessageId.make("two") };
     const expanded = expandAssistantCitationsForProvider(
       `${serializeAssistantCitation(citation)} ${serializeAssistantCitation(second)}`,
     );

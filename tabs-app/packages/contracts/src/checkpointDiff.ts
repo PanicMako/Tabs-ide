@@ -1,3 +1,4 @@
+import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import * as SchemaIssue from "effect/SchemaIssue";
 import * as Struct from "effect/Struct";
@@ -11,7 +12,7 @@ export const TurnCountRange = Schema.Struct({
   Schema.makeFilter(
     (input) =>
       input.fromTurnCount <= input.toTurnCount ||
-      new SchemaIssue.InvalidValue({
+      new SchemaIssue.InvalidValue(Option.some(input.fromTurnCount), {
         message: "fromTurnCount must be less than or equal to toTurnCount",
       }),
     { identifier: "OrchestrationTurnDiffRange" },
@@ -48,7 +49,7 @@ export type OrchestrationGetFullThreadDiffInput = typeof OrchestrationGetFullThr
 export const OrchestrationGetFullThreadDiffResult = ThreadTurnDiff;
 export type OrchestrationGetFullThreadDiffResult = typeof OrchestrationGetFullThreadDiffResult.Type;
 
-export class OrchestrationGetTurnDiffError extends Schema.TaggedError<OrchestrationGetTurnDiffError>()(
+export class OrchestrationGetTurnDiffError extends Schema.TaggedErrorClass<OrchestrationGetTurnDiffError>()(
   "OrchestrationGetTurnDiffError",
   {
     message: TrimmedNonEmptyString,
@@ -56,7 +57,7 @@ export class OrchestrationGetTurnDiffError extends Schema.TaggedError<Orchestrat
   },
 ) {}
 
-export class OrchestrationGetFullThreadDiffError extends Schema.TaggedError<OrchestrationGetFullThreadDiffError>()(
+export class OrchestrationGetFullThreadDiffError extends Schema.TaggedErrorClass<OrchestrationGetFullThreadDiffError>()(
   "OrchestrationGetFullThreadDiffError",
   {
     message: TrimmedNonEmptyString,

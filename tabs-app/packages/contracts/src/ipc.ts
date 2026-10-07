@@ -224,10 +224,6 @@ import type {
 } from "./desktopCapture.ts";
 import type {
   ClientOrchestrationCommand,
-  OrchestrationGetFullThreadDiffInput,
-  OrchestrationGetFullThreadDiffResult,
-  OrchestrationGetTurnDiffInput,
-  OrchestrationGetTurnDiffResult,
   OrchestrationShellSnapshot,
   OrchestrationShellStreamItem,
   OrchestrationSubscribeThreadInput,
@@ -235,6 +231,12 @@ import type {
   OrchestrationReadModel,
   OrchestrationEvent,
 } from "./orchestration.ts";
+import type {
+  OrchestrationGetFullThreadDiffInput,
+  OrchestrationGetFullThreadDiffResult,
+  OrchestrationGetTurnDiffInput,
+  OrchestrationGetTurnDiffResult,
+} from "./checkpointDiff.ts";
 import { EnvironmentId } from "./baseSchemas.ts";
 import { AuthAccessTokenResult, AuthSessionState, AuthWebSocketTicketResult } from "./auth.ts";
 import { AdvertisedEndpoint } from "./remoteAccess.ts";
@@ -1921,7 +1923,8 @@ export interface DesktopBrowserAutomationInput extends DesktopBrowserHostControl
     | "navigate"
     | "recordStart"
     | "recordStop"
-    | "recordStatus";
+    | "recordStatus"
+    | "setColorScheme";
   input?: unknown;
 }
 

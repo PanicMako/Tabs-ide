@@ -236,7 +236,29 @@ export function getProviderAttachmentLimitError(
   }
 }
 
-export const UploadChatAttachment = Schema.Union([UploadChatImageAttachment]);
+export const UploadChatFileAttachment = Schema.Struct({
+  id: Schema.optional(ChatAttachmentId),
+  type: Schema.Literal("file"),
+  name: TrimmedNonEmptyString.check(Schema.isMaxLength(255)),
+  mimeType: TrimmedNonEmptyString.check(
+    Schema.isMaxLength(100),
+    Schema.isPattern(/^(?!image\/)/i),
+  ),
+  sizeBytes: NonNegativeInt.check(
+    Schema.isGreaterThanOrEqualTo(1),
+    Schema.isLessThanOrEqualTo(PROVIDER_SEND_TURN_MAX_FILE_BYTES),
+  ),
+  dataUrl: TrimmedNonEmptyString.check(
+    Schema.isMaxLength(70_000_000),
+  ),
+  source: Schema.optional(PastedTextAttachmentSource),
+});
+export type UploadChatFileAttachment = typeof UploadChatFileAttachment.Type;
+
+export const UploadChatAttachment = Schema.Union([
+  UploadChatImageAttachment,
+  UploadChatFileAttachment,
+]);
 export type UploadChatAttachment = typeof UploadChatAttachment.Type;
 
 export const PersistChatAttachmentsInput = Schema.Struct({
@@ -251,7 +273,7 @@ export const PersistChatAttachmentsResult = Schema.Struct({
 });
 export type PersistChatAttachmentsResult = typeof PersistChatAttachmentsResult.Type;
 
-export class PersistChatAttachmentsError extends Schema.TaggedError<PersistChatAttachmentsError>()(
+export class PersistChatAttachmentsError extends Schema.TaggedErrorClass<PersistChatAttachmentsError>()(
   "PersistChatAttachmentsError",
   {
     message: Schema.String,

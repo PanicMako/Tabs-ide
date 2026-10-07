@@ -80,7 +80,7 @@ const OrchestratorMcpTargetOptionsFromRecord = Schema.Record(
 ).pipe(
   Schema.decodeTo(
     Schema.Array(ProviderOptionSelection),
-    SchemaTransformation.transformEffect({
+    SchemaTransformation.transformOrFail({
       decode: (record) =>
         Effect.succeed(Object.entries(record).map(([id, value]) => ({ id, value }))),
       encode: (selections: ReadonlyArray<ProviderOptionSelection>) =>
@@ -635,7 +635,7 @@ export const OrchestratorMcpDeleteScheduledTaskResult = Schema.Struct({
 export type OrchestratorMcpDeleteScheduledTaskResult =
   typeof OrchestratorMcpDeleteScheduledTaskResult.Type;
 
-export class OrchestratorMcpFailure extends Schema.TaggedError<OrchestratorMcpFailure>()(
+export class OrchestratorMcpFailure extends Schema.TaggedErrorClass<OrchestratorMcpFailure>()(
   "OrchestratorMcpFailure",
   {
     code: Schema.Literals([

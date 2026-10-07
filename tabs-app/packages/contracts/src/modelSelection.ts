@@ -34,7 +34,7 @@ const ModelSelectionSource = Schema.Struct({
 export const ModelSelection = ModelSelectionSource.pipe(
   Schema.decodeTo(
     ModelSelectionWire,
-    SchemaTransformation.transformEffect({
+    SchemaTransformation.transformOrFail({
       decode: (raw) => {
         const instanceIdSource =
           raw.instanceId !== undefined

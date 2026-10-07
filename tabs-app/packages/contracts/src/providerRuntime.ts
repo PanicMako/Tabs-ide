@@ -609,6 +609,12 @@ export const RuntimeTaskStatus = Schema.Literals([
 ]);
 export type RuntimeTaskStatus = typeof RuntimeTaskStatus.Type;
 
+export const RuntimeTaskListItem = Schema.Struct({
+  task: TrimmedNonEmptyStringSchema,
+  status: RuntimeTaskStatus,
+});
+export type RuntimeTaskListItem = typeof RuntimeTaskListItem.Type;
+
 const TaskProgressPayload = Schema.Struct({
   taskId: RuntimeTaskId,
   description: TrimmedNonEmptyStringSchema,
