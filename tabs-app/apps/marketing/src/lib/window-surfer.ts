@@ -1,4 +1,5 @@
 import { overlaps, intensity, jumpHeight, runComplete, type Intensity } from "./tab-hop";
+import { drawSurfTool, drawToolBoat, toolkitLayout } from "./surfer-art";
 const root = document.querySelector<HTMLElement>("[data-arcade]");
 if (root) {
   const get = <T extends HTMLElement>(selector: string) => root.querySelector<T>(selector)!;
@@ -26,30 +27,11 @@ if (root) {
   mascot.onload = () => {
     if (!running || paused) draw();
   };
-  const glyphs = Array.from(root.querySelectorAll<SVGElement>("[data-tool-glyphs] svg")).map(
-    (svg) => {
-      const image = new Image();
-      const copy = svg.cloneNode(true) as SVGElement;
-      copy.setAttribute("xmlns", "http://www.w3.org/2000/svg");
-      copy.setAttribute("stroke", "#243654");
-      image.src =
-        "data:image/svg+xml;charset=utf-8," +
-        encodeURIComponent(new XMLSerializer().serializeToString(copy));
-      return image;
-    },
-  );
-  for (const [index, src] of [
-    [1, "/providers/claude.svg"],
-    [2, "/providers/codex.svg"],
-    [4, "/game/figma.svg"],
-  ] as const) {
-    const icon = new Image();
-    icon.src = src;
-    glyphs[index] = icon;
-  }
   let laneCounts = [0, 0, 0];
   let visualLane = 1;
-  let held: number[] = [];
+  let collected = [0, 0, 0, 0, 0];
+  let lastCatch = -10;
+  let lastTool = -1;
   let lane = 1,
     score = 0,
     lives = 3,
@@ -65,7 +47,7 @@ if (root) {
     height = 480;
   type Item = { x: number; lane: number; kind: "tool" | "window"; tool: number; phase: number };
   let items: Item[] = [];
-  let particles: { x: number; y: number; age: number; color: string; mark: string }[] = [];
+  let particles: { x: number; y: number; age: number; tool: number; lane: number }[] = [];
   let combo = 0;
   let shake = 0;
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -94,47 +76,41 @@ if (root) {
     ctx.roundRect(x, y, w, h, r);
     ctx.fill();
   }
-  function toolArt(x: number, py: number, index: number, size = 1) {
+  function drawToolkit() {
+    const { scale, step, left, top } = toolkitLayout(width);
+    const labels = ["CODE", "AGENT", "CLI", "GIT", "WEB"];
     ctx.save();
-    ctx.translate(x, py);
-    ctx.scale(size, size);
-    ctx.lineWidth = 2;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    const ink = ["#c7d7ff", "#f2c6ab", "#faf7ee", "#f7c7be", "#faf7ee"][index];
-    ctx.shadowColor = "#27456b35";
-    ctx.shadowBlur = 12;
-    ctx.shadowOffsetY = 5;
-    ctx.fillStyle = ink;
-    ctx.beginPath();
-    if (index === 0) {
-      for (let n = 0; n < 8; n++) {
-        const angle = (n * Math.PI) / 4 + Math.PI / 8;
-        const x = Math.cos(angle) * 28,
-          y = Math.sin(angle) * 28;
-        if (n === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
+    ctx.fillStyle = "#5d7892";
+    ctx.font = "8px monospace";
+    ctx.fillText("ON BOARD / YOUR TOOLS", left - 19 * scale, width < 650 ? 10 : 15);
+    for (let i = 0; i < tools.length; i++) {
+      const count = collected[i];
+      const pulse = !reduced && i === lastTool ? Math.max(0, 1 - (clock - lastCatch) / 0.6) : 0;
+      ctx.save();
+      ctx.translate(left + i * step, top);
+      ctx.scale(scale, scale);
+      ctx.fillStyle = count ? "#fffdf5e8" : "#ffffff38";
+      ctx.strokeStyle = count ? "#8ba6bd80" : "#a6bbcf55";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.roundRect(-20 - pulse * 2, -24 - pulse * 2, 40 + pulse * 4, 44 + pulse * 4, 8);
+      ctx.fill();
+      ctx.stroke();
+      ctx.globalAlpha = count ? 1 : 0.28;
+      drawSurfTool(ctx, i, 0.55 + pulse * 0.06);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = count ? "#365670" : "#6c879e";
+      ctx.font = "7px monospace";
+      ctx.textAlign = "center";
+      ctx.fillText(labels[i], 0, 32);
+      if (count) {
+        rounded(9, -29, 17, 14, 7, "#3259ed");
+        ctx.fillStyle = "#fff";
+        ctx.font = "8px monospace";
+        ctx.fillText(String(count), 17.5, -19);
       }
-      ctx.closePath();
-    } else if (index === 2) ctx.roundRect(-30, -22, 60, 44, 15);
-    else ctx.arc(0, 0, 27, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.shadowOffsetY = 0;
-    ctx.strokeStyle = "#fffdf2";
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    ctx.fillStyle = "#ffffff75";
-    ctx.beginPath();
-    ctx.ellipse(-7, -12, 12, 4, -0.3, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = "#26384b30";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.arc(0, 0, 21, 0, Math.PI * 2);
-    ctx.stroke();
-    const glyph = glyphs[index];
-    if (glyph?.complete && glyph.naturalWidth) ctx.drawImage(glyph, -13, -13, 26, 26);
+      ctx.restore();
+    }
     ctx.restore();
   }
   function draw() {
@@ -225,15 +201,12 @@ if (root) {
         ctx.save();
         ctx.translate(item.x, py - 4 + bob);
         ctx.rotate(Math.sin(clock * 2 + item.phase) * 0.08);
-        ctx.shadowColor = "#425d8530";
-        ctx.shadowBlur = 14;
-        ctx.shadowOffsetY = 7;
-        toolArt(0, 0, item.tool);
+        drawToolBoat(ctx, item.tool);
         ctx.restore();
         ctx.font = "8px monospace";
         ctx.fillStyle = "#7892af";
         ctx.textAlign = "center";
-        ctx.fillText(tools[item.tool].name.toUpperCase(), item.x, py + 40);
+        ctx.fillText(tools[item.tool].name.toUpperCase(), item.x, py + 39);
         ctx.textAlign = "left";
       }
     }
@@ -275,32 +248,40 @@ if (root) {
     }
     ctx.restore();
     ctx.globalAlpha = 1;
-    // Collected enamel patches stay attached to Maco's canvas backpack.
-    ctx.save();
-    ctx.translate(px, py + bob);
-    ctx.rotate(
-      jump > 0
-        ? Math.sin(jump * 5) * 0.1
-        : (lane - visualLane) * 0.22 + Math.sin(clock * 2) * 0.025,
-    );
-    for (let i = Math.min(held.length, 5) - 1; i >= 0; i--) {
-      const bx = -30 + (i % 3) * 10;
-      const by = -54 + Math.floor(i / 3) * 13;
-      toolArt(bx, by, held[i], 0.29);
-    }
-    ctx.restore();
+    // Each catch becomes a stamp in the toolkit, leaving Maco's silhouette clear.
+    const shelf = toolkitLayout(width);
     for (const p of particles) {
-      const t = p.age;
-      const fx = p.x + (playerX() - 20 - p.x) * t,
-        fy = p.y + (waveY(px, visualLane) - lift - 50 - p.y) * t - Math.sin(t * Math.PI) * 80;
-      ctx.globalAlpha = Math.max(0, 1 - t);
-      toolArt(
-        fx,
-        fy,
-        tools.findIndex((tool) => tool.mark === p.mark),
-        0.65 * (1 - t) + 0.2,
-      );
+      const t = Math.min(1, p.age);
+      const eased = 1 - Math.pow(1 - t, 3);
+      const targetX = shelf.left + p.tool * shelf.step;
+      const fx = p.x + (targetX - p.x) * eased;
+      const fy = p.y + (shelf.top - p.y) * eased - Math.sin(t * Math.PI) * 35;
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, (1 - t) * 5);
+      ctx.strokeStyle = "#fffdf5";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y + 14, 12 + t * 40, 0, Math.PI * 2);
+      ctx.globalAlpha *= Math.max(0, 1 - t * 3);
+      ctx.stroke();
+      ctx.restore();
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, (1 - t) * 5);
+      ctx.translate(fx, fy);
+      ctx.rotate((1 - eased) * -0.2);
+      drawSurfTool(ctx, p.tool, 0.8 - eased * 0.35);
+      ctx.restore();
+      if (t < 0.65) {
+        ctx.save();
+        ctx.globalAlpha = 1 - t / 0.65;
+        ctx.fillStyle = colors[p.lane];
+        ctx.font = "500 15px 'DM Sans', sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("+1", p.x + 35, p.y - 20 - t * 25);
+        ctx.restore();
+      }
     }
+    drawToolkit();
     ctx.globalAlpha = 1;
     ctx.restore();
   }
@@ -390,7 +371,9 @@ if (root) {
           score++;
           laneCounts[item.lane]++;
           combo++;
-          held = [item.tool, ...held].slice(0, 5);
+          collected[item.tool]++;
+          lastTool = item.tool;
+          lastCatch = clock;
           item.x = -100;
           stats();
           get("[data-message]").textContent =
@@ -400,8 +383,8 @@ if (root) {
               x: playerX(),
               y: waveY(playerX(), visualLane),
               age: 0,
-              color: colors[lane],
-              mark: tools[item.tool].mark,
+              tool: item.tool,
+              lane: item.lane,
             });
           if (runComplete(score, laneCounts, challenge.goal, challenge.quota)) {
             end(true);
@@ -438,7 +421,9 @@ if (root) {
     lives = challenge.lives;
     combo = 0;
     shake = 0;
-    held = [];
+    collected = [0, 0, 0, 0, 0];
+    lastCatch = -10;
+    lastTool = -1;
     visualLane = 1;
     clock = 0;
     spawn = 0;
