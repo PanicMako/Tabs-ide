@@ -209,112 +209,116 @@ export function SurfaceTabs({
         dragRegion && "drag-region",
       )}
     >
-      <div
-        ref={tablist}
-        role="tablist"
-        aria-label="Open surfaces"
-        className="flex min-w-0 flex-1 gap-1 overflow-x-auto py-2 surface-tab-scroll [-webkit-app-region:no-drag]"
-        onKeyDown={(event) => {
-          const tabs = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
-          const index = tabs.indexOf(document.activeElement as HTMLButtonElement);
-          if (index < 0) return;
-          if (event.key === "Delete") {
+      <div className="flex min-w-0 flex-1 items-center gap-1">
+        <div
+          ref={tablist}
+          role="tablist"
+          aria-label="Open surfaces"
+          className="flex min-w-0 gap-1 overflow-x-auto py-2 surface-tab-scroll [-webkit-app-region:no-drag]"
+          onKeyDown={(event) => {
+            const tabs = [
+              ...event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]'),
+            ];
+            const index = tabs.indexOf(document.activeElement as HTMLButtonElement);
+            if (index < 0) return;
+            if (event.key === "Delete") {
+              event.preventDefault();
+              event.currentTarget
+                .querySelectorAll<HTMLButtonElement>("[data-close-surface]")
+                [index]?.click();
+              return;
+            }
+            if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
             event.preventDefault();
-            event.currentTarget
-              .querySelectorAll<HTMLButtonElement>("[data-close-surface]")
-              [index]?.click();
-            return;
-          }
-          if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
-          event.preventDefault();
-          const next =
-            event.key === "Home"
-              ? 0
-              : event.key === "End"
-                ? tabs.length - 1
-                : (index + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
-          tabs[next]?.focus({ preventScroll: true });
-          tabs[next]?.click();
-        }}
-      >
-        {openTabs.map((id) => {
-          const surface = surfaces.find((item) => item.id === id)!;
-          return (
-            <div
-              style={{ "--surface-tint": surface.tint } as CSSProperties}
-              key={id}
-              className={cn(
-                "surface-tab flex shrink-0 items-center rounded-full border",
-                !choosing && id === activeTab
-                  ? "surface-tab-active border-transparent text-foreground"
-                  : "border-transparent text-muted-foreground",
-              )}
-            >
-              <button
-                type="button"
-                role="tab"
-                title={surface.label}
-                aria-label={id === "pr" ? surface.label : undefined}
-                aria-selected={!choosing && id === activeTab}
-                tabIndex={!choosing && id === activeTab ? 0 : -1}
-                aria-controls="companion-surface-body"
-                id={`surface-tab-${id}`}
-                onClick={() => select(id)}
-                className="flex h-8 items-center gap-1 rounded-l-full pl-2 pr-1.5 surface-tab-label focus-visible:outline-2 focus-visible:outline-ring"
+            const next =
+              event.key === "Home"
+                ? 0
+                : event.key === "End"
+                  ? tabs.length - 1
+                  : (index + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
+            tabs[next]?.focus({ preventScroll: true });
+            tabs[next]?.click();
+          }}
+        >
+          {openTabs.map((id) => {
+            const surface = surfaces.find((item) => item.id === id)!;
+            return (
+              <div
+                style={{ "--surface-tint": surface.tint } as CSSProperties}
+                key={id}
+                className={cn(
+                  "surface-tab flex shrink-0 items-center rounded-full border",
+                  !choosing && id === activeTab
+                    ? "surface-tab-active border-transparent text-foreground"
+                    : "border-transparent text-muted-foreground",
+                )}
               >
-                {openTabs.length <= 3 && (
-                  <surface.Icon aria-hidden="true" className={cn("size-3.5", surface.color)} />
-                )}
-                {id === "pr" ? "PRs" : surface.label}
-                {!!counts[id] && (
-                  <span className="rounded-md bg-muted px-1.5 font-mono text-[10px] tabular-nums">
-                    {counts[id]}
-                  </span>
-                )}
-              </button>
-              <button
-                data-close-surface
-                type="button"
-                aria-label={`Close ${surface.label} surface`}
-                title={`Close ${surface.label}`}
-                className="surface-control mr-0.5 flex size-7 items-center justify-center rounded-full focus-visible:outline-2 focus-visible:outline-ring"
-                onClick={() => {
-                  const remaining = openTabs.filter((tab) => tab !== id);
-                  setOpenTabs(remaining);
-                  if (!choosing && id === activeTab) {
-                    const next = remaining[Math.min(openTabs.indexOf(id), remaining.length - 1)];
-                    if (next) select(next);
-                    else {
-                      onChooserChange(true);
+                <button
+                  type="button"
+                  role="tab"
+                  title={surface.label}
+                  aria-label={id === "pr" ? surface.label : undefined}
+                  aria-selected={!choosing && id === activeTab}
+                  tabIndex={!choosing && id === activeTab ? 0 : -1}
+                  aria-controls="companion-surface-body"
+                  id={`surface-tab-${id}`}
+                  onClick={() => select(id)}
+                  className="flex h-8 items-center gap-1 rounded-l-full pl-2 pr-1.5 surface-tab-label focus-visible:outline-2 focus-visible:outline-ring"
+                >
+                  {openTabs.length <= 3 && (
+                    <surface.Icon aria-hidden="true" className={cn("size-3.5", surface.color)} />
+                  )}
+                  {id === "pr" ? "PRs" : surface.label}
+                  {!!counts[id] && (
+                    <span className="rounded-md bg-muted px-1.5 font-mono text-[10px] tabular-nums">
+                      {counts[id]}
+                    </span>
+                  )}
+                </button>
+                <button
+                  data-close-surface
+                  type="button"
+                  aria-label={`Close ${surface.label} surface`}
+                  title={`Close ${surface.label}`}
+                  className="surface-control mr-0.5 flex size-7 items-center justify-center rounded-full focus-visible:outline-2 focus-visible:outline-ring"
+                  onClick={() => {
+                    const remaining = openTabs.filter((tab) => tab !== id);
+                    setOpenTabs(remaining);
+                    if (!choosing && id === activeTab) {
+                      const next = remaining[Math.min(openTabs.indexOf(id), remaining.length - 1)];
+                      if (next) select(next);
+                      else {
+                        onChooserChange(true);
+                      }
                     }
-                  }
-                  requestAnimationFrame(() => {
-                    const next = tablist.current?.querySelector<HTMLButtonElement>(
-                      '[role="tab"][aria-selected="true"]',
-                    );
-                    (next ?? addButton.current)?.focus({ preventScroll: true });
-                  });
-                }}
-              >
-                <XIcon aria-hidden="true" className="size-4" />
-              </button>
-            </div>
-          );
-        })}
+                    requestAnimationFrame(() => {
+                      const next = tablist.current?.querySelector<HTMLButtonElement>(
+                        '[role="tab"][aria-selected="true"]',
+                      );
+                      (next ?? addButton.current)?.focus({ preventScroll: true });
+                    });
+                  }}
+                >
+                  <XIcon aria-hidden="true" className="size-4" />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+        <button
+          ref={addButton}
+          type="button"
+          aria-label="Open a surface"
+          title="Open a surface"
+          aria-pressed={choosing && openTabs.length > 0}
+          onClick={() => {
+            onChooserChange(!choosing || openTabs.length === 0);
+          }}
+          className="surface-control flex size-9 shrink-0 items-center justify-center rounded-xl border border-dashed border-border text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring [-webkit-app-region:no-drag]"
+        >
+          <PlusIcon aria-hidden="true" className="size-5" />
+        </button>
       </div>
-      <button
-        ref={addButton}
-        type="button"
-        aria-label="Open a surface"
-        title="Open a surface"
-        aria-pressed={choosing && openTabs.length > 0}
-        onClick={() => {
-          onChooserChange(!choosing || openTabs.length === 0);
-        }}
-        className="surface-control flex size-9 shrink-0 items-center justify-center rounded-xl border border-dashed border-border text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring [-webkit-app-region:no-drag]"
-      >
-        <PlusIcon aria-hidden="true" className="size-5" />
-      </button>
       {onToggleMaximized && (
         <button
           type="button"

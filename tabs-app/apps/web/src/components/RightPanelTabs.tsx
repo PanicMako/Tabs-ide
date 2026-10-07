@@ -88,13 +88,13 @@ export const RightPanelTabs = memo(function RightPanelTabs({
             </Suspense>
           </DiffWorkerPoolProvider>
         ) : activeTab === "browser" ? (
-          <CompanionBrowserPanel />
+          <CompanionBrowserPanel threadId={threadId} />
         ) : activeTab === "files" ? (
-          <CompanionFilesPanel />
+          <CompanionFilesPanel key={threadId} threadId={threadId} />
         ) : activeTab === "terminal" ? (
           <CompanionTerminalPanel threadId={threadId} />
         ) : activeTab === "pr" ? (
-          <CompanionPRPanel />
+          <CompanionPRPanel key={threadId} threadId={threadId} />
         ) : activeTab === "stash" ? (
           <PromptStashPanel
             activeThreadId={threadId}

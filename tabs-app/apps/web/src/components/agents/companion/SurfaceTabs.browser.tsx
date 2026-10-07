@@ -41,6 +41,9 @@ it("opens, switches, closes and reopens surfaces with stable hover geometry", as
     const stash = page.getByRole("tab", { name: "Stash 3" });
     await expect.element(stash).toHaveAttribute("aria-selected", "true");
     const before = stash.element().getBoundingClientRect();
+    const addBounds = add.element().getBoundingClientRect();
+    const tabListBounds = stash.element().closest('[role="tablist"]')!.getBoundingClientRect();
+    expect(addBounds.left - tabListBounds.right).toBeLessThanOrEqual(8);
     await stash.hover();
     await new Promise((resolve) => setTimeout(resolve, 220));
     const after = stash.element().getBoundingClientRect();
