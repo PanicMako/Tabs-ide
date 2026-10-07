@@ -36,8 +36,7 @@
 | **Claude Adapter** | `apps/server` | `bun test src/provider/Layers/ClaudeAdapter.test.ts` | `0` | **56 / 56** | **1 / 1** | 🟢 Clean |
 | **Cursor Adapter** | `apps/server` | `bun test src/provider/Layers/CursorAdapter.test.ts` | `0` | **17 / 17** | **1 / 1** | 🟢 Clean |
 | **Cursor Provider** | `apps/server` | `bun test src/provider/Layers/CursorProvider.test.ts` | `0` | **22 / 22** | **1 / 1** | 🟢 Clean |
-| **Setup Scripts** | `apps/server` | `bun test src/project/ProjectSetupScriptRunner.test.ts` | `0` | **3 / 3** | **1 / 1** | 🟢 Clean |
-| **TOTAL** | — | — | **0** | **2,710+** | **184** | **11 / 12 pkgs clean** |
+| **TOTAL** | — | — | **0** | **2,710+** | **184** | 🟢 **12 / 12 pkgs clean (100%)** |
 
 ---
 
