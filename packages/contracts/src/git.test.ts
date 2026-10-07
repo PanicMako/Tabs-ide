@@ -1,66 +1,25 @@
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it } from "vitest";
 import * as Schema from "effect/Schema";
 
 import {
   VcsCreateWorktreeInput,
   GitPreparePullRequestThreadInput,
+  GitPreparePullRequestThreadResult,
   GitRunStackedActionResult,
   GitRunStackedActionInput,
   GitResolvePullRequestResult,
-  GitListPullRequestsInput,
-  GitListPullRequestsResult,
-  GitRepositoryActionInput,
-  GitTriggerReleaseWorkflowInput,
 } from "./git.ts";
 
 const decodeCreateWorktreeInput = Schema.decodeUnknownSync(VcsCreateWorktreeInput);
 const decodePreparePullRequestThreadInput = Schema.decodeUnknownSync(
   GitPreparePullRequestThreadInput,
 );
+const decodePreparePullRequestThreadResult = Schema.decodeUnknownSync(
+  GitPreparePullRequestThreadResult,
+);
 const decodeRunStackedActionInput = Schema.decodeUnknownSync(GitRunStackedActionInput);
 const decodeRunStackedActionResult = Schema.decodeUnknownSync(GitRunStackedActionResult);
 const decodeResolvePullRequestResult = Schema.decodeUnknownSync(GitResolvePullRequestResult);
-const decodeListPullRequestsInput = Schema.decodeUnknownSync(GitListPullRequestsInput);
-const decodeListPullRequestsResult = Schema.decodeUnknownSync(GitListPullRequestsResult);
-const decodeRepositoryActionInput = Schema.decodeUnknownSync(GitRepositoryActionInput);
-const decodeTriggerReleaseWorkflowInput = Schema.decodeUnknownSync(GitTriggerReleaseWorkflowInput);
-
-describe("GitRepositoryActionInput", () => {
-  it("accepts a discriminated repository operation envelope", () => {
-    const parsed = decodeRepositoryActionInput({
-      cwd: "/repo",
-      operation: {
-        action: "push_ref",
-        remote: "origin",
-        ref: "feature/safe-transport",
-        forceWithLease: true,
-      },
-    });
-
-    expect(parsed.operation.action).toBe("push_ref");
-  });
-
-  it("rejects operation fields that do not match the discriminator", () => {
-    expect(() =>
-      decodeRepositoryActionInput({
-        cwd: "/repo",
-        operation: { action: "remove_remote", ref: "main" },
-      }),
-    ).toThrow();
-  });
-});
-
-describe("GitTriggerReleaseWorkflowInput", () => {
-  it("keeps workflow arguments as separately validated fields", () => {
-    const parsed = decodeTriggerReleaseWorkflowInput({
-      cwd: "/repo",
-      ref: "main",
-      version: "1.3.0",
-    });
-
-    expect(parsed).toEqual({ cwd: "/repo", ref: "main", version: "1.3.0" });
-  });
-});
 
 describe("VcsCreateWorktreeInput", () => {
   it("accepts omitted newRefName for existing-refName worktrees", () => {
@@ -93,12 +52,47 @@ describe("GitPreparePullRequestThreadInput", () => {
       cwd: "/repo",
       reference: "#42",
       mode: "worktree",
-      threadId: "test-thread-id",
     });
 
     expect(parsed.reference).toBe("#42");
     expect(parsed.mode).toBe("worktree");
-    expect(parsed.threadId).toBe("test-thread-id");
+  });
+});
+
+describe("GitPreparePullRequestThreadResult", () => {
+  it("defaults legacy responses to the pull request head", () => {
+    const parsed = decodePreparePullRequestThreadResult({
+      pullRequest: {
+        number: 42,
+        title: "PR threads",
+        url: "https://github.com/pingdotgg/codething-mvp/pull/42",
+        baseBranch: "main",
+        headBranch: "feature/pr-threads",
+        state: "open",
+      },
+      branch: "feature/pr-threads",
+      worktreePath: "/tmp/pr-threads",
+    });
+
+    expect(parsed.isOnPullRequestHead).toBe(true);
+  });
+
+  it("preserves an explicit stale pull request checkout result", () => {
+    const parsed = decodePreparePullRequestThreadResult({
+      pullRequest: {
+        number: 42,
+        title: "PR threads",
+        url: "https://github.com/pingdotgg/codething-mvp/pull/42",
+        baseBranch: "main",
+        headBranch: "feature/pr-threads",
+        state: "open",
+      },
+      branch: "feature/pr-threads",
+      worktreePath: "/tmp/pr-threads",
+      isOnPullRequestHead: false,
+    });
+
+    expect(parsed.isOnPullRequestHead).toBe(false);
   });
 });
 
@@ -112,45 +106,11 @@ describe("GitResolvePullRequestResult", () => {
         baseBranch: "main",
         headBranch: "feature/pr-threads",
         state: "open",
-        files: [
-          {
-            path: "src/app.ts",
-            status: "modified",
-            additions: 3,
-            deletions: 1,
-            patch: "@@ -1 +1 @@\n-old\n+new",
-            patchTruncated: false,
-          },
-        ],
       },
     });
 
     expect(parsed.pullRequest.number).toBe(42);
     expect(parsed.pullRequest.headBranch).toBe("feature/pr-threads");
-    expect(parsed.pullRequest.files?.[0]?.path).toBe("src/app.ts");
-  });
-});
-
-describe("GitListPullRequests", () => {
-  it("accepts a bounded list size and a server-authored continuation signal", () => {
-    expect(decodeListPullRequestsInput({ cwd: "/repo", state: "open", limit: 100 }).limit).toBe(
-      100,
-    );
-    const result = decodeListPullRequestsResult({
-      pullRequests: [],
-      hasMore: false,
-      capabilities: {
-        provider: "gitlab",
-        diff: true,
-        create: true,
-        search: false,
-        actions: ["comment", "approve"],
-        mergeMethods: ["merge", "squash"],
-      },
-    });
-    expect(result.hasMore).toBe(false);
-    expect(result.capabilities?.actions).not.toContain("request_changes");
-    expect(() => decodeListPullRequestsInput({ cwd: "/repo", limit: 201 })).toThrow();
   });
 });
 

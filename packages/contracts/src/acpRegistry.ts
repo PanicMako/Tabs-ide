@@ -333,7 +333,7 @@ export const AcpRegistryOperationErrorReason = Schema.Literals([
 ]);
 export type AcpRegistryOperationErrorReason = typeof AcpRegistryOperationErrorReason.Type;
 
-export class AcpRegistryOperationError extends Schema.TaggedError<AcpRegistryOperationError>()(
+export class AcpRegistryOperationError extends Schema.TaggedErrorClass<AcpRegistryOperationError>()(
   "AcpRegistryOperationError",
   {
     reason: AcpRegistryOperationErrorReason,

@@ -1220,7 +1220,7 @@ export const OrchestrationV2CheckpointRollbackRequest = Schema.Struct({
 export type OrchestrationV2CheckpointRollbackRequest =
   typeof OrchestrationV2CheckpointRollbackRequest.Type;
 
-export class OrchestrationV2CheckpointUnavailableError extends Schema.TaggedError<OrchestrationV2CheckpointUnavailableError>()(
+export class OrchestrationV2CheckpointUnavailableError extends Schema.TaggedErrorClass<OrchestrationV2CheckpointUnavailableError>()(
   "OrchestrationV2CheckpointUnavailableError",
   {
     threadId: ThreadId,
@@ -3351,7 +3351,7 @@ export type OrchestrationV2ThreadStreamItem =
   | { readonly kind: "synchronized" }
   | {
       readonly kind: "snapshot";
-      readonly snapshotSequence: NonNegativeInt;
+      readonly snapshotSequence: number;
       readonly projection: OrchestrationV2ThreadProjection;
       readonly historyCursor?: string | null;
       readonly hasMoreHistory?: boolean;
@@ -3360,7 +3360,7 @@ export type OrchestrationV2ThreadStreamItem =
     }
   | {
       readonly kind: "event";
-      readonly sequence: NonNegativeInt;
+      readonly sequence: number;
       readonly event: OrchestrationV2DomainEvent;
     }
   | {
@@ -3369,7 +3369,7 @@ export type OrchestrationV2ThreadStreamItem =
       readonly eventType: string;
     };
 
-export const OrchestrationV2ThreadStreamItem: Schema.Schema<OrchestrationV2ThreadStreamItem, any> = Schema.Union([
+export const OrchestrationV2ThreadStreamItem = Schema.Union([
   Schema.Struct({
     kind: Schema.Literal("synchronized"),
   }),
@@ -3395,7 +3395,7 @@ export const OrchestrationV2ThreadStreamItem: Schema.Schema<OrchestrationV2Threa
   OrchestrationV2UnknownThreadStreamEvent,
 ]);
 
-export class OrchestrationV2DispatchCommandError extends Schema.TaggedError<OrchestrationV2DispatchCommandError>()(
+export class OrchestrationV2DispatchCommandError extends Schema.TaggedErrorClass<OrchestrationV2DispatchCommandError>()(
   "OrchestrationV2DispatchCommandError",
   {
     commandId: CommandId,
@@ -3406,7 +3406,7 @@ export class OrchestrationV2DispatchCommandError extends Schema.TaggedError<Orch
   },
 ) {}
 
-export class OrchestrationV2GetThreadProjectionError extends Schema.TaggedError<OrchestrationV2GetThreadProjectionError>()(
+export class OrchestrationV2GetThreadProjectionError extends Schema.TaggedErrorClass<OrchestrationV2GetThreadProjectionError>()(
   "OrchestrationV2GetThreadProjectionError",
   {
     threadId: ThreadId,
@@ -3415,7 +3415,7 @@ export class OrchestrationV2GetThreadProjectionError extends Schema.TaggedError<
   },
 ) {}
 
-export class OrchestrationV2GetShellSnapshotError extends Schema.TaggedError<OrchestrationV2GetShellSnapshotError>()(
+export class OrchestrationV2GetShellSnapshotError extends Schema.TaggedErrorClass<OrchestrationV2GetShellSnapshotError>()(
   "OrchestrationV2GetShellSnapshotError",
   {
     message: Schema.String,
@@ -3423,7 +3423,7 @@ export class OrchestrationV2GetShellSnapshotError extends Schema.TaggedError<Orc
   },
 ) {}
 
-export class OrchestrationV2ThreadLaunchError extends Schema.TaggedError<OrchestrationV2ThreadLaunchError>()(
+export class OrchestrationV2ThreadLaunchError extends Schema.TaggedErrorClass<OrchestrationV2ThreadLaunchError>()(
   "OrchestrationV2ThreadLaunchError",
   {
     commandId: CommandId,
@@ -3483,7 +3483,7 @@ const WORKFLOW_SCRIPT_ERROR_MESSAGES = {
   "read-failed": "Script read failed.",
 } as const;
 
-export class OrchestrationGetWorkflowScriptError extends Schema.TaggedError<OrchestrationGetWorkflowScriptError>()(
+export class OrchestrationGetWorkflowScriptError extends Schema.TaggedErrorClass<OrchestrationGetWorkflowScriptError>()(
   "OrchestrationGetWorkflowScriptError",
   {
     reason: Schema.Literals([

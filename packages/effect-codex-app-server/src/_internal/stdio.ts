@@ -12,13 +12,13 @@ const encoder = new TextEncoder();
 
 export const makeChildStdio = (handle: ChildProcessSpawner.ChildProcessHandle) =>
   Stdio.make({
+    args: Effect.succeed([]),
     stdin: handle.stdout,
     stdout: () =>
       Sink.mapInput(handle.stdin, (chunk: string | Uint8Array) =>
         typeof chunk === "string" ? encoder.encode(chunk) : chunk,
       ),
     stderr: () => Sink.drain,
-    args: Effect.succeed([]),
   });
 
 export const makeInMemoryStdio = Effect.fn("makeInMemoryStdio")(function* () {
@@ -28,6 +28,7 @@ export const makeInMemoryStdio = Effect.fn("makeInMemoryStdio")(function* () {
 
   return {
     stdio: Stdio.make({
+      args: Effect.succeed([]),
       stdin: Stream.fromQueue(input),
       stdout: () =>
         Sink.forEach((chunk: string | Uint8Array) =>
@@ -37,21 +38,26 @@ export const makeInMemoryStdio = Effect.fn("makeInMemoryStdio")(function* () {
           ),
         ),
       stderr: () => Sink.drain,
-      args: Effect.succeed([]),
     }),
     input,
     output,
   };
 });
 
+type ChildProcessTerminationHandle = Pick<
+  ChildProcessSpawner.ChildProcessHandle,
+  "exitCode" | "pid"
+>;
+
 export const makeTerminationError = (
-  handle: ChildProcessSpawner.ChildProcessHandle,
+  handle: ChildProcessTerminationHandle,
 ): Effect.Effect<CodexError.CodexAppServerError> =>
   Effect.match(handle.exitCode, {
     onFailure: (cause) =>
       new CodexError.CodexAppServerTransportError({
-        detail: "Failed to determine Codex App Server process exit status",
+        operation: "read-process-exit-status",
+        pid: handle.pid,
         cause,
       }),
-    onSuccess: (code) => new CodexError.CodexAppServerProcessExitedError({ code }),
+    onSuccess: (code) => new CodexError.CodexAppServerProcessExitedError({ code, pid: handle.pid }),
   });

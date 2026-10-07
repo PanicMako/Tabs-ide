@@ -41,269 +41,49 @@ export const ORCHESTRATION_WS_METHODS = {
   subscribeThread: "orchestration.subscribeThread",
 } as const;
 
-export const ProviderApprovalPolicy = Schema.Literals([
-  "untrusted",
-  "on-failure",
-  "on-request",
-  "never",
-]);
-export type ProviderApprovalPolicy = typeof ProviderApprovalPolicy.Type;
-
 export const ProviderKind = Schema.Literals(["codex", "claudeAgent"]);
 export type ProviderKind = typeof ProviderKind.Type;
 export const DEFAULT_PROVIDER_KIND: ProviderKind = "codex";
 
-export const ProviderSandboxMode = Schema.Literals([
-  "read-only",
-  "workspace-write",
-  "danger-full-access",
-]);
-export type ProviderSandboxMode = typeof ProviderSandboxMode.Type;
+import {
+  AssistantDeliveryMode,
+  DEFAULT_PROVIDER_INTERACTION_MODE,
+  DEFAULT_RUNTIME_MODE,
+  ProviderApprovalDecision,
+  ProviderApprovalOption,
+  ProviderApprovalPolicy,
+  ProviderInteractionMode,
+  ProviderRequestKind,
+  ProviderSandboxMode,
+  ProviderUserInputAnswers,
+  RuntimeMode,
+} from "./providerPolicy.ts";
+import { ModelSelection } from "./modelSelection.ts";
 
-/**
- * `ModelSelection` — selection of a model on a configured provider instance.
- *
- * The routing key is `instanceId` (a user-defined slug identifying one
- * configured provider instance). Drivers, credentials, working-directory
- * bindings, and any other per-instance state are recovered from the
- * runtime registry via the instance id.
- *
- * Wire legacy: persisted selections produced before the driver/instance
- * split carried a `provider: <driver-id>` field instead. The schema absorbs
- * that shape via a pre-decoding transform — `{provider, model}` is promoted
- * to `{instanceId: defaultInstanceIdForDriver(provider), model}`. No
- * post-decode compatibility code lives in the runtime; the transform is the
- * only compat surface.
- */
-const ModelSelectionWire = Schema.Struct({
-  instanceId: ProviderInstanceId,
-  model: TrimmedNonEmptyString,
-  options: Schema.optionalKey(ProviderOptionSelections),
-});
-
-// Source shape for persisted legacy payloads. Fields are typed as
-// `Schema.Unknown` so malformed drafts still make it into the transform and
-// fail validation through the target schema (with proper error messages)
-// rather than at the source-struct layer where the error is less actionable.
-const ModelSelectionSource = Schema.Struct({
-  provider: Schema.optional(Schema.Unknown),
-  instanceId: Schema.optional(Schema.Unknown),
-  model: Schema.Unknown,
-  options: Schema.optional(Schema.Unknown),
-});
-
-export const ModelSelection = ModelSelectionSource.pipe(
-  Schema.decodeTo(
-    ModelSelectionWire,
-    SchemaTransformation.transformOrFail({
-      decode: (raw) => {
-        // Resolve the routing key: prefer an explicit `instanceId`; fall
-        // back to promoting the legacy `provider` slug (the canonical
-        // `defaultInstanceIdForDriver` mapping) so persisted rollout-era
-        // payloads decode without data loss. The target schema brands the
-        // string as `ProviderInstanceId`.
-        const instanceIdSource =
-          raw.instanceId !== undefined
-            ? raw.instanceId
-            : typeof raw.provider === "string"
-              ? raw.provider
-              : undefined;
-        const base: Record<string, unknown> = {
-          instanceId: instanceIdSource,
-          model: raw.model,
-        };
-        if (raw.options !== undefined) base.options = raw.options;
-        return Effect.succeed(base as typeof ModelSelectionWire.Encoded);
-      },
-      encode: (value) => {
-        const base: Record<string, unknown> = {
-          model: value.model,
-          instanceId: value.instanceId,
-        };
-        if (value.options !== undefined) base.options = value.options;
-        return Effect.succeed(base as typeof ModelSelectionSource.Encoded);
-      },
-    }),
-  ),
-);
-export type ModelSelection = typeof ModelSelection.Type;
-
-export const RuntimeMode = Schema.Literals([
-  "approval-required",
-  "auto-accept-edits",
-  "full-access",
-]);
-export type RuntimeMode = typeof RuntimeMode.Type;
-export const DEFAULT_RUNTIME_MODE: RuntimeMode = "full-access";
-export const ProviderInteractionMode = Schema.Literals(["default", "plan"]);
-export type ProviderInteractionMode = typeof ProviderInteractionMode.Type;
-export const DEFAULT_PROVIDER_INTERACTION_MODE: ProviderInteractionMode = "default";
-export const ProviderRequestKind = Schema.Literals(["command", "file-read", "file-change"]);
-export type ProviderRequestKind = typeof ProviderRequestKind.Type;
-export const AssistantDeliveryMode = Schema.Literals(["buffered", "streaming"]);
-export type AssistantDeliveryMode = typeof AssistantDeliveryMode.Type;
-export const ProviderApprovalDecision = Schema.Literals([
-  "accept",
-  "acceptForSession",
-  "decline",
-  "cancel",
-]);
-export type ProviderApprovalDecision = typeof ProviderApprovalDecision.Type;
-export const ProviderApprovalOption = Schema.Struct({
-  decision: ProviderApprovalDecision,
-  label: TrimmedNonEmptyString,
-  /** Provider-supplied caution shown next to the option, such as a prompt injection warning. */
-  warning: Schema.optional(TrimmedNonEmptyString),
-});
-export type ProviderApprovalOption = typeof ProviderApprovalOption.Type;
-export const ProviderUserInputAnswers = Schema.Record(Schema.String, Schema.Unknown);
-export type ProviderUserInputAnswers = typeof ProviderUserInputAnswers.Type;
-
-export const PROVIDER_SEND_TURN_MAX_INPUT_CHARS = 120_000;
-export const PROVIDER_SEND_TURN_MAX_ATTACHMENTS = 8;
-export const PROVIDER_SEND_TURN_MAX_IMAGE_BYTES = 10 * 1024 * 1024;
-export const PROVIDER_SEND_TURN_MAX_FILE_BYTES = 50 * 1024 * 1024;
-const PROVIDER_SEND_TURN_MAX_IMAGE_DATA_URL_CHARS = 14_000_000;
-const PROVIDER_SEND_TURN_MAX_FILE_DATA_URL_CHARS = 70_000_000;
-const CHAT_ATTACHMENT_ID_MAX_CHARS = 128;
 // Correlation id is command id by design in this model.
 export const CorrelationId = CommandId;
 export type CorrelationId = typeof CorrelationId.Type;
 
-const ChatAttachmentId = TrimmedNonEmptyString.check(
-  Schema.isMaxLength(CHAT_ATTACHMENT_ID_MAX_CHARS),
-  Schema.isPattern(/^[a-z0-9_-]+$/i),
-);
-export type ChatAttachmentId = typeof ChatAttachmentId.Type;
+import {
+  ChatAttachment,
+  ChatAttachmentId,
+  ChatFileAttachment,
+  ChatImageAttachment,
+  PROVIDER_SEND_TURN_MAX_ATTACHMENTS,
+  PROVIDER_SEND_TURN_MAX_FILE_BYTES,
+  PROVIDER_SEND_TURN_MAX_IMAGE_BYTES,
+  PROVIDER_SEND_TURN_MAX_INPUT_CHARS,
+  UploadChatAttachment,
+  UploadChatImageAttachment,
+} from "./chatAttachment.ts";
 
-export const ChatImageAttachment = Schema.Struct({
-  type: Schema.Literal("image"),
-  id: ChatAttachmentId,
-  name: TrimmedNonEmptyString.check(Schema.isMaxLength(255)),
-  mimeType: TrimmedNonEmptyString.check(Schema.isMaxLength(100), Schema.isPattern(/^image\//i)),
-  sizeBytes: NonNegativeInt.check(Schema.isLessThanOrEqualTo(PROVIDER_SEND_TURN_MAX_IMAGE_BYTES)),
-});
-export type ChatImageAttachment = typeof ChatImageAttachment.Type;
-
-export const ChatFileAttachment = Schema.Struct({
-  type: Schema.Literal("file"),
-  id: ChatAttachmentId,
-  name: TrimmedNonEmptyString.check(Schema.isMaxLength(255)),
-  mimeType: TrimmedNonEmptyString.check(Schema.isMaxLength(100), Schema.isPattern(/^(?!image\/)/i)),
-  sizeBytes: NonNegativeInt.check(
-    Schema.isGreaterThanOrEqualTo(1),
-    Schema.isLessThanOrEqualTo(PROVIDER_SEND_TURN_MAX_FILE_BYTES),
-  ),
-});
-export type ChatFileAttachment = typeof ChatFileAttachment.Type;
-
-const UploadChatImageAttachment = Schema.Struct({
-  type: Schema.Literal("image"),
-  name: TrimmedNonEmptyString.check(Schema.isMaxLength(255)),
-  mimeType: TrimmedNonEmptyString.check(Schema.isMaxLength(100), Schema.isPattern(/^image\//i)),
-  sizeBytes: NonNegativeInt.check(Schema.isLessThanOrEqualTo(PROVIDER_SEND_TURN_MAX_IMAGE_BYTES)),
-  dataUrl: TrimmedNonEmptyString.check(
-    Schema.isMaxLength(PROVIDER_SEND_TURN_MAX_IMAGE_DATA_URL_CHARS),
-  ),
-});
-export type UploadChatImageAttachment = typeof UploadChatImageAttachment.Type;
-
-export const UploadChatFileAttachment = Schema.Struct({
-  type: Schema.Literal("file"),
-  name: TrimmedNonEmptyString.check(Schema.isMaxLength(255)),
-  mimeType: TrimmedNonEmptyString.check(Schema.isMaxLength(100), Schema.isPattern(/^(?!image\/)/i)),
-  sizeBytes: NonNegativeInt.check(
-    Schema.isGreaterThanOrEqualTo(1),
-    Schema.isLessThanOrEqualTo(PROVIDER_SEND_TURN_MAX_FILE_BYTES),
-  ),
-  dataUrl: TrimmedNonEmptyString.check(
-    Schema.isMaxLength(PROVIDER_SEND_TURN_MAX_FILE_DATA_URL_CHARS),
-  ),
-});
-export type UploadChatFileAttachment = typeof UploadChatFileAttachment.Type;
-
-export const ChatAttachment = Schema.Union([ChatImageAttachment, ChatFileAttachment]);
-export type ChatAttachment = typeof ChatAttachment.Type;
-const UploadChatAttachment = Schema.Union([UploadChatImageAttachment, UploadChatFileAttachment]);
-export type UploadChatAttachment = typeof UploadChatAttachment.Type;
-
-export const ProjectScriptIcon = Schema.Literals([
-  "play",
-  "test",
-  "lint",
-  "configure",
-  "build",
-  "debug",
-]);
-export type ProjectScriptIcon = typeof ProjectScriptIcon.Type;
-
-export const ProjectScript = Schema.Struct({
-  id: TrimmedNonEmptyString,
-  name: TrimmedNonEmptyString,
-  command: TrimmedNonEmptyString,
-  icon: ProjectScriptIcon,
-  runOnWorktreeCreate: Schema.Boolean,
-  /**
-   * URL to open in the in-app browser preview when this script runs (or
-   * when the user explicitly requests a preview). Optional; only honored on
-   * the desktop build.
-   */
-  previewUrl: Schema.optional(TrimmedNonEmptyString),
-  /**
-   * When true, automatically open the preview panel pointed at `previewUrl`
-   * the moment this script starts. Ignored without `previewUrl` or on web.
-   */
-  autoOpenPreview: Schema.optional(Schema.Boolean),
-});
-export type ProjectScript = typeof ProjectScript.Type;
-
-export const ProjectFaviconPath = TrimmedNonEmptyString.check(
-  Schema.isMaxLength(1024),
-  Schema.isPattern(/\.(?:avif|gif|ico|jpe?g|png|svg|webp)$/i),
-);
-export type ProjectFaviconPath = typeof ProjectFaviconPath.Type;
-
-export const ProjectIconColor = Schema.Literals([
-  "gray",
-  "red",
-  "orange",
-  "amber",
-  "yellow",
-  "lime",
-  "green",
-  "emerald",
-  "teal",
-  "cyan",
-  "sky",
-  "blue",
-  "indigo",
-  "violet",
-  "purple",
-  "fuchsia",
-  "pink",
-  "rose",
-]);
-export type ProjectIconColor = typeof ProjectIconColor.Type;
-
-const ProjectLucideIconName = TrimmedNonEmptyString.check(
-  Schema.isMaxLength(64),
-  Schema.isPattern(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
-);
-
-const ProjectEmoji = TrimmedNonEmptyString.check(Schema.isMaxLength(32));
-
-export const ProjectIconOverride = Schema.Union([
-  Schema.Struct({
-    kind: Schema.Literal("lucide"),
-    name: ProjectLucideIconName,
-    color: ProjectIconColor,
-  }),
-  Schema.Struct({
-    kind: Schema.Literal("emoji"),
-    emoji: ProjectEmoji,
-  }),
-]);
-export type ProjectIconOverride = typeof ProjectIconOverride.Type;
+import {
+  ProjectFaviconPath,
+  ProjectIconColor,
+  ProjectIconOverride,
+  ProjectScript,
+  ProjectScriptIcon,
+} from "./project.ts";
 
 export const OrchestrationProject = Schema.Struct({
   id: ProjectId,
@@ -442,93 +222,16 @@ export const OrchestrationLatestTurn = Schema.Struct({
 });
 export type OrchestrationLatestTurn = typeof OrchestrationLatestTurn.Type;
 
-export const ThreadTitleRegeneration = Schema.Struct({
-  requestId: CommandId,
-  startedAt: IsoDateTime,
-});
-export type ThreadTitleRegeneration = typeof ThreadTitleRegeneration.Type;
-
-export const ThreadLinkedPullRequest = Schema.Struct({
-  projectId: ProjectId,
-  repository: TrimmedNonEmptyString,
-  number: PositiveInt,
-  url: TrimmedNonEmptyString,
-});
-export type ThreadLinkedPullRequest = typeof ThreadLinkedPullRequest.Type;
-
-/** Who created a thread ↔ pull request link. `stack-dismissed` is a tombstone
- * for a native-stack member the user unlinked, so the sync reactor does not
- * re-add it; clients hide it. */
-export const ThreadPullRequestLinkSource = Schema.Literals([
-  "manual",
-  "created",
-  "agent",
-  "stack",
-  "stack-dismissed",
-]);
-export type ThreadPullRequestLinkSource = typeof ThreadPullRequestLinkSource.Type;
-
-/**
- * Host state persisted on a link by the sync reactor; null until first sync. The overview
- * fields are optional: a host whose cheap read lacks them leaves them out, and snapshots
- * written before they existed still decode.
- */
-export const ThreadPullRequestSnapshot = Schema.Struct({
-  state: PullRequestState,
-  title: TrimmedNonEmptyString,
-  headBranch: TrimmedNonEmptyString,
-  baseBranch: TrimmedNonEmptyString,
-  isDraft: Schema.Boolean,
-  updatedAt: Schema.NullOr(IsoDateTime),
-  syncedAt: IsoDateTime,
-  closedAt: Schema.optional(Schema.NullOr(Schema.String)),
-  mergedAt: Schema.optional(Schema.NullOr(Schema.String)),
-  author: Schema.optional(Schema.NullOr(PullRequestActor)),
-  additions: Schema.optional(NonNegativeInt),
-  deletions: Schema.optional(NonNegativeInt),
-  changedFiles: Schema.optional(NonNegativeInt),
-  reviewDecision: Schema.optional(Schema.NullOr(PullRequestReviewDecision)),
-  checksState: Schema.optional(Schema.NullOr(PullRequestChecksState)),
-  mergeability: Schema.optional(PullRequestMergeability),
-});
-export type ThreadPullRequestSnapshot = typeof ThreadPullRequestSnapshot.Type;
-
-export const ThreadPullRequestStackLayer = Schema.Struct({
-  number: PositiveInt,
-  headBranch: TrimmedNonEmptyString,
-  state: PullRequestState,
-});
-export type ThreadPullRequestStackLayer = typeof ThreadPullRequestStackLayer.Type;
-
-/** A host-native stack the pull request belongs to. Layers run bottom to top. */
-export const ThreadPullRequestStack = Schema.Struct({
-  kind: Schema.Literal("native"),
-  id: TrimmedNonEmptyString,
-  number: PositiveInt,
-  url: TrimmedNonEmptyString,
-  base: TrimmedNonEmptyString,
-  layers: Schema.Array(ThreadPullRequestStackLayer),
-});
-export type ThreadPullRequestStack = typeof ThreadPullRequestStack.Type;
-
-/** Identity of a pull request as a thread link sees it: host-level, so the
- * same PR linked from two projects (or two environments) compares equal. */
-export const ThreadPullRequestKey = Schema.Struct({
-  host: TrimmedNonEmptyString,
-  repository: TrimmedNonEmptyString,
-  number: PositiveInt,
-});
-export type ThreadPullRequestKey = typeof ThreadPullRequestKey.Type;
-
-export const ThreadPullRequestLink = Schema.Struct({
-  ...ThreadPullRequestKey.fields,
-  url: TrimmedNonEmptyString,
-  source: ThreadPullRequestLinkSource,
-  linkedAt: IsoDateTime,
-  snapshot: Schema.NullOr(ThreadPullRequestSnapshot),
-  stack: Schema.NullOr(ThreadPullRequestStack),
-});
-export type ThreadPullRequestLink = typeof ThreadPullRequestLink.Type;
+import { ThreadTitleRegeneration } from "./threadTitle.ts";
+import {
+  ThreadLinkedPullRequest,
+  ThreadPullRequestKey,
+  ThreadPullRequestLink,
+  ThreadPullRequestLinkSource,
+  ThreadPullRequestSnapshot,
+  ThreadPullRequestStack,
+  ThreadPullRequestStackLayer,
+} from "./threadPullRequest.ts";
 
 export const OrchestrationThread = Schema.Struct({
   id: ThreadId,
@@ -579,21 +282,7 @@ export const OrchestrationReadModel = Schema.Struct({
 });
 export type OrchestrationReadModel = typeof OrchestrationReadModel.Type;
 
-export const OrchestrationProjectShell = Schema.Struct({
-  id: ProjectId,
-  title: TrimmedNonEmptyString,
-  workspaceRoot: TrimmedNonEmptyString,
-  repositoryIdentity: Schema.optional(Schema.NullOr(RepositoryIdentity)),
-  defaultModelSelection: Schema.NullOr(ModelSelection),
-  defaultThreadEnvMode: Schema.optional(Schema.NullOr(ThreadEnvMode)),
-  autoPull: Schema.optional(Schema.Boolean),
-  faviconPath: Schema.optional(Schema.NullOr(ProjectFaviconPath)),
-  projectIcon: Schema.optional(Schema.NullOr(ProjectIconOverride)),
-  scripts: Schema.Array(ProjectScript),
-  createdAt: IsoDateTime,
-  updatedAt: IsoDateTime,
-});
-export type OrchestrationProjectShell = typeof OrchestrationProjectShell.Type;
+import { OrchestrationProjectShell } from "./orchestrationProject.ts";
 
 export const OrchestrationThreadShell = Schema.Struct({
   id: ThreadId,
@@ -1640,27 +1329,27 @@ export type OrchestrationThreadStreamItem = typeof OrchestrationThreadStreamItem
 export const OrchestrationCommandReceiptStatus = Schema.Literals(["accepted", "rejected"]);
 export type OrchestrationCommandReceiptStatus = typeof OrchestrationCommandReceiptStatus.Type;
 
-export const TurnCountRange = Schema.Struct({
-  fromTurnCount: NonNegativeInt,
-  toTurnCount: NonNegativeInt,
-}).check(
-  Schema.makeFilter(
-    (input) =>
-      input.fromTurnCount <= input.toTurnCount ||
-      new SchemaIssue.InvalidValue(Option.some(input.fromTurnCount), {
-        message: "fromTurnCount must be less than or equal to toTurnCount",
-      }),
-    { identifier: "OrchestrationTurnDiffRange" },
-  ),
-);
+import {
+  TurnCountRange,
+  ThreadTurnDiff,
+  OrchestrationGetTurnDiffInput,
+  OrchestrationGetTurnDiffResult,
+  OrchestrationGetFullThreadDiffInput,
+  OrchestrationGetFullThreadDiffResult,
+  OrchestrationGetTurnDiffError,
+  OrchestrationGetFullThreadDiffError,
+} from "./checkpointDiff.ts";
 
-export const ThreadTurnDiff = TurnCountRange.mapFields(
-  Struct.assign({
-    threadId: ThreadId,
-    diff: Schema.String,
-  }),
-  { unsafePreserveChecks: true },
-);
+export {
+  TurnCountRange,
+  ThreadTurnDiff,
+  OrchestrationGetTurnDiffInput,
+  OrchestrationGetTurnDiffResult,
+  OrchestrationGetFullThreadDiffInput,
+  OrchestrationGetFullThreadDiffResult,
+  OrchestrationGetTurnDiffError,
+  OrchestrationGetFullThreadDiffError,
+};
 
 export const ProviderSessionRuntimeStatus = Schema.Literals([
   "starting",
@@ -1701,27 +1390,7 @@ export const DispatchResult = Schema.Struct({
 });
 export type DispatchResult = typeof DispatchResult.Type;
 
-export const OrchestrationGetTurnDiffInput = TurnCountRange.mapFields(
-  Struct.assign({
-    threadId: ThreadId,
-    ignoreWhitespace: Schema.optionalKey(Schema.Boolean),
-  }),
-  { unsafePreserveChecks: true },
-);
-export type OrchestrationGetTurnDiffInput = typeof OrchestrationGetTurnDiffInput.Type;
 
-export const OrchestrationGetTurnDiffResult = ThreadTurnDiff;
-export type OrchestrationGetTurnDiffResult = typeof OrchestrationGetTurnDiffResult.Type;
-
-export const OrchestrationGetFullThreadDiffInput = Schema.Struct({
-  threadId: ThreadId,
-  toTurnCount: NonNegativeInt,
-  ignoreWhitespace: Schema.optionalKey(Schema.Boolean),
-});
-export type OrchestrationGetFullThreadDiffInput = typeof OrchestrationGetFullThreadDiffInput.Type;
-
-export const OrchestrationGetFullThreadDiffResult = ThreadTurnDiff;
-export type OrchestrationGetFullThreadDiffResult = typeof OrchestrationGetFullThreadDiffResult.Type;
 
 export const OrchestrationReplayEventsInput = Schema.Struct({
   fromSequenceExclusive: NonNegativeInt,
@@ -1770,30 +1439,7 @@ export class OrchestrationGetSnapshotError extends Schema.TaggedErrorClass<Orche
   },
 ) {}
 
-export class OrchestrationDispatchCommandError extends Schema.TaggedErrorClass<OrchestrationDispatchCommandError>()(
-  "OrchestrationDispatchCommandError",
-  {
-    message: TrimmedNonEmptyString,
-    cause: Schema.optional(Schema.Defect()),
-    bootstrapThreadDisposition: Schema.optional(Schema.Literal("deleted")),
-  },
-) {}
-
-export class OrchestrationGetTurnDiffError extends Schema.TaggedErrorClass<OrchestrationGetTurnDiffError>()(
-  "OrchestrationGetTurnDiffError",
-  {
-    message: TrimmedNonEmptyString,
-    cause: Schema.optional(Schema.Defect()),
-  },
-) {}
-
-export class OrchestrationGetFullThreadDiffError extends Schema.TaggedErrorClass<OrchestrationGetFullThreadDiffError>()(
-  "OrchestrationGetFullThreadDiffError",
-  {
-    message: TrimmedNonEmptyString,
-    cause: Schema.optional(Schema.Defect()),
-  },
-) {}
+export { OrchestrationDispatchCommandError } from "./orchestrationDispatch.ts";
 
 export class OrchestrationReplayEventsError extends Schema.TaggedErrorClass<OrchestrationReplayEventsError>()(
   "OrchestrationReplayEventsError",
