@@ -1,5 +1,5 @@
 import { EditorId, type ResolvedKeybindingsConfig } from "@tabs/contracts";
-import { memo, useCallback, useEffect, useMemo } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import { isOpenFavoriteEditorShortcut, shortcutLabelForCommand } from "../../keybindings";
 import { usePreferredEditor } from "../../editorPreferences";
 import { ChevronDownIcon, FolderClosedIcon } from "lucide-react";
@@ -86,6 +86,7 @@ export const OpenInPicker = memo(function OpenInPicker({
   openInCwd: string | null;
   showEditorName?: boolean;
 }) {
+  const anchorRef = useRef<HTMLDivElement | null>(null);
   const [preferredEditor, setPreferredEditor] = usePreferredEditor(availableEditors);
   const options = useMemo(
     () => resolveOptions(navigator.platform, availableEditors),
@@ -126,9 +127,10 @@ export const OpenInPicker = memo(function OpenInPicker({
 
   return (
     <div
+      ref={anchorRef}
       role="group"
       aria-label="Editor actions"
-      className="inline-flex h-7 items-center rounded-lg border border-border/80 bg-background hover:bg-accent/40 hover:border-border transition-colors shadow-2xs shrink-0 text-foreground"
+      className="flex h-9 w-full items-center rounded-xl border border-border/80 bg-muted/20 hover:bg-accent/30 hover:border-border transition-colors shadow-2xs text-foreground"
     >
       <Tooltip>
         <TooltipTrigger
@@ -138,15 +140,15 @@ export const OpenInPicker = memo(function OpenInPicker({
               disabled={!preferredEditor || !openInCwd}
               onClick={() => openInEditor(preferredEditor)}
               aria-label={primaryOption ? `Open in ${primaryOption.label}` : "Open in editor"}
-              className="flex h-full items-center justify-center gap-1.5 rounded-l-[7px] px-2 text-xs font-medium text-foreground hover:bg-accent/60 transition-colors disabled:opacity-40 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              className="flex h-full flex-1 items-center justify-start gap-2 rounded-l-[10px] px-2.5 text-xs font-medium text-foreground hover:bg-accent/50 transition-colors disabled:opacity-40 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring min-w-0"
             />
           }
         >
           {primaryOption?.Icon && (
             <primaryOption.Icon aria-hidden="true" className="size-3.5 shrink-0" />
           )}
-          <span className="text-xs font-medium">
-            {showEditorName && primaryOption ? `Open in ${primaryOption.label}` : "Open"}
+          <span className="truncate text-xs font-medium">
+            {showEditorName && primaryOption ? `Open in ${primaryOption.label}` : "Open in editor"}
           </span>
         </TooltipTrigger>
         <TooltipPopup side="bottom">
@@ -157,14 +159,14 @@ export const OpenInPicker = memo(function OpenInPicker({
             : "Open in editor"}
         </TooltipPopup>
       </Tooltip>
-      <div className="h-3.5 w-px bg-border/80 shrink-0" aria-hidden="true" />
+      <div className="h-4 w-px bg-border/80 shrink-0" aria-hidden="true" />
       <Menu>
         <MenuTrigger
           render={
             <button
               type="button"
               aria-label="Choose editor"
-              className="flex h-full w-5 items-center justify-center rounded-r-[7px] text-muted-foreground hover:bg-accent/60 hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring data-[popup-open]:bg-accent/60 data-[popup-open]:text-foreground"
+              className="flex h-full w-8 shrink-0 items-center justify-center rounded-r-[10px] text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring data-[popup-open]:bg-accent/50 data-[popup-open]:text-foreground"
             />
           }
         >
@@ -173,7 +175,7 @@ export const OpenInPicker = memo(function OpenInPicker({
             className="size-3 transition-transform duration-150"
           />
         </MenuTrigger>
-        <MenuPopup align="end" className="w-52">
+        <MenuPopup anchor={anchorRef} align="start" className="w-(--anchor-width)">
           {options.length === 0 && <MenuItem disabled>No installed editors found</MenuItem>}
           {options.map(({ label, Icon, value }) => (
             <MenuItem key={value} onClick={() => openInEditor(value)} className="gap-2">

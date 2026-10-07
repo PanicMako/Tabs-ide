@@ -232,10 +232,7 @@ export const ChatHeader = memo(function ChatHeader({
           aria-label="Workspace actions"
           className="workspace-card my-3 ml-auto w-64 max-w-full rounded-[22px] border border-border/70 bg-background p-4 text-foreground [-webkit-app-region:no-drag]"
         >
-          <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-muted-foreground">
-            Workspace
-          </p>
-          <div className="mt-3 flex items-center gap-3">
+          <div className="flex items-center gap-3">
             <span className="flex size-9 items-center justify-center rounded-xl border border-border/60 bg-muted/50">
               <FolderIcon aria-hidden="true" className="size-4" />
             </span>
