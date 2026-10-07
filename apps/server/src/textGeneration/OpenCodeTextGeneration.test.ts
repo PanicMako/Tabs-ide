@@ -56,6 +56,7 @@ const OpenCodeRuntimeTestDouble: OpenCodeRuntimeShape = {
       );
       return {
         url,
+        version: "1.0.0",
         isRunning: Effect.succeed(true),
         exitCode: Effect.never,
       };
@@ -63,6 +64,7 @@ const OpenCodeRuntimeTestDouble: OpenCodeRuntimeShape = {
   connectToOpenCodeServer: ({ serverUrl }) =>
     Effect.succeed({
       url: serverUrl ?? "http://127.0.0.1:4301",
+      version: "1.0.0",
       exitCode: null,
       external: Boolean(serverUrl),
     }),
@@ -103,6 +105,8 @@ const OpenCodeRuntimeTestDouble: OpenCodeRuntimeShape = {
         cause: null,
       }),
     ),
+  loadInventoryFromCli: () => Effect.succeed({ models: [], slashCommands: [] } as any),
+  loadSkillsFromCli: () => Effect.succeed([]),
 };
 
 const DEFAULT_TEST_MODEL_SELECTION = {

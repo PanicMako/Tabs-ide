@@ -156,7 +156,7 @@ export function currentDroidModelIdFromSessionSetup(
     | EffectAcpSchema.NewSessionResponse
     | EffectAcpSchema.ResumeSessionResponse,
 ): string | undefined {
-  return sessionSetupResult.models?.currentModelId?.trim() || undefined;
+  return (sessionSetupResult as any).models?.currentModelId?.trim() || undefined;
 }
 
 function flattenDroidConfigOptions(
@@ -166,18 +166,19 @@ function flattenDroidConfigOptions(
 }
 
 function findDroidSelectConfig(
-  options: ReadonlyArray<EffectAcpSchema.SessionConfigOption>,
+  options: ReadonlyArray<any>,
   input: { readonly id: string; readonly category: string },
-): Extract<EffectAcpSchema.SessionConfigOption, { readonly type: "select" }> | undefined {
+): any {
   return options.find(
-    (option): option is Extract<EffectAcpSchema.SessionConfigOption, { readonly type: "select" }> =>
-      option.type === "select" && (option.id === input.id || option.category === input.category),
+    (option: any) =>
+      option.type === "select" &&
+      ((option.configId ?? option.id) === input.id || option.category === input.category),
   );
 }
 
 function droidModelDescriptor(
   model: EffectAcpSchema.SessionConfigSelectOption,
-  reasoning: Extract<EffectAcpSchema.SessionConfigOption, { readonly type: "select" }> | undefined,
+  reasoning: any,
 ) {
   const efforts = reasoning ? flattenDroidConfigOptions(reasoning.options) : [];
   return {
@@ -190,7 +191,7 @@ function droidModelDescriptor(
               id: "reasoningEffort",
               label: reasoning.name,
               type: "select" as const,
-              options: efforts.map((effort) => ({ id: effort.value, label: effort.name })),
+              options: efforts.map((effort: any) => ({ id: effort.value, label: effort.name })),
               ...(reasoning.currentValue ? { currentValue: reasoning.currentValue } : {}),
             },
           ],
@@ -215,6 +216,7 @@ export function discoverDroidAcpModels(
         errorMessage: "Droid ACP did not advertise a model configuration option.",
       });
     }
+    const configId = (modelConfig as any).configId ?? (modelConfig as any).id;
     const originalModel = modelConfig.currentValue;
     const originalReasoning = findDroidSelectConfig(initialOptions, {
       id: DROID_REASONING_EFFORT_CONFIG_ID,
@@ -224,7 +226,7 @@ export function discoverDroidAcpModels(
     const descriptors = yield* Effect.forEach(
       models,
       (model) =>
-        runtime.setConfigOption(modelConfig.id, model.value).pipe(
+        runtime.setConfigOption(configId, model.value).pipe(
           Effect.andThen(runtime.getConfigOptions),
           Effect.map((updatedOptions) =>
             droidModelDescriptor(
@@ -240,7 +242,7 @@ export function discoverDroidAcpModels(
       { concurrency: 1 },
     );
     if (originalModel) {
-      yield* runtime.setConfigOption(modelConfig.id, originalModel).pipe(Effect.ignore);
+      yield* runtime.setConfigOption(configId, originalModel).pipe(Effect.ignore);
       if (originalReasoning) {
         yield* runtime
           .setConfigOption(DROID_REASONING_EFFORT_CONFIG_ID, originalReasoning)

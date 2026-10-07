@@ -50,7 +50,7 @@ import {
   makeAcpRequestResolvedEvent,
   makeAcpToolCallEvent,
 } from "../acp/AcpCoreRuntimeEvents";
-import { parsePermissionRequest } from "../acp/AcpRuntimeModel";
+import { parsePermissionRequest, type AcpPlanUpdate } from "../acp/AcpRuntimeModel";
 import { makeAcpNativeLoggerFactory } from "../acp/AcpNativeLogging";
 import {
   antigravityApprovalOptions,
@@ -284,13 +284,7 @@ export function makeAntigravityAdapter(
 
     const emitPlanUpdate = (
       ctx: AntigravitySessionContext,
-      payload: {
-        readonly explanation?: string | null;
-        readonly plan: ReadonlyArray<{
-          readonly step: string;
-          readonly status: "pending" | "inProgress" | "completed";
-        }>;
-      },
+      payload: AcpPlanUpdate,
       rawPayload: unknown,
       method: string,
     ) =>
@@ -394,12 +388,6 @@ export function makeAntigravityAdapter(
             childProcessSpawner,
             cwd,
             clientFileSystem: true,
-            profileDirectory: path.join(
-              serverConfig.baseDir,
-              "providers",
-              "antigravity",
-              boundInstanceId,
-            ),
             ...(resumeSessionId ? { resumeSessionId } : {}),
             clientInfo: { name: "tabs-ide", version: "0.0.0" },
             ...acpNativeLoggers,
@@ -507,7 +495,7 @@ export function makeAntigravityAdapter(
                       turnId: sessions.get(input.threadId)?.activeTurnId,
                       requestId: runtimeRequestId,
                       permissionRequest,
-                      options: approvalOptions,
+                      approvalOptions,
                       detail:
                         permissionRequest.detail ??
                         encodeJsonStringForDiagnostics(params)?.slice(0, 2000) ??
@@ -1018,12 +1006,6 @@ export function makeAntigravityAdapter(
             ...(options?.environment ? { environment: options.environment } : {}),
             childProcessSpawner,
             cwd,
-            profileDirectory: path.join(
-              serverConfig.baseDir,
-              "providers",
-              "antigravity",
-              boundInstanceId,
-            ),
             clientInfo: { name: "tabs-model-discovery", version: "0.0.0" },
           }).pipe(
             Effect.provideService(FileSystem.FileSystem, fileSystem),

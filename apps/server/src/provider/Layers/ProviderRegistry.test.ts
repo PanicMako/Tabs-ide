@@ -44,7 +44,8 @@ import {
   selectProvidersByKind,
 } from "./ProviderRegistry";
 import { ServerConfig } from "../../config";
-import { ServerSettingsService, type ServerSettingsShape } from "../../serverSettings";
+import { applyProviderInstanceMutation, ServerSettingsService } from "../../serverSettings";
+import * as OpenCodeServerLedger from "../OpenCodeServerLedger.ts";
 import { readProviderStatusCache, resolveProviderStatusCachePath } from "../providerStatusCache";
 import type { ProviderInstance } from "../ProviderDriver";
 import { ProviderInstanceRegistry } from "../Services/ProviderInstanceRegistry";
@@ -285,7 +286,7 @@ function makeMutableServerSettingsService(
       start: Effect.void,
       ready: Effect.void,
       getSettings: Ref.get(settingsRef),
-      updateSettings: (patch) =>
+      updateSettings: (patch: any) =>
         Effect.gen(function* () {
           const current = yield* Ref.get(settingsRef);
           const next = applyServerSettingsPatch(current, patch);
@@ -294,10 +295,30 @@ function makeMutableServerSettingsService(
           yield* PubSub.publish(changes, next);
           return next;
         }),
+      updateProviderInstance: (mutation: any, patch: any = {}) =>
+        Effect.gen(function* () {
+          const current = yield* Ref.get(settingsRef);
+          const next = applyProviderInstanceMutation(
+            applyServerSettingsPatch(current, patch),
+            mutation,
+          );
+          encodeServerSettings(next);
+          yield* Ref.set(settingsRef, next);
+          yield* PubSub.publish(changes, next);
+          return next;
+        }),
+      withSettingsSnapshot: <A, E, R>(
+        use: (settings: ContractServerSettings) => Effect.Effect<A, E, R>,
+      ): Effect.Effect<A, E, R> => Ref.get(settingsRef).pipe(Effect.flatMap(use)),
       get streamChanges() {
         return Stream.fromPubSub(changes);
       },
-    } satisfies ServerSettingsShape;
+      get subscribeChanges() {
+        return PubSub.subscribe(changes).pipe(
+          Effect.map((subscription) => Stream.fromSubscription(subscription)),
+        );
+      },
+    } satisfies ServerSettingsService["Service"];
   });
 }
 
@@ -1102,7 +1123,9 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsService.layerTest(), T
             ),
             Layer.provideMerge(TestHttpClientLive),
             Layer.provideMerge(Layer.succeed(ProviderEventLoggers, NoOpProviderEventLoggers)),
-            Layer.provideMerge(OpenCodeRuntimeLive),
+            Layer.provideMerge(
+              OpenCodeRuntimeLive.pipe(Layer.provide(OpenCodeServerLedger.layerTest)),
+            ),
             // `it.live` does not inherit layers from the outer `it.layer`
             // wrapper, so provide `NodeServices.layer` inline for the real
             // `ChildProcessSpawner` + `FileSystem` + `Path` services.
@@ -1147,8 +1170,8 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsService.layerTest(), T
               codexPersonal?.message,
               "Codex CLI (`codex`) is not installed or not on PATH.",
             );
-          }).pipe(Effect.provide(runtimeServices));
-        }),
+          }).pipe(Effect.provide(runtimeServices)) as any;
+        }) as any,
       );
 
       // Guards the second half of the reported bug: changing
@@ -1194,7 +1217,9 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsService.layerTest(), T
             ),
             Layer.provideMerge(TestHttpClientLive),
             Layer.provideMerge(Layer.succeed(ProviderEventLoggers, NoOpProviderEventLoggers)),
-            Layer.provideMerge(OpenCodeRuntimeLive),
+            Layer.provideMerge(
+              OpenCodeRuntimeLive.pipe(Layer.provide(OpenCodeServerLedger.layerTest)),
+            ),
             // `it.live` does not inherit layers from the outer `it.layer`
             // wrapper, so provide `NodeServices.layer` inline. This is the
             // same real `ChildProcessSpawner` + `FileSystem` + `Path`
@@ -1263,8 +1288,8 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsService.layerTest(), T
             );
             assert.strictEqual(reprobedCodex?.status, "error");
             assert.strictEqual(reprobedCodex?.installed, false);
-          }).pipe(Effect.provide(runtimeServices));
-        }),
+          }).pipe(Effect.provide(runtimeServices)) as any;
+        }) as any,
       );
 
       it.effect("includes unavailable instance snapshots in getProviders", () =>
@@ -1303,7 +1328,9 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsService.layerTest(), T
             ),
             Layer.provideMerge(TestHttpClientLive),
             Layer.provideMerge(Layer.succeed(ProviderEventLoggers, NoOpProviderEventLoggers)),
-            Layer.provideMerge(OpenCodeRuntimeLive),
+            Layer.provideMerge(
+              OpenCodeRuntimeLive.pipe(Layer.provide(OpenCodeServerLedger.layerTest)),
+            ),
             Layer.provideMerge(NodeServices.layer),
           );
           const runtimeServices = yield* Layer.build(providerRegistryLayer).pipe(
@@ -1368,7 +1395,9 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsService.layerTest(), T
               ),
               Layer.provideMerge(TestHttpClientLive),
               Layer.provideMerge(Layer.succeed(ProviderEventLoggers, NoOpProviderEventLoggers)),
-              Layer.provideMerge(OpenCodeRuntimeLive),
+              Layer.provideMerge(
+                OpenCodeRuntimeLive.pipe(Layer.provide(OpenCodeServerLedger.layerTest)),
+              ),
               Layer.provideMerge(
                 mockCommandSpawnerLayer((command, args) => {
                   if (command === "agent") {

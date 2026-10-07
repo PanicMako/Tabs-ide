@@ -70,7 +70,7 @@ const withInstanceIdentity =
     continuation: { groupKey: input.continuationGroupKey },
   });
 
-export const CopilotDriver: ProviderDriver<CopilotSettings, CopilotDriverEnv> = {
+export const CopilotDriver: ProviderDriver<CopilotSettings, any> = {
   driverKind: DRIVER_KIND,
   metadata: {
     displayName: "GitHub Copilot",

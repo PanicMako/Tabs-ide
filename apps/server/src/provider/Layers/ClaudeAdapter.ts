@@ -841,7 +841,7 @@ function resolveSelectedClaudeThinkingToggle(
   if (typeof selectedThinking !== "boolean") {
     return undefined;
   }
-  return getModelCapabilities("claudeAgent", model).supportsThinkingToggle
+  return getModelCapabilities("claudeAgent", model)?.supportsThinkingToggle
     ? selectedThinking
     : undefined;
 }
@@ -1171,7 +1171,7 @@ function buildPromptText(input: ProviderSendTurnInput): string {
   const claudeModel = input.modelSelection?.model;
   const caps = getModelCapabilities("claudeAgent", claudeModel);
   const promptEffort =
-    requestedEffort === "ultrathink" && caps.promptInjectedEffortLevels.includes("ultrathink")
+    requestedEffort === "ultrathink" && Boolean(caps.promptInjectedEffortLevels?.includes("ultrathink"))
       ? "ultrathink"
       : requestedEffort && hasEffortLevel(caps, requestedEffort)
         ? requestedEffort
@@ -1422,6 +1422,8 @@ function claudeAssistantErrorMessage(error: SDKAssistantMessageError): string {
     case "max_output_tokens":
       return "Claude reached the maximum output length before completing the turn.";
     case "unknown":
+      return "Claude failed to complete the turn.";
+    default:
       return "Claude failed to complete the turn.";
   }
 }
@@ -2533,8 +2535,8 @@ export function makeClaudeAdapter(
           payload: {
             plan: tasksPayload.tasks.map((item) => ({
               step: item.task,
-              status: item.status,
-            })),
+              status: item.status as any,
+            })) as any,
           },
           providerRefs: nativeProviderRefs(context, {
             providerItemId: input.toolUseId,
@@ -5440,7 +5442,7 @@ export function makeClaudeAdapter(
             currentAlwaysThinkingEnabled: thinking,
             currentEffort: effectiveEffort,
             currentUltracode: ultracode,
-            currentFastMode: fastMode,
+            currentFastMode: Boolean(fastMode),
             lastKnownAutoCompactThreshold: requestedAutoCompactWindowTokens,
             contextUsageControlEnabled: true,
             lastKnownTokenUsage: undefined,
@@ -5755,7 +5757,7 @@ export function makeClaudeAdapter(
               context.currentEffort = requestedEffort;
             }
             context.currentUltracode = requestedUltracode;
-            context.currentFastMode = requestedFastMode;
+            context.currentFastMode = Boolean(requestedFastMode);
           }
         }
 

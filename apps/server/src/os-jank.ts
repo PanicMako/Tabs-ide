@@ -34,3 +34,17 @@ export const resolveBaseDir = Effect.fn(function* (raw: string | undefined) {
   }
   return resolve(yield* expandHomePath(raw.trim()));
 });
+
+export function hydratePosixHome(
+  env: NodeJS.ProcessEnv,
+  homedirResolver: () => string = () => OS.userInfo().homedir,
+): void {
+  if (typeof env.HOME === "string" && env.HOME.trim().length > 0) {
+    return;
+  }
+  try {
+    env.HOME = homedirResolver();
+  } catch {
+    // ignore
+  }
+}

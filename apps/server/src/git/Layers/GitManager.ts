@@ -960,7 +960,7 @@ export const makeGitManager = Effect.gen(function* () {
     /** When true, also produce a semantic feature branch name. */
     includeBranch?: boolean;
     filePaths?: readonly string[];
-    modelSelection: ModelSelection;
+    modelSelection: ModelSelection | null;
   }) =>
     Effect.gen(function* () {
       const context = yield* gitCore.prepareCommitContext(input.cwd, input.filePaths);
@@ -978,6 +978,10 @@ export const makeGitManager = Effect.gen(function* () {
             : {}),
           commitMessage: formatCommitMessage(customCommit.subject, customCommit.body),
         };
+      }
+
+      if (!input.modelSelection) {
+        return null;
       }
 
       const generated = yield* textGeneration
@@ -1000,7 +1004,7 @@ export const makeGitManager = Effect.gen(function* () {
     });
 
   const runCommitStep = (
-    modelSelection: ModelSelection,
+    modelSelection: ModelSelection | null,
     cwd: string,
     action: "commit" | "commit_push" | "commit_push_pr",
     branch: string | null,
@@ -1113,7 +1117,11 @@ export const makeGitManager = Effect.gen(function* () {
       };
     });
 
-  const runPrStep = (modelSelection: ModelSelection, cwd: string, fallbackBranch: string | null) =>
+  const runPrStep = (
+    modelSelection: ModelSelection | null,
+    cwd: string,
+    fallbackBranch: string | null,
+  ) =>
     Effect.gen(function* () {
       const details = yield* gitCore.statusDetails(cwd);
       const branch = details.branch ?? fallbackBranch;
@@ -1149,6 +1157,13 @@ export const makeGitManager = Effect.gen(function* () {
 
       const baseBranch = yield* resolveBaseBranch(cwd, branch, details.upstreamRef, headContext);
       const rangeContext = yield* gitCore.readRangeContext(cwd, baseBranch);
+
+      if (!modelSelection) {
+        return yield* gitManagerError(
+          "runPrStep",
+          "A text generation model must be configured in settings to generate pull request content.",
+        );
+      }
 
       const generated = yield* textGeneration.generatePrContent({
         cwd,
@@ -1727,6 +1742,7 @@ export const makeGitManager = Effect.gen(function* () {
           pullRequest,
           branch: details.branch ?? pullRequest.headBranch,
           worktreePath: null,
+          isOnPullRequestHead: true,
         };
       }
 
@@ -1780,6 +1796,7 @@ export const makeGitManager = Effect.gen(function* () {
           pullRequest,
           branch: localPullRequestBranch,
           worktreePath: existingBranchBeforeFetch.worktreePath,
+          isOnPullRequestHead: true,
         };
       }
       if (existingBranchBeforeFetchPath === rootWorktreePath) {
@@ -1808,6 +1825,7 @@ export const makeGitManager = Effect.gen(function* () {
           pullRequest,
           branch: localPullRequestBranch,
           worktreePath: existingBranchAfterFetch.worktreePath,
+          isOnPullRequestHead: true,
         };
       }
       if (existingBranchAfterFetchPath === rootWorktreePath) {
@@ -1846,12 +1864,13 @@ export const makeGitManager = Effect.gen(function* () {
         pullRequest,
         branch: worktree.worktree.branch,
         worktreePath: worktree.worktree.path,
+        isOnPullRequestHead: true,
       };
     },
   );
 
   const runFeatureBranchStep = (
-    modelSelection: ModelSelection,
+    modelSelection: ModelSelection | null,
     cwd: string,
     branch: string | null,
     commitMessage?: string,

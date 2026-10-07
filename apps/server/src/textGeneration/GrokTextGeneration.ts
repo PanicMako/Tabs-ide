@@ -1,3 +1,4 @@
+import * as Crypto from "effect/Crypto";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Ref from "effect/Ref";
@@ -5,97 +6,37 @@ import * as Schema from "effect/Schema";
 import { ChildProcessSpawner } from "effect/unstable/process";
 import type * as EffectAcpErrors from "effect-acp/errors";
 
-import { type GrokSettings, type ModelSelection } from "@tabs/contracts";
-import { sanitizeBranchFragment, sanitizeFeatureBranchName } from "@tabs/shared/git";
-import { extractJsonObject, fromLenientJson } from "@tabs/shared/schemaJson";
+import { type GrokSettings, TextGenerationError } from "@tabs/contracts";
+import { getModelSelectionStringOptionValue } from "@tabs/shared/model";
 
-import { TextGenerationError } from "@tabs/contracts";
-import { type ThreadTitleGenerationResult, type TextGenerationShape } from "./TextGeneration";
+import * as TextGenerationOperations from "./TextGenerationOperations.ts";
+import { type TextGenerationShape } from "./TextGeneration.ts";
 import {
-  buildBranchNamePrompt,
-  buildCommitMessagePrompt,
   buildDiffSummaryPrompt,
-  buildPrContentPrompt,
-  buildThreadTitlePrompt,
   buildStructuredTestingPrompt,
-} from "./TextGenerationPrompts";
-import {
-  buildSchemaConstrainedPrompt,
-  logStructuredGenerationRequest,
-  sanitizeCommitSubject,
-  sanitizePrTitle,
-  sanitizeThreadTitle,
-} from "./TextGenerationUtils";
+} from "./TextGenerationPrompts.ts";
 import {
   applyGrokAcpModelSelection,
   currentGrokModelIdFromSessionSetup,
+  currentGrokReasoningEffortFromSessionSetup,
   makeGrokAcpRuntime,
   resolveGrokAcpBaseModelId,
-} from "../provider/acp/GrokAcpSupport";
+} from "../provider/acp/GrokAcpSupport.ts";
 
 const GROK_TIMEOUT_MS = 180_000;
 
-function mapGrokAcpError(
-  operation:
-    | "generateCommitMessage"
-    | "generatePrContent"
-    | "generateBranchName"
-    | "generateThreadTitle"
-    | "generateDiffSummary"
-    | "generateStructuredTesting",
-  detail: string,
-  cause: unknown,
-): TextGenerationError {
-  return new TextGenerationError({
-    operation,
-    detail,
-    ...(cause !== undefined ? { cause } : {}),
-  });
-}
-
-function isTextGenerationError(error: unknown): error is TextGenerationError {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "_tag" in error &&
-    error._tag === "TextGenerationError"
-  );
-}
+const isTextGenerationError = Schema.is(TextGenerationError);
 
 export const makeGrokTextGeneration = Effect.fn("makeGrokTextGeneration")(function* (
   grokSettings: GrokSettings,
   environment: NodeJS.ProcessEnv = process.env,
 ) {
+  const crypto = yield* Crypto.Crypto;
   const commandSpawner = yield* ChildProcessSpawner.ChildProcessSpawner;
 
-  const runGrokJson = <S extends Schema.Top>({
-    operation,
-    cwd,
-    prompt,
-    outputSchemaJson,
-    modelSelection,
-  }: {
-    operation:
-      | "generateCommitMessage"
-      | "generatePrContent"
-      | "generateBranchName"
-      | "generateThreadTitle"
-      | "generateDiffSummary"
-      | "generateStructuredTesting";
-    cwd: string;
-    prompt: string;
-    outputSchemaJson: S;
-    modelSelection: ModelSelection;
-  }): Effect.Effect<S["Type"], TextGenerationError, S["DecodingServices"]> =>
-    Effect.gen(function* () {
-      const structuredPrompt = buildSchemaConstrainedPrompt(prompt, outputSchemaJson);
-      yield* logStructuredGenerationRequest({
-        operation,
-        provider: "grok",
-        model: modelSelection.model,
-        schemaMode: "prompt-fallback-with-example",
-      });
-      const resolvedModel = resolveGrokAcpBaseModelId(modelSelection.model);
+  const runGrokJson: TextGenerationOperations.Runner = (request) => {
+    const { operation, cwd, prompt, modelSelection } = request;
+    return Effect.gen(function* () {
       const outputRef = yield* Ref.make("");
       const runtime = yield* makeGrokAcpRuntime({
         grokSettings,
@@ -103,7 +44,7 @@ export const makeGrokTextGeneration = Effect.fn("makeGrokTextGeneration")(functi
         childProcessSpawner: commandSpawner,
         cwd,
         clientInfo: { name: "t3-code-git-text", version: "0.0.0" },
-      });
+      }).pipe(Effect.provideService(Crypto.Crypto, crypto));
 
       yield* runtime.handleSessionUpdate((notification) => {
         const update = notification.update;
@@ -118,21 +59,29 @@ export const makeGrokTextGeneration = Effect.fn("makeGrokTextGeneration")(functi
       });
 
       const promptResult = yield* Effect.gen(function* () {
+        const resolvedModel = resolveGrokAcpBaseModelId(modelSelection.model);
         const started = yield* runtime.start();
+        const requestedReasoningEffort = getModelSelectionStringOptionValue(
+          modelSelection,
+          "reasoningEffort",
+        );
         yield* applyGrokAcpModelSelection({
           runtime,
           currentModelId: currentGrokModelIdFromSessionSetup(started.sessionSetupResult),
+          currentReasoningEffort: currentGrokReasoningEffortFromSessionSetup(
+            started.sessionSetupResult,
+          ),
           requestedModelId: resolvedModel,
+          requestedReasoningEffort,
           mapError: (cause) =>
-            mapGrokAcpError(
+            new TextGenerationError({
               operation,
-              "Failed to set Grok ACP base model for text generation.",
+              detail: "Failed to set Grok ACP base model for text generation.",
               cause,
-            ),
+            }),
         });
-
         return yield* runtime.prompt({
-          prompt: [{ type: "text", text: structuredPrompt }],
+          prompt: [{ type: "text", text: prompt }],
         });
       }).pipe(
         Effect.timeoutOption(GROK_TIMEOUT_MS),
@@ -148,7 +97,11 @@ export const makeGrokTextGeneration = Effect.fn("makeGrokTextGeneration")(functi
         Effect.mapError((cause: EffectAcpErrors.AcpError | TextGenerationError) =>
           isTextGenerationError(cause)
             ? cause
-            : mapGrokAcpError(operation, "Grok ACP request failed.", cause),
+            : new TextGenerationError({
+                operation,
+                detail: "Grok ACP request failed.",
+                cause,
+              }),
         ),
       );
 
@@ -163,120 +116,22 @@ export const makeGrokTextGeneration = Effect.fn("makeGrokTextGeneration")(functi
         });
       }
 
-      const decodeOutput = Schema.decodeEffect(fromLenientJson(outputSchemaJson));
-      return yield* decodeOutput(extractJsonObject(trimmed)).pipe(
-        Effect.catchTag("SchemaError", (cause) =>
-          Effect.fail(
-            new TextGenerationError({
-              operation,
-              detail: "Grok Agent returned invalid structured output.",
-              cause,
-            }),
-          ),
-        ),
-      );
+      return yield* TextGenerationOperations.decodeJsonReply(request, "Grok Agent", trimmed);
     }).pipe(
       Effect.mapError((cause) =>
         isTextGenerationError(cause)
           ? cause
-          : mapGrokAcpError(operation, "Grok ACP text generation failed.", cause),
+          : new TextGenerationError({
+              operation,
+              detail: "Grok ACP text generation failed.",
+              cause,
+            }),
       ),
       Effect.scoped,
     );
+  };
 
-  const generateCommitMessage: TextGenerationShape["generateCommitMessage"] = Effect.fn(
-    "GrokTextGeneration.generateCommitMessage",
-  )(function* (input) {
-    const { prompt, outputSchema } = buildCommitMessagePrompt({
-      branch: input.branch,
-      stagedSummary: input.stagedSummary,
-      stagedPatch: input.stagedPatch,
-      includeBranch: input.includeBranch === true,
-    });
-
-    const generated = yield* runGrokJson({
-      operation: "generateCommitMessage",
-      cwd: input.cwd,
-      prompt,
-      outputSchemaJson: outputSchema,
-      modelSelection: input.modelSelection,
-    });
-
-    return {
-      subject: sanitizeCommitSubject(generated.subject),
-      body: generated.body.trim(),
-      ...("branch" in generated && typeof generated.branch === "string"
-        ? { branch: sanitizeFeatureBranchName(generated.branch) }
-        : {}),
-    };
-  });
-
-  const generatePrContent: TextGenerationShape["generatePrContent"] = Effect.fn(
-    "GrokTextGeneration.generatePrContent",
-  )(function* (input) {
-    const { prompt, outputSchema } = buildPrContentPrompt({
-      baseBranch: input.baseBranch,
-      headBranch: input.headBranch,
-      commitSummary: input.commitSummary,
-      diffSummary: input.diffSummary,
-      diffPatch: input.diffPatch,
-    });
-
-    const generated = yield* runGrokJson({
-      operation: "generatePrContent",
-      cwd: input.cwd,
-      prompt,
-      outputSchemaJson: outputSchema,
-      modelSelection: input.modelSelection,
-    });
-
-    return {
-      title: sanitizePrTitle(generated.title),
-      body: generated.body.trim(),
-    };
-  });
-
-  const generateBranchName: TextGenerationShape["generateBranchName"] = Effect.fn(
-    "GrokTextGeneration.generateBranchName",
-  )(function* (input) {
-    const { prompt, outputSchema } = buildBranchNamePrompt({
-      message: input.message,
-      attachments: input.attachments,
-    });
-
-    const generated = yield* runGrokJson({
-      operation: "generateBranchName",
-      cwd: input.cwd,
-      prompt,
-      outputSchemaJson: outputSchema,
-      modelSelection: input.modelSelection,
-    });
-
-    return {
-      branch: sanitizeBranchFragment(generated.branch),
-    };
-  });
-
-  const generateThreadTitle: TextGenerationShape["generateThreadTitle"] = Effect.fn(
-    "GrokTextGeneration.generateThreadTitle",
-  )(function* (input) {
-    const { prompt, outputSchema } = buildThreadTitlePrompt({
-      message: input.message,
-      attachments: input.attachments,
-    });
-
-    const generated = yield* runGrokJson({
-      operation: "generateThreadTitle",
-      cwd: input.cwd,
-      prompt,
-      outputSchemaJson: outputSchema,
-      modelSelection: input.modelSelection,
-    });
-
-    return {
-      title: sanitizeThreadTitle(generated.title),
-    } satisfies ThreadTitleGenerationResult;
-  });
+  const base = TextGenerationOperations.fromRunner("GrokTextGeneration", runGrokJson);
 
   const generateDiffSummary: TextGenerationShape["generateDiffSummary"] = Effect.fn(
     "GrokTextGeneration.generateDiffSummary",
@@ -295,7 +150,7 @@ export const makeGrokTextGeneration = Effect.fn("makeGrokTextGeneration")(functi
       operation: "generateDiffSummary",
       cwd: input.cwd,
       prompt,
-      outputSchemaJson: outputSchema,
+      outputSchema,
       modelSelection: input.modelSelection,
     });
 
@@ -314,16 +169,13 @@ export const makeGrokTextGeneration = Effect.fn("makeGrokTextGeneration")(functi
       operation: "generateStructuredTesting",
       cwd: input.cwd,
       prompt: buildStructuredTestingPrompt(input),
-      outputSchemaJson: input.outputSchema,
+      outputSchema: input.outputSchema,
       modelSelection: input.modelSelection,
     });
   });
 
   return {
-    generateCommitMessage,
-    generatePrContent,
-    generateBranchName,
-    generateThreadTitle,
+    ...base,
     generateDiffSummary,
     generateStructuredTesting,
   } satisfies TextGenerationShape;

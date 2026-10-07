@@ -82,7 +82,7 @@ const withInstanceIdentity =
     continuation: { groupKey: input.continuationGroupKey },
   });
 
-export const DroidDriver: ProviderDriver<DroidSettings, DroidDriverEnv> = {
+export const DroidDriver: ProviderDriver<DroidSettings, any> = {
   driverKind: DRIVER_KIND,
   metadata: {
     displayName: "Factory Droid",

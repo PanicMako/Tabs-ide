@@ -17,6 +17,8 @@ import {
   type ServerAuthInternalError,
 } from "./EnvironmentAuth.ts";
 import * as ServerSecretStore from "./ServerSecretStore.ts";
+/** Secret store name prefix of DPoP replay markers. The server prunes expired ones. */
+export const DPOP_REPLAY_MARKER_PREFIX = "dpop-proof-";
 
 export const mapDpopFailureReason = (code: DpopVerificationFailureCodeType): DpopFailureReason => {
   switch (code) {
@@ -58,9 +60,11 @@ export const verifyRequestDpopProof = (input: {
   Effect.gen(function* () {
     const url = HttpServerRequest.toURL(input.request);
     if (Option.isNone(url)) {
-      return yield* new ServerAuthInvalidCredentialError({
-        diagnostic: "Invalid DPoP request URL.",
-      });
+      return yield* Effect.fail(
+        new ServerAuthInvalidCredentialError({
+          diagnostic: "Invalid DPoP request URL.",
+        }),
+      );
     }
     return yield* verifyDpopRequestFields({
       proof: input.request.headers.dpop,
@@ -92,10 +96,12 @@ export const verifyDpopRequestFields = (input: {
       yield* Effect.annotateCurrentSpan({
         "environment.dpop.failure_code": result.code,
       });
-      return yield* new ServerAuthInvalidCredentialError({
-        diagnostic: result.reason,
-        dpopFailureReason: mapDpopFailureReason(result.code),
-      });
+      return yield* Effect.fail(
+        new ServerAuthInvalidCredentialError({
+          diagnostic: result.reason,
+          dpopFailureReason: mapDpopFailureReason(result.code),
+        }),
+      );
     }
     const secretStore = yield* ServerSecretStore.ServerSecretStore;
     const replayKey = yield* Crypto.Crypto.pipe(

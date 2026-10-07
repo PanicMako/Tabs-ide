@@ -791,3 +791,4 @@ const makeKeybindings = Effect.gen(function* () {
 });
 
 export const KeybindingsLive = Layer.effect(Keybindings, makeKeybindings);
+export const layer = KeybindingsLive;

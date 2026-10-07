@@ -154,6 +154,7 @@ const makeExitLogFixture = Effect.fn("makeExitLogFixture")(function* (prefix: st
 
 const parameterizedGpt54ConfigOptions = [
   {
+    configId: "model",
     type: "select",
     currentValue: "gpt-5.4-medium-fast",
     options: [{ name: "GPT-5.4", value: "gpt-5.4-medium-fast" }],
@@ -162,6 +163,7 @@ const parameterizedGpt54ConfigOptions = [
     name: "Model",
   },
   {
+    configId: "reasoning",
     type: "select",
     currentValue: "medium",
     options: [
@@ -176,6 +178,7 @@ const parameterizedGpt54ConfigOptions = [
     name: "Reasoning",
   },
   {
+    configId: "context",
     type: "select",
     currentValue: "272k",
     options: [
@@ -187,6 +190,7 @@ const parameterizedGpt54ConfigOptions = [
     name: "Context",
   },
   {
+    configId: "fast",
     type: "select",
     currentValue: "false",
     options: [
@@ -201,6 +205,7 @@ const parameterizedGpt54ConfigOptions = [
 
 const parameterizedClaudeConfigOptions = [
   {
+    configId: "model",
     type: "select",
     currentValue: "claude-4.6-opus-high-thinking",
     options: [{ name: "Opus 4.6", value: "claude-4.6-opus-high-thinking" }],
@@ -209,6 +214,7 @@ const parameterizedClaudeConfigOptions = [
     name: "Model",
   },
   {
+    configId: "reasoning",
     type: "select",
     currentValue: "high",
     options: [
@@ -221,6 +227,7 @@ const parameterizedClaudeConfigOptions = [
     name: "Reasoning",
   },
   {
+    configId: "thinking",
     type: "boolean",
     currentValue: true,
     category: "model_config",
@@ -231,6 +238,7 @@ const parameterizedClaudeConfigOptions = [
 
 const parameterizedClaudeModelOptionConfigOptions = [
   {
+    configId: "model",
     type: "select",
     currentValue: "claude-opus-4-6",
     options: [{ name: "Opus 4.6", value: "claude-opus-4-6" }],
@@ -239,6 +247,7 @@ const parameterizedClaudeModelOptionConfigOptions = [
     name: "Model",
   },
   {
+    configId: "reasoning",
     type: "select",
     currentValue: "high",
     options: [
@@ -251,6 +260,7 @@ const parameterizedClaudeModelOptionConfigOptions = [
     name: "Reasoning",
   },
   {
+    configId: "effort",
     type: "select",
     currentValue: "max",
     options: [
@@ -264,6 +274,7 @@ const parameterizedClaudeModelOptionConfigOptions = [
     name: "Effort",
   },
   {
+    configId: "fast",
     type: "select",
     currentValue: "true",
     options: [
@@ -275,6 +286,7 @@ const parameterizedClaudeModelOptionConfigOptions = [
     name: "Fast",
   },
   {
+    configId: "thinking",
     type: "select",
     currentValue: "true",
     options: [

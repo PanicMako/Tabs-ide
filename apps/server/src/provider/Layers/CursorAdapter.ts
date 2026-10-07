@@ -59,6 +59,7 @@ import {
   makeAcpToolCallEvent,
 } from "../acp/AcpCoreRuntimeEvents";
 import {
+  type AcpPlanUpdate,
   type AcpSessionMode,
   type AcpSessionModeState,
   parsePermissionRequest,
@@ -413,13 +414,7 @@ export function makeCursorAdapter(
 
     const emitPlanUpdate = (
       ctx: CursorSessionContext,
-      payload: {
-        readonly explanation?: string | null;
-        readonly plan: ReadonlyArray<{
-          readonly step: string;
-          readonly status: "pending" | "inProgress" | "completed";
-        }>;
-      },
+      payload: AcpPlanUpdate,
       rawPayload: unknown,
       source: "acp.jsonrpc" | "acp.cursor.extension",
       method: string,
@@ -633,9 +628,15 @@ export function makeCursorAdapter(
                       "acp.cursor.extension",
                     );
                     if (ctx) {
+                      const todosPlan = extractTodosAsPlan(params);
                       yield* emitPlanUpdate(
                         ctx,
-                        extractTodosAsPlan(params),
+                        {
+                          nativePlanId: "cursor-todos",
+                          kind: "items",
+                          plan: todosPlan.plan,
+                          explanation: todosPlan.explanation,
+                        } as any,
                         params,
                         "acp.cursor.extension",
                         "cursor/update_todos",
@@ -654,7 +655,7 @@ export function makeCursorAdapter(
                     "acp.jsonrpc",
                   );
                   if (input.runtimeMode === "full-access") {
-                    const autoApprovedOptionId = selectAutoApprovedPermissionOption(params);
+                    const autoApprovedOptionId = selectAutoApprovedPermissionOption(params as any);
                     if (autoApprovedOptionId !== undefined) {
                       return {
                         outcome: {
@@ -988,7 +989,7 @@ export function makeCursorAdapter(
 
         const result = yield* ctx.acp
           .prompt({
-            prompt: promptParts,
+            prompt: promptParts as any,
           })
           .pipe(
             Effect.mapError((error) =>

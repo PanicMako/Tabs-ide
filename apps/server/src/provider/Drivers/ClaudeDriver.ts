@@ -106,7 +106,7 @@ const withInstanceIdentity =
     continuation: { groupKey: input.continuationGroupKey },
   });
 
-export const ClaudeDriver: ProviderDriver<ClaudeSettings, ClaudeDriverEnv> = {
+export const ClaudeDriver: ProviderDriver<ClaudeSettings, any> = {
   driverKind: DRIVER_KIND,
   metadata: {
     displayName: "Claude",
