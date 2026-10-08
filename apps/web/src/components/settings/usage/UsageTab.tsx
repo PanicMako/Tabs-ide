@@ -127,6 +127,7 @@ export function UsageTab() {
   const [metric, setMetric] = useState<"cost" | "tokens">("tokens");
   const [breakdownView, setBreakdownView] = useState<"model" | "provider">("model");
   const [showPriceOverrides, setShowPriceOverrides] = useState(false);
+  const [priceModelId, setPriceModelId] = useState<string | undefined>();
 
   const summary = summaryState.data;
   const merged = useMemo(() => mergeUsage(summary), [summary]);
@@ -167,17 +168,25 @@ export function UsageTab() {
           />
           <Button
             variant="ghost"
-            size="icon-sm"
-            onClick={() => setShowPriceOverrides(true)}
+            size="sm"
+            onClick={() => {
+              setPriceModelId(undefined);
+              setShowPriceOverrides(true);
+            }}
             aria-label="Configure custom model prices"
           >
-            <SlidersHorizontalIcon className="size-4" aria-hidden />
+            <SlidersHorizontalIcon className="size-3.5" aria-hidden />
+            <span>Prices</span>
           </Button>
         </div>
       </div>
       {showPriceOverrides ? (
         <UsagePriceOverrides
           usage={summary ? [{ summary }] : []}
+          {...(priceModelId ? { initialModelId: priceModelId } : {})}
+          onSaved={() => {
+            void fetchUsageSummary();
+          }}
           onOpenChange={setShowPriceOverrides}
         />
       ) : null}
@@ -339,7 +348,21 @@ export function UsageTab() {
                               </div>
                             </td>
                             <td className="py-2.5 px-4 text-right font-semibold text-foreground tabular-nums">
-                              {isModelCostUnknown(m) ? "Unpriced" : formatUsd(m.costUsd)}
+                              {isModelCostUnknown(m) ? (
+                                <button
+                                  type="button"
+                                  className="usage-price-action"
+                                  onClick={() => {
+                                    setPriceModelId(m.model);
+                                    setShowPriceOverrides(true);
+                                  }}
+                                  aria-label={`Set prices for ${m.model}`}
+                                >
+                                  Set price <span aria-hidden="true">↗</span>
+                                </button>
+                              ) : (
+                                formatUsd(m.costUsd)
+                              )}
                             </td>
                             <td className="py-2.5 px-4 text-right text-muted-foreground tabular-nums">
                               {metric === "cost" && isModelCostUnknown(m)
