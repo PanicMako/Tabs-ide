@@ -1283,12 +1283,8 @@ export default function ProvidersSettings(props: ProvidersSettingsProps) {
                         <span className="provider-logo relative inline-flex shrink-0 items-center justify-center">
                           <RowIcon
                             aria-hidden="true"
-                            className={cn(
-                              "size-4",
-                              providerCard.provider === "claudeAgent"
-                                ? "text-[#d97757]"
-                                : "text-muted-foreground/85",
-                            )}
+                            className="provider-brand-icon size-4"
+                            data-provider={providerCard.provider}
                           />
                           <span
                             className={cn(
