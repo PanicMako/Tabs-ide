@@ -1,4 +1,5 @@
-import { OrbitGroup } from "../../ui/orbit-group";
+import { SegmentedControl } from "../../ui/segmented-control";
+import "./usage.css";
 import { useEffect, useMemo, useState } from "react";
 import { useAtomValue } from "@effect/atom-react";
 import {
@@ -18,7 +19,7 @@ import { Button } from "../../ui/button";
 import { cn } from "../../../lib/utils";
 import { getActiveFontCombo } from "../../../lib/themes";
 import { useTheme } from "../../../hooks/useTheme";
-import { BarChart3Icon, GaugeIcon, RefreshCwIcon } from "lucide-react";
+import { RefreshCwIcon } from "lucide-react";
 
 export function UsageLimitsPage() {
   const { fontPreferences } = useTheme();
@@ -50,7 +51,7 @@ export function UsageLimitsPage() {
   const isLoading = isRefreshing || summaryState.loading || snapshotsState.loading;
 
   return (
-    <div className="space-y-6">
+    <div className="usage-page space-y-5">
       {/* Top Header */}
       <div>
         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -65,8 +66,7 @@ export function UsageLimitsPage() {
               Usage & Limits
             </h2>
             <p className="text-sm text-muted-foreground">
-              Monitor your LLM token consumption, estimated full API rates, and provider quota
-              limits.
+              Your agent activity and reported provider quotas.
             </p>
           </div>
 
@@ -100,43 +100,15 @@ export function UsageLimitsPage() {
         />
       </div>
 
-      {/* Sub-tab Navigation (Usage / Limits) */}
-      <div className="flex items-center gap-2 border-b border-border/60 pb-3">
-        <OrbitGroup
-          className="tabs-segmented flex items-center"
-          role="group"
-          aria-label="Usage settings section"
-        >
-          <button
-            type="button"
-            onClick={() => setSubTab("usage")}
-            aria-pressed={activeSubTab === "usage"}
-            className={cn(
-              "flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-semibold transition-all",
-              activeSubTab === "usage"
-                ? "bg-primary/10 text-foreground border border-primary/20 shadow-xs"
-                : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
-            )}
-          >
-            <BarChart3Icon className="size-4" />
-            <span>Usage</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setSubTab("limits")}
-            aria-pressed={activeSubTab === "limits"}
-            className={cn(
-              "flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-semibold transition-all",
-              activeSubTab === "limits"
-                ? "bg-primary/10 text-foreground border border-primary/20 shadow-xs"
-                : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
-            )}
-          >
-            <GaugeIcon className="size-4" />
-            <span>Limits</span>
-          </button>
-        </OrbitGroup>
-      </div>
+      <SegmentedControl
+        value={activeSubTab}
+        onValueChange={setSubTab}
+        options={[
+          { value: "usage", label: "Overview" },
+          { value: "limits", label: "Provider limits" },
+        ]}
+        aria-label="Usage settings section"
+      />
 
       {/* Main Tab Content */}
       <div className="min-w-0">{activeSubTab === "usage" ? <UsageTab /> : <LimitsTab />}</div>
