@@ -3,11 +3,11 @@ import type { ThreadId } from "@tabs/contracts";
 import { useQuery } from "@tanstack/react-query";
 import { FileDiff } from "@pierre/diffs/react";
 import { parsePatchFiles } from "@pierre/diffs";
-import { RotateCcw } from "lucide-react";
+import { RotateCcw, FileDiff as FileDiffIcon } from "lucide-react";
 import { useActiveProjectTarget } from "~/hooks/useActiveProjectTarget";
 import { useTheme } from "~/hooks/useTheme";
 import { gitDiffQueryOptions } from "~/lib/gitReactQuery";
-import { CompanionHeading, CompanionEmpty } from "./CompanionChrome";
+import { CompanionEmpty } from "./CompanionChrome";
 import { DiffWorkerPoolProvider } from "~/components/DiffWorkerPoolProvider";
 const TurnDiff = lazy(() => import("~/components/DiffPanel"));
 
@@ -45,21 +45,11 @@ export function CompanionDiffPanel({ threadId }: { threadId?: ThreadId | null | 
     );
   return (
     <div className="companion-workspace">
-      <CompanionHeading
-        kind="diff"
-        detail={target.projectName}
-        actions={
-          <button
-            type="button"
-            aria-label="Refresh changes"
-            className="companion-icon-button"
-            onClick={() => void patch.refetch()}
-          >
-            <RotateCcw size={15} />
-          </button>
-        }
-      />
-      <div className="companion-toolbar" role="group" aria-label="Changes source">
+      <div
+        className="companion-toolbar companion-diff-toolbar"
+        role="group"
+        aria-label="Changes source"
+      >
         <button
           type="button"
           aria-pressed={view === "working"}
@@ -80,10 +70,27 @@ export function CompanionDiffPanel({ threadId }: { threadId?: ThreadId | null | 
           <button
             type="button"
             aria-pressed={split}
+            aria-label={split ? "Switch to unified diff" : "Switch to split diff"}
+            title={split ? "Switch to unified diff" : "Switch to split diff"}
             className="companion-segment ml-auto"
             onClick={() => setSplit(!split)}
           >
             {split ? "Split" : "Unified"}
+          </button>
+        )}
+        {view === "working" && (
+          <button
+            type="button"
+            aria-label="Refresh changes"
+            title="Refresh changes"
+            className="companion-icon-button"
+            disabled={patch.isFetching}
+            onClick={() => void patch.refetch()}
+          >
+            <RotateCcw
+              size={14}
+              className={patch.isFetching ? "animate-spin motion-reduce:animate-none" : ""}
+            />
           </button>
         )}
       </div>
@@ -114,7 +121,7 @@ export function CompanionDiffPanel({ threadId }: { threadId?: ThreadId | null | 
             There are no tracked changes in the working tree. New files appear in the Git workspace.
           </CompanionEmpty>
         ) : (
-          <div className="companion-content">
+          <div className="companion-content companion-diff-content">
             {parsed.error ? (
               <>
                 <p role="alert" className="companion-note">
@@ -124,14 +131,31 @@ export function CompanionDiffPanel({ threadId }: { threadId?: ThreadId | null | 
               </>
             ) : parsed.files.length ? (
               parsed.files.map((file, index) => (
-                <div
-                  key={`${file.name}:${index}:${resolvedTheme}`}
-                  className="mb-3 overflow-hidden rounded-xl border border-border"
-                >
+                <div key={`${file.name}:${index}:${resolvedTheme}`} className="companion-diff-file">
+                  <div className="companion-diff-file-heading">
+                    <FileDiffIcon size={13} className="shrink-0 text-muted-foreground" />
+                    <h3 title={file.prevName ? `${file.prevName} → ${file.name}` : file.name}>
+                      {file.prevName ? `${file.prevName} → ${file.name}` : file.name}
+                    </h3>
+                    <span
+                      className="companion-diff-count text-destructive"
+                      aria-label={`${file.hunks.reduce((sum, hunk) => sum + hunk.deletionLines, 0)} removed lines`}
+                    >
+                      −{file.hunks.reduce((sum, hunk) => sum + hunk.deletionLines, 0)}
+                    </span>
+                    <span
+                      className="companion-diff-count text-success"
+                      aria-label={`${file.hunks.reduce((sum, hunk) => sum + hunk.additionLines, 0)} added lines`}
+                    >
+                      +{file.hunks.reduce((sum, hunk) => sum + hunk.additionLines, 0)}
+                    </span>
+                  </div>
                   <FileDiff
+                    disableWorkerPool
                     fileDiff={file}
                     options={{
                       theme: resolvedTheme === "dark" ? "github-dark" : "github-light",
+                      disableFileHeader: true,
                       diffStyle: split ? "split" : "unified",
                       overflow: "wrap",
                     }}

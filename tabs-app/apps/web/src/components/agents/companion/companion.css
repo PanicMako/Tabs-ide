@@ -153,7 +153,7 @@
   background: var(--muted);
 }
 .companion-file-row[aria-selected="true"] {
-  background: color-mix(in srgb, #ffc46b 15%, var(--background));
+  background: var(--muted);
 }
 .companion-file-row:focus-visible {
   outline: 2px solid var(--ring);
@@ -389,4 +389,45 @@
   .companion-file-actions {
     opacity: 1;
   }
+}
+
+.companion-diff-toolbar {
+  height: 45px;
+  padding: 6px 8px;
+  gap: 5px;
+}
+.companion-diff-toolbar .companion-segment {
+  padding: 5px 9px;
+  font-size: 11px;
+}
+.companion-diff-content {
+  padding: 8px;
+}
+.companion-diff-file {
+  margin-bottom: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--background);
+}
+.companion-diff-file-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 35px;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+}
+.companion-diff-file-heading h3 {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+.companion-diff-count {
+  font-family: "Geist Mono", monospace;
+  font-size: 10px;
 }
