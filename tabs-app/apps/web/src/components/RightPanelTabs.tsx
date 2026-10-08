@@ -30,6 +30,7 @@ export interface RightPanelTabsProps {
   threadId?: ThreadId | null | undefined;
   environmentId?: EnvironmentId | null | undefined;
   onClose: () => void;
+  visible?: boolean;
 }
 
 export const RightPanelTabs = memo(function RightPanelTabs({
@@ -37,6 +38,7 @@ export const RightPanelTabs = memo(function RightPanelTabs({
   threadId,
   environmentId,
   onClose,
+  visible = true,
 }: RightPanelTabsProps) {
   const maximized = useRightPanelStore((state) => state.maximized);
   const setMaximized = useRightPanelStore((state) => state.setMaximized);
@@ -156,12 +158,14 @@ export const RightPanelTabs = memo(function RightPanelTabs({
         ) : !active ? null : active.kind === "diff" ? (
           <CompanionDiffPanel threadId={threadId} />
         ) : active.kind === "browser" ? (
-          <CompanionBrowserPanel
-            key={active.id}
-            surface={active}
-            scope={scope}
-            threadId={threadId}
-          />
+          visible ? (
+            <CompanionBrowserPanel
+              key={active.id}
+              surface={active}
+              scope={scope}
+              threadId={threadId}
+            />
+          ) : null
         ) : active.kind === "files" ? (
           <CompanionFilesPanel key={active.id} surface={active} scope={scope} threadId={threadId} />
         ) : active.kind === "terminal" ? (
