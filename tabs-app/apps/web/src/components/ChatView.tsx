@@ -1,4 +1,11 @@
 import {
+  ADD_WORKSPACE_FILE_EVENT,
+  WORKSPACE_FILE_MIME,
+  parseWorkspaceFileContext,
+  workspaceFileMention,
+  type WorkspaceFileContext,
+} from "~/lib/workspaceFileContext";
+import {
   type ApprovalRequestId,
   type ClaudeCodeEffort,
   type MessageId,
@@ -3430,7 +3437,10 @@ export default function ChatView({
   };
 
   const onComposerDragEnter = (event: React.DragEvent<HTMLDivElement>) => {
-    if (!event.dataTransfer.types.includes("Files")) {
+    if (
+      !event.dataTransfer.types.includes("Files") &&
+      !event.dataTransfer.types.includes(WORKSPACE_FILE_MIME)
+    ) {
       return;
     }
     event.preventDefault();
@@ -3439,7 +3449,10 @@ export default function ChatView({
   };
 
   const onComposerDragOver = (event: React.DragEvent<HTMLDivElement>) => {
-    if (!event.dataTransfer.types.includes("Files")) {
+    if (
+      !event.dataTransfer.types.includes("Files") &&
+      !event.dataTransfer.types.includes(WORKSPACE_FILE_MIME)
+    ) {
       return;
     }
     event.preventDefault();
@@ -3448,7 +3461,10 @@ export default function ChatView({
   };
 
   const onComposerDragLeave = (event: React.DragEvent<HTMLDivElement>) => {
-    if (!event.dataTransfer.types.includes("Files")) {
+    if (
+      !event.dataTransfer.types.includes("Files") &&
+      !event.dataTransfer.types.includes(WORKSPACE_FILE_MIME)
+    ) {
       return;
     }
     event.preventDefault();
@@ -3463,7 +3479,19 @@ export default function ChatView({
   };
 
   const onComposerDrop = (event: React.DragEvent<HTMLDivElement>) => {
-    if (!event.dataTransfer.types.includes("Files")) {
+    if (event.dataTransfer.types.includes(WORKSPACE_FILE_MIME)) {
+      event.preventDefault();
+      event.stopPropagation();
+      dragDepthRef.current = 0;
+      setIsDragOverComposer(false);
+      const context = parseWorkspaceFileContext(event.dataTransfer.getData(WORKSPACE_FILE_MIME));
+      if (context) addWorkspaceFileContext(context);
+      return;
+    }
+    if (
+      !event.dataTransfer.types.includes("Files") &&
+      !event.dataTransfer.types.includes(WORKSPACE_FILE_MIME)
+    ) {
       return;
     }
     event.preventDefault();
@@ -4908,6 +4936,51 @@ export default function ChatView({
     };
   }, [composerCursor, composerTerminalContexts]);
 
+  const addWorkspaceFileContext = useCallback(
+    (context: WorkspaceFileContext) => {
+      if (context.environmentId !== (activeProject?.environmentId ?? null)) {
+        toastManager.add({
+          type: "warning",
+          title: "Choose a chat in the same environment",
+          description: "This path belongs to a different machine.",
+        });
+        return;
+      }
+      if (isComposerApprovalState || pendingUserInputs.length > 0) {
+        toastManager.add({
+          type: "warning",
+          title: "Finish the pending request before adding context",
+        });
+        return;
+      }
+      const snapshot = readComposerSnapshot();
+      const cursor = snapshot.expandedCursor;
+      const prefix = cursor > 0 && !/\s/.test(snapshot.value[cursor - 1] ?? "") ? " " : "";
+      applyPromptReplacement(
+        cursor,
+        cursor,
+        prefix + workspaceFileMention(context, activeWorkspaceRoot),
+      );
+    },
+    [
+      activeProject?.environmentId,
+      activeWorkspaceRoot,
+      isComposerApprovalState,
+      pendingUserInputs.length,
+      readComposerSnapshot,
+      applyPromptReplacement,
+    ],
+  );
+  useEffect(() => {
+    const add = (event: Event) => {
+      const context = parseWorkspaceFileContext(JSON.stringify((event as CustomEvent).detail));
+      if (!context || (context.threadId ? context.threadId !== threadId : !isActivePane)) return;
+      addWorkspaceFileContext(context);
+    };
+    window.addEventListener(ADD_WORKSPACE_FILE_EVENT, add);
+    return () => window.removeEventListener(ADD_WORKSPACE_FILE_EVENT, add);
+  }, [threadId, isActivePane, addWorkspaceFileContext]);
+
   const citeAssistantText = useCallback(
     (citation: AssistantCitation, sourceAnchor: AssistantCitationSourceAnchor): boolean => {
       if (isComposerApprovalState || pendingUserInputs.length > 0 || !composerEditorRef.current) {
@@ -5303,6 +5376,9 @@ export default function ChatView({
           onDragEnter={onComposerDragEnter}
           onDragOver={onComposerDragOver}
           onDragLeave={onComposerDragLeave}
+          onDropCapture={(event) => {
+            if (event.dataTransfer.types.includes(WORKSPACE_FILE_MIME)) onComposerDrop(event);
+          }}
           onDrop={onComposerDrop}
         >
           {composerMenuOpen && !isComposerApprovalState && (

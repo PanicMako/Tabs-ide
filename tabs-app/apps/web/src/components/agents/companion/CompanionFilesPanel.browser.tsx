@@ -60,7 +60,7 @@ it("searches beyond the initial results and reads a file within Agents", async (
   );
   try {
     await page.getByRole("textbox", { name: "Search project files" }).fill("deep");
-    await page.getByRole("button", { name: /deep\.ts/ }).click();
+    await page.getByRole("button", { name: /^deep\.ts/ }).click();
     await expect
       .element(page.getByLabelText("Contents of src/deep.ts"))
       .toHaveTextContent("export const answer = 42;");
@@ -223,5 +223,68 @@ it("protects edits when a background refresh changes the cached file", async () 
   } finally {
     await view.unmount();
     client.clear();
+  }
+});
+
+it("keeps browsing compact and supports dragging and copying both files and folders", async () => {
+  api.listEntries.mockImplementation(async ({ directoryPath } = {}) => ({
+    entries: directoryPath
+      ? [{ path: "src/My File.ts", kind: "file" }]
+      : [{ path: "src", kind: "directory" }],
+    truncated: false,
+  }));
+  api.readFile.mockResolvedValue({
+    relativePath: "src/My File.ts",
+    contents: "hello",
+    byteLength: 5,
+    truncated: false,
+  });
+  const clipboard = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
+  const events: unknown[] = [];
+  const listener = (event: Event) => events.push((event as CustomEvent).detail);
+  window.addEventListener("tabs:add-workspace-file-context", listener);
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const view = await render(
+    <QueryClientProvider client={client}>
+      <CompanionFilesPanel />
+    </QueryClientProvider>,
+  );
+  try {
+    expect(document.querySelector(".companion-heading")).toBeNull();
+    expect(document.querySelectorAll(".companion-toolbar")).toHaveLength(1);
+    expect(
+      document.querySelector(".companion-file-search")!.getBoundingClientRect().height,
+    ).toBeLessThanOrEqual(46);
+    const folder = page.getByRole("treeitem", { name: "src", exact: true });
+    await expect.element(folder).toBeVisible();
+    const transfer = new DataTransfer();
+    folder
+      .element()
+      .dispatchEvent(new DragEvent("dragstart", { bubbles: true, dataTransfer: transfer }));
+    expect(JSON.parse(transfer.getData("application/x-tabs-workspace-path"))).toEqual(
+      expect.objectContaining({ path: "src", kind: "directory", cwd: "/workspace" }),
+    );
+    await page
+      .getByRole("button", { name: "Copy path for src", exact: true })
+      .click({ force: true });
+    expect(clipboard).toHaveBeenLastCalledWith("/workspace/src");
+    await folder.click();
+    const file = page.getByRole("treeitem", { name: "My File.ts", exact: true });
+    await file.dblClick();
+    await expect.poll(() => clipboard.mock.calls.at(-1)?.[0]).toBe("/workspace/src/My File.ts");
+    await page
+      .getByRole("button", { name: "Add src/My File.ts to chat", exact: true })
+      .click({ force: true });
+    expect(events).toEqual([expect.objectContaining({ path: "src/My File.ts", kind: "file" })]);
+    const fileTransfer = new DataTransfer();
+    file
+      .element()
+      .dispatchEvent(new DragEvent("dragstart", { bubbles: true, dataTransfer: fileTransfer }));
+    expect(fileTransfer.getData("text/plain")).toBe("/workspace/src/My File.ts");
+  } finally {
+    await view.unmount();
+    client.clear();
+    clipboard.mockRestore();
+    window.removeEventListener("tabs:add-workspace-file-context", listener);
   }
 });
