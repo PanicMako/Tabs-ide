@@ -2416,8 +2416,7 @@ export const TestingDiscover = memo(function TestingDiscover({ projectId }: Test
             <DialogHeader>
               <DialogTitle>Edit locator</DialogTitle>
               <DialogDescription>
-                Update the stable key or Playwright locator. Saving creates a new immutable locator
-                version and refreshes the managed page-object draft.
+                Save a new locator version and refresh the page-object draft.
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-1 sm:grid-cols-2">
@@ -2589,9 +2588,8 @@ export const TestingDiscover = memo(function TestingDiscover({ projectId }: Test
             <DialogHeader>
               <DialogTitle>Apply this page object?</DialogTitle>
               <DialogDescription>
-                Testing will {locatorRepositoryProposal?.changeKind ?? "update"} only the reviewed
-                file below. If the generated code or repository file changed since preview, the
-                operation will stop and ask you to review again.
+                Testing will {locatorRepositoryProposal?.changeKind ?? "update"} the reviewed file.
+                Changes since preview require another review.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-3 rounded-xl border border-border/70 bg-muted/25 p-4">

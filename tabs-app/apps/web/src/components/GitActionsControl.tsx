@@ -192,8 +192,7 @@ function getMenuActionDisabledReason({
 }
 
 const COMMIT_DIALOG_TITLE = "Commit changes";
-const COMMIT_DIALOG_DESCRIPTION =
-  "Review and confirm your commit. Leave the message blank to auto-generate one.";
+const COMMIT_DIALOG_DESCRIPTION = "Leave the message blank to generate one.";
 
 function GitActionItemIcon({ icon }: { icon: GitActionIconName }) {
   if (icon === "commit") return <GitCommitIcon className="size-4 shrink-0 text-foreground" />;

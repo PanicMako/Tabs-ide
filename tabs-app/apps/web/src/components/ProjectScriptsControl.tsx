@@ -367,7 +367,7 @@ export default function ProjectScriptsControl({
           <DialogHeader>
             <DialogTitle>{isEditing ? "Edit Action" : "Add Action"}</DialogTitle>
             <DialogDescription>
-              Actions are project-scoped commands you can run from the top bar or keybindings.
+              Run this project command from the toolbar or a shortcut.
             </DialogDescription>
           </DialogHeader>
           <DialogPanel>

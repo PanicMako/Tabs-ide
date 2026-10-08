@@ -197,8 +197,7 @@ export function AuditPanel({
               Cancel Active Audit Scan?
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground leading-relaxed font-sans mt-1">
-              An audit scan is currently running in the background. Starting a new audit will cancel
-              the active scan and discard progress. Are you sure you want to proceed?
+              Starting a new scan cancels the current scan and discards its progress.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="pt-2">
