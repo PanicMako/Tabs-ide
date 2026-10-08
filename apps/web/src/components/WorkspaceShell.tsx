@@ -10609,8 +10609,7 @@ function ServerTool(props: {
                 Launchpad Presets
               </DialogTitle>
               <DialogDescription className="text-xs text-muted-foreground mt-1">
-                Create and manage one-click presets like 'Frontend' or 'Backend', each with ordered
-                command steps.
+                Save a set of commands to run together.
               </DialogDescription>
             </div>
           </DialogHeader>
@@ -10945,9 +10944,7 @@ function ServerTool(props: {
         <AlertDialogPopup>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Preset?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete this preset? This action cannot be undone.
-            </AlertDialogDescription>
+            <AlertDialogDescription>Deletes this preset permanently.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogClose render={<Button variant="outline" />}>Cancel</AlertDialogClose>

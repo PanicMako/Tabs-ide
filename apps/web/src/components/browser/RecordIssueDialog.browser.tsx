@@ -6,7 +6,8 @@ import { render } from "vitest-browser-react";
 import { RecordIssueDialog } from "./RecordIssueDialog";
 
 const mocks = vi.hoisted(() => ({ writeFile: vi.fn(async () => undefined), toast: vi.fn() }));
-vi.mock("~/nativeApi", () => ({
+vi.mock("~/nativeApi", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/nativeApi")>()),
   readNativeApi: () => ({ projects: { writeFile: mocks.writeFile } }),
 }));
 vi.mock("~/components/ui/toast", () => ({ toastManager: { add: mocks.toast } }));

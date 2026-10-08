@@ -554,8 +554,7 @@ export function RecordIssueDialog({
             )}
           </div>
           <DialogDescription className="text-xs text-muted-foreground">
-            Demonstrate a bug, capture deterministic reproduction steps, specify expected results,
-            and verify fixes.
+            Record the bug and describe what should happen.
           </DialogDescription>
         </DialogHeader>
 

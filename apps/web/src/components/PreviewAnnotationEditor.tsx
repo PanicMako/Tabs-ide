@@ -100,10 +100,7 @@ export function PreviewAnnotationEditor(props: {
       <DialogPopup className="max-h-[92vh] w-[min(94vw,72rem)] max-w-none overflow-hidden p-0">
         <DialogHeader className="border-b border-border px-5 py-4">
           <DialogTitle>Annotate browser preview</DialogTitle>
-          <DialogDescription>
-            Mark the real captured page and describe the requested change before attaching it to
-            chat.
-          </DialogDescription>
+          <DialogDescription>Mark a change, then attach it to chat.</DialogDescription>
         </DialogHeader>
         <DialogPanel className="grid min-h-0 gap-4 overflow-auto p-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
           <div className="min-w-0 space-y-2">

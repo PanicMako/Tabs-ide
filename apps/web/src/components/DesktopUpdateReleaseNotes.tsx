@@ -75,7 +75,7 @@ export function DesktopUpdateReleaseNotes({ state }: { readonly state: DesktopUp
           aria-hidden="true"
           className="pointer-events-none absolute inset-x-0 top-0 h-36 bg-gradient-to-b from-primary/12 to-transparent"
         />
-        <DialogHeader className="relative gap-0 border-b border-border/60 px-7 pt-7 pb-6 pr-16 sm:px-9 sm:pt-9 sm:pb-7 sm:pr-20">
+        <DialogHeader className="relative gap-0 border-b border-border/60 px-5 pt-5 pb-4 pr-14 sm:px-6 sm:pt-6 sm:pb-5 sm:pr-16">
           <span className="mb-3 w-fit rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-[10px] font-semibold tracking-[0.16em] text-foreground uppercase">
             Tabs {version}
           </span>
@@ -83,7 +83,7 @@ export function DesktopUpdateReleaseNotes({ state }: { readonly state: DesktopUp
             What’s new in Tabs {version}
           </DialogTitle>
           <DialogDescription className="mt-2 text-sm leading-relaxed">
-            A closer look at what changed in this update.
+            Changes in this release.
           </DialogDescription>
           <DialogClose
             aria-label="Close what’s new"
