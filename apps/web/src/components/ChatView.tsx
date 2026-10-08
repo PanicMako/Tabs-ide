@@ -822,6 +822,14 @@ export default function ChatView({
       );
 
       const { kept, droppedNames } = partitionStashAttachments(candidateAttachments);
+      if (droppedNames.length) {
+        toastManager.add({
+          type: "error",
+          title: "Images are too large to stash",
+          description: "Your draft is unchanged. Use smaller images before saving it to Stash.",
+        });
+        return false;
+      }
 
       const stashedFiles = await Promise.all(
         composerFiles.map(async (file) => ({
