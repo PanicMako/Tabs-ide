@@ -31,6 +31,10 @@ export function ProviderDirectory({
   );
   return (
     <nav className="provider-directory" aria-label="Provider directory">
+      <div className="provider-directory-heading">
+        <span>Your agents</span>
+        <span aria-hidden>↗</span>
+      </div>
       <label className="provider-search">
         <SearchIcon size={14} aria-hidden />
         <input
@@ -58,8 +62,8 @@ export function ProviderDirectory({
             aria-current={id === selectedId ? "true" : undefined}
             onClick={() => onSelect(id)}
           >
-            <span className="provider-directory-icon">
-              <Icon className="size-4" />
+            <span className="provider-directory-icon" aria-hidden>
+              <Icon className={id === "claudeAgent" ? "size-4 text-[#d97757]" : "size-4"} />
             </span>
             <span className="provider-directory-name">
               <strong>{name}</strong>
