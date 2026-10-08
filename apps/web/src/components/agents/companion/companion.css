@@ -42,7 +42,7 @@
   white-space: nowrap;
   font-size: 10px;
   color: var(--muted-foreground);
-  font-family: "Geist Mono", monospace;
+  font-family: var(--font-mono);
 }
 .companion-heading-actions {
   display: flex;
@@ -96,7 +96,7 @@
   margin-bottom: 16px;
 }
 .companion-empty h3 {
-  font-family: "Fraunces", serif;
+  font-family: var(--font-sans);
   font-size: 24px;
   font-style: italic;
   letter-spacing: -0.025em;
@@ -213,7 +213,7 @@
   flex: 1;
   min-height: 0;
   overflow: auto;
-  font-family: "Geist Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   line-height: 1.75;
   padding: 14px;
@@ -428,7 +428,7 @@
   font-weight: 500;
 }
 .companion-diff-count {
-  font-family: "Geist Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 10px;
 }
 
@@ -562,7 +562,7 @@
 .queue-message-title {
   flex: 1;
   min-width: 0;
-  font-family: Georgia, serif;
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 17px;
   line-height: 1.35;
@@ -666,7 +666,7 @@
   font-size: 10px;
 }
 .queue-position {
-  font-family: "Geist Mono", monospace;
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 .queue-message-meta time {

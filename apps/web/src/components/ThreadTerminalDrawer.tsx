@@ -1,5 +1,12 @@
 import { FitAddon } from "@xterm/addon-fit";
-import { Plus, RotateCcwIcon, SquareSplitHorizontal, TerminalSquare, Trash2, XIcon } from "lucide-react";
+import {
+  Plus,
+  RotateCcwIcon,
+  SquareSplitHorizontal,
+  TerminalSquare,
+  Trash2,
+  XIcon,
+} from "lucide-react";
 import { type ThreadId } from "@tabs/contracts";
 import { Terminal, type ITheme } from "@xterm/xterm";
 import {
@@ -256,7 +263,9 @@ function TerminalViewport({
       lineHeight: 1.2,
       fontSize: 12,
       scrollback: 5_000,
-      fontFamily: '"SF Mono", "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace',
+      fontFamily:
+        getComputedStyle(document.documentElement).getPropertyValue("--font-mono").trim() ||
+        "monospace",
       theme: terminalThemeFromApp(),
     });
     terminal.loadAddon(fitAddon);
@@ -482,6 +491,10 @@ function TerminalViewport({
       const activeTerminal = terminalRef.current;
       if (!activeTerminal) return;
       activeTerminal.options.theme = terminalThemeFromApp();
+      activeTerminal.options.fontFamily =
+        getComputedStyle(document.documentElement).getPropertyValue("--font-mono").trim() ||
+        "monospace";
+      fitAddonRef.current?.fit();
       activeTerminal.refresh(0, activeTerminal.rows - 1);
     });
     themeObserver.observe(document.documentElement, {

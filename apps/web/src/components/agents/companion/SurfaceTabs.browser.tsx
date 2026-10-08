@@ -72,10 +72,12 @@ it("opens, switches, closes and reopens surfaces with stable hover geometry", as
   }
 });
 
-it("keeps the prototype's font swap, spring tilt and launcher shortcuts", async () => {
+it("uses the theme font while preserving spring tilt and launcher shortcuts", async () => {
   const onSelect = vi.fn();
   const view = await render(
-    <div style={{ width: 440, height: 680 }}>
+    <div
+      style={{ width: 440, height: 680, "--font-sans": "Arial, sans-serif" } as React.CSSProperties}
+    >
       <SurfaceChooser onSelect={onSelect} />
     </div>,
   );
@@ -84,7 +86,7 @@ it("keeps the prototype's font swap, spring tilt and launcher shortcuts", async 
     await browser.hover();
     await expect
       .poll(() => getComputedStyle(browser.element().querySelector(".surface-script")!).fontFamily)
-      .toContain("Bricolage Grotesque");
+      .toContain("Arial");
     await expect.poll(() => getComputedStyle(browser.element()).color).toBe("rgb(5, 5, 5)");
     expect(getComputedStyle(browser.element()).transform).not.toBe("none");
     await browser.click();

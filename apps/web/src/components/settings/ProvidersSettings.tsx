@@ -1,3 +1,4 @@
+import { ProviderDirectory } from "./ProviderDirectory";
 import { OrbitGroup } from "../ui/orbit-group";
 import { useState, useCallback, useMemo, useRef, type ReactNode } from "react";
 import {
@@ -23,7 +24,6 @@ import { Equal } from "effect";
 import {
   ArrowUpCircleIcon,
   BotIcon,
-  ChevronDownIcon,
   DownloadIcon,
   EyeIcon,
   EyeOffIcon,
@@ -104,7 +104,7 @@ import {
   type ServerProviderModel,
   type UnifiedSettings,
 } from "@tabs/contracts";
-import { SettingsHeaderPortal } from "./SettingsLayout";
+
 import { PROVIDER_SETTINGS_KEYS, type ProviderSettingsKey } from "./providerSettings.shared";
 
 export type { ProviderSettingsKey } from "./providerSettings.shared";
@@ -976,8 +976,15 @@ export default function ProvidersSettings(props: ProvidersSettingsProps) {
     });
   }, [draftModelOrders, serverProviders, settings.providerModelPreferences, settings.providers]);
 
+  const selectedProvider =
+    providerCards.find((card) => openProviderDetails[card.provider])?.provider ??
+    providerCards.find((card) => card.providerConfig.enabled)?.provider ??
+    providerCards[0]!.provider;
+
+  const selectedCards = providerCards.filter((card) => card.provider === selectedProvider);
+
   return (
-    <div className="space-y-6">
+    <div className="providers-page space-y-5">
       <div>
         <div className="flex items-start justify-between">
           <div className="space-y-1.5">
@@ -994,10 +1001,10 @@ export default function ProvidersSettings(props: ProvidersSettingsProps) {
               Providers
             </h2>
             <p className="text-sm text-muted-foreground">
-              Manage AI providers, API keys, custom model endpoints, and status checks.
+              Connect your agents. Choose a provider to manage access and models.
             </p>
           </div>
-          <SettingsHeaderPortal>
+          <div className="pt-1">
             <Button
               size="xs"
               variant="outline"
@@ -1012,7 +1019,7 @@ export default function ProvidersSettings(props: ProvidersSettingsProps) {
               )}
               {isRefreshingProviders ? "Refreshing..." : "Refresh models"}
             </Button>
-          </SettingsHeaderPortal>
+          </div>
         </div>
         <div
           className="h-[5px] w-full my-5 rounded-full dark:block hidden"
@@ -1032,7 +1039,7 @@ export default function ProvidersSettings(props: ProvidersSettingsProps) {
       {(() => {
         const pinnedEntries = getPinnedModels(settings);
         return (
-          <div className="rounded-xl border border-border/60 bg-card/60 p-4 sm:p-5 space-y-3.5 shadow-2xs">
+          <div className="provider-pins border border-border/60 bg-card/60 space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <div className="flex size-7 items-center justify-center rounded-lg bg-muted/80 text-foreground">
@@ -1046,8 +1053,7 @@ export default function ProvidersSettings(props: ProvidersSettingsProps) {
                     </span>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Quick access models pinned across all providers. Appears at the top of
-                    FusedModelPicker.
+                    Your shortcuts in the model picker.
                   </p>
                 </div>
               </div>
@@ -1062,14 +1068,9 @@ export default function ProvidersSettings(props: ProvidersSettingsProps) {
             </div>
 
             {pinnedEntries.length === 0 ? (
-              <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border/70 py-6 px-4 text-center">
-                <PinIcon className="size-6 text-muted-foreground/40 mb-1.5" />
-                <div className="text-xs font-medium text-foreground">No Pinned Models Yet</div>
-                <div className="text-[11px] text-muted-foreground max-w-sm mt-0.5">
-                  Click "+ Pin Model" above or the pin icon next to any model in your provider lists
-                  below to pin it.
-                </div>
-              </div>
+              <p className="text-xs text-muted-foreground">
+                Pin your go-to models for quick access.
+              </p>
             ) : (
               <DndContext
                 sensors={pinnedDndSensors}
@@ -1180,10 +1181,11 @@ export default function ProvidersSettings(props: ProvidersSettingsProps) {
         );
       })()}
 
-      <div className="flex items-center justify-between pb-1">
-        <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/80">
-          Configured Providers
-        </div>
+      <div className="providers-overview">
+        <p>
+          <strong>{providerCards.filter((card) => card.providerConfig.enabled).length}</strong>{" "}
+          enabled · {providerCards.length} providers
+        </p>
         <div className="flex items-center gap-1.5">
           {serverProviders.length > 0 ? (
             <span className="text-[11px] text-muted-foreground/60">
@@ -1229,12 +1231,25 @@ export default function ProvidersSettings(props: ProvidersSettingsProps) {
         </div>
       </div>
 
-      <div className="space-y-4">
+      <div className="providers-workspace">
+        <ProviderDirectory
+          entries={providerCards.map((card) => ({
+            id: card.provider,
+            name: card.title,
+            icon: card.icon,
+            enabled: Boolean(card.providerConfig.enabled),
+            status: card.summary.headline,
+            statusClass: card.statusStyle.dot,
+            modelCount: card.models.length,
+          }))}
+          selectedId={selectedProvider}
+          onSelect={(id) => setOpenProviderDetails(() => ({ [id]: true }))}
+        />
         {(() => {
           const enabledProvidersCount = providerCards.filter(
             (c) => c.providerConfig.enabled,
           ).length;
-          return providerCards.map((providerCard) => {
+          return selectedCards.map((providerCard) => {
             const isLastEnabledProvider =
               providerCard.providerConfig.enabled && enabledProvidersCount <= 1;
             const customModelInput = customModelInputByProvider[providerCard.provider];
@@ -1246,11 +1261,7 @@ export default function ProvidersSettings(props: ProvidersSettingsProps) {
             const RowIcon = providerCard.icon;
 
             return (
-              <div
-                key={providerCard.provider}
-                className="rounded-xl border border-border bg-card p-0 overflow-hidden shadow-2xs hover:border-border/90 transition-all"
-                data-slot="settings-row"
-              >
+              <div key={providerCard.provider} className="provider-detail" data-slot="settings-row">
                 <div className="px-4 py-4 sm:px-5">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0 flex-1 space-y-1">
@@ -1409,30 +1420,6 @@ export default function ProvidersSettings(props: ProvidersSettingsProps) {
                         </Button>
                       ) : null}
 
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
-                        onClick={() =>
-                          setOpenProviderDetails((existing) => {
-                            const isCurrentlyOpen = Boolean(existing[providerCard.provider]);
-                            if (isCurrentlyOpen) {
-                              return {};
-                            }
-                            return {
-                              [providerCard.provider]: true,
-                            };
-                          })
-                        }
-                        aria-label={`Toggle ${providerDisplayName} details`}
-                      >
-                        <ChevronDownIcon
-                          className={cn(
-                            "size-3.5 transition-transform duration-200",
-                            openProviderDetails[providerCard.provider] && "rotate-180",
-                          )}
-                        />
-                      </Button>
                       {isLastEnabledProvider ? (
                         <Tooltip>
                           <TooltipTrigger
@@ -1488,21 +1475,7 @@ export default function ProvidersSettings(props: ProvidersSettingsProps) {
                   </div>
                 </div>
 
-                <Collapsible
-                  open={Boolean(openProviderDetails[providerCard.provider])}
-                  onOpenChange={(open) =>
-                    setOpenProviderDetails((existing) => {
-                      const isCurrentlyOpen = Boolean(existing[providerCard.provider]);
-                      if (open && !isCurrentlyOpen) {
-                        return { [providerCard.provider]: true };
-                      }
-                      if (!open && isCurrentlyOpen) {
-                        return {};
-                      }
-                      return existing;
-                    })
-                  }
-                >
+                <Collapsible open={true}>
                   <CollapsibleContent>
                     <div className="space-y-0">
                       {/* Binary path */}
