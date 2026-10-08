@@ -103,15 +103,15 @@ export function ProviderQuotaCard({ snapshot, isEnabled = true }: ProviderQuotaC
     (stat30d && stat30d.tokens > 0);
 
   return (
-    <div className="flex flex-col gap-4 rounded-xl border border-border/80 bg-card/40 p-5 backdrop-blur-sm shadow-xs transition-all hover:border-border">
+    <div className="flex flex-col gap-3 rounded-3xl border border-border bg-card p-4 min-w-0">
       {/* Header: Icon + Name + Plan Badge + Account Info */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 items-center gap-3">
           <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border/60 bg-muted/60 shadow-xs">
             <IconComp className="size-5" />
           </div>
-          <div className="space-y-0.5">
-            <div className="flex items-center gap-2">
+          <div className="min-w-0 space-y-0.5">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="font-semibold text-foreground text-sm">{displayName}</span>
               {snapshot.planName ? (
                 <span className="rounded-full bg-primary/10 border border-primary/20 px-2 py-0.5 text-[11px] font-medium text-foreground">
@@ -153,7 +153,7 @@ export function ProviderQuotaCard({ snapshot, isEnabled = true }: ProviderQuotaC
           ) : isEnabled ? (
             <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
               <CheckCircle2Icon className="size-3" />
-              Active
+              Reported
             </span>
           ) : (
             <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
@@ -175,9 +175,9 @@ export function ProviderQuotaCard({ snapshot, isEnabled = true }: ProviderQuotaC
             return (
               <div key={idx} className="space-y-2">
                 {/* Limit Label + Left Text + Reset info */}
-                <div className="flex items-baseline justify-between text-xs">
+                <div className="flex flex-wrap items-baseline justify-between gap-2 text-xs">
                   <span className="font-semibold text-foreground">{limit.label}</span>
-                  <div className="flex items-center gap-3 tabular-nums">
+                  <div className="flex min-w-0 items-center gap-3 tabular-nums">
                     <span className="font-medium text-foreground">{limit.leftText}</span>
                     {limit.resetText ? (
                       <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
@@ -235,7 +235,7 @@ export function ProviderQuotaCard({ snapshot, isEnabled = true }: ProviderQuotaC
         <div className="border-t border-border/50 pt-3">
           <p className="text-xs leading-relaxed text-muted-foreground">
             {status === "ok"
-              ? "No live quota data reported for this provider."
+              ? "No quota data reported."
               : (snapshot.detail ?? "Sign in with the provider CLI to see live usage and quota.")}
           </p>
         </div>
@@ -265,7 +265,7 @@ export function ProviderQuotaCard({ snapshot, isEnabled = true }: ProviderQuotaC
             Recent Activity
           </span>
           <div className="mt-2 grid grid-cols-3 gap-2 rounded-lg bg-muted/40 p-2.5 text-center text-xs">
-            <div className="space-y-0.5">
+            <div className="min-w-0 space-y-0.5">
               <span className="text-[10px] text-muted-foreground">Past 24h</span>
               <div className="font-semibold text-foreground tabular-nums">
                 {formatTokens(stat24h?.tokens ?? 0)}
@@ -283,7 +283,7 @@ export function ProviderQuotaCard({ snapshot, isEnabled = true }: ProviderQuotaC
                 {formatCount(stat7d?.sessions ?? 0)} sessions
               </div>
             </div>
-            <div className="space-y-0.5">
+            <div className="min-w-0 space-y-0.5">
               <span className="text-[10px] text-muted-foreground">Past 30d</span>
               <div className="font-semibold text-foreground tabular-nums">
                 {formatTokens(stat30d?.tokens ?? 0)}
