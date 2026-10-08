@@ -18,6 +18,7 @@ import { useServerConfig } from "../../state/settings";
 import { isElectron } from "../../env";
 import { Button } from "../ui/button";
 import { ZoomRuler } from "./ZoomRuler";
+import { PanelAnimationPill } from "./PanelAnimationPill";
 import { Switch } from "../ui/switch";
 import { SegmentedControl } from "../ui/segmented-control";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
@@ -270,7 +271,7 @@ export function GeneralSettings() {
             }
             control={
               <SegmentedControl
-                orbitKind="theme"
+                orbitKind="spotlight"
                 value={settings.desktopIconTheme}
                 onValueChange={(val) => {
                   if (val !== "dark" && val !== "light" && val !== "system") return;
@@ -302,7 +303,7 @@ export function GeneralSettings() {
           }
           control={
             <SegmentedControl
-              orbitKind="time"
+              orbitKind="spotlight"
               value={settings.timestampFormat}
               onValueChange={(fmt) => updateSettings({ timestampFormat: fmt })}
               options={(["locale", "12-hour", "24-hour"] as const).map((fmt) => ({
@@ -373,7 +374,7 @@ export function GeneralSettings() {
 
         <SettingsRow
           title="Panel animations"
-          description="Set how fast workspace panels open and close (0 ms suppresses panel transitions)."
+          description="Choose how fast panels open and close. Set to Off for instant changes."
           resetAction={
             panelDurationField.value !== DEFAULT_PANEL_ANIMATION_DURATION_MS ? (
               <SettingResetButton
@@ -386,31 +387,11 @@ export function GeneralSettings() {
             ) : null
           }
           control={
-            <div className="flex items-center gap-3 w-full sm:w-72">
-              <output
-                htmlFor="panel-animation-duration"
-                className="min-w-16 rounded-md bg-muted px-2 py-1 text-center font-mono text-xs font-medium tabular-nums text-foreground border border-border/50"
-              >
-                {panelDurationField.value} ms
-              </output>
-              <input
-                id="panel-animation-duration"
-                type="range"
-                min={0}
-                max={400}
-                step={25}
-                value={panelDurationField.value}
-                onChange={(e) => {
-                  const val = Number(e.target.value);
-                  if (Number.isInteger(val) && val >= 0 && val <= 400) {
-                    panelDurationField.onChange(val);
-                  }
-                }}
-                onBlur={panelDurationField.onBlur}
-                aria-label="Panel animation duration slider"
-                className="w-full accent-primary h-1.5 bg-secondary rounded-lg appearance-none cursor-pointer focus:outline-none relative z-10"
-              />
-            </div>
+            <PanelAnimationPill
+              value={panelDurationField.value}
+              onValueChange={panelDurationField.onChange}
+              onBlur={panelDurationField.onBlur}
+            />
           }
         />
 
