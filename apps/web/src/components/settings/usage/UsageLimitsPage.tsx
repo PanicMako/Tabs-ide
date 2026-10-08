@@ -1,3 +1,4 @@
+import { OrbitGroup } from "../../ui/orbit-group";
 import { useEffect, useMemo, useState } from "react";
 import { useAtomValue } from "@effect/atom-react";
 import {
@@ -101,7 +102,7 @@ export function UsageLimitsPage() {
 
       {/* Sub-tab Navigation (Usage / Limits) */}
       <div className="flex items-center gap-2 border-b border-border/60 pb-3">
-        <div
+        <OrbitGroup
           className="tabs-segmented flex items-center"
           role="group"
           aria-label="Usage settings section"
@@ -134,7 +135,7 @@ export function UsageLimitsPage() {
             <GaugeIcon className="size-4" />
             <span>Limits</span>
           </button>
-        </div>
+        </OrbitGroup>
       </div>
 
       {/* Main Tab Content */}

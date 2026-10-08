@@ -1,3 +1,4 @@
+import { OrbitGroup } from "../ui/orbit-group";
 import type { GitHistoryCommit, GitStatusFile, GitStatusResult } from "@tabs/contracts";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -322,7 +323,7 @@ export function DiffPage({
 
   return (
     <div>
-      <div
+      <OrbitGroup
         className="tabs-segmented flex items-center mb-4 w-fit"
         role="group"
         aria-label="Diff source"
@@ -351,7 +352,7 @@ export function DiffPage({
         >
           Commit history
         </button>
-      </div>
+      </OrbitGroup>
 
       {list.length === 0 ? (
         <div className="text-center text-xs text-muted-foreground/70 py-10">

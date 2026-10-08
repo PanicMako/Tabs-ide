@@ -344,6 +344,7 @@ export function GeneralSettings() {
             }
             control={
               <SegmentedControl
+                orbitKind="theme"
                 value={settings.desktopIconTheme}
                 onValueChange={(val) => {
                   if (val !== "dark" && val !== "light" && val !== "system") return;
@@ -375,6 +376,7 @@ export function GeneralSettings() {
           }
           control={
             <SegmentedControl
+              orbitKind="time"
               value={settings.timestampFormat}
               onValueChange={(fmt) => updateSettings({ timestampFormat: fmt })}
               options={(["locale", "12-hour", "24-hour"] as const).map((fmt) => ({

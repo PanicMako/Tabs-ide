@@ -38,15 +38,11 @@ test("grouped choices retain their selection and keyboard behavior", async () =>
 
   await expect.element(system).toHaveAttribute("aria-checked", "true");
   await expect.element(always).toHaveAttribute("aria-checked", "false");
-  const selectedShadow = getComputedStyle(system.element()).boxShadow;
-  expect(selectedShadow).not.toBe("none");
-  expect(getComputedStyle(always.element()).boxShadow).toBe("none");
-
+  const track = system.element().parentElement!;
+  const initialX = track.style.getPropertyValue("--orbit-x");
   await always.click();
   await expect.element(always).toHaveAttribute("aria-checked", "true");
-  await new Promise((resolve) => setTimeout(resolve, 200));
-  expect(getComputedStyle(always.element()).boxShadow).toBe(selectedShadow);
-  expect(getComputedStyle(system.element()).boxShadow).toBe("none");
+  await expect.poll(() => track.style.getPropertyValue("--orbit-x")).not.toBe(initialX);
   always.element().focus();
   await userEvent.keyboard("{ArrowRight}");
   await expect
@@ -55,10 +51,10 @@ test("grouped choices retain their selection and keyboard behavior", async () =>
 
   const startup = page.getByRole("tab", { name: "Startup" });
   const close = page.getByRole("tab", { name: "Close" });
-  expect(getComputedStyle(startup.element()).boxShadow).not.toBe("none");
+  expect(startup.element().parentElement!.querySelector("[data-orbit-orb]")).not.toBeNull();
   await close.click();
   await expect.element(close).toHaveAttribute("aria-selected", "true");
-  expect(getComputedStyle(close.element()).boxShadow).not.toBe("none");
+  await expect.poll(() => close.element().parentElement!.dataset.orbitValue).toBe("close");
   close.element().focus();
   await userEvent.keyboard("{ArrowLeft}");
   await expect.element(startup).toHaveAttribute("aria-selected", "true");
@@ -80,21 +76,17 @@ function Fixture() {
     />
   );
 }
-test("keeps flat themed tiles and skips disabled choices with keyboard navigation", async () => {
+test("keeps rounded themed tracks and skips disabled choices with keyboard navigation", async () => {
   const view = await render(<Fixture />);
   try {
     const system = page.getByRole("radio", { name: "System" });
     const light = page.getByRole("radio", { name: "Light" });
     system.element().parentElement!.setAttribute("data-theme", "tabs-light");
-    await expect
-      .poll(() => getComputedStyle(system.element()).backgroundColor)
-      .toBe("rgb(255, 255, 255)");
-    const lightBackground = getComputedStyle(system.element()).backgroundColor;
-    expect(getComputedStyle(system.element()).borderRadius).toBe("7px");
+    const orb = system.element().parentElement!.querySelector<HTMLElement>("[data-orbit-orb]")!;
+    const lightBackground = getComputedStyle(orb).backgroundColor;
+    expect(getComputedStyle(system.element().parentElement!).borderRadius).toBe("9999px");
     system.element().parentElement!.setAttribute("data-theme", "tabs-dark");
-    await expect
-      .poll(() => getComputedStyle(system.element()).backgroundColor)
-      .not.toBe(lightBackground);
+    await expect.poll(() => getComputedStyle(orb).backgroundColor).not.toBe(lightBackground);
     system.element().focus();
     system
       .element()

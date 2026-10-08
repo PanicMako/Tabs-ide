@@ -1,3 +1,4 @@
+import { OrbitGroup } from "./ui/orbit-group";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
@@ -407,7 +408,11 @@ export const CustomThemeStudioModal: React.FC<CustomThemeStudioModalProps> = ({
                   Titlebar &amp; window frame chrome theme
                 </span>
               </div>
-              <div className="tabs-segmented flex" role="group" aria-label="Base window variant">
+              <OrbitGroup
+                className="tabs-segmented flex"
+                role="group"
+                aria-label="Base window variant"
+              >
                 <button
                   type="button"
                   onClick={() => updateDraft({ ...draftConfig, baseVariant: "dark" })}
@@ -434,7 +439,7 @@ export const CustomThemeStudioModal: React.FC<CustomThemeStudioModalProps> = ({
                   <Sun className="size-3.5" />
                   <span>Light</span>
                 </button>
-              </div>
+              </OrbitGroup>
             </div>
           </div>
 

@@ -1,3 +1,4 @@
+import { OrbitGroup } from "../ui/orbit-group";
 import {
   ArrowUpDown,
   Bot,
@@ -832,7 +833,7 @@ export function PRsPanel({
                     </div>
                   ) : detailQuery.data?.pullRequest ? (
                     <div className="space-y-3">
-                      <div
+                      <OrbitGroup
                         role="tablist"
                         aria-label={`Pull request #${pr.n} details`}
                         onKeyDown={handleTabListKeyDown}
@@ -866,7 +867,7 @@ export function PRsPanel({
                               <Icon /> {label}
                             </Button>
                           ))}
-                      </div>
+                      </OrbitGroup>
                       <div
                         id={`pr-${pr.n}-detail-panel`}
                         role="tabpanel"

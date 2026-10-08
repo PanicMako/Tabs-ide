@@ -1,3 +1,4 @@
+import { OrbitGroup } from "../ui/orbit-group";
 import type {
   BackgroundActivityProfile,
   ResourceTelemetryHistory,
@@ -1389,7 +1390,7 @@ export function DiagnosticsSettings() {
             role="group"
             aria-label="Diagnostics section"
           >
-            <div className="tabs-segmented flex items-center">
+            <OrbitGroup className="tabs-segmented flex items-center">
               {PRIMARY_POPOUT_TABS.map((tab) => (
                 <button
                   key={tab.id}
@@ -1406,7 +1407,7 @@ export function DiagnosticsSettings() {
                   {tab.label}
                 </button>
               ))}
-            </div>
+            </OrbitGroup>
           </div>
         </header>
       ) : null}
@@ -1642,7 +1643,7 @@ export function DiagnosticsSettings() {
               description="Multi-metric CPU average, I/O read throughput, and I/O write throughput history."
               headerAction={
                 <div className="flex items-center gap-1.5">
-                  <div
+                  <OrbitGroup
                     className="tabs-segmented flex items-center text-xs"
                     role="group"
                     aria-label="Resource timeline window"
@@ -1663,7 +1664,7 @@ export function DiagnosticsSettings() {
                         {win.label}
                       </button>
                     ))}
-                  </div>
+                  </OrbitGroup>
                   <Button size="icon-xs" variant="ghost" onClick={() => void refresh()}>
                     <RefreshCwIcon className={cn("size-3.5", loading && "animate-spin")} />
                   </Button>
