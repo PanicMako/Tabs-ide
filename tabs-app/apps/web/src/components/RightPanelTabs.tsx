@@ -174,7 +174,6 @@ export const RightPanelTabs = memo(function RightPanelTabs({
           <CompanionPRPanel key={threadId} threadId={threadId} />
         ) : active.kind === "stash" ? (
           <div className="companion-workspace">
-            <CompanionHeading kind="stash" detail={`${stashes.length} saved prompts`} />
             <PromptStashPanel
               activeThreadId={threadId}
               currentEnvironmentId={environmentId}

@@ -53,6 +53,16 @@ The Agent PR surface removes its duplicate heading and uses compact scope/state 
 
 Validation: all 203 web unit suites / 1,528 tests pass; three Chromium tests pass, including Diff collapse/reopen and PR card geometry/actions at 360px and 900px. Live Electron confirms collapse/reopen and seven real PR cards with readable titles and no horizontal overflow. All 12 packages pass type checking. Scoped formatting/lint passes with existing unused-variable warnings in PRsPanel. Full formatting still reports 157 unrelated files; the workspace test run still stops at the existing client-runtime future-keybinding compatibility failure. No GitHub write actions were executed.
 
+## Stash redesign and attachment safety follow-up
+
+Stash replaces its duplicated headings and fixed split preview with one 45px search/save toolbar and a single scrolling set of expandable draft cards. Cards show image thumbnails, attached filenames, age, and Restore / Add / Copy / Delete actions. Search includes attachment names. Clear remains behind the app confirmation dialog. Existing saved drafts are preserved.
+
+The local T3 implementation supports persisted images, pending-image status, explicit missing-image reporting and context payloads. Tabs already stored image data URLs and file bytes, but its composer silently omitted images above its attachment budget; the panel save path also omitted terminal/review/preview context. Both Tabs save paths now refuse oversized images and keep the original draft intact. The panel preserves context in the prompt text using the existing composer serializers. It prevents duplicate saves while encoding, retains a draft edited during saving, blocks cross-environment restores, and keeps saved copies when image/file data cannot be decoded. Older entries with missing-image metadata show that limitation explicitly.
+
+Five Chromium regressions cover byte-for-byte image/file save and restore, Add without consuming the saved copy, cancelled replacement, oversized-image preservation, terminal-only context, and rejected storage writes. The complete web suite passes 203 suites / 1,528 tests. All 12 packages pass type checking; the final changed web sources and browser tests also pass the web typecheck. Live Electron confirms a 45px toolbar, two existing drafts, no duplicate heading, expansion and no horizontal overflow. Full workspace checks retain the existing client-runtime future-keybinding failure and 157 unrelated formatting issues.
+
+Image support is subject to the existing local-storage budget: large images must be resized before stashing, and a full storage quota rejects the save rather than clearing the draft. This change does not adopt T3’s asynchronous image-compression pipeline or claim unlimited attachment storage.
+
 ## Verification
 
 - Complete web unit suite: **200 files / 1,510 tests passed**.
