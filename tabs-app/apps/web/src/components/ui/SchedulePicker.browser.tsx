@@ -36,13 +36,30 @@ it("blocks past dates and lets a quick preset create a future schedule", async (
     await view.unmount();
   }
 });
-it("uses typed dates and times and supports cancel without confirming", async () => {
+it("picks calendar dates and scrolls time wheels without manual input", async () => {
   const confirm = vi.fn();
   const cancel = vi.fn();
-  const view = await render(<SchedulePicker onConfirm={confirm} onCancel={cancel} />);
+  const view = await render(
+    <SchedulePicker value={new Date(2030, 3, 12, 9, 44)} onConfirm={confirm} onCancel={cancel} />,
+  );
   try {
-    await page.getByLabelText("Date", { exact: true }).fill("2030-04-12");
-    await page.getByLabelText("Time · 24h").fill("09:45");
+    const dateLabel = new Date(2030, 3, 13).toLocaleDateString([], {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+    await page.getByRole("button", { name: dateLabel }).click();
+    const minutes = page.getByRole("listbox", { name: "Minutes" }).element();
+    minutes.dispatchEvent(new WheelEvent("wheel", { deltaY: 36, bubbles: true }));
+    minutes.scrollTop = 45 * 36;
+    minutes.dispatchEvent(new Event("scroll"));
+    await expect
+      .element(
+        page
+          .getByRole("listbox", { name: "Minutes" })
+          .getByRole("option", { name: "45", exact: true }),
+      )
+      .toHaveAttribute("aria-selected", "true");
     await page.getByRole("button", { name: "Schedule", exact: true }).click();
     const date = confirm.mock.calls[0]![0] as Date;
     expect([
@@ -51,7 +68,16 @@ it("uses typed dates and times and supports cancel without confirming", async ()
       date.getDate(),
       date.getHours(),
       date.getMinutes(),
-    ]).toEqual([2030, 3, 12, 9, 45]);
+    ]).toEqual([2030, 3, 13, 9, 45]);
+    const hours = page.getByRole("listbox", { name: "Hours" }).element();
+    hours.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+    await expect
+      .element(
+        page
+          .getByRole("listbox", { name: "Hours" })
+          .getByRole("option", { name: "10", exact: true }),
+      )
+      .toHaveAttribute("aria-selected", "true");
     await page.getByRole("button", { name: "Cancel", exact: true }).click();
     expect(cancel).toHaveBeenCalledOnce();
   } finally {

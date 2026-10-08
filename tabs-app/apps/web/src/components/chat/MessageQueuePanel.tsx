@@ -20,7 +20,7 @@ import { cn } from "~/lib/utils";
 import { Button } from "../ui/button";
 import { toastManager } from "../ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
-import { Popover, PopoverTrigger, PopoverPopup } from "../ui/popover";
+import { Dialog, DialogTrigger, DialogPopup, DialogTitle } from "../ui/dialog";
 import { CompanionEmpty } from "../agents/companion/CompanionChrome";
 import { showCustomConfirm } from "~/lib/customConfirm";
 import { SchedulePicker } from "../ui/SchedulePicker";
@@ -205,11 +205,11 @@ export const MessageQueuePanel = memo(function MessageQueuePanel({
 
                 {/* Dispatch Trigger Bar */}
                 <div className="queue-message-controls">
-                  <Popover
+                  <Dialog
                     open={schedulingMsgId === msg.id}
                     onOpenChange={(open) => setSchedulingMsgId(open ? msg.id : null)}
                   >
-                    <PopoverTrigger
+                    <DialogTrigger
                       render={
                         <button
                           type="button"
@@ -236,19 +236,19 @@ export const MessageQueuePanel = memo(function MessageQueuePanel({
                         </button>
                       }
                     />
-                    <PopoverPopup
-                      align="start"
-                      side="top"
-                      viewportClassName="p-0"
-                      className="border-none bg-transparent shadow-none"
+                    <DialogPopup
+                      showCloseButton={false}
+                      bottomStickOnMobile={false}
+                      className="max-w-[620px] overflow-auto"
                     >
+                      <DialogTitle className="sr-only">Schedule message</DialogTitle>
                       <SchedulePicker
                         value={scheduledDate ?? undefined}
                         onConfirm={(date) => handleUpdateSchedule(msg.id, date)}
                         onCancel={() => setSchedulingMsgId(null)}
                       />
-                    </PopoverPopup>
-                  </Popover>
+                    </DialogPopup>
+                  </Dialog>
 
                   {isScheduled && (
                     <button

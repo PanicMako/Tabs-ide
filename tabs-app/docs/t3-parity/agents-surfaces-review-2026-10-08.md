@@ -77,6 +77,14 @@ Both composer schedule buttons and Queue use a new shared SchedulePicker: Today 
 
 Seven Chromium tests pass across the scheduler and Queue, including invalid calendar dates, past-time blocking, future presets, exact typed local times, cancellation and preventing submission of a parent composer. All 203 web suites / 1,528 tests and all 12 package typechecks pass; final web typechecking passes too. Scoped formatting/lint passes with existing unused declarations in ChatView. Full formatting and workspace tests retain the known unrelated issues.
 
+## Calendar and scroll-wheel scheduler follow-up
+
+This supersedes the manual-input scheduling follow-up above. Both composer entry points and Queue now open a centered, focus-trapped modal with the shared full-window dim/blur backdrop. Native browser surfaces already recognize this dialog overlay. The date is selected from a calendar with month navigation and Today / Tomorrow shortcuts; hours and minutes use scroll-snap wheels, clickable values and arrow/Home/End keyboard controls. AM/PM and relative presets remain available. The local-zone summary and future-time checks stay visible, and submission still cannot bubble into the composer. Cancelling or pressing Escape closes the modal without scheduling.
+
+Composer Queue and Stash controls now show compact icons and counts with accessible labels and tooltips. Shared segmented controls use a neutral grouped surface, small rounded tiles, theme tokens and a quiet selected border; the glowing capsule treatment is removed. Existing radio/tab keyboard behavior remains intact, including disabled-choice skipping. Unrelated concurrent workspace, settings and Git edits are preserved.
+
+Chromium coverage includes calendar selection, scroll-wheel minute selection, keyboard hour selection, future-time validation, cancellation, parent-form isolation, Queue scheduling, theme changes and existing radio/tab keyboard behavior. All 203 web suites / 1,528 tests pass and all 12 package typechecks pass. Live Electron confirms the modal follows the user's active custom theme and centers the calendar/wheels over a full backdrop. Scoped formatting and lint pass with existing source warnings. Full formatting reports 156 unrelated files. The workspace test run passed all 447 desktop assertions but stopped on the existing browser-reproduction suite's 10-second afterAll browser shutdown timeout; other package tests were interrupted. The complete web suite was separately run successfully.
+
 ## Verification
 
 - Complete web unit suite: **200 files / 1,510 tests passed**.
