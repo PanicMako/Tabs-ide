@@ -532,7 +532,8 @@
   flex-direction: column;
   gap: 10px;
 }
-.stash-draft {
+.stash-draft,
+.queue-message {
   flex-shrink: 0;
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -540,17 +541,9 @@
   padding: 12px;
   position: relative;
 }
-.stash-draft::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 16px;
-  width: 22px;
-  height: 3px;
-  border-radius: 0 0 3px 3px;
-  background: color-mix(in srgb, #ff9f6b 55%, var(--muted));
-}
-.stash-draft-heading {
+
+.stash-draft-heading,
+.queue-message-heading {
   display: flex;
   width: 100%;
   align-items: start;
@@ -560,11 +553,13 @@
   padding: 2px 0 0;
   color: var(--foreground);
 }
-.stash-draft-heading:focus-visible {
+.stash-draft-heading:focus-visible,
+.queue-message-heading:focus-visible {
   outline: 2px solid var(--ring);
   border-radius: 4px;
 }
-.stash-draft-title {
+.stash-draft-title,
+.queue-message-title {
   flex: 1;
   min-width: 0;
   font-family: Georgia, serif;
@@ -580,7 +575,8 @@
   font-size: 10px;
   color: var(--muted-foreground);
 }
-.stash-draft-text {
+.stash-draft-text,
+.queue-message-text {
   margin-top: 12px;
   font-size: 12px;
   line-height: 1.65;
@@ -641,4 +637,70 @@
   gap: 4px;
   align-items: center;
   margin-top: 10px;
+}
+
+.queue-toolbar {
+  min-height: 45px;
+  padding: 6px 10px;
+  gap: 6px;
+}
+.queue-toolbar-label {
+  font-size: 12px;
+  font-weight: 500;
+}
+.queue-messages {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.queue-message-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  color: var(--muted-foreground);
+  font-size: 10px;
+}
+.queue-position {
+  font-family: "Geist Mono", monospace;
+  font-variant-numeric: tabular-nums;
+}
+.queue-message-meta time {
+  margin-left: auto;
+}
+.queue-message-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 10px;
+}
+.queue-message-controls > [data-slot="popover-trigger"] {
+  min-width: 0;
+}
+.queue-schedule {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 999px;
+  background: var(--muted);
+  color: var(--foreground);
+  padding: 5px 8px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.queue-schedule:hover {
+  background: var(--accent);
+}
+.queue-schedule:focus-visible {
+  outline: 2px solid var(--ring);
+}
+.queue-reorder {
+  display: flex;
+  margin-left: auto;
+  align-items: center;
 }

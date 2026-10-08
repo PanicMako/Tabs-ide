@@ -63,6 +63,12 @@ Five Chromium regressions cover byte-for-byte image/file save and restore, Add w
 
 Image support is subject to the existing local-storage budget: large images must be resized before stashing, and a full storage quota rejects the save rather than clearing the draft. This change does not adopt T3’s asynchronous image-compression pipeline or claim unlimited attachment storage.
 
+## Compact Queue follow-up
+
+Queue now matches Stash’s neutral expandable cards, serif previews, visible image/file attachments and compact controls. One 45px toolbar replaces the duplicate headings and large dispatch explanation. An accessible help tooltip explains readiness and Send next; schedule chips, clear time, reorder, deletion, retries and the existing schedule picker remain available. Clear queue still requires app confirmation and affects only the current thread. Stash’s decorative colored card marks are removed.
+
+Four Chromium tests cover 360px/700px geometry, expansion, image previews, order changes, deletion, cancelled/confirmed clearing with another thread preserved, schedule changes and Send next callback routing. All 203 web suites / 1,528 tests and all 12 package typechecks pass. Live Electron verifies the real scheduled queue, its 45px toolbar and no horizontal overflow. Tests use a mocked send callback; no real queued messages were sent or modified during verification. Scoped formatting/lint passes. Full formatting retains 157 unrelated issues and the workspace test run retains its existing client-runtime compatibility failure.
+
 ## Verification
 
 - Complete web unit suite: **200 files / 1,510 tests passed**.
