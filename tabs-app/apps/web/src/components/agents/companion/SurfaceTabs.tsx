@@ -15,7 +15,7 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import type { RightPanelTab } from "~/stores/rightPanelStore";
 import { cn } from "~/lib/utils";
 
-const surfaces = [
+export const surfaces = [
   {
     id: "browser",
     key: "b",
@@ -165,7 +165,15 @@ export function SurfaceTabs({
   choosing,
   maximized = false,
   onToggleMaximized,
+  instances,
+  activeInstanceId,
+  onSelectInstance,
+  onCloseInstance,
 }: {
+  instances?: ReadonlyArray<{ id: string; kind: RightPanelTab; title?: string | undefined }>;
+  activeInstanceId?: string | null | undefined;
+  onSelectInstance?: ((id: string) => void) | undefined;
+  onCloseInstance?: ((id: string) => void) | undefined;
   activeTab: RightPanelTab;
   onSelect: (tab: RightPanelTab) => void;
   onClosePanel: () => void;
@@ -197,7 +205,10 @@ export function SurfaceTabs({
       if (document.activeElement === document.body) selected?.focus({ preventScroll: true });
     });
     return () => cancelAnimationFrame(frame);
-  }, [activeTab, choosing]);
+  }, [activeTab, choosing, activeInstanceId]);
+  const renderedTabs = instances ?? openTabs.map((kind) => ({ id: kind, kind, title: undefined }));
+  const isSelected = (id: string, kind: RightPanelTab) =>
+    !choosing && (instances ? id === activeInstanceId : kind === activeTab);
   const select = (tab: RightPanelTab) => {
     onChooserChange(false);
     onSelect(tab);
@@ -240,15 +251,25 @@ export function SurfaceTabs({
             tabs[next]?.click();
           }}
         >
-          {openTabs.map((id) => {
-            const surface = surfaces.find((item) => item.id === id)!;
+          {renderedTabs.map(({ id, kind, title }) => {
+            const surface = surfaces.find((item) => item.id === kind)!;
+            const number =
+              renderedTabs
+                .filter((item) => item.kind === kind)
+                .findIndex((item) => item.id === id) + 1;
+            const label =
+              kind === "browser" && number > 1
+                ? `Browser ${number}`
+                : kind === "pr"
+                  ? "PRs"
+                  : surface.label;
             return (
               <div
                 style={{ "--surface-tint": surface.tint } as CSSProperties}
                 key={id}
                 className={cn(
                   "surface-tab flex shrink-0 items-center rounded-full border",
-                  !choosing && id === activeTab
+                  isSelected(id, kind)
                     ? "surface-tab-active border-transparent text-foreground"
                     : "border-transparent text-muted-foreground",
                 )}
@@ -256,36 +277,41 @@ export function SurfaceTabs({
                 <button
                   type="button"
                   role="tab"
-                  title={surface.label}
-                  aria-label={id === "pr" ? surface.label : undefined}
-                  aria-selected={!choosing && id === activeTab}
-                  tabIndex={!choosing && id === activeTab ? 0 : -1}
+                  title={title || surface.label}
+                  aria-label={kind === "pr" ? surface.label : undefined}
+                  aria-selected={isSelected(id, kind)}
+                  tabIndex={isSelected(id, kind) ? 0 : -1}
                   aria-controls="companion-surface-body"
                   id={`surface-tab-${id}`}
-                  onClick={() => select(id)}
+                  onClick={() => (instances ? onSelectInstance?.(id) : select(kind))}
                   className="flex h-8 items-center gap-1 rounded-l-full pl-2 pr-1.5 surface-tab-label focus-visible:outline-2 focus-visible:outline-ring"
                 >
-                  {openTabs.length <= 3 && (
+                  {renderedTabs.length <= 3 && (
                     <surface.Icon aria-hidden="true" className={cn("size-3.5", surface.color)} />
                   )}
-                  {id === "pr" ? "PRs" : surface.label}
-                  {!!counts[id] && (
+                  {label}
+                  {!!counts[kind] && (
                     <span className="rounded-md bg-muted px-1.5 font-mono text-[10px] tabular-nums">
-                      {counts[id]}
+                      {counts[kind]}
                     </span>
                   )}
                 </button>
                 <button
                   data-close-surface
                   type="button"
-                  aria-label={`Close ${surface.label} surface`}
+                  aria-label={`Close ${kind === "pr" ? surface.label : label} surface`}
                   title={`Close ${surface.label}`}
                   className="surface-control mr-0.5 flex size-7 items-center justify-center rounded-full focus-visible:outline-2 focus-visible:outline-ring"
                   onClick={() => {
-                    const remaining = openTabs.filter((tab) => tab !== id);
+                    if (instances) {
+                      onCloseInstance?.(id);
+                      return;
+                    }
+                    const remaining = openTabs.filter((tab) => tab !== kind);
                     setOpenTabs(remaining);
-                    if (!choosing && id === activeTab) {
-                      const next = remaining[Math.min(openTabs.indexOf(id), remaining.length - 1)];
+                    if (isSelected(id, kind)) {
+                      const next =
+                        remaining[Math.min(openTabs.indexOf(kind), remaining.length - 1)];
                       if (next) select(next);
                       else {
                         onChooserChange(true);
@@ -308,11 +334,12 @@ export function SurfaceTabs({
         <button
           ref={addButton}
           type="button"
+          id="surface-add-button"
           aria-label="Open a surface"
           title="Open a surface"
-          aria-pressed={choosing && openTabs.length > 0}
+          aria-pressed={choosing && renderedTabs.length > 0}
           onClick={() => {
-            onChooserChange(!choosing || openTabs.length === 0);
+            onChooserChange(!choosing || renderedTabs.length === 0);
           }}
           className="surface-control flex size-9 shrink-0 items-center justify-center rounded-xl border border-dashed border-border text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring [-webkit-app-region:no-drag]"
         >

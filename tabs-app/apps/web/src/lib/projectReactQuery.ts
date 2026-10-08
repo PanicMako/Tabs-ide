@@ -158,3 +158,28 @@ export function projectSearchContentsQueryOptions(input: {
     placeholderData: (previous) => previous ?? EMPTY_SEARCH_CONTENTS_RESULT,
   });
 }
+
+export function projectDirectoryQueryOptions(input: {
+  cwd: string | null;
+  directoryPath: string;
+  environmentId?: string | null | undefined;
+  enabled?: boolean;
+}) {
+  return queryOptions({
+    queryKey: [
+      "projects",
+      input.environmentId ?? null,
+      "directory",
+      input.cwd,
+      input.directoryPath,
+    ] as const,
+    queryFn: async () => {
+      if (!input.cwd) throw new Error("No workspace selected.");
+      const api = await environmentApi(input.environmentId);
+      return api.projects.listEntries({ cwd: input.cwd, directoryPath: input.directoryPath });
+    },
+    enabled: (input.enabled ?? true) && input.cwd !== null,
+    staleTime: 15_000,
+    refetchOnWindowFocus: true,
+  });
+}

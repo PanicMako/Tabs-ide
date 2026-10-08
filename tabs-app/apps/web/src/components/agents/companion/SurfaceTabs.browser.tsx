@@ -222,3 +222,38 @@ it("expands and restores the panel without moving the add icon or losing tabs", 
     await view.unmount();
   }
 });
+
+it("selects and closes independent browser resources by ID", async () => {
+  const select = vi.fn();
+  const close = vi.fn();
+  const view = await render(
+    <SurfaceTabs
+      activeTab="browser"
+      activeInstanceId="second"
+      instances={[
+        { id: "first", kind: "browser", title: "First site" },
+        { id: "second", kind: "browser", title: "Second site" },
+        { id: "files", kind: "files" },
+      ]}
+      choosing={false}
+      counts={{}}
+      dragRegion={false}
+      onSelect={vi.fn()}
+      onChooserChange={vi.fn()}
+      onClosePanel={vi.fn()}
+      onSelectInstance={select}
+      onCloseInstance={close}
+    />,
+  );
+  try {
+    await expect
+      .element(page.getByRole("tab", { name: "Browser 2", exact: true }))
+      .toHaveAttribute("aria-selected", "true");
+    await page.getByRole("tab", { name: "Browser", exact: true }).click();
+    expect(select).toHaveBeenCalledWith("first");
+    await page.getByRole("button", { name: "Close Browser 2 surface", exact: true }).click();
+    expect(close).toHaveBeenCalledWith("second");
+  } finally {
+    await view.unmount();
+  }
+});

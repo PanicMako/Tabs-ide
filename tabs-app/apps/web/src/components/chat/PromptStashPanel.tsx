@@ -9,16 +9,16 @@ import {
   Trash2Icon,
   Undo2Icon,
   CheckIcon,
-  LayersIcon,
 } from "lucide-react";
 import { memo, useMemo, useState, useCallback } from "react";
 import type { EnvironmentId, ThreadId } from "@tabs/contracts";
 import { usePromptStashStore, promptStashSnippet, type PromptStashEntry } from "~/promptStashStore";
-import { hydrateImagesFromPersisted } from "~/composerDraftStore";
+import { hydrateImagesFromPersisted, useComposerDraftStore } from "~/composerDraftStore";
 import {
   useComposerDraft,
   createScopedComposerDraftActions,
   composerDraftActions,
+  scopedComposerThreadId,
 } from "~/state/composerDrafts";
 import { readFileAsDataUrl } from "~/components/ChatView.logic";
 import { formatRelativeTime } from "~/timestampFormat";
@@ -27,6 +27,8 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { ScrollArea } from "../ui/scroll-area";
 import { toastManager } from "../ui/toast";
+import { CompanionEmpty } from "../agents/companion/CompanionChrome";
+import { showCustomConfirm } from "~/lib/customConfirm";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 
 export interface PromptStashPanelProps {
@@ -52,7 +54,10 @@ export const PromptStashPanel = memo(function PromptStashPanel({
   const currentDraft = useComposerDraft(fallbackThreadId, currentEnvironmentId);
   const existingDraftPrompt = currentDraft?.prompt ?? "";
   const existingDraftImages = currentDraft?.images ?? [];
-  const hasStashableDraft = existingDraftPrompt.trim().length > 0 || existingDraftImages.length > 0;
+  const hasStashableDraft =
+    existingDraftPrompt.trim().length > 0 ||
+    existingDraftImages.length > 0 ||
+    (currentDraft?.files.length ?? 0) > 0;
 
   const draftActions = useMemo(
     () =>
@@ -87,7 +92,7 @@ export const PromptStashPanel = memo(function PromptStashPanel({
   }, [filteredEntries, entries, selectedId]);
 
   const handleRestore = useCallback(
-    (entry: PromptStashEntry, mode: "replace" | "append" = "replace") => {
+    async (entry: PromptStashEntry, mode: "replace" | "append" = "replace") => {
       if (!activeThreadId) {
         toastManager.add({
           type: "warning",
@@ -97,6 +102,33 @@ export const PromptStashPanel = memo(function PromptStashPanel({
         return;
       }
 
+      if (
+        mode === "replace" &&
+        (existingDraftPrompt.trim() ||
+          existingDraftImages.length ||
+          currentDraft?.files.length ||
+          currentDraft?.terminalContexts.length ||
+          currentDraft?.previewAnnotations.length) &&
+        !(await showCustomConfirm(
+          "Replace the current composer draft with this saved prompt? Use Append to keep both.",
+        ))
+      )
+        return;
+      if (entry.files?.some((file) => !file.dataUrl)) {
+        toastManager.add({
+          type: "warning",
+          title: "Reattach saved file references",
+          description: entry
+            .files!.filter((file) => !file.dataUrl)
+            .map((file) => file.name)
+            .join(", "),
+        });
+      }
+      const restoredFiles = hydrateImagesFromPersisted(
+        (entry.files ?? []).flatMap((file) =>
+          file.dataUrl ? [{ ...file, dataUrl: file.dataUrl }] : [],
+        ),
+      ).map((file) => ({ ...file, type: "file" as const }));
       if (mode === "replace") {
         draftActions.clearComposerContent(activeThreadId);
         draftActions.setPrompt(activeThreadId, entry.prompt);
@@ -131,13 +163,26 @@ export const PromptStashPanel = memo(function PromptStashPanel({
         });
       }
 
+      if (restoredFiles.length) draftActions.addFiles(activeThreadId, restoredFiles);
       onLoadedIntoComposer?.();
     },
-    [activeThreadId, draftActions, existingDraftPrompt, onLoadedIntoComposer, takeStash],
+    [
+      activeThreadId,
+      draftActions,
+      existingDraftPrompt,
+      onLoadedIntoComposer,
+      takeStash,
+      existingDraftImages.length,
+      currentDraft,
+    ],
   );
 
   const handleStashCurrentDraft = useCallback(async () => {
     if (!activeThreadId || !hasStashableDraft) return;
+    const draftKey = currentEnvironmentId
+      ? scopedComposerThreadId(currentEnvironmentId, activeThreadId)
+      : activeThreadId;
+    const originalDraft = useComposerDraftStore.getState().draftsByThreadId[draftKey];
     try {
       const persistedImages = await Promise.all(
         existingDraftImages.map(async (img) => ({
@@ -149,16 +194,38 @@ export const PromptStashPanel = memo(function PromptStashPanel({
         })),
       );
 
-      stashEntry({
+      const persistedFiles = await Promise.all(
+        (currentDraft?.files ?? []).map(async (file) => ({
+          id: file.id,
+          name: file.name,
+          mimeType: file.mimeType,
+          sizeBytes: file.sizeBytes,
+          dataUrl: await readFileAsDataUrl(file.file),
+        })),
+      );
+      const result = stashEntry({
         id: randomUUID(),
         createdAt: new Date().toISOString(),
         prompt: existingDraftPrompt,
         ...(currentEnvironmentId ? { environmentId: currentEnvironmentId } : {}),
         ...(activeThreadId ? { threadId: activeThreadId } : {}),
         attachments: persistedImages,
+        files: persistedFiles,
       });
 
-      draftActions.clearComposerContent(activeThreadId);
+      if (!result.written) throw new Error("Storage quota exceeded. Your draft has been kept.");
+      if (!result.durable)
+        toastManager.add({
+          type: "warning",
+          title: "Stash is saved for this session",
+          description: "Browser storage is unavailable. This prompt will not survive a reload.",
+        });
+      if (useComposerDraftStore.getState().draftsByThreadId[draftKey] !== originalDraft) return;
+      draftActions.setPrompt(activeThreadId, "");
+      (currentDraft?.files ?? []).forEach((file) =>
+        draftActions.removeFile(activeThreadId, file.id),
+      );
+      existingDraftImages.forEach((image) => draftActions.removeImage(activeThreadId, image.id));
       toastManager.add({
         type: "success",
         title: "Prompt stashed",
@@ -173,6 +240,7 @@ export const PromptStashPanel = memo(function PromptStashPanel({
   }, [
     activeThreadId,
     currentEnvironmentId,
+    currentDraft,
     draftActions,
     existingDraftImages,
     existingDraftPrompt,
@@ -212,7 +280,8 @@ export const PromptStashPanel = memo(function PromptStashPanel({
     [removeStash],
   );
 
-  const handleClearAll = useCallback(() => {
+  const handleClearAll = useCallback(async () => {
+    if (!(await showCustomConfirm("Delete the saved prompts in this environment?"))) return;
     clearStash(currentEnvironmentId ?? undefined);
     toastManager.add({
       type: "info",
@@ -222,7 +291,12 @@ export const PromptStashPanel = memo(function PromptStashPanel({
   }, [clearStash, currentEnvironmentId]);
 
   return (
-    <div className={cn("flex h-full min-h-0 flex-col bg-background text-foreground", className)}>
+    <div
+      className={cn(
+        "companion-stash flex h-full min-h-0 flex-col bg-background text-foreground",
+        className,
+      )}
+    >
       {/* Search & Actions Header */}
       <div className="flex shrink-0 flex-col gap-2 border-b border-border/60 p-3">
         <div className="flex items-center justify-between">
@@ -268,7 +342,8 @@ export const PromptStashPanel = memo(function PromptStashPanel({
           <SearchIcon className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
             type="search"
-            placeholder="Search stashed prompts..."
+            aria-label="Search saved prompts"
+            placeholder="Find a saved prompt..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="h-8 pl-8 pr-3 text-xs bg-muted/40"
@@ -278,30 +353,9 @@ export const PromptStashPanel = memo(function PromptStashPanel({
 
       {/* Main Content Area: Split List & Inspection Preview */}
       {entries.length === 0 ? (
-        <div className="flex flex-1 flex-col items-center justify-center p-6 text-center text-xs text-muted-foreground">
-          <div className="mb-3 flex size-12 items-center justify-center rounded-2xl bg-muted/60 text-muted-foreground/70">
-            <LayersIcon className="size-6" />
-          </div>
-          <p className="font-medium text-foreground">No stashed prompts yet</p>
-          <p className="mt-1 max-w-xs text-[11px] text-muted-foreground/80">
-            Press{" "}
-            <kbd className="rounded border border-border px-1 py-0.5 font-mono text-[10px]">⌘S</kbd>{" "}
-            or click the <span className="font-semibold text-foreground">Stash</span> button in the
-            composer to stash drafts for later.
-          </p>
-          {hasStashableDraft && (
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={() => void handleStashCurrentDraft()}
-              className="mt-3 gap-1.5 text-xs font-semibold"
-            >
-              <BookmarkPlusIcon className="size-3.5 text-foreground" />
-              Stash Current Draft Now
-            </Button>
-          )}
-        </div>
+        <CompanionEmpty kind="stash" title="Keep a good thought">
+          Save a composer draft here, then restore or append it when you need it.
+        </CompanionEmpty>
       ) : filteredEntries.length === 0 ? (
         <div className="flex flex-1 items-center justify-center p-4 text-center text-xs text-muted-foreground">
           No stashes matching &ldquo;{searchQuery}&rdquo;
@@ -319,8 +373,17 @@ export const PromptStashPanel = memo(function PromptStashPanel({
                   <div
                     key={entry.id}
                     onClick={() => setSelectedId(entry.id)}
+                    role="button"
+                    tabIndex={0}
+                    aria-pressed={isSelected}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        setSelectedId(entry.id);
+                      }
+                    }}
                     className={cn(
-                      "group relative flex flex-col gap-1.5 rounded-lg p-2.5 text-left transition-all cursor-pointer select-none",
+                      "companion-card group relative flex flex-col gap-1.5 rounded-lg p-2.5 text-left transition-all cursor-pointer select-none",
                       isSelected
                         ? "bg-accent text-accent-foreground ring-1 ring-border shadow-xs"
                         : "hover:bg-muted/50 text-foreground",
@@ -356,6 +419,7 @@ export const PromptStashPanel = memo(function PromptStashPanel({
                           size="icon"
                           onClick={(e) => handleDelete(entry.id, e)}
                           className="size-6 text-muted-foreground hover:text-destructive cursor-pointer transition-colors"
+                          aria-label="Delete stash"
                           title="Delete stash"
                         >
                           <Trash2Icon className="size-3" />

@@ -9287,7 +9287,7 @@ export function DesktopCustomEmbedTool(props: {
     const nextUrl = normalizeBrowserUrl(draftUrl);
     if (!nextUrl || nextUrl.length === 0) return;
     setBrowserSessionUrl(props.project.id, props.sessionId, nextUrl);
-    if (bridge && hostState.available) {
+    if (bridge && hostState.available && !props.resumeLastVisitedPage) {
       void bridge
         .navigateBrowserSession({
           projectId: props.project.id,
@@ -9362,6 +9362,8 @@ export function DesktopCustomEmbedTool(props: {
       return;
     }
 
+    // URL changes are handled by the navigation effect; recreating the host
+    // subscription for each address change can issue duplicate navigations.
     let disposed = false;
     const partition = resolveBrowserPartition({
       projectId: props.project.id,
@@ -9369,37 +9371,45 @@ export function DesktopCustomEmbedTool(props: {
       partitionMode: props.partitionMode,
       partitionProfile: props.partitionProfile,
     });
-    void bridge
-      .getBrowserHostState()
-      .then((nextState) => {
+    void (async () => {
+      try {
+        const host = await bridge.getBrowserHostState();
         if (disposed) return;
-        setHostState(nextState);
-      })
-      .catch(() => undefined);
-    void bridge
-      .getBrowserSessionState({
-        projectId: props.project.id,
-        sessionId: props.sessionId,
-      })
-      .then((nextState) => {
-        if (disposed || !nextState) return;
-        setSessionState(nextState);
-      })
-      .catch(() => undefined);
-    void bridge
-      .ensureBrowserSession({
-        projectId: props.project.id,
-        sessionId: props.sessionId,
-        initialUrl: normalizedUrl,
-        partition,
-      })
-      .then(() =>
-        bridge.activateBrowserSession({
+        if (!host.available) {
+          setHostState(host);
+          return;
+        }
+        await bridge.ensureBrowserSession({
           projectId: props.project.id,
           sessionId: props.sessionId,
-        }),
-      )
-      .catch(() => undefined);
+          initialUrl: normalizedUrl,
+          partition,
+        });
+        if (disposed) return;
+        const session = await bridge.getBrowserSessionState({
+          projectId: props.project.id,
+          sessionId: props.sessionId,
+        });
+        if (disposed) return;
+        if (session) {
+          setSessionState(session);
+          if (props.companion && session.currentUrl) {
+            setBrowserSessionUrl(props.project.id, props.sessionId, session.currentUrl);
+          }
+        }
+        await bridge.activateBrowserSession({
+          projectId: props.project.id,
+          sessionId: props.sessionId,
+        });
+        if (!disposed) setHostState(host);
+      } catch (error) {
+        if (!disposed)
+          setHostState({
+            available: false,
+            reason: error instanceof Error ? error.message : String(error),
+          });
+      }
+    })();
 
     const unsubscribe = bridge.onBrowserSessionState((nextState) => {
       if (nextState.projectId !== props.project.id || nextState.sessionId !== props.sessionId) {
@@ -9421,7 +9431,7 @@ export function DesktopCustomEmbedTool(props: {
     };
   }, [
     bridge,
-    normalizedUrl,
+    props.companion,
     props.project.id,
     props.sessionId,
     props.partitionMode,
@@ -9432,11 +9442,11 @@ export function DesktopCustomEmbedTool(props: {
     if (!bridge || !hostState.available || normalizedUrl.length === 0) {
       return;
     }
-    if (sessionState.currentUrl === normalizedUrl) {
+    if (isSameWebUrl(sessionState.currentUrl, normalizedUrl)) {
       lastRequestedUrlRef.current = normalizedUrl;
       return;
     }
-    if (lastRequestedUrlRef.current === normalizedUrl) {
+    if (isSameWebUrl(lastRequestedUrlRef.current, normalizedUrl)) {
       return;
     }
     lastRequestedUrlRef.current = normalizedUrl;
