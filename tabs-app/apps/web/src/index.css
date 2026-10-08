@@ -1023,19 +1023,13 @@ body::after {
 }
 
 pre,
-code,
+code {
+  font-family: var(--font-mono, ui-monospace, monospace);
+}
+
 textarea,
 input {
-  font-family: var(
-    --font-mono,
-    "SF Mono",
-    "SFMono-Regular",
-    "JetBrains Mono",
-    Consolas,
-    "Liberation Mono",
-    Menlo,
-    monospace
-  );
+  font-family: inherit;
 }
 
 /* Window drag region (frameless titlebar) */
@@ -2040,7 +2034,7 @@ label:has(> select#reasoning-effort) select {
 }
 .surface-script,
 .surface-tab-label {
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-sans);
   font-style: italic;
   font-weight: 400;
   letter-spacing: -0.025em;
@@ -2083,7 +2077,7 @@ label:has(> select#reasoning-effort) select {
   );
 }
 .workspace-project {
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-sans);
   font-style: italic;
   letter-spacing: -0.02em;
 }
@@ -2130,7 +2124,7 @@ label:has(> select#reasoning-effort) select {
 }
 .surface-launcher-row:hover .surface-script,
 .surface-launcher-row:focus-within .surface-script {
-  font-family: var(--surface-hover-font), serif;
+  font-family: var(--font-sans);
   font-weight: var(--surface-hover-weight);
   font-style: var(--surface-hover-style);
   letter-spacing: 0;
