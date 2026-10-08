@@ -791,19 +791,8 @@ export const resolveAsset = Effect.fn("AssetAccess.resolveAsset")(function* (
   token: string,
   relativePath: string,
 ) {
-  const [encodedPayload, signature] = token.split(".");
-  if (!encodedPayload || !signature) return null;
-
-  const secretStore = yield* ServerSecretStore.ServerSecretStore;
-  const signingSecret = yield* secretStore.getOrCreateRandom(SIGNING_SECRET_NAME, 32).pipe(
-    Effect.tapError((cause) => Effect.logError("Failed to load the asset signing key.", { cause })),
-    Effect.orElseSucceed(() => null),
-  );
-  if (!signingSecret) return null;
-  if (!timingSafeEqualBase64Url(signature, signPayload(encodedPayload, signingSecret))) return null;
-
-  const claims = decodeClaims(encodedPayload);
-  if (!claims || claims.expiresAt <= (yield* Clock.currentTimeMillis)) return null;
+  const claims = yield* readSignedAssetClaims(token);
+  if (!claims) return null;
 
   if (claims.kind === "attachment") {
     const config = yield* ServerConfig.ServerConfig;
@@ -941,3 +930,72 @@ export const resolveAsset = Effect.fn("AssetAccess.resolveAsset")(function* (
   });
   return workspaceFile ? ({ kind: "file", path: workspaceFile } satisfies ResolvedAsset) : null;
 });
+
+const readSignedAssetClaims = Effect.fn("AssetAccess.readSignedAssetClaims")(function* (
+  token: string,
+) {
+  const [encodedPayload, signature] = token.split(".");
+  if (!encodedPayload || !signature) return null;
+
+  const secretStore = yield* ServerSecretStore.ServerSecretStore;
+  const signingSecret = yield* secretStore.getOrCreateRandom(SIGNING_SECRET_NAME, 32).pipe(
+    Effect.tapError((cause) => Effect.logError("Failed to load the asset signing key.", { cause })),
+    Effect.orElseSucceed(() => null),
+  );
+  if (!signingSecret) return null;
+  if (!timingSafeEqualBase64Url(signature, signPayload(encodedPayload, signingSecret))) return null;
+
+  const claims = decodeClaims(encodedPayload);
+  if (!claims || claims.expiresAt <= (yield* Clock.currentTimeMillis)) return null;
+
+  return claims;
+});
+
+/** Narrow gateway for the desktop server, without requiring the newer thread orchestrator. */
+export const issueDraftWorkspaceAssetUrl = Effect.fn("AssetAccess.issueDraftWorkspaceAssetUrl")(
+  function* (resource: Extract<AssetResource, { _tag: "draft-workspace-file" }>) {
+    const workspacePaths = yield* WorkspacePaths.WorkspacePaths;
+    const path = yield* Path.Path;
+    const workspaceRoot = yield* workspacePaths.normalizeWorkspaceRoot(resource.cwd);
+    const expiresAt = (yield* Clock.currentTimeMillis) + ASSET_TOKEN_TTL_MS;
+    const finalized = yield* finalizeWorkspaceFileAsset({
+      workspaceRoot,
+      requestedPath: resource.path,
+      resource,
+      expiresAt,
+    });
+    // A companion media preview grants access to exactly one file.
+    const claims: AssetClaims =
+      finalized.claims.kind === "workspace-file-exact"
+        ? finalized.claims
+        : {
+            version: 1,
+            kind: "workspace-file-exact",
+            workspaceRoot: finalized.claims.workspaceRoot,
+            relativePath: path.join(finalized.claims.baseRelativePath, finalized.fileName),
+            expiresAt,
+          };
+    const secret = yield* ServerSecretStore.ServerSecretStore;
+    const signingSecret = yield* secret.getOrCreateRandom(SIGNING_SECRET_NAME, 32);
+    const payload = base64UrlEncode(encodeAssetClaims(claims));
+    return {
+      relativeUrl: `${ASSET_ROUTE_PREFIX}/${payload}.${signPayload(payload, signingSecret)}/${encodeURIComponent(finalized.fileName)}`,
+      expiresAt,
+      ...(finalized.imageDimensions ? { imageDimensions: finalized.imageDimensions } : {}),
+    };
+  },
+);
+
+export const resolveDraftWorkspaceAsset = Effect.fn("AssetAccess.resolveDraftWorkspaceAsset")(
+  function* (token: string, relativePath: string) {
+    const claims = yield* readSignedAssetClaims(token);
+    if (!claims || claims.kind !== "workspace-file-exact") return null;
+    const path = yield* Path.Path;
+    const decoded = decodeRelativePath(relativePath);
+    if (decoded !== path.basename(claims.relativePath)) return null;
+    return yield* resolveCanonicalWorkspaceFileForRequest({
+      workspaceRoot: claims.workspaceRoot,
+      relativePath: claims.relativePath,
+    });
+  },
+);

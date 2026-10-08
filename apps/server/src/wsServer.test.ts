@@ -1743,6 +1743,41 @@ describe("WebSocket Server", () => {
     });
   });
 
+  it("lists real directories and serves signed media with range and path validation", async () => {
+    const workspace = makeTempDir("tabs-ws-media-");
+    fs.mkdirSync(path.join(workspace, "nested"));
+    fs.writeFileSync(path.join(workspace, "clip.pdf"), Buffer.from("%PDF-1.7\n0123456789"));
+    fs.writeFileSync(path.join(workspace, "nested", "file.txt"), "hello");
+    server = await createTestServer({ cwd: workspace });
+    const address = server.address();
+    const port = typeof address === "object" && address !== null ? address.port : 0;
+    const [ws] = await connectAndAwaitWelcome(port);
+    connections.push(ws);
+    const listed = await sendRequest(ws, WS_METHODS.projectsListEntries, {
+      cwd: workspace,
+      directoryPath: "nested",
+    });
+    expect(listed.error).toBeUndefined();
+    expect(listed.result).toMatchObject({
+      entries: [{ path: "nested/file.txt", kind: "file" }],
+      truncated: false,
+    });
+    const issued = await sendRequest(ws, WS_METHODS.assetsCreateUrl, {
+      resource: { _tag: "draft-workspace-file", cwd: workspace, path: "clip.pdf" },
+    });
+    expect(issued.error).toBeUndefined();
+    const relativeUrl = (issued.result as { relativeUrl: string }).relativeUrl;
+    const url = `http://127.0.0.1:${port}${relativeUrl}`;
+    const response = await fetch(url, { headers: { Range: "bytes=2-5" } });
+    expect(response.status).toBe(206);
+    expect(response.headers.get("content-range")).toBe("bytes 2-5/19");
+    expect(await response.text()).toBe("DF-1");
+    expect((await fetch(url, { method: "HEAD" })).headers.get("content-length")).toBe("19");
+    expect((await fetch(url, { headers: { Range: "bytes=20-" } })).status).toBe(416);
+    expect((await fetch(url.replace("clip.pdf", "file.txt"))).status).toBe(404);
+    expect((await fetch(`http://127.0.0.1:${port}/api/assets/bad/clip.pdf`)).status).toBe(404);
+  }, 20_000);
+
   it("supports projects.writeFile within the workspace root", async () => {
     const workspace = makeTempDir("tabs-ws-write-file-");
 
@@ -1789,6 +1824,8 @@ describe("WebSocket Server", () => {
     expect(response.result).toEqual({
       relativePath: "plans/effect-rpc.md",
       contents: "# Plan\n\n- step 1\n",
+      byteLength: Buffer.byteLength("# Plan\n\n- step 1\n"),
+      truncated: false,
     });
   });
 

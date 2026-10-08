@@ -1,8 +1,6 @@
 import {
   ArrowDownIcon,
   ArrowUpIcon,
-  ClockIcon,
-  PlayIcon,
   SendIcon,
   Trash2Icon,
   ListOrderedIcon,
@@ -23,6 +21,8 @@ import { ScrollArea } from "../ui/scroll-area";
 import { toastManager } from "../ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { Popover, PopoverTrigger, PopoverPopup } from "../ui/popover";
+import { CompanionEmpty } from "../agents/companion/CompanionChrome";
+import { showCustomConfirm } from "~/lib/customConfirm";
 import { AppleTimePicker } from "../ui/AppleTimePicker";
 
 export interface MessageQueuePanelProps {
@@ -46,8 +46,9 @@ export const MessageQueuePanel = memo(function MessageQueuePanel({
 
   const queuedMessages = getThreadQueuedMessages(queueByThread, activeThreadId);
 
-  const handleClear = useCallback(() => {
+  const handleClear = useCallback(async () => {
     if (!activeThreadId) return;
+    if (!(await showCustomConfirm("Remove every queued message in this thread?"))) return;
     clearQueue(activeThreadId);
     toastManager.add({
       type: "info",
@@ -75,7 +76,7 @@ export const MessageQueuePanel = memo(function MessageQueuePanel({
       setSchedulingMsgId(null);
       toastManager.add({
         type: "success",
-        title: date ? "Schedule updated" : "Scheduled removed",
+        title: date ? "Schedule updated" : "Schedule removed",
         description: date
           ? `Will dispatch on ${date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
           : "Will dispatch automatically on turn completion.",
@@ -85,7 +86,12 @@ export const MessageQueuePanel = memo(function MessageQueuePanel({
   );
 
   return (
-    <div className={cn("flex h-full min-h-0 flex-col bg-background text-foreground", className)}>
+    <div
+      className={cn(
+        "companion-queue flex h-full min-h-0 flex-col bg-background text-foreground",
+        className,
+      )}
+    >
       {/* Header */}
       <div className="flex shrink-0 items-center justify-between border-b border-border/60 p-3">
         <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
@@ -112,22 +118,15 @@ export const MessageQueuePanel = memo(function MessageQueuePanel({
       {/* Helper notice */}
       <div className="bg-muted/30 px-3 py-2 border-b border-border/40 text-[11px] text-muted-foreground leading-relaxed">
         <span className="font-medium text-foreground">Auto-dispatch:</span> Messages queued here
-        execute in order. Messages with a scheduled time wait until their scheduled time arrives.
+        send when the agent is idle and the composer is empty. Scheduled messages wait until their
+        time arrives.
       </div>
 
       {/* Main List Area */}
       {queuedMessages.length === 0 ? (
-        <div className="flex flex-1 flex-col items-center justify-center p-6 text-center text-xs text-muted-foreground">
-          <div className="mb-3 flex size-12 items-center justify-center rounded-2xl bg-muted/60 text-muted-foreground/70">
-            <ClockIcon className="size-6" />
-          </div>
-          <p className="font-medium text-foreground">No messages in queue</p>
-          <p className="mt-1 max-w-xs text-[11px] text-muted-foreground/80 leading-relaxed">
-            While the agent is working, write your follow-up message in the composer and click{" "}
-            <span className="font-semibold text-foreground">Queue</span> or schedule it for a
-            specific time.
-          </p>
-        </div>
+        <CompanionEmpty kind="queue" title="What’s next?">
+          Queue a follow-up from the composer. It will send when the agent is ready.
+        </CompanionEmpty>
       ) : (
         <ScrollArea className="flex-1 overflow-y-auto p-2">
           <div className="space-y-2">
@@ -141,10 +140,7 @@ export const MessageQueuePanel = memo(function MessageQueuePanel({
               const isPastScheduled = scheduledDate && scheduledDate.getTime() <= Date.now();
 
               return (
-                <div
-                  key={msg.id}
-                  className="group relative flex flex-col gap-2 rounded-lg border border-border/70 bg-card/60 p-3 shadow-2xs transition-colors hover:border-border"
-                >
+                <div key={msg.id} className="companion-card group relative flex flex-col gap-3">
                   <div className="flex items-center justify-between text-[11px] text-muted-foreground">
                     <div className="flex items-center gap-1.5 font-semibold text-foreground">
                       <span className="flex size-5 items-center justify-center rounded-full bg-primary/10 text-[10px] font-bold text-foreground">
@@ -168,7 +164,8 @@ export const MessageQueuePanel = memo(function MessageQueuePanel({
                           onClick={() =>
                             activeThreadId && reorderQueue(activeThreadId, index, index - 1)
                           }
-                          className="size-5 text-muted-foreground disabled:opacity-20 cursor-pointer"
+                          aria-label="Move up"
+                          className="size-7 text-muted-foreground disabled:opacity-20 cursor-pointer"
                           title="Move up"
                         >
                           <ArrowUpIcon className="size-3" />
@@ -182,6 +179,7 @@ export const MessageQueuePanel = memo(function MessageQueuePanel({
                             activeThreadId && reorderQueue(activeThreadId, index, index + 1)
                           }
                           className="size-5 text-muted-foreground disabled:opacity-20 cursor-pointer"
+                          aria-label="Move down"
                           title="Move down"
                         >
                           <ArrowDownIcon className="size-3" />
@@ -195,6 +193,7 @@ export const MessageQueuePanel = memo(function MessageQueuePanel({
                         size="icon"
                         onClick={() => handleDelete(msg.id)}
                         className="size-5 text-muted-foreground hover:text-destructive ml-0.5 cursor-pointer"
+                        aria-label="Delete from queue"
                         title="Delete from queue"
                       >
                         <Trash2Icon className="size-3" />
@@ -207,6 +206,19 @@ export const MessageQueuePanel = memo(function MessageQueuePanel({
                     {msg.text}
                   </div>
 
+                  {msg.dispatchError && (
+                    <p
+                      role="alert"
+                      className="rounded-lg bg-destructive/10 p-2 text-xs text-destructive"
+                    >
+                      {msg.dispatchError}
+                    </p>
+                  )}
+                  {(msg.files?.length ?? 0) > 0 && (
+                    <p className="text-[11px] text-muted-foreground">
+                      {msg.files!.map((file) => file.name).join(" · ")}
+                    </p>
+                  )}
                   {/* Attachments preview */}
                   {msg.attachments && msg.attachments.length > 0 && (
                     <div className="flex items-center gap-1.5 pt-1">
@@ -300,7 +312,7 @@ export const MessageQueuePanel = memo(function MessageQueuePanel({
                         className="h-6 gap-1 px-2 text-[11px] font-medium text-foreground hover:bg-accent cursor-pointer"
                       >
                         <SendIcon className="size-3 text-foreground" />
-                        <span>Dispatch Now</span>
+                        <span>{msg.dispatchError ? "Retry" : "Send next"}</span>
                       </Button>
                     )}
                   </div>

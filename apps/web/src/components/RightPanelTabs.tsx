@@ -1,5 +1,12 @@
-import { memo, useCallback } from "react";
+import { memo, useCallback, useEffect, useRef } from "react";
 import type { EnvironmentId, ThreadId } from "@tabs/contracts";
+import { useActiveProjectTarget } from "~/hooks/useActiveProjectTarget";
+import {
+  EMPTY_COMPANION_WORKSPACE,
+  useCompanionSurfaceStore,
+} from "~/stores/companionSurfaceStore";
+import { showCustomConfirm } from "~/lib/customConfirm";
+import { CompanionHeading } from "./agents/companion/CompanionChrome";
 import { isElectron } from "~/env";
 import { SurfaceTabs, SurfaceChooser } from "./agents/companion/SurfaceTabs";
 import { usePromptStashStore } from "~/promptStashStore";
@@ -12,11 +19,11 @@ import { CompanionFilesPanel } from "./agents/companion/CompanionFilesPanel";
 import { CompanionTerminalPanel } from "./agents/companion/CompanionTerminalPanel";
 import { CompanionPRPanel } from "./agents/companion/CompanionPRPanel";
 import type { DiffPanelMode } from "./DiffPanelShell";
-import { lazy, Suspense } from "react";
-import { DiffWorkerPoolProvider } from "./DiffWorkerPoolProvider";
-import { DiffPanelHeaderSkeleton, DiffPanelLoadingState, DiffPanelShell } from "./DiffPanelShell";
-
-const DiffPanel = lazy(() => import("./DiffPanel"));
+import {
+  isNativeBrowserRecordingActive,
+  stopNativeBrowserRecording,
+} from "./NativePreviewAutomationHost";
+import { CompanionDiffPanel } from "./agents/companion/CompanionDiffPanel";
 
 export interface RightPanelTabsProps {
   mode: DiffPanelMode;
@@ -44,17 +51,88 @@ export const RightPanelTabs = memo(function RightPanelTabs({
 
   const shouldUseDragRegion = isElectron && mode !== "sheet";
 
+  const target = useActiveProjectTarget(threadId);
+  const scope = `${environmentId ?? target?.environmentId ?? "local"}:${threadId ?? target?.projectId ?? "projectless"}`;
+  const workspace = useCompanionSurfaceStore(
+    (state) => state.workspaces[scope] ?? EMPTY_COMPANION_WORKSPACE,
+  );
+  const active = workspace.tabs.find((tab) => tab.id === workspace.activeId);
+  const previousScope = useRef(scope);
+  useEffect(() => {
+    if (previousScope.current !== scope) {
+      previousScope.current = scope;
+      if (active) {
+        setActiveTab(active.kind);
+        return;
+      }
+    }
+    if (choosing || active?.kind === activeTab) return;
+    const store = useCompanionSurfaceStore.getState();
+    const existing = workspace.tabs.find((tab) => tab.kind === activeTab);
+    if (existing) store.activate(scope, existing.id);
+    else store.open(scope, activeTab);
+  }, [active?.kind, activeTab, choosing, scope, workspace.tabs, setActiveTab]);
+
   const handleSelectTab = useCallback(
     (tab: RightPanelTab) => {
-      setChoosing(false);
+      useCompanionSurfaceStore.getState().open(scope, tab);
       setActiveTab(tab);
+      setChoosing(false);
     },
-    [setActiveTab, setChoosing],
+    [scope, setActiveTab, setChoosing],
   );
+  const handleSelectInstance = (id: string) => {
+    const tab = workspace.tabs.find((item) => item.id === id);
+    if (!tab) return;
+    useCompanionSurfaceStore.getState().activate(scope, id);
+    setActiveTab(tab.kind);
+    setChoosing(false);
+  };
+  const handleCloseInstance = async (id: string) => {
+    const tab = workspace.tabs.find((item) => item.id === id);
+    if (
+      tab?.draftContents !== undefined &&
+      !(await showCustomConfirm("Discard this file's unsaved changes?"))
+    )
+      return;
+    if (tab?.kind === "browser" && target && window.desktopBridge) {
+      const sessionId = `agents-surface-${id}`;
+      if (isNativeBrowserRecordingActive(target.projectId, sessionId)) {
+        if (
+          !(await showCustomConfirm("Stop and save the recording before closing this browser tab?"))
+        )
+          return;
+        try {
+          await stopNativeBrowserRecording(window.desktopBridge, target.projectId, sessionId);
+        } catch {
+          return;
+        }
+      }
+      void window.desktopBridge
+        .destroyBrowserSession?.({ projectId: target.projectId, sessionId })
+        .catch(() => undefined);
+    }
+    useCompanionSurfaceStore.getState().close(scope, id);
+    const next = useCompanionSurfaceStore.getState().workspaces[scope];
+    const selected = next?.tabs.find((item) => item.id === next.activeId);
+    if (selected) setActiveTab(selected.kind);
+    else setChoosing(true);
+    requestAnimationFrame(() =>
+      document
+        .getElementById(selected ? `surface-tab-${selected.id}` : "surface-add-button")
+        ?.focus(),
+    );
+  };
 
   return (
     <div className="companion-frame flex h-full min-w-0 flex-col bg-background text-foreground">
       <SurfaceTabs
+        instances={workspace.tabs}
+        activeInstanceId={workspace.activeId}
+        onSelectInstance={handleSelectInstance}
+        onCloseInstance={(id) => {
+          void handleCloseInstance(id);
+        }}
         maximized={maximized}
         onToggleMaximized={() => setMaximized(!maximized)}
         choosing={choosing}
@@ -70,39 +148,51 @@ export const RightPanelTabs = memo(function RightPanelTabs({
       <div
         id="companion-surface-body"
         role={choosing ? undefined : "tabpanel"}
-        aria-labelledby={choosing ? undefined : `surface-tab-${activeTab}`}
+        aria-labelledby={choosing ? undefined : `surface-tab-${active?.id}`}
         className="flex min-h-0 flex-1 flex-col overflow-hidden"
       >
         {choosing ? (
           <SurfaceChooser onSelect={handleSelectTab} />
-        ) : activeTab === "diff" ? (
-          <DiffWorkerPoolProvider>
-            <Suspense
-              fallback={
-                <DiffPanelShell mode={mode} header={<DiffPanelHeaderSkeleton />}>
-                  <DiffPanelLoadingState label="Loading diff viewer..." />
-                </DiffPanelShell>
-              }
-            >
-              <DiffPanel mode={mode} />
-            </Suspense>
-          </DiffWorkerPoolProvider>
-        ) : activeTab === "browser" ? (
-          <CompanionBrowserPanel threadId={threadId} />
-        ) : activeTab === "files" ? (
-          <CompanionFilesPanel key={threadId} threadId={threadId} />
-        ) : activeTab === "terminal" ? (
-          <CompanionTerminalPanel threadId={threadId} />
-        ) : activeTab === "pr" ? (
-          <CompanionPRPanel key={threadId} threadId={threadId} />
-        ) : activeTab === "stash" ? (
-          <PromptStashPanel
-            activeThreadId={threadId}
-            currentEnvironmentId={environmentId}
-            onLoadedIntoComposer={onClose}
+        ) : !active ? null : active.kind === "diff" ? (
+          <CompanionDiffPanel threadId={threadId} />
+        ) : active.kind === "browser" ? (
+          <CompanionBrowserPanel
+            key={active.id}
+            surface={active}
+            scope={scope}
+            threadId={threadId}
           />
+        ) : active.kind === "files" ? (
+          <CompanionFilesPanel key={active.id} surface={active} scope={scope} threadId={threadId} />
+        ) : active.kind === "terminal" ? (
+          <CompanionTerminalPanel threadId={threadId} />
+        ) : active.kind === "pr" ? (
+          <CompanionPRPanel key={threadId} threadId={threadId} />
+        ) : active.kind === "stash" ? (
+          <div className="companion-workspace">
+            <CompanionHeading kind="stash" detail={`${stashes.length} saved prompts`} />
+            <PromptStashPanel
+              activeThreadId={threadId}
+              currentEnvironmentId={environmentId}
+              onLoadedIntoComposer={onClose}
+            />
+          </div>
         ) : (
-          <MessageQueuePanel activeThreadId={threadId} />
+          <div className="companion-workspace">
+            <CompanionHeading kind="queue" detail={`${queuedMessages.length} pending messages`} />
+            <MessageQueuePanel
+              activeThreadId={threadId}
+              onSendNow={(message) => {
+                if (!threadId) return;
+                const queue = useMessageQueueStore.getState();
+                queue.updateMessageSchedule(threadId, message.id, null);
+                const index = getThreadQueuedMessages(queue.queueByThread, threadId).findIndex(
+                  (item) => item.id === message.id,
+                );
+                queue.reorderQueue(threadId, index, 0);
+              }}
+            />
+          </div>
         )}
       </div>
     </div>

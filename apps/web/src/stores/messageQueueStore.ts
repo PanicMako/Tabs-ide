@@ -10,15 +10,18 @@ export interface QueuedMessage {
   readonly environmentId?: EnvironmentId | null | undefined;
   readonly text: string;
   readonly attachments?: ReadonlyArray<PersistedComposerImageAttachment> | undefined;
+  readonly dispatchError?: string | undefined;
+  readonly files?: ReadonlyArray<PersistedComposerImageAttachment> | undefined;
   readonly terminalContextIds?: ReadonlyArray<string> | undefined;
   readonly createdAt: string;
   readonly scheduledFor?: string | null | undefined;
 }
 
 export function isMessageReady(message: QueuedMessage, now: number = Date.now()): boolean {
+  if (message.dispatchError) return false;
   if (!message.scheduledFor) return true;
   const time = Date.parse(message.scheduledFor);
-  return Number.isNaN(time) || time <= now;
+  return Number.isFinite(time) && time <= now;
 }
 
 interface MessageQueueState {
@@ -33,6 +36,7 @@ interface MessageQueueState {
     messageId: string,
     scheduledFor: string | null,
   ) => void;
+  setMessageError: (threadId: ThreadId, messageId: string, error: string) => void;
   removeQueuedMessage: (threadId: ThreadId, messageId: string) => void;
   clearQueue: (threadId: ThreadId) => void;
   reorderQueue: (threadId: ThreadId, fromIndex: number, toIndex: number) => void;
@@ -46,15 +50,18 @@ export const useMessageQueueStore = create<MessageQueueState>()(
       queueByThread: {},
 
       enqueueMessage: (message) => {
-        set((state) => {
-          const current = state.queueByThread[message.threadId] ?? [];
-          return {
-            queueByThread: {
-              ...state.queueByThread,
-              [message.threadId]: [...current, message],
-            },
-          };
-        });
+        const current = get().queueByThread;
+        if ((current[message.threadId] ?? []).some((entry) => entry.id === message.id)) return;
+        const queueByThread = {
+          ...current,
+          [message.threadId]: [...(current[message.threadId] ?? []), message],
+        };
+        // Persist before changing memory: quota failures must leave the composer untouched.
+        safeStorage.setItem(
+          "tabs:message-queue:v1",
+          JSON.stringify({ state: { queueByThread }, version: 0 }),
+        );
+        set({ queueByThread });
       },
 
       dequeueMessage: (threadId) => {
@@ -104,12 +111,23 @@ export const useMessageQueueStore = create<MessageQueueState>()(
           return {
             queueByThread: {
               ...state.queueByThread,
-              [threadId]: current.map((m) => (m.id === messageId ? { ...m, scheduledFor } : m)),
+              [threadId]: current.map((m) =>
+                m.id === messageId ? { ...m, scheduledFor, dispatchError: undefined } : m,
+              ),
             },
           };
         });
       },
 
+      setMessageError: (threadId, messageId, error) =>
+        set((state) => ({
+          queueByThread: {
+            ...state.queueByThread,
+            [threadId]: (state.queueByThread[threadId] ?? []).map((message) =>
+              message.id === messageId ? { ...message, dispatchError: error } : message,
+            ),
+          },
+        })),
       removeQueuedMessage: (threadId, messageId) => {
         set((state) => {
           const current = state.queueByThread[threadId] ?? [];

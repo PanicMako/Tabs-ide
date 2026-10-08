@@ -1,6 +1,20 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ThreadId } from "@tabs/contracts";
 import { useMessageQueueStore, getThreadQueuedMessages } from "./messageQueueStore";
+
+const storage = vi.hoisted(() => {
+  const values = new Map<string, string>();
+  return {
+    getItem: vi.fn((key: string) => values.get(key) ?? null),
+    setItem: vi.fn((key: string, value: string) => {
+      values.set(key, value);
+    }),
+    removeItem: vi.fn((key: string) => {
+      values.delete(key);
+    }),
+  };
+});
+vi.mock("~/lib/storage", () => ({ createMemoryStorage: () => storage }));
 
 describe("messageQueueStore", () => {
   const threadId1 = "thread-1" as ThreadId;
@@ -173,4 +187,42 @@ describe("messageQueueStore", () => {
     store.updateMessageSchedule(threadId1, "msg-future", null);
     expect(store.peekNextReadyMessage(threadId1, now)?.id).toBe("msg-future");
   });
+});
+
+it("retains failed messages, excludes invalid schedules, and clears errors on retry", () => {
+  const threadId = "retry-thread" as ThreadId;
+  const store = useMessageQueueStore.getState();
+  store.clearQueue(threadId);
+  store.enqueueMessage({
+    id: "failed",
+    threadId,
+    text: "keep me",
+    createdAt: "2026-10-08",
+    scheduledFor: "invalid",
+  });
+  expect(store.peekNextReadyMessage(threadId)).toBeNull();
+  store.updateMessageSchedule(threadId, "failed", null);
+  store.setMessageError(threadId, "failed", "offline");
+  expect(store.peekNextReadyMessage(threadId)).toBeNull();
+  expect(useMessageQueueStore.getState().queueByThread[threadId]?.[0]?.text).toBe("keep me");
+  store.updateMessageSchedule(threadId, "failed", null);
+  expect(store.peekNextReadyMessage(threadId)?.id).toBe("failed");
+  store.clearQueue(threadId);
+});
+
+it("keeps memory unchanged when durable enqueue fails, and prevents duplicate IDs", () => {
+  const threadId = "durable-thread" as ThreadId;
+  const message = { id: "durable", threadId, text: "preserve my draft", createdAt: "2026-10-08" };
+  useMessageQueueStore.getState().clearQueue(threadId);
+  storage.setItem.mockImplementationOnce(() => {
+    throw new Error("QuotaExceededError");
+  });
+  expect(() => useMessageQueueStore.getState().enqueueMessage(message)).toThrow(
+    "QuotaExceededError",
+  );
+  expect(useMessageQueueStore.getState().queueByThread[threadId]).toBeUndefined();
+  useMessageQueueStore.getState().enqueueMessage(message);
+  useMessageQueueStore.getState().enqueueMessage(message);
+  expect(useMessageQueueStore.getState().queueByThread[threadId]).toHaveLength(1);
+  useMessageQueueStore.getState().clearQueue(threadId);
 });

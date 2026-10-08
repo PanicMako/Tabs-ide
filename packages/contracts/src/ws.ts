@@ -94,11 +94,13 @@ import {
 } from "./terminal.ts";
 import { KeybindingRule } from "./keybindings.ts";
 import {
+  ProjectListEntriesInput,
   ProjectReadFileInput,
   ProjectSearchContentsInput,
   ProjectSearchEntriesInput,
   ProjectWriteFileInput,
 } from "./project.ts";
+import { AssetCreateUrlInput } from "./assets.ts";
 import { FilesystemBrowseInput } from "./filesystem.ts";
 import { OpenInEditorInput } from "./editor.ts";
 import { ProviderInstanceId } from "./providerInstance.ts";
@@ -480,6 +482,10 @@ const WebSocketRequestBody = Schema.Union([
   tagRequestBody(WS_METHODS.testingDraftBug, TestingBugDraftInput),
   tagRequestBody(WS_METHODS.testingGetGraphExplorer, TestingProjectInput),
   tagRequestBody(WS_METHODS.testingTriageFailure, TestingTriageInput),
+
+  // Workspace companion requests
+  tagRequestBody(WS_METHODS.projectsListEntries, ProjectListEntriesInput),
+  tagRequestBody(WS_METHODS.assetsCreateUrl, AssetCreateUrlInput),
 
   // Project Search
   tagRequestBody(WS_METHODS.projectsSearchContents, ProjectSearchContentsInput),

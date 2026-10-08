@@ -1,10 +1,12 @@
 import { memo, useCallback, useState } from "react";
 import type { ThreadId } from "@tabs/contracts";
-import { TerminalSquare } from "lucide-react";
+import { CompanionHeading, CompanionEmpty } from "./CompanionChrome";
 import { useThreadTerminalState, terminalActions } from "~/state/terminal";
 import { useActiveProjectTarget } from "~/hooks/useActiveProjectTarget";
 import { useComposerDraftStore } from "~/composerDraftStore";
 import { scopedComposerThreadId } from "~/state/composerDrafts";
+import { environmentApi } from "~/connection/environmentApiRegistry";
+import { toastManager } from "~/components/ui/toast";
 import ThreadTerminalDrawer from "~/components/ThreadTerminalDrawer";
 
 function createTerminalId(): string {
@@ -49,39 +51,63 @@ export const CompanionTerminalPanel = memo(function CompanionTerminalPanel({
 
   const handleClose = useCallback(
     (terminalId: string) => {
-      if (!effectiveThreadId) return;
-      terminalActions.close(effectiveThreadId, terminalId);
+      if (!effectiveThreadId || !target) return;
+      void environmentApi(target.environmentId)
+        .then(async (api) => {
+          await api.terminal.close({
+            threadId: effectiveThreadId,
+            terminalId,
+            deleteHistory: true,
+          });
+          terminalActions.close(effectiveThreadId, terminalId);
+        })
+        .catch((error: unknown) =>
+          toastManager.add({
+            type: "error",
+            title: "Could not close terminal",
+            description: error instanceof Error ? error.message : String(error),
+          }),
+        );
     },
-    [effectiveThreadId],
+    [effectiveThreadId, target],
   );
 
   const handleKill = useCallback(
     (terminalId: string) => {
-      if (!effectiveThreadId) return;
-      // Close and immediately open a fresh terminal at the same ID.
-      // This is a "reset": terminate the current process, start fresh.
-      terminalActions.close(effectiveThreadId, terminalId);
-      const newId = createTerminalId();
-      terminalActions.new(effectiveThreadId, newId);
-      setFocusRequestId((n) => n + 1);
+      if (!effectiveThreadId || !target) return;
+      void environmentApi(target.environmentId)
+        .then(async (api) => {
+          await api.terminal.close({
+            threadId: effectiveThreadId,
+            terminalId,
+            deleteHistory: true,
+          });
+          terminalActions.close(effectiveThreadId, terminalId);
+          terminalActions.new(effectiveThreadId, createTerminalId());
+          setFocusRequestId((n) => n + 1);
+        })
+        .catch((error: unknown) =>
+          toastManager.add({
+            type: "error",
+            title: "Could not restart terminal",
+            description: error instanceof Error ? error.message : String(error),
+          }),
+        );
     },
-    [effectiveThreadId],
+    [effectiveThreadId, target],
   );
 
   if (!effectiveThreadId || !target || !terminalState) {
     return (
-      <div className="flex h-full flex-col items-center justify-center p-4 text-center text-muted-foreground">
-        <TerminalSquare className="mb-2 size-8 opacity-40" />
-        <p className="text-xs font-medium">No active terminal session</p>
-        <p className="text-[11px] text-muted-foreground/80 mt-1">
-          Open a thread or project to launch a companion terminal.
-        </p>
-      </div>
+      <CompanionEmpty kind="terminal" title="A shell for this thread">
+        Start a thread in a project to open its terminal.
+      </CompanionEmpty>
     );
   }
 
   return (
-    <div className="flex h-full w-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background text-foreground">
+    <div className="companion-workspace">
+      <CompanionHeading kind="terminal" detail={target.cwd} />
       <ThreadTerminalDrawer
         threadId={effectiveThreadId}
         cwd={target.cwd}

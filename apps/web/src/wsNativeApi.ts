@@ -5,6 +5,7 @@ import {
   ORCHESTRATION_WS_METHODS,
   type ContextMenuItem,
   type NativeApi,
+  type AssetCreateUrlResult,
   ServerConfigUpdatedPayload,
   ServerProviderUpdatedPayload,
   WS_CHANNELS,
@@ -507,8 +508,14 @@ export function createWsNativeApi(options?: {
       setClientSettings: async () => {},
     } as any,
     assets: {
-      createUrl: async () => ({ url: "" }),
-    } as any,
+      createUrl: async (input) => {
+        const result = await transport.request<AssetCreateUrlResult>(
+          WS_METHODS.assetsCreateUrl,
+          input,
+        );
+        return { ...result, relativeUrl: transport.resolveHttpUrl(result.relativeUrl) };
+      },
+    },
     sourceControl: {
       lookupRepository: async () => {
         throw new Error("Unsupported in web");
