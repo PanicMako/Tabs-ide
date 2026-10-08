@@ -1,3 +1,4 @@
+import { OrbitGroup } from "./ui/orbit-group";
 import {
   type PreviewAnnotationPayload,
   type PreviewAnnotationPoint,
@@ -112,7 +113,11 @@ export function PreviewAnnotationEditor(props: {
                 <p className="truncate font-mono text-muted-foreground">{selectedSummary}</p>
               </div>
               <div className="flex items-center gap-2" aria-label="Annotation tool">
-                <div className="tabs-segmented flex" role="group" aria-label="Annotation tool">
+                <OrbitGroup
+                  className="tabs-segmented flex"
+                  role="group"
+                  aria-label="Annotation tool"
+                >
                   <Button
                     type="button"
                     size="sm"
@@ -131,7 +136,7 @@ export function PreviewAnnotationEditor(props: {
                   >
                     <PencilIcon /> Draw
                   </Button>
-                </div>
+                </OrbitGroup>
                 <Button
                   type="button"
                   size="sm"

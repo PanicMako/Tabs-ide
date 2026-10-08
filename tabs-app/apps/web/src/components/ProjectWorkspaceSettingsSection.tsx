@@ -1,3 +1,4 @@
+import { OrbitGroup } from "./ui/orbit-group";
 import { type BrowserPartitionMode } from "@tabs/contracts/settings";
 import {
   DndContext,
@@ -1180,7 +1181,7 @@ export function ProjectWorkspaceSettingsSection() {
                       in an isolated sandbox, or connects to a named profile.
                     </div>
                   </div>
-                  <div
+                  <OrbitGroup
                     className="tabs-segmented flex shrink-0 self-start sm:self-auto"
                     role="group"
                     aria-label="Project browser session isolation"
@@ -1224,7 +1225,7 @@ export function ProjectWorkspaceSettingsSection() {
                     >
                       Named Profile
                     </button>
-                  </div>
+                  </OrbitGroup>
                 </div>
                 {browserPartitionModeDraft === "profile" && (
                   <BrowserProfileSelector
@@ -1452,7 +1453,7 @@ export function ProjectWorkspaceSettingsSection() {
                                         project, stays isolated, or links to a named profile.
                                       </div>
                                     </div>
-                                    <div
+                                    <OrbitGroup
                                       className="tabs-segmented flex shrink-0 self-start sm:self-auto"
                                       role="group"
                                       aria-label="Tab browser session isolation"
@@ -1504,7 +1505,7 @@ export function ProjectWorkspaceSettingsSection() {
                                       >
                                         Named Profile
                                       </button>
-                                    </div>
+                                    </OrbitGroup>
                                   </div>
                                   {activeDraft.partitionMode === "profile" && (
                                     <BrowserProfileSelector

@@ -1,3 +1,4 @@
+import { OrbitGroup } from "../../ui/orbit-group";
 import { useMemo, useState } from "react";
 import { useAtomValue } from "@effect/atom-react";
 import { formatCount, formatPercent, formatTokens, formatUsd } from "@tabs/shared/usageFormat";
@@ -154,7 +155,7 @@ export function UsageTab() {
     <div className="space-y-8">
       {/* Date Range Selector & Metric Controls */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-4">
-        <div
+        <OrbitGroup
           className="tabs-segmented flex items-center"
           role="group"
           aria-label="Usage date range"
@@ -175,10 +176,14 @@ export function UsageTab() {
               {preset.label}
             </button>
           ))}
-        </div>
+        </OrbitGroup>
 
         <div className="flex items-center gap-2">
-          <div className="tabs-segmented flex items-center" role="group" aria-label="Usage metric">
+          <OrbitGroup
+            className="tabs-segmented flex items-center"
+            role="group"
+            aria-label="Usage metric"
+          >
             <button
               type="button"
               onClick={() => setMetric("cost")}
@@ -205,7 +210,7 @@ export function UsageTab() {
             >
               Tokens
             </button>
-          </div>
+          </OrbitGroup>
 
           <Button
             variant="outline"
@@ -471,7 +476,7 @@ export function UsageTab() {
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-foreground">Model Breakdown</h3>
-              <div
+              <OrbitGroup
                 className="tabs-segmented flex items-center text-[11px]"
                 role="group"
                 aria-label="Model breakdown"
@@ -502,7 +507,7 @@ export function UsageTab() {
                 >
                   By Provider
                 </button>
-              </div>
+              </OrbitGroup>
             </div>
 
             <div className="overflow-hidden rounded-xl border border-border/80 bg-card/30 backdrop-blur-sm shadow-xs">

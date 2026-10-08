@@ -1,5 +1,6 @@
 import { useGsapSurface } from "~/hooks/useGsapSurface";
 import * as React from "react";
+import { OrbitGroup } from "./orbit-group";
 import { cn } from "../../lib/utils";
 
 const TabsContext = React.createContext<{
@@ -46,7 +47,7 @@ export function TabsList({
   children: React.ReactNode;
 }) {
   return (
-    <div
+    <OrbitGroup
       role="tablist"
       onKeyDown={(event) => {
         if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
@@ -71,7 +72,7 @@ export function TabsList({
       )}
     >
       {children}
-    </div>
+    </OrbitGroup>
   );
 }
 

@@ -1,3 +1,4 @@
+import { OrbitGroup } from "./ui/orbit-group";
 import React, { useState, useMemo, useRef } from "react";
 import {
   AlertCircle,
@@ -143,7 +144,7 @@ export const ThemeImportExportModal: React.FC<ThemeImportExportModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            <div
+            <OrbitGroup
               className="tabs-segmented flex text-xs"
               role="group"
               aria-label="Theme transfer mode"
@@ -172,7 +173,7 @@ export const ThemeImportExportModal: React.FC<ThemeImportExportModalProps> = ({
               >
                 Export
               </button>
-            </div>
+            </OrbitGroup>
 
             <button
               type="button"

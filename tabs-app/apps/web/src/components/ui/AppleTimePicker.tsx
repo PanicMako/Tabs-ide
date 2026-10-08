@@ -1,3 +1,4 @@
+import { OrbitGroup } from "./orbit-group";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ClockIcon, SparklesIcon } from "lucide-react";
 import { cn } from "~/lib/utils";
@@ -763,7 +764,7 @@ export const AppleTimePicker = memo(function AppleTimePicker({
       </div>
 
       {/* Day Selector Chips */}
-      <div
+      <OrbitGroup
         className="tabs-segmented mt-3 flex items-center justify-between"
         role="group"
         aria-label="Day preset"
@@ -794,7 +795,7 @@ export const AppleTimePicker = memo(function AppleTimePicker({
         >
           Tomorrow
         </button>
-      </div>
+      </OrbitGroup>
 
       {/* Apple-style 3-Column Drum Wheel Container */}
       <div

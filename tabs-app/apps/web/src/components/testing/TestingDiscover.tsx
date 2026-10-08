@@ -1,3 +1,4 @@
+import { OrbitGroup } from "../ui/orbit-group";
 import React, { memo, useState } from "react";
 import type {
   ProjectId,
@@ -1809,7 +1810,7 @@ export const TestingDiscover = memo(function TestingDiscover({ projectId }: Test
                               Rescanning replaces this page&apos;s saved locators with a fresh
                               capture. Deleting the page never changes repository files.
                             </p>
-                            <div
+                            <OrbitGroup
                               className="tabs-segmented mt-4 flex flex-wrap"
                               role="tablist"
                               aria-label="Page Object details"
@@ -1860,7 +1861,7 @@ export const TestingDiscover = memo(function TestingDiscover({ projectId }: Test
                                   {label}
                                 </Button>
                               ))}
-                            </div>
+                            </OrbitGroup>
                           </div>
                           <div
                             id="locator-page-tabpanel"

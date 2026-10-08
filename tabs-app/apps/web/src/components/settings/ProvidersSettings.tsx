@@ -1,3 +1,4 @@
+import { OrbitGroup } from "../ui/orbit-group";
 import { useState, useCallback, useMemo, useRef, type ReactNode } from "react";
 import {
   DndContext,
@@ -502,7 +503,7 @@ function PinModelCommandPalette({
 
               {/* Provider Filter Pills */}
               <div className="flex items-center gap-1.5 overflow-x-auto px-4 py-2 border-b border-border/40 bg-muted/10 [&::-webkit-scrollbar]:hidden">
-                <div
+                <OrbitGroup
                   className="tabs-segmented inline-flex items-center shrink-0"
                   role="group"
                   aria-label="Provider filter"
@@ -543,7 +544,7 @@ function PinModelCommandPalette({
                       </button>
                     );
                   })}
-                </div>
+                </OrbitGroup>
               </div>
 
               {/* Model Results List */}

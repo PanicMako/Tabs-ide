@@ -1,3 +1,4 @@
+import { OrbitGroup } from "../ui/orbit-group";
 import type { GitBranch as GitBranchType, GitHistoryCommit } from "@tabs/contracts";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -593,7 +594,7 @@ export function CreatePRModal({
                 <label className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/70 block">
                   PR Visibility
                 </label>
-                <div
+                <OrbitGroup
                   className="tabs-segmented grid grid-cols-2 text-xs"
                   role="group"
                   aria-label="Pull request visibility"
@@ -626,7 +627,7 @@ export function CreatePRModal({
                     />
                     <span>Draft</span>
                   </button>
-                </div>
+                </OrbitGroup>
               </div>
             </div>
 
@@ -1154,7 +1155,7 @@ export function DraftReleaseModal({
                 <label className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/70 block">
                   Release Type
                 </label>
-                <div
+                <OrbitGroup
                   className="tabs-segmented grid grid-cols-2 text-xs"
                   role="group"
                   aria-label="Release type"
@@ -1187,7 +1188,7 @@ export function DraftReleaseModal({
                     />
                     <span>Pre-release</span>
                   </button>
-                </div>
+                </OrbitGroup>
               </div>
             </div>
 
