@@ -45,6 +45,14 @@ Files folder icons and selected rows now use neutral theme colors; the colored s
 
 Working-tree patches use the direct renderer, matching file previews, because live verification exposed empty patch bodies with the background worker path in this checkout. The new Chromium regression checks actual rendered changed text as well as compact geometry, counts, refresh and layout/source switching. All seven Diff/Files UI tests pass, and desktop verification confirms visible patch lines and neutral folder icons.
 
+## Collapsible Diff and compact PR follow-up
+
+Each working-tree file header now toggles its patch body, with an expanded-state announcement and standard keyboard button behavior. Collapsed files retain their path and change counts. Working tree / Agent turns uses the same segmented control as settings.
+
+The Agent PR surface removes its duplicate heading and uses compact scope/state filters with a New PR action. Cards give titles and branch metadata their own space, with Details and eligible Merge actions below. Auto-merge, close/reopen, and provider links remain available through an accessible actions popover. Provider capabilities and existing confirmation dialogs are preserved. Files is unchanged.
+
+Validation: all 203 web unit suites / 1,528 tests pass; three Chromium tests pass, including Diff collapse/reopen and PR card geometry/actions at 360px and 900px. Live Electron confirms collapse/reopen and seven real PR cards with readable titles and no horizontal overflow. All 12 packages pass type checking. Scoped formatting/lint passes with existing unused-variable warnings in PRsPanel. Full formatting still reports 157 unrelated files; the workspace test run still stops at the existing client-runtime future-keybinding compatibility failure. No GitHub write actions were executed.
+
 ## Verification
 
 - Complete web unit suite: **200 files / 1,510 tests passed**.

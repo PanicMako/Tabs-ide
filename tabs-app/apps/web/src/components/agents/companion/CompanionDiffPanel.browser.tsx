@@ -44,16 +44,27 @@ it("keeps diff controls compact while retaining refresh, layout and turn selecti
     ).toBeLessThanOrEqual(46);
     await expect.element(page.getByLabelText("1 removed lines")).toHaveTextContent("−1");
     await expect.element(page.getByLabelText("2 added lines")).toHaveTextContent("+2");
+    const header = page.getByRole("button", { name: /src\/demo.ts/ });
+    await header.click();
+    await expect.element(header).toHaveAttribute("aria-expanded", "false");
+    expect(document.querySelector("diffs-container")).toBeNull();
+    await header.click();
+    await expect.element(header).toHaveAttribute("aria-expanded", "true");
+    await expect
+      .poll(() =>
+        document.querySelector("diffs-container")?.shadowRoot?.textContent?.includes("extra"),
+      )
+      .toBe(true);
     await page.getByRole("button", { name: "Switch to split diff" }).click();
     await expect
       .element(page.getByRole("button", { name: "Switch to unified diff" }))
       .toHaveAttribute("aria-pressed", "true");
     await page.getByRole("button", { name: "Refresh changes" }).click();
     await expect.poll(() => api.diff.mock.calls.length).toBe(2);
-    await page.getByRole("button", { name: "Agent turns", exact: true }).click();
+    await page.getByRole("radio", { name: "Agent turns", exact: true }).click();
     await expect.element(page.getByText("Completed turn changes")).toBeVisible();
     expect(page.getByRole("button", { name: "Refresh changes" }).query()).toBeNull();
-    await page.getByRole("button", { name: "Working tree", exact: true }).click();
+    await page.getByRole("radio", { name: "Working tree", exact: true }).click();
     await expect.element(page.getByRole("heading", { name: "src/demo.ts" })).toBeVisible();
   } finally {
     await view.unmount();

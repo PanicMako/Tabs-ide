@@ -1,7 +1,7 @@
 import "~/components/git/GitToolV2.css";
 import type { ThreadId } from "@tabs/contracts";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CompanionHeading, CompanionEmpty } from "./CompanionChrome";
+import { CompanionEmpty } from "./CompanionChrome";
 import { memo, useState } from "react";
 import { environmentApi } from "~/connection/environmentApiRegistry";
 import { useActiveProjectTarget } from "~/hooks/useActiveProjectTarget";
@@ -76,11 +76,11 @@ export const CompanionPRPanel = memo(function CompanionPRPanel({
   const scopeKey = gitWorkspaceScopeKey(target.environmentId ?? undefined, target.cwd);
 
   return (
-    <div className="companion-workspace">
-      <CompanionHeading kind="pr" detail={branchName} />
+    <div className="companion-workspace companion-pr">
       <div className="git-tool-v2 flex min-h-0 flex-1 flex-col overflow-auto">
         <GitApiProvider api={api} scopeKey={scopeKey}>
           <PRsPanel
+            compact
             cwd={target.cwd}
             environmentId={target.environmentId ?? undefined}
             branchName={branchName}

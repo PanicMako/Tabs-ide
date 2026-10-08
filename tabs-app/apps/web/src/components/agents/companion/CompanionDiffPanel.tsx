@@ -1,19 +1,22 @@
-import { lazy, Suspense, useMemo, useState } from "react";
+import { lazy, Suspense, useId, useMemo, useState } from "react";
 import type { ThreadId } from "@tabs/contracts";
 import { useQuery } from "@tanstack/react-query";
 import { FileDiff } from "@pierre/diffs/react";
 import { parsePatchFiles } from "@pierre/diffs";
-import { RotateCcw, FileDiff as FileDiffIcon } from "lucide-react";
+import { ChevronRight, RotateCcw, FileDiff as FileDiffIcon } from "lucide-react";
 import { useActiveProjectTarget } from "~/hooks/useActiveProjectTarget";
 import { useTheme } from "~/hooks/useTheme";
 import { gitDiffQueryOptions } from "~/lib/gitReactQuery";
 import { CompanionEmpty } from "./CompanionChrome";
 import { DiffWorkerPoolProvider } from "~/components/DiffWorkerPoolProvider";
+import { SegmentedControl } from "~/components/ui/segmented-control";
 const TurnDiff = lazy(() => import("~/components/DiffPanel"));
 
 export function CompanionDiffPanel({ threadId }: { threadId?: ThreadId | null | undefined }) {
   const target = useActiveProjectTarget(threadId);
   const [view, setView] = useState<"working" | "turns">("working");
+  const sectionId = useId();
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   const [split, setSplit] = useState(false);
   const { resolvedTheme } = useTheme();
   const patch = useQuery({
@@ -50,22 +53,16 @@ export function CompanionDiffPanel({ threadId }: { threadId?: ThreadId | null | 
         role="group"
         aria-label="Changes source"
       >
-        <button
-          type="button"
-          aria-pressed={view === "working"}
-          className="companion-segment"
-          onClick={() => setView("working")}
-        >
-          Working tree
-        </button>
-        <button
-          type="button"
-          aria-pressed={view === "turns"}
-          className="companion-segment"
-          onClick={() => setView("turns")}
-        >
-          Agent turns
-        </button>
+        <SegmentedControl
+          size="sm"
+          aria-label="Changes source"
+          value={view}
+          onValueChange={setView}
+          options={[
+            { value: "working", label: "Working tree" },
+            { value: "turns", label: "Agent turns" },
+          ]}
+        />
         {view === "working" && (
           <button
             type="button"
@@ -132,7 +129,25 @@ export function CompanionDiffPanel({ threadId }: { threadId?: ThreadId | null | 
             ) : parsed.files.length ? (
               parsed.files.map((file, index) => (
                 <div key={`${file.name}:${index}:${resolvedTheme}`} className="companion-diff-file">
-                  <div className="companion-diff-file-heading">
+                  <button
+                    type="button"
+                    className="companion-diff-file-heading"
+                    aria-expanded={!collapsed.has(file.name)}
+                    aria-controls={`${sectionId}-${index}`}
+                    onClick={() =>
+                      setCollapsed((current) => {
+                        const next = new Set(current);
+                        if (next.has(file.name)) next.delete(file.name);
+                        else next.add(file.name);
+                        return next;
+                      })
+                    }
+                  >
+                    <ChevronRight
+                      size={13}
+                      className={!collapsed.has(file.name) ? "rotate-90 shrink-0" : "shrink-0"}
+                      aria-hidden="true"
+                    />
                     <FileDiffIcon size={13} className="shrink-0 text-muted-foreground" />
                     <h3 title={file.prevName ? `${file.prevName} → ${file.name}` : file.name}>
                       {file.prevName ? `${file.prevName} → ${file.name}` : file.name}
@@ -149,17 +164,21 @@ export function CompanionDiffPanel({ threadId }: { threadId?: ThreadId | null | 
                     >
                       +{file.hunks.reduce((sum, hunk) => sum + hunk.additionLines, 0)}
                     </span>
+                  </button>
+                  <div id={`${sectionId}-${index}`} hidden={collapsed.has(file.name)}>
+                    {!collapsed.has(file.name) && (
+                      <FileDiff
+                        disableWorkerPool
+                        fileDiff={file}
+                        options={{
+                          theme: resolvedTheme === "dark" ? "github-dark" : "github-light",
+                          disableFileHeader: true,
+                          diffStyle: split ? "split" : "unified",
+                          overflow: "wrap",
+                        }}
+                      />
+                    )}
                   </div>
-                  <FileDiff
-                    disableWorkerPool
-                    fileDiff={file}
-                    options={{
-                      theme: resolvedTheme === "dark" ? "github-dark" : "github-light",
-                      disableFileHeader: true,
-                      diffStyle: split ? "split" : "unified",
-                      overflow: "wrap",
-                    }}
-                  />
                 </div>
               ))
             ) : (
