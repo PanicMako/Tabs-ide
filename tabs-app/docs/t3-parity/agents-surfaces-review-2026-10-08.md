@@ -69,6 +69,14 @@ Queue now matches Stash’s neutral expandable cards, serif previews, visible im
 
 Four Chromium tests cover 360px/700px geometry, expansion, image previews, order changes, deletion, cancelled/confirmed clearing with another thread preserved, schedule changes and Send next callback routing. All 203 web suites / 1,528 tests and all 12 package typechecks pass. Live Electron verifies the real scheduled queue, its 45px toolbar and no horizontal overflow. Tests use a mocked send callback; no real queued messages were sent or modified during verification. Scoped formatting/lint passes. Full formatting retains 157 unrelated issues and the workspace test run retains its existing client-runtime compatibility failure.
 
+## Composer controls and shared scheduler follow-up
+
+The composer now uses compact, labeled Queue / Stash pills with counts instead of the large queue status banner. Queue management remains in the panel, avoiding an ambiguous Cancel action that immediately cleared queued messages. The Stash pill announces whether its actual companion panel is open.
+
+Both composer schedule buttons and Queue use a new shared SchedulePicker: Today / Tomorrow / Custom, editable local date and 24-hour time, quick +15 / +30 / +60 minute presets, and an explicit local-zone summary. It opens without the full-screen blur/backdrop. Invalid dates, daylight-saving rollovers and past times cannot confirm; a timer rechecks validity while the picker remains open. Schedule form submissions stop propagation so they cannot trigger composer message submission. The older AppleTimePicker remains available for unrelated uses and concurrent edits are preserved.
+
+Seven Chromium tests pass across the scheduler and Queue, including invalid calendar dates, past-time blocking, future presets, exact typed local times, cancellation and preventing submission of a parent composer. All 203 web suites / 1,528 tests and all 12 package typechecks pass; final web typechecking passes too. Scoped formatting/lint passes with existing unused declarations in ChatView. Full formatting and workspace tests retain the known unrelated issues.
+
 ## Verification
 
 - Complete web unit suite: **200 files / 1,510 tests passed**.

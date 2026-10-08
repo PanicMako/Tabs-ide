@@ -167,7 +167,7 @@ import { Button } from "./ui/button";
 import { Separator } from "./ui/separator";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "./ui/menu";
 import { Popover, PopoverTrigger, PopoverPopup } from "./ui/popover";
-import { AppleTimePicker } from "./ui/AppleTimePicker";
+import { SchedulePicker } from "./ui/SchedulePicker";
 import { cn, isMacPlatform, randomUUID } from "~/lib/utils";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 import { toastManager } from "./ui/toast";
@@ -727,6 +727,7 @@ export default function ChatView({
     },
     [setComposerDraftPrompt, threadId],
   );
+  const stashPanelOpen = useRightPanelStore((state) => state.isOpen && state.activeTab === "stash");
   const [isStashMenuOpen, setIsStashMenuOpen] = useState(false);
   const [stashPulsing, setStashPulsing] = useState(false);
   const stashPulseTimeoutRef = useRef<number | null>(null);
@@ -759,7 +760,6 @@ export default function ChatView({
   const queueByThread = useMessageQueueStore((state) => state.queueByThread);
   const enqueueMessage = useMessageQueueStore((state) => state.enqueueMessage);
   const peekNextReadyMessage = useMessageQueueStore((state) => state.peekNextReadyMessage);
-  const clearThreadQueue = useMessageQueueStore((state) => state.clearQueue);
   const threadQueuedMessages = getThreadQueuedMessages(queueByThread, threadId);
   const [isSchedulePopoverOpen, setIsSchedulePopoverOpen] = useState(false);
   const [isIdleSchedulePopoverOpen, setIsIdleSchedulePopoverOpen] = useState(false);
@@ -5583,9 +5583,24 @@ export default function ChatView({
                   />
                 ) : null}
                 <div className="relative flex items-center gap-1">
+                  {threadQueuedMessages.length > 0 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 gap-1.5 rounded-full px-2 text-xs text-muted-foreground hover:text-foreground"
+                      aria-label={`Open queue: ${threadQueuedMessages.length} messages`}
+                      title="Open queued messages and schedules"
+                      onClick={() => openRightPanelSurface("queue")}
+                    >
+                      <ListOrderedIcon size={13} />
+                      <span>Queue</span>
+                      <span className="font-mono text-[10px]">{threadQueuedMessages.length}</span>
+                    </Button>
+                  )}
                   <ComposerStashBadge
                     count={promptStashEntries.length}
-                    menuOpen={isStashMenuOpen}
+                    menuOpen={stashPanelOpen}
                     pulsing={stashPulsing}
                     onToggleMenu={() => openRightPanelSurface("stash")}
                   />
@@ -5815,39 +5830,6 @@ export default function ChatView({
                   />
                 )}
 
-              {/* Queued Messages Bar */}
-              {threadQueuedMessages.length > 0 && (
-                <div className="mb-2 flex items-center justify-between rounded-lg border border-border/80 bg-muted/40 px-3 py-1.5 text-xs text-foreground/90 backdrop-blur-xs">
-                  <div className="flex items-center gap-1.5 font-medium">
-                    <ListOrderedIcon className="size-3.5 text-foreground" />
-                    <span>
-                      {threadQueuedMessages.length} message
-                      {threadQueuedMessages.length === 1 ? "" : "s"} queued
-                      {threadQueuedMessages.some((m) => m.scheduledFor)
-                        ? " (with scheduled time)"
-                        : " — will send when turn finishes"}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => openRightPanelSurface("queue")}
-                      className="rounded px-2 py-0.5 text-[11px] font-semibold text-foreground hover:bg-primary/10 cursor-pointer"
-                    >
-                      View Queue
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => activeThread && clearThreadQueue(activeThread.id)}
-                      className="rounded px-1.5 py-0.5 text-[11px] text-muted-foreground hover:text-destructive cursor-pointer"
-                      title="Clear queue"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              )}
-
               <div className="flex-1 pr-11">
                 <ComposerPromptEditor
                   ref={composerEditorRef}
@@ -6015,7 +5997,6 @@ export default function ChatView({
                           <Popover
                             open={isSchedulePopoverOpen}
                             onOpenChange={setIsSchedulePopoverOpen}
-                            modal
                           >
                             <PopoverTrigger
                               render={
@@ -6034,10 +6015,10 @@ export default function ChatView({
                             <PopoverPopup
                               align="end"
                               side="top"
-                              hasBackdrop
-                              className="p-0 border-none bg-transparent shadow-none"
+                              viewportClassName="p-0"
+                              className="border-none bg-transparent shadow-none"
                             >
-                              <AppleTimePicker
+                              <SchedulePicker
                                 onConfirm={(scheduledDate) => {
                                   onQueueMessage(scheduledDate.toISOString());
                                   setIsSchedulePopoverOpen(false);
@@ -6190,7 +6171,6 @@ export default function ChatView({
                       <Popover
                         open={isIdleSchedulePopoverOpen}
                         onOpenChange={setIsIdleSchedulePopoverOpen}
-                        modal
                       >
                         <PopoverTrigger
                           render={
@@ -6205,7 +6185,7 @@ export default function ChatView({
                               }
                               aria-label="Schedule message for a specific time"
                               title="Schedule this message to send at a specific time"
-                              className="flex h-9 w-7 enabled:cursor-pointer items-center justify-center rounded-l-none rounded-r-lg border-l border-foreground/15 bg-foreground text-background/70 transition-all duration-150 hover:bg-foreground/90 hover:text-background hover:scale-105 disabled:pointer-events-none disabled:opacity-30 disabled:hover:scale-100 sm:h-8"
+                              className="flex h-9 w-7 enabled:cursor-pointer items-center justify-center rounded-l-none rounded-r-lg border-l border-foreground/15 bg-foreground text-background/70 transition-all duration-150 hover:bg-foreground/90 hover:text-background disabled:pointer-events-none disabled:opacity-30 disabled:hover:scale-100 sm:h-8"
                             />
                           }
                         >
@@ -6214,10 +6194,10 @@ export default function ChatView({
                         <PopoverPopup
                           align="end"
                           side="top"
-                          hasBackdrop
-                          className="p-0 border-none bg-transparent shadow-none"
+                          viewportClassName="p-0"
+                          className="border-none bg-transparent shadow-none"
                         >
-                          <AppleTimePicker
+                          <SchedulePicker
                             onConfirm={(scheduledDate) => {
                               onQueueMessage(scheduledDate.toISOString());
                               setIsIdleSchedulePopoverOpen(false);

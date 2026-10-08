@@ -23,7 +23,7 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { Popover, PopoverTrigger, PopoverPopup } from "../ui/popover";
 import { CompanionEmpty } from "../agents/companion/CompanionChrome";
 import { showCustomConfirm } from "~/lib/customConfirm";
-import { AppleTimePicker } from "../ui/AppleTimePicker";
+import { SchedulePicker } from "../ui/SchedulePicker";
 
 export interface MessageQueuePanelProps {
   activeThreadId?: ThreadId | null | undefined;
@@ -208,7 +208,6 @@ export const MessageQueuePanel = memo(function MessageQueuePanel({
                   <Popover
                     open={schedulingMsgId === msg.id}
                     onOpenChange={(open) => setSchedulingMsgId(open ? msg.id : null)}
-                    modal
                   >
                     <PopoverTrigger
                       render={
@@ -240,10 +239,10 @@ export const MessageQueuePanel = memo(function MessageQueuePanel({
                     <PopoverPopup
                       align="start"
                       side="top"
-                      hasBackdrop
-                      className="p-0 border-none bg-transparent shadow-none"
+                      viewportClassName="p-0"
+                      className="border-none bg-transparent shadow-none"
                     >
-                      <AppleTimePicker
+                      <SchedulePicker
                         value={scheduledDate ?? undefined}
                         onConfirm={(date) => handleUpdateSchedule(msg.id, date)}
                         onCancel={() => setSchedulingMsgId(null)}

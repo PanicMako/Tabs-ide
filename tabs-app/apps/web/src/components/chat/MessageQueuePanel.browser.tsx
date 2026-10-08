@@ -13,8 +13,8 @@ const fixture = vi.hoisted(() => ({
 }));
 vi.mock("~/lib/customConfirm", () => ({ showCustomConfirm: fixture.confirm }));
 vi.mock("../ui/toast", () => ({ toastManager: { add: fixture.toast } }));
-vi.mock("../ui/AppleTimePicker", () => ({
-  AppleTimePicker: ({ onConfirm }: { onConfirm: (date: Date) => void }) => (
+vi.mock("../ui/SchedulePicker", () => ({
+  SchedulePicker: ({ onConfirm }: { onConfirm: (date: Date) => void }) => (
     <button onClick={() => onConfirm(new Date("2030-01-01T12:00:00Z"))}>
       Confirm test schedule
     </button>
