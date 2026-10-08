@@ -3,7 +3,8 @@ import {
   ArrowUpIcon,
   SendIcon,
   Trash2Icon,
-  ListOrderedIcon,
+  InfoIcon,
+  ChevronDownIcon,
   CalendarClockIcon,
   ZapIcon,
 } from "lucide-react";
@@ -17,7 +18,6 @@ import {
 import { formatRelativeTime } from "~/timestampFormat";
 import { cn } from "~/lib/utils";
 import { Button } from "../ui/button";
-import { ScrollArea } from "../ui/scroll-area";
 import { toastManager } from "../ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { Popover, PopoverTrigger, PopoverPopup } from "../ui/popover";
@@ -42,6 +42,7 @@ export const MessageQueuePanel = memo(function MessageQueuePanel({
   const reorderQueue = useMessageQueueStore((state) => state.reorderQueue);
   const updateMessageSchedule = useMessageQueueStore((state) => state.updateMessageSchedule);
 
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [schedulingMsgId, setSchedulingMsgId] = useState<string | null>(null);
 
   const queuedMessages = getThreadQueuedMessages(queueByThread, activeThreadId);
@@ -79,7 +80,7 @@ export const MessageQueuePanel = memo(function MessageQueuePanel({
         title: date ? "Schedule updated" : "Schedule removed",
         description: date
           ? `Will dispatch on ${date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
-          : "Will dispatch automatically on turn completion.",
+          : "Will send when the agent is idle and the composer is empty.",
       });
     },
     [activeThreadId, updateMessageSchedule],
@@ -92,34 +93,41 @@ export const MessageQueuePanel = memo(function MessageQueuePanel({
         className,
       )}
     >
-      {/* Header */}
-      <div className="flex shrink-0 items-center justify-between border-b border-border/60 p-3">
-        <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-          <ListOrderedIcon className="size-4 text-foreground" />
-          <span>Message Queue</span>
-          <span className="ml-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-mono tabular-nums text-muted-foreground">
-            {queuedMessages.length}
-          </span>
-        </div>
+      <div className="companion-toolbar queue-toolbar">
+        <span className="queue-toolbar-label">When ready</span>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-7"
+                aria-label="How queued messages send"
+              />
+            }
+          >
+            <InfoIcon size={14} />
+          </TooltipTrigger>
+          <TooltipPopup>
+            Messages send in order when the agent is idle and the composer is empty. Scheduled
+            messages wait until their time arrives. Send next moves a message to the front and
+            removes its schedule.
+          </TooltipPopup>
+        </Tooltip>
         {queuedMessages.length > 0 && (
           <Button
             type="button"
             variant="ghost"
-            size="sm"
-            onClick={handleClear}
-            className="h-6 px-2 text-[11px] text-muted-foreground hover:text-destructive"
+            size="icon"
+            className="ml-auto size-7 text-muted-foreground hover:text-destructive"
+            aria-label="Clear queue"
+            title="Clear queue"
+            onClick={() => void handleClear()}
           >
-            <Trash2Icon className="mr-1 size-3" />
-            Clear queue
+            <Trash2Icon size={14} />
           </Button>
         )}
-      </div>
-
-      {/* Helper notice */}
-      <div className="bg-muted/30 px-3 py-2 border-b border-border/40 text-[11px] text-muted-foreground leading-relaxed">
-        <span className="font-medium text-foreground">Auto-dispatch:</span> Messages queued here
-        send when the agent is idle and the composer is empty. Scheduled messages wait until their
-        time arrives.
       </div>
 
       {/* Main List Area */}
@@ -128,199 +136,186 @@ export const MessageQueuePanel = memo(function MessageQueuePanel({
           Queue a follow-up from the composer. It will send when the agent is ready.
         </CompanionEmpty>
       ) : (
-        <ScrollArea className="flex-1 overflow-y-auto p-2">
-          <div className="space-y-2">
-            {queuedMessages.map((msg, index) => {
-              const { value: timeVal, suffix: timeSuffix } = formatRelativeTime(msg.createdAt);
-              const isFirst = index === 0;
-              const isLast = index === queuedMessages.length - 1;
+        <div className="queue-messages">
+          {queuedMessages.map((msg, index) => {
+            const { value: timeVal, suffix: timeSuffix } = formatRelativeTime(msg.createdAt);
+            const isFirst = index === 0;
+            const isLast = index === queuedMessages.length - 1;
 
-              const isScheduled = Boolean(msg.scheduledFor);
-              const scheduledDate = msg.scheduledFor ? new Date(msg.scheduledFor) : null;
-              const isPastScheduled = scheduledDate && scheduledDate.getTime() <= Date.now();
+            const isScheduled = Boolean(msg.scheduledFor);
+            const scheduledDate = msg.scheduledFor ? new Date(msg.scheduledFor) : null;
+            const expanded = expandedId === msg.id;
+            const normalized = msg.text.trim().replace(/\s+/g, " ");
+            const snippet =
+              normalized.length > 120
+                ? `${normalized.slice(0, 117)}…`
+                : normalized || "Attached follow-up";
 
-              return (
-                <div key={msg.id} className="companion-card group relative flex flex-col gap-3">
-                  <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                    <div className="flex items-center gap-1.5 font-semibold text-foreground">
-                      <span className="flex size-5 items-center justify-center rounded-full bg-primary/10 text-[10px] font-bold text-foreground">
-                        #{index + 1}
-                      </span>
-                      <span>{isFirst ? "Up Next" : `Queue Position ${index + 1}`}</span>
-                    </div>
+            return (
+              <article key={msg.id} className="queue-message">
+                <div className="queue-message-meta">
+                  <span className="queue-position">{String(index + 1).padStart(2, "0")}</span>
+                  <span>{isFirst ? "Next" : "In line"}</span>
+                  <time dateTime={msg.createdAt}>
+                    {timeVal} {timeSuffix ?? ""}
+                  </time>
+                </div>
+                <button
+                  type="button"
+                  className="queue-message-heading"
+                  aria-label={`Preview queued message: ${snippet}`}
+                  aria-expanded={expanded}
+                  onClick={() => setExpandedId(expanded ? null : msg.id)}
+                >
+                  <span className="queue-message-title">{snippet}</span>
+                  <ChevronDownIcon
+                    size={14}
+                    className={expanded ? "rotate-180 shrink-0" : "shrink-0"}
+                    aria-hidden="true"
+                  />
+                </button>
+                {expanded && <p className="queue-message-text">{msg.text}</p>}
 
-                    <div className="flex items-center gap-1">
-                      <span>
-                        {timeVal} {timeSuffix ?? ""}
-                      </span>
-
-                      {/* Reorder Buttons */}
-                      <div className="flex items-center ml-1 opacity-80 group-hover:opacity-100">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          disabled={isFirst || !activeThreadId}
-                          onClick={() =>
-                            activeThreadId && reorderQueue(activeThreadId, index, index - 1)
-                          }
-                          aria-label="Move up"
-                          className="size-7 text-muted-foreground disabled:opacity-20 cursor-pointer"
-                          title="Move up"
-                        >
-                          <ArrowUpIcon className="size-3" />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          disabled={isLast || !activeThreadId}
-                          onClick={() =>
-                            activeThreadId && reorderQueue(activeThreadId, index, index + 1)
-                          }
-                          className="size-5 text-muted-foreground disabled:opacity-20 cursor-pointer"
-                          aria-label="Move down"
-                          title="Move down"
-                        >
-                          <ArrowDownIcon className="size-3" />
-                        </Button>
-                      </div>
-
-                      {/* Delete */}
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDelete(msg.id)}
-                        className="size-5 text-muted-foreground hover:text-destructive ml-0.5 cursor-pointer"
-                        aria-label="Delete from queue"
-                        title="Delete from queue"
-                      >
-                        <Trash2Icon className="size-3" />
-                      </Button>
-                    </div>
+                {msg.dispatchError && (
+                  <p
+                    role="alert"
+                    className="rounded-lg bg-destructive/10 p-2 text-xs text-destructive"
+                  >
+                    {msg.dispatchError}
+                  </p>
+                )}
+                {(msg.files?.length ?? 0) > 0 && (
+                  <div className="stash-files">
+                    {msg.files!.map((file) => (
+                      <span key={file.id}>{file.name}</span>
+                    ))}
                   </div>
-
-                  {/* Message Preview */}
-                  <div className="rounded-md bg-muted/40 p-2 font-mono text-xs leading-relaxed whitespace-pre-wrap select-text text-foreground">
-                    {msg.text}
+                )}
+                {/* Attachments preview */}
+                {msg.attachments && msg.attachments.length > 0 && (
+                  <div className="stash-images">
+                    {msg.attachments.map((image) => (
+                      <figure key={image.id}>
+                        <img src={image.dataUrl} alt={image.name} />
+                        <figcaption title={image.name}>{image.name}</figcaption>
+                      </figure>
+                    ))}
                   </div>
+                )}
 
-                  {msg.dispatchError && (
-                    <p
-                      role="alert"
-                      className="rounded-lg bg-destructive/10 p-2 text-xs text-destructive"
-                    >
-                      {msg.dispatchError}
-                    </p>
-                  )}
-                  {(msg.files?.length ?? 0) > 0 && (
-                    <p className="text-[11px] text-muted-foreground">
-                      {msg.files!.map((file) => file.name).join(" · ")}
-                    </p>
-                  )}
-                  {/* Attachments preview */}
-                  {msg.attachments && msg.attachments.length > 0 && (
-                    <div className="flex items-center gap-1.5 pt-1">
-                      {msg.attachments.map((att) => (
-                        <img
-                          key={att.id}
-                          src={att.dataUrl}
-                          alt={att.name}
-                          className="size-8 rounded border border-border/80 object-cover"
-                        />
-                      ))}
-                      <span className="text-[10px] text-muted-foreground">
-                        {msg.attachments.length} attachment{msg.attachments.length === 1 ? "" : "s"}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Dispatch Trigger Bar */}
-                  <div className="flex items-center justify-between pt-1 text-[11px]">
-                    <div className="flex items-center gap-1">
-                      <Popover
-                        open={schedulingMsgId === msg.id}
-                        onOpenChange={(open) => setSchedulingMsgId(open ? msg.id : null)}
-                        modal
-                      >
-                        <PopoverTrigger
-                          render={
-                            <button
-                              type="button"
-                              className={cn(
-                                "flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors cursor-pointer",
-                                isScheduled
-                                  ? isPastScheduled
-                                    ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
-                                    : "bg-primary/10 text-foreground hover:bg-primary/20"
-                                  : "bg-muted/70 text-muted-foreground hover:text-foreground",
-                              )}
-                            >
-                              {isScheduled ? (
-                                <>
-                                  <CalendarClockIcon className="size-3" />
-                                  <span>
-                                    {scheduledDate?.toLocaleDateString([], {
-                                      weekday: "short",
-                                      hour: "numeric",
-                                      minute: "2-digit",
-                                    })}
-                                  </span>
-                                </>
-                              ) : (
-                                <>
-                                  <ZapIcon className="size-3" />
-                                  <span>Next turn</span>
-                                </>
-                              )}
-                            </button>
-                          }
-                        />
-                        <PopoverPopup
-                          align="start"
-                          side="top"
-                          hasBackdrop
-                          className="p-0 border-none bg-transparent shadow-none"
-                        >
-                          <AppleTimePicker
-                            value={scheduledDate ?? undefined}
-                            onConfirm={(date) => handleUpdateSchedule(msg.id, date)}
-                            onCancel={() => setSchedulingMsgId(null)}
-                          />
-                        </PopoverPopup>
-                      </Popover>
-
-                      {isScheduled && (
+                {/* Dispatch Trigger Bar */}
+                <div className="queue-message-controls">
+                  <Popover
+                    open={schedulingMsgId === msg.id}
+                    onOpenChange={(open) => setSchedulingMsgId(open ? msg.id : null)}
+                    modal
+                  >
+                    <PopoverTrigger
+                      render={
                         <button
                           type="button"
-                          onClick={() => handleUpdateSchedule(msg.id, null)}
-                          className="text-[10px] text-muted-foreground hover:text-foreground underline cursor-pointer ml-1"
+                          className="queue-schedule"
+                          aria-label={`Schedule queued message ${index + 1}`}
                         >
-                          Clear time
+                          {isScheduled ? (
+                            <>
+                              <CalendarClockIcon className="size-3" />
+                              <span>
+                                {scheduledDate?.toLocaleDateString([], {
+                                  weekday: "short",
+                                  hour: "numeric",
+                                  minute: "2-digit",
+                                })}
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <ZapIcon className="size-3" />
+                              <span>When ready</span>
+                            </>
+                          )}
                         </button>
-                      )}
-                    </div>
+                      }
+                    />
+                    <PopoverPopup
+                      align="start"
+                      side="top"
+                      hasBackdrop
+                      className="p-0 border-none bg-transparent shadow-none"
+                    >
+                      <AppleTimePicker
+                        value={scheduledDate ?? undefined}
+                        onConfirm={(date) => handleUpdateSchedule(msg.id, date)}
+                        onCancel={() => setSchedulingMsgId(null)}
+                      />
+                    </PopoverPopup>
+                  </Popover>
 
-                    {/* Manual Send Now */}
-                    {onSendNow && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => onSendNow(msg)}
-                        className="h-6 gap-1 px-2 text-[11px] font-medium text-foreground hover:bg-accent cursor-pointer"
-                      >
-                        <SendIcon className="size-3 text-foreground" />
-                        <span>{msg.dispatchError ? "Retry" : "Send next"}</span>
-                      </Button>
-                    )}
+                  {isScheduled && (
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateSchedule(msg.id, null)}
+                      className="text-[10px] text-muted-foreground hover:text-foreground underline cursor-pointer ml-1"
+                    >
+                      Clear time
+                    </button>
+                  )}
+                  <div className="queue-reorder">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-7"
+                      aria-label={`Move queued message ${index + 1} up`}
+                      disabled={isFirst || !activeThreadId}
+                      onClick={() =>
+                        activeThreadId && reorderQueue(activeThreadId, index, index - 1)
+                      }
+                    >
+                      <ArrowUpIcon size={13} />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-7"
+                      aria-label={`Move queued message ${index + 1} down`}
+                      disabled={isLast || !activeThreadId}
+                      onClick={() =>
+                        activeThreadId && reorderQueue(activeThreadId, index, index + 1)
+                      }
+                    >
+                      <ArrowDownIcon size={13} />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-7 text-muted-foreground hover:text-destructive"
+                      aria-label={`Delete queued message ${index + 1}`}
+                      onClick={() => handleDelete(msg.id)}
+                    >
+                      <Trash2Icon size={13} />
+                    </Button>
                   </div>
+                  {/* Manual Send Now */}
+                  {onSendNow && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onSendNow(msg)}
+                      className="h-6 gap-1 px-2 text-[11px] font-medium text-foreground hover:bg-accent cursor-pointer"
+                    >
+                      <SendIcon className="size-3 text-foreground" />
+                      <span>{msg.dispatchError ? "Retry" : "Send next"}</span>
+                    </Button>
+                  )}
                 </div>
-              );
-            })}
-          </div>
-        </ScrollArea>
+              </article>
+            );
+          })}
+        </div>
       )}
     </div>
   );

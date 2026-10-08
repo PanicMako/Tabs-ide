@@ -6,7 +6,6 @@ import {
   useCompanionSurfaceStore,
 } from "~/stores/companionSurfaceStore";
 import { showCustomConfirm } from "~/lib/customConfirm";
-import { CompanionHeading } from "./agents/companion/CompanionChrome";
 import { isElectron } from "~/env";
 import { SurfaceTabs, SurfaceChooser } from "./agents/companion/SurfaceTabs";
 import { usePromptStashStore } from "~/promptStashStore";
@@ -182,7 +181,6 @@ export const RightPanelTabs = memo(function RightPanelTabs({
           </div>
         ) : (
           <div className="companion-workspace">
-            <CompanionHeading kind="queue" detail={`${queuedMessages.length} pending messages`} />
             <MessageQueuePanel
               activeThreadId={threadId}
               onSendNow={(message) => {
