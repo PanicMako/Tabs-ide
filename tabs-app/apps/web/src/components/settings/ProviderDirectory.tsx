@@ -63,7 +63,7 @@ export function ProviderDirectory({
             onClick={() => onSelect(id)}
           >
             <span className="provider-directory-icon" aria-hidden>
-              <Icon className={id === "claudeAgent" ? "size-4 text-[#d97757]" : "size-4"} />
+              <Icon className="provider-brand-icon size-4" data-provider={id} />
             </span>
             <span className="provider-directory-name">
               <strong>{name}</strong>
