@@ -39,6 +39,12 @@ Hover/focus actions offer Add to chat and Copy path. Double-click and Cmd/Ctrl+C
 
 Validation for this follow-up: all **203 web unit suites / 1,528 tests passed**, **six Files Chromium UI tests passed**, and all **12 packages passed type checking**. Live Electron verifies the compact header, Add to chat, and both file and folder drops in the actual composer. Scoped formatting/lint passes; full formatting currently reports 157 unrelated files. The built-in `vp test` runner exposes an Effect/Vitest runner-version mismatch in the catalog storage suite; the package's `vp run test` command passes that suite and the complete web suite.
 
+## Neutral Files and compact Diff follow-up
+
+Files folder icons and selected rows now use neutral theme colors; the colored surface-tab design remains intact. Diff replaces its redundant heading with one 45px toolbar for Working tree, Agent turns, unified/split layout and refresh. File cards use compact neutral path headers with accurate addition/deletion counts and renamed paths. Changes retain their standard red/green highlights.
+
+Working-tree patches use the direct renderer, matching file previews, because live verification exposed empty patch bodies with the background worker path in this checkout. The new Chromium regression checks actual rendered changed text as well as compact geometry, counts, refresh and layout/source switching. All seven Diff/Files UI tests pass, and desktop verification confirms visible patch lines and neutral folder icons.
+
 ## Verification
 
 - Complete web unit suite: **200 files / 1,510 tests passed**.

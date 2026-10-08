@@ -131,9 +131,9 @@ function FileRow({
 function EntryIcon({ entry, expanded }: { entry: ProjectEntry; expanded?: boolean }) {
   return entry.kind === "directory" ? (
     expanded ? (
-      <FolderOpen size={14} className="shrink-0 text-amber-500" />
+      <FolderOpen size={14} className="shrink-0 text-muted-foreground" />
     ) : (
-      <Folder size={14} className="shrink-0 text-amber-500" />
+      <Folder size={14} className="shrink-0 text-muted-foreground" />
     )
   ) : (
     <File size={14} className="shrink-0 text-muted-foreground" />
