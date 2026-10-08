@@ -1,10 +1,6 @@
 import { useRef, useState } from "react";
 import { ChevronDownIcon, PlusIcon, RotateCcwIcon, XIcon } from "lucide-react";
-import {
-  EnvironmentId,
-  type ServerSettingsPatch,
-  type UsageModelPriceOverride,
-} from "@tabs/contracts";
+import { EnvironmentId, type ServerSettingsPatch } from "@tabs/contracts";
 import { useSettings, useUpdateSettings } from "../../hooks/useSettings";
 import { useServerConfig } from "../../state/settings";
 import { cn } from "../../lib/utils";
@@ -39,6 +35,8 @@ import {
 } from "./usagePriceTargets";
 
 export interface UsagePriceOverridesProps {
+  readonly initialModelId?: string | undefined;
+  readonly onSaved?: () => void;
   readonly usage?: readonly {
     readonly environmentId?: EnvironmentId;
     readonly summary?: { readonly buckets?: readonly { readonly model: string }[] };
@@ -61,6 +59,8 @@ type SaveAttempt = {
 
 export function UsagePriceOverrides({
   usage = [],
+  initialModelId,
+  onSaved,
   initialSelectedEnvironmentIds = null,
   onOpenChange,
 }: UsagePriceOverridesProps) {
@@ -86,7 +86,11 @@ export function UsagePriceOverrides({
   const selected = environments.filter(
     (environment) => selectedIds === null || selectedIds.has(environment.environmentId),
   );
-  const [drafts, setDrafts] = useState<readonly UsagePriceDraft[]>([]);
+  const [drafts, setDrafts] = useState<readonly UsagePriceDraft[]>(() =>
+    initialModelId && !currentOverrides[initialModelId]
+      ? [{ id: "new:initial", model: initialModelId, isNew: true, values: {} }]
+      : [],
+  );
   const [pending, setPending] = useState(false);
   const [attempt, setAttempt] = useState<SaveAttempt | null>(null);
   const focusRowRef = useRef<string | null>(null);
@@ -131,6 +135,11 @@ export function UsagePriceOverrides({
     )
       errors.set(draft.id, "This model already has a row. Edit its prices there.");
   }
+  const showRowError = (row: UsagePriceDraft) =>
+    errors.has(row.id) &&
+    (row.id !== "new:initial" ||
+      Object.values(row.values).some((value) => value !== "") ||
+      attempt !== null);
   const failedDestinations =
     attempt?.destinations.filter(
       (destination) => attempt.results.get(destination.environmentId)?.status === "failed",
@@ -208,8 +217,8 @@ export function UsagePriceOverrides({
       changes: new Map([...changes].map(([id, plan]) => [id, plan.changes])),
       write: async (input) => {
         try {
-          updateSettings(input.input.patch as any);
-          return { _tag: "Success" as const };
+          const saved = await updateSettings(input.input.patch as ServerSettingsPatch);
+          return saved ? { _tag: "Success" as const } : { _tag: "Failure" as const };
         } catch {
           return { _tag: "Failure" as const };
         }
@@ -224,7 +233,10 @@ export function UsagePriceOverrides({
       },
     });
     setPending(false);
-    if (!failed) setDrafts([]);
+    if (!failed) {
+      setDrafts([]);
+      onSaved?.();
+    }
   };
 
   return (
@@ -366,7 +378,7 @@ export function UsagePriceOverrides({
                                 }}
                                 aria-label="New model ID"
                                 aria-invalid={
-                                  (row.model.trim() !== "" && errors.has(row.id)) || undefined
+                                  (row.model.trim() !== "" && showRowError(row)) || undefined
                                 }
                                 list="usage-price-models"
                                 placeholder="Model ID"
@@ -387,7 +399,7 @@ export function UsagePriceOverrides({
                                 {row.model}
                               </span>
                             )}
-                            {errors.has(row.id) &&
+                            {showRowError(row) &&
                             (row.model.trim() !== "" ||
                               Object.values(row.values).some((value) => value !== "")) ? (
                               <p role="alert" className="mt-1 text-xs text-destructive">
@@ -405,6 +417,10 @@ export function UsagePriceOverrides({
                               return (
                                 <TableCell key={field.key} className="px-1">
                                   <Input
+                                    autoFocus={
+                                      initialModelId === row.model &&
+                                      field.key === "inputCostPerMillionTokens"
+                                    }
                                     inputMode="decimal"
                                     aria-label={`${field.label} price for ${row.model || "new model"}`}
                                     value={row.values[field.key] ?? (row.isNew ? "" : cell.value)}

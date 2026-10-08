@@ -77,7 +77,9 @@ it("distinguishes unknown prices from zero cost and retains token details", asyn
     </AppAtomRegistryProvider>,
   );
   try {
-    await expect.element(page.getByRole("cell", { name: "Unpriced", exact: true })).toBeVisible();
+    await expect
+      .element(page.getByRole("button", { name: "Set prices for unknown-model", exact: true }))
+      .toBeVisible();
     await page.getByRole("radio", { name: "API cost", exact: true }).click();
     await expect.element(page.getByRole("cell", { name: "—", exact: true })).toBeVisible();
     await page.getByText("Token details", { exact: false }).click();
