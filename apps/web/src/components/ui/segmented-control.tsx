@@ -29,7 +29,7 @@ export function SegmentedControl<T extends string>({
     <div
       role="radiogroup"
       aria-label={ariaLabel}
-      className={cn("tabs-segmented inline-flex items-center select-none", className)}
+      className={cn("tabs-segmented inline-flex items-center rounded-lg select-none", className)}
     >
       {options.map((opt, index) => {
         const isSelected = opt.value === value;
@@ -66,10 +66,10 @@ export function SegmentedControl<T extends string>({
               }
             }}
             className={cn(
-              "font-semibold rounded-md transition-all whitespace-nowrap cursor-pointer flex items-center justify-center gap-1.5",
+              "font-medium rounded-md transition-colors whitespace-nowrap cursor-pointer flex items-center justify-center gap-1.5",
               size === "sm" ? "px-2 py-1 text-xs" : "px-3 py-1.5 text-xs",
               isSelected
-                ? "font-semibold"
+                ? "text-foreground"
                 : "text-muted-foreground hover:text-foreground hover:bg-muted/40",
               opt.disabled && "opacity-50 cursor-not-allowed",
               itemClassName,

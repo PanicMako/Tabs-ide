@@ -166,8 +166,8 @@ import { useRightPanelStore, type RightPanelTab } from "../stores/rightPanelStor
 import { Button } from "./ui/button";
 import { Separator } from "./ui/separator";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "./ui/menu";
-import { Popover, PopoverTrigger, PopoverPopup } from "./ui/popover";
 import { SchedulePicker } from "./ui/SchedulePicker";
+import { Dialog, DialogTrigger, DialogPopup, DialogTitle } from "./ui/dialog";
 import { cn, isMacPlatform, randomUUID } from "~/lib/utils";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 import { toastManager } from "./ui/toast";
@@ -5588,13 +5588,13 @@ export default function ChatView({
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className="h-7 gap-1.5 rounded-full px-2 text-xs text-muted-foreground hover:text-foreground"
+                      className="h-6 gap-1 rounded-md px-1.5 text-xs text-muted-foreground hover:text-foreground"
                       aria-label={`Open queue: ${threadQueuedMessages.length} messages`}
                       title="Open queued messages and schedules"
                       onClick={() => openRightPanelSurface("queue")}
                     >
                       <ListOrderedIcon size={13} />
-                      <span>Queue</span>
+                      <span className="sr-only">Queue</span>
                       <span className="font-mono text-[10px]">{threadQueuedMessages.length}</span>
                     </Button>
                   )}
@@ -5994,11 +5994,11 @@ export default function ChatView({
                             <ListOrderedIcon className="size-3.5 text-foreground" />
                             <span>Queue</span>
                           </Button>
-                          <Popover
+                          <Dialog
                             open={isSchedulePopoverOpen}
                             onOpenChange={setIsSchedulePopoverOpen}
                           >
-                            <PopoverTrigger
+                            <DialogTrigger
                               render={
                                 <Button
                                   type="button"
@@ -6012,12 +6012,12 @@ export default function ChatView({
                                 </Button>
                               }
                             />
-                            <PopoverPopup
-                              align="end"
-                              side="top"
-                              viewportClassName="p-0"
-                              className="border-none bg-transparent shadow-none"
+                            <DialogPopup
+                              showCloseButton={false}
+                              bottomStickOnMobile={false}
+                              className="max-w-[620px] overflow-auto"
                             >
+                              <DialogTitle className="sr-only">Schedule message</DialogTitle>
                               <SchedulePicker
                                 onConfirm={(scheduledDate) => {
                                   onQueueMessage(scheduledDate.toISOString());
@@ -6025,8 +6025,8 @@ export default function ChatView({
                                 }}
                                 onCancel={() => setIsSchedulePopoverOpen(false)}
                               />
-                            </PopoverPopup>
-                          </Popover>
+                            </DialogPopup>
+                          </Dialog>
                         </div>
                       )}
                       <button
@@ -6168,11 +6168,11 @@ export default function ChatView({
                         )}
                       </button>
                       {/* Clock / schedule button — always visible even on idle/fresh threads */}
-                      <Popover
+                      <Dialog
                         open={isIdleSchedulePopoverOpen}
                         onOpenChange={setIsIdleSchedulePopoverOpen}
                       >
-                        <PopoverTrigger
+                        <DialogTrigger
                           render={
                             <button
                               type="button"
@@ -6190,13 +6190,13 @@ export default function ChatView({
                           }
                         >
                           <ClockIcon className="size-3" />
-                        </PopoverTrigger>
-                        <PopoverPopup
-                          align="end"
-                          side="top"
-                          viewportClassName="p-0"
-                          className="border-none bg-transparent shadow-none"
+                        </DialogTrigger>
+                        <DialogPopup
+                          showCloseButton={false}
+                          bottomStickOnMobile={false}
+                          className="max-w-[620px] overflow-auto"
                         >
+                          <DialogTitle className="sr-only">Schedule message</DialogTitle>
                           <SchedulePicker
                             onConfirm={(scheduledDate) => {
                               onQueueMessage(scheduledDate.toISOString());
@@ -6204,8 +6204,8 @@ export default function ChatView({
                             }}
                             onCancel={() => setIsIdleSchedulePopoverOpen(false)}
                           />
-                        </PopoverPopup>
-                      </Popover>
+                        </DialogPopup>
+                      </Dialog>
                     </div>
                   )
                 ) : null}

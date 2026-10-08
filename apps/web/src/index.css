@@ -1,54 +1,43 @@
 @import "tailwindcss";
 
-/* Shared treatment for grouped text choices across settings and workspaces. */
+/* Theme-aware grouped choices share a quiet surface and a flat selected tile. */
 .tabs-segmented {
-  gap: 0.25rem;
-  padding: 0.25rem;
-  border: 1px solid color-mix(in oklab, var(--border) 75%, transparent);
-  border-radius: 0.75rem;
-  background: color-mix(in oklab, var(--muted) 75%, transparent);
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 10px !important;
+  background: color-mix(in srgb, var(--muted) 45%, var(--background));
 }
-
-.tabs-segmented > :is(button[aria-pressed], button[aria-checked], button[aria-selected]) {
+.tabs-segmented > :is(button, [role="tab"], [role="radio"]) {
   border: 1px solid transparent;
-  border-radius: 0.5rem;
+  border-radius: 7px !important;
   background: transparent;
   color: var(--muted-foreground);
   box-shadow: none;
+  font-weight: 500;
   transition:
-    background-color 150ms ease,
-    border-color 150ms ease,
-    box-shadow 150ms ease;
+    background-color 120ms ease,
+    color 120ms ease,
+    border-color 120ms ease;
 }
-
 .tabs-segmented
   > :is(button[aria-pressed="true"], button[aria-checked="true"], button[aria-selected="true"]) {
-  border-color: color-mix(in oklab, var(--foreground) 28%, transparent);
-  background: color-mix(in oklab, var(--background) 88%, var(--foreground) 12%);
+  border-color: var(--border);
+  background: var(--card);
   color: var(--foreground);
-  box-shadow:
-    inset 0 1px 2px color-mix(in oklab, var(--foreground) 8%, transparent),
-    0 0 5px color-mix(in oklab, var(--foreground) 8%, transparent);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--foreground) 5%, transparent);
 }
-
-.tabs-segmented
-  > :is(
-    button[aria-pressed="false"],
-    button[aria-checked="false"],
-    button[aria-selected="false"]
-  ):hover {
-  background: color-mix(in oklab, var(--foreground) 6%, transparent);
+.tabs-segmented > :is(button, [role="tab"], [role="radio"]):not(:disabled):hover {
   color: var(--foreground);
+  background: var(--accent);
 }
-
-.tabs-segmented
-  > :is(button[aria-pressed], button[aria-checked], button[aria-selected]):focus-visible {
+.tabs-segmented > :is(button, [role="tab"], [role="radio"]):focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
-
 @media (prefers-reduced-motion: reduce) {
-  .tabs-segmented > :is(button[aria-pressed], button[aria-checked], button[aria-selected]) {
+  .tabs-segmented > :is(button, [role="tab"], [role="radio"]) {
     transition: none;
   }
 }

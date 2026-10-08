@@ -31,8 +31,8 @@ function Choices() {
   );
 }
 
-test("grouped choices show a subtle selected rim and move it when selected", async () => {
-  await render(<Choices />);
+test("grouped choices retain their selection and keyboard behavior", async () => {
+  const view = await render(<Choices />);
   const system = page.getByRole("radio", { name: "System" });
   const always = page.getByRole("radio", { name: "Always reduce" });
 
@@ -62,4 +62,48 @@ test("grouped choices show a subtle selected rim and move it when selected", asy
   close.element().focus();
   await userEvent.keyboard("{ArrowLeft}");
   await expect.element(startup).toHaveAttribute("aria-selected", "true");
+  await view.unmount();
+});
+
+function Fixture() {
+  const [value, setValue] = useState("system");
+  return (
+    <SegmentedControl
+      aria-label="Theme"
+      value={value}
+      onValueChange={setValue}
+      options={[
+        { value: "system", label: "System" },
+        { value: "dark", label: "Dark", disabled: true },
+        { value: "light", label: "Light" },
+      ]}
+    />
+  );
+}
+test("keeps flat themed tiles and skips disabled choices with keyboard navigation", async () => {
+  const view = await render(<Fixture />);
+  try {
+    const system = page.getByRole("radio", { name: "System" });
+    const light = page.getByRole("radio", { name: "Light" });
+    system.element().parentElement!.setAttribute("data-theme", "tabs-light");
+    await expect
+      .poll(() => getComputedStyle(system.element()).backgroundColor)
+      .toBe("rgb(255, 255, 255)");
+    const lightBackground = getComputedStyle(system.element()).backgroundColor;
+    expect(getComputedStyle(system.element()).borderRadius).toBe("7px");
+    system.element().parentElement!.setAttribute("data-theme", "tabs-dark");
+    await expect
+      .poll(() => getComputedStyle(system.element()).backgroundColor)
+      .not.toBe(lightBackground);
+    system.element().focus();
+    system
+      .element()
+      .dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+    await expect.element(light).toHaveAttribute("aria-checked", "true");
+    expect(document.activeElement).toBe(light.element());
+    light.element().dispatchEvent(new KeyboardEvent("keydown", { key: "Home", bubbles: true }));
+    await expect.element(system).toHaveAttribute("aria-checked", "true");
+  } finally {
+    await view.unmount();
+  }
 });
