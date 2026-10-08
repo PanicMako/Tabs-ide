@@ -431,3 +431,78 @@
   font-family: "Geist Mono", monospace;
   font-size: 10px;
 }
+
+.companion-diff-file-heading {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  background: transparent;
+  color: var(--foreground);
+}
+.companion-diff-file-heading:hover {
+  background: var(--muted);
+}
+.companion-diff-file-heading:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+.companion-diff-file-heading[aria-expanded="false"] {
+  border-bottom: 0;
+}
+.companion-pr .git-tool-v2 {
+  padding: 0;
+}
+.companion-pr-list {
+  min-width: 0;
+}
+.companion-pr-controls {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.companion-pr-filters {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.companion-pr-search {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  gap: 4px;
+}
+.companion-pr-list > .space-y-2\.5 {
+  padding: 10px;
+}
+.companion-pr-card {
+  padding: 12px;
+  background: var(--card);
+}
+.companion-pr-summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 8px 10px;
+}
+.companion-pr-title {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.companion-pr-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.companion-pr-actions > [data-slot="popover-trigger"] {
+  margin-left: auto;
+}
