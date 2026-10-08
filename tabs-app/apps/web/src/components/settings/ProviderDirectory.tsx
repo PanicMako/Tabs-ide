@@ -11,6 +11,7 @@ export interface ProviderDirectoryEntry {
   status: string;
   statusClass: string;
   modelCount: number;
+  action?: { label: string; disabled?: boolean; onClick: () => void } | undefined;
 }
 
 export function ProviderDirectory({
@@ -55,29 +56,50 @@ export function ProviderDirectory({
         ]}
       />
       <div className="provider-directory-list">
-        {visible.map(({ id, name, icon: Icon, enabled, status, statusClass, modelCount }) => (
-          <button
-            type="button"
-            key={id}
-            aria-current={id === selectedId ? "true" : undefined}
-            onClick={() => onSelect(id)}
-          >
-            <span className="provider-directory-icon" aria-hidden>
-              <Icon className="provider-brand-icon size-4" data-provider={id} />
-            </span>
-            <span className="provider-directory-name">
-              <strong>{name}</strong>
-              <span>{enabled ? status : "Disabled"}</span>
-            </span>
-            <span
-              className={`provider-directory-dot ${enabled ? statusClass : "bg-muted-foreground/40"}`}
-              aria-hidden
-            />
-            <span className="provider-directory-count" title={`${modelCount} models`}>
-              {modelCount}
-            </span>
-          </button>
-        ))}
+        {visible.map(
+          ({ id, name, icon: Icon, enabled, status, statusClass, modelCount, action }) => (
+            <div
+              className="provider-directory-entry"
+              key={id}
+              data-action={action ? "true" : undefined}
+            >
+              <button
+                className="provider-directory-select"
+                type="button"
+                aria-current={id === selectedId ? "true" : undefined}
+                onClick={() => onSelect(id)}
+              >
+                <span className="provider-directory-icon" aria-hidden>
+                  <Icon className="provider-brand-icon size-4" data-provider={id} />
+                </span>
+                <span className="provider-directory-name">
+                  <strong>{name}</strong>
+                  <span>{enabled ? status : "Disabled"}</span>
+                </span>
+                <span
+                  className={`provider-directory-dot ${enabled ? statusClass : "bg-muted-foreground/40"}`}
+                  aria-hidden
+                />
+                {!action ? (
+                  <span className="provider-directory-count" title={`${modelCount} models`}>
+                    {modelCount}
+                  </span>
+                ) : null}
+              </button>
+              {action ? (
+                <button
+                  type="button"
+                  className="provider-directory-action"
+                  aria-label={`${action.label} ${name}`}
+                  disabled={action.disabled}
+                  onClick={action.onClick}
+                >
+                  {action.label}
+                </button>
+              ) : null}
+            </div>
+          ),
+        )}
         {visible.length === 0 ? (
           <p role="status" className="provider-directory-empty">
             No matching providers.

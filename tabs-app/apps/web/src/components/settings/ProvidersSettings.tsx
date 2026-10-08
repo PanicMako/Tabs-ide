@@ -1,3 +1,4 @@
+import { providerNextAction } from "./providerNextAction";
 import { ProviderFocusBar, type ProviderView } from "./ProviderFocusBar";
 import { ProviderDirectory } from "./ProviderDirectory";
 import { OrbitGroup } from "../ui/orbit-group";
@@ -1237,15 +1238,47 @@ export default function ProvidersSettings(props: ProvidersSettingsProps) {
 
       <div className="providers-workspace">
         <ProviderDirectory
-          entries={providerCards.map((card) => ({
-            id: card.provider,
-            name: card.title,
-            icon: card.icon,
-            enabled: Boolean(card.providerConfig.enabled),
-            status: card.summary.headline,
-            statusClass: card.statusStyle.dot,
-            modelCount: card.models.length,
-          }))}
+          entries={providerCards.map((card) => {
+            const action = providerNextAction({
+              enabled: Boolean(card.providerConfig.enabled),
+              needsInstall: card.needsInstall,
+              needsAuth: card.needsAuth,
+              installCommand: card.installCommand,
+              loginCommand: card.loginCommand,
+              updateCommand: card.updatePrompt?.command,
+              needsAttention:
+                card.liveProvider?.status === "error" ||
+                card.liveProvider?.status === "warning" ||
+                card.liveProvider?.auth.status === "authenticated_unentitled",
+            });
+            return {
+              id: card.provider,
+              name: card.title,
+              icon: card.icon,
+              enabled: Boolean(card.providerConfig.enabled),
+              status: `${card.summary.headline}${card.providerConfig.enabled && card.updatePrompt?.command && action?.kind !== "update" ? " · Update available" : ""}`,
+              action: action
+                ? {
+                    label: action.label,
+                    disabled: providerActionBusy,
+                    onClick: () => {
+                      setOpenProviderDetails(() => ({ [card.provider]: true }));
+                      setProviderViews((views) => ({ ...views, [card.provider]: "connection" }));
+                      if (action.command) {
+                        startProviderAction({
+                          provider: card.provider,
+                          providerName: card.title,
+                          command: action.command,
+                          kind: action.kind,
+                        });
+                      }
+                    },
+                  }
+                : undefined,
+              statusClass: card.statusStyle.dot,
+              modelCount: card.models.length,
+            };
+          })}
           selectedId={selectedProvider}
           onSelect={(id) => setOpenProviderDetails(() => ({ [id]: true }))}
         />

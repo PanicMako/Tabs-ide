@@ -1,7 +1,7 @@
 import "../../index.css";
 import { useState } from "react";
 import { CpuIcon } from "lucide-react";
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 import { page } from "vitest/browser";
 import { render } from "vitest-browser-react";
 import { ProviderDirectory, type ProviderDirectoryEntry } from "./ProviderDirectory";
@@ -60,6 +60,29 @@ it("filters enabled providers independently of health and selects without changi
     await expect.element(openCode).toBeVisible();
     await page.getByRole("textbox", { name: "Find a provider" }).fill("missing");
     await expect.element(page.getByRole("status")).toHaveTextContent("No matching providers.");
+  } finally {
+    await view.unmount();
+  }
+});
+
+it("runs the setup action independently of provider selection", async () => {
+  const onSelect = vi.fn();
+  const onInstall = vi.fn();
+  const view = await render(
+    <ProviderDirectory
+      entries={[
+        { ...entries[0]!, status: "Not found", action: { label: "Install", onClick: onInstall } },
+      ]}
+      selectedId="codex"
+      onSelect={onSelect}
+    />,
+  );
+  try {
+    await page.getByRole("button", { name: "Install Codex", exact: true }).click();
+    expect(onInstall).toHaveBeenCalledOnce();
+    expect(onSelect).not.toHaveBeenCalled();
+    await page.getByRole("button", { name: "Codex Not found", exact: true }).click();
+    expect(onSelect).toHaveBeenCalledWith("codex");
   } finally {
     await view.unmount();
   }
