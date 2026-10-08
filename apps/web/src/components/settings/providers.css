@@ -44,7 +44,7 @@
   flex-direction: column;
   gap: 4px;
 }
-.provider-directory-list > button {
+.provider-directory-select {
   display: flex;
   align-items: center;
   width: 100%;
@@ -57,15 +57,15 @@
   border: 1px solid transparent;
   transition: background-color 150ms ease;
 }
-.provider-directory-list > button:hover {
+.provider-directory-select:hover {
   background: var(--muted);
 }
-.provider-directory-list > button[aria-current] {
+.provider-directory-select[aria-current] {
   background: var(--card);
   border-color: var(--border);
   box-shadow: 0 3px 8px color-mix(in srgb, var(--foreground) 5%, transparent);
 }
-.provider-directory-list > button:focus-visible {
+.provider-directory-select:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 1px;
 }
@@ -164,11 +164,11 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .provider-directory-list > button {
+  .provider-directory-select {
     transition: none;
   }
 }
-html[data-reduced-motion="reduce"] .provider-directory-list > button {
+html[data-reduced-motion="reduce"] .provider-directory-select {
   transition: none;
 }
 
@@ -192,10 +192,10 @@ html[data-reduced-motion="reduce"] .provider-directory-list > button {
     var(--background)
   );
 }
-.provider-directory-list > button {
+.provider-directory-select {
   position: relative;
 }
-.provider-directory-list > button[aria-current] {
+.provider-directory-select[aria-current] {
   background: color-mix(in srgb, var(--primary) 7%, var(--card));
   border-color: color-mix(in srgb, var(--primary) 25%, var(--border));
 }
@@ -205,10 +205,10 @@ html[data-reduced-motion="reduce"] .provider-directory-list > button {
     transform 200ms ease,
     background-color 200ms ease;
 }
-.provider-directory-list > button:hover .provider-directory-icon {
+.provider-directory-select:hover .provider-directory-icon {
   transform: rotate(-6deg);
 }
-.provider-directory-list > button[aria-current] .provider-directory-icon {
+.provider-directory-select[aria-current] .provider-directory-icon {
   background: var(--primary);
   color: var(--primary-foreground);
 }
@@ -280,7 +280,7 @@ html[data-reduced-motion="reduce"] .provider-directory-list > button {
   .provider-directory-icon {
     transition: none;
   }
-  .provider-directory-list > button:hover .provider-directory-icon {
+  .provider-directory-select:hover .provider-directory-icon {
     transform: none;
   }
 }
@@ -317,39 +317,38 @@ html[data-reduced-motion="reduce"]
   width: 27px;
   height: 27px;
 }
-.provider-directory-list > button[aria-current] .provider-directory-icon {
+.provider-directory-select[aria-current] .provider-directory-icon {
   background: transparent;
   color: var(--foreground);
 }
 
-/* Official brand accents shared by the directory and identity header.
- * OpenRouter: openrouter.ai/brand (Grape on light, Volt on dark).
- * Copilot: brand.github.com/brand-identity/copilot.
- * Kilo: kilo.ai/favicon/favicon.svg; Factory: factory.com.
- * Other marks retain their native monochrome or embedded multicolor fills.
- */
-.provider-brand-icon {
+.provider-directory-entry {
+  position: relative;
+}
+.provider-directory-entry[data-action] .provider-directory-select {
+  padding-right: 58px;
+}
+.provider-directory-action {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--background);
   color: var(--foreground);
+  font-size: 10px;
+  cursor: pointer;
 }
-.provider-brand-icon[data-provider="claudeAgent"] {
-  color: #d97757;
+.provider-directory-action:hover {
+  background: var(--muted);
 }
-.provider-brand-icon[data-provider="copilot"] {
-  color: #8534f3;
+.provider-directory-action:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
 }
-.dark .provider-brand-icon[data-provider="copilot"] {
-  color: #b870ff;
-}
-.provider-brand-icon[data-provider="kilo"] {
-  color: #000000;
-  background: oklch(95% 0.15 108);
-}
-.provider-brand-icon[data-provider="droid"] {
-  color: #d15010;
-}
-.provider-brand-icon[data-provider="openrouter"] {
-  color: #7624f4;
-}
-.dark .provider-brand-icon[data-provider="openrouter"] {
-  color: #c8ff00;
+.provider-directory-action:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
