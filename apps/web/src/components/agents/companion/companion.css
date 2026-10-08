@@ -335,3 +335,58 @@
   gap: 3px;
   padding: 6px 8px;
 }
+
+.companion-file-search,
+.companion-file-preview-toolbar {
+  height: 45px;
+  padding: 6px 8px;
+  gap: 6px;
+}
+.companion-file-search {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--background);
+}
+.companion-project-label {
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  color: var(--muted-foreground);
+}
+.companion-file-item {
+  display: flex;
+  align-items: center;
+  border-radius: 7px;
+}
+.companion-file-item:hover,
+.companion-file-item:focus-within {
+  background: var(--muted);
+}
+.companion-file-item .companion-file-row {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+  min-height: 29px;
+  gap: 7px;
+}
+.companion-file-actions {
+  display: flex;
+  flex-shrink: 0;
+  opacity: 0;
+}
+.companion-file-item:hover .companion-file-actions,
+.companion-file-item:focus-within .companion-file-actions {
+  opacity: 1;
+}
+.companion-file-actions .companion-icon-button {
+  width: 25px;
+  height: 25px;
+}
+@media (hover: none) {
+  .companion-file-actions {
+    opacity: 1;
+  }
+}

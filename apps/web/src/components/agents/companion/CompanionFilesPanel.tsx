@@ -15,8 +15,17 @@ import {
   Pencil,
   Save,
   PanelLeft,
+  MessageSquarePlus,
 } from "lucide-react";
-import { memo, useState, useDeferredValue, useEffect, useRef } from "react";
+import {
+  memo,
+  useState,
+  useDeferredValue,
+  useEffect,
+  useRef,
+  type ReactNode,
+  type ButtonHTMLAttributes,
+} from "react";
 import { useActiveProjectTarget, type ActiveProjectTarget } from "~/hooks/useActiveProjectTarget";
 import {
   projectReadFileQueryOptions,
@@ -31,9 +40,94 @@ import { showCustomConfirm } from "~/lib/customConfirm";
 import { Button } from "~/components/ui/button";
 import ChatMarkdown from "~/components/ChatMarkdown";
 import { useTheme } from "~/hooks/useTheme";
-import { CompanionHeading, CompanionEmpty } from "./CompanionChrome";
+import { CompanionEmpty } from "./CompanionChrome";
+import { toastManager } from "~/components/ui/toast";
+import {
+  ADD_WORKSPACE_FILE_EVENT,
+  WORKSPACE_FILE_MIME,
+  absoluteWorkspacePath,
+  type WorkspaceFileContext,
+} from "~/lib/workspaceFileContext";
 import { filePreviewKind, parseDelimitedPreview } from "./filePreview";
 
+function FileRow({
+  target,
+  entry,
+  children,
+  ...props
+}: {
+  target: ActiveProjectTarget;
+  entry: ProjectEntry;
+  children: ReactNode;
+} & ButtonHTMLAttributes<HTMLButtonElement>) {
+  const context: WorkspaceFileContext = {
+    path: entry.path,
+    kind: entry.kind,
+    cwd: target.cwd,
+    environmentId: target.environmentId,
+    threadId: target.threadId,
+  };
+  const copyPath = async () => {
+    try {
+      await navigator.clipboard.writeText(absoluteWorkspacePath(target.cwd, entry.path));
+      toastManager.add({ type: "success", title: "Path copied" });
+    } catch {
+      toastManager.add({
+        type: "error",
+        title: "Couldn’t copy path",
+        description: "Clipboard access is unavailable. Try again in the desktop app.",
+      });
+    }
+  };
+  return (
+    <div className="companion-file-item">
+      <button
+        {...props}
+        type="button"
+        draggable
+        title={`${entry.path} · Drag to chat · Double-click to copy path`}
+        className="companion-file-row"
+        onDoubleClick={() => void copyPath()}
+        onKeyDown={(event) => {
+          props.onKeyDown?.(event);
+          if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "c") {
+            event.preventDefault();
+            void copyPath();
+          }
+        }}
+        onDragStart={(event) => {
+          event.dataTransfer.effectAllowed = "copy";
+          event.dataTransfer.setData(WORKSPACE_FILE_MIME, JSON.stringify(context));
+          event.dataTransfer.setData("text/plain", absoluteWorkspacePath(target.cwd, entry.path));
+        }}
+      >
+        {children}
+      </button>
+      <div className="companion-file-actions">
+        <button
+          type="button"
+          className="companion-icon-button"
+          aria-label={`Add ${entry.path} to chat`}
+          title="Add to chat"
+          onClick={() =>
+            window.dispatchEvent(new CustomEvent(ADD_WORKSPACE_FILE_EVENT, { detail: context }))
+          }
+        >
+          <MessageSquarePlus size={13} />
+        </button>
+        <button
+          type="button"
+          className="companion-icon-button"
+          aria-label={`Copy path for ${entry.path}`}
+          title="Copy path"
+          onClick={() => void copyPath()}
+        >
+          <Copy size={13} />
+        </button>
+      </div>
+    </div>
+  );
+}
 function EntryIcon({ entry, expanded }: { entry: ProjectEntry; expanded?: boolean }) {
   return entry.kind === "directory" ? (
     expanded ? (
@@ -101,13 +195,15 @@ function Directory({
       }
     >
       {!root && (
-        <button
-          type="button"
+        <FileRow
+          target={target}
+          entry={{ path, kind: "directory" }}
           role="treeitem"
           aria-expanded={expanded}
-          className="companion-file-row"
           style={{ paddingLeft: depth * 14 + 8 }}
-          onClick={() => setExpanded(!expanded)}
+          onClick={(event) => {
+            if (event.detail < 2) setExpanded(!expanded);
+          }}
           onKeyDown={(event) => {
             if (event.key === "ArrowRight") {
               event.preventDefault();
@@ -122,7 +218,7 @@ function Directory({
           {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
           <EntryIcon entry={{ path, kind: "directory" }} expanded={expanded} />
           <span className="truncate">{path.split("/").pop()}</span>
-        </button>
+        </FileRow>
       )}
       {expanded && (
         <>
@@ -155,19 +251,18 @@ function Directory({
                   onSelect={onSelect}
                 />
               ) : (
-                <button
+                <FileRow
                   key={entry.path}
-                  type="button"
+                  target={target}
+                  entry={entry}
                   role="treeitem"
                   aria-selected={selected === entry.path}
-                  title={entry.path}
-                  className="companion-file-row"
                   style={{ paddingLeft: (root ? depth : depth + 1) * 14 + 22 }}
                   onClick={() => onSelect(entry.path)}
                 >
                   <EntryIcon entry={entry} />
                   <span className="truncate">{entry.path.split("/").pop()}</span>
-                </button>
+                </FileRow>
               ),
             )
           )}
@@ -187,12 +282,16 @@ function FilePreview({
   surface,
   scope,
   onBack,
+  treeVisible,
+  onToggleTree,
 }: {
   target: ActiveProjectTarget;
   path: string;
   surface: CompanionSurface | undefined;
   scope: string | undefined;
   onBack: () => void;
+  treeVisible: boolean;
+  onToggleTree: () => void;
 }) {
   const kind = filePreviewKind(path);
   const binary = ["image", "video", "audio", "pdf"].includes(kind);
@@ -278,8 +377,18 @@ function FilePreview({
       ? parseDelimitedPreview(file.data.contents, path.toLowerCase().endsWith(".tsv") ? "\t" : ",")
       : null;
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="companion-toolbar">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <div className="companion-toolbar companion-file-preview-toolbar">
+        <button
+          type="button"
+          aria-label="Toggle file tree"
+          aria-pressed={treeVisible}
+          title="Toggle file tree"
+          className="companion-icon-button"
+          onClick={onToggleTree}
+        >
+          <PanelLeft size={15} />
+        </button>
         <button
           type="button"
           aria-label="Back to files"
@@ -541,7 +650,7 @@ export const CompanionFilesPanel = memo(function CompanionFilesPanel({
   const [filter, setFilter] = useState("");
   const query = useDeferredValue(filter.trim());
   const [selected, setSelected] = useState<string | null>(surface?.selectedPath ?? null);
-  const [treeVisible, setTreeVisible] = useState(false);
+  const [treeVisible, setTreeVisible] = useState(true);
   const update = useCompanionSurfaceStore((store) => store.update);
   const search = useQuery(
     projectSearchEntriesQueryOptions({
@@ -575,36 +684,6 @@ export const CompanionFilesPanel = memo(function CompanionFilesPanel({
     );
   return (
     <div className="companion-workspace">
-      <CompanionHeading
-        kind="files"
-        detail={target.projectName}
-        actions={
-          <>
-            {selected && (
-              <button
-                type="button"
-                aria-label="Toggle file tree"
-                title="Toggle file tree"
-                aria-pressed={treeVisible}
-                className="companion-icon-button"
-                onClick={() => setTreeVisible(!treeVisible)}
-              >
-                <PanelLeft size={15} />
-              </button>
-            )}
-            <button
-              type="button"
-              aria-label="Refresh files"
-              className="companion-icon-button"
-              onClick={() => {
-                void client.invalidateQueries({ queryKey: ["projects", target.environmentId] });
-              }}
-            >
-              <RotateCcw size={15} />
-            </button>
-          </>
-        }
-      />
       <div className="flex min-h-0 flex-1">
         {(!selected || treeVisible) && (
           <aside
@@ -614,7 +693,7 @@ export const CompanionFilesPanel = memo(function CompanionFilesPanel({
                 : "min-w-0 flex-1 overflow-auto"
             }
           >
-            <div className="companion-toolbar">
+            <div className="companion-toolbar companion-file-search">
               <Search size={14} className="shrink-0 text-muted-foreground" />
               <input
                 aria-label="Search project files"
@@ -623,6 +702,22 @@ export const CompanionFilesPanel = memo(function CompanionFilesPanel({
                 value={filter}
                 onChange={(event) => setFilter(event.target.value)}
               />
+              {!selected && (
+                <span title={target.cwd} className="companion-project-label">
+                  {target.projectName}
+                </span>
+              )}
+              <button
+                type="button"
+                aria-label="Refresh files"
+                title="Refresh files"
+                className="companion-icon-button"
+                onClick={() =>
+                  void client.invalidateQueries({ queryKey: ["projects", target.environmentId] })
+                }
+              >
+                <RotateCcw size={14} />
+              </button>
               {filter && (
                 <button
                   type="button"
@@ -654,10 +749,10 @@ export const CompanionFilesPanel = memo(function CompanionFilesPanel({
                 ) : search.data?.entries.length ? (
                   <>
                     {search.data.entries.map((entry) => (
-                      <button
+                      <FileRow
                         key={entry.path}
-                        type="button"
-                        className="companion-file-row"
+                        target={target}
+                        entry={entry}
                         onClick={() => void select(entry.path)}
                       >
                         <EntryIcon entry={entry} />
@@ -669,7 +764,7 @@ export const CompanionFilesPanel = memo(function CompanionFilesPanel({
                               : "Workspace root"}
                           </span>
                         </span>
-                      </button>
+                      </FileRow>
                     ))}
                     {search.data.truncated && (
                       <p className="companion-note">More results available. Refine your search.</p>
@@ -700,6 +795,8 @@ export const CompanionFilesPanel = memo(function CompanionFilesPanel({
             path={selected}
             surface={surface}
             scope={scope}
+            treeVisible={treeVisible}
+            onToggleTree={() => setTreeVisible(!treeVisible)}
             onBack={() => void select(null)}
           />
         )}

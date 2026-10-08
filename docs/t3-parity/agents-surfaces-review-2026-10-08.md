@@ -29,6 +29,16 @@ The browser now uses a single 45px navigation row below the surface tabs. The re
 
 Both inline and sheet routes now pass their actual open state to the panel. A hidden panel unmounts its browser view, immediately publishes hidden native bounds, and cancels its overlay observer and startup subscription. The native session itself is retained until its tab closes. Reopening restores the existing page and history. Closing during startup cannot activate a stale page.
 
+## Files follow-up
+
+Replaced the redundant Files/project heading with a single 45px search row. The project name is a subtle label, refresh remains available, and the tree and preview toolbars align when a file opens. The tree remains visible beside previews by default and can be hidden with its toggle. Theme colors and the existing folder hierarchy are retained.
+
+File and folder rows now support dragging into the chat composer as real context mentions, including quoted paths with spaces. Same-workspace references remain relative; another workspace in the same environment uses an absolute path. Cross-environment drops are rejected with an explanation. The editor's plain-text drop handling cannot insert an additional path alongside the context mention.
+
+Hover/focus actions offer Add to chat and Copy path. Double-click and Cmd/Ctrl+C copy the absolute path. Tree navigation and folder expand/collapse shortcuts remain available. The same actions work in search results.
+
+Validation for this follow-up: all **203 web unit suites / 1,528 tests passed**, **six Files Chromium UI tests passed**, and all **12 packages passed type checking**. Live Electron verifies the compact header, Add to chat, and both file and folder drops in the actual composer. Scoped formatting/lint passes; full formatting currently reports 157 unrelated files. The built-in `vp test` runner exposes an Effect/Vitest runner-version mismatch in the catalog storage suite; the package's `vp run test` command passes that suite and the complete web suite.
+
 ## Verification
 
 - Complete web unit suite: **200 files / 1,510 tests passed**.
