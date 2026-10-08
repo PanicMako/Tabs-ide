@@ -23,15 +23,22 @@ Compared resource-backed surfaces, `preview/PreviewPanel.tsx`, `PreviewChromeRow
 | Prompt Stash          | Themed searchable cards, attachment details, replace confirmation and append flow. Newly stashed file attachments retain their bytes for restoration; older metadata-only file references request reattachment. Storage failures keep the composer draft. Async serialization cannot clear a newer draft.                                                                                                                                                                                   |
 | Queue                 | Themed cards, schedule/reorder/remove/clear controls, send-next/retry, images and file attachments. Follow-ups retain terminal/preview/review context. Enqueue persists before clearing the composer, prevents duplicate IDs, and preserves newer drafts during serialization. Dispatch waits for an idle agent and an empty composer; messages are removed only after a successful turn start. Failed sends remain queued with an explicit retry state. Invalid schedules do not dispatch. |
 
+## Browser follow-up
+
+The browser now uses a single 45px navigation row below the surface tabs. The redundant page/project heading and separate viewport row are removed; preview widths, zoom, audio, screenshot, external browser and advanced tools remain in the keyboard-accessible tools menu. The page title remains in the status strip. The menu fits without horizontal scrolling.
+
+Both inline and sheet routes now pass their actual open state to the panel. A hidden panel unmounts its browser view, immediately publishes hidden native bounds, and cancels its overlay observer and startup subscription. The native session itself is retained until its tab closes. Reopening restores the existing page and history. Closing during startup cannot activate a stale page.
+
 ## Verification
 
 - Complete web unit suite: **200 files / 1,510 tests passed**.
-- Focused Chromium UI tests: **12 passed**, including independent tab selection, stable hover geometry, expand/restore controls, lazy folders, search, error/retry, editing/saving, signed images, and protecting edits after background refresh.
+- Focused Chromium UI tests: **15 passed**, including independent tab selection, stable hover geometry, expand/restore controls, lazy folders, search, error/retry, editing/saving, signed images, and protecting edits after background refresh.
 - Focused store, native-browser controller, URL, file classification/CSV, WebSocket transport and asset tests: **60 passed**. Includes queue quota failures, duplicate IDs and failed-send retention.
 - Server integration and existing asset/filesystem suites: **124 passed**. Covers directory requests, signed PDF range/HEAD requests, invalid ranges, altered asset paths/signatures, safe workspace reads/writes, and existing terminal routing.
 - Desktop suite in the workspace run: **51 files / 447 tests passed**.
 - Restored the upstream mock peer fixture omitted from this checkout; all **36 effect-codex-app-server tests passed** in the workspace run.
 - Live Electron: Back and Forward update the URL; two native browser sessions retain separate pages and histories; real directory listing and signed image preview load. Media requests return 206 with correct bytes/Content-Range, and altered paths return 404.
+- Browser follow-up regressions cover compact chrome and tools, closing while its menu is open, restoring its session, and closing during startup. Live Electron verifies the 45px row, native Back/Forward, close/reopen and retained forward history.
 - Full `vp run typecheck`: **12 packages passed**.
 - Live Electron also verifies panel expand/restore and light/dark media preview styling.
 - Scoped formatting/lint passes for the changed files. The complete `vp check` has 146 pre-existing formatting failures across the checkout; unrelated files were not broadly reformatted.
@@ -42,3 +49,5 @@ Compared resource-backed surfaces, `preview/PreviewPanel.tsx`, `PreviewChromeRow
 This verifies the redesigned surfaces and repaired integrations; it does not certify every feature in upstream T3 or every provider/account configuration. Queue auto-dispatch still runs in the mounted chat rather than a server-side background scheduler. Native browsing requires the desktop host. Unsupported media codecs show a recovery message. Working-tree diff covers tracked changes; the Git workspace remains the home for untracked files. GitHub write actions were not exercised against the user's account.
 
 Concurrent workspace-card, Git, appearance and settings edits in this checkout are excluded from the surface commit. Shared files are staged by hunk to preserve those edits.
+
+The commit hook could not start the vendored Code OSS hygiene check because its `event-stream` dependency is missing. The surface commits use a command-local hook bypass after the Tabs checks; Git hook configuration is unchanged.

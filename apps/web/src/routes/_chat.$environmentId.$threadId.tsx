@@ -167,6 +167,7 @@ const DiffPanelInlineSidebar = (props: {
       >
         {renderPanelContent ? (
           <RightPanelTabs
+            visible={panelOpen}
             mode="sidebar"
             threadId={threadId}
             environmentId={environmentId}
@@ -316,6 +317,7 @@ function ChatThreadRouteView() {
       <DiffPanelSheet diffOpen={isRightPanelOpen} onCloseDiff={closePanel}>
         {shouldRenderPanelContent ? (
           <RightPanelTabs
+            visible={isRightPanelOpen}
             mode="sheet"
             threadId={activeDiffThreadId}
             environmentId={environmentId}

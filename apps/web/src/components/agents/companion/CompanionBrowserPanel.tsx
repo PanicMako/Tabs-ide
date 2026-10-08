@@ -18,14 +18,21 @@ import {
   Radio,
   PictureInPicture2,
 } from "lucide-react";
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useActiveProjectTarget } from "~/hooks/useActiveProjectTarget";
 import { useProjectWorkspaceSettings } from "~/state/workspaceShell";
 import { useNativeSurfaceOverlaySuspension } from "~/nativeSurfaceOverlay";
 import { useCompanionSurfaceStore, type CompanionSurface } from "~/stores/companionSurfaceStore";
 import { toastManager } from "~/components/ui/toast";
 import { Button } from "~/components/ui/button";
-import { Menu, MenuItem, MenuPopup, MenuTrigger } from "~/components/ui/menu";
+import {
+  Menu,
+  MenuItem,
+  MenuPopup,
+  MenuTrigger,
+  MenuRadioGroup,
+  MenuRadioItem,
+} from "~/components/ui/menu";
 import { PreviewAnnotationEditor } from "~/components/PreviewAnnotationEditor";
 import { BrowserComparisonView } from "~/components/browser/BrowserComparisonView";
 import {
@@ -36,7 +43,7 @@ import {
 import { PREVIEW_ANNOTATION_PICKED_EVENT } from "~/lib/previewAnnotation";
 import { showCustomConfirm } from "~/lib/customConfirm";
 import { environmentApi } from "~/connection/environmentApiRegistry";
-import { CompanionHeading, CompanionEmpty } from "./CompanionChrome";
+import { CompanionEmpty } from "./CompanionChrome";
 import { CompanionBrowserSession, emptyBrowserState } from "./browserSession";
 
 export const CompanionBrowserPanel = memo(function CompanionBrowserPanel({
@@ -108,7 +115,7 @@ export const CompanionBrowserPanel = memo(function CompanionBrowserPanel({
       session.dispose();
     };
   }, [bridge, target?.projectId, sessionId, scope, surface.id, update]);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (
       !bridge ||
       !ready ||
@@ -195,150 +202,7 @@ export const CompanionBrowserPanel = memo(function CompanionBrowserPanel({
   const failure = error ?? state.lastError ?? state.transientError;
   return (
     <div className="companion-workspace">
-      <CompanionHeading
-        kind="browser"
-        title={state.pageTitle || "Browser"}
-        detail={target.projectName}
-        actions={
-          <>
-            <button
-              className="companion-icon-button"
-              type="button"
-              aria-label="Save screenshot"
-              title="Save screenshot"
-              disabled={!ready || state.loading}
-              onClick={() =>
-                command(async () => {
-                  if (!bridge) return;
-                  const artifact = await bridge.captureBrowserScreenshot(args);
-                  await bridge.revealBrowserArtifact(artifact.path);
-                  toastManager.add({ type: "success", title: "Screenshot saved" });
-                })
-              }
-            >
-              <Camera size={16} />
-            </button>
-            <button
-              className="companion-icon-button"
-              type="button"
-              aria-label="Open in external browser"
-              title="Open in external browser"
-              onClick={() => command(external)}
-            >
-              <ExternalLink size={16} />
-            </button>
-            <Menu>
-              <MenuTrigger
-                render={
-                  <button
-                    type="button"
-                    className="companion-icon-button"
-                    aria-label="Browser tools"
-                    disabled={!ready}
-                  >
-                    <MoreHorizontal size={16} />
-                  </button>
-                }
-              />
-              <MenuPopup align="end" className="w-56">
-                <MenuItem onClick={() => command(() => bridge?.toggleBrowserDevTools(args))}>
-                  <Code size={15} />
-                  {state.devToolsOpen ? "Close developer tools" : "Developer tools"}
-                </MenuItem>
-                <MenuItem
-                  disabled={picking || !target.threadId}
-                  onClick={() =>
-                    command(async () => {
-                      if (!bridge) return;
-                      setPicking(true);
-                      try {
-                        setAnnotation(await bridge.pickBrowserElement(args));
-                      } finally {
-                        setPicking(false);
-                      }
-                    })
-                  }
-                >
-                  <MousePointer2 size={15} />
-                  Annotate an element
-                </MenuItem>
-                <MenuItem
-                  onClick={() =>
-                    command(async () => {
-                      if (!bridge) return;
-                      if (isNativeBrowserRecordingActive(target.projectId, sessionId)) {
-                        const artifact = await stopNativeBrowserRecording(
-                          bridge,
-                          target.projectId,
-                          sessionId,
-                        );
-                        setRecording(false);
-                        toastManager.add({
-                          type: "success",
-                          title: "Recording saved",
-                          description: artifact.path,
-                          actionProps: {
-                            children: "Show file",
-                            onClick: () => {
-                              void bridge.revealBrowserArtifact(artifact.path);
-                            },
-                          },
-                        });
-                      } else {
-                        await startNativeBrowserRecording(bridge, target.projectId, sessionId);
-                        setRecording(true);
-                      }
-                    })
-                  }
-                >
-                  <Radio size={15} />
-                  {recording ? "Stop and save recording" : "Record page"}
-                </MenuItem>
-                <MenuItem
-                  onClick={() =>
-                    command(() =>
-                      state.pictureInPicture
-                        ? bridge?.closeBrowserPictureInPicture(args)
-                        : bridge?.openBrowserPictureInPicture(args),
-                    )
-                  }
-                >
-                  <PictureInPicture2 size={15} />
-                  {state.pictureInPicture ? "Close floating preview" : "Floating preview"}
-                </MenuItem>
-                <MenuItem onClick={() => setComparing(true)}>Compare pages</MenuItem>
-                <MenuItem
-                  onClick={() =>
-                    command(() =>
-                      bridge?.setBrowserColorScheme({
-                        ...args,
-                        colorScheme: state.colorScheme === "dark" ? "light" : "dark",
-                      }),
-                    )
-                  }
-                >
-                  Page appearance: {state.colorScheme}
-                </MenuItem>
-                <MenuItem
-                  onClick={() =>
-                    command(async () => {
-                      if (
-                        await showCustomConfirm(
-                          "Clear this browser profile’s cookies, cache, and site storage?",
-                        )
-                      )
-                        await bridge?.clearBrowserSessionData(args);
-                    })
-                  }
-                >
-                  Clear browsing data
-                </MenuItem>
-              </MenuPopup>
-            </Menu>
-          </>
-        }
-      />
-      <div className="companion-toolbar">
+      <div className="companion-toolbar companion-browser-toolbar" aria-label="Browser navigation">
         <button
           type="button"
           className="companion-icon-button"
@@ -394,79 +258,211 @@ export const CompanionBrowserPanel = memo(function CompanionBrowserPanel({
             <ArrowRight size={14} />
           </button>
         </form>
-      </div>
-      <div className="companion-toolbar justify-between text-[10px] text-muted-foreground">
-        <div className="flex gap-1" role="group" aria-label="Preview width">
-          {[
-            { label: "Fit", width: 0 },
-            { label: "Mobile", width: 390 },
-            { label: "Tablet", width: 768 },
-          ].map(({ label, width }) => (
-            <button
-              key={label}
-              type="button"
-              aria-pressed={(surface.viewportWidth ?? 0) === width}
-              className="rounded-lg px-2 py-1 aria-pressed:bg-muted aria-pressed:text-foreground hover:bg-muted"
-              onClick={() => update(scope, surface.id, { viewportWidth: width })}
+        <Menu>
+          <MenuTrigger
+            render={
+              <button
+                type="button"
+                className="companion-icon-button"
+                aria-label="Browser tools"
+                disabled={!ready}
+              >
+                <MoreHorizontal size={16} />
+              </button>
+            }
+          />
+          <MenuPopup align="end" className="w-64">
+            <div className="flex flex-col gap-2 border-b border-border px-2 py-2 text-xs text-muted-foreground">
+              <MenuRadioGroup
+                className="flex gap-1"
+                aria-label="Preview width"
+                value={String(surface.viewportWidth ?? 0)}
+                onValueChange={(value) =>
+                  update(scope, surface.id, { viewportWidth: Number(value) })
+                }
+              >
+                {[
+                  { label: "Fit", width: 0 },
+                  { label: "Mobile", width: 390 },
+                  { label: "Tablet", width: 768 },
+                ].map(({ label, width }) => (
+                  <MenuRadioItem
+                    key={label}
+                    value={String(width)}
+                    className="min-w-0 flex-1 grid-cols-[0.75rem_1fr] gap-1 rounded-lg px-1.5 py-1 text-xs sm:text-xs data-checked:bg-muted data-checked:text-foreground [&_svg]:size-3 sm:[&_svg]:size-3"
+                  >
+                    {label}
+                  </MenuRadioItem>
+                ))}
+              </MenuRadioGroup>
+              <div
+                className="flex items-center gap-1"
+                role="group"
+                aria-label="Browser zoom and audio"
+              >
+                <MenuItem
+                  aria-label="Zoom out"
+                  className="companion-icon-button"
+                  disabled={!ready || state.zoomFactor <= 0.3}
+                  onClick={() =>
+                    command(() =>
+                      bridge?.setBrowserZoomFactor({
+                        ...args,
+                        zoomFactor: Math.max(0.25, state.zoomFactor - 0.1),
+                      }),
+                    )
+                  }
+                >
+                  −
+                </MenuItem>
+                <MenuItem
+                  aria-label="Reset browser zoom"
+                  onClick={() =>
+                    command(() => bridge?.setBrowserZoomFactor({ ...args, zoomFactor: 1 }))
+                  }
+                >
+                  {Math.round(state.zoomFactor * 100)}%
+                </MenuItem>
+                <MenuItem
+                  aria-label="Zoom in"
+                  className="companion-icon-button"
+                  disabled={!ready || state.zoomFactor >= 3}
+                  onClick={() =>
+                    command(() =>
+                      bridge?.setBrowserZoomFactor({
+                        ...args,
+                        zoomFactor: Math.min(3, state.zoomFactor + 0.1),
+                      }),
+                    )
+                  }
+                >
+                  +
+                </MenuItem>
+                <MenuItem
+                  aria-label={state.audioMuted ? "Unmute page" : "Mute page"}
+                  className="companion-icon-button"
+                  disabled={!ready}
+                  onClick={() =>
+                    command(() =>
+                      bridge?.setBrowserAudioMuted({ ...args, audioMuted: !state.audioMuted }),
+                    )
+                  }
+                >
+                  {state.audioMuted ? <VolumeX size={13} /> : <Volume2 size={13} />}
+                </MenuItem>
+              </div>
+            </div>
+
+            <MenuItem
+              disabled={!ready || state.loading}
+              onClick={() =>
+                command(async () => {
+                  if (!bridge) return;
+                  const artifact = await bridge.captureBrowserScreenshot(args);
+                  await bridge.revealBrowserArtifact(artifact.path);
+                  toastManager.add({ type: "success", title: "Screenshot saved" });
+                })
+              }
             >
-              {label}
-            </button>
-          ))}
-        </div>
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            aria-label="Zoom out"
-            className="companion-icon-button"
-            disabled={!ready || state.zoomFactor <= 0.3}
-            onClick={() =>
-              command(() =>
-                bridge?.setBrowserZoomFactor({
-                  ...args,
-                  zoomFactor: Math.max(0.25, state.zoomFactor - 0.1),
-                }),
-              )
-            }
-          >
-            −
-          </button>
-          <button
-            type="button"
-            aria-label="Reset browser zoom"
-            onClick={() => command(() => bridge?.setBrowserZoomFactor({ ...args, zoomFactor: 1 }))}
-          >
-            {Math.round(state.zoomFactor * 100)}%
-          </button>
-          <button
-            type="button"
-            aria-label="Zoom in"
-            className="companion-icon-button"
-            disabled={!ready || state.zoomFactor >= 3}
-            onClick={() =>
-              command(() =>
-                bridge?.setBrowserZoomFactor({
-                  ...args,
-                  zoomFactor: Math.min(3, state.zoomFactor + 0.1),
-                }),
-              )
-            }
-          >
-            +
-          </button>
-          <button
-            type="button"
-            aria-label={state.audioMuted ? "Unmute page" : "Mute page"}
-            className="companion-icon-button"
-            disabled={!ready}
-            onClick={() =>
-              command(() =>
-                bridge?.setBrowserAudioMuted({ ...args, audioMuted: !state.audioMuted }),
-              )
-            }
-          >
-            {state.audioMuted ? <VolumeX size={13} /> : <Volume2 size={13} />}
-          </button>
-        </div>
+              <Camera size={15} /> Save screenshot
+            </MenuItem>
+            <MenuItem onClick={() => command(external)}>
+              <ExternalLink size={15} /> Open in external browser
+            </MenuItem>
+            <MenuItem onClick={() => command(() => bridge?.toggleBrowserDevTools(args))}>
+              <Code size={15} />
+              {state.devToolsOpen ? "Close developer tools" : "Developer tools"}
+            </MenuItem>
+            <MenuItem
+              disabled={picking || !target.threadId}
+              onClick={() =>
+                command(async () => {
+                  if (!bridge) return;
+                  setPicking(true);
+                  try {
+                    setAnnotation(await bridge.pickBrowserElement(args));
+                  } finally {
+                    setPicking(false);
+                  }
+                })
+              }
+            >
+              <MousePointer2 size={15} />
+              Annotate an element
+            </MenuItem>
+            <MenuItem
+              onClick={() =>
+                command(async () => {
+                  if (!bridge) return;
+                  if (isNativeBrowserRecordingActive(target.projectId, sessionId)) {
+                    const artifact = await stopNativeBrowserRecording(
+                      bridge,
+                      target.projectId,
+                      sessionId,
+                    );
+                    setRecording(false);
+                    toastManager.add({
+                      type: "success",
+                      title: "Recording saved",
+                      description: artifact.path,
+                      actionProps: {
+                        children: "Show file",
+                        onClick: () => {
+                          void bridge.revealBrowserArtifact(artifact.path);
+                        },
+                      },
+                    });
+                  } else {
+                    await startNativeBrowserRecording(bridge, target.projectId, sessionId);
+                    setRecording(true);
+                  }
+                })
+              }
+            >
+              <Radio size={15} />
+              {recording ? "Stop and save recording" : "Record page"}
+            </MenuItem>
+            <MenuItem
+              onClick={() =>
+                command(() =>
+                  state.pictureInPicture
+                    ? bridge?.closeBrowserPictureInPicture(args)
+                    : bridge?.openBrowserPictureInPicture(args),
+                )
+              }
+            >
+              <PictureInPicture2 size={15} />
+              {state.pictureInPicture ? "Close floating preview" : "Floating preview"}
+            </MenuItem>
+            <MenuItem onClick={() => setComparing(true)}>Compare pages</MenuItem>
+            <MenuItem
+              onClick={() =>
+                command(() =>
+                  bridge?.setBrowserColorScheme({
+                    ...args,
+                    colorScheme: state.colorScheme === "dark" ? "light" : "dark",
+                  }),
+                )
+              }
+            >
+              Page appearance: {state.colorScheme}
+            </MenuItem>
+            <MenuItem
+              onClick={() =>
+                command(async () => {
+                  if (
+                    await showCustomConfirm(
+                      "Clear this browser profile’s cookies, cache, and site storage?",
+                    )
+                  )
+                    await bridge?.clearBrowserSessionData(args);
+                })
+              }
+            >
+              Clear browsing data
+            </MenuItem>
+          </MenuPopup>
+        </Menu>
       </div>
       <div className="companion-browser-host">
         <div
