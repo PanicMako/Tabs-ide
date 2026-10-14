@@ -27,8 +27,8 @@
     }
   },
   "scripts": {
-    "dev": "tsdown src/index.ts --format esm,cjs --dts --watch --clean",
-    "build": "tsdown src/index.ts --format esm,cjs --dts --clean",
+    "dev": "NODE_OPTIONS=--max-old-space-size=8192 tsdown src/index.ts --format esm,cjs --no-dts --watch --clean",
+    "build": "NODE_OPTIONS=--max-old-space-size=8192 tsdown src/index.ts --format esm,cjs --no-dts --clean",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

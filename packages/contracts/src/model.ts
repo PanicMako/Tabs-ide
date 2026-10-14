@@ -123,27 +123,39 @@ function canonicalSelectionsToLegacyObject(
 }
 
 export const ModelCapabilities = Schema.Struct({
-  reasoningEffortLevels: Schema.Array(
-    Schema.Struct({
-      value: TrimmedNonEmptyString,
-      label: TrimmedNonEmptyString,
-      isDefault: Schema.optional(Schema.Boolean),
-    }),
-  ).pipe(Schema.withDecodingDefault(Effect.succeed([]))),
-  supportsFastMode: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
-  supportsThinkingToggle: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
-  promptInjectedEffortLevels: Schema.Array(TrimmedNonEmptyString).pipe(
-    Schema.withDecodingDefault(Effect.succeed([])),
+  reasoningEffortLevels: Schema.optional(
+    Schema.Array(
+      Schema.Struct({
+        value: TrimmedNonEmptyString,
+        label: TrimmedNonEmptyString,
+        isDefault: Schema.optional(Schema.Boolean),
+      }),
+    ),
   ),
+  supportsFastMode: Schema.optional(Schema.Boolean),
+  supportsThinkingToggle: Schema.optional(Schema.Boolean),
+  promptInjectedEffortLevels: Schema.optional(Schema.Array(TrimmedNonEmptyString)),
   optionDescriptors: Schema.optional(Schema.Array(ProviderOptionDescriptor)),
 });
 export type ModelCapabilities = typeof ModelCapabilities.Type;
+
+export const CustomModelEntry = Schema.Struct({
+  slug: TrimmedNonEmptyString,
+  name: Schema.optional(TrimmedNonEmptyString),
+  capabilities: Schema.optional(ModelCapabilities),
+});
+export type CustomModelEntry = typeof CustomModelEntry.Type;
+
+export const CustomModelSetting = Schema.Union([Schema.String, CustomModelEntry]);
+export type CustomModelSetting = typeof CustomModelSetting.Type;
 
 const CODEX_DRIVER_KIND = ProviderDriverKind.make("codex");
 const CLAUDE_DRIVER_KIND = ProviderDriverKind.make("claudeAgent");
 const CURSOR_DRIVER_KIND = ProviderDriverKind.make("cursor");
 const COPILOT_DRIVER_KIND = ProviderDriverKind.make("copilot");
 const GROK_DRIVER_KIND = ProviderDriverKind.make("grok");
+const PI_DRIVER_KIND = ProviderDriverKind.make("pi");
+const ACP_REGISTRY_DRIVER_KIND = ProviderDriverKind.make("acpRegistry");
 const OPENCODE_DRIVER_KIND = ProviderDriverKind.make("opencode");
 const GEMINI_DRIVER_KIND = ProviderDriverKind.make("gemini");
 const DROID_DRIVER_KIND = ProviderDriverKind.make("droid");
@@ -151,7 +163,14 @@ const ANTIGRAVITY_DRIVER_KIND = ProviderDriverKind.make("antigravity");
 const OPENROUTER_DRIVER_KIND = ProviderDriverKind.make("openrouter");
 
 export const DEFAULT_MODEL = "gpt-5.4";
+export const PREFERRED_DEFAULT_CODEX_MODELS: ReadonlyArray<string> = [
+  DEFAULT_MODEL,
+  "gpt-5.6-sol",
+  "gpt-5.6-terra",
+];
 export const DEFAULT_GIT_TEXT_GENERATION_MODEL = "gpt-5.4-mini";
+export const DEFAULT_TEXT_GENERATION_MODEL = "gpt-6-luna";
+export const DEFAULT_TEXT_GENERATION_REASONING_EFFORT = "low";
 /** Keep the native Antigravity session's selected default model. */
 export const ANTIGRAVITY_DEFAULT_MODEL = "antigravity-default";
 
@@ -160,6 +179,8 @@ export const DEFAULT_MODEL_BY_PROVIDER: Partial<Record<ProviderDriverKind, strin
   [CLAUDE_DRIVER_KIND]: "claude-sonnet-5",
   [CURSOR_DRIVER_KIND]: "auto",
   [GROK_DRIVER_KIND]: "grok-build",
+  [ACP_REGISTRY_DRIVER_KIND]: "default",
+  [PI_DRIVER_KIND]: "default",
   [OPENCODE_DRIVER_KIND]: "openai/gpt-5",
   [GEMINI_DRIVER_KIND]: "gemini-3.6-flash",
   [DROID_DRIVER_KIND]: "auto",
@@ -175,7 +196,10 @@ export const DEFAULT_GIT_TEXT_GENERATION_MODEL_BY_PROVIDER: Partial<
   [CURSOR_DRIVER_KIND]: "composer-2",
   [OPENCODE_DRIVER_KIND]: "openai/gpt-5",
   [GEMINI_DRIVER_KIND]: "gemini-3.6-flash",
+  [ANTIGRAVITY_DRIVER_KIND]: ANTIGRAVITY_DEFAULT_MODEL,
 };
+
+export const DEFAULT_TEXT_GENERATION_MODEL_BY_PROVIDER = DEFAULT_GIT_TEXT_GENERATION_MODEL_BY_PROVIDER;
 
 export const MODEL_SLUG_ALIASES_BY_PROVIDER: Partial<
   Record<ProviderDriverKind, Record<string, string>>

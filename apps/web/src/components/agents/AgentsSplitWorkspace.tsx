@@ -32,9 +32,11 @@ export interface AgentsSplitWorkspaceProps {
   environmentId: EnvironmentId;
   routeThreadId: ThreadId;
   diffOpen: boolean;
+  rightPanelOpen?: boolean | undefined;
   onOpenDiff: () => void;
   onCloseDiff: () => void;
   onDiffThreadChange?: (threadId: ThreadId | null) => void;
+  onToggleRightPanel?: (() => void) | undefined;
 }
 
 function unscopedDraftId(storedId: string, environmentPrefix: string): string {
@@ -50,9 +52,11 @@ export function AgentsSplitWorkspace({
   environmentId,
   routeThreadId,
   diffOpen,
+  rightPanelOpen,
   onOpenDiff,
   onCloseDiff,
   onDiffThreadChange,
+  onToggleRightPanel,
 }: AgentsSplitWorkspaceProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -391,6 +395,8 @@ export function AgentsSplitWorkspace({
           isActivePane={true}
           diffOpen={diffOpen}
           onToggleDiff={() => handleToggleDiffForPane(singleThreadId)}
+          rightPanelOpen={rightPanelOpen}
+          onToggleRightPanel={onToggleRightPanel}
         />
         {dropPreviewSide && (
           <AgentsSplitDropOverlay
@@ -428,6 +434,8 @@ export function AgentsSplitWorkspace({
           onClosePane={() => handleClosePane(maxThreadId)}
           diffOpen={diffOpen && diffRequestThreadId === maxThreadId}
           onToggleDiff={() => handleToggleDiffForPane(maxThreadId)}
+          rightPanelOpen={rightPanelOpen}
+          onToggleRightPanel={onToggleRightPanel}
         />
         {dropPreviewSide && (
           <AgentsSplitDropOverlay
@@ -497,6 +505,8 @@ export function AgentsSplitWorkspace({
             isSplitActive={false}
             diffOpen={diffOpen && diffRequestThreadId === activePaneId}
             onToggleDiff={() => handleToggleDiffForPane(activePaneId)}
+            rightPanelOpen={rightPanelOpen}
+            onToggleRightPanel={onToggleRightPanel}
           />
         </div>
         {dropPreviewSide && (
@@ -546,6 +556,8 @@ export function AgentsSplitWorkspace({
           onActivatePane={() => activatePane(leftPaneId)}
           diffOpen={diffOpen && diffRequestThreadId === leftPaneId}
           onToggleDiff={() => handleToggleDiffForPane(leftPaneId)}
+          rightPanelOpen={rightPanelOpen}
+          onToggleRightPanel={onToggleRightPanel}
         />
       </section>
 
@@ -577,6 +589,8 @@ export function AgentsSplitWorkspace({
             onActivatePane={() => activatePane(rightPaneId)}
             diffOpen={diffOpen && diffRequestThreadId === rightPaneId}
             onToggleDiff={() => handleToggleDiffForPane(rightPaneId)}
+            rightPanelOpen={rightPanelOpen}
+            onToggleRightPanel={onToggleRightPanel}
           />
         </section>
       ) : null}

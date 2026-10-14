@@ -30,11 +30,11 @@ export const ComposerStashBadge = memo(function ComposerStashBadge({
       aria-expanded={menuOpen}
       onClick={onToggleMenu}
       className={cn(
-        "shrink-0 gap-1 px-1.5 h-7 text-xs font-medium transition-colors duration-200",
+        "shrink-0 gap-1 rounded-md px-1.5 h-6 text-xs font-medium transition-colors duration-200",
         pulsing
           ? "text-foreground bg-primary/10 shadow-xs ring-1 ring-primary/30"
           : menuOpen
-            ? "text-foreground bg-accent"
+            ? "text-foreground bg-muted/60"
             : "text-muted-foreground/80 hover:text-foreground",
         className,
       )}
@@ -46,8 +46,8 @@ export const ComposerStashBadge = memo(function ComposerStashBadge({
       <span className="sr-only">Stash</span>
       <span
         className={cn(
-          "inline-flex min-w-[1.125rem] items-center justify-center rounded-full px-1 py-0.5 text-[10px] tabular-nums font-semibold leading-none",
-          pulsing ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
+          "inline-flex min-w-[1.125rem] items-center justify-center px-0 py-0.5 text-[10px] tabular-nums font-semibold leading-none",
+          "text-muted-foreground",
         )}
       >
         {count}

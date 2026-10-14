@@ -4,8 +4,8 @@ export function normalizeRuntimeTaskStatus(value: unknown): RuntimeTaskStatus {
   if (value === "completed") {
     return "completed";
   }
-  if (value === "in_progress" || value === "inProgress") {
-    return "inProgress";
+  if (value === "in_progress" || value === "inProgress" || value === "running") {
+    return "running";
   }
   return "pending";
 }

@@ -110,8 +110,7 @@ describe.runIf(process.env.T3_CURSOR_ACP_PROBE === "1")("Cursor ACP CLI probe", 
         }
       }
 
-      const setResult: EffectAcpSchema.SetSessionConfigOptionResponse =
-        yield* runtime.setConfigOption(modelConfigId, "gpt-5.4");
+      const setResult = yield* runtime.setConfigOption(modelConfigId, "gpt-5.4");
       // @effect-diagnostics-next-line preferSchemaOverJson:off
       yield* Console.log("session/set_config_option result:", JSON.stringify(setResult, null, 2));
 

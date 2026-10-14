@@ -1,0 +1,31 @@
+/* Official brand accents shared by the directory and identity header.
+ * OpenRouter: openrouter.ai/brand (Grape on light, Volt on dark).
+ * Copilot: brand.github.com/brand-identity/copilot.
+ * Kilo: kilo.ai/favicon/favicon.svg; Factory: factory.com.
+ * Other marks retain their native monochrome or embedded multicolor fills.
+ */
+.provider-brand-icon {
+  color: var(--foreground);
+}
+.provider-brand-icon[data-provider="claudeAgent"] {
+  color: #d97757;
+}
+.provider-brand-icon[data-provider="copilot"] {
+  color: #8534f3;
+}
+.dark .provider-brand-icon[data-provider="copilot"] {
+  color: #b870ff;
+}
+.provider-brand-icon[data-provider="kilo"] {
+  color: #000000;
+  background: oklch(95% 0.15 108);
+}
+.provider-brand-icon[data-provider="droid"] {
+  color: #d15010;
+}
+.provider-brand-icon[data-provider="openrouter"] {
+  color: #7624f4;
+}
+.dark .provider-brand-icon[data-provider="openrouter"] {
+  color: #c8ff00;
+}

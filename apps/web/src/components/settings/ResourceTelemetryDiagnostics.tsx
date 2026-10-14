@@ -1,3 +1,4 @@
+import { OrbitGroup } from "../ui/orbit-group";
 import type {
   BackgroundBooleanState,
   HostPowerSnapshot,
@@ -446,7 +447,7 @@ export function HistoryWindowSelector({
   onSelect: (windowMs: number) => void;
 }) {
   return (
-    <div
+    <OrbitGroup
       className="tabs-segmented inline-flex items-center select-none"
       role="group"
       aria-label="History window"
@@ -467,7 +468,7 @@ export function HistoryWindowSelector({
           {option.label}
         </button>
       ))}
-    </div>
+    </OrbitGroup>
   );
 }
 

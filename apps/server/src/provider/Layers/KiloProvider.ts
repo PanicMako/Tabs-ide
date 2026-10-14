@@ -383,7 +383,6 @@ export const checkKiloProviderStatus = Effect.fn("checkKiloProviderStatus")(func
           binaryPath: kiloSettings.binaryPath,
           serverUrl: kiloSettings.serverUrl,
           environment,
-          retryKiloCredentialStartup: true,
         });
         return yield* openCodeRuntime.loadOpenCodeInventory(
           openCodeRuntime.createOpenCodeSdkClient({

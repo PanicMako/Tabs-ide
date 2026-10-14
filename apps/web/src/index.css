@@ -1,56 +1,185 @@
 @import "tailwindcss";
 
-/* Shared treatment for grouped text choices across settings and workspaces. */
-.tabs-segmented {
-  gap: 0.25rem;
-  padding: 0.25rem;
-  border: 1px solid color-mix(in oklab, var(--border) 75%, transparent);
-  border-radius: 0.75rem;
-  background: color-mix(in oklab, var(--muted) 75%, transparent);
+/* Orbit for meaningful symbols; Spotlight for text choices. */
+.tabs-segmented.orbit-group {
+  position: relative;
+  isolation: isolate;
+  align-items: center;
+  gap: 2px;
+  padding: 4px !important;
+  height: auto !important;
+  border: 1px solid var(--border);
+  border-radius: 9999px !important;
+  background: color-mix(in srgb, var(--muted) 65%, var(--background));
+  box-shadow: inset 0 1px 2px color-mix(in srgb, var(--foreground) 4%, transparent);
+  max-width: 100%;
+  min-width: 0;
 }
-
-.tabs-segmented > :is(button[aria-pressed], button[aria-checked], button[aria-selected]) {
-  border: 1px solid transparent;
-  border-radius: 0.5rem;
-  background: transparent;
+.tabs-segmented.orbit-group > button {
+  position: relative;
+  z-index: 1;
+  border: 1px solid transparent !important;
+  border-radius: 9999px !important;
+  background: transparent !important;
   color: var(--muted-foreground);
-  box-shadow: none;
+  box-shadow: none !important;
+  font-weight: 500;
   transition:
-    background-color 150ms ease,
-    border-color 150ms ease,
-    box-shadow 150ms ease;
+    color 160ms ease,
+    background-color 160ms ease;
 }
-
-.tabs-segmented
+.tabs-segmented.orbit-group
   > :is(button[aria-pressed="true"], button[aria-checked="true"], button[aria-selected="true"]) {
-  border-color: color-mix(in oklab, var(--foreground) 28%, transparent);
-  background: color-mix(in oklab, var(--background) 88%, var(--foreground) 12%);
   color: var(--foreground);
-  box-shadow:
-    inset 0 1px 2px color-mix(in oklab, var(--foreground) 8%, transparent),
-    0 0 5px color-mix(in oklab, var(--foreground) 8%, transparent);
+  font-weight: 600;
 }
-
-.tabs-segmented
-  > :is(
-    button[aria-pressed="false"],
-    button[aria-checked="false"],
-    button[aria-selected="false"]
-  ):hover {
-  background: color-mix(in oklab, var(--foreground) 6%, transparent);
+.tabs-segmented.orbit-group > button:not(:disabled):hover {
   color: var(--foreground);
+  background: color-mix(in srgb, var(--foreground) 5%, transparent) !important;
 }
-
-.tabs-segmented
-  > :is(button[aria-pressed], button[aria-checked], button[aria-selected]):focus-visible {
+.tabs-segmented.orbit-group > button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+.orbit-orb {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  z-index: 2;
+  width: var(--orbit-width, 36px);
+  height: var(--orbit-height, 36px);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--foreground);
+  color: var(--background);
+  opacity: 0;
+  transform: translate(var(--orbit-x, 0px), var(--orbit-y, 0px));
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--foreground) 20%, transparent);
+}
+.orbit-group[data-orbit-ready] > .orbit-orb {
+  opacity: 1;
+  transition:
+    width 280ms ease,
+    height 280ms ease,
+    transform 380ms cubic-bezier(0.22, 1.25, 0.4, 1),
+    opacity 120ms ease;
+}
+.orbit-group[data-orbit-kind="spotlight"] > .orbit-orb {
+  border-radius: 9999px;
+  z-index: 0;
+}
+.tabs-segmented.orbit-group[data-orbit-kind="spotlight"]
+  > :is(button[aria-pressed="true"], button[aria-checked="true"], button[aria-selected="true"]) {
+  color: var(--background);
+}
+.orbit-group[data-orbit-kind="spotlight"]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(
+    100px circle at var(--spotlight-x, 50%) var(--spotlight-y, 50%),
+    color-mix(in srgb, var(--primary) 22%, transparent),
+    transparent
+  );
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+.orbit-group[data-orbit-kind="spotlight"]:hover::before {
+  opacity: 1;
+}
+.tabs-segmented.orbit-group:not([data-orbit-kind="spotlight"]) {
+  height: 70px !important;
+  min-width: 228px;
+  padding: 0 0 26px !important;
+  background: transparent;
+  box-shadow: none;
+  border: 0;
+  border-radius: 0 !important;
+  gap: 0;
+}
+.orbit-group:not([data-orbit-kind="spotlight"])::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 44px;
+  background: color-mix(in srgb, var(--muted) 75%, var(--background));
+  border: 1px solid var(--border);
+  border-radius: 9999px;
+  transition: background-color 200ms ease;
+}
+.tabs-segmented.orbit-group:not([data-orbit-kind="spotlight"]) > button {
+  flex: 1;
+  min-width: 76px;
+  height: 44px;
+  padding: 0;
+}
+.tabs-segmented.orbit-group:not([data-orbit-kind="spotlight"]) > button:focus-visible {
+  outline: none;
+}
+.orbit-group:not([data-orbit-kind="spotlight"]):has(> button:focus-visible) > .orbit-orb {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
-
+.orbit-group:not([data-orbit-kind="spotlight"]) .orbit-label {
+  position: absolute;
+  top: 49px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.orbit-group:not([data-orbit-kind="spotlight"]) > button:first-of-type .orbit-label {
+  text-align: left;
+  padding-left: 4px;
+}
+.orbit-group:not([data-orbit-kind="spotlight"]) > button:last-of-type .orbit-label {
+  text-align: right;
+  padding-right: 4px;
+}
+.orbit-group[data-orbit-kind="icons"] .orbit-label svg {
+  display: none;
+}
+.orbit-group:not([data-orbit-kind="spotlight"]) > .orbit-orb {
+  width: 36px;
+  height: 36px;
+  background: var(--foreground);
+  color: var(--background);
+  font:
+    600 12px ui-monospace,
+    monospace;
+  box-shadow:
+    0 3px 10px color-mix(in srgb, #000 22%, transparent),
+    inset 0 1px 0 color-mix(in srgb, #fff 30%, transparent);
+}
+.orbit-group[data-orbit-kind="theme"][data-orbit-value="system"]::before {
+  background:
+    radial-gradient(1px 1px at 18% 25%, #fff, transparent),
+    linear-gradient(110deg, #18213d 0%, #455c83 48%, #a9d9ff 100%);
+}
+.orbit-group[data-orbit-kind="theme"][data-orbit-value="dark"]::before {
+  background:
+    radial-gradient(1.5px 1.5px at 20% 30%, #fff, transparent),
+    radial-gradient(1px 1px at 55% 70%, #fff, transparent),
+    radial-gradient(1.5px 1.5px at 82% 25%, #fff, transparent), #141a38;
+}
+.orbit-group[data-orbit-kind="theme"][data-orbit-value="light"]::before {
+  background: linear-gradient(#9bd1ff, #dff2ff);
+}
 @media (prefers-reduced-motion: reduce) {
-  .tabs-segmented > :is(button[aria-pressed], button[aria-checked], button[aria-selected]) {
-    transition: none;
+  html:not([data-reduced-motion="no-preference"]) .orbit-group > .orbit-orb,
+  html:not([data-reduced-motion="no-preference"]) .orbit-group::before,
+  html:not([data-reduced-motion="no-preference"]) .orbit-group > button {
+    transition: none !important;
   }
+}
+html[data-reduced-motion="reduce"]
+  :is(.orbit-group > .orbit-orb, .orbit-group::before, .orbit-group > button) {
+  transition: none !important;
 }
 
 @custom-variant dark (&:is(.dark, .dark *));
@@ -894,19 +1023,13 @@ body::after {
 }
 
 pre,
-code,
+code {
+  font-family: var(--font-mono, ui-monospace, monospace);
+}
+
 textarea,
 input {
-  font-family: var(
-    --font-mono,
-    "SF Mono",
-    "SFMono-Regular",
-    "JetBrains Mono",
-    Consolas,
-    "Liberation Mono",
-    Menlo,
-    monospace
-  );
+  font-family: inherit;
 }
 
 /* Window drag region (frameless titlebar) */
@@ -1872,4 +1995,251 @@ label:has(> select#reasoning-effort) select {
 .animate-halftone-breathe {
   animation: halftoneBreath 14s ease-in-out infinite;
   will-change: opacity;
+}
+
+/* Surface chrome stays inside its hit area, including during rapid hover changes. */
+.surface-tab,
+.surface-control,
+.surface-launcher {
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease;
+}
+.surface-tab:hover,
+.surface-control:hover,
+.surface-launcher:hover {
+  background-color: color-mix(in oklab, var(--foreground) 6%, var(--background));
+  color: var(--foreground);
+}
+.surface-launcher:hover {
+  border-color: var(--border);
+}
+@media (prefers-reduced-motion: reduce) {
+  .surface-tab,
+  .surface-control,
+  .surface-launcher {
+    transition: none;
+  }
+}
+
+/* The companion dock borrows the playful lettering of the surface prototype. */
+.companion-frame {
+  margin: 8px;
+  height: calc(100% - 16px);
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  overflow: hidden;
+  box-shadow: 0 12px 32px color-mix(in oklab, var(--foreground) 4%, transparent);
+}
+.surface-script,
+.surface-tab-label {
+  font-family: var(--font-sans);
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: -0.025em;
+}
+.surface-script {
+  font-size: clamp(26px, 2.2vw, 36px);
+  line-height: 1.2;
+}
+.surface-tab-label {
+  font-size: 17px;
+}
+.surface-launcher {
+  background: color-mix(in oklab, var(--surface-tint) 16%, transparent);
+  color: color-mix(in oklab, var(--surface-tint) 48%, var(--foreground));
+}
+.surface-launcher:hover,
+.surface-launcher:focus-visible {
+  background: color-mix(in oklab, var(--surface-tint) 80%, var(--background));
+  border-color: transparent;
+  color: #151517;
+}
+.surface-tab:hover {
+  background: color-mix(in oklab, var(--surface-tint) 18%, transparent);
+}
+.surface-tab-active,
+.surface-tab-active:hover {
+  background: var(--surface-tint);
+  color: #151517;
+}
+.surface-tab-active svg {
+  color: inherit;
+}
+.workspace-card {
+  position: relative;
+  box-shadow: 0 10px 30px color-mix(in oklab, var(--foreground) 5%, transparent);
+  background: linear-gradient(
+    145deg,
+    color-mix(in oklab, var(--muted) 30%, var(--background)),
+    var(--background)
+  );
+}
+.workspace-project {
+  font-family: var(--font-sans);
+  font-style: italic;
+  letter-spacing: -0.02em;
+}
+
+/* Keep the prototype's typography swap, color and alternating spring tilt. */
+.surface-chooser {
+  container-type: inline-size;
+  background: var(--background);
+  color: var(--foreground);
+}
+.surface-launcher-row {
+  min-height: 48px;
+  margin: 4px 0;
+}
+.surface-launcher {
+  flex: 0 1 auto;
+  padding-top: 2px;
+  padding-bottom: 5px;
+  background: color-mix(in srgb, var(--surface-tint) 15%, transparent);
+  color: light-dark(
+    color-mix(in oklab, var(--surface-tint) 40%, var(--foreground)),
+    var(--surface-tint)
+  );
+  border: 0;
+  transition:
+    transform 450ms cubic-bezier(0.3, 1.8, 0.5, 1),
+    background-color 200ms ease,
+    color 200ms ease;
+}
+.surface-script {
+  font-size: clamp(25px, 5.4cqw, 36px);
+  line-height: 1.15;
+  white-space: nowrap;
+}
+.surface-launcher-row:hover .surface-launcher,
+.surface-launcher-row:focus-within .surface-launcher {
+  background: var(--surface-tint);
+  color: #050505;
+  transform: translateX(8px) rotate(-2.2deg) scale(1.07);
+}
+.surface-launcher-row:nth-child(even):hover .surface-launcher,
+.surface-launcher-row:nth-child(even):focus-within .surface-launcher {
+  transform: translateX(8px) rotate(1.8deg) scale(1.07);
+}
+.surface-launcher-row:hover .surface-script,
+.surface-launcher-row:focus-within .surface-script {
+  font-family: var(--font-sans);
+  font-weight: var(--surface-hover-weight);
+  font-style: var(--surface-hover-style);
+  letter-spacing: 0;
+}
+.surface-launcher-key {
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+.surface-launcher-row:hover .surface-launcher-key,
+.surface-launcher-row:focus-within .surface-launcher-key {
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .surface-launcher-row .surface-launcher,
+  .surface-launcher-row:hover .surface-launcher,
+  .surface-launcher-row:focus-within .surface-launcher {
+    transform: none;
+    transition: none;
+  }
+  .surface-launcher-key {
+    transition: none;
+  }
+}
+.workspace-editor > [role="group"] {
+  width: 100%;
+  height: 38px;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+.workspace-editor > [role="group"] button:first-child {
+  justify-content: flex-start;
+  flex: 1;
+  padding-left: 0;
+}
+.workspace-editor > [role="group"] button:last-child {
+  width: 32px;
+}
+.workspace-card {
+  max-height: min(340px, 38vh);
+  overflow-y: auto;
+}
+.surface-tab {
+  background: linear-gradient(
+      color-mix(in srgb, var(--surface-tint) 20%, transparent),
+      color-mix(in srgb, var(--surface-tint) 20%, transparent)
+    )
+    no-repeat 0 0 / 0% 100%;
+  transition:
+    background-size 500ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    color 300ms ease;
+}
+.surface-tab:hover {
+  background-size: 100% 100%;
+  background-color: transparent;
+}
+.surface-tab-active,
+.surface-tab-active:hover {
+  background-image: linear-gradient(var(--surface-tint), var(--surface-tint));
+  background-size: 100% 100%;
+}
+@media (prefers-reduced-motion: reduce) {
+  .surface-tab {
+    transition: none;
+  }
+}
+/* Chrome shares the active theme; pastel tabs keep their own ink color. */
+.surface-tabs-header {
+  background: color-mix(in oklab, var(--muted) 20%, var(--background));
+  border-color: var(--border);
+}
+.surface-tab:not(.surface-tab-active) {
+  color: var(--foreground);
+}
+.surface-tab .surface-control {
+  color: inherit;
+  opacity: 0.65;
+  background: transparent;
+  border: 0;
+}
+.surface-tab .surface-control:hover,
+.surface-tab .surface-control:focus-visible {
+  color: inherit;
+  opacity: 1;
+  background: color-mix(in oklab, currentColor 12%, transparent);
+}
+.surface-launcher-key {
+  color: var(--muted-foreground);
+  background: color-mix(in oklab, var(--foreground) 6%, transparent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .surface-launcher-row:nth-child(even):is(:hover, :focus-within) .surface-launcher {
+    transform: none;
+  }
+}
+
+/* The tab strip scrolls without a permanent scrollbar; selection reveals the tab. */
+.surface-tab-scroll {
+  scrollbar-width: none;
+}
+.surface-tab-scroll::-webkit-scrollbar {
+  display: none;
+}
+.companion-expanded [data-slot="sidebar"] {
+  width: 100%;
+  height: 100%;
+}
+.companion-expanded [data-slot="sidebar-gap"] {
+  display: none;
+}
+.companion-expanded [data-slot="sidebar-container"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-left: 0;
+  transition: none;
 }

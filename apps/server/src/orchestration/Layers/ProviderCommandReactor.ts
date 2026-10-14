@@ -616,6 +616,7 @@ const make = Effect.gen(function* () {
     yield* Effect.gen(function* () {
       const { textGenerationModelSelection: modelSelection } =
         yield* serverSettingsService.getSettings;
+      if (!modelSelection) return;
 
       const generated = yield* textGeneration.generateBranchName({
         cwd,
@@ -983,13 +984,15 @@ const make = Effect.gen(function* () {
               process.cwd();
             const { textGenerationModelSelection: modelSelection } =
               yield* serverSettingsService.getSettings;
-            const generated = yield* textGeneration.generateThreadTitle({
-              cwd,
-              message: firstUserMessage.text,
-              ...(attachments.length > 0 ? { attachments } : {}),
-              modelSelection,
-            });
-            if (generated.title !== thread.title) title = generated.title;
+            if (modelSelection) {
+              const generated = yield* textGeneration.generateThreadTitle({
+                cwd,
+                message: firstUserMessage.text,
+                ...(attachments.length > 0 ? { attachments } : {}),
+                modelSelection,
+              });
+              if (generated.title !== thread.title) title = generated.title;
+            }
           }
           yield* orchestrationEngine.dispatch({
             type: "thread.title.regeneration.complete",

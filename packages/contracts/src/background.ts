@@ -2,6 +2,7 @@ import * as Schema from "effect/Schema";
 
 import {
   AuthSessionId,
+  DateTimeUtc,
   EnvironmentId,
   RpcClientId,
   ThreadId,
@@ -39,7 +40,7 @@ export const HostPowerSnapshot = Schema.Struct({
   lowPowerMode: BackgroundBooleanState,
   thermalState: HostPowerThermalState,
   stale: Schema.Boolean,
-  updatedAt: Schema.DateTimeUtc,
+  updatedAt: DateTimeUtc,
 });
 export type HostPowerSnapshot = typeof HostPowerSnapshot.Type;
 
@@ -74,7 +75,7 @@ export const ClientActivityReportInput = Schema.Struct({
   networkType: Schema.optionalKey(Schema.String),
   scopes: Schema.Array(BackgroundScope),
   ttlMs: Schema.optionalKey(Schema.Number),
-  observedAt: Schema.DateTimeUtc,
+  observedAt: DateTimeUtc,
 });
 export type ClientActivityReportInput = typeof ClientActivityReportInput.Type;
 
@@ -91,8 +92,8 @@ export const ClientActivityLease = Schema.Struct({
   batteryState: Schema.optionalKey(Schema.Literals(["unknown", "unplugged", "charging", "full"])),
   networkType: Schema.optionalKey(Schema.String),
   scopes: Schema.Array(BackgroundScope),
-  updatedAt: Schema.DateTimeUtc,
-  expiresAt: Schema.DateTimeUtc,
+  updatedAt: DateTimeUtc,
+  expiresAt: DateTimeUtc,
 });
 export type ClientActivityLease = typeof ClientActivityLease.Type;
 
@@ -102,6 +103,6 @@ export const BackgroundPolicySnapshot = Schema.Struct({
   activeForegroundLeaseCount: Schema.Number,
   activeScopeKeys: Schema.Array(Schema.String),
   shouldRunOpportunisticWork: Schema.Boolean,
-  updatedAt: Schema.DateTimeUtc,
+  updatedAt: DateTimeUtc,
 });
 export type BackgroundPolicySnapshot = typeof BackgroundPolicySnapshot.Type;

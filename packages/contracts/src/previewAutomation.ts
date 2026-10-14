@@ -12,13 +12,10 @@ import {
 import { ProviderInstanceId } from "./providerInstance.ts";
 
 const BoundedUrl = Schema.String.check(Schema.isTrimmed())
-  .check(
-    Schema.isNonEmpty({
-      description:
-        "Absolute http(s) URL or a schemeless host such as t3.chat or localhost:5173. Schemeless public hosts use https; loopback hosts use http.",
-    }),
-  )
+  .check(Schema.isNonEmpty())
   .check(Schema.isMaxLength(2048));
+const URL_GUIDANCE =
+  "Absolute http(s) URL or a schemeless host such as t3.chat or localhost:5173. Schemeless public hosts use https; loopback hosts use http.";
 const OptionalTimeoutMs = Schema.optional(
   Schema.Int.check(Schema.isGreaterThan(0))
     .check(Schema.isLessThanOrEqualTo(60_000))
@@ -45,6 +42,7 @@ export const PREVIEW_AUTOMATION_V1_OPERATIONS = [
 export const PREVIEW_AUTOMATION_OPERATIONS = [
   ...PREVIEW_AUTOMATION_V1_OPERATIONS,
   "resize",
+  "setColorScheme",
 ] as const;
 
 export const PreviewAutomationOperation = Schema.Literals(PREVIEW_AUTOMATION_OPERATIONS);
@@ -82,9 +80,14 @@ export type PreviewAutomationStatus = typeof PreviewAutomationStatus.Type;
 export const PreviewAutomationOpenInput = Schema.Struct({
   ...PreviewAutomationTabTargetFields,
   url: Schema.optional(BoundedUrl).annotate({
-    description:
-      "Optional initial page URL, for example https://t3.chat or localhost:5173. Omit to open a blank tab.",
+    description: `Optional initial page URL. ${URL_GUIDANCE} Omit to open a blank tab.`,
   }),
+  open: Schema.optional(
+    Schema.Boolean.annotate({
+      description:
+        "Whether to open the thread-bound inline preview for the human. Defaults to true; set false for background-only automation.",
+    }),
+  ),
   show: Schema.optional(
     Schema.Boolean.annotate({
       description: "Whether to reveal the preview panel to the human. Defaults to true.",
@@ -116,7 +119,7 @@ export const BrowserNavigationTarget = Schema.Union([
       description: "Selects direct URL navigation.",
     }),
     url: BoundedUrl.annotate({
-      description: "Direct website URL.",
+      description: `Direct website URL. ${URL_GUIDANCE}`,
     }),
   }),
   Schema.Struct({
@@ -143,8 +146,7 @@ export type BrowserNavigationTarget = typeof BrowserNavigationTarget.Type;
 export const PreviewAutomationNavigateInput = Schema.Struct({
   ...PreviewAutomationTabTargetFields,
   url: Schema.optional(BoundedUrl).annotate({
-    description:
-      "Website URL, for example https://t3.chat. Use this for public pages and directly reachable URLs.",
+    description: `Website URL. ${URL_GUIDANCE} Use this for public pages and directly reachable URLs.`,
   }),
   target: Schema.optional(
     BrowserNavigationTarget.annotate({
@@ -253,6 +255,29 @@ export const PreviewAutomationResizeResult = Schema.Struct({
   viewport: PreviewRenderedViewportSize,
 });
 export type PreviewAutomationResizeResult = typeof PreviewAutomationResizeResult.Type;
+
+/** Mirrors DesktopPreviewColorScheme; declared here to keep this module free of ipc.ts imports. */
+export const PreviewAutomationColorScheme = Schema.Literals(["system", "light", "dark"]);
+export type PreviewAutomationColorScheme = typeof PreviewAutomationColorScheme.Type;
+
+export const PreviewAutomationSetColorSchemeInput = Schema.Struct({
+  ...PreviewAutomationTabTargetFields,
+  colorScheme: PreviewAutomationColorScheme.annotate({
+    description:
+      "Emulated prefers-color-scheme for the page: light, dark, or system to follow the OS appearance.",
+  }),
+}).annotate({
+  description:
+    "Emulates prefers-color-scheme in the active browser tab without changing the OS or app theme.",
+});
+export type PreviewAutomationSetColorSchemeInput = typeof PreviewAutomationSetColorSchemeInput.Type;
+
+export const PreviewAutomationSetColorSchemeResult = Schema.Struct({
+  tabId: PreviewTabId,
+  colorScheme: PreviewAutomationColorScheme,
+});
+export type PreviewAutomationSetColorSchemeResult =
+  typeof PreviewAutomationSetColorSchemeResult.Type;
 
 const Locator = TrimmedNonEmptyString.annotate({
   description:
@@ -527,6 +552,8 @@ export const PreviewAutomationRecordingStatus = Schema.Struct({
 });
 export type PreviewAutomationRecordingStatus = typeof PreviewAutomationRecordingStatus.Type;
 
+export const PREVIEW_RECORDING_STOP_TIMEOUT_MS = 120_000;
+
 export const PreviewAutomationRecordingArtifact = Schema.Struct({
   id: Schema.String,
   tabId: PreviewTabId,
@@ -562,6 +589,15 @@ export const PreviewAutomationHostFocus = Schema.Struct({
   ...PreviewAutomationHostIdentity.fields,
   connectionId: PreviewAutomationConnectionId,
   focused: Schema.Boolean,
+  liveTabs: Schema.optional(
+    Schema.Array(
+      Schema.Struct({
+        threadId: ThreadId,
+        tabId: PreviewTabId,
+        visible: Schema.optional(Schema.Boolean),
+      }),
+    ),
+  ),
 });
 export type PreviewAutomationHostFocus = typeof PreviewAutomationHostFocus.Type;
 
@@ -605,14 +641,33 @@ export const PreviewAutomationResponse = Schema.Struct({
 });
 export type PreviewAutomationResponse = typeof PreviewAutomationResponse.Type;
 
+// Thread fields are absent when the caller signed in from outside a T3 thread.
+const McpCapabilityErrorFields = {
+  environmentId: EnvironmentId,
+  threadId: Schema.optional(ThreadId),
+  providerSessionId: Schema.optional(TrimmedNonEmptyString),
+  providerInstanceId: Schema.optional(ProviderInstanceId),
+};
+
+/** Agents read this message, so it names the next step and not only the failure. */
 export class PreviewAutomationUnavailableError extends Schema.TaggedErrorClass<PreviewAutomationUnavailableError>()(
   "PreviewAutomationUnavailableError",
   {
     capability: Schema.Literal("preview"),
-    environmentId: EnvironmentId,
-    threadId: ThreadId,
-    providerSessionId: TrimmedNonEmptyString,
-    providerInstanceId: ProviderInstanceId,
+    ...McpCapabilityErrorFields,
+  },
+) {
+  override get message(): string {
+    return `MCP credential does not grant the ${this.capability} capability: browser preview tools are off for this thread. Do not retry them. To check a page, use a headless browser from the shell, such as Playwright, or curl. The user can turn on "Agent browser access" in Settings; it applies when the agent session next starts.`;
+  }
+}
+
+/** A `t3-code` MCP tool was called with a credential that does not carry its capability. */
+export class McpCapabilityUnavailableError extends Schema.TaggedErrorClass<McpCapabilityUnavailableError>()(
+  "McpCapabilityUnavailableError",
+  {
+    capability: TrimmedNonEmptyString,
+    ...McpCapabilityErrorFields,
   },
 ) {
   override get message(): string {
@@ -668,8 +723,7 @@ export class PreviewAutomationNoAvailableHostError extends Schema.TaggedErrorCla
   },
 ) {
   override get message(): string {
-    const summary = `No preview automation host is available for ${this.operation} in environment ${this.environmentId}.`;
-    return summary;
+    return `No preview automation host is available for ${this.operation} in environment ${this.environmentId}. Preview tools run in a Tabs desktop app that is open and connected to this environment; a headless server has no browser of its own. Do not retry. To check a page, use a headless browser from the shell, such as Playwright, or curl, or ask the user to open this thread in the Tabs desktop app.`;
   }
 }
 
@@ -693,10 +747,9 @@ export class PreviewAutomationTabNotFoundError extends Schema.TaggedErrorClass<P
   },
 ) {
   override get message(): string {
-    const summary = this.tabId
-      ? `Preview tab ${this.tabId} was not found for ${this.operation}.`
-      : `No active preview tab was found for ${this.operation}.`;
-    return summary;
+    return this.tabId
+      ? `Preview tab ${this.tabId} was not found for ${this.operation}. Omit tabId to use the current tab, or call preview_open.`
+      : `No active preview tab was found for ${this.operation}. Call preview_open first.`;
   }
 }
 
@@ -830,7 +883,50 @@ export class PreviewAutomationMalformedResponseError extends Schema.TaggedErrorC
   }
 }
 
+export class PreviewAutomationRecordingTransferError extends Schema.TaggedErrorClass<PreviewAutomationRecordingTransferError>()(
+  "PreviewAutomationRecordingTransferError",
+  {
+    threadId: ThreadId,
+    cause: Schema.optional(Schema.Defect()),
+  },
+) {
+  override get message(): string {
+    return "Preview recording could not be saved to the agent environment. The saved copy remains on the desktop.";
+  }
+}
+
+export class PreviewAutomationRecordingDesktopUpdateRequiredError extends Schema.TaggedErrorClass<PreviewAutomationRecordingDesktopUpdateRequiredError>()(
+  "PreviewAutomationRecordingDesktopUpdateRequiredError",
+  { threadId: ThreadId, cause: Schema.optional(Schema.Defect()) },
+) {
+  override get message(): string {
+    return "Update the desktop app to transfer recordings. The recording remains on the desktop.";
+  }
+}
+
+export class PreviewAutomationRecordingTooLargeError extends Schema.TaggedErrorClass<PreviewAutomationRecordingTooLargeError>()(
+  "PreviewAutomationRecordingTooLargeError",
+  { threadId: ThreadId, cause: Schema.optional(Schema.Defect()) },
+) {
+  override get message(): string {
+    return "The recording exceeds 50 MiB. The saved copy remains on the desktop.";
+  }
+}
+
+export class PreviewAutomationRecordingDeadlineExpiredError extends Schema.TaggedErrorClass<PreviewAutomationRecordingDeadlineExpiredError>()(
+  "PreviewAutomationRecordingDeadlineExpiredError",
+  { threadId: ThreadId, cause: Schema.optional(Schema.Defect()) },
+) {
+  override get message(): string {
+    return "The recording transfer deadline expired. The saved copy remains on the desktop.";
+  }
+}
+
 export const PreviewAutomationError = Schema.Union([
+  PreviewAutomationRecordingTransferError,
+  PreviewAutomationRecordingDesktopUpdateRequiredError,
+  PreviewAutomationRecordingTooLargeError,
+  PreviewAutomationRecordingDeadlineExpiredError,
   PreviewAutomationUnavailableError,
   PreviewAutomationNoAvailableHostError,
   PreviewAutomationUnsupportedClientError,

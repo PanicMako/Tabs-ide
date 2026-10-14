@@ -7334,6 +7334,7 @@ function GitConflictTextPane(props: {
 }
 
 function DesktopBrowserChrome(props: {
+  companion?: boolean | undefined;
   projectId: ProjectId;
   projectCwd: string;
   sessionId?: string | undefined;
@@ -7686,7 +7687,7 @@ function DesktopBrowserChrome(props: {
               onExternal={() =>
                 void api?.shell.openExternal(props.sessionState.currentUrl ?? props.normalizedUrl)
               }
-              onCollapse={() => props.setIsChromeExpanded(false)}
+              onCollapse={props.companion ? undefined : () => props.setIsChromeExpanded(false)}
               onViewOpenChange={(open) => {
                 setActiveToolbarMenu(open ? "view" : null);
               }}
@@ -9191,7 +9192,8 @@ function BrowserTool(props: {
   );
 }
 
-function DesktopCustomEmbedTool(props: {
+export function DesktopCustomEmbedTool(props: {
+  companion?: boolean | undefined;
   project: Project;
   title: string;
   url: string;
@@ -9204,6 +9206,10 @@ function DesktopCustomEmbedTool(props: {
   const api = readNativeApi();
   const bridge = window.desktopBridge;
   const projectSettings = useProjectWorkspaceSettings(props.project.id);
+  const initialUrl =
+    props.companion && projectSettings
+      ? resolveProjectDefaultBrowserUrl(props.project, projectSettings)
+      : props.url;
   const sessionKey = `${projectUiStateKey(props.project.environmentId, props.project.id)}:${props.sessionId}`;
   const browserState = useAtomValue(workspaceShellAtom, (state) => {
     const existing =
@@ -9212,7 +9218,7 @@ function DesktopCustomEmbedTool(props: {
       return existing;
     }
     return {
-      currentUrl: normalizeBrowserUrl(props.url),
+      currentUrl: normalizeBrowserUrl(initialUrl),
       devicePreset: "project-default",
       customWidth: null,
       customHeight: null,
@@ -9259,9 +9265,9 @@ function DesktopCustomEmbedTool(props: {
   const setBrowserSessionUrl = workspaceShellActions.setBrowserSessionUrl;
   // A custom tab optionally reopens at the URL the user last navigated to (persisted),
   // falling back to its configured URL; editing the configured URL takes over.
-  const configuredUrl = normalizeBrowserUrl(props.url);
+  const configuredUrl = normalizeBrowserUrl(initialUrl);
   const normalizedUrl = normalizeBrowserUrl(
-    props.resumeLastVisitedPage ? (storedUrl ?? props.lastVisitedUrl ?? props.url) : props.url,
+    props.resumeLastVisitedPage ? (storedUrl ?? props.lastVisitedUrl ?? initialUrl) : initialUrl,
   );
   // Editable address bar for the custom embed. Navigating here writes the
   // per-session URL (NOT the shared per-project browser state — see the
@@ -9281,7 +9287,7 @@ function DesktopCustomEmbedTool(props: {
     const nextUrl = normalizeBrowserUrl(draftUrl);
     if (!nextUrl || nextUrl.length === 0) return;
     setBrowserSessionUrl(props.project.id, props.sessionId, nextUrl);
-    if (bridge && hostState.available) {
+    if (bridge && hostState.available && !props.resumeLastVisitedPage) {
       void bridge
         .navigateBrowserSession({
           projectId: props.project.id,
@@ -9356,6 +9362,8 @@ function DesktopCustomEmbedTool(props: {
       return;
     }
 
+    // URL changes are handled by the navigation effect; recreating the host
+    // subscription for each address change can issue duplicate navigations.
     let disposed = false;
     const partition = resolveBrowserPartition({
       projectId: props.project.id,
@@ -9363,43 +9371,56 @@ function DesktopCustomEmbedTool(props: {
       partitionMode: props.partitionMode,
       partitionProfile: props.partitionProfile,
     });
-    void bridge
-      .getBrowserHostState()
-      .then((nextState) => {
+    void (async () => {
+      try {
+        const host = await bridge.getBrowserHostState();
         if (disposed) return;
-        setHostState(nextState);
-      })
-      .catch(() => undefined);
-    void bridge
-      .getBrowserSessionState({
-        projectId: props.project.id,
-        sessionId: props.sessionId,
-      })
-      .then((nextState) => {
-        if (disposed || !nextState) return;
-        setSessionState(nextState);
-      })
-      .catch(() => undefined);
-    void bridge
-      .ensureBrowserSession({
-        projectId: props.project.id,
-        sessionId: props.sessionId,
-        initialUrl: normalizedUrl,
-        partition,
-      })
-      .then(() =>
-        bridge.activateBrowserSession({
+        if (!host.available) {
+          setHostState(host);
+          return;
+        }
+        await bridge.ensureBrowserSession({
           projectId: props.project.id,
           sessionId: props.sessionId,
-        }),
-      )
-      .catch(() => undefined);
+          initialUrl: normalizedUrl,
+          partition,
+        });
+        if (disposed) return;
+        const session = await bridge.getBrowserSessionState({
+          projectId: props.project.id,
+          sessionId: props.sessionId,
+        });
+        if (disposed) return;
+        if (session) {
+          setSessionState(session);
+          if (props.companion && session.currentUrl) {
+            setBrowserSessionUrl(props.project.id, props.sessionId, session.currentUrl);
+          }
+        }
+        await bridge.activateBrowserSession({
+          projectId: props.project.id,
+          sessionId: props.sessionId,
+        });
+        if (!disposed) setHostState(host);
+      } catch (error) {
+        if (!disposed)
+          setHostState({
+            available: false,
+            reason: error instanceof Error ? error.message : String(error),
+          });
+      }
+    })();
 
     const unsubscribe = bridge.onBrowserSessionState((nextState) => {
       if (nextState.projectId !== props.project.id || nextState.sessionId !== props.sessionId) {
         return;
       }
       setSessionState(nextState);
+      // Save immediately: switching Agents surfaces can unmount before the
+      // custom-embed debounce has elapsed.
+      if (props.companion && !nextState.loading && !nextState.lastError && nextState.currentUrl) {
+        setBrowserSessionUrl(props.project.id, props.sessionId, nextState.currentUrl);
+      }
     });
 
     return () => {
@@ -9410,7 +9431,7 @@ function DesktopCustomEmbedTool(props: {
     };
   }, [
     bridge,
-    normalizedUrl,
+    props.companion,
     props.project.id,
     props.sessionId,
     props.partitionMode,
@@ -9421,11 +9442,11 @@ function DesktopCustomEmbedTool(props: {
     if (!bridge || !hostState.available || normalizedUrl.length === 0) {
       return;
     }
-    if (sessionState.currentUrl === normalizedUrl) {
+    if (isSameWebUrl(sessionState.currentUrl, normalizedUrl)) {
       lastRequestedUrlRef.current = normalizedUrl;
       return;
     }
-    if (lastRequestedUrlRef.current === normalizedUrl) {
+    if (isSameWebUrl(lastRequestedUrlRef.current, normalizedUrl)) {
       return;
     }
     lastRequestedUrlRef.current = normalizedUrl;
@@ -9595,11 +9616,12 @@ function DesktopCustomEmbedTool(props: {
 
   return (
     <DesktopBrowserChrome
+      companion={props.companion}
       projectCwd={props.project.cwd}
       projectId={props.project.id}
       sessionId={props.sessionId}
       title={props.title}
-      isChromeExpanded={isChromeExpanded}
+      isChromeExpanded={props.companion || isChromeExpanded}
       setIsChromeExpanded={setIsChromeExpanded}
       sessionState={sessionState}
       browserState={browserState}
@@ -9610,7 +9632,7 @@ function DesktopCustomEmbedTool(props: {
       setBrowserViewport={setBrowserViewport}
       setViewportSelectorOpen={setViewportSelectorOpen}
       viewportSelectorOpen={viewportSelectorOpen}
-      toolbarTarget={toolbarTarget}
+      toolbarTarget={props.companion ? null : toolbarTarget}
     >
       <BrowserViewportResizeFrame
         width={viewportWidth}
@@ -10587,8 +10609,7 @@ function ServerTool(props: {
                 Launchpad Presets
               </DialogTitle>
               <DialogDescription className="text-xs text-muted-foreground mt-1">
-                Create and manage one-click presets like 'Frontend' or 'Backend', each with ordered
-                command steps.
+                Save a set of commands to run together.
               </DialogDescription>
             </div>
           </DialogHeader>
@@ -10923,9 +10944,7 @@ function ServerTool(props: {
         <AlertDialogPopup>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Preset?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete this preset? This action cannot be undone.
-            </AlertDialogDescription>
+            <AlertDialogDescription>Deletes this preset permanently.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogClose render={<Button variant="outline" />}>Cancel</AlertDialogClose>
@@ -11624,9 +11643,10 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
     async (projectId: ProjectId) => {
       setActiveProject(projectId);
       setActiveTool(projectId, "agents");
-      await handleNewThread(projectId, {
-        envMode: settings.defaultThreadEnvMode,
-      });
+      await handleNewThread(
+        projectId,
+        settings.defaultThreadEnvMode ? { envMode: settings.defaultThreadEnvMode } : {},
+      );
     },
     [handleNewThread, setActiveProject, setActiveTool, settings.defaultThreadEnvMode],
   );
@@ -11782,7 +11802,8 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
         event.stopPropagation();
         if (workspaceState.session.activeProjectId) {
           void handleNewThread(workspaceState.session.activeProjectId, {
-            envMode: command === "chat.newLocal" ? "local" : settings.defaultThreadEnvMode,
+            envMode:
+              command === "chat.newLocal" ? "local" : (settings.defaultThreadEnvMode ?? "local"),
           });
         }
         return;
@@ -12953,7 +12974,7 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
           if (!activeProject.environmentId) return;
           const tid = await handleNewThread(activeProject.id, {
             environmentId: activeProject.environmentId,
-            envMode: settings.defaultThreadEnvMode,
+            ...(settings.defaultThreadEnvMode ? { envMode: settings.defaultThreadEnvMode } : {}),
           });
           if (tid) {
             const pKey = projectUiStateKey(activeProject.environmentId, activeProject.id);

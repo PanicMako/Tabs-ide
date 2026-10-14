@@ -60,7 +60,7 @@ export type AntigravityDriverEnv =
   | Path.Path
   | ServerConfig;
 
-export const AntigravityDriver: ProviderDriver<AntigravitySettings, AntigravityDriverEnv> = {
+export const AntigravityDriver: ProviderDriver<AntigravitySettings, any> = {
   driverKind: DRIVER_KIND,
   metadata: {
     displayName: "Antigravity",

@@ -4,10 +4,12 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 
 import * as ServerConfig from "../config.ts";
+import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
 import * as ServerEnvironment from "./ServerEnvironment.ts";
 
 const makeLayer = () =>
   ServerEnvironment.layer.pipe(
+    Layer.provide(ServerSecretStore.layer),
     Layer.provide(ServerConfig.layerTest(process.cwd(), { prefix: "tabs-environment-test-" })),
     Layer.provide(NodeServices.layer),
   );

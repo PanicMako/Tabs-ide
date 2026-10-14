@@ -1,0 +1,200 @@
+.diagnostics-page {
+  min-width: 0;
+}
+.diagnostics-actions {
+  margin-top: 18px;
+}
+.diagnostics-navigation {
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+.diagnostics-popout > div {
+  max-width: 1100px;
+  margin-inline: auto;
+}
+.diagnostics-popout header {
+  -webkit-app-region: drag;
+}
+.diagnostics-popout header button,
+.diagnostics-popout header .no-drag {
+  -webkit-app-region: no-drag;
+}
+.diagnostics-overview {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 28px;
+  background: var(--card);
+}
+.diagnostics-sample {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 16px 22px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  border-bottom: 1px solid var(--border);
+}
+.diagnostics-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  background: radial-gradient(
+    ellipse at top left,
+    color-mix(in srgb, var(--primary) 9%, transparent),
+    transparent 75%
+  );
+}
+.diagnostics-metrics > button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+  padding: 22px;
+  text-align: left;
+  cursor: pointer;
+  color: var(--foreground);
+  border-right: 1px solid var(--border);
+  transition: background-color 150ms ease;
+}
+.diagnostics-metrics > button:last-child {
+  border-right: 0;
+}
+.diagnostics-metrics > button:hover {
+  background: color-mix(in srgb, var(--primary) 6%, transparent);
+}
+.diagnostics-metrics > button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -4px;
+  border-radius: 20px;
+}
+.diagnostics-metrics > button > span {
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+.diagnostics-metrics strong {
+  font: 600 clamp(20px, 2.5vw, 30px) var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.diagnostics-metric-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+.diagnostics-metric-label svg:last-child {
+  margin-left: auto;
+}
+.diagnostics-components {
+  padding: 18px 22px;
+  border-top: 1px solid var(--border);
+}
+.diagnostics-component-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+.diagnostics-component-head h3 {
+  font-weight: 600;
+}
+.diagnostics-component-head > span {
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+.diagnostics-component-rows > div {
+  display: grid;
+  grid-template-columns: 1.5fr repeat(3, 1fr);
+  gap: 12px;
+  padding: 8px 0;
+  font-size: 12px;
+}
+.diagnostics-component-rows > div > span:not(:first-child) {
+  text-align: right;
+  font: 11px var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.diagnostics-component-rows > div > span:first-child {
+  color: var(--muted-foreground);
+}
+.diagnostics-details {
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+.diagnostics-details > summary {
+  color: var(--foreground);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.diagnostics-details > summary span {
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 400;
+  margin-left: 12px;
+}
+.diagnostics-details > summary:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 4px;
+  border-radius: 8px;
+}
+.diagnostics-details[open] > summary {
+  margin-bottom: 20px;
+}
+.diagnostics-details > section + section {
+  margin-top: 20px;
+}
+.diagnostics-muted {
+  padding: 16px 22px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.diagnostics-page section > div:first-child h2 {
+  font-family: var(--font-sans) !important;
+  font-size: 13px;
+  font-weight: 600;
+}
+.diagnostics-page section > div:last-child {
+  border-radius: 24px;
+}
+@media (max-width: 600px) {
+  .diagnostics-metrics {
+    grid-template-columns: 1fr;
+  }
+  .diagnostics-metrics > button {
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+    padding: 16px 20px;
+  }
+  .diagnostics-metrics > button:last-child {
+    border-bottom: 0;
+  }
+  .diagnostics-components {
+    padding: 16px;
+    overflow-x: auto;
+  }
+  .diagnostics-component-rows {
+    min-width: 330px;
+  }
+  .diagnostics-navigation > button {
+    flex: 1 0 auto;
+  }
+  .diagnostics-popout header > div:first-child {
+    height: auto;
+    min-height: 40px;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding-block: 8px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .diagnostics-metrics > button {
+    transition: none;
+  }
+}
+html[data-reduced-motion="reduce"] .diagnostics-metrics > button {
+  transition: none;
+}

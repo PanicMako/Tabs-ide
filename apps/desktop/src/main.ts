@@ -2020,8 +2020,13 @@ function startBackend(): void {
         mode: "desktop",
         noBrowser: true,
         port: backendPort,
+        host: "127.0.0.1",
         tabsHome: BASE_DIR,
+        t3Home: BASE_DIR,
         authToken: backendAuthToken,
+        desktopBootstrapToken: backendAuthToken,
+        tailscaleServeEnabled: false,
+        tailscaleServePort: 443,
       })}\n`,
     );
     bootstrapStream.end();

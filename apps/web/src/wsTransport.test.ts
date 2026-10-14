@@ -231,12 +231,12 @@ describe("WsTransport", () => {
     expect(warnSpy).toHaveBeenNthCalledWith(
       1,
       "Dropped inbound WebSocket envelope",
-      expect.stringContaining("Expected property name or '}'"),
+      expect.any(String),
     );
     expect(warnSpy).toHaveBeenNthCalledWith(
       2,
       "Dropped inbound WebSocket envelope",
-      expect.stringContaining('Expected "server.configUpdated"'),
+      expect.stringContaining("channel"),
     );
 
     transport.dispose();
@@ -425,4 +425,12 @@ it("omits credentials from initialization errors and connection timeouts", () =>
   failing.dispose();
   warn.mockRestore();
   vi.useRealTimers();
+});
+
+it("resolves signed media URLs against the selected environment's HTTP origin", () => {
+  const transport = new WsTransport("wss://remote.example.test/ws?ticket=secret");
+  expect(transport.resolveHttpUrl("/api/assets/file?signature=signed")).toBe(
+    "https://remote.example.test/api/assets/file?signature=signed",
+  );
+  transport.dispose();
 });

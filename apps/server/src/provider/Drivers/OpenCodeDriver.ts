@@ -63,17 +63,20 @@ function isOpenCodeNativeCommandPath(commandPath: string): boolean {
   );
 }
 
-const UPDATE = makePackageManagedProviderMaintenanceResolver({
-  provider: DRIVER_KIND,
-  npmPackageName: "opencode-ai",
-  homebrewFormula: "anomalyco/tap/opencode",
-  nativeUpdate: {
-    executable: "opencode",
-    args: ["upgrade"],
-    lockKey: "opencode-native",
-    isCommandPath: isOpenCodeNativeCommandPath,
-  },
-});
+export const openCodeUpdateFor = (generation: "v1" | "v2") =>
+  makePackageManagedProviderMaintenanceResolver({
+    provider: DRIVER_KIND,
+    npmPackageName: generation === "v2" ? "@opencode/cli" : "opencode-ai",
+    homebrewFormula: "anomalyco/tap/opencode",
+    nativeUpdate: {
+      executable: "opencode",
+      args: ["upgrade"],
+      lockKey: "opencode-native",
+      isCommandPath: isOpenCodeNativeCommandPath,
+    },
+  });
+
+const UPDATE = openCodeUpdateFor("v1");
 
 export type OpenCodeDriverEnv =
   | ChildProcessSpawner.ChildProcessSpawner
@@ -100,7 +103,7 @@ const withInstanceIdentity =
     continuation: { groupKey: input.continuationGroupKey },
   });
 
-export const OpenCodeDriver: ProviderDriver<OpenCodeSettings, OpenCodeDriverEnv> = {
+export const OpenCodeDriver: ProviderDriver<OpenCodeSettings, any> = {
   driverKind: DRIVER_KIND,
   metadata: {
     displayName: "OpenCode",
@@ -134,7 +137,7 @@ export const OpenCodeDriver: ProviderDriver<OpenCodeSettings, OpenCodeDriverEnv>
         serverPassword: secureServerPassword ?? config.serverPassword,
       } satisfies OpenCodeSettings;
       const maintenanceCapabilities = yield* resolveProviderMaintenanceCapabilitiesEffect(UPDATE, {
-        binaryPath: effectiveConfig.binaryPath,
+        ...(effectiveConfig.binaryPath ? { binaryPath: effectiveConfig.binaryPath } : {}),
         env: processEnv,
       });
 
@@ -183,7 +186,7 @@ export const OpenCodeDriver: ProviderDriver<OpenCodeSettings, OpenCodeDriverEnv>
             const server = yield* openCodeRuntime.connectToOpenCodeServer({
               binaryPath: effectiveConfig.binaryPath,
               serverUrl: effectiveConfig.serverUrl,
-              cwd,
+              directory: cwd,
               environment: processEnv,
             });
             const client = openCodeRuntime.createOpenCodeSdkClient({

@@ -1,3 +1,4 @@
+import { OrbitGroup } from "../ui/orbit-group";
 import {
   ArrowUpDown,
   Bot,
@@ -11,6 +12,7 @@ import {
   GitPullRequest,
   Layers,
   MessageSquare,
+  MoreHorizontal,
   Pencil,
   Plus,
   Search,
@@ -48,6 +50,9 @@ import { GitCheckingState } from "./GitCheckingState";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { toastManager } from "../ui/toast";
+import { SegmentedControl } from "../ui/segmented-control";
+import { Popover, PopoverTrigger, PopoverPopup, PopoverTitle } from "../ui/popover";
+import type { ReactNode } from "react";
 import { Switch } from "~/components/ui/switch";
 import {
   Dialog,
@@ -73,7 +78,7 @@ interface PullRequestRow {
   state: "open" | "draft" | "merged" | "closed";
   branch: string;
   url: string;
-  provider?: "github" | "gitlab" | "azure-devops" | "bitbucket" | "unknown";
+  provider?: "github" | "gitlab" | "azure-devops" | "bitbucket" | "forgejo" | "unknown";
   isDraft: boolean;
   author: string | null;
   labels: ReadonlyArray<{ name: string; color?: string | undefined }>;
@@ -131,16 +136,49 @@ function handleTabListKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
   tabs[nextIndex]?.click();
 }
 
+function SecondaryActions({
+  compact,
+  number,
+  children,
+}: {
+  compact: boolean;
+  number: number;
+  children: ReactNode;
+}) {
+  if (!compact) return <>{children}</>;
+  return (
+    <Popover>
+      <PopoverTrigger
+        render={
+          <Button
+            size="sm"
+            variant="ghost"
+            aria-label={`More actions for pull request ${number}`}
+          />
+        }
+      >
+        <MoreHorizontal size={16} />
+      </PopoverTrigger>
+      <PopoverPopup align="end" viewportClassName="p-2">
+        <PopoverTitle className="sr-only">Pull request {number} actions</PopoverTitle>
+        <div className="flex flex-col items-stretch gap-1 [&>button]:justify-start">{children}</div>
+      </PopoverPopup>
+    </Popover>
+  );
+}
+
 export function PRsPanel({
   cwd,
   environmentId,
   branchName,
   onOpenCreatePR,
+  compact = false,
 }: {
   cwd: string;
   environmentId?: string | undefined;
   branchName: string;
   onOpenCreatePR: () => void;
+  compact?: boolean;
 }) {
   const api = useGitApi();
   const threads = useAtomValue(threadsAtom);
@@ -409,69 +447,44 @@ export function PRsPanel({
   };
 
   return (
-    <div className="space-y-3">
+    <div className={compact ? "companion-pr-list" : "space-y-3"}>
       {/* Top Controls Toolbar: Segmented View Selector, State Filters & Create PR Button */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-card/60 p-3 rounded-xl border border-border/60">
+      <div
+        className={
+          compact
+            ? "companion-pr-controls"
+            : "flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-card/60 p-3 rounded-xl border border-border/60"
+        }
+      >
         {/* Segmented Scope Control */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <div
-            className="tabs-segmented grid grid-cols-2 text-xs shrink-0 sm:w-auto"
-            role="group"
+        <div className={compact ? "companion-pr-filters" : "flex items-center gap-2 flex-wrap"}>
+          <SegmentedControl
+            size="sm"
             aria-label="Pull request scope"
-          >
-            <button
-              type="button"
-              aria-pressed={viewMode === "branch"}
-              onClick={() => setViewMode("branch")}
-              className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
-                viewMode === "branch"
-                  ? "font-semibold"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              This branch ({branchName})
-            </button>
-            <button
-              type="button"
-              aria-pressed={viewMode === "all"}
-              onClick={() => setViewMode("all")}
-              className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
-                viewMode === "all" ? "font-semibold" : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              All repository PRs
-            </button>
-          </div>
-
-          {/* State Filter Buttons (Active when viewing Repository PRs) */}
+            value={viewMode}
+            onValueChange={setViewMode}
+            options={[
+              { value: "branch", label: compact ? "This branch" : `This branch (${branchName})` },
+              { value: "all", label: compact ? "Repository" : "All repository PRs" },
+            ]}
+          />
           {viewMode === "all" && (
-            <div
-              className="tabs-segmented flex items-center text-[11px]"
-              role="group"
+            <SegmentedControl
+              size="sm"
               aria-label="Pull request state"
-            >
-              {(["all", "open", "merged", "closed"] as const).map((st) => (
-                <button
-                  key={st}
-                  type="button"
-                  aria-pressed={filterState === st}
-                  onClick={() => setFilterState(st)}
-                  className={`px-2.5 py-1 rounded-md capitalize font-medium transition-colors ${
-                    filterState === st
-                      ? "bg-primary text-primary-foreground font-semibold shadow-xs"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  {st === "all" ? "All history" : st}
-                </button>
-              ))}
-            </div>
+              value={filterState}
+              onValueChange={setFilterState}
+              options={(["all", "open", "merged", "closed"] as const).map((value) => ({
+                value,
+                label: value === "all" ? "All" : value[0]!.toUpperCase() + value.slice(1),
+              }))}
+            />
           )}
           {viewMode === "all" && capabilities?.search ? (
             <form
               role="search"
               aria-label="Search pull requests"
-              className="flex min-w-56 items-center gap-1"
+              className={compact ? "companion-pr-search" : "flex min-w-56 items-center gap-1"}
               onSubmit={(event) => {
                 event.preventDefault();
                 setListLimit(50);
@@ -513,7 +526,7 @@ export function PRsPanel({
         {capabilities?.create !== false ? (
           <Button size="sm" onClick={onOpenCreatePR} className="gap-1.5 shrink-0 ml-auto">
             <Plus size={13} />
-            <span>Create pull request</span>
+            <span>{compact ? "New PR" : "Create pull request"}</span>
           </Button>
         ) : null}
       </div>
@@ -567,8 +580,13 @@ export function PRsPanel({
       ) : (
         <div className="space-y-2.5">
           {prs.map((pr) => (
-            <Card key={pr.n} className="p-3.5 hover:bg-muted/20 transition-colors">
-              <div className="flex items-center gap-3">
+            <Card
+              key={pr.n}
+              className={
+                compact ? "companion-pr-card" : "p-3.5 hover:bg-muted/20 transition-colors"
+              }
+            >
+              <div className={compact ? "companion-pr-summary" : "flex items-center gap-3"}>
                 <Badge
                   variant={
                     pr.state === "open"
@@ -583,7 +601,13 @@ export function PRsPanel({
                   #{pr.n} {pr.state}
                 </Badge>
                 <div className="min-w-0 flex-1">
-                  <div className="text-xs font-semibold text-foreground/90 truncate">
+                  <div
+                    className={
+                      compact
+                        ? "companion-pr-title"
+                        : "text-xs font-semibold text-foreground/90 truncate"
+                    }
+                  >
                     {pr.title}{" "}
                     {pr.isDraft ? <span className="text-muted-foreground">(draft)</span> : null}
                   </div>
@@ -640,7 +664,7 @@ export function PRsPanel({
                     ))}
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className={compact ? "companion-pr-actions" : "flex items-center gap-2"}>
                   {(() => {
                     const linkedThreads = findThreadsForPullRequest(threads, {
                       number: pr.n,
@@ -721,67 +745,70 @@ export function PRsPanel({
                       <GitMerge /> Merge…
                     </Button>
                   )}
-                  {pr.state === "open" && supportsAction("enable_auto_merge") ? (
-                    pr.autoMergeEnabled && supportsAction("disable_auto_merge") ? (
+                  <SecondaryActions compact={compact} number={pr.n}>
+                    {pr.state === "open" && supportsAction("enable_auto_merge") ? (
+                      pr.autoMergeEnabled && supportsAction("disable_auto_merge") ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={pendingAction !== null}
+                          onClick={() => void mutatePullRequest(pr.n, "disable_auto_merge")}
+                        >
+                          Disable auto-merge
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={pendingAction !== null}
+                          onClick={() => {
+                            setMergeIntent("auto_merge");
+                            const methods = capabilities?.mergeMethods ?? ["squash", "merge"];
+                            if (!methods.includes(mergeMethod))
+                              setMergeMethod(methods[0] ?? "merge");
+                            setMergePr(pr);
+                          }}
+                        >
+                          Enable auto-merge…
+                        </Button>
+                      )
+                    ) : null}
+                    {pr.state === "open" && supportsAction("close") ? (
                       <Button
                         variant="ghost"
                         size="sm"
                         disabled={pendingAction !== null}
-                        onClick={() => void mutatePullRequest(pr.n, "disable_auto_merge")}
+                        onClick={() => void mutatePullRequest(pr.n, "close")}
                       >
-                        Disable auto-merge
+                        Close
                       </Button>
-                    ) : (
+                    ) : pr.state === "closed" && supportsAction("reopen") ? (
                       <Button
                         variant="ghost"
                         size="sm"
                         disabled={pendingAction !== null}
-                        onClick={() => {
-                          setMergeIntent("auto_merge");
-                          const methods = capabilities?.mergeMethods ?? ["squash", "merge"];
-                          if (!methods.includes(mergeMethod)) setMergeMethod(methods[0] ?? "merge");
-                          setMergePr(pr);
-                        }}
+                        onClick={() => void mutatePullRequest(pr.n, "reopen")}
                       >
-                        Enable auto-merge…
+                        Reopen
                       </Button>
-                    )
-                  ) : null}
-                  {pr.state === "open" && supportsAction("close") ? (
+                    ) : null}
                     <Button
                       variant="ghost"
                       size="sm"
-                      disabled={pendingAction !== null}
-                      onClick={() => void mutatePullRequest(pr.n, "close")}
-                    >
-                      Close
-                    </Button>
-                  ) : pr.state === "closed" && supportsAction("reopen") ? (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={pendingAction !== null}
-                      onClick={() => void mutatePullRequest(pr.n, "reopen")}
-                    >
-                      Reopen
-                    </Button>
-                  ) : null}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      void api?.shell.openExternal(pr.url).catch((error) => {
-                        toastManager.add({
-                          type: "error",
-                          title: "Unable to open pull request",
-                          description: toGitUserFacingErrorMessage(error),
+                      onClick={() => {
+                        void api?.shell.openExternal(pr.url).catch((error) => {
+                          toastManager.add({
+                            type: "error",
+                            title: "Unable to open pull request",
+                            description: toGitUserFacingErrorMessage(error),
+                          });
                         });
-                      });
-                    }}
-                  >
-                    Open
-                    {pr.provider ? ` on ${formatProviderName(pr.provider)}` : " pull request"}
-                  </Button>
+                      }}
+                    >
+                      Open
+                      {pr.provider ? ` on ${formatProviderName(pr.provider)}` : " pull request"}
+                    </Button>
+                  </SecondaryActions>
                 </div>
               </div>
               {expandedPrNumber === pr.n ? (
@@ -806,7 +833,7 @@ export function PRsPanel({
                     </div>
                   ) : detailQuery.data?.pullRequest ? (
                     <div className="space-y-3">
-                      <div
+                      <OrbitGroup
                         role="tablist"
                         aria-label={`Pull request #${pr.n} details`}
                         onKeyDown={handleTabListKeyDown}
@@ -840,7 +867,7 @@ export function PRsPanel({
                               <Icon /> {label}
                             </Button>
                           ))}
-                      </div>
+                      </OrbitGroup>
                       <div
                         id={`pr-${pr.n}-detail-panel`}
                         role="tabpanel"

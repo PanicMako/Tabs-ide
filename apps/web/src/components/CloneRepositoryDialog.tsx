@@ -109,8 +109,7 @@ export function CloneRepositoryDialog(props: CloneRepositoryDialogProps) {
           <DialogHeader>
             <DialogTitle>Clone from Git</DialogTitle>
             <DialogDescription>
-              Clone a repository with your local git, then open it as a project. Uses your existing
-              SSH keys and credential helpers.
+              Clone and open a repository using your local Git credentials.
             </DialogDescription>
           </DialogHeader>
 

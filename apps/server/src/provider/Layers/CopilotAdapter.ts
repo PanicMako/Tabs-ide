@@ -49,7 +49,7 @@ import {
   makeAcpRequestResolvedEvent,
   makeAcpToolCallEvent,
 } from "../acp/AcpCoreRuntimeEvents";
-import { parsePermissionRequest } from "../acp/AcpRuntimeModel";
+import { parsePermissionRequest, type AcpPlanUpdate } from "../acp/AcpRuntimeModel";
 import { makeAcpNativeLoggerFactory } from "../acp/AcpNativeLogging";
 import {
   applyCopilotAcpModelSelection,
@@ -289,13 +289,7 @@ export function makeCopilotAdapter(
 
     const emitPlanUpdate = (
       ctx: CopilotSessionContext,
-      payload: {
-        readonly explanation?: string | null;
-        readonly plan: ReadonlyArray<{
-          readonly step: string;
-          readonly status: "pending" | "inProgress" | "completed";
-        }>;
-      },
+      payload: AcpPlanUpdate,
       rawPayload: unknown,
       method: string,
     ) =>
@@ -420,14 +414,14 @@ export function makeCopilotAdapter(
                 Effect.gen(function* () {
                   yield* logNative(input.threadId, "session/request_permission", params);
                   if (input.runtimeMode === "full-access") {
-                    const autoOptionId = selectAutoApprovedPermissionOption(params);
+                    const autoOptionId = selectAutoApprovedPermissionOption(params as any);
                     if (autoOptionId) {
                       return {
                         outcome: {
                           outcome: "selected",
                           optionId: autoOptionId,
                         },
-                      } satisfies EffectAcpSchema.RequestPermissionResponse;
+                      } as any;
                     }
                   }
 
@@ -476,11 +470,11 @@ export function makeCopilotAdapter(
                     } satisfies EffectAcpSchema.RequestPermissionResponse;
                   }
 
-                  const optionId = selectPermissionOptionId(params, decision);
+                  const optionId = selectPermissionOptionId(params as any, decision);
                   if (!optionId) {
                     return {
                       outcome: { outcome: "cancelled" },
-                    } satisfies EffectAcpSchema.RequestPermissionResponse;
+                    } as any;
                   }
 
                   return {
@@ -726,7 +720,7 @@ export function makeCopilotAdapter(
         );
 
         const result = yield* prepared.acp
-          .prompt({ prompt: prepared.promptParts })
+          .prompt({ prompt: prepared.promptParts as any })
           .pipe(
             Effect.mapError((cause) =>
               mapAcpToAdapterError(PROVIDER, input.threadId, "session/prompt", cause),

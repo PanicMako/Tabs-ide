@@ -23,3 +23,4 @@ export const ObservabilityLive = Layer.unwrap(
     return Layer.mergeAll(ServerLoggerLive, Layer.succeed(Tracer.Tracer, tracer));
   }),
 );
+export const layer = ObservabilityLive;

@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
 
-import type * as AcpSchema from "./_generated/schema.gen.ts";
+import type * as AcpSchema from "./_generated/schema-v1.gen.ts";
 import type * as AcpError from "./errors.ts";
 
 export interface AcpTerminal {

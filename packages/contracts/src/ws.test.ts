@@ -190,3 +190,21 @@ it.effect("rejects push envelopes when channel payload does not match the channe
     assert.strictEqual(result._tag, "Failure");
   }),
 );
+
+it.effect("accepts companion directory and signed media requests on the desktop WebSocket", () =>
+  Effect.gen(function* () {
+    const directory = yield* decodeWebSocketRequest({
+      id: "directory",
+      body: { _tag: WS_METHODS.projectsListEntries, cwd: "/workspace", directoryPath: "" },
+    });
+    assert.strictEqual(directory.body._tag, WS_METHODS.projectsListEntries);
+    const media = yield* decodeWebSocketRequest({
+      id: "media",
+      body: {
+        _tag: WS_METHODS.assetsCreateUrl,
+        resource: { _tag: "draft-workspace-file", cwd: "/workspace", path: "image.png" },
+      },
+    });
+    assert.strictEqual(media.body._tag, WS_METHODS.assetsCreateUrl);
+  }),
+);

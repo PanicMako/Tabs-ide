@@ -26,15 +26,15 @@ describe("DiagnosticsSettings navigation and popout configuration", () => {
     expect(TAB_TITLES.traces).toBe("Traces");
   });
 
-  it("configures the Trae-style primary popout tabs correctly", () => {
+  it("uses accurate and consistent popout navigation labels", () => {
     expect(PRIMARY_POPOUT_TABS).toHaveLength(6);
     expect(PRIMARY_POPOUT_TABS.map((t) => t.label)).toEqual([
       "Overview",
-      "CPU & Memory",
-      "Disk",
-      "Network",
+      "Timeline",
+      "App I/O",
+      "Traces",
       "Process Tree",
-      "Live Processes",
+      "Processes",
     ]);
   });
 

@@ -22,20 +22,27 @@
  * @module provider/ProviderDriver
  */
 import type {
+  AcpRegistryListProvidersResult,
+  AcpRegistryListSessionsResult,
+  AcpRegistryOperationError,
+  AcpRegistrySetProviderInput,
   ProviderConsumeResetCreditOutcome,
   ProviderDriverKind,
   ProviderInstanceEnvironment,
   ProviderInstanceId,
   ServerProvider,
+  ServerProviderWorkspaceSnapshot,
 } from "@tabs/contracts";
 import type * as Effect from "effect/Effect";
 import type * as Schema from "effect/Schema";
 import type * as Scope from "effect/Scope";
 
 import type { TextGenerationShape } from "../textGeneration/TextGeneration";
+import type { ProviderAdapterV2Shape } from "../orchestration-v2/ProviderAdapter";
 import type { ProviderAdapterError, ProviderDriverError } from "./Errors";
+import type { ProviderAuthController } from "./ProviderAuthService";
 import type { ProviderAdapterShape } from "./Services/ProviderAdapter";
-import type { ServerProviderShape } from "./Services/ServerProvider";
+import type { ServerProviderShape } from "./ServerProvider";
 
 export type ProviderCapabilitySupport = "supported" | "external" | "unsupported";
 
@@ -114,6 +121,9 @@ export interface ProviderDriverMetadata {
  * instance of the same driver does not reach into the first instance's
  * state.
  */
+export type ProviderWorkspaceSnapshot = ServerProvider &
+  Pick<ServerProviderWorkspaceSnapshot, "slashCommandsPending">;
+
 export interface ProviderInstance {
   readonly instanceId: ProviderInstanceId;
   readonly driverKind: ProviderDriverKind;
@@ -121,17 +131,46 @@ export interface ProviderInstance {
   readonly displayName: string | undefined;
   readonly accentColor?: string | undefined;
   readonly enabled: boolean;
-  readonly capabilities: ProviderInstanceCapabilities;
-  readonly lifecycle: ProviderLifecycleShape;
+  readonly capabilities?: ProviderInstanceCapabilities | undefined;
+  readonly lifecycle?: ProviderLifecycleShape | undefined;
   readonly snapshot: ServerProviderShape;
-  readonly snapshotForCwd?: (cwd: string) => Effect.Effect<ServerProvider, ProviderDriverError>;
+  readonly snapshotForCwd?: (
+    cwd: string,
+  ) => Effect.Effect<ProviderWorkspaceSnapshot, ProviderDriverError>;
   readonly refreshModels?: () => Effect.Effect<void, ProviderDriverError>;
+  /** Invalidate T3-owned discovery caches before an explicit provider refresh. */
+  readonly invalidateCaches?: Effect.Effect<void>;
   readonly consumeResetCredit?: () => Effect.Effect<
     ProviderConsumeResetCreditOutcome,
     ProviderDriverError
   >;
-  readonly adapter: ProviderAdapterShape<ProviderAdapterError>;
+  readonly adapter?: ProviderAdapterShape<ProviderAdapterError> | undefined;
+  readonly orchestrationAdapter?: ProviderAdapterV2Shape | undefined;
   readonly textGeneration: TextGenerationShape;
+  readonly auth?: ProviderAuthController;
+  readonly acpSessionManagement?: {
+    readonly listSessions: (input: {
+      readonly cwd: string;
+      readonly cursor?: string;
+    }) => Effect.Effect<AcpRegistryListSessionsResult, AcpRegistryOperationError>;
+    readonly logout: (cwd: string) => Effect.Effect<void, AcpRegistryOperationError>;
+    readonly deleteSession: (input: {
+      readonly cwd: string;
+      readonly sessionId: string;
+    }) => Effect.Effect<void, AcpRegistryOperationError>;
+    readonly listProviders: (
+      cwd: string,
+    ) => Effect.Effect<AcpRegistryListProvidersResult, AcpRegistryOperationError>;
+    readonly setProvider: (
+      input: Omit<AcpRegistrySetProviderInput, "instanceId" | "projectId"> & {
+        readonly cwd: string;
+      },
+    ) => Effect.Effect<void, AcpRegistryOperationError>;
+    readonly disableProvider: (input: {
+      readonly cwd: string;
+      readonly providerId: string;
+    }) => Effect.Effect<void, AcpRegistryOperationError>;
+  };
 }
 
 export interface ProviderContinuationIdentity {

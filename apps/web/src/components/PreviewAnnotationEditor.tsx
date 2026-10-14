@@ -1,3 +1,4 @@
+import { OrbitGroup } from "./ui/orbit-group";
 import {
   type PreviewAnnotationPayload,
   type PreviewAnnotationPoint,
@@ -99,10 +100,7 @@ export function PreviewAnnotationEditor(props: {
       <DialogPopup className="max-h-[92vh] w-[min(94vw,72rem)] max-w-none overflow-hidden p-0">
         <DialogHeader className="border-b border-border px-5 py-4">
           <DialogTitle>Annotate browser preview</DialogTitle>
-          <DialogDescription>
-            Mark the real captured page and describe the requested change before attaching it to
-            chat.
-          </DialogDescription>
+          <DialogDescription>Mark a change, then attach it to chat.</DialogDescription>
         </DialogHeader>
         <DialogPanel className="grid min-h-0 gap-4 overflow-auto p-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
           <div className="min-w-0 space-y-2">
@@ -112,7 +110,11 @@ export function PreviewAnnotationEditor(props: {
                 <p className="truncate font-mono text-muted-foreground">{selectedSummary}</p>
               </div>
               <div className="flex items-center gap-2" aria-label="Annotation tool">
-                <div className="tabs-segmented flex" role="group" aria-label="Annotation tool">
+                <OrbitGroup
+                  className="tabs-segmented flex"
+                  role="group"
+                  aria-label="Annotation tool"
+                >
                   <Button
                     type="button"
                     size="sm"
@@ -131,7 +133,7 @@ export function PreviewAnnotationEditor(props: {
                   >
                     <PencilIcon /> Draw
                   </Button>
-                </div>
+                </OrbitGroup>
                 <Button
                   type="button"
                   size="sm"

@@ -69,7 +69,7 @@ const withInstanceIdentity =
     continuation: { groupKey: input.continuationGroupKey },
   });
 
-export const GrokDriver: ProviderDriver<GrokSettings, GrokDriverEnv> = {
+export const GrokDriver: ProviderDriver<GrokSettings, any> = {
   driverKind: DRIVER_KIND,
   metadata: {
     displayName: "Grok",

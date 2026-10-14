@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
-import { ExecutionEnvironmentDescriptor } from "./environment.ts";
+import { ExecutionEnvironmentDescriptor, ServerSelfUpdateMethod } from "./environment.ts";
 import { ServerAuthDescriptor } from "./auth.ts";
 import {
   ForwardCompatibleArray,
@@ -18,11 +18,13 @@ import {
   KeybindingWhen,
   ResolvedKeybindingsConfig,
 } from "./keybindings.ts";
-import { EditorId } from "./editor.ts";
+import { EditorId, FileManagerRevealKind, RemoteOpenTarget } from "./editor.ts";
 import { ModelCapabilities } from "./model.ts";
 import { ProviderDriverKind, ProviderInstanceId } from "./providerInstance.ts";
 import { ServerProviderUsageLimits, UsageLimitSourceSnapshots } from "./providerUsageLimits.ts";
 import { ServerSettings } from "./settings.ts";
+import { ProviderInteractionMode, RuntimeMode } from "./providerPolicy.ts";
+import { AcpRegistryUrlAuthAction } from "./acpRegistry.ts";
 
 const KeybindingsMalformedConfigIssue = Schema.Struct({
   kind: Schema.Literal("keybindings.malformed-config"),
@@ -113,6 +115,10 @@ export const ServerProviderAuth = Schema.Struct({
   credentialSource: Schema.optional(ProviderCredentialSource),
   billingLabel: Schema.optional(TrimmedNonEmptyString),
   email: Schema.optional(TrimmedNonEmptyString),
+  action: Schema.optional(AcpRegistryUrlAuthAction),
+  canLogout: Schema.optional(Schema.Boolean),
+  subscriptionSharing: Schema.optional(Schema.Boolean),
+  profileId: Schema.optional(TrimmedNonEmptyString),
 });
 export type ServerProviderAuth = typeof ServerProviderAuth.Type;
 
@@ -124,8 +130,15 @@ export const ServerProviderModel = Schema.Struct({
   name: TrimmedNonEmptyString,
   shortName: Schema.optional(TrimmedNonEmptyString),
   subProvider: Schema.optional(TrimmedNonEmptyString),
+  aliases: Schema.optional(Schema.Array(TrimmedNonEmptyString)),
+  badge: Schema.optional(Schema.Literal("new")),
   isCustom: Schema.Boolean,
+  isDefault: Schema.optional(Schema.Boolean),
+  isLegacy: Schema.optional(Schema.Boolean),
   capabilities: Schema.NullOr(ModelCapabilities),
+  defaultInteractionMode: Schema.optional(ProviderInteractionMode),
+  contextWindowTokens: Schema.optional(PositiveInt),
+  knowledgeCutoff: Schema.optional(TrimmedNonEmptyString),
   source: Schema.optional(ModelSourceKind),
 });
 export type ServerProviderModel = typeof ServerProviderModel.Type;
@@ -171,6 +184,8 @@ export const ServerProviderWorkspaceSnapshot = Schema.Struct({
   cwd: TrimmedNonEmptyString,
   checkedAt: IsoDateTime,
   slashCommands: Schema.Array(ServerProviderSlashCommand),
+  /** Skills are available, but command discovery still needs a retry. */
+  slashCommandsPending: Schema.optional(Schema.Boolean),
   skills: Schema.Array(ServerProviderSkill),
 });
 export type ServerProviderWorkspaceSnapshot = typeof ServerProviderWorkspaceSnapshot.Type;
@@ -199,6 +214,24 @@ export const ServerProviderContinuation = Schema.Struct({
   groupKey: TrimmedNonEmptyString,
 });
 export type ServerProviderContinuation = typeof ServerProviderContinuation.Type;
+
+export const ServerProviderCompatibilityStatus = Schema.Literals([
+  "unknown",
+  "supported",
+  "graceful",
+  "unsupported",
+  "broken",
+]);
+export type ServerProviderCompatibilityStatus = typeof ServerProviderCompatibilityStatus.Type;
+
+export const ServerProviderCompatibilityAdvisory = Schema.Struct({
+  status: ServerProviderCompatibilityStatus,
+  latestVersionStatus: Schema.optionalKey(ServerProviderCompatibilityStatus),
+  message: Schema.NullOr(TrimmedNonEmptyString),
+  recommendedVersion: Schema.NullOr(TrimmedNonEmptyString),
+  recommendedRange: Schema.NullOr(TrimmedNonEmptyString),
+});
+export type ServerProviderCompatibilityAdvisory = typeof ServerProviderCompatibilityAdvisory.Type;
 
 export const ServerProviderVersionAdvisoryStatus = Schema.Literals([
   "unknown",
@@ -274,10 +307,28 @@ export const ServerProvider = Schema.Struct({
   driver: ProviderDriverKind,
   displayName: Schema.optional(TrimmedNonEmptyString),
   accentColor: Schema.optional(TrimmedNonEmptyString),
+  iconUrl: Schema.optional(TrimmedNonEmptyString.check(Schema.isMaxLength(2_048))),
   badgeLabel: Schema.optional(TrimmedNonEmptyString),
   continuation: Schema.optional(ServerProviderContinuation),
   showInteractionModeToggle: Schema.optional(Schema.Boolean),
+  reportsContextWindow: Schema.optional(Schema.Boolean),
+  supportedRuntimeModes: Schema.optional(ForwardCompatibleArray(RuntimeMode)),
   requiresNewThreadForModelChange: Schema.optional(Schema.Boolean),
+  supportsConversationRollback: Schema.optional(Schema.Boolean),
+  supportsTextGeneration: Schema.optional(Schema.Boolean),
+  setup: Schema.optional(
+    Schema.Struct({
+      canAuthenticate: Schema.Boolean,
+      canInstall: Schema.Boolean,
+      documentationUrl: Schema.optionalKey(TrimmedNonEmptyString.check(Schema.isMaxLength(2_048))),
+    }),
+  ),
+  runtimePaths: Schema.optionalKey(
+    Schema.Struct({
+      homePath: TrimmedNonEmptyString,
+      shadowHomePath: Schema.NullOr(TrimmedNonEmptyString),
+    }),
+  ),
   enabled: Schema.Boolean,
   installed: Schema.Boolean,
   version: Schema.NullOr(TrimmedNonEmptyString),
@@ -289,6 +340,15 @@ export const ServerProvider = Schema.Struct({
   catalogCheckedAt: Schema.optional(IsoDateTime),
   capabilities: Schema.optional(ServerProviderCapabilities),
   lifecycleActions: Schema.optional(Schema.Array(ServerProviderLifecycleAction)),
+  nativeSessions: Schema.optional(
+    Schema.Struct({
+      canList: Schema.Boolean,
+      canLoad: Schema.Boolean,
+      canResume: Schema.Boolean,
+      canDelete: Schema.optional(Schema.Boolean),
+    }),
+  ),
+  configurableProviders: Schema.optional(Schema.Boolean),
   message: Schema.optional(TrimmedNonEmptyString),
   // Optional for back-compat: every legacy producer omits this field and
   // an absent value is interpreted as `"available"` by consumers (see
@@ -308,6 +368,7 @@ export const ServerProvider = Schema.Struct({
   // Absent when the driver has no notion of subscription usage.
   usageLimits: Schema.optional(ServerProviderUsageLimits),
   versionAdvisory: Schema.optionalKey(ServerProviderVersionAdvisory),
+  compatibilityAdvisory: Schema.optionalKey(ServerProviderCompatibilityAdvisory),
   updateState: Schema.optionalKey(ServerProviderUpdateState),
 });
 export type ServerProvider = typeof ServerProvider.Type;
@@ -323,6 +384,14 @@ export type ServerProviders = typeof ServerProviders.Type;
  */
 export const isProviderAvailable = (snapshot: ServerProvider): boolean =>
   snapshot.availability !== "unavailable";
+
+/**
+ * Treat an absent `supportsTextGeneration` as supported so legacy
+ * producers, which all support application text generation, keep working
+ * without resending the field.
+ */
+export const isProviderTextGenerationCapable = (snapshot: ServerProvider): boolean =>
+  snapshot.supportsTextGeneration !== false;
 
 export const ServerObservability = Schema.Struct({
   logsDirectoryPath: TrimmedNonEmptyString,
@@ -432,6 +501,7 @@ export type ServerProcessCategory = typeof ServerProcessCategory.Type;
 
 export const ServerProcessDiagnosticsEntry = Schema.Struct({
   pid: PositiveInt,
+  startTimeMs: NonNegativeInt,
   ppid: NonNegativeInt,
   pgid: Schema.Option(Schema.Int),
   status: TrimmedNonEmptyString,
@@ -441,8 +511,8 @@ export const ServerProcessDiagnosticsEntry = Schema.Struct({
   command: TrimmedNonEmptyString,
   depth: NonNegativeInt,
   childPids: Schema.Array(PositiveInt),
-  category: ServerProcessCategory,
-  attribution: TrimmedNonEmptyString,
+  category: Schema.optionalKey(ServerProcessCategory),
+  attribution: Schema.optionalKey(TrimmedNonEmptyString),
 });
 export type ServerProcessDiagnosticsEntry = typeof ServerProcessDiagnosticsEntry.Type;
 
@@ -493,8 +563,8 @@ export const ServerProcessResourceHistorySummary = Schema.Struct({
   currentRssBytes: NonNegativeInt,
   maxRssBytes: NonNegativeInt,
   sampleCount: NonNegativeInt,
-  category: ServerProcessCategory,
-  attribution: TrimmedNonEmptyString,
+  category: Schema.optionalKey(ServerProcessCategory),
+  attribution: Schema.optionalKey(TrimmedNonEmptyString),
 });
 export type ServerProcessResourceHistorySummary = typeof ServerProcessResourceHistorySummary.Type;
 
@@ -528,6 +598,7 @@ export type ServerProcessResourceHistoryResult = typeof ServerProcessResourceHis
 
 export const ServerSignalProcessInput = Schema.Struct({
   pid: PositiveInt,
+  startTimeMs: Schema.optional(NonNegativeInt),
   signal: ServerProcessSignal,
 });
 export type ServerSignalProcessInput = typeof ServerSignalProcessInput.Type;
@@ -548,6 +619,25 @@ export const ServerSupportBundleResult = Schema.Struct({
 });
 export type ServerSupportBundleResult = typeof ServerSupportBundleResult.Type;
 
+/**
+ * environmentThemeFileHasColors - whether the given file has color definitions.
+ */
+export function environmentThemeFileHasColors(file: EnvironmentThemeFile): boolean {
+  return (
+    (file.canvas !== undefined && file.accent !== undefined) ||
+    (file.colors !== undefined && Object.keys(file.colors).length > 0)
+  );
+}
+
+export const ServerDirectEndpointKind = Schema.Literals(["lan", "tailnet"]);
+export type ServerDirectEndpointKind = typeof ServerDirectEndpointKind.Type;
+
+export const ServerDirectEndpoint = Schema.Struct({
+  kind: ServerDirectEndpointKind,
+  httpBaseUrl: TrimmedNonEmptyString,
+});
+export type ServerDirectEndpoint = typeof ServerDirectEndpoint.Type;
+
 export const ServerConfig = Schema.Struct({
   environment: ExecutionEnvironmentDescriptor,
   auth: ServerAuthDescriptor,
@@ -558,8 +648,32 @@ export const ServerConfig = Schema.Struct({
   providers: ServerProviders,
   // Editor ids are extended independently by newer server releases.
   availableEditors: ForwardCompatibleArray(EditorId),
+  /**
+   * SSH hosts this environment advertises for remote open-in-editor links.
+   */
+  remoteOpenTargets: Schema.optionalKey(ForwardCompatibleArray(RemoteOpenTarget)),
+  /**
+   * Direct addresses this server listens on right now (LAN and tailnet).
+   */
+  directEndpoints: Schema.optionalKey(ForwardCompatibleArray(ServerDirectEndpoint)),
   observability: ServerObservability,
   settings: ServerSettings,
+  /** Whether shell subscriptions can emit an opt-in catch-up completion marker. */
+  shellResumeCompletionMarker: Schema.optionalKey(Schema.Boolean),
+  /** Whether shell.openInEditor honors `LaunchEditorInput.reveal` for the file-manager editor. */
+  shellRevealInFileManager: Schema.optionalKey(Schema.Boolean),
+  /** File-manager wording clients should use for reveal actions. */
+  shellRevealInFileManagerKind: Schema.optionalKey(FileManagerRevealKind),
+  /** Whether thread subscriptions can emit an opt-in catch-up completion marker. */
+  threadResumeCompletionMarker: Schema.optionalKey(Schema.Boolean),
+  /** Whether thread detail reads accept a turn window and return page metadata. */
+  threadSnapshotPagination: Schema.optionalKey(Schema.Boolean),
+  /** Whether thread reads accept the reasoningMessages opt-in. */
+  reasoningMessages: Schema.optionalKey(Schema.Boolean),
+  /** Folder behind this environment's Scratch project. */
+  scratchWorkspaceRoot: Schema.optionalKey(TrimmedNonEmptyString),
+  /** Folder that holds projects started from just a name. */
+  newProjectsRoot: Schema.optionalKey(TrimmedNonEmptyString),
   environmentThemes: Schema.optional(Schema.Array(EnvironmentTheme)),
   usageLimitSources: Schema.optional(UsageLimitSourceSnapshots),
 });
@@ -672,6 +786,21 @@ export const ServerConfigStreamSettingsUpdatedEvent = Schema.Struct({
 export type ServerConfigStreamSettingsUpdatedEvent =
   typeof ServerConfigStreamSettingsUpdatedEvent.Type;
 
+export const ServerConfigEnvironmentThemesUpdatedPayload = Schema.Struct({
+  /** The full published set; empty once the machine publishes none. */
+  themes: Schema.Array(EnvironmentTheme),
+});
+export type ServerConfigEnvironmentThemesUpdatedPayload =
+  typeof ServerConfigEnvironmentThemesUpdatedPayload.Type;
+
+export const ServerConfigStreamEnvironmentThemesUpdatedEvent = Schema.Struct({
+  version: Schema.Literal(1),
+  type: Schema.Literal("environmentThemesUpdated"),
+  payload: ServerConfigEnvironmentThemesUpdatedPayload,
+});
+export type ServerConfigStreamEnvironmentThemesUpdatedEvent =
+  typeof ServerConfigStreamEnvironmentThemesUpdatedEvent.Type;
+
 export const ServerConfigUsageLimitSourcesUpdatedPayload = Schema.Struct({
   /** The full set; empty once no source is configured. */
   sources: UsageLimitSourceSnapshots,
@@ -692,13 +821,26 @@ export const ServerConfigStreamEvent = Schema.Union([
   ServerConfigStreamKeybindingsUpdatedEvent,
   ServerConfigStreamProviderStatusesEvent,
   ServerConfigStreamSettingsUpdatedEvent,
+  ServerConfigStreamEnvironmentThemesUpdatedEvent,
   ServerConfigStreamUsageLimitSourcesUpdatedEvent,
 ]);
 export type ServerConfigStreamEvent = typeof ServerConfigStreamEvent.Type;
 
+/** Terminal selection recorded by the service launcher for one update. */
+export const ServerSelfUpdateOutcome = Schema.Struct({
+  id: TrimmedNonEmptyString,
+  fromVersion: TrimmedNonEmptyString,
+  targetVersion: TrimmedNonEmptyString,
+  status: Schema.Literals(["committed", "rolled-back", "failed"]),
+  reason: Schema.optionalKey(TrimmedNonEmptyString),
+});
+export type ServerSelfUpdateOutcome = typeof ServerSelfUpdateOutcome.Type;
+
 export const ServerLifecycleReadyPayload = Schema.Struct({
   at: IsoDateTime,
   environment: ExecutionEnvironmentDescriptor,
+  /** Present when this process resumed a launcher-managed update. */
+  updateOutcome: Schema.optionalKey(ServerSelfUpdateOutcome),
 });
 export type ServerLifecycleReadyPayload = typeof ServerLifecycleReadyPayload.Type;
 
@@ -706,10 +848,20 @@ export const ServerLifecycleWelcomePayload = Schema.Struct({
   environment: ExecutionEnvironmentDescriptor,
   cwd: TrimmedNonEmptyString,
   projectName: TrimmedNonEmptyString,
+  bootstrapStatus: Schema.optional(Schema.Literals(["pending", "complete"])),
   bootstrapProjectId: Schema.optional(ProjectId),
   bootstrapThreadId: Schema.optional(ThreadId),
+  bootstrapProjectCreated: Schema.optional(Schema.Boolean),
+  bootstrapThreadCreated: Schema.optional(Schema.Boolean),
 });
 export type ServerLifecycleWelcomePayload = typeof ServerLifecycleWelcomePayload.Type;
+
+export const ServerLifecycleLegacyThreadMigrationPayload = Schema.Struct({
+  status: Schema.Union([Schema.Literal("running"), Schema.Literal("complete")]),
+  totalThreadCount: NonNegativeInt,
+});
+export type ServerLifecycleLegacyThreadMigrationPayload =
+  typeof ServerLifecycleLegacyThreadMigrationPayload.Type;
 
 export const ServerLifecycleStreamWelcomeEvent = Schema.Struct({
   version: Schema.Literal(1),
@@ -727,9 +879,19 @@ export const ServerLifecycleStreamReadyEvent = Schema.Struct({
 });
 export type ServerLifecycleStreamReadyEvent = typeof ServerLifecycleStreamReadyEvent.Type;
 
+export const ServerLifecycleStreamLegacyThreadMigrationEvent = Schema.Struct({
+  version: Schema.Literal(1),
+  sequence: NonNegativeInt,
+  type: Schema.Literal("legacyThreadMigration"),
+  payload: ServerLifecycleLegacyThreadMigrationPayload,
+});
+export type ServerLifecycleStreamLegacyThreadMigrationEvent =
+  typeof ServerLifecycleStreamLegacyThreadMigrationEvent.Type;
+
 export const ServerLifecycleStreamEvent = Schema.Union([
   ServerLifecycleStreamWelcomeEvent,
   ServerLifecycleStreamReadyEvent,
+  ServerLifecycleStreamLegacyThreadMigrationEvent,
 ]);
 export type ServerLifecycleStreamEvent = typeof ServerLifecycleStreamEvent.Type;
 
@@ -740,6 +902,7 @@ export type ServerProviderUpdatedPayload = typeof ServerProviderUpdatedPayload.T
 
 export const ServerProviderUpdateInput = Schema.Struct({
   provider: ProviderDriverKind,
+  targetVersion: Schema.optionalKey(TrimmedNonEmptyString),
   instanceId: Schema.optionalKey(ProviderInstanceId),
 });
 export type ServerProviderUpdateInput = typeof ServerProviderUpdateInput.Type;
@@ -754,6 +917,61 @@ export class ServerProviderUpdateError extends Schema.TaggedErrorClass<ServerPro
 ) {
   override get message(): string {
     return `Provider update failed for ${this.provider}: ${this.reason}`;
+  }
+}
+
+export const ServerSelfUpdateInput = Schema.Struct({
+  /** Exact npm version of the `t3` package to install (never a dist-tag, so
+      the server and the acknowledging client agree on what was requested). */
+  targetVersion: TrimmedNonEmptyString,
+  /** Opt-in recovery for provider turns that are running when the server
+      hands off to its replacement. Missing and false keep restart behavior
+      conservative under version skew. */
+  continueRunningThreads: Schema.optionalKey(Schema.Boolean),
+});
+export type ServerSelfUpdateInput = typeof ServerSelfUpdateInput.Type;
+
+/** Acknowledgement that the update artifact is installed and the server is
+    about to restart into it — the connection will drop moments later. */
+export const ServerSelfUpdateResult = Schema.Struct({
+  targetVersion: TrimmedNonEmptyString,
+  method: ServerSelfUpdateMethod,
+  /** Launcher-generated correlation ID. Absent when talking to older servers. */
+  updateId: Schema.optionalKey(TrimmedNonEmptyString),
+  /** Desktop preparation token. Present only for the desktop-app method. */
+  desktopUpdateToken: Schema.optionalKey(TrimmedNonEmptyString),
+});
+export type ServerSelfUpdateResult = typeof ServerSelfUpdateResult.Type;
+
+export const DesktopUpdateCommitInput = Schema.Struct({
+  requestId: TrimmedNonEmptyString,
+});
+export type DesktopUpdateCommitInput = typeof DesktopUpdateCommitInput.Type;
+
+export const ServerSelfUpdateProgressStage = Schema.Literals(["downloading", "installing"]);
+export type ServerSelfUpdateProgressStage = typeof ServerSelfUpdateProgressStage.Type;
+
+export const ServerSelfUpdateProgressEvent = Schema.Union([
+  Schema.Struct({
+    type: Schema.Literal("progress"),
+    stage: ServerSelfUpdateProgressStage,
+  }),
+  Schema.Struct({
+    type: Schema.Literal("complete"),
+    result: ServerSelfUpdateResult,
+  }),
+]);
+export type ServerSelfUpdateProgressEvent = typeof ServerSelfUpdateProgressEvent.Type;
+
+export class ServerSelfUpdateError extends Schema.TaggedErrorClass<ServerSelfUpdateError>()(
+  "ServerSelfUpdateError",
+  {
+    reason: TrimmedNonEmptyString,
+    cause: Schema.optional(Schema.Defect()),
+  },
+) {
+  override get message(): string {
+    return `Server update failed: ${this.reason}`;
   }
 }
 

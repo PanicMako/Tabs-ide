@@ -14,10 +14,12 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as PubSub from "effect/PubSub";
 import * as Ref from "effect/Ref";
+import * as Scope from "effect/Scope";
 import * as Semaphore from "effect/Semaphore";
 import * as Stream from "effect/Stream";
 
 import { ServerSettingsService } from "../serverSettings.ts";
+import { subscribeBeforeSnapshot } from "../utils/subscribeBeforeSnapshot.ts";
 
 const DEFAULT_LEASE_TTL_MS = 45_000;
 const MAX_LEASE_TTL_MS = 120_000;
@@ -38,6 +40,14 @@ export class BackgroundPolicy extends Context.Service<
     readonly reportHostPowerState: (snapshot: HostPowerSnapshot) => Effect.Effect<void>;
     readonly snapshot: Effect.Effect<BackgroundPolicySnapshot>;
     readonly streamChanges: Stream.Stream<BackgroundPolicySnapshot>;
+    readonly subscribe: Effect.Effect<
+      {
+        readonly latest: BackgroundPolicySnapshot;
+        readonly changes: Stream.Stream<BackgroundPolicySnapshot>;
+      },
+      never,
+      Scope.Scope
+    >;
     readonly hasDemand: (scope: BackgroundScope) => Effect.Effect<boolean>;
     readonly shouldRunScopeWork: (scope: BackgroundScope) => Effect.Effect<boolean>;
     readonly shouldRunOpportunisticWork: Effect.Effect<boolean>;
@@ -250,6 +260,7 @@ export const make = Effect.gen(function* () {
       publishMutex.withPermits(1)(Ref.set(hostPower, value).pipe(Effect.andThen(publishUnlocked))),
     snapshot,
     streamChanges: Stream.fromPubSub(changes),
+    subscribe: subscribeBeforeSnapshot(changes, snapshot, publishMutex),
     hasDemand: (scope) =>
       snapshot.pipe(Effect.map((state) => state.activeScopeKeys.includes(scopeKey(scope)))),
     shouldRunScopeWork,

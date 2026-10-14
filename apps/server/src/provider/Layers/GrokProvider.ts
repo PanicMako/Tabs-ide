@@ -1,4 +1,5 @@
 import {
+  type CustomModelSetting,
   type GrokSettings,
   type ModelCapabilities,
   ProviderDriverKind,
@@ -87,7 +88,7 @@ export function buildInitialGrokProviderSnapshot(
 }
 
 function grokModelsFromSettings(
-  customModels: ReadonlyArray<string> | undefined,
+  customModels: ReadonlyArray<CustomModelSetting> | undefined,
   builtInModels: ReadonlyArray<ServerProviderModel> = [],
 ): ReadonlyArray<ServerProviderModel> {
   return providerModelsFromSettings(

@@ -4,7 +4,7 @@ import {
   ClientActivityReportInput,
   HostPowerSnapshot,
 } from "./background.ts";
-import { NonNegativeInt, ProjectId, ThreadId, TrimmedNonEmptyString } from "./baseSchemas";
+import { NonNegativeInt, ProjectId, ThreadId, TrimmedNonEmptyString } from "./baseSchemas.ts";
 import {
   AgentSessionImportInput,
   AgentSessionImportResult,
@@ -16,12 +16,14 @@ import {
   ClientOrchestrationCommand,
   OrchestrationEvent,
   ORCHESTRATION_WS_CHANNELS,
-  OrchestrationGetFullThreadDiffInput,
   ORCHESTRATION_WS_METHODS,
   OrchestrationGetSnapshotInput,
-  OrchestrationGetTurnDiffInput,
   OrchestrationReplayEventsInput,
-} from "./orchestration";
+} from "./orchestration.ts";
+import {
+  OrchestrationGetFullThreadDiffInput,
+  OrchestrationGetTurnDiffInput,
+} from "./checkpointDiff.ts";
 import {
   GitApplyHunkInput,
   GitApplyStashInput,
@@ -80,7 +82,7 @@ import {
   GitSubmitFindingFeedbackInput,
   GitGetReviewHistoryInput,
   ReviewCostPreviewEvent,
-} from "./git";
+} from "./git.ts";
 import {
   TerminalClearInput,
   TerminalCloseInput,
@@ -89,19 +91,21 @@ import {
   TerminalResizeInput,
   TerminalRestartInput,
   TerminalWriteInput,
-} from "./terminal";
-import { KeybindingRule } from "./keybindings";
+} from "./terminal.ts";
+import { KeybindingRule } from "./keybindings.ts";
 import {
+  ProjectListEntriesInput,
   ProjectReadFileInput,
   ProjectSearchContentsInput,
   ProjectSearchEntriesInput,
   ProjectWriteFileInput,
-} from "./project";
-import { FilesystemBrowseInput } from "./filesystem";
-import { OpenInEditorInput } from "./editor";
-import { ProviderInstanceId } from "./providerInstance";
-import { ProviderConsumeResetCreditInput } from "./providerUsageLimits";
-import { UsageLimitSourceId } from "./usageLimitSourceId";
+} from "./project.ts";
+import { AssetCreateUrlInput } from "./assets.ts";
+import { FilesystemBrowseInput } from "./filesystem.ts";
+import { OpenInEditorInput } from "./editor.ts";
+import { ProviderInstanceId } from "./providerInstance.ts";
+import { ProviderConsumeResetCreditInput } from "./providerUsageLimits.ts";
+import { UsageLimitSourceId } from "./usageLimitSourceId.ts";
 import {
   ServerBatchUpsertKeybindingsInput,
   ServerBatchRemoveKeybindingsInput,
@@ -110,14 +114,14 @@ import {
   ServerRunProviderMaintenanceInput,
   ServerProcessResourceHistoryInput,
   ServerSignalProcessInput,
-} from "./server";
-import { ServerSettingsPatch } from "./settings";
-import { ResourceTelemetryHistoryInput, ResourceTelemetrySnapshot } from "./resourceTelemetry";
+} from "./server.ts";
+import { ServerSettingsPatch } from "./settings.ts";
+import { ResourceTelemetryHistoryInput, ResourceTelemetrySnapshot } from "./resourceTelemetry.ts";
 import {
   SourceControlCloneRepositoryInput,
   SourceControlRepositoryLookupInput,
-} from "./sourceControl";
-import { ReviewProgressEvent } from "./review";
+} from "./sourceControl.ts";
+import { ReviewProgressEvent } from "./review.ts";
 import {
   ConfiguredLocalServerUrls,
   DiscoveredLocalServerList,
@@ -129,13 +133,13 @@ import {
   PreviewRefreshInput,
   PreviewReportStatusInput,
   PreviewResizeInput,
-} from "./preview";
+} from "./preview.ts";
 import {
   PreviewAutomationHost,
   PreviewAutomationHostFocus,
   PreviewAutomationResponse,
   PreviewAutomationStreamEvent,
-} from "./previewAutomation";
+} from "./previewAutomation.ts";
 import {
   TestingCaseCreateInput,
   TestingCaseDeleteInput,
@@ -174,16 +178,18 @@ import {
   TestingTraceabilityInput,
   TestingTriageInput,
   TestingWorkbookImportInput,
-} from "./testing";
+} from "./testing.ts";
 import {
   ServerListProviderUsageInput,
   ServerListProviderUsageResult,
   UsageSummaryInput,
-} from "./usage";
+} from "./usage.ts";
+import { WS_METHODS as RPC_WS_METHODS } from "./rpc.ts";
 
 // ── WebSocket RPC Method Names ───────────────────────────────────────
 
 export const WS_METHODS = {
+  ...RPC_WS_METHODS,
   testingGetStatus: "testing.getStatus",
   testingGetLocatorLibrary: "testing.getLocatorLibrary",
   testingSetDiscoveryExperience: "testing.setDiscoveryExperience",
@@ -476,6 +482,10 @@ const WebSocketRequestBody = Schema.Union([
   tagRequestBody(WS_METHODS.testingDraftBug, TestingBugDraftInput),
   tagRequestBody(WS_METHODS.testingGetGraphExplorer, TestingProjectInput),
   tagRequestBody(WS_METHODS.testingTriageFailure, TestingTriageInput),
+
+  // Workspace companion requests
+  tagRequestBody(WS_METHODS.projectsListEntries, ProjectListEntriesInput),
+  tagRequestBody(WS_METHODS.assetsCreateUrl, AssetCreateUrlInput),
 
   // Project Search
   tagRequestBody(WS_METHODS.projectsSearchContents, ProjectSearchContentsInput),

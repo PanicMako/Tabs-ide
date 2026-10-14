@@ -12,6 +12,7 @@ const PADDING_LEFT = 72; // Generous margin so numbers like $2,843.97 never coll
 const PADDING_RIGHT = 24;
 
 export interface UsageDailyChartProps {
+  readonly hourly?: boolean;
   readonly days: readonly string[];
   readonly daily: readonly DailyTotals[];
   readonly metric?: "cost" | "tokens";
@@ -118,7 +119,13 @@ function buildSmoothPath(
   return { linePath: lineD, areaPath: areaD };
 }
 
-export function UsageDailyChart({ days, daily, metric = "cost", className }: UsageDailyChartProps) {
+export function UsageDailyChart({
+  days,
+  daily,
+  metric = "cost",
+  hourly = false,
+  className,
+}: UsageDailyChartProps) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
@@ -236,6 +243,8 @@ export function UsageDailyChart({ days, daily, metric = "cost", className }: Usa
       <div className="w-full overflow-hidden rounded-xl border border-border bg-card/40 p-4 backdrop-blur-sm shadow-xs">
         <div className="relative aspect-[800/220] w-full">
           <svg
+            role="img"
+            aria-label={`${hourly ? "Hourly" : "Daily"} ${metric === "cost" ? "API-equivalent cost" : "token usage"} across ${points.length} intervals`}
             ref={svgRef}
             viewBox={`0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}`}
             className="size-full overflow-visible"
@@ -309,7 +318,9 @@ export function UsageDailyChart({ days, daily, metric = "cost", className }: Usa
                 textAnchor="middle"
                 className="fill-muted-foreground text-[10px] tabular-nums font-medium"
               >
-                {formatDayShort(tick.day)}
+                {hourly
+                  ? new Date(tick.day).toLocaleTimeString(undefined, { hour: "numeric" })
+                  : formatDayShort(tick.day)}
               </text>
             ))}
 
@@ -357,7 +368,14 @@ export function UsageDailyChart({ days, daily, metric = "cost", className }: Usa
               }}
             >
               <div className="flex items-center justify-between border-b border-border/50 pb-1 font-semibold text-foreground">
-                <span>{formatDayShort(activePoint.day)}</span>
+                <span>
+                  {hourly
+                    ? new Date(activePoint.day).toLocaleTimeString(undefined, {
+                        hour: "numeric",
+                        minute: "2-digit",
+                      })
+                    : formatDayShort(activePoint.day)}
+                </span>
                 <span className="text-[11px] font-normal text-muted-foreground tabular-nums">
                   {activePoint.day}
                 </span>

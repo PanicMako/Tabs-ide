@@ -17,7 +17,7 @@ export function normalizeSemverVersion(version: string): string {
     }
   }
 
-  if (segments.length === 2) {
+  while (segments.length > 0 && segments.length < 3) {
     segments.push("0");
   }
 
