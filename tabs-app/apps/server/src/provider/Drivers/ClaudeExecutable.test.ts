@@ -1,12 +1,9 @@
 import { describe, expect, it } from "@effect/vitest";
 import { HostProcessPlatform } from "@tabs/shared/hostProcess";
+import { SpawnExecutableResolution } from "@tabs/shared/shell";
 import * as Effect from "effect/Effect";
 
-import {
-  ClaudeExecutableFileCheck,
-  resolveClaudeSdkExecutablePath,
-  SpawnExecutableResolution,
-} from "./ClaudeExecutable.ts";
+import { ClaudeExecutableFileCheck, resolveClaudeSdkExecutablePath } from "./ClaudeExecutable.ts";
 
 const NPM_DIR = "C:\\Users\\dev\\AppData\\Roaming\\npm";
 const NPM_SHIM = `${NPM_DIR}\\claude.cmd`;

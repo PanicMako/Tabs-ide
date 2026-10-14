@@ -1,3 +1,4 @@
+import { OrbitGroup } from "../ui/orbit-group";
 import {
   Archive,
   ArchiveRestore,
@@ -366,7 +367,11 @@ export function DivergencePanel({
 
         <div className="flex items-center gap-2 shrink-0">
           {/* View Switcher — three tabs: Spotlight | Active | Archived */}
-          <div className="tabs-segmented flex items-center" role="group" aria-label="Branch view">
+          <OrbitGroup
+            className="tabs-segmented flex items-center"
+            role="group"
+            aria-label="Branch view"
+          >
             <button
               type="button"
               aria-pressed={activeView === "spotlight"}
@@ -404,7 +409,7 @@ export function DivergencePanel({
             >
               Archived ({archivedBranchList.length})
             </button>
-          </div>
+          </OrbitGroup>
 
           {/* Explicit Select Mode Toggle */}
           {!isSelectMode ? (

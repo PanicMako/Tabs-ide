@@ -1,4 +1,11 @@
 import {
+  ADD_WORKSPACE_FILE_EVENT,
+  WORKSPACE_FILE_MIME,
+  parseWorkspaceFileContext,
+  workspaceFileMention,
+  type WorkspaceFileContext,
+} from "~/lib/workspaceFileContext";
+import {
   type ApprovalRequestId,
   type ClaudeCodeEffort,
   type MessageId,
@@ -150,13 +157,17 @@ import {
   Trash2Icon,
   XIcon,
 } from "lucide-react";
-import { useMessageQueueStore, getThreadQueuedMessages } from "../stores/messageQueueStore";
+import {
+  useMessageQueueStore,
+  getThreadQueuedMessages,
+  type QueuedMessage,
+} from "../stores/messageQueueStore";
 import { useRightPanelStore, type RightPanelTab } from "../stores/rightPanelStore";
 import { Button } from "./ui/button";
 import { Separator } from "./ui/separator";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "./ui/menu";
-import { Popover, PopoverTrigger, PopoverPopup } from "./ui/popover";
-import { AppleTimePicker } from "./ui/AppleTimePicker";
+import { SchedulePicker } from "./ui/SchedulePicker";
+import { Dialog, DialogTrigger, DialogPopup, DialogTitle } from "./ui/dialog";
 import { cn, isMacPlatform, randomUUID } from "~/lib/utils";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 import { toastManager } from "./ui/toast";
@@ -355,7 +366,7 @@ function formatOutgoingPrompt(params: {
   text: string;
 }): string {
   const caps = getProviderModelCapabilities(params.models, params.model, params.provider);
-  if (params.effort && caps.promptInjectedEffortLevels.includes(params.effort)) {
+  if (params.effort && caps.promptInjectedEffortLevels?.includes(params.effort)) {
     return applyClaudePromptEffortPrefix(params.text, params.effort as ClaudeCodeEffort | null);
   }
   return params.text;
@@ -414,6 +425,8 @@ interface ChatViewProps {
   onActivatePane?: (() => void) | undefined;
   onToggleDiff?: (() => void) | undefined;
   diffOpen?: boolean | undefined;
+  rightPanelOpen?: boolean | undefined;
+  onToggleRightPanel?: (() => void) | undefined;
   isSplitActive?: boolean | undefined;
   isMaximized?: boolean | undefined;
   onToggleMaximize?: (() => void) | undefined;
@@ -429,6 +442,8 @@ export default function ChatView({
   onActivatePane,
   onToggleDiff: propOnToggleDiff,
   diffOpen: propDiffOpen,
+  rightPanelOpen: propRightPanelOpen,
+  onToggleRightPanel: propOnToggleRightPanel,
   isSplitActive = false,
   isMaximized = false,
   onToggleMaximize,
@@ -696,6 +711,9 @@ export default function ChatView({
   }, []);
 
   const terminalState = useThreadTerminalState(threadId)!;
+  const terminalInCompanion = useRightPanelStore(
+    (state) => state.isOpen && !state.choosingSurface && state.activeTab === "terminal",
+  );
   const storeSetTerminalOpen = terminalActions.setOpen;
   const storeSetTerminalHeight = terminalActions.setHeight;
   const storeSplitTerminal = terminalActions.split;
@@ -709,6 +727,7 @@ export default function ChatView({
     },
     [setComposerDraftPrompt, threadId],
   );
+  const stashPanelOpen = useRightPanelStore((state) => state.isOpen && state.activeTab === "stash");
   const [isStashMenuOpen, setIsStashMenuOpen] = useState(false);
   const [stashPulsing, setStashPulsing] = useState(false);
   const stashPulseTimeoutRef = useRef<number | null>(null);
@@ -740,11 +759,7 @@ export default function ChatView({
 
   const queueByThread = useMessageQueueStore((state) => state.queueByThread);
   const enqueueMessage = useMessageQueueStore((state) => state.enqueueMessage);
-  const dequeueMessage = useMessageQueueStore((state) => state.dequeueMessage);
-  const peekNextMessage = useMessageQueueStore((state) => state.peekNextMessage);
   const peekNextReadyMessage = useMessageQueueStore((state) => state.peekNextReadyMessage);
-  const dequeueNextReadyMessage = useMessageQueueStore((state) => state.dequeueNextReadyMessage);
-  const clearThreadQueue = useMessageQueueStore((state) => state.clearQueue);
   const threadQueuedMessages = getThreadQueuedMessages(queueByThread, threadId);
   const [isSchedulePopoverOpen, setIsSchedulePopoverOpen] = useState(false);
   const [isIdleSchedulePopoverOpen, setIsIdleSchedulePopoverOpen] = useState(false);
@@ -769,9 +784,23 @@ export default function ChatView({
     [compact, environmentId, navigate, threadId],
   );
 
+  const composerScopeRef = useRef(`${environmentId}:${threadId}`);
+  composerScopeRef.current = `${environmentId}:${threadId}`;
+  const persistingDraftRef = useRef(false);
   const stashCurrentPrompt = useCallback(async () => {
+    if (persistingDraftRef.current) return false;
+    const scopeForStash = composerScopeRef.current;
+    const draftKey = environmentId ? scopedComposerThreadId(environmentId, threadId) : threadId;
+    const draftForStash = useComposerDraftStore.getState().draftsByThreadId[draftKey];
     const trimmed = prompt.trim();
-    if (!trimmed && composerImages.length === 0 && composerFiles.length === 0) {
+    if (
+      !trimmed &&
+      composerImages.length === 0 &&
+      composerFiles.length === 0 &&
+      composerTerminalContexts.length === 0 &&
+      composerPreviewAnnotations.length === 0 &&
+      composerReviewComments.length === 0
+    ) {
       if (promptStashEntries.length === 1 && promptStashEntries[0]) {
         await restoreStashedPrompt(promptStashEntries[0].id);
       } else {
@@ -780,6 +809,7 @@ export default function ChatView({
       return false;
     }
 
+    persistingDraftRef.current = true;
     try {
       const candidateAttachments = await Promise.all(
         composerImages.map(async (image) => ({
@@ -792,20 +822,37 @@ export default function ChatView({
       );
 
       const { kept, droppedNames } = partitionStashAttachments(candidateAttachments);
+      if (droppedNames.length) {
+        toastManager.add({
+          type: "error",
+          title: "Images are too large to stash",
+          description: "Your draft is unchanged. Use smaller images before saving it to Stash.",
+        });
+        return false;
+      }
 
-      const stashedFiles = composerFiles.map((file) => ({
-        id: file.id,
-        name: file.name,
-        mimeType: file.mimeType,
-        sizeBytes: file.sizeBytes,
-        ...(environmentId ? { environmentId } : {}),
-      }));
+      const stashedFiles = await Promise.all(
+        composerFiles.map(async (file) => ({
+          id: file.id,
+          name: file.name,
+          mimeType: file.mimeType,
+          sizeBytes: file.sizeBytes,
+          dataUrl: await readFileAsDataUrl(file.file),
+          ...(environmentId ? { environmentId } : {}),
+        })),
+      );
 
       const entryId = randomUUID();
       const { evicted, written, durable } = stashPrompt({
         id: entryId,
         createdAt: new Date().toISOString(),
-        prompt,
+        prompt: appendReviewCommentsToPrompt(
+          composerPreviewAnnotations.reduce(
+            (text, annotation) => appendPreviewAnnotationPrompt(text, annotation),
+            appendTerminalContextsToPrompt(prompt, composerTerminalContexts),
+          ),
+          composerReviewComments,
+        ),
         attachments: kept,
         ...(stashedFiles.length > 0 ? { files: stashedFiles } : {}),
         ...(environmentId ? { environmentId } : {}),
@@ -830,10 +877,15 @@ export default function ChatView({
         });
       }
 
-      clearComposerDraftContent(threadId);
-      promptRef.current = "";
-      setComposerCursor(0);
-      setComposerTrigger(null);
+      if (
+        composerScopeRef.current === scopeForStash &&
+        useComposerDraftStore.getState().draftsByThreadId[draftKey] === draftForStash
+      ) {
+        clearComposerDraftContent(threadId);
+        promptRef.current = "";
+        setComposerCursor(0);
+        setComposerTrigger(null);
+      }
       pulseStashBadge();
 
       toastManager.add({
@@ -851,8 +903,13 @@ export default function ChatView({
         description: cause instanceof Error ? cause.message : String(cause),
       });
       return false;
+    } finally {
+      persistingDraftRef.current = false;
     }
   }, [
+    composerPreviewAnnotations,
+    composerReviewComments,
+    composerTerminalContexts,
     clearComposerDraftContent,
     composerFiles,
     composerImages,
@@ -892,6 +949,21 @@ export default function ChatView({
       setPrompt(entry.prompt);
       const restoredImages = hydrateImagesFromPersisted(entry.attachments);
       if (restoredImages.length > 0) addComposerDraftImages(threadId, restoredImages);
+      const restoredFiles = hydrateImagesFromPersisted(
+        (entry.files ?? []).flatMap((file) =>
+          file.dataUrl ? [{ ...file, dataUrl: file.dataUrl }] : [],
+        ),
+      ).map((file) => ({ ...file, type: "file" as const }));
+      if (restoredFiles.length) addComposerDraftFiles(threadId, restoredFiles);
+      if (entry.files?.some((file) => !file.dataUrl))
+        toastManager.add({
+          type: "warning",
+          title: "Reattach saved file references",
+          description: entry.files
+            .filter((file) => !file.dataUrl)
+            .map((file) => file.name)
+            .join(", "),
+        });
       promptRef.current = entry.prompt;
       const cursor = collapseExpandedComposerCursor(entry.prompt, entry.prompt.length);
       setComposerCursor(cursor);
@@ -900,6 +972,7 @@ export default function ChatView({
     },
     [
       addComposerDraftImages,
+      addComposerDraftFiles,
       clearComposerDraftContent,
       composerFiles.length,
       composerImages.length,
@@ -924,8 +997,11 @@ export default function ChatView({
   }, [clearPromptStash, environmentId]);
 
   const onQueueMessage = useCallback(
-    (scheduledFor?: string | null) => {
-      if (!threadId) return;
+    async (scheduledFor?: string | null) => {
+      if (!threadId || persistingDraftRef.current) return;
+      const scopeForQueue = composerScopeRef.current;
+      const draftKey = environmentId ? scopedComposerThreadId(environmentId, threadId) : threadId;
+      const draftForQueue = useComposerDraftStore.getState().draftsByThreadId[draftKey];
       const promptForQueue = promptRef.current;
       const {
         trimmedPrompt: trimmed,
@@ -935,22 +1011,72 @@ export default function ChatView({
         prompt: promptForQueue,
         imageCount: composerImages.length,
         fileCount: composerFiles.length,
-        contextCount: composerPreviewAnnotations.length,
+        contextCount: composerPreviewAnnotations.length + composerReviewComments.length,
         terminalContexts: composerTerminalContexts,
       });
 
       if (!hasSendableContent) return;
 
-      enqueueMessage({
-        id: `queue-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-        threadId,
-        environmentId,
-        text: trimmed,
-        terminalContextIds: sendableTerminalContexts.map((c) => c.id),
-        createdAt: new Date().toISOString(),
-        scheduledFor: scheduledFor ?? undefined,
-      });
-
+      let attachments, files;
+      persistingDraftRef.current = true;
+      try {
+        const persistAttachment = async (
+          item: ComposerImageAttachment | ComposerFileAttachment,
+        ) => ({
+          id: item.id,
+          name: item.name,
+          mimeType: item.mimeType,
+          sizeBytes: item.sizeBytes,
+          dataUrl: await readFileAsDataUrl(item.file),
+        });
+        [attachments, files] = await Promise.all([
+          Promise.all(composerImages.map(persistAttachment)),
+          Promise.all(composerFiles.map(persistAttachment)),
+        ]);
+      } catch {
+        persistingDraftRef.current = false;
+        toastManager.add({
+          type: "error",
+          title: "Could not save queued attachments",
+          description: "Your draft is still in the composer.",
+        });
+        return;
+      }
+      try {
+        enqueueMessage({
+          attachments,
+          files,
+          id: `queue-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          threadId,
+          environmentId,
+          text: appendReviewCommentsToPrompt(
+            composerPreviewAnnotations.reduce(
+              (text, annotation) => appendPreviewAnnotationPrompt(text, annotation),
+              appendTerminalContextsToPrompt(trimmed, sendableTerminalContexts),
+            ),
+            composerReviewComments,
+          ),
+          terminalContextIds: sendableTerminalContexts.map((c) => c.id),
+          createdAt: new Date().toISOString(),
+          scheduledFor: scheduledFor ?? undefined,
+        });
+      } catch {
+        toastManager.add({
+          type: "error",
+          title: "Could not save queued message",
+          description: "Storage is full or unavailable. Your draft has been kept.",
+        });
+        return;
+      } finally {
+        persistingDraftRef.current = false;
+      }
+      // Leave a newer draft or a newly selected thread intact after serialization.
+      if (
+        composerScopeRef.current !== scopeForQueue ||
+        useComposerDraftStore.getState().draftsByThreadId[draftKey] !== draftForQueue ||
+        promptRef.current !== promptForQueue
+      )
+        return;
       // Reset composer
       promptRef.current = "";
       setPrompt("");
@@ -969,9 +1095,10 @@ export default function ChatView({
     },
     [
       clearComposerDraftContent,
-      composerFiles.length,
-      composerImages.length,
-      composerPreviewAnnotations.length,
+      composerFiles,
+      composerImages,
+      composerPreviewAnnotations,
+      composerReviewComments,
       composerTerminalContexts,
       enqueueMessage,
       environmentId,
@@ -3318,7 +3445,10 @@ export default function ChatView({
   };
 
   const onComposerDragEnter = (event: React.DragEvent<HTMLDivElement>) => {
-    if (!event.dataTransfer.types.includes("Files")) {
+    if (
+      !event.dataTransfer.types.includes("Files") &&
+      !event.dataTransfer.types.includes(WORKSPACE_FILE_MIME)
+    ) {
       return;
     }
     event.preventDefault();
@@ -3327,7 +3457,10 @@ export default function ChatView({
   };
 
   const onComposerDragOver = (event: React.DragEvent<HTMLDivElement>) => {
-    if (!event.dataTransfer.types.includes("Files")) {
+    if (
+      !event.dataTransfer.types.includes("Files") &&
+      !event.dataTransfer.types.includes(WORKSPACE_FILE_MIME)
+    ) {
       return;
     }
     event.preventDefault();
@@ -3336,7 +3469,10 @@ export default function ChatView({
   };
 
   const onComposerDragLeave = (event: React.DragEvent<HTMLDivElement>) => {
-    if (!event.dataTransfer.types.includes("Files")) {
+    if (
+      !event.dataTransfer.types.includes("Files") &&
+      !event.dataTransfer.types.includes(WORKSPACE_FILE_MIME)
+    ) {
       return;
     }
     event.preventDefault();
@@ -3351,7 +3487,19 @@ export default function ChatView({
   };
 
   const onComposerDrop = (event: React.DragEvent<HTMLDivElement>) => {
-    if (!event.dataTransfer.types.includes("Files")) {
+    if (event.dataTransfer.types.includes(WORKSPACE_FILE_MIME)) {
+      event.preventDefault();
+      event.stopPropagation();
+      dragDepthRef.current = 0;
+      setIsDragOverComposer(false);
+      const context = parseWorkspaceFileContext(event.dataTransfer.getData(WORKSPACE_FILE_MIME));
+      if (context) addWorkspaceFileContext(context);
+      return;
+    }
+    if (
+      !event.dataTransfer.types.includes("Files") &&
+      !event.dataTransfer.types.includes(WORKSPACE_FILE_MIME)
+    ) {
       return;
     }
     event.preventDefault();
@@ -3485,7 +3633,30 @@ export default function ChatView({
     threadApi,
   ]);
 
-  const onSend = async (e?: { preventDefault: () => void }) => {
+  const currentPreviewAnnotations = composerPreviewAnnotations;
+  const onSend = async (e?: { preventDefault: () => void }, queued?: QueuedMessage) => {
+    const composerImages = queued
+      ? hydrateImagesFromPersisted(queued.attachments ?? [])
+      : composerImagesRef.current;
+    const composerFiles: ComposerFileAttachment[] = queued
+      ? hydrateImagesFromPersisted(queued.files ?? []).map((file) => ({
+          type: "file" as const,
+          id: file.id,
+          name: file.name,
+          mimeType: file.mimeType,
+          sizeBytes: file.sizeBytes,
+          file: file.file,
+        }))
+      : composerFilesRef.current;
+    if (
+      queued &&
+      (composerImages.length !== (queued.attachments?.length ?? 0) ||
+        composerFiles.length !== (queued.files?.length ?? 0))
+    )
+      throw new Error("A queued attachment could not be restored. Reattach it before retrying.");
+    const composerTerminalContexts = queued ? [] : composerTerminalContextsRef.current;
+    const composerPreviewAnnotations = queued ? [] : currentPreviewAnnotations;
+    const composerReviewComments = queued ? [] : composerReviewCommentsRef.current;
     e?.preventDefault();
     const api = threadApi;
     if (!api || !activeThread || isSendBusy || isConnecting || sendInFlightRef.current) return;
@@ -3493,7 +3664,7 @@ export default function ChatView({
       onAdvanceActivePendingUserInput();
       return;
     }
-    const promptForSend = promptRef.current;
+    const promptForSend = queued?.text ?? promptRef.current;
     const {
       trimmedPrompt: trimmed,
       sendableTerminalContexts: sendableComposerTerminalContexts,
@@ -3506,6 +3677,7 @@ export default function ChatView({
       contextCount: composerPreviewAnnotations.length,
       terminalContexts: composerTerminalContexts,
     });
+    if (queued && showPlanFollowUpPrompt && activeProposedPlan) return false;
     if (showPlanFollowUpPrompt && activeProposedPlan) {
       const followUp = resolvePlanFollowUpSubmission({
         draftText: trimmed,
@@ -3534,6 +3706,8 @@ export default function ChatView({
       sendableComposerTerminalContexts.length === 0
         ? parseStandaloneComposerSlashCommand(trimmed)
         : null;
+    if (queued && (standaloneSlashCommand || trimmed.toLowerCase() === "/compact"))
+      throw new Error("Run composer commands directly; queued messages send agent follow-ups.");
     if (standaloneSlashCommand) {
       handleInteractionModeChange(standaloneSlashCommand);
       promptRef.current = "";
@@ -3760,8 +3934,10 @@ export default function ChatView({
         description: toastCopy.description,
       });
     }
-    promptRef.current = "";
-    clearComposerDraftContent(threadIdForSend);
+    if (!queued) {
+      promptRef.current = "";
+      clearComposerDraftContent(threadIdForSend);
+    }
     setComposerHighlightedItemId(null);
     setComposerCursor(0);
     setComposerTrigger(null);
@@ -3919,6 +4095,7 @@ export default function ChatView({
           .catch(() => undefined);
       }
       if (
+        !queued &&
         !turnStartSucceeded &&
         promptRef.current.length === 0 &&
         composerImagesRef.current.length === 0 &&
@@ -3954,6 +4131,7 @@ export default function ChatView({
     if (!turnStartSucceeded) {
       resetSendPhase();
     }
+    return turnStartSucceeded;
   };
 
   const isAutoDispatchingRef = useRef(false);
@@ -3990,8 +4168,18 @@ export default function ChatView({
     ) {
       return;
     }
-    if (activePendingApproval || activePendingProgress) return;
+    if (activePendingApproval || activePendingProgress || showPlanFollowUpPrompt) return;
     if (activeThread.error) return;
+    // A queued follow-up must never replace a draft the user is composing.
+    if (
+      promptRef.current.trim() ||
+      composerImagesRef.current.length ||
+      composerFilesRef.current.length ||
+      composerTerminalContextsRef.current.length ||
+      composerPreviewAnnotations.length ||
+      composerReviewCommentsRef.current.length
+    )
+      return;
 
     const nextReady = peekNextReadyMessage(activeThread.id);
     if (!nextReady) return;
@@ -4004,19 +4192,34 @@ export default function ChatView({
     const timer = window.setTimeout(() => {
       // Re-check guards inside the timeout to handle the case where the
       // component re-renders or a user-initiated send started in the gap.
-      if (sendInFlightRef.current) {
+      if (
+        sendInFlightRef.current ||
+        promptRef.current.trim() ||
+        composerImagesRef.current.length ||
+        composerFilesRef.current.length ||
+        composerTerminalContextsRef.current.length ||
+        composerReviewCommentsRef.current.length ||
+        (useComposerDraftStore.getState().draftsByThreadId[
+          environmentId
+            ? scopedComposerThreadId(environmentId, threadIdForDispatch)
+            : threadIdForDispatch
+        ]?.previewAnnotations.length ??
+          0)
+      ) {
         isAutoDispatchingRef.current = false;
         return;
       }
 
-      const dequeued = dequeueNextReadyMessage(threadIdForDispatch);
+      const dequeued = peekNextReadyMessage(threadIdForDispatch);
       if (!dequeued) {
         isAutoDispatchingRef.current = false;
         return;
       }
 
-      promptRef.current = dequeued.text;
-      setPrompt(dequeued.text);
+      if (dequeued.environmentId && dequeued.environmentId !== environmentId) {
+        isAutoDispatchingRef.current = false;
+        return;
+      }
 
       toastManager.add({
         type: "info",
@@ -4026,9 +4229,31 @@ export default function ChatView({
         description: dequeued.text.length > 50 ? `${dequeued.text.slice(0, 50)}...` : dequeued.text,
       });
 
-      void onSend().finally(() => {
-        isAutoDispatchingRef.current = false;
-      });
+      void onSend(undefined, dequeued)
+        .then((sent) => {
+          if (sent)
+            useMessageQueueStore.getState().removeQueuedMessage(threadIdForDispatch, dequeued.id);
+          else
+            useMessageQueueStore
+              .getState()
+              .setMessageError(
+                threadIdForDispatch,
+                dequeued.id,
+                "Could not send. Check the thread or provider, then retry.",
+              );
+        })
+        .catch((error: unknown) => {
+          useMessageQueueStore
+            .getState()
+            .setMessageError(
+              threadIdForDispatch,
+              dequeued.id,
+              error instanceof Error ? error.message : "Queued message failed.",
+            );
+        })
+        .finally(() => {
+          isAutoDispatchingRef.current = false;
+        });
     }, 80);
 
     return () => {
@@ -4041,7 +4266,6 @@ export default function ChatView({
     activeLatestTurn,
     activeThread?.error,
     activeThread?.id,
-    dequeueNextReadyMessage,
     isConnecting,
     isSendBusy,
     latestTurnSettled,
@@ -4720,6 +4944,51 @@ export default function ChatView({
     };
   }, [composerCursor, composerTerminalContexts]);
 
+  const addWorkspaceFileContext = useCallback(
+    (context: WorkspaceFileContext) => {
+      if (context.environmentId !== (activeProject?.environmentId ?? null)) {
+        toastManager.add({
+          type: "warning",
+          title: "Choose a chat in the same environment",
+          description: "This path belongs to a different machine.",
+        });
+        return;
+      }
+      if (isComposerApprovalState || pendingUserInputs.length > 0) {
+        toastManager.add({
+          type: "warning",
+          title: "Finish the pending request before adding context",
+        });
+        return;
+      }
+      const snapshot = readComposerSnapshot();
+      const cursor = snapshot.expandedCursor;
+      const prefix = cursor > 0 && !/\s/.test(snapshot.value[cursor - 1] ?? "") ? " " : "";
+      applyPromptReplacement(
+        cursor,
+        cursor,
+        prefix + workspaceFileMention(context, activeWorkspaceRoot),
+      );
+    },
+    [
+      activeProject?.environmentId,
+      activeWorkspaceRoot,
+      isComposerApprovalState,
+      pendingUserInputs.length,
+      readComposerSnapshot,
+      applyPromptReplacement,
+    ],
+  );
+  useEffect(() => {
+    const add = (event: Event) => {
+      const context = parseWorkspaceFileContext(JSON.stringify((event as CustomEvent).detail));
+      if (!context || (context.threadId ? context.threadId !== threadId : !isActivePane)) return;
+      addWorkspaceFileContext(context);
+    };
+    window.addEventListener(ADD_WORKSPACE_FILE_EVENT, add);
+    return () => window.removeEventListener(ADD_WORKSPACE_FILE_EVENT, add);
+  }, [threadId, isActivePane, addWorkspaceFileContext]);
+
   const citeAssistantText = useCallback(
     (citation: AssistantCitation, sourceAnchor: AssistantCitationSourceAnchor): boolean => {
       if (isComposerApprovalState || pendingUserInputs.length > 0 || !composerEditorRef.current) {
@@ -5115,6 +5384,9 @@ export default function ChatView({
           onDragEnter={onComposerDragEnter}
           onDragOver={onComposerDragOver}
           onDragLeave={onComposerDragLeave}
+          onDropCapture={(event) => {
+            if (event.dataTransfer.types.includes(WORKSPACE_FILE_MIME)) onComposerDrop(event);
+          }}
           onDrop={onComposerDrop}
         >
           {composerMenuOpen && !isComposerApprovalState && (
@@ -5244,7 +5516,8 @@ export default function ChatView({
                           "full-access",
                         ] as const;
                         const currentMode = runtimeMode || "approval-required";
-                        const nextIndex = (modes.indexOf(currentMode) + 1) % modes.length;
+                        const nextIndex =
+                          ((modes as readonly string[]).indexOf(currentMode) + 1) % modes.length;
                         const nextMode = modes[nextIndex];
                         if (nextMode) {
                           void handleRuntimeModeChange(nextMode);
@@ -5310,9 +5583,24 @@ export default function ChatView({
                   />
                 ) : null}
                 <div className="relative flex items-center gap-1">
+                  {threadQueuedMessages.length > 0 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 gap-1 rounded-md px-1.5 text-xs text-muted-foreground hover:text-foreground"
+                      aria-label={`Open queue: ${threadQueuedMessages.length} messages`}
+                      title="Open queued messages and schedules"
+                      onClick={() => openRightPanelSurface("queue")}
+                    >
+                      <ListOrderedIcon size={13} />
+                      <span className="sr-only">Queue</span>
+                      <span className="font-mono text-[10px]">{threadQueuedMessages.length}</span>
+                    </Button>
+                  )}
                   <ComposerStashBadge
                     count={promptStashEntries.length}
-                    menuOpen={isStashMenuOpen}
+                    menuOpen={stashPanelOpen}
                     pulsing={stashPulsing}
                     onToggleMenu={() => openRightPanelSurface("stash")}
                   />
@@ -5542,39 +5830,6 @@ export default function ChatView({
                   />
                 )}
 
-              {/* Queued Messages Bar */}
-              {threadQueuedMessages.length > 0 && (
-                <div className="mb-2 flex items-center justify-between rounded-lg border border-border/80 bg-muted/40 px-3 py-1.5 text-xs text-foreground/90 backdrop-blur-xs">
-                  <div className="flex items-center gap-1.5 font-medium">
-                    <ListOrderedIcon className="size-3.5 text-foreground" />
-                    <span>
-                      {threadQueuedMessages.length} message
-                      {threadQueuedMessages.length === 1 ? "" : "s"} queued
-                      {threadQueuedMessages.some((m) => m.scheduledFor)
-                        ? " (with scheduled time)"
-                        : " — will send when turn finishes"}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => openRightPanelSurface("queue")}
-                      className="rounded px-2 py-0.5 text-[11px] font-semibold text-foreground hover:bg-primary/10 cursor-pointer"
-                    >
-                      View Queue
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => activeThread && clearThreadQueue(activeThread.id)}
-                      className="rounded px-1.5 py-0.5 text-[11px] text-muted-foreground hover:text-destructive cursor-pointer"
-                      title="Clear queue"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              )}
-
               <div className="flex-1 pr-11">
                 <ComposerPromptEditor
                   ref={composerEditorRef}
@@ -5739,12 +5994,11 @@ export default function ChatView({
                             <ListOrderedIcon className="size-3.5 text-foreground" />
                             <span>Queue</span>
                           </Button>
-                          <Popover
+                          <Dialog
                             open={isSchedulePopoverOpen}
                             onOpenChange={setIsSchedulePopoverOpen}
-                            modal
                           >
-                            <PopoverTrigger
+                            <DialogTrigger
                               render={
                                 <Button
                                   type="button"
@@ -5758,21 +6012,21 @@ export default function ChatView({
                                 </Button>
                               }
                             />
-                            <PopoverPopup
-                              align="end"
-                              side="top"
-                              hasBackdrop
-                              className="p-0 border-none bg-transparent shadow-none"
+                            <DialogPopup
+                              showCloseButton={false}
+                              bottomStickOnMobile={false}
+                              className="max-w-[620px] overflow-auto"
                             >
-                              <AppleTimePicker
+                              <DialogTitle className="sr-only">Schedule message</DialogTitle>
+                              <SchedulePicker
                                 onConfirm={(scheduledDate) => {
                                   onQueueMessage(scheduledDate.toISOString());
                                   setIsSchedulePopoverOpen(false);
                                 }}
                                 onCancel={() => setIsSchedulePopoverOpen(false)}
                               />
-                            </PopoverPopup>
-                          </Popover>
+                            </DialogPopup>
+                          </Dialog>
                         </div>
                       )}
                       <button
@@ -5914,12 +6168,11 @@ export default function ChatView({
                         )}
                       </button>
                       {/* Clock / schedule button — always visible even on idle/fresh threads */}
-                      <Popover
+                      <Dialog
                         open={isIdleSchedulePopoverOpen}
                         onOpenChange={setIsIdleSchedulePopoverOpen}
-                        modal
                       >
-                        <PopoverTrigger
+                        <DialogTrigger
                           render={
                             <button
                               type="button"
@@ -5932,27 +6185,27 @@ export default function ChatView({
                               }
                               aria-label="Schedule message for a specific time"
                               title="Schedule this message to send at a specific time"
-                              className="flex h-9 w-7 enabled:cursor-pointer items-center justify-center rounded-l-none rounded-r-lg border-l border-foreground/15 bg-foreground text-background/70 transition-all duration-150 hover:bg-foreground/90 hover:text-background hover:scale-105 disabled:pointer-events-none disabled:opacity-30 disabled:hover:scale-100 sm:h-8"
+                              className="flex h-9 w-7 enabled:cursor-pointer items-center justify-center rounded-l-none rounded-r-lg border-l border-foreground/15 bg-foreground text-background/70 transition-all duration-150 hover:bg-foreground/90 hover:text-background disabled:pointer-events-none disabled:opacity-30 disabled:hover:scale-100 sm:h-8"
                             />
                           }
                         >
                           <ClockIcon className="size-3" />
-                        </PopoverTrigger>
-                        <PopoverPopup
-                          align="end"
-                          side="top"
-                          hasBackdrop
-                          className="p-0 border-none bg-transparent shadow-none"
+                        </DialogTrigger>
+                        <DialogPopup
+                          showCloseButton={false}
+                          bottomStickOnMobile={false}
+                          className="max-w-[620px] overflow-auto"
                         >
-                          <AppleTimePicker
+                          <DialogTitle className="sr-only">Schedule message</DialogTitle>
+                          <SchedulePicker
                             onConfirm={(scheduledDate) => {
                               onQueueMessage(scheduledDate.toISOString());
                               setIsIdleSchedulePopoverOpen(false);
                             }}
                             onCancel={() => setIsIdleSchedulePopoverOpen(false)}
                           />
-                        </PopoverPopup>
-                      </Popover>
+                        </DialogPopup>
+                      </Dialog>
                     </div>
                   )
                 ) : null}
@@ -5988,9 +6241,9 @@ export default function ChatView({
       {compact ? null : (
         <header
           className={cn(
-            "@container/chat-header border-b border-border transition-colors",
+            "@container/chat-header transition-colors",
             isSplitActive ? "px-2.5 sm:px-3" : "px-3 sm:px-5",
-            isElectron ? "drag-region flex h-[52px] items-center" : "py-2 sm:py-3",
+            isElectron ? "drag-region flex min-h-[52px] items-center py-2" : "py-2 sm:py-3",
             isSplitActive && !isActivePane && "opacity-80 hover:opacity-100 transition-opacity",
           )}
         >
@@ -5998,6 +6251,17 @@ export default function ChatView({
             activeThreadId={activeThread.id}
             activeThreadTitle={activeThread.title}
             activeProjectName={activeProject?.name}
+            activeProjectFavicon={
+              activeProject
+                ? {
+                    workspaceRoot: activeProject.cwd,
+                    title: activeProject.name,
+                    faviconPath: activeProject.faviconPath,
+                    projectIcon: activeProject.projectIcon,
+                    environmentId: activeProject.environmentId,
+                  }
+                : null
+            }
             isGitRepo={isGitRepo}
             openInCwd={gitCwd}
             keybindings={keybindings}
@@ -6009,8 +6273,10 @@ export default function ChatView({
             gitCwd={gitCwd}
             environmentId={activeProject?.environmentId}
             diffOpen={diffOpen}
+            rightPanelOpen={propRightPanelOpen}
             onToggleTerminal={toggleTerminalVisibility}
             onToggleDiff={onToggleDiff}
+            onToggleRightPanel={propOnToggleRightPanel}
             isSplitActive={isSplitActive}
             isActivePane={isActivePane}
             isMaximized={isMaximized}
@@ -6177,7 +6443,11 @@ export default function ChatView({
       {/* end horizontal flex container */}
 
       {(() => {
-        if (!terminalState.terminalOpen || !activeProject) {
+        if (
+          !terminalState.terminalOpen ||
+          !activeProject ||
+          (propRightPanelOpen && terminalInCompanion)
+        ) {
           return null;
         }
         return (

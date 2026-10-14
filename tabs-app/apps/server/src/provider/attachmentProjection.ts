@@ -14,7 +14,7 @@ function isProjectedFileAttachment(
   includeImage: ((attachment: ChatImageAttachment) => boolean) | undefined,
 ): attachment is ChatImageAttachment | ChatFileAttachment {
   if (attachment.type === "image") {
-    return includeImage?.(attachment) ?? false;
+    return includeImage?.(attachment as ChatImageAttachment) ?? false;
   }
   if (attachment.type !== "file") {
     return false;

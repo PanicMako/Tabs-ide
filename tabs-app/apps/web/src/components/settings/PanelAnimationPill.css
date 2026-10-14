@@ -1,0 +1,108 @@
+.panel-animation-pill {
+  --duration-thumb: 72px;
+  position: relative;
+  width: 288px;
+  max-width: 100%;
+  height: 44px;
+  flex-shrink: 0;
+}
+.panel-animation-pill-track {
+  position: absolute;
+  inset: 7px 0;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted) 65%, var(--background));
+  pointer-events: none;
+}
+.panel-animation-pill-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: calc(
+    var(--duration-thumb) / 2 + (100% - var(--duration-thumb)) * var(--duration-progress)
+  );
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--primary) 28%, var(--muted));
+}
+.panel-animation-pill-detents {
+  position: absolute;
+  inset: 0 calc(var(--duration-thumb) / 2);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.panel-animation-pill-detents span {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--muted-foreground);
+  opacity: 0.65;
+}
+.panel-animation-pill-value {
+  position: absolute;
+  top: -5px;
+  left: calc((100% - var(--duration-thumb)) * var(--duration-progress));
+  width: var(--duration-thumb);
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font: 600 11px var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--primary) 25%, transparent);
+  transition: box-shadow 150ms ease;
+}
+.panel-animation-pill input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 44px;
+  margin: 0;
+  appearance: none;
+  background: transparent;
+  cursor: ew-resize;
+  border-radius: 999px;
+}
+.panel-animation-pill input::-webkit-slider-runnable-track {
+  height: 38px;
+  background: transparent;
+}
+.panel-animation-pill input::-webkit-slider-thumb {
+  appearance: none;
+  width: var(--duration-thumb);
+  height: 38px;
+  background: transparent;
+  border: 0;
+}
+.panel-animation-pill input::-moz-range-track {
+  height: 38px;
+  background: transparent;
+}
+.panel-animation-pill input::-moz-range-thumb {
+  width: var(--duration-thumb);
+  height: 38px;
+  background: transparent;
+  border: 0;
+}
+.panel-animation-pill input:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+.panel-animation-pill:hover .panel-animation-pill-value,
+.panel-animation-pill:has(input:active) .panel-animation-pill-value {
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 14%, transparent);
+}
+html[data-reduced-motion="reduce"] .panel-animation-pill-value {
+  transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  html:not([data-reduced-motion="no-preference"]) .panel-animation-pill-value {
+    transition: none;
+  }
+}
+@media (max-width: 639px) {
+  .panel-animation-pill {
+    width: 100%;
+  }
+}

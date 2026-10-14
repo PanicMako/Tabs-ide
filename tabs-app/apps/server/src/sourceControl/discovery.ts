@@ -94,7 +94,7 @@ const discoveryEffect = Effect.gen(function* () {
     }
   }
 
-  const bbAuth = yield* bitbucket.probeAuth();
+  const bbAuth = yield* bitbucket.probeAuth;
   const bbAuthenticated = bbAuth.status !== "unauthenticated";
   const bbAccount = Option.getOrNull(bbAuth.account);
 
@@ -208,8 +208,31 @@ const discoveryEffect = Effect.gen(function* () {
   return result;
 });
 
-const appLayer = Layer.mergeAll(GitHubCliLive, GitLabCliLive, AzureDevOpsCliLive, BitbucketApiLive);
+const bitbucketProbeLayer = Layer.succeed(
+  BitbucketApi,
+  BitbucketApi.of({
+    probeAuth: Effect.succeed({
+      status:
+        process.env.T3CODE_BITBUCKET_API_TOKEN || process.env.BITBUCKET_API_TOKEN
+          ? ("authenticated" as const)
+          : ("unauthenticated" as const),
+      account: Option.fromNullishOr(
+        process.env.T3CODE_BITBUCKET_EMAIL || process.env.BITBUCKET_EMAIL || null,
+      ),
+      host: Option.some("bitbucket.org"),
+      detail: Option.none(),
+    }),
+  } as unknown as BitbucketApi["Service"]),
+);
+
+const appLayer = Layer.mergeAll(
+  GitHubCliLive,
+  GitLabCliLive,
+  AzureDevOpsCliLive,
+  bitbucketProbeLayer,
+);
 
 export async function discoverSourceControl(): Promise<SourceControlDiscoveryResult> {
   return Effect.runPromise(discoveryEffect.pipe(Effect.provide(appLayer)));
 }
+

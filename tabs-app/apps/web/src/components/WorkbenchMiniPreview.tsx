@@ -1,3 +1,4 @@
+import { OrbitGroup } from "./ui/orbit-group";
 import React, { useState } from "react";
 import {
   Bot,
@@ -85,7 +86,7 @@ export const WorkbenchMiniPreview: React.FC<WorkbenchMiniPreviewProps> = ({ conf
     <div className="space-y-3 select-none w-full">
       {/* Surface Showcase Mode Switcher Deck */}
       <div className="flex items-center justify-center py-1">
-        <div
+        <OrbitGroup
           className="tabs-segmented flex items-center justify-center max-w-md w-full"
           role="group"
           aria-label="Preview surface"
@@ -131,7 +132,7 @@ export const WorkbenchMiniPreview: React.FC<WorkbenchMiniPreviewProps> = ({ conf
             <LayoutGrid className="size-3.5" />
             <span>Color System</span>
           </button>
-        </div>
+        </OrbitGroup>
       </div>
 
       {/* Surface Frame */}

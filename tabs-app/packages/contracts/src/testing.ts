@@ -1,5 +1,5 @@
 import * as Schema from "effect/Schema";
-import { ModelSelection } from "./orchestration.ts";
+import { ModelSelection } from "./modelSelection.ts";
 
 export const TestingProjectInput = Schema.Struct({
   projectId: Schema.String,

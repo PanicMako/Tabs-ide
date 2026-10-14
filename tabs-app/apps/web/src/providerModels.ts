@@ -148,7 +148,7 @@ export function normalizeClaudeModelOptionsWithCapabilities(
 ): ClaudeModelOptions | undefined {
   const defaultReasoningEffort = getDefaultEffort(caps);
   const resolvedEffort = trimOrNull(modelOptions?.effort);
-  const isPromptInjected = caps.promptInjectedEffortLevels.includes(resolvedEffort ?? "");
+  const isPromptInjected = caps.promptInjectedEffortLevels?.includes(resolvedEffort ?? "") ?? false;
   const effort =
     resolvedEffort &&
     !isPromptInjected &&

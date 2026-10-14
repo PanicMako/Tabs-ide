@@ -105,6 +105,11 @@ import { GitManager } from "./git/Services/GitManager.ts";
 import { TerminalManager } from "./terminal/Services/Manager.ts";
 import { Keybindings } from "./keybindings";
 import { ServerSettingsService } from "./serverSettings";
+import * as WorkspaceEntries from "./workspace/WorkspaceEntries.ts";
+import * as WorkspacePaths from "./workspace/WorkspacePaths.ts";
+import * as WorkspaceFileSystem from "./workspace/WorkspaceFileSystem.ts";
+import { issueDraftWorkspaceAssetUrl } from "./assets/AssetAccess.ts";
+import { handleWorkspaceAssetRequest } from "./assets/WorkspaceAssetRoute.ts";
 import { searchWorkspaceContents, searchWorkspaceEntries } from "./workspaceEntries";
 import { OrchestrationEngineService } from "./orchestration/Services/OrchestrationEngine";
 import { ProjectionSnapshotQuery } from "./orchestration/Services/ProjectionSnapshotQuery";
@@ -148,7 +153,7 @@ import { listProviderUsageSnapshotsEffect } from "./providerUsage/index.ts";
 import { PreviewManager } from "./preview/Manager.ts";
 import { PortDiscovery } from "./preview/PortScanner.ts";
 import { AgentSessionScanner } from "./project/AgentSessionScanner.ts";
-import { importRecentAgentThreads } from "./project/AgentSessionImporter.ts";
+import { AgentSessionImporter, importRecentAgentThreads } from "./project/AgentSessionImporter.ts";
 import { ProjectSetupScriptRunner } from "./project/ProjectSetupScriptRunner.ts";
 import { ProjectFileLoader } from "./project/ProjectFileLoader.ts";
 import { ServerEnvironment } from "./environment/ServerEnvironment.ts";
@@ -365,6 +370,7 @@ export type ServerRuntimeServices =
   | TraceDiagnostics.TraceDiagnostics
   | UsageLimitSources.UsageLimitSources
   | AgentSessionScanner
+  | AgentSessionImporter
   | ProjectSetupScriptRunner
   | ProjectFileLoader
   | ProviderInstanceRegistry;
@@ -642,7 +648,9 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
   const runtimeServices = yield* Effect.context<
     ServerRuntimeServices | ServerConfig | FileSystem.FileSystem | Path.Path
   >();
-  const runPromise = Effect.runPromiseWith(runtimeServices);
+  const runPromise: <A, E>(effect: Effect.Effect<A, E, any>) => Promise<A> = Effect.runPromiseWith(
+    runtimeServices,
+  ) as any;
 
   // HTTP server — serves static files or redirects to Vite dev server
   const httpServer = http.createServer((req, res) => {
@@ -696,6 +704,13 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
             }
             return session;
           });
+
+        if (
+          yield* handleWorkspaceAssetRequest(req, res, url).pipe(
+            Effect.provide(WorkspacePaths.layer),
+          )
+        )
+          return;
 
         if (req.method === "GET" && url.pathname === "/.well-known/t3/environment") {
           respondJson(200, yield* serverEnvironment.getDescriptor);
@@ -1059,6 +1074,7 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
   const orchestrationReactor = yield* OrchestrationReactor;
   const { openInEditor } = yield* Open;
   const agentSessionScanner = yield* AgentSessionScanner;
+  const agentSessionImporter = yield* AgentSessionImporter;
   const projectSetupScriptRunner = yield* ProjectSetupScriptRunner;
   const projectFileLoader = yield* ProjectFileLoader;
 
@@ -1229,8 +1245,8 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
     );
   }
 
-  const unsubscribeTerminalEvents = yield* terminalManager.subscribe(
-    (event: any) => void runPromise(pushBus.publishAll(WS_CHANNELS.terminalEvent, event)),
+  const unsubscribeTerminalEvents = yield* terminalManager.subscribe((event) =>
+    pushBus.publishAll(WS_CHANNELS.terminalEvent, event),
   );
   yield* Effect.addFinalizer(() => Effect.sync(() => unsubscribeTerminalEvents()));
   yield* readiness.markTerminalSubscriptionsReady;
@@ -1601,7 +1617,7 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
               })
               .pipe(
                 Effect.matchEffect({
-                  onFailure: (error) => {
+                  onFailure: (error: any) => {
                     const detail =
                       error._tag === "ProjectSetupScriptOperationError"
                         ? error.cause instanceof Error
@@ -1813,53 +1829,43 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
         });
       }
 
-      case WS_METHODS.projectsWriteFile: {
+      case WS_METHODS.projectsListEntries: {
         const body = stripRequestTag(request.body);
-        const target = yield* resolveWorkspaceWritePath({
-          workspaceRoot: body.cwd,
-          relativePath: body.relativePath,
-          path,
-        });
-        yield* fileSystem
-          .makeDirectory(path.dirname(target.absolutePath), { recursive: true })
-          .pipe(
-            Effect.mapError(
-              (cause) =>
-                new RouteRequestError({
-                  message: `Failed to prepare workspace path: ${String(cause)}`,
-                }),
-            ),
-          );
-        yield* fileSystem.writeFileString(target.absolutePath, body.contents).pipe(
-          Effect.mapError(
-            (cause) =>
-              new RouteRequestError({
-                message: `Failed to write workspace file: ${String(cause)}`,
-              }),
-          ),
-        );
-        return { relativePath: target.relativePath };
+        return yield* Effect.gen(function* () {
+          const entries = yield* WorkspaceEntries.WorkspaceEntries;
+          return yield* entries.list(body);
+        }).pipe(Effect.provide(WorkspaceEntries.layer), Effect.provide(WorkspacePaths.layer));
       }
-
+      case WS_METHODS.assetsCreateUrl: {
+        const body = stripRequestTag(request.body);
+        if (body.resource._tag !== "draft-workspace-file")
+          return yield* new RouteRequestError({
+            message:
+              "This server supports workspace media previews. Open other assets in their original surface.",
+          });
+        return yield* issueDraftWorkspaceAssetUrl(body.resource).pipe(
+          Effect.provide(WorkspacePaths.layer),
+        );
+      }
+      case WS_METHODS.projectsWriteFile:
       case WS_METHODS.projectsReadFile: {
         const body = stripRequestTag(request.body);
-        const target = yield* resolveWorkspaceReadPath({
-          workspaceRoot: body.cwd,
-          relativePath: body.relativePath,
-          path,
-        });
-        const contents = yield* fileSystem.readFileString(target.absolutePath).pipe(
-          Effect.mapError(
-            (cause) =>
-              new RouteRequestError({
-                message: `Failed to read workspace file: ${String(cause)}`,
-              }),
-          ),
+        return yield* Effect.gen(function* () {
+          const files = yield* WorkspaceFileSystem.WorkspaceFileSystem;
+          const safePath = yield* resolveWorkspaceReadPath({
+            workspaceRoot: body.cwd,
+            relativePath: body.relativePath,
+            path,
+          });
+          const input = { ...body, relativePath: safePath.relativePath };
+          return request.body._tag === WS_METHODS.projectsWriteFile
+            ? yield* files.writeFile(input as import("@tabs/contracts").ProjectWriteFileInput)
+            : yield* files.readFile(input);
+        }).pipe(
+          Effect.provide(WorkspaceFileSystem.layer),
+          Effect.provide(WorkspaceEntries.layer),
+          Effect.provide(WorkspacePaths.layer),
         );
-        return {
-          relativePath: target.relativePath,
-          contents,
-        };
       }
 
       case WS_METHODS.shellOpenInEditor: {
@@ -2787,6 +2793,14 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
               sshUrl: `git@bitbucket.org:${repository}.git`,
             };
           }
+          case "forgejo": {
+            return {
+              provider: "forgejo" as const,
+              nameWithOwner: repository,
+              url: `https://codeberg.org/${repository}.git`,
+              sshUrl: `git@codeberg.org:${repository}.git`,
+            };
+          }
           case "unknown": {
             return yield* new RouteRequestError({
               message: "Cannot lookup repository with unknown provider.",
@@ -2848,8 +2862,22 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
 
     const request = decodeWebSocketRequest(messageText);
     if (Result.isFailure(request)) {
+      let requestId = "unknown";
+      try {
+        const envelope: unknown = JSON.parse(messageText);
+        if (
+          typeof envelope === "object" &&
+          envelope !== null &&
+          "id" in envelope &&
+          typeof envelope.id === "string" &&
+          envelope.id.trim()
+        )
+          requestId = envelope.id;
+      } catch {
+        /* Malformed JSON has no trustworthy request identifier. */
+      }
       return yield* sendWsResponse({
-        id: "unknown",
+        id: requestId,
         error: { message: `Invalid request format: ${formatSchemaError(request.failure)}` },
       });
     }

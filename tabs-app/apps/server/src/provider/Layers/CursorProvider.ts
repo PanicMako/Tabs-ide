@@ -66,7 +66,7 @@ export const CURSOR_PARAMETERIZED_MODEL_PICKER_CAPABILITIES = {
   _meta: {
     parameterizedModelPicker: true,
   },
-} satisfies NonNullable<EffectAcpSchema.InitializeRequest["clientCapabilities"]>;
+} satisfies NonNullable<EffectAcpSchema.InitializeRequest["capabilities"]>;
 
 export function buildInitialCursorProviderSnapshot(
   cursorSettings: CursorSettings,
@@ -124,24 +124,29 @@ interface CursorAcpDiscoveredModel {
 function flattenSessionConfigSelectOptions(
   configOption: EffectAcpSchema.SessionConfigOption | undefined,
 ): ReadonlyArray<CursorSessionSelectOption> {
-  if (!configOption || configOption.type !== "select") {
+  if (!configOption || configOption.type !== "select" || !Array.isArray(configOption.options)) {
     return [];
   }
-  return configOption.options.flatMap((entry) =>
+  const rawOptions = configOption.options as ReadonlyArray<
+    EffectAcpSchema.SessionConfigSelectOption | EffectAcpSchema.SessionConfigSelectGroup
+  >;
+  return rawOptions.flatMap((entry) =>
     "value" in entry
       ? [
           {
-            value: entry.value.trim(),
-            name: entry.name.trim(),
+            value: String(entry.value).trim(),
+            name: String(entry.name).trim(),
           } satisfies CursorSessionSelectOption,
         ]
-      : entry.options.map(
+      : Array.isArray(entry.options)
+      ? entry.options.map(
           (option) =>
             ({
-              value: option.value.trim(),
-              name: option.name.trim(),
+              value: String(option.value).trim(),
+              name: String(option.name).trim(),
             }) satisfies CursorSessionSelectOption,
-        ),
+        )
+      : [],
   );
 }
 
@@ -162,13 +167,17 @@ function normalizeCursorReasoningValue(value: string | null | undefined): string
   }
 }
 
-function getCursorConfigOptionCategory(option: EffectAcpSchema.SessionConfigOption): string {
-  return option.category?.trim().toLowerCase() ?? "";
+function getCursorOptionConfigId(option: any): string {
+  return ((option?.configId ?? option?.id) ?? "").trim();
 }
 
-function isCursorEffortConfigOption(option: EffectAcpSchema.SessionConfigOption): boolean {
-  const id = option.id.trim().toLowerCase();
-  const name = option.name.trim().toLowerCase();
+function getCursorConfigOptionCategory(option: any): string {
+  return option?.category?.trim().toLowerCase() ?? "";
+}
+
+function isCursorEffortConfigOption(option: any): boolean {
+  const id = getCursorOptionConfigId(option).toLowerCase();
+  const name = option.name?.trim().toLowerCase() ?? "";
   return (
     id === "effort" ||
     id === "reasoning" ||
@@ -180,38 +189,38 @@ function isCursorEffortConfigOption(option: EffectAcpSchema.SessionConfigOption)
 }
 
 function findCursorEffortConfigOption(
-  configOptions: ReadonlyArray<EffectAcpSchema.SessionConfigOption>,
-): EffectAcpSchema.SessionConfigOption | undefined {
+  configOptions: ReadonlyArray<any>,
+): any | undefined {
   const candidates = configOptions.filter(
     (option) => option.type === "select" && isCursorEffortConfigOption(option),
   );
   return (
     candidates.find((option) => getCursorConfigOptionCategory(option) === "model_option") ??
-    candidates.find((option) => option.id.trim().toLowerCase() === "effort") ??
+    candidates.find((option) => getCursorOptionConfigId(option).toLowerCase() === "effort") ??
     candidates.find((option) => getCursorConfigOptionCategory(option) === "thought_level") ??
     candidates[0]
   );
 }
 
-function isCursorContextConfigOption(option: EffectAcpSchema.SessionConfigOption): boolean {
-  const id = option.id.trim().toLowerCase();
-  const name = option.name.trim().toLowerCase();
+function isCursorContextConfigOption(option: any): boolean {
+  const id = getCursorOptionConfigId(option).toLowerCase();
+  const name = option.name?.trim().toLowerCase() ?? "";
   return id === "context" || id === "context_size" || name.includes("context");
 }
 
-function isCursorFastConfigOption(option: EffectAcpSchema.SessionConfigOption): boolean {
-  const id = option.id.trim().toLowerCase();
-  const name = option.name.trim().toLowerCase();
+function isCursorFastConfigOption(option: any): boolean {
+  const id = getCursorOptionConfigId(option).toLowerCase();
+  const name = option.name?.trim().toLowerCase() ?? "";
   return id === "fast" || name === "fast" || name.includes("fast mode");
 }
 
-function isCursorThinkingConfigOption(option: EffectAcpSchema.SessionConfigOption): boolean {
-  const id = option.id.trim().toLowerCase();
-  const name = option.name.trim().toLowerCase();
+function isCursorThinkingConfigOption(option: any): boolean {
+  const id = getCursorOptionConfigId(option).toLowerCase();
+  const name = option.name?.trim().toLowerCase() ?? "";
   return id === "thinking" || name.includes("thinking");
 }
 
-function isBooleanLikeConfigOption(option: EffectAcpSchema.SessionConfigOption): boolean {
+function isBooleanLikeConfigOption(option: any): boolean {
   if (option.type === "boolean") {
     return true;
   }
@@ -230,13 +239,13 @@ function getBooleanCurrentValue(
   if (!option) {
     return undefined;
   }
-  if (option.type === "boolean") {
+  if (option.type === "boolean" && typeof option.currentValue === "boolean") {
     return option.currentValue;
   }
-  if (option.type !== "select") {
+  if (option.type !== "select" || typeof option.currentValue !== "string") {
     return undefined;
   }
-  const normalized = option.currentValue?.trim().toLowerCase();
+  const normalized = option.currentValue.trim().toLowerCase();
   if (normalized === "true") {
     return true;
   }
@@ -475,7 +484,7 @@ export function resolveCursorAcpBaseModelId(model: string | null | undefined): s
 }
 
 export function resolveCursorAcpConfigUpdates(
-  configOptions: ReadonlyArray<EffectAcpSchema.SessionConfigOption> | null | undefined,
+  configOptions: ReadonlyArray<any> | null | undefined,
   selections: ReadonlyArray<ProviderOptionSelection> | null | undefined,
 ): ReadonlyArray<{
   readonly configId: string;
@@ -501,7 +510,7 @@ export function resolveCursorAcpConfigUpdates(
       return normalizedValue === requestedReasoning || normalizedName === requestedReasoning;
     });
     if (value) {
-      updates.push({ configId: reasoningOption.id, value });
+      updates.push({ configId: getCursorOptionConfigId(reasoningOption), value });
     }
   }
 
@@ -519,7 +528,7 @@ export function resolveCursorAcpConfigUpdates(
           normalizeCursorConfigOptionToken(requestedContextWindow),
     );
     if (value) {
-      updates.push({ configId: contextOption.id, value });
+      updates.push({ configId: getCursorOptionConfigId(contextOption), value });
     }
   }
 
@@ -530,7 +539,7 @@ export function resolveCursorAcpConfigUpdates(
   if (fastOption && typeof requestedFastMode === "boolean") {
     const value = findCursorBooleanConfigValue(fastOption, requestedFastMode);
     if (value !== undefined) {
-      updates.push({ configId: fastOption.id, value });
+      updates.push({ configId: getCursorOptionConfigId(fastOption), value });
     }
   }
 
@@ -541,7 +550,7 @@ export function resolveCursorAcpConfigUpdates(
   if (thinkingOption && typeof requestedThinking === "boolean") {
     const value = findCursorBooleanConfigValue(thinkingOption, requestedThinking);
     if (value !== undefined) {
-      updates.push({ configId: thinkingOption.id, value });
+      updates.push({ configId: getCursorOptionConfigId(thinkingOption), value });
     }
   }
 

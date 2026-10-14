@@ -87,7 +87,7 @@ const withInstanceIdentity =
     continuation: { groupKey: input.continuationGroupKey },
   });
 
-export const KiloDriver: ProviderDriver<KiloSettings, KiloDriverEnv> = {
+export const KiloDriver: ProviderDriver<KiloSettings, any> = {
   driverKind: DRIVER_KIND,
   metadata: {
     displayName: "Kilo",

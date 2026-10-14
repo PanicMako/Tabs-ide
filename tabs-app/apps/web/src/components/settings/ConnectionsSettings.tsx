@@ -1,3 +1,4 @@
+import { OrbitGroup } from "../ui/orbit-group";
 import type { DesktopSshPasswordPromptRequest } from "@tabs/contracts";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
@@ -827,7 +828,7 @@ export function ConnectionsSettings() {
                   <DialogPanel className="space-y-6 pt-2 pb-3">
                     <>
                       {/* Connection Type Toggle */}
-                      <div
+                      <OrbitGroup
                         className="tabs-segmented grid grid-cols-2"
                         role="group"
                         aria-label="Connection type"
@@ -860,7 +861,7 @@ export function ConnectionsSettings() {
                           <TerminalIcon className="size-3.5" />
                           SSH Connection
                         </button>
-                      </div>
+                      </OrbitGroup>
 
                       {/* Fields */}
                       {addMode === "remote" ? (

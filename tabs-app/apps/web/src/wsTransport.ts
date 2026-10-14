@@ -112,6 +112,13 @@ export class WsTransport {
     this.connect();
   }
 
+  /** Resolve signed assets against the connected server, including remote environments. */
+  resolveHttpUrl(relativeUrl: string): string {
+    const origin = new URL(this.url);
+    origin.protocol = origin.protocol === "wss:" ? "https:" : "http:";
+    return new URL(relativeUrl, origin).href;
+  }
+
   private resolveUrl(explicitUrl?: string): string {
     if (explicitUrl && explicitUrl.length > 0) {
       return explicitUrl;

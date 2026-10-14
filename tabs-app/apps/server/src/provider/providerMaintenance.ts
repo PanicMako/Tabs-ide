@@ -5,6 +5,7 @@ import {
 } from "@tabs/contracts";
 import { compareSemverVersions } from "@tabs/shared/semver";
 import { resolveCommandPath } from "@tabs/shared/shell";
+import * as Context from "effect/Context";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
@@ -33,6 +34,7 @@ export interface ProviderMaintenanceCapabilityResolutionOptions {
   readonly binaryPath?: string | null;
   readonly env?: NodeJS.ProcessEnv;
   readonly platform?: NodeJS.Platform;
+  readonly resolvedCommandPath?: string | null;
   readonly realCommandPath?: string | null;
 }
 
@@ -54,12 +56,20 @@ export interface PackageManagedProviderMaintenanceDefinition {
   } | null;
 }
 
-interface LatestVersionCacheEntry {
+export interface ProviderVersionCacheEntry {
   readonly expiresAt: number;
   readonly version: string | null;
 }
 
-const latestVersionCache = new Map<string, LatestVersionCacheEntry>();
+const defaultLatestVersionCache = new Map<string, ProviderVersionCacheEntry>();
+
+export const ProviderVersionCache = Context.Reference<Map<string, ProviderVersionCacheEntry>>(
+  "@tabs/server/providerMaintenance/ProviderVersionCache",
+  {
+    defaultValue: () => defaultLatestVersionCache,
+  },
+);
+
 const NpmLatestVersionResponse = Schema.Struct({
   version: Schema.optional(Schema.String),
 });
@@ -71,7 +81,7 @@ const HomebrewFormulaResponse = Schema.Struct({
 });
 
 export function clearLatestProviderVersionCacheForTests(): void {
-  latestVersionCache.clear();
+  defaultLatestVersionCache.clear();
 }
 
 function nonEmptyString(value: unknown): string | null {
@@ -252,10 +262,7 @@ export function resolvePackageManagedProviderMaintenance(
   }
 
   const resolvedCommandPath =
-    resolveCommandPath(binaryPath, {
-      ...(options?.platform ? { platform: options.platform } : {}),
-      ...(options?.env ? { env: options.env } : {}),
-    }) ?? (hasPathSeparator(binaryPath) ? binaryPath : null);
+    options?.resolvedCommandPath ?? (hasPathSeparator(binaryPath) ? binaryPath : null);
 
   if (resolvedCommandPath) {
     const commandPaths = [
@@ -336,11 +343,12 @@ export const resolveProviderMaintenanceCapabilitiesEffect = Effect.fn(
     return resolver.resolve(options);
   }
 
-  const resolvedCommandPath =
-    resolveCommandPath(binaryPath, {
-      ...(options?.platform ? { platform: options.platform } : {}),
-      ...(options?.env ? { env: options.env } : {}),
-    }) ?? (hasPathSeparator(binaryPath) ? binaryPath : null);
+  const resolvedCommandPath = yield* resolveCommandPath(binaryPath, {
+    ...(options?.platform ? { platform: options.platform } : {}),
+    ...(options?.env ? { env: options.env } : {}),
+  }).pipe(
+    Effect.orElseSucceed(() => (hasPathSeparator(binaryPath) ? binaryPath : null)),
+  );
   if (!resolvedCommandPath) {
     return resolver.resolve(options);
   }
@@ -351,6 +359,7 @@ export const resolveProviderMaintenanceCapabilitiesEffect = Effect.fn(
     .pipe(Effect.orElseSucceed(() => resolvedCommandPath));
   return resolver.resolve({
     ...options,
+    resolvedCommandPath,
     realCommandPath,
   });
 });
@@ -520,6 +529,7 @@ export const resolveLatestProviderVersion = Effect.fn("resolveLatestProviderVers
     return null;
   }
 
+  const latestVersionCache = yield* ProviderVersionCache;
   const cached = latestVersionCache.get(source.cacheKey);
   const now = DateTime.toEpochMillis(yield* DateTime.now);
   if (cached && cached.expiresAt > now) {

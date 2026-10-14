@@ -25,6 +25,7 @@ import { ProviderSessionReaperLive } from "./provider/Layers/ProviderSessionReap
 import { ProviderEventLoggersLive } from "./provider/Layers/ProviderEventLoggers";
 import { ProviderInstanceRegistryHydrationLive } from "./provider/Layers/ProviderInstanceRegistryHydration";
 import { OpenCodeRuntimeLive } from "./provider/opencodeRuntime";
+import * as OpenCodeServerLedger from "./provider/OpenCodeServerLedger.ts";
 import { ProviderService } from "./provider/Services/ProviderService";
 import * as TextGeneration from "./textGeneration/TextGeneration";
 
@@ -52,7 +53,9 @@ import { AntigravityInstallation } from "./provider/AntigravityInstallation.ts";
 import * as CodexResetCreditCoordinator from "./provider/Layers/codexResetCredit.ts";
 import * as UsageLimitSources from "./usage/UsageLimitSources.ts";
 import * as AgentSessionScanner from "./project/AgentSessionScanner.ts";
+import * as AgentSessionImporter from "./project/AgentSessionImporter.ts";
 import * as ProjectFileLoader from "./project/ProjectFileLoader.ts";
+import * as ProjectService from "./project/ProjectService.ts";
 import * as ProjectSetupScriptRunner from "./project/ProjectSetupScriptRunner.ts";
 
 type RuntimePtyAdapterLoader = {
@@ -88,11 +91,14 @@ const makeRuntimePtyAdapterLayer = () =>
 // (ChildProcessSpawner/FileSystem/Path via NodeServices, ServerConfig,
 // ServerSettingsService) which the outer composition supplies.
 export function makeProviderInstanceRegistryLayer() {
+  const openCodeRuntimeLayer = OpenCodeRuntimeLive.pipe(
+    Layer.provideMerge(OpenCodeServerLedger.layer),
+  );
   return ProviderInstanceRegistryHydrationLive.pipe(
     Layer.provideMerge(CodexResetCreditCoordinator.layer),
     Layer.provideMerge(AntigravityInstallation.layer),
     Layer.provideMerge(ProviderEventLoggersLive),
-    Layer.provideMerge(OpenCodeRuntimeLive),
+    Layer.provideMerge(openCodeRuntimeLayer),
     Layer.provideMerge(FetchHttpClient.layer),
   );
 }
@@ -159,6 +165,7 @@ export function makeServerRuntimeServicesLayer() {
   const projectSetupScriptRunnerLayer = ProjectSetupScriptRunner.layer.pipe(
     Layer.provideMerge(runtimeServicesLayer),
     Layer.provideMerge(terminalLayer),
+    Layer.provideMerge(ProjectService.layerUnavailable),
   );
 
   const autoPullPolicyServiceLayer = autoPullPolicyLayer.pipe(
@@ -188,6 +195,8 @@ export function makeServerRuntimeServicesLayer() {
     Layer.provideMerge(runtimeServicesLayer),
   );
 
+  const agentSessionImporterLayer = AgentSessionImporter.layerUnavailable;
+
   // NodeServices (FileSystem/Path/ChildProcessSpawner) is provided once, at the
   // innermost level of the main composition, so the instance-registry drivers
   // (which sit below this layer) can also see it.
@@ -210,6 +219,7 @@ export function makeServerRuntimeServicesLayer() {
     EnvironmentTheme.layer,
     TraceDiagnostics.layer,
     agentSessionScannerLayer,
+    agentSessionImporterLayer,
     ProjectFileLoader.layer,
     projectSetupScriptRunnerLayer,
   ).pipe(Layer.provideMerge(AntigravityInstallation.layer));
@@ -218,9 +228,10 @@ export function makeServerRuntimeServicesLayer() {
 /** Stable environment identity plus the persisted pairing/session authority used by remote clients. */
 export function makeRemoteAccessServicesLayer() {
   const authLayer = EnvironmentAuth.layer.pipe(Layer.provideMerge(ServerSecretStore.layer));
+  const envLayer = ServerEnvironment.layer.pipe(Layer.provideMerge(ServerSecretStore.layer));
 
   return Layer.mergeAll(
-    ServerEnvironment.layer,
+    envLayer,
     authLayer,
     ServerSecretStore.layer,
     SessionStore.layer.pipe(Layer.provideMerge(ServerSecretStore.layer)),

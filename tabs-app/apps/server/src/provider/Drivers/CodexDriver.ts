@@ -118,7 +118,7 @@ const withInstanceIdentity =
     continuation: { groupKey: input.continuationGroupKey },
   });
 
-export const CodexDriver: ProviderDriver<CodexSettings, CodexDriverEnv> = {
+export const CodexDriver: ProviderDriver<CodexSettings, any> = {
   driverKind: DRIVER_KIND,
   metadata: {
     displayName: "Codex",

@@ -10,10 +10,23 @@ import { pullRequestHostOf } from "@tabs/contracts";
 import { parseChangeRequestUrl } from "./changeRequestUrl.ts";
 import { canonicalRepositoryKey, sourceControlRepositorySelector } from "./sourceControl.ts";
 
-/** Normalize stored link identity, including Azure's SSH and browser host aliases. */
-export function normalizeThreadPullRequestKey(key: ThreadPullRequestKey): ThreadPullRequestKey {
+type ThreadPullRequestKeySource = ThreadPullRequestKey & {
+  readonly authority?: string;
+  readonly url?: string;
+};
+
+/** Normalize stored links, recovering Forgejo HTTP ports from old links' URLs. */
+export function normalizeThreadPullRequestKey(
+  key: ThreadPullRequestKeySource,
+): ThreadPullRequestKey {
+  const parsed = key.url === undefined ? null : parseChangeRequestUrl(key.url);
+  const authority =
+    key.authority ??
+    (parsed?.repository === key.repository.trim().toLowerCase() && parsed.number === key.number
+      ? parsed.authority
+      : undefined);
   const canonical = canonicalRepositoryKey(
-    `${key.host.trim().toLowerCase()}/${key.repository.trim().toLowerCase()}`,
+    `${(authority ?? key.host).trim().toLowerCase()}/${key.repository.trim().toLowerCase()}`,
   );
   const separator = canonical.indexOf("/");
   return {
@@ -31,7 +44,7 @@ export function legacyThreadPullRequestKey(
   const parsed = parseChangeRequestUrl(linked.url);
   if (parsed !== null && parsed.number === linked.number) {
     const canonical = canonicalRepositoryKey(`${parsed.host}/${parsed.repository}`);
-    if (canonical.startsWith("dev.azure.com/")) {
+    if (parsed.authority !== undefined || canonical.startsWith("dev.azure.com/")) {
       return normalizeThreadPullRequestKey(parsed);
     }
   }
@@ -379,4 +392,25 @@ export function findThreadsForPullRequest<
     if (targetRepo && legacy.repository.trim().toLowerCase() === targetRepo) return true;
     return !targetRepo && !targetUrl;
   });
+}
+
+/** Older V2 event payloads stored one link; an explicit empty array means it was unlinked. */
+export function threadPullRequestsOf(thread: {
+  readonly pullRequests?: ReadonlyArray<ThreadPullRequestLink> | undefined;
+  readonly linkedPullRequest?: ThreadLinkedPullRequest | null | undefined;
+}): ReadonlyArray<ThreadPullRequestLink> {
+  if (thread.pullRequests !== undefined) return thread.pullRequests;
+  const linked = thread.linkedPullRequest;
+  return linked == null
+    ? []
+    : [
+        {
+          ...legacyThreadPullRequestKey(linked),
+          url: linked.url,
+          source: "manual",
+          linkedAt: "1970-01-01T00:00:00.000Z",
+          snapshot: null,
+          stack: null,
+        },
+      ];
 }

@@ -66,7 +66,7 @@ const makeAnalyticsService = Effect.gen(function* () {
   const deliveryLock = yield* Semaphore.make(1);
   const synchronizeConsent = Effect.gen(function* () {
     const enabled = yield* settingsService.getSettings.pipe(
-      Effect.map((settings) => settings.enableUsageAnalytics),
+      Effect.map((settings) => Boolean((settings as Record<string, unknown>).enableUsageAnalytics)),
       Effect.orElseSucceed(() => false),
     );
     if (!enabled) {

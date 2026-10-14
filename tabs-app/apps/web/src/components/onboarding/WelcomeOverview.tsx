@@ -12,7 +12,7 @@ export function WelcomeOverview({ onNext }: { readonly onNext: () => void }) {
           </p>
           <h2
             id="welcome-overview-title"
-            style={{ fontFamily: "'Syne', sans-serif" }}
+            style={{ fontFamily: "var(--font-display, var(--font-sans))" }}
             className="text-[42px] font-semibold leading-[1.04] tracking-[-0.055em] text-white sm:text-[54px]"
           >
             Bigger than

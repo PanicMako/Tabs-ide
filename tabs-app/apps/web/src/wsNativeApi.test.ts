@@ -56,6 +56,9 @@ vi.mock("./wsTransport", () => {
   return {
     WsTransport: class MockWsTransport {
       request = requestMock;
+      resolveHttpUrl(path: string) {
+        return new URL(path, "https://connected.test").href;
+      }
       subscribe = subscribeMock;
       onOpen(listener: () => void) {
         listener();
@@ -119,6 +122,23 @@ afterEach(() => {
 });
 
 describe("wsNativeApi", () => {
+  it("requests signed assets from the environment and resolves the actual server URL", async () => {
+    const { createWsNativeApi } = await import("./wsNativeApi");
+    requestMock.mockResolvedValue({
+      relativeUrl: "/api/assets/media?signature=ok",
+      expiresAt: 123,
+    });
+    const api = createWsNativeApi();
+    const input = {
+      resource: { _tag: "draft-workspace-file" as const, cwd: "/workspace", path: "image.png" },
+    };
+    expect(await api.assets.createUrl(input)).toEqual({
+      relativeUrl: "https://connected.test/api/assets/media?signature=ok",
+      expiresAt: 123,
+    });
+    expect(requestMock).toHaveBeenCalledWith(WS_METHODS.assetsCreateUrl, input);
+  });
+
   it("forwards workspace provider refresh inputs", async () => {
     const { createWsNativeApi } = await import("./wsNativeApi");
     requestMock.mockResolvedValue({ providers: [] });

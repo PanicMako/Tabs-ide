@@ -80,7 +80,7 @@ export function AddKeybindingDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-full max-w-[92vw] sm:max-w-xl md:max-w-2xl max-h-[85vh] flex flex-col p-0 gap-0 overflow-hidden rounded-2xl border border-border/80 bg-background shadow-2xl">
+      <DialogContent className="w-full max-w-[92vw] sm:max-w-lg max-h-[85vh] flex flex-col p-0 gap-0 overflow-hidden rounded-2xl border border-border/80 bg-background shadow-2xl">
         <DialogHeader className="flex flex-col space-y-1 border-b border-border/50 px-5 py-4 shrink-0 bg-muted/20">
           <div className="flex items-center gap-2.5">
             <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-foreground">
@@ -91,7 +91,7 @@ export function AddKeybindingDialog({
                 Add Keybinding
               </DialogTitle>
               <DialogDescription className="text-xs text-muted-foreground">
-                Configure a custom keybinding shortcut and context rule for your application.
+                Choose a command and record its shortcut.
               </DialogDescription>
             </div>
           </div>
@@ -133,7 +133,7 @@ export function AddKeybindingDialog({
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground block">
-                  Keybinding Shortcut <span className="text-destructive">*</span>
+                  Shortcut <span className="text-destructive">*</span>
                 </label>
                 {key ? (
                   <button
@@ -172,7 +172,7 @@ export function AddKeybindingDialog({
               <p className="text-[10px] text-muted-foreground/70">
                 {isRecording
                   ? "Press Esc to clear recording."
-                  : "Click box and press key combination on keyboard."}
+                  : "Press your shortcut to record it."}
               </p>
             </div>
           </div>

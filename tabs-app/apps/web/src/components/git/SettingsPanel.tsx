@@ -600,7 +600,7 @@ export function SettingsPanel({
             }
           >
             <GitModelPicker
-              selection={settings?.gitAi?.gitTextGenerationModelSelection}
+              selection={settings?.gitAi?.gitTextGenerationModelSelection ?? undefined}
               filterSourceMode={modelSourceMode}
               onSelect={(selection) => {
                 updateSettings.updateSettings({

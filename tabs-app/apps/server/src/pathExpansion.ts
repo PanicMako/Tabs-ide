@@ -1,6 +1,8 @@
 // @effect-diagnostics nodeBuiltinImport:off
-import { homedir } from "node:os";
-import { join } from "node:path";
+import * as NodeOS from "node:os";
+import * as NodePath from "node:path";
+
+import type * as Path from "effect/Path";
 
 /**
  * Expand a leading `~` (or `~/…`, `~\…`) in a user-supplied path to the
@@ -16,9 +18,25 @@ import { join } from "node:path";
  */
 export function expandHomePath(value: string): string {
   if (!value) return value;
-  if (value === "~") return homedir();
+  if (value === "~") return NodeOS.homedir();
   if (value.startsWith("~/") || value.startsWith("~\\")) {
-    return join(homedir(), value.slice(2));
+    return NodePath.join(NodeOS.homedir(), value.slice(2));
+  }
+  return value;
+}
+
+/**
+ * Same expansion as `expandHomePath`, but joins with a caller-supplied
+ * `Path.Path` service instead of `node:path`. Use this inside Effect code that
+ * already has `Path.Path` in context so the platform layer stays in control of
+ * separator handling.
+ */
+export function expandHomePathWith(value: string, path: Path.Path): string {
+  if (value === "~") {
+    return NodeOS.homedir();
+  }
+  if (value.startsWith("~/") || value.startsWith("~\\")) {
+    return path.join(NodeOS.homedir(), value.slice(2));
   }
   return value;
 }

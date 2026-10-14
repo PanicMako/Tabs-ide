@@ -1,3 +1,4 @@
+import { OrbitGroup } from "./ui/orbit-group";
 import React, { useState } from "react";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
@@ -402,7 +403,7 @@ export function ServerPresetFormFields(props: {
 
             <div className="flex items-center justify-between gap-4">
               <div className="text-sm font-medium text-foreground">Target Browser</div>
-              <div className="tabs-segmented flex" role="group" aria-label="Target browser">
+              <OrbitGroup className="tabs-segmented flex" role="group" aria-label="Target browser">
                 <button
                   type="button"
                   onClick={() =>
@@ -439,7 +440,7 @@ export function ServerPresetFormFields(props: {
                 >
                   Default Browser
                 </button>
-              </div>
+              </OrbitGroup>
             </div>
 
             <div className="flex items-center justify-between gap-3 rounded-xl border border-border/70 px-3 py-3">

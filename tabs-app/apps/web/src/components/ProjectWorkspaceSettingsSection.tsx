@@ -1,3 +1,4 @@
+import { OrbitGroup } from "./ui/orbit-group";
 import { type BrowserPartitionMode } from "@tabs/contracts/settings";
 import {
   DndContext,
@@ -264,39 +265,45 @@ function BrowserProfileSelector({
 
       {/* Clean Create Profile Dialog */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-base font-semibold flex items-center gap-2">
               <PlusIcon className="size-4 text-foreground" />
-              Create Browser Profile
+              New browser profile
             </DialogTitle>
             <DialogDescription className="text-xs">
-              Create a new isolated session profile to share logins across projects and tabs.
+              Keep a separate set of browser logins.
             </DialogDescription>
           </DialogHeader>
 
           <DialogPanel className="space-y-4 py-2">
             <div>
-              <label className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground block mb-1.5">
-                Profile Name
+              <label
+                htmlFor="project-profile-name"
+                className="text-xs font-medium text-muted-foreground block mb-1.5"
+              >
+                Name
               </label>
               <Input
+                id="project-profile-name"
                 value={newLabel}
                 onChange={(e) => setNewLabel(e.target.value)}
-                placeholder="e.g. Client Alpha, Personal Work"
+                placeholder="Work, Personal…"
                 className="text-xs"
                 autoFocus
               />
             </div>
 
             <div>
-              <label className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground block mb-1.5">
-                Color Accent
+              <label className="text-xs font-medium text-muted-foreground block mb-1.5">
+                Color
               </label>
               <div className="flex items-center gap-2 pt-0.5">
                 {["#3b82f6", "#10b981", "#8b5cf6", "#f59e0b", "#ec4899", "#06b6d4"].map((c) => (
                   <button
                     key={c}
+                    aria-label={`Profile color ${c}`}
+                    aria-pressed={newColor === c}
                     type="button"
                     onClick={() => setNewColor(c)}
                     className={cn(
@@ -314,7 +321,7 @@ function BrowserProfileSelector({
             </div>
           </DialogPanel>
 
-          <DialogFooter>
+          <DialogFooter variant="bare">
             <Button variant="ghost" onClick={() => setModalOpen(false)}>
               Cancel
             </Button>
@@ -1180,7 +1187,7 @@ export function ProjectWorkspaceSettingsSection() {
                       in an isolated sandbox, or connects to a named profile.
                     </div>
                   </div>
-                  <div
+                  <OrbitGroup
                     className="tabs-segmented flex shrink-0 self-start sm:self-auto"
                     role="group"
                     aria-label="Project browser session isolation"
@@ -1224,7 +1231,7 @@ export function ProjectWorkspaceSettingsSection() {
                     >
                       Named Profile
                     </button>
-                  </div>
+                  </OrbitGroup>
                 </div>
                 {browserPartitionModeDraft === "profile" && (
                   <BrowserProfileSelector
@@ -1452,7 +1459,7 @@ export function ProjectWorkspaceSettingsSection() {
                                         project, stays isolated, or links to a named profile.
                                       </div>
                                     </div>
-                                    <div
+                                    <OrbitGroup
                                       className="tabs-segmented flex shrink-0 self-start sm:self-auto"
                                       role="group"
                                       aria-label="Tab browser session isolation"
@@ -1504,7 +1511,7 @@ export function ProjectWorkspaceSettingsSection() {
                                       >
                                         Named Profile
                                       </button>
-                                    </div>
+                                    </OrbitGroup>
                                   </div>
                                   {activeDraft.partitionMode === "profile" && (
                                     <BrowserProfileSelector
@@ -1976,8 +1983,8 @@ export function ProjectWorkspaceSettingsSection() {
             </AlertDialogTitle>
             <AlertDialogDescription>
               {pendingToggle?.nextVisible
-                ? `This will show "${pendingToggle?.toolLabel}" in your project toolbar. The change is saved immediately.`
-                : `This will hide "${pendingToggle?.toolLabel}" from your project toolbar. You can re-enable it anytime from Settings.`}
+                ? `This will show "${pendingToggle?.toolLabel}" in your project toolbar.`
+                : `This will hide "${pendingToggle?.toolLabel}" from your project toolbar. You can restore it in Settings.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

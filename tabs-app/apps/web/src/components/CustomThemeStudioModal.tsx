@@ -1,3 +1,4 @@
+import { OrbitGroup } from "./ui/orbit-group";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
@@ -44,7 +45,7 @@ import { CustomColorPicker } from "./ui/CustomColorPicker";
 import { WorkbenchMiniPreview } from "./WorkbenchMiniPreview";
 import { ThemeImportExportModal } from "./ThemeImportExportModal";
 import { Button } from "./ui/button";
-import { Dialog, DialogPopup } from "./ui/dialog";
+import { Dialog, DialogPopup, DialogTitle, DialogDescription } from "./ui/dialog";
 import { Input } from "./ui/input";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "./ui/select";
 import { toastManager } from "./ui/toast";
@@ -277,17 +278,16 @@ export const CustomThemeStudioModal: React.FC<CustomThemeStudioModalProps> = ({
         className="max-h-[92vh] w-full max-w-5xl flex-col p-0 overflow-hidden rounded-3xl border border-border/80 bg-card text-card-foreground shadow-2xl"
       >
         {/* Clean Neutral Header Bar */}
-        <div className="flex items-center justify-between border-b border-border/70 px-6 py-4 bg-background/60 shrink-0">
+        <div className="flex items-center justify-between border-b border-border/70 px-5 py-3 bg-background/60 shrink-0">
           <div className="flex items-center gap-3">
             <Palette className="size-5 text-muted-foreground" />
             <div>
-              <h3 className="text-base font-bold text-foreground tracking-tight">
+              <DialogTitle className="text-base font-bold text-foreground tracking-tight">
                 Custom Theme Studio
-              </h3>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Design custom color suites with automated token derivation &amp; live WCAG contrast
-                checking.
-              </p>
+              </DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                Tune colors and preview contrast.
+              </DialogDescription>
             </div>
           </div>
 
@@ -407,7 +407,11 @@ export const CustomThemeStudioModal: React.FC<CustomThemeStudioModalProps> = ({
                   Titlebar &amp; window frame chrome theme
                 </span>
               </div>
-              <div className="tabs-segmented flex" role="group" aria-label="Base window variant">
+              <OrbitGroup
+                className="tabs-segmented flex"
+                role="group"
+                aria-label="Base window variant"
+              >
                 <button
                   type="button"
                   onClick={() => updateDraft({ ...draftConfig, baseVariant: "dark" })}
@@ -434,7 +438,7 @@ export const CustomThemeStudioModal: React.FC<CustomThemeStudioModalProps> = ({
                   <Sun className="size-3.5" />
                   <span>Light</span>
                 </button>
-              </div>
+              </OrbitGroup>
             </div>
           </div>
 
@@ -636,13 +640,10 @@ export const CustomThemeStudioModal: React.FC<CustomThemeStudioModalProps> = ({
         >
           <div className="flex items-center justify-between border-b border-border/60 pb-4">
             <div>
-              <h3 className="text-lg font-bold text-foreground">
-                Full-Width Live Preview Showcase
-              </h3>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                High-definition inspection of custom theme colors across IDE, App Shell, and Token
-                surfaces.
-              </p>
+              <DialogTitle className="text-lg font-bold text-foreground">Theme preview</DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                Preview your theme across Tabs.
+              </DialogDescription>
             </div>
             <button
               type="button"

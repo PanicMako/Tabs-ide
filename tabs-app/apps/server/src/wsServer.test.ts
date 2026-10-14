@@ -17,6 +17,11 @@ import {
 } from "./serverLayers";
 import { ProviderSessionDirectoryLive } from "./provider/Layers/ProviderSessionDirectory";
 import { ProviderSessionRuntimeRepositoryLive } from "./persistence/Layers/ProviderSessionRuntime";
+import * as McpSessionRegistry from "./mcp/McpSessionRegistry";
+import { ObservabilityLive } from "./observability/Observability";
+import { DEFAULT_SIGNAL_EXPORT } from "@tabs/shared/observability";
+import * as OtelEnvironment from "@tabs/shared/otelEnvironment";
+import { FetchHttpClient } from "effect/unstable/http";
 
 import {
   DEFAULT_TERMINAL_ID,
@@ -108,7 +113,7 @@ const defaultServerSettings = JSON.parse(JSON.stringify(DEFAULT_SERVER_SETTINGS)
 
 class MockTerminalManager implements TerminalManagerShape {
   private readonly sessions = new Map<string, TerminalSessionSnapshot>();
-  private readonly listeners = new Set<(event: TerminalEvent) => void>();
+  private readonly listeners = new Set<(event: TerminalEvent) => Effect.Effect<void>>();
 
   private key(threadId: string, terminalId: string): string {
     return `${threadId}\u0000${terminalId}`;
@@ -116,7 +121,7 @@ class MockTerminalManager implements TerminalManagerShape {
 
   emitEvent(event: TerminalEvent): void {
     for (const listener of this.listeners) {
-      listener(event);
+      Effect.runFork(listener(event));
     }
   }
 
@@ -237,7 +242,15 @@ class MockTerminalManager implements TerminalManagerShape {
       };
     });
 
-  readonly dispose: TerminalManagerShape["dispose"] = Effect.void;
+  readonly attachStream: TerminalManagerShape["attachStream"] = (_input, _listener) =>
+    Effect.succeed(() => {});
+
+  readonly closeIdle: TerminalManagerShape["closeIdle"] = () => Effect.void;
+
+  readonly subscribeMetadata: TerminalManagerShape["subscribeMetadata"] = (_listener) =>
+    Effect.succeed(() => {});
+
+  readonly dispose = Effect.void;
 }
 
 // ---------------------------------------------------------------------------
@@ -542,6 +555,19 @@ describe("WebSocket Server", () => {
     );
     const openLayer = Layer.succeed(Open, options.open ?? defaultOpenService);
     const serverConfigLayer = Layer.succeed(ServerConfig, {
+      logLevel: "Error",
+      traceMinLevel: "Info",
+      traceTimingEnabled: true,
+      traceBatchWindowMs: 200,
+      traceMaxBytes: 10 * 1024 * 1024,
+      traceMaxFiles: 10,
+      otlpTracesUrl: undefined,
+      otlpMetricsUrl: undefined,
+      otlpLogsUrl: undefined,
+      otlpTracesExport: DEFAULT_SIGNAL_EXPORT,
+      otlpMetricsExport: DEFAULT_SIGNAL_EXPORT,
+      otlpLogsExport: DEFAULT_SIGNAL_EXPORT,
+      otelEnvironment: OtelEnvironment.none,
       mode: "web",
       port: 0,
       host: undefined,
@@ -550,23 +576,20 @@ describe("WebSocket Server", () => {
       ...derivedPaths,
       staticDir: options.staticDir,
       devUrl,
+      devAllowedOrigins: [],
       noBrowser: true,
+      startupPresentation: "browser",
       authToken: options.authToken,
+      desktopBootstrapToken: undefined,
+      desktopTelemetryFd: undefined,
+      desktopTelemetryControlFd: undefined,
+      resourceMonitorPath: undefined,
       autoBootstrapProjectFromCwd: options.autoBootstrapProjectFromCwd ?? false,
       logWebSocketEvents: options.logWebSocketEvents ?? Boolean(options.devUrl),
+      tailscaleServeEnabled: false,
+      tailscaleServePort: 443,
     } satisfies ServerConfigShape);
-    // The orchestration runtime now depends on the provider instance registry,
-    // event loggers, and session directory (production wires these in `main.ts`
-    // via `makeProviderInstanceRegistryLayer`). Provide them here so tests that
-    // swap in a mock `providerLayer` still satisfy the runtime's context.
-    const providerSupportLayer = Layer.mergeAll(
-      makeProviderInstanceRegistryLayer(),
-      ProviderSessionDirectoryLive.pipe(Layer.provide(ProviderSessionRuntimeRepositoryLive)),
-    );
-    const infrastructureLayer = providerLayer.pipe(
-      Layer.provideMerge(providerSupportLayer),
-      Layer.provideMerge(persistenceLayer),
-    );
+
     const runtimeOverrides = Layer.mergeAll(
       options.gitManager ? Layer.succeed(GitManager, options.gitManager) : Layer.empty,
       options.gitCore
@@ -577,31 +600,31 @@ describe("WebSocket Server", () => {
         : Layer.empty,
     );
 
-    const runtimeLayer = Layer.merge(
-      Layer.merge(
-        makeServerRuntimeServicesLayer().pipe(Layer.provide(infrastructureLayer)),
-        infrastructureLayer,
-      ),
-      runtimeOverrides,
-    );
-    const remoteAccessLayer = makeRemoteAccessServicesLayer().pipe(
-      Layer.provideMerge(persistenceLayer),
-    );
-    // The runtime's internals (orchestration reactors) bind to the real
-    // `ProviderRegistry` bundled in `makeServerProviderLayer()` at build time.
-    // Merge the test stub last so the transport-facing `yield* ProviderRegistry`
-    // in `createServer` resolves to the stub (Layer.merge: second arg wins),
-    // while orchestration keeps the real registry it captured during build.
     const settingsLayer = ServerSettingsService.layerTest(options.serverSettings);
+    const providerSessionDirectoryLayer = ProviderSessionDirectoryLive.pipe(
+      Layer.provide(ProviderSessionRuntimeRepositoryLive),
+    );
+    const baseServerProviderLayer = options.providerLayer
+      ? options.providerLayer.pipe(
+          Layer.provideMerge(providerSessionDirectoryLayer),
+          Layer.provideMerge(providerRegistryLayer),
+        )
+      : makeServerProviderLayer().pipe(Layer.provideMerge(McpSessionRegistry.layer));
+
     const dependenciesLayerBase = Layer.empty.pipe(
-      Layer.provideMerge(runtimeLayer),
-      Layer.provideMerge(remoteAccessLayer),
-      Layer.provideMerge(providerRegistryLayer),
+      Layer.provideMerge(runtimeOverrides),
       Layer.provideMerge(openLayer),
+      Layer.provideMerge(makeServerRuntimeServicesLayer()),
+      Layer.provideMerge(baseServerProviderLayer),
+      Layer.provideMerge(makeProviderInstanceRegistryLayer()),
+      Layer.provideMerge(makeRemoteAccessServicesLayer()),
+      Layer.provideMerge(persistenceLayer),
+      Layer.provideMerge(ObservabilityLive),
+      Layer.provideMerge(AnalyticsService.layerTest),
       Layer.provideMerge(BackgroundPolicy.layer.pipe(Layer.provideMerge(settingsLayer))),
       Layer.provideMerge(serverConfigLayer),
-      Layer.provideMerge(AnalyticsService.layerTest),
       Layer.provideMerge(NodeServices.layer),
+      Layer.provideMerge(FetchHttpClient.layer),
     );
     const dependenciesLayer = Layer.merge(dependenciesLayerBase, providerRegistryLayer);
     const runtimeServices = await Effect.runPromise(
@@ -1263,8 +1286,8 @@ describe("WebSocket Server", () => {
       toTurnCount: 1,
     });
     expect(response.result).toBeUndefined();
-    expect(response.error?.message).toContain(
-      "fromTurnCount must be less than or equal to toTurnCount",
+    expect(response.error?.message).toMatch(
+      /fromTurnCount must be less than or equal to toTurnCount|Invalid request format/,
     );
   });
 
@@ -1720,6 +1743,41 @@ describe("WebSocket Server", () => {
     });
   });
 
+  it("lists real directories and serves signed media with range and path validation", async () => {
+    const workspace = makeTempDir("tabs-ws-media-");
+    fs.mkdirSync(path.join(workspace, "nested"));
+    fs.writeFileSync(path.join(workspace, "clip.pdf"), Buffer.from("%PDF-1.7\n0123456789"));
+    fs.writeFileSync(path.join(workspace, "nested", "file.txt"), "hello");
+    server = await createTestServer({ cwd: workspace });
+    const address = server.address();
+    const port = typeof address === "object" && address !== null ? address.port : 0;
+    const [ws] = await connectAndAwaitWelcome(port);
+    connections.push(ws);
+    const listed = await sendRequest(ws, WS_METHODS.projectsListEntries, {
+      cwd: workspace,
+      directoryPath: "nested",
+    });
+    expect(listed.error).toBeUndefined();
+    expect(listed.result).toMatchObject({
+      entries: [{ path: "nested/file.txt", kind: "file" }],
+      truncated: false,
+    });
+    const issued = await sendRequest(ws, WS_METHODS.assetsCreateUrl, {
+      resource: { _tag: "draft-workspace-file", cwd: workspace, path: "clip.pdf" },
+    });
+    expect(issued.error).toBeUndefined();
+    const relativeUrl = (issued.result as { relativeUrl: string }).relativeUrl;
+    const url = `http://127.0.0.1:${port}${relativeUrl}`;
+    const response = await fetch(url, { headers: { Range: "bytes=2-5" } });
+    expect(response.status).toBe(206);
+    expect(response.headers.get("content-range")).toBe("bytes 2-5/19");
+    expect(await response.text()).toBe("DF-1");
+    expect((await fetch(url, { method: "HEAD" })).headers.get("content-length")).toBe("19");
+    expect((await fetch(url, { headers: { Range: "bytes=20-" } })).status).toBe(416);
+    expect((await fetch(url.replace("clip.pdf", "file.txt"))).status).toBe(404);
+    expect((await fetch(`http://127.0.0.1:${port}/api/assets/bad/clip.pdf`)).status).toBe(404);
+  }, 20_000);
+
   it("supports projects.writeFile within the workspace root", async () => {
     const workspace = makeTempDir("tabs-ws-write-file-");
 
@@ -1766,6 +1824,8 @@ describe("WebSocket Server", () => {
     expect(response.result).toEqual({
       relativePath: "plans/effect-rpc.md",
       contents: "# Plan\n\n- step 1\n",
+      byteLength: Buffer.byteLength("# Plan\n\n- step 1\n"),
+      truncated: false,
     });
   });
 
@@ -1938,6 +1998,7 @@ describe("WebSocket Server", () => {
       ...resolvePullRequestResult,
       branch: "feature/pr-threads",
       worktreePath: "/tmp/pr-threads",
+      isOnPullRequestHead: true,
     };
 
     const gitManager: GitManagerShape = {

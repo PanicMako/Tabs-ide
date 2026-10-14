@@ -3,9 +3,12 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import type { OrchestrationProject, OrchestrationReadModel, ProjectId } from "@tabs/contracts";
 
-import { ProjectionSnapshotQuery } from "../orchestration/Services/ProjectionSnapshotQuery.ts";
+import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
+import * as Option from "effect/Option";
+
 import { ServerSettingsService } from "../serverSettings.ts";
 import { TerminalManager, type TerminalManagerShape } from "../terminal/Services/Manager.ts";
+import * as ProjectService from "./ProjectService.ts";
 import * as ProjectSetupScriptRunner from "./ProjectSetupScriptRunner.ts";
 
 const makeProject = (scripts: OrchestrationProject["scripts"]): OrchestrationProject => ({
@@ -24,34 +27,36 @@ const testLayer = (
   terminalManagerMock: Partial<TerminalManagerShape>,
   serverSettingsLayer = ServerSettingsService.layerTest(),
 ) => {
-  const snapshot: OrchestrationReadModel = {
-    snapshotSequence: 1,
-    projects: project ? [project] : [],
-    threads: [],
-    updatedAt: "2026-01-01T00:00:00.000Z",
-  };
-
-  const projectionMock = Layer.succeed(ProjectionSnapshotQuery, {
-    getSnapshot: () => Effect.succeed(snapshot),
-    getImportedAgentSessionSources: () => Effect.succeed([]),
-  });
+  const projectMock = Layer.succeed(ProjectService.ProjectService, {
+    getById: (id: ProjectId) =>
+      Effect.succeed(
+        project && project.id === id ? Option.some(project as any) : Option.none(),
+      ),
+    getByWorkspaceRoot: (root: string) =>
+      Effect.succeed(
+        project && project.workspaceRoot === root ? Option.some(project as any) : Option.none(),
+      ),
+  } as any);
 
   const terminalMock = Layer.succeed(TerminalManager, {
     open: terminalManagerMock.open ?? (() => Effect.succeed({} as any)),
     list: () => Effect.succeed([]),
+    attachStream: () => Effect.succeed(() => {}),
     write: terminalManagerMock.write ?? (() => Effect.void),
     resize: () => Effect.void,
     clear: () => Effect.void,
     restart: () => Effect.succeed({} as any),
     close: () => Effect.void,
+    closeIdle: () => Effect.void,
     subscribe: () => Effect.succeed(() => {}),
-    dispose: Effect.void,
-  });
+    subscribeMetadata: () => Effect.succeed(() => {}),
+  } as any);
 
   return ProjectSetupScriptRunner.layer.pipe(
-    Layer.provideMerge(projectionMock),
+    Layer.provideMerge(projectMock),
     Layer.provideMerge(terminalMock),
     Layer.provideMerge(serverSettingsLayer),
+    Layer.provideMerge(NodeCrypto.layer),
   );
 };
 
@@ -110,6 +115,9 @@ describe("ProjectSetupScriptRunner", () => {
       cwd: "/repo/worktrees/a",
       worktreePath: "/repo/worktrees/a",
       env: {
+        COLORTERM: "",
+        FORCE_COLOR: "0",
+        NO_COLOR: "1",
         TABS_PROJECT_ROOT: "/repo/project",
         T3CODE_PROJECT_ROOT: "/repo/project",
         TABS_WORKTREE_PATH: "/repo/worktrees/a",
