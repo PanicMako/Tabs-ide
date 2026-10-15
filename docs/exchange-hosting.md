@@ -28,7 +28,7 @@ The workspace already contains an unrelated Free service, `user-management`. Bot
 
 ## Configuration still needed
 
-The Free Render service `tabs-exchange-api` now has the assigned origin `https://tabs-exchange-api.onrender.com`. Database, private storage, and GitHub OAuth credentials are configured privately on Render; operator access is restricted to the owner's numeric GitHub ID. Deployment and an actual GitHub sign-in must still be verified. Reviewed publisher terms, a scanning deployment, and a production TUF root/signing arrangement remain necessary before enabling publication. Test identities and test signing roots must not replace them.
+The Free Render service `tabs-exchange-api` now has the assigned origin `https://tabs-exchange-api.onrender.com`. Database, private storage, and GitHub OAuth credentials are configured privately on Render; operator access is restricted to the owner's numeric GitHub ID. Render reports the pilot live, and HTTPS liveness, PostgreSQL readiness, portal, and catalog checks have passed. Actual owner GitHub sign-in remains pending. Reviewed publisher terms, a scanning deployment, and a production TUF root/signing arrangement remain necessary before enabling publication. Test identities and test signing roots must not replace them.
 
 The marketing website may link to a same-origin portal on the registry host. If the Exchange portal itself is moved to Vercel, proxy authentication and API routes through the portal origin and verify cookies, CSRF, signed metadata, and streaming. Do not split protected frontend/API origins by changing a URL alone.
 
