@@ -1,0 +1,102 @@
+.headspace .hs-nav .hs-menu-heading,
+.headspace .hs-nav .hs-menu-download,
+.headspace .hs-nav .hs-menu-toggle {
+  display: none;
+}
+.headspace .hs-nav .hs-header-navigation[hidden] {
+  display: none;
+}
+@media (max-width: 1024px) {
+  .tabs-navigation-ready .headspace .hs-nav {
+    flex-wrap: nowrap;
+    height: 83px;
+    padding-block: 0;
+  }
+  .tabs-navigation-ready .headspace .hs-nav > .hs-nav-download {
+    display: none;
+  }
+  .tabs-navigation-ready .headspace .hs-menu-toggle:not([hidden]),
+  .headspace .hs-nav .hs-menu-close {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 44px;
+    height: 44px;
+    border: 1px solid #d9dfec;
+    border-radius: 8px;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+  }
+  .headspace .hs-nav .hs-menu-toggle {
+    margin-left: auto;
+  }
+  .headspace .hs-nav nav.hs-menu-open {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    position: fixed;
+    inset: 0;
+    height: 100dvh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    z-index: 1000000;
+    padding: max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right))
+      max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left));
+    background: #3259ed;
+    color: white;
+    animation: hs-menu-enter 260ms ease-out;
+  }
+  .headspace .hs-nav .hs-menu-open .hs-menu-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 24px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid #ffffff40;
+    font-size: 18px;
+  }
+  .headspace .hs-nav .hs-menu-close {
+    border-color: #ffffff60;
+  }
+  .headspace .hs-nav .hs-menu-open > a {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 60px;
+    padding-block: 16px;
+    color: white;
+    font-size: 22px;
+  }
+  .headspace .hs-nav .hs-menu-open > .hs-menu-download {
+    margin-top: auto;
+    border-top: 1px solid #ffffff40;
+  }
+  .headspace .hs-nav .hs-menu-open > a:hover {
+    color: white;
+    text-decoration: underline;
+  }
+  .headspace .hs-nav .hs-menu-open :focus-visible {
+    outline: 2px solid white;
+    outline-offset: 4px;
+  }
+  body.hs-menu-open {
+    overflow: hidden;
+  }
+}
+@keyframes hs-menu-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .headspace .hs-nav nav.hs-menu-open {
+    animation: none;
+  }
+}

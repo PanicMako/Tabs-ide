@@ -2424,17 +2424,8 @@ body[data-concept="5"] .page-loader.loader-dismissed {
   font-size: 11px;
 }
 
-/* Keep the full navigation reachable as Exchange joins the header. */
-@media (min-width: 761px) and (max-width: 1050px) {
-  .headspace .hs-nav {
-    gap: 16px;
-  }
-  .headspace .hs-nav nav {
-    gap: 16px;
-    font-size: 13px;
-  }
-}
-@media (max-width: 760px) {
+/* Without JavaScript, keep the links available in a wrapping row. */
+@media (max-width: 1024px) {
   .headspace .hs-nav {
     height: auto;
     min-height: 83px;
@@ -2447,11 +2438,7 @@ body[data-concept="5"] .page-loader.loader-dismissed {
     order: 3;
     flex-basis: 100%;
     flex-wrap: wrap;
-    justify-content: space-between;
-    gap: 12px;
+    gap: 16px;
     font-size: 13px;
-  }
-  .headspace .hs-nav nav a {
-    white-space: nowrap;
   }
 }
