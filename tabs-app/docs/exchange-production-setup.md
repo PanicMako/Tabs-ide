@@ -8,13 +8,13 @@ are complete; this is not a fully launched signed extension marketplace.
 
 ## Current services
 
-| Component | Current setup | Configuration |
-| --- | --- | --- |
-| Registry API | One Free Render Docker service in Singapore | `codex/exchange-deployment` application-only branch; Docker context `.`, Dockerfile `apps/exchange/Dockerfile`, default command, `/livez` health check |
-| Scan worker | Not deployed | Publishing stays disabled until a scanning deployment is accepted |
-| Database | Neon Free PostgreSQL in Singapore | Pooled `DATABASE_URL`; direct `DATABASE_URL_UNPOOLED` for migrations and notifications |
-| Packages | Private Neon Object Storage bucket `tabs-exchange` | `AWS_ENDPOINT_URL_S3`, `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `S3_BUCKET` |
-| Signing | Production signer/root not provisioned | Private signing keys must stay out of the API/worker environment, repository, and image |
+| Component    | Current setup                                      | Configuration                                                                                                                                          |
+| ------------ | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Registry API | One Free Render Docker service in Singapore        | `codex/exchange-deployment` application-only branch; Docker context `.`, Dockerfile `apps/exchange/Dockerfile`, default command, `/livez` health check |
+| Scan worker  | Not deployed                                       | Publishing stays disabled until a scanning deployment is accepted                                                                                      |
+| Database     | Neon Free PostgreSQL in Singapore                  | Pooled `DATABASE_URL`; direct `DATABASE_URL_UNPOOLED` for migrations and notifications                                                                 |
+| Packages     | Private Neon Object Storage bucket `tabs-exchange` | `AWS_ENDPOINT_URL_S3`, `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `S3_BUCKET`                                                     |
+| Signing      | Production signer/root not provisioned             | Private signing keys must stay out of the API/worker environment, repository, and image                                                                |
 
 The application-only branch is a subtree projection of `tabs-app`. The complete
 integration branch remains `codex/release-consolidation-2026-10-15`. This avoids
