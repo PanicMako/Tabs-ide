@@ -391,8 +391,7 @@ function createTextGeneration(
             }),
         ),
       ),
-    generateStructuredTesting: (input) =>
-      implementation.generateStructuredTesting(input),
+    generateStructuredTesting: (input) => implementation.generateStructuredTesting(input),
   };
 }
 

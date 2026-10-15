@@ -1867,6 +1867,11 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
           yield* writeTextFile(cwd, "tab\tand\nnewline.txt", "unusual path\n");
         }
         yield* git(cwd, ["add", "."]);
+        if ((yield* HostProcessPlatform) !== "win32") {
+          const fs = yield* FileSystem.FileSystem;
+          const path = yield* Path.Path;
+          yield* fs.chmod(path.join(cwd, "mode-only.sh"), 0o755);
+        }
         yield* git(cwd, ["update-index", "--chmod=+x", "mode-only.sh"]);
         yield* git(cwd, ["commit", "-m", "rename and add files"]);
         const preview = yield* driver.getReviewDiffPreview({
@@ -2489,9 +2494,12 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
         const fileSystem = yield* FileSystem.FileSystem;
         const pathService = yield* Path.Path;
         const sshLogPath = pathService.join(tempDir, "ssh-env.txt");
-        const sshWrapperPath = yield* pathService.fromFileUrl(
+        const sshFixturePath = yield* pathService.fromFileUrl(
           new URL("./testing/GitVcsDriverCore.fixture.sh", import.meta.url),
         );
+        const sshWrapperPath = pathService.join(tempDir, "ssh-wrapper.sh");
+        yield* fileSystem.copyFile(sshFixturePath, sshWrapperPath);
+        yield* fileSystem.chmod(sshWrapperPath, 0o755);
         const envKeys = [
           "GCM_INTERACTIVE",
           "GIT_ASKPASS",

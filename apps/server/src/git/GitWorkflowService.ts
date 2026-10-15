@@ -26,6 +26,15 @@ import {
   type VcsStatusLocalResult,
   type VcsStatusRemoteResult,
   type VcsStatusResult,
+  type GitGenerateDiffSummaryInput,
+  type GitGenerateDiffSummaryResult,
+  type GitGenerateReviewInput,
+  type GitGenerateReviewResult,
+  type GitSubmitFindingFeedbackInput,
+  type GitSubmitFindingFeedbackResult,
+  type GitGetReviewHistoryInput,
+  type GitGetReviewHistoryResult,
+  type ReviewProgressEvent,
 } from "@tabs/contracts";
 
 import * as GitManager from "./GitManager.ts";
@@ -64,6 +73,22 @@ export class GitWorkflowService extends Context.Service<
     readonly preparePullRequestThread: (
       input: GitPreparePullRequestThreadInput,
     ) => Effect.Effect<GitPreparePullRequestThreadResult, GitManagerServiceError>;
+    readonly generateDiffSummary: (
+      input: GitGenerateDiffSummaryInput,
+    ) => Effect.Effect<GitGenerateDiffSummaryResult, GitManagerServiceError>;
+    readonly generateReview: (
+      input: GitGenerateReviewInput,
+      options?: {
+        readonly onCostPreview?: (preview: any) => Effect.Effect<void>;
+        readonly onProgress?: (event: ReviewProgressEvent) => Effect.Effect<void>;
+      },
+    ) => Effect.Effect<GitGenerateReviewResult, GitManagerServiceError>;
+    readonly submitFindingFeedback: (
+      input: GitSubmitFindingFeedbackInput,
+    ) => Effect.Effect<GitSubmitFindingFeedbackResult, GitManagerServiceError>;
+    readonly getReviewHistory: (
+      input: GitGetReviewHistoryInput,
+    ) => Effect.Effect<GitGetReviewHistoryResult, GitManagerServiceError>;
     readonly listRefs: (
       input: VcsListRefsInput,
     ) => Effect.Effect<VcsListRefsResult, GitCommandError>;
@@ -338,6 +363,22 @@ export const make = Effect.gen(function* () {
     preparePullRequestThread: routeGitManager(
       "GitWorkflowService.preparePullRequestThread",
       gitManager.preparePullRequestThread,
+    ),
+    generateDiffSummary: routeGitManager(
+      "GitWorkflowService.generateDiffSummary",
+      gitManager.generateDiffSummary,
+    ),
+    generateReview: (input, options) =>
+      ensureGit("GitWorkflowService.generateReview", input.cwd).pipe(
+        Effect.andThen(gitManager.generateReview(input, options)),
+      ),
+    submitFindingFeedback: routeGitManager(
+      "GitWorkflowService.submitFindingFeedback",
+      gitManager.submitFindingFeedback,
+    ),
+    getReviewHistory: routeGitManager(
+      "GitWorkflowService.getReviewHistory",
+      gitManager.getReviewHistory,
     ),
     listRefs: (input) =>
       detectGitRepositoryForCommand("GitWorkflowService.listRefs", input.cwd).pipe(

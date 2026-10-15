@@ -1,3 +1,4 @@
+import { stat as nodeStat } from "node:fs/promises";
 import * as Cache from "effect/Cache";
 import * as Data from "effect/Data";
 import * as Crypto from "effect/Crypto";
@@ -480,7 +481,7 @@ function classifyGitFailure(stderr: string): GitCommandFailureReason | null {
       (line) =>
         GIT_DIAGNOSTIC_LINE_PATTERN.test(line) ||
         // A remote hook can echo ssh's wording; only the local ssh's line counts.
-        (!/^remote:/.test(line) && SSH_TRANSPORT_REFUSAL_PATTERN.test(line)),
+        (!line.startsWith("remote:") && SSH_TRANSPORT_REFUSAL_PATTERN.test(line)),
     )
     .join("\n");
   if (diagnostics.length === 0) return null;
@@ -2166,11 +2167,8 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
             "splitIndex.sharedIndexExpire=never",
           ];
           if (yield* fileSystem.exists(indexPath)) {
-            const { mtime } = yield* fileSystem.stat(indexPath);
+            const indexTime = yield* readIndexTimestamp(cwd, indexPath);
             yield* fileSystem.copyFile(indexPath, tempIndexPath);
-            const indexTime = Option.isSome(mtime)
-              ? Math.max(0, Math.floor(mtime.value.getTime() / 1000))
-              : 0;
             yield* fileSystem.utimes(tempIndexPath, indexTime, indexTime);
             yield* runGit(
               "GitVcsDriver.prepareCommitContext.expandSplitIndex",
@@ -2535,6 +2533,26 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
   });
 
   // Use the same temporary index for patch and statistics so unstaged renames agree.
+  const readIndexTimestamp = Effect.fn("readIndexTimestamp")(function* (
+    cwd: string,
+    indexPath: string,
+  ) {
+    const info = yield* Effect.tryPromise({
+      try: () => nodeStat(indexPath, { bigint: true }),
+      catch: (cause) =>
+        new GitCommandError({
+          operation: "GitVcsDriver.readIndexTimestamp",
+          cwd,
+          command: "git diff",
+          detail: "Could not read the source index timestamp.",
+          cause,
+        }),
+    });
+    // Date conversion can round a sub-millisecond timestamp into the next second.
+    // Git's racy-clean check needs the original second, including for split indexes.
+    return Math.max(0, Number(info.mtimeNs / 1_000_000_000n));
+  });
+
   const prepareReviewIndex = Effect.fn("prepareReviewIndex")(function* (
     cwd: string,
     untrackedPaths: ReadonlyArray<string>,
@@ -2567,13 +2585,8 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     });
     const indexExists = yield* fileSystem.exists(indexPath);
     if (indexExists) {
-      const { mtime } = yield* fileSystem.stat(indexPath);
+      const indexTime = yield* readIndexTimestamp(cwd, indexPath);
       yield* fileSystem.copyFile(indexPath, tempIndexPath);
-      // Node FileSystem.stat truncates bigint timestamps to milliseconds before creating its Date.
-      // Flooring preserves the source second without making preceding-second files racy.
-      const indexTime = Option.isSome(mtime)
-        ? Math.max(0, Math.floor(mtime.value.getTime() / 1000))
-        : 0;
       yield* fileSystem.utimes(tempIndexPath, indexTime, indexTime);
     }
     const env = { GIT_INDEX_FILE: tempIndexPath } satisfies NodeJS.ProcessEnv;

@@ -97,7 +97,10 @@ it.layer(NodeServices.layer)("PR filesystem cache", (it) => {
       assert.strictEqual(yield* Queue.take(operations), "stat");
       assert.deepStrictEqual(yield* fs.readDirectory(directory), [entry]);
       yield* TestClock.adjust("1 hour");
-      assert.deepStrictEqual(yield* Queue.takeN(operations, 2), ["stat", "remove"]);
+      assert.deepStrictEqual(
+        [yield* Queue.take(operations), yield* Queue.take(operations)],
+        ["stat", "remove"],
+      );
       assert.deepStrictEqual(yield* fs.readDirectory(directory), []);
     }).pipe(
       Effect.scoped,

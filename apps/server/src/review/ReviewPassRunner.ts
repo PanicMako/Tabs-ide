@@ -18,7 +18,7 @@ import {
   type TextGenerationError,
 } from "@tabs/contracts";
 import type { TextGenerationShape } from "../textGeneration/TextGeneration";
-import { buildDiffSummaryPrompt } from "../textGeneration/TextGenerationPrompts";
+import { buildDiffSummaryPrompt } from "../textGeneration/TextGenerationPrompts.ts";
 import { filterAndDeduplicateFindings } from "./VerificationFilter";
 
 export const DEFAULT_REVIEW_PASSES = ["correctness", "security"] as const;
