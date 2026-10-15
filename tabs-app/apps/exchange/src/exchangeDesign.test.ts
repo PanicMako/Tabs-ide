@@ -1,0 +1,163 @@
+import { readFileSync } from "node:fs";
+import { describe, expect, it } from "vitest";
+
+describe("Exchange visual constraints", () => {
+  it("bundles the editorial font pairing for the homepage", () => {
+    const layout = readFileSync(
+      new URL("../frontend/src/layouts/Exchange.astro", import.meta.url),
+      "utf8",
+    );
+    const home = readFileSync(
+      new URL("../frontend/src/pages/index.astro", import.meta.url),
+      "utf8",
+    );
+    expect(layout).toContain('import "@fontsource-variable/dm-sans"');
+    expect(layout).toContain('import "@fontsource/instrument-serif/400-italic.css"');
+    expect(home).toContain("<WorkspaceIllustration />");
+    expect(home).not.toContain('role="img"');
+    expect(home).toContain('aria-label="Search the extension marketplace"');
+    expect(home).toContain('action="/extensions"');
+  });
+  it("styles native publishing controls and identifies the current account section", () => {
+    const css = readFileSync(
+      new URL("../frontend/src/styles/exchange.css", import.meta.url),
+      "utf8",
+    );
+    const layout = readFileSync(
+      new URL("../frontend/src/layouts/Exchange.astro", import.meta.url),
+      "utf8",
+    );
+    expect(css).toContain("button:not(.button)");
+    expect(css).toContain("input::file-selector-button");
+    expect(css).toContain("#review-content > section");
+    expect(layout).toContain('aria-current={path === "/account" ? "page" : undefined}');
+  });
+  it("uses the distributed CLI executable in token instructions", () => {
+    const cli = JSON.parse(
+      readFileSync(
+        new URL("../../../packages/extension-cli/package.json", import.meta.url),
+        "utf8",
+      ),
+    ) as { bin: Record<string, string> };
+    const source = readFileSync(
+      new URL("../frontend/src/scripts/tokens.ts", import.meta.url),
+      "utf8",
+    );
+    expect(Object.keys(cli.bin)).toContain("tabsext");
+    expect(source).toContain("tabsext search --registry");
+    expect(source).toContain("tabsext publish my-tool.tabsext --registry");
+    expect(source).not.toContain("tabs-extension search");
+    expect(source).not.toContain("tabs-extension publish");
+  });
+  it("keeps token controls labeled and the one-time secret initially hidden", () => {
+    const source = readFileSync(
+      new URL("../frontend/src/pages/account/tokens.astro", import.meta.url),
+      "utf8",
+    );
+    for (const id of ["token-label", "token-scope", "token-namespace", "token-secret"])
+      expect(source).toContain(`for="${id}"`);
+    expect(source).toContain('aria-labelledby="token-create-title"');
+    expect(source).toContain('aria-describedby="token-namespace-help"');
+    expect(source).toContain('id="token-secret-section" hidden');
+    expect(source).toContain('id="token-create-button" type="submit" disabled');
+    expect(source).toContain('id="token-status" role="status" aria-live="polite"');
+  });
+  it("preserves one prerequisite-gated publishing form and keyboard file selection", () => {
+    const source = readFileSync(
+      new URL("../frontend/src/pages/publish.astro", import.meta.url),
+      "utf8",
+    );
+    expect([...source.matchAll(/<form\b/g)]).toHaveLength(1);
+    expect([...source.matchAll(/<\/form>/g)]).toHaveLength(1);
+    expect(source).toContain('<fieldset id="publish-fields" disabled>');
+    expect(source).toContain('type="file" accept=".tabsext"');
+    expect(source).toContain('aria-describedby="publish-file-help"');
+    expect(source).toContain('aria-labelledby="publication-guide-title"');
+    expect(source).toContain("Approval alone does not publish a package.");
+  });
+  it("uses shared panel, control, and badge geometry and solid surfaces", () => {
+    const css = readFileSync(
+      new URL("../frontend/src/styles/exchange.css", import.meta.url),
+      "utf8",
+    );
+    const home = readFileSync(
+      new URL("../frontend/src/pages/index.astro", import.meta.url),
+      "utf8",
+    );
+    expect(css).toContain("--radius: 20px;");
+    expect(css).toContain("--control-radius: 8px;");
+    expect(css).toContain("--badge-radius: 999px;");
+    for (const source of [css, home]) {
+      expect(source).not.toMatch(/(?:linear|radial|conic)-gradient\s*\(/i);
+      const corners = [...source.matchAll(/border-radius:\s*([^;]+);/g)];
+      if (source === css) expect(corners.length).toBeGreaterThan(0);
+      for (const corner of corners)
+        expect(corner[1]).toMatch(
+          /^(?:0|var\(--(?:radius|control-radius|badge-radius)\)(?: var\(--control-radius\) 0 0)?)$/,
+        );
+    }
+  });
+  it("keeps the deferred game out of both website layouts", () => {
+    for (const path of [
+      "../frontend/src/layouts/Exchange.astro",
+      "../../marketing/src/components/FooterSignature.astro",
+    ]) {
+      const source = readFileSync(new URL(path, import.meta.url), "utf8");
+      expect(source).not.toMatch(/import (?:WorkspaceRunner|ToolPuzzle) /);
+      expect(source).not.toMatch(/<(?:WorkspaceRunner|ToolPuzzle)\b/);
+    }
+  });
+});
+describe("Role-aware navigation (layout and account script)", () => {
+  it("layout contains both reviewer-link and operator-link elements, initially hidden", () => {
+    const layout = readFileSync(
+      new URL("../frontend/src/layouts/Exchange.astro", import.meta.url),
+      "utf8",
+    );
+    expect(layout).toContain('id="reviewer-link"');
+    expect(layout).toContain('id="operator-link"');
+    expect(layout).toMatch(/id="reviewer-link"[^>]*hidden/);
+    expect(layout).toMatch(/id="operator-link"[^>]*hidden/);
+  });
+  it("account navigation lib exposes operator flag for strict boolean only", () => {
+    const source = readFileSync(
+      new URL("../frontend/src/lib/accountNavigation.ts", import.meta.url),
+      "utf8",
+    );
+    // operator flag must be derived from actor.operator === true
+    expect(source).toContain("operator");
+    expect(source).toContain("actor.operator === true");
+  });
+  it("account script manages operator-link visibility alongside reviewer-link", () => {
+    const source = readFileSync(
+      new URL("../frontend/src/scripts/account.ts", import.meta.url),
+      "utf8",
+    );
+    expect(source).toContain("operator-link");
+    expect(source).toContain("navigation.operator");
+    expect(source).toContain("operatorLink.hidden");
+  });
+  it("developers page includes a shared, accessible publication flow illustration", () => {
+    const source = readFileSync(
+      new URL("../frontend/src/pages/developers.astro", import.meta.url),
+      "utf8",
+    );
+    expect(source).toContain("<PublicationIllustration />");
+    const diagram = readFileSync(
+      new URL("../frontend/src/components/PublicationIllustration.astro", import.meta.url),
+      "utf8",
+    );
+    expect(diagram).toContain("aria-label");
+    expect(diagram).toContain("figcaption");
+    expect(diagram).toContain("signed publication");
+  });
+  it("homepage editorial heading uses Instrument Serif via editorial-accent class", () => {
+    const source = readFileSync(
+      new URL("../frontend/src/pages/index.astro", import.meta.url),
+      "utf8",
+    );
+    expect(source).toContain("editorial-accent");
+    expect(source).not.toContain("workspace-art");
+    expect(source).not.toContain('role="img"');
+  });
+});
