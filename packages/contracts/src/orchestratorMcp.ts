@@ -635,7 +635,7 @@ export const OrchestratorMcpDeleteScheduledTaskResult = Schema.Struct({
 export type OrchestratorMcpDeleteScheduledTaskResult =
   typeof OrchestratorMcpDeleteScheduledTaskResult.Type;
 
-export class OrchestratorMcpFailure extends Schema.TaggedErrorClass<OrchestratorMcpFailure>()(
+export class OrchestratorMcpFailure extends Schema.TaggedError<OrchestratorMcpFailure>()(
   "OrchestratorMcpFailure",
   {
     code: Schema.Literals([

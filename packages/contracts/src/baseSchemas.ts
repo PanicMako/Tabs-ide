@@ -21,8 +21,7 @@ export const TrimmedString = Schema.String.pipe(
  */
 const isNonBlank = Schema.makeFilter((value: string) => value.trim().length > 0, {
   expected: "a non-blank string",
-  meta: { _tag: "isMinLength", minLength: 1 },
-  ["@effect/schema/annotation/Structural"]: true,
+  toJsonSchema: () => ({ minLength: 1 }),
   arbitraryConstraint: { minLength: 1 },
 });
 export const TrimmedNonEmptyString = TrimmedString.check(isNonBlank);
@@ -130,27 +129,29 @@ export const OmittedWhenNull = <Value extends Schema.Top>(value: Value) => {
  * payload still fails loudly.
  */
 export const ForwardCompatibleArray = <Element extends Schema.Top>(element: Element) =>
-  Schema.Array(
-    Schema.UndefinedOr(element).pipe(
-      // An element this build cannot read becomes a hole, filtered out below.
-      Schema.catchDecoding(() => Effect.succeedSome(undefined)),
-      // Likewise an element that cannot be encoded is sent as a hole, so one
-      // bad element costs only itself rather than the whole payload.
-      Schema.catchEncoding(() => Effect.succeedSome(undefined)),
-    ),
-  ).pipe(
+  Schema.Array(Schema.Unknown).pipe(
     Schema.decodeTo(
-      Schema.Array(
-        Schema.UndefinedOr(Schema.toType(element)).pipe(
-          Schema.catchEncoding(() => Effect.succeedSome(undefined)),
-        ),
-      ),
-      SchemaTransformation.transform<
-        ReadonlyArray<Element["Type"]>,
-        ReadonlyArray<Element["Type"] | undefined>
-      >({
-        decode: (values) => values.filter((value) => value !== undefined),
-        encode: (values) => values,
+      Schema.Array(Schema.Unknown),
+      SchemaTransformation.transformOrFail({
+        decode: (values: ReadonlyArray<unknown>) =>
+          Effect.forEach(values, (value) =>
+            Schema.decodeUnknownEffect(element)(value).pipe(
+              Effect.catch(() => Schema.decodeUnknownEffect(Schema.toCodecJson(element))(value)),
+              Effect.option,
+            ),
+          ).pipe(
+            Effect.map((values) =>
+              values.flatMap((value) => (Option.isSome(value) ? [value.value] : [])),
+            ),
+          ),
+        encode: (values: ReadonlyArray<unknown>) =>
+          Effect.forEach(values, (value) =>
+            Schema.encodeUnknownEffect(Schema.toCodecJson(element))(value).pipe(Effect.option),
+          ).pipe(
+            Effect.map((values) =>
+              values.map((value) => (Option.isSome(value) ? value.value : null)),
+            ),
+          ),
       }),
     ),
   ) as unknown as ForwardCompatibleArray<Element>;

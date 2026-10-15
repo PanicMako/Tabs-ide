@@ -20,6 +20,7 @@ export * from "./keybindings.ts";
 export * from "./server.ts";
 export * from "./settings.ts";
 export { resolveProviderInstanceEnabled } from "./providerInstance.ts";
+export * from "./extensions.ts";
 export * from "./git.ts";
 export * from "./vcs.ts";
 export * from "./sourceControl.ts";
@@ -81,3 +82,5 @@ export * from "./desktopAppActivation.ts";
 export * from "./projectClone.ts";
 export * from "./browserProfile.ts";
 export * from "./device.ts";
+
+export * from "./testingRpc.ts";

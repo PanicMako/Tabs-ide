@@ -1,3 +1,4 @@
+import { TESTING_WS_METHODS, TestingRpcs } from "./testingRpc.ts";
 import { OrchestrationDispatchCommandError } from "./orchestrationDispatch.ts";
 import {
   ChatGptReconnectProfileInput,
@@ -100,6 +101,18 @@ import {
   WorktreeSetupSubscribeInput,
 } from "./worktreeSetup.ts";
 import {
+  GitEnvironmentInput,
+  GitEnvironmentResult,
+  GitStatusInput,
+  GitStatusResult,
+  GitListBranchesInput,
+  GitListBranchesResult,
+  GitHistoryInput,
+  GitHistoryResult,
+  GitStashListInput,
+  GitStashListResult,
+  GitListTagsInput,
+  GitListTagsResult,
   GitActionProgressEvent,
   VcsSwitchRefInput,
   VcsSwitchRefResult,
@@ -120,6 +133,14 @@ import {
   VcsRemoveWorktreeInput,
   GitResolvePullRequestResult,
   GitRunStackedActionInput,
+  GitGenerateDiffSummaryInput,
+  GitGenerateDiffSummaryResult,
+  GitGenerateReviewInput,
+  GitGenerateReviewResult,
+  GitSubmitFindingFeedbackInput,
+  GitSubmitFindingFeedbackResult,
+  GitGetReviewHistoryInput,
+  GitGetReviewHistoryResult,
   VcsStatusInput,
   VcsStatusResult,
   VcsStatusStreamEvent,
@@ -192,6 +213,8 @@ import {
   OrchestrationV2DispatchCommandError,
   OrchestrationV2GetShellSnapshotError,
   OrchestrationV2GetThreadProjectionError,
+  OrchestrationV2ReconcileIntakeError,
+  OrchestrationV2RecordCancellationIntentError,
   OrchestrationV2RpcSchemas,
   OrchestrationV2ThreadLaunchError,
 } from "./orchestrationV2.ts";
@@ -272,6 +295,7 @@ import {
   ServerConfig,
   ServerProviderUpdateError,
   ServerProviderUpdateInput,
+  ServerRunProviderMaintenanceInput,
   ServerLifecycleStreamEvent,
   ServerRemoveKeybindingInput,
   ServerRemoveKeybindingResult,
@@ -343,6 +367,7 @@ import { VcsError } from "./vcs.ts";
 import { Project, ProjectMutation, ProjectMutationError } from "./project.ts";
 
 export const WS_METHODS = {
+  ...TESTING_WS_METHODS,
   // Project registry methods
   projectsList: "projects.list",
   projectsAdd: "projects.add",
@@ -400,6 +425,10 @@ export const WS_METHODS = {
   gitRunStackedAction: "git.runStackedAction",
   gitResolvePullRequest: "git.resolvePullRequest",
   gitPreparePullRequestThread: "git.preparePullRequestThread",
+  gitGenerateDiffSummary: "git.generateDiffSummary",
+  gitGenerateReview: "git.generateReview",
+  gitSubmitFindingFeedback: "git.submitFindingFeedback",
+  gitGetReviewHistory: "git.getReviewHistory",
 
   // Review methods
   reviewGetDiffPreview: "review.getDiffPreview",
@@ -441,6 +470,7 @@ export const WS_METHODS = {
   serverGetConfig: "server.getConfig",
   serverRefreshProviders: "server.refreshProviders",
   serverUpdateProvider: "server.updateProvider",
+  serverRunProviderMaintenance: "server.runProviderMaintenance",
   serverUpdateServer: "server.updateServer",
   serverUpdateServerWithProgress: "server.updateServerWithProgress",
   serverCommitDesktopUpdate: "server.commitDesktopUpdate",
@@ -462,6 +492,7 @@ export const WS_METHODS = {
   serverLogoutAcpRegistry: "server.logoutAcpRegistry",
   serverGetTraceDiagnostics: "server.getTraceDiagnostics",
   serverGetProcessDiagnostics: "server.getProcessDiagnostics",
+  serverGetResourceTelemetry: "server.getResourceTelemetry",
   serverGetHostResources: "server.getHostResources",
   serverGetProcessResourceHistory: "server.getProcessResourceHistory",
   serverGetResourceTelemetryHistory: "server.getResourceTelemetryHistory",
@@ -594,6 +625,16 @@ const WsServerUpdateProviderRpc = Rpc.make(WS_METHODS.serverUpdateProvider, {
   payload: ServerProviderUpdateInput,
   success: ServerProviderUpdatedPayload,
   error: Schema.Union([ServerProviderUpdateError, EnvironmentAuthorizationError]),
+});
+
+const WsServerRunProviderMaintenanceRpc = Rpc.make(WS_METHODS.serverRunProviderMaintenance, {
+  payload: ServerRunProviderMaintenanceInput,
+  success: ServerProviderUpdatedPayload,
+  error: Schema.Union([
+    ServerProviderUpdateError,
+    ProviderSetupError,
+    EnvironmentAuthorizationError,
+  ]),
 });
 
 const ProviderSetupRpcError = Schema.Union([ProviderSetupError, EnvironmentAuthorizationError]);
@@ -810,6 +851,12 @@ const WsServerGetTraceDiagnosticsRpc = Rpc.make(WS_METHODS.serverGetTraceDiagnos
 const WsServerGetProcessDiagnosticsRpc = Rpc.make(WS_METHODS.serverGetProcessDiagnostics, {
   payload: Schema.Struct({}),
   success: ServerProcessDiagnosticsResult,
+  error: EnvironmentAuthorizationError,
+});
+
+const WsServerGetResourceTelemetryRpc = Rpc.make(WS_METHODS.serverGetResourceTelemetry, {
+  payload: Schema.Struct({}),
+  success: ResourceTelemetrySnapshot,
   error: EnvironmentAuthorizationError,
 });
 
@@ -1239,6 +1286,37 @@ const WsProviderUploadFeedbackRpc = Rpc.make(WS_METHODS.providerUploadFeedback, 
   error: Schema.Union([ProviderUploadFeedbackError, EnvironmentAuthorizationError]),
 });
 
+const WsGitEnvironmentCompatibilityRpc = Rpc.make("git.environment", {
+  payload: GitEnvironmentInput,
+  success: GitEnvironmentResult,
+  error: Schema.Union([GitCommandError, EnvironmentAuthorizationError]),
+});
+const WsGitStatusCompatibilityRpc = Rpc.make("git.status", {
+  payload: GitStatusInput,
+  success: GitStatusResult,
+  error: Schema.Union([GitCommandError, EnvironmentAuthorizationError]),
+});
+const WsGitListBranchesCompatibilityRpc = Rpc.make("git.listBranches", {
+  payload: GitListBranchesInput,
+  success: GitListBranchesResult,
+  error: Schema.Union([GitCommandError, EnvironmentAuthorizationError]),
+});
+const WsGitHistoryCompatibilityRpc = Rpc.make("git.history", {
+  payload: GitHistoryInput,
+  success: GitHistoryResult,
+  error: Schema.Union([GitCommandError, EnvironmentAuthorizationError]),
+});
+const WsGitStashListCompatibilityRpc = Rpc.make("git.stashList", {
+  payload: GitStashListInput,
+  success: GitStashListResult,
+  error: Schema.Union([GitCommandError, EnvironmentAuthorizationError]),
+});
+const WsGitListTagsCompatibilityRpc = Rpc.make("git.listTags", {
+  payload: GitListTagsInput,
+  success: GitListTagsResult,
+  error: Schema.Union([GitCommandError, EnvironmentAuthorizationError]),
+});
+
 const WsSubscribeVcsStatusRpc = Rpc.make(WS_METHODS.subscribeVcsStatus, {
   payload: VcsStatusInput,
   success: VcsStatusStreamEvent,
@@ -1287,6 +1365,30 @@ const WsGitResolvePullRequestRpc = Rpc.make(WS_METHODS.gitResolvePullRequest, {
 const WsGitPreparePullRequestThreadRpc = Rpc.make(WS_METHODS.gitPreparePullRequestThread, {
   payload: GitPreparePullRequestThreadInput,
   success: GitPreparePullRequestThreadResult,
+  error: Schema.Union([GitManagerServiceError, EnvironmentAuthorizationError]),
+});
+
+const WsGitGenerateDiffSummaryRpc = Rpc.make(WS_METHODS.gitGenerateDiffSummary, {
+  payload: GitGenerateDiffSummaryInput,
+  success: GitGenerateDiffSummaryResult,
+  error: Schema.Union([GitManagerServiceError, EnvironmentAuthorizationError]),
+});
+
+const WsGitGenerateReviewRpc = Rpc.make(WS_METHODS.gitGenerateReview, {
+  payload: GitGenerateReviewInput,
+  success: GitGenerateReviewResult,
+  error: Schema.Union([GitManagerServiceError, EnvironmentAuthorizationError]),
+});
+
+const WsGitSubmitFindingFeedbackRpc = Rpc.make(WS_METHODS.gitSubmitFindingFeedback, {
+  payload: GitSubmitFindingFeedbackInput,
+  success: GitSubmitFindingFeedbackResult,
+  error: Schema.Union([GitManagerServiceError, EnvironmentAuthorizationError]),
+});
+
+const WsGitGetReviewHistoryRpc = Rpc.make(WS_METHODS.gitGetReviewHistory, {
+  payload: GitGetReviewHistoryInput,
+  success: GitGetReviewHistoryResult,
   error: Schema.Union([GitManagerServiceError, EnvironmentAuthorizationError]),
 });
 
@@ -1595,6 +1697,24 @@ const WsOrchestrationV2SubscribeThreadRpc = Rpc.make(ORCHESTRATION_V2_WS_METHODS
   stream: true,
 });
 
+const WsOrchestrationV2ReconcileIntakeRpc = Rpc.make(ORCHESTRATION_V2_WS_METHODS.reconcileIntake, {
+  payload: OrchestrationV2RpcSchemas.reconcileIntake.input,
+  success: OrchestrationV2RpcSchemas.reconcileIntake.output,
+  error: Schema.Union([OrchestrationV2ReconcileIntakeError, EnvironmentAuthorizationError]),
+});
+
+const WsOrchestrationV2RecordCancellationIntentRpc = Rpc.make(
+  ORCHESTRATION_V2_WS_METHODS.recordCancellationIntent,
+  {
+    payload: OrchestrationV2RpcSchemas.recordCancellationIntent.input,
+    success: OrchestrationV2RpcSchemas.recordCancellationIntent.output,
+    error: Schema.Union([
+      OrchestrationV2RecordCancellationIntentError,
+      EnvironmentAuthorizationError,
+    ]),
+  },
+);
+
 const WsSubscribeTerminalEventsRpc = Rpc.make(WS_METHODS.subscribeTerminalEvents, {
   payload: Schema.Struct({}),
   success: TerminalEvent,
@@ -1741,11 +1861,12 @@ export class RpcScopeAuthorization extends RpcMiddleware.Service<RpcScopeAuthori
   { error: EnvironmentAuthorizationError },
 ) {}
 
-export const WsRpcGroup = RpcGroup.make(
+export const CoreWsRpcGroup = RpcGroup.make(
   WsServerProbeRpc,
   WsServerGetConfigRpc,
   WsServerRefreshProvidersRpc,
   WsServerUpdateProviderRpc,
+  WsServerRunProviderMaintenanceRpc,
   WsProviderConsumeResetCreditRpc,
   WsProviderAuthStartRpc,
   WsProviderAuthCompleteRpc,
@@ -1782,6 +1903,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsServerLogoutAcpRegistryRpc,
   WsServerGetTraceDiagnosticsRpc,
   WsServerGetProcessDiagnosticsRpc,
+  WsServerGetResourceTelemetryRpc,
   WsServerGetHostResourcesRpc,
   WsServerGetProcessResourceHistoryRpc,
   WsServerGetResourceTelemetryHistoryRpc,
@@ -1857,6 +1979,12 @@ export const WsRpcGroup = RpcGroup.make(
   WsAttachmentsCreateUploadUrlRpc,
   WsAttachmentsDeleteRpc,
   WsProviderUploadFeedbackRpc,
+  WsGitEnvironmentCompatibilityRpc,
+  WsGitStatusCompatibilityRpc,
+  WsGitListBranchesCompatibilityRpc,
+  WsGitHistoryCompatibilityRpc,
+  WsGitStashListCompatibilityRpc,
+  WsGitListTagsCompatibilityRpc,
   WsSubscribeVcsStatusRpc,
   WsSubscribeWorktreeSetupRpc,
   WsWorktreeSetupCancelRpc,
@@ -1865,6 +1993,10 @@ export const WsRpcGroup = RpcGroup.make(
   WsGitRunStackedActionRpc,
   WsGitResolvePullRequestRpc,
   WsGitPreparePullRequestThreadRpc,
+  WsGitGenerateDiffSummaryRpc,
+  WsGitGenerateReviewRpc,
+  WsGitSubmitFindingFeedbackRpc,
+  WsGitGetReviewHistoryRpc,
   WsVcsListRefsRpc,
   WsVcsCreateWorktreeRpc,
   WsVcsRemoveWorktreeRpc,
@@ -1920,4 +2052,9 @@ export const WsRpcGroup = RpcGroup.make(
   WsOrchestrationV2SubscribeArchivedShellRpc,
   WsOrchestrationV2SubscribeShellRpc,
   WsOrchestrationV2SubscribeThreadRpc,
+  WsOrchestrationV2ReconcileIntakeRpc,
+  WsOrchestrationV2RecordCancellationIntentRpc,
 ).middleware(RpcScopeAuthorization);
+
+export const TestingWsRpcGroup = RpcGroup.make(...TestingRpcs).middleware(RpcScopeAuthorization);
+export const WsRpcGroup = CoreWsRpcGroup.merge(TestingWsRpcGroup);

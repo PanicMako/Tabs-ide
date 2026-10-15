@@ -524,7 +524,7 @@ export const GitCommandFailureReason = Schema.Literals([
 ]);
 export type GitCommandFailureReason = typeof GitCommandFailureReason.Type;
 
-export class GitCommandError extends Schema.TaggedErrorClass<GitCommandError>()("GitCommandError", {
+export class GitCommandError extends Schema.TaggedError<GitCommandError>()("GitCommandError", {
   operation: Schema.String,
   command: Schema.String,
   cwd: Schema.String,
@@ -543,7 +543,7 @@ export class GitCommandError extends Schema.TaggedErrorClass<GitCommandError>()(
   }
 }
 
-export class TextGenerationError extends Schema.TaggedErrorClass<TextGenerationError>()(
+export class TextGenerationError extends Schema.TaggedError<TextGenerationError>()(
   "TextGenerationError",
   {
     operation: Schema.String,
@@ -556,7 +556,7 @@ export class TextGenerationError extends Schema.TaggedErrorClass<TextGenerationE
   }
 }
 
-export class GitManagerError extends Schema.TaggedErrorClass<GitManagerError>()("GitManagerError", {
+export class GitManagerError extends Schema.TaggedError<GitManagerError>()("GitManagerError", {
   operation: Schema.String,
   cwd: Schema.String,
   detail: Schema.String,
@@ -567,7 +567,7 @@ export class GitManagerError extends Schema.TaggedErrorClass<GitManagerError>()(
   }
 }
 
-export class GitPullRequestMaterializationError extends Schema.TaggedErrorClass<GitPullRequestMaterializationError>()(
+export class GitPullRequestMaterializationError extends Schema.TaggedError<GitPullRequestMaterializationError>()(
   "GitPullRequestMaterializationError",
   {
     cwd: TrimmedNonEmptyStringSchema,
@@ -650,8 +650,6 @@ export const GitActionProgressEvent = Schema.Union([
   GitActionFailedEvent,
 ]);
 export type GitActionProgressEvent = typeof GitActionProgressEvent.Type;
-
-
 
 export const GitStatusInput = Schema.Struct({
   cwd: TrimmedNonEmptyStringSchema,
@@ -1013,6 +1011,8 @@ export const GitEnvironmentInput = Schema.Struct({
   cwd: TrimmedNonEmptyStringSchema,
 });
 export const GitHubAccount = Schema.Struct({
+  // Credential-store label can differ from the current GitHub username after a rename.
+  authLogin: Schema.optional(TrimmedNonEmptyStringSchema),
   host: TrimmedNonEmptyStringSchema,
   login: TrimmedNonEmptyStringSchema,
   active: Schema.Boolean,

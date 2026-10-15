@@ -1243,6 +1243,14 @@ export type DroidSettings = typeof DroidSettings.Type;
 
 export const OpenRouterSettings = makeProviderSettingsSchema(
   {
+    binaryPath: TrimmedString.pipe(
+      Schema.withDecodingDefault(Effect.succeed("opencode")),
+      Schema.annotateKey({
+        title: "Agent engine path",
+        description: "OpenCode 1.x CLI used for agent sessions. Code Review uses the API directly.",
+        providerSettingsForm: { placeholder: "opencode" },
+      }),
+    ),
     enabled: Schema.Boolean.pipe(
       Schema.withDecodingDefault(Effect.succeed(false)),
       Schema.annotateKey({ providerSettingsForm: { hidden: true } }),
@@ -1274,7 +1282,7 @@ export const OpenRouterSettings = makeProviderSettingsSchema(
       Schema.annotateKey({ providerSettingsForm: { hidden: true } }),
     ),
   },
-  { order: ["apiKey", "baseUrl"] },
+  { order: ["apiKey", "baseUrl", "binaryPath"] },
 );
 export type OpenRouterSettings = typeof OpenRouterSettings.Type;
 
@@ -1317,7 +1325,6 @@ export const GeminiSettings = makeProviderSettingsSchema(
   },
 );
 export type GeminiSettings = typeof GeminiSettings.Type;
-
 
 /**
  * A read-only quota source outside this environment's provider CLIs. The
@@ -1425,10 +1432,11 @@ export type BackgroundActivitySettings = typeof BackgroundActivitySettings.Type;
 
 /**
  * How assistant text reaches clients while a turn runs.
+ * - `token`: deliver the first text immediately and coalesce subsequent updates.
  * - `turn`: hold the whole message until the turn finishes or pauses.
  * - `paragraph`: deliver each finished paragraph or closed code block.
  */
-export const ResponseStreamingMode = Schema.Literals(["turn", "paragraph"]);
+export const ResponseStreamingMode = Schema.Literals(["turn", "paragraph", "token"]);
 export type ResponseStreamingMode = typeof ResponseStreamingMode.Type;
 
 /**
@@ -1600,7 +1608,7 @@ export const ServerSettings = Schema.Struct({
     Schema.withDecodingDefault(Effect.succeed([])),
   ),
   responseStreamingMode: ResponseStreamingMode.pipe(
-    Schema.withDecodingDefault(Effect.succeed("paragraph" as const)),
+    Schema.withDecodingDefault(Effect.succeed("token" as const)),
   ),
   enableProviderUpdateChecks: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   // Retain the update-era key; recovery now needs an environment-owned opt-in.
@@ -1815,9 +1823,9 @@ export const ServerSettings = Schema.Struct({
 });
 export type ServerSettings = typeof ServerSettings.Type;
 
-export const DEFAULT_SERVER_SETTINGS: ServerSettings = Schema.decodeUnknownSync(
-  ServerSettings,
-)({}) as ServerSettings;
+export const DEFAULT_SERVER_SETTINGS: ServerSettings = Schema.decodeUnknownSync(ServerSettings)(
+  {},
+) as ServerSettings;
 
 /**
  * Read the legacy `enabled` flag embedded in a provider instance config
@@ -1879,7 +1887,7 @@ export const ServerSettingsOperation = Schema.Literals([
 ]);
 export type ServerSettingsOperation = typeof ServerSettingsOperation.Type;
 
-export class ServerSettingsError extends Schema.TaggedErrorClass<ServerSettingsError>()(
+export class ServerSettingsError extends Schema.TaggedError<ServerSettingsError>()(
   "ServerSettingsError",
   {
     settingsPath: Schema.String,
@@ -2045,6 +2053,7 @@ const KiloSettingsPatch = Schema.Struct({
 });
 
 const OpenRouterSettingsPatch = Schema.Struct({
+  binaryPath: Schema.optionalKey(TrimmedString),
   enabled: Schema.optionalKey(Schema.Boolean),
   apiKey: Schema.optionalKey(TrimmedString),
   baseUrl: Schema.optionalKey(TrimmedString),
@@ -2335,6 +2344,7 @@ export const ProjectToolKind = Schema.Literals([
   "testing",
   "custom_embed",
   "custom_process",
+  "extension",
 ]);
 export type ProjectToolKind = typeof ProjectToolKind.Type;
 
@@ -2410,6 +2420,8 @@ export const ProjectToolDefinition = Schema.Struct({
   customEmbedId: Schema.optionalKey(Schema.NullOr(ProjectSettingId)),
   serverProcessId: Schema.optionalKey(Schema.NullOr(ProjectSettingId)),
   terminalProcessId: Schema.optionalKey(Schema.NullOr(ProjectSettingId)),
+  extensionId: Schema.optionalKey(Schema.NullOr(ProjectSettingId)),
+  extensionToolId: Schema.optionalKey(Schema.NullOr(ProjectSettingId)),
 });
 export type ProjectToolDefinition = typeof ProjectToolDefinition.Type;
 
@@ -2493,9 +2505,8 @@ export const ProjectWorkspaceSettings = Schema.Struct({
 });
 export type ProjectWorkspaceSettings = typeof ProjectWorkspaceSettings.Type;
 
-export const DEFAULT_PROJECT_WORKSPACE_SETTINGS: ProjectWorkspaceSettings = Schema.decodeUnknownSync(
-  ProjectWorkspaceSettings,
-)({}) as ProjectWorkspaceSettings;
+export const DEFAULT_PROJECT_WORKSPACE_SETTINGS: ProjectWorkspaceSettings =
+  Schema.decodeUnknownSync(ProjectWorkspaceSettings)({}) as ProjectWorkspaceSettings;
 
 export const ProjectWorkspaceSessionState = Schema.Struct({
   openProjectIds: Schema.Array(ProjectId).pipe(Schema.withDecodingDefault(Effect.succeed([]))),

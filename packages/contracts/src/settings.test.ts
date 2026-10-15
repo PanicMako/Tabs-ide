@@ -22,11 +22,11 @@ const encodeServerSettings = Schema.encodeSync(ServerSettings);
 const decodeClaudeSettings = Schema.decodeUnknownSync(ClaudeSettings);
 
 describe("ServerSettings response streaming", () => {
-  it("defaults to paragraph buffering", () => {
-    expect(decodeServerSettings({}).responseStreamingMode).toBe("paragraph");
+  it("defaults to immediate token delivery", () => {
+    expect(decodeServerSettings({}).responseStreamingMode).toBe("token");
   });
 
-  it.each(["turn", "paragraph"])(
+  it.each(["turn", "paragraph", "token"])(
     "round-trips %s as an environment setting and project override",
     (responseStreamingMode) => {
       const input = {
@@ -38,7 +38,7 @@ describe("ServerSettings response streaming", () => {
     },
   );
 
-  it.each(["token", "unsupported"])("rejects %s in settings snapshots and writes", (mode) => {
+  it.each(["unsupported"])("rejects %s in settings snapshots and writes", (mode) => {
     for (const input of [
       { responseStreamingMode: mode },
       { projectSettingsOverrides: { project: { responseStreamingMode: mode } } },

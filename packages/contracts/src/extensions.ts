@@ -1,0 +1,197 @@
+import * as Schema from "effect/Schema";
+
+/** The host owns the label and icon boundary for each full-workspace tool. */
+export const TabsExtensionTool = Schema.Struct({
+  id: Schema.String,
+  label: Schema.String,
+  entry: Schema.String,
+  icon: Schema.optionalKey(Schema.String),
+});
+export type TabsExtensionTool = typeof TabsExtensionTool.Type;
+
+export const TabsExtensionCommand = Schema.Struct({
+  id: Schema.String,
+  label: Schema.String,
+  description: Schema.String,
+  /** Expose this pure command through the project-scoped agent tool broker. */
+  aiCallable: Schema.optionalKey(Schema.Boolean),
+});
+export type TabsExtensionCommand = typeof TabsExtensionCommand.Type;
+
+export const TabsExtensionStorageMigration = Schema.Struct({
+  from: Schema.Number,
+  to: Schema.Number,
+  renames: Schema.Array(Schema.Struct({ from: Schema.String, to: Schema.String })),
+});
+export type TabsExtensionStorageMigration = typeof TabsExtensionStorageMigration.Type;
+
+export const TabsExtensionManifest = Schema.Struct({
+  manifestVersion: Schema.Literal(1),
+  publisher: Schema.String,
+  name: Schema.String,
+  version: Schema.String,
+  displayName: Schema.String,
+  description: Schema.String,
+  releaseNotes: Schema.optionalKey(Schema.String),
+  sourceUrl: Schema.optionalKey(Schema.String),
+  supportUrl: Schema.optionalKey(Schema.String),
+  privacyUrl: Schema.optionalKey(Schema.String),
+  listing: Schema.optionalKey(
+    Schema.Struct({
+      readme: Schema.optionalKey(Schema.String),
+      icon: Schema.optionalKey(Schema.String),
+      screenshots: Schema.optionalKey(
+        Schema.Array(Schema.Struct({ path: Schema.String, alt: Schema.String })),
+      ),
+      license: Schema.optionalKey(Schema.String),
+      categories: Schema.optionalKey(Schema.Array(Schema.String)),
+      keywords: Schema.optionalKey(Schema.Array(Schema.String)),
+      externalServices: Schema.optionalKey(Schema.String),
+    }),
+  ),
+  engines: Schema.Struct({
+    tabs: Schema.String,
+    api: Schema.optionalKey(Schema.String),
+  }),
+  networkHosts: Schema.optionalKey(Schema.Array(Schema.String)),
+  storage: Schema.optionalKey(
+    Schema.Struct({
+      version: Schema.Number,
+      migrations: Schema.optionalKey(Schema.Array(TabsExtensionStorageMigration)),
+    }),
+  ),
+  logic: Schema.optionalKey(Schema.Struct({ entry: Schema.String })),
+  capabilities: Schema.optionalKey(
+    Schema.Array(
+      Schema.Literals([
+        "profile-storage",
+        "workspace-read",
+        "git-status",
+        "network",
+        "credentials",
+        "ai-tools",
+      ]),
+    ),
+  ),
+  contributes: Schema.Struct({
+    tools: Schema.Array(TabsExtensionTool),
+    commands: Schema.optionalKey(Schema.Array(TabsExtensionCommand)),
+  }),
+});
+export type TabsExtensionManifest = typeof TabsExtensionManifest.Type;
+
+export const TabsExtensionAssignment = Schema.Struct({
+  extensionId: Schema.String,
+  enabledGlobally: Schema.Boolean,
+  enabledProjectIds: Schema.Array(Schema.String),
+  disabledProjectIds: Schema.Array(Schema.String),
+  defaultProfileId: Schema.String,
+  profileIdByProjectId: Schema.Record(Schema.String, Schema.String),
+  storageGrantedProjectIds: Schema.optionalKey(Schema.Array(Schema.String)),
+  workspaceReadGrantedProjectIds: Schema.optionalKey(Schema.Array(Schema.String)),
+  gitStatusGrantedProjectIds: Schema.optionalKey(Schema.Array(Schema.String)),
+  networkGrantedProjectIds: Schema.optionalKey(Schema.Array(Schema.String)),
+  credentialGrantedProjectIds: Schema.optionalKey(Schema.Array(Schema.String)),
+  aiToolGrantedProjectIds: Schema.optionalKey(Schema.Array(Schema.String)),
+});
+export type TabsExtensionAssignment = typeof TabsExtensionAssignment.Type;
+
+export interface DesktopExtensionCredentialStatus {
+  readonly profileId: string;
+  readonly projectId?: string;
+  readonly host: string;
+}
+
+export interface DesktopInstalledExtension {
+  readonly id: string;
+  readonly manifest: TabsExtensionManifest;
+  readonly assignment: TabsExtensionAssignment;
+  readonly profiles: ReadonlyArray<{
+    readonly id: string;
+    readonly label: string;
+    readonly scope?: "shared" | "project";
+  }>;
+  readonly source: "development" | "local-package" | "exchange";
+  readonly digest?: string;
+  /** Origin is part of the package identity; a different registry cannot replace it. */
+  readonly registryOrigin?: string;
+  /** A signed registry status check removed this exact version or digest. */
+  readonly revoked?: true;
+  /** Stops tools and bridge access without erasing assignments, profiles, or data. */
+  readonly disabled?: true;
+  /** Suppresses automatic update discovery/application; manual review remains available. */
+  readonly updatesPinned?: true;
+  /** False for older installs whose pre-inventory browser/storage data cannot be enumerated. */
+  readonly dataDeletionAvailable?: boolean;
+  /** Informational update hint; installation still requires a fresh signed review. */
+  readonly availableUpdate?: DesktopExchangeListing;
+}
+
+/** Agent-facing metadata; invocation is always reauthorized by the desktop. */
+export interface DesktopExtensionAiTool {
+  readonly name: string;
+  readonly extensionId: string;
+  readonly commandId: string;
+  readonly description: string;
+}
+
+export interface DesktopPreparedExchangeInstall {
+  readonly token: string;
+  readonly registryOrigin: string;
+  readonly digest: string;
+  readonly manifest: TabsExtensionManifest;
+  readonly replacesVersion?: string;
+  readonly willKeepEnabled: boolean;
+  /** Storage migrations require manual review even if project enablement is retained. */
+  readonly requiresManualReview: boolean;
+  readonly addedCapabilities: ReadonlyArray<
+    NonNullable<TabsExtensionManifest["capabilities"]>[number]
+  >;
+  readonly addedNetworkHosts: ReadonlyArray<string>;
+  readonly addedAiTools: ReadonlyArray<string>;
+}
+
+/** Informational catalog data; it is not an installation authorization. */
+export interface DesktopExchangeListing {
+  readonly registryOrigin: string;
+  readonly id: string;
+  readonly namespace: string;
+  readonly name: string;
+  readonly version: string;
+  readonly digest: string;
+  readonly displayName: string;
+  readonly description: string;
+  readonly verifiedPublisher: boolean;
+  readonly tabsCompatibility: string;
+  readonly capabilities: ReadonlyArray<string>;
+  readonly releaseNotes?: string;
+  readonly sourceUrl?: string;
+  readonly supportUrl?: string;
+  readonly privacyUrl?: string;
+}
+
+export interface DesktopExchangePage {
+  readonly listings: ReadonlyArray<DesktopExchangeListing>;
+  readonly nextCursor: string | null;
+}
+
+export interface DesktopExtensionViewInput {
+  readonly extensionId: string;
+  readonly toolId: string;
+  readonly projectId: string;
+  readonly profileId: string;
+  readonly activationId?: string;
+}
+
+export interface DesktopExtensionBoundsInput extends DesktopExtensionViewInput {
+  readonly activationId: string;
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+  readonly visible: boolean;
+}
+
+export interface DesktopExtensionHideInput {
+  readonly activationId?: string;
+}

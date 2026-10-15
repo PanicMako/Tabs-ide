@@ -164,7 +164,18 @@ describe("trimmed non-empty strings", () => {
 
   // Schema-derived strings are rarely padded, so pad them with every kind of
   // whitespace `trim()` removes, and include whitespace-only values.
-  const whitespace = FC.constantFrom(" ", "\t", "\n", "\r\n", "\v", "\f", "\u00a0", "\u2028", "\u3000", "\ufeff");
+  const whitespace = FC.constantFrom(
+    " ",
+    "\t",
+    "\n",
+    "\r\n",
+    "\v",
+    "\f",
+    "\u00a0",
+    "\u2028",
+    "\u3000",
+    "\ufeff",
+  );
   const padding = FC.array(whitespace, { maxLength: 4 }).map((parts) => parts.join(""));
   const paddedString = FC.tuple(padding, FC.string(), padding).map(
     ([before, value, after]) => before + value + after,
@@ -210,7 +221,11 @@ describe("trimmed non-empty strings", () => {
 
     it.prop(
       `${name}: generated values round-trip`,
-      [FC.string().filter((s) => s.trim().length > 0).map((s) => schema.make(s))],
+      [
+        FC.string()
+          .filter((s) => s.trim().length > 0)
+          .map((s) => schema.make(s)),
+      ],
       ([value]) => {
         const encoded = encode(value);
         expect(Exit.isSuccess(encoded)).toBe(true);
@@ -241,7 +256,7 @@ describe("trimmed non-empty strings", () => {
     expect(encodeThreadId("  a b  ")).toStrictEqual(Exit.succeed("a b"));
     expect(Schema.toJsonSchemaDocument(Schema.toType(BaseSchemas.ThreadId)).schema).toEqual({
       type: "string",
-      allOf: [{ minLength: 1 }],
+      minLength: 1,
     });
   });
 });

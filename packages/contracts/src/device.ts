@@ -360,7 +360,7 @@ export type DeviceActionType = DeviceActionInput["type"];
 export const DeviceDetailInput = Schema.Struct(DeviceTarget);
 export type DeviceDetailInput = typeof DeviceDetailInput.Type;
 
-export class DeviceHostUnavailableError extends Schema.TaggedErrorClass<DeviceHostUnavailableError>()(
+export class DeviceHostUnavailableError extends Schema.TaggedError<DeviceHostUnavailableError>()(
   "DeviceHostUnavailableError",
   {
     hostId: DeviceHostId,
@@ -373,7 +373,7 @@ export class DeviceHostUnavailableError extends Schema.TaggedErrorClass<DeviceHo
   }
 }
 
-export class DevicePlatformUnavailableError extends Schema.TaggedErrorClass<DevicePlatformUnavailableError>()(
+export class DevicePlatformUnavailableError extends Schema.TaggedError<DevicePlatformUnavailableError>()(
   "DevicePlatformUnavailableError",
   {
     hostId: DeviceHostId,
@@ -386,7 +386,7 @@ export class DevicePlatformUnavailableError extends Schema.TaggedErrorClass<Devi
   }
 }
 
-export class DeviceNotFoundError extends Schema.TaggedErrorClass<DeviceNotFoundError>()(
+export class DeviceNotFoundError extends Schema.TaggedError<DeviceNotFoundError>()(
   "DeviceNotFoundError",
   {
     hostId: DeviceHostId,
@@ -398,7 +398,7 @@ export class DeviceNotFoundError extends Schema.TaggedErrorClass<DeviceNotFoundE
   }
 }
 
-export class DeviceBootError extends Schema.TaggedErrorClass<DeviceBootError>()("DeviceBootError", {
+export class DeviceBootError extends Schema.TaggedError<DeviceBootError>()("DeviceBootError", {
   hostId: DeviceHostId,
   deviceId: DeviceId,
   reason: Schema.Literals(["disk_space", "timeout", "launch_failed"]),
@@ -415,7 +415,7 @@ export class DeviceBootError extends Schema.TaggedErrorClass<DeviceBootError>()(
   }
 }
 
-export class DeviceOperationError extends Schema.TaggedErrorClass<DeviceOperationError>()(
+export class DeviceOperationError extends Schema.TaggedError<DeviceOperationError>()(
   "DeviceOperationError",
   {
     operation: Schema.String,
@@ -442,7 +442,7 @@ export class DeviceOperationError extends Schema.TaggedErrorClass<DeviceOperatio
   }
 }
 
-export class DeviceActionUnavailableError extends Schema.TaggedErrorClass<DeviceActionUnavailableError>()(
+export class DeviceActionUnavailableError extends Schema.TaggedError<DeviceActionUnavailableError>()(
   "DeviceActionUnavailableError",
   {
     operation: Schema.String,
@@ -549,7 +549,7 @@ export const DeviceToolCloseInput = Schema.Struct({
 });
 export type DeviceToolCloseInput = typeof DeviceToolCloseInput.Type;
 
-export class DeviceToolUnavailableError extends Schema.TaggedErrorClass<DeviceToolUnavailableError>()(
+export class DeviceToolUnavailableError extends Schema.TaggedError<DeviceToolUnavailableError>()(
   "DeviceToolUnavailableError",
   {
     reason: Schema.String,

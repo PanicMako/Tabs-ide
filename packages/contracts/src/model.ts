@@ -199,7 +199,8 @@ export const DEFAULT_GIT_TEXT_GENERATION_MODEL_BY_PROVIDER: Partial<
   [ANTIGRAVITY_DRIVER_KIND]: ANTIGRAVITY_DEFAULT_MODEL,
 };
 
-export const DEFAULT_TEXT_GENERATION_MODEL_BY_PROVIDER = DEFAULT_GIT_TEXT_GENERATION_MODEL_BY_PROVIDER;
+export const DEFAULT_TEXT_GENERATION_MODEL_BY_PROVIDER =
+  DEFAULT_GIT_TEXT_GENERATION_MODEL_BY_PROVIDER;
 
 export const MODEL_SLUG_ALIASES_BY_PROVIDER: Partial<
   Record<ProviderDriverKind, Record<string, string>>
@@ -249,9 +250,15 @@ export const MODEL_SLUG_ALIASES_BY_PROVIDER: Partial<
   },
   [OPENCODE_DRIVER_KIND]: {},
   [GEMINI_DRIVER_KIND]: {
-    "gemini-2.5-flash": "gemini-3.6-flash",
-    "2.5-flash": "gemini-3.6-flash",
-    flash: "gemini-3.6-flash",
+    "gemini-2.5-flash": "gemini-2.5-flash",
+    "2.5-flash": "gemini-2.5-flash",
+    flash: "gemini-2.5-flash",
+    "gemini-2.5-pro": "gemini-2.5-pro",
+    "2.5-pro": "gemini-2.5-pro",
+    pro: "gemini-2.5-pro",
+    "gemini-2.0-flash": "gemini-2.0-flash",
+    "2.0-flash": "gemini-2.0-flash",
+    "gemini-3.6-flash": "gemini-3.6-flash",
   },
 };
 
