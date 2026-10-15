@@ -2423,3 +2423,35 @@ body[data-concept="5"] .page-loader.loader-dismissed {
 .headspace .hs-preset-stack > div {
   font-size: 11px;
 }
+
+/* Keep the full navigation reachable as Exchange joins the header. */
+@media (min-width: 761px) and (max-width: 1050px) {
+  .headspace .hs-nav {
+    gap: 16px;
+  }
+  .headspace .hs-nav nav {
+    gap: 16px;
+    font-size: 13px;
+  }
+}
+@media (max-width: 760px) {
+  .headspace .hs-nav {
+    height: auto;
+    min-height: 83px;
+    flex-wrap: wrap;
+    padding-block: 18px;
+    row-gap: 18px;
+  }
+  .headspace .hs-nav nav {
+    display: flex;
+    order: 3;
+    flex-basis: 100%;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 13px;
+  }
+  .headspace .hs-nav nav a {
+    white-space: nowrap;
+  }
+}

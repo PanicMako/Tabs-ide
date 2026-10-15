@@ -1,4 +1,5 @@
 ---
+import ExchangeLink from "./ExchangeLink.astro";
 import TabsLogo from "./TabsLogo.astro";
 import Icon from "./Icon.astro";
 import Download from "./Download.astro";
@@ -35,7 +36,7 @@ const workflows = [
         <span>BETA</span>
       </div>
     </div>
-    <nav aria-label="Page navigation"><a href="#v2-workspace">Inside Tabs</a><a href="/changelog">What's new</a><a href="https://github.com/PanicMako/Tabs-ide">GitHub <Icon name="ArrowUpRight" size={14}/></a></nav>
+    <nav aria-label="Page navigation"><a href="#v2-workspace">Inside Tabs</a><a href="/changelog">What's new</a><ExchangeLink /><a href="https://github.com/PanicMako/Tabs-ide">GitHub <Icon name="ArrowUpRight" size={14}/></a></nav>
     <a class="hs-nav-download" href="/downloads"><span class="btn-fill" aria-hidden="true"></span><span>Get Tabs</span> <Icon name="ArrowDown" size={16}/></a>
   </header>
 
