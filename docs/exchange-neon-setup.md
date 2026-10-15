@@ -1,6 +1,6 @@
 # Exchange PostgreSQL on Neon
 
-The Exchange database is linked to Neon project `orange-credit-28098153`, branch `production`, in Singapore. Neon hosts PostgreSQL; the Exchange HTTP service still needs its Render deployment. Existing GitHub OAuth and S3-compatible storage remain the application architecture.
+The Exchange database is linked to Neon project `orange-credit-28098153`, branch `production`, in Singapore. Neon hosts PostgreSQL; the initial Exchange HTTP pilot is now live at `https://tabs-exchange-api.onrender.com`. Existing GitHub OAuth and S3-compatible storage remain the application architecture.
 
 ## Local setup
 
@@ -64,3 +64,17 @@ The probe objects were removed. These checks validate the required behavior desp
 Exchange tests after storage wiring: 431 passed, 24 skipped. `npm run build` succeeded (6 tasks), Exchange typecheck passed, and workspace `vp check` reported zero errors with existing warnings.
 
 Stay within Free-plan limits: 5 GB of object storage and 5 GB/month of public network transfer shared across products. A working storage connection does not remove these quotas or the separate database compute allowance.
+
+## Live Render pilot verification
+
+On 15 October 2026 Render reported the application-only deployment live. The
+HTTPS liveness, PostgreSQL readiness, homepage, sign-in, and catalog routes all
+returned HTTP 200. `/v1/registry` confirms public reads with publishing disabled.
+The login route redirects to the configured GitHub app and exact callback with
+Secure, HttpOnly, and SameSite=Lax cookies. Actual owner browser authorization
+is still pending; scanning and production signing are not yet deployed.
+
+The final local workspace checks passed: 18/18 test tasks (including 7,518 server
+tests), 16/16 typecheck tasks, zero `vp check` errors with 651 existing warnings,
+and 6/6 `npm run build` tasks (cached). A clean archive of the committed application
+also built into the Exchange Docker image.
