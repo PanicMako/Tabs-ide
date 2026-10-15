@@ -449,16 +449,20 @@ const probeCodexAppServerProvider = Effect.fn("probeCodexAppServerProvider")(fun
       input.skipNativeUsage
         ? Effect.succeed(undefined)
         : client.request("account/rateLimits/read", null).pipe(
-            Effect.map((response): CodexRateLimitsProbe => ({
-              snapshot: response.rateLimits,
-              rateLimitsByLimitId: response.rateLimitsByLimitId,
-              resetCredits: response.rateLimitResetCredits,
-            })),
+            Effect.map(
+              (response): CodexRateLimitsProbe => ({
+                snapshot: response.rateLimits,
+                rateLimitsByLimitId: response.rateLimitsByLimitId,
+                resetCredits: response.rateLimitResetCredits,
+              }),
+            ),
             Effect.timeoutOption(Duration.millis(RATE_LIMITS_PROBE_TIMEOUT_MS)),
             Effect.map(
-              Option.getOrElse((): CodexRateLimitsProbe => ({
-                failure: "Codex did not answer the usage request.",
-              })),
+              Option.getOrElse(
+                (): CodexRateLimitsProbe => ({
+                  failure: "Codex did not answer the usage request.",
+                }),
+              ),
             ),
             Effect.catch((error) =>
               Effect.logDebug("Codex rate-limit read failed.", { cause: error }).pipe(

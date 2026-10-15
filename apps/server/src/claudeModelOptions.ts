@@ -34,7 +34,12 @@ export function compileClaudeModelSelection(
   const supportsBoolean = (id: string) =>
     descriptors.some((descriptor) => descriptor.type === "boolean" && descriptor.id === id);
   const rawEffort = getModelSelectionStringOptionValue(selection, "effort");
-  const resolvedEffort = resolveClaudeCatalogEffort(catalog, selection.model, rawEffort);
+  const promptEffort = resolvePromptInjectedEffort(capabilities, rawEffort) ?? undefined;
+  const resolvedEffort = resolveClaudeCatalogEffort(
+    catalog,
+    selection.model,
+    promptEffort ? undefined : rawEffort,
+  );
   const effort = normalizeClaudeCatalogEffort(catalog, resolvedEffort, selection.model);
   const fastMode = supportsBoolean("fastMode")
     ? (getModelSelectionBooleanOptionValue(selection, "fastMode") ?? false)
@@ -48,7 +53,6 @@ export function compileClaudeModelSelection(
     ...(isClaudeCatalogUltracodeEffort(resolvedEffort) ? { ultracode: true } : {}),
   };
   const apiModelId = resolveClaudeCatalogApiModelId(catalog, selection);
-  const promptEffort = resolvePromptInjectedEffort(capabilities, rawEffort) ?? undefined;
   return {
     apiModelId,
     effort,

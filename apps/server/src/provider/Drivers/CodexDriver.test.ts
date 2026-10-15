@@ -25,6 +25,7 @@ import * as ChildProcessSpawner from "effect/unstable/process/ChildProcessSpawne
 import * as BackgroundPolicy from "../../background/BackgroundPolicy.ts";
 import * as ServerConfig from "../../config.ts";
 import * as ServerSettings from "../../serverSettings.ts";
+import * as CodexResetCreditCoordinator from "../Layers/codexResetCredit.ts";
 import * as ResetCreditCoordinator from "../resetCreditCoordinator.ts";
 import * as ProviderEventLoggers from "../ProviderEventLoggers.ts";
 import * as ModelManifest from "../ModelManifest.ts";
@@ -63,6 +64,7 @@ const layerTest = ServerConfig.layerTest(process.cwd(), {
   Layer.provideMerge(ServerSettings.layerTest()),
   Layer.provideMerge(ModelManifest.layerTest),
   Layer.provideMerge(ResetCreditCoordinator.layerTest),
+  Layer.provideMerge(CodexResetCreditCoordinator.layerTest),
   Layer.provideMerge(
     Layer.mock(BackgroundPolicy.BackgroundPolicy)({
       shouldRunScopeWork: () => Effect.succeed(false),
@@ -207,8 +209,8 @@ it.layer(layerTest)("CodexDriver", (it) => {
         yield* Deferred.await(observedAccount);
         // Sessions launch the T3-installed Codex with the account's token, not ambient credentials.
         const threadId = ThreadId.make("managed-account-thread");
-        yield* instance.orchestrationAdapter!
-          .openSession({
+        yield* instance
+          .orchestrationAdapter!.openSession({
             threadId,
             providerSessionId: ProviderSessionId.make("managed-account-session"),
             modelSelection: { instanceId, model: "gpt-5.4" },
@@ -558,7 +560,7 @@ it.layer(layerTest)("CodexDriver", (it) => {
           Effect.provideService(
             ProviderVersionCache,
             new Map([
-              ["@openai/codex", { expiresAt: Number.MAX_SAFE_INTEGER, version: "0.153.4" }],
+              ["npm:@openai/codex", { expiresAt: Number.MAX_SAFE_INTEGER, version: "0.153.4" }],
             ]),
           ),
         );

@@ -1,3 +1,4 @@
+import * as NodeEffectCrypto from "@effect/platform-node/NodeCrypto";
 // @effect-diagnostics nodeBuiltinImport:off
 import * as NodeCrypto from "node:crypto";
 import * as NodeFS from "node:fs";
@@ -165,7 +166,7 @@ export interface AcpSessionRequestLogEvent {
   readonly cause?: Cause.Cause<EffectAcpErrors.AcpError>;
 }
 
-export class AcpProcessGroupTerminationError extends Schema.TaggedErrorClass<AcpProcessGroupTerminationError>()(
+export class AcpProcessGroupTerminationError extends Schema.TaggedError<AcpProcessGroupTerminationError>()(
   "AcpProcessGroupTerminationError",
   {
     detail: Schema.String,
@@ -1339,7 +1340,7 @@ export class AcpSessionRuntime extends Context.Service<
     ChildProcessSpawner.ChildProcessSpawner
   > {
     return Layer.effect(AcpSessionRuntime, make(options)).pipe(
-      Layer.provide(NodeServices.layer),
+      Layer.provide(NodeEffectCrypto.layer),
     );
   }
 }
@@ -2820,10 +2821,7 @@ export const layer = (
   AcpSessionRuntime,
   EffectAcpErrors.AcpError,
   ChildProcessSpawner.ChildProcessSpawner
-> =>
-  Layer.effect(AcpSessionRuntime, make(options)).pipe(
-    Layer.provide(NodeServices.layer),
-  );
+> => Layer.effect(AcpSessionRuntime, make(options)).pipe(Layer.provide(NodeEffectCrypto.layer));
 
 function sessionConfigOptionsFromSetup(
   response:

@@ -11,7 +11,7 @@ import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
 
-import { writeFileStringAtomically } from "../atomicWrite";
+import { writeFileStringAtomically } from "../atomicWrite.ts";
 
 // Versioned identity envelope. Time-derived freshness is intentionally not
 // persisted: a stored "fresh" bit becomes false as time passes, and provider

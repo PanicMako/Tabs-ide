@@ -16,7 +16,7 @@ import {
   DEFAULT_TIMEOUT_MS,
   parseGenericCliVersion,
   spawnAndCollect,
-} from "../providerSnapshot";
+} from "../providerSnapshot.ts";
 
 const MINIMUM_VERSION = "1.0.12";
 const MODEL_DISCOVERY_TIMEOUT_MS = 30_000;

@@ -11,8 +11,8 @@ import {
   type AcpSessionRuntimeOptions,
   type AcpSessionRuntimeShape,
   type AcpSpawnInput,
-} from "./AcpSessionRuntime";
-import { getProviderSecret } from "../ProviderSecretStore";
+} from "./AcpSessionRuntime.ts";
+import { getProviderSecret } from "../ProviderSecretStore.ts";
 
 export const DROID_DEFAULT_AUTH_METHOD_ID = "droid-login";
 export const DROID_DRIVER_KIND = "droid" as ProviderDriverKind;
@@ -176,10 +176,7 @@ function findDroidSelectConfig(
   );
 }
 
-function droidModelDescriptor(
-  model: EffectAcpSchema.SessionConfigSelectOption,
-  reasoning: any,
-) {
+function droidModelDescriptor(model: EffectAcpSchema.SessionConfigSelectOption, reasoning: any) {
   const efforts = reasoning ? flattenDroidConfigOptions(reasoning.options) : [];
   return {
     slug: model.value,

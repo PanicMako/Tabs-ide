@@ -110,6 +110,15 @@ export const readOpenCodeGoUsageLimits = Effect.fn("readOpenCodeGoUsageLimits")(
     };
   }).pipe(
     Effect.timeout("5 seconds"),
+    Effect.catchDefect(() =>
+      Effect.succeed(
+        makeUnavailableUsageLimits({
+          checkedAt,
+          reason: "probeFailed",
+          message: "OpenCode Go could not read usage.",
+        }),
+      ),
+    ),
     Effect.orElseSucceed(() =>
       makeUnavailableUsageLimits({
         checkedAt,

@@ -1,3 +1,6 @@
+import * as NodeFS from "node:fs";
+import * as NodeFSP from "node:fs/promises";
+
 import * as Effect from "effect/Effect";
 import type * as FileSystem from "effect/FileSystem";
 import type * as Path from "effect/Path";
@@ -46,10 +49,23 @@ const resolveClientFilePath = Effect.fn("AntigravityClientFiles.resolveClientFil
             Effect.orElseSucceed(() => true),
           );
           if (entryExists) return yield* outside;
-          const parent = yield* input.fileSystem
-            .realPath(path.dirname(resolved))
-            .pipe(Effect.orElseSucceed(() => path.dirname(resolved)));
-          return path.join(parent, path.basename(resolved));
+          // Resolve the nearest existing ancestor, including when several
+          // parent directories have not been created yet. Never fall back to
+          // a lexical parent beneath an unresolved symlink.
+          let ancestor = path.dirname(resolved);
+          const missing = [path.basename(resolved)];
+          while (true) {
+            const canonical = yield* input.fileSystem.realPath(ancestor).pipe(Effect.option);
+            if (canonical._tag === "Some") return path.join(canonical.value, ...missing);
+            const exists = yield* input.fileSystem.readLink(ancestor).pipe(
+              Effect.as(true),
+              Effect.catch(() => input.fileSystem.exists(ancestor)),
+              Effect.orElseSucceed(() => true),
+            );
+            if (exists || path.dirname(ancestor) === ancestor) return yield* outside;
+            missing.unshift(path.basename(ancestor));
+            ancestor = path.dirname(ancestor);
+          }
         }),
       ),
     );
@@ -71,34 +87,73 @@ export const readAntigravityClientTextFile = Effect.fn("AntigravityClientFiles.r
     readonly request: EffectAcpSchema.ReadTextFileRequest;
   }): Effect.fn.Return<EffectAcpSchema.ReadTextFileResponse, EffectAcpErrors.AcpError> {
     const filePath = yield* resolveClientFilePath({ ...input, requestPath: input.request.path });
-    const info = yield* input.fileSystem
-      .stat(filePath)
-      .pipe(
-        Effect.mapError(() =>
-          EffectAcpErrors.AcpRequestError.resourceNotFound(
-            `File '${input.request.path}' not found.`,
-          ),
-        ),
-      );
-    if (info.type !== "File" || Number(info.size) > CLIENT_FILE_MAX_BYTES) {
-      return yield* EffectAcpErrors.AcpRequestError.invalidParams(
-        `File '${input.request.path}' is not a readable text file under ${CLIENT_FILE_MAX_BYTES} bytes.`,
-      );
-    }
-    const text = yield* input.fileSystem
-      .readFileString(filePath)
-      .pipe(
-        Effect.mapError(() =>
-          EffectAcpErrors.AcpRequestError.internalError(`Could not read '${input.request.path}'.`),
-        ),
-      );
+    const roots = yield* Effect.forEach(input.allowedRoots, (root) =>
+      input.fileSystem.realPath(root).pipe(Effect.orElseSucceed(() => root)),
+    );
+    const outside = EffectAcpErrors.AcpRequestError.invalidParams(
+      `Path '${input.request.path}' is outside the session workspace.`,
+    );
+
+    const handle = yield* Effect.tryPromise({
+      try: () =>
+        NodeFSP.open(filePath, NodeFS.constants.O_RDONLY | (NodeFS.constants.O_NOFOLLOW ?? 0)),
+      catch: () =>
+        EffectAcpErrors.AcpRequestError.resourceNotFound(`File '${input.request.path}' not found.`),
+    });
+
+    const content = yield* Effect.acquireUseRelease(
+      Effect.succeed(handle),
+      (h) =>
+        Effect.gen(function* () {
+          const stat = yield* Effect.tryPromise({
+            try: () => h.stat(),
+            catch: () =>
+              EffectAcpErrors.AcpRequestError.internalError(
+                `Could not read '${input.request.path}'.`,
+              ),
+          });
+          if (!stat.isFile() || stat.size > CLIENT_FILE_MAX_BYTES) {
+            return yield* EffectAcpErrors.AcpRequestError.invalidParams(
+              `File '${input.request.path}' is not a readable text file under ${CLIENT_FILE_MAX_BYTES} bytes.`,
+            );
+          }
+          const reopenedPath = yield* input.fileSystem.realPath(filePath).pipe(Effect.option);
+          if (
+            reopenedPath._tag === "None" ||
+            !roots.some((r) => isInsideRoot(input.path, r, reopenedPath.value))
+          ) {
+            return yield* outside;
+          }
+          const current = yield* Effect.tryPromise(() => NodeFSP.stat(reopenedPath.value)).pipe(
+            Effect.option,
+          );
+          if (
+            current._tag === "None" ||
+            current.value.dev !== stat.dev ||
+            current.value.ino !== stat.ino
+          ) {
+            return yield* outside;
+          }
+          const text = yield* Effect.tryPromise({
+            try: () => h.readFile({ encoding: "utf-8" }),
+            catch: () =>
+              EffectAcpErrors.AcpRequestError.internalError(
+                `Could not read '${input.request.path}'.`,
+              ),
+          });
+          return text;
+        }),
+      (h) =>
+        Effect.tryPromise({ try: () => h.close(), catch: () => undefined }).pipe(Effect.ignore),
+    );
+
     const line = input.request.line ?? undefined;
     const limit = input.request.limit ?? undefined;
     if (line === undefined && limit === undefined) {
-      return { content: text };
+      return { content };
     }
     // ACP lines are 1-indexed. `limit` is a line count.
-    const lines = text.split("\n");
+    const lines = content.split("\n");
     const start = Math.max(0, (line ?? 1) - 1);
     const end = limit === undefined ? lines.length : Math.min(lines.length, start + limit);
     return { content: lines.slice(start, end).join("\n") };
@@ -113,12 +168,115 @@ export const writeAntigravityClientTextFile = Effect.fn("AntigravityClientFiles.
     readonly request: EffectAcpSchema.WriteTextFileRequest;
   }): Effect.fn.Return<EffectAcpSchema.WriteTextFileResponse, EffectAcpErrors.AcpError> {
     const filePath = yield* resolveClientFilePath({ ...input, requestPath: input.request.path });
-    yield* input.fileSystem.makeDirectory(input.path.dirname(filePath), { recursive: true }).pipe(
-      Effect.andThen(input.fileSystem.writeFileString(filePath, input.request.content)),
-      Effect.mapError(() =>
-        EffectAcpErrors.AcpRequestError.internalError(`Could not write '${input.request.path}'.`),
-      ),
+    const roots = yield* Effect.forEach(input.allowedRoots, (root) =>
+      input.fileSystem.realPath(root).pipe(Effect.orElseSucceed(() => root)),
     );
+    const outside = EffectAcpErrors.AcpRequestError.invalidParams(
+      `Path '${input.request.path}' is outside the session workspace.`,
+    );
+
+    yield* input.fileSystem
+      .makeDirectory(input.path.dirname(filePath), { recursive: true })
+      .pipe(
+        Effect.mapError(() =>
+          EffectAcpErrors.AcpRequestError.internalError(`Could not write '${input.request.path}'.`),
+        ),
+      );
+
+    const openFileSafely = async () => {
+      try {
+        const h = await NodeFSP.open(
+          filePath,
+          NodeFS.constants.O_WRONLY | (NodeFS.constants.O_NOFOLLOW ?? 0),
+          0o666,
+        );
+        return { handle: h, created: false };
+      } catch (err: any) {
+        if (err?.code !== "ENOENT") {
+          throw err;
+        }
+      }
+      try {
+        const h = await NodeFSP.open(
+          filePath,
+          NodeFS.constants.O_WRONLY |
+            NodeFS.constants.O_CREAT |
+            NodeFS.constants.O_EXCL |
+            (NodeFS.constants.O_NOFOLLOW ?? 0),
+          0o666,
+        );
+        return { handle: h, created: true };
+      } catch (err: any) {
+        if (err?.code === "EEXIST") {
+          const h = await NodeFSP.open(
+            filePath,
+            NodeFS.constants.O_WRONLY | (NodeFS.constants.O_NOFOLLOW ?? 0),
+            0o666,
+          );
+          return { handle: h, created: false };
+        }
+        throw err;
+      }
+    };
+
+    yield* Effect.acquireUseRelease(
+      Effect.tryPromise({
+        try: openFileSafely,
+        catch: () =>
+          EffectAcpErrors.AcpRequestError.internalError(`Could not write '${input.request.path}'.`),
+      }),
+      ({ handle: h, created }) =>
+        Effect.gen(function* () {
+          const stat = yield* Effect.tryPromise({
+            try: () => h.stat(),
+            catch: () =>
+              EffectAcpErrors.AcpRequestError.internalError(
+                `Could not write '${input.request.path}'.`,
+              ),
+          });
+          if (!stat.isFile()) {
+            return yield* outside;
+          }
+          const reopenedPath = yield* input.fileSystem.realPath(filePath).pipe(Effect.option);
+          if (
+            reopenedPath._tag === "None" ||
+            !roots.some((r) => isInsideRoot(input.path, r, reopenedPath.value))
+          ) {
+            if (created) {
+              yield* Effect.tryPromise(() => NodeFSP.unlink(filePath)).pipe(Effect.ignore);
+            }
+            return yield* outside;
+          }
+          const current = yield* Effect.tryPromise(() => NodeFSP.stat(reopenedPath.value)).pipe(
+            Effect.option,
+          );
+          if (
+            current._tag === "None" ||
+            current.value.dev !== stat.dev ||
+            current.value.ino !== stat.ino
+          ) {
+            if (created) {
+              yield* Effect.tryPromise(() => NodeFSP.unlink(filePath)).pipe(Effect.ignore);
+            }
+            return yield* outside;
+          }
+          yield* Effect.tryPromise({
+            try: async () => {
+              if (!created) {
+                await h.truncate(0);
+              }
+              await h.writeFile(input.request.content, "utf-8");
+            },
+            catch: () =>
+              EffectAcpErrors.AcpRequestError.internalError(
+                `Could not write '${input.request.path}'.`,
+              ),
+          });
+        }),
+      ({ handle: h }) =>
+        Effect.tryPromise({ try: () => h.close(), catch: () => undefined }).pipe(Effect.ignore),
+    );
+
     return {};
   },
 );

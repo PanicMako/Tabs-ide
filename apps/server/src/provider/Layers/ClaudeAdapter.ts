@@ -64,14 +64,14 @@ type ProviderListCommandsInput = any;
 type ProviderListSkillsInput = any;
 type ProviderListSkillsResult = any;
 import { getModelSelectionStringOptionValue } from "@tabs/shared/model";
-import type { ProviderListModelsResult } from "../Services/ProviderAdapter";
+import type { ProviderListModelsResult } from "../Services/ProviderAdapter.ts";
 import {
   getClaudeModelCapabilities,
   isClaudeUltracodeEffort,
   normalizeClaudeCliEffort,
   resolveClaudeApiModelId,
   resolveClaudeEffort,
-} from "./ClaudeProvider";
+} from "./ClaudeProvider.ts";
 
 const getAgentMentionAliases = (_p: any): any[] => [];
 const getModelCapabilities = (_p: any, m: any) => getClaudeModelCapabilities(m);
@@ -124,8 +124,8 @@ import {
   Semaphore,
   Stream,
 } from "effect";
-import { discoverClaudeSkills } from "../Drivers/ClaudeSkills";
-import { planClaudeSkillDispatch } from "../Drivers/ClaudeSkillDispatch";
+import { discoverClaudeSkills } from "../Drivers/ClaudeSkills.ts";
+import { planClaudeSkillDispatch } from "../Drivers/ClaudeSkillDispatch.ts";
 import { type ClaudeScopedLimitNames, claudeRateLimitEventToUpdate } from "./claudeUsageLimits.ts";
 
 // Stubs for disabled agentGateway handoff proxying
@@ -1171,7 +1171,8 @@ function buildPromptText(input: ProviderSendTurnInput): string {
   const claudeModel = input.modelSelection?.model;
   const caps = getModelCapabilities("claudeAgent", claudeModel);
   const promptEffort =
-    requestedEffort === "ultrathink" && Boolean(caps.promptInjectedEffortLevels?.includes("ultrathink"))
+    requestedEffort === "ultrathink" &&
+    Boolean(caps.promptInjectedEffortLevels?.includes("ultrathink"))
       ? "ultrathink"
       : requestedEffort && hasEffortLevel(caps, requestedEffort)
         ? requestedEffort
@@ -2535,8 +2536,13 @@ export function makeClaudeAdapter(
           payload: {
             plan: tasksPayload.tasks.map((item) => ({
               step: item.task,
-              status: item.status as any,
-            })) as any,
+              status:
+                item.status === "running"
+                  ? "inProgress"
+                  : item.status === "completed"
+                    ? "completed"
+                    : "pending",
+            })),
           },
           providerRefs: nativeProviderRefs(context, {
             providerItemId: input.toolUseId,

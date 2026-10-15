@@ -1,3 +1,9 @@
+import * as Crypto from "effect/Crypto";
+import { resolveSelfInvocation } from "@tabs/shared/nodeRuntime";
+import * as IdAllocator from "../../orchestration-v2/IdAllocator.ts";
+import { makeCopilotAdapterV2 } from "../../orchestration-v2/Adapters/CopilotAdapterV2.ts";
+import { ProviderRuntimeGeneration } from "../ProviderRuntimeGeneration.ts";
+import { makeAcpNativeLoggerFactory } from "../acp/AcpNativeLogging.ts";
 import { CopilotSettings, ProviderDriverKind, type ServerProvider } from "@tabs/contracts";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
@@ -9,31 +15,31 @@ import * as Stream from "effect/Stream";
 import { HttpClient } from "effect/unstable/http";
 import { ChildProcessSpawner } from "effect/unstable/process";
 
-import { ServerConfig } from "../../config";
-import { makeCopilotTextGeneration } from "../../textGeneration/CopilotTextGeneration";
-import { ProviderDriverError } from "../Errors";
-import { makeCopilotAdapter } from "../Layers/CopilotAdapter";
+import { ServerConfig } from "../../config.ts";
+import { makeCopilotTextGeneration } from "../../textGeneration/CopilotTextGeneration.ts";
+import { ProviderDriverError } from "../Errors.ts";
+import { makeCopilotAdapter } from "../Layers/CopilotAdapter.ts";
 import {
   buildInitialCopilotProviderSnapshot,
   checkCopilotProviderStatus,
   enrichCopilotSnapshot,
-} from "../Layers/CopilotProvider";
-import { ProviderEventLoggers } from "../Layers/ProviderEventLoggers";
-import { makeManagedServerProvider } from "../makeManagedServerProvider";
+} from "../Layers/CopilotProvider.ts";
+import { ProviderEventLoggers } from "../Layers/ProviderEventLoggers.ts";
+import { makeManagedServerProvider } from "../makeManagedServerProvider.ts";
 import {
   defaultProviderContinuationIdentity,
   makeProviderInstanceCapabilities,
   type ProviderDriver,
   type ProviderInstance,
-} from "../ProviderDriver";
-import type { ServerProviderDraft } from "../providerSnapshot";
-import { mergeProviderInstanceEnvironment } from "../ProviderInstanceEnvironment";
-import { getProviderSecret } from "../ProviderSecretStore";
+} from "../ProviderDriver.ts";
+import type { ServerProviderDraft } from "../providerSnapshot.ts";
+import { mergeProviderInstanceEnvironment } from "../ProviderInstanceEnvironment.ts";
+import { getProviderSecret } from "../ProviderSecretStore.ts";
 import {
   makeManualOnlyProviderMaintenanceCapabilities,
   makeStaticProviderMaintenanceResolver,
   resolveProviderMaintenanceCapabilitiesEffect,
-} from "../providerMaintenance";
+} from "../providerMaintenance.ts";
 
 const decodeCopilotSettings = Schema.decodeSync(CopilotSettings);
 
@@ -122,6 +128,34 @@ export const CopilotDriver: ProviderDriver<CopilotSettings, any> = {
         isModelAdvertised: (modelId) =>
           Ref.get(advertisedModelsRef).pipe(Effect.map((models) => models.has(modelId))),
       });
+      const generation = yield* ProviderRuntimeGeneration;
+      const orchestrationAdapter =
+        generation === "v2"
+          ? yield* Effect.gen(function* () {
+              const crypto = yield* Crypto.Crypto;
+              const idAllocator = yield* IdAllocator.IdAllocatorV2;
+              const serverConfig = yield* ServerConfig;
+              const selfInvocation = yield* resolveSelfInvocation();
+              const nativeLoggers = yield* makeAcpNativeLoggerFactory();
+              return makeCopilotAdapterV2({
+                instanceId,
+                settings: effectiveConfig,
+                environment: processEnv,
+                childProcessSpawner: spawner,
+                crypto,
+                idAllocator,
+                serverConfig,
+                selfInvocation,
+                fileSystem: yield* FileSystem.FileSystem,
+                nativeLogging: (threadId) =>
+                  nativeLoggers({
+                    provider: "copilot" as ProviderDriverKind,
+                    threadId,
+                    nativeEventLogger: eventLoggers.native,
+                  }),
+              });
+            })
+          : undefined;
       const textGeneration = yield* makeCopilotTextGeneration(
         effectiveConfig,
         processEnv,
@@ -183,6 +217,7 @@ export const CopilotDriver: ProviderDriver<CopilotSettings, any> = {
         },
         snapshot,
         adapter,
+        ...(orchestrationAdapter === undefined ? {} : { orchestrationAdapter }),
         textGeneration,
       } satisfies ProviderInstance;
     }),

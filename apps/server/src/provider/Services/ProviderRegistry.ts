@@ -15,7 +15,7 @@ import type {
 import * as Context from "effect/Context";
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import type { ProviderMaintenanceCapabilities } from "../providerMaintenance";
+import type { ProviderMaintenanceCapabilities } from "../providerMaintenance.ts";
 
 export type ProviderMaintenanceActionKind = "update";
 
@@ -82,5 +82,5 @@ export interface ProviderRegistryShape {
 }
 
 export class ProviderRegistry extends Context.Service<ProviderRegistry, ProviderRegistryShape>()(
-  "tabs/provider/Services/ProviderRegistry",
+  "t3/provider/ProviderRegistry",
 ) {}

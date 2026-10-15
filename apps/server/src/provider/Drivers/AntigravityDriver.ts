@@ -1,3 +1,5 @@
+import { AntigravityDriver as ModernAntigravityDriver } from "./AntigravityDriver.modern.ts";
+import { ProviderRuntimeGeneration } from "../ProviderRuntimeGeneration.ts";
 import { AntigravitySettings, ProviderDriverKind, type ServerProvider } from "@tabs/contracts";
 import * as Duration from "effect/Duration";
 import * as DateTime from "effect/DateTime";
@@ -10,24 +12,24 @@ import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import { ChildProcessSpawner } from "effect/unstable/process";
 
-import { makeUnsupportedTextGeneration } from "../../textGeneration/UnsupportedTextGeneration";
-import { ServerConfig } from "../../config";
-import { ProviderDriverError } from "../Errors";
-import { makeAntigravityAdapter } from "../Layers/AntigravityAdapter";
-import { makeLegacyAntigravityAdapter } from "../Layers/LegacyAntigravityAdapter";
-import { makeManagedServerProvider } from "../makeManagedServerProvider";
-import { checkAntigravityProviderStatus } from "../Layers/AntigravityProvider";
+import { makeUnsupportedTextGeneration } from "../../textGeneration/UnsupportedTextGeneration.ts";
+import { ServerConfig } from "../../config.ts";
+import { ProviderDriverError } from "../Errors.ts";
+import { makeAntigravityAdapter } from "../Layers/AntigravityAdapter.ts";
+import { makeLegacyAntigravityAdapter } from "../Layers/LegacyAntigravityAdapter.ts";
+import { makeManagedServerProvider } from "../makeManagedServerProvider.ts";
+import { checkAntigravityProviderStatus } from "../Layers/AntigravityProvider.ts";
 import {
   defaultProviderContinuationIdentity,
   makeProviderInstanceCapabilities,
   type ProviderDriver,
   type ProviderInstance,
-} from "../ProviderDriver";
-import { buildServerProvider } from "../providerSnapshot";
-import { makeProviderMaintenanceCapabilities } from "../providerMaintenance";
-import { mergeProviderInstanceEnvironment } from "../ProviderInstanceEnvironment";
-import { AntigravityInstallation } from "../AntigravityInstallation";
-import { discoverAntigravitySkills, resolveAntigravityUserHome } from "./AntigravitySkills";
+} from "../ProviderDriver.ts";
+import { buildServerProvider } from "../providerSnapshot.ts";
+import { makeProviderMaintenanceCapabilities } from "../providerMaintenance.ts";
+import { mergeProviderInstanceEnvironment } from "../ProviderInstanceEnvironment.ts";
+import { AntigravityInstallation } from "../AntigravityInstallation.ts";
+import { discoverAntigravitySkills, resolveAntigravityUserHome } from "./AntigravitySkills.ts";
 
 const decodeAntigravitySettings = Schema.decodeSync(AntigravitySettings);
 
@@ -60,7 +62,7 @@ export type AntigravityDriverEnv =
   | Path.Path
   | ServerConfig;
 
-export const AntigravityDriver: ProviderDriver<AntigravitySettings, any> = {
+const LegacyAntigravityDriver: ProviderDriver<AntigravitySettings, any> = {
   driverKind: DRIVER_KIND,
   metadata: {
     displayName: "Antigravity",
@@ -276,5 +278,16 @@ export const AntigravityDriver: ProviderDriver<AntigravitySettings, any> = {
         adapter: antigravityAdapter,
         textGeneration,
       } satisfies ProviderInstance;
+    }),
+};
+
+export const AntigravityDriver: typeof LegacyAntigravityDriver = {
+  ...LegacyAntigravityDriver,
+  create: (input) =>
+    Effect.gen(function* () {
+      const generation = yield* ProviderRuntimeGeneration;
+      return yield* generation === "v2"
+        ? ModernAntigravityDriver.create(input)
+        : LegacyAntigravityDriver.create(input);
     }),
 };

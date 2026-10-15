@@ -3,7 +3,7 @@ import * as Schema from "effect/Schema";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import { resolveAttachmentPath } from "../attachmentStore.ts";
-class UserInputAttachmentError extends Schema.TaggedErrorClass<UserInputAttachmentError>()(
+class UserInputAttachmentError extends Schema.TaggedError<UserInputAttachmentError>()(
   "UserInputAttachmentError",
   {
     operation: Schema.String,

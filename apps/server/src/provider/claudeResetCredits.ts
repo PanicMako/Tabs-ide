@@ -75,7 +75,7 @@ const RESET_CREDIT_FAILURES = {
   requestFailed: "Claude could not redeem the reset.",
 } as const;
 
-class ClaudeResetCreditError extends Schema.TaggedErrorClass<ClaudeResetCreditError>()(
+class ClaudeResetCreditError extends Schema.TaggedError<ClaudeResetCreditError>()(
   "ClaudeResetCreditError",
   {
     reason: Schema.Literals(

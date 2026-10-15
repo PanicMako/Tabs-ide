@@ -1,3 +1,4 @@
+import { ProviderRuntimeGeneration } from "../ProviderRuntimeGeneration.ts";
 /**
  * ProviderInstanceRegistryLive — runtime implementation of
  * `ProviderInstanceRegistry` plus its sibling mutator.
@@ -407,7 +408,7 @@ export const makeProviderInstanceRegistry = <R>(input: {
     const mutator: ProviderInstanceRegistryMutatorShape = { reconcile };
 
     return { registry, mutator };
-  });
+  }).pipe(Effect.provideService(ProviderRuntimeGeneration, "legacy"));
 
 /**
  * Assemble a `ProviderInstanceRegistry` Layer bound to a fixed set of

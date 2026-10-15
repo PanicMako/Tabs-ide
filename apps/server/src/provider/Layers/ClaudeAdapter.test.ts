@@ -1159,6 +1159,7 @@ describe("ClaudeAdapterLive", () => {
       const planUpdated = runtimeEvents.find((event) => event.type === "turn.plan.updated");
       assert.equal(planUpdated?.type, "turn.plan.updated");
       if (planUpdated?.type === "turn.plan.updated") {
+        Schema.decodeUnknownSync(ProviderRuntimeEvent)(planUpdated);
         assert.equal(String(planUpdated.turnId), String(turn.turnId));
         assert.deepEqual(planUpdated.payload.plan, [
           { step: "Task", status: "inProgress" },

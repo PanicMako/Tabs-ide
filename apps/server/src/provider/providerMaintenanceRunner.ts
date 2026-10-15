@@ -17,15 +17,16 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
+import * as Stream from "effect/Stream";
 import { HttpClient } from "effect/unstable/http";
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 
-import { ProviderRegistry } from "./Services/ProviderRegistry";
-import { makeProviderMaintenanceCommandCoordinator } from "./providerMaintenanceCommandCoordinator";
-import { enrichProviderSnapshotWithVersionAdvisory } from "./providerMaintenance";
-import type { ProviderMaintenanceCapabilities } from "./providerMaintenance";
-import { collectUint8StreamText } from "../stream/collectUint8StreamText";
-import { AntigravityInstallation } from "./AntigravityInstallation";
+import { ProviderRegistry } from "./ProviderRegistry.ts";
+import { makeProviderMaintenanceCommandCoordinator } from "./providerMaintenanceCommandCoordinator.ts";
+import { enrichProviderSnapshotWithVersionAdvisory } from "./providerMaintenance.ts";
+import type { ProviderMaintenanceCapabilities } from "./providerMaintenance.ts";
+import { collectUint8StreamText } from "../stream/collectUint8StreamText.ts";
+import { AntigravityInstallation } from "./AntigravityInstallation.ts";
 const isServerProviderUpdateError = Schema.is(ServerProviderUpdateError);
 
 const UPDATE_TIMEOUT_MS = 5 * 60_000;
@@ -122,11 +123,14 @@ const runProviderMaintenanceCommandWithSpawner = Effect.fn("ProviderMaintenanceR
     readonly spawner: ChildProcessSpawner.ChildProcessSpawner["Service"];
     readonly command: string;
     readonly args: ReadonlyArray<string>;
+    readonly env?: Readonly<Record<string, string>>;
   }) {
     const collectCommandResult = Effect.fn("ProviderMaintenanceRunner.collectCommandResult")(
       function* () {
         const child = yield* input.spawner
-          .spawn(ChildProcess.make(input.command, [...input.args]))
+          .spawn(
+            ChildProcess.make(input.command, [...input.args], input.env ? { env: input.env } : {}),
+          )
           .pipe(
             Effect.mapError(
               (cause) =>
@@ -249,11 +253,16 @@ export const make = Effect.fn("ProviderMaintenanceRunner.make")(function* () {
   const antigravityInstallation = yield* Effect.serviceOption(AntigravityInstallation);
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
   const httpClient = yield* HttpClient.HttpClient;
-  const runMaintenanceCommand = (command: string, args: ReadonlyArray<string>) =>
+  const runMaintenanceCommand = (
+    command: string,
+    args: ReadonlyArray<string>,
+    env?: Readonly<Record<string, string>>,
+  ) =>
     runProviderMaintenanceCommandWithSpawner({
       spawner,
       command,
       args,
+      ...(env ? { env } : {}),
     });
   const commandCoordinator = yield* makeProviderMaintenanceCommandCoordinator({
     makeAlreadyRunningError: () =>
@@ -387,7 +396,7 @@ export const make = Effect.fn("ProviderMaintenanceRunner.make")(function* () {
               }),
             );
 
-            const result = yield* runMaintenanceCommand(update.executable, update.args);
+            const result = yield* runMaintenanceCommand(update.executable, update.args, update.env);
             const finishedAt = yield* nowIso;
             if (result.timedOut || result.exitCode !== 0) {
               return yield* finish(
@@ -526,7 +535,36 @@ export const make = Effect.fn("ProviderMaintenanceRunner.make")(function* () {
                   reason: "The managed Antigravity installer is unavailable in this environment.",
                 });
               }
-              const installedState = yield* antigravityInstallation.value.start;
+              let installedState = yield* antigravityInstallation.value.start;
+              if (
+                installedState.phase === "downloading" ||
+                installedState.phase === "extracting" ||
+                installedState.phase === "verifying"
+              ) {
+                const completed = yield* antigravityInstallation.value.changes.pipe(
+                  Stream.filter(
+                    (state) =>
+                      state.phase === "succeeded" ||
+                      state.phase === "failed" ||
+                      state.phase === "cancelled",
+                  ),
+                  Stream.runHead,
+                  Effect.timeoutOption(Duration.millis(UPDATE_TIMEOUT_MS)),
+                );
+                if (Option.isNone(completed) || Option.isNone(completed.value)) {
+                  return yield* new ServerProviderUpdateError({
+                    provider,
+                    reason: "Antigravity installation did not finish within five minutes.",
+                  });
+                }
+                installedState = completed.value.value;
+              }
+              if (installedState.phase !== "succeeded") {
+                return yield* new ServerProviderUpdateError({
+                  provider,
+                  reason: installedState.message ?? "Antigravity installation did not succeed.",
+                });
+              }
               const providers = yield* providerRegistry.refreshInstance(instanceId);
               const installed =
                 installedState.phase === "succeeded" &&

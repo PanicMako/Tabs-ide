@@ -1,6 +1,6 @@
 // @effect-diagnostics nodeBuiltinImport:off
 import { afterEach, expect, it } from "@effect/vitest";
-import { chmodSync, mkdirSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import os from "node:os";
 import path from "node:path";
@@ -204,7 +204,7 @@ it.layer(NodeServices.layer)("providerMaintenance", (it) => {
         chmodSync(packageToolPath, 0o755);
 
         expect(
-          packageToolUpdate.resolve({
+          yield* resolveProviderMaintenanceCapabilitiesEffect(packageToolUpdate, {
             binaryPath: "package-tool",
             platform: "darwin",
             env: {
@@ -239,6 +239,7 @@ it.layer(NodeServices.layer)("providerMaintenance", (it) => {
         expect(
           nativePackageToolUpdate.resolve({
             binaryPath: "native-package-tool",
+            resolvedCommandPath: path.join(bunBinDir, "native-package-tool.exe"),
             platform: "win32",
             env: {
               PATH: bunBinDir,
@@ -273,7 +274,7 @@ it.layer(NodeServices.layer)("providerMaintenance", (it) => {
         chmodSync(scopedPackageToolPath, 0o755);
 
         expect(
-          scopedPackageToolUpdate.resolve({
+          yield* resolveProviderMaintenanceCapabilitiesEffect(scopedPackageToolUpdate, {
             binaryPath: "scoped-package-tool",
             platform: "darwin",
             env: {
@@ -332,7 +333,7 @@ it.layer(NodeServices.layer)("providerMaintenance", (it) => {
         chmodSync(nativePackageToolPath, 0o755);
 
         expect(
-          nativePackageToolUpdate.resolve({
+          yield* resolveProviderMaintenanceCapabilitiesEffect(nativePackageToolUpdate, {
             binaryPath: "native-package-tool",
             platform: "darwin",
             env: {
@@ -343,9 +344,9 @@ it.layer(NodeServices.layer)("providerMaintenance", (it) => {
           provider: driver("nativePackageTool"),
           packageName: "@example/native-package-tool",
           update: {
-            command: "native-package-tool update",
+            command: `${realpathSync(nativePackageToolPath)} update`,
 
-            executable: "native-package-tool",
+            executable: realpathSync(nativePackageToolPath),
 
             args: ["update"],
 
@@ -367,7 +368,7 @@ it.layer(NodeServices.layer)("providerMaintenance", (it) => {
         chmodSync(scopedPackageToolPath, 0o755);
 
         expect(
-          scopedPackageToolUpdate.resolve({
+          yield* resolveProviderMaintenanceCapabilitiesEffect(scopedPackageToolUpdate, {
             binaryPath: "scoped-package-tool",
             platform: "darwin",
             env: {
@@ -378,9 +379,9 @@ it.layer(NodeServices.layer)("providerMaintenance", (it) => {
           provider: driver("scopedPackageTool"),
           packageName: "@example/scoped-package-tool",
           update: {
-            command: "scoped-package-tool upgrade",
+            command: `${realpathSync(scopedPackageToolPath)} upgrade`,
 
-            executable: "scoped-package-tool",
+            executable: realpathSync(scopedPackageToolPath),
 
             args: ["upgrade"],
 
@@ -470,11 +471,18 @@ it.layer(NodeServices.layer)("providerMaintenance", (it) => {
         provider: driver("packageTool"),
         packageName: "@example/package-tool",
         update: {
-          command: "npm install -g @example/package-tool@latest",
+          command: `npm install -g --prefix ${realpathSync(tempDir)} --allow-scripts=@example/package-tool @example/package-tool@latest`,
 
           executable: "npm",
 
-          args: ["install", "-g", "@example/package-tool@latest"],
+          args: [
+            "install",
+            "-g",
+            "--prefix",
+            realpathSync(tempDir),
+            "--allow-scripts=@example/package-tool",
+            "@example/package-tool@latest",
+          ],
 
           lockKey: "npm-global",
         },

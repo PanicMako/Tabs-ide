@@ -24,11 +24,11 @@ import {
   providerModelsFromSettings,
   spawnAndCollect,
   type ServerProviderDraft,
-} from "../providerSnapshot";
+} from "../providerSnapshot.ts";
 import {
   enrichProviderSnapshotWithVersionAdvisory,
   type ProviderMaintenanceCapabilities,
-} from "../providerMaintenance";
+} from "../providerMaintenance.ts";
 
 const GROK_PRESENTATION = {
   displayName: "Grok",

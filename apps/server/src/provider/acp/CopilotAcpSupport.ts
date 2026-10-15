@@ -11,8 +11,8 @@ import {
   type AcpSessionRuntimeOptions,
   type AcpSessionRuntimeShape,
   type AcpSpawnInput,
-} from "./AcpSessionRuntime";
-import { getCopilotToken } from "../CopilotCredentialStore";
+} from "./AcpSessionRuntime.ts";
+import { getCopilotToken } from "../CopilotCredentialStore.ts";
 
 export const COPILOT_DEFAULT_AUTH_METHOD_ID = "copilot-login";
 export const COPILOT_DRIVER_KIND = "copilot" as ProviderDriverKind;
@@ -185,7 +185,12 @@ export function currentCopilotModelIdFromSessionSetup(
     | EffectAcpSchema.NewSessionResponse
     | EffectAcpSchema.ResumeSessionResponse
     | EffectAcpSchema.ForkSessionResponse
-    | { readonly models?: { readonly currentModelId?: string | null | undefined } | null | undefined }
+    | {
+        readonly models?:
+          | { readonly currentModelId?: string | null | undefined }
+          | null
+          | undefined;
+      }
     | null
     | undefined,
 ): string | undefined {
@@ -193,7 +198,9 @@ export function currentCopilotModelIdFromSessionSetup(
 }
 
 export function applyCopilotAcpModelSelection<E>(input: {
-  readonly runtime: Pick<AcpSessionRuntimeShape, "setSessionModel">;
+  readonly runtime: Pick<AcpSessionRuntimeShape, "setSessionModel"> &
+    Partial<Pick<AcpSessionRuntimeShape, "setModel">>;
+  readonly protocolVersion?: number | undefined;
   readonly currentModelId: string | undefined;
   readonly requestedModelId: string | undefined;
   readonly mapError: (cause: EffectAcpErrors.AcpError) => E;
@@ -203,7 +210,10 @@ export function applyCopilotAcpModelSelection<E>(input: {
   if (!shouldSwitchModel) {
     return Effect.succeed(input.currentModelId);
   }
-  return input.runtime
-    .setSessionModel(input.requestedModelId)
-    .pipe(Effect.mapError(input.mapError), Effect.as(input.requestedModelId));
+  const setModel = input.runtime.setModel;
+  const switchModel =
+    input.protocolVersion === 2 && setModel
+      ? setModel(input.requestedModelId)
+      : input.runtime.setSessionModel(input.requestedModelId);
+  return switchModel.pipe(Effect.mapError(input.mapError), Effect.as(input.requestedModelId));
 }

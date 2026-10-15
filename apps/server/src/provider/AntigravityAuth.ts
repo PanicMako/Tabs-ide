@@ -519,9 +519,9 @@ export const makeAntigravityAuth = Effect.fn("makeAntigravityAuth")(function* <
       );
       const worker = yield* task.pipe(Effect.forkIn(instanceScope));
       const exit = yield* Fiber.await(worker);
-      return yield* (Exit.isSuccess(exit)
+      return yield* Exit.isSuccess(exit)
         ? Effect.succeed(exit.value)
-        : Effect.failCause(exit.cause));
+        : Effect.failCause(exit.cause);
     }),
     subscribe: (ownerSessionId) =>
       SubscriptionRef.changes(snapshot).pipe(

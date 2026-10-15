@@ -122,8 +122,8 @@ it("marks the most preferred available model as default", () => {
   assert.deepStrictEqual(
     models.map((model) => ({ slug: model.slug, isDefault: model.isDefault })),
     [
-      { slug: "gpt-5.6-terra", isDefault: true },
-      { slug: "gpt-5.4", isDefault: undefined },
+      { slug: "gpt-5.6-terra", isDefault: undefined },
+      { slug: "gpt-5.4", isDefault: true },
     ],
   );
 });

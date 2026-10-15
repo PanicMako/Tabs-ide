@@ -14,27 +14,29 @@ import * as Stream from "effect/Stream";
 import { ChildProcessSpawner } from "effect/unstable/process";
 import { createModelCapabilities } from "@tabs/shared/model";
 
-import { ServerConfig } from "../../config";
-import { makeUnsupportedTextGeneration } from "../../textGeneration/UnsupportedTextGeneration";
-import { ProviderDriverError } from "../Errors";
-import { makeDroidAdapter } from "../Layers/DroidAdapter";
-import { checkDroidProviderStatus } from "../Layers/DroidProvider";
-import { ProviderEventLoggers } from "../Layers/ProviderEventLoggers";
-import { makeManagedServerProvider } from "../makeManagedServerProvider";
+import { ServerConfig } from "../../config.ts";
+import { DroidAdapterV2Driver } from "../../orchestration-v2/Adapters/DroidAdapterV2.ts";
+import { makeUnsupportedTextGeneration } from "../../textGeneration/UnsupportedTextGeneration.ts";
+import { ProviderDriverError } from "../Errors.ts";
+import { makeDroidAdapter } from "../Layers/DroidAdapter.ts";
+import { checkDroidProviderStatus } from "../Layers/DroidProvider.ts";
+import { ProviderEventLoggers } from "../Layers/ProviderEventLoggers.ts";
+import { ProviderRuntimeGeneration } from "../ProviderRuntimeGeneration.ts";
+import { makeManagedServerProvider } from "../makeManagedServerProvider.ts";
 import {
   defaultProviderContinuationIdentity,
   makeProviderInstanceCapabilities,
   type ProviderDriver,
   type ProviderInstance,
-} from "../ProviderDriver";
-import type { ServerProviderDraft } from "../providerSnapshot";
-import { mergeProviderInstanceEnvironment } from "../ProviderInstanceEnvironment";
-import { getProviderSecret } from "../ProviderSecretStore";
+} from "../ProviderDriver.ts";
+import type { ServerProviderDraft } from "../providerSnapshot.ts";
+import { mergeProviderInstanceEnvironment } from "../ProviderInstanceEnvironment.ts";
+import { getProviderSecret } from "../ProviderSecretStore.ts";
 import {
   makePackageManagedProviderMaintenanceResolver,
   normalizeCommandPath,
   resolveProviderMaintenanceCapabilitiesEffect,
-} from "../providerMaintenance";
+} from "../providerMaintenance.ts";
 
 const decodeDroidSettings = Schema.decodeSync(DroidSettings);
 
@@ -217,6 +219,29 @@ export const DroidDriver: ProviderDriver<DroidSettings, any> = {
         ),
       );
 
+      const generation = yield* ProviderRuntimeGeneration;
+      const orchestrationAdapter =
+        generation === "v2"
+          ? yield* DroidAdapterV2Driver.create({
+              instanceId,
+              displayName,
+              accentColor,
+              environment,
+              enabled,
+              config: effectiveConfig,
+            }).pipe(
+              Effect.mapError(
+                (cause) =>
+                  new ProviderDriverError({
+                    driver: DRIVER_KIND,
+                    instanceId,
+                    detail: `Failed to build Droid orchestration adapter: ${cause.message ?? String(cause)}`,
+                    cause,
+                  }),
+              ),
+            )
+          : undefined;
+
       return {
         instanceId,
         driverKind: DRIVER_KIND,
@@ -244,6 +269,7 @@ export const DroidDriver: ProviderDriver<DroidSettings, any> = {
         snapshot,
         adapter,
         textGeneration,
+        ...(orchestrationAdapter === undefined ? {} : { orchestrationAdapter }),
       } satisfies ProviderInstance;
     }),
 };

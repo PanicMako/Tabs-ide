@@ -33,6 +33,10 @@ import * as Yauzl from "yauzl";
 import { ServerConfig } from "../config.ts";
 import { makeAntigravityAcpRuntime } from "./acp/AntigravityAcpSupport.ts";
 import {
+  prepareAntigravityProfile,
+  buildAntigravityAcpSpawnInput,
+} from "./antigravityAuthSupport.ts";
+import {
   resolveAntigravityReleaseAsset,
   type AntigravityReleaseAsset,
 } from "./antigravityRelease.ts";
@@ -56,7 +60,7 @@ type InstalledRelease = typeof InstalledRelease.Type;
 const encodeActiveRelease = Schema.encodeEffect(Schema.fromJsonString(ActiveRelease));
 const encodeInstalledRelease = Schema.encodeEffect(Schema.fromJsonString(InstalledRelease));
 
-export class AntigravityInstallationError extends Schema.TaggedErrorClass<AntigravityInstallationError>()(
+export class AntigravityInstallationError extends Schema.TaggedError<AntigravityInstallationError>()(
   "AntigravityInstallationError",
   {
     operation: Schema.String,
@@ -469,7 +473,17 @@ export const makeAntigravityInstallation = Effect.fn("AntigravityInstallation.ma
         const profileDirectory = yield* fs.makeTempDirectoryScoped({
           prefix: "t3-antigravity-validate-",
         });
+        const profile = yield* prepareAntigravityProfile({
+          profileDirectory,
+          baseEnv: environment,
+        }).pipe(Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner));
         const runtime = yield* makeAntigravityAcpRuntime({
+          spawn: buildAntigravityAcpSpawnInput({
+            installation: executable,
+            profile,
+            cwd: profileDirectory,
+            baseEnv: environment,
+          }),
           cwd: profileDirectory,
           childProcessSpawner: spawner,
           clientInfo: { name: "tabs", version: "0.0.0" },
@@ -481,7 +495,7 @@ export const makeAntigravityInstallation = Effect.fn("AntigravityInstallation.ma
         if (
           initialized.agentInfo?.name !== "antigravity-acp" ||
           initialized.agentInfo.version !== expectedVersion ||
-          initialized.protocolVersion !== 1 ||
+          (initialized.protocolVersion !== 1 && initialized.protocolVersion !== 2) ||
           initialized.agentCapabilities?.loadSession !== true ||
           !initialized.agentCapabilities.sessionCapabilities?.resume ||
           !initialized.agentCapabilities.auth?.logout ||

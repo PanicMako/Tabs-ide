@@ -235,8 +235,14 @@ export const makeManagedCodexProvider = Effect.fn("makeManagedCodexProvider")(fu
     config,
     mergeProviderInstanceEnvironment(input.environment),
   );
-  const protect = <A, R = never>(operation: string, effect: Effect.Effect<A, TextGenerationError, R>): Effect.Effect<A, TextGenerationError, R> =>
-    (runtime.auth.controller.withAccess ? runtime.auth.controller.withAccess(effect as any) : effect).pipe(
+  const protect = <A, R = never>(
+    operation: string,
+    effect: Effect.Effect<A, TextGenerationError, R>,
+  ): Effect.Effect<A, TextGenerationError, R> =>
+    (runtime.auth.controller.withAccess
+      ? runtime.auth.controller.withAccess(effect as any)
+      : effect
+    ).pipe(
       Effect.scoped,
       Effect.mapError(
         (cause: any) =>

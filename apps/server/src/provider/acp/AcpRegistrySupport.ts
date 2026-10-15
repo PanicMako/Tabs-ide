@@ -192,7 +192,7 @@ const decodeBoundedAgentId = Schema.decodeUnknownEffect(BoundedAgentId);
 export const AcpRegistryErrorReason = AcpRegistryOperationErrorReason;
 export type AcpRegistryErrorReason = typeof AcpRegistryErrorReason.Type;
 
-export class AcpRegistryError extends Schema.TaggedErrorClass<AcpRegistryError>()("AcpRegistryError", {
+export class AcpRegistryError extends Schema.TaggedError<AcpRegistryError>()("AcpRegistryError", {
   reason: AcpRegistryErrorReason,
   detail: Schema.String,
   cause: Schema.optional(Schema.Defect()),

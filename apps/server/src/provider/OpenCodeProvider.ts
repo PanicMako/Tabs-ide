@@ -719,6 +719,17 @@ export const checkOpenCodeProviderStatus = Effect.fn("checkOpenCodeProviderStatu
   );
   const skills = openCodeSkillsToServerProviderSkills(inventoryExit.value.inventory.skills);
   const connectedCount = inventoryExit.value.inventory.providerList.connected.length;
+  const connectedIds = new Set(inventoryExit.value.inventory.providerList.connected);
+  // OpenCode automatically publishes its anonymous free catalog as connected.
+  // That does not establish an authenticated account or agent-run eligibility.
+  const hasAccountCatalog = inventoryExit.value.inventory.providerList.all.some(
+    (provider) =>
+      connectedIds.has(provider.id) &&
+      (provider.id !== "opencode" ||
+        Object.values(provider.models).some(
+          (model) => (model.cost?.input ?? 0) > 0 || (model.cost?.output ?? 0) > 0,
+        )),
+  );
   return buildServerProvider({
     presentation: OPENCODE_PRESENTATION,
     enabled: true,
@@ -733,15 +744,17 @@ export const checkOpenCodeProviderStatus = Effect.fn("checkOpenCodeProviderStatu
       version,
       status: connectedCount > 0 ? "ready" : "warning",
       auth: {
-        status: connectedCount > 0 ? "authenticated" : "unknown",
+        status: hasAccountCatalog ? "authenticated" : "unknown",
         type: "opencode",
       },
       message:
-        connectedCount > 0
-          ? `${connectedCount} upstream provider${connectedCount === 1 ? "" : "s"} connected through ${isExternalServer ? "the configured OpenCode server" : "OpenCode"}.`
-          : isExternalServer
-            ? "Connected to the configured OpenCode server, but it did not report any connected upstream providers."
-            : "OpenCode is available, but it did not report any connected upstream providers.",
+        connectedCount > 0 && !hasAccountCatalog
+          ? "OpenCode's free model catalog is available. Account authentication and embedded-session execution eligibility have not been verified."
+          : connectedCount > 0
+            ? `${connectedCount} upstream provider${connectedCount === 1 ? "" : "s"} connected through ${isExternalServer ? "the configured OpenCode server" : "OpenCode"}.`
+            : isExternalServer
+              ? "Connected to the configured OpenCode server, but it did not report any connected upstream providers."
+              : "OpenCode is available, but it did not report any connected upstream providers.",
     },
   });
 });

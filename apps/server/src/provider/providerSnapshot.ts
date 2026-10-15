@@ -1,6 +1,7 @@
 import type {
   CustomModelSetting,
   ProviderDriverKind,
+  RuntimeMode,
   ModelCapabilities,
   ServerProvider,
   ServerProviderAuth,
@@ -16,9 +17,9 @@ import * as Data from "effect/Data";
 import * as Stream from "effect/Stream";
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 import { normalizeModelSlug, readCustomModelEntries } from "@tabs/shared/model";
-import { isWindowsCommandNotFound } from "../processRunner";
-import { createProviderVersionAdvisory } from "./providerMaintenance";
-import { collectUint8StreamText } from "../stream/collectUint8StreamText";
+import { isWindowsCommandNotFound } from "../processRunner.ts";
+import { createProviderVersionAdvisory } from "./providerMaintenance.ts";
+import { collectUint8StreamText } from "../stream/collectUint8StreamText.ts";
 
 export const DEFAULT_TIMEOUT_MS = 4_000;
 // Auth status checks involve disk/network lookups and can be slow on first run (especially Windows)
@@ -55,12 +56,16 @@ export interface ServerProviderPresentation {
   readonly badgeLabel?: string;
   readonly showInteractionModeToggle?: boolean;
   readonly requiresNewThreadForModelChange?: boolean;
+  readonly supportsConversationRollback?: boolean;
+  readonly supportsTextGeneration?: boolean;
+  readonly reportsContextWindow?: boolean;
+  readonly supportedRuntimeModes?: ReadonlyArray<RuntimeMode>;
 }
 
 function inferCredentialSource(auth: ServerProviderAuth): ProviderCredentialSource {
   const type = auth.type?.trim().toLowerCase();
   if (!type) return auth.status === "authenticated" ? "account" : "unknown";
-  if (type === "apikey" || type === "api_key") return "api_key";
+  if (["apikey", "api_key", "api-key", "gemini-api-key"].includes(type)) return "api_key";
   if (type === "byok") return "byok";
   if (type === "amazonbedrock" || type === "googlevertex" || type === "cloudcredential") {
     return "cloud_credential";
@@ -91,7 +96,12 @@ export function nonEmptyTrimmed(value: string | undefined): string | undefined {
 }
 
 export function isCommandMissingCause(error: unknown): boolean {
-  if (typeof error === "object" && error !== null && "message" in error && typeof (error as any).message === "string") {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "message" in error &&
+    typeof (error as any).message === "string"
+  ) {
     const lower = (error as any).message.toLowerCase();
     return lower.includes("enoent") || lower.includes("notfound");
   }
@@ -155,7 +165,7 @@ export function extractAuthBoolean(value: unknown): boolean | undefined {
 }
 
 export function parseGenericCliVersion(output: string): string | null {
-  const match = output.match(/\b(\d+\.\d+\.\d+)\b/);
+  const match = output.match(/\bv?(\d+\.\d+\.\d+)\b/);
   return match?.[1] ?? null;
 }
 
@@ -291,6 +301,18 @@ export function buildServerProvider(input: {
     ...(typeof input.presentation.requiresNewThreadForModelChange === "boolean"
       ? { requiresNewThreadForModelChange: input.presentation.requiresNewThreadForModelChange }
       : {}),
+    ...(input.presentation.supportsConversationRollback === undefined
+      ? {}
+      : { supportsConversationRollback: input.presentation.supportsConversationRollback }),
+    ...(input.presentation.supportsTextGeneration === undefined
+      ? {}
+      : { supportsTextGeneration: input.presentation.supportsTextGeneration }),
+    ...(input.presentation.reportsContextWindow === undefined
+      ? {}
+      : { reportsContextWindow: input.presentation.reportsContextWindow }),
+    ...(input.presentation.supportedRuntimeModes === undefined
+      ? {}
+      : { supportedRuntimeModes: [...input.presentation.supportedRuntimeModes] }),
     enabled: input.enabled,
     installed: input.probe.installed,
     version: input.probe.version,

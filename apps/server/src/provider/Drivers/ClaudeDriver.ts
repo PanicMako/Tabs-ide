@@ -1,3 +1,5 @@
+import { ClaudeDriver as ModernClaudeDriver } from "./ClaudeDriver.modern.ts";
+import { ProviderRuntimeGeneration } from "../ProviderRuntimeGeneration.ts";
 /**
  * ClaudeDriver — `ProviderDriver` for the Claude Agent SDK runtime.
  *
@@ -25,36 +27,37 @@ import * as Stream from "effect/Stream";
 import { HttpClient } from "effect/unstable/http";
 import { ChildProcessSpawner } from "effect/unstable/process";
 
-import { makeClaudeTextGeneration } from "../../textGeneration/ClaudeTextGeneration";
-import { ServerConfig } from "../../config";
-import { ProviderDriverError } from "../Errors";
-import { makeClaudeAdapter } from "../Layers/ClaudeAdapter";
+import { makeClaudeTextGeneration } from "../../textGeneration/ClaudeTextGeneration.ts";
+import { ServerConfig } from "../../config.ts";
+import { expandHomePath } from "../../pathExpansion.ts";
+import { ProviderDriverError } from "../Errors.ts";
+import { makeClaudeAdapter } from "../Layers/ClaudeAdapter.ts";
 import {
   checkClaudeProviderStatus,
   getClaudeModelCapabilities,
   makePendingClaudeProvider,
   probeClaudeCapabilities,
-} from "../Layers/ClaudeProvider";
-import { makeClaudeScopedLimitNames } from "../Layers/claudeUsageLimits";
-import { ProviderEventLoggers } from "../Layers/ProviderEventLoggers";
-import { makeManagedServerProvider } from "../makeManagedServerProvider";
+} from "../Layers/ClaudeProvider.ts";
+import { makeClaudeScopedLimitNames } from "../Layers/claudeUsageLimits.ts";
+import { ProviderEventLoggers } from "../Layers/ProviderEventLoggers.ts";
+import { makeManagedServerProvider } from "../makeManagedServerProvider.ts";
 import {
   defaultProviderContinuationIdentity,
   makeExternalCliLifecycle,
   makeProviderInstanceCapabilities,
   type ProviderDriver,
   type ProviderInstance,
-} from "../ProviderDriver";
-import type { ServerProviderDraft } from "../providerSnapshot";
-import { mergeProviderInstanceEnvironment } from "../ProviderInstanceEnvironment";
+} from "../ProviderDriver.ts";
+import type { ServerProviderDraft } from "../providerSnapshot.ts";
+import { mergeProviderInstanceEnvironment } from "../ProviderInstanceEnvironment.ts";
 import {
   enrichProviderSnapshotWithVersionAdvisory,
   makePackageManagedProviderMaintenanceResolver,
   normalizeCommandPath,
   resolveProviderMaintenanceCapabilitiesEffect,
-} from "../providerMaintenance";
-import { makeClaudeCapabilitiesCacheKey, makeClaudeContinuationGroupKey } from "./ClaudeHome";
-import { discoverClaudeSkills } from "./ClaudeSkills";
+} from "../providerMaintenance.ts";
+import { makeClaudeCapabilitiesCacheKey, makeClaudeContinuationGroupKey } from "./ClaudeHome.ts";
+import { discoverClaudeSkills } from "./ClaudeSkills.ts";
 const decodeClaudeSettings = Schema.decodeSync(ClaudeSettings);
 
 const DRIVER_KIND = "claudeAgent" as ProviderDriverKind;
@@ -106,7 +109,7 @@ const withInstanceIdentity =
     continuation: { groupKey: input.continuationGroupKey },
   });
 
-export const ClaudeDriver: ProviderDriver<ClaudeSettings, any> = {
+const LegacyClaudeDriver: ProviderDriver<ClaudeSettings, any> = {
   driverKind: DRIVER_KIND,
   metadata: {
     displayName: "Claude",
@@ -126,7 +129,11 @@ export const ClaudeDriver: ProviderDriver<ClaudeSettings, any> = {
         driverKind: DRIVER_KIND,
         instanceId,
       });
-      const effectiveConfig = { ...config, enabled } satisfies ClaudeSettings;
+      const effectiveConfig = {
+        ...config,
+        enabled,
+        binaryPath: expandHomePath(config.binaryPath.trim()),
+      } satisfies ClaudeSettings;
       const maintenanceCapabilities = yield* resolveProviderMaintenanceCapabilitiesEffect(UPDATE, {
         binaryPath: effectiveConfig.binaryPath,
         env: processEnv,
@@ -291,5 +298,19 @@ export const ClaudeDriver: ProviderDriver<ClaudeSettings, any> = {
         adapter,
         textGeneration,
       } satisfies ProviderInstance;
+    }),
+};
+
+// Both server generations share the provider catalog during the transition.
+// Legacy registry assembly explicitly retains its existing adapters until
+// the browser migration is accepted.
+export const ClaudeDriver: typeof LegacyClaudeDriver = {
+  ...LegacyClaudeDriver,
+  create: (input) =>
+    Effect.gen(function* () {
+      const generation = yield* ProviderRuntimeGeneration;
+      return yield* generation === "v2"
+        ? ModernClaudeDriver.create(input)
+        : LegacyClaudeDriver.create(input);
     }),
 };

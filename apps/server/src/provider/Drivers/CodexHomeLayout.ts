@@ -7,7 +7,7 @@ import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
 import * as PlatformError from "effect/PlatformError";
 
-import { expandHomePath } from "../../pathExpansion";
+import { expandHomePath } from "../../pathExpansion.ts";
 
 export interface CodexHomeLayout {
   readonly mode: "direct" | "authOverlay";
@@ -63,7 +63,7 @@ export const resolveCodexHomeLayout = Effect.fn("resolveCodexHomeLayout")(functi
   };
 });
 
-export class CodexShadowHomeError extends Schema.TaggedErrorClass<CodexShadowHomeError>()(
+export class CodexShadowHomeError extends Schema.TaggedError<CodexShadowHomeError>()(
   "CodexShadowHomeError",
   {
     detail: Schema.String,

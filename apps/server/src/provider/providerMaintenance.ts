@@ -28,6 +28,7 @@ export interface ProviderMaintenanceCommandAction {
   readonly executable: string;
   readonly args: ReadonlyArray<string>;
   readonly lockKey: string;
+  readonly env?: Readonly<Record<string, string>>;
 }
 
 export interface ProviderMaintenanceCapabilityResolutionOptions {
@@ -39,6 +40,15 @@ export interface ProviderMaintenanceCapabilityResolutionOptions {
 }
 
 export interface ProviderMaintenanceCapabilitiesResolver {
+  readonly resolveEffect?: (
+    options?: ProviderMaintenanceCapabilityResolutionOptions,
+  ) => Effect.Effect<
+    ProviderMaintenanceCapabilities,
+    never,
+    | FileSystem.FileSystem
+    | import("effect/Path").Path
+    | import("effect/unstable/process/ChildProcessSpawner").ChildProcessSpawner
+  >;
   readonly resolve: (
     options?: ProviderMaintenanceCapabilityResolutionOptions,
   ) => ProviderMaintenanceCapabilities;
@@ -52,6 +62,7 @@ export interface PackageManagedProviderMaintenanceDefinition {
     readonly executable: string;
     readonly args: ReadonlyArray<string>;
     readonly lockKey: string;
+    readonly env?: Readonly<Record<string, string>>;
     readonly isCommandPath: (commandPath: string) => boolean;
   } | null;
 }
@@ -94,6 +105,7 @@ export function makeProviderMaintenanceCapabilities(input: {
   readonly updateExecutable: string | null;
   readonly updateArgs: ReadonlyArray<string>;
   readonly updateLockKey: string | null;
+  readonly updateEnv?: Readonly<Record<string, string>>;
 }): ProviderMaintenanceCapabilities {
   const update =
     input.updateExecutable === null || input.updateLockKey === null
@@ -103,6 +115,7 @@ export function makeProviderMaintenanceCapabilities(input: {
           executable: input.updateExecutable,
           args: input.updateArgs,
           lockKey: input.updateLockKey,
+          ...(input.updateEnv ? { env: input.updateEnv } : {}),
         };
   return {
     provider: input.provider,
@@ -126,12 +139,18 @@ export function makeManualOnlyProviderMaintenanceCapabilities(input: {
 
 function makeNpmGlobalProviderMaintenanceCapabilities(
   definition: PackageManagedProviderMaintenanceDefinition,
+  prefix?: string,
 ): ProviderMaintenanceCapabilities {
   return makeProviderMaintenanceCapabilities({
     provider: definition.provider,
     packageName: definition.npmPackageName,
     updateExecutable: "npm",
-    updateArgs: ["install", "-g", `${definition.npmPackageName}@latest`],
+    updateArgs: [
+      "install",
+      "-g",
+      ...(prefix ? ["--prefix", prefix, `--allow-scripts=${definition.npmPackageName}`] : []),
+      `${definition.npmPackageName}@latest`,
+    ],
     updateLockKey: "npm-global",
   });
 }
@@ -193,6 +212,7 @@ function makeHomebrewProviderMaintenanceCapabilities(
 
 function makeNativeProviderMaintenanceCapabilities(
   definition: PackageManagedProviderMaintenanceDefinition,
+  executable?: string,
 ): ProviderMaintenanceCapabilities | null {
   if (!definition.nativeUpdate) {
     return null;
@@ -201,7 +221,8 @@ function makeNativeProviderMaintenanceCapabilities(
   return makeProviderMaintenanceCapabilities({
     provider: definition.provider,
     packageName: definition.npmPackageName,
-    updateExecutable: definition.nativeUpdate.executable,
+    updateExecutable: executable ?? definition.nativeUpdate.executable,
+    ...(definition.nativeUpdate.env ? { updateEnv: definition.nativeUpdate.env } : {}),
     updateArgs: definition.nativeUpdate.args,
     updateLockKey: definition.nativeUpdate.lockKey,
   });
@@ -270,14 +291,35 @@ export function resolvePackageManagedProviderMaintenance(
       ...(options?.realCommandPath ? [options.realCommandPath] : []),
     ];
 
+    // mise owns provider-specific installations even when their payload contains
+    // an npm layout. Node installations still own ordinary npm globals.
+    if (
+      commandPaths.some((commandPath) => {
+        const normalized = normalizeCommandPath(commandPath);
+        const tool = /\/mise\/installs\/([^/]+)\//.exec(normalized)?.[1];
+        return (
+          normalized.includes("/mise/shims/") ||
+          normalized.endsWith("/bin/mise") ||
+          (tool !== undefined && tool !== "node")
+        );
+      })
+    ) {
+      return makeManualOnlyProviderMaintenanceCapabilities({
+        provider: definition.provider,
+        packageName: definition.npmPackageName,
+      });
+    }
+
     const nativeUpdate = definition.nativeUpdate;
     if (
       nativeUpdate &&
       commandPaths.some((commandPath) => nativeUpdate.isCommandPath(commandPath))
     ) {
       return (
-        makeNativeProviderMaintenanceCapabilities(definition) ??
-        makeNpmGlobalProviderMaintenanceCapabilities(definition)
+        makeNativeProviderMaintenanceCapabilities(
+          definition,
+          options?.realCommandPath ?? resolvedCommandPath,
+        ) ?? makeNpmGlobalProviderMaintenanceCapabilities(definition)
       );
     }
     if (commandPaths.some(isVitePlusGlobalCommandPath)) {
@@ -290,7 +332,12 @@ export function resolvePackageManagedProviderMaintenance(
       return makePnpmGlobalProviderMaintenanceCapabilities(definition);
     }
     if (commandPaths.some(isNpmGlobalCommandPath)) {
-      return makeNpmGlobalProviderMaintenanceCapabilities(definition);
+      const installation = options?.realCommandPath ?? resolvedCommandPath;
+      const marker = installation.replaceAll("\\", "/").indexOf("/lib/node_modules/");
+      return makeNpmGlobalProviderMaintenanceCapabilities(
+        definition,
+        marker >= 0 ? installation.slice(0, marker) : undefined,
+      );
     }
     if (commandPaths.some(isHomebrewCommandPath)) {
       return makeHomebrewProviderMaintenanceCapabilities(definition);
@@ -338,6 +385,7 @@ export const resolveProviderMaintenanceCapabilitiesEffect = Effect.fn(
   resolver: ProviderMaintenanceCapabilitiesResolver,
   options?: Omit<ProviderMaintenanceCapabilityResolutionOptions, "realCommandPath">,
 ) {
+  if (resolver.resolveEffect) return yield* resolver.resolveEffect(options);
   const binaryPath = nonEmptyString(options?.binaryPath);
   if (!binaryPath) {
     return resolver.resolve(options);
@@ -346,22 +394,31 @@ export const resolveProviderMaintenanceCapabilitiesEffect = Effect.fn(
   const resolvedCommandPath = yield* resolveCommandPath(binaryPath, {
     ...(options?.platform ? { platform: options.platform } : {}),
     ...(options?.env ? { env: options.env } : {}),
-  }).pipe(
-    Effect.orElseSucceed(() => (hasPathSeparator(binaryPath) ? binaryPath : null)),
-  );
+  }).pipe(Effect.orElseSucceed(() => null));
   if (!resolvedCommandPath) {
-    return resolver.resolve(options);
+    return { ...resolver.resolve(options), update: null };
   }
 
   const fileSystem = yield* FileSystem.FileSystem;
   const realCommandPath = yield* fileSystem
     .realPath(resolvedCommandPath)
     .pipe(Effect.orElseSucceed(() => resolvedCommandPath));
-  return resolver.resolve({
+  // A renamed launcher can delegate to mise without living in its data directory.
+  const launcher = yield* Effect.scoped(
+    Effect.gen(function* () {
+      const file = yield* fileSystem.open(realCommandPath);
+      const chunk = yield* file.readAlloc(64 * 1024);
+      return Option.isSome(chunk) ? new TextDecoder().decode(chunk.value) : "";
+    }),
+  ).pipe(Effect.orElseSucceed(() => ""));
+  const capabilities = resolver.resolve({
     ...options,
     resolvedCommandPath,
     realCommandPath,
   });
+  return launcher.startsWith("#!") && /\bmise\s+(?:x|exec)\b/.test(launcher)
+    ? { ...capabilities, update: null }
+    : capabilities;
 });
 
 function deriveVersionAdvisory(input: {

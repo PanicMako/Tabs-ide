@@ -237,8 +237,8 @@ describe("AcpClientTerminals", () => {
           terminalIds.push(created.terminalId);
         }
 
-        const snapshots = terminalIds.map((terminalId) =>
-          terminals.readOutputSnapshot("session", terminalId)!,
+        const snapshots = terminalIds.map(
+          (terminalId) => terminals.readOutputSnapshot("session", terminalId)!,
         );
         const retainedBytes = snapshots.reduce(
           (total, snapshot) => total + Buffer.byteLength(snapshot.output),

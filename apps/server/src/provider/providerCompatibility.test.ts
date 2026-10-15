@@ -54,10 +54,27 @@ const provider: ServerProvider = {
 const V2_RELEASE = "0.0.46";
 
 describe("provider compatibility", () => {
-  it("bundles a compatibility policy for every built-in harness", () => {
+  it("bundles policies for reviewed harnesses and leaves other driver policies unspecified", () => {
+    const reviewedHarnesses = new Set([
+      "codex",
+      "claudeAgent",
+      "cursor",
+      "grok",
+      "opencode",
+      "antigravity",
+    ]);
     for (const builtIn of BUILT_IN_DRIVERS) {
-      // Registry entries are arbitrary external ACP agents, not one versioned harness.
-      if (builtIn.driverKind === "acpRegistry") continue;
+      if (!reviewedHarnesses.has(builtIn.driverKind)) {
+        assert.isUndefined(
+          resolveProviderCompatibility(
+            ModelManifest.BUNDLED_MODEL_MANIFEST.compatibility,
+            builtIn.driverKind,
+            null,
+            V2_RELEASE,
+          ),
+        );
+        continue;
+      }
       assert.isDefined(
         resolveProviderCompatibility(
           ModelManifest.BUNDLED_MODEL_MANIFEST.compatibility,
