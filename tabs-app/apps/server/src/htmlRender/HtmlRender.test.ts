@@ -114,7 +114,9 @@ describe("HtmlRender", () => {
 
       const prepared = yield* htmlRender.prepare(`<img src="${svg}">`);
 
-      expect(prepared).toContain(`data:image/svg+xml;base64,${Base64.encode(new TextEncoder().encode(source))}`);
+      expect(prepared).toContain(
+        `data:image/svg+xml;base64,${Base64.encode(new TextEncoder().encode(source))}`,
+      );
     }).pipe(Effect.provide(layerTest)),
   );
 

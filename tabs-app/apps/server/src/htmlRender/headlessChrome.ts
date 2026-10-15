@@ -12,7 +12,7 @@ import * as ChildProcessSpawner from "effect/unstable/process/ChildProcessSpawne
 
 import { publicProxy } from "./publicProxy.ts";
 
-export class HtmlRenderBrowserError extends Schema.TaggedErrorClass<HtmlRenderBrowserError>()(
+export class HtmlRenderBrowserError extends Schema.TaggedError<HtmlRenderBrowserError>()(
   "HtmlRenderBrowserError",
   { reason: Schema.String, cause: Schema.optional(Schema.Defect()) },
 ) {
@@ -22,7 +22,7 @@ export class HtmlRenderBrowserError extends Schema.TaggedErrorClass<HtmlRenderBr
 }
 
 /** The browser died at startup because this host cannot give it a sandbox. */
-export class HtmlRenderSandboxUnavailableError extends Schema.TaggedErrorClass<HtmlRenderSandboxUnavailableError>()(
+export class HtmlRenderSandboxUnavailableError extends Schema.TaggedError<HtmlRenderSandboxUnavailableError>()(
   "HtmlRenderSandboxUnavailableError",
   {},
 ) {

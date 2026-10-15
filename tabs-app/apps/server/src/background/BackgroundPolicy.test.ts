@@ -5,8 +5,12 @@ import * as Effect from "effect/Effect";
 
 import { ServerSettingsService } from "../serverSettings.ts";
 import { make } from "./BackgroundPolicy.ts";
+import * as HostPowerMonitor from "./HostPowerMonitor.ts";
 
-const makePolicy = make.pipe(Effect.provide(ServerSettingsService.layerTest()));
+const makePolicy = make.pipe(
+  Effect.provideServiceEffect(HostPowerMonitor.HostPowerMonitor, HostPowerMonitor.make()),
+  Effect.provide(ServerSettingsService.layerTest()),
+);
 
 it.effect("runs demanded work for a visible active client", () =>
   Effect.gen(function* () {
@@ -126,5 +130,38 @@ it.effect("coalesces and handles concurrent activity reports safely", () =>
     const snapshot = yield* policy.snapshot;
     expect(snapshot.leases).toHaveLength(1);
     expect(snapshot.leases[0]?.clientId).toBe("concurrent-client");
+  }),
+);
+
+it.effect("reads monitor constraints and resumes after a fresh power report", () =>
+  Effect.gen(function* () {
+    const monitor = yield* HostPowerMonitor.make();
+    const policy = yield* make.pipe(
+      Effect.provideService(HostPowerMonitor.HostPowerMonitor, monitor),
+      Effect.provide(ServerSettingsService.layerTest()),
+    );
+    const now = yield* DateTime.now;
+    yield* policy.reportClientActivity(AuthSessionId.make("session-power"), RpcClientId.make(1), {
+      clientId: "desktop-power",
+      clientKind: "desktop-renderer",
+      visible: true,
+      focused: true,
+      recentlyInteracted: true,
+      scopes: [{ type: "diagnostics" }],
+      observedAt: now,
+    });
+    const power = {
+      ...(yield* monitor.snapshot),
+      source: "electron-main" as const,
+      thermalState: "serious" as const,
+      stale: false,
+      updatedAt: now,
+    };
+    yield* monitor.report(power);
+    expect(yield* policy.shouldRunScopeWork({ type: "diagnostics" })).toBe(false);
+    expect(yield* policy.shouldRunOpportunisticWork).toBe(false);
+    yield* monitor.report({ ...power, thermalState: "nominal" });
+    expect(yield* policy.shouldRunScopeWork({ type: "diagnostics" })).toBe(true);
+    expect(yield* policy.shouldRunOpportunisticWork).toBe(true);
   }),
 );

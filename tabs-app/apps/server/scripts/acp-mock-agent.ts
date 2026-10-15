@@ -337,6 +337,9 @@ function configOptions(): ReadonlyArray<AcpSchema.SessionConfigOption> {
         { value: "composer-2", name: "Composer 2" },
         { value: "composer-2[fast=true]", name: "Composer 2 Fast" },
         { value: "gpt-5.3-codex[reasoning=medium,fast=false]", name: "Codex 5.3" },
+        ...(process.env.T3_ACP_GROK_CONFIG_MODELS === "1"
+          ? grokAcpModels.map((model) => ({ value: model.modelId, name: model.name }))
+          : []),
       ],
     },
   ];

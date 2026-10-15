@@ -14,7 +14,7 @@ export const claudeHistoryCommand = Command.make("__claude-history", {
   sessionId: Argument.string("session-id"),
   options: Argument.string("options").pipe(Argument.optional),
 }).pipe(
-  Command.withHidden,
+  Command.unlisted,
   Command.withHandler(({ method, sessionId, options }) =>
     Effect.promise(() =>
       runClaudeHistoryWorker(

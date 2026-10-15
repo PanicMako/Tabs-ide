@@ -93,8 +93,14 @@ describe("pair tailscale local target", () => {
 
 const runCli = (args: ReadonlyArray<string>) => Command.runWith(cli, { version: "0.0.0" })(args);
 
-const provideCliTestLayers = <A, E, R>(effect: Effect.Effect<A, E, R>): Effect.Effect<A, E, never> =>
-  Effect.provide(effect, Layer.mergeAll(layerCliRuntime, TestConsole.layer)) as Effect.Effect<A, E, never>;
+const provideCliTestLayers = <A, E, R>(
+  effect: Effect.Effect<A, E, R>,
+): Effect.Effect<A, E, never> =>
+  Effect.provide(effect, Layer.mergeAll(layerCliRuntime, TestConsole.layer)) as Effect.Effect<
+    A,
+    E,
+    never
+  >;
 
 // Console output accumulates across CLI runs within a test, and each
 // Console.log call is one entry — so the latest command's output is the last
@@ -119,7 +125,9 @@ const testDescriptor = {
   capabilities: { repositoryIdentity: true },
 };
 
-const withDescriptorServer = <A, E, R>(run: (origin: string) => Effect.Effect<A, E, R>): Effect.Effect<A, E, R> =>
+const withDescriptorServer = <A, E, R>(
+  run: (origin: string) => Effect.Effect<A, E, R>,
+): Effect.Effect<A, E, R> =>
   Effect.scoped(
     Effect.acquireUseRelease(
       Effect.callback<NodeHttp.Server>((resume) => {

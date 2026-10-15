@@ -7,6 +7,11 @@ import * as Option from "effect/Option";
 import * as PubSub from "effect/PubSub";
 import * as Ref from "effect/Ref";
 import * as Stream from "effect/Stream";
+import * as Scope from "effect/Scope";
+import {
+  subscribeBeforeSnapshotWithoutMutex,
+  type SnapshotSubscription,
+} from "../utils/subscribeBeforeSnapshot.ts";
 
 import * as DesktopTelemetryReceiver from "../resourceTelemetry/DesktopTelemetryReceiver.ts";
 
@@ -16,6 +21,7 @@ export class HostPowerMonitor extends Context.Service<
     readonly snapshot: Effect.Effect<HostPowerSnapshot>;
     readonly report: (snapshot: HostPowerSnapshot) => Effect.Effect<void>;
     readonly streamChanges: Stream.Stream<HostPowerSnapshot>;
+    readonly subscribe: Effect.Effect<SnapshotSubscription<HostPowerSnapshot>, never, Scope.Scope>;
   }
 >()("t3/background/HostPowerMonitor") {}
 
@@ -78,6 +84,7 @@ export const make = Effect.fn("background.hostPower.make")(function* (
     snapshot: Ref.get(latestRef),
     report,
     streamChanges: Stream.fromPubSub(changes),
+    subscribe: subscribeBeforeSnapshotWithoutMutex(changes, Ref.get(latestRef)),
   });
 });
 

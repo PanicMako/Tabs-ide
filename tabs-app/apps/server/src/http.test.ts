@@ -13,7 +13,13 @@ import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
 import * as Queue from "effect/Queue";
 import * as Tracer from "effect/Tracer";
-import { HttpClient, HttpClientRequest, HttpRouter, HttpServerResponse } from "effect/unstable/http";
+import * as Stream from "effect/Stream";
+import {
+  HttpClient,
+  HttpClientRequest,
+  HttpRouter,
+  HttpServerResponse,
+} from "effect/unstable/http";
 import { openMediaFile } from "./assets/MediaFile.ts";
 
 import { ORCHESTRATION_PROTOCOL_HEADER } from "@tabs/contracts";
@@ -69,6 +75,74 @@ describe("untraced requests", () => {
   });
 });
 
+describe("HTTP compression lifecycle", () => {
+  it("preserves opt-outs and closes a cancelled compressed source", async () => {
+    let closed = false;
+    const layerRoutes = Layer.effectDiscard(
+      Effect.gen(function* () {
+        const router = yield* HttpRouter.HttpRouter;
+        const body = "compressible response\n".repeat(1024);
+        yield* router.add(
+          "GET",
+          "/private",
+          HttpServerResponse.text(body, {
+            headers: { "cache-control": "private, no-transform" },
+          }),
+        );
+        yield* router.add(
+          "GET",
+          "/encoded",
+          HttpServerResponse.text(body, {
+            headers: { "content-encoding": "identity" },
+          }),
+        );
+        const source = Stream.concat(
+          Stream.succeed(new TextEncoder().encode(body)),
+          Stream.never,
+        ).pipe(
+          Stream.ensuring(
+            Effect.sync(() => {
+              closed = true;
+            }),
+          ),
+        );
+        yield* router.add(
+          "GET",
+          "/stream",
+          HttpServerResponse.stream(source, { contentType: "text/plain" }),
+        );
+      }),
+    );
+    const { handler, dispose } = HttpRouter.toWebHandler(
+      Layer.merge(layerRoutes, ServerHttp.layerHttpCompression),
+      { disableLogger: true },
+    );
+    try {
+      for (const path of ["private", "encoded"]) {
+        const response = await handler(
+          new Request(`http://localhost/${path}`, {
+            headers: { "accept-encoding": "gzip" },
+          }),
+        );
+        expect(response.headers.get("content-encoding")).not.toBe("gzip");
+        expect(await response.text()).toContain("compressible response");
+      }
+      const response = await handler(
+        new Request("http://localhost/stream", {
+          headers: { "accept-encoding": "gzip" },
+        }),
+      );
+      expect(response.headers.get("content-encoding")).toBe("gzip");
+      const reader = response.body!.getReader();
+      expect((await reader.read()).done).toBe(false);
+      await reader.cancel();
+      await vi.waitFor(() => expect(closed).toBe(true));
+    } finally {
+      await dispose();
+    }
+  });
+});
+
 describe("browser API CORS", () => {
   it("accepts protocol negotiation with authenticated browser headers", async () => {
     const layerRoute = Layer.effectDiscard(
@@ -88,7 +162,7 @@ describe("browser API CORS", () => {
         new Request("https://backend.example/api/environment", {
           method: "OPTIONS",
           headers: {
-            origin: "https://app.t3.codes",
+            origin: "tabs://app",
             "access-control-request-method": "GET",
             "access-control-request-headers": [
               ORCHESTRATION_PROTOCOL_HEADER,
@@ -100,7 +174,7 @@ describe("browser API CORS", () => {
       );
 
       expect(response.status).toBe(204);
-      expect(response.headers.get("access-control-allow-origin")).toBe("*");
+      expect(response.headers.get("access-control-allow-origin")).toBe("tabs://app");
       const allowedHeaders = new Set(
         (response.headers.get("access-control-allow-headers") ?? "")
           .split(",")
@@ -223,6 +297,29 @@ it.layer(
       expect(head.status).toBe(200);
       expect(head.headers["content-length"]).toBe(String(Buffer.byteLength(nextHtml)));
       expect(yield* head.text).toBe("");
+    }),
+  );
+
+  it.effect("compresses static GET bodies and respects encoding exclusions", () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const staticDir = yield* fs.makeTempDirectoryScoped({ prefix: "t3-static-compression-" });
+      const body = "compressible file content\n".repeat(1024);
+      yield* fs.writeFileString(path.join(staticDir, "app.txt"), body);
+      const request = yield* makeStaticRequest(staticDir);
+      for (const encoding of ["br", "gzip", "deflate"]) {
+        const response = yield* request("/app.txt", { headers: { "accept-encoding": encoding } });
+        expect(response.headers["content-encoding"]).toBe(encoding);
+        expect(response.headers["content-length"]).toBeUndefined();
+        expect(response.headers["vary"]).toContain("Accept-Encoding");
+        expect(yield* response.text).toBe(body);
+      }
+      const excluded = yield* request("/app.txt", {
+        headers: { "accept-encoding": "br;q=0, gzip;q=0, deflate;q=0, *;q=1" },
+      });
+      expect(excluded.headers["content-encoding"]).toBeUndefined();
+      expect(yield* excluded.text).toBe(body);
     }),
   );
 

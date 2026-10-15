@@ -7,7 +7,7 @@ import * as NodeStream from "@effect/platform-node/NodeStream";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 
-class MediaFileOpenError extends Schema.TaggedErrorClass<MediaFileOpenError>()("MediaFileOpenError", {
+class MediaFileOpenError extends Schema.TaggedError<MediaFileOpenError>()("MediaFileOpenError", {
   path: Schema.String,
   cause: Schema.Defect(),
 }) {
@@ -16,7 +16,7 @@ class MediaFileOpenError extends Schema.TaggedErrorClass<MediaFileOpenError>()("
   }
 }
 
-class MediaFileReadError extends Schema.TaggedErrorClass<MediaFileReadError>()("MediaFileReadError", {
+class MediaFileReadError extends Schema.TaggedError<MediaFileReadError>()("MediaFileReadError", {
   path: Schema.String,
   cause: Schema.Defect(),
 }) {
@@ -25,7 +25,7 @@ class MediaFileReadError extends Schema.TaggedErrorClass<MediaFileReadError>()("
   }
 }
 
-class MediaFileStatError extends Schema.TaggedErrorClass<MediaFileStatError>()("MediaFileStatError", {
+class MediaFileStatError extends Schema.TaggedError<MediaFileStatError>()("MediaFileStatError", {
   path: Schema.String,
   cause: Schema.Defect(),
 }) {

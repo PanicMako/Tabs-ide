@@ -52,10 +52,7 @@ const connectUnavailableCommand = Command.make("connect", {
   ),
 );
 
-export const makeCli = ({
-  commandName = "tabs",
-  cloudEnabled = hasCloudPublicConfig,
-} = {}) =>
+export const makeCli = ({ commandName = "tabs", cloudEnabled = hasCloudPublicConfig } = {}) =>
   Command.make(commandName, { ...sharedServerCommandFlags }).pipe(
     Command.withDescription("Run the Tabs server."),
     Command.withHandler(runDefaultServerCommand),

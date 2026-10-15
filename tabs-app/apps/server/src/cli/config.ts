@@ -1,9 +1,5 @@
 import * as NetService from "@tabs/shared/Net";
-import {
-  OtlpHeadersFromString,
-  OtlpProtocol,
-  type SignalExport,
-} from "@tabs/shared/observability";
+import { OtlpHeadersFromString, OtlpProtocol, type SignalExport } from "@tabs/shared/observability";
 import * as OtelEnvironment from "@tabs/shared/otelEnvironment";
 import { parsePersistedServerObservabilitySettings } from "@tabs/shared/serverSettings";
 import { DesktopBackendBootstrap, PortSchema } from "@tabs/contracts";
@@ -173,7 +169,7 @@ const DevAuthTokenConfig = Config.redacted("T3CODE_DEV_AUTH_TOKEN").pipe(
       : Effect.fail(
           new Config.ConfigError(
             new Schema.SchemaError(
-              new SchemaIssue.InvalidValue(Option.some(token), {
+              new SchemaIssue.InvalidValue({
                 message: "T3CODE_DEV_AUTH_TOKEN must contain at least 32 characters.",
               }),
             ),
@@ -467,6 +463,9 @@ export const resolveServerConfig = (
       noBrowser,
       startupPresentation,
       desktopBootstrapToken,
+      ...(mode === "desktop" && bootstrap?.desktopExtensionBroker
+        ? { desktopExtensionBroker: bootstrap.desktopExtensionBroker }
+        : {}),
       ...(desktopBootstrapSecret === undefined ? {} : { desktopBootstrapSecret }),
       desktopTelemetryFd,
       desktopTelemetryControlFd,
@@ -555,7 +554,7 @@ export const DurationFromString = Schema.String.pipe(
           return Effect.succeed(duration);
         }
         return Effect.fail(
-          new SchemaIssue.InvalidValue(Option.some(value), {
+          new SchemaIssue.InvalidValue({
             message: "Invalid duration. Use values like 5m, 1h, 30d, or 15 minutes.",
           }),
         );

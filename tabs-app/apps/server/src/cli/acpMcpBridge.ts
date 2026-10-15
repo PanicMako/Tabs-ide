@@ -17,7 +17,7 @@ import { runAcpMcpCliFastPath } from "../mcp/AcpMcpStdioBridge.ts";
  */
 export const acpMcpBridgeCommand = Command.make("acp-mcp-bridge").pipe(
   Command.withDescription("Bridge T3 Code's MCP endpoint to stdio for ACP agents."),
-  Command.withHidden,
+  Command.unlisted,
   Command.withHandler(() => Effect.promise(() => runAcpMcpCliFastPath("acp-mcp-bridge", []))),
 );
 
@@ -27,7 +27,7 @@ export const acpMcpCallCommand = Command.make("acp-mcp-call", {
   argumentsJson: Argument.string("arguments-json"),
 }).pipe(
   Command.withDescription("Call one T3 Code MCP tool from an ACP agent terminal."),
-  Command.withHidden,
+  Command.unlisted,
   Command.withHandler(({ tool, argumentsJson }) =>
     Effect.promise(() => runAcpMcpCliFastPath("acp-mcp-call", [tool, argumentsJson])),
   ),

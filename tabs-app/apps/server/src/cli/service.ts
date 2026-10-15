@@ -143,7 +143,7 @@ const serviceInstallCommand = Command.make("install", serviceReconcileFlags).pip
 // install` does; the way to move to a newer release is `t3 update`.
 const serviceUpdateCommand = Command.make("update", serviceReconcileFlags).pipe(
   Command.withDescription("Deprecated. Run `t3 update` to move to a newer release."),
-  Command.withHidden,
+  Command.unlisted,
   Command.withHandler((flags) =>
     runServiceCommand(
       flags,

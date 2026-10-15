@@ -38,7 +38,7 @@ const MAX_IMAGE_BYTES = 10 * MIB;
 const MAX_PAGE_BYTES = 25 * MIB;
 const formatMib = (bytes: number) => `${(bytes / MIB).toFixed(1)} MiB`;
 
-export class HtmlRenderImagesNotFoundError extends Schema.TaggedErrorClass<HtmlRenderImagesNotFoundError>()(
+export class HtmlRenderImagesNotFoundError extends Schema.TaggedError<HtmlRenderImagesNotFoundError>()(
   "HtmlRenderImagesNotFoundError",
   { paths: Schema.Array(Schema.String) },
 ) {
@@ -47,7 +47,7 @@ export class HtmlRenderImagesNotFoundError extends Schema.TaggedErrorClass<HtmlR
   }
 }
 
-export class HtmlRenderImageTooLargeError extends Schema.TaggedErrorClass<HtmlRenderImageTooLargeError>()(
+export class HtmlRenderImageTooLargeError extends Schema.TaggedError<HtmlRenderImageTooLargeError>()(
   "HtmlRenderImageTooLargeError",
   { path: Schema.String, sizeBytes: Schema.Number },
 ) {
@@ -56,7 +56,7 @@ export class HtmlRenderImageTooLargeError extends Schema.TaggedErrorClass<HtmlRe
   }
 }
 
-export class HtmlRenderPageTooLargeError extends Schema.TaggedErrorClass<HtmlRenderPageTooLargeError>()(
+export class HtmlRenderPageTooLargeError extends Schema.TaggedError<HtmlRenderPageTooLargeError>()(
   "HtmlRenderPageTooLargeError",
   { sizeBytes: Schema.Number },
 ) {
@@ -65,7 +65,7 @@ export class HtmlRenderPageTooLargeError extends Schema.TaggedErrorClass<HtmlRen
   }
 }
 
-export class HtmlRenderStoreError extends Schema.TaggedErrorClass<HtmlRenderStoreError>()(
+export class HtmlRenderStoreError extends Schema.TaggedError<HtmlRenderStoreError>()(
   "HtmlRenderStoreError",
   { cause: Schema.Defect() },
 ) {
