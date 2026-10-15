@@ -36,6 +36,25 @@ it("blocks past dates and lets a quick preset create a future schedule", async (
     await view.unmount();
   }
 });
+it("selects the +1 hour preset and enables the schedule submission", async () => {
+  const confirm = vi.fn();
+  const view = await render(
+    <SchedulePicker value={new Date("2020-01-01T12:00:00")} onConfirm={confirm} />,
+  );
+  try {
+    const before = Date.now();
+    await page.getByRole("button", { name: "+1 hour" }).click();
+    const submitBtn = page.getByRole("button", { name: "Schedule", exact: true });
+    await expect.element(submitBtn).not.toBeDisabled();
+    await submitBtn.click();
+    expect(confirm).toHaveBeenCalledOnce();
+    const scheduledTime = confirm.mock.calls[0]![0].getTime();
+    expect(scheduledTime).toBeGreaterThanOrEqual(before + 59 * 60_000);
+    expect(scheduledTime).toBeLessThanOrEqual(before + 62 * 60_000);
+  } finally {
+    await view.unmount();
+  }
+});
 it("picks calendar dates and scrolls time wheels without manual input", async () => {
   const confirm = vi.fn();
   const cancel = vi.fn();

@@ -316,6 +316,8 @@ export function SchedulePicker({
                 size="sm"
                 variant="ghost"
                 className="flex-1 px-1 text-xs"
+                data-testid={`schedule-preset-${minutes}`}
+                aria-label={`Set time to +${minutes === 60 ? "1 hour" : `${minutes} min`}`}
                 onClick={() =>
                   choose(new Date(Math.ceil((Date.now() + minutes * 60_000) / 60_000) * 60_000))
                 }
@@ -335,7 +337,7 @@ export function SchedulePicker({
         <Button type="button" size="sm" variant="ghost" onClick={onCancel}>
           Cancel
         </Button>
-        <Button type="submit" size="sm" disabled={!valid}>
+        <Button type="submit" size="sm" disabled={!valid} data-testid="schedule-submit-button">
           Schedule
           <ArrowRight size={13} />
         </Button>
