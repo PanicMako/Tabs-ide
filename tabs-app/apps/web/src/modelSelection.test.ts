@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_UNIFIED_SETTINGS } from "@tabs/contracts/settings";
 import { ProviderDriverKind, ProviderInstanceId, type ServerProvider } from "@tabs/contracts";
 
-import { getAppModelOptions } from "./modelSelection";
+import { getAppModelOptions, resolveNewDraftModelSeed } from "./modelSelection";
+import { deriveEffectiveComposerModelState } from "./composerDraftStore";
+import { makeAppModelSelection } from "./modelSelection";
 import { getDefaultServerModel, getProviderModels } from "./providerModels";
 
 const copilotProvider: ServerProvider = {
@@ -122,4 +124,62 @@ describe("hidden model filtering", () => {
     );
     expect(optionsWithActiveHidden.map((m) => m.slug)).toContain("gpt-5.3");
   });
+});
+
+describe("new Codex draft model seed", () => {
+  const provider: ServerProvider = {
+    ...copilotProvider,
+    instanceId: ProviderInstanceId.makeUnsafe("codex"),
+    driver: ProviderDriverKind.make("codex"),
+  };
+  it("drops a stale built-in default once the real catalog is ready", () => {
+    expect(
+      resolveNewDraftModelSeed("codex", DEFAULT_UNIFIED_SETTINGS, [provider], "gpt-5.4"),
+    ).toBeNull();
+  });
+  it("preserves an explicitly configured custom model", () => {
+    const settings = {
+      ...DEFAULT_UNIFIED_SETTINGS,
+      providers: {
+        ...DEFAULT_UNIFIED_SETTINGS.providers,
+        codex: { ...DEFAULT_UNIFIED_SETTINGS.providers.codex, customModels: ["gpt-5.4"] },
+      },
+    };
+    expect(resolveNewDraftModelSeed("codex", settings, [provider], "gpt-5.4")).toBe("gpt-5.4");
+  });
+  it("does not replace a supported or not-yet-discovered selection", () => {
+    expect(resolveNewDraftModelSeed("codex", DEFAULT_UNIFIED_SETTINGS, [], "gpt-5.4")).toBe(
+      "gpt-5.4",
+    );
+    expect(
+      resolveNewDraftModelSeed(
+        "codex",
+        DEFAULT_UNIFIED_SETTINGS,
+        [provider],
+        "account-advertised-model",
+      ),
+    ).toBe("account-advertised-model");
+  });
+});
+
+it("uses the live model only for fresh drafts and leaves existing conversations unchanged", () => {
+  const provider: ServerProvider = {
+    ...copilotProvider,
+    instanceId: ProviderInstanceId.makeUnsafe("codex"),
+    driver: ProviderDriverKind.make("codex"),
+  };
+  const input = {
+    draft: null,
+    providers: [provider],
+    selectedProvider: "codex" as const,
+    threadModelSelection: makeAppModelSelection("codex", "gpt-5.4"),
+    projectModelSelection: null,
+    settings: DEFAULT_UNIFIED_SETTINGS,
+  };
+  expect(deriveEffectiveComposerModelState({ ...input, isNewThread: true }).selectedModel).toBe(
+    "account-advertised-model",
+  );
+  expect(deriveEffectiveComposerModelState({ ...input, isNewThread: false }).selectedModel).toBe(
+    "gpt-5.4",
+  );
 });
