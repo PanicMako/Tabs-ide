@@ -28,3 +28,11 @@ page for hours already consumed this month; suspension does not refund them.
 
 The schedule runs on Cloudflare, independently of developer laptops. Logs and
 traces are enabled; this is a liveness check, not an alerting or database monitor.
+
+## Deployment verification
+
+Activated on 16 October 2026 after the account's workers.dev setup completed.
+Worker version `f042ce5f-719f-42a7-a23c-a0f3ecb9be57` has its public route and
+preview URLs disabled. Cloudflare recorded a real scheduled invocation at
+01:10 IST on 16 October: `exchange_liveness`, HTTP 200, 354 ms, on the configured
+ten-minute schedule. Logs and traces are enabled for future verification.
