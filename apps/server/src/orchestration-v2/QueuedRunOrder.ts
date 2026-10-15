@@ -1,3 +1,5 @@
+import * as DateTime from "effect/DateTime";
+
 import type { OrchestrationV2Run, OrchestrationV2ThreadProjection } from "@tabs/contracts";
 
 export function isAutomaticCompletionRun(
@@ -29,4 +31,16 @@ export function queuedRunsInDeliveryOrder(
         left.ordinal - right.ordinal
       );
     });
+}
+
+/** Future messages do not block ready messages behind them. */
+export function readyQueuedRunsInDeliveryOrder(
+  projection: Pick<OrchestrationV2ThreadProjection, "runs" | "messages">,
+  now: DateTime.Utc,
+): ReadonlyArray<OrchestrationV2Run> {
+  return queuedRunsInDeliveryOrder(projection).filter(
+    (run) =>
+      run.scheduledFor == null ||
+      DateTime.toEpochMillis(run.scheduledFor) <= DateTime.toEpochMillis(now),
+  );
 }

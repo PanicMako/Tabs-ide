@@ -1,8 +1,4 @@
-import type {
-  PullRequestCheck,
-  PullRequestComment,
-  ThreadPullRequestWatch,
-} from "@tabs/contracts";
+import type { PullRequestCheck, PullRequestComment, ThreadPullRequestWatch } from "@tabs/contracts";
 import { assert, describe, it } from "@effect/vitest";
 
 import {

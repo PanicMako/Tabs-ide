@@ -7,6 +7,7 @@ import {
   ChatAttachmentId,
   CommandId,
   EventId,
+  MessageId,
   RuntimeRequestId,
   ThreadId,
   TurnItemId,
@@ -15,6 +16,8 @@ import {
   type OrchestrationV2StoredEvent,
   type UserInputAttachments,
 } from "@tabs/contracts";
+import * as Deferred from "effect/Deferred";
+import * as Fiber from "effect/Fiber";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -24,8 +27,13 @@ import {
   OrchestratorCommandPreviouslyRejectedError,
   OrchestratorDispatchError,
 } from "./Orchestrator.ts";
+import * as CancellationIntentStore from "./CancellationIntentStore.ts";
 import * as ThreadManagementService from "./ThreadManagementService.ts";
-import { dispatchCommand } from "./ThreadMessageIntake.ts";
+import {
+  dispatchCommand,
+  reconcileIntake,
+  recordCancellationIntent,
+} from "./ThreadMessageIntake.ts";
 
 const layerIntakeTest = ServerConfig.layerTest(process.cwd(), {
   prefix: "t3-question-intake-",
@@ -762,5 +770,271 @@ it.effect("applies the image budget across all questions before dispatch", () =>
     expect(result._tag).toBe("Failure");
     if (result._tag === "Failure") expect(String(result.cause)).toContain("80 MiB");
     expect(captured).toEqual([]);
+  }).pipe(Effect.provide(layerIntakeTest)),
+);
+
+it.effect(
+  "pre-commit cancellation intent consumes late dispatch and rejects with OrchestratorCommandRejectedError",
+  () =>
+    Effect.gen(function* () {
+      const threadId = ThreadId.make("thread-late-intake");
+      const messageId = MessageId.make("msg-late-intake");
+      const commandId = CommandId.make("cmd-late-intake");
+
+      // 1. Record pre-commit cancellation intent before dispatch arrives
+      const intentRes = yield* recordCancellationIntent({
+        threadId,
+        messageId,
+        commandId,
+      }).pipe(
+        Effect.provide(
+          Layer.mock(ThreadManagementService.ThreadManagementService)({
+            getThreadSnapshotWindow: () =>
+              Effect.succeed({
+                schemaVersion: 1,
+                snapshotSequence: 1,
+                projection: { runs: [] } as any,
+              }),
+          }),
+        ),
+        Effect.provide(CancellationIntentStore.layerMemory),
+      );
+      expect(intentRes.recorded).toBe(true);
+
+      // 2. Late dispatch arrives for the cancelled message
+      const captured: OrchestrationV2ServerCommand[] = [];
+      const dispatchExit = yield* Effect.exit(
+        dispatchCommand({
+          type: "message.dispatch",
+          createdBy: "user",
+          creationSource: "web",
+          commandId,
+          threadId,
+          messageId,
+          text: "Late prompt that was already cancelled",
+          attachments: [],
+          dispatchMode: { type: "start_immediately" },
+        }).pipe(
+          Effect.provide(layerFailingDispatch(captured)),
+          Effect.provide(CancellationIntentStore.layerMemory),
+        ),
+      );
+
+      // Must be rejected before entering thread dispatch!
+      expect(dispatchExit._tag).toBe("Failure");
+      if (dispatchExit._tag === "Failure") {
+        expect(String(dispatchExit.cause)).toContain("OrchestratorCommandRejectedError");
+      }
+      expect(captured).toHaveLength(0);
+    }).pipe(Effect.provide(layerIntakeTest)),
+);
+
+it.effect("reconcileIntake with cancelIfFound targets queued or running work accurately", () =>
+  Effect.gen(function* () {
+    const threadId = ThreadId.make("thread-reconcile-test");
+    const dispatched: any[] = [];
+
+    const layerMockThread = Layer.mock(ThreadManagementService.ThreadManagementService)({
+      getThreadSnapshotWindow: () =>
+        Effect.succeed({
+          schemaVersion: 1,
+          snapshotSequence: 1,
+          projection: {
+            runs: [
+              {
+                id: "run:queued:1",
+                threadId,
+                userMessageId: "msg-queued",
+                status: dispatched.some((command) => command.type === "queued-run.cancel")
+                  ? "cancelled"
+                  : "queued",
+              },
+              {
+                id: "run:running:1",
+                threadId,
+                userMessageId: "msg-running",
+                status: "running",
+              },
+              {
+                id: "run:done:1",
+                threadId,
+                userMessageId: "msg-done",
+                status: "succeeded",
+              },
+            ],
+          } as any,
+        }),
+      dispatch: (cmd) => {
+        dispatched.push(cmd);
+        return Effect.succeed({ sequence: 1, storedEvents: [] });
+      },
+    });
+
+    // Case 1: Queued run -> cancels queued run
+    const res1 = yield* reconcileIntake({
+      threadId,
+      messageId: MessageId.make("msg-queued"),
+      cancelIfFound: true,
+    }).pipe(Effect.provide(layerMockThread), Effect.provide(CancellationIntentStore.layerMemory));
+    expect(res1.outcome).toBe("cancelled");
+    expect(res1.runId).toBe("run:queued:1");
+    expect(
+      dispatched.some((c) => c.type === "queued-run.cancel" && c.runId === "run:queued:1"),
+    ).toBe(true);
+
+    // Case 2: Running run -> interrupts running run
+    const res2 = yield* reconcileIntake({
+      threadId,
+      messageId: MessageId.make("msg-running"),
+      cancelIfFound: true,
+    }).pipe(Effect.provide(layerMockThread), Effect.provide(CancellationIntentStore.layerMemory));
+    expect(res2.outcome).toBe("running");
+    expect(res2.runStatus).toBe("running");
+    expect(res2.runId).toBe("run:running:1");
+    expect(dispatched.some((c) => c.type === "run.interrupt" && c.runId === "run:running:1")).toBe(
+      true,
+    );
+
+    // Case 3: Already completed run -> reports already_completed without dispatching commands
+    const dispatchedBefore3 = dispatched.length;
+    const res3 = yield* reconcileIntake({
+      threadId,
+      messageId: MessageId.make("msg-done"),
+      cancelIfFound: true,
+    }).pipe(Effect.provide(layerMockThread), Effect.provide(CancellationIntentStore.layerMemory));
+    expect(res3.outcome).toBe("already_completed");
+    expect(res3.runId).toBe("run:done:1");
+    expect(dispatched.length).toBe(dispatchedBefore3);
+  }).pipe(Effect.provide(layerIntakeTest)),
+);
+
+it.effect("does not confirm cancellation when the server mutation fails", () =>
+  Effect.gen(function* () {
+    const threadId = ThreadId.make("failed-cancel-thread");
+    const result = yield* Effect.exit(
+      reconcileIntake({
+        threadId,
+        messageId: MessageId.make("failed-cancel-message"),
+        cancelIfFound: true,
+      }),
+    );
+    expect(result._tag).toBe("Failure");
+  }).pipe(
+    Effect.provide(
+      Layer.mock(ThreadManagementService.ThreadManagementService)({
+        getThreadSnapshotWindow: () =>
+          Effect.succeed({
+            schemaVersion: 1,
+            snapshotSequence: 1,
+            projection: {
+              runs: [
+                { id: "failed-run", userMessageId: "failed-cancel-message", status: "queued" },
+              ],
+            },
+          } as any),
+        dispatch: () =>
+          Effect.fail(
+            new OrchestratorDispatchError({
+              commandType: "queued-run.cancel",
+              commandId: CommandId.make("failed-command"),
+              cause: new Error("disk failure"),
+            }),
+          ),
+      }),
+    ),
+  ),
+);
+
+it.effect("does not confirm durable intent when storage fails or is unavailable", () =>
+  Effect.gen(function* () {
+    const input = {
+      threadId: ThreadId.make("failed-intent-thread"),
+      messageId: MessageId.make("failed-intent-message"),
+      cancelIfFound: true,
+    };
+    const missing = yield* Effect.exit(reconcileIntake(input));
+    expect(missing._tag).toBe("Failure");
+    const failed = yield* Effect.exit(
+      reconcileIntake(input).pipe(
+        Effect.provide(
+          Layer.mock(CancellationIntentStore.CancellationIntentStoreV2)({
+            record: () =>
+              Effect.fail(
+                new CancellationIntentStore.CancellationIntentStoreError({
+                  message: "disk failure",
+                }),
+              ),
+          }),
+        ),
+      ),
+    );
+    expect(failed._tag).toBe("Failure");
+  }).pipe(
+    Effect.provide(
+      Layer.mock(ThreadManagementService.ThreadManagementService)({
+        getThreadSnapshotWindow: () =>
+          Effect.succeed({
+            schemaVersion: 1,
+            snapshotSequence: 1,
+            projection: { runs: [] },
+          } as any),
+      }),
+    ),
+  ),
+);
+
+it.effect("serializes cancellation against an intake paused before commit", () =>
+  Effect.gen(function* () {
+    const paused = yield* Deferred.make<void>();
+    const release = yield* Deferred.make<void>();
+    const threadId = ThreadId.make("serialized-thread");
+    const messageId = MessageId.make("serialized-message");
+    const runs: any[] = [];
+    let resolved = false;
+    const threads = Layer.mock(ThreadManagementService.ThreadManagementService)({
+      getThreadSnapshotWindow: () =>
+        Effect.sync(() => ({ schemaVersion: 1, snapshotSequence: 1, projection: { runs } }) as any),
+      dispatch: (command) =>
+        Effect.gen(function* () {
+          if (command.type === "message.dispatch") {
+            yield* Deferred.succeed(paused, undefined);
+            yield* Deferred.await(release);
+            runs.push({ id: "serialized-run", userMessageId: messageId, status: "queued" });
+          } else if (command.type === "queued-run.cancel") runs[0].status = "cancelled";
+          return { sequence: 1, storedEvents: [] } as any;
+        }),
+    });
+    yield* Effect.gen(function* () {
+      const intake = yield* Effect.forkChild(
+        dispatchCommand({
+          type: "message.dispatch",
+          createdBy: "user",
+          creationSource: "web",
+          commandId: CommandId.make("serialized-command"),
+          threadId,
+          messageId,
+          text: "scheduled",
+          attachments: [],
+          dispatchMode: { type: "start_immediately" },
+        }),
+      );
+      yield* Deferred.await(paused);
+      const cancellation = yield* Effect.forkChild(
+        reconcileIntake({ threadId, messageId, cancelIfFound: true }).pipe(
+          Effect.tap(() =>
+            Effect.sync(() => {
+              resolved = true;
+            }),
+          ),
+        ),
+      );
+      yield* Effect.yieldNow;
+      yield* Effect.yieldNow;
+      expect(resolved).toBe(false);
+      yield* Deferred.succeed(release, undefined);
+      yield* Fiber.join(intake);
+      expect((yield* Fiber.join(cancellation)).outcome).toBe("cancelled");
+      expect(runs[0].status).toBe("cancelled");
+    }).pipe(Effect.provide(threads), Effect.provide(CancellationIntentStore.layerMemory));
   }).pipe(Effect.provide(layerIntakeTest)),
 );

@@ -65,7 +65,10 @@ function promiseGate<A>() {
 }
 
 function asyncEventStream() {
-  const values: Array<{ value: unknown; handled: ReturnType<typeof promiseGate<void>> }> = [];
+  // A real native SSE connection announces readiness before accepting prompts.
+  const values: Array<{ value: unknown; handled: ReturnType<typeof promiseGate<void>> }> = [
+    { value: { type: "server.connected", properties: {} }, handled: promiseGate<void>() },
+  ];
   const waiters: Array<(value: IteratorResult<unknown>) => void> = [];
   let previousHandled: ReturnType<typeof promiseGate<void>> | undefined;
   let closed = false;
@@ -2380,21 +2383,13 @@ describe("OpenCodeAdapterV2", () => {
       const serverConfig = yield* ServerConfig.ServerConfig;
       let createCount = 0;
       const createInputs: Array<unknown> = [];
+      const eventStream = asyncEventStream();
       const fakeClient = {
         event: {
-          subscribe: async (_input?: unknown, options?: { readonly signal?: AbortSignal }) => ({
-            // Emits nothing and ends when the pump's abort signal fires.
-            stream: {
-              [Symbol.asyncIterator]: () => ({
-                next: () =>
-                  new Promise<IteratorResult<never>>((resolve) => {
-                    const done = () => resolve({ done: true, value: undefined });
-                    if (options?.signal?.aborted) return done();
-                    options?.signal?.addEventListener("abort", done, { once: true });
-                  }),
-              }),
-            },
-          }),
+          subscribe: async (_input?: unknown, options?: { readonly signal?: AbortSignal }) => {
+            options?.signal?.addEventListener("abort", () => eventStream.close(), { once: true });
+            return { stream: eventStream.stream };
+          },
         },
         session: {
           create: async (input: unknown) => {

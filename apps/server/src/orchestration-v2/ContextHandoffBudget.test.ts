@@ -450,10 +450,7 @@ describe("handoff delivery", () => {
       assert.equal(durable.delivery?.status, native ? "injected" : "pending");
       yield* result.delivered;
       assert.equal(durable.delivery?.status, native ? "injected" : "inline");
-      assert.deepEqual(
-        durable.delivery?.itemIds,
-        messages.map((item) => item.itemId),
-      );
+      assert.deepEqual(durable.delivery?.itemIds, messages.map((item) => item.itemId));
       assert.deepEqual(durable.delivery?.omittedItemIds, [omittedBeforeDelivery, oversized.itemId]);
       assert.deepEqual(decodeHandoff(durable).delivery, durable.delivery);
     }),

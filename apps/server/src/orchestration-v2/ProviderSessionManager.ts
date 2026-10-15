@@ -77,7 +77,7 @@ export type ProviderSessionReleaseReason = typeof ProviderSessionReleaseReason.T
  * terminalizes provider-bound work and retires non-replayable effects; a later
  * user command or durable replay-safe operation opens a session lazily.
  */
-export class ProviderSessionOpenError extends Schema.TaggedErrorClass<ProviderSessionOpenError>()(
+export class ProviderSessionOpenError extends Schema.TaggedError<ProviderSessionOpenError>()(
   "ProviderSessionOpenError",
   {
     instanceId: ProviderInstanceId,
@@ -90,7 +90,7 @@ export class ProviderSessionOpenError extends Schema.TaggedErrorClass<ProviderSe
   }
 }
 
-export class ProviderSessionLookupError extends Schema.TaggedErrorClass<ProviderSessionLookupError>()(
+export class ProviderSessionLookupError extends Schema.TaggedError<ProviderSessionLookupError>()(
   "ProviderSessionLookupError",
   {
     providerSessionId: ProviderSessionId,
@@ -102,7 +102,7 @@ export class ProviderSessionLookupError extends Schema.TaggedErrorClass<Provider
   }
 }
 
-export class ProviderSessionCloseError extends Schema.TaggedErrorClass<ProviderSessionCloseError>()(
+export class ProviderSessionCloseError extends Schema.TaggedError<ProviderSessionCloseError>()(
   "ProviderSessionCloseError",
   {
     providerSessionId: ProviderSessionId,
@@ -114,7 +114,7 @@ export class ProviderSessionCloseError extends Schema.TaggedErrorClass<ProviderS
   }
 }
 
-export class ProviderSessionReleaseError extends Schema.TaggedErrorClass<ProviderSessionReleaseError>()(
+export class ProviderSessionReleaseError extends Schema.TaggedError<ProviderSessionReleaseError>()(
   "ProviderSessionReleaseError",
   {
     providerSessionId: ProviderSessionId,
@@ -127,7 +127,7 @@ export class ProviderSessionReleaseError extends Schema.TaggedErrorClass<Provide
   }
 }
 
-export class ProviderSessionActivityError extends Schema.TaggedErrorClass<ProviderSessionActivityError>()(
+export class ProviderSessionActivityError extends Schema.TaggedError<ProviderSessionActivityError>()(
   "ProviderSessionActivityError",
   {
     providerSessionId: ProviderSessionId,
@@ -797,7 +797,7 @@ export const layerWithOptions = (
         return attempt.pipe(
           Effect.retry({
             schedule: Schedule.exponential("1 second").pipe(
-              Schedule.modifyDelay((duration) =>
+              Schedule.modifyDelay(({ duration }) =>
                 Effect.succeed(Duration.min(duration, Duration.seconds(30))),
               ),
             ),
@@ -1420,7 +1420,8 @@ export const layerWithOptions = (
         const subscribeEvents = makeEventSubscription(eventSubscribers);
         // Every provider's turn operations pass through here, so this is where they are
         // counted. Only turn starts are timed: until the provider accepts the turn.
-        const turnMetrics = (operation: string, model?: string) =>
+        const turnMetrics =
+          (operation: string, model?: string) =>
           <E, R>(effect: Effect.Effect<void, E, R>): Effect.Effect<void, E, R> =>
             withMetrics(effect, {
               counter: providerTurnsTotal,

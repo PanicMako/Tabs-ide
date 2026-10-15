@@ -54,7 +54,7 @@ const PiRpcReplayTranscript = Schema.Struct({
 type PiRpcReplayTranscript = typeof PiRpcReplayTranscript.Type;
 const decodePiRpcReplayTranscript = Schema.decodeUnknownEffect(PiRpcReplayTranscript);
 
-class PiReplayTranscriptDecodeError extends Schema.TaggedErrorClass<PiReplayTranscriptDecodeError>()(
+class PiReplayTranscriptDecodeError extends Schema.TaggedError<PiReplayTranscriptDecodeError>()(
   "PiReplayTranscriptDecodeError",
   {
     driver: Schema.optional(Schema.String),
@@ -68,7 +68,7 @@ class PiReplayTranscriptDecodeError extends Schema.TaggedErrorClass<PiReplayTran
   }
 }
 
-class PiReplayMismatchError extends Schema.TaggedErrorClass<PiReplayMismatchError>()(
+class PiReplayMismatchError extends Schema.TaggedError<PiReplayMismatchError>()(
   "PiReplayMismatchError",
   {
     scenario: Schema.String,
@@ -85,7 +85,7 @@ class PiReplayMismatchError extends Schema.TaggedErrorClass<PiReplayMismatchErro
   }
 }
 
-class PiReplayIncompleteError extends Schema.TaggedErrorClass<PiReplayIncompleteError>()(
+class PiReplayIncompleteError extends Schema.TaggedError<PiReplayIncompleteError>()(
   "PiReplayIncompleteError",
   {
     scenario: Schema.String,

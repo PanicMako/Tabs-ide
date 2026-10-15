@@ -289,7 +289,14 @@ export const make = Effect.gen(function* () {
   // again only when the host's count of it moves. A restart pages each thread once more.
   const threadTails = new Map<
     string,
-    Map<string, { readonly count: number; readonly comments: ReadonlyArray<PullRequestComment> }>
+    Map<
+      string,
+      {
+        readonly count: number;
+        readonly at: number;
+        readonly comments: ReadonlyArray<PullRequestComment>;
+      }
+    >
   >();
 
   // Host-level identity, with the repository as linked, the way pull request sync reads it.
@@ -345,6 +352,7 @@ export const make = Effect.gen(function* () {
       // when the host confirms that every thread was listed.
       if (activity.commentsTruncated && activity.reviewThreadsTruncated !== false) return null;
 
+      const now = yield* Clock.currentTimeMillis;
       let tails = threadTails.get(key);
       if (tails === undefined) {
         tails = new Map();
@@ -356,7 +364,7 @@ export const make = Effect.gen(function* () {
         if (cursor === null) continue;
         const count = thread.commentCount ?? 0;
         let tail = tails.get(thread.id);
-        if (tail?.count !== count) {
+        if (tail?.count !== count || now - tail.at >= QUIET_REREAD_MS) {
           const comments = new Map<string, PullRequestComment>();
           const cursors = new Set<string>();
           while (cursor !== null) {
@@ -378,7 +386,7 @@ export const make = Effect.gen(function* () {
             cursor = page.nextCursor;
           }
           if (thread.comments.length + comments.size < count) return null;
-          tail = { count, comments: [...comments.values()] };
+          tail = { count, at: now, comments: [...comments.values()] };
           tails.set(thread.id, tail);
         }
         remarks.push(...tail.comments);
@@ -597,11 +605,13 @@ export const make = Effect.gen(function* () {
       const key = `${target.thread.projectId} ${threadPullRequestKeyOf(target.link)}`;
       byPullRequest.set(key, [...(byPullRequest.get(key) ?? []), target]);
     }
-    const groups = [...byPullRequest].map(([key, members]): WatchGroup => ({
-      key,
-      targets: members,
-      fingerprint: [...new Set(members.map(snapshotFingerprint))].toSorted().join("\n"),
-    }));
+    const groups = [...byPullRequest].map(
+      ([key, members]): WatchGroup => ({
+        key,
+        targets: members,
+        fingerprint: [...new Set(members.map(snapshotFingerprint))].toSorted().join("\n"),
+      }),
+    );
     for (const cache of [readFailures, lastReads, threadTails]) {
       for (const key of cache.keys()) if (!byPullRequest.has(key)) cache.delete(key);
     }

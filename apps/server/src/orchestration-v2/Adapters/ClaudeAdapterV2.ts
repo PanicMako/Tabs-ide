@@ -338,7 +338,7 @@ export interface ClaudeAgentSdkQuerySession {
 
 type ClaudeQueryStreamExit = Exit.Exit<void, ClaudeAgentSdkQueryRunnerError>;
 
-export class ClaudeAgentSdkQueryRunnerError extends Schema.TaggedErrorClass<ClaudeAgentSdkQueryRunnerError>()(
+export class ClaudeAgentSdkQueryRunnerError extends Schema.TaggedError<ClaudeAgentSdkQueryRunnerError>()(
   "ClaudeAgentSdkQueryRunnerError",
   {
     method: Schema.String,
@@ -350,7 +350,7 @@ export class ClaudeAgentSdkQueryRunnerError extends Schema.TaggedErrorClass<Clau
   }
 }
 
-export class ClaudeBackgroundWorkBlocksQueryReplacementError extends Schema.TaggedErrorClass<ClaudeBackgroundWorkBlocksQueryReplacementError>()(
+export class ClaudeBackgroundWorkBlocksQueryReplacementError extends Schema.TaggedError<ClaudeBackgroundWorkBlocksQueryReplacementError>()(
   "ClaudeBackgroundWorkBlocksQueryReplacementError",
   {},
 ) {
@@ -2287,10 +2287,12 @@ function toSessionPermissionUpdates(
   toolName: string,
   suggestions: ReadonlyArray<PermissionUpdate> | undefined,
 ): Array<PermissionUpdate> {
-  const updates = (suggestions ?? []).map((suggestion): PermissionUpdate => ({
-    ...suggestion,
-    destination: "session",
-  }));
+  const updates = (suggestions ?? []).map(
+    (suggestion): PermissionUpdate => ({
+      ...suggestion,
+      destination: "session",
+    }),
+  );
   if (updates.length > 0) {
     return updates;
   }
@@ -7313,10 +7315,13 @@ export function makeClaudeAdapterV2(
             const userMessage = isContinuationTurn
               ? null
               : yield* makeClaudeUserMessageWithAttachments({
-                  text: applyClaudePromptEffortPrefix(
-                    turnInput.message.text,
-                    compileClaudeModelSelection(turnInput.modelSelection).promptEffort,
-                  ),
+                  text:
+                    turnInput.message.text.trim() === "/compact"
+                      ? turnInput.message.text
+                      : applyClaudePromptEffortPrefix(
+                          turnInput.message.text,
+                          compileClaudeModelSelection(turnInput.modelSelection).promptEffort,
+                        ),
                   attachments: turnInput.message.attachments,
                   attachmentsDir,
                   fileSystem,

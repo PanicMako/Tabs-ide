@@ -461,7 +461,7 @@ export function routeProviderEvent(
 /**
  * ERRORS
  */
-export class RunExecutionStartError extends Schema.TaggedErrorClass<RunExecutionStartError>()(
+export class RunExecutionStartError extends Schema.TaggedError<RunExecutionStartError>()(
   "RunExecutionStartError",
   {
     commandId: CommandId,
@@ -474,7 +474,7 @@ export class RunExecutionStartError extends Schema.TaggedErrorClass<RunExecution
   }
 }
 
-export class RunExecutionIngestError extends Schema.TaggedErrorClass<RunExecutionIngestError>()(
+export class RunExecutionIngestError extends Schema.TaggedError<RunExecutionIngestError>()(
   "RunExecutionIngestError",
   {
     runId: Schema.String,

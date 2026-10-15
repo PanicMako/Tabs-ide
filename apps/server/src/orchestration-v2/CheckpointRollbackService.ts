@@ -30,7 +30,7 @@ import { RuntimePolicyV2 } from "./RuntimePolicy.ts";
 export const ROLLBACK_FAILED_MESSAGE =
   "The provider could not roll back this conversation. Try again; if it keeps failing, check the provider and server logs.";
 
-export class CheckpointRollbackExecutionError extends Schema.TaggedErrorClass<CheckpointRollbackExecutionError>()(
+export class CheckpointRollbackExecutionError extends Schema.TaggedError<CheckpointRollbackExecutionError>()(
   "CheckpointRollbackExecutionError",
   {
     reason: Schema.Literals([

@@ -14,6 +14,7 @@ import {
   TurnItemId,
   type OrchestrationV2ThreadProjection,
 } from "@tabs/contracts";
+import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Ref from "effect/Ref";
@@ -661,6 +662,7 @@ it.effect("holds accepted queued work without cancelling its execution state aft
         id: runId,
         status: "queued",
         queuePosition: 1,
+        scheduledFor: DateTime.makeUnsafe("2026-12-01T09:00:00.000Z"),
         providerInstanceId: ProviderInstanceId.make("codex"),
       },
     ],
@@ -721,6 +723,10 @@ it.effect("holds accepted queued work without cancelling its execution state aft
     assert.equal(runEvent?.type === "run.updated" ? runEvent.payload.status : null, "queued");
     assert.equal(runEvent?.type === "run.updated" ? runEvent.payload.queuePosition : null, 1);
     assert.equal(runEvent?.type === "run.updated" ? runEvent.payload.queueHeld : false, true);
+    assert.equal(
+      runEvent?.type === "run.updated" ? DateTime.formatIso(runEvent.payload.scheduledFor!) : null,
+      "2026-12-01T09:00:00.000Z",
+    );
     assert.isUndefined(attemptEvent);
     assert.isUndefined(nodeEvent);
   }).pipe(Effect.provide(layer));

@@ -20,7 +20,7 @@ import * as EventSink from "./EventSink.ts";
 import * as IdAllocator from "./IdAllocator.ts";
 import * as ProjectionStore from "./ProjectionStore.ts";
 
-export class CheckpointCaptureExecutionError extends Schema.TaggedErrorClass<CheckpointCaptureExecutionError>()(
+export class CheckpointCaptureExecutionError extends Schema.TaggedError<CheckpointCaptureExecutionError>()(
   "CheckpointCaptureExecutionError",
   {
     threadId: ThreadId,

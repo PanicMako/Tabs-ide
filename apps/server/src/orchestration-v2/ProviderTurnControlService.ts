@@ -27,7 +27,7 @@ const yieldToRuntime = Effect.yieldNow.pipe(
   ),
 );
 
-export class ProviderTurnControlError extends Schema.TaggedErrorClass<ProviderTurnControlError>()(
+export class ProviderTurnControlError extends Schema.TaggedError<ProviderTurnControlError>()(
   "ProviderTurnControlError",
   {
     threadId: ThreadId,

@@ -21,7 +21,7 @@ import type { OrchestratorV2ProviderReplayHarness } from "../testkit/ProviderRep
 import type { ProviderReplayGate } from "../testkit/ProviderReplayGate.testkit.ts";
 import * as CodexAdapterV2 from "./CodexAdapterV2.ts";
 
-export class CodexReplayTranscriptDecodeError extends Schema.TaggedErrorClass<CodexReplayTranscriptDecodeError>()(
+export class CodexReplayTranscriptDecodeError extends Schema.TaggedError<CodexReplayTranscriptDecodeError>()(
   "CodexReplayTranscriptDecodeError",
   {
     driver: Schema.optional(Schema.String),

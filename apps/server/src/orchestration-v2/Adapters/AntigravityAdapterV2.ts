@@ -156,10 +156,11 @@ export function makeAntigravityAcpAdapterFlavor(
       };
     }).pipe(
       Effect.provideService(Crypto.Crypto, options.crypto),
-      Effect.mapError((cause): EffectAcpErrors.AcpError =>
-        cause._tag === "ProviderSetupError"
-          ? new EffectAcpErrors.AcpTransportError({ detail: cause.detail, cause })
-          : cause,
+      Effect.mapError(
+        (cause): EffectAcpErrors.AcpError =>
+          cause._tag === "ProviderSetupError"
+            ? new EffectAcpErrors.AcpTransportError({ detail: cause.detail, cause })
+            : cause,
       ),
     );
 
