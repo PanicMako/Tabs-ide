@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { scanTestingInventory } from "./testInventory";
+import { scanTestingInventory } from "./testInventory.ts";
 
 describe("Testing test inventory", () => {
   const roots: string[] = [];

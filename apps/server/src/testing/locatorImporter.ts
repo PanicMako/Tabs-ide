@@ -8,8 +8,8 @@ import type {
 } from "@tabs/contracts";
 import * as ts from "typescript";
 
-import type { LocatorCandidate } from "./locatorLibrary";
-import { LocatorLibraryStore } from "./locatorLibrary";
+import type { LocatorCandidate } from "./locatorLibrary.ts";
+import { LocatorLibraryStore } from "./locatorLibrary.ts";
 
 const SUPPORTED_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx"] as const;
 const LOCATOR_METHODS = new Set([

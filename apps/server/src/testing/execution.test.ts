@@ -5,8 +5,8 @@ import { join } from "node:path";
 import { ProviderInstanceId } from "@tabs/contracts";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { TestingExecutor, rankHealingCandidates } from "./execution";
-import { TestingGraphStore } from "./graphStore";
+import { TestingExecutor, rankHealingCandidates } from "./execution.ts";
+import { TestingGraphStore } from "./graphStore.ts";
 
 const roots: string[] = [];
 

@@ -84,7 +84,8 @@ const tokenFromBytes = (bytes: Uint8Array): string => Buffer.from(bytes).toStrin
 
 const getHttpMcpEndpointHost = (address: any): string => {
   if (!address) return "127.0.0.1";
-  const host = typeof address === "string" ? address : address.hostname ?? address.address ?? "127.0.0.1";
+  const host =
+    typeof address === "string" ? address : (address.hostname ?? address.address ?? "127.0.0.1");
   if (host === "0.0.0.0" || host === "::") return "127.0.0.1";
   if (host.includes(":")) return `[${host}]`;
   return host;

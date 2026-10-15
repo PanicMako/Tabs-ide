@@ -10,13 +10,13 @@ import {
   type TestingExplorationScope,
 } from "@tabs/contracts";
 
-import { TestingGraphStore } from "./graphStore";
+import { TestingGraphStore } from "./graphStore.ts";
 import {
   createPlaywrightMcpSession,
   extractAccessibilityYaml,
   extractPageUrl,
   type PlaywrightMcpSession,
-} from "./playwrightMcp";
+} from "./playwrightMcp.ts";
 import {
   normalizeAccessibilityForStorage,
   sanitizeAccessibilitySnapshot,
@@ -25,7 +25,7 @@ import {
   splitStaticSubtrees,
   structuralHash,
   tokenizePii,
-} from "./security";
+} from "./security.ts";
 
 interface CrawlAction {
   readonly role: string;
@@ -182,14 +182,37 @@ export function isUrlWithinTestingScope(
 }
 
 export class TestingCrawler {
+  #cancelled = false;
+  #activeSession: PlaywrightMcpSession | null = null;
+
   constructor(
     private readonly store: TestingGraphStore,
     private readonly testingRoot: string,
     private readonly shouldContinue: () => boolean = () => true,
     private readonly mayActivate: (action: CrawlAction) => boolean = () => true,
+    private readonly sessionFactory: (input: {
+      readonly profilePath: string;
+      readonly outputPath: string;
+      readonly headless: boolean;
+      readonly cdpEndpoint?: string;
+    }) => Promise<PlaywrightMcpSession> = createPlaywrightMcpSession,
   ) {}
 
+  cancel(): void {
+    this.#cancelled = true;
+    if (this.#activeSession) {
+      void this.#activeSession.close().catch(() => {});
+    }
+  }
+
+  isCancelled(): boolean {
+    return this.#cancelled;
+  }
+
   async explore(input: TestingExplorationInput): Promise<TestingExplorationResult> {
+    if (this.#cancelled || !this.shouldContinue()) {
+      throw new Error("Testing exploration was cancelled");
+    }
     const target = new URL(input.targetUrl);
     if (target.protocol !== "http:" && target.protocol !== "https:") {
       throw new Error("Testing exploration requires an http:// or https:// target URL");
@@ -223,12 +246,17 @@ export class TestingCrawler {
     });
     const profilePath = join(this.testingRoot, "auth", shortDigest(input.projectId));
     const outputPath = join(this.testingRoot, "mcp-output", runId);
-    const session = await createPlaywrightMcpSession({
+    const session = await this.sessionFactory({
       profilePath,
       outputPath,
       headless: true,
       ...(cdpEndpoint ? { cdpEndpoint } : {}),
     });
+    this.#activeSession = session;
+    if (this.#cancelled || !this.shouldContinue()) {
+      await session.close().catch(() => {});
+      throw new Error("Testing exploration was cancelled");
+    }
     const queue: PlannedState[] = [{ path: [], depth: 0, priority: 0 }];
     const visitedStates = new Set<string>();
     const plannedPaths = new Set<string>([""]);
@@ -240,8 +268,8 @@ export class TestingCrawler {
 
     try {
       while (queue.length > 0 && visitedStates.size < maxStates) {
-        if (!this.shouldContinue()) {
-          throw new Error("Locator-first discovery was disabled during this session");
+        if (this.#cancelled || !this.shouldContinue()) {
+          throw new Error("Testing exploration was cancelled");
         }
         if (deadline !== null && Date.now() >= deadline) {
           timeBudgetReached = true;
@@ -250,15 +278,15 @@ export class TestingCrawler {
         queue.sort((left, right) => right.priority - left.priority);
         const plan = queue.shift()!;
         await session.call("browser_navigate", { url: target.href });
-        if (!this.shouldContinue()) {
-          throw new Error("Locator-first discovery was disabled during this session");
+        if (this.#cancelled || !this.shouldContinue()) {
+          throw new Error("Testing exploration was cancelled");
         }
         await waitForSettledNavigation(session);
 
         let replayFailed = false;
         for (const step of plan.path) {
-          if (!this.shouldContinue()) {
-            throw new Error("Locator-first discovery was disabled during this session");
+          if (this.#cancelled || !this.shouldContinue()) {
+            throw new Error("Testing exploration was cancelled");
           }
           if (deadline !== null && Date.now() >= deadline) {
             timeBudgetReached = true;
@@ -290,8 +318,8 @@ export class TestingCrawler {
             replayFailed = true;
             break;
           }
-          if (!this.shouldContinue()) {
-            throw new Error("Locator-first discovery was disabled during this session");
+          if (this.#cancelled || !this.shouldContinue()) {
+            throw new Error("Testing exploration was cancelled");
           }
         }
         if (timeBudgetReached) break;
@@ -314,8 +342,8 @@ export class TestingCrawler {
 
         const stateId = structuralHash(storedSnapshot);
         const isNewState = !visitedStates.has(stateId);
-        if (!this.shouldContinue()) {
-          throw new Error("Locator-first discovery was disabled during this session");
+        if (this.#cancelled || !this.shouldContinue()) {
+          throw new Error("Testing exploration was cancelled");
         }
         this.store.upsertNode({
           projectId: input.projectId,
@@ -394,10 +422,17 @@ export class TestingCrawler {
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      this.store.finishRun(runId, "failed", message);
+      if (!this.#cancelled) {
+        try {
+          this.store.finishRun(runId, "failed", message);
+        } catch {
+          // ignore if store closed
+        }
+      }
       throw error;
     } finally {
-      await session.close();
+      this.#activeSession = null;
+      await session.close().catch(() => {});
     }
   }
 }

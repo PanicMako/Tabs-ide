@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyExecutionFailure, createUnifiedDiff } from "./failureClassification";
+import { classifyExecutionFailure, createUnifiedDiff } from "./failureClassification.ts";
 
 describe("classifyExecutionFailure", () => {
   it("classifies selector drift as repairable", () => {

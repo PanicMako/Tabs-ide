@@ -60,7 +60,7 @@ export const PullRequestTargetInput = Schema.Struct({
 });
 export type PullRequestTargetInput = typeof PullRequestTargetInput.Type;
 
-export class PullRequestUrlInvalidError extends Schema.TaggedErrorClass<PullRequestUrlInvalidError>()(
+export class PullRequestUrlInvalidError extends Schema.TaggedError<PullRequestUrlInvalidError>()(
   "PullRequestUrlInvalidError",
   {},
 ) {
@@ -69,7 +69,7 @@ export class PullRequestUrlInvalidError extends Schema.TaggedErrorClass<PullRequ
   }
 }
 
-export class PullRequestTargetIncompleteError extends Schema.TaggedErrorClass<PullRequestTargetIncompleteError>()(
+export class PullRequestTargetIncompleteError extends Schema.TaggedError<PullRequestTargetIncompleteError>()(
   "PullRequestTargetIncompleteError",
   {},
 ) {
@@ -78,7 +78,7 @@ export class PullRequestTargetIncompleteError extends Schema.TaggedErrorClass<Pu
   }
 }
 
-export class PullRequestHostRequiredError extends Schema.TaggedErrorClass<PullRequestHostRequiredError>()(
+export class PullRequestHostRequiredError extends Schema.TaggedError<PullRequestHostRequiredError>()(
   "PullRequestHostRequiredError",
   {},
 ) {
@@ -87,7 +87,7 @@ export class PullRequestHostRequiredError extends Schema.TaggedErrorClass<PullRe
   }
 }
 
-export class PullRequestThreadRequiredError extends Schema.TaggedErrorClass<PullRequestThreadRequiredError>()(
+export class PullRequestThreadRequiredError extends Schema.TaggedError<PullRequestThreadRequiredError>()(
   "PullRequestThreadRequiredError",
   {},
 ) {
@@ -96,7 +96,7 @@ export class PullRequestThreadRequiredError extends Schema.TaggedErrorClass<Pull
   }
 }
 
-export class PullRequestThreadAboveLimitsError extends Schema.TaggedErrorClass<PullRequestThreadAboveLimitsError>()(
+export class PullRequestThreadAboveLimitsError extends Schema.TaggedError<PullRequestThreadAboveLimitsError>()(
   "PullRequestThreadAboveLimitsError",
   { threadId: Schema.String },
 ) {
@@ -105,7 +105,7 @@ export class PullRequestThreadAboveLimitsError extends Schema.TaggedErrorClass<P
   }
 }
 
-export class PullRequestThreadNotFoundError extends Schema.TaggedErrorClass<PullRequestThreadNotFoundError>()(
+export class PullRequestThreadNotFoundError extends Schema.TaggedError<PullRequestThreadNotFoundError>()(
   "PullRequestThreadNotFoundError",
   { threadId: Schema.String },
 ) {
@@ -114,7 +114,7 @@ export class PullRequestThreadNotFoundError extends Schema.TaggedErrorClass<Pull
   }
 }
 
-export class PullRequestLinkFailedError extends Schema.TaggedErrorClass<PullRequestLinkFailedError>()(
+export class PullRequestLinkFailedError extends Schema.TaggedError<PullRequestLinkFailedError>()(
   "PullRequestLinkFailedError",
   { cause: Schema.Defect() },
 ) {
@@ -123,7 +123,7 @@ export class PullRequestLinkFailedError extends Schema.TaggedErrorClass<PullRequ
   }
 }
 
-export class PullRequestUnlinkFailedError extends Schema.TaggedErrorClass<PullRequestUnlinkFailedError>()(
+export class PullRequestUnlinkFailedError extends Schema.TaggedError<PullRequestUnlinkFailedError>()(
   "PullRequestUnlinkFailedError",
   { cause: Schema.Defect() },
 ) {
@@ -132,7 +132,7 @@ export class PullRequestUnlinkFailedError extends Schema.TaggedErrorClass<PullRe
   }
 }
 
-export class PullRequestWatchFailedError extends Schema.TaggedErrorClass<PullRequestWatchFailedError>()(
+export class PullRequestWatchFailedError extends Schema.TaggedError<PullRequestWatchFailedError>()(
   "PullRequestWatchFailedError",
   { cause: Schema.Defect() },
 ) {
@@ -141,7 +141,7 @@ export class PullRequestWatchFailedError extends Schema.TaggedErrorClass<PullReq
   }
 }
 
-export class PullRequestNotOpenError extends Schema.TaggedErrorClass<PullRequestNotOpenError>()(
+export class PullRequestNotOpenError extends Schema.TaggedError<PullRequestNotOpenError>()(
   "PullRequestNotOpenError",
   { state: Schema.String },
 ) {
@@ -150,7 +150,7 @@ export class PullRequestNotOpenError extends Schema.TaggedErrorClass<PullRequest
   }
 }
 
-export class PullRequestWatchFromSubagentError extends Schema.TaggedErrorClass<PullRequestWatchFromSubagentError>()(
+export class PullRequestWatchFromSubagentError extends Schema.TaggedError<PullRequestWatchFromSubagentError>()(
   "PullRequestWatchFromSubagentError",
   {},
 ) {
@@ -159,7 +159,7 @@ export class PullRequestWatchFromSubagentError extends Schema.TaggedErrorClass<P
   }
 }
 
-export class PullRequestListFailedError extends Schema.TaggedErrorClass<PullRequestListFailedError>()(
+export class PullRequestListFailedError extends Schema.TaggedError<PullRequestListFailedError>()(
   "PullRequestListFailedError",
   { cause: Schema.Defect() },
 ) {

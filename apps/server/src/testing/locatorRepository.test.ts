@@ -4,9 +4,9 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { TestingGraphStore } from "./graphStore";
-import { LocatorLibraryStore } from "./locatorLibrary";
-import { applyLocatorRepositoryWrite, previewLocatorRepositoryWrite } from "./locatorRepository";
+import { TestingGraphStore } from "./graphStore.ts";
+import { LocatorLibraryStore } from "./locatorLibrary.ts";
+import { applyLocatorRepositoryWrite, previewLocatorRepositoryWrite } from "./locatorRepository.ts";
 
 const roots: string[] = [];
 

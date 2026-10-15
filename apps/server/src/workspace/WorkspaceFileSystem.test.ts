@@ -246,6 +246,64 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceFileSystemLive", (i
         expect((error.cause as NodeJS.ErrnoException).code).toBe("ENOENT");
       }),
     );
+
+    it.effect(
+      "deterministically prevents leaking outside content when ancestor is swapped after authorization and before open/read",
+      () =>
+        Effect.gen(function* () {
+          const actualFs = yield* FileSystem.FileSystem;
+          const path = yield* Path.Path;
+          const workspacePaths = yield* WorkspacePaths.WorkspacePaths;
+          const workspaceEntries = yield* WorkspaceEntries.WorkspaceEntries;
+
+          const tempDir = yield* actualFs.makeTempDirectoryScoped({
+            prefix: "tabs-wfs-read-race-",
+          });
+          const canonical = yield* actualFs.realPath(tempDir);
+          const cwd = path.join(canonical, "workspace");
+          const outside = path.join(canonical, "outside");
+          const parentDir = path.join(cwd, "parent");
+          yield* actualFs.makeDirectory(parentDir, { recursive: true });
+          yield* actualFs.makeDirectory(outside);
+
+          const insideTarget = path.join(parentDir, "target.txt");
+          const outsideTarget = path.join(outside, "target.txt");
+          yield* actualFs.writeFileString(insideTarget, "inside file");
+          yield* actualFs.writeFileString(outsideTarget, "SECRET OUTSIDE DATA");
+
+          const observedFs: FileSystem.FileSystem = {
+            ...actualFs,
+            realPath: (target) =>
+              actualFs.realPath(target).pipe(
+                Effect.tap((resolved) =>
+                  Effect.gen(function* () {
+                    if (resolved === insideTarget) {
+                      // Swap ancestor after resolveReadTarget checked the inside target path
+                      yield* actualFs.rename(parentDir, path.join(cwd, "original-parent"));
+                      yield* actualFs.symlink(outside, parentDir);
+                    }
+                  }),
+                ),
+              ),
+          };
+
+          const customWfs = yield* WorkspaceFileSystem.make.pipe(
+            Effect.provideService(FileSystem.FileSystem, observedFs),
+            Effect.provideService(Path.Path, path),
+            Effect.provideService(WorkspacePaths.WorkspacePaths, workspacePaths),
+            Effect.provideService(WorkspaceEntries.WorkspaceEntries, workspaceEntries),
+          );
+
+          const error = yield* customWfs
+            .readFile({
+              cwd,
+              relativePath: "parent/target.txt",
+            })
+            .pipe(Effect.flip);
+
+          expect(error).toBeInstanceOf(WorkspaceFileSystem.WorkspaceFilePathEscapeError);
+        }),
+    );
   });
 
   describe("writeFile", () => {
@@ -282,6 +340,26 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceFileSystemLive", (i
           .pipe(Effect.flip);
 
         expect(error).toBeInstanceOf(WorkspacePaths.WorkspacePathOutsideRootError);
+      }),
+    );
+
+    it.effect("rejects existing and missing targets beneath escaping symlinks", () =>
+      Effect.gen(function* () {
+        const service = yield* WorkspaceFileSystem.WorkspaceFileSystem;
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const cwd = yield* makeTempDir;
+        const outside = yield* makeTempDir;
+        yield* writeTextFile(outside, "sentinel.txt", "original");
+        yield* fs.symlink(outside, path.join(cwd, "link"));
+        for (const relativePath of ["link/sentinel.txt", "link/missing/nested/new.txt"]) {
+          const error = yield* service
+            .writeFile({ cwd, relativePath, contents: "changed" })
+            .pipe(Effect.flip);
+          expect(error).toBeInstanceOf(WorkspaceFileSystem.WorkspaceFilePathEscapeError);
+        }
+        expect(yield* fs.readFileString(path.join(outside, "sentinel.txt"))).toBe("original");
+        expect(yield* fs.exists(path.join(outside, "missing"))).toBe(false);
       }),
     );
 
@@ -336,6 +414,64 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceFileSystemLive", (i
           .pipe(Effect.orElseSucceed(() => null));
         expect(escapedStat).toBeNull();
       }),
+    );
+
+    it.effect(
+      "deterministically preserves outside content when ancestor is swapped after authorization and before open/truncate",
+      () =>
+        Effect.gen(function* () {
+          const actualFs = yield* FileSystem.FileSystem;
+          const path = yield* Path.Path;
+          const workspacePaths = yield* WorkspacePaths.WorkspacePaths;
+          const workspaceEntries = yield* WorkspaceEntries.WorkspaceEntries;
+
+          const tempDir = yield* actualFs.makeTempDirectoryScoped({
+            prefix: "tabs-wfs-write-race-",
+          });
+          const canonical = yield* actualFs.realPath(tempDir);
+          const cwd = path.join(canonical, "workspace");
+          const outside = path.join(canonical, "outside");
+          const parentDir = path.join(cwd, "parent");
+          yield* actualFs.makeDirectory(parentDir, { recursive: true });
+          yield* actualFs.makeDirectory(outside);
+
+          const outsideTarget = path.join(outside, "target.txt");
+          yield* actualFs.writeFileString(outsideTarget, "OUTSIDE FILE MUST SURVIVE");
+
+          const observedFs: FileSystem.FileSystem = {
+            ...actualFs,
+            makeDirectory: (dir, options) =>
+              actualFs.makeDirectory(dir, options).pipe(
+                Effect.tap(() =>
+                  Effect.gen(function* () {
+                    // Swapping ancestor after makeDirectory (which occurs after target path authorization)
+                    // and before openFileSafely / truncate!
+                    yield* actualFs.rename(parentDir, path.join(cwd, "original-parent"));
+                    yield* actualFs.symlink(outside, parentDir);
+                  }),
+                ),
+              ),
+          };
+
+          const customWfs = yield* WorkspaceFileSystem.make.pipe(
+            Effect.provideService(FileSystem.FileSystem, observedFs),
+            Effect.provideService(Path.Path, path),
+            Effect.provideService(WorkspacePaths.WorkspacePaths, workspacePaths),
+            Effect.provideService(WorkspaceEntries.WorkspaceEntries, workspaceEntries),
+          );
+
+          const error = yield* customWfs
+            .writeFile({
+              cwd,
+              relativePath: "parent/target.txt",
+              contents: "malicious overwrite",
+            })
+            .pipe(Effect.flip);
+
+          expect(error).toBeInstanceOf(WorkspaceFileSystem.WorkspaceFilePathEscapeError);
+          const outsideContent = yield* actualFs.readFileString(outsideTarget);
+          expect(outsideContent).toBe("OUTSIDE FILE MUST SURVIVE");
+        }),
     );
   });
 });

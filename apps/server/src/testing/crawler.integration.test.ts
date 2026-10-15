@@ -5,10 +5,10 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { TestingCrawler } from "./crawler";
-import { TestingGraphStore } from "./graphStore";
-import { RuntimeSqliteDatabase } from "./sqlite";
-import { verifyReconciledCaseLive } from "./reconciliation";
+import { TestingCrawler } from "./crawler.ts";
+import { TestingGraphStore } from "./graphStore.ts";
+import { RuntimeSqliteDatabase } from "./sqlite.ts";
+import { verifyReconciledCaseLive } from "./reconciliation.ts";
 
 const runIntegration = process.env.TESTING_CRAWLER_INTEGRATION === "1";
 const cleanupPaths: string[] = [];

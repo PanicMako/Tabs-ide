@@ -31,6 +31,9 @@ const invocation = (capabilities: ReadonlyArray<McpInvocationContext.McpCapabili
 });
 const client = McpSchema.McpServerClient.of({
   clientId: 1,
+  protocolVersion: "2025-06-18",
+  clientCapabilities: {},
+  clientInfo: { name: "mcp-test", version: "1.0.0" },
   initializePayload: {
     protocolVersion: "2025-06-18",
     capabilities: {},
@@ -104,38 +107,43 @@ const layerTest = McpHttpServer.layerDeviceToolkit.pipe(
   Layer.provide(NodeServices.layer),
 );
 
-it.effect("registers the device tools and returns the screenshot as image content", () =>
-  Effect.scoped(
-    Effect.gen(function* () {
-      const server = yield* McpServer.McpServer;
-      const names = server.tools.map(({ tool }) => tool.name).toSorted();
-      expect(names).toEqual(["device_close", "device_list", "device_open", "device_screenshot"]);
+it.effect(
+  "registers the device tools and returns the screenshot as image content",
+  () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const server = yield* McpServer.McpServer;
+        const names = server.tools.map(({ tool }) => tool.name).toSorted();
+        expect(names).toEqual(["device_close", "device_list", "device_open", "device_screenshot"]);
 
-      const callWith = (capabilities: ReadonlyArray<McpInvocationContext.McpCapability>) =>
-        Effect.provideService(McpInvocationContext.McpInvocationContext, invocation(capabilities));
+        const callWith = (capabilities: ReadonlyArray<McpInvocationContext.McpCapability>) =>
+          Effect.provideService(
+            McpInvocationContext.McpInvocationContext,
+            invocation(capabilities),
+          );
 
-      const opened = yield* server
-        .callTool({ name: "device_open", arguments: { platform: "ios" } })
-        .pipe(callWith(["device"]), Effect.provideService(McpSchema.McpServerClient, client));
-      expect(opened.isError).toBe(false);
-      const openedContent = opened.structuredContent as { quickStart: string };
-      expect(openedContent.quickStart).toContain("--udid UDID-1");
+        const opened = yield* server
+          .callTool({ name: "device_open", arguments: { platform: "ios" } })
+          .pipe(callWith(["device"]), Effect.provideService(McpSchema.McpServerClient, client));
+        expect(opened.isError).toBe(false);
+        const openedContent = opened.structuredContent as { quickStart: string };
+        expect(openedContent.quickStart).toContain("--udid UDID-1");
 
-      const shot = yield* server
-        .callTool({ name: "device_screenshot", arguments: { deviceId: "UDID-1" } })
-        .pipe(callWith(["device"]), Effect.provideService(McpSchema.McpServerClient, client));
-      expect(shot.isError).toBe(false);
-      expect(shot.content.map((entry) => entry.type)).toEqual(["text", "image"]);
-      expect(shot.structuredContent).toMatchObject({
-        screenshot: { mimeType: "image/png", width: 1206, height: 2622 },
-      });
+        const shot = yield* server
+          .callTool({ name: "device_screenshot", arguments: { deviceId: "UDID-1" } })
+          .pipe(callWith(["device"]), Effect.provideService(McpSchema.McpServerClient, client));
+        expect(shot.isError).toBe(false);
+        expect(shot.content.map((entry) => entry.type)).toEqual(["text", "image"]);
+        expect(shot.structuredContent).toMatchObject({
+          screenshot: { mimeType: "image/png", width: 1206, height: 2622 },
+        });
 
-      const denied = yield* server
-        .callTool({ name: "device_list", arguments: {} })
-        .pipe(callWith(["preview"]), Effect.provideService(McpSchema.McpServerClient, client));
-      expect(denied.isError).toBe(true);
-    }),
-  ).pipe(Effect.provide(layerTest)) as any,
+        const denied = yield* server
+          .callTool({ name: "device_list", arguments: {} })
+          .pipe(callWith(["preview"]), Effect.provideService(McpSchema.McpServerClient, client));
+        expect(denied.isError).toBe(true);
+      }),
+    ).pipe(Effect.provide(layerTest)) as any,
 );
 
 it.effect("rejects unavailable agent access before booting or opening a device", () => {

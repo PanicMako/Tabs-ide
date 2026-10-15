@@ -27,13 +27,13 @@ import type {
   TestingWorkbookImportResult,
 } from "@tabs/contracts";
 
-import { sanitizePersistedUrl, type PiiToken } from "./security";
-import { RuntimeSqliteDatabase } from "./sqlite";
+import { sanitizePersistedUrl, type PiiToken } from "./security.ts";
+import { RuntimeSqliteDatabase } from "./sqlite.ts";
 import {
   alignExpectedResults,
   normalizeStepExpectedResults,
   summarizeExpectedResults,
-} from "./expectedResults";
+} from "./expectedResults.ts";
 
 type RunStatus = TestingGraphSummary["lastRunStatus"];
 

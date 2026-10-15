@@ -8,8 +8,8 @@ import type {
   TestingLocatorRepositoryProposal,
 } from "@tabs/contracts";
 
-import { shortDigest } from "./security";
-import { LocatorLibraryStore } from "./locatorLibrary";
+import { shortDigest } from "./security.ts";
+import { LocatorLibraryStore } from "./locatorLibrary.ts";
 
 function staysInside(root: string, candidate: string): boolean {
   const path = relative(root, candidate);

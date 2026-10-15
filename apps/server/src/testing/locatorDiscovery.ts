@@ -5,13 +5,13 @@ import type {
   TestingLocatorPreviewSnapshot,
 } from "@tabs/contracts";
 
-import type { LocatorCandidate } from "./locatorLibrary";
+import type { LocatorCandidate } from "./locatorLibrary.ts";
 import { TESTING_LOCATOR_DOM_FUNCTION } from "@tabs/shared/testingLocatorDom";
 import {
   extractAccessibilityYaml,
   extractPageUrl,
   type PlaywrightMcpSession,
-} from "./playwrightMcp";
+} from "./playwrightMcp.ts";
 import {
   normalizeAccessibilityForStorage,
   redactCredentialLikeText,
@@ -19,7 +19,7 @@ import {
   structuralHash,
   shortDigest,
   tokenizePii,
-} from "./security";
+} from "./security.ts";
 
 const ACTION_ROLES = new Set([
   "button",

@@ -63,8 +63,10 @@ const ToolsListPayload = Schema.fromJsonString(
 );
 const decodeToolsListPayload = Schema.decodeUnknownEffect(ToolsListPayload);
 
-it.effect("production mcp layer lists worktree tools over http", () =>
-  Effect.gen(function* () {
+it.effect(
+  "production mcp layer lists worktree tools over http",
+  () =>
+    Effect.gen(function* () {
       const layerRoutes = McpHttpServer.layer.pipe(Layer.provide(McpSessionRegistry.layer));
       yield* HttpRouter.serve(layerRoutes, {
         disableListenLog: true,
@@ -143,14 +145,14 @@ it.effect("production mcp layer lists worktree tools over http", () =>
         expect(tool.inputSchema.type, `inputSchema.type of ${tool.name}`).toBe("object");
       }
     }).pipe(
-    Effect.provide(
-      Layer.mergeAll(
-        NodeHttpServer.layerTest,
-        ServerConfig.layerTest(process.cwd(), { prefix: "t3-worktree-mcp-" }).pipe(
-          Layer.provide(NodeServices.layer),
+      Effect.provide(
+        Layer.mergeAll(
+          NodeHttpServer.layerTest,
+          ServerConfig.layerTest(process.cwd(), { prefix: "t3-worktree-mcp-" }).pipe(
+            Layer.provide(NodeServices.layer),
+          ),
+          NodeServices.layer,
         ),
-        NodeServices.layer,
       ),
-    ),
-  ) as any,
+    ) as any,
 );

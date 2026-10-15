@@ -71,35 +71,35 @@ import type {
   TestingWorkbookImportResult,
 } from "@tabs/contracts";
 import { DEFAULT_TESTING_MAX_STATES } from "@tabs/contracts";
-import { sanitizePersistedUrl } from "./security";
+import { sanitizePersistedUrl } from "./security.ts";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
-import type { TextGenerationShape } from "../textGeneration/TextGeneration";
+import type { TextGenerationShape } from "../textGeneration/TextGeneration.ts";
 
-import { TestingCrawler } from "./crawler";
-import { TestingGraphStore } from "./graphStore";
+import { TestingCrawler } from "./crawler.ts";
+import { TestingGraphStore } from "./graphStore.ts";
 import {
   captureLocatorSnapshot,
   countLocatorMatches,
   locatorCandidatesFromSnapshot,
   verificationStatusForCount,
-} from "./locatorDiscovery";
-import { indexLocatorFolder } from "./locatorImporter";
-import { LocatorLibraryStore } from "./locatorLibrary";
-import { applyLocatorRepositoryWrite, previewLocatorRepositoryWrite } from "./locatorRepository";
-import { TestingGenerator } from "./generator";
-import { TestingExecutor } from "./execution";
-import { createPlaywrightMcpSession, type PlaywrightMcpSession } from "./playwrightMcp";
-import { TestingReporter } from "./reporting";
+} from "./locatorDiscovery.ts";
+import { indexLocatorFolder } from "./locatorImporter.ts";
+import { LocatorLibraryStore } from "./locatorLibrary.ts";
+import { applyLocatorRepositoryWrite, previewLocatorRepositoryWrite } from "./locatorRepository.ts";
+import { TestingGenerator } from "./generator.ts";
+import { TestingExecutor } from "./execution.ts";
+import { createPlaywrightMcpSession, type PlaywrightMcpSession } from "./playwrightMcp.ts";
+import { TestingReporter } from "./reporting.ts";
 import {
   reconcileWorkbookCase,
   scenariosFromGraph,
   verifyReconciledCaseLive,
-} from "./reconciliation";
-import { sanitizeModelBoundText, shortDigest, tokenizePii } from "./security";
-import { parseUserStory } from "./storyImporter";
-import { parseTestingWorkbook } from "./workbookParser";
-import { scanTestingInventory } from "./testInventory";
+} from "./reconciliation.ts";
+import { sanitizeModelBoundText, shortDigest, tokenizePii } from "./security.ts";
+import { parseUserStory } from "./storyImporter.ts";
+import { parseTestingWorkbook } from "./workbookParser.ts";
+import { scanTestingInventory } from "./testInventory.ts";
 
 const MAX_TESTING_ARTIFACT_PREVIEW_BYTES = 1024 * 1024;
 
@@ -219,9 +219,32 @@ export class TestingService {
   readonly #executor: TestingExecutor;
   readonly #reporter: TestingReporter;
   readonly #textGeneration: TextGenerationShape | null;
+  readonly #sessionFactory: (input: {
+    readonly profilePath: string;
+    readonly outputPath: string;
+    readonly headless: boolean;
+    readonly cdpEndpoint?: string;
+  }) => Promise<PlaywrightMcpSession>;
+  readonly #activeCrawlers = new Set<{
+    readonly projectId: string;
+    readonly crawler: TestingCrawler;
+    readonly promise: Promise<unknown>;
+  }>();
+  #closing = false;
+  #closePromise: Promise<void> | null = null;
 
-  constructor(stateDirectory: string, textGeneration?: TextGenerationShape) {
+  constructor(
+    stateDirectory: string,
+    textGeneration?: TextGenerationShape,
+    sessionFactory: (input: {
+      readonly profilePath: string;
+      readonly outputPath: string;
+      readonly headless: boolean;
+      readonly cdpEndpoint?: string;
+    }) => Promise<PlaywrightMcpSession> = createPlaywrightMcpSession,
+  ) {
     this.#testingRoot = join(stateDirectory, "testing");
+    this.#sessionFactory = sessionFactory;
     this.#store = new TestingGraphStore(join(this.#testingRoot, "state-graph.sqlite"));
     this.#locatorStore = new LocatorLibraryStore(join(this.#testingRoot, "state-graph.sqlite"));
     this.#generator = textGeneration
@@ -245,17 +268,59 @@ export class TestingService {
     };
   }
 
-  close(): void {
+  close(): Promise<void> {
+    if (this.#closePromise) {
+      return this.#closePromise;
+    }
+    this.#closePromise = this.#performClose();
+    return this.#closePromise;
+  }
+
+  async #performClose(): Promise<void> {
+    this.#closing = true;
+
+    // 1. Cancel all active crawler tasks
+    for (const task of this.#activeCrawlers) {
+      task.crawler.cancel();
+    }
+
+    // 2. Close active sessions
+    const closes: Promise<void>[] = [];
     for (const capture of this.#authCaptures.values()) {
-      void capture.session.close();
+      closes.push(capture.session.close().catch(() => {}));
     }
     this.#authCaptures.clear();
     for (const locatorSession of this.#locatorSessions.values()) {
-      void locatorSession.session?.close();
+      if (locatorSession.session) {
+        closes.push(locatorSession.session.close().catch(() => {}));
+      }
     }
     this.#locatorSessions.clear();
-    this.#locatorStore.close();
-    this.#store.close();
+
+    // 3. Await settlement of all crawler tasks, executor, generator, and sessions
+    const tasks: Promise<unknown>[] = [
+      ...closes,
+      ...Array.from(this.#activeCrawlers).map((t) => t.promise),
+      this.#executor.close(),
+    ];
+    if (this.#generator) {
+      tasks.push(this.#generator.close());
+    }
+    await Promise.allSettled(tasks);
+    this.#activeCrawlers.clear();
+    this.#runningCrawls.clear();
+
+    // 4. Close stores only AFTER all crawler tasks and sessions have completely settled
+    try {
+      this.#locatorStore.close();
+    } catch {
+      // ignore
+    }
+    try {
+      this.#store.close();
+    } catch {
+      // ignore
+    }
   }
 
   getStatus(input: TestingProjectInput): TestingGraphSummary {
@@ -292,6 +357,9 @@ export class TestingService {
   async startLocatorDiscovery(
     input: TestingLocatorDiscoveryInput,
   ): Promise<TestingLocatorDiscoverySession> {
+    if (this.#closing) {
+      throw new Error("Testing service is shutting down");
+    }
     if (!this.#locatorStore.isFeatureEnabled()) {
       throw new Error("Locator-first discovery is disabled by the server feature flag");
     }
@@ -315,80 +383,109 @@ export class TestingService {
       maxPagesPerSession: input.maxPagesPerSession,
     });
     if (input.mode === "automatic") {
-      try {
-        if (this.#runningCrawls.has(input.projectId)) {
-          throw new Error("An exploration is already running for this project");
-        }
-        this.#runningCrawls.add(input.projectId);
-        await new TestingCrawler(
-          this.#store,
-          this.#testingRoot,
-          () => this.#locatorStore.isFeatureEnabled(),
-          (action) => automaticActionAllowed(action, input),
-        ).explore({
-          projectId: input.projectId,
-          targetUrl: input.targetUrl,
-          ...(input.cdpEndpoint ? { cdpEndpoint: input.cdpEndpoint } : {}),
-          scope: input.scope,
-          maxStates: Math.min(
-            input.maxStates ?? DEFAULT_TESTING_MAX_STATES,
-            input.maxPagesPerSession,
-          ),
-          ...(input.maxDurationSeconds === undefined
-            ? {}
-            : { maxDurationSeconds: input.maxDurationSeconds }),
-        });
-        const graph = this.#store.graph(input.projectId);
-        const pages = graph.nodes.slice(0, input.maxPagesPerSession);
-        let truncated = false;
-        for (const node of pages) {
-          if (!this.#locatorStore.isFeatureEnabled()) {
-            throw new Error("Locator-first discovery was disabled during this session");
-          }
-          const parsed = locatorCandidatesFromSnapshot({
-            projectId: input.projectId,
-            snapshot: node.snapshot,
-            coverage: input.coverage,
-            maxElements: input.maxElementsPerPage,
-            ...(input.captureScope === "task" && input.taskContext?.trim()
-              ? { taskContext: input.taskContext.trim() }
-              : {}),
-          });
-          truncated ||= parsed.truncatedElements > 0;
-          this.#locatorStore.saveCapturedPage({
-            projectId: input.projectId,
-            sessionId,
-            rawUrl: node.pageUrl,
-            environmentLabel,
-            fingerprint: node.stateId,
-            captureSource: "automatic",
-            candidates: parsed.candidates,
-            observedElements: parsed.observedElements,
-            truncatedElements: parsed.truncatedElements,
-          });
-        }
-        const pageLimited = graph.nodes.length > input.maxPagesPerSession;
-        this.#locatorStore.finishSession(
-          input.projectId,
-          sessionId,
-          "completed",
-          pageLimited ? "page-limit" : truncated ? "element-limit" : "completed",
-          `Captured ${pages.length} page${pages.length === 1 ? "" : "s"} into the Locator Library`,
-        );
-      } catch (error) {
-        const featureDisabled = !this.#locatorStore.isFeatureEnabled();
-        this.#locatorStore.finishSession(
-          input.projectId,
-          sessionId,
-          featureDisabled ? "cancelled" : "failed",
-          featureDisabled ? "feature-disabled" : "failed",
-          error instanceof Error ? error.message : String(error),
-          true,
-        );
-        throw error;
-      } finally {
-        this.#runningCrawls.delete(input.projectId);
+      if (this.#closing) {
+        throw new Error("Testing service is shutting down");
       }
+      if (this.#runningCrawls.has(input.projectId)) {
+        throw new Error("An exploration is already running for this project");
+      }
+      this.#runningCrawls.add(input.projectId);
+      const crawler = new TestingCrawler(
+        this.#store,
+        this.#testingRoot,
+        () => !this.#closing && this.#locatorStore.isFeatureEnabled(),
+        (action) => automaticActionAllowed(action, input),
+        this.#sessionFactory,
+      );
+      let taskEntry!: {
+        readonly projectId: string;
+        readonly crawler: TestingCrawler;
+        readonly promise: Promise<unknown>;
+      };
+      const crawlTaskPromise = (async () => {
+        try {
+          await crawler.explore({
+            projectId: input.projectId,
+            targetUrl: input.targetUrl,
+            ...(input.cdpEndpoint ? { cdpEndpoint: input.cdpEndpoint } : {}),
+            scope: input.scope,
+            maxStates: Math.min(
+              input.maxStates ?? DEFAULT_TESTING_MAX_STATES,
+              input.maxPagesPerSession,
+            ),
+            ...(input.maxDurationSeconds === undefined
+              ? {}
+              : { maxDurationSeconds: input.maxDurationSeconds }),
+          });
+          if (this.#closing || crawler.isCancelled()) {
+            throw new Error("Testing exploration was cancelled");
+          }
+          const graph = this.#store.graph(input.projectId);
+          const pages = graph.nodes.slice(0, input.maxPagesPerSession);
+          let truncated = false;
+          for (const node of pages) {
+            if (!this.#locatorStore.isFeatureEnabled()) {
+              throw new Error("Locator-first discovery was disabled during this session");
+            }
+            const parsed = locatorCandidatesFromSnapshot({
+              projectId: input.projectId,
+              snapshot: node.snapshot,
+              coverage: input.coverage,
+              maxElements: input.maxElementsPerPage,
+              ...(input.captureScope === "task" && input.taskContext?.trim()
+                ? { taskContext: input.taskContext.trim() }
+                : {}),
+            });
+            truncated ||= parsed.truncatedElements > 0;
+            this.#locatorStore.saveCapturedPage({
+              projectId: input.projectId,
+              sessionId,
+              rawUrl: node.pageUrl,
+              environmentLabel,
+              fingerprint: node.stateId,
+              captureSource: "automatic",
+              candidates: parsed.candidates,
+              observedElements: parsed.observedElements,
+              truncatedElements: parsed.truncatedElements,
+            });
+          }
+          const pageLimited = graph.nodes.length > input.maxPagesPerSession;
+          if (!this.#closing && !crawler.isCancelled()) {
+            this.#locatorStore.finishSession(
+              input.projectId,
+              sessionId,
+              "completed",
+              pageLimited ? "page-limit" : truncated ? "element-limit" : "completed",
+              `Captured ${pages.length} page${pages.length === 1 ? "" : "s"} into the Locator Library`,
+            );
+          }
+        } catch (error) {
+          if (!this.#closing && !crawler.isCancelled()) {
+            try {
+              const featureDisabled = !this.#locatorStore.isFeatureEnabled();
+              this.#locatorStore.finishSession(
+                input.projectId,
+                sessionId,
+                featureDisabled ? "cancelled" : "failed",
+                featureDisabled ? "feature-disabled" : "failed",
+                error instanceof Error ? error.message : String(error),
+                true,
+              );
+            } catch {
+              // ignore if store closed
+            }
+          }
+          throw error;
+        } finally {
+          this.#runningCrawls.delete(input.projectId);
+          if (taskEntry) {
+            this.#activeCrawlers.delete(taskEntry);
+          }
+        }
+      })();
+      taskEntry = { projectId: input.projectId, crawler, promise: crawlTaskPromise };
+      this.#activeCrawlers.add(taskEntry);
+      await crawlTaskPromise;
       return this.#locatorSessionResult(input.projectId, sessionId);
     }
     if (input.previewSnapshot) {
@@ -417,7 +514,7 @@ export class TestingService {
         throw error;
       }
     }
-    const session = await createPlaywrightMcpSession({
+    const session = await this.#sessionFactory({
       profilePath: join(this.#testingRoot, "auth", shortDigest(input.projectId)),
       outputPath: join(this.#testingRoot, "mcp-output", `locator-${sessionId}`),
       headless: false,
@@ -560,7 +657,7 @@ export class TestingService {
   async verifyLocators(
     input: TestingLocatorVerificationInput,
   ): Promise<TestingLocatorLibraryResult> {
-    const session = await createPlaywrightMcpSession({
+    const session = await this.#sessionFactory({
       profilePath: join(this.#testingRoot, "auth", shortDigest(input.projectId)),
       outputPath: join(this.#testingRoot, "mcp-output", `verify-${crypto.randomUUID()}`),
       headless: true,
@@ -726,7 +823,7 @@ export class TestingService {
     const projectKey = shortDigest(input.projectId);
     const profilePath = join(this.#testingRoot, "auth", projectKey);
     const outputPath = join(this.#testingRoot, "mcp-output", `auth-${projectKey}`);
-    const session = await createPlaywrightMcpSession({
+    const session = await this.#sessionFactory({
       profilePath,
       outputPath,
       headless: false,
@@ -763,6 +860,9 @@ export class TestingService {
   }
 
   async startExploration(input: TestingExplorationInput): Promise<TestingExplorationResult> {
+    if (this.#closing) {
+      throw new Error("TestingService is shutting down");
+    }
     if (this.#runningCrawls.has(input.projectId)) {
       throw new Error("An exploration is already running for this project");
     }
@@ -770,11 +870,29 @@ export class TestingService {
       throw new Error("Finish authentication capture before starting exploration");
     }
     this.#runningCrawls.add(input.projectId);
-    try {
-      return await new TestingCrawler(this.#store, this.#testingRoot).explore(input);
-    } finally {
-      this.#runningCrawls.delete(input.projectId);
-    }
+    const crawler = new TestingCrawler(
+      this.#store,
+      this.#testingRoot,
+      () => !this.#closing,
+      () => true,
+      this.#sessionFactory,
+    );
+    let taskEntry!: {
+      readonly projectId: string;
+      readonly crawler: TestingCrawler;
+      readonly promise: Promise<unknown>;
+    };
+    const taskPromise = (async () => {
+      try {
+        return await crawler.explore(input);
+      } finally {
+        this.#runningCrawls.delete(input.projectId);
+        this.#activeCrawlers.delete(taskEntry);
+      }
+    })();
+    taskEntry = { projectId: input.projectId, crawler, promise: taskPromise };
+    this.#activeCrawlers.add(taskEntry);
+    return await taskPromise;
   }
 
   async importWorkbook(input: TestingWorkbookImportInput): Promise<TestingWorkbookImportResult> {
@@ -992,6 +1110,9 @@ export class TestingService {
   }
 
   async generateTests(input: TestingGenerationInput): Promise<TestingGenerationJob> {
+    if (this.#closing) {
+      throw new Error("Testing service is shutting down");
+    }
     if (input.engine === "recording") {
       const code = input.recordedCode?.trim();
       const expected = input.recordedExpectedResult?.trim();
@@ -1168,6 +1289,9 @@ export class TestingService {
   }
 
   runTests(input: TestingExecutionInput): Promise<TestingExecutionRun> {
+    if (this.#closing) {
+      throw new Error("Testing service is shutting down");
+    }
     return this.#executor.execute(input);
   }
 

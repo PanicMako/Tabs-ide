@@ -1,7 +1,4 @@
-import {
-  threadPullRequestsOf,
-  threadPullRequestKeysEqual,
-} from "@tabs/shared/threadPullRequests";
+import { threadPullRequestsOf, threadPullRequestKeysEqual } from "@tabs/shared/threadPullRequests";
 import {
   CommandId,
   pullRequestHostOf,

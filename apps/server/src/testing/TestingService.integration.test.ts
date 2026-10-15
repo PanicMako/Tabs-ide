@@ -5,7 +5,7 @@ import { join, resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { TestingService } from "./TestingService";
+import { TestingService } from "./TestingService.ts";
 
 const runIntegration = process.env.TESTING_CRAWLER_INTEGRATION === "1";
 
