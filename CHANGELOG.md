@@ -19,6 +19,8 @@ Tabs brings conversations, queued work, project tools and source control into a 
 
 This release updates the workspace runtime and database schema. Back up your Tabs data before upgrading; older builds may not be able to open a database upgraded by Tabs 2.0. Keep the backup if you need to return to an earlier version.
 
+Extension authors: check that `engines.tabs` includes `2.0.0`, test your extension, then repack it. Existing packages restricted to Tabs 1.x will remain incompatible until their authors publish an updated package.
+
 macOS builds are not Apple Developer ID signed or notarized. After attempting to open a downloaded build, use System Settings → Privacy & Security → Open Anyway.
 
 ## [v1.3.34] - 2026-10-05

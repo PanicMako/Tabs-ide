@@ -12,7 +12,7 @@ export function createExtensionStarter(directory: string, publisher: string, nam
     version: "0.1.0",
     displayName: name,
     description: "My first full-workspace Tabs tool.",
-    engines: { tabs: ">=1.3.0 <2.0.0", api: "^1.0.0" },
+    engines: { tabs: ">=1.3.0 <3.0.0", api: "^1.0.0" },
     contributes: { tools: [{ id: "main", label: name, entry: "dist/index.html" }] },
   };
   const checked = validateTabsExtensionManifest(manifest, null);
