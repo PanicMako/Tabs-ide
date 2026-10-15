@@ -6,21 +6,21 @@ import { type OpenRouterSettings, type ModelSelection, TextGenerationError } fro
 import { sanitizeBranchFragment } from "@tabs/shared/git";
 import { extractJsonObject } from "@tabs/shared/schemaJson";
 
-import { type TextGenerationShape, type ThreadTitleGenerationResult } from "./TextGeneration";
+import { type TextGenerationShape, type ThreadTitleGenerationResult } from "./TextGeneration.ts";
 import {
   buildBranchNamePrompt,
   buildCommitMessagePrompt,
   buildDiffSummaryPrompt,
   buildPrContentPrompt,
   buildThreadTitlePrompt,
-} from "./TextGenerationPrompts";
+} from "./TextGenerationPrompts.ts";
 import {
   logStructuredGenerationRequest,
   sanitizeCommitSubject,
   sanitizePrTitle,
   sanitizeThreadTitle,
   toJsonSchemaObject,
-} from "./TextGenerationUtils";
+} from "./TextGenerationUtils.ts";
 
 const OPENROUTER_TIMEOUT_MS = 60_000;
 

@@ -342,7 +342,7 @@ export async function readTranscriptRecords(
       if (!streaming) {
         // Usage has no import-history budget: retain all selected usage fields,
         // regardless of the size of the surrounding unselected tool content.
-        streaming = createTranscriptJsonReader(() => {}, selectPath);
+        streaming = createTranscriptJsonReader(() => {}, selectPath, { maxDepth: Infinity });
         decoder = new NodeStringDecoder.StringDecoder("utf8");
         for (const pending of pendingChunks) streaming.write(decoder.write(pending));
         pendingChunks = [];

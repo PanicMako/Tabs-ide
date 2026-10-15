@@ -5,7 +5,11 @@ import * as Exit from "effect/Exit";
 import * as Metric from "effect/Metric";
 import { dual } from "effect/Function";
 
-import { compactMetricAttributes, normalizeModelMetricLabel, outcomeFromExit } from "./Attributes";
+import {
+  compactMetricAttributes,
+  normalizeModelMetricLabel,
+  outcomeFromExit,
+} from "./Attributes.ts";
 
 export const rpcRequestsTotal = Metric.counter("t3_rpc_requests_total", {
   description: "Total RPC requests handled by the websocket RPC server.",
@@ -141,42 +145,46 @@ const withMetricsImpl = <A, E, R>(
   effect: Effect.Effect<A, E, R>,
   options: WithMetricsOptions,
 ): Effect.Effect<A, E, R> =>
-  Effect.gen(function* () {
-    const startedAt = yield* Clock.currentTimeNanos;
-    const exit = yield* Effect.exit(effect);
-    const endedAt = yield* Clock.currentTimeNanos;
-    const elapsedNanos = endedAt > startedAt ? endedAt - startedAt : 0n;
-    const duration = Duration.nanos(elapsedNanos);
-    const baseAttributes =
-      typeof options.attributes === "function" ? options.attributes() : (options.attributes ?? {});
+  Effect.uninterruptibleMask((restore) =>
+    Effect.gen(function* () {
+      const startedAt = yield* Clock.monotonicTimeNanos;
+      const exit = yield* Effect.exit(restore(effect));
+      const endedAt = yield* Clock.monotonicTimeNanos;
+      const elapsedNanos = endedAt > startedAt ? endedAt - startedAt : 0n;
+      const duration = Duration.nanos(elapsedNanos);
+      const baseAttributes =
+        typeof options.attributes === "function"
+          ? options.attributes()
+          : (options.attributes ?? {});
 
-    if (options.timer) {
-      yield* Metric.update(
-        Metric.withAttributes(options.timer, metricAttributes(baseAttributes)),
-        duration,
-      );
-    }
+      if (options.timer) {
+        yield* Metric.update(
+          Metric.withAttributes(options.timer, metricAttributes(baseAttributes)),
+          duration,
+        );
+      }
 
-    if (options.counter) {
-      const outcome = outcomeFromExit(exit);
-      yield* Metric.update(
-        Metric.withAttributes(
-          options.counter,
-          metricAttributes({
-            ...baseAttributes,
-            outcome,
-            ...(options.outcomeAttributes ? options.outcomeAttributes(outcome) : {}),
-          }),
-        ),
-        1,
-      );
-    }
+      if (options.counter) {
+        const outcome = outcomeFromExit(exit);
+        yield* Metric.update(
+          Metric.withAttributes(
+            options.counter,
+            metricAttributes({
+              ...baseAttributes,
+              outcome,
+              ...(options.outcomeAttributes ? options.outcomeAttributes(outcome) : {}),
+            }),
+          ),
+          1,
+        );
+      }
 
-    if (Exit.isSuccess(exit)) {
-      return exit.value;
-    }
-    return yield* Effect.failCause(exit.cause);
-  });
+      if (Exit.isSuccess(exit)) {
+        return exit.value;
+      }
+      return yield* Effect.failCause(exit.cause);
+    }),
+  );
 
 export const withMetrics: {
   <A, E, R>(

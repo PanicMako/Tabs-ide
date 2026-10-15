@@ -1,6 +1,6 @@
 import { Effect, FileSystem } from "effect";
 import * as Crypto from "node:crypto";
-import { ServerConfig } from "../config";
+import { ServerConfig } from "../config.ts";
 
 /** Called only when basic analytics is enabled and a Tabs project is configured. Never reads provider account/authentication files. */
 export const getTelemetryIdentifier = Effect.gen(function* () {

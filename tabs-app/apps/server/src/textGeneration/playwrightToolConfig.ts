@@ -1,4 +1,4 @@
-import type { StructuredTestingGenerationInput } from "./TextGeneration";
+import type { StructuredTestingGenerationInput } from "./TextGeneration.ts";
 import type * as Schema from "effect/Schema";
 
 export function playwrightToolConfig(

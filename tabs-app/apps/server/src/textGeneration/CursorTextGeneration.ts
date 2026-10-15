@@ -9,7 +9,7 @@ import { sanitizeBranchFragment, sanitizeFeatureBranchName } from "@tabs/shared/
 import { extractJsonObject, fromLenientJson } from "@tabs/shared/schemaJson";
 
 import { TextGenerationError } from "@tabs/contracts";
-import { type ThreadTitleGenerationResult, type TextGenerationShape } from "./TextGeneration";
+import { type ThreadTitleGenerationResult, type TextGenerationShape } from "./TextGeneration.ts";
 import {
   buildBranchNamePrompt,
   buildCommitMessagePrompt,
@@ -17,18 +17,18 @@ import {
   buildPrContentPrompt,
   buildThreadTitlePrompt,
   buildStructuredTestingPrompt,
-} from "./TextGenerationPrompts";
+} from "./TextGenerationPrompts.ts";
 import {
   buildSchemaConstrainedPrompt,
   logStructuredGenerationRequest,
   sanitizeCommitSubject,
   sanitizePrTitle,
   sanitizeThreadTitle,
-} from "./TextGenerationUtils";
+} from "./TextGenerationUtils.ts";
 import {
   applyCursorAcpModelSelection,
   makeCursorAcpRuntime,
-} from "../provider/acp/CursorAcpSupport";
+} from "../provider/acp/CursorAcpSupport.ts";
 
 const CURSOR_TIMEOUT_MS = 180_000;
 

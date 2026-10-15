@@ -475,4 +475,3 @@ export function buildStructuredTestingPrompt(
     limitSection(input.sanitizedPrompt, 300_000),
   ].join("\n");
 }
-

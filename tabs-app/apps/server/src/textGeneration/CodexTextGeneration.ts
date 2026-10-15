@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
-import { playwrightToolConfig } from "./playwrightToolConfig";
-import type { StructuredTestingGenerationInput } from "./TextGeneration";
+import { playwrightToolConfig } from "./playwrightToolConfig.ts";
+import type { StructuredTestingGenerationInput } from "./TextGeneration.ts";
 import * as FileSystem from "effect/FileSystem";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
@@ -12,15 +12,15 @@ import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 import { type CodexSettings, type ModelSelection } from "@tabs/contracts";
 import { sanitizeBranchFragment, sanitizeFeatureBranchName } from "@tabs/shared/git";
 
-import { resolveAttachmentPath } from "../attachmentStore";
-import { ServerConfig } from "../config";
-import { expandHomePath } from "../pathExpansion";
+import { resolveAttachmentPath } from "../attachmentStore.ts";
+import { ServerConfig } from "../config.ts";
+import { expandHomePath } from "../pathExpansion.ts";
 import { TextGenerationError } from "@tabs/contracts";
 import {
   type BranchNameGenerationInput,
   type ThreadTitleGenerationResult,
   type TextGenerationShape,
-} from "./TextGeneration";
+} from "./TextGeneration.ts";
 import {
   buildBranchNamePrompt,
   buildCommitMessagePrompt,
@@ -28,7 +28,7 @@ import {
   buildPrContentPrompt,
   buildThreadTitlePrompt,
   buildStructuredTestingPrompt,
-} from "./TextGenerationPrompts";
+} from "./TextGenerationPrompts.ts";
 import {
   logStructuredGenerationRequest,
   normalizeCliError,
@@ -36,16 +36,16 @@ import {
   sanitizePrTitle,
   sanitizeThreadTitle,
   toJsonSchemaObject,
-} from "./TextGenerationUtils";
+} from "./TextGenerationUtils.ts";
 import {
   getModelSelectionBooleanOptionValue,
   getModelSelectionStringOptionValue,
 } from "@tabs/shared/model";
-import { getCodexServiceTierOptionValue } from "../codexModelOptions";
+import { getCodexServiceTierOptionValue } from "../codexModelOptions.ts";
 
 const CODEX_GIT_TEXT_GENERATION_REASONING_EFFORT = "low";
 const CODEX_TIMEOUT_MS = 180_000;
-const encodeJsonString = Schema.encodeEffect(Schema.UnknownFromJsonString);
+const encodeJsonString = Schema.encodeEffect(Schema.fromJsonString(Schema.Unknown));
 /**
  * Build a Codex text-generation closure bound to a specific `CodexSettings`
  * payload. See `makeCodexAdapter` for the overall per-instance rationale.

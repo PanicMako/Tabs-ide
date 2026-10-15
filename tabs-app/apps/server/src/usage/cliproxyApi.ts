@@ -12,10 +12,10 @@ import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/unstable/http";
 
-import { codexPlanLabel } from "../provider/Layers/CodexProvider";
-import { codexRateLimitsToLimits } from "../provider/Layers/codexUsageLimits";
-import { claudeUsageResponseToLimits } from "../provider/Layers/claudeUsageLimits";
-import { makeUnavailableUsageLimits } from "../provider/providerUsageLimits";
+import { codexPlanLabel } from "../provider/Layers/CodexProvider.ts";
+import { codexRateLimitsToLimits } from "../provider/Layers/codexUsageLimits.ts";
+import { claudeUsageResponseToLimits } from "../provider/Layers/claudeUsageLimits.ts";
+import { makeUnavailableUsageLimits } from "../provider/providerUsageLimits.ts";
 
 const AuthFile = Schema.Struct({
   id: Schema.String,

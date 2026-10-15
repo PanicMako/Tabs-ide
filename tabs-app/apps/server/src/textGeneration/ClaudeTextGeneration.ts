@@ -17,7 +17,7 @@ import { type ClaudeSettings, type ModelSelection } from "@tabs/contracts";
 import { sanitizeBranchFragment, sanitizeFeatureBranchName } from "@tabs/shared/git";
 
 import { TextGenerationError } from "@tabs/contracts";
-import { type TextGenerationShape } from "./TextGeneration";
+import { type TextGenerationShape } from "./TextGeneration.ts";
 import {
   buildBranchNamePrompt,
   buildCommitMessagePrompt,
@@ -25,7 +25,7 @@ import {
   buildPrContentPrompt,
   buildThreadTitlePrompt,
   buildStructuredTestingPrompt,
-} from "./TextGenerationPrompts";
+} from "./TextGenerationPrompts.ts";
 import {
   logStructuredGenerationRequest,
   normalizeCliError,
@@ -33,7 +33,7 @@ import {
   sanitizePrTitle,
   sanitizeThreadTitle,
   toJsonSchemaObject,
-} from "./TextGenerationUtils";
+} from "./TextGenerationUtils.ts";
 import {
   getModelSelectionStringOptionValue,
   getProviderOptionDescriptors,
@@ -44,8 +44,8 @@ import {
   normalizeClaudeCliEffort,
   resolveClaudeApiModelId,
   resolveClaudeEffort,
-} from "../provider/Layers/ClaudeProvider";
-import { makeClaudeEnvironment } from "../provider/Drivers/ClaudeHome";
+} from "../provider/Layers/ClaudeProvider.ts";
+import { makeClaudeEnvironment } from "../provider/Drivers/ClaudeHome.ts";
 
 const CLAUDE_TIMEOUT_MS = 180_000;
 
@@ -57,7 +57,7 @@ const ClaudeOutputEnvelope = Schema.Struct({
   structured_output: Schema.Unknown,
 });
 
-const encodeJsonString = Schema.encodeEffect(Schema.UnknownFromJsonString);
+const encodeJsonString = Schema.encodeEffect(Schema.fromJsonString(Schema.Unknown));
 const decodeClaudeOutputEnvelope = Schema.decodeEffect(Schema.fromJsonString(ClaudeOutputEnvelope));
 
 export const makeClaudeTextGeneration = Effect.fn("makeClaudeTextGeneration")(function* (

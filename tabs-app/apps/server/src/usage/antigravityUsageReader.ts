@@ -15,16 +15,21 @@ function fields(bytes: Uint8Array): Fields {
   let offset = 0;
   const result: Fields = new Map();
   const varint = () => {
-    let value = 0n;
-    for (let shift = 0n; shift < 70n; shift += 7n) {
+    let value = 0;
+    let large: bigint | undefined;
+    for (let shift = 0; shift < 70; shift += 7) {
       const byte = bytes[offset++];
-      if (byte === undefined || (shift === 63n && byte > 1)) {
+      if (byte === undefined || (shift === 63 && byte > 1)) {
         throw new Error("Invalid Antigravity protobuf varint");
       }
-      value |= BigInt(byte & 127) << shift;
-      if (byte < 128) {
-        return value > BigInt(Number.MAX_SAFE_INTEGER) ? value : Number(value);
+      const payload = byte & 127;
+      if (large !== undefined) large |= BigInt(payload) << BigInt(shift);
+      else {
+        const next = value + payload * 2 ** shift;
+        if (Number.isSafeInteger(next)) value = next;
+        else large = BigInt(value) | (BigInt(payload) << BigInt(shift));
       }
+      if (byte < 128) return large ?? value;
     }
     throw new Error("Invalid Antigravity protobuf varint");
   };
@@ -257,6 +262,70 @@ async function readDatabase(path: string, fallbackTimestamp: number): Promise<Us
   }
 }
 
+// Cache decoded metadata, never conversation text. Include WAL identity and nanosecond
+// modification times so live SQLite writes invalidate a cached snapshot immediately.
+const metadataCache = new Map<string, { signature: string; candidates: UsageCandidate[] }>();
+const metadataReads = new Map<string, Promise<UsageCandidate[]>>();
+let cachedCandidates = 0;
+// A step and its generation can both report the same usage. Keep enough raw
+// candidates for a large account so sequential scans do not evict the next DB
+// before it is visited. The cache remains bounded by candidates and databases.
+const MAX_CACHED_CANDIDATES = 1_000_000;
+const MAX_CACHED_DATABASES = 512;
+async function databaseSignature(path: string): Promise<string> {
+  const parts = await Promise.all(
+    [path, `${path}-wal`].map(async (file) => {
+      try {
+        const stat = await NodeFSP.stat(file, { bigint: true });
+        return [stat.dev, stat.ino, stat.size, stat.mtimeNs, stat.ctimeNs].join(":");
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") return "missing";
+        throw error;
+      }
+    }),
+  );
+  return parts.join("|");
+}
+async function readCachedDatabase(
+  path: string,
+  fallbackTimestamp: number,
+): Promise<UsageCandidate[]> {
+  const signature = await databaseSignature(path);
+  const cached = metadataCache.get(path);
+  if (cached?.signature === signature) return cached.candidates;
+  const key = JSON.stringify([path, signature]);
+  const pending = metadataReads.get(key);
+  if (pending) return pending;
+  const task = (async () => {
+    const candidates = await readDatabase(path, fallbackTimestamp);
+    if (signature === (await databaseSignature(path))) {
+      const previous = metadataCache.get(path);
+      if (previous) cachedCandidates -= previous.candidates.length;
+      metadataCache.delete(path);
+      if (candidates.length <= MAX_CACHED_CANDIDATES) {
+        metadataCache.set(path, { signature, candidates });
+        cachedCandidates += candidates.length;
+        while (
+          cachedCandidates > MAX_CACHED_CANDIDATES ||
+          metadataCache.size > MAX_CACHED_DATABASES
+        ) {
+          const oldest = metadataCache.entries().next().value;
+          if (!oldest) break;
+          cachedCandidates -= oldest[1].candidates.length;
+          metadataCache.delete(oldest[0]);
+        }
+      }
+    }
+    return candidates;
+  })();
+  metadataReads.set(key, task);
+  try {
+    return await task;
+  } finally {
+    if (metadataReads.get(key) === task) metadataReads.delete(key);
+  }
+}
+
 /** Reads and merges aliases across every configured Antigravity store before date filtering. */
 export async function readAntigravityUsage(
   conversationsDirectories: string | readonly string[],
@@ -351,7 +420,7 @@ export async function readAntigravityUsage(
           if (visited.has(canonical)) continue;
           visited.add(canonical);
           const stat = await NodeFSP.stat(path);
-          const candidates = await readDatabase(path, stat.mtimeMs);
+          const candidates = await readCachedDatabase(canonical, stat.mtimeMs);
           const fileIndex = files.length;
           files.push({ root, path, records: [] });
           for (const [index, candidate] of candidates.entries()) {

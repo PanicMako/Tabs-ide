@@ -19,7 +19,7 @@ import * as Schema from "effect/Schema";
 import { type ProcessRow, readSystemProcessRows } from "./ProcessEnumerator.ts";
 import * as ResourceTelemetry from "../resourceTelemetry/ResourceTelemetry.ts";
 
-export class ProcessSignalFailed extends Schema.TaggedErrorClass<ProcessSignalFailed>()(
+export class ProcessSignalFailed extends Schema.TaggedError<ProcessSignalFailed>()(
   "ProcessSignalFailed",
   {
     pid: Schema.Number,
@@ -69,19 +69,21 @@ export const make = Effect.fn("makeProcessDiagnostics")(function* () {
     Effect.map((snapshot) => {
       const processes = snapshot.processes
         .filter((entry) => canSignalCategory(entry.category))
-        .map((entry): ServerProcessDiagnosticsEntry => ({
-          pid: entry.identity.pid,
-          startTimeMs: entry.identity.startTimeMs,
-          ppid: entry.ppid,
-          pgid: Option.none(),
-          status: entry.status || "Unknown",
-          cpuPercent: entry.cpuPercent,
-          rssBytes: entry.residentBytes,
-          elapsed: formatElapsed(entry.runTimeMs),
-          command: entry.command || entry.name || "unknown",
-          depth: Math.max(0, entry.depth - 1),
-          childPids: entry.childPids,
-        }));
+        .map(
+          (entry): ServerProcessDiagnosticsEntry => ({
+            pid: entry.identity.pid,
+            startTimeMs: entry.identity.startTimeMs,
+            ppid: entry.ppid,
+            pgid: Option.none(),
+            status: entry.status || "Unknown",
+            cpuPercent: entry.cpuPercent,
+            rssBytes: entry.residentBytes,
+            elapsed: formatElapsed(entry.runTimeMs),
+            command: entry.command || entry.name || "unknown",
+            depth: Math.max(0, entry.depth - 1),
+            childPids: entry.childPids,
+          }),
+        );
       return {
         serverPid: process.pid,
         readAt: snapshot.readAt,
@@ -406,4 +408,3 @@ export async function signalProcess(
     };
   }
 }
-

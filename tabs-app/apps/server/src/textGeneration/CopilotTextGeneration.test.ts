@@ -93,7 +93,7 @@ it.layer(testLayer)("CopilotTextGeneration", (it) => {
             cwd: process.cwd(),
             diffSummary: "M src/example.ts",
             diffPatch: "diff --git a/src/example.ts b/src/example.ts",
-            modelSelection: createModelSelection("copilot" as ProviderInstanceId, "grok-build"),
+            modelSelection: createModelSelection("copilot" as ProviderInstanceId, "default"),
           });
 
           expect(generated.findings).toEqual([TEST_REVIEW_FINDING]);
@@ -116,7 +116,7 @@ it.layer(testLayer)("CopilotTextGeneration", (it) => {
             branch: "feature/schema",
             stagedSummary: "M README.md",
             stagedPatch: "diff --git a/README.md b/README.md",
-            modelSelection: createModelSelection("copilot" as ProviderInstanceId, "grok-build"),
+            modelSelection: createModelSelection("copilot" as ProviderInstanceId, "default"),
           });
           const promptRequest = readFileSync(requestLogPath, "utf8")
             .trim()
