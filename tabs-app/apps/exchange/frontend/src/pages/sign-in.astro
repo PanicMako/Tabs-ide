@@ -1,0 +1,16 @@
+---
+import Exchange from "../layouts/Exchange.astro";
+import { extensionMarkPath, extensionMarkViewBox } from "../lib/extensionMark";
+---
+<Exchange title="Continue signing in" description="Retry GitHub sign-in and return to your task.">
+  <section class="lost-page" aria-labelledby="sign-in-title">
+    <div class="lost-piece" aria-hidden="true"><svg viewBox={extensionMarkViewBox} fill="currentColor"><path d={extensionMarkPath} fill-rule="evenodd" /></svg></div>
+    <p class="eyebrow">GitHub sign-in</p>
+    <h1 id="sign-in-title">Pick up where<br /><em class="editorial-accent">you left off.</em></h1>
+    <p class="lead" id="sign-in-message">We couldn’t finish signing you in. Try again in a moment.</p>
+    <div class="actions"><a class="button" id="sign-in-retry" href="/auth/github/start">Try GitHub again <span aria-hidden="true">↗</span></a><a class="text-link" href="/extensions">Browse extensions <span aria-hidden="true">↗</span></a></div>
+  </section>
+</Exchange>
+<script>
+  import "../scripts/sign-in";
+</script>

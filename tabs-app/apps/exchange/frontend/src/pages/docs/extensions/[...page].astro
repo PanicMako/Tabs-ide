@@ -1,0 +1,47 @@
+---
+import Exchange from "../../../layouts/Exchange.astro";
+import DocumentationSearch from "../../../components/DocumentationSearch.astro";
+import { extensionDocs, extensionApiVersion } from "../../../../../../marketing/src/lib/extension-docs";
+import { renderReleaseMarkdown } from "../../../../../../marketing/src/lib/release-markdown";
+export function getStaticPaths() {
+  return extensionDocs.map((doc, index) => ({ params: { page: doc.slug || undefined }, props: { doc, index } }));
+}
+const { doc, index } = Astro.props;
+const previous = extensionDocs[index - 1];
+const next = extensionDocs[index + 1];
+const href = (slug: string) => `/docs/extensions${slug ? `/${slug}` : ""}`;
+---
+<Exchange title={doc.title} description="Documentation for Tabs extension authors, publishers, and registry operators." active="docs">
+  <nav class="docs-breadcrumb" aria-label="Breadcrumb">
+    <a href="/developers">Developers</a>
+    <svg aria-hidden="true" width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M3 1l4 4-4 4"/></svg>
+    <a href="/docs/extensions">Documentation</a>
+    <svg aria-hidden="true" width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M3 1l4 4-4 4"/></svg>
+    <span aria-current="page">{doc.title}</span>
+  </nav>
+
+  <div class="docs-layout">
+    <aside class="docs-sidebar">
+      <DocumentationSearch />
+
+    <details class="docs-nav" open>
+      <summary>Documentation</summary>
+      <p class="docs-copy muted">SDK {extensionApiVersion} · Experimental</p>
+      <nav aria-label="Documentation pages">
+        {extensionDocs.map((page) => (
+          <a href={href(page.slug)} aria-current={page.slug === doc.slug ? "page" : undefined}>{page.title}</a>
+        ))}
+      </nav>
+    </details>
+    </aside>
+    <article class="prose">
+      <p class="eyebrow">API {extensionApiVersion}</p>
+      <div set:html={renderReleaseMarkdown(doc.body)} />
+      <nav class="docs-pagination" aria-label="Previous and next documentation">
+        {previous ? <a href={href(previous.slug)}>← {previous.title}</a> : <span />}
+        {next && <a href={href(next.slug)}>{next.title} →</a>}
+      </nav>
+    </article>
+  </div>
+</Exchange>
+<script>import "../../../scripts/docs";</script>

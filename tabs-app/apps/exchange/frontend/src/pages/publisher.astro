@@ -1,0 +1,247 @@
+---
+import Dashboard from "../layouts/Dashboard.astro";
+import DashboardDrawing from "../components/DashboardDrawing.astro";
+import WorkspaceControls from "../components/WorkspaceControls.astro";
+---
+<Dashboard title="Advanced controls" description="Manage publisher identities, exact packages, and access. Choose a task below." section="advanced">
+  <div class="advanced-publisher"><div class="publisher-main">
+      <p id="status" role="status" aria-live="polite" tabindex="-1"></p>
+      <section id="signed-out" hidden class="signin-panel">
+        <h2>Sign in</h2>
+        <p>Use your GitHub account to manage publisher namespaces and submissions.</p>
+        <a class="button" href="/auth/github/start">Sign in with GitHub</a>
+      </section>
+      <div id="signed-in" hidden data-workspace-panels class="advanced-control-room">
+<WorkspaceControls label="Advanced publisher tasks" secondaryAfter={5} entries={[
+  ["advanced-namespace", "Identity & team", "Namespaces, members, invitations"],
+  ["advanced-tokens", "CLI access", "Issue and revoke scoped tokens"],
+  ["advanced-upload", "Package upload", "Submit an exact archive"],
+  ["advanced-submissions", "Submissions", "Follow your version history"],
+  ["advanced-appeals", "Appeals", "Corrections and reviewer responses"],
+  ["review-section", "Package review", "Evidence and exact-digest decisions"],
+  ["revocation-section", "Release revocation", "Approved release controls"],
+  ["blocked-digests-section", "Digest blocks", "Respond to harmful material"],
+  ["verification-section", "Publisher verification", "Record independent ownership proof"],
+]} />
+        <div class="publisher-session"><p id="identity"></p><button class="button secondary" id="logout" type="button">Sign out</button></div>
+        <section id="advanced-tokens" data-workspace-panel aria-labelledby="tokens-title"><div class="task-panel-heading">
+          <h2 id="tokens-title">Access tokens</h2><DashboardDrawing section="advanced-tokens" compact /></div>
+          <p>
+            Tokens expire after 30 days. Publish tokens are namespace-bound and cannot manage
+            accounts or approve releases. Read tokens access private catalog and signed downloads.
+            Tokens are shown only once.
+          </p>
+          <form id="token-form" class="task-form">
+            <div class="form-field"><label for="token-label">Label</label
+            ><input id="token-label" maxlength="100" required autocomplete="off" /></div>
+            <div class="form-field"><label for="token-scope">Scope</label
+            ><select id="token-scope">
+              <option value="publish">Publish packages</option>
+              <option value="read">Read registry</option>
+            </select></div>
+            <div class="form-field"><label for="token-namespace">Publish namespace (leave blank for read access)</label
+            ><input id="token-namespace" pattern="[a-z][a-z0-9-]{1,62}" autocomplete="off" /></div>
+            <button class="button" type="submit">Create token</button>
+          </form>
+          <div id="token-result" hidden>
+            <div class="form-field"><label for="token-value">Copy this token now and store it securely</label
+            ><input id="token-value" readonly autocomplete="off" spellcheck="false" /></div>
+            <button class="button secondary" id="token-dismiss" type="button">Clear token from this page</button>
+          </div>
+          <ul id="tokens" aria-label="Your access tokens"></ul>
+        </section>
+        <section id="advanced-namespace" data-workspace-panel aria-labelledby="namespace-title"><div class="task-panel-heading">
+          <h2 id="namespace-title">Identity & team</h2><DashboardDrawing section="advanced-namespace" compact /></div>
+          <div class="advanced-identity-grid"><div><h3>Create a namespace</h3>
+          <form id="namespace-form" class="task-form">
+            <div class="form-field"><label for="namespace-name">Namespace</label>
+            <input
+              id="namespace-name"
+              name="namespace"
+              pattern="[a-z][a-z0-9-]{1,62}"
+              required
+              autocomplete="off"
+            /></div>
+            <label class="check" for="terms"
+              ><input id="terms" type="checkbox" required /> I accept the
+              <a href="/publisher-terms">publisher terms</a> (version
+              <span id="terms-version">loading</span>).</label
+            >
+            <button class="button" type="submit">Create namespace</button>
+          </form>
+          </div><div><h3>Invite a namespace member</h3>
+          <p>
+            The recipient must have signed in to the Exchange. Their publishing access begins only
+            after they accept the invitation, which expires after 14 days.
+          </p>
+          <form id="member-form" class="task-form">
+            <div class="form-field"><label for="member-namespace">Namespace you own</label>
+            <input
+              id="member-namespace"
+              required
+              pattern="[a-z][a-z0-9-]{1,62}"
+              autocomplete="off"
+            /></div>
+            <div class="form-field"><label for="member-user">Member GitHub numeric user ID</label>
+            <input
+              id="member-user"
+              required
+              pattern="[0-9]{1,19}"
+              inputmode="numeric"
+              autocomplete="off"
+            /></div>
+            <div class="form-field"><label for="member-role">Role</label>
+            <select id="member-role">
+              <option value="contributor">Contributor</option>
+              <option value="owner">Owner</option>
+            </select></div>
+            <button class="button" type="submit">Send invitation</button>
+          </form>
+</div></div>
+          <h3>Your namespaces</h3><ul id="namespaces"></ul>
+          <h3>Invitations for you</h3>
+          <button class="button secondary" id="refresh-invitations" type="button">Refresh invitations</button>
+          <ul id="invitations" aria-label="Pending namespace invitations"></ul>
+        </section>
+        <section id="advanced-upload" data-workspace-panel aria-labelledby="upload-title"><div class="task-panel-heading">
+          <h2 id="upload-title">Submit a package</h2><DashboardDrawing section="advanced-upload" compact /></div>
+          <p>
+            Only members of the matching publisher namespace can submit. The package identity must
+            match its manifest.
+          </p>
+          <form id="upload-form" class="task-form">
+            <div class="form-field"><label for="upload-file">Package file</label>
+            <input id="upload-file" type="file" accept=".tabsext" required /></div>
+            <p id="upload-drop">
+              Choose a file above or drop one .tabsext package here (25 MiB maximum). Identity comes
+              from the validated manifest.
+            </p>
+            <progress
+              id="upload-progress"
+              max="100"
+              value="0"
+              aria-label="Package upload progress"
+              hidden
+            ></progress>
+            <p id="upload-status" role="status"></p>
+            <button class="button" type="submit">Submit for review</button>
+          </form>
+        </section>
+        <section id="advanced-submissions" data-workspace-panel aria-labelledby="submissions-title"><div class="task-panel-heading">
+          <h2 id="submissions-title">Your submissions</h2><DashboardDrawing section="advanced-submissions" compact /></div>
+          <button class="button secondary" id="refresh-submissions" type="button">Refresh submissions</button>
+          <ul id="submissions"></ul>
+        </section>
+        <section id="advanced-appeals" data-workspace-panel aria-labelledby="appeals-title"><div class="task-panel-heading">
+          <h2 id="appeals-title">Appeals and corrections</h2><DashboardDrawing section="advanced-appeals" compact /></div>
+          <p>
+            Rejected or revoked versions can be appealed once at a time. A correction to package
+            contents must be submitted as a new version and reviewed separately.
+          </p>
+          <button class="button secondary" id="refresh-appeals" type="button">Refresh appeals</button>
+          <ul id="appeals"></ul>
+        </section>
+        <section data-workspace-panel id="review-section" aria-labelledby="review-title" hidden><div class="task-panel-heading">
+          <h2 id="review-title">Reviewer queue</h2><DashboardDrawing section="review-section" compact /></div>
+          <h3>Queue operations</h3>
+          <p>
+            Stale scans are claims older than ten minutes. A recent heartbeat means a worker reached
+            the database within fifteen seconds, not that every scan is healthy.
+          </p>
+          <button class="button secondary" id="refresh-operations" type="button">Refresh queue health</button>
+          <p id="queue-operations" role="status" aria-live="polite">Queue health not loaded.</p>
+          <ul id="operational-alerts" aria-label="Operational alerts" aria-live="polite"></ul>
+          <p id="signing-backlog" role="status" aria-live="polite">Signing backlog not loaded.</p>
+          <p id="metadata-freshness" role="status" aria-live="polite">
+            Signed metadata expiry not loaded.
+          </p>
+          <ul id="pending-revocations" aria-label="Revocations awaiting signed metadata"></ul>
+          <p>
+            Review the exact digest and scan result before making a decision. Automated scanning is
+            not a security guarantee.
+          </p>
+          <button class="button secondary" id="refresh-review" type="button">Refresh review queue</button>
+          <ul id="review-queue"></ul>
+          <h3>Open appeals</h3>
+          <button class="button secondary" id="refresh-review-appeals" type="button">Refresh open appeals</button>
+          <ul id="review-appeals"></ul>
+        </section>
+        <section data-workspace-panel id="revocation-section" aria-labelledby="revocation-title" hidden><div class="task-panel-heading">
+          <h2 id="revocation-title">Approved versions and revocation</h2><DashboardDrawing section="revocation-section" compact /></div>
+          <p>
+            Revocation immediately removes a version from the public API. Enter a clear reason
+            before revoking.
+          </p>
+          <button class="button secondary" id="refresh-approved" type="button">Refresh approved versions</button>
+          <ul id="approved-versions"></ul>
+        </section>
+        <section data-workspace-panel id="blocked-digests-section" aria-labelledby="blocked-digests-title" hidden><div class="task-panel-heading">
+          <h2 id="blocked-digests-title">Blocked package material</h2><DashboardDrawing section="blocked-digests-section" compact /></div>
+          <p>
+            Block an exact SHA-256 package or file digest. Matching approved versions are revoked
+            immediately. Publish updated signed TUF metadata promptly so desktop clients receive
+            authenticated revocation. A false positive requires an audited removal; it does not
+            automatically restore revoked versions.
+          </p>
+          <form id="blocked-digest-form" class="task-form">
+            <div class="form-field"><label for="blocked-digest-value">SHA-256 digest</label>
+            <input
+              id="blocked-digest-value"
+              required
+              pattern="[a-f0-9]{64}"
+              maxlength="64"
+              autocomplete="off"
+            /></div>
+            <div class="form-field"><label for="blocked-digest-reason">Blocking reason</label>
+            <input id="blocked-digest-reason" required maxlength="2000" /></div>
+            <button class="button" type="submit">Block digest and revoke matches</button>
+          </form>
+          <h3>Import a vetted hash list</h3>
+          <p id="blocked-digest-batch-help">
+            Enter one lowercase SHA-256 digest and its reason per line, separated by a space or tab.
+            Review the source before importing. All entries succeed together, or none are saved. Up
+            to 100 entries are allowed.
+          </p>
+          <form id="blocked-digest-batch-form" class="task-form">
+            <div class="form-field"><label for="blocked-digest-batch-value">Digests and reasons</label>
+            <textarea
+              id="blocked-digest-batch-value"
+              aria-describedby="blocked-digest-batch-help"
+              rows="8"
+              required
+              spellcheck="false"
+              autocomplete="off"
+            ></textarea></div>
+            <button class="button" type="submit">Block vetted digests and revoke matches</button>
+          </form>
+          <button class="button secondary" id="refresh-blocked-digests" type="button">Refresh blocked digests</button>
+          <ul id="blocked-digests"></ul>
+        </section>
+        <section data-workspace-panel id="verification-section" aria-labelledby="verification-title" hidden><div class="task-panel-heading">
+          <h2 id="verification-title">Publisher verification</h2><DashboardDrawing section="verification-section" compact /></div>
+          <p>
+            Only mark a namespace verified after checking independent proof of ownership. Every
+            change is audited.
+          </p>
+          <form id="verification-form" class="task-form">
+            <div class="form-field"><label for="verification-namespace">Namespace</label>
+            <input
+              id="verification-namespace"
+              required
+              pattern="[a-z][a-z0-9-]{1,62}"
+              autocomplete="off"
+            /></div>
+            <div class="form-field"><label for="verification-proof">HTTPS proof URL (required when verifying)</label>
+            <input id="verification-proof" type="url" inputmode="url" /></div>
+            <div class="form-field"><label for="verification-reason">Decision reason</label>
+            <input id="verification-reason" required maxlength="2000" /></div>
+            <label class="check" for="verification-value"
+              ><input id="verification-value" type="checkbox" /> Mark verified</label
+            >
+            <button class="button" type="submit">Record verification decision</button>
+          </form>
+        </section>
+      </div>
+</div></div>
+</Dashboard>
+<script is:inline src="/publisher.js" type="module"></script>
