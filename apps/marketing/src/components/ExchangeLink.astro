@@ -1,0 +1,8 @@
+---
+import Icon from './Icon.astro';
+const { label = 'Exchange', size = 14 } = Astro.props;
+---
+<a data-exchange-departure href="https://exchange.buildwithtabs.com">{label} <Icon name="ArrowUpRight" size={size} /></a>
+<script>
+  import '../lib/exchange-departure';
+</script>
