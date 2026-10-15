@@ -28,7 +28,7 @@ export type UsageProviderPresentation = {
 export const PROVIDER_PRESENTATION = {
   codex: {
     label: "Codex",
-    color: "var(--contrast-foreground)",
+    color: "var(--foreground)",
     mark: OpenAI,
   },
   claude: {
@@ -48,7 +48,7 @@ export const PROVIDER_PRESENTATION = {
   },
   grok: {
     label: "Grok Build",
-    color: "color-mix(in oklab, var(--contrast-foreground) 72%, var(--background))",
+    color: "color-mix(in oklab, var(--foreground) 72%, var(--background))",
     mark: GrokIcon,
   },
   opencode: {

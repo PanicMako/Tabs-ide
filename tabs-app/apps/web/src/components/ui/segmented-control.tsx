@@ -30,7 +30,8 @@ export function SegmentedControl<T extends string>({
   className,
   itemClassName,
   size = "default",
-  orbitKind = "spotlight",
+  orbitKind,
+  itemRole = "radio",
   "aria-label": ariaLabel,
 }: {
   value: T;
@@ -40,11 +41,16 @@ export function SegmentedControl<T extends string>({
   itemClassName?: string;
   size?: "sm" | "default";
   orbitKind?: "spotlight" | "theme" | "time" | "icons";
+  itemRole?: "button" | "radio";
   "aria-label"?: string;
 }) {
   const icons = options.map((option) => option.icon ?? labelIcon(option.label));
   const kind =
-    orbitKind === "spotlight" && icons.length > 0 && icons.every(Boolean) ? "icons" : orbitKind;
+    orbitKind !== undefined
+      ? orbitKind
+      : icons.length > 0 && icons.every(Boolean)
+        ? "icons"
+        : "spotlight";
   const selectedSymbol = icons[options.findIndex((option) => option.value === value)];
   const selectedIndex = options.findIndex((option) => option.value === value && !option.disabled);
   const tabStop =
@@ -73,7 +79,8 @@ export function SegmentedControl<T extends string>({
           selectedSymbol
         ) : undefined
       }
-      role="radiogroup"
+      role={itemRole === "button" ? "group" : "radiogroup"}
+      data-current={value}
       aria-label={ariaLabel}
       className={cn("tabs-segmented inline-flex items-center rounded-lg select-none", className)}
     >
@@ -83,9 +90,10 @@ export function SegmentedControl<T extends string>({
           <button
             key={opt.value}
             type="button"
-            role="radio"
+            role={itemRole}
+            aria-pressed={itemRole === "button" ? isSelected : undefined}
+            aria-checked={itemRole === "radio" ? isSelected : undefined}
             data-value={opt.value}
-            aria-checked={isSelected}
             aria-label={opt.ariaLabel}
             tabIndex={index === tabStop ? 0 : -1}
             disabled={opt.disabled}
@@ -114,7 +122,7 @@ export function SegmentedControl<T extends string>({
             }}
             className={cn(
               "font-medium rounded-md transition-colors whitespace-nowrap cursor-pointer flex items-center justify-center gap-1.5",
-              size === "sm" ? "px-2 py-1 text-xs" : "px-3 py-1.5 text-xs",
+              size === "sm" ? "px-2.5 py-1 text-xs" : "px-3.5 py-1.5 text-xs",
               isSelected
                 ? "text-foreground"
                 : "text-muted-foreground hover:text-foreground hover:bg-muted/40",

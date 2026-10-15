@@ -765,7 +765,7 @@ export const AppleTimePicker = memo(function AppleTimePicker({
 
       {/* Day Selector Chips */}
       <OrbitGroup
-        className="tabs-segmented mt-3 flex items-center justify-between"
+        className="tabs-segmented mt-3 flex items-center justify-between rounded-full"
         role="group"
         aria-label="Day preset"
       >
@@ -774,7 +774,7 @@ export const AppleTimePicker = memo(function AppleTimePicker({
           onClick={() => setDayPreset("today")}
           aria-pressed={dayMode === "today"}
           className={cn(
-            "flex-1 rounded-lg py-1 text-xs font-medium transition-all cursor-pointer",
+            "flex-1 rounded-full py-1 text-xs font-medium transition-all cursor-pointer",
             dayMode === "today"
               ? "bg-background text-foreground shadow-xs ring-1 ring-border/50 font-semibold"
               : "text-muted-foreground hover:text-foreground",
@@ -787,7 +787,7 @@ export const AppleTimePicker = memo(function AppleTimePicker({
           onClick={() => setDayPreset("tomorrow")}
           aria-pressed={dayMode === "tomorrow"}
           className={cn(
-            "flex-1 rounded-lg py-1 text-xs font-medium transition-all cursor-pointer",
+            "flex-1 rounded-full py-1 text-xs font-medium transition-all cursor-pointer",
             dayMode === "tomorrow"
               ? "bg-background text-foreground shadow-xs ring-1 ring-border/50 font-semibold"
               : "text-muted-foreground hover:text-foreground",
