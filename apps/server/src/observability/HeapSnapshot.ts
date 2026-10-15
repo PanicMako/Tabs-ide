@@ -24,9 +24,7 @@ export const writeHeapSnapshot = Effect.fn("server.heapSnapshot", { root: true }
     yield* Effect.try({
       try: () => NodeV8.writeHeapSnapshot(path),
       catch: (cause) => cause,
-    }).pipe(
-      Effect.tapError(() => fs.remove(path, { force: true }).pipe(Effect.ignore)),
-    );
+    }).pipe(Effect.tapError(() => fs.remove(path, { force: true }).pipe(Effect.ignore)));
     yield* Effect.logInfo("Wrote heap snapshot.", { path });
   },
   Effect.catch((cause) => Effect.logWarning("Failed to write heap snapshot.", { cause })),

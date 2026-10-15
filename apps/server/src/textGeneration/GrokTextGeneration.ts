@@ -11,10 +11,7 @@ import { getModelSelectionStringOptionValue } from "@tabs/shared/model";
 
 import * as TextGenerationOperations from "./TextGenerationOperations.ts";
 import { type TextGenerationShape } from "./TextGeneration.ts";
-import {
-  buildDiffSummaryPrompt,
-  buildStructuredTestingPrompt,
-} from "./TextGenerationPrompts.ts";
+import { buildDiffSummaryPrompt, buildStructuredTestingPrompt } from "./TextGenerationPrompts.ts";
 import {
   applyGrokAcpModelSelection,
   currentGrokModelIdFromSessionSetup,

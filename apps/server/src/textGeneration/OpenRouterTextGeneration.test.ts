@@ -7,6 +7,7 @@ import { makeOpenRouterTextGeneration } from "./OpenRouterTextGeneration";
 describe("OpenRouterTextGeneration", () => {
   it("sends the operation-specific JSON Schema", async () => {
     const settings: OpenRouterSettings = {
+      binaryPath: "opencode",
       enabled: true,
       apiKey: "test-openrouter-key",
       baseUrl: "https://openrouter.test/api/v1",

@@ -6,6 +6,7 @@ import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
 import * as NodeSqlite from "node:sqlite";
 
+import { vi } from "vitest";
 import { afterEach, assert, beforeEach, describe, it } from "@effect/vitest";
 
 import { readTranscriptRecords } from "./usageTranscriptReader.ts";
@@ -774,4 +775,46 @@ describe("SQLite usage readers", () => {
       10,
     );
   });
+});
+
+it("reuses unchanged Antigravity metadata across windows and detects live WAL writes", async () => {
+  const db = new NodeSqlite.DatabaseSync(NodePath.join(dir, "cache.db"));
+  db.exec("PRAGMA journal_mode=WAL; CREATE TABLE gen_metadata (idx INTEGER, data BLOB)");
+  const generation = (output: number, response: string) =>
+    new Uint8Array(
+      protoBytes(1, [
+        ...protoBytes(4, [
+          ...protoNumber(1, 1026),
+          ...protoNumber(2, 10),
+          ...protoNumber(3, output),
+          ...protoText(11, response),
+        ]),
+        ...protoText(19, "Gemini 3.8 Flash"),
+      ]),
+    );
+  db.prepare("INSERT INTO gen_metadata VALUES (?, ?)").run(0, generation(5, "cache-response-1"));
+  const prepare = vi.spyOn(NodeSqlite.DatabaseSync.prototype, "prepare");
+  try {
+    const first = await readAntigravityUsage(dir, 0);
+    assert.strictEqual(first.files.flatMap((file) => file.records).length, 1);
+    const initialReads = prepare.mock.calls.length;
+    const narrower = await readAntigravityUsage(dir, Date.now() + 10000);
+    assert.deepStrictEqual(
+      narrower.files.flatMap((file) => file.records),
+      [],
+    );
+    assert.strictEqual(prepare.mock.calls.length, initialReads);
+    db.prepare("INSERT INTO gen_metadata VALUES (?, ?)").run(1, generation(7, "cache-response-2"));
+    const updated = await readAntigravityUsage(dir, 0);
+    assert.deepStrictEqual(updated.errors, []);
+    assert.strictEqual(
+      updated.files
+        .flatMap((file) => file.records)
+        .reduce((total, record) => total + record.totals.outputTokens, 0),
+      12,
+    );
+  } finally {
+    prepare.mockRestore();
+    db.close();
+  }
 });

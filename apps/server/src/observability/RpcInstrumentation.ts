@@ -122,18 +122,21 @@ export const observeRpcStreamEffect = <A, StreamError, StreamContext, EffectErro
   effect: Effect.Effect<Stream.Stream<A, StreamError, StreamContext>, EffectError, EffectContext>,
   traceAttributes?: Readonly<Record<string, unknown>>,
 ): Stream.Stream<A, StreamError | EffectError, StreamContext | EffectContext> => {
-  const instrumented: Stream.Stream<A, StreamError | EffectError, StreamContext | EffectContext> = Stream.unwrap(
-    Effect.gen(function* () {
-      const startedAt = yield* Clock.currentTimeNanos;
-      // onError also runs when the stream is interrupted before it is produced.
-      const stream = yield* effect.pipe(
-        Effect.onError((cause) => recordRpcStreamMetrics(method, startedAt, Exit.failCause(cause))),
-      );
-      return stream.pipe(
-        Stream.onExit((streamExit) => recordRpcStreamMetrics(method, startedAt, streamExit)),
-      );
-    }),
-  );
+  const instrumented: Stream.Stream<A, StreamError | EffectError, StreamContext | EffectContext> =
+    Stream.unwrap(
+      Effect.gen(function* () {
+        const startedAt = yield* Clock.currentTimeNanos;
+        // onError also runs when the stream is interrupted before it is produced.
+        const stream = yield* effect.pipe(
+          Effect.onError((cause) =>
+            recordRpcStreamMetrics(method, startedAt, Exit.failCause(cause)),
+          ),
+        );
+        return stream.pipe(
+          Stream.onExit((streamExit) => recordRpcStreamMetrics(method, startedAt, streamExit)),
+        );
+      }),
+    );
 
   return withRpcStreamTracing(method, instrumented, traceAttributes);
 };

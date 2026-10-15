@@ -1,4 +1,5 @@
 import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer";
+import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
 import { ConfigProvider, Effect, FileSystem, Layer } from "effect";
@@ -64,8 +65,12 @@ it.layer(NodeServices.layer)("AnalyticsService test", (it) => {
         );
       }).pipe(
         Effect.provide(configLayer),
-        Effect.provide(NodeHttpServer.layerTest),
-        Effect.provide(ConfigProvider.layer(ConfigProvider.fromUnknown({ TABS_POSTHOG_KEY: "" }))),
+        Effect.provide(FetchHttpClient.layer),
+        Effect.provide(
+          ConfigProvider.layer(
+            ConfigProvider.fromUnknown({ TABS_POSTHOG_KEY: "" }, { preserveEmptyStrings: true }),
+          ),
+        ),
       );
     }),
   );
@@ -79,11 +84,14 @@ it.layer(NodeServices.layer)("AnalyticsService test", (it) => {
 
       const telemetryLayer = AnalyticsServiceLayerLive.pipe(Layer.provideMerge(serverConfigLayer));
       const configLayer = ConfigProvider.layer(
-        ConfigProvider.fromUnknown({
-          TABS_POSTHOG_KEY: "phc_test_key",
-          TABS_POSTHOG_HOST: "",
-          TABS_TELEMETRY_FLUSH_BATCH_SIZE: 1,
-        }),
+        ConfigProvider.fromUnknown(
+          {
+            TABS_POSTHOG_KEY: "phc_test_key",
+            TABS_POSTHOG_HOST: "",
+            TABS_TELEMETRY_FLUSH_BATCH_SIZE: 1,
+          },
+          { preserveEmptyStrings: true },
+        ),
       );
       const batchServerLayer = HttpServer.serve(
         Effect.gen(function* () {
@@ -109,7 +117,7 @@ it.layer(NodeServices.layer)("AnalyticsService test", (it) => {
       );
 
       yield* Effect.gen(function* () {
-        yield* Layer.launch(batchServerLayer).pipe(Effect.forkScoped);
+        yield* Layer.build(batchServerLayer);
         const telemetryIdentifier = yield* getTelemetryIdentifier;
         assert.equal(telemetryIdentifier !== null, true);
         const analytics = yield* AnalyticsService;
@@ -136,7 +144,11 @@ it.layer(NodeServices.layer)("AnalyticsService test", (it) => {
       );
       assert.equal(batchRequests.length, 2);
       assert.equal(
-        batchRequests.every((request) => request.path === "/batch/" || request.path === "/batch"),
+        batchRequests.every(
+          (request) =>
+            new URL(request.path, "http://localhost").pathname === "/batch/" ||
+            new URL(request.path, "http://localhost").pathname === "/batch",
+        ),
         true,
       );
       const events = batchRequests.flatMap((request) => request.body.batch);
@@ -178,10 +190,13 @@ it.layer(NodeServices.layer)("AnalyticsService test", (it) => {
         ),
         Layer.provide(
           ConfigProvider.layer(
-            ConfigProvider.fromUnknown({
-              TABS_POSTHOG_KEY: "phc_test_key",
-              TABS_POSTHOG_HOST: "",
-            }),
+            ConfigProvider.fromUnknown(
+              {
+                TABS_POSTHOG_KEY: "phc_test_key",
+                TABS_POSTHOG_HOST: "",
+              },
+              { preserveEmptyStrings: true },
+            ),
           ),
         ),
         Layer.provideMerge(NodeHttpServer.layerTest),

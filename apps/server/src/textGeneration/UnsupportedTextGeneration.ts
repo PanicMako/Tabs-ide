@@ -1,7 +1,7 @@
 import { TextGenerationError } from "@tabs/contracts";
 import * as Effect from "effect/Effect";
 
-import type { TextGenerationShape } from "./TextGeneration";
+import type { TextGenerationShape } from "./TextGeneration.ts";
 
 export function makeUnsupportedTextGeneration(providerName: string): TextGenerationShape {
   const unsupported = (operation: string) =>

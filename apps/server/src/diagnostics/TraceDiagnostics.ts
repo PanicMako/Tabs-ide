@@ -42,7 +42,7 @@ export interface TraceDiagnosticsOptions {
   readonly readAt?: DateTime.Utc;
 }
 
-export class TraceFileReadError extends Schema.TaggedErrorClass<TraceFileReadError>()(
+export class TraceFileReadError extends Schema.TaggedError<TraceFileReadError>()(
   "TraceFileReadError",
   {
     traceFilePath: Schema.String,

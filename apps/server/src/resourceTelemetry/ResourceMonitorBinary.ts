@@ -13,7 +13,7 @@ import * as Schema from "effect/Schema";
 
 import * as ServerConfig from "../config.ts";
 
-export class ResourceMonitorBinaryUnsupported extends Schema.TaggedErrorClass<ResourceMonitorBinaryUnsupported>()(
+export class ResourceMonitorBinaryUnsupported extends Schema.TaggedError<ResourceMonitorBinaryUnsupported>()(
   "ResourceMonitorBinaryUnsupported",
   {
     platform: Schema.String,
@@ -25,7 +25,7 @@ export class ResourceMonitorBinaryUnsupported extends Schema.TaggedErrorClass<Re
   }
 }
 
-export class ResourceMonitorBinaryNotFound extends Schema.TaggedErrorClass<ResourceMonitorBinaryNotFound>()(
+export class ResourceMonitorBinaryNotFound extends Schema.TaggedError<ResourceMonitorBinaryNotFound>()(
   "ResourceMonitorBinaryNotFound",
   {
     platform: Schema.String,
@@ -38,7 +38,7 @@ export class ResourceMonitorBinaryNotFound extends Schema.TaggedErrorClass<Resou
   }
 }
 
-export class ResourceMonitorBinaryNotExecutable extends Schema.TaggedErrorClass<ResourceMonitorBinaryNotExecutable>()(
+export class ResourceMonitorBinaryNotExecutable extends Schema.TaggedError<ResourceMonitorBinaryNotExecutable>()(
   "ResourceMonitorBinaryNotExecutable",
   {
     path: Schema.String,
@@ -155,6 +155,20 @@ export const make = Effect.fn("resourceTelemetry.resourceMonitorBinary.make")(fu
       ? []
       : [
           path.resolve(import.meta.dirname, "resource-monitor", platformKey, executableName),
+          path.resolve(
+            import.meta.dirname,
+            "../../../native/resource-monitor/target",
+            platformKey,
+            "release",
+            executableName,
+          ),
+          path.resolve(
+            import.meta.dirname,
+            "../../../../native/resource-monitor/target",
+            platformKey,
+            "release",
+            executableName,
+          ),
           path.resolve(import.meta.dirname, "resource-monitor", executableName),
           path.resolve(import.meta.dirname, "../resource-monitor", executableName),
           path.resolve(
