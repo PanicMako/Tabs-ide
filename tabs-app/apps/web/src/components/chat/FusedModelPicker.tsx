@@ -33,6 +33,12 @@ import {
   OpenCodeIcon,
   OpenRouterIcon,
 } from "../Icons";
+import {
+  groupNativeThinkingVariants,
+  nativeThinkingDescriptor,
+  NATIVE_THINKING_OPTION,
+  type ThinkingModel,
+} from "./nativeThinkingVariants";
 import nyanCatSliderWideGif from "~/assets/nyan-cat-slider-wide.gif";
 import { cn } from "~/lib/utils";
 import { getProviderModels, getProviderSnapshot } from "../../providerModels";
@@ -108,6 +114,10 @@ interface FusedModelPickerProps {
   /** Optional ref to anchor the popup to a specific element (e.g. the composer card) instead of the trigger */
   popupAnchorRef?: React.RefObject<HTMLElement | null>;
   triggerClassName?: string;
+  ariaLabel?: string | undefined;
+  disabled?: boolean | undefined;
+  labelOverride?: string | undefined;
+  availableProviders?: ReadonlyArray<ProviderPickerKind> | undefined;
   align?: "start" | "center" | "end";
   side?: "top" | "bottom" | "left" | "right";
   sideOffset?: number;
@@ -166,6 +176,8 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
 
   const isProviderEnabledInSettings = useCallback(
     (provider: ProviderPickerKind) => {
+      const snapshot = getProviderSnapshot(props.providers, provider);
+      if (snapshot) return snapshot.enabled;
       const anyEnabled = AVAILABLE_PROVIDER_OPTIONS.some((o) => {
         const cfg = (settings.providers as any)?.[o.value];
         return cfg ? cfg.enabled !== false : true;
@@ -179,19 +191,28 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
       }
       return true;
     },
-    [settings.providers],
+    [settings.providers, props.providers],
   );
 
   const providerOptions = useMemo(() => {
     if (props.lockedProvider) {
       return AVAILABLE_PROVIDER_OPTIONS.filter((o) => o.value === props.lockedProvider);
     }
-    const enabled = AVAILABLE_PROVIDER_OPTIONS.filter((o) => isProviderEnabledInSettings(o.value));
-    if (enabled.length === 0) {
+    const enabled = AVAILABLE_PROVIDER_OPTIONS.filter((o) =>
+      props.availableProviders
+        ? props.availableProviders.includes(o.value)
+        : isProviderEnabledInSettings(o.value),
+    );
+    if (enabled.length === 0 && !props.availableProviders && props.providers.length === 0) {
       return AVAILABLE_PROVIDER_OPTIONS;
     }
     return enabled;
-  }, [props.lockedProvider, isProviderEnabledInSettings]);
+  }, [
+    props.lockedProvider,
+    props.availableProviders,
+    isProviderEnabledInSettings,
+    props.providers.length,
+  ]);
 
   const activeTab = useMemo(() => {
     if (selectedTab === "pinned") return "pinned";
@@ -247,7 +268,7 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
 
   const models = useMemo(() => {
     if (activeTab === "pinned") {
-      return pinnedModels;
+      return groupNativeThinkingVariants(pinnedModels, props.model);
     }
     const raw = getProviderModels(props.providers, activeTab);
     const prefs = settings.providerModelPreferences?.[activeTab as any];
@@ -256,7 +277,10 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
       (m) => m.isCustom || !hiddenSet.has(m.slug) || m.slug === props.model,
     );
     const customOrder = prefs?.modelOrder;
-    return applyCustomModelOrdering(visible, customOrder, activeTab);
+    return groupNativeThinkingVariants(
+      applyCustomModelOrdering(visible, customOrder, activeTab),
+      props.model,
+    );
   }, [activeTab, pinnedModels, props.providers, props.model, settings.providerModelPreferences]);
 
   const activeCatalogStatus =
@@ -484,9 +508,10 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
         return [];
       }
       const caps = m.capabilities ?? EMPTY_CAPABILITIES;
-      return getProviderOptionDescriptors({ caps, selections: undefined }).filter(
-        (d) => d.id !== "agent",
-      );
+      return [
+        ...nativeThinkingDescriptor(m),
+        ...getProviderOptionDescriptors({ caps, selections: undefined }),
+      ].filter((d) => d.id !== "agent");
     });
   }, [models]);
 
@@ -528,7 +553,7 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
   const groupedModels = useMemo(() => {
     const groups: Array<{
       name: string | null;
-      items: Array<ServerProviderModel & { providerId?: string }>;
+      items: ThinkingModel[];
     }> = [];
 
     if (activeTab === "pinned") {
@@ -572,17 +597,39 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
   }, [activeTab]);
 
   const triggerLabel = useMemo(() => {
-    if (!activeModel) return "Select model";
-    const parts = [activeModel.name];
-    if (leverDescriptor?.currentValue === true) {
+    const selected = getProviderModels(props.providers, props.provider).find(
+      (model) => model.slug === props.model,
+    );
+    if (!selected) return "Select model";
+    const selectedDescriptors = getProviderOptionDescriptors({
+      caps: selected.capabilities ?? EMPTY_CAPABILITIES,
+      selections: props.modelOptions,
+    }).filter((descriptor) => descriptor.id !== "agent");
+    const fast = selectedDescriptors.find(
+      (descriptor) =>
+        descriptor.type === "boolean" && (descriptor.id === "fastMode" || descriptor.id === "fast"),
+    );
+    const reasoning =
+      activeTab === props.provider
+        ? activePrimarySelect
+        : selectedDescriptors.find((descriptor) => descriptor.type === "select");
+    const parts = [selected.name];
+    if (fast?.currentValue === true) {
       parts.push("Fast");
-    } else if (activePrimarySelect) {
-      const value = getProviderOptionCurrentValue(activePrimarySelect);
-      const label = activePrimarySelect.options.find((o) => o.id === value)?.label;
+    } else if (reasoning?.type === "select") {
+      const value = getProviderOptionCurrentValue(reasoning);
+      const label = reasoning.options.find((o) => o.id === value)?.label;
       if (label) parts.push(label);
     }
     return parts.join(" · ");
-  }, [activeModel, leverDescriptor, activePrimarySelect]);
+  }, [
+    props.providers,
+    props.provider,
+    props.model,
+    props.modelOptions,
+    activeTab,
+    activePrimarySelect,
+  ]);
 
   const activeColorIndex = useMemo(
     () =>
@@ -622,6 +669,8 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
         render={
           <Button
             size="sm"
+            aria-label={props.ariaLabel}
+            disabled={props.disabled}
             variant="ghost"
             className={cn(
               "min-w-0 max-w-72 justify-start gap-2 overflow-hidden whitespace-nowrap px-2 text-muted-foreground/70 hover:text-foreground/80",
@@ -631,7 +680,7 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
         }
       >
         <ActiveIcon aria-hidden="true" className="size-4 shrink-0" />
-        <span className="min-w-0 flex-1 truncate">{triggerLabel}</span>
+        <span className="min-w-0 flex-1 truncate">{props.labelOverride ?? triggerLabel}</span>
         <ChevronDownIcon aria-hidden="true" className="size-3 shrink-0 opacity-60" />
       </MenuTrigger>
       <MenuPopup
@@ -655,7 +704,7 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
             <div className="flex flex-col gap-2.5 border-r border-border pr-6">
               {/* 📌 Pinned Models Tab */}
               <Tooltip key="pinned">
-                <TooltipTrigger className="inline-flex">
+                <TooltipTrigger className="inline-flex" render={<span />}>
                   <button
                     type="button"
                     title="Pinned Models"
@@ -692,11 +741,21 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
               {providerOptions.map((option) => {
                 const OptionIcon = PROVIDER_ICON_BY_PROVIDER[option.value];
                 const snapshot = getProviderSnapshot(props.providers, option.value);
-                const disabled = snapshot ? snapshot.status !== "ready" : false;
+                const textOnly = snapshot?.capabilities?.agentSessions === "unsupported";
+                const disabled = Boolean(
+                  textOnly ||
+                  (snapshot &&
+                    (!snapshot.installed ||
+                      snapshot.auth.status === "unauthenticated" ||
+                      snapshot.auth.status === "authenticated_unentitled")),
+                );
                 const isActive = option.value === activeTab;
 
                 let disabledReason: string | null = null;
-                if (disabled) {
+                if (textOnly) {
+                  disabledReason =
+                    "Text generation only. Available for Code Review; interactive agent messages are unsupported.";
+                } else if (disabled) {
                   if (snapshot) {
                     if (!snapshot.installed) {
                       disabledReason =
@@ -721,7 +780,7 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
 
                 return (
                   <Tooltip key={option.value}>
-                    <TooltipTrigger className="inline-flex">
+                    <TooltipTrigger className="inline-flex" render={<span />}>
                       <button
                         type="button"
                         title={
@@ -729,6 +788,7 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
                             ? `${option.label}: ${disabledReason}`
                             : option.label
                         }
+                        aria-label={option.label}
                         disabled={disabled}
                         onClick={() => {
                           setSelectedTab(option.value);
@@ -964,14 +1024,34 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
                             globalStops={globalStops}
                             prompt={props.prompt}
                             onPromptChange={props.onPromptChange}
-                            onSelect={(nextOptions) =>
+                            onSelect={(nextOptions) => {
+                              const level = nextOptions?.find(
+                                (o) => o.id === NATIVE_THINKING_OPTION,
+                              )?.value;
+                              const variant = model.thinkingVariants?.find(
+                                (v) => v.level === level,
+                              );
                               setModelAndOptions(
                                 modelProvider as ProviderPickerKind,
-                                model.slug,
-                                nextOptions,
-                              )
-                            }
-                            onSelectChange={handleSelectChange}
+                                variant?.model.slug ?? model.slug,
+                                nextOptions?.filter((o) => o.id !== NATIVE_THINKING_OPTION),
+                              );
+                            }}
+                            onSelectChange={(descriptor, optionId) => {
+                              if (descriptor.id !== NATIVE_THINKING_OPTION) {
+                                handleSelectChange(descriptor, optionId);
+                                return;
+                              }
+                              const variant = model.thinkingVariants?.find(
+                                (v) => v.level === optionId,
+                              );
+                              if (variant)
+                                setModelAndOptions(
+                                  modelProvider as ProviderPickerKind,
+                                  variant.model.slug,
+                                  props.modelOptions ?? undefined,
+                                );
+                            }}
                             onBooleanChange={handleBooleanChange}
                           />
                         );
@@ -1019,7 +1099,7 @@ function isModelSourceBadgeEnabled(): boolean {
 
 // ── ModelRow Component: aligned stops layout with compact dynamic heights
 const ModelRow = memo(function ModelRow(props: {
-  model: ServerProviderModel;
+  model: ThinkingModel;
   isActive: boolean;
   ultra: boolean;
   activeTab?: ProviderPickerKind | "pinned" | null;
@@ -1043,12 +1123,20 @@ const ModelRow = memo(function ModelRow(props: {
   const { sliderAnimationsEnabled, animatedTrackFillEnabled, nyanCatSliderMode } = useSettings();
   const isNyanActive = Boolean(props.ultra || nyanCatSliderMode);
   const providerId = (props.model as { providerId?: string }).providerId;
+  const nativeThinkingLevel =
+    !props.model.thinkingVariants &&
+    (props.activeTab === "antigravity" || providerId === "antigravity")
+      ? props.model.slug.match(/-(high|medium|low)$/)?.[1]
+      : undefined;
   const isGrok = providerId === "grok" || props.model.slug.toLowerCase().startsWith("grok");
   const caps = isGrok ? EMPTY_CAPABILITIES : (props.model.capabilities ?? EMPTY_CAPABILITIES);
-  const descriptors = getProviderOptionDescriptors({
-    caps,
-    selections: props.isActive ? props.selections : undefined,
-  }).filter((d) => d.id !== "agent");
+  const descriptors = [
+    ...nativeThinkingDescriptor(props.model),
+    ...getProviderOptionDescriptors({
+      caps,
+      selections: props.isActive ? props.selections : undefined,
+    }),
+  ].filter((d) => d.id !== "agent");
 
   const selects = descriptors.filter(
     (d): d is Extract<ProviderOptionDescriptor, { type: "select" }> => d.type === "select",
@@ -1309,8 +1397,15 @@ const ModelRow = memo(function ModelRow(props: {
             textShadow: props.ultra ? `0 0 8px ${props.themeColor.hex}99` : undefined,
           }}
         >
-          {props.model.name}
+          {nativeThinkingLevel
+            ? props.model.name.replace(/\s*\((High|Medium|Low)\)$/, "")
+            : props.model.name}
         </span>
+        {nativeThinkingLevel ? (
+          <span className="shrink-0 rounded-md border border-border/60 bg-muted px-1.5 py-0.5 text-[10px] capitalize text-muted-foreground">
+            {nativeThinkingLevel}
+          </span>
+        ) : null}
         {isModelSourceBadgeEnabled() &&
           (props.model.source === "inferred" || props.model.source === "remote-fallback") && (
             <span
@@ -1401,6 +1496,49 @@ const ModelRow = memo(function ModelRow(props: {
         <div
           onClick={(e) => e.stopPropagation()}
           onMouseDown={handleTrackMouseDown}
+          role="slider"
+          tabIndex={0}
+          aria-label={`${props.model.name} thinking level`}
+          aria-valuemin={0}
+          aria-valuemax={Math.max(0, allowedOptionIds.length - 1)}
+          aria-valuenow={Math.max(
+            0,
+            allowedOptionIds.indexOf(typeof currentStopId === "string" ? currentStopId : ""),
+          )}
+          aria-valuetext={primarySelect.options.find((o) => o.id === currentStopId)?.label}
+          onKeyDown={(e) => {
+            if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(e.key))
+              return;
+            e.preventDefault();
+            e.stopPropagation();
+            const current = Math.max(
+              0,
+              allowedOptionIds.indexOf(typeof currentStopId === "string" ? currentStopId : ""),
+            );
+            const next =
+              e.key === "Home"
+                ? 0
+                : e.key === "End"
+                  ? allowedOptionIds.length - 1
+                  : Math.max(
+                      0,
+                      Math.min(
+                        allowedOptionIds.length - 1,
+                        current + (["ArrowRight", "ArrowUp"].includes(e.key) ? 1 : -1),
+                      ),
+                    );
+            const id = allowedOptionIds[next];
+            if (!id) return;
+            if (props.isActive) props.onSelectChange(primarySelect, id);
+            else
+              props.onSelect(
+                buildProviderOptionSelectionsFromDescriptors(
+                  descriptors.map((d) =>
+                    d.id === primarySelect.id ? { ...primarySelect, currentValue: id } : d,
+                  ),
+                ),
+              );
+          }}
           className="flex-1 relative h-full flex items-center px-5 cursor-grab active:cursor-grabbing"
         >
           {props.isActive && (
@@ -1502,7 +1640,9 @@ const ModelRow = memo(function ModelRow(props: {
         </div>
       ) : (
         <div className="flex-1 text-[11px] text-muted-foreground/50 font-medium pl-6 pr-4 pointer-events-none select-none italic tracking-wider truncate">
-          Reasoning effort not supported by this model
+          {nativeThinkingLevel
+            ? "Thinking level is included in this model selection"
+            : "No separate reasoning control"}
         </div>
       )}
     </div>
