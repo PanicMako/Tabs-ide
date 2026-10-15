@@ -4,11 +4,12 @@ services:
   - name: tabs-exchange-api
     type: web
     runtime: docker
+    branch: codex/exchange-deployment
     plan: free
     region: singapore
     autoDeploy: false
-    dockerContext: tabs-app
-    dockerfilePath: tabs-app/apps/exchange/Dockerfile
+    dockerContext: .
+    dockerfilePath: apps/exchange/Dockerfile
     healthCheckPath: /livez
     envVars:
       - key: EXCHANGE_PUBLISHING_ENABLED
