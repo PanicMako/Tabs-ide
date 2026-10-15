@@ -1,0 +1,7 @@
+# CLI release helper origin and packaging concern
+
+HEAD bb89383e8516d6ee6c730579be3e353a8e43a0e9. Complete newhelper124/test94 read; fresh8/8,116ms exit0 purefixtures. Defaults point releaseindex/downloads at pingdotgg/t3code and t3 archive names. Platforms fivekeys omitdarwin-x64 byexplicitcontract; currentNodeSEAcompatibilitycomment not independentlyverified here. Stable includesrc-likeprereleases intentionallytested. Checksums parse64hex/filename, duplicatehandling lastwins; publisherintegrity/archives nottested.
+
+ActualCLIupdate selected55–100 alwaysasks that upstreamindex, pinnedRuntime175–235 buildsupstreamdownloadURL unless configuredmirror andchecks SHA256; update470–510 passesenvironmentmirror fordownload andvalidates --version. The mirror doesnotredirectreleaseindex. CurrentTabs rootreleaseworkflow search hasnomatchingCLIarchive jobs fromhelpercomment; standaloneTabsCLIreleasecompatibility notaccepted. Source concern: TabsCLIupdating fromunmodifiedupstream canreplaceforkbehavior ifthiscommand is shipped/used. Not a demonstratedinstalledbinary regression, becausefullpackaging/launcher/auth/nativeintegration pending. No externalnetwork/download/install/updateperformed.
+
+Initialworkflowsearch included nonexistent nested.github path; actualrootworkflow inspected. No claimthat repositorycontainsnootherpackagingpath. Fullupdate/installer source/tests andrequirement alignment stillopen.

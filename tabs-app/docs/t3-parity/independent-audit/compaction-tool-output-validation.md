@@ -1,0 +1,5 @@
+# Compaction copy and tool-output helpers
+
+Four new files545lines full read. Fresh20/20,833ms exit0. Compaction tests use integer ages/token counts and ensure formatter/matcher agreement. Claude V2 caller formats question; no shared web matcher caller found, despite helper comment requiring both sides. Noninteger/negative formatter inputs and actual dismissal synchronization remain unverified.
+
+Tool output suite covers envelopes/outer error flags, first data selection, bounded bytes/depth/content/metadata, complete batch counts, idempotence, shell failure heuristics and raster image shapes/byte omission/order. Synthetic AAAA/BBBB strings do not validate image content or serving. Image cap counts recognized images, not scanned blocks; no bound on scanning a huge nonimage list demonstrated. Predicate object access assumes plain transport objects; arbitrary getters/cycles not accepted as supported input. Actual server asset handling/native UI and provider completion semantics remain separate obligations. Production unchanged.

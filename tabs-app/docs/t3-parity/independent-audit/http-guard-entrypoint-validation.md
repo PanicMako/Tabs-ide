@@ -1,0 +1,5 @@
+# HTTP write guard and entrypoint
+
+Batch336: Five complete files read. Combined7 tests6pass1fail159ms/exit1. Native HTTP/socket guard2pass includes upgrade socket EPIPE and continued HTTP serving; response test checks listener presence but no emitted response error. server.ts244 attaches guard to new server. Optional error callback can itself throw; production caller supplies none. CORS methodsGET/POST/OPTIONS and headers auth/DPoP/protocol/tracing consumed http.ts254; full origin policy separately audited.
+
+Entrypoint symlink test fails on current macOS temp parent alias. Actual diagnostic canonicalModule:true, uncanonicalFixture:false, parentCanonical:false. Fixture builds moduleUrl from uncanonical temp path, whereas realpath entry is canonical. This isolates path fixture mismatch; no production CLI symlink regression established. Runtime import.meta.main answer wins when defined; fallback raw/effective path compare traced. Tests leave temporary entrypoint dirs behind; audit diagnostic cleaned its own.

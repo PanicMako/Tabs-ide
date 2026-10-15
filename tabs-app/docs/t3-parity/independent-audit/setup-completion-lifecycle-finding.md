@@ -1,0 +1,9 @@
+# Completion listener survives interrupted command submission
+
+ProjectSetupScriptRunner subscribes before writing. Cleanup uses tapError on write, which handles typed failures, and ensuring on the returned completion effect. Interruption before runForThread returns its completion bypasses tapError; that completion effect is never run. The listener remains registered. Selected TerminalManager subscribe2771 onward stores callbacks in terminalEventListeners Set and returns explicit deletion callback; no registration scope finalizer there.
+
+Independent SetupCompletionAudit mocks terminal write as a deferred-entered suspended effect, interrupts the actual runner fiber after subscription, and expects one unsubscribe. Fresh Node24 result: expected1,actual0, session97069 terminal1. Fragmented marker/filter/normal cleanup and typed writeerror cleanup both pass in same run. Diagnostic preserved here; restore into apps/server/src/project/ for original relative imports.
+
+Scope: proven service lifecycle behavior with a suspended write mock. Actual native terminal write interruption timing and user-facing incidence remain unverified. No heap growth measurement, PTY execution, Windows or fish shell proof. Recommended cleanup should encompass interruption/defects between subscription and returning completion, retaining ownership until completion awaits. Production unchanged.
+
+Additional caller evidence: TerminalManager2938–2961 write awaits requireSession then uses synchronous Effect.try around process.write; the diagnostic suspended-write window is broader than native process.write itself. Interruption at session resolution/between effects remains a hypothesis; do not equate this mock failure with demonstrated native PTY incidence. Scoped git status confirms diagnostic fixtures restored out of source and runner production path unchanged.

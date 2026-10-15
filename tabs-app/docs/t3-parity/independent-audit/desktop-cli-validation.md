@@ -1,0 +1,13 @@
+# Desktop CLI activation client
+
+Reviewed HEAD bb89383e8516d6ee6c730579be3e353a8e43a0e9. Complete app267/test413 and contract source read; app source/test new against base. Fresh12/12,5.91s session10551 terminal0. Tests invoke makeCli and real local sockets with fake desktop servers, covering unknown-word/help/live-server safety, SSH/unsupported OS/no desktop, explicit/default home/workspace, installed preference/dev fallback, explicit home prevents fallback, invalid/failure responses prevent fallback. Native Windows pipes and actual Electron activation not exercised.
+
+Client requires schema-valid newline JSON response matching requestId, bounds response64KiB and17s timeout, destroys socket on normal/error/end paths. Only absent/refused pre-connect allows fallback; successful connection never retries another desktop. Source command registration binCli45–80 confirms app included. Desktop/web exact protocol-name and open-workspace searches find no compatible consumer; existing codeControlChannel is a different protocol. Complete desktop startup/inventory and actual native behavior still require audit before a broad integration verdict.
+
+Effect.tryPromise callback ignores supplied cancellation signal; socket cleanup occurs by socket completion or17s timer instead of Effect interruption. This is a source concern awaiting independent interruption proof; no production alteration.
+
+## Confirmed cancellation gap
+
+Independent DesktopCliInterruptAudit.test.ts invokes the real CLI, binds an actual Unix socket with a nonresponding fake desktop, waits for request receipt, interrupts the CLI fiber, and observes connection closure after50ms real time. Interruption returns but peer closure remains false: fresh1/1 failed,5.54s total/68ms test, session67482 terminal1. The fake server is explicitly destroyed in finalization, preventing lingering test socket. Current source ignores Effect.tryPromise AbortSignal, so the socket and17s deadline survive cancellation until later transport completion/deadline. This proves cancellation cleanup defect in new CLI client; actual desktop project opening after cancellation is not tested.
+
+First two diagnostic runs timed out15s (sessions18799/87405 terminal1) because it.effect uses a virtual clock and Effect.sleep(50) was not advanced. Instrumented checkpoints proved listener ready/request received/interruption returned. Replaced only observation delay with a native50ms Promise and obtained direct failed assertion; timeout alone was not classified as production evidence. Fixture archived; restore under apps/server/src/cli for its relative imports. No production/original test changes.

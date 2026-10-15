@@ -1,0 +1,9 @@
+# One-minute remote refresh test does not describe the composed services
+
+ProjectEnrichmentService success TTL is one minute, but its lookup invokes RepositoryIdentityResolver.resolve(workspaceRoot) without refresh. That resolver caches positive identities for15minutes. Existing enrichment test mocks the resolver with current version and passes after1minute; it omits the second cache.
+
+Independent real temporary Git repository with actual ProcessRunner and default RepositoryIdentityResolver, actual enrichment service, mocked null favicon, and TestClock: change origin URL after first completed resolution; advance1minute and await next actual completion notification. Expected new URL assertion fails: old canonicalKey remains (session26451 terminal1,961ms). Observed diagnostic explicitly asserts old at1minute and new after14additional minutes, passes1/1(session73666 terminal0,995ms).
+
+Initial diagnostic reused original100-yield polling helper, which expired before native Git I/O completed(session27797); this was a diagnostic waiting error, not product evidence. Replaced it with subscribe-before-request and completion notification; no inference from that first failure.
+
+Scope: confirmed composed refresh latency/evidence mismatch. Both TTLs are explicit source policy, so product regression/priority requires the relevant requirement rather than treating one-minute mocked assertion as runtime proof. Explicit ws clone/publish paths call resolver with refresh:true, so immediate refresh there is not contradicted. ProjectService invalidates outer enrichment cache on create/root change/delete; nested resolver invalidation is not performed by that method. No Electron or hosted operations tested. Production unchanged. Restore each diagnostic file to original project directory for relative imports; failing original one-minute and passing observed-TTL variants both preserved.

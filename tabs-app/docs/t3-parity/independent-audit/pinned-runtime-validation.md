@@ -1,0 +1,7 @@
+# Pinned runtime installer
+
+HEAD bb89383e8516d6ee6c730579be3e353a8e43a0e9. Complete newsource380/test397 read across current and priorselected175–235 sections. Fresh10/10,358ms terminal0: actualFS/crypto/WebReadableStream withfakeHTTP andfakeextractor writingstub executable. Verifies known/chunkedprogress, checksum mismatchbeforeextraction, stagingvalidationbeforepublication, sentinelaftervalidation, cleanup typedfailure/interruption/downloadcancel, incompleteinstallreplacement andcompletedcachepreservedonfailedvalidation. No realnetwork/archive/nativeexecutablerun.
+
+Process-global semaphore serializesallversions/callers withinoneprocess. Cached runtime requiresentry+matching sentinel andvalidatesagain. Freshstage publishedbyrename; renamefailure checksconcurrentlypublishedentry/sentinel andvalidateswinner. Crossprocessinterleavings nottested; inspect/remove-incomplete beforestaging mayrace anotherprocess'spublish, andstageallocation precedes ensuringblock, cancellationboundary proofpending. These are reviewobligations, not confirmeddata-loss findings.
+
+Download collectscompletearchive inRAM (streamchunks pluscombinedbuffer), boundedby10mintimeout notbytes. Runtime version paths acceptstring and relyoncallervalidation; maliciousversion path effect unverified. Fullinstaller/CLI requirement integration remainsopen, upstreamT3origin concernseparate. NativeWindows tarpath/extraction/archivecontents validation/runningversion preservation/restart notaccepted. No productionchanges.

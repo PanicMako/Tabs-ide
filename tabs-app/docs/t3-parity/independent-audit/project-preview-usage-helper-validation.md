@@ -1,0 +1,9 @@
+# Project scripts, preview viewport and usage formatting
+
+Six files fully read (780 lines). Fresh original suites20/20 passed,817ms exit0. Base diffs fully reviewed for modified projectScripts and usageFormat. Original script tests cover legacy precedence, but omit the new folded-settings branch. Independent ProjectScriptFoldAudit.test.ts passed1/1,115ms exit0: folded settings discard legacy aggregate/map; explicit empty new override wins and reports non-inheritance. Restore fixture to packages/shared/src for relative imports.
+
+ProjectSetupScriptRunner351–367 uses actual resolver and backward-compatible TABS/T3CODE environment variables. Actual fold/migration is not established by this helper test. Web usage consumers import formatting and makeWindow. Formatter cache is capped at16 entries and uncached when no explicit zone is provided. Existing tests cover US one-hour DST fall-back; half-hour transitions and daily DST bounds remain independent-verification gaps. No current app import of shared previewViewport was found; catalog tests are internal agreement, not independent confirmation against Chromium. No production changes.
+
+Independent UsageDstAudit.test.ts passed2/2 (771ms, exit0): seven-day calendar windows across US spring/fall transitions, and distinct repeated Lord Howe half-hour rollback labels. Actual usage state174lines fully read; preset calls shared helper. The state file changes only its Atom import versus base; request races or persistent listener concerns are inherited and unproven by these controls. Selected usage-page startup and preset handlers confirm invocation, not rendered behavior.
+
+Correction: actual usage state base diff adds the UsageSummaryInput sinceDay type cast to the fixed 2020 all-time bound. It is not an Atom import migration. Runtime request handling is unchanged by that diff.

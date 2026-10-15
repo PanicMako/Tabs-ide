@@ -1,0 +1,3 @@
+# Managed tunnel startup
+
+Batch305: Full78-line source and132-line tests reviewed;7 tests passed236ms/exit0. Pure actions only request recovery for recovery_required, reconcile wanted missing link; ready/unavailable no action. Exponential jittered retry capped30s,10-minute schedule window; optional exhausted callback then continues retrying without window. Tests simulate clock and permanent errors, verify no activation before eventual ready; optional continued fallback path not covered. Production helpers called from new server.ts933/975; first registration jitter961, recovery cooldown841. This is new-server integration only, not proof of packaged legacy entry or actual cloudflared/relay behavior. No tunnel launched.

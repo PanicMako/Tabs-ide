@@ -1,0 +1,3 @@
+# Service protocol
+
+Batch312: Complete268-line source read. Actual Bun diagnostic exit0 produced ordered/buildEqual/invalid/contradiction all true for SemVer canonical prerelease chain, metadata equality, invalid/unsafe version forms, inconsistent committed state. Decode state enforces protocol3 and advancing update version and active-version/status consistency; context enforces selected child version but does not independently require increasing target. Parent/child message decoders only validate string field types; semantic checks delegated. Cross-protocol pending detector accepts any object update.status=pending by design. Existing protocol tests reside serviceLauncher.test.ts, source review pending in this batch. No native launcher run.

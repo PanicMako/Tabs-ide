@@ -1,0 +1,811 @@
+{
+  "source_log": "/tmp/tabs-repair-workspace-tests-final.log",
+  "summary": {
+    "test_failures": 171,
+    "collection_failures": 10,
+    "passed": 7326,
+    "skipped": 39
+  },
+  "failure_entries": [
+    {
+      "file": "src/orchestration-v2/OpenCode2OrchestratorV2.integration.test.ts",
+      "case": "[ src/orchestration-v2/OpenCode2OrchestratorV2.integration.test.ts ]"
+    },
+    {
+      "file": "src/orchestration-v2/OpenCode2OrchestratorV2.live.test.ts",
+      "case": "[ src/orchestration-v2/OpenCode2OrchestratorV2.live.test.ts ]"
+    },
+    {
+      "file": "src/textGeneration/OpenCode2TextGeneration.test.ts",
+      "case": "[ src/textGeneration/OpenCode2TextGeneration.test.ts ]"
+    },
+    {
+      "file": "src/orchestration-v2/testkit/OrchestratorReplayFixtures.integration.test.ts",
+      "case": "[ src/orchestration-v2/testkit/OrchestratorReplayFixtures.integration.test.ts ]"
+    },
+    {
+      "file": "src/provider/opencode2/OpenCode2Client.events.test.ts",
+      "case": "[ src/provider/opencode2/OpenCode2Client.events.test.ts ]"
+    },
+    {
+      "file": "src/provider/opencode2/OpenCode2Client.test.ts",
+      "case": "[ src/provider/opencode2/OpenCode2Client.test.ts ]"
+    },
+    {
+      "file": "src/provider/opencode2/OpenCode2Server.test.ts",
+      "case": "[ src/provider/opencode2/OpenCode2Server.test.ts ]"
+    },
+    {
+      "file": "src/orchestration-v2/Adapters/OpenCode2AdapterV2.test.ts",
+      "case": "[ src/orchestration-v2/Adapters/OpenCode2AdapterV2.test.ts ]"
+    },
+    {
+      "file": "src/provider/opencode2/OpenCode2Client.live.test.ts",
+      "case": "[ src/provider/opencode2/OpenCode2Client.live.test.ts ]"
+    },
+    {
+      "file": "src/provider/opencode2/OpenCode2Server.live.test.ts",
+      "case": "[ src/provider/opencode2/OpenCode2Server.live.test.ts ]"
+    },
+    {
+      "file": "src/atomicWrite.test.ts",
+      "case": "> writeFileStringAtomically > keeps a symlinked file linked and rewrites its destination"
+    },
+    {
+      "file": "src/atomicWrite.test.ts",
+      "case": "> writeFileStringAtomically > keeps a dangling symlink linked and creates its destination"
+    },
+    {
+      "file": "src/atomicWrite.test.ts",
+      "case": "> writeFileStringAtomically > fails on a symlink cycle without replacing either link"
+    },
+    {
+      "file": "src/atomicWrite.test.ts",
+      "case": "> writeFileStringAtomically > resolves a relative link through a symlinked parent directory"
+    },
+    {
+      "file": "src/atomicWrite.test.ts",
+      "case": "> surfaces an unreadable link instead of writing over it"
+    },
+    {
+      "file": "src/atomicWrite.test.ts",
+      "case": "> succeeds when the write lands but its temp directory cannot be removed"
+    },
+    {
+      "file": "src/claudeModelOptions.test.ts",
+      "case": "> compileClaudeModelSelection > uses the model default SDK effort alongside prompt-injected effort"
+    },
+    {
+      "file": "src/entrypoint.test.ts",
+      "case": "> isEntrypoint > matches through a symlinked entrypoint, as npm and npx install it"
+    },
+    {
+      "file": "src/http.test.ts",
+      "case": "> static HTTP responses > closes static descriptors after GET, HEAD, 304, and request cancellation"
+    },
+    {
+      "file": "src/open.test.ts",
+      "case": "> resolveEditorLaunch > returns commands for command-based editors"
+    },
+    {
+      "file": "src/open.test.ts",
+      "case": "> resolveEditorLaunch > uses --goto when editor supports line/column suffixes"
+    },
+    {
+      "file": "src/rpcInitialItems.memory.test.ts",
+      "case": "> releases delivered prefix history while RPC subscriptions remain open"
+    },
+    {
+      "file": "src/rpcInitialItems.memory.test.ts",
+      "case": "> releases delivered snapshot history while RPC subscriptions remain open"
+    },
+    {
+      "file": "src/rpcInitialItems.memory.test.ts",
+      "case": "> releases delivered replay history while RPC subscriptions remain open"
+    },
+    {
+      "file": "src/wsServer.test.ts",
+      "case": "> WebSocket Server > returns error when requesting turn diff with an inverted range"
+    },
+    {
+      "file": "src/cli/triagePrompt.test.ts",
+      "case": "> stays byte-identical to .github/triage/PLAYBOOK.md"
+    },
+    {
+      "file": "src/cloud/CliTokenManager.test.ts",
+      "case": "> CliTokenManager.deviceAuthorizationLogin > requests a device code, shows it, and polls until Clerk grants the token"
+    },
+    {
+      "file": "src/cloud/CloudLink.test.ts",
+      "case": "> tells the relay before saving the hold setting locally"
+    },
+    {
+      "file": "src/cloud/CloudLink.test.ts",
+      "case": "> puts the relay back when the local save fails"
+    },
+    {
+      "file": "src/cloud/CloudLink.test.ts",
+      "case": "> two overlapping updates are applied one after the other"
+    },
+    {
+      "file": "src/cloud/CloudLink.test.ts",
+      "case": "> an update the client walks away from still finishes"
+    },
+    {
+      "file": "src/environment/ServerEnvironmentLabel.test.ts",
+      "case": "> resolveServerEnvironmentLabel > prefers the macOS ComputerName"
+    },
+    {
+      "file": "src/environment/ServerEnvironmentLabel.test.ts",
+      "case": "> resolveServerEnvironmentLabel > falls back to hostnamectl pretty hostname on Linux"
+    },
+    {
+      "file": "src/environment/ServerEnvironmentLabel.test.ts",
+      "case": "> resolveServerEnvironmentLabel > falls back to the hostname when the friendly-label command is missing"
+    },
+    {
+      "file": "src/environment/ServerEnvironmentLabel.test.ts",
+      "case": "> resolveServerEnvironmentLabel > continues to hostnamectl after a machine-info inspect failure"
+    },
+    {
+      "file": "src/device/LocalDeviceHost.test.ts",
+      "case": "> recovers an owned Linux runtime directory without overriding explicit environments"
+    },
+    {
+      "file": "src/observability/Metrics.test.ts",
+      "case": "> withMetrics > counts interrupted work with an interrupt outcome and its duration"
+    },
+    {
+      "file": "src/observability/Metrics.test.ts",
+      "case": "> withMetrics > measures durations on the monotonic clock, not the wall clock"
+    },
+    {
+      "file": "src/persistence/Errors.test.ts",
+      "case": "> names a real SQLite condition without copying query data"
+    },
+    {
+      "file": "src/persistence/Errors.test.ts",
+      "case": "> reads the condition through a wrapping driver error"
+    },
+    {
+      "file": "src/persistence/Errors.test.ts",
+      "case": "> omits a detail for a cause it cannot categorize (0)"
+    },
+    {
+      "file": "src/persistence/Errors.test.ts",
+      "case": "> omits a detail for a cause it cannot categorize (1)"
+    },
+    {
+      "file": "src/persistence/reconcileV2PreviewMigration.test.ts",
+      "case": "> V2 preview upgrade > upgrades a published preview without replaying V2 or losing import progress"
+    },
+    {
+      "file": "src/persistence/reconcileV2PreviewMigration.test.ts",
+      "case": "> V2 preview upgrade > upgrades preview migration 54 with index cleanup false"
+    },
+    {
+      "file": "src/persistence/reconcileV2PreviewMigration.test.ts",
+      "case": "> V2 preview upgrade > upgrades preview migration 54 with index cleanup true"
+    },
+    {
+      "file": "src/persistence/reconcileV2PreviewMigration.test.ts",
+      "case": "> V2 preview upgrade > rolls back schema and ledger together on failure and can retry"
+    },
+    {
+      "file": "src/project/AgentSessionJson.test.ts",
+      "case": "> transcript JSON projection > matches JSON.parse across 1-character boundaries"
+    },
+    {
+      "file": "src/project/AgentSessionJson.test.ts",
+      "case": "> transcript JSON projection > matches JSON.parse across 2-character boundaries"
+    },
+    {
+      "file": "src/project/AgentSessionJson.test.ts",
+      "case": "> transcript JSON projection > matches JSON.parse across 7-character boundaries"
+    },
+    {
+      "file": "src/project/AgentSessionJson.test.ts",
+      "case": "> transcript JSON projection > matches JSON.parse across 64-character boundaries"
+    },
+    {
+      "file": "src/project/AgentSessionJson.test.ts",
+      "case": "> transcript JSON projection > matches JSON.parse across 1024-character boundaries"
+    },
+    {
+      "file": "src/project/AgentSessionJson.test.ts",
+      "case": "> transcript JSON projection > retains the import allocation and depth limits"
+    },
+    {
+      "file": "src/project/AgentSessionScanner.test.ts",
+      "case": "> AgentSessionScanner > scan > excludes sandboxes reached through a symlink into the worktrees dir"
+    },
+    {
+      "file": "src/process/externalLauncher.test.ts",
+      "case": "> does not report the agy CLI as the Antigravity IDE on darwin"
+    },
+    {
+      "file": "src/orchestration-v2/ProviderTurnStartService.memory.test.ts",
+      "case": "> releases startup history while regular run workers remain alive"
+    },
+    {
+      "file": "src/orchestration-v2/ProviderTurnStartService.memory.test.ts",
+      "case": "> releases startup history while handoff run workers remain alive"
+    },
+    {
+      "file": "src/orchestration-v2/ProviderTurnStartService.memory.test.ts",
+      "case": "> releases startup history while handoff-compact run workers remain alive"
+    },
+    {
+      "file": "src/orchestration-v2/ProviderTurnStartService.memory.test.ts",
+      "case": "> releases startup history while handoff-failure run workers remain alive"
+    },
+    {
+      "file": "src/orchestration-v2/ThreadTransportPerformance.test.ts",
+      "case": "> thread transport payload budget > records full, bounded, and payload-omitting snapshot improvements"
+    },
+    {
+      "file": "src/orchestration-v2/ThreadTransportPerformance.test.ts",
+      "case": "> thread transport payload budget > omits command output from a live event without changing persisted source data"
+    },
+    {
+      "file": "src/orchestration-v2/V1ImportBoundary.test.ts",
+      "case": "> keeps the V1 agent runtime and engine deleted"
+    },
+    {
+      "file": "src/orchestration-v2/V1ImportBoundary.test.ts",
+      "case": "> reads the V1 tables only from the legacy importer"
+    },
+    {
+      "file": "src/orchestration-v2/V1ImportBoundary.test.ts",
+      "case": "> keeps the legacy importer out of reach of new code"
+    },
+    {
+      "file": "src/pullRequest/PullRequestReadCache.test.ts",
+      "case": "> PR filesystem cache > sweeps the cache directory every hour once the layer is built"
+    },
+    {
+      "file": "src/pullRequest/PullRequestService.test.ts",
+      "case": "> reads a host-native stack through the provider and null where it has none"
+    },
+    {
+      "file": "src/pullRequest/PullRequestService.test.ts",
+      "case": "> routes explicit Forgejo HTTP authorities through SSH checkouts after refinement"
+    },
+    {
+      "file": "src/pullRequest/PullRequestService.test.ts",
+      "case": "> retries a replacement list read that joins a canceled lookup"
+    },
+    {
+      "file": "src/pullRequest/PullRequestService.test.ts",
+      "case": "> retries a replacement listStats read that joins a canceled lookup"
+    },
+    {
+      "file": "src/provider/AntigravityInstallation.test.ts",
+      "case": "> Antigravity installation > validates 'the expected release' with initialize only and removes the disposable profile"
+    },
+    {
+      "file": "src/provider/AntigravityInstallation.test.ts",
+      "case": "> Antigravity installation > validates 'a different agent' with initialize only and removes the disposable profile"
+    },
+    {
+      "file": "src/provider/AntigravityInstallation.test.ts",
+      "case": "> Antigravity installation > validates 'a different version' with initialize only and removes the disposable profile"
+    },
+    {
+      "file": "src/provider/AntigravityProvider.test.ts",
+      "case": "> Antigravity provider snapshots > publishes the configured sign-in method before any account is checked"
+    },
+    {
+      "file": "src/provider/CodexProvider.test.ts",
+      "case": "> marks the most preferred available model as default"
+    },
+    {
+      "file": "src/provider/CursorProvider.test.ts",
+      "case": "> buildCursorProviderSnapshot > downgrades ready status to warning when SDK model discovery returns no models"
+    },
+    {
+      "file": "src/provider/GrokProvider.test.ts",
+      "case": "> buildInitialGrokProviderSnapshot > returns a pending snapshot when enabled"
+    },
+    {
+      "file": "src/provider/GrokProvider.test.ts",
+      "case": "> checkGrokProviderStatus > reports ready with ACP-discovered models when logged in"
+    },
+    {
+      "file": "src/provider/GrokProvider.test.ts",
+      "case": "> checkGrokProviderStatus > treats XAI_API_KEY as authenticated regardless of CLI login state"
+    },
+    {
+      "file": "src/provider/OpenCodeProvider.test.ts",
+      "case": "> checkOpenCodeProviderStatus > lists a local OpenCode 2 binary's models in Full access only, never via 1.x"
+    },
+    {
+      "file": "src/provider/OpenCodeProvider.test.ts",
+      "case": "> checkOpenCodeProviderStatus > reports a failed OpenCode 2 model list without the server's response"
+    },
+    {
+      "file": "src/provider/OpenCodeProvider.test.ts",
+      "case": "> checkOpenCodeProviderStatus with configured server URL > routes a configured OpenCode 2 server to the 2.x check, never via 1.x"
+    },
+    {
+      "file": "src/provider/ProviderAuthFlow.test.ts",
+      "case": "> timeout interrupts and drains a blocked response before publishing failure"
+    },
+    {
+      "file": "src/provider/ProviderAuthFlow.test.ts",
+      "case": "> successful authentication drains a still-running response before admitting provider access"
+    },
+    {
+      "file": "src/provider/ProviderAuthService.test.ts",
+      "case": "> ProviderAuthService > ends the subscription with a setup error when the instance is removed"
+    },
+    {
+      "file": "src/provider/ProviderInstanceRegistry.test.ts",
+      "case": "> ProviderInstanceRegistry \u2014 multi-instance codex slice > boots two independent codex instances from a ProviderInstanceConfigMap"
+    },
+    {
+      "file": "src/provider/ProviderInstanceRegistry.test.ts",
+      "case": "> ProviderInstanceRegistry \u2014 multi-instance codex slice > treats an explicit in-config enabled:false as disabling despite the envelope"
+    },
+    {
+      "file": "src/provider/ProviderInstanceRegistry.test.ts",
+      "case": "> ProviderInstanceRegistry \u2014 multi-instance codex slice > shadows instances whose driver is not registered in this build without failing boot"
+    },
+    {
+      "file": "src/provider/ProviderInstanceRegistry.test.ts",
+      "case": "> ProviderInstanceRegistry \u2014 multi-instance codex slice > reports Codex's answer when a redemption changed nothing"
+    },
+    {
+      "file": "src/provider/ProviderInstanceRegistry.test.ts",
+      "case": "> ProviderInstanceRegistry \u2014 multi-instance codex slice > runs Codex and Claude readiness probes from configured tilde paths"
+    },
+    {
+      "file": "src/provider/Drivers/CodexDriver.test.ts",
+      "case": "> CodexDriver > runs the standalone updater against the shared home, not the shadow home"
+    },
+    {
+      "file": "src/provider/Drivers/CodexDriver.test.ts",
+      "case": "> CodexDriver > leaves mise npm-backend installations manual-only"
+    },
+    {
+      "file": "src/provider/Drivers/CodexDriver.test.ts",
+      "case": "> CodexDriver > leaves mise tool aliases backed by npm manual-only"
+    },
+    {
+      "file": "src/provider/Drivers/CodexDriver.test.ts",
+      "case": "> CodexDriver > keeps npm updates for globals in a mise Node installation"
+    },
+    {
+      "file": "src/provider/Drivers/CodexDriver.test.ts",
+      "case": "> CodexDriver > keeps npm updates for ordinary global installations"
+    },
+    {
+      "file": "src/provider/Drivers/CodexDriver.test.ts",
+      "case": "> CodexDriver > leaves a mise direct installation manual-only"
+    },
+    {
+      "file": "src/provider/Drivers/CodexDriver.test.ts",
+      "case": "> CodexDriver > leaves a mise wrapper installation manual-only"
+    },
+    {
+      "file": "src/provider/Drivers/CodexDriver.test.ts",
+      "case": "> CodexDriver > does not mistake Homebrew mise for Codex's installer: 'conventional shim'"
+    },
+    {
+      "file": "src/provider/Drivers/CodexDriver.test.ts",
+      "case": "> CodexDriver > does not mistake Homebrew mise for Codex's installer: 'custom data directory'"
+    },
+    {
+      "file": "src/provider/Drivers/CodexDriver.test.ts",
+      "case": "> CodexDriver > does not mistake Homebrew mise for Codex's installer: 'renamed configured command'"
+    },
+    {
+      "file": "src/provider/Drivers/CodexDriver.test.ts",
+      "case": "> CodexDriver > does not mistake Homebrew mise for Codex's installer: 'outdated provider'"
+    },
+    {
+      "file": "src/provider/Drivers/CodexDriver.test.ts",
+      "case": "> CodexDriver > does not mistake Homebrew mise for Codex's installer: 'npm before shim'"
+    },
+    {
+      "file": "src/provider/ProviderInstanceRegistry.test.ts",
+      "case": "> ProviderInstanceRegistry \u2014 multi-instance codex slice > refreshes Claude usage after redeeming a reset"
+    },
+    {
+      "file": "src/provider/ProviderInstanceRegistry.test.ts",
+      "case": "> ProviderInstanceRegistry \u2014 multi-instance codex slice > reports Claude's answer when a claim changed nothing and the re-probe fails"
+    },
+    {
+      "file": "src/provider/ProviderInstanceRegistry.test.ts",
+      "case": "> ProviderInstanceRegistry \u2014 all drivers slice > boots one instance of every shipped driver from a single config map"
+    },
+    {
+      "file": "src/provider/ProviderRegistry.test.ts",
+      "case": "> ProviderRegistry > ProviderRegistry.layer > propagates real Codex probe failures to the aggregator at boot"
+    },
+    {
+      "file": "src/provider/ProviderRegistry.test.ts",
+      "case": "> ProviderRegistry > ProviderRegistry.layer > re-probes when settings change the codex binaryPath"
+    },
+    {
+      "file": "src/provider/ProviderRegistry.test.ts",
+      "case": "> ProviderRegistry > ProviderRegistry.layer > includes unavailable instance snapshots in getProviders"
+    },
+    {
+      "file": "src/provider/ProviderRegistry.test.ts",
+      "case": "> ProviderRegistry > ProviderRegistry.layer > keeps Cursor disabled and skips provider probing when settings use their defaults"
+    },
+    {
+      "file": "src/provider/opencodeVersionProbe.test.ts",
+      "case": "> OpenCode version probe > classifies the recorded `opencode --version` output of both versions"
+    },
+    {
+      "file": "src/provider/opencodeVersionProbe.test.ts",
+      "case": "> OpenCode version probe > remembers a probed runtime but never a failure"
+    },
+    {
+      "file": "src/provider/providerCompatibility.test.ts",
+      "case": "> provider compatibility > bundles a compatibility policy for every built-in harness"
+    },
+    {
+      "file": "src/provider/providerCompatibility.test.ts",
+      "case": "> provider compatibility > compares Cursor build dates without treating semver prereleases as stable"
+    },
+    {
+      "file": "src/provider/providerCompatibility.test.ts",
+      "case": "> provider compatibility > recognizes Antigravity semver release tags while keeping dated candidates unknown"
+    },
+    {
+      "file": "src/provider/providerCompatibility.test.ts",
+      "case": "> provider compatibility > classifies boundaries and treats unlisted versions and release tags as unknown"
+    },
+    {
+      "file": "src/provider/providerCompatibility.test.ts",
+      "case": "> provider compatibility > supports every driver without inventing policies for uncovered adapters"
+    },
+    {
+      "file": "src/provider/providerCompatibility.test.ts",
+      "case": "> provider compatibility > relaxes remote policy without losing probe errors, and falls back when a policy is omitted"
+    },
+    {
+      "file": "src/provider/providerCompatibility.test.ts",
+      "case": "> provider compatibility > rejects invalid ranges and recommendations outside the first supported match"
+    },
+    {
+      "file": "src/provider/providerCompatibility.test.ts",
+      "case": "> a remote policy refresh preserves a newer health result on the registry stream"
+    },
+    {
+      "file": "src/provider/providerCompatibility.test.ts",
+      "case": "> recomputes latest-version compatibility without losing the underlying update advisory"
+    },
+    {
+      "file": "src/provider/providerMaintenance.test.ts",
+      "case": "> providerMaintenance > switches package-managed providers to vite-plus updates when the resolved binary lives in vite-plus global bin"
+    },
+    {
+      "file": "src/provider/providerMaintenance.test.ts",
+      "case": "> providerMaintenance > switches package-managed providers to bun updates when the resolved binary lives in bun's global bin"
+    },
+    {
+      "file": "src/provider/providerMaintenance.test.ts",
+      "case": "> providerMaintenance > switches package-managed providers to pnpm updates when the resolved binary lives in pnpm's global bin"
+    },
+    {
+      "file": "src/provider/providerMaintenance.test.ts",
+      "case": "> providerMaintenance > switches native-package-tool to native updates when the binary resolves through the native installer"
+    },
+    {
+      "file": "src/provider/providerMaintenance.test.ts",
+      "case": "> providerMaintenance > switches scoped-package-tool to native upgrades when the binary resolves through the standalone installer"
+    },
+    {
+      "file": "src/scheduledTasks/ScheduledTaskService.test.ts",
+      "case": "> loads only due tasks and skips corrupt due rows without decoding settled tasks"
+    },
+    {
+      "file": "src/sourceControl/BitbucketApi.test.ts",
+      "case": "> preserves Bitbucket response body read failures as their immediate cause"
+    },
+    {
+      "file": "src/sourceControl/BitbucketApi.test.ts",
+      "case": "> keeps the 429 retry time when the response body cannot be read"
+    },
+    {
+      "file": "src/terminal/NodePtyAdapter.test.ts",
+      "case": "> logs cleanup failures without replacing spawn"
+    },
+    {
+      "file": "src/terminal/NodePtyAdapter.test.ts",
+      "case": "> logs cleanup failures without replacing interrupt"
+    },
+    {
+      "file": "src/textGeneration/CopilotTextGeneration.test.ts",
+      "case": "> CopilotTextGeneration > preserves code-review findings"
+    },
+    {
+      "file": "src/textGeneration/CopilotTextGeneration.test.ts",
+      "case": "> CopilotTextGeneration > sends the operation schema and a valid example in the final ACP prompt"
+    },
+    {
+      "file": "src/vcs/GitVcsDriverCore.test.ts",
+      "case": "> GitVcsDriver core integration > review diff previews > preserves same-size edits with a racy review index (1700000000.9999, split: false)"
+    },
+    {
+      "file": "src/vcs/GitVcsDriverCore.test.ts",
+      "case": "> GitVcsDriver core integration > review diff previews > preserves same-size edits with a racy review index (1700000000.9999, split: true)"
+    },
+    {
+      "file": "src/vcs/GitVcsDriverCore.test.ts",
+      "case": "> GitVcsDriver core integration > review diff previews > preserves renames, unusual paths, modes, and binary statistics"
+    },
+    {
+      "file": "src/vcs/GitVcsDriverCore.test.ts",
+      "case": "> GitVcsDriver core integration > repository status > makes background upstream status fetches non-interactive"
+    },
+    {
+      "file": "src/persistence/Migrations/019_ProjectionSnapshotLookupIndexes.test.ts",
+      "case": "> 019_ProjectionSnapshotLookupIndexes > creates indexes for targeted projection lookup filters"
+    },
+    {
+      "file": "src/persistence/Migrations/027_028_ProviderInstanceIdColumns.test.ts",
+      "case": "> 027_028_ProviderInstanceIdColumns > continues when provider_session_runtime was partially migrated"
+    },
+    {
+      "file": "src/persistence/Migrations/051_ProjectionThreadMessageContext.test.ts",
+      "case": "> 051_ProjectionThreadMessageContext > accepts context added by an earlier development migration"
+    },
+    {
+      "file": "src/persistence/Migrations/046_RepairAutomaticSettlementTimestamps.test.ts",
+      "case": "> 046_RepairAutomaticSettlementTimestamps > repairs automatic stamps and leaves manual settlement alone"
+    },
+    {
+      "file": "src/persistence/Migrations/050_ProjectionThreadPullRequests.test.ts",
+      "case": "> 050_ProjectionThreadPullRequests > creates the link table and backfills legacy single links"
+    },
+    {
+      "file": "src/persistence/Migrations/050_ProjectionThreadPullRequests.test.ts",
+      "case": "> 050 Azure legacy links > keeps legacy Azure repositories distinct across organizations"
+    },
+    {
+      "file": "src/persistence/Migrations/055_OrchestrationV2.test.ts",
+      "case": "> 055_OrchestrationV2 > keeps released migrations contiguous"
+    },
+    {
+      "file": "src/persistence/Migrations/055_OrchestrationV2.test.ts",
+      "case": "> 055_OrchestrationV2 > upgrades released schema 53 through the latest migrations"
+    },
+    {
+      "file": "src/persistence/Migrations/056_RemoveRedundantProjectionIndexes.test.ts",
+      "case": "> 056_RemoveRedundantProjectionIndexes > keeps the covering indexes and removes their prefix indexes"
+    },
+    {
+      "file": "src/orchestration-v2/legacy/LegacyV1Cutover.integration.test.ts",
+      "case": "> orchestration v2 legacy v1 cutover > migrates an untouched v1 database copy through shell import, lazy transcripts, continuation and restart"
+    },
+    {
+      "file": "src/orchestration-v2/Adapters/AcpAdapterV2.test.ts",
+      "case": "> AcpAdapterV2 > Windows teardown is one-shot explicitly with independent finalizer cleanup"
+    },
+    {
+      "file": "src/orchestration-v2/Adapters/AcpRegistryAdapterV2.test.ts",
+      "case": "> AcpRegistryAdapterV2 > the agent's own mode picker > switches an agent that only advertises modes with session/set_mode"
+    },
+    {
+      "file": "src/orchestration-v2/Adapters/AcpRegistryAdapterV2.test.ts",
+      "case": "> AcpRegistryAdapterV2 > the agent's own mode picker > switches a mode config option under its own id"
+    },
+    {
+      "file": "src/orchestration-v2/Adapters/ClaudeAdapterV2.test.ts",
+      "case": "> ClaudeAdapterV2 background wake turns > runs native compaction and keeps its context watermark separate from billed usage"
+    },
+    {
+      "file": "src/orchestration-v2/Adapters/GrokAdapterV2.test.ts",
+      "case": "> Grok launch permission mode > launches approval-required threads with --permission-mode default agent stdio"
+    },
+    {
+      "file": "src/orchestration-v2/Adapters/GrokAdapterV2.test.ts",
+      "case": "> Grok launch permission mode > launches auto threads with --permission-mode auto agent stdio"
+    },
+    {
+      "file": "src/orchestration-v2/Adapters/GrokAdapterV2.test.ts",
+      "case": "> Grok launch permission mode > launches full-access threads with agent --always-approve stdio"
+    },
+    {
+      "file": "src/orchestration-v2/Adapters/GrokAdapterV2.test.ts",
+      "case": "> Grok launch permission mode > launches a thread stored as Auto-accept edits asking"
+    },
+    {
+      "file": "src/orchestration-v2/Adapters/GrokAdapterV2.test.ts",
+      "case": "> Grok launch permission mode > launches asking when an explicit approval or sandbox policy governs the thread"
+    },
+    {
+      "file": "src/provider/Layers/ClaudeAdapter.test.ts",
+      "case": "> ClaudeAdapterLive > falls back to a default plan step label for blank TodoWrite content"
+    },
+    {
+      "file": "src/provider/Layers/CodexAdapter.test.ts",
+      "case": "> CodexAdapterLive lifecycle > maps requestUserInput requests and answered notifications to canonical user-input events"
+    },
+    {
+      "file": "src/provider/Layers/GrokAdapter.test.ts",
+      "case": "> GrokAdapterLive > starts a session and maps mock ACP prompt flow to runtime events"
+    },
+    {
+      "file": "src/provider/Layers/GrokAdapter.test.ts",
+      "case": "> GrokAdapterLive > closes the ACP child process when a session stops"
+    },
+    {
+      "file": "src/provider/Layers/GrokProvider.test.ts",
+      "case": "> buildInitialGrokProviderSnapshot > returns a pending snapshot by default"
+    },
+    {
+      "file": "src/provider/Layers/ProviderInstanceRegistryLive.test.ts",
+      "case": "> ProviderInstanceRegistryLive \u2014 multi-instance codex slice > boots two independent codex instances from a ProviderInstanceConfigMap"
+    },
+    {
+      "file": "src/provider/Layers/ProviderInstanceRegistryLive.test.ts",
+      "case": "> ProviderInstanceRegistryLive \u2014 multi-instance codex slice > shadows instances whose driver is not registered in this build without failing boot"
+    },
+    {
+      "file": "src/provider/Layers/ProviderInstanceRegistryLive.test.ts",
+      "case": "> ProviderInstanceRegistryLive \u2014 all drivers slice > boots one instance of every shipped driver from a single config map"
+    },
+    {
+      "file": "src/provider/Layers/ProviderRegistry.test.ts",
+      "case": "> ProviderRegistry > ProviderRegistryLive > propagates real Codex probe failures to the aggregator at boot"
+    },
+    {
+      "file": "src/provider/Layers/ProviderRegistry.test.ts",
+      "case": "> ProviderRegistry > ProviderRegistryLive > re-probes when settings change the codex binaryPath"
+    },
+    {
+      "file": "src/provider/Layers/ProviderRegistry.test.ts",
+      "case": "> ProviderRegistry > ProviderRegistryLive > includes unavailable instance snapshots in getProviders"
+    },
+    {
+      "file": "src/provider/Layers/ProviderRegistry.test.ts",
+      "case": "> ProviderRegistry > ProviderRegistryLive > keeps cursor disabled and skips probing when the provider setting is disabled"
+    },
+    {
+      "file": "src/provider/Layers/ProviderRegistry.test.ts",
+      "case": "> ProviderRegistry > checkClaudeProviderStatus > runs Claude status probes with the configured Claude HOME"
+    },
+    {
+      "file": "src/provider/Drivers/ClaudeHome.test.ts",
+      "case": "> ClaudeHome > Claude home resolution > uses the process home when no Claude home override is configured"
+    },
+    {
+      "file": "src/provider/Drivers/ClaudeHome.test.ts",
+      "case": "> ClaudeHome > Claude home resolution > resolves configured Claude HOME and stamps continuation/cache keys with it"
+    },
+    {
+      "file": "src/provider/Drivers/ClaudeHome.test.ts",
+      "case": "> ClaudeHome > Claude home resolution > keeps continuation compatible across instances with the same Claude HOME"
+    },
+    {
+      "file": "src/provider/Drivers/CodexDriver.test.ts",
+      "case": "> CodexDriver > disconnect refreshes a restored managed account while its auth flow is idle"
+    },
+    {
+      "file": "src/provider/Drivers/CodexDriver.test.ts",
+      "case": "> CodexDriver > stays manual-only when the configured executable does not exist"
+    },
+    {
+      "file": "src/provider/Drivers/CursorDriver.test.ts",
+      "case": "> CursorDriver > persists browser credentials, uses them for chat, and closes the SDK session on logout"
+    },
+    {
+      "file": "src/provider/Drivers/CursorDriver.test.ts",
+      "case": "> CursorDriver > keeps the bundled SDK manual-only without probing or updating cursor-agent"
+    },
+    {
+      "file": "src/provider/Drivers/OpenCodeDriver.test.ts",
+      "case": "> OpenCodeDriver runtime selection > never starts a 1.x server for an OpenCode 2 instance"
+    },
+    {
+      "file": "src/provider/Drivers/OpenCodeDriver.test.ts",
+      "case": "> OpenCodeDriver runtime selection > lists an OpenCode 2 workspace's own skills and commands from its server"
+    },
+    {
+      "file": "src/provider/Drivers/OpenCodeDriver.test.ts",
+      "case": "> OpenCodeDriver runtime selection > answers capability reads without waiting on an unreachable server"
+    },
+    {
+      "file": "src/provider/Drivers/OpenCodeDriver.test.ts",
+      "case": "> OpenCodeDriver updates > never runs the binary for a disabled instance's update check"
+    },
+    {
+      "file": "src/provider/Drivers/OpenCodeDriver.test.ts",
+      "case": "> OpenCodeDriver updates > offers no package update for an unknown version and follows a changed one on a fresh read"
+    },
+    {
+      "file": "src/provider/Drivers/GrokDriver.test.ts",
+      "case": "> GrokDriver > updates through the configured executable's own updater"
+    },
+    {
+      "file": "src/provider/Drivers/GrokDriver.test.ts",
+      "case": "> GrokDriver > stays manual-only when the configured executable does not exist"
+    },
+    {
+      "file": "src/provider/Drivers/OpenCodeDriver.test.ts",
+      "case": "> updates an npm-global OpenCode 2 install as @opencode/cli and a 1.x one as opencode-ai"
+    }
+  ],
+  "per_file": {
+    "src/orchestration-v2/OpenCode2OrchestratorV2.integration.test.ts": 1,
+    "src/orchestration-v2/OpenCode2OrchestratorV2.live.test.ts": 1,
+    "src/textGeneration/OpenCode2TextGeneration.test.ts": 1,
+    "src/orchestration-v2/testkit/OrchestratorReplayFixtures.integration.test.ts": 1,
+    "src/provider/opencode2/OpenCode2Client.events.test.ts": 1,
+    "src/provider/opencode2/OpenCode2Client.test.ts": 1,
+    "src/provider/opencode2/OpenCode2Server.test.ts": 1,
+    "src/orchestration-v2/Adapters/OpenCode2AdapterV2.test.ts": 1,
+    "src/provider/opencode2/OpenCode2Client.live.test.ts": 1,
+    "src/provider/opencode2/OpenCode2Server.live.test.ts": 1,
+    "src/atomicWrite.test.ts": 6,
+    "src/claudeModelOptions.test.ts": 1,
+    "src/entrypoint.test.ts": 1,
+    "src/http.test.ts": 1,
+    "src/open.test.ts": 2,
+    "src/rpcInitialItems.memory.test.ts": 3,
+    "src/wsServer.test.ts": 1,
+    "src/cli/triagePrompt.test.ts": 1,
+    "src/cloud/CliTokenManager.test.ts": 1,
+    "src/cloud/CloudLink.test.ts": 4,
+    "src/environment/ServerEnvironmentLabel.test.ts": 4,
+    "src/device/LocalDeviceHost.test.ts": 1,
+    "src/observability/Metrics.test.ts": 2,
+    "src/persistence/Errors.test.ts": 4,
+    "src/persistence/reconcileV2PreviewMigration.test.ts": 4,
+    "src/project/AgentSessionJson.test.ts": 6,
+    "src/project/AgentSessionScanner.test.ts": 1,
+    "src/process/externalLauncher.test.ts": 1,
+    "src/orchestration-v2/ProviderTurnStartService.memory.test.ts": 4,
+    "src/orchestration-v2/ThreadTransportPerformance.test.ts": 2,
+    "src/orchestration-v2/V1ImportBoundary.test.ts": 3,
+    "src/pullRequest/PullRequestReadCache.test.ts": 1,
+    "src/pullRequest/PullRequestService.test.ts": 4,
+    "src/provider/AntigravityInstallation.test.ts": 3,
+    "src/provider/AntigravityProvider.test.ts": 1,
+    "src/provider/CodexProvider.test.ts": 1,
+    "src/provider/CursorProvider.test.ts": 1,
+    "src/provider/GrokProvider.test.ts": 3,
+    "src/provider/OpenCodeProvider.test.ts": 3,
+    "src/provider/ProviderAuthFlow.test.ts": 2,
+    "src/provider/ProviderAuthService.test.ts": 1,
+    "src/provider/ProviderInstanceRegistry.test.ts": 8,
+    "src/provider/Drivers/CodexDriver.test.ts": 14,
+    "src/provider/ProviderRegistry.test.ts": 4,
+    "src/provider/opencodeVersionProbe.test.ts": 2,
+    "src/provider/providerCompatibility.test.ts": 9,
+    "src/provider/providerMaintenance.test.ts": 5,
+    "src/scheduledTasks/ScheduledTaskService.test.ts": 1,
+    "src/sourceControl/BitbucketApi.test.ts": 2,
+    "src/terminal/NodePtyAdapter.test.ts": 2,
+    "src/textGeneration/CopilotTextGeneration.test.ts": 2,
+    "src/vcs/GitVcsDriverCore.test.ts": 4,
+    "src/persistence/Migrations/019_ProjectionSnapshotLookupIndexes.test.ts": 1,
+    "src/persistence/Migrations/027_028_ProviderInstanceIdColumns.test.ts": 1,
+    "src/persistence/Migrations/051_ProjectionThreadMessageContext.test.ts": 1,
+    "src/persistence/Migrations/046_RepairAutomaticSettlementTimestamps.test.ts": 1,
+    "src/persistence/Migrations/050_ProjectionThreadPullRequests.test.ts": 2,
+    "src/persistence/Migrations/055_OrchestrationV2.test.ts": 2,
+    "src/persistence/Migrations/056_RemoveRedundantProjectionIndexes.test.ts": 1,
+    "src/orchestration-v2/legacy/LegacyV1Cutover.integration.test.ts": 1,
+    "src/orchestration-v2/Adapters/AcpAdapterV2.test.ts": 1,
+    "src/orchestration-v2/Adapters/AcpRegistryAdapterV2.test.ts": 2,
+    "src/orchestration-v2/Adapters/ClaudeAdapterV2.test.ts": 1,
+    "src/orchestration-v2/Adapters/GrokAdapterV2.test.ts": 5,
+    "src/provider/Layers/ClaudeAdapter.test.ts": 1,
+    "src/provider/Layers/CodexAdapter.test.ts": 1,
+    "src/provider/Layers/GrokAdapter.test.ts": 2,
+    "src/provider/Layers/GrokProvider.test.ts": 1,
+    "src/provider/Layers/ProviderInstanceRegistryLive.test.ts": 3,
+    "src/provider/Layers/ProviderRegistry.test.ts": 5,
+    "src/provider/Drivers/ClaudeHome.test.ts": 3,
+    "src/provider/Drivers/CursorDriver.test.ts": 2,
+    "src/provider/Drivers/OpenCodeDriver.test.ts": 6,
+    "src/provider/Drivers/GrokDriver.test.ts": 2
+  }
+}

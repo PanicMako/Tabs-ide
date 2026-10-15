@@ -49,6 +49,7 @@ All work for this migration has been strictly isolated in the task worktree to s
 ## 3. Subsystem Index & Changed Files
 
 ### A. Shared Contracts & Foundation (`packages/`)
+
 - `packages/contracts/src/orchestrationV2.ts`: V2 orchestration command and event schemas.
 - `packages/contracts/src/orchestratorMcp.ts`: App-owned child task delegation tool schemas.
 - `packages/contracts/src/scheduledTask.ts`: Cron, interval, and webhook trigger contracts.
@@ -57,6 +58,7 @@ All work for this migration has been strictly isolated in the task worktree to s
 - `packages/shared/src/usageFormat.ts` & `usageMerge.ts`: Multi-provider token aggregation and deduplication.
 
 ### B. Web Client & Companion Panel (`apps/web/`)
+
 - `apps/web/src/stores/rightPanelStore.ts`: Zustand store for companion panel visibility and tab selection.
 - `apps/web/src/routes/_chat.$environmentId.$threadId.tsx`: Flex-row layout mounting `AgentsSplitWorkspace` alongside `DiffPanelInlineSidebar`.
 - `apps/web/src/components/RightPanelTabs.tsx`: Tab switcher and shell for companion views.
@@ -66,6 +68,7 @@ All work for this migration has been strictly isolated in the task worktree to s
 - `apps/web/src/components/agents/companion/CompanionPRPanel.tsx`: Pull request details and review cards.
 
 ### C. Server Runtime (`apps/server/`)
+
 - `apps/server/src/usage/antigravityUsageReader.ts`: Local Antigravity conversation SQLite & protobuf reader.
 - `apps/server/src/usage/UsageService.ts`: Historical transcript scanner and aggregator.
 - `apps/server/src/scheduledTasks/ScheduledTaskService.ts`: Background recurring task coordinator.
@@ -78,7 +81,7 @@ All work for this migration has been strictly isolated in the task worktree to s
 
 1. **Retaining Existing Tabs Tool Buttons**:
    - As explicitly required by the user, the existing top-level Tabs toolbar buttons (**Browser**, **Code**, **Git**, **Terminal**, **Testing**) remain 100% functional.
-   - The new companion panel inside the Agents workspace provides an *in-chat companion experience* without replacing the dedicated full-screen tools.
+   - The new companion panel inside the Agents workspace provides an _in-chat companion experience_ without replacing the dedicated full-screen tools.
 2. **Desktop Inline Layout vs Sheet**:
    - On wide desktop screens, the companion panel sits inline side-by-side with chat in a CSS `flex-row`.
    - On compact screens, it automatically transitions to a slide-over sheet.

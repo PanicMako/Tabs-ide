@@ -1,0 +1,332 @@
+--- old/DEFAULT_PROVIDER_KIND
++++ orchestration/DEFAULT_PROVIDER_KIND
+@@ -1 +1,16 @@
+ export const DEFAULT_PROVIDER_KIND: ProviderKind = "codex";
++
++import {
++  AssistantDeliveryMode,
++  DEFAULT_PROVIDER_INTERACTION_MODE,
++  DEFAULT_RUNTIME_MODE,
++  ProviderApprovalDecision,
++  ProviderApprovalOption,
++  ProviderApprovalPolicy,
++  ProviderInteractionMode,
++  ProviderRequestKind,
++  ProviderSandboxMode,
++  ProviderUserInputAnswers,
++  RuntimeMode,
++} from "./providerPolicy.ts";
++import { ModelSelection } from "./modelSelection.ts";
+--- old/ModelSelection
++++ modelSelection/ModelSelection
+@@ -3,11 +3,6 @@
+     ModelSelectionWire,
+     SchemaTransformation.transformOrFail({
+       decode: (raw) => {
+-        
+-        
+-        
+-        
+-        
+         const instanceIdSource =
+           raw.instanceId !== undefined
+             ? raw.instanceId
+@@ -23,8 +18,8 @@
+       },
+       encode: (value) => {
+         const base: Record<string, unknown> = {
++          instanceId: value.instanceId,
+           model: value.model,
+-          instanceId: value.instanceId,
+         };
+         if (value.options !== undefined) base.options = value.options;
+         return Effect.succeed(base as typeof ModelSelectionSource.Encoded);
+--- old/RuntimeMode
++++ providerPolicy/RuntimeMode
+@@ -1,5 +1,6 @@
+ export const RuntimeMode = Schema.Literals([
+   "approval-required",
+   "auto-accept-edits",
++  "auto",
+   "full-access",
+ ]);
+--- old/ProviderRequestKind
++++ providerPolicy/ProviderRequestKind
+@@ -1 +1,7 @@
+-export const ProviderRequestKind = Schema.Literals(["command", "file-read", "file-change"]);
++export const ProviderRequestKind = Schema.Literals([
++  "command",
++  "file-read",
++  "file-change",
++  "mcp-elicitation",
++  "permission",
++]);
+--- old/ProviderApprovalDecision
++++ providerPolicy/ProviderApprovalDecision
+@@ -1,6 +1,7 @@
+ export const ProviderApprovalDecision = Schema.Literals([
+   "accept",
+   "acceptForSession",
++  "acceptAlways",
+   "decline",
+   "cancel",
+ ]);
+--- old/PROVIDER_SEND_TURN_MAX_ATTACHMENTS
++++ chatAttachment/PROVIDER_SEND_TURN_MAX_ATTACHMENTS
+@@ -1 +1 @@
+-export const PROVIDER_SEND_TURN_MAX_ATTACHMENTS = 8;
++export const PROVIDER_SEND_TURN_MAX_ATTACHMENTS = 100;
+--- old/CorrelationId
++++ orchestration/CorrelationId
+@@ -1 +1,22 @@
+ export const CorrelationId = CommandId;
++
++import {
++  ChatAttachment,
++  ChatAttachmentId,
++  ChatFileAttachment,
++  ChatImageAttachment,
++  PROVIDER_SEND_TURN_MAX_ATTACHMENTS,
++  PROVIDER_SEND_TURN_MAX_FILE_BYTES,
++  PROVIDER_SEND_TURN_MAX_IMAGE_BYTES,
++  PROVIDER_SEND_TURN_MAX_INPUT_CHARS,
++  UploadChatAttachment,
++  UploadChatImageAttachment,
++} from "./chatAttachment.ts";
++
++import {
++  ProjectFaviconPath,
++  ProjectIconColor,
++  ProjectIconOverride,
++  ProjectScript,
++  ProjectScriptIcon,
++} from "./project.ts";
+--- old/ChatAttachmentId
++++ chatAttachment/ChatAttachmentId
+@@ -1,4 +1,4 @@
+-const ChatAttachmentId = TrimmedNonEmptyString.check(
++export const ChatAttachmentId = TrimmedNonEmptyString.check(
+   Schema.isMaxLength(CHAT_ATTACHMENT_ID_MAX_CHARS),
+   Schema.isPattern(/^[a-z0-9_-]+$/i),
+ );
+--- old/ChatImageAttachment
++++ chatAttachment/ChatImageAttachment
+@@ -4,4 +4,5 @@
+   name: TrimmedNonEmptyString.check(Schema.isMaxLength(255)),
+   mimeType: TrimmedNonEmptyString.check(Schema.isMaxLength(100), Schema.isPattern(/^image\
+   sizeBytes: NonNegativeInt.check(Schema.isLessThanOrEqualTo(PROVIDER_SEND_TURN_MAX_IMAGE_BYTES)),
++  source: Schema.optional(SnapShotSource),
+ });
+--- old/ChatFileAttachment
++++ chatAttachment/ChatFileAttachment
+@@ -2,9 +2,11 @@
+   type: Schema.Literal("file"),
+   id: ChatAttachmentId,
+   name: TrimmedNonEmptyString.check(Schema.isMaxLength(255)),
+-  mimeType: TrimmedNonEmptyString.check(Schema.isMaxLength(100), Schema.isPattern(/^(?!image\/)/i)),
++  mimeType: TrimmedNonEmptyString.check(Schema.isMaxLength(100)),
+   sizeBytes: NonNegativeInt.check(
+     Schema.isGreaterThanOrEqualTo(1),
+     Schema.isLessThanOrEqualTo(PROVIDER_SEND_TURN_MAX_FILE_BYTES),
+   ),
++  
++  source: Schema.optional(PastedTextAttachmentSource),
+ });
+--- old/UploadChatImageAttachment
++++ chatAttachment/UploadChatImageAttachment
+@@ -1,4 +1,5 @@
+-const UploadChatImageAttachment = Schema.Struct({
++export const UploadChatImageAttachment = Schema.Struct({
++  id: Schema.optional(ChatAttachmentId),
+   type: Schema.Literal("image"),
+   name: TrimmedNonEmptyString.check(Schema.isMaxLength(255)),
+   mimeType: TrimmedNonEmptyString.check(Schema.isMaxLength(100), Schema.isPattern(/^image\
+@@ -6,4 +7,5 @@
+   dataUrl: TrimmedNonEmptyString.check(
+     Schema.isMaxLength(PROVIDER_SEND_TURN_MAX_IMAGE_DATA_URL_CHARS),
+   ),
++  source: Schema.optional(SnapShotSource),
+ });
+--- old/UploadChatFileAttachment
++++ chatAttachment/UploadChatFileAttachment
+@@ -1,12 +1,17 @@
+ export const UploadChatFileAttachment = Schema.Struct({
++  id: Schema.optional(ChatAttachmentId),
+   type: Schema.Literal("file"),
+   name: TrimmedNonEmptyString.check(Schema.isMaxLength(255)),
+-  mimeType: TrimmedNonEmptyString.check(Schema.isMaxLength(100), Schema.isPattern(/^(?!image\/)/i)),
++  mimeType: TrimmedNonEmptyString.check(
++    Schema.isMaxLength(100),
++    Schema.isPattern(/^(?!image\/)/i),
++  ),
+   sizeBytes: NonNegativeInt.check(
+     Schema.isGreaterThanOrEqualTo(1),
+     Schema.isLessThanOrEqualTo(PROVIDER_SEND_TURN_MAX_FILE_BYTES),
+   ),
+   dataUrl: TrimmedNonEmptyString.check(
+-    Schema.isMaxLength(PROVIDER_SEND_TURN_MAX_FILE_DATA_URL_CHARS),
++    Schema.isMaxLength(70_000_000),
+   ),
++  source: Schema.optional(PastedTextAttachmentSource),
+ });
+--- old/ChatAttachment
++++ chatAttachment/ChatAttachment
+@@ -1 +1,24 @@
+-export const ChatAttachment = Schema.Union([ChatImageAttachment, ChatFileAttachment]);
++export const ChatAttachment = Schema.Union([
++  ChatImageAttachment,
++  ChatFileAttachment,
++  ChatUnknownAttachment,
++]);
++
++export function getProviderAttachmentLimitError(
++  attachments: ReadonlyArray<Pick<ChatAttachment, "type" | "mimeType" | "sizeBytes">>,
++): string | undefined {
++  if (attachments.length > PROVIDER_SEND_TURN_MAX_ATTACHMENTS) {
++    return `You can attach up to ${PROVIDER_SEND_TURN_MAX_ATTACHMENTS} files per message or question response.`;
++  }
++  const imageBytes = attachments.reduce(
++    (total, attachment) =>
++      total +
++      (attachment.type === "image" || isProviderSendTurnSupportedImageMimeType(attachment.mimeType)
++        ? attachment.sizeBytes
++        : 0),
++    0,
++  );
++  if (imageBytes > PROVIDER_SEND_TURN_MAX_TOTAL_IMAGE_BYTES) {
++    return "Images can total up to 80 MiB per message or question response. Use smaller images or send fewer at once.";
++  }
++}
+--- old/UploadChatAttachment
++++ chatAttachment/UploadChatAttachment
+@@ -1 +1,4 @@
+-const UploadChatAttachment = Schema.Union([UploadChatImageAttachment, UploadChatFileAttachment]);
++export const UploadChatAttachment = Schema.Union([
++  UploadChatImageAttachment,
++  UploadChatFileAttachment,
++]);
+--- old/ProjectScript
++++ project/ProjectScript
+@@ -5,7 +5,7 @@
+   icon: ProjectScriptIcon,
+   runOnWorktreeCreate: Schema.Boolean,
+   
++  async: Schema.optional(Schema.Boolean),
+   previewUrl: Schema.optional(TrimmedNonEmptyString),
+-  
+   autoOpenPreview: Schema.optional(Schema.Boolean),
+ });
+--- old/ProjectIconOverride
++++ project/ProjectIconOverride
+@@ -1,11 +1,5 @@
+ export const ProjectIconOverride = Schema.Union([
+-  Schema.Struct({
+-    kind: Schema.Literal("lucide"),
+-    name: ProjectLucideIconName,
+-    color: ProjectIconColor,
+-  }),
+-  Schema.Struct({
+-    kind: Schema.Literal("emoji"),
+-    emoji: ProjectEmoji,
+-  }),
++  ProjectLucideIcon,
++  ProjectEmojiIcon,
++  ProjectMonogramIcon,
+ ]);
+--- old/OrchestrationLatestTurn
++++ orchestration/OrchestrationLatestTurn
+@@ -7,3 +7,14 @@
+   assistantMessageId: Schema.NullOr(MessageId),
+   sourceProposedPlan: Schema.optional(SourceProposedPlanReference),
+ });
++
++import { ThreadTitleRegeneration } from "./threadTitle.ts";
++import {
++  ThreadLinkedPullRequest,
++  ThreadPullRequestKey,
++  ThreadPullRequestLink,
++  ThreadPullRequestLinkSource,
++  ThreadPullRequestSnapshot,
++  ThreadPullRequestStack,
++  ThreadPullRequestStackLayer,
++} from "./threadPullRequest.ts";
+--- old/ThreadPullRequestLink
++++ threadPullRequest/ThreadPullRequestLink
+@@ -5,4 +5,5 @@
+   linkedAt: IsoDateTime,
+   snapshot: Schema.NullOr(ThreadPullRequestSnapshot),
+   stack: Schema.NullOr(ThreadPullRequestStack),
++  watch: Schema.optional(ThreadPullRequestWatch),
+ });
+--- old/OrchestrationReadModel
++++ orchestration/OrchestrationReadModel
+@@ -4,3 +4,5 @@
+   threads: Schema.Array(OrchestrationThread),
+   updatedAt: IsoDateTime,
+ });
++
++import { OrchestrationProjectShell } from "./orchestrationProject.ts";
+--- old/OrchestrationProjectShell
++++ orchestrationProject/OrchestrationProjectShell
+@@ -4,10 +4,15 @@
+   workspaceRoot: TrimmedNonEmptyString,
+   repositoryIdentity: Schema.optional(Schema.NullOr(RepositoryIdentity)),
+   defaultModelSelection: Schema.NullOr(ModelSelection),
++  
++  
+   defaultThreadEnvMode: Schema.optional(Schema.NullOr(ThreadEnvMode)),
++  
++  
+   autoPull: Schema.optional(Schema.Boolean),
+-  faviconPath: Schema.optional(Schema.NullOr(ProjectFaviconPath)),
+-  projectIcon: Schema.optional(Schema.NullOr(ProjectIconOverride)),
++  
++  faviconPath: Schema.optional(Schema.NullOr(TrimmedNonEmptyString)),
++  projectIcon: Schema.optional(Schema.NullOr(ReceivedProjectIcon)),
+   scripts: Schema.Array(ProjectScript),
+   createdAt: IsoDateTime,
+   updatedAt: IsoDateTime,
+--- old/OrchestrationCommandReceiptStatus
++++ orchestration/OrchestrationCommandReceiptStatus
+@@ -1 +1,23 @@
+ export const OrchestrationCommandReceiptStatus = Schema.Literals(["accepted", "rejected"]);
++
++import {
++  TurnCountRange,
++  ThreadTurnDiff,
++  OrchestrationGetTurnDiffInput,
++  OrchestrationGetTurnDiffResult,
++  OrchestrationGetFullThreadDiffInput,
++  OrchestrationGetFullThreadDiffResult,
++  OrchestrationGetTurnDiffError,
++  OrchestrationGetFullThreadDiffError,
++} from "./checkpointDiff.ts";
++
++export {
++  TurnCountRange,
++  ThreadTurnDiff,
++  OrchestrationGetTurnDiffInput,
++  OrchestrationGetTurnDiffResult,
++  OrchestrationGetFullThreadDiffInput,
++  OrchestrationGetFullThreadDiffResult,
++  OrchestrationGetTurnDiffError,
++  OrchestrationGetFullThreadDiffError,
++};
+--- old/OrchestrationGetSnapshotError
++++ orchestration/OrchestrationGetSnapshotError
+@@ -5,3 +5,5 @@
+     cause: Schema.optional(Schema.Defect()),
+   },
+ ) {}
++
++export { OrchestrationDispatchCommandError } from "./orchestrationDispatch.ts";
+--- old/OrchestrationDispatchCommandError
++++ orchestrationDispatch/OrchestrationDispatchCommandError
+@@ -3,6 +3,6 @@
+   {
+     message: TrimmedNonEmptyString,
+     cause: Schema.optional(Schema.Defect()),
+-    bootstrapThreadDisposition: Schema.optional(Schema.Literal("deleted")),
++    bootstrapThreadDisposition: Schema.optional(Schema.Literals(["deleted", "not-created"])),
+   },
+ ) {}

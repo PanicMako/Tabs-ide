@@ -1,0 +1,11 @@
+# Positional SQLite queries ignore integer mode
+
+HEAD bb89383e8516d6ee6c730579be3e353a8e43a0e9. Complete sharedclient298/test185 read; new files against originalbase. Existing8/8 pass258ms, actualmemory/fileSQLite, schema-retry/constraints/read-write locking/prepare-failure recovery. Full server persistence Sqlite.ts read: shared layer used, sets WAL/foreignkeys/5sbusytimeout/migrations.
+
+Independent SqliteSafeIntegerAudit.test.ts 2/2failed278ms terminal1. SELECT9007199254740993 positional values with SafeIntegers=true fails with wrapped RangeError; object query under SafeIntegers=true followed by same prepared query.values in default context returns42n instead of42. runStatement sets readBigInts from fiber context, but runStatementValues only toggles returnArrays. Cached statement retains prior readBigInts. Fix requires applying current fiber SafeIntegers in positional path on every execution. Restore fixture to packages/shared/src to run. No production or original test changes.
+
+Search found no production SafeIntegers override outside SQL client implementations, so current user-facing impact is unproven. Old server client shares similar setter structure; base source existence and setter count checked, exact lineage/control pending. Other unverified scope includes readonly transactions, streaming defect behavior, schema changes affecting cached reader classification, transaction cancellation/nesting and actualElectron compatibility. No broader database acceptance claimed.
+
+## Baseline control
+
+Exact originalbase apps/server/src/persistence/NodeSqliteClient.ts restored as temporary SqliteLegacyBaselineAudit.ts and the same diagnostic imported it. Fresh2/2failed308ms, reproducing both large integer RangeError and stale42n. Full raw output saved sqlite-baseline-control.log; vitest exit1 (shell summary command exit0 merely reflects successful rg extraction). Thus the defect is inherited, not newly introduced by Antigravity. Baseline positional path called runValues directly; new shared path factors runStatementValues, retaining the missing setReadBigInts. Source extraction initially assumed the new helper name existed in base and failed before fixture creation; corrected by reading actual base path. Temporary source/test archived; no production mutation.
