@@ -1,0 +1,41 @@
+# Free pilot: one Render service with existing Neon PostgreSQL and private storage.
+# Publishing stays disabled until scanner, OAuth, and signing acceptance is complete.
+services:
+  - name: tabs-exchange-api
+    type: web
+    runtime: docker
+    plan: free
+    region: singapore
+    autoDeploy: false
+    dockerContext: tabs-app
+    dockerfilePath: tabs-app/apps/exchange/Dockerfile
+    healthCheckPath: /livez
+    envVars:
+      - key: EXCHANGE_PUBLISHING_ENABLED
+        value: "false"
+      - key: EXCHANGE_VISIBILITY
+        value: "public"
+      - key: S3_BUCKET
+        value: tabs-exchange
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_URL_UNPOOLED
+        sync: false
+      - key: EXCHANGE_ORIGIN
+        sync: false
+      - key: GITHUB_CLIENT_ID
+        sync: false
+      - key: GITHUB_CLIENT_SECRET
+        sync: false
+      - key: AWS_ENDPOINT_URL_S3
+        sync: false
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_REGION
+        sync: false
+      - key: EXCHANGE_ADMIN_GITHUB_IDS
+        sync: false
+      - key: EXCHANGE_OPERATOR_GITHUB_IDS
+        sync: false
