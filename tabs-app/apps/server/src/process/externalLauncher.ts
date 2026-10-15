@@ -772,8 +772,7 @@ export const make = Effect.gen(function* () {
       Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
       Effect.onExit((exit) =>
         Effect.gen(function* () {
-          const expiresAtNanos =
-            (yield* Clock.currentTimeNanos) + EDITOR_DISCOVERY_CACHE_TTL_NANOS;
+          const expiresAtNanos = (yield* Clock.currentTimeNanos) + EDITOR_DISCOVERY_CACHE_TTL_NANOS;
           yield* Ref.update(editorDiscoveryCache, (current) =>
             Option.isNone(current) || current.value.scan !== scan
               ? current
