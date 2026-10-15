@@ -1152,7 +1152,7 @@
 }
 
 .current .signature-nav {
-  grid-template-columns: 2fr repeat(3, auto) 30px;
+  grid-template-columns: 2fr repeat(5, minmax(0, 1fr)) 30px;
   gap: 42px;
   border-top-color: #101c2538;
   padding-block: 26px;
