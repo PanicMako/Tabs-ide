@@ -15,6 +15,7 @@ export interface SlowRpcRequest {
 const longRunningMethods = new Set([
   "server.updateProvider",
   "server.refreshProviders",
+  "server.getUsageSummary",
   "server.updateServer",
 ]);
 const pending = new Map<string, ReturnType<typeof setTimeout>>();
@@ -30,7 +31,13 @@ export function trackRpcRequest(
   method: string,
   getPhase?: () => "transport-queued" | "in-flight",
 ): void {
-  if (method.includes("subscribe") || method.startsWith("pullRequests.")) return;
+  // Managed installation reports progress through its subscription and has a bounded RPC timeout.
+  if (
+    method.includes("subscribe") ||
+    method.startsWith("pullRequests.") ||
+    method === "server.runProviderMaintenance"
+  )
+    return;
   acknowledgeRpcRequest(requestId);
   while (pending.size >= MAX_TRACKED_REQUESTS) {
     const oldest = pending.keys().next().value;

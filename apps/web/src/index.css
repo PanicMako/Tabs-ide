@@ -69,10 +69,16 @@
 .orbit-group[data-orbit-kind="spotlight"] > .orbit-orb {
   border-radius: 9999px;
   z-index: 0;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  box-shadow:
+    0 2px 8px color-mix(in srgb, var(--primary) 30%, transparent),
+    0 0 1px color-mix(in srgb, var(--primary) 50%, transparent);
 }
 .tabs-segmented.orbit-group[data-orbit-kind="spotlight"]
   > :is(button[aria-pressed="true"], button[aria-checked="true"], button[aria-selected="true"]) {
-  color: var(--background);
+  color: var(--primary-foreground);
+  font-weight: 600;
 }
 .orbit-group[data-orbit-kind="spotlight"]::before {
   content: "";
@@ -109,6 +115,8 @@
   background: color-mix(in srgb, var(--muted) 75%, var(--background));
   border: 1px solid var(--border);
   border-radius: 9999px;
+  background-repeat: no-repeat;
+  background-origin: border-box;
   transition: background-color 200ms ease;
 }
 .tabs-segmented.orbit-group:not([data-orbit-kind="spotlight"]) > button {
@@ -144,31 +152,127 @@
 .orbit-group[data-orbit-kind="icons"] .orbit-label svg {
   display: none;
 }
+.tabs-segmented.orbit-group:not([data-orbit-kind="spotlight"]) > button:not(:disabled):hover {
+  background: transparent !important;
+}
+.tabs-segmented.orbit-group:not([data-orbit-kind="spotlight"])
+  > button:not(:disabled):hover
+  .orbit-label {
+  color: var(--foreground);
+}
 .orbit-group:not([data-orbit-kind="spotlight"]) > .orbit-orb {
   width: 36px;
   height: 36px;
   background: var(--foreground);
   color: var(--background);
-  font:
-    600 12px ui-monospace,
-    monospace;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
   box-shadow:
     0 3px 10px color-mix(in srgb, #000 22%, transparent),
     inset 0 1px 0 color-mix(in srgb, #fff 30%, transparent);
 }
+.orbit-group[data-orbit-kind="time"]::before {
+  background: color-mix(in srgb, var(--card) 85%, var(--background));
+  border: 1px solid var(--border);
+  box-shadow: inset 0 1px 2px color-mix(in srgb, var(--foreground) 5%, transparent);
+}
+.orbit-group[data-orbit-kind="time"] > .orbit-orb {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  box-shadow:
+    0 3px 10px color-mix(in srgb, var(--primary) 35%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+.orbit-group[data-orbit-kind="theme"] > .orbit-orb {
+  transition:
+    width 280ms ease,
+    height 280ms ease,
+    transform 380ms cubic-bezier(0.22, 1.25, 0.4, 1),
+    background-color 200ms ease,
+    color 200ms ease,
+    box-shadow 200ms ease,
+    opacity 120ms ease;
+}
 .orbit-group[data-orbit-kind="theme"][data-orbit-value="system"]::before {
-  background:
-    radial-gradient(1px 1px at 18% 25%, #fff, transparent),
-    linear-gradient(110deg, #18213d 0%, #455c83 48%, #a9d9ff 100%);
+  background: linear-gradient(to right, #0d1326 0%, #1e2947 40%, #46628c 70%, #9bc5ea 100%)
+    no-repeat;
+  background-origin: border-box;
+}
+html:not(.dark) .orbit-group[data-orbit-kind="theme"][data-orbit-value="system"]::before {
+  background: linear-gradient(
+      to right,
+      color-mix(in srgb, var(--primary) 65%, #1e293b) 0%,
+      color-mix(in srgb, var(--primary) 75%, #334155) 35%,
+      color-mix(in srgb, var(--primary) 40%, #93c5fd) 70%,
+      #e0f2fe 100%
+    )
+    no-repeat;
+  background-origin: border-box;
+}
+.orbit-group[data-orbit-kind="theme"][data-orbit-value="system"] > .orbit-orb {
+  background: #ffffff;
+  color: var(--primary);
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+.dark .orbit-group[data-orbit-kind="theme"][data-orbit-value="system"] > .orbit-orb {
+  background: #1e293b;
+  color: #60a5fa;
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 .orbit-group[data-orbit-kind="theme"][data-orbit-value="dark"]::before {
   background:
-    radial-gradient(1.5px 1.5px at 20% 30%, #fff, transparent),
-    radial-gradient(1px 1px at 55% 70%, #fff, transparent),
-    radial-gradient(1.5px 1.5px at 82% 25%, #fff, transparent), #141a38;
+    radial-gradient(1.2px 1.2px at 15% 25%, rgba(255, 255, 255, 0.9), transparent),
+    radial-gradient(1px 1px at 32% 65%, rgba(255, 255, 255, 0.5), transparent),
+    radial-gradient(1.4px 1.4px at 52% 28%, rgba(255, 255, 255, 0.8), transparent),
+    radial-gradient(1px 1px at 68% 75%, rgba(255, 255, 255, 0.6), transparent),
+    radial-gradient(1.3px 1.3px at 85% 35%, rgba(255, 255, 255, 0.85), transparent),
+    radial-gradient(ellipse 50% 80% at 70% 50%, rgba(79, 70, 229, 0.22), transparent 70%),
+    radial-gradient(ellipse 40% 60% at 25% 50%, rgba(30, 58, 138, 0.35), transparent 70%), #080c1b;
+  background-repeat: no-repeat;
+  background-origin: border-box;
+}
+html:not(.dark) .orbit-group[data-orbit-kind="theme"][data-orbit-value="dark"]::before {
+  background:
+    radial-gradient(1.2px 1.2px at 15% 25%, rgba(255, 255, 255, 0.9), transparent),
+    radial-gradient(1px 1px at 32% 65%, rgba(255, 255, 255, 0.5), transparent),
+    radial-gradient(1.4px 1.4px at 52% 28%, rgba(255, 255, 255, 0.8), transparent),
+    radial-gradient(1px 1px at 68% 75%, rgba(255, 255, 255, 0.6), transparent),
+    radial-gradient(1.3px 1.3px at 85% 35%, rgba(255, 255, 255, 0.85), transparent),
+    radial-gradient(ellipse 50% 80% at 70% 50%, rgba(79, 70, 229, 0.28), transparent 70%),
+    radial-gradient(ellipse 40% 60% at 25% 50%, rgba(30, 58, 138, 0.4), transparent 70%), #0b1120;
+  background-repeat: no-repeat;
+  background-origin: border-box;
+}
+.orbit-group[data-orbit-kind="theme"][data-orbit-value="dark"] > .orbit-orb {
+  background: #0f172a;
+  color: #facc15;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow:
+    0 2px 10px rgba(0, 0, 0, 0.55),
+    0 0 12px rgba(250, 204, 21, 0.25);
 }
 .orbit-group[data-orbit-kind="theme"][data-orbit-value="light"]::before {
-  background: linear-gradient(#9bd1ff, #dff2ff);
+  background: linear-gradient(to right, #8ec5fc 0%, #b8ddfd 55%, #e0f2fe 100%) no-repeat;
+  background-origin: border-box;
+}
+html:not(.dark) .orbit-group[data-orbit-kind="theme"][data-orbit-value="light"]::before {
+  background: linear-gradient(to right, #7dd3fc 0%, #bae6fd 55%, #f0f9ff 100%) no-repeat;
+  background-origin: border-box;
+  border-color: rgba(56, 189, 248, 0.4);
+}
+.orbit-group[data-orbit-kind="theme"][data-orbit-value="light"] > .orbit-orb {
+  background: #ffffff;
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.12),
+    0 0 12px rgba(245, 158, 11, 0.35);
 }
 @media (prefers-reduced-motion: reduce) {
   html:not([data-reduced-motion="no-preference"]) .orbit-group > .orbit-orb,
@@ -357,8 +461,6 @@ svg[class*="lucide-loader"].animate-spin {
   --font-sans: var(
     --font-sans,
     "Syne",
-    "DM Sans Variable",
-    "DM Sans",
     -apple-system,
     BlinkMacSystemFont,
     "Segoe UI",
@@ -368,17 +470,11 @@ svg[class*="lucide-loader"].animate-spin {
   --font-display: var(
     --font-display,
     "Newsreader",
-    var(
-      --font-sans,
-      "Syne",
-      "DM Sans Variable",
-      "DM Sans",
-      -apple-system,
-      BlinkMacSystemFont,
-      "Segoe UI",
-      system-ui,
-      sans-serif
-    )
+    var(--font-sans, "Syne", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif)
+  );
+  --font-heading: var(
+    --font-display,
+    var(--font-sans, "Syne", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif)
   );
   --font-mono: var(
     --font-mono,
@@ -1708,9 +1804,7 @@ label:has(> select#reasoning-effort) select {
   border: 1px solid var(--border);
   padding: 4px;
   border-radius: 9999px;
-  box-shadow:
-    inset 0 2px 4px color-mix(in srgb, var(--foreground) 10%, transparent),
-    0 0 0 1px var(--border);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
 .nav-tab {
@@ -1729,11 +1823,32 @@ label:has(> select#reasoning-effort) select {
   user-select: none;
 }
 
+.nav-tab svg {
+  color: inherit;
+  opacity: 0.72;
+  transition: all 0.2s ease;
+}
+
 .nav-tab:hover {
   color: color-mix(in srgb, var(--foreground) 80%, transparent);
 }
+.nav-tab:hover svg {
+  opacity: 0.95;
+}
+
 .nav-tab.active {
   color: var(--foreground);
+  font-weight: 600;
+}
+
+.nav-tab.active svg,
+.nav-tab.active .nav-tab-icon svg,
+.nav-tab-icon.active svg {
+  opacity: 1 !important;
+  color: var(--foreground) !important;
+  stroke: currentColor !important;
+  stroke-width: 2.3 !important;
+  filter: drop-shadow(0 0 0.5px currentColor);
 }
 
 .active-pill {
@@ -1830,6 +1945,12 @@ label:has(> select#reasoning-effort) select {
   font-weight: 600;
   text-shadow: none;
 }
+.design-solid .nav-tab.active svg,
+.design-solid .nav-tab-icon.active svg {
+  color: var(--primary-foreground) !important;
+  stroke: var(--primary-foreground) !important;
+  stroke-width: 2.3 !important;
+}
 
 /* 6. Minimal Dot */
 .design-dot .active-pill {
@@ -1878,12 +1999,83 @@ label:has(> select#reasoning-effort) select {
   --foil-shadow: 0 4px 10px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.4);
 }
 
+/* Normal mode dark top chrome contrast & definition */
+.dark [data-slot="workspace-tabbar"] {
+  background: #101012;
+}
+
+.dark [data-slot="workspace-toolbar-shell"] {
+  background: #16171b;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.dark [data-slot="workspace-project-tab"][data-active="true"] {
+  background: #16171b;
+  border-color: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+  box-shadow:
+    0 -1px 4px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+/* Normal mode tab fillet rules */
+.tab-bottom-fillet {
+  color: var(--card, #ffffff);
+}
+.tab-bottom-fillet-fill {
+  fill: var(--card, #ffffff);
+}
+.tab-bottom-fillet-stroke {
+  stroke: var(--border, rgba(0, 0, 0, 0.08));
+}
+
+.dark .tab-bottom-fillet,
+.dark .tab-bottom-fillet-fill {
+  color: #16171b !important;
+  fill: #16171b !important;
+}
+
+.dark .tab-bottom-fillet-stroke {
+  stroke: rgba(255, 255, 255, 0.14) !important;
+}
+
+/* Inactive tabs & toolbar controls high-contrast visibility in Dark mode */
+.dark [data-slot="workspace-project-tab"]:not([data-active="true"]),
+.dark [data-slot="workspace-project-tab"]:not([data-active="true"]) span {
+  color: rgba(255, 255, 255, 0.65) !important;
+}
+.dark [data-slot="workspace-project-tab"]:not([data-active="true"]):hover,
+.dark [data-slot="workspace-project-tab"]:not([data-active="true"]):hover span {
+  color: #ffffff !important;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.dark [data-slot="workspace-project-tab"][data-active="true"],
+.dark [data-slot="workspace-project-tab"][data-active="true"] span {
+  color: #ffffff !important;
+}
+
+.dark [data-slot="workspace-tabbar"] button {
+  color: rgba(255, 255, 255, 0.65) !important;
+}
+.dark [data-slot="workspace-tabbar"] button:hover {
+  color: #ffffff !important;
+}
+
+.dark [data-slot="workspace-toolbar-shell"] button {
+  color: rgba(255, 255, 255, 0.65);
+}
+.dark [data-slot="workspace-toolbar-shell"] button:hover {
+  color: #ffffff;
+}
+
 /* 7. Refraction Glass (Frosted Lens) */
 .design-refraction {
   background-image: radial-gradient(var(--glass-dot) 1px, transparent 1px);
   background-size: 6px 6px;
   background-position: center;
 }
+
 .design-refraction .active-pill {
   background: var(--glass-bg);
   backdrop-filter: blur(6px) saturate(250%) brightness(1.2);
@@ -1891,9 +2083,10 @@ label:has(> select#reasoning-effort) select {
   border: 1px solid var(--glass-border);
   box-shadow: var(--glass-shadow);
 }
+
 .design-refraction .nav-tab.active {
-  text-shadow: var(--glass-text-shadow);
   color: var(--foreground);
+  text-shadow: var(--glass-text-shadow);
 }
 
 /* 8. Material Surface */
@@ -2242,4 +2435,11 @@ label:has(> select#reasoning-effort) select {
   height: 100%;
   border-left: 0;
   transition: none;
+}
+
+/* Controls follow the selected pairing; code and terminal text keep --font-mono. */
+button,
+select,
+[role="tab"] {
+  font-family: var(--font-controls, inherit);
 }

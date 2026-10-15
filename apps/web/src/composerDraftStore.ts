@@ -481,7 +481,7 @@ function shouldPersistDraftThreadState(
 }
 
 function normalizeProviderKind(value: unknown): ProviderKind | null {
-  return value === "codex" || value === "claudeAgent" ? value : null;
+  return Schema.is(ProviderInstanceId)(value) ? (value as ProviderKind) : null;
 }
 
 function normalizeProviderModelOptions(
@@ -2552,7 +2552,16 @@ export function clearPromotedDraftThreads(
       }
     }
     if (serverThreadIds.has(draftId) || serverThreadIds.has(semanticDraftId)) {
-      store.clearDraftThread(draftId);
+      // Promotion changes thread ownership, not message ownership. The user's
+      // composer content must survive creation, a failed intake, and reconnect.
+      useComposerDraftStore.setState((state) => ({
+        draftThreadsByThreadId: Object.fromEntries(
+          Object.entries(state.draftThreadsByThreadId).filter(([id]) => id !== draftId),
+        ),
+        projectDraftThreadIdByProjectId: Object.fromEntries(
+          Object.entries(state.projectDraftThreadIdByProjectId).filter(([, id]) => id !== draftId),
+        ),
+      }));
     }
   }
 }

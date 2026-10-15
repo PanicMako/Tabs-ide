@@ -82,11 +82,29 @@ export function initUsageListeners() {
   });
 }
 
+let summaryRequest = 0;
+const summaryCache = new Map<string, { fetchedAt: number; value: UsageSummary }>();
+
 export async function fetchUsageSummary(
   customPreset?: UsageWindowPreset,
+  options: { force?: boolean } = {},
 ): Promise<UsageSummary | null> {
   const presetToFetch = customPreset ?? appAtomRegistry.get(usageTimeWindowAtom);
   const input = presetToSummaryInput(presetToFetch);
+  const requestId = ++summaryRequest;
+  const cacheKey = JSON.stringify(input);
+  if (options.force) summaryCache.clear();
+  const cached = summaryCache.get(cacheKey);
+  if (cached && Date.now() - cached.fetchedAt < 30_000) {
+    appAtomRegistry.update(usageSummaryStateAtom, (prev) => ({
+      ...prev,
+      data: cached.value,
+      loading: false,
+      error: null,
+      lastFetchedAt: cached.fetchedAt,
+    }));
+    return cached.value;
+  }
   appAtomRegistry.update(usageSummaryStateAtom, (prev) => ({
     ...prev,
     loading: true,
@@ -96,6 +114,9 @@ export async function fetchUsageSummary(
   try {
     const api = ensureNativeApi();
     const result = await api.server.readUsageSummary(input);
+    summaryCache.set(cacheKey, { fetchedAt: Date.now(), value: result });
+    while (summaryCache.size > 8) summaryCache.delete(summaryCache.keys().next().value!);
+    if (requestId !== summaryRequest) return result;
     appAtomRegistry.update(usageSummaryStateAtom, (prev) => ({
       ...prev,
       data: result,
@@ -105,6 +126,7 @@ export async function fetchUsageSummary(
     }));
     return result;
   } catch (err: unknown) {
+    if (requestId !== summaryRequest) return null;
     const errorMsg = err instanceof Error ? err.message : String(err);
     appAtomRegistry.update(usageSummaryStateAtom, (prev) => ({
       ...prev,

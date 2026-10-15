@@ -44,12 +44,71 @@ export interface WsTransportOptions {
   readonly url?: string;
   readonly environmentId?: string;
   readonly refreshUrl?: () => Promise<string>;
+  readonly protocol?: "legacy" | "rpc";
+}
+
+interface RpcSubscription {
+  requestId: string | null;
+  readonly method: string;
+  readonly input: () => unknown;
+  readonly decode: (value: unknown) => unknown;
+  readonly receive: (value: unknown) => void;
+  readonly onError: (error: Error) => void;
 }
 
 type TransportState = "connecting" | "open" | "reconnecting" | "closed" | "disposed";
 
 const REQUEST_TIMEOUT_MS = 60_000;
 const RECONNECT_DELAYS_MS = [500, 1_000, 2_000, 4_000, 8_000];
+const rpcRequestId = Schema.Union([Schema.String, Schema.Number]);
+const rpcCause = Schema.Union([
+  Schema.TaggedStruct("Fail", { error: Schema.Unknown }),
+  Schema.TaggedStruct("Die", { defect: Schema.Unknown }),
+  Schema.TaggedStruct("Interrupt", { fiberId: Schema.optional(Schema.Number) }),
+]);
+const decodeRpcEnvelope = decodeUnknownJsonResult(
+  Schema.Union([
+    Schema.TaggedStruct("Ping", {}),
+    Schema.TaggedStruct("Pong", {}),
+    Schema.TaggedStruct("Chunk", {
+      requestId: rpcRequestId,
+      values: Schema.NonEmptyArray(Schema.Unknown),
+    }),
+    Schema.TaggedStruct("Exit", {
+      requestId: rpcRequestId,
+      exit: Schema.Union([
+        Schema.TaggedStruct("Success", { value: Schema.Unknown }),
+        Schema.TaggedStruct("Failure", { cause: Schema.Array(rpcCause) }),
+      ]),
+    }),
+    Schema.TaggedStruct("Defect", { defect: Schema.Unknown }),
+    Schema.TaggedStruct("ClientProtocolError", { error: Schema.Unknown }),
+  ]),
+);
+const rpcError = (value: unknown, fallback: string): Error => {
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    "message" in value &&
+    typeof value.message === "string"
+  ) {
+    // Recovery must distinguish a definitive rejection from a lost ACK.
+    // Keep the structured RPC tag/cause alongside the user-facing message.
+    return Object.assign(new Error(value.message), value);
+  }
+  if (typeof value === "string") {
+    return new Error(value);
+  }
+  if (typeof value === "object" && value !== null) {
+    try {
+      const serialized = JSON.stringify(value);
+      if (serialized && serialized !== "{}") {
+        return new Error(`${fallback}: ${serialized}`);
+      }
+    } catch {}
+  }
+  return new Error(fallback);
+};
 const decodeWsResponse = decodeUnknownJsonResult(WsResponseSchema);
 const isWebSocketResponseEnvelope = Schema.is(WebSocketResponse);
 
@@ -99,15 +158,19 @@ export class WsTransport {
   private state: TransportState = "connecting";
   private url: string;
   private readonly configuredUrl: string | undefined;
-  private readonly environmentId: string | undefined;
+  public readonly environmentId: string | undefined;
   private readonly refreshUrl: (() => Promise<string>) | undefined;
   private refreshingRemoteTicket = false;
+  private readonly protocol: "legacy" | "rpc";
+  private readonly rpcSubscriptions = new Set<RpcSubscription>();
+  private readonly rpcSubscriptionsById = new Map<string, RpcSubscription>();
 
   constructor(input?: string | WsTransportOptions) {
     const options = typeof input === "string" ? { url: input } : (input ?? {});
     this.configuredUrl = options.url;
     this.environmentId = options.environmentId;
     this.refreshUrl = options.refreshUrl;
+    this.protocol = options.protocol ?? "rpc";
     this.url = this.resolveUrl(options.url);
     this.connect();
   }
@@ -157,7 +220,10 @@ export class WsTransport {
 
     const id = String(this.nextId++);
     const body = params != null ? { ...params, _tag: method } : { _tag: method };
-    const message: WsRequestEnvelope = { id, body };
+    const message =
+      this.protocol === "rpc"
+        ? { _tag: "Request", id, tag: method, payload: params ?? {}, headers: [] }
+        : ({ id, body } satisfies WsRequestEnvelope);
     const encoded = JSON.stringify(message);
 
     return new Promise<T>((resolve, reject) => {
@@ -167,6 +233,8 @@ export class WsTransport {
           ? null
           : setTimeout(() => {
               this.pending.delete(id);
+              this.interruptRpcRequest(id);
+              pendingEntry.onAbort?.();
               this.removeFromOutboundQueue(id);
               acknowledgeRpcRequest(id);
               reject(new Error(`Request timed out: ${method}`));
@@ -185,6 +253,8 @@ export class WsTransport {
         const onAbort = () => {
           if (timeout !== null) clearTimeout(timeout);
           this.pending.delete(id);
+          this.interruptRpcRequest(id);
+          pendingEntry.onAbort?.();
           this.removeFromOutboundQueue(id);
           acknowledgeRpcRequest(id);
           reject(new Error("Request aborted"));
@@ -239,6 +309,60 @@ export class WsTransport {
     };
   }
 
+  /** Resumes streams using caller-owned sequence watermarks after a new connection. */
+  subscribeRpc<T>(
+    method: string,
+    input: () => unknown,
+    decode: (value: unknown) => T,
+    callback: (value: T) => void,
+    onError: (error: Error) => void,
+  ): () => void {
+    const subscription: RpcSubscription = {
+      requestId: null,
+      method,
+      input,
+      decode,
+      receive: (value) => callback(value as T),
+      onError,
+    };
+    this.rpcSubscriptions.add(subscription);
+    if (this.state === "open") this.startRpcSubscription(subscription);
+    return () => {
+      this.rpcSubscriptions.delete(subscription);
+      if (subscription.requestId !== null) {
+        this.rpcSubscriptionsById.delete(subscription.requestId);
+        this.interruptRpcRequest(subscription.requestId);
+        subscription.requestId = null;
+      }
+    };
+  }
+
+  private interruptRpcRequest(requestId: string): void {
+    if (
+      this.protocol === "rpc" &&
+      this.state === "open" &&
+      this.ws?.readyState === WebSocket.OPEN
+    ) {
+      this.ws.send(JSON.stringify({ _tag: "Interrupt", requestId }));
+    }
+  }
+
+  private startRpcSubscription(subscription: RpcSubscription): void {
+    const id = String(this.nextId++);
+    try {
+      const payload = subscription.input();
+      subscription.requestId = id;
+      this.rpcSubscriptionsById.set(id, subscription);
+      this.ws?.send(
+        JSON.stringify({ _tag: "Request", id, tag: subscription.method, payload, headers: [] }),
+      );
+    } catch (cause) {
+      this.rpcSubscriptionsById.delete(id);
+      subscription.requestId = null;
+      subscription.onError(asError(cause, "Could not subscribe to server stream."));
+    }
+  }
+
   getLatestPush<C extends WsPushChannel>(channel: C): WsPushMessage<C> | null {
     const latest = this.latestPushByChannel.get(channel);
     return latest ? (latest as WsPushMessage<C>) : null;
@@ -289,6 +413,8 @@ export class WsTransport {
     }
     for (const id of this.pending.keys()) acknowledgeRpcRequest(id);
     this.pending.clear();
+    this.rpcSubscriptions.clear();
+    this.rpcSubscriptionsById.clear();
     this.outboundQueue.length = 0;
     this.ws?.close();
     this.ws = null;
@@ -326,6 +452,31 @@ export class WsTransport {
       return;
     }
 
+    const desktopUrl =
+      this.configuredUrl === undefined && typeof window !== "undefined"
+        ? window.desktopBridge?.getWsUrl()
+        : undefined;
+    if (this.protocol === "rpc" && desktopUrl && new URL(desktopUrl).searchParams.has("token")) {
+      if (this.refreshingRemoteTicket) return;
+      this.refreshingRemoteTicket = true;
+      void import("./desktopWebSocketAuth")
+        .then(({ authorizeDesktopWebSocket }) => authorizeDesktopWebSocket(desktopUrl))
+        .then((url) => {
+          this.refreshingRemoteTicket = false;
+          this.url = url;
+          this.openSocket(true);
+        })
+        .catch((error) => {
+          this.refreshingRemoteTicket = false;
+          console.warn(
+            "Desktop authentication exchange failed; falling back to direct token upgrade",
+            { error },
+          );
+          this.url = desktopUrl;
+          this.openSocket(true);
+        });
+      return;
+    }
     this.openSocket();
   }
 
@@ -341,7 +492,7 @@ export class WsTransport {
     // permanently — leaving the renderer stuck until a manual refresh.
     let ws: WebSocket;
     try {
-      if (!useCurrentUrl && (this.reconnectAttempt === 0 || this.configuredUrl !== undefined)) {
+      if (!useCurrentUrl) {
         this.url = this.resolveUrl(this.configuredUrl);
       }
       ws = new WebSocket(this.url);
@@ -367,6 +518,7 @@ export class WsTransport {
       this.reconnectAttempt = 0;
       this.flushQueue();
       for (const listener of this.openListeners) listener();
+      for (const subscription of this.rpcSubscriptions) this.startRpcSubscription(subscription);
     });
 
     ws.addEventListener("message", (event) => {
@@ -381,6 +533,8 @@ export class WsTransport {
       if (this.ws === ws) {
         this.ws = null;
         this.outboundQueue.length = 0;
+        this.rpcSubscriptionsById.clear();
+        for (const subscription of this.rpcSubscriptions) subscription.requestId = null;
         for (const [id, pending] of this.pending.entries()) {
           if (pending.timeout !== null) {
             clearTimeout(pending.timeout);
@@ -413,6 +567,10 @@ export class WsTransport {
   }
 
   private handleMessage(raw: unknown) {
+    if (this.protocol === "rpc") {
+      this.handleRpcMessage(raw);
+      return;
+    }
     const result = decodeWsResponse(raw);
     if (Result.isFailure(result)) {
       console.warn("Dropped inbound WebSocket envelope", formatSchemaError(result.failure));
@@ -464,6 +622,88 @@ export class WsTransport {
     }
 
     pending.resolve(message.result);
+  }
+
+  private handleRpcMessage(raw: unknown): void {
+    try {
+      const decoded = decodeRpcEnvelope(typeof raw === "string" ? raw : String(raw));
+      if (Result.isFailure(decoded)) throw new Error(formatSchemaError(decoded.failure));
+      const message = decoded.success;
+      if (message._tag === "Ping") {
+        this.ws?.send(JSON.stringify({ _tag: "Pong" }));
+        return;
+      }
+      if (message._tag === "Defect" || message._tag === "ClientProtocolError") {
+        const error = rpcError(
+          message._tag === "Defect" ? message.defect : message.error,
+          "Server RPC protocol failed.",
+        );
+        for (const [id, pending] of this.pending) {
+          if (pending.timeout !== null) clearTimeout(pending.timeout);
+          pending.onAbort?.();
+          acknowledgeRpcRequest(id);
+          pending.reject(error);
+        }
+        this.pending.clear();
+        this.outboundQueue.length = 0;
+        for (const subscription of this.rpcSubscriptionsById.values()) {
+          subscription.requestId = null;
+          subscription.onError(error);
+        }
+        this.rpcSubscriptionsById.clear();
+        return;
+      }
+      if (message._tag === "Pong") return;
+      const id = String(message.requestId);
+      const subscription = this.rpcSubscriptionsById.get(id);
+      if (message._tag === "Chunk" && Array.isArray(message.values) && subscription) {
+        try {
+          // Validate the entire chunk before callbacks advance the resume watermark.
+          const values = message.values.map(subscription.decode);
+          for (const value of values) subscription.receive(value);
+          this.ws?.send(JSON.stringify({ _tag: "Ack", requestId: message.requestId }));
+        } catch (cause) {
+          this.rpcSubscriptionsById.delete(id);
+          subscription.requestId = null;
+          this.ws?.send(JSON.stringify({ _tag: "Interrupt", requestId: message.requestId }));
+          subscription.onError(asError(cause, "Invalid server stream item."));
+        }
+        return;
+      }
+      if (message._tag !== "Exit" || !message.exit || typeof message.exit !== "object") return;
+      const error =
+        message.exit._tag === "Failure"
+          ? rpcError(
+              message.exit.cause
+                .map((entry) =>
+                  entry._tag === "Fail"
+                    ? entry.error
+                    : entry._tag === "Die"
+                      ? entry.defect
+                      : undefined,
+                )
+                .find((value) => value !== undefined),
+              "Server request failed.",
+            )
+          : null;
+      if (subscription) {
+        this.rpcSubscriptionsById.delete(id);
+        subscription.requestId = null;
+        if (error) subscription.onError(error);
+        return;
+      }
+      const pending = this.pending.get(id);
+      if (!pending) return;
+      this.pending.delete(id);
+      if (pending.timeout !== null) clearTimeout(pending.timeout);
+      pending.onAbort?.();
+      acknowledgeRpcRequest(id);
+      if (error) pending.reject(error);
+      else if (message.exit._tag === "Success") pending.resolve(message.exit.value);
+      else pending.reject(new Error("Invalid server RPC exit."));
+    } catch (cause) {
+      console.warn("Dropped inbound RPC envelope", asError(cause, "Invalid RPC envelope.").message);
+    }
   }
 
   private send(queuedMessage: QueuedOutboundMessage) {

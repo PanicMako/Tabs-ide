@@ -61,6 +61,7 @@ export async function connectEnvironmentApi(environmentId: string): Promise<Nati
     url: await refreshUrl(),
     environmentId,
     refreshUrl,
+    protocol: "rpc",
   });
   const api = createWsNativeApi({ transport, singleton: false });
   const config = await api.server.getConfig();
@@ -71,6 +72,13 @@ export async function connectEnvironmentApi(environmentId: string): Promise<Nati
     );
   }
   entries.set(environmentId, { api, transport, config });
+  transport.onOpen(() => {
+    void import("../stores/messageQueueStore")
+      .then(({ reconcileAllPendingCancellations }) =>
+        reconcileAllPendingCancellations(api, undefined, environmentId),
+      )
+      .catch((error) => console.error("Environment queue cancellation recovery failed", error));
+  });
   emit({ type: "connected", environmentId: environmentId as EnvironmentId, api, primary: false });
   return api;
 }
@@ -88,9 +96,18 @@ export function connectedEnvironmentIds(): ReadonlyArray<string> {
   return [...entries.keys()];
 }
 
+export function getPrimaryEnvironmentId(): string | null {
+  return primaryEnvironmentId;
+}
+
+export function setPrimaryEnvironmentIdForTesting(id: string | null): void {
+  primaryEnvironmentId = id;
+}
+
 export function isPrimaryEnvironment(environmentId?: string): boolean {
   return (
     environmentId === undefined ||
+    environmentId === "primary" ||
     (primaryEnvironmentId !== null && environmentId === primaryEnvironmentId)
   );
 }

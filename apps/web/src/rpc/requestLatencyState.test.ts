@@ -23,6 +23,12 @@ describe("RPC latency tracking", () => {
     expect(getSlowRpcRequests().map((request) => request.method)).toEqual(["server.getConfig"]);
   });
 
+  it("does not report streamed provider maintenance as a slow request", () => {
+    trackRpcRequest("install", "server.runProviderMaintenance");
+    vi.advanceTimersByTime(310_000);
+    expect(getSlowRpcRequests()).toEqual([]);
+  });
+
   it("removes requests that eventually acknowledge", () => {
     trackRpcRequest("1", "server.getConfig");
     vi.advanceTimersByTime(SLOW_RPC_THRESHOLD_MS);

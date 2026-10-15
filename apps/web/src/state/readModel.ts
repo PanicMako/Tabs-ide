@@ -1,8 +1,15 @@
-import type { EnvironmentId, OrchestrationReadModel } from "@tabs/contracts";
+import type {
+  EnvironmentId,
+  OrchestrationReadModel,
+  OrchestrationV2ShellStreamItem,
+  OrchestrationV2ThreadProjection,
+} from "@tabs/contracts";
 import { Atom } from "@tabs/client-runtime/state";
 
 import {
   type AppState,
+  applyShellStreamItem,
+  applyThreadProjection,
   markThreadUnread,
   markThreadVisited,
   reorderProjects,
@@ -30,6 +37,33 @@ export const readModelStateAtom = Atom.make(EMPTY_APP_STATE).pipe(
   Atom.keepAlive,
 );
 
+export function applyShellStreamItemToAtoms(
+  item: OrchestrationV2ShellStreamItem,
+  environmentId?: EnvironmentId,
+) {
+  appAtomRegistry.update(readModelStateAtom, (state) => {
+    const next = applyShellStreamItem(state, item, environmentId);
+    persistAppState(next);
+    return next;
+  });
+  if (item.kind === "thread.updated") {
+    void import("../composerDraftStore").then(({ clearPromotedDraftThreads }) =>
+      clearPromotedDraftThreads(new Set([item.thread.id]), environmentId),
+    );
+  }
+}
+
+export function applyThreadProjectionToAtoms(
+  projection: OrchestrationV2ThreadProjection,
+  environmentId?: EnvironmentId,
+) {
+  appAtomRegistry.update(readModelStateAtom, (state) => {
+    const next = applyThreadProjection(state, projection, environmentId);
+    persistAppState(next);
+    return next;
+  });
+}
+
 export function syncServerReadModelToAtoms(
   readModel: OrchestrationReadModel,
   environmentId?: EnvironmentId,
@@ -43,10 +77,13 @@ export function syncServerReadModelToAtoms(
 
 export function removeEnvironmentReadModelFromAtoms(environmentId: EnvironmentId) {
   appAtomRegistry.update(readModelStateAtom, (state) => {
+    const nextSnapshots = { ...state.environmentSnapshots };
+    delete nextSnapshots[environmentId as string];
     const next = {
       ...state,
       projects: state.projects.filter((project) => project.environmentId !== environmentId),
       threads: state.threads.filter((thread) => thread.environmentId !== environmentId),
+      environmentSnapshots: nextSnapshots,
     };
     persistAppState(next);
     return next;

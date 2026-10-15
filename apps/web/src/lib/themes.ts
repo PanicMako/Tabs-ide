@@ -624,6 +624,8 @@ export interface FontPreferences {
   uiFont: string;
   headingFont: string;
   editorFont: string;
+  sectionFont?: string | undefined;
+  supportingFont?: string | undefined;
   fontSizeInterface?: number | undefined;
   fontSizeCode?: number | undefined;
   fontSizePrompt?: number | undefined;
@@ -642,32 +644,27 @@ export const UI_FONT_OPTIONS = [
   { value: "'Syne', sans-serif", label: "Syne (Default)" },
   { value: "system-ui", label: "System UI" },
   { value: "'Open Sans', sans-serif", label: "Open Sans" },
-  { value: "'Inter Tight', sans-serif", label: "Inter Tight" },
-  { value: "'Space Grotesk', sans-serif", label: "Space Grotesk" },
-  { value: "'Bricolage Grotesque', sans-serif", label: "Bricolage Grotesque" },
-  { value: "'Plus Jakarta Sans', sans-serif", label: "Plus Jakarta Sans" },
-  { value: "'Outfit', sans-serif", label: "Outfit" },
-  { value: "'Chivo', sans-serif", label: "Chivo" },
-  { value: "'Epilogue', sans-serif", label: "Epilogue" },
-  { value: "'Manrope', sans-serif", label: "Manrope" },
-  { value: "'Unbounded', sans-serif", label: "Unbounded" },
-  { value: "'Inter', system-ui, sans-serif", label: "Inter" },
+  { value: "'Geist', sans-serif", label: "Geist" },
+  { value: "'Ronzino', sans-serif", label: "Ronzino" },
+  { value: "'Absans', sans-serif", label: "Absans" },
+  { value: "'Necto Mono', monospace", label: "Necto Mono" },
+  { value: "'Hanken Grotesk', sans-serif", label: "Hanken Grotesk" },
+  { value: "'Funnel Sans', sans-serif", label: "Funnel Sans" },
 ] as const;
 
 export const HEADING_FONT_OPTIONS = [
   { value: "'Newsreader', serif", label: "Newsreader (Default)" },
   { value: "system-ui", label: "Match Interface Font" },
-  { value: "'Inter', system-ui, sans-serif", label: "Inter" },
   { value: "'Instrument Serif', serif", label: "Instrument Serif" },
-  { value: "'DotGothic16', sans-serif", label: "DotGothic16" },
-  { value: "'Fraunces', serif", label: "Fraunces" },
-  { value: "'Playfair Display', serif", label: "Playfair Display" },
-  { value: "'JetBrains Mono', monospace", label: "JetBrains Mono" },
-  { value: "'Cormorant Garamond', serif", label: "Cormorant Garamond" },
-  { value: "'IBM Plex Mono', monospace", label: "IBM Plex Mono" },
-  { value: "'Space Grotesk', sans-serif", label: "Space Grotesk" },
+  { value: "'Doto', sans-serif", label: "Doto" },
   { value: "'Syne', sans-serif", label: "Syne" },
-  { value: "'Outfit', sans-serif", label: "Outfit" },
+  { value: "'Parkinsans', sans-serif", label: "Parkinsans" },
+  { value: "'Coconat', serif", label: "Coconat" },
+  { value: "'Aujournuit Wide', sans-serif", label: "Aujournuit Wide" },
+  { value: "'Messapia', monospace", label: "Messapia" },
+  { value: "'Hanken Grotesk', sans-serif", label: "Hanken Grotesk" },
+  { value: "'Funnel Display', sans-serif", label: "Funnel Display" },
+  { value: "'Ronzino', sans-serif", label: "Ronzino" },
 ] as const;
 
 export const EDITOR_FONT_OPTIONS = [
@@ -677,6 +674,26 @@ export const EDITOR_FONT_OPTIONS = [
   { value: "'Cascadia Code', monospace", label: "Cascadia Code" },
   { value: "Consolas, 'Liberation Mono', monospace", label: "Consolas" },
 ] as const;
+
+export interface FontComboTypography {
+  headingWeight: number;
+  headingTracking: string;
+  headingTransform: "none" | "uppercase" | "lowercase";
+  sectionFont: string;
+  sectionWeight: number;
+  sectionStyle: "normal" | "italic";
+  sectionTransform: "none" | "uppercase" | "lowercase";
+  sectionTracking: string;
+  rowFont: string;
+  rowWeight: number;
+  controlsFont: string;
+  metadataFont: string;
+  specimenFont: string;
+  specimenWeight: number;
+  specimenStyle: "normal" | "italic";
+  supportingFont: string;
+  supportingStyle: "normal" | "italic";
+}
 
 export interface FontCombo {
   id: string;
@@ -697,6 +714,7 @@ export interface FontCombo {
   serifClass: string;
   /** If true, show as a small neutral pill rather than a big personality card */
   isNeutral?: boolean;
+  typography?: FontComboTypography;
 }
 
 export const FONT_COMBOS: FontCombo[] = [
@@ -741,19 +759,285 @@ export const FONT_COMBOS: FontCombo[] = [
     isNeutral: true,
   },
 
-  // ── 10 Personality combos (shown as big specimen cards) ───────────────────
+  // Approved pairings, plus the unchanged Syne Dropped preset.
   {
-    id: "inter-supremacy",
-    name: "Inter Supremacy",
-    desc: "Inter Tight + Instrument Serif",
-    tag: "SHARP",
-    uiFont: "'Inter Tight', sans-serif",
+    id: "editorial-dark",
+    name: "Paper Trail",
+    desc: "Instrument Serif + Geist",
+    tag: "PAPER",
+    uiFont: "'Geist', sans-serif",
     headingFont: "'Instrument Serif', serif",
-    sansText: "pre",
-    serifText: "cision ",
-    sansText2: "scale",
-    sansClass: "font-bold tracking-tighter lowercase",
-    serifClass: "italic font-normal normal-case",
+    sansText: "paper",
+    serifText: "trail",
+    sansClass: "normal-case",
+    serifClass: "normal-case",
+    typography: {
+      headingWeight: 400,
+      headingTracking: "-.03em",
+      headingTransform: "none",
+      sectionFont: "'Instrument Serif', serif",
+      sectionWeight: 400,
+      sectionStyle: "italic",
+      sectionTransform: "none",
+      sectionTracking: "-.015em",
+      rowFont: "'Geist', sans-serif",
+      rowWeight: 600,
+      controlsFont: "'Geist', sans-serif",
+      metadataFont: "'Geist Mono', monospace",
+      specimenFont: "'Instrument Serif', serif",
+      specimenWeight: 400,
+      supportingFont: "'Instrument Serif', serif",
+      supportingStyle: "normal",
+      specimenStyle: "italic",
+    },
+  },
+  {
+    id: "dot-matrix",
+    name: "Pixel Mischief",
+    desc: "Doto + Geist",
+    tag: "PIXEL",
+    uiFont: "'Geist', sans-serif",
+    headingFont: "'Doto', sans-serif",
+    sansText: "signal",
+    serifText: "noise",
+    sansClass: "normal-case",
+    serifClass: "normal-case",
+    typography: {
+      headingWeight: 900,
+      headingTracking: "0.02em",
+      headingTransform: "uppercase",
+      sectionFont: "'Syne', sans-serif",
+      sectionWeight: 700,
+      sectionStyle: "normal",
+      sectionTransform: "none",
+      sectionTracking: "-.015em",
+      rowFont: "'Doto', sans-serif",
+      rowWeight: 800,
+      controlsFont: "'Geist Mono', monospace",
+      metadataFont: "'Geist Mono', monospace",
+      specimenFont: "'Doto', sans-serif",
+      specimenWeight: 200,
+      supportingFont: "'Geist Mono', monospace",
+      supportingStyle: "normal",
+      specimenStyle: "normal",
+    },
+  },
+  {
+    id: "syne-serif",
+    name: "Serif.exe",
+    desc: "Syne + Geist",
+    tag: "EDITORIAL",
+    uiFont: "'Geist', sans-serif",
+    headingFont: "'Syne', sans-serif",
+    sansText: "soft",
+    serifText: "power",
+    sansClass: "normal-case",
+    serifClass: "normal-case",
+    typography: {
+      headingWeight: 800,
+      headingTracking: "-.04em",
+      headingTransform: "none",
+      sectionFont: "'Instrument Serif', serif",
+      sectionWeight: 400,
+      sectionStyle: "italic",
+      sectionTransform: "none",
+      sectionTracking: "-.015em",
+      rowFont: "'Geist', sans-serif",
+      rowWeight: 600,
+      controlsFont: "'Geist', sans-serif",
+      metadataFont: "'Geist Mono', monospace",
+      specimenFont: "'Instrument Serif', serif",
+      specimenWeight: 400,
+      supportingFont: "'Instrument Serif', serif",
+      supportingStyle: "italic",
+      specimenStyle: "italic",
+    },
+  },
+  {
+    id: "sculpted-contrast",
+    name: "Velvet Logic",
+    desc: "Coconat + Ronzino",
+    tag: "SCULPT",
+    uiFont: "'Ronzino', sans-serif",
+    headingFont: "'Coconat', serif",
+    sansText: "velvet",
+    serifText: "logic",
+    sansClass: "normal-case",
+    serifClass: "normal-case",
+    typography: {
+      headingWeight: 700,
+      headingTracking: "-.04em",
+      headingTransform: "none",
+      sectionFont: "'Ronzino', sans-serif",
+      sectionWeight: 700,
+      sectionStyle: "normal",
+      sectionTransform: "none",
+      sectionTracking: "-.015em",
+      rowFont: "'Ronzino', sans-serif",
+      rowWeight: 600,
+      controlsFont: "'Ronzino', sans-serif",
+      metadataFont: "'Necto Mono', monospace",
+      specimenFont: "'Ronzino', sans-serif",
+      specimenWeight: 400,
+      supportingFont: "'Ronzino', sans-serif",
+      supportingStyle: "normal",
+      specimenStyle: "normal",
+    },
+  },
+  {
+    id: "open-proportions",
+    name: "Orbit Club",
+    desc: "Aujournuit Wide + Absans",
+    tag: "WIDE",
+    uiFont: "'Absans', sans-serif",
+    headingFont: "'Aujournuit Wide', sans-serif",
+    sansText: "orbit",
+    serifText: "club",
+    sansClass: "normal-case",
+    serifClass: "normal-case",
+    typography: {
+      headingWeight: 400,
+      headingTracking: "-.04em",
+      headingTransform: "none",
+      sectionFont: "'Absans', sans-serif",
+      sectionWeight: 400,
+      sectionStyle: "normal",
+      sectionTransform: "none",
+      sectionTracking: "-.015em",
+      rowFont: "'Absans', sans-serif",
+      rowWeight: 600,
+      controlsFont: "'Absans', sans-serif",
+      metadataFont: "'Necto Mono', monospace",
+      specimenFont: "'Absans', sans-serif",
+      specimenWeight: 400,
+      supportingFont: "'Absans', sans-serif",
+      supportingStyle: "normal",
+      specimenStyle: "normal",
+    },
+  },
+  {
+    id: "wide-technical",
+    name: "Terminal Bloom",
+    desc: "Messapia + Necto Mono",
+    tag: "MONO",
+    uiFont: "'Necto Mono', monospace",
+    headingFont: "'Messapia', monospace",
+    sansText: "mono",
+    serifText: "bloom",
+    sansClass: "normal-case",
+    serifClass: "normal-case",
+    typography: {
+      headingWeight: 700,
+      headingTracking: "-.04em",
+      headingTransform: "none",
+      sectionFont: "'Ronzino', sans-serif",
+      sectionWeight: 700,
+      sectionStyle: "normal",
+      sectionTransform: "none",
+      sectionTracking: "-.015em",
+      rowFont: "'Necto Mono', monospace",
+      rowWeight: 600,
+      controlsFont: "'Necto Mono', monospace",
+      metadataFont: "'Necto Mono', monospace",
+      specimenFont: "'Necto Mono', monospace",
+      specimenWeight: 400,
+      supportingFont: "'Necto Mono', monospace",
+      supportingStyle: "normal",
+      specimenStyle: "normal",
+    },
+  },
+  {
+    id: "swiss-light",
+    name: "Sans Ceremony",
+    desc: "Hanken Grotesk + Hanken Grotesk",
+    tag: "SWISS",
+    uiFont: "'Hanken Grotesk', sans-serif",
+    headingFont: "'Hanken Grotesk', sans-serif",
+    sansText: "sans",
+    serifText: "ceremony",
+    sansClass: "normal-case",
+    serifClass: "normal-case",
+    typography: {
+      headingWeight: 800,
+      headingTracking: "-.06em",
+      headingTransform: "none",
+      sectionFont: "'Hanken Grotesk', sans-serif",
+      sectionWeight: 700,
+      sectionStyle: "normal",
+      sectionTransform: "none",
+      sectionTracking: "-.015em",
+      rowFont: "'Hanken Grotesk', sans-serif",
+      rowWeight: 600,
+      controlsFont: "'Hanken Grotesk', sans-serif",
+      metadataFont: "'Geist Mono', monospace",
+      specimenFont: "'Hanken Grotesk', sans-serif",
+      specimenWeight: 400,
+      supportingFont: "'Hanken Grotesk', sans-serif",
+      supportingStyle: "normal",
+      specimenStyle: "normal",
+    },
+  },
+  {
+    id: "funnel-weights",
+    name: "Liquid Syntax",
+    desc: "Funnel Display + Funnel Sans",
+    tag: "FLUID",
+    uiFont: "'Funnel Sans', sans-serif",
+    headingFont: "'Funnel Display', sans-serif",
+    sansText: "liquid",
+    serifText: "syntax",
+    sansClass: "normal-case",
+    serifClass: "normal-case",
+    typography: {
+      headingWeight: 800,
+      headingTracking: "-.055em",
+      headingTransform: "none",
+      sectionFont: "'Funnel Display', sans-serif",
+      sectionWeight: 600,
+      sectionStyle: "normal",
+      sectionTransform: "none",
+      sectionTracking: "-.015em",
+      rowFont: "'Funnel Sans', sans-serif",
+      rowWeight: 600,
+      controlsFont: "'Funnel Sans', sans-serif",
+      metadataFont: "'Fragment Mono', monospace",
+      specimenFont: "'Funnel Display', sans-serif",
+      specimenWeight: 300,
+      supportingFont: "'Funnel Sans', sans-serif",
+      supportingStyle: "normal",
+      specimenStyle: "normal",
+    },
+  },
+  {
+    id: "independent-grotesk",
+    name: "After Hours",
+    desc: "Ronzino + Necto Mono",
+    tag: "INDUSTRIAL",
+    uiFont: "'Necto Mono', monospace",
+    headingFont: "'Ronzino', sans-serif",
+    sansText: "after",
+    serifText: "hours",
+    sansClass: "normal-case",
+    serifClass: "normal-case",
+    typography: {
+      headingWeight: 700,
+      headingTracking: "-.04em",
+      headingTransform: "none",
+      sectionFont: "'Syne', sans-serif",
+      sectionWeight: 700,
+      sectionStyle: "normal",
+      sectionTransform: "none",
+      sectionTracking: "-.015em",
+      rowFont: "'Necto Mono', monospace",
+      rowWeight: 600,
+      controlsFont: "'Necto Mono', monospace",
+      metadataFont: "'Necto Mono', monospace",
+      specimenFont: "'Necto Mono', monospace",
+      specimenWeight: 400,
+      supportingFont: "'Ronzino', sans-serif",
+      supportingStyle: "normal",
+      specimenStyle: "normal",
+    },
   },
   {
     id: "syne-dropped",
@@ -768,118 +1052,152 @@ export const FONT_COMBOS: FontCombo[] = [
     sansClass: "font-extrabold tracking-tighter lowercase",
     serifClass: "italic font-normal normal-case",
   },
-  {
-    id: "grotesk-diff",
-    name: "Grotesk Diff",
-    desc: "Space Grotesk + DotGothic16",
-    tag: "WEB3",
-    uiFont: "'Space Grotesk', sans-serif",
-    headingFont: "'DotGothic16', sans-serif",
-    sansText: "geo",
-    serifText: "metric ",
-    sansText2: "node",
-    sansClass: "font-bold tracking-tight lowercase",
-    serifClass: "font-normal normal-case",
-  },
-  {
-    id: "kerning-crimes",
-    name: "Kerning Crimes",
-    desc: "Bricolage Grotesque + Fraunces",
-    tag: "EDITORIAL",
-    uiFont: "'Bricolage Grotesque', sans-serif",
-    headingFont: "'Fraunces', serif",
-    sansText: "syn",
-    serifText: "thetic ",
-    sansText2: "mind",
-    sansClass: "font-extrabold tracking-tighter lowercase",
-    serifClass: "italic font-light normal-case",
-  },
-  {
-    id: "liquid-capital",
-    name: "Liquid Capital",
-    desc: "Plus Jakarta Sans + Playfair Display",
-    tag: "FINTECH",
-    uiFont: "'Plus Jakarta Sans', sans-serif",
-    headingFont: "'Playfair Display', serif",
-    sansText: "liq",
-    serifText: "uidity ",
-    sansText2: "pool",
-    sansClass: "font-extrabold tracking-tighter lowercase",
-    serifClass: "italic font-medium normal-case",
-  },
-  {
-    id: "git-blame-era",
-    name: "git blame era",
-    desc: "Outfit + JetBrains Mono",
-    tag: "DEV",
-    uiFont: "'Outfit', sans-serif",
-    headingFont: "'JetBrains Mono', monospace",
-    sansText: "a",
-    serifText: "sync ",
-    sansText2: "ops",
-    sansClass: "font-black tracking-tighter lowercase",
-    serifClass: "italic font-normal normal-case",
-  },
-  {
-    id: "ink-trap-szn",
-    name: "Ink Trap Szn",
-    desc: "Chivo + Cormorant Garamond",
-    tag: "AVANT",
-    uiFont: "'Chivo', sans-serif",
-    headingFont: "'Cormorant Garamond', serif",
-    sansText: "ki",
-    serifText: "netic ",
-    sansText2: "type",
-    sansClass: "font-black tracking-tighter lowercase",
-    serifClass: "italic font-medium normal-case",
-  },
-  {
-    id: "big-iron",
-    name: "Big Iron",
-    desc: "Epilogue + IBM Plex Mono",
-    tag: "INDUSTRIAL",
-    uiFont: "'Epilogue', sans-serif",
-    headingFont: "'IBM Plex Mono', monospace",
-    sansText: "om",
-    serifText: "ni ",
-    sansText2: "base",
-    sansClass: "font-black tracking-tighter lowercase",
-    serifClass: "italic font-normal normal-case",
-  },
-  {
-    id: "neural-drip",
-    name: "Neural Drip",
-    desc: "Manrope + Instrument Serif",
-    tag: "SAAS",
-    uiFont: "'Manrope', sans-serif",
-    headingFont: "'Instrument Serif', serif",
-    sansText: "neu",
-    serifText: "ral ",
-    sansText2: "net",
-    sansClass: "font-extrabold tracking-tighter lowercase",
-    serifClass: "italic font-normal normal-case",
-  },
-  {
-    id: "unbounded-swag",
-    name: "Unbounded Swag",
-    desc: "Unbounded + Newsreader",
-    tag: "HYPE",
-    uiFont: "'Unbounded', sans-serif",
-    headingFont: "'Newsreader', serif",
-    sansText: "lu",
-    serifText: "cid ",
-    sansText2: "state",
-    sansClass: "font-black tracking-tighter lowercase",
-    serifClass: "italic font-normal normal-case",
-  },
 ];
 
+// Upgrade only exact retired preset pairs; preserve custom choices, sizes and editor font.
+const PREVIOUS_FONT_COMBOS = [
+  ["'Inter Tight', sans-serif", "'Unbounded', sans-serif", "swiss-light"],
+  ["'Space Grotesk', sans-serif", "'Russo One', sans-serif", "independent-grotesk"],
+  ["'Bricolage Grotesque', sans-serif", "'Black Han Sans', sans-serif", "sculpted-contrast"],
+  ["'Albert Sans', sans-serif", "'Rammetto One', sans-serif", "open-proportions"],
+  ["'Hanken Grotesk', sans-serif", "'Paytone One', sans-serif", "swiss-light"],
+  ["'Chivo', sans-serif", "'Bowlby One', sans-serif", "editorial-dark"],
+  ["'DM Sans', sans-serif", "'Rubik Mono One', sans-serif", "wide-technical"],
+  ["'Spline Sans', sans-serif", "'Mochiy Pop One', sans-serif", "dot-matrix"],
+  ["'Red Hat Display', sans-serif", "'Science Gothic', sans-serif", "funnel-weights"],
+  ["'Inter Tight', sans-serif", "'Sora', sans-serif", "swiss-light"],
+  ["'Space Grotesk', sans-serif", "'Chakra Petch', sans-serif", "independent-grotesk"],
+  ["'Bricolage Grotesque', sans-serif", "'Dela Gothic One', sans-serif", "sculpted-contrast"],
+  ["'Chivo', sans-serif", "'Anybody', sans-serif", "editorial-dark"],
+  ["'Rethink Sans', sans-serif", "'Archivo Black', sans-serif", "open-proportions"],
+  ["'Onest', sans-serif", "'Gabarito', sans-serif", "swiss-light"],
+  ["'Schibsted Grotesk', sans-serif", "'Space Mono', monospace", "wide-technical"],
+  ["'Figtree', sans-serif", "'Climate Crisis', sans-serif", "dot-matrix"],
+  ["'Lexend', sans-serif", "'Urbanist', sans-serif", "funnel-weights"],
+  ["'Inter Tight', sans-serif", "'Instrument Serif', serif", "swiss-light"],
+  ["'Space Grotesk', sans-serif", "'DotGothic16', sans-serif", "independent-grotesk"],
+  ["'Bricolage Grotesque', sans-serif", "'Fraunces', serif", "sculpted-contrast"],
+  ["'Chivo', sans-serif", "'Cormorant Garamond', serif", "editorial-dark"],
+  ["'Plus Jakarta Sans', sans-serif", "'Playfair Display', serif", "open-proportions"],
+  ["'Outfit', sans-serif", "'JetBrains Mono', monospace", "swiss-light"],
+  ["'Epilogue', sans-serif", "'IBM Plex Mono', monospace", "wide-technical"],
+  ["'Manrope', sans-serif", "'Instrument Serif', serif", "dot-matrix"],
+  ["'Unbounded', sans-serif", "'Newsreader', serif", "funnel-weights"],
+] as const;
+export function upgradeFontPreferences(fonts: FontPreferences): FontPreferences {
+  if (fonts.sectionFont || fonts.supportingFont) return fonts;
+  const previous = PREVIOUS_FONT_COMBOS.find(
+    ([ui, heading]) => ui === fonts.uiFont && heading === fonts.headingFont,
+  );
+  const replacement = previous && FONT_COMBOS.find((combo) => combo.id === previous[2]);
+  return replacement
+    ? { ...fonts, uiFont: replacement.uiFont, headingFont: replacement.headingFont }
+    : fonts;
+}
+
+export function getFontComboPageHeading(combo: FontCombo, fonts?: FontPreferences) {
+  const keepInterfaceHeading =
+    combo.id === "syne-dropped" || (combo.isNeutral && combo.id !== "custom");
+  const typography =
+    combo.id === "custom" && fonts ? resolveFontTypography(fonts) : combo.typography;
+  return {
+    className: keepInterfaceHeading ? combo.sansClass : combo.serifClass,
+    fontFamily: keepInterfaceHeading ? "var(--font-sans)" : "var(--font-display)",
+    ...(typography
+      ? {
+          fontWeight: typography.headingWeight,
+          letterSpacing: typography.headingTracking,
+          textTransform: typography.headingTransform,
+        }
+      : { fontWeight: undefined, letterSpacing: undefined, textTransform: "capitalize" as const }),
+  };
+}
+
 export function getActiveFontCombo(fonts: FontPreferences): FontCombo {
+  if (fonts.sectionFont || fonts.supportingFont) return FONT_COMBOS.find((c) => c.id === "custom")!;
   const match = FONT_COMBOS.find(
     (c) => c.uiFont === fonts.uiFont && c.headingFont === fonts.headingFont,
   );
-  return match ?? FONT_COMBOS[0]!;
+  return match ?? FONT_COMBOS.find((c) => c.id === "custom")!;
 }
+
+/** Resolve each text role separately, including mixtures that are not named presets. */
+export function resolveFontTypography(fonts: FontPreferences) {
+  const combo = getActiveFontCombo(fonts);
+  const preset = combo.typography;
+  const display =
+    preset ?? FONT_COMBOS.find((c) => c.headingFont === fonts.headingFont)?.typography;
+  const sectionFont = fonts.sectionFont ?? preset?.sectionFont ?? fonts.headingFont;
+  const section = FONT_COMBOS.find((c) => c.typography?.sectionFont === sectionFont)?.typography;
+  const isSerifSection =
+    sectionFont.includes("Newsreader") || sectionFont.includes("Instrument Serif");
+  const supportingFont = fonts.supportingFont ?? preset?.supportingFont ?? fonts.uiFont;
+  return {
+    headingWeight:
+      display?.headingWeight ??
+      (fonts.headingFont.includes("Serif") || fonts.headingFont.includes("Newsreader") ? 400 : 700),
+    headingTracking: display?.headingTracking ?? "-.025em",
+    headingTransform: display?.headingTransform ?? ("none" as const),
+    sectionFont,
+    sectionWeight:
+      preset && !fonts.sectionFont
+        ? preset.sectionWeight
+        : (section?.sectionWeight ?? (isSerifSection ? 400 : 600)),
+    sectionStyle:
+      preset && !fonts.sectionFont
+        ? preset.sectionStyle
+        : isSerifSection
+          ? ("italic" as const)
+          : ("normal" as const),
+    sectionTransform: preset && !fonts.sectionFont ? preset.sectionTransform : ("none" as const),
+    sectionTracking: preset && !fonts.sectionFont ? preset.sectionTracking : "-.015em",
+    rowFont: preset?.rowFont ?? fonts.uiFont,
+    rowWeight: preset?.rowWeight ?? 700,
+    controlsFont: preset?.controlsFont ?? fonts.uiFont,
+    metadataFont: preset?.metadataFont ?? fonts.uiFont,
+    supportingFont,
+    supportingStyle: fonts.supportingFont
+      ? supportingFont.includes("Newsreader") || supportingFont.includes("Instrument Serif")
+        ? ("italic" as const)
+        : ("normal" as const)
+      : (preset?.supportingStyle ?? ("normal" as const)),
+  };
+}
+
+export function prepareCustomFontPreferences(fonts: FontPreferences): FontPreferences {
+  const resolved = resolveFontTypography(fonts);
+  return {
+    ...fonts,
+    headingFont: getActiveFontCombo(fonts).id === "syne-dropped" ? fonts.uiFont : fonts.headingFont,
+    sectionFont: resolved.sectionFont,
+    supportingFont: resolved.supportingFont,
+  };
+}
+
+/** Selecting a preset clears independent overrides, preserving sizes and code font. */
+export function selectFontCombo(fonts: FontPreferences, combo: FontCombo): FontPreferences {
+  return {
+    ...fonts,
+    uiFont: combo.uiFont,
+    headingFont: combo.headingFont,
+    sectionFont: undefined,
+    supportingFont: undefined,
+  };
+}
+
+export const MIXER_FONT_OPTIONS = Array.from(
+  new Map(
+    [
+      ...UI_FONT_OPTIONS,
+      ...HEADING_FONT_OPTIONS,
+      { value: "'Geist Mono', monospace", label: "Geist Mono" },
+      { value: "'Fragment Mono', monospace", label: "Fragment Mono" },
+    ].map((f) => [
+      f.value,
+      { value: f.value, label: f.value === "system-ui" ? "System UI" : f.label },
+    ]),
+  ).values(),
+);
 
 // Color utilities re-exported from @tabs/shared/themeDerivation above.
 

@@ -2,7 +2,7 @@ import { ProjectId, ThreadId } from "@tabs/contracts";
 
 interface TerminalRetentionThread {
   id: ThreadId;
-  deletedAt: string | null;
+  deletedAt: unknown;
 }
 
 interface CollectActiveTerminalThreadIdsInput {

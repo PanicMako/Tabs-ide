@@ -3,24 +3,127 @@ import {
   type ReviewProgressEvent,
   ORCHESTRATION_WS_CHANNELS,
   ORCHESTRATION_WS_METHODS,
+  ORCHESTRATION_V2_WS_METHODS,
+  OrchestrationV2ShellStreamItem,
+  OrchestrationV2ThreadStreamItem,
   type ContextMenuItem,
   type NativeApi,
   type AssetCreateUrlResult,
+  ServerConfigStreamEvent,
   ServerConfigUpdatedPayload,
   ServerProviderUpdatedPayload,
   WS_CHANNELS,
   WS_METHODS,
   type WsWelcomePayload,
   type TerminalEvent,
-  type ResourceTelemetrySnapshot,
+  TerminalEvent as TerminalEventSchema,
+  ResourceTelemetrySnapshot,
+  type OrchestrationReadModel,
 } from "@tabs/contracts";
+import { providerUsageSnapshots } from "./providerUsageSnapshots";
+import * as Schema from "effect/Schema";
 
 import { showContextMenuFallback } from "./contextMenuFallback";
 import { WsTransport } from "./wsTransport";
 import { showCustomConfirm } from "./lib/customConfirm";
 
+const decodeShellStreamItem = Schema.decodeUnknownSync(OrchestrationV2ShellStreamItem);
+const decodeThreadStreamItem = Schema.decodeUnknownSync(OrchestrationV2ThreadStreamItem);
+
+export function normalizeOrchestrationCommand(command: any): any {
+  if (!command || typeof command !== "object") return command;
+  if (command.type === "thread.create") {
+    return {
+      ...command,
+      interactionMode:
+        command.interactionMode === "chat" || !command.interactionMode
+          ? "default"
+          : command.interactionMode,
+    };
+  }
+  if (command.type === "thread.turn.start") {
+    const text = command.input?.text ?? command.text ?? "";
+    const attachments = command.input?.attachments ?? command.attachments ?? [];
+    return {
+      type: "message.dispatch",
+      commandId:
+        command.commandId ??
+        (typeof crypto !== "undefined" && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `cmd-${Date.now()}`),
+      threadId: command.threadId,
+      messageId:
+        command.messageId ??
+        (typeof crypto !== "undefined" && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `msg-${Date.now()}`),
+      text,
+      attachments,
+      dispatchMode: { type: "start_immediately" },
+      ...(command.context ? { context: command.context } : {}),
+      ...(command.modelSelection ? { modelSelection: command.modelSelection } : {}),
+      ...(command.sourcePlanRef ? { sourcePlanRef: command.sourcePlanRef } : {}),
+    };
+  }
+  if (command.type === "thread.approval.respond") {
+    return {
+      type: "runtime-request.respond",
+      commandId:
+        command.commandId ??
+        (typeof crypto !== "undefined" && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `cmd-${Date.now()}`),
+      threadId: command.threadId,
+      requestId: command.requestId ?? command.approvalId,
+      decision: command.decision,
+    };
+  }
+  if (command.type === "thread.user-input.respond") {
+    return {
+      type: "runtime-request.respond",
+      commandId:
+        command.commandId ??
+        (typeof crypto !== "undefined" && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `cmd-${Date.now()}`),
+      threadId: command.threadId,
+      requestId: command.requestId,
+      answers: command.answers,
+      ...(command.attachmentsByQuestionId
+        ? { attachmentsByQuestionId: command.attachmentsByQuestionId }
+        : {}),
+    };
+  }
+  if (command.type === "thread.meta.update") {
+    const cmdId =
+      command.commandId ??
+      (typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `cmd-${Date.now()}`);
+    if (command.modelSelection && !command.title && !command.branch && !command.worktreePath) {
+      return {
+        type: "thread.model-selection.set",
+        commandId: cmdId,
+        threadId: command.threadId,
+        modelSelection: command.modelSelection,
+      };
+    }
+    return {
+      type: "thread.metadata.update",
+      commandId: cmdId,
+      threadId: command.threadId,
+      ...(command.title !== undefined ? { title: command.title } : {}),
+      ...(command.branch !== undefined ? { branch: command.branch } : {}),
+      ...(command.worktreePath !== undefined ? { worktreePath: command.worktreePath } : {}),
+    };
+  }
+  return command;
+}
+
 let instance: { api: NativeApi; transport: WsTransport } | null = null;
 const welcomeListeners = new Set<(payload: WsWelcomePayload) => void>();
+let latestV2Config: ServerConfigUpdatedPayload | null = null;
+let latestV2Providers: ServerProviderUpdatedPayload | null = null;
 const serverConfigUpdatedListeners = new Set<(payload: ServerConfigUpdatedPayload) => void>();
 const providersUpdatedListeners = new Set<(payload: ServerProviderUpdatedPayload) => void>();
 const gitActionProgressListeners = new Set<(payload: GitActionProgressEvent) => void>();
@@ -59,7 +162,9 @@ export function onServerConfigUpdated(
   serverConfigUpdatedListeners.add(listener);
 
   const latestConfig =
-    instance?.transport.getLatestPush(WS_CHANNELS.serverConfigUpdated)?.data ?? null;
+    latestV2Config ??
+    instance?.transport.getLatestPush(WS_CHANNELS.serverConfigUpdated)?.data ??
+    null;
   if (latestConfig) {
     try {
       listener(latestConfig);
@@ -79,7 +184,9 @@ export function onServerProvidersUpdated(
   providersUpdatedListeners.add(listener);
 
   const latestProviders =
-    instance?.transport.getLatestPush(WS_CHANNELS.serverProvidersUpdated)?.data ?? null;
+    latestV2Providers ??
+    instance?.transport.getLatestPush(WS_CHANNELS.serverProvidersUpdated)?.data ??
+    null;
   if (latestProviders) {
     try {
       listener(latestProviders);
@@ -91,6 +198,26 @@ export function onServerProvidersUpdated(
   return () => {
     providersUpdatedListeners.delete(listener);
   };
+}
+
+const apiProviderUpdates = new WeakMap<
+  NativeApi,
+  {
+    listeners: Set<(payload: ServerProviderUpdatedPayload) => void>;
+    latest: () => ServerProviderUpdatedPayload | null;
+  }
+>();
+
+export function onApiServerProvidersUpdated(
+  api: NativeApi,
+  listener: (payload: ServerProviderUpdatedPayload) => void,
+): () => void {
+  const updates = apiProviderUpdates.get(api);
+  if (!updates) return () => {};
+  updates.listeners.add(listener);
+  const latest = updates.latest();
+  if (latest) listener(latest);
+  return () => updates.listeners.delete(listener);
 }
 
 export function onUsageUpdated(listener: (payload: any) => void): () => void {
@@ -136,6 +263,44 @@ export function createWsNativeApi(options?: {
       transport.reconnectAfterSystemResume();
     });
   }
+
+  let streamConfig: ServerConfigUpdatedPayload | null = null;
+  transport.subscribeRpc<ServerConfigStreamEvent>(
+    WS_METHODS.subscribeServerConfig,
+    () => ({}),
+    Schema.decodeUnknownSync(ServerConfigStreamEvent),
+    (event) => {
+      if (event.type === "snapshot") {
+        streamConfig = {
+          issues: event.config.issues,
+          providers: event.config.providers,
+          settings: event.config.settings,
+          environmentThemes: event.config.environmentThemes,
+          usageLimitSources: event.config.usageLimitSources,
+        };
+      } else if (streamConfig) {
+        if (event.type === "providerStatuses")
+          streamConfig = { ...streamConfig, providers: event.payload.providers };
+        else if (event.type === "settingsUpdated")
+          streamConfig = { ...streamConfig, settings: event.payload.settings };
+        else if (event.type === "keybindingsUpdated")
+          streamConfig = { ...streamConfig, issues: event.payload.issues };
+        else if (event.type === "environmentThemesUpdated")
+          streamConfig = { ...streamConfig, environmentThemes: event.payload.themes };
+        else if (event.type === "usageLimitSourcesUpdated")
+          streamConfig = { ...streamConfig, usageLimitSources: event.payload.sources };
+      }
+      if (!streamConfig) return;
+      if (singleton) latestV2Config = streamConfig;
+      for (const listener of activeServerConfigUpdatedListeners) listener(streamConfig);
+      if (event.type === "snapshot" || event.type === "providerStatuses") {
+        const payload = { providers: streamConfig.providers };
+        if (singleton) latestV2Providers = payload;
+        for (const listener of activeProvidersUpdatedListeners) listener(payload);
+      }
+    },
+    () => undefined,
+  );
 
   transport.subscribe(WS_CHANNELS.serverWelcome, (message) => {
     const payload = message.data;
@@ -299,8 +464,22 @@ export function createWsNativeApi(options?: {
       clear: (input) => transport.request(WS_METHODS.terminalClear, input),
       restart: (input) => transport.request(WS_METHODS.terminalRestart, input),
       close: (input) => transport.request(WS_METHODS.terminalClose, input),
-      onEvent: (callback) =>
-        transport.subscribe(WS_CHANNELS.terminalEvent, (message) => callback(message.data)),
+      onEvent: (callback) => {
+        const unsubscribePush = transport.subscribe(WS_CHANNELS.terminalEvent, (message) =>
+          callback(message.data),
+        );
+        const unsubscribeRpc = transport.subscribeRpc(
+          WS_METHODS.subscribeTerminalEvents,
+          () => ({}),
+          Schema.decodeUnknownSync(TerminalEventSchema),
+          callback,
+          (error) => console.error("Terminal event subscription failed:", error),
+        );
+        return () => {
+          unsubscribePush();
+          unsubscribeRpc();
+        };
+      },
       attach: () => () => {},
       onMetadata: () => () => {},
     },
@@ -434,7 +613,7 @@ export function createWsNativeApi(options?: {
       getConfig: () => transport.request(WS_METHODS.serverGetConfig),
       refreshProviders: (input) => transport.request(WS_METHODS.serverRefreshProviders, input),
       runProviderMaintenance: (input) =>
-        transport.request(WS_METHODS.serverRunProviderMaintenance, input),
+        transport.request(WS_METHODS.serverRunProviderMaintenance, input, { timeoutMs: 310_000 }),
       upsertKeybinding: (input) => transport.request(WS_METHODS.serverUpsertKeybinding, input),
       batchUpsertKeybindings: (input) =>
         transport.request(WS_METHODS.serverBatchUpsertKeybindings, input),
@@ -472,23 +651,112 @@ export function createWsNativeApi(options?: {
         transport.subscribe(WS_CHANNELS.backgroundPolicyUpdated, (message) =>
           callback(message.data),
         ),
-      onResourceTelemetry: (callback) => {
-        const unsubscribe = transport.subscribe(WS_CHANNELS.resourceTelemetryUpdated, (message) =>
-          callback(message.data),
+      onResourceTelemetry: (callback) =>
+        transport.subscribeRpc(
+          WS_METHODS.subscribeResourceTelemetry,
+          () => ({}),
+          Schema.decodeUnknownSync(ResourceTelemetrySnapshot),
+          callback,
+          (error) => console.error("Resource telemetry stream failed", error),
+        ),
+      readUsageSummary: (input) => transport.request("server.getUsageSummary", input),
+      listUsageSnapshots: async (input = {}) => {
+        if (input.forceRefresh) await transport.request(WS_METHODS.serverRefreshProviders, {});
+        const config = await transport.request<ServerConfigUpdatedPayload>(
+          WS_METHODS.serverGetConfig,
         );
-        void transport.request(WS_METHODS.subscribeResourceTelemetry, {}).catch(() => {});
-        return unsubscribe;
+        return providerUsageSnapshots(config.providers, input.provider);
       },
-      readUsageSummary: (input) => transport.request(WS_METHODS.usageReadSummary, input),
-      listUsageSnapshots: (input = {}) => transport.request(WS_METHODS.usageListSnapshots, input),
-      refreshAllUsageSnapshots: () => transport.request(WS_METHODS.usageRefreshAll, {}),
+      refreshAllUsageSnapshots: async () => {
+        await transport.request(WS_METHODS.serverRefreshProviders, {});
+        const config = await transport.request<ServerConfigUpdatedPayload>(
+          WS_METHODS.serverGetConfig,
+        );
+        return providerUsageSnapshots(config.providers);
+      },
       consumeResetCredit: (input) =>
         transport.request(WS_METHODS.providerConsumeResetCredit, input),
     },
     orchestration: {
-      getSnapshot: () => transport.request(ORCHESTRATION_WS_METHODS.getSnapshot),
-      dispatchCommand: (command) =>
-        transport.request(ORCHESTRATION_WS_METHODS.dispatchCommand, { command }),
+      getSnapshot: async (environmentId?: string) => {
+        const { appAtomRegistry } = await import("./state/atomRegistry");
+        const { readModelStateAtom } = await import("./state/readModel");
+        const { getPrimaryEnvironmentId, isPrimaryEnvironment } =
+          await import("./connection/environmentApiRegistry");
+        const state = appAtomRegistry.get(readModelStateAtom);
+        const primaryEnv = getPrimaryEnvironmentId();
+        const targetEnv = environmentId ?? transport.environmentId ?? primaryEnv ?? "primary";
+
+        const meta =
+          state.environmentSnapshots?.[targetEnv] ??
+          (targetEnv === "primary" || isPrimaryEnvironment(targetEnv)
+            ? (state.environmentSnapshots?.["primary"] ??
+              (primaryEnv ? state.environmentSnapshots?.[primaryEnv] : undefined))
+            : undefined);
+
+        if (!meta || !meta.initialized) {
+          throw new Error(
+            `Orchestration snapshot unavailable: initial snapshot has not been received for environment ${targetEnv}.`,
+          );
+        }
+
+        const isTargetPrimary = targetEnv === "primary" || isPrimaryEnvironment(targetEnv);
+        const envProjects = state.projects.filter((p) =>
+          isTargetPrimary
+            ? p.environmentId === undefined || isPrimaryEnvironment(p.environmentId)
+            : p.environmentId === targetEnv,
+        );
+        const envThreads = state.threads.filter((t) =>
+          isTargetPrimary
+            ? t.environmentId === undefined || isPrimaryEnvironment(t.environmentId)
+            : t.environmentId === targetEnv,
+        );
+
+        return {
+          snapshotSequence: meta.snapshotSequence,
+          projects: envProjects as unknown as any[],
+          threads: envThreads as unknown as any[],
+          updatedAt: meta.updatedAt,
+        } as unknown as OrchestrationReadModel;
+      },
+      dispatchCommand: (command) => {
+        const normalized = normalizeOrchestrationCommand(command);
+        if (
+          normalized &&
+          (normalized.type === "project.create" ||
+            normalized.type === "project.update" ||
+            normalized.type === "project.delete")
+        ) {
+          return transport.request(WS_METHODS.projectsMutate, {
+            type: normalized.type,
+            commandId: normalized.commandId,
+            projectId: normalized.projectId,
+            ...(normalized.title !== undefined ? { title: normalized.title } : {}),
+            ...(normalized.workspaceRoot !== undefined
+              ? { workspaceRoot: normalized.workspaceRoot }
+              : {}),
+            ...(normalized.createWorkspaceRootIfMissing !== undefined
+              ? { createWorkspaceRootIfMissing: normalized.createWorkspaceRootIfMissing }
+              : {}),
+            ...(normalized.defaultModelSelection !== undefined
+              ? { defaultModelSelection: normalized.defaultModelSelection }
+              : {}),
+            ...(normalized.autoPull !== undefined ? { autoPull: normalized.autoPull } : {}),
+            ...(normalized.projectIcon !== undefined
+              ? { projectIcon: normalized.projectIcon }
+              : {}),
+            ...(normalized.faviconPath !== undefined
+              ? { faviconPath: normalized.faviconPath }
+              : {}),
+            ...(normalized.defaultThreadEnvMode !== undefined
+              ? { defaultThreadEnvMode: normalized.defaultThreadEnvMode }
+              : {}),
+            ...(normalized.scripts !== undefined ? { scripts: normalized.scripts } : {}),
+            ...(normalized.force !== undefined ? { force: normalized.force } : {}),
+          });
+        }
+        return transport.request(ORCHESTRATION_V2_WS_METHODS.dispatchCommand, normalized);
+      },
       getTurnDiff: (input) => transport.request(ORCHESTRATION_WS_METHODS.getTurnDiff, input),
       getFullThreadDiff: (input) =>
         transport.request(ORCHESTRATION_WS_METHODS.getFullThreadDiff, input),
@@ -500,8 +768,95 @@ export function createWsNativeApi(options?: {
         ),
       getArchivedShellSnapshot: () =>
         transport.request(ORCHESTRATION_WS_METHODS.getArchivedShellSnapshot, {}),
-      subscribeShell: () => () => {},
-      subscribeThread: () => () => {},
+      getThreadProjection: (input) =>
+        transport.request(ORCHESTRATION_V2_WS_METHODS.getThreadProjection, input),
+      reconcileIntake: (input) =>
+        transport.request(ORCHESTRATION_V2_WS_METHODS.reconcileIntake, input),
+      recordCancellationIntent: (input) =>
+        transport.request(ORCHESTRATION_V2_WS_METHODS.recordCancellationIntent, input),
+      subscribeShell: (callback, options) => {
+        let lastSeenSequence: number | undefined = undefined;
+        let isFirst = true;
+        return transport.subscribeRpc(
+          ORCHESTRATION_V2_WS_METHODS.subscribeShell,
+          () => {
+            if (!isFirst) {
+              options?.onResubscribe?.();
+            }
+            isFirst = false;
+            return lastSeenSequence !== undefined ? { afterSequence: lastSeenSequence } : {};
+          },
+          (value) => {
+            try {
+              return decodeShellStreamItem(value);
+            } catch {
+              return value as any;
+            }
+          },
+          (item) => {
+            if ("sequence" in item && typeof item.sequence === "number") {
+              lastSeenSequence = item.sequence;
+            } else if (
+              "kind" in item &&
+              item.kind === "snapshot" &&
+              "snapshot" in item &&
+              typeof (item.snapshot as any)?.snapshotSequence === "number"
+            ) {
+              lastSeenSequence = (item.snapshot as any).snapshotSequence;
+            }
+            callback(item);
+          },
+          (error) => {
+            console.error("Shell subscription error:", error);
+          },
+        );
+      },
+      subscribeThread: (input, callback, options) => {
+        let lastSeenSequence: number | undefined =
+          "afterSequence" in input && typeof input.afterSequence === "number"
+            ? input.afterSequence
+            : undefined;
+        let isFirst = true;
+        const threadId = "threadId" in input ? input.threadId : undefined;
+        if (!threadId) return () => {};
+        return transport.subscribeRpc(
+          ORCHESTRATION_V2_WS_METHODS.subscribeThread,
+          () => {
+            if (!isFirst) {
+              options?.onResubscribe?.();
+            }
+            isFirst = false;
+            return {
+              threadId,
+              ...(lastSeenSequence !== undefined ? { afterSequence: lastSeenSequence } : {}),
+              acceptBoundedSnapshot:
+                "acceptBoundedSnapshot" in input ? input.acceptBoundedSnapshot : true,
+            };
+          },
+          (value) => {
+            try {
+              return decodeThreadStreamItem(value);
+            } catch {
+              return value as any;
+            }
+          },
+          (item) => {
+            if ("sequence" in item && typeof item.sequence === "number") {
+              lastSeenSequence = item.sequence;
+            } else if (
+              "kind" in item &&
+              item.kind === "snapshot" &&
+              typeof (item as any)?.snapshotSequence === "number"
+            ) {
+              lastSeenSequence = (item as any).snapshotSequence;
+            }
+            callback(item);
+          },
+          (error) => {
+            console.error(`Thread subscription error for ${threadId}:`, error);
+          },
+        );
+      },
     },
     persistence: {
       getClientSettings: async () => null,
@@ -515,6 +870,8 @@ export function createWsNativeApi(options?: {
         );
         return { ...result, relativeUrl: transport.resolveHttpUrl(result.relativeUrl) };
       },
+      persistChatAttachments: (input) =>
+        transport.request(WS_METHODS.assetsPersistChatAttachments, input),
     },
     sourceControl: {
       lookupRepository: async () => {
@@ -598,6 +955,10 @@ export function createWsNativeApi(options?: {
     },
   };
 
+  apiProviderUpdates.set(api, {
+    listeners: activeProvidersUpdatedListeners,
+    latest: () => (streamConfig ? { providers: streamConfig.providers } : null),
+  });
   if (singleton) instance = { api, transport };
   return api;
 }
