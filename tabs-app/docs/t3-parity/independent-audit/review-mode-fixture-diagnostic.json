@@ -1,0 +1,7 @@
+{
+  "disk_mode": "0o644",
+  "committed_mode": "100755 blob de3f0a9dcf78704818c6a86621923bd50cc2d427\tmode-only.sh",
+  "base_to_disk_numstat": "",
+  "base_to_head_numstat": "0\t0\tmode-only.sh",
+  "after_disk_chmod_base_to_disk_numstat": "0\t0\tmode-only.sh"
+}

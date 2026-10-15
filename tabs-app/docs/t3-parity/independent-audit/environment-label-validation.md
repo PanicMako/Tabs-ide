@@ -1,0 +1,5 @@
+# Environment labels
+
+Batch334: Complete source and289-line tests reviewed.4pass4fail343ms/exit1, /tmp/tabs-audit-environment-label.log. Source imports Promise runProcess directly; processRunner.ts557+ invokes Node spawn, so tests providing mocked ProcessRunner service cannot intercept it. Observed real host label instead of expected fixture and Linux command absence fallback. This establishes invalid isolated-test setup, not incorrect production label selection.
+
+Source friendly Darwin ComputerName or Linux machine-info/hostnamectl then HostProcessHostname/cwd/Tabs environment. machine-info parser strips simple enclosing quotes but does not unescape shell sequences. Commands5-second deadline; Effect.tryPromise ignores abort signal so interrupt does not cancel subprocess immediately, bounded by process timeout. Double wrapping command errors retains cause. No SSH detection or TTL cache in this module; initial progress description anticipated those incorrectly. Label is baked into descriptor at service acquisition.

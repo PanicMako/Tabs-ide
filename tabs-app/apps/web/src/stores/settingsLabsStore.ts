@@ -4,6 +4,8 @@ import { createMemoryStorage } from "~/lib/storage";
 
 interface SettingsLabsState {
   editorialSettings: boolean;
+  editorialSettingsOnly: boolean;
+  setEditorialSettingsOnly: (enabled: boolean) => void;
   editorialAppearance: "dark" | "light";
   setEditorialAppearance: (appearance: "dark" | "light") => void;
   setEditorialSettings: (enabled: boolean) => void;
@@ -13,6 +15,8 @@ export const useSettingsLabsStore = create<SettingsLabsState>()(
   persist(
     (set) => ({
       editorialSettings: false,
+      editorialSettingsOnly: false,
+      setEditorialSettingsOnly: (editorialSettingsOnly) => set({ editorialSettingsOnly }),
       editorialAppearance: "dark",
       setEditorialAppearance: (editorialAppearance) => set({ editorialAppearance }),
       setEditorialSettings: (editorialSettings) => set({ editorialSettings }),
@@ -20,8 +24,9 @@ export const useSettingsLabsStore = create<SettingsLabsState>()(
     {
       name: "tabs_settings_labs_v1",
       storage: createJSONStorage(() => safeStorage),
-      partialize: ({ editorialSettings, editorialAppearance }) => ({
+      partialize: ({ editorialSettings, editorialSettingsOnly, editorialAppearance }) => ({
         editorialSettings,
+        editorialSettingsOnly,
         editorialAppearance,
       }),
     },

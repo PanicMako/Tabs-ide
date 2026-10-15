@@ -1,0 +1,5 @@
+# Composer inline tokens and trigger dependency
+
+Complete inline146/test173 plus trigger128/test29 read. Only inline source changes5add2delete: Unicode currency sigils and shared skill regex export. Existing inline18/18,180ms exit0 covers monetary exclusion, scoped-package prose, confirmed trailing tokens, file-link escaping/bounds and pathological bracket input. Trigger dependency4 tests plus independent currency control1 passed5/5,118ms exit0. Independent control recognizes euro/rupee skill names, preserves pound/yen amounts and checks dollar normalization expression used by Codex.
+
+Web composer-editor-mentions135 calls token collector. V2 Codex adapter421 normalizes currency skill sigils with shared regex; selected source read. Trigger source still activates autocomplete only for dollar, so alternate-currency suggestions are not established. No browser/native provider launch executed. Fixture restores to packages/shared/src. Unchanged dependencies are not original-change completion credit. Production unchanged.

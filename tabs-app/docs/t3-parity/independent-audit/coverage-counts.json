@@ -1,0 +1,21 @@
+{
+  "ledger_entries": 210,
+  "original_inventory_entries": 2110,
+  "ledger_in_original_inventory": 196,
+  "ledger_outside_original_inventory": [
+    "tabs-app/apps/server/src/persistence/Layers/Sqlite.ts",
+    "tabs-app/apps/server/src/persistence/Migrations/044_CatchUpThreadLifecycle.ts",
+    "tabs-app/apps/server/src/persistence/Migrations/045_ProjectionThreadPullRequests.ts",
+    "tabs-app/apps/server/src/project/AgentSessionJson.ts",
+    "tabs-app/apps/server/src/provider/Layers/ProviderEventLoggers.ts",
+    "tabs-app/apps/server/src/provider/openCodeAuthPaths.ts",
+    "tabs-app/apps/server/src/provider/providerMaintenanceCommandCoordinator.ts",
+    "tabs-app/apps/server/src/provider/providerMaintenanceRunner.ts",
+    "tabs-app/apps/server/src/provider/providerSnapshot.test.ts",
+    "tabs-app/apps/web/src/components/git/PullRequestEditDialog.test.tsx",
+    "tabs-app/apps/web/src/components/ui/AppleTimePicker.test.tsx",
+    "tabs-app/apps/web/src/components/ui/scroll-area.tsx",
+    "tabs-app/apps/web/src/promptStashStore.test.ts",
+    "tabs-app/packages/client-runtime/src/rpc/protocol.ts"
+  ]
+}

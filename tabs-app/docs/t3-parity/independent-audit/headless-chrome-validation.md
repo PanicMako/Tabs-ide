@@ -1,0 +1,5 @@
+# Headless Chrome protocol
+
+Batch340: Complete609-line source reviewed. Scoped process additional fd3/fd4 CDP pipe, SOCKS proxy with loopback bypass disabled and WebRTC UDP restriction/injected peerconnection removal. Fresh profile; synthetic web origin serves HTML, main-frame other navigation refused, other-site iframe document continues through proxy. Popup flag set. These flags/static interception do not prove all browser network paths at runtime.
+
+Capture20-second timeout,4000px height cap,20 console messages/500chars each. CDP pending waiters/loaded fail on disconnect; command interruption leaves pending entry until reply/disconnect, bounded by short-lived browser scope in normal callers. Outgoing queue and partial CDP strings unbounded. Width measurement concurrency3; per-page close CDP await runs ensuring without local timeout, stalled close potential needs caller/native evidence. Scratch profile removed on scope exit and child spawner force kill2s. No actual packaged Chrome launch or screenshot performed. Full HtmlRender caller/test review next.

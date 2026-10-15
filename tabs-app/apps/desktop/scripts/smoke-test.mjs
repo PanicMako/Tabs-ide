@@ -169,11 +169,22 @@ class CdpSession {
   async screenshot(outputPath) {
     // Capture the renderer view directly; surface capture can stall in Electron
     // when a native child view is mounted even though the renderer is responsive.
-    const res = await this.send("Page.captureScreenshot", {
-      format: "png",
-      fromSurface: false,
-      captureBeyondViewport: false,
-    });
+    let res;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      try {
+        res = await this.send("Page.captureScreenshot", {
+          format: "png",
+          fromSurface: false,
+          captureBeyondViewport: false,
+        });
+        break;
+      } catch (error) {
+        // Chromium can have no capturable frame during a navigation/compositor
+        // transition. Keep evidence mandatory and retry only that transient case.
+        if (attempt === 4 || !String(error).includes("Unable to capture screenshot")) throw error;
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      }
+    }
     if (!res?.data) throw new Error("Electron screenshot returned no image data");
     if (res.data) {
       writeFileSync(outputPath, Buffer.from(res.data, "base64"));
@@ -1016,26 +1027,50 @@ async function run() {
     `);
     await new Promise((r) => setTimeout(r, 400));
 
-    // In SchedulePicker, click "+1 hour" preset
-    await cdp.evaluate(`
-      (() => {
-        const buttons = Array.from(document.querySelectorAll("button"));
-        const plusHour = buttons.find((b) => b.textContent && b.textContent.includes("+1 hour"));
-        if (!plusHour) throw new Error("STRICT ACCEPTANCE FAILURE: '+1 hour' button not found in SchedulePicker");
-        plusHour.click();
-      })()
-    `);
+    // In SchedulePicker, click "+1 hour" preset with bounded wait
+    let plusHourClicked = false;
+    for (let i = 0; i < 30; i++) {
+      plusHourClicked = await cdp.evaluate(`
+        (() => {
+          const buttons = Array.from(document.querySelectorAll("button"));
+          const plusHour = buttons.find((b) => b.getAttribute("data-testid") === "schedule-preset-60" || (b.textContent && b.textContent.includes("+1 hour")));
+          if (plusHour && !plusHour.disabled) {
+            plusHour.click();
+            return true;
+          }
+          return false;
+        })()
+      `);
+      if (plusHourClicked) break;
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    if (!plusHourClicked) {
+      throw new Error(
+        "STRICT ACCEPTANCE FAILURE: '+1 hour' button not found or disabled in SchedulePicker",
+      );
+    }
     await new Promise((r) => setTimeout(r, 200));
 
-    // Click Schedule submit button
-    await cdp.evaluate(`
-      (() => {
-        const buttons = Array.from(document.querySelectorAll("button"));
-        const submitBtn = buttons.find((b) => b.getAttribute("type") === "submit" && b.textContent && b.textContent.includes("Schedule"));
-        if (!submitBtn || submitBtn.disabled) throw new Error("STRICT ACCEPTANCE FAILURE: Schedule submit button not found or disabled");
-        submitBtn.click();
-      })()
-    `);
+    // Click Schedule submit button with bounded wait
+    let submitClicked = false;
+    for (let i = 0; i < 30; i++) {
+      submitClicked = await cdp.evaluate(`
+        (() => {
+          const buttons = Array.from(document.querySelectorAll("button"));
+          const submitBtn = buttons.find((b) => b.getAttribute("data-testid") === "schedule-submit-button" || (b.getAttribute("type") === "submit" && b.textContent && b.textContent.includes("Schedule")));
+          if (submitBtn && !submitBtn.disabled) {
+            submitBtn.click();
+            return true;
+          }
+          return false;
+        })()
+      `);
+      if (submitClicked) break;
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    if (!submitClicked) {
+      throw new Error("STRICT ACCEPTANCE FAILURE: Schedule submit button not found or disabled");
+    }
     await new Promise((r) => setTimeout(r, 500));
 
     // Verify queued run in server projection
@@ -1735,7 +1770,13 @@ async function run() {
     for (let attempt = 0; attempt < 60; attempt++) {
       if (
         await cdp.evaluate(
-          "Boolean(window.__tabsNativeApi && !document.body.innerText.includes('Still connecting to your workspace'))",
+          `Boolean(
+            window.__tabsNativeApi &&
+            document.querySelector('[data-testid="composer-editor"]') &&
+            (document.querySelector('.queue-toolbar') ||
+              document.querySelector('button[aria-label="Toggle companion side panel"]')) &&
+            !document.body.innerText.includes('Still connecting to your workspace')
+          )`,
         )
       ) {
         reconnected = true;

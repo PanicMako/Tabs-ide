@@ -1,0 +1,1248 @@
+[
+  {
+    "declaration": "WsServerProbeRpc",
+    "method": "WS_METHODS.serverProbe",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsServerGetConfigRpc",
+    "method": "WS_METHODS.serverGetConfig",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsServerRefreshProvidersRpc",
+    "method": "WS_METHODS.serverRefreshProviders",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsServerUpdateProviderRpc",
+    "method": "WS_METHODS.serverUpdateProvider",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsProviderConsumeResetCreditRpc",
+    "method": "WS_METHODS.providerConsumeResetCredit",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsProviderAuthStartRpc",
+    "method": "WS_METHODS.providerAuthStart",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsProviderAuthCompleteRpc",
+    "method": "WS_METHODS.providerAuthComplete",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsChatGptReconnectProfileRpc",
+    "method": "WS_METHODS.chatGptReconnectProfile",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsChatGptImportProfileRpc",
+    "method": "WS_METHODS.chatGptImportProfile",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsChatGptHandoffSubscribeRpc",
+    "method": "WS_METHODS.chatGptHandoffSubscribe",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsCodexAuthCallbackSubscribeRpc",
+    "method": "WS_METHODS.codexAuthCallbackSubscribe",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsProviderAuthRespondRpc",
+    "method": "WS_METHODS.providerAuthRespond",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsProviderAuthCancelRpc",
+    "method": "WS_METHODS.providerAuthCancel",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsProviderAuthLogoutRpc",
+    "method": "WS_METHODS.providerAuthLogout",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsProviderAuthSubscribeRpc",
+    "method": "WS_METHODS.providerAuthSubscribe",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsProviderInstallStartRpc",
+    "method": "WS_METHODS.providerInstallStart",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsProviderInstallCancelRpc",
+    "method": "WS_METHODS.providerInstallCancel",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsProviderInstallSubscribeRpc",
+    "method": "WS_METHODS.providerInstallSubscribe",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsProviderInstallRemoveRpc",
+    "method": "WS_METHODS.providerInstallRemove",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsServerUpdateServerRpc",
+    "method": "WS_METHODS.serverUpdateServer",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsServerUpdateServerWithProgressRpc",
+    "method": "WS_METHODS.serverUpdateServerWithProgress",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsServerCommitDesktopUpdateRpc",
+    "method": "WS_METHODS.serverCommitDesktopUpdate",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsServerUpsertKeybindingRpc",
+    "method": "WS_METHODS.serverUpsertKeybinding",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsServerRemoveKeybindingRpc",
+    "method": "WS_METHODS.serverRemoveKeybinding",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsServerGetSettingsRpc",
+    "method": "WS_METHODS.serverGetSettings",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsServerUpdateSettingsRpc",
+    "method": "WS_METHODS.serverUpdateSettings",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsServerDiscoverSourceControlRpc",
+    "method": "WS_METHODS.serverDiscoverSourceControl",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsServerSearchAcpRegistryRpc",
+    "method": "WS_METHODS.serverSearchAcpRegistry",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsServerPrepareAcpRegistryAgentRpc",
+    "method": "WS_METHODS.serverPrepareAcpRegistryAgent",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsServerUninstallAcpRegistryManagedBinaryRpc",
+    "method": "WS_METHODS.serverUninstallAcpRegistryManagedBinary",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsServerAcceptAcpRegistryUrlAuthRpc",
+    "method": "WS_METHODS.serverAcceptAcpRegistryUrlAuth",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsServerListAcpRegistrySessionsRpc",
+    "method": "WS_METHODS.serverListAcpRegistrySessions",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsServerImportAcpRegistrySessionRpc",
+    "method": "WS_METHODS.serverImportAcpRegistrySession",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsServerDeleteAcpRegistrySessionRpc",
+    "method": "WS_METHODS.serverDeleteAcpRegistrySession",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsServerListAcpRegistryProvidersRpc",
+    "method": "WS_METHODS.serverListAcpRegistryProviders",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsServerSetAcpRegistryProviderRpc",
+    "method": "WS_METHODS.serverSetAcpRegistryProvider",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsServerDisableAcpRegistryProviderRpc",
+    "method": "WS_METHODS.serverDisableAcpRegistryProvider",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsServerLogoutAcpRegistryRpc",
+    "method": "WS_METHODS.serverLogoutAcpRegistry",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsServerGetTraceDiagnosticsRpc",
+    "method": "WS_METHODS.serverGetTraceDiagnostics",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsServerGetProcessDiagnosticsRpc",
+    "method": "WS_METHODS.serverGetProcessDiagnostics",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsServerGetHostResourcesRpc",
+    "method": "WS_METHODS.serverGetHostResources",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsServerGetProcessResourceHistoryRpc",
+    "method": "WS_METHODS.serverGetProcessResourceHistory",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsServerGetResourceTelemetryHistoryRpc",
+    "method": "WS_METHODS.serverGetResourceTelemetryHistory",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsServerRetryResourceTelemetryRpc",
+    "method": "WS_METHODS.serverRetryResourceTelemetry",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsServerGetUsageSummaryRpc",
+    "method": "WS_METHODS.serverGetUsageSummary",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsServerRefreshUsageRatesRpc",
+    "method": "WS_METHODS.serverRefreshUsageRates",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsServerSignalProcessRpc",
+    "method": "WS_METHODS.serverSignalProcess",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsScheduledTasksListRpc",
+    "method": "WS_METHODS.scheduledTasksList",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsScheduledTasksSubscribeRpc",
+    "method": "WS_METHODS.scheduledTasksSubscribe",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsScheduledTasksUpsertRpc",
+    "method": "WS_METHODS.scheduledTasksUpsert",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsScheduledTasksSetEnabledRpc",
+    "method": "WS_METHODS.scheduledTasksSetEnabled",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsScheduledTasksDeleteRpc",
+    "method": "WS_METHODS.scheduledTasksDelete",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsScheduledTasksRunNowRpc",
+    "method": "WS_METHODS.scheduledTasksRunNow",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsScheduledTasksRotateWebhookTokenRpc",
+    "method": "WS_METHODS.scheduledTasksRotateWebhookToken",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsSecretsAnswerRequestRpc",
+    "method": "WS_METHODS.secretsAnswerRequest",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsScheduledTasksListWebhookDeliveriesRpc",
+    "method": "WS_METHODS.scheduledTasksListWebhookDeliveries",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsScheduledTasksGetWebhookDeliveryRpc",
+    "method": "WS_METHODS.scheduledTasksGetWebhookDelivery",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsServerReportClientActivityRpc",
+    "method": "WS_METHODS.serverReportClientActivity",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsServerReportHostPowerStateRpc",
+    "method": "WS_METHODS.serverReportHostPowerState",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsServerGetBackgroundPolicyRpc",
+    "method": "WS_METHODS.serverGetBackgroundPolicy",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsCloudGetRelayClientStatusRpc",
+    "method": "WS_METHODS.cloudGetRelayClientStatus",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsCloudInstallRelayClientRpc",
+    "method": "WS_METHODS.cloudInstallRelayClient",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsPullRequestsListRpc",
+    "method": "WS_METHODS.pullRequestsList",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsPullRequestsListStatsRpc",
+    "method": "WS_METHODS.pullRequestsListStats",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsPullRequestsSummaryRpc",
+    "method": "WS_METHODS.pullRequestsSummary",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsPullRequestsRoutingRpc",
+    "method": "WS_METHODS.pullRequestsRouting",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsPullRequestsRoutingIdentityRpc",
+    "method": "WS_METHODS.pullRequestsRoutingIdentity",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsPullRequestsStackRpc",
+    "method": "WS_METHODS.pullRequestsStack",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsPullRequestsLinkedThreadsRpc",
+    "method": "WS_METHODS.pullRequestsLinkedThreads",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsPullRequestsDetailRpc",
+    "method": "WS_METHODS.pullRequestsDetail",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsPullRequestsPreviewRpc",
+    "method": "WS_METHODS.pullRequestsPreview",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsPullRequestsChecksRpc",
+    "method": "WS_METHODS.pullRequestsChecks",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsPullRequestsActivityRpc",
+    "method": "WS_METHODS.pullRequestsActivity",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsPullRequestsThreadCommentsRpc",
+    "method": "WS_METHODS.pullRequestsThreadComments",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsPullRequestsDiffFileContentsRpc",
+    "method": "WS_METHODS.pullRequestsDiffFileContents",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsPullRequestsFilesViewedRpc",
+    "method": "WS_METHODS.pullRequestsFilesViewed",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsPullRequestsSetFilesViewedRpc",
+    "method": "WS_METHODS.pullRequestsSetFilesViewed",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsPullRequestsRunActionRpc",
+    "method": "WS_METHODS.pullRequestsRunAction",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsPullRequestsUpdateRpc",
+    "method": "WS_METHODS.pullRequestsUpdate",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsPullRequestsCommentRpc",
+    "method": "WS_METHODS.pullRequestsComment",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsPullRequestsUpdateCommentRpc",
+    "method": "WS_METHODS.pullRequestsUpdateComment",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsPullRequestsSubmitReviewRpc",
+    "method": "WS_METHODS.pullRequestsSubmitReview",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsPullRequestsReplyToThreadRpc",
+    "method": "WS_METHODS.pullRequestsReplyToThread",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsPullRequestsSetThreadResolutionRpc",
+    "method": "WS_METHODS.pullRequestsSetThreadResolution",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsPullRequestsSetReactionRpc",
+    "method": "WS_METHODS.pullRequestsSetReaction",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsPullRequestsInvalidateRpc",
+    "method": "WS_METHODS.pullRequestsInvalidate",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsPullRequestsSubscribeRefreshesRpc",
+    "method": "WS_METHODS.pullRequestsSubscribeRefreshes",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsPullRequestsReviewerCandidatesRpc",
+    "method": "WS_METHODS.pullRequestsReviewerCandidates",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsPullRequestsRequestReviewersRpc",
+    "method": "WS_METHODS.pullRequestsRequestReviewers",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsPullRequestsLabelCandidatesRpc",
+    "method": "WS_METHODS.pullRequestsLabelCandidates",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsPullRequestsSetLabelsRpc",
+    "method": "WS_METHODS.pullRequestsSetLabels",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsSourceControlLookupRepositoryRpc",
+    "method": "WS_METHODS.sourceControlLookupRepository",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsSourceControlCloneRepositoryRpc",
+    "method": "WS_METHODS.sourceControlCloneRepository",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsSourceControlPublishRepositoryRpc",
+    "method": "WS_METHODS.sourceControlPublishRepository",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsProjectCloneStartRpc",
+    "method": "WS_METHODS.projectCloneStart",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsProjectCloneCancelRpc",
+    "method": "WS_METHODS.projectCloneCancel",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsProjectCloneRetryRpc",
+    "method": "WS_METHODS.projectCloneRetry",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsSubscribeProjectClonesRpc",
+    "method": "WS_METHODS.subscribeProjectClones",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsProjectsListEntriesRpc",
+    "method": "WS_METHODS.projectsListEntries",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsProjectsReadFileRpc",
+    "method": "WS_METHODS.projectsReadFile",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsProjectsSearchContentsRpc",
+    "method": "WS_METHODS.projectsSearchContents",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsProjectsSearchEntriesRpc",
+    "method": "WS_METHODS.projectsSearchEntries",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsProjectsEnsureScratchRpc",
+    "method": "WS_METHODS.projectsEnsureScratch",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsProjectsCreateNewRpc",
+    "method": "WS_METHODS.projectsCreateNew",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsProjectsWriteFileRpc",
+    "method": "WS_METHODS.projectsWriteFile",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsProjectsMutateRpc",
+    "method": "WS_METHODS.projectsMutate",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsShellOpenInEditorRpc",
+    "method": "WS_METHODS.shellOpenInEditor",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsFilesystemBrowseRpc",
+    "method": "WS_METHODS.filesystemBrowse",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsAgentSessionsScanRpc",
+    "method": "WS_METHODS.agentSessionsScan",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsAgentSessionsImportRpc",
+    "method": "WS_METHODS.agentSessionsImport",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsAssetsCreateUrlRpc",
+    "method": "WS_METHODS.assetsCreateUrl",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsAssetsPersistChatAttachmentsRpc",
+    "method": "WS_METHODS.assetsPersistChatAttachments",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsAttachmentsCreateUploadUrlRpc",
+    "method": "WS_METHODS.attachmentsCreateUploadUrl",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsAttachmentsDeleteRpc",
+    "method": "WS_METHODS.attachmentsDelete",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsProviderUploadFeedbackRpc",
+    "method": "WS_METHODS.providerUploadFeedback",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsSubscribeVcsStatusRpc",
+    "method": "WS_METHODS.subscribeVcsStatus",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsSubscribeWorktreeSetupRpc",
+    "method": "WS_METHODS.subscribeWorktreeSetup",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsWorktreeSetupCancelRpc",
+    "method": "WS_METHODS.worktreeSetupCancel",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsVcsPullRpc",
+    "method": "WS_METHODS.vcsPull",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsVcsRefreshStatusRpc",
+    "method": "WS_METHODS.vcsRefreshStatus",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsGitRunStackedActionRpc",
+    "method": "WS_METHODS.gitRunStackedAction",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsGitResolvePullRequestRpc",
+    "method": "WS_METHODS.gitResolvePullRequest",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsGitPreparePullRequestThreadRpc",
+    "method": "WS_METHODS.gitPreparePullRequestThread",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsVcsListRefsRpc",
+    "method": "WS_METHODS.vcsListRefs",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsVcsCreateWorktreeRpc",
+    "method": "WS_METHODS.vcsCreateWorktree",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsVcsRemoveWorktreeRpc",
+    "method": "WS_METHODS.vcsRemoveWorktree",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsVcsCreateRefRpc",
+    "method": "WS_METHODS.vcsCreateRef",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsVcsSwitchRefRpc",
+    "method": "WS_METHODS.vcsSwitchRef",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsVcsInitRpc",
+    "method": "WS_METHODS.vcsInit",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsReviewGetDiffPreviewRpc",
+    "method": "WS_METHODS.reviewGetDiffPreview",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsReviewGetDiffFileContentsRpc",
+    "method": "WS_METHODS.reviewGetDiffFileContents",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsTerminalOpenRpc",
+    "method": "WS_METHODS.terminalOpen",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsTerminalAttachRpc",
+    "method": "WS_METHODS.terminalAttach",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsTerminalWriteRpc",
+    "method": "WS_METHODS.terminalWrite",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsTerminalResizeRpc",
+    "method": "WS_METHODS.terminalResize",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsTerminalClearRpc",
+    "method": "WS_METHODS.terminalClear",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsTerminalRestartRpc",
+    "method": "WS_METHODS.terminalRestart",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsTerminalCloseRpc",
+    "method": "WS_METHODS.terminalClose",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsSubscribeTerminalEventsRpc",
+    "method": "WS_METHODS.subscribeTerminalEvents",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsSubscribeTerminalMetadataRpc",
+    "method": "WS_METHODS.subscribeTerminalMetadata",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsPreviewOpenRpc",
+    "method": "WS_METHODS.previewOpen",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsPreviewNavigateRpc",
+    "method": "WS_METHODS.previewNavigate",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsPreviewResizeRpc",
+    "method": "WS_METHODS.previewResize",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsPreviewRefreshRpc",
+    "method": "WS_METHODS.previewRefresh",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsPreviewCloseRpc",
+    "method": "WS_METHODS.previewClose",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsPreviewListRpc",
+    "method": "WS_METHODS.previewList",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsPreviewReportStatusRpc",
+    "method": "WS_METHODS.previewReportStatus",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsPreviewAutomationConnectRpc",
+    "method": "WS_METHODS.previewAutomationConnect",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsPreviewAutomationRespondRpc",
+    "method": "WS_METHODS.previewAutomationRespond",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsPreviewAutomationFocusHostRpc",
+    "method": "WS_METHODS.previewAutomationFocusHost",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsSubscribePreviewEventsRpc",
+    "method": "WS_METHODS.subscribePreviewEvents",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsSubscribeDiscoveredLocalServersRpc",
+    "method": "WS_METHODS.subscribeDiscoveredLocalServers",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsDeviceConfigureRpc",
+    "method": "WS_METHODS.deviceConfigure",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": true
+  },
+  {
+    "declaration": "WsDeviceListRpc",
+    "method": "WS_METHODS.deviceList",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": true
+  },
+  {
+    "declaration": "WsDeviceTestHostRpc",
+    "method": "WS_METHODS.deviceTestHost",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": true
+  },
+  {
+    "declaration": "WsDeviceOpenRpc",
+    "method": "WS_METHODS.deviceOpen",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": true
+  },
+  {
+    "declaration": "WsDeviceCloseRpc",
+    "method": "WS_METHODS.deviceClose",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": true
+  },
+  {
+    "declaration": "WsDeviceShutdownRpc",
+    "method": "WS_METHODS.deviceShutdown",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": true
+  },
+  {
+    "declaration": "WsDeviceDetailRpc",
+    "method": "WS_METHODS.deviceDetail",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": true
+  },
+  {
+    "declaration": "WsDeviceActionRpc",
+    "method": "WS_METHODS.deviceAction",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": true
+  },
+  {
+    "declaration": "WsSubscribeDeviceStateRpc",
+    "method": "WS_METHODS.subscribeDeviceState",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": true
+  },
+  {
+    "declaration": "WsSubscribeServerConfigRpc",
+    "method": "WS_METHODS.subscribeServerConfig",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsSubscribeServerLifecycleRpc",
+    "method": "WS_METHODS.subscribeServerLifecycle",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsSubscribeAuthAccessRpc",
+    "method": "WS_METHODS.subscribeAuthAccess",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsSubscribeBackgroundPolicyRpc",
+    "method": "WS_METHODS.subscribeBackgroundPolicy",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsSubscribeResourceTelemetryRpc",
+    "method": "WS_METHODS.subscribeResourceTelemetry",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsOrchestrationV2DispatchCommandRpc",
+    "method": "ORCHESTRATION_V2_WS_METHODS.dispatchCommand",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsOrchestrationV2GetWorkflowScriptRpc",
+    "method": "ORCHESTRATION_V2_WS_METHODS.getWorkflowScript",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsOrchestrationV2GetTurnItemRpc",
+    "method": "ORCHESTRATION_V2_WS_METHODS.getTurnItem",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsOrchestrationV2GetTurnDiffRpc",
+    "method": "ORCHESTRATION_V2_WS_METHODS.getTurnDiff",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsOrchestrationV2GetFullThreadDiffRpc",
+    "method": "ORCHESTRATION_V2_WS_METHODS.getFullThreadDiff",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsOrchestrationV2SearchThreadsRpc",
+    "method": "ORCHESTRATION_V2_WS_METHODS.searchThreads",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsOrchestrationV2GetArchivedShellSnapshotRpc",
+    "method": "ORCHESTRATION_V2_WS_METHODS.getArchivedShellSnapshot",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsOrchestrationV2GetThreadProjectionRpc",
+    "method": "ORCHESTRATION_V2_WS_METHODS.getThreadProjection",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsOrchestrationV2LaunchThreadRpc",
+    "method": "ORCHESTRATION_V2_WS_METHODS.launchThread",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsOrchestrationV2SubscribeArchivedShellRpc",
+    "method": "ORCHESTRATION_V2_WS_METHODS.subscribeArchivedShell",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsOrchestrationV2SubscribeShellRpc",
+    "method": "ORCHESTRATION_V2_WS_METHODS.subscribeShell",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  },
+  {
+    "declaration": "WsOrchestrationV2SubscribeThreadRpc",
+    "method": "ORCHESTRATION_V2_WS_METHODS.subscribeThread",
+    "scope_declared": true,
+    "handler_key_found": true,
+    "excluded_labs": false
+  }
+]

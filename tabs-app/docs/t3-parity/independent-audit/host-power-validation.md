@@ -1,0 +1,5 @@
+# Host power review
+
+Batch278 full BackgroundPolicy273/monitor101/test188 source reviewed. Policy change adds subscribe-before-snapshot API under publishMutex; monitor orders timestamps, avoids idleSeconds-only churn, subscribes before reading desktop snapshot and follows scoped stream. Four tests passed979ms/exit0.
+
+Integration gap: server.ts210 constructs HostPowerMonitor layer and221 provides it to BackgroundPolicy, but full BackgroundPolicy.make only requires ServerSettingsService, initializes private unknown hostPower Ref and never reads HostPowerMonitor or consumes its changes. Production non-test references to HostPowerMonitor are limited to server layer setup and its own implementation. Policy power writes are client RPC handlers ws.ts2682/wsServer2556. Therefore direct desktop receiver changes cannot update BackgroundPolicy through this monitor. Tests cover monitor alone, not policy composition. Existing client reporting may still update policy; no claim that all host constraints fail. No native OS test or production edit performed.

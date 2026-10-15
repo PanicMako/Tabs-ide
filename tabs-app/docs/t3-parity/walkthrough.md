@@ -30,6 +30,7 @@ bun run dev:desktop
 ## 2. Interactive Feature Workflows
 
 ### Workflow 1: Agents Companion Side Panel
+
 1. Launch the app and select or create an Agent thread.
 2. Observe the **Companion Side Panel** automatically opened on the right-hand side in a desktop `flex-row` side-by-side layout.
 3. Chat with an agent in the left pane while concurrently interacting with companion views on the right:
@@ -43,6 +44,7 @@ bun run dev:desktop
 5. Notice that existing top-level Tabs toolbar buttons (**Browser**, **Code**, **Git**, **Terminal**, **Testing**) remain fully functional for dedicated full-workspace views.
 
 ### Workflow 2: Orchestration V2 & Resilient Execution
+
 1. Send a complex coding task to the agent.
 2. Note the deterministic request resolution:
    - Each action creates an idempotent command receipt.
@@ -50,18 +52,21 @@ bun run dev:desktop
 3. If an agent task is interrupted or closed, durable effect intent is safely reconciled upon reopening.
 
 ### Workflow 3: Cross-Provider Context Switching & Thread Forks
+
 1. Start a thread with one provider (e.g., Claude).
 2. Use the provider switcher in the thread settings to switch to another provider (e.g., Codex or Cursor).
 3. The context handoff budget automatically attributes, orders, and formats conversation history into the target provider's context window.
 4. Fork the thread at any conversation turn into either the current checkout or a dedicated git worktree.
 
 ### Workflow 4: Agent Task Delegation & MCP Toolkits
-1. Instruct the agent: *"Delegate building the test fixtures to a background task."*
+
+1. Instruct the agent: _"Delegate building the test fixtures to a background task."_
 2. The agent calls `tabs_orchestrator_delegate_task`, spawning a durable, server-owned child task.
 3. The parent agent receives completion events without continuous polling.
 4. Approvals and input requests route through the parent interface seamlessly.
 
 ### Workflow 5: Scheduled Follow-ups & Webhooks
+
 1. Open thread automations or configure a scheduled task:
    - Cron-based recurring reminders (e.g., `0 9 * * 1-5` for morning standup checks).
    - Interval-based monitoring.
@@ -69,6 +74,7 @@ bun run dev:desktop
 3. Test local webhook triggers by sending a POST request to `/api/webhooks/:token` with an HMAC signature.
 
 ### Workflow 6: Antigravity Historical Usage Ingestion
+
 1. Open the **Usage** dashboard in Settings.
 2. Tabs automatically scans local Antigravity conversation SQLite databases and protobuf metadata:
    - Ingests real token usage (prompt, completion, cache read/write, reasoning).
@@ -77,6 +83,7 @@ bun run dev:desktop
 3. View hourly and daily usage breakdowns in your chosen timezone.
 
 ### Workflow 7: Sandboxed HTML Replies & Masked Secrets
+
 1. Request an HTML visualization: the agent calls `publish_html`.
 2. The HTML reply is safely rendered inside an isolated, sandboxed iframe synced with the current theme palette.
 3. Request sensitive credentials: the agent calls `request_secret`.
@@ -86,11 +93,11 @@ bun run dev:desktop
 
 ## 3. Verification & Acceptance Checklist
 
-| Feature | Surface | Expected Behavior |
-| :--- | :--- | :--- |
-| **Companion Panel** | Agents workspace | Side-by-side flex-row layout, 6 tabs functional, toggleable via header |
-| **Top-Level Tools** | Workspace toolbar | Browser, Code, Git, Terminal remain independently usable |
-| **Usage Hub** | Settings / Usage | Real Antigravity SQLite tokens ingested and aggregated |
-| **Orchestration V2** | Background worker | Monotonic tokens prevent turn resurrection; durable outbox |
-| **MCP Toolkits** | Provider session | 22 toolkits registered and active (`orchestrator`, `thread`, etc.) |
-| **Webhooks** | Server HTTP API | `/api/webhooks/:token` validates signature and dispatches event |
+| Feature              | Surface           | Expected Behavior                                                      |
+| :------------------- | :---------------- | :--------------------------------------------------------------------- |
+| **Companion Panel**  | Agents workspace  | Side-by-side flex-row layout, 6 tabs functional, toggleable via header |
+| **Top-Level Tools**  | Workspace toolbar | Browser, Code, Git, Terminal remain independently usable               |
+| **Usage Hub**        | Settings / Usage  | Real Antigravity SQLite tokens ingested and aggregated                 |
+| **Orchestration V2** | Background worker | Monotonic tokens prevent turn resurrection; durable outbox             |
+| **MCP Toolkits**     | Provider session  | 22 toolkits registered and active (`orchestrator`, `thread`, etc.)     |
+| **Webhooks**         | Server HTTP API   | `/api/webhooks/:token` validates signature and dispatches event        |

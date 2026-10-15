@@ -1,0 +1,753 @@
+[
+  {
+    "id": "REQ-ORCH-01",
+    "title": "V2 Orchestration Runtime Core",
+    "behavior": "Server-owned durable orchestration runtime managing runs, requests, turns, and event streaming with stable request IDs and idempotent command receipts.",
+    "upstream_reference": "`apps/server/src/orchestration-v2/Orchestrator.ts`, `EffectWorker.ts`, `EffectOutbox.ts`",
+    "baseline": "`apps/server/src/orchestration/Layers/OrchestrationEngine.ts`",
+    "claimed_status": "Architecture Gap / Partial",
+    "target": "Integrate V2 durable effect outbox, run execution, and request lifecycle into Tabs orchestration runtime.",
+    "acceptance": "`Orchestrator.test.ts`, `EffectWorker.test.ts`, `CommandPolicy.test.ts`",
+    "claimed_evidence": "Verified with full engine test suite.",
+    "independent_status": "runtime-wiring-gap; feature-specific audit pending",
+    "independent_evidence": [
+      "index.ts -> main.ts/wsServer.ts -> legacy serverLayers.ts; V2 server.ts composition not selected"
+    ]
+  },
+  {
+    "id": "REQ-ORCH-02",
+    "title": "Durable Effect Outbox & Reconciliation",
+    "behavior": "Durable effects retried after interruption without duplicate turns or double task creation; idempotent client request IDs.",
+    "upstream_reference": "`apps/server/src/orchestration-v2/EffectOutbox.ts`, `EffectWorker.ts`",
+    "baseline": "`apps/server/src/orchestration/Layers/OrchestrationEventStore.ts`",
+    "claimed_status": "Missing",
+    "target": "Server-side durable outbox table and worker with backoff and atomic completion receipts.",
+    "acceptance": "Interrupted execution simulation tests; retry idempotency checks.",
+    "claimed_evidence": "Unit tests passing.",
+    "independent_status": "runtime-wiring-gap; feature-specific audit pending",
+    "independent_evidence": [
+      "index.ts -> main.ts/wsServer.ts -> legacy serverLayers.ts; V2 server.ts composition not selected"
+    ]
+  },
+  {
+    "id": "REQ-ORCH-03",
+    "title": "Deterministic Request Resolution",
+    "behavior": "Pending input/approval requests have exactly one deterministic resolution; late answers, timeouts, disconnects handled safely.",
+    "upstream_reference": "`apps/server/src/orchestration-v2/RuntimeRequestService.ts`",
+    "baseline": "`apps/server/src/orchestration/Layers/ProviderCommandReactor.ts`",
+    "claimed_status": "Partial",
+    "target": "Formal `RuntimeRequestService` enforcing single-outcome state transitions.",
+    "acceptance": "Concurrent resolution and late answer race unit tests.",
+    "claimed_evidence": "Unit tests passing.",
+    "independent_status": "runtime-wiring-gap; feature-specific audit pending",
+    "independent_evidence": [
+      "index.ts -> main.ts/wsServer.ts -> legacy serverLayers.ts; V2 server.ts composition not selected"
+    ]
+  },
+  {
+    "id": "REQ-ORCH-04",
+    "title": "Race Prevention on Stop/Archive/Delete",
+    "behavior": "Stop, archive, settle, delete, switch, restart races cannot resurrect cancelled turns or route stale provider events into new runs.",
+    "upstream_reference": "`apps/server/src/orchestration-v2/ThreadStop.test.ts`, `ThreadSettlementService.ts`",
+    "baseline": "`apps/server/src/orchestration/Layers/OrchestrationEngine.ts`",
+    "claimed_status": "Partial",
+    "target": "Monotonic run tokens and active run guards rejecting cross-run events.",
+    "acceptance": "Stop during active streaming test; settlement race test.",
+    "claimed_evidence": "Unit tests passing.",
+    "independent_status": "runtime-wiring-gap; feature-specific audit pending",
+    "independent_evidence": [
+      "index.ts -> main.ts/wsServer.ts -> legacy serverLayers.ts; V2 server.ts composition not selected"
+    ]
+  },
+  {
+    "id": "REQ-ORCH-05",
+    "title": "Migration & Compatibility Layer",
+    "behavior": "Transactional upgrade of legacy threads/projects/messages/attachments preserving history, checkpoints, and preferences.",
+    "upstream_reference": "`apps/server/src/orchestration-v2/legacy/`, `Orchestrator.migration.test.ts`",
+    "baseline": "`apps/server/src/persistence/Migrations/`",
+    "claimed_status": "Architecture Gap",
+    "target": "Transactional migration script upgrading legacy rows into V2 schema while retaining read access.",
+    "acceptance": "Migration on populated legacy fixture; restart idempotency test.",
+    "claimed_evidence": "Legacy fixture migration verified.",
+    "independent_status": "runtime-wiring-gap; feature-specific audit pending",
+    "independent_evidence": [
+      "index.ts -> main.ts/wsServer.ts -> legacy serverLayers.ts; V2 server.ts composition not selected"
+    ]
+  },
+  {
+    "id": "REQ-SWFK-01",
+    "title": "Provider Switching with Budgeted Context",
+    "behavior": "Switch model/provider mid-conversation without provider lock, carrying attributed budgeted context and tracking omitted history.",
+    "upstream_reference": "`apps/server/src/orchestration-v2/ProviderSwitchService.ts`, `ContextHandoffService.ts`, `ContextHandoffBudget.ts`",
+    "baseline": "Provider lock in `ChatView.tsx:1226`, `ProviderCommandReactor.ts:371`",
+    "claimed_status": "Missing",
+    "target": "`ProviderSwitchService` and `ContextHandoffService` calculating token budget and generating portable context transcript.",
+    "acceptance": "Cross-provider switch test (Claude -> Codex -> Claude) with token budget assertion.",
+    "claimed_evidence": "Unit and live tests passing.",
+    "independent_status": "runtime-wiring-gap; feature-specific audit pending",
+    "independent_evidence": [
+      "index.ts -> main.ts/wsServer.ts -> legacy serverLayers.ts; V2 server.ts composition not selected"
+    ]
+  },
+  {
+    "id": "REQ-SWFK-02",
+    "title": "Thread Forks at Arbitrary Turns",
+    "behavior": "Fork conversation at selected turn into current directory or new worktree with correct cwd, branch, and lineage tracking.",
+    "upstream_reference": "`apps/server/src/orchestration-v2/ThreadForkService.ts`, `packages/contracts/src/orchestrationV2.ts`",
+    "baseline": "Thread creation only from project root; no fork service.",
+    "claimed_status": "Missing",
+    "target": "`ThreadForkService` copying turn history up to fork point and creating new thread with `forkSourcePoint`.",
+    "acceptance": "Fork at turn N test, worktree destination verification.",
+    "claimed_evidence": "Test passing.",
+    "independent_status": "runtime-wiring-gap; feature-specific audit pending",
+    "independent_evidence": [
+      "index.ts -> main.ts/wsServer.ts -> legacy serverLayers.ts; V2 server.ts composition not selected"
+    ]
+  },
+  {
+    "id": "REQ-SWFK-03",
+    "title": "Worktree Transfer & Merge-Back",
+    "behavior": "Worktree handoff progress, setup script execution, default-branch refresh, and merge-back context tracking.",
+    "upstream_reference": "`apps/server/src/mcp/toolkits/worktree/tools.ts`, `apps/server/src/orchestration-v2/ThreadForkService.ts`",
+    "baseline": "`apps/server/src/git/GitManager.ts` (basic git worktree create)",
+    "claimed_status": "Partial",
+    "target": "Full worktree MCP toolkit and transfer tracking contracts.",
+    "acceptance": "Worktree handoff and merge-back status tests.",
+    "claimed_evidence": "Tests passing.",
+    "independent_status": "runtime-wiring-gap; feature-specific audit pending",
+    "independent_evidence": [
+      "index.ts -> main.ts/wsServer.ts -> legacy serverLayers.ts; V2 server.ts composition not selected"
+    ]
+  },
+  {
+    "id": "REQ-DELEG-01",
+    "title": "App-Owned Child Task Delegation",
+    "behavior": "`delegate_task`, `task_status`, `task_cancel` tools creating durable app-owned child threads with parent-child tracking.",
+    "upstream_reference": "`apps/server/src/mcp/toolkits/orchestrator/tools.ts`, `apps/server/src/mcp/OrchestratorMcpService.ts`",
+    "baseline": "Subagent events recognized from provider stdio, but no app-owned child tasks.",
+    "claimed_status": "Missing",
+    "target": "Implement `OrchestratorMcpService` with delegation worker, parent event routing, and child thread management.",
+    "acceptance": "Parent delegates child task; child completes; parent receives completion event without polling.",
+    "claimed_evidence": "Delegation lifecycle integration tests passing.",
+    "independent_status": "runtime-wiring-gap; feature-specific audit pending",
+    "independent_evidence": [
+      "index.ts -> main.ts/wsServer.ts -> legacy serverLayers.ts; V2 server.ts composition not selected"
+    ]
+  },
+  {
+    "id": "REQ-DELEG-02",
+    "title": "Thread Orchestration MCP Tools",
+    "behavior": "Agent tools to list, read, send, wait, interrupt, configure, and organize other threads (`t3_thread_*` / `tabs_thread_*`).",
+    "upstream_reference": "`apps/server/src/mcp/toolkits/thread/tools.ts`",
+    "baseline": "Browser preview MCP tools only; no thread tools.",
+    "claimed_status": "Missing",
+    "target": "Expose thread toolkit in `McpHttpServer.ts` and register in provider session tools.",
+    "acceptance": "Agent tool invocation tests for thread read, send, wait, interrupt.",
+    "claimed_evidence": "Toolkit tests passing.",
+    "independent_status": "runtime-wiring-gap; feature-specific audit pending",
+    "independent_evidence": [
+      "index.ts -> main.ts/wsServer.ts -> legacy serverLayers.ts; V2 server.ts composition not selected"
+    ]
+  },
+  {
+    "id": "REQ-DELEG-03",
+    "title": "Project & Environment MCP Tools",
+    "behavior": "Agent tools to discover capabilities, list/read/create projects, inspect environment, and manage worktrees.",
+    "upstream_reference": "`apps/server/src/mcp/toolkits/project/tools.ts`, `environment/tools.ts`",
+    "baseline": "None",
+    "claimed_status": "Missing",
+    "target": "Expose project and environment toolkits via MCP.",
+    "acceptance": "Project list and environment inspection tool tests.",
+    "claimed_evidence": "Tests passing.",
+    "independent_status": "runtime-wiring-gap; feature-specific audit pending",
+    "independent_evidence": [
+      "index.ts -> main.ts/wsServer.ts -> legacy serverLayers.ts; V2 server.ts composition not selected"
+    ]
+  },
+  {
+    "id": "REQ-DELEG-04",
+    "title": "Queue & Request MCP Tools",
+    "behavior": "Agent tools to inspect message queues, pending approvals, and submit user responses.",
+    "upstream_reference": "`apps/server/src/mcp/toolkits/thread/tools.ts` (queue and request tools)",
+    "baseline": "None",
+    "claimed_status": "Missing",
+    "target": "Expose queue and pending request tools via MCP.",
+    "acceptance": "Agent answers pending question via tool test.",
+    "claimed_evidence": "Tests passing.",
+    "independent_status": "runtime-wiring-gap; feature-specific audit pending",
+    "independent_evidence": [
+      "index.ts -> main.ts/wsServer.ts -> legacy serverLayers.ts; V2 server.ts composition not selected"
+    ]
+  },
+  {
+    "id": "REQ-SCHED-01",
+    "title": "Recurring Tasks & Scheduling Runtime",
+    "behavior": "Create, edit, list, pause, resume, delete, run-now scheduled tasks with cron/interval/timezone, surviving server restarts.",
+    "upstream_reference": "`apps/server/src/scheduledTasks/ScheduledTaskService.ts`, `Schedule.ts`, `packages/contracts/src/scheduledTask.ts`",
+    "baseline": "None",
+    "claimed_status": "Missing",
+    "target": "Implement `ScheduledTaskService`, SQLite persistence table, background tick worker, and settings route.",
+    "acceptance": "Scheduled task fires at mock clock tick; restart preserves schedule; catch-up policy verified.",
+    "claimed_evidence": "Scheduled task tests passing.",
+    "independent_status": "runtime-wiring-gap; feature-specific audit pending",
+    "independent_evidence": [
+      "index.ts -> main.ts/wsServer.ts -> legacy serverLayers.ts; V2 server.ts composition not selected"
+    ]
+  },
+  {
+    "id": "REQ-SCHED-02",
+    "title": "Tokenized Webhook Triggers",
+    "behavior": "Tokenized public/local endpoints, secret token rotation, template substitution, signature verification, and delivery logging.",
+    "upstream_reference": "`apps/server/src/scheduledTasks/webhookRoute.ts`, `webhookVerification.ts`, `webhookTemplate.ts`",
+    "baseline": "None",
+    "claimed_status": "Missing",
+    "target": "HTTP webhook endpoint on server, secret signature checking, payload template mapping to prompt, execution triggering.",
+    "acceptance": "POST to `/api/webhooks/:token` with valid/invalid signatures; execution triggered.",
+    "claimed_evidence": "Webhook test suite passing.",
+    "independent_status": "runtime-wiring-gap; feature-specific audit pending",
+    "independent_evidence": [
+      "index.ts -> main.ts/wsServer.ts -> legacy serverLayers.ts; V2 server.ts composition not selected"
+    ]
+  },
+  {
+    "id": "REQ-SCHED-03",
+    "title": "Usage Limit Recovery Worker",
+    "behavior": "Automatic resumption or snooze-until-reset when provider rate limits expire, surviving app restarts.",
+    "upstream_reference": "`apps/server/src/orchestration-v2/UsageLimitRecoveryWorker.ts`, `apps/web/src/components/usage/UsageLimits.tsx`",
+    "baseline": "Usage limit display only; no automatic continuation worker.",
+    "claimed_status": "Partial",
+    "target": "`UsageLimitRecoveryWorker` monitoring reset times, claiming occurrences, and dispatching continuation turn.",
+    "acceptance": "Rate limit reset triggers resume; deduplication check after restart.",
+    "claimed_evidence": "Recovery worker tests passing.",
+    "independent_status": "runtime-wiring-gap; feature-specific audit pending",
+    "independent_evidence": [
+      "index.ts -> main.ts/wsServer.ts -> legacy serverLayers.ts; V2 server.ts composition not selected"
+    ]
+  },
+  {
+    "id": "REQ-SCHED-04",
+    "title": "Native Goals & Composer Progress Controls",
+    "behavior": "Surface native Codex/Claude goals, goal status/progress banner, and goal follow-up prompt suggestions.",
+    "upstream_reference": "`apps/web/src/components/ChatView.tsx:7228`, `packages/contracts/src/orchestrationV2.ts`",
+    "baseline": "None",
+    "claimed_status": "Missing",
+    "target": "Goal contract types, goal detection in turns, composer goal banner and stop/resume controls.",
+    "acceptance": "Goal rendering in ChatView; goal status updates verified.",
+    "claimed_evidence": "UI and contract tests passing.",
+    "independent_status": "runtime-wiring-gap; feature-specific audit pending",
+    "independent_evidence": [
+      "index.ts -> main.ts/wsServer.ts -> legacy serverLayers.ts; V2 server.ts composition not selected"
+    ]
+  },
+  {
+    "id": "REQ-SCHED-05",
+    "title": "Opt-In Continue Threads After Restart",
+    "behavior": "Persisted state allowing interrupted threads to automatically resume after server or desktop app restart.",
+    "upstream_reference": "`apps/server/src/orchestration-v2/RestartContinuation.ts`",
+    "baseline": "Session recovery exists but does not auto-resume in-flight turns.",
+    "claimed_status": "Partial",
+    "target": "Restart continuation coordinator checking pending runs and resuming with notice.",
+    "acceptance": "App restart with in-flight run resumes cleanly.",
+    "claimed_evidence": "Tests passing.",
+    "independent_status": "runtime-wiring-gap; feature-specific audit pending",
+    "independent_evidence": [
+      "index.ts -> main.ts/wsServer.ts -> legacy serverLayers.ts; V2 server.ts composition not selected"
+    ]
+  },
+  {
+    "id": "REQ-PANEL-01",
+    "title": "Agents Tabbed Companion Side Panel",
+    "behavior": "Collapsible, resizable, tabbed right companion panel beside ChatView in Agents workspace.",
+    "upstream_reference": "`apps/web/src/rightPanelStore.ts`, `apps/web/src/components/RightPanelTabs.tsx`, `RightPanelSheet.tsx`",
+    "baseline": "Top-level tools only (Browser, Code, Git, Terminal in separate tabs/drawers).",
+    "claimed_status": "Implemented (100%)",
+    "target": "Implemented `rightPanelStore` (`isOpen: true` default, v3 storage) and `RightPanelTabs` mounted in `_chat.$environmentId.$threadId.tsx` (side-by-side flex-row).",
+    "acceptance": "Open, close, resize, switch tabs, persist state across thread switches.",
+    "claimed_evidence": "Tested & verified (`rightPanelStore.test.ts` 5/5 pass, `apps/web` typecheck clean).",
+    "independent_status": "unverified",
+    "independent_evidence": []
+  },
+  {
+    "id": "REQ-PANEL-02",
+    "title": "Companion Panel: Browser Tabs",
+    "behavior": "Embedded browser tabs inside companion panel with profile selection, navigation bar, reload, mute, and agent interaction.",
+    "upstream_reference": "`apps/web/src/components/preview/PreviewView.tsx`, `apps/web/src/rightPanelStore.ts`",
+    "baseline": "`BrowserTool.tsx` top-level only.",
+    "claimed_status": "Implemented (100%)",
+    "target": "Implemented `CompanionBrowserPanel.tsx` in companion panel tabs with URL navigation, dev port presets, reload, and popout.",
+    "acceptance": "Open localhost URL in companion browser, navigate, inspect without covering modals.",
+    "claimed_evidence": "Component verified in `RightPanelTabs.tsx`.",
+    "independent_status": "unverified",
+    "independent_evidence": []
+  },
+  {
+    "id": "REQ-PANEL-03",
+    "title": "Companion Panel: Files Explorer & Preview",
+    "behavior": "Workspace file tree with search, reveal, drag-to-composer, and file preview supporting Markdown, tables, HTML, PDF, media.",
+    "upstream_reference": "`apps/web/src/components/files/FilePreviewPanel.tsx`, `ProjectFilePicker.tsx`",
+    "baseline": "Top-level Code-OSS editor only.",
+    "claimed_status": "Implemented (100%)",
+    "target": "Implemented `CompanionFilesPanel.tsx` inside companion panel with live file filtering, icon indicators, and Code-OSS integration.",
+    "acceptance": "Browse files, preview markdown/image/audio, drag to composer, open line in Code-OSS.",
+    "claimed_evidence": "Component verified in `RightPanelTabs.tsx`.",
+    "independent_status": "partial-with-confirmed-defects",
+    "independent_evidence": [
+      "mocked Chromium files tests pass",
+      "HTML rendered preview missing",
+      "workspace symlink write escape reproduced",
+      "unconditional write allows concurrent-edit race"
+    ]
+  },
+  {
+    "id": "REQ-PANEL-04",
+    "title": "Companion Panel: Terminals Tab",
+    "behavior": "Terminal tabs inside companion panel with split horizontal/vertical, output streaming, and send-to-composer.",
+    "upstream_reference": "`apps/web/src/components/terminal/` (T3), `apps/web/src/components/ThreadTerminalDrawer.tsx` (Tabs)",
+    "baseline": "Drawer below chat only.",
+    "claimed_status": "Implemented (100%)",
+    "target": "Implemented `CompanionTerminalPanel.tsx` with active thread PTY integration, split controls, and multi-terminal management.",
+    "acceptance": "Switch between drawer and companion terminal; output preserved; split terminals work.",
+    "claimed_evidence": "Component verified in `RightPanelTabs.tsx`.",
+    "independent_status": "partial-with-confirmed-defects",
+    "independent_evidence": [
+      "open and close target different environments",
+      "project/worktree env variables omitted",
+      "test mocks terminal drawer"
+    ]
+  },
+  {
+    "id": "REQ-PANEL-05",
+    "title": "Companion Panel: Diff Tab",
+    "behavior": "Thread/checkpoint/worktree git diff with changed files tree, hunk viewer, and editor handoff.",
+    "upstream_reference": "`apps/web/src/components/diff/` (T3), `apps/web/src/components/git/GitTool.tsx` (Tabs)",
+    "baseline": "Top-level Git tool only.",
+    "claimed_status": "Implemented (100%)",
+    "target": "Embedded `DiffPanel` in companion tabs with worker pool, syntax highlighting, and inline/sheet views.",
+    "acceptance": "View changes made by agent in active thread; click file to inspect hunks.",
+    "claimed_evidence": "Component verified in `RightPanelTabs.tsx`.",
+    "independent_status": "unverified",
+    "independent_evidence": []
+  },
+  {
+    "id": "REQ-PANEL-06",
+    "title": "Companion Panel: Pull Request Tabs",
+    "behavior": "Individual PR details (checks, reviews, stacks) and linked PRs tab inside companion panel.",
+    "upstream_reference": "`apps/web/src/components/pullRequest/` (T3), `apps/web/src/components/git/PullRequest*` (Tabs)",
+    "baseline": "Top-level Git tool PR view only.",
+    "claimed_status": "Implemented (100%)",
+    "target": "Implemented `CompanionPRPanel.tsx` with GitApiProvider, branch PR query, and review card embedding.",
+    "acceptance": "Open linked PR in companion panel; inspect review comments and checks.",
+    "claimed_evidence": "Component verified in `RightPanelTabs.tsx`.",
+    "independent_status": "unverified",
+    "independent_evidence": []
+  },
+  {
+    "id": "REQ-CONT-01",
+    "title": "Inline Movable Composer Context Chips",
+    "behavior": "Inline context chips for files, line ranges, terminals, reviews, PRs, and threads at cursor; copy/paste serialization.",
+    "upstream_reference": "`packages/contracts/src/composerContext.ts`, `composerContextClipboard.ts`, `apps/web/src/components/chat/ChatComposer.tsx`",
+    "baseline": "Citation chips at bottom of composer, but not movable inline at cursor.",
+    "claimed_status": "Partial",
+    "target": "Inline context data model and clipboard serialization in `ChatComposer.tsx`.",
+    "acceptance": "Paste text with embedded context chips; restore across drafts.",
+    "claimed_evidence": "UI unit tests passing.",
+    "independent_status": "unverified",
+    "independent_evidence": []
+  },
+  {
+    "id": "REQ-CONT-02",
+    "title": "Thread Context References & On-Demand Retrieval",
+    "behavior": "Attach another thread via `@` search or drag; agent retrieves history on-demand via `thread_read` tool.",
+    "upstream_reference": "`packages/contracts/src/threadMetadataMcp.ts`, `apps/web/src/components/chat/ThreadRelationshipsControl.tsx`",
+    "baseline": "None",
+    "claimed_status": "Missing",
+    "target": "Thread reference chip in composer, `#` PR search, `@` thread search, and on-demand history fetcher.",
+    "acceptance": "Attach thread reference to prompt; agent reads thread history.",
+    "claimed_evidence": "Integration test passing.",
+    "independent_status": "unverified",
+    "independent_evidence": []
+  },
+  {
+    "id": "REQ-CONT-03",
+    "title": "Question Attachments with Upload & Retry",
+    "behavior": "Per-question text/options/file attachments, upload retry, retained draft on failure, cleanup on rollback.",
+    "upstream_reference": "`docs/user/question-attachments.md`, `packages/contracts/src/chatAttachment.ts`",
+    "baseline": "Question responses support text and basic selection; attachments missing.",
+    "claimed_status": "Partial",
+    "target": "Add attachment schema to question answers, draft retention store, and cleanup hooks.",
+    "acceptance": "Upload attachment to question; retry on error; draft preserved.",
+    "claimed_evidence": "Unit tests passing.",
+    "independent_status": "unverified",
+    "independent_evidence": []
+  },
+  {
+    "id": "REQ-CONT-04",
+    "title": "Agent-Published HTML Visual Replies",
+    "behavior": "Sandboxed iframe rendering for agent-published HTML replies with theme synchronization, asset embedding, and export.",
+    "upstream_reference": "`apps/server/src/htmlRender/HtmlRender.ts`, `apps/server/src/mcp/toolkits/html/tools.ts`, `docs/user/html-renders.md`",
+    "baseline": "None",
+    "claimed_status": "Missing",
+    "target": "HTML render server service, MCP `publish_html` tool, and sandboxed inline message component in web UI.",
+    "acceptance": "Agent publishes HTML visual; renders safely in sandboxed iframe with theme styles; no bridge access.",
+    "claimed_evidence": "Unit and security tests passing.",
+    "independent_status": "unverified",
+    "independent_evidence": []
+  },
+  {
+    "id": "REQ-CONT-05",
+    "title": "Agent Secret Requests UI & Safe Masking",
+    "behavior": "`request_secret` tool, masked secret prompt dialog in web UI, expiring in-memory tokens, zero leak to transcripts/logs.",
+    "upstream_reference": "`apps/server/src/secrets/SecretRequests.ts`, `packages/contracts/src/secretRequest.ts`",
+    "baseline": "Provider credential store exists; dynamic agent secret requests missing.",
+    "claimed_status": "Missing",
+    "target": "Secret request service, contract schemas, UI modal, and sanitized audit logging.",
+    "acceptance": "Agent requests secret; user inputs value masked; agent receives temporary token; secret absent from transcript.",
+    "claimed_evidence": "Security unit tests passing.",
+    "independent_status": "unverified",
+    "independent_evidence": []
+  },
+  {
+    "id": "REQ-CONT-06",
+    "title": "Browser Video Recording",
+    "behavior": "Real browser video capture (start/stop/artifact creation), distinct from reproduction step recorder.",
+    "upstream_reference": "`packages/contracts/src/previewAutomation.ts`, `apps/desktop/src/preview/`",
+    "baseline": "Step-by-step screenshot recorder (`RecordIssueDialog.tsx`) exists; video recording missing.",
+    "claimed_status": "Partial",
+    "target": "Video recorder using Electron `desktopCapturer` / WebContents media stream, artifact saver, and UI controls.",
+    "acceptance": "Start video recording, perform actions, stop recording, download/preview WebM/MP4 artifact.",
+    "claimed_evidence": "Desktop smoke and unit tests passing.",
+    "independent_status": "unverified",
+    "independent_evidence": []
+  },
+  {
+    "id": "REQ-USAGE-01",
+    "title": "Antigravity Historical SQLite/Protobuf Ingestion",
+    "behavior": "Read local Antigravity conversation SQLite databases, decode protobuf varints/metadata, and ingest real token/cost metrics.",
+    "upstream_reference": "`apps/server/src/usage/antigravityUsageReader.ts`, `UsageService.ts:626`",
+    "baseline": "Presentation table has Antigravity icon; server resolves only Claude and Codex dirs.",
+    "claimed_status": "Missing in server reader",
+    "target": "Port `antigravityUsageReader.ts` to `apps/server/src/usage/` and integrate into `UsageService.ts`.",
+    "acceptance": "Parse sample SQLite/protobuf fixture; discover local Antigravity databases; verify real token counts.",
+    "claimed_evidence": "Real data & fixture tests passing.",
+    "independent_status": "source-reviewed; real-data-validation-pending",
+    "independent_evidence": [
+      "reader identical to pinned upstream blob",
+      "synthetic SQLite/protobuf cases inspected",
+      "UsageService discovers directories and calls reader"
+    ]
+  },
+  {
+    "id": "REQ-USAGE-02",
+    "title": "Complete Multi-Provider Usage Ingestion",
+    "behavior": "Ingest historical metrics for Claude, Codex, Grok, OpenCode, Cursor, and Tabs-specific providers; no fabricated zeros.",
+    "upstream_reference": "`apps/server/src/usage/UsageService.ts`, `opencodeUsageReader.ts`, `cursorUsageReader.ts`",
+    "baseline": "Claude and Codex only.",
+    "claimed_status": "Partial",
+    "target": "Add OpenCode SQLite/JSON reader, Cursor reader, and Grok reader to `UsageService.ts`.",
+    "acceptance": "Ingestion tests for all supported provider formats.",
+    "claimed_evidence": "Ingestion unit tests passing.",
+    "independent_status": "unverified",
+    "independent_evidence": []
+  },
+  {
+    "id": "REQ-USAGE-03",
+    "title": "Account/Source Deduplication Across Environments",
+    "behavior": "Deduplicate identical roots and shadow accounts across connected environments and instances.",
+    "upstream_reference": "`apps/server/src/usage/UsageService.ts:130`, `usageScanCache.ts`",
+    "baseline": "Basic caching only.",
+    "claimed_status": "Partial",
+    "target": "Deduplication hashing by session ID, occurrence sequence, and canonical filesystem paths.",
+    "acceptance": "Same directory mounted under two hosts produces single aggregated total.",
+    "claimed_evidence": "Deduplication test suite passing.",
+    "independent_status": "unverified",
+    "independent_evidence": []
+  },
+  {
+    "id": "REQ-USAGE-04",
+    "title": "Timezone Aggregation & Breakdown Filters",
+    "behavior": "Day/hour buckets by requested timezone; breakdowns by provider, model, environment, token category (cache, reasoning).",
+    "upstream_reference": "`apps/server/src/usage/usageAggregation.ts`, `packages/contracts/src/usage.ts`",
+    "baseline": "Basic UTC day grouping.",
+    "claimed_status": "Partial",
+    "target": "Comprehensive aggregation engine supporting arbitrary IANA timezones and category breakdowns.",
+    "acceptance": "Timezone boundary tests (DST changeover, UTC+5:30 vs UTC-8).",
+    "claimed_evidence": "Aggregation tests passing.",
+    "independent_status": "unverified",
+    "independent_evidence": []
+  },
+  {
+    "id": "REQ-USAGE-05",
+    "title": "Pricing Overrides & Partial Environment Saves",
+    "behavior": "Custom model price overrides with per-environment persistence and partial failure handling.",
+    "upstream_reference": "`apps/server/src/usage/usagePricing.ts`, `packages/contracts/src/usage.ts`",
+    "baseline": "Static pricing table only.",
+    "claimed_status": "Partial",
+    "target": "Dynamic rate table with custom overrides and per-environment save coordination.",
+    "acceptance": "Price override applied; cost recomputed; persistence verified.",
+    "claimed_evidence": "Pricing tests passing.",
+    "independent_status": "unverified",
+    "independent_evidence": []
+  },
+  {
+    "id": "REQ-PROV-01",
+    "title": "Generic ACP Registry Onboarding & Local Commands",
+    "behavior": "Search/add/remove ACP registry agents, managed binary installation, version negotiation (v1/v2), session import.",
+    "upstream_reference": "`apps/server/src/provider/acp/AcpRegistrySupport.ts`, `AcpRegistryProbe.ts`, `AcpSessionRuntime.ts`",
+    "baseline": "Specific hardcoded ACP integrations only.",
+    "claimed_status": "Missing",
+    "target": "Port generic ACP registry service, catalog fetcher, and custom command launcher in `apps/server/src/provider/acp/`.",
+    "acceptance": "Search ACP registry; add custom ACP command; spawn session and exchange initialize messages.",
+    "claimed_evidence": "ACP registry unit tests passing.",
+    "independent_status": "unverified",
+    "independent_evidence": []
+  },
+  {
+    "id": "REQ-PROV-02",
+    "title": "Pi Coding Agent Integration",
+    "behavior": "Native Pi install discovery, model/thinking catalog, skills, dialogs, session resume/fork/rollback.",
+    "upstream_reference": "`apps/server/src/provider/PiProvider.ts`, `PiCommands.ts`, `piThinkingCapabilities.ts`",
+    "baseline": "None",
+    "claimed_status": "Missing",
+    "target": "Pi provider driver and commands integration in `apps/server/src/provider/`.",
+    "acceptance": "Pi discovery, mock Pi session lifecycle, model list.",
+    "claimed_evidence": "Pi provider tests passing.",
+    "independent_status": "unverified",
+    "independent_evidence": []
+  },
+  {
+    "id": "REQ-PROV-03",
+    "title": "OpenCode 2.x Architecture Support",
+    "behavior": "Probing OpenCode version, running 1.x vs 2.x adapters, session-scoped MCP credentials and permissions.",
+    "upstream_reference": "`apps/server/src/provider/opencode2/`, `opencodeVersionProbe.ts`, `OpenCodeServerOwner.ts`",
+    "baseline": "OpenCode 1.x HTTP adapter.",
+    "claimed_status": "Partial",
+    "target": "Version probe, OpenCode 2 server owner, and session-scoped MCP isolation layer.",
+    "acceptance": "Version detection; 2.x session initialization; MCP lease cleanup.",
+    "claimed_evidence": "OpenCode test suite passing.",
+    "independent_status": "runtime-import-fails",
+    "independent_evidence": [
+      "ten server suites fail collection in @opencode/client/effect: Schema.TaggedError is not a function"
+    ]
+  },
+  {
+    "id": "REQ-PROV-04",
+    "title": "Managed ChatGPT Account Connection",
+    "behavior": "Login flow for shared ChatGPT subscription plan, managed Codex runtime/home, account selector.",
+    "upstream_reference": "`apps/server/src/provider/CodexChatGptAuth.ts`, `CodexManagedRuntime.ts`",
+    "baseline": "Installed Codex CLI login only; managed ChatGPT account flow missing.",
+    "claimed_status": "Missing",
+    "target": "Managed runtime downloader/launcher and OAuth callback handler for ChatGPT connections.",
+    "acceptance": "Mock ChatGPT OAuth callback flow; session lock and home isolation test.",
+    "claimed_evidence": "ChatGPT auth tests passing.",
+    "independent_status": "unverified",
+    "independent_evidence": []
+  },
+  {
+    "id": "REQ-PROV-05",
+    "title": "Preserved Provider Diversity & Text Generation",
+    "behavior": "All existing Tabs providers (Claude, Codex, OpenCode, Antigravity, Mistral, Ollama, etc.) and text-generation selectors remain functional.",
+    "upstream_reference": "Tabs baseline provider drivers and UI selectors",
+    "baseline": "Fully present",
+    "claimed_status": "Maintained",
+    "target": "Retain all existing adapter implementations; provide unified capability detection.",
+    "acceptance": "Verify all existing provider selectors render and connect.",
+    "claimed_evidence": "Smoke test passing.",
+    "independent_status": "unverified",
+    "independent_evidence": []
+  },
+  {
+    "id": "REQ-SIDE-01",
+    "title": "Projectless Threads with Scratch Folders",
+    "behavior": "Allow starting a thread without selecting a project, allocating a durable scratch workspace folder.",
+    "upstream_reference": "`docs/user/thread-sidebar.md:16`, `apps/server/src/orchestration-v2/ProjectStore.ts`",
+    "baseline": "Projects strictly required for all threads.",
+    "claimed_status": "Missing",
+    "target": "Nullable `projectId` in thread creation, dedicated scratch directory allocation in `~/.tabs/scratch/`.",
+    "acceptance": "Create thread without project; run file operations; scratch directory created and persisted.",
+    "claimed_evidence": "Integration test passing.",
+    "independent_status": "unverified",
+    "independent_evidence": []
+  },
+  {
+    "id": "REQ-SIDE-02",
+    "title": "Multi-Model Prompt Submission",
+    "behavior": "Shift-select multiple models to launch parallel independent threads in separate worktrees for one prompt.",
+    "upstream_reference": "`apps/web/src/components/chat/ModelPickerContent.tsx`, `docs/user/thread-sidebar.md:34`",
+    "baseline": "Single model selection only.",
+    "claimed_status": "Missing",
+    "target": "Multi-select mode in `FusedModelPicker.tsx`, batch thread creation dispatch.",
+    "acceptance": "Select 2 models; submit; 2 independent threads launched in separate worktrees.",
+    "claimed_evidence": "UI and server batch tests passing.",
+    "independent_status": "unverified",
+    "independent_evidence": []
+  },
+  {
+    "id": "REQ-SIDE-03",
+    "title": "Server-Owned Ordering & Organization",
+    "behavior": "Drag-and-drop ordering, pinned/active sections, settle/unsettle/wake actions, bulk selection, custom snooze date.",
+    "upstream_reference": "`apps/server/src/orchestration-v2/ThreadManagementService.ts`, `apps/web/src/components/Sidebar.tsx`",
+    "baseline": "Pinned and archived state exists; server-owned pin ordering and auto-settle overrides partial.",
+    "claimed_status": "Partial",
+    "target": "`pin_order_key`, snooze date picker, auto-settle per-thread override.",
+    "acceptance": "Reorder pinned threads; verify persistent sort order; custom snooze wakes at specified time.",
+    "claimed_evidence": "Integration tests passing.",
+    "independent_status": "unverified",
+    "independent_evidence": []
+  },
+  {
+    "id": "REQ-SIDE-04",
+    "title": "Project Creation / Clone / Setup Scripts",
+    "behavior": "Clone Git repo with progress, run custom setup scripts with streaming output, auto-pull on launch.",
+    "upstream_reference": "`apps/server/src/project/`, `packages/contracts/src/projectClone.ts`",
+    "baseline": "Basic project add/remove exists; clone wizard and setup script runner partial.",
+    "claimed_status": "Partial",
+    "target": "Full clone manager, setup script runner, and auto-pull background check.",
+    "acceptance": "Clone repository URL; observe progress events; setup script executes cleanly.",
+    "claimed_evidence": "Clone test suite passing.",
+    "independent_status": "unverified",
+    "independent_evidence": []
+  },
+  {
+    "id": "REQ-REMOTE-01",
+    "title": "Settings Inheritance & Multi-Env Edits",
+    "behavior": "Cascading project/environment settings with inheritance source display, reset-to-inherit, and bulk edits.",
+    "upstream_reference": "`apps/web/src/components/settings/SettingsLayout.tsx`, `packages/contracts/src/settings.ts`",
+    "baseline": "Project and client settings exist; cascading inheritance and bulk environment edits partial.",
+    "claimed_status": "Partial",
+    "target": "Hierarchical settings resolver (Default -> Environment -> Project) with override indicators.",
+    "acceptance": "Edit setting at env level; project inherits; project override takes precedence; reset restores inherit.",
+    "claimed_evidence": "Settings tests passing.",
+    "independent_status": "unverified",
+    "independent_evidence": []
+  },
+  {
+    "id": "REQ-REMOTE-02",
+    "title": "Resource-Aware New-Thread Load Balancing",
+    "behavior": "Distribute new drafts across connected machines based on CPU/RAM metrics and host preferences.",
+    "upstream_reference": "`packages/client-runtime/src/load-balancing.ts`, `docs/user/remote-access.md:94`",
+    "baseline": "Manual environment picker only.",
+    "claimed_status": "Missing",
+    "target": "Host resource collector and auto-selection algorithm for new threads.",
+    "acceptance": "Simulate 2 hosts (1 high load, 1 low load); new thread automatically targets low-load host.",
+    "claimed_evidence": "Load balancing test passing.",
+    "independent_status": "unverified",
+    "independent_evidence": []
+  },
+  {
+    "id": "REQ-REMOTE-03",
+    "title": "Safe Policy-Driven Storage Cleanup",
+    "behavior": "Scheduled retention cleanup for managed worktrees (by age, merged, unchanged), browser captures, and log files.",
+    "upstream_reference": "`apps/server/src/storageCleanup.ts`, `docs/user/project-settings.md:133`",
+    "baseline": "Manual worktree delete only.",
+    "claimed_status": "Missing",
+    "target": "Storage cleanup daemon in `apps/server/src/storageCleanup.ts` with configurable rules per project.",
+    "acceptance": "Run cleanup on test directory containing merged and dirty worktrees; only eligible clean worktrees removed.",
+    "claimed_evidence": "Storage cleanup test suite passing.",
+    "independent_status": "unverified",
+    "independent_evidence": []
+  },
+  {
+    "id": "REQ-REMOTE-04",
+    "title": "Complete CLI Background Service Lifecycle",
+    "behavior": "`tabs service install`, `repair`, `restart`, `status`, `uninstall` across macOS launchd, Linux systemd, Windows service.",
+    "upstream_reference": "`docs/user/background-service.md`, `apps/server/src/main.ts`",
+    "baseline": "`serve`, `status`, `stop`, `service status`, `uninstall` present; `install`, `restart` missing.",
+    "claimed_status": "Partial",
+    "target": "Implement missing `service install` and `service restart` commands in CLI runner.",
+    "acceptance": "Run CLI service install/status/restart in test sandbox.",
+    "claimed_evidence": "CLI tests passing.",
+    "independent_status": "unverified",
+    "independent_evidence": []
+  },
+  {
+    "id": "REQ-REMOTE-05",
+    "title": "Forgejo / Gitea Forge Support",
+    "behavior": "PR review, create, comment, and checks integration for Forgejo and Gitea servers alongside GitHub/GitLab.",
+    "upstream_reference": "`apps/server/src/sourceControl/ForgejoSourceControlProvider.ts`, `ForgejoCli.ts`",
+    "baseline": "GitHub, GitLab, Bitbucket, Azure DevOps supported; Forgejo missing.",
+    "claimed_status": "Missing",
+    "target": "Port `ForgejoSourceControlProvider.ts` and `ForgejoCli.ts` to `apps/server/src/sourceControl/`.",
+    "acceptance": "Forgejo remote detection, login parsing, and PR list tests.",
+    "claimed_evidence": "Forgejo unit test suite passing.",
+    "independent_status": "unverified",
+    "independent_evidence": []
+  },
+  {
+    "id": "REQ-REMOTE-06",
+    "title": "PR Viewed Files Persistence & Watches",
+    "behavior": "Persist reviewed file checkboxes per user and change revision; agent watch/unwatch tools for PRs.",
+    "upstream_reference": "`apps/server/src/persistence/PullRequestFilesViewed.ts`, `apps/server/src/mcp/toolkits/pullRequests/tools.ts`",
+    "baseline": "PR review comments exist; viewed-file persistence and agent PR watch tools missing.",
+    "claimed_status": "Partial",
+    "target": "`PullRequestFilesViewed` table and repository; `t3_pull_request_watch` MCP tool.",
+    "acceptance": "Mark file viewed; reload; viewed state persisted; revision change clears checkmark.",
+    "claimed_evidence": "Tests passing.",
+    "independent_status": "unverified",
+    "independent_evidence": []
+  },
+  {
+    "id": "REQ-REMOTE-07",
+    "title": "Active-Window SnapShot Workflow",
+    "behavior": "Desktop global shortcut capturing active external window with app identity, title, accessibility text, and composer insertion.",
+    "upstream_reference": "`apps/desktop/src/snapShot/DesktopSnapShotService.ts`, `docs/user/snap-shot.md`",
+    "baseline": "Full screen and window capture exist; active-window auto-focus metadata workflow missing.",
+    "claimed_status": "Partial",
+    "target": "Active-window capture coordinator in desktop process with window title/bundle metadata.",
+    "acceptance": "Trigger active-window capture; metadata attached to pending screenshot in composer.",
+    "claimed_evidence": "Desktop capture test passing.",
+    "independent_status": "unverified",
+    "independent_evidence": []
+  },
+  {
+    "id": "REQ-REMOTE-08",
+    "title": "Desktop WSL Backend Integration",
+    "behavior": "Managed WSL launcher, path mapping, and backend lifecycle on Windows.",
+    "upstream_reference": "`apps/desktop/src/wsl/DesktopWslBackend.ts`, `packages/contracts/src/desktopBootstrap.ts`",
+    "baseline": "Bootstrap contracts mention WSL; desktop launcher missing.",
+    "claimed_status": "Partial",
+    "target": "WSL backend manager in `apps/desktop/src/wsl/`.",
+    "acceptance": "Path translation (`/mnt/c` <-> `C:\\`) and WSL detection tests.",
+    "claimed_evidence": "WSL unit tests passing.",
+    "independent_status": "unverified",
+    "independent_evidence": []
+  },
+  {
+    "id": "REQ-PERF-01",
+    "title": "Dual-Bounded Terminal Scrollback",
+    "behavior": "Cap terminal scrollback by line count AND total byte size, handling single huge lines and reconnect buffers.",
+    "upstream_reference": "`apps/server/src/terminal/Layers/Manager.ts`, `docs/user/terminal.md`",
+    "baseline": "Line-count cap exists; byte cap and huge single-line chunking partial.",
+    "claimed_status": "Partial",
+    "target": "Add byte-budget tracking and ring buffer chunk trimming in terminal manager.",
+    "acceptance": "Stream 50MB single-line output; verify memory capped and app remains responsive.",
+    "claimed_evidence": "Terminal benchmark test passing.",
+    "independent_status": "unverified",
+    "independent_evidence": []
+  },
+  {
+    "id": "REQ-PERF-02",
+    "title": "Bounded Thread Snapshots & HTTP Paging",
+    "behavior": "Cursor-paged thread history queries over HTTP with bounded in-memory projection windows.",
+    "upstream_reference": "`apps/server/src/orchestration-v2/http.ts`, `threadHistoryPaging.ts`",
+    "baseline": "Single WebSocket snapshot query returning complete thread projection.",
+    "claimed_status": "Partial",
+    "target": "Add cursor-paged `/api/threads/:id/history` endpoint with sequence range filters.",
+    "acceptance": "Query 10,000-message thread in 50-item pages with monotonic sequence cursor.",
+    "claimed_evidence": "History paging tests passing.",
+    "independent_status": "unverified",
+    "independent_evidence": []
+  },
+  {
+    "id": "REQ-PERF-03",
+    "title": "Focus Precedence & Accessibility Standards",
+    "behavior": "Visible focus outlines, ARIA roles, command palette shortcut precedence, late terminal launch does not steal composer focus.",
+    "upstream_reference": "`docs/user/keyboard-focus.md`, `apps/web/src/components/CommandPalette.tsx`",
+    "baseline": "General accessibility present; focus steal on async terminal startup reported in audit.",
+    "claimed_status": "Partial",
+    "target": "Composer focus preservation flag during terminal process spawning; comprehensive ARIA labels.",
+    "acceptance": "Focus retained in composer while background terminal boots; keyboard navigation through companion panel.",
+    "claimed_evidence": "Accessibility and focus tests passing.",
+    "independent_status": "unverified",
+    "independent_evidence": []
+  }
+]

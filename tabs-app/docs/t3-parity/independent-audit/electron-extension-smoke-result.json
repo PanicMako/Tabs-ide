@@ -1,0 +1,54 @@
+{
+  "test": "real-electron-extension-smoke",
+  "status": "PASS",
+  "timestamp": "2026-10-12T10:39:32.119Z",
+  "environment": {
+    "electron": "44.1.0",
+    "chrome": "152.0.7977.65",
+    "node": "24.19.0",
+    "platform": "darwin",
+    "arch": "arm64"
+  },
+  "metrics": {
+    "packageCreationMs": 48.94,
+    "packageInstallMs": 31.65,
+    "coldViewActivationMs": 123.4,
+    "coldViewStartupMs": 124.61,
+    "warmViewSwitchMs": 90,
+    "postCrashRecoveryMs": 94.34,
+    "rendererProcess": {
+      "osPid": 50741,
+      "hostPid": 50739,
+      "workingSetKb": 93728,
+      "workingSetMb": 91.53,
+      "peakWorkingSetKb": 93728,
+      "peakWorkingSetMb": 91.53
+    }
+  },
+  "measurementMethod": {
+    "startup": "performance.now() around manager.activate() for activation, and through DOM text confirmation for startup/switch/recovery; one run, not a distribution.",
+    "memory": "Chromium process metrics queried via Electron app.getAppMetrics() matching the guest WebContents OS process ID (webContents.getOSProcessId()), recording resident working set size and peak working set."
+  },
+  "limitations": [
+    "The working-set sample is for the full Chromium renderer process, not incremental memory attributable to extension DOM or scripts; no baseline-subtracted comparison was measured.",
+    "Cold vs. warm cache: The first activation initializes session partitions, custom file protocols, and V8 bytecode caches; subsequent view switches benefit from existing warm process state.",
+    "Off-screen rendering: In automated headless/inactive test window runs, GPU presentation swapchain buffers differ from an actively focused, full-screen composited user display window.",
+    "The host window is synthetic; the test intercepts the main-process IPC send and does not exercise Tabs React retry UI or real desktop-to-Exchange installation."
+  ],
+  "assertionsVerified": [
+    "Actual packaged .tabsext archive creation and integrity verification",
+    "Local package installation into isolated ExtensionViewManager",
+    "Multi-project and multi-profile assignment configuration",
+    "Real WebContentsView UI load and DOM rendering via custom tabs-extension:// protocol",
+    "Strict unavailability of Node.js and Electron APIs in guest renderer content",
+    "Presence of the tabsExtension bridge namespaces in the guest main world",
+    "Denial of unauthorized window.open popups via setWindowOpenHandler",
+    "Rejection of direct requests and navigation to a listening loopback server, with zero server hits",
+    "Top-level navigation attempt does not leave the extension URL",
+    "Packaging boundaries: own stylesheet served; resolver rejects traversal; first partition cannot fetch installed foreign package",
+    "Project/profile switching updates DOM and separates browser localStorage partitions",
+    "Stale activation hide and bounds requests cannot interfere with replacement view",
+    "Renderer crash attempts one view-error IPC send without destroying the host window",
+    "Manager activates a functional replacement view after renderer crash"
+  ]
+}

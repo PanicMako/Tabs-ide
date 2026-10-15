@@ -1,4 +1,5 @@
 import {
+  DEFAULT_MODEL,
   type ModelSelection,
   ProviderInstanceId,
   type ProviderKind,
@@ -208,6 +209,27 @@ export function getAppModelOptions(
       (selectedModel && (option.slug === selectedModel || option.slug === normalizedSelectedModel)),
   );
   return applyCustomModelOrdering(visibleOptions, prefs?.modelOrder);
+}
+
+/** Replace only the obsolete built-in seed for a new Codex draft, never a saved conversation. */
+export function resolveNewDraftModelSeed(
+  provider: string,
+  settings: UnifiedSettings,
+  providers: ReadonlyArray<ServerProvider>,
+  selectedModel: string | null | undefined,
+): string | null | undefined {
+  const snapshot = providers.find((entry) => entry.instanceId === provider);
+  if (
+    snapshot?.driver === "codex" &&
+    snapshot.catalogStatus === "ready" &&
+    snapshot.models.length > 0 &&
+    selectedModel === DEFAULT_MODEL &&
+    !snapshot.models.some((model) => model.slug === selectedModel) &&
+    !settings.providers.codex.customModels.includes(selectedModel)
+  ) {
+    return null;
+  }
+  return selectedModel;
 }
 
 export function resolveAppModelSelection(

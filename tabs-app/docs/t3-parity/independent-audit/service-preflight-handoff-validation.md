@@ -1,0 +1,5 @@
+# Service preflight and update handoff
+
+Batch306: Three full files reviewed59/33/76 lines;3 protocol tests passed239ms/exit0. Preflight only checks launcher protocol, accepts missing database path deliberately (test uses /missing/state.sqlite), and cannot verify schema migration readiness. Decoder checks shape/current protocol/string version, caller selfUpdate286 must verify version. Handoff checks durable pending service state and absence of stop marker; desktop marker consumed before TTL check. CloudLink1252–1253 uses either result to retain tunnel during shutdown.
+
+Desktop marker freshness condition only age<60s; future mtime gives negative age and counts fresh. No runtime clock-skew reproduction performed, operational consequence conditional. Marker removal error ignored, and file type/identity not checked. Service stop-marker exists failures fall back false, potentially classifying unreadable stop state as handoff. Native shutdown/replacement behavior remains unverified. No service update or production file mutations.

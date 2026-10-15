@@ -1,0 +1,6 @@
+{
+  "passed": 1,
+  "skipped": 113,
+  "scope": "Actual adapter with mock ACP runtime/agent and replayed metadata. Parent message continuity, child distinct messages/task completion/MCP identity and source projection asserted. No live Devin invocation.",
+  "log": "/tmp/tabs-audit-devin-routing.log"
+}

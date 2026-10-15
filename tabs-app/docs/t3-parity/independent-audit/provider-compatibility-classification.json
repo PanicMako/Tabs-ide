@@ -1,0 +1,14 @@
+{
+  "package_version": "1.3.34",
+  "fixture_policy_range": ">=0.0.42 <0.1.0",
+  "fixture_failures": "Default app-version lookup correctly excludes synthetic older fixture range; registry wait waits for nonexistent advisory",
+  "copilot": "Bundled compatibility manifest has no Copilot policy; test expects every non-ACP built-in driver policy",
+  "production_manifest": "Existing Codex/Claude/Cursor/Grok/OpenCode/Antigravity/Pi >= thresholds include1.3.34; absence generic advisories in failing synthetic tests does not imply all production advisories absent",
+  "runtime_mismatch": "OpenCode >=0.0.46 app gate selects V2-compatible policy for1.3.34 although packaged entry remains legacy; existing runtime integration blocker affects advisory accuracy",
+  "evidence": [
+    "apps/server/src/provider/model-manifest.json",
+    "apps/server/src/provider/providerCompatibility.ts",
+    "apps/server/src/provider/ProviderRegistry.ts:503",
+    "/tmp/tabs-audit-provider-compatibility.log"
+  ]
+}

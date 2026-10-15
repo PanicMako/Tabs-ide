@@ -1,0 +1,5 @@
+# Server contract changed hunks — batch256
+
+Complete224add6delete diff reviewed in3bounded ranges. Adds provider auth/model/setup/runtime/session/compatibility metadata, text-generation capability helper (absent means true), direct endpoints/remote targets, config resume/page/reasoning flags, theme updates, bootstrap/migration events, and self-update request/progress/outcome schemas. Optional additions generally preserve old producer decode, but new process diagnostics startTimeMs is required while attribution/category become optional.
+
+Signal startTimeMs remains optional; schema does not itself establish PID-reuse protection, and earlier finding that shipped legacy process route bypasses new identity handling remains unresolved. Self-update targetVersion documented exact npm version but only nonblank schema; runtime must reject tags/invalid versions. Earlier updater source mismatch/restart findings retained. Config theme/capability producers found in V2 ws, not runtime parity proof. Whole unchanged986line source and native self-update lifecycle remain separate scope.824test contract evidence reused; no production changes.

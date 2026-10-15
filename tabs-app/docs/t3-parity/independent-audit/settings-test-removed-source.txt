@@ -1,0 +1,283 @@
+import { ProviderInstanceId } from "./providerInstance.ts";
+  BrowserProfileDefinition,
+  DEFAULT_BROWSER_PROFILES,
+  ProjectBrowserSettings,
+  ProjectCustomEmbedDefinition,
+  ProjectWorkspaceSettings,
+  resolveBrowserPartition,
+  ClientSettingsPatch,
+describe("ProjectWorkspaceSettings tools", () => {
+  it("decodes persisted Testing tools without crashing workspace startup", () => {
+    const decodeWorkspaceSettings = Schema.decodeUnknownSync(ProjectWorkspaceSettings);
+      decodeWorkspaceSettings({
+        tools: [{ id: "testing", kind: "testing", label: "Testing", visible: true }],
+      }).tools,
+    ).toEqual([{ id: "testing", kind: "testing", label: "Testing", visible: true }]);
+describe("ClientSettings diffColorScheme", () => {
+  it("defaults to red-green", () => {
+    expect(decodeClientSettings({}).diffColorScheme).toBe("red-green");
+  it.each(["red-green", "blue-orange"] as const)("accepts the %s palette", (diffColorScheme) => {
+    const settings = decodeClientSettings({ diffColorScheme });
+    expect(settings.diffColorScheme).toBe(diffColorScheme);
+    expect(decodeClientSettingsPatch({ diffColorScheme }).diffColorScheme).toBe(diffColorScheme);
+  it("rejects unknown diff palettes", () => {
+    expect(() => decodeClientSettings({ diffColorScheme: "purple-yellow" })).toThrow();
+    expect(() => decodeClientSettingsPatch({ diffColorScheme: "purple-yellow" })).toThrow();
+describe("ClientSettings motion and panel animations", () => {
+  it("defaults panelAnimationDurationMs to 150 and reducedMotion to system", () => {
+    expect(settings.panelAnimationDurationMs).toBe(150);
+    expect(settings.reducedMotion).toBe("system");
+  it("accepts valid panelAnimationDurationMs within 0-400ms", () => {
+    const settings = decodeClientSettings({ panelAnimationDurationMs: 250 });
+    expect(settings.panelAnimationDurationMs).toBe(250);
+      decodeClientSettingsPatch({ panelAnimationDurationMs: 0 }).panelAnimationDurationMs,
+    ).toBe(0);
+  it("rejects panelAnimationDurationMs out of bounds", () => {
+    expect(() => decodeClientSettings({ panelAnimationDurationMs: -1 })).toThrow();
+    expect(() => decodeClientSettings({ panelAnimationDurationMs: 450 })).toThrow();
+  it.each(["system", "always", "never"] as const)("accepts reducedMotion mode %s", (mode) => {
+    expect(decodeClientSettings({ reducedMotion: mode }).reducedMotion).toBe(mode);
+    expect(decodeClientSettingsPatch({ reducedMotion: mode }).reducedMotion).toBe(mode);
+describe("ClientSettings typography and environment themes", () => {
+  it("defaults font sizes and empty font families", () => {
+    const settings = decodeClientSettings({});
+    expect(settings.fontSizeInterface).toBe(13);
+    expect(settings.fontSizeCode).toBe(12);
+    expect(settings.fontSizePrompt).toBe(13);
+    expect(settings.fontFamilySans).toBe("");
+    expect(settings.fontFamilyCode).toBe("");
+    expect(settings.fontFamilyComposer).toBe("");
+    expect(settings.environmentThemeOverrides).toEqual({});
+  });
+
+  it("accepts custom font settings and environment theme overrides", () => {
+    const patch = {
+      fontFamilySans: "Inter",
+      fontFamilyCode: "JetBrains Mono",
+      fontSizeInterface: 14,
+      fontSizeCode: 13,
+      environmentThemeOverrides: { "env-prod": "tabs-dark" },
+    };
+    const settings = decodeClientSettings(patch);
+    expect(settings.fontFamilySans).toBe("Inter");
+    expect(settings.fontFamilyCode).toBe("JetBrains Mono");
+    expect(settings.fontSizeInterface).toBe(14);
+    expect(settings.fontSizeCode).toBe(13);
+    expect(settings.environmentThemeOverrides).toEqual({ "env-prod": "tabs-dark" });
+describe("ClientSettings startup animation", () => {
+  it("defaults the legacy startup hold preference to two seconds", () => {
+    expect(decodeClientSettings({}).splashMinimumHoldSeconds).toBe(2);
+  it.each([0, 1, 2, 3] as const)("accepts a %s second minimum hold", (seconds) => {
+      decodeClientSettings({ splashMinimumHoldSeconds: seconds }).splashMinimumHoldSeconds,
+    ).toBe(seconds);
+  it("rejects unsupported minimum holds", () => {
+    expect(() => decodeClientSettings({ splashMinimumHoldSeconds: 4 })).toThrow();
+  it("defaults start-from-origin off for legacy configs", () => {
+    expect(decodeServerSettings({}).newWorktreesStartFromOrigin).toBe(false);
+      decodeServerSettingsPatch({ newWorktreesStartFromOrigin: true }).newWorktreesStartFromOrigin,
+    ).toBe(true);
+  });
+
+  it("encodes provider secrets as empty write-only values", () => {
+    const settings = decodeServerSettings({
+      providers: {
+        copilot: { token: "copilot-token", byokApiKey: "copilot-byok-key" },
+        gemini: { apiKey: "gemini-key" },
+        opencode: { serverPassword: "opencode-password" },
+        kilo: { serverPassword: "kilo-password" },
+      },
+    });
+    const encoded = encodeServerSettings(settings);
+
+    expect(encoded.providers?.copilot?.token).toBe("");
+    expect(encoded.providers?.copilot?.byokApiKey).toBe("");
+    expect(encoded.providers?.gemini?.apiKey).toBe("");
+    expect(encoded.providers?.opencode?.serverPassword).toBe("");
+    expect(encoded.providers?.kilo?.serverPassword).toBe("");
+describe("Browser Session Partitioning", () => {
+  it("resolves default shared partition per project", () => {
+    expect(
+      resolveBrowserPartition({
+        projectId: "proj-123",
+      }),
+    ).toBe("persist:tabs-browser:proj-123");
+
+    expect(
+      resolveBrowserPartition({
+        projectId: "proj-123",
+        partitionMode: "shared",
+      }),
+    ).toBe("persist:tabs-browser:proj-123");
+  it("resolves isolated partition per tab/embed session", () => {
+    expect(
+      resolveBrowserPartition({
+        projectId: "proj-123",
+        sessionId: "custom-figma",
+        partitionMode: "isolated",
+      }),
+    ).toBe("persist:tabs-browser:proj-123:custom-figma");
+
+    expect(
+      resolveBrowserPartition({
+        projectId: "proj-123",
+        partitionMode: "isolated",
+      }),
+    ).toBe("persist:tabs-browser:proj-123:browser");
+  it("resolves named profile partition across tabs/projects", () => {
+    expect(
+      resolveBrowserPartition({
+        projectId: "proj-123",
+        sessionId: "custom-figma",
+        partitionMode: "profile",
+        partitionProfile: "work",
+      }),
+    ).toBe("persist:tabs-browser:profile:work");
+
+    expect(
+      resolveBrowserPartition({
+        projectId: "proj-456",
+        partitionMode: "profile",
+        partitionProfile: "personal",
+      }),
+    ).toBe("persist:tabs-browser:profile:personal");
+
+    expect(
+      resolveBrowserPartition({
+        projectId: "proj-123",
+        partitionMode: "profile",
+        partitionProfile: "   ",
+      }),
+    ).toBe("persist:tabs-browser:profile:default");
+  it("decodes ProjectBrowserSettings and ProjectCustomEmbedDefinition with partition defaults", () => {
+    const decodeBrowser = Schema.decodeUnknownSync(ProjectBrowserSettings);
+    const decodeEmbed = Schema.decodeUnknownSync(ProjectCustomEmbedDefinition);
+
+    const defaultBrowser = decodeBrowser({});
+    expect(defaultBrowser.partitionMode).toBe("shared");
+    expect(defaultBrowser.partitionProfile).toBeUndefined();
+
+    const customBrowser = decodeBrowser({
+      partitionMode: "profile",
+      partitionProfile: "work-profile",
+    });
+    expect(customBrowser.partitionMode).toBe("profile");
+    expect(customBrowser.partitionProfile).toBe("work-profile");
+
+    const defaultEmbed = decodeEmbed({
+      id: "embed-1",
+      label: "Figma",
+      url: "https://figma.com",
+    });
+    expect(defaultEmbed.partitionMode).toBe("shared");
+    const isolatedEmbed = decodeEmbed({
+      id: "embed-2",
+      label: "ChatGPT",
+      url: "https://chatgpt.com",
+      partitionMode: "isolated",
+    });
+    expect(isolatedEmbed.partitionMode).toBe("isolated");
+  });
+
+  it("decodes ClientSettings with default and custom browserProfiles", () => {
+    const settings = decodeClientSettings({});
+    expect(settings.browserProfiles).toEqual(DEFAULT_BROWSER_PROFILES);
+
+    const customSettings = decodeClientSettings({
+      browserProfiles: [
+        {
+          id: "client-a",
+          label: "Client Alpha",
+          color: "#8b5cf6",
+          description: "Staging and linear accounts",
+          createdAt: 123456789,
+        },
+      ],
+    });
+    expect(customSettings.browserProfiles).toHaveLength(1);
+    expect(customSettings.browserProfiles[0]?.id).toBe("client-a");
+    expect(customSettings.browserProfiles[0]?.label).toBe("Client Alpha");
+    expect(customSettings.browserProfiles[0]?.color).toBe("#8b5cf6");
+describe("ClientSettings onboardingCompletedAt", () => {
+  it("defaults to null", () => {
+    const settings = decodeClientSettings({});
+    expect(settings.onboardingCompletedAt).toBeNull();
+  });
+
+  it("decodes valid ISO timestamp string", () => {
+    const timestamp = "2026-09-12T00:00:00.000Z";
+    const settings = decodeClientSettings({ onboardingCompletedAt: timestamp });
+    expect(settings.onboardingCompletedAt).toBe(timestamp);
+  });
+  it("allows setting and resetting via ClientSettingsPatch", () => {
+    const patch = decodeClientSettingsPatch({
+      onboardingCompletedAt: "2026-09-12T00:00:00.000Z",
+    });
+    expect(patch.onboardingCompletedAt).toBe("2026-09-12T00:00:00.000Z");
+
+    const resetPatch = decodeClientSettingsPatch({
+      onboardingCompletedAt: null,
+    });
+    expect(resetPatch.onboardingCompletedAt).toBeNull();
+  });
+describe("Browser resumeLastVisitedPage defaults and migrations", () => {
+  const decodeBrowser = Schema.decodeSync(ProjectBrowserSettings);
+  const decodeEmbed = Schema.decodeSync(ProjectCustomEmbedDefinition);
+
+  it("defaults resumeLastVisitedPage to true for standard project browser", () => {
+    const browser = decodeBrowser({});
+    expect(browser.resumeLastVisitedPage).toBe(true);
+  });
+
+  it("defaults resumeLastVisitedPage to true for newly created or legacy custom embeds without the field", () => {
+    const legacyEmbed = decodeEmbed({
+      id: "embed-legacy",
+      label: "Legacy Tab",
+      url: "https://example.com",
+    });
+    expect(legacyEmbed.resumeLastVisitedPage).toBe(true);
+  });
+
+  it("preserves explicit false for custom embeds", () => {
+    const optOutEmbed = decodeEmbed({
+      id: "embed-opt-out",
+      label: "Opt Out Tab",
+      url: "https://example.com",
+      resumeLastVisitedPage: false,
+    expect(optOutEmbed.resumeLastVisitedPage).toBe(false);
+  });
+
+  it("preserves explicit true for custom embeds", () => {
+    const optInEmbed = decodeEmbed({
+      id: "embed-opt-in",
+      label: "Opt In Tab",
+      url: "https://example.com",
+      resumeLastVisitedPage: true,
+    });
+    expect(optInEmbed.resumeLastVisitedPage).toBe(true);
+  });
+});
+
+describe("basic usage analytics settings", () => {
+  it("defaults existing installations to enabled and preserves an explicit opt-out", () => {
+    expect(decodeServerSettings({}).enableUsageAnalytics).toBe(true);
+    const optedOut = decodeServerSettings({ enableUsageAnalytics: false });
+    expect(decodeServerSettings(encodeServerSettings(optedOut)).enableUsageAnalytics).toBe(false);
+    expect(decodeServerSettingsPatch({ enableUsageAnalytics: false }).enableUsageAnalytics).toBe(
+      false,
+    );
+describe("ClientSettings animation preferences", () => {
+  it("defaults unsaved animations to Solari Grid and Monochrome", () => {
+    const settings = decodeClientSettings({});
+    expect([settings.splashLoaderStyle, settings.closeLoaderStyle]).toEqual(["solari", "solari"]);
+    expect([settings.splashLoaderPalette, settings.closeLoaderPalette]).toEqual(["mono", "mono"]);
+  });
+
+  it("preserves saved Molten Glass and colored palette selections", () => {
+    const settings = decodeClientSettings({
+      splashLoaderStyle: "glass",
+      closeLoaderStyle: "glass",
+      splashLoaderPalette: "block",
+      closeLoaderPalette: "block",
+    });
+    expect([settings.splashLoaderStyle, settings.closeLoaderStyle]).toEqual(["glass", "glass"]);
+    expect([settings.splashLoaderPalette, settings.closeLoaderPalette]).toEqual(["block", "block"]);

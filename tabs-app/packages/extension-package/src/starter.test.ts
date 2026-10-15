@@ -14,16 +14,19 @@ function target() {
 afterEach(() => {
   for (const root of roots.splice(0)) FS.rmSync(root, { recursive: true, force: true });
 });
-it("creates a zero-permission starter that validates and packages", async () => {
-  const { root, directory } = target();
-  createExtensionStarter(directory, "my-publisher", "my-tool");
-  expect(validateTabsextDirectory(directory, "1.3.17").id).toBe("my-publisher.my-tool");
-  const archive = Path.join(root, "tool.tabsext");
-  await packTabsext({ directory, destination: archive, tabsVersion: "1.3.17" });
-  const inspected = await inspectTabsext(archive, "1.3.17");
-  expect(inspected.manifest.capabilities).toBeUndefined();
-  expect(inspected.files).toContain("dist/app.js");
-});
+it.each(["1.3.17", "2.0.0"])(
+  "creates a zero-permission starter for Tabs %s that validates and packages",
+  async (tabsVersion) => {
+    const { root, directory } = target();
+    createExtensionStarter(directory, "my-publisher", "my-tool");
+    expect(validateTabsextDirectory(directory, tabsVersion).id).toBe("my-publisher.my-tool");
+    const archive = Path.join(root, "tool.tabsext");
+    await packTabsext({ directory, destination: archive, tabsVersion });
+    const inspected = await inspectTabsext(archive, tabsVersion);
+    expect(inspected.manifest.capabilities).toBeUndefined();
+    expect(inspected.files).toContain("dist/app.js");
+  },
+);
 it("refuses existing folders without modifying their contents", () => {
   const { directory } = target();
   FS.mkdirSync(directory);

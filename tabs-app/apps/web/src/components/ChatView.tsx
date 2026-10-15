@@ -1473,6 +1473,7 @@ export default function ChatView({
     selectedProvider,
     threadModelSelection: activeThread?.modelSelection,
     projectModelSelection: activeProject?.defaultModelSelection,
+    isNewThread: !hasThreadStarted,
     settings,
   });
   const selectedProviderModels = getProviderModels(providerStatuses, selectedProvider);

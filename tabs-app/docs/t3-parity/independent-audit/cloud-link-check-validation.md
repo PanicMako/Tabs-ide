@@ -1,0 +1,3 @@
+# Cloud link checks
+
+Batch307: Full151-line source and70-line tests reviewed;9 tests passed206ms/exit0. Parses HTTP(S) origin without credentials/path/query/fragment, derives matching WS origin/default port; supports managed/manual provider and scope allocation. isAllowedEndpointOrigin requires loopback both sides and matching port, with caller responsible for parsing validity. Lifetime helper limits5min and future-issued skew60s, does not itself reject expired proofs; caller must check expiry separately. Production calls located CloudLink1495/1600 and authority checks634/676. Dedicated tests only cover parser/provider scopes, not lifetime/authority/runtime configuration comparisons. No relay proof issued or network request performed.

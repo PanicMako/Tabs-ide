@@ -1,0 +1,5 @@
+# Editor discovery and context clipboard helpers
+
+Three new files322lines fully read. Initial output truncation recovered by bounded editor reads. Clipboard6/6,906ms exit0 validates JSON/schema roundtrips, invalid records, rich HTML metadata, large selections and CJK attribute expansion. The nominal oversized test uses invalid JSON2M characters, so it does not independently prove16M decoder boundary. Encoding JSON occurs before size rejection; memory/time limits not established. Caller-supplied rich HTML is retained by design; no native clipboard rendering or sanitization claim.
+
+No app import/call of clipboard helper was found in apps search. Editor source129lines searches PATH first, then platform installation candidates, returns Kiro-specific fallback args. Actual externalLauncher listing432 and launch536 call the resolver; unknown availability falls back to first configured command. No dedicated editor suite/native application launch executed. Shell availability753 delegates actual command resolution; only selected shell dependency section reviewed. No production changes.

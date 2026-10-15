@@ -1,0 +1,58 @@
+[
+  {
+    "split": false,
+    "fraction_ns": 0,
+    "file_mtime_ns": 1700000000000000000,
+    "index_mtime_ns": 1700000000000000000,
+    "cached_debug": "tracked.txt\n  ctime: 1791559202:119667243\n  mtime: 1700000000:0\n  dev: 16777230\tino: 213662420\n  uid: 501\tgid: 20\n  size: 7\tflags: 0",
+    "original_diff": "1\t1\ttracked.txt",
+    "original_index_unchanged": true,
+    "temp_diffs": {
+      "floor": "1\t1\ttracked.txt",
+      "preserve_ns": "1\t1\ttracked.txt",
+      "ceil": "1\t1\ttracked.txt"
+    }
+  },
+  {
+    "split": false,
+    "fraction_ns": 999899000,
+    "file_mtime_ns": 1700000000999899000,
+    "index_mtime_ns": 1700000000999899000,
+    "cached_debug": "tracked.txt\n  ctime: 1791559202:272690953\n  mtime: 1700000000:999899000\n  dev: 16777230\tino: 213662499\n  uid: 501\tgid: 20\n  size: 7\tflags: 0",
+    "original_diff": "1\t1\ttracked.txt",
+    "original_index_unchanged": true,
+    "temp_diffs": {
+      "floor": "1\t1\ttracked.txt",
+      "preserve_ns": "1\t1\ttracked.txt",
+      "ceil": ""
+    }
+  },
+  {
+    "split": true,
+    "fraction_ns": 0,
+    "file_mtime_ns": 1700000000000000000,
+    "index_mtime_ns": 1700000000000000000,
+    "cached_debug": "tracked.txt\n  ctime: 1791559202:421609367\n  mtime: 1700000000:0\n  dev: 16777230\tino: 213662578\n  uid: 501\tgid: 20\n  size: 7\tflags: 0",
+    "original_diff": "1\t1\ttracked.txt",
+    "original_index_unchanged": true,
+    "temp_diffs": {
+      "floor": "1\t1\ttracked.txt",
+      "preserve_ns": "1\t1\ttracked.txt",
+      "ceil": "1\t1\ttracked.txt"
+    }
+  },
+  {
+    "split": true,
+    "fraction_ns": 999899000,
+    "file_mtime_ns": 1700000000999899000,
+    "index_mtime_ns": 1700000000999899000,
+    "cached_debug": "tracked.txt\n  ctime: 1791559202:586471003\n  mtime: 1700000000:999899000\n  dev: 16777230\tino: 213662659\n  uid: 501\tgid: 20\n  size: 7\tflags: 0",
+    "original_diff": "1\t1\ttracked.txt",
+    "original_index_unchanged": true,
+    "temp_diffs": {
+      "floor": "1\t1\ttracked.txt",
+      "preserve_ns": "1\t1\ttracked.txt",
+      "ceil": ""
+    }
+  }
+]

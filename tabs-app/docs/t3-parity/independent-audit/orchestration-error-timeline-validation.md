@@ -1,0 +1,7 @@
+# V2 error and timeline helper review
+
+HEAD bb89383e8516d6ee6c730579be3e353a8e43a0e9. Complete error124/timeline112/test120 lines read; all new against original base. Fresh timeline16/16 pass,767ms exit0: both point and indexed policy hide unpaired superseded interruption results, retain paired/terminal results, hide cancelled queued user messages, retain queued or nonqueued cancelled messages, and isolate superseded roots. No direct rollback case exists in this suite despite source branch. Indexed assumes unique run IDs, consistent with projection identity; no duplicate-input defect asserted.
+
+Error helper attributes failure only to failed current run/root and selects by timestamp/ordinal/id; distinct session message clears classification/reset time. Run ordering uses completion time and ordinal, unfinished runs sort latest; queued and cancelled-before-start excluded from latestExecutedRun. Held queue entries excluded from latestUnheldRun. No dedicated error test file found; initial expected filename missing was handled by source/caller discovery. No fresh independent error behavior validation claimed.
+
+Caller search finds V2 projection, restart/recovery, subagent projection, MCP and orchestrator consumers; selected orchestrator1230–1270 checks usage limit before taking queued work. Timeline used by ProjectionStore. Web source search finds no direct shared-helper consumer; server projection can indirectly carry visibility. Full projector/SQL parity/runtime queue recovery/UI still unverified. No new defect confirmed and no production changes.

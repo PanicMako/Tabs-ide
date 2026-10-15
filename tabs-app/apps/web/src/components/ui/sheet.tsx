@@ -1,4 +1,5 @@
-"use client";
+import { useScopedPortalContainer } from "~/lib/scopedPortal";
+("use client");
 
 import { useGsapSurface } from "~/hooks/useGsapSurface";
 
@@ -10,7 +11,10 @@ import { ScrollArea } from "~/components/ui/scroll-area";
 
 const Sheet = SheetPrimitive.Root;
 
-const SheetPortal = SheetPrimitive.Portal;
+function SheetPortal(props: SheetPrimitive.Portal.Props) {
+  const container = useScopedPortalContainer();
+  return <SheetPrimitive.Portal container={container} {...props} />;
+}
 
 function SheetTrigger(props: SheetPrimitive.Trigger.Props) {
   return <SheetPrimitive.Trigger data-slot="sheet-trigger" {...props} />;

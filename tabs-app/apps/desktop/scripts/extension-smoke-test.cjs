@@ -69,6 +69,9 @@ app.whenReady().then(async () => {
 
     const { ExtensionViewManager, NativeViewStackCoordinator, packTabsext } = require(bundlePath);
     const root = path.resolve(__dirname, "../../..");
+    const tabsVersion = JSON.parse(
+      fs.readFileSync(path.join(root, "apps/desktop/package.json"), "utf8"),
+    ).version;
     const helloExtensionDir = path.join(root, "examples/hello-extension");
     const storageSource = path.join(temporary, "storage-example-source");
     fs.cpSync(helloExtensionDir, storageSource, { recursive: true });
@@ -85,7 +88,7 @@ app.whenReady().then(async () => {
     const packed = await packTabsext({
       directory: storageSource,
       destination: archivePath,
-      tabsVersion: "1.3.17",
+      tabsVersion: tabsVersion,
     });
     const packDurationMs = performance.now() - packStart;
     assert.equal(packed.id, "tabs-example.hello", "Packaged extension ID must match manifest");
@@ -138,7 +141,7 @@ app.whenReady().then(async () => {
       () => window,
       coordinator,
       path.join(temporary, "installed.json"),
-      "1.3.17",
+      tabsVersion,
       true,
       { encrypt: (b) => b, decrypt: (b) => b },
     );
@@ -406,7 +409,7 @@ app.whenReady().then(async () => {
     await packTabsext({
       directory: foreignSource,
       destination: foreignArchive,
-      tabsVersion: "1.3.17",
+      tabsVersion: tabsVersion,
     });
     const foreignInstalled = await manager.installLocalPackage(foreignArchive);
     assert.equal(foreignInstalled.id, "tabs-example.foreign");
