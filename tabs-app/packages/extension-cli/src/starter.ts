@@ -20,7 +20,7 @@ export function initProject(
     version: "0.1.0",
     displayName: options.name,
     description: "My first Tabs workspace tool.",
-    engines: { tabs: ">=1.3.0 <2.0.0", api: `^${TABS_EXTENSION_API_VERSION}` },
+    engines: { tabs: ">=1.3.0 <3.0.0", api: `^${TABS_EXTENSION_API_VERSION}` },
     listing: { readme: "README.md", categories: ["productivity"] },
     contributes: { tools: [{ id: "main", label: options.name, entry: "dist/index.html" }] },
   };
