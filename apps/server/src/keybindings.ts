@@ -15,7 +15,7 @@ import {
   ResolvedKeybindingsConfig,
   type ServerConfigIssue,
 } from "@tabs/contracts";
-import { Mutable } from "effect/Types";
+import type { Mutable } from "effect/Types";
 import {
   Array,
   Cache,
@@ -39,7 +39,7 @@ import {
   Stream,
 } from "effect";
 import * as Semaphore from "effect/Semaphore";
-import { ServerConfig } from "./config";
+import { ServerConfig } from "./config.ts";
 import { fromLenientJson } from "@tabs/shared/schemaJson";
 import {
   compileResolvedKeybindingRule,
@@ -56,7 +56,7 @@ export {
   parseKeybindingWhenExpression,
 } from "@tabs/shared/keybindings";
 
-export class KeybindingsConfigError extends Schema.TaggedErrorClass<KeybindingsConfigError>()(
+export class KeybindingsConfigError extends Schema.TaggedError<KeybindingsConfigError>()(
   "KeybindingsConfigParseError",
   {
     configPath: Schema.String,
@@ -91,7 +91,7 @@ export const ResolvedKeybindingFromConfig = KeybindingRule.pipe(
           Effect.filterOrFail(
             Predicate.isNotNull,
             () =>
-              new SchemaIssue.InvalidValue(Option.some(rule), {
+              new SchemaIssue.InvalidValue({
                 title: "Invalid keybinding rule",
               }),
           ),
@@ -103,7 +103,7 @@ export const ResolvedKeybindingFromConfig = KeybindingRule.pipe(
           const key = encodeShortcut(resolved.shortcut);
           if (!key) {
             return yield* Effect.fail(
-              new SchemaIssue.InvalidValue(Option.some(resolved), {
+              new SchemaIssue.InvalidValue({
                 title: "Resolved shortcut cannot be encoded to key string",
               }),
             );

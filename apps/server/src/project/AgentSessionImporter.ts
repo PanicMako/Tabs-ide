@@ -48,7 +48,7 @@ const decodeImportedTranscriptPayload = Schema.decodeUnknownOption(
   }),
 );
 
-class AgentSessionUnresumableSessionError extends Schema.TaggedErrorClass<AgentSessionUnresumableSessionError>()(
+class AgentSessionUnresumableSessionError extends Schema.TaggedError<AgentSessionUnresumableSessionError>()(
   "AgentSessionUnresumableSessionError",
   {
     source: AgentSessionSource,
@@ -60,7 +60,7 @@ class AgentSessionUnresumableSessionError extends Schema.TaggedErrorClass<AgentS
   }
 }
 
-class AgentSessionThreadProjectConflictError extends Schema.TaggedErrorClass<AgentSessionThreadProjectConflictError>()(
+class AgentSessionThreadProjectConflictError extends Schema.TaggedError<AgentSessionThreadProjectConflictError>()(
   "AgentSessionThreadProjectConflictError",
   {
     threadId: ThreadId,
@@ -73,7 +73,7 @@ class AgentSessionThreadProjectConflictError extends Schema.TaggedErrorClass<Age
   }
 }
 
-class AgentSessionThreadModifiedError extends Schema.TaggedErrorClass<AgentSessionThreadModifiedError>()(
+class AgentSessionThreadModifiedError extends Schema.TaggedError<AgentSessionThreadModifiedError>()(
   "AgentSessionThreadModifiedError",
   { threadId: ThreadId },
 ) {
@@ -421,4 +421,3 @@ export const importRecentAgentThreads = (input: AgentSessionImportInput) =>
     const importer = yield* AgentSessionImporter;
     return yield* importer.importRecentAgentThreads(input);
   });
-

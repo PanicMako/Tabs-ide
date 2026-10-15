@@ -4,7 +4,11 @@ import { assert, it } from "@effect/vitest";
 import { Effect, FileSystem, Layer, Option, Schema } from "effect";
 import { vi } from "vitest";
 import { ServerConfig } from "./config";
-import { redactServerSettingsForClient, ServerSettingsLive, ServerSettingsService } from "./serverSettings";
+import {
+  redactServerSettingsForClient,
+  ServerSettingsLive,
+  ServerSettingsService,
+} from "./serverSettings";
 import * as ServerSecretStore from "./auth/ServerSecretStore.ts";
 
 const keytarMock = vi.hoisted(() => ({

@@ -18,6 +18,7 @@ import * as Scope from "effect/Scope";
 import * as Semaphore from "effect/Semaphore";
 import * as Stream from "effect/Stream";
 
+import { HostPowerMonitor } from "./HostPowerMonitor.ts";
 import { ServerSettingsService } from "../serverSettings.ts";
 import { subscribeBeforeSnapshot } from "../utils/subscribeBeforeSnapshot.ts";
 
@@ -117,19 +118,7 @@ function constrainedHost(
 
 export const make = Effect.gen(function* () {
   const serverSettings = yield* ServerSettingsService;
-  const now = yield* DateTime.now;
-  const hostPower = yield* Ref.make<HostPowerSnapshot>({
-    source: "unknown",
-    idle: "unknown",
-    idleSeconds: null,
-    locked: "unknown",
-    suspended: false,
-    onBattery: "unknown",
-    lowPowerMode: "unknown",
-    thermalState: "unknown",
-    stale: true,
-    updatedAt: now,
-  });
+  const hostPower = yield* HostPowerMonitor;
   const leases = yield* Ref.make(new Map<string, ClientActivityLease>());
   const changes = yield* PubSub.sliding<BackgroundPolicySnapshot>(1);
   const publishMutex = yield* Semaphore.make(1);
@@ -141,7 +130,7 @@ export const make = Effect.gen(function* () {
   const snapshot = Effect.gen(function* () {
     const currentTime = yield* DateTime.now;
     const settings = yield* readSettings;
-    const power = yield* Ref.get(hostPower);
+    const power = yield* hostPower.snapshot;
     const all = yield* Ref.get(leases);
     const active = [...all.values()].filter((lease) =>
       DateTime.isGreaterThan(lease.expiresAt, currentTime),
@@ -242,6 +231,12 @@ export const make = Effect.gen(function* () {
     ),
   ).pipe(Effect.forkScoped);
 
+  const powerSubscription = yield* hostPower.subscribe;
+  yield* powerSubscription.changes.pipe(
+    Stream.runForEach(() => publish),
+    Effect.forkScoped,
+  );
+
   return BackgroundPolicy.of({
     reportClientActivity,
     removeRpcClient: (sessionId, rpcClientId) =>
@@ -256,8 +251,7 @@ export const make = Effect.gen(function* () {
             ),
         ).pipe(Effect.andThen(publishUnlocked)),
       ),
-    reportHostPowerState: (value) =>
-      publishMutex.withPermits(1)(Ref.set(hostPower, value).pipe(Effect.andThen(publishUnlocked))),
+    reportHostPowerState: (value) => hostPower.report(value).pipe(Effect.andThen(publish)),
     snapshot,
     streamChanges: Stream.fromPubSub(changes),
     subscribe: subscribeBeforeSnapshot(changes, snapshot, publishMutex),

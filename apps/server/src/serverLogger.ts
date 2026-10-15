@@ -3,7 +3,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Logger from "effect/Logger";
 import * as References from "effect/References";
-import { OtlpLogger } from "effect/unstable/observability";
+import { OtlpLogger, OtlpExporter } from "effect/unstable/observability";
 
 import * as ServerConfig from "./config.ts";
 
@@ -40,6 +40,7 @@ export const layer = Effect.gen(function* () {
       : [Logger.consolePretty(), otlpLogger],
     { mergeWithExisting: false },
   ).pipe(
+    Layer.provide(OtlpExporter.layerFlusher),
     Layer.provide(SharedObservability.layerOtlpSerialization(logs.protocol)),
   );
 

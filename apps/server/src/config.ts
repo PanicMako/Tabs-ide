@@ -95,6 +95,9 @@ export interface ServerConfigShape extends ServerDerivedPaths {
   readonly noBrowser: boolean;
   readonly startupPresentation: StartupPresentation;
   readonly desktopBootstrapToken: string | undefined;
+  readonly desktopExtensionBroker?:
+    | { readonly endpoint: string; readonly token: string }
+    | undefined;
   readonly desktopBootstrapSecret?: string | undefined;
   readonly desktopTelemetryFd?: number | undefined;
   readonly desktopTelemetryControlFd?: number | undefined;
@@ -132,8 +135,7 @@ export const otlpResource = (config: ServerConfig["Service"]) => ({
   },
 });
 
-export const layer = (config: ServerConfig["Service"]) =>
-  Layer.succeed(ServerConfig, make(config));
+export const layer = (config: ServerConfig["Service"]) => Layer.succeed(ServerConfig, make(config));
 
 export const deriveServerPaths = Effect.fn(function* (
   baseDir: ServerConfig["Service"]["baseDir"],

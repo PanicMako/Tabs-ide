@@ -95,7 +95,7 @@ export const previewBrowserRelease = (
 
 const megabytes = (bytes: number) => Math.round(bytes / 1_000_000);
 
-export class PreviewBrowserInstallError extends Schema.TaggedErrorClass<PreviewBrowserInstallError>()(
+export class PreviewBrowserInstallError extends Schema.TaggedError<PreviewBrowserInstallError>()(
   "PreviewBrowserInstallError",
   { detail: Schema.String, cause: Schema.optional(Schema.Defect()) },
 ) {
@@ -105,7 +105,7 @@ export class PreviewBrowserInstallError extends Schema.TaggedErrorClass<PreviewB
 }
 const isInstallError = Schema.is(PreviewBrowserInstallError);
 
-export class PreviewBrowserInstallingError extends Schema.TaggedErrorClass<PreviewBrowserInstallingError>()(
+export class PreviewBrowserInstallingError extends Schema.TaggedError<PreviewBrowserInstallingError>()(
   "PreviewBrowserInstallingError",
   { downloadedBytes: Schema.Number, totalBytes: Schema.Number, unpacking: Schema.Boolean },
 ) {
@@ -117,7 +117,7 @@ export class PreviewBrowserInstallingError extends Schema.TaggedErrorClass<Previ
   }
 }
 
-export class PreviewBrowserUnsupportedError extends Schema.TaggedErrorClass<PreviewBrowserUnsupportedError>()(
+export class PreviewBrowserUnsupportedError extends Schema.TaggedError<PreviewBrowserUnsupportedError>()(
   "PreviewBrowserUnsupportedError",
   { platform: Schema.String, arch: Schema.String },
 ) {

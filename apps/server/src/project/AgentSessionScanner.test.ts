@@ -19,7 +19,7 @@ import * as Stream from "effect/Stream";
 import * as TestClock from "effect/testing/TestClock";
 
 import * as ServerConfig from "../config.ts";
-import * as ProjectionSnapshotQuery from "../orchestration/Services/ProjectionSnapshotQuery.ts";
+import * as ProjectionSnapshotQuery from "../orchestration-v2/ProjectionSnapshotQuery.ts";
 import type { OrchestrationReadModel } from "@tabs/contracts";
 import * as ServerSettings from "../serverSettings.ts";
 import * as AgentSessionScanner from "./AgentSessionScanner.ts";
@@ -1699,7 +1699,7 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
             opens.set(filePath, count);
             return fileSystem.open(filePath, options).pipe(
               Effect.map((file) =>
-                (!transcriptPaths.has(filePath) || count === 1
+                !transcriptPaths.has(filePath) || count === 1
                   ? file
                   : ({
                       ...file,
@@ -1712,7 +1712,7 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
                             }),
                           ),
                         ),
-                    } as unknown as FileSystem.File)),
+                    } as unknown as FileSystem.File),
               ),
             );
           },

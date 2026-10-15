@@ -1,3 +1,4 @@
+import * as TestingRuntime from "./testing/TestingRuntime.ts";
 import type { RelayManagedEndpointRuntimeConfig } from "@tabs/contracts/relay";
 import * as Clock from "effect/Clock";
 import * as Random from "effect/Random";
@@ -50,7 +51,7 @@ import * as OpenCodeServerLedger from "./provider/OpenCodeServerLedger.ts";
 import * as AcpRegistryCatalog from "./provider/AcpRegistryCatalog.ts";
 import * as CheckpointDiffQuery from "./checkpointing/CheckpointDiffQuery.ts";
 import * as CheckpointStore from "./checkpointing/CheckpointStore.ts";
-import { OrchestrationProjectionSnapshotQueryLive } from "./orchestration/Layers/ProjectionSnapshotQuery.ts";
+import { ProjectionSnapshotQueryLive } from "./orchestration-v2/ProjectionSnapshotQuery.ts";
 import * as AzureDevOpsCli from "./sourceControl/AzureDevOpsCli.ts";
 import * as BitbucketApi from "./sourceControl/BitbucketApi.ts";
 import * as GitHubCli from "./sourceControl/GitHubCli.ts";
@@ -560,7 +561,10 @@ const layerRuntimeCoreDependenciesBase = Layer.mergeAll(
   Layer.provideMerge(Layer.mergeAll(layerTerminal, layerPreview, layerDevice)),
   Layer.provideMerge(layerPersistence),
   Layer.provideMerge(
-    OrchestrationProjectionSnapshotQueryLive.pipe(Layer.provide(layerPersistence)),
+    ProjectionSnapshotQueryLive.pipe(
+      Layer.provide(Layer.merge(ProjectStore.layer, ProjectionStoreV2.layer)),
+      Layer.provide(layerPersistence),
+    ),
   ),
   // Both read a user-owned file out of the state directory and stream changes
   // to clients; neither depends on the other.
@@ -628,7 +632,8 @@ const layerRuntimeCoreDependencies = layerRuntimeCoreDependenciesBase.pipe(
   ),
 );
 
-const layerRuntimeDependencies = layerRuntimeCoreDependencies.pipe(
+const layerRuntimeDependencies = TestingRuntime.layer.pipe(
+  Layer.provideMerge(layerRuntimeCoreDependencies),
   // Misc.
   Layer.provideMerge(layerBackground),
   Layer.provideMerge(layerResourceDiagnostics),
@@ -661,13 +666,14 @@ const layerMakeRoutes = Layer.mergeAll(
       Layer.provide(ServerHttp.layerServerEnvironmentHttpApi),
       Layer.provide(WebhookRoute.layer.pipe(Layer.provide(RelayDeliveryProof.layer))),
       Layer.provide(AuthHttp.layerAuthenticatedAuth),
+      Layer.tap(() => Effect.logDebug("startup phase: HTTP API routes constructed")),
     ),
     ServerHttp.layerOtlpTracesProxyRoute,
     ServerHttp.layerAssetRoute,
     ServerHttp.layerAttachmentUploadRoute,
     DeviceHubProxy.layer,
     ServerHttp.layerStaticAndDevRoute,
-    Ws.layer,
+    Ws.layer.pipe(Layer.tap(() => Effect.logDebug("startup phase: WebSocket routes constructed"))),
   ),
   // The MCP session registry is provided globally (shared with V2 provider
   // sessions) rather than inline here. The orchestrator toolkit resolves
@@ -676,6 +682,7 @@ const layerMakeRoutes = Layer.mergeAll(
   // what dispatch can actually serve.
   McpHttpServer.layer.pipe(
     Layer.provide(ProviderAdapterRegistry.layerFromProviderInstanceRegistry),
+    Layer.tap(() => Effect.logDebug("startup phase: MCP routes constructed")),
   ),
 ).pipe(
   // Both transports consume the same service instance, so caches single-flight across clients
@@ -704,6 +711,7 @@ const layerMakeServer = Layer.unwrap(
 
     const layerHttpListening = Layer.effectDiscard(
       Effect.gen(function* () {
+        yield* Effect.logDebug("startup phase: marking http listener ready");
         yield* HttpServer.HttpServer;
         const startup = yield* ServerRuntimeStartup.ServerRuntimeStartup;
         yield* startup.markHttpListening;
@@ -852,7 +860,7 @@ const layerMakeServer = Layer.unwrap(
                       CloudLink.shouldRetryCloudLink(error) &&
                       error._tag !== "CloudLinkEndpointUnavailableError",
                     schedule: Schedule.exponential("1 second").pipe(
-                      Schedule.modifyDelay((duration) =>
+                      Schedule.modifyDelay(({ duration }) =>
                         Effect.succeed(Duration.min(duration, Duration.seconds(30))),
                       ),
                       Schedule.jittered,
@@ -983,10 +991,10 @@ const layerMakeServer = Layer.unwrap(
                   Effect.retry({
                     while: CloudLink.shouldRetryCloudLink,
                     schedule: Schedule.exponential("1 second").pipe(
-                      Schedule.modifyDelay((duration) =>
+                      Schedule.modifyDelay(({ duration }) =>
                         Effect.succeed(Duration.min(duration, Duration.seconds(30))),
                       ),
-                      Schedule.both(Schedule.during("10 minutes")),
+                      Schedule.upTo({ duration: "10 minutes" }),
                     ),
                   }),
                   Effect.tap((mode) =>
@@ -1025,14 +1033,23 @@ const layerMakeServer = Layer.unwrap(
         ],
         { concurrency: "unbounded" },
       ).pipe(Effect.asVoid),
-    }).pipe(Layer.provideMerge(layerRuntimeDependencies), Layer.provide(layerLauncher));
+    }).pipe(
+      Layer.provideMerge(layerRuntimeDependencies),
+      Layer.provide(layerLauncher),
+      Layer.tap(() => Effect.logDebug("startup phase: runtime services constructed")),
+    );
 
     const layerRoutes = HttpRouter.serve(layerMakeRoutes.pipe(Layer.provide(layerLauncher)), {
       disableLogger: !config.logWebSocketEvents,
       routerConfig: HTTP_ROUTER_CONFIG,
     }).pipe(
       withUntracedRequests,
-      Layer.tap(() => Deferred.succeed(routesReady, undefined).pipe(Effect.orDie)),
+      Layer.tap(() =>
+        Effect.logDebug("startup phase: HTTP routes serving").pipe(
+          Effect.andThen(Deferred.succeed(routesReady, undefined)),
+          Effect.orDie,
+        ),
+      ),
     );
     const layerServerApplication = Layer.mergeAll(
       layerRoutes,

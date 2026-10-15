@@ -23,7 +23,12 @@ import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
 import { Argument, Command, Flag, GlobalFlag, Prompt } from "effect/unstable/cli";
-import { FetchHttpClient, HttpClient, HttpClientRequest, HttpClientResponse } from "effect/unstable/http";
+import {
+  FetchHttpClient,
+  HttpClient,
+  HttpClientRequest,
+  HttpClientResponse,
+} from "effect/unstable/http";
 
 import packageJson from "../../package.json" with { type: "json" };
 import * as BootService from "../cloud/bootService.ts";
@@ -40,7 +45,7 @@ import { projectLocationFlags, resolveCliAuthConfig } from "./config.ts";
 import { createUpdateProgress } from "./updateProgress.ts";
 import * as CliService from "./service.ts";
 
-export class CliUpdateError extends Schema.TaggedErrorClass<CliUpdateError>()("CliUpdateError", {
+export class CliUpdateError extends Schema.TaggedError<CliUpdateError>()("CliUpdateError", {
   reason: Schema.String,
 }) {
   override get message(): string {

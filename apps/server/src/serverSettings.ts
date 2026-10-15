@@ -46,7 +46,6 @@ import * as Path from "effect/Path";
 import * as PubSub from "effect/PubSub";
 import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
-import * as SchemaTransformation from "effect/SchemaTransformation";
 import * as Semaphore from "effect/Semaphore";
 import * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
@@ -343,25 +342,13 @@ const makeTest = (overrides: DeepPartial<ServerSettings> = {}) =>
 export const layerTest = (overrides: DeepPartial<ServerSettings> = {}) =>
   Layer.effect(ServerSettingsService, makeTest(overrides));
 
-// Migrate saved token delivery without accepting it in settings writes or
-// letting one retired value reset the rest of the environment's settings.
-const PersistedResponseStreamingMode = Schema.Union([
-  ResponseStreamingMode,
-  Schema.Literal("token"),
-]).pipe(
-  Schema.decodeTo(
-    ResponseStreamingMode,
-    SchemaTransformation.transform({
-      decode: (mode) => (mode === "token" ? "paragraph" : mode),
-      encode: (mode) => mode,
-    }),
-  ),
-);
+// Keep existing explicit delivery preferences, including immediate token streaming.
+const PersistedResponseStreamingMode = ResponseStreamingMode;
 const ServerSettingsJson = fromLenientJson(
   Schema.Struct({
     ...ServerSettings.fields,
     responseStreamingMode: PersistedResponseStreamingMode.pipe(
-      Schema.withDecodingDefault(Effect.succeed("paragraph" as const)),
+      Schema.withDecodingDefault(Effect.succeed("token" as const)),
     ),
     projectSettingsOverrides: Schema.Record(
       ProjectId,

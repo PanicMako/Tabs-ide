@@ -29,9 +29,7 @@ const testLayer = (
 ) => {
   const projectMock = Layer.succeed(ProjectService.ProjectService, {
     getById: (id: ProjectId) =>
-      Effect.succeed(
-        project && project.id === id ? Option.some(project as any) : Option.none(),
-      ),
+      Effect.succeed(project && project.id === id ? Option.some(project as any) : Option.none()),
     getByWorkspaceRoot: (root: string) =>
       Effect.succeed(
         project && project.workspaceRoot === root ? Option.some(project as any) : Option.none(),

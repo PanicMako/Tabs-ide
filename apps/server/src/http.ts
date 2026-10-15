@@ -28,6 +28,7 @@ import * as HttpApiBuilder from "effect/unstable/httpapi/HttpApiBuilder";
 import { OtlpTracer, OtlpSerialization } from "effect/unstable/observability";
 
 import * as ServerConfig from "./config.ts";
+import { compression } from "./HttpCompression.ts";
 import { ASSET_ROUTE_PREFIX, resolveAsset } from "./assets/AssetAccess.ts";
 import { githubMediaResponse } from "./assets/GitHubMediaFetch.ts";
 import { statMediaFile, streamMediaFile, type OpenMediaFile } from "./assets/MediaFile.ts";
@@ -51,7 +52,12 @@ import { browserApiCorsAllowedHeaders, browserApiCorsAllowedMethods } from "./ht
 
 const OTLP_TRACES_PROXY_PATH = "/api/observability/v1/traces";
 const LOOPBACK_HOSTNAMES = new Set(["127.0.0.1", "::1", "localhost"]);
-const DESKTOP_RENDERER_ORIGINS = ["t3code://app", "t3code-dev://app"];
+const DESKTOP_RENDERER_ORIGINS = [
+  "tabs://app",
+  "tabs-dev://app",
+  "t3code://app",
+  "t3code-dev://app",
+];
 const SVG_CONTENT_SECURITY_POLICY = "default-src 'none'; style-src 'unsafe-inline'; sandbox";
 // HTML previews are agent output, not the app. The sandbox gives the document an
 // opaque origin: scripts run, but same-origin cookies, storage, and API calls are
@@ -231,7 +237,7 @@ export const assetFileResponse = Effect.fn("assetFileResponse")(function* (
   return yield* HttpServerResponse.file(asset.path, { status, offset, bytesToRead, headers });
 });
 
-export const layerHttpCompression: Layer.Layer<never> = Layer.empty;
+export const layerHttpCompression = HttpRouter.middleware(compression, { global: true });
 
 export const layerBrowserApiCors = Layer.unwrap(
   Effect.gen(function* () {
@@ -244,13 +250,14 @@ export const layerBrowserApiCors = Layer.unwrap(
     // origin — a tailnet name, a LAN IP, a phone. Browser dev normally proxies
     // through Vite and is same-origin (no preflight at all), so this is a
     // safety net for the desktop renderer and any direct-to-backend caller.
+    const allowedOrigins = [
+      ...DESKTOP_RENDERER_ORIGINS,
+      ...(devOrigin ? [devOrigin] : []),
+      ...config.devAllowedOrigins,
+    ];
     return HttpRouter.cors({
-      ...(devOrigin
-        ? {
-            allowedOrigins: [devOrigin, ...DESKTOP_RENDERER_ORIGINS, ...config.devAllowedOrigins],
-            credentials: true,
-          }
-        : {}),
+      allowedOrigins,
+      credentials: true,
       allowedMethods: browserApiCorsAllowedMethods,
       allowedHeaders: browserApiCorsAllowedHeaders,
       maxAge: 600,

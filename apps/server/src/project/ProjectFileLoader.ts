@@ -25,7 +25,7 @@ import { TabsProjectFileFromJson } from "@tabs/shared/tabsProjectFile";
 
 const decodeTabsProjectFileJson = Schema.decodeEffect(TabsProjectFileFromJson);
 
-export class ProjectFileLoadError extends Schema.TaggedErrorClass<ProjectFileLoadError>()(
+export class ProjectFileLoadError extends Schema.TaggedError<ProjectFileLoadError>()(
   "ProjectFileLoadError",
   {
     operation: Schema.Literals(["read", "decode"]),
