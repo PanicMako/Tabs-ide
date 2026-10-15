@@ -4,6 +4,18 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./exchangeErrors": {
+      "types": "./src/exchangeErrors.ts",
+      "import": "./src/exchangeErrors.ts"
+    },
+    "./extensionSubmission": {
+      "types": "./src/extensionSubmission.ts",
+      "import": "./src/extensionSubmission.ts"
+    },
+    "./extensions": {
+      "types": "./src/extensions.ts",
+      "import": "./src/extensions.ts"
+    },
     "./browserReproduction": {
       "types": "./src/browserReproduction.ts",
       "import": "./src/browserReproduction.ts"
@@ -51,18 +63,6 @@
     "./logging": {
       "types": "./src/logging.ts",
       "import": "./src/logging.ts"
-    },
-    "./encoding/Base64": {
-      "types": "./src/encoding/Base64.ts",
-      "import": "./src/encoding/Base64.ts"
-    },
-    "./encoding/Base64Url": {
-      "types": "./src/encoding/Base64Url.ts",
-      "import": "./src/encoding/Base64Url.ts"
-    },
-    "./encoding/Hex": {
-      "types": "./src/encoding/Hex.ts",
-      "import": "./src/encoding/Hex.ts"
     },
     "./shell": {
       "types": "./src/shell.ts",
@@ -235,6 +235,22 @@
     "./video": {
       "types": "./src/video.ts",
       "import": "./src/video.ts"
+    },
+    "./backendStartup": {
+      "types": "./src/backendStartup.ts",
+      "import": "./src/backendStartup.ts"
+    },
+    "./encoding/Base64": {
+      "types": "./src/encoding/Base64.ts",
+      "import": "./src/encoding/Base64.ts"
+    },
+    "./encoding/Base64Url": {
+      "types": "./src/encoding/Base64Url.ts",
+      "import": "./src/encoding/Base64Url.ts"
+    },
+    "./encoding/Hex": {
+      "types": "./src/encoding/Hex.ts",
+      "import": "./src/encoding/Hex.ts"
     },
     "./Array": {
       "types": "./src/Array.ts",
@@ -441,6 +457,7 @@
     "@noble/curves": "^1.9.1",
     "@noble/hashes": "^1.8.0",
     "@tabs/contracts": "workspace:*",
+    "@tabs/extension-api": "workspace:*",
     "effect": "catalog:",
     "jose": "^6.2.2",
     "yaml": "^2.7.0"
