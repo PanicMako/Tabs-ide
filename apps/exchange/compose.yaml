@@ -1,0 +1,111 @@
+x-registry-runtime: &registry-runtime
+  image: tabs-exchange:${EXCHANGE_IMAGE_TAG:-local}
+  pull_policy: never
+
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: tabs_exchange
+      POSTGRES_USER: tabs_exchange
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - exchange_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tabs_exchange"]
+      interval: 5s
+      retries: 20
+
+  objects:
+    image: chrislusf/seaweedfs:4.48
+    command: ["mini", "-dir=/data", "-s3.port=8333"]
+    environment:
+      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:?Set S3_ACCESS_KEY_ID in .env}
+      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:?Set S3_SECRET_ACCESS_KEY in .env}
+      S3_BUCKET: tabs-exchange
+    ports:
+      - "127.0.0.1:${EXCHANGE_S3_PORT:-8333}:8333"
+    volumes:
+      - exchange_objects:/data
+
+  bucket:
+    <<: *registry-runtime
+    depends_on:
+      - objects
+    command: ["bun", "run", "--cwd", "apps/exchange", "storage:ready"]
+    environment:
+      S3_ENDPOINT: http://objects:8333
+      S3_BUCKET: tabs-exchange
+      S3_REGION: us-east-1
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:?Set S3_ACCESS_KEY_ID in .env}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:?Set S3_SECRET_ACCESS_KEY in .env}
+
+  migrate:
+    <<: *registry-runtime
+    build:
+      context: ../..
+      dockerfile: apps/exchange/Dockerfile
+      args:
+        EXCHANGE_WEB_SITE_NAME: ${EXCHANGE_WEB_SITE_NAME:-Tabs Exchange}
+        EXCHANGE_WEB_DOCS_URL: ${EXCHANGE_WEB_DOCS_URL:-/docs/extensions}
+        EXCHANGE_WEB_SUPPORT_URL: ${EXCHANGE_WEB_SUPPORT_URL:-}
+    command: ["bun", "run", "--cwd", "apps/exchange", "migrate"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://tabs_exchange:${POSTGRES_PASSWORD}@postgres:5432/tabs_exchange
+
+  api:
+    <<: *registry-runtime
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      bucket:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:${EXCHANGE_HTTP_PORT:-8787}:8787"
+    environment:
+      DATABASE_URL: postgres://tabs_exchange:${POSTGRES_PASSWORD}@postgres:5432/tabs_exchange
+      S3_ENDPOINT: http://objects:8333
+      S3_REGION: us-east-1
+      S3_BUCKET: tabs-exchange
+      PORT: "8787"
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:?Set S3_ACCESS_KEY_ID in .env}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:?Set S3_SECRET_ACCESS_KEY in .env}
+      EXCHANGE_ORIGIN: ${EXCHANGE_ORIGIN:?Set EXCHANGE_ORIGIN in .env}
+      EXCHANGE_PUBLISHING_ENABLED: ${EXCHANGE_PUBLISHING_ENABLED:-false}
+      EXCHANGE_VISIBILITY: ${EXCHANGE_VISIBILITY:-public}
+      EXCHANGE_ALLOWED_GITHUB_IDS: ${EXCHANGE_ALLOWED_GITHUB_IDS:-}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:?Set GITHUB_CLIENT_ID in .env}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:?Set GITHUB_CLIENT_SECRET in .env}
+      EXCHANGE_ADMIN_GITHUB_IDS: ${EXCHANGE_ADMIN_GITHUB_IDS:-}
+      EXCHANGE_OPERATOR_GITHUB_IDS: ${EXCHANGE_OPERATOR_GITHUB_IDS:-}
+
+  worker:
+    <<: *registry-runtime
+    command: ["bun", "run", "--cwd", "apps/exchange", "worker"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      bucket:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgres://tabs_exchange:${POSTGRES_PASSWORD}@postgres:5432/tabs_exchange
+      S3_ENDPOINT: http://objects:8333
+      S3_REGION: us-east-1
+      S3_BUCKET: tabs-exchange
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:?Set S3_ACCESS_KEY_ID in .env}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:?Set S3_SECRET_ACCESS_KEY in .env}
+      EXCHANGE_ORIGIN: ${EXCHANGE_ORIGIN:?Set EXCHANGE_ORIGIN in .env}
+      EXCHANGE_PUBLISHING_ENABLED: ${EXCHANGE_PUBLISHING_ENABLED:-false}
+      EXCHANGE_VISIBILITY: ${EXCHANGE_VISIBILITY:-public}
+      EXCHANGE_ALLOWED_GITHUB_IDS: ${EXCHANGE_ALLOWED_GITHUB_IDS:-}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:?Set GITHUB_CLIENT_ID in .env}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:?Set GITHUB_CLIENT_SECRET in .env}
+      EXCHANGE_ADMIN_GITHUB_IDS: ${EXCHANGE_ADMIN_GITHUB_IDS:-}
+      EXCHANGE_OPERATOR_GITHUB_IDS: ${EXCHANGE_OPERATOR_GITHUB_IDS:-}
+
+volumes:
+  exchange_postgres:
+  exchange_objects:
