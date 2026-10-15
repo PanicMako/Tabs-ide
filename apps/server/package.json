@@ -8,17 +8,18 @@
     "directory": "apps/server"
   },
   "bin": {
-    "tabs": "./dist/index.mjs"
+    "tabs": "./dist/bin.mjs"
   },
   "files": [
     "dist"
   ],
   "type": "module",
+  "main": "./dist/bin.mjs",
   "scripts": {
     "dev": "bun run src/index.ts",
     "dev:bundle": "tsdown --watch",
     "build": "bun scripts/cli.ts build",
-    "start": "node dist/index.mjs",
+    "start": "node dist/bin.mjs",
     "testing:ci": "bun scripts/testing-ci.ts",
     "typecheck": "NODE_OPTIONS=--max-old-space-size=8192 tsc --noEmit",
     "test": "bun scripts/test.ts"
@@ -38,8 +39,8 @@
     "@opencode/schema": "2.0.23",
     "@pierre/diffs": "^1.2.7",
     "@playwright/mcp": "0.0.78",
-    "docx": "^9.5.1",
     "diff": "8.0.3",
+    "docx": "^9.5.1",
     "effect": "catalog:",
     "effect-acp": "workspace:*",
     "effect-codex-app-server": "workspace:*",
@@ -78,5 +79,6 @@
   },
   "engines": {
     "node": "^22.16 || ^23.11 || >=24.10"
-  }
+  },
+  "providerCompatibilityVersion": "0.0.46"
 }
