@@ -38,7 +38,7 @@ export interface SqliteClientConfig {
   readonly transformQueryNames?: ((str: string) => string) | undefined;
 }
 
-export class UnsupportedNodeSqliteVersionError extends Schema.TaggedErrorClass<UnsupportedNodeSqliteVersionError>()(
+export class UnsupportedNodeSqliteVersionError extends Schema.TaggedError<UnsupportedNodeSqliteVersionError>()(
   "UnsupportedNodeSqliteVersionError",
   {
     nodeVersion: Schema.String,
@@ -50,7 +50,7 @@ export class UnsupportedNodeSqliteVersionError extends Schema.TaggedErrorClass<U
   }
 }
 
-export class UnsupportedNodeSqliteOperationError extends Schema.TaggedErrorClass<UnsupportedNodeSqliteOperationError>()(
+export class UnsupportedNodeSqliteOperationError extends Schema.TaggedError<UnsupportedNodeSqliteOperationError>()(
   "UnsupportedNodeSqliteOperationError",
   {},
 ) {
@@ -249,6 +249,11 @@ const make = Effect.fn("makeWithDatabase")(function* (
       },
       executeValues(sql, params) {
         return runValues(sql, params);
+      },
+      executeValuesUnprepared(sql, params) {
+        return prepare(sql).pipe(
+          Effect.flatMap((statement) => runStatementValues(statement, params)),
+        );
       },
       executeUnprepared(sql, params, rowTransform) {
         const effect = prepare(sql).pipe(

@@ -498,13 +498,16 @@ class LocalFileSpan implements Tracer.Span {
   }
 
   end(endTime: bigint, exit: Exit.Exit<unknown, unknown>): void {
+    // Cached lookup fibers can retain their parent span after the request ends.
+    // Trace status needs success/failure, never the successful application result.
+    const retainedExit = ExitRuntime.isSuccess(exit) ? ExitRuntime.void : exit;
     this.status = {
       _tag: "Ended",
       startTime: this.status.startTime,
       endTime,
-      exit,
+      exit: retainedExit,
     };
-    this.delegate.end(endTime, exit);
+    this.delegate.end(endTime, retainedExit);
 
     if (this.sampled) {
       this.push(spanToTraceRecord(this));
@@ -732,7 +735,7 @@ export const OtlpHeadersFromString = Schema.String.pipe(
           const key = separator === -1 ? "" : pair.slice(0, separator).trim();
           if (key === "") {
             return Effect.fail(
-              new SchemaIssue.InvalidValue(Option.none(), {
+              new SchemaIssue.InvalidValue({
                 message: `Expected key=value but received ${JSON.stringify(pair.trim())}.`,
               }),
             );
@@ -741,7 +744,7 @@ export const OtlpHeadersFromString = Schema.String.pipe(
             headers[key] = decodeURIComponent(pair.slice(separator + 1).trim());
           } catch {
             return Effect.fail(
-              new SchemaIssue.InvalidValue(Option.none(), {
+              new SchemaIssue.InvalidValue({
                 message: `Header ${JSON.stringify(key)} has a malformed percent-encoded value.`,
               }),
             );
@@ -758,4 +761,3 @@ export const OtlpHeadersFromString = Schema.String.pipe(
     }),
   ),
 );
-

@@ -228,3 +228,25 @@ describe("themeImportExport", () => {
     expect(recovered.fonts.uiFont).toBeDefined();
   });
 });
+
+it("preserves independent section and supporting fonts through a native theme round trip", () => {
+  const config: CustomThemeConfig = {
+    baseVariant: "dark",
+    colors: {
+      background: "#101010",
+      foreground: "#eeeeee",
+      card: "#191919",
+      border: "#333333",
+      primary: "#abcdef",
+    },
+    fonts: {
+      uiFont: "Syne",
+      editorFont: "Menlo",
+      headingFont: "Coconat",
+      sectionFont: "Parkinsans",
+      supportingFont: "Absans",
+    },
+  };
+  const imported = parseNativeTheme(JSON.parse(exportCustomThemeAsJson(config, "My Mix")));
+  expect(imported.config.fonts).toEqual(config.fonts);
+});

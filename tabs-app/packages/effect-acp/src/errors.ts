@@ -79,7 +79,7 @@ export interface AcpRequestDiagnostics {
   readonly maximumPathDepth?: number;
 }
 
-export class AcpSpawnError extends Schema.TaggedErrorClass<AcpSpawnError>()("AcpSpawnError", {
+export class AcpSpawnError extends Schema.TaggedError<AcpSpawnError>()("AcpSpawnError", {
   command: Schema.optional(Schema.String),
   cause: Schema.Defect(),
 }) {
@@ -90,7 +90,7 @@ export class AcpSpawnError extends Schema.TaggedErrorClass<AcpSpawnError>()("Acp
   }
 }
 
-export class AcpProcessExitedError extends Schema.TaggedErrorClass<AcpProcessExitedError>()(
+export class AcpProcessExitedError extends Schema.TaggedError<AcpProcessExitedError>()(
   "AcpProcessExitedError",
   {
     code: Schema.optional(Schema.Number),
@@ -114,7 +114,7 @@ export const AcpProtocolParseOperation = Schema.Literals([
 ]);
 export type AcpProtocolParseOperation = typeof AcpProtocolParseOperation.Type;
 
-export class AcpProtocolParseError extends Schema.TaggedErrorClass<AcpProtocolParseError>()(
+export class AcpProtocolParseError extends Schema.TaggedError<AcpProtocolParseError>()(
   "AcpProtocolParseError",
   {
     operation: AcpProtocolParseOperation,
@@ -158,7 +158,7 @@ export class AcpProtocolParseError extends Schema.TaggedErrorClass<AcpProtocolPa
   }
 }
 
-export class AcpTransportError extends Schema.TaggedErrorClass<AcpTransportError>()(
+export class AcpTransportError extends Schema.TaggedError<AcpTransportError>()(
   "AcpTransportError",
   {
     operation: Schema.optional(
@@ -178,7 +178,7 @@ export class AcpTransportError extends Schema.TaggedErrorClass<AcpTransportError
   }
 }
 
-export class AcpInputStreamEndedError extends Schema.TaggedErrorClass<AcpInputStreamEndedError>()(
+export class AcpInputStreamEndedError extends Schema.TaggedError<AcpInputStreamEndedError>()(
   "AcpInputStreamEndedError",
   {},
 ) {
@@ -187,7 +187,7 @@ export class AcpInputStreamEndedError extends Schema.TaggedErrorClass<AcpInputSt
   }
 }
 
-export class AcpRequestError extends Schema.TaggedErrorClass<AcpRequestError>()("AcpRequestError", {
+export class AcpRequestError extends Schema.TaggedError<AcpRequestError>()("AcpRequestError", {
   code: AcpSchema.ErrorCode,
   errorMessage: Schema.String,
   data: Schema.optional(Schema.Unknown),

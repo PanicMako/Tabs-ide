@@ -297,7 +297,9 @@ export const layerCommand = (
       const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
       const command = ChildProcess.make(options.command, [...(options.args ?? [])], {
         ...(options.cwd ? { cwd: options.cwd } : {}),
-        ...(options.env ? { env: { ...process.env, ...options.env } as Record<string, string> } : {}),
+        ...(options.env
+          ? { env: { ...process.env, ...options.env } as Record<string, string> }
+          : {}),
         forceKillAfter: "2 seconds",
         shell: process.platform === "win32",
       });
