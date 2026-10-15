@@ -1,3 +1,4 @@
+import { registerTypeScriptFixtureLoader } from "./TypeScriptFixtureLoader.mjs";
 import * as NodeModule from "node:module";
 import * as NodeURL from "node:url";
 import * as NodeCrypto from "node:crypto";
@@ -8,6 +9,7 @@ const mode = process.argv[3];
 const count = Number(process.argv[4] ?? 4);
 const bytes = Number(process.argv[5] ?? 32768);
 const require = NodeModule.createRequire(root + "/apps/server/package.json");
+registerTypeScriptFixtureLoader(root);
 const load = (name) => import(NodeURL.pathToFileURL(require.resolve("effect/" + name)));
 const [Effect, Stream, Layer, Deferred, Fiber] = await Promise.all(
   ["Effect", "Stream", "Layer", "Deferred", "Fiber"].map(load),

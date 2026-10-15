@@ -4,10 +4,10 @@ import { dirname, join } from "node:path";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import type { TestingCaseSummary, TestingGenerationInput } from "@tabs/contracts";
-import type { TextGenerationShape } from "../textGeneration/TextGeneration";
-import { sanitizeModelBoundText, shortDigest } from "./security";
-import { runProcess } from "../processRunner";
-import { classifyExecutionFailure, createUnifiedDiff } from "./failureClassification";
+import type { TextGenerationShape } from "../textGeneration/TextGeneration.ts";
+import { sanitizeModelBoundText, shortDigest } from "./security.ts";
+import { runProcess } from "../processRunner.ts";
+import { classifyExecutionFailure, createUnifiedDiff } from "./failureClassification.ts";
 
 export async function generateOfficialPlaywright(input: {
   request: TestingGenerationInput;

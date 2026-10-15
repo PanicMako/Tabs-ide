@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ProviderInstanceId } from "@tabs/contracts";
 import { describe, expect, it } from "vitest";
-import { TestingService } from "./TestingService";
+import { TestingService } from "./TestingService.ts";
 
 describe("no-AI recording handoff", () => {
   it("registers a reviewed recording as a runnable artifact without a model backend", async () => {

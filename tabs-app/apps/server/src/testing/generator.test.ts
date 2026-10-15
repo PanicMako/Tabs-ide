@@ -8,10 +8,10 @@ import { ProviderInstanceId, type TestingCaseSummary } from "@tabs/contracts";
 import * as Effect from "effect/Effect";
 import { describe, expect, it, vi } from "vitest";
 
-import type { TextGenerationShape } from "../textGeneration/TextGeneration";
-import { TestingGenerator, renderGenerationSteps } from "./generator";
-import { TestingGraphStore } from "./graphStore";
-import { LocatorLibraryStore } from "./locatorLibrary";
+import type { TextGenerationShape } from "../textGeneration/TextGeneration.ts";
+import { TestingGenerator, renderGenerationSteps } from "./generator.ts";
+import { TestingGraphStore } from "./graphStore.ts";
+import { LocatorLibraryStore } from "./locatorLibrary.ts";
 
 const execFile = promisify(execFileCallback);
 

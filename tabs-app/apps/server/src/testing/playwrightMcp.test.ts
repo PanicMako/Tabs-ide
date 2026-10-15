@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { extractAccessibilityYaml } from "./playwrightMcp";
+import { extractAccessibilityYaml } from "./playwrightMcp.ts";
 
 describe("Playwright MCP accessibility snapshots", () => {
   it("accepts a transient empty inline snapshot", () => {

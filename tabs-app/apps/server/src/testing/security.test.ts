@@ -8,7 +8,7 @@ import {
   sanitizePersistedUrl,
   structuralHash,
   tokenizePii,
-} from "./security";
+} from "./security.ts";
 
 describe("testing accessibility security boundary", () => {
   it("strips hidden, zero-size, over-deep, and injected content before agent handoff", () => {

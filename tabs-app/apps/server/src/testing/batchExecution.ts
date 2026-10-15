@@ -1,4 +1,4 @@
-import type { ProcessRunResult } from "../processRunner";
+import type { ProcessRunResult } from "../processRunner.ts";
 
 // Bounded workers keep independent case failures from abandoning the batch.
 export async function runBounded<T>(

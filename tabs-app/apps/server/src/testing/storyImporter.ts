@@ -1,8 +1,12 @@
 import { extname, basename } from "node:path";
 import { readFile } from "node:fs/promises";
 
+import { createRequire } from "node:module";
+
 import mammoth from "mammoth";
-import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
+
+const require = createRequire(import.meta.url);
+const { getDocument } = require("pdfjs-dist/legacy/build/pdf.mjs");
 
 export interface ParsedUserStory {
   readonly sourceName: string;
@@ -19,7 +23,7 @@ async function pdfText(filePath: string): Promise<string> {
     const content = await page.getTextContent();
     pages.push(
       content.items
-        .map((item) => ("str" in item ? item.str : ""))
+        .map((item: any) => ("str" in item ? item.str : ""))
         .filter(Boolean)
         .join(" "),
     );

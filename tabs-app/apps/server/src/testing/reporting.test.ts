@@ -4,8 +4,8 @@ import { join } from "node:path";
 import { ProviderInstanceId } from "@tabs/contracts";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { TestingGraphStore } from "./graphStore";
-import { TestingReporter } from "./reporting";
+import { TestingGraphStore } from "./graphStore.ts";
+import { TestingReporter } from "./reporting.ts";
 
 const disposable: string[] = [];
 afterEach(async () => {

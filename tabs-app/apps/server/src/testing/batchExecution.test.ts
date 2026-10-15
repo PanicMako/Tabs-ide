@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { playwrightOutcome, runBounded } from "./batchExecution";
+import { playwrightOutcome, runBounded } from "./batchExecution.ts";
 
 const result = { code: 0, stdout: "", stderr: "", signal: null, timedOut: false };
 const report = {

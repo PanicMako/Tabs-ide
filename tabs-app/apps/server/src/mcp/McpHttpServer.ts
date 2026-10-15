@@ -1,3 +1,5 @@
+import * as McpProtocol from "effect/unstable/ai/McpProtocol";
+import { ExtensionAiBrokerClient } from "./ExtensionAiBrokerClient.ts";
 import * as Cause from "effect/Cause";
 import * as Clock from "effect/Clock";
 import * as Context from "effect/Context";
@@ -26,6 +28,9 @@ import {
 
 import packageJson from "../../package.json" with { type: "json" };
 import * as ServerConfig from "../config.ts";
+import * as ExtensionGateway from "./ExtensionMcpGateway.ts";
+import * as ExtensionThreads from "../orchestration-v2/ThreadManagementService.ts";
+import * as ExtensionProjects from "../orchestration-v2/ProjectStore.ts";
 import * as DeviceService from "../device/DeviceService.ts";
 import * as HtmlRender from "../htmlRender/HtmlRender.ts";
 import * as PreviewBrowser from "../htmlRender/PreviewBrowser.ts";
@@ -106,33 +111,85 @@ export const normalizeMcpHttpResponse = (
     : response;
 };
 
-const makeMcpAuthMiddleware = McpSessionRegistry.McpSessionRegistry.pipe(
-  Effect.map((registry): McpAuthMiddleware =>
-    Effect.fn("McpHttpServer.authenticateRequest")(function* (httpEffect) {
-      const request = yield* HttpServerRequest.HttpServerRequest;
-      const authorization = request.headers.authorization;
-      const token =
-        authorization?.startsWith("Bearer ") === true
-          ? authorization.slice("Bearer ".length).trim()
-          : "";
-      const invocation = yield* registry.resolve(token);
-      if (!invocation) {
-        // Without this the only symptom of a dead credential is the agent
-        // quietly losing the whole `t3-code` toolkit for the rest of its
-        // session, with nothing on the server to explain why.
-        yield* Effect.logWarning("rejected MCP request with an unusable credential", {
-          reason: token.length === 0 ? "missing_bearer_token" : "unknown_or_expired_token",
-        });
-        return unauthorized;
-      }
-      return yield* httpEffect.pipe(
-        Effect.provideService(McpInvocationContext.McpInvocationContext, invocation),
-        Effect.map(normalizeMcpHttpResponse),
+export const makeMcpAuthMiddleware = Effect.gen(function* () {
+  const registry = yield* McpSessionRegistry.McpSessionRegistry;
+  const services = yield* Effect.context<never>();
+  return Effect.fn("McpHttpServer.authenticateRequest")(function* (
+    httpEffect: AuthenticatedHttpEffect,
+  ) {
+    const request = yield* HttpServerRequest.HttpServerRequest;
+    const authorization = request.headers.authorization;
+    const token =
+      authorization?.startsWith("Bearer ") === true ? authorization.slice(7).trim() : "";
+    const invocation = yield* registry.resolve(token);
+    if (!invocation) return unauthorized;
+    const config = Context.getOrUndefined(services, ServerConfig.ServerConfig);
+    const threads = Context.getOrUndefined(services, ExtensionThreads.ThreadManagementService);
+    const projects = Context.getOrUndefined(services, ExtensionProjects.ProjectStoreV2);
+    const configuration = config?.desktopExtensionBroker;
+    const gateway =
+      configuration && threads && projects && invocation.thread
+        ? {
+            broker: new ExtensionAiBrokerClient(configuration),
+            resolveProjectId: () =>
+              Effect.runPromise(
+                Effect.gen(function* () {
+                  const shell = yield* threads.getThreadShell(invocation.thread!.threadId);
+                  if (!shell || shell.deletedAt !== null) return undefined;
+                  const project = yield* projects.get(shell.projectId);
+                  return Option.isSome(project) ? project.value.projectId : undefined;
+                }),
+              ),
+          }
+        : undefined;
+    const payload =
+      gateway && request.method === "POST"
+        ? yield* request.json.pipe(Effect.orElseSucceed(() => undefined))
+        : undefined;
+    const rpc = payload as
+      | { id?: unknown; method?: string; params?: { name?: string; arguments?: unknown } }
+      | undefined;
+    if (gateway && rpc?.method === "tools/call" && rpc.params?.name?.startsWith("tabs_ext_")) {
+      const result = yield* Effect.tryPromise(() =>
+        ExtensionGateway.invokeExtensionMcpTool(gateway, rpc.params!.name!, rpc.params?.arguments),
+      ).pipe(
+        Effect.catch((error) =>
+          Effect.succeed({ isError: true, content: [{ type: "text", text: String(error.cause) }] }),
+        ),
       );
-    }),
-  ),
-  Effect.withSpan("McpHttpServer.makeAuthMiddleware"),
-);
+      return HttpServerResponse.jsonUnsafe(
+        { jsonrpc: "2.0", id: rpc.id, result },
+        { headers: { "cache-control": "no-store" } },
+      );
+    }
+    const response = yield* httpEffect.pipe(
+      Effect.provideService(McpInvocationContext.McpInvocationContext, invocation),
+      Effect.map(normalizeMcpHttpResponse),
+    );
+    if (!gateway || rpc?.method !== "tools/list" || response.status !== 200) return response;
+    const tools = yield* Effect.tryPromise(() => ExtensionGateway.extensionMcpTools(gateway)).pipe(
+      Effect.orElseSucceed(() => []),
+    );
+    if (tools.length === 0) return response;
+    const body = yield* Effect.tryPromise(() =>
+      HttpServerResponse.toWeb(response, { context: services }).text(),
+    ).pipe(Effect.orDie);
+    const updated = ExtensionGateway.appendExtensionTools(
+      body,
+      response.headers["content-type"] ?? "",
+      tools,
+    );
+    return HttpServerResponse.text(updated, {
+      status: response.status,
+      headers: {
+        ...response.headers,
+        "content-length": String(new TextEncoder().encode(updated).byteLength),
+        "content-type": response.headers["content-type"] ?? "application/json",
+        "cache-control": "no-store",
+      },
+    });
+  }) satisfies McpAuthMiddleware;
+});
 
 const layerMcpAuthMiddleware = HttpRouter.middleware<{
   provides: McpInvocationContext.McpInvocationContext;
@@ -308,7 +365,7 @@ const boundSnapshotMetadata = (metadata: SnapshotMetadata) => {
   return { value: value(), text, omitted };
 };
 
-export class PreviewScreenshotSaveError extends Schema.TaggedErrorClass<PreviewScreenshotSaveError>()(
+export class PreviewScreenshotSaveError extends Schema.TaggedError<PreviewScreenshotSaveError>()(
   "PreviewScreenshotSaveError",
   { screenshotPath: Schema.String, cause: Schema.Defect() },
 ) {
@@ -689,11 +746,9 @@ const registerHtmlPreview = Effect.fn("McpHttpServer.registerHtmlPreview")(funct
   );
 });
 
-const registerToolkit = /*#__PURE__*/ Effect.fnUntraced(function* (
-  toolkit: any,
-) {
+const registerToolkit = /*#__PURE__*/ Effect.fnUntraced(function* (toolkit: any) {
   const registry = yield* McpServer.McpServer;
-  const built = yield* (toolkit as any);
+  const built = yield* toolkit as any;
   const services = yield* Effect.context();
   for (const tool of Object.values((built as any).tools as Record<string, any>)) {
     const annotations = tool.annotations;
@@ -714,12 +769,15 @@ const registerToolkit = /*#__PURE__*/ Effect.fnUntraced(function* (
       },
       _meta: toolMeta,
     });
-    const outputSchema = tool.successSchema
-      ? {
-          ...Tool.getJsonSchemaFromSchema(tool.successSchema),
-          additionalProperties: true,
-        }
+    const outputJsonSchema = tool.successSchema
+      ? Tool.getJsonSchemaFromSchema(tool.successSchema)
       : undefined;
+    // MCP only permits object output schemas. Union and scalar results remain
+    // available as content without advertising an invalid tool descriptor.
+    const outputSchema =
+      outputJsonSchema?.type === "object"
+        ? { ...outputJsonSchema, additionalProperties: true }
+        : undefined;
     if (outputSchema) {
       (mcpTool as any).outputSchema = outputSchema;
     }
@@ -779,7 +837,13 @@ const registerToolkit = /*#__PURE__*/ Effect.fnUntraced(function* (
 });
 
 const toolkit = (t: any) =>
-  Layer.effectDiscard(registerToolkit(t)).pipe(Layer.provide(McpServer.McpServer.layer));
+  Layer.effectDiscard(
+    registerToolkit(t).pipe(
+      Effect.tapCause((cause) =>
+        Effect.logError("MCP toolkit registration failed", { cause: Cause.pretty(cause) }),
+      ),
+    ),
+  ).pipe(Layer.provide(McpServer.McpServer.layer));
 
 export const layerHtmlToolkit = Layer.mergeAll(
   toolkit(HtmlRenderToolkit).pipe(Layer.provide(HtmlHandlers.layerRender)),
@@ -805,9 +869,7 @@ export const layerOrchestratorToolkit = toolkit(OrchestratorToolkit).pipe(
   Layer.provide(ThreadMetadataMcpService.layer),
 );
 
-export const layerThreadToolkit = toolkit(ThreadToolkit).pipe(
-  Layer.provide(ThreadHandlers.layer),
-);
+export const layerThreadToolkit = toolkit(ThreadToolkit).pipe(Layer.provide(ThreadHandlers.layer));
 
 const layerWorktreeToolkitRegistration = toolkit(WorktreeToolkit).pipe(
   Layer.provide(WorktreeHandlers.layer),
@@ -822,9 +884,7 @@ const layerEnvironmentRegistration = toolkit(EnvironmentToolkit).pipe(
   Layer.provide(EnvironmentHandlers.layer),
 );
 
-const layerProjectRegistration = toolkit(ProjectToolkit).pipe(
-  Layer.provide(ProjectHandlers.layer),
-);
+const layerProjectRegistration = toolkit(ProjectToolkit).pipe(Layer.provide(ProjectHandlers.layer));
 
 const layerAttachmentRegistration = toolkit(AttachmentToolkit).pipe(
   Layer.provide(AttachmentHandlers.layer),
@@ -848,6 +908,7 @@ export const layerDeviceToolkit = Layer.mergeAll(
 );
 
 const layerMcpTransport = McpServer.layerHttp({
+  protocols: [McpProtocol.v2025_06_18],
   name: "Tabs",
   version: packageJson.version,
   path: "/mcp",
@@ -865,7 +926,12 @@ export const layer = Layer.mergeAll(
   layerPullRequestsToolkit,
   layerDeviceToolkit,
   layerHtmlToolkit,
-).pipe(Layer.provideMerge(layerMcpTransport));
+).pipe(
+  Layer.provideMerge(layerMcpTransport),
+  Layer.tapCause((cause) =>
+    Effect.logError("MCP route assembly failed", { cause: Cause.pretty(cause) }),
+  ),
+);
 
 type LegacyBroker = {
   readonly invoke: <A = unknown>(request: {
@@ -1009,24 +1075,88 @@ export async function handleMcpHttpRequest(options: {
   readonly response: ServerResponse;
   readonly scope: McpInvocationContext.McpInvocationScope;
   readonly broker: LegacyBroker;
+  readonly extensionAiBroker?: ExtensionAiBrokerClient;
+  readonly resolveProjectId?: () => Promise<string | undefined>;
   readonly runPromise: <A, E>(effect: Effect.Effect<A, E>) => Promise<A>;
 }): Promise<void> {
-  const server = new LegacyMcpServer({ name: "Tabs", version: "1.0.0" }, { capabilities: { tools: {} } });
-  server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: legacyToolDefinitions.map((definition) => ({
-      name: definition.name,
-      description: definition.description,
-      inputSchema: {
-        type: "object" as const,
-        properties: { ...commonLegacyProperties, ...definition.inputSchema },
-        additionalProperties: false,
-      },
-    })),
-  }));
+  const server = new LegacyMcpServer(
+    { name: "Tabs", version: "1.0.0" },
+    { capabilities: { tools: {} } },
+  );
+  server.setRequestHandler(ListToolsRequestSchema, async () => {
+    let aiTools: Awaited<ReturnType<ExtensionAiBrokerClient["list"]>> = [];
+    if (options.extensionAiBroker && options.resolveProjectId) {
+      try {
+        const projectId = await options.resolveProjectId();
+        if (projectId) aiTools = await options.extensionAiBroker.list(projectId);
+      } catch {
+        // The desktop broker is optional; do not break existing preview tools.
+      }
+    }
+    return {
+      tools: [
+        ...legacyToolDefinitions.map((definition) => ({
+          name: definition.name,
+          description: definition.description,
+          inputSchema: {
+            type: "object" as const,
+            properties: { ...commonLegacyProperties, ...definition.inputSchema },
+            additionalProperties: false,
+          },
+        })),
+        ...aiTools.map((tool) => ({
+          name: tool.name,
+          description: `${tool.description} (isolated, JSON-only Tabs extension command)`,
+          inputSchema: {
+            type: "object" as const,
+            properties: { input: { type: "object" as const, additionalProperties: true } },
+            required: ["input"],
+            additionalProperties: false,
+          },
+        })),
+      ],
+    };
+  });
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
-    const definition = legacyToolDefinitions.find((candidate) => candidate.name === request.params.name);
-    if (!definition)
-      return { isError: true, content: [{ type: "text" as const, text: "Unknown preview tool." }] };
+    const definition = legacyToolDefinitions.find(
+      (candidate) => candidate.name === request.params.name,
+    );
+    if (!definition) {
+      try {
+        if (!options.extensionAiBroker || !options.resolveProjectId) {
+          throw new Error("Extension AI tool is unavailable.");
+        }
+        const projectId = await options.resolveProjectId();
+        if (!projectId) throw new Error("MCP project is no longer available.");
+        const authorized = await options.extensionAiBroker.list(projectId);
+        if (!authorized.some((tool) => tool.name === request.params.name)) {
+          throw new Error("Extension AI tool is unavailable for this project.");
+        }
+        const input = request.params.arguments?.input;
+        if (!input || typeof input !== "object" || Array.isArray(input)) {
+          throw new Error("Extension AI tool input must be a JSON object.");
+        }
+        const result = await options.extensionAiBroker.invoke(
+          projectId,
+          request.params.name,
+          input,
+        );
+        if ((await options.resolveProjectId()) !== projectId) {
+          throw new Error("MCP project changed during extension command.");
+        }
+        return toLegacyToolResult(result);
+      } catch (error) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: error instanceof Error ? error.message : "Extension AI tool failed.",
+            },
+          ],
+        };
+      }
+    }
     const { tabId, timeoutMs, ...input } = request.params.arguments ?? {};
     if (!options.scope.thread) {
       return {
@@ -1070,4 +1200,3 @@ export async function handleMcpHttpRequest(options: {
   await server.connect(transport as Parameters<typeof server.connect>[0]);
   await transport.handleRequest(options.request, options.response);
 }
-

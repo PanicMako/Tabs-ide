@@ -30,8 +30,8 @@ import {
   sanitizePersistedUrl,
   shortDigest,
   tokenizePii,
-} from "./security";
-import { RuntimeSqliteDatabase } from "./sqlite";
+} from "./security.ts";
+import { RuntimeSqliteDatabase } from "./sqlite.ts";
 
 export interface LocatorCandidate {
   readonly locatorKey: string;

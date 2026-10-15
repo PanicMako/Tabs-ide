@@ -2,8 +2,8 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { reconcileWorkbookCase, scenariosFromGraph } from "./reconciliation";
-import { parseExpectedResults, parseSteps, parseTestingWorkbook } from "./workbookParser";
+import { reconcileWorkbookCase, scenariosFromGraph } from "./reconciliation.ts";
+import { parseExpectedResults, parseSteps, parseTestingWorkbook } from "./workbookParser.ts";
 
 const graph = {
   nodes: [

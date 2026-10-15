@@ -3,8 +3,8 @@ import { join } from "node:path";
 import * as Effect from "effect/Effect";
 import { describe, expect, it } from "vitest";
 import { ProviderInstanceId, type TestingCaseSummary } from "@tabs/contracts";
-import type { TextGenerationShape } from "../textGeneration/TextGeneration";
-import { generateOfficialPlaywright } from "./officialPlaywright";
+import type { TextGenerationShape } from "../textGeneration/TextGeneration.ts";
+import { generateOfficialPlaywright } from "./officialPlaywright.ts";
 
 describe("official Playwright candidate integration (no model calls)", () => {
   it("passes tools and selected model to the backend and validates its candidate with Playwright", async () => {

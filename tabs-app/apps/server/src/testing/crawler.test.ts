@@ -5,7 +5,7 @@ import {
   isUrlWithinTestingScope,
   parseActionableElements,
   validateTestingCdpEndpoint,
-} from "./crawler";
+} from "./crawler.ts";
 
 describe("Testing crawler URL scope", () => {
   const target = new URL("https://example.test/settings/profile?mode=edit");

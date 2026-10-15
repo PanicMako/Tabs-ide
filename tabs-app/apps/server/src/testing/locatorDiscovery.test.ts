@@ -5,7 +5,7 @@ import {
   countLocatorMatches,
   locatorCandidatesFromSnapshot,
   locatorCandidatesFromDom,
-} from "./locatorDiscovery";
+} from "./locatorDiscovery.ts";
 
 describe("locator discovery snapshot parsing", () => {
   it("keeps task-focused capture limited to matching accessible controls", () => {
