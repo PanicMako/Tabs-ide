@@ -5,7 +5,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 
 import * as ServerConfig from "../config.ts";
-import { SqlitePersistenceMemory } from "../persistence/Layers/Sqlite.ts";
+import { SqlitePersistenceMemory } from "../persistence/Sqlite.ts";
 import * as PairingGrantStore from "./PairingGrantStore.ts";
 import * as EnvironmentAuth from "./EnvironmentAuth.ts";
 
@@ -255,6 +255,28 @@ it.layer(NodeServices.layer)("EnvironmentAuth.layer", (it) => {
         expect(revokedCount).toBe(1);
         expect(clientsAfterRevoke).toHaveLength(1);
         expect(clientsAfterRevoke[0]?.sessionId).toBe(administrativeSession.sessionId);
+      }).pipe(
+        Effect.provide(
+          makeEnvironmentAuthLayer({
+            desktopBootstrapToken: "desktop-bootstrap-token",
+          }),
+        ),
+      ),
+  );
+
+  it.effect(
+    "authenticateWebSocketUpgrade accepts desktopBootstrapToken via token query param",
+    () =>
+      Effect.gen(function* () {
+        const auth = yield* EnvironmentAuth.EnvironmentAuth;
+        const upgradeReq = {
+          url: "http://127.0.0.1:13773/ws?orchestrationProtocol=2&token=desktop-bootstrap-token",
+          headers: { host: "127.0.0.1:13773" },
+          cookies: {},
+        } as any;
+        const session = yield* auth.authenticateWebSocketUpgrade(upgradeReq);
+        expect(session).toBeDefined();
+        expect(session.scopes).toEqual(expect.arrayContaining([...AuthAdministrativeScopes]));
       }).pipe(
         Effect.provide(
           makeEnvironmentAuthLayer({

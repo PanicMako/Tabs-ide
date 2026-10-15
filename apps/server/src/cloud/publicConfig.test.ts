@@ -95,7 +95,7 @@ it.effect("derives direct Clerk OAuth endpoints from statically injected public 
       clientId: "oauth_client_embedded",
       loopbackPort: 34338,
       redirectUri: "http://127.0.0.1:34338/callback",
-      scopes: ["openid", "profile", "email"],
+      scopes: ["openid", "profile", "email", "offline_access"],
     });
   }),
 );
@@ -133,7 +133,13 @@ it.effect("reports malformed Clerk publishable keys as typed configuration failu
 
     assert.isTrue(Result.isFailure(result));
     if (Result.isFailure(result)) {
-      const failure = result.failure as { readonly cause: { readonly _tag: string; readonly message?: string; readonly cause?: unknown } };
+      const failure = result.failure as {
+        readonly cause: {
+          readonly _tag: string;
+          readonly message?: string;
+          readonly cause?: unknown;
+        };
+      };
       assert.equal(failure.cause._tag, "SourceError");
       if (failure.cause._tag === "SourceError") {
         assert.equal(

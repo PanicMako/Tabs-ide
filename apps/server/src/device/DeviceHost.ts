@@ -20,7 +20,7 @@ import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import type { NodeRuntimeUnavailableError } from "@tabs/shared/nodeRuntime";
 
-export class DeviceHostError extends Schema.TaggedErrorClass<DeviceHostError>()("DeviceHostError", {
+export class DeviceHostError extends Schema.TaggedError<DeviceHostError>()("DeviceHostError", {
   hostId: Schema.String,
   step: Schema.String,
   cause: Schema.Defect(),
@@ -30,7 +30,7 @@ export class DeviceHostError extends Schema.TaggedErrorClass<DeviceHostError>()(
   }
 }
 
-export class DeviceHostTimeoutError extends Schema.TaggedErrorClass<DeviceHostTimeoutError>()(
+export class DeviceHostTimeoutError extends Schema.TaggedError<DeviceHostTimeoutError>()(
   "DeviceHostTimeoutError",
   { hostId: Schema.String, timeoutMs: Schema.Number },
 ) {

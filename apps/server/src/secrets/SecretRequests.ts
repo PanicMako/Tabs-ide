@@ -94,6 +94,7 @@ const make = Effect.gen(function* () {
     yield* store.getOrCreateRandom("secret-request-salt", 32).pipe(Effect.orDie),
   ).toString("hex");
 
+  const answerLock = yield* Semaphore.make(1);
   const answer: SecretRequests["Service"]["answer"] = (input) =>
     Effect.gen(function* () {
       yield* Effect.annotateCurrentSpan({
@@ -182,7 +183,7 @@ const make = Effect.gen(function* () {
         yield* removeLogged(storeName(refFor(salt, input.threadId, item.id)));
         return yield* new SecretRequestError({ reason: "agent_stopped" });
       }
-    }).pipe(Effect.withSpan("SecretRequests.answer"));
+    }).pipe(answerLock.withPermits(1), Effect.withSpan("SecretRequests.answer"));
 
   const savedRef: SecretRequests["Service"]["savedRef"] = (input) =>
     Effect.gen(function* () {

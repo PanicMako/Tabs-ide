@@ -24,10 +24,7 @@ import {
   HostProcessPlatform,
   HostProcessUserId,
 } from "@tabs/shared/hostProcess";
-import {
-  resolveNodeExecutable,
-  type NodeRuntimeUnavailableError,
-} from "@tabs/shared/nodeRuntime";
+import { resolveNodeExecutable, type NodeRuntimeUnavailableError } from "@tabs/shared/nodeRuntime";
 import * as NetService from "@tabs/shared/Net";
 import { isCommandAvailable } from "@tabs/shared/shell";
 import * as Clock from "effect/Clock";

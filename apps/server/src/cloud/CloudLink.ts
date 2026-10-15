@@ -140,7 +140,7 @@ const RELAY_CONFIG_FIELD_MESSAGES = {
 } as const;
 
 /** The relay sent a link configuration this environment cannot install. */
-export class CloudLinkRelayConfigInvalidError extends Schema.TaggedErrorClass<CloudLinkRelayConfigInvalidError>()(
+export class CloudLinkRelayConfigInvalidError extends Schema.TaggedError<CloudLinkRelayConfigInvalidError>()(
   "CloudLinkRelayConfigInvalidError",
   {
     field: Schema.Literals([
@@ -162,7 +162,7 @@ export class CloudLinkRelayConfigInvalidError extends Schema.TaggedErrorClass<Cl
  * that did not reach this server directly on loopback (`endpoint`), or a local
  * origin that is not a bare http(s) origin (`local`).
  */
-export class CloudLinkOriginInvalidError extends Schema.TaggedErrorClass<CloudLinkOriginInvalidError>()(
+export class CloudLinkOriginInvalidError extends Schema.TaggedError<CloudLinkOriginInvalidError>()(
   "CloudLinkOriginInvalidError",
   { origin: Schema.Literals(["endpoint", "local"]) },
 ) {
@@ -173,7 +173,7 @@ export class CloudLinkOriginInvalidError extends Schema.TaggedErrorClass<CloudLi
   }
 }
 
-export class CloudLinkNotLinkedError extends Schema.TaggedErrorClass<CloudLinkNotLinkedError>()(
+export class CloudLinkNotLinkedError extends Schema.TaggedError<CloudLinkNotLinkedError>()(
   "CloudLinkNotLinkedError",
   {},
 ) {
@@ -182,7 +182,7 @@ export class CloudLinkNotLinkedError extends Schema.TaggedErrorClass<CloudLinkNo
   }
 }
 
-export class CloudLinkAccountMismatchError extends Schema.TaggedErrorClass<CloudLinkAccountMismatchError>()(
+export class CloudLinkAccountMismatchError extends Schema.TaggedError<CloudLinkAccountMismatchError>()(
   "CloudLinkAccountMismatchError",
   {},
 ) {
@@ -192,7 +192,7 @@ export class CloudLinkAccountMismatchError extends Schema.TaggedErrorClass<Cloud
 }
 
 /** Linking from the CLI needs the authorization `t3 connect link` stores. */
-export class CloudLinkAuthorizationMissingError extends Schema.TaggedErrorClass<CloudLinkAuthorizationMissingError>()(
+export class CloudLinkAuthorizationMissingError extends Schema.TaggedError<CloudLinkAuthorizationMissingError>()(
   "CloudLinkAuthorizationMissingError",
   {},
 ) {
@@ -204,7 +204,7 @@ export class CloudLinkAuthorizationMissingError extends Schema.TaggedErrorClass<
 const SignedRelayRequest = Schema.Literals(["health", "mint"]);
 
 /** A signed relay request whose proof does not verify for this environment. */
-export class CloudLinkProofRejectedError extends Schema.TaggedErrorClass<CloudLinkProofRejectedError>()(
+export class CloudLinkProofRejectedError extends Schema.TaggedError<CloudLinkProofRejectedError>()(
   "CloudLinkProofRejectedError",
   { request: SignedRelayRequest },
 ) {
@@ -214,7 +214,7 @@ export class CloudLinkProofRejectedError extends Schema.TaggedErrorClass<CloudLi
 }
 
 /** A signed relay request whose proof was already used once. */
-export class CloudLinkProofReplayedError extends Schema.TaggedErrorClass<CloudLinkProofReplayedError>()(
+export class CloudLinkProofReplayedError extends Schema.TaggedError<CloudLinkProofReplayedError>()(
   "CloudLinkProofReplayedError",
   { request: SignedRelayRequest },
 ) {
@@ -224,7 +224,7 @@ export class CloudLinkProofReplayedError extends Schema.TaggedErrorClass<CloudLi
 }
 
 /** The stored tunnel changed while its registration was in flight. */
-export class CloudLinkTunnelSupersededError extends Schema.TaggedErrorClass<CloudLinkTunnelSupersededError>()(
+export class CloudLinkTunnelSupersededError extends Schema.TaggedError<CloudLinkTunnelSupersededError>()(
   "CloudLinkTunnelSupersededError",
   {},
 ) {
@@ -238,7 +238,7 @@ export class CloudLinkTunnelSupersededError extends Schema.TaggedErrorClass<Clou
  * (`runtime-not-started`, with the runtime's status), or the relay never
  * confirmed this server's origin (`origin-unconfirmed`).
  */
-export class CloudLinkEndpointUnavailableError extends Schema.TaggedErrorClass<CloudLinkEndpointUnavailableError>()(
+export class CloudLinkEndpointUnavailableError extends Schema.TaggedError<CloudLinkEndpointUnavailableError>()(
   "CloudLinkEndpointUnavailableError",
   {
     reason: Schema.Literals(["runtime-not-started", "origin-unconfirmed"]),
@@ -274,7 +274,7 @@ const INTERNAL_OPERATION_MESSAGES = {
 } as const;
 
 /** A link step failed on this machine: storage, signing, or an unexpected relay answer. */
-export class CloudLinkInternalError extends Schema.TaggedErrorClass<CloudLinkInternalError>()(
+export class CloudLinkInternalError extends Schema.TaggedError<CloudLinkInternalError>()(
   "CloudLinkInternalError",
   {
     operation: Schema.Literals(
@@ -735,7 +735,7 @@ const make = Effect.gen(function* () {
                 error.endpointRuntimeStatus,
               ),
             schedule: Schedule.exponential("1 second").pipe(
-              Schedule.modifyDelay((duration) =>
+              Schedule.modifyDelay(({ duration }) =>
                 Effect.succeed(Duration.min(duration, Duration.seconds(30))),
               ),
               Schedule.jittered,
@@ -1439,7 +1439,8 @@ const make = Effect.gen(function* () {
 
   const updatePreferences: CloudLink["Service"]["updatePreferences"] = Effect.fn(
     "environment.cloud.preferences",
-  )(function* (input: EnvironmentCloudPreferencesRequest) {
+  )(
+    function* (input: EnvironmentCloudPreferencesRequest) {
       yield* savePreferences(input);
       return yield* readCloudLinkState();
     },

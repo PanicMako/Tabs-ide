@@ -8,7 +8,6 @@ import { normalizeSecureRelayUrl } from "@tabs/shared/relayUrl";
 import * as Config from "effect/Config";
 import * as ConfigProvider from "effect/ConfigProvider";
 import * as Effect from "effect/Effect";
-import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import * as SchemaIssue from "effect/SchemaIssue";
 
@@ -28,7 +27,7 @@ function validateRelayUrl(value: string) {
     ? Effect.fail(
         new Config.ConfigError(
           new Schema.SchemaError(
-            new SchemaIssue.InvalidValue(Option.some(value), {
+            new SchemaIssue.InvalidValue({
               message: "Relay URL must be a secure absolute HTTPS origin.",
             }),
           ),
@@ -134,7 +133,7 @@ function validateHostedAppUrl(value: string) {
     return Effect.fail(
       new Config.ConfigError(
         new Schema.SchemaError(
-          new SchemaIssue.InvalidValue(Option.some(value), {
+          new SchemaIssue.InvalidValue({
             message: "Hosted app URL must be an absolute HTTPS origin (or HTTP loopback origin).",
           }),
         ),
@@ -183,29 +182,30 @@ export function makeCloudCliOAuthConfig({
       clerkCliOAuthClientIdFallback,
     ),
   }).pipe(
-    Config.mapOrFail(({ clerkPublishableKey, clientId }: { clerkPublishableKey: string; clientId: string }) =>
-      Effect.try({
-        try: () => clerkFrontendApiUrlFromPublishableKey(clerkPublishableKey),
-        catch: (cause) =>
-          new Config.ConfigError(
-            new ConfigProvider.SourceError({
-              message: "Failed to derive Clerk Frontend API URL from the publishable key.",
-              cause,
-            }),
+    Config.mapOrFail(
+      ({ clerkPublishableKey, clientId }: { clerkPublishableKey: string; clientId: string }) =>
+        Effect.try({
+          try: () => clerkFrontendApiUrlFromPublishableKey(clerkPublishableKey),
+          catch: (cause) =>
+            new Config.ConfigError(
+              new ConfigProvider.SourceError({
+                message: "Failed to derive Clerk Frontend API URL from the publishable key.",
+                cause,
+              }),
+            ),
+        }).pipe(
+          Effect.map(
+            (clerkFrontendApiUrl) =>
+              ({
+                tokenEndpoint: `${clerkFrontendApiUrl}/oauth/token`,
+                deviceAuthorizationEndpoint: `${clerkFrontendApiUrl}/oauth/device_authorization`,
+                clientId,
+                loopbackPort: CLOUD_CLI_OAUTH_LOOPBACK_PORT,
+                redirectUri: connectLoopbackRedirectUri(CLOUD_CLI_OAUTH_LOOPBACK_PORT),
+                scopes: CLOUD_CLI_OAUTH_SCOPES,
+              }) satisfies CloudCliOAuthConfig,
           ),
-      }).pipe(
-        Effect.map(
-          (clerkFrontendApiUrl) =>
-            ({
-              tokenEndpoint: `${clerkFrontendApiUrl}/oauth/token`,
-              deviceAuthorizationEndpoint: `${clerkFrontendApiUrl}/oauth/device_authorization`,
-              clientId,
-              loopbackPort: CLOUD_CLI_OAUTH_LOOPBACK_PORT,
-              redirectUri: connectLoopbackRedirectUri(CLOUD_CLI_OAUTH_LOOPBACK_PORT),
-              scopes: CLOUD_CLI_OAUTH_SCOPES,
-            }) satisfies CloudCliOAuthConfig,
         ),
-      ),
     ),
   );
 }

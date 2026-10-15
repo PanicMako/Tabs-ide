@@ -54,8 +54,11 @@ const withService = <A, E>(
     ]);
     const relayCalls: Array<boolean> = [];
     const fetch: typeof globalThis.fetch = Object.assign(
-      (_input: Parameters<typeof globalThis.fetch>[0], init?: RequestInit) => {
-        const payload = JSON.parse(String(init?.body)) as { holdWebhooksWhileOffline: boolean };
+      async (input: Parameters<typeof globalThis.fetch>[0], init?: RequestInit) => {
+        const request = input instanceof Request ? input : new Request(String(input), init);
+        const payload = (await request.json()) as {
+          holdWebhooksWhileOffline: boolean;
+        };
         relayCalls.push(payload.holdWebhooksWhileOffline);
         if (relayCalls.length === 1 && options.holdFirstRelayCall) {
           options.holdFirstRelayCall.started();
