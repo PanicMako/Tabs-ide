@@ -13,8 +13,8 @@ layer("019_ProjectionSnapshotLookupIndexes", (it) => {
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
 
-      yield* runMigrations({ toMigrationInclusive: 18 });
-      yield* runMigrations({ toMigrationInclusive: 19 });
+      yield* runMigrations({ toMigrationInclusive: 57 });
+      yield* runMigrations({ toMigrationInclusive: 58 });
 
       const projectIndexes = yield* sql<{
         readonly seq: number;

@@ -1,9 +1,11 @@
+import { registerTypeScriptFixtureLoader } from "../../testkit/TypeScriptFixtureLoader.mjs";
 import * as NodeModule from "node:module";
 import * as NodeURL from "node:url";
 import * as NodeCrypto from "node:crypto";
 import * as NodeAssert from "node:assert/strict";
 const root = process.argv[2];
 const mode = process.argv[3];
+registerTypeScriptFixtureLoader(root);
 const withHandoff = mode.startsWith("handoff");
 const require = NodeModule.createRequire(root + "/apps/server/package.json");
 const load = (name) => import(NodeURL.pathToFileURL(require.resolve("effect/" + name)));

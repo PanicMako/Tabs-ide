@@ -88,7 +88,7 @@ export function splitBufferedAssistantText(text: string): { ready: string; rest:
   return { ready: text.slice(0, boundary), rest: text.slice(boundary) };
 }
 
-/** Buffer assistant messages and reasoning alike, keeping unfinished markdown out of the read model. */
+/** Respect explicit buffering modes; token delivery exposes the first provider text immediately. */
 export function makeAssistantStreamingFilter(mode: ResponseStreamingMode) {
   const delivered = new Map<string, { text: string; at: number }>();
   return (event: ProviderAdapterV2Event, now: number): ProviderAdapterV2Event | null => {
@@ -113,6 +113,14 @@ export function makeAssistantStreamingFilter(mode: ResponseStreamingMode) {
     }
     if (mode === "turn") return null;
     const previous = delivered.get(key);
+    if (mode === "token") {
+      if (!message.text || message.text === previous?.text) return null;
+      // The first update is immediate; later cumulative updates are coalesced
+      // without waiting for a paragraph boundary or the end of the turn.
+      if (previous && now - previous.at < 50) return null;
+      delivered.set(key, { text: message.text, at: now });
+      return event;
+    }
     if (previous && now - previous.at < 400) return null;
     const { ready } = splitBufferedAssistantText(message.text);
     if (!ready || ready === previous?.text) return null;

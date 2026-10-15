@@ -11,6 +11,8 @@
 import * as Migrator from "effect/unstable/sql/Migrator";
 import * as Layer from "effect/Layer";
 import * as Effect from "effect/Effect";
+import * as SqlClient from "effect/unstable/sql/SqlClient";
+import { reconcileV2PreviewMigration } from "./reconcileV2PreviewMigration.ts";
 
 // Import all migrations statically
 import Migration0001 from "./Migrations/001_OrchestrationEvents.ts";
@@ -70,6 +72,8 @@ import Migration0054 from "./Migrations/054_OrchestrationV2.ts";
 import Migration0055 from "./Migrations/055_RemoveRedundantProjectionIndexes.ts";
 import Migration0056 from "./Migrations/056_ScheduledTaskWebhooks.ts";
 import Migration0057 from "./Migrations/057_WebhookRelayDeliveries.ts";
+import Migration0058 from "./Migrations/058_ProjectionCompatibilityRepairs.ts";
+import Migration0059 from "./Migrations/059_OrchestrationV2CancellationIntents.ts";
 
 /**
  * Migration loader with all migrations defined inline.
@@ -139,6 +143,8 @@ export const migrationEntries = [
   [55, "RemoveRedundantProjectionIndexes", Migration0055],
   [56, "ScheduledTaskWebhooks", Migration0056],
   [57, "WebhookRelayDeliveries", Migration0057],
+  [58, "ProjectionCompatibilityRepairs", Migration0058],
+  [59, "OrchestrationV2CancellationIntents", Migration0059],
 ] as const;
 
 export const migrationManifest = migrationEntries.map(([id, name]) => [id, name] as const);
@@ -179,7 +185,31 @@ export const runMigrations = ({ toMigrationInclusive }: RunMigrationsOptions = {
         ? "Running all migrations..."
         : `Running migrations 1 through ${toMigrationInclusive}...`,
     );
-    const executedMigrations = yield* run({ loader: makeMigrationLoader(toMigrationInclusive) });
+    const reconciled =
+      toMigrationInclusive === undefined || toMigrationInclusive >= 54
+        ? yield* reconcileV2PreviewMigration()
+        : [];
+    const sql = yield* SqlClient.SqlClient;
+    const tables = yield* sql`SELECT name FROM sqlite_master WHERE name = 'effect_sql_migrations'`;
+    if (tables.length > 0) {
+      const history = yield* sql<{ readonly migration_id: number; readonly name: string }>`
+        SELECT migration_id, name FROM effect_sql_migrations ORDER BY migration_id
+      `;
+      const names = new Map<number, string>(migrationManifest);
+      const divergent = history.flatMap(({ migration_id, name }) => {
+        const expected = names.get(migration_id);
+        return expected !== undefined && expected !== name
+          ? [`${migration_id}:${name} (this build: ${expected})`]
+          : [];
+      });
+      if (divergent.length > 0) {
+        yield* Effect.logWarning("Recorded migration history diverges from this build").pipe(
+          Effect.annotateLogs({ divergent }),
+        );
+      }
+    }
+    const pending = yield* run({ loader: makeMigrationLoader(toMigrationInclusive) });
+    const executedMigrations = [...reconciled, ...pending];
     yield* Effect.log("Migrations ran successfully").pipe(
       Effect.annotateLogs({ migrations: executedMigrations.map(([id, name]) => `${id}_${name}`) }),
     );

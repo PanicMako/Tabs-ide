@@ -940,12 +940,15 @@ describe("orchestration v2 legacy v1 cutover", () => {
           );
           assert.deepStrictEqual(divergenceLog?.annotations.divergent, [
             "41:ThreadSummaryTimeline (this build: AuthSessionClientConnection)",
+            "44:ClearAutomaticProjectModelDefaults (this build: CatchUpThreadLifecycle)",
+            "45:ProjectionProjectsAutoPull (this build: ProjectionThreadPullRequests)",
+            "46:RepairAutomaticSettlementTimestamps (this build: ProjectionProjectsAutoPull)",
           ]);
           assert.equal(firstBoot.migration41Name, "ThreadSummaryTimeline");
-          // The skipped migration's columns never landed; the schema gap is
-          // what the startup warning points at.
-          assert.notInclude(firstBoot.authSessionColumnNames, "client_surface");
-          assert.notInclude(firstBoot.authSessionColumnNames, "client_app_version");
+          // Compatibility migration 58 repairs the skipped schema without
+          // rewriting the installation's recorded history.
+          assert.include(firstBoot.authSessionColumnNames, "client_surface");
+          assert.include(firstBoot.authSessionColumnNames, "client_app_version");
 
           assert.equal(firstBoot.importRows.length, ALL_THREADS.length);
           const unhydratedRows = firstBoot.importRows.filter(

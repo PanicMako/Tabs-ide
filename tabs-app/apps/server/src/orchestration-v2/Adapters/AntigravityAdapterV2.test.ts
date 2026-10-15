@@ -170,17 +170,19 @@ describe("AntigravityAdapterV2 client file system", () => {
             },
           }).pipe(
             Effect.provideService(Crypto.Crypto, crypto),
-            Effect.map((runtime): RuntimeService => ({
-              ...runtime,
-              handleReadTextFile: (handler) =>
-                Effect.sync(() => {
-                  readTextFile = handler;
-                }).pipe(Effect.andThen(runtime.handleReadTextFile(handler))),
-              handleWriteTextFile: (handler) =>
-                Effect.sync(() => {
-                  writeTextFile = handler;
-                }).pipe(Effect.andThen(runtime.handleWriteTextFile(handler))),
-            })),
+            Effect.map(
+              (runtime): RuntimeService => ({
+                ...runtime,
+                handleReadTextFile: (handler) =>
+                  Effect.sync(() => {
+                    readTextFile = handler;
+                  }).pipe(Effect.andThen(runtime.handleReadTextFile(handler))),
+                handleWriteTextFile: (handler) =>
+                  Effect.sync(() => {
+                    writeTextFile = handler;
+                  }).pipe(Effect.andThen(runtime.handleWriteTextFile(handler))),
+              }),
+            ),
           ),
         withProcess: (_stop, task) => task,
         defaultModel: Effect.succeed(undefined),
@@ -276,6 +278,16 @@ describe("AntigravityAdapterV2 client file system", () => {
       ).pipe(Effect.exit);
       assert.isTrue(Exit.isFailure(linkedDirWrite), "a write under an escaping directory link");
       assert.isFalse(yield* fileSystem.exists(path.join(outside, "new.txt")));
+      const nestedLinkedWrite = yield* writeTextFile(
+        {
+          sessionId: "mock-session-1",
+          path: path.join(workspace, "linked-dir", "missing", "nested", "new.txt"),
+          content: "planted",
+        },
+        context("fs/write_text_file"),
+      ).pipe(Effect.exit);
+      assert.isTrue(Exit.isFailure(nestedLinkedWrite));
+      assert.isFalse(yield* fileSystem.exists(path.join(outside, "missing")));
       // A symlink that stays inside the workspace keeps working.
       const insideLink = path.join(workspace, "inside-link.ts");
       yield* fileSystem.symlink(insidePath, insideLink);
@@ -322,13 +334,15 @@ describe("AntigravityAdapterV2 workspace changes", () => {
             },
           }).pipe(
             Effect.provideService(Crypto.Crypto, crypto),
-            Effect.map((runtime): RuntimeService => ({
-              ...runtime,
-              handleReadTextFile: (handler) =>
-                Effect.sync(() => {
-                  readTextFile = handler;
-                }).pipe(Effect.andThen(runtime.handleReadTextFile(handler))),
-            })),
+            Effect.map(
+              (runtime): RuntimeService => ({
+                ...runtime,
+                handleReadTextFile: (handler) =>
+                  Effect.sync(() => {
+                    readTextFile = handler;
+                  }).pipe(Effect.andThen(runtime.handleReadTextFile(handler))),
+              }),
+            ),
           ),
         withProcess: (_stop, task) => task,
         defaultModel: Effect.succeed(undefined),
@@ -472,17 +486,19 @@ describe("AntigravityAdapterV2 client file system under restrictive policies", (
               },
             }).pipe(
               Effect.provideService(Crypto.Crypto, crypto),
-              Effect.map((runtime): RuntimeService => ({
-                ...runtime,
-                handleReadTextFile: (handler) =>
-                  Effect.sync(() => {
-                    readTextFile = handler;
-                  }).pipe(Effect.andThen(runtime.handleReadTextFile(handler))),
-                handleWriteTextFile: (handler) =>
-                  Effect.sync(() => {
-                    writeTextFile = handler;
-                  }).pipe(Effect.andThen(runtime.handleWriteTextFile(handler))),
-              })),
+              Effect.map(
+                (runtime): RuntimeService => ({
+                  ...runtime,
+                  handleReadTextFile: (handler) =>
+                    Effect.sync(() => {
+                      readTextFile = handler;
+                    }).pipe(Effect.andThen(runtime.handleReadTextFile(handler))),
+                  handleWriteTextFile: (handler) =>
+                    Effect.sync(() => {
+                      writeTextFile = handler;
+                    }).pipe(Effect.andThen(runtime.handleWriteTextFile(handler))),
+                }),
+              ),
             ),
           withProcess: (_stop, task) => task,
           defaultModel: Effect.succeed(undefined),

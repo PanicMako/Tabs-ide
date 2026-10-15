@@ -55,7 +55,7 @@ const CODEX_READ_ONLY_NEVER_POLICY = {
   },
 } as const;
 
-class ThreadForkGitCommandError extends Schema.TaggedErrorClass<ThreadForkGitCommandError>()(
+class ThreadForkGitCommandError extends Schema.TaggedError<ThreadForkGitCommandError>()(
   "ThreadForkGitCommandError",
   {
     command: Schema.String,

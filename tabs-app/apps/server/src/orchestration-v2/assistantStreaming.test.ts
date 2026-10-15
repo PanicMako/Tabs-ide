@@ -52,6 +52,16 @@ const turnItem = (
 });
 
 describe("V2 assistant streaming", () => {
+  it("delivers the first token without waiting for markdown and flushes the final update", () => {
+    const filter = makeAssistantStreamingFilter("token");
+    const first = message("First");
+    expect(filter(first, 0)).toBe(first);
+    expect(filter(message("First word"), 10)).toBeNull();
+    const next = message("First word, still no paragraph");
+    expect(filter(next, 50)).toBe(next);
+    const final = message("First word, still no paragraph.", false);
+    expect(filter(final, 51)).toBe(final);
+  });
   it("delivers completed paragraphs, coalesces rapid updates, and flushes final text", () => {
     const filter = makeAssistantStreamingFilter("paragraph");
     expect(filter(message("First"), 0)).toBeNull();

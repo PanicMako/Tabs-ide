@@ -14,6 +14,7 @@ import { getModelSelectionStringOptionValue } from "@tabs/shared/model";
 import { causeErrorTag } from "@tabs/shared/observability";
 import {
   defaultInstanceIdForDriver,
+  type KiloSettings,
   type ModelSelection,
   type OpenCodeSettings,
   type OrchestrationV2AppThread,
@@ -84,6 +85,7 @@ import { openCodeToolTurnItem } from "./OpenCodeToolItems.ts";
 export { openCodeToolProjectionKind } from "./OpenCodeToolItems.ts";
 
 export const OPENCODE_PROVIDER = ProviderDriverKind.make("opencode");
+const MODULE_OPENCODE_PROVIDER = OPENCODE_PROVIDER;
 export const OPENCODE_DEFAULT_INSTANCE_ID = defaultInstanceIdForDriver(OPENCODE_PROVIDER);
 export const OPENCODE_SDK_PROTOCOL = "opencode-sdk.sse" as const;
 const DEFAULT_OPENCODE_SETTINGS = Schema.decodeSync(OpenCodeSettingsSchema)({});
@@ -119,7 +121,7 @@ const makeOpenCodeMessageId = Effect.fnUntraced(function* () {
  * message is the best native turn correlation point, and session idle is the
  * authoritative terminal signal.
  */
-const OpenCodeProviderCapabilitiesV2 = {
+export const OpenCodeProviderCapabilitiesV2 = {
   sessions: {
     // The current adapter owns one directory-bound client/server per session.
     // Keep it isolated until its runtime is made safe for cross-thread pooling.
@@ -434,12 +436,16 @@ interface PendingOpenCodeRequest {
 
 export interface OpenCodeAdapterV2Options {
   readonly instanceId: ProviderInstanceId;
-  readonly settings: OpenCodeSettings;
+  readonly settings: OpenCodeSettings | KiloSettings;
   readonly environment: NodeJS.ProcessEnv;
   readonly runtime: OpenCodeRuntime.OpenCodeRuntimeShape;
   readonly idAllocator: IdAllocator.IdAllocatorV2Shape;
   readonly serverConfig: ServerConfig.ServerConfig["Service"];
   readonly nativeEventLogger?: EventNdjsonLogger;
+  readonly driver?: ProviderDriverKind;
+  readonly capabilities?: OrchestrationV2ProviderCapabilities;
+  /** API aggregators retain their catalog slug while using a native provider route. */
+  readonly modelProviderId?: string;
 }
 
 export interface OpenCodeProtocolLogEvent {
@@ -464,7 +470,9 @@ export function makeOpenCodeProtocolLogger(input: {
   readonly providerInstanceId: ProviderInstanceId;
   readonly providerSessionId: ProviderSessionId;
   readonly threadId: ThreadId;
+  readonly driver?: ProviderDriverKind;
 }): (event: OpenCodeProtocolLogEvent) => Effect.Effect<void, never> {
+  const driver = input.driver ?? MODULE_OPENCODE_PROVIDER;
   return (event) =>
     Effect.gen(function* () {
       if (!input.nativeEventLogger) return;
@@ -480,7 +488,7 @@ export function makeOpenCodeProtocolLogger(input: {
             }),
             kind: "protocol",
             protocol: OPENCODE_SDK_PROTOCOL,
-            provider: OPENCODE_PROVIDER,
+            provider: driver,
             providerInstanceId: input.providerInstanceId,
             providerSessionId: input.providerSessionId,
             createdAt: observedAt,
@@ -497,7 +505,7 @@ export function makeOpenCodeProtocolLogger(input: {
           : Effect.logWarning("Failed to write native OpenCode event log.", {
               errorTag: causeErrorTag(cause),
               reasonCount: cause.reasons.length,
-              provider: OPENCODE_PROVIDER,
+              provider: driver,
               threadId: input.threadId,
             }),
       ),
@@ -507,9 +515,10 @@ export function makeOpenCodeProtocolLogger(input: {
 function protocolError(
   detail: string,
   payload?: unknown,
+  driver: ProviderDriverKind = MODULE_OPENCODE_PROVIDER,
 ): ProviderAdapter.ProviderAdapterProtocolError {
   return new ProviderAdapter.ProviderAdapterProtocolError({
-    driver: OPENCODE_PROVIDER,
+    driver,
     detail,
     ...(payload === undefined ? {} : { payload }),
   });
@@ -839,20 +848,22 @@ function makeProviderThread(input: {
   readonly nativeSession: OpenCodeSession;
   readonly forkedFrom?: OrchestrationV2ProviderThread["forkedFrom"];
   readonly now: DateTime.Utc;
+  readonly driver?: ProviderDriverKind;
 }): OrchestrationV2ProviderThread {
+  const driver = input.driver ?? MODULE_OPENCODE_PROVIDER;
   const createdAt = dateTimeFromEpoch(input.nativeSession.time.created, input.now);
   return {
     id: input.idAllocator.derive.providerThread({
-      driver: OPENCODE_PROVIDER,
+      driver,
       nativeThreadId: input.nativeSession.id,
     }),
-    driver: OPENCODE_PROVIDER,
+    driver,
     providerInstanceId: input.providerInstanceId,
     providerSessionId: input.providerSessionId,
     appThreadId: input.appThreadId,
     ownerNodeId: input.ownerNodeId ?? null,
     nativeThreadRef: {
-      driver: OPENCODE_PROVIDER,
+      driver,
       nativeId: input.nativeSession.id,
       strength: "strong",
     },
@@ -867,9 +878,13 @@ function makeProviderThread(input: {
   };
 }
 
-function providerRef(nativeId: string, strength: "strong" | "weak" = "strong") {
+function providerRef(
+  nativeId: string,
+  strength: "strong" | "weak" = "strong",
+  driver: ProviderDriverKind = MODULE_OPENCODE_PROVIDER,
+) {
   return {
-    driver: OPENCODE_PROVIDER,
+    driver,
     nativeId,
     strength,
   } satisfies OrchestrationV2ProviderRef;
@@ -946,11 +961,31 @@ export function makeOpenCodeAdapterV2(
   options: OpenCodeAdapterV2Options,
 ): ProviderAdapter.ProviderAdapterV2Shape {
   const { idAllocator, runtime, serverConfig } = options;
+  const driver = options.driver ?? MODULE_OPENCODE_PROVIDER;
+  const capabilities = options.capabilities ?? OpenCodeProviderCapabilitiesV2;
+  const OPENCODE_PROVIDER = driver;
+  const providerRef = (
+    nativeId: string,
+    strength: "strong" | "weak" = "strong",
+  ): OrchestrationV2ProviderRef => ({
+    driver,
+    nativeId,
+    strength,
+  });
+  const protocolError = (
+    detail: string,
+    payload?: unknown,
+  ): ProviderAdapter.ProviderAdapterProtocolError =>
+    new ProviderAdapter.ProviderAdapterProtocolError({
+      driver,
+      detail,
+      ...(payload === undefined ? {} : { payload }),
+    });
 
   return ProviderAdapter.ProviderAdapterV2.of({
     instanceId: options.instanceId,
-    driver: OPENCODE_PROVIDER,
-    getCapabilities: () => Effect.succeed(OpenCodeProviderCapabilitiesV2),
+    driver,
+    getCapabilities: () => Effect.succeed(capabilities),
     planSelectionTransition: () => Effect.succeed(turnScopedSelectionTransition()),
     openSession: Effect.fn("OpenCodeAdapterV2.openSession")(
       function* (input: ProviderAdapter.ProviderAdapterV2OpenSessionInput) {
@@ -960,14 +995,15 @@ export function makeOpenCodeAdapterV2(
           binaryPath: options.settings.binaryPath,
           directory: cwd,
           serverUrl: options.settings.serverUrl,
+          ...(options.settings.serverPassword
+            ? { serverPassword: options.settings.serverPassword }
+            : {}),
           environment: options.environment,
         });
         const client = runtime.createOpenCodeSdkClient({
           baseUrl: connection.url,
           directory: cwd,
-          ...(connection.external && options.settings.serverPassword
-            ? { serverPassword: options.settings.serverPassword }
-            : {}),
+          ...(connection.serverPassword ? { serverPassword: connection.serverPassword } : {}),
         });
 
         const mcpSession = McpProviderSession.readMcpProviderSession(input.threadId);
@@ -990,12 +1026,12 @@ export function makeOpenCodeAdapterV2(
         const now = yield* DateTime.now;
         let sessionEntity: OrchestrationV2ProviderSession = {
           id: input.providerSessionId,
-          driver: OPENCODE_PROVIDER,
+          driver,
           providerInstanceId: options.instanceId,
           status: "ready",
           cwd,
           model: input.modelSelection.model,
-          capabilities: OpenCodeProviderCapabilitiesV2,
+          capabilities,
           createdAt: now,
           updatedAt: now,
           lastError: null,
@@ -1003,6 +1039,7 @@ export function makeOpenCodeAdapterV2(
         const events = yield* Queue.unbounded<ProviderAdapter.ProviderAdapterV2Event, Cause.Done>();
         let nativeStreamFailure: OrchestrationV2ProviderFailure | null = null;
         const threads = new Map<string, OpenCodeThreadState>();
+        const appliedPermissions = new Map<string, string>();
         const commandReceipts = new Map<string, Deferred.Deferred<void>>();
         const commandControllers = new Map<string, Set<AbortController>>();
         const pendingRequests = new Map<string, PendingOpenCodeRequest>();
@@ -1030,6 +1067,10 @@ export function makeOpenCodeAdapterV2(
         const abortController = new AbortController();
         let closing = false;
         let hasConnected = false;
+        const eventConnectionReady = yield* Deferred.make<
+          void,
+          OpenCodeRuntime.OpenCodeRuntimeError
+        >();
 
         const emitProviderEvent = (event: ProviderAdapter.ProviderAdapterV2Event) =>
           Queue.offer(events, event).pipe(Effect.asVoid);
@@ -1040,6 +1081,7 @@ export function makeOpenCodeAdapterV2(
           providerInstanceId: options.instanceId,
           providerSessionId: input.providerSessionId,
           threadId: input.threadId,
+          driver,
         });
 
         const sdkCall = <A>(
@@ -2565,6 +2607,7 @@ export function makeOpenCodeAdapterV2(
                 }
               }
               hasConnected = true;
+              yield* Deferred.succeed(eventConnectionReady, undefined);
               return;
             case "message.updated":
               yield* handleMessageUpdated(event);
@@ -2742,6 +2785,13 @@ export function makeOpenCodeAdapterV2(
               const detail = Exit.isSuccess(exit)
                 ? "OpenCode event stream ended unexpectedly."
                 : OpenCodeRuntime.openCodeRuntimeErrorDetail(Cause.squash(exit.cause));
+              yield* Deferred.fail(
+                eventConnectionReady,
+                new OpenCodeRuntime.OpenCodeRuntimeError({
+                  operation: "event.subscribe",
+                  detail,
+                }),
+              );
               nativeStreamFailure = makeProviderFailure({
                 message: detail,
                 class: "transport_error",
@@ -2758,6 +2808,23 @@ export function makeOpenCodeAdapterV2(
             }),
           ),
           Effect.forkIn(scope),
+        );
+
+        // The SDK returns a lazy async iterable before its SSE connection is
+        // established. Prompts sent in that gap can finish before we receive
+        // any message events, leaving a run permanently waiting for a reply.
+        yield* Deferred.await(eventConnectionReady).pipe(
+          Effect.timeoutOrElse({
+            duration: "10 seconds",
+            orElse: () =>
+              Effect.fail(
+                new OpenCodeRuntime.OpenCodeRuntimeError({
+                  operation: "event.subscribe",
+                  detail:
+                    "The provider event stream did not connect. Retry the retained message to reconnect.",
+                }),
+              ),
+          }),
         );
 
         if (!connection.external && connection.exitCode !== null) {
@@ -2822,6 +2889,7 @@ export function makeOpenCodeAdapterV2(
           providerThread: OrchestrationV2ProviderThread,
           appThread: OrchestrationV2AppThread | null,
         ): OpenCodeThreadState => {
+          appliedPermissions.set(nativeSession.id, JSON.stringify(nativeSession.permission ?? []));
           const existing = threads.get(nativeSession.id);
           if (existing !== undefined) {
             existing.providerThread = providerThread;
@@ -3062,6 +3130,7 @@ export function makeOpenCodeAdapterV2(
                 appThreadId: threadInput.threadId,
                 nativeSession,
                 now: createdAt,
+                driver,
               });
               const existing = threadInput.existingProviderThread;
               // Bind the new native session to the caller's row when one was
@@ -3079,6 +3148,10 @@ export function makeOpenCodeAdapterV2(
                       updatedAt: created.updatedAt,
                     };
               registerThread(nativeSession, providerThread, null);
+              appliedPermissions.set(
+                nativeSession.id,
+                JSON.stringify(openCodePermissionRules(threadInput.runtimePolicy)),
+              );
               return providerThread;
             }).pipe(
               Effect.mapError(
@@ -3140,12 +3213,24 @@ export function makeOpenCodeAdapterV2(
                 );
               }
               const parsedModel = OpenCodeRuntime.parseOpenCodeModelSlug(
-                turnInput.modelSelection.model,
+                options.modelProviderId
+                  ? `${options.modelProviderId}/${turnInput.modelSelection.model}`
+                  : turnInput.modelSelection.model,
               );
               if (parsedModel === null) {
                 return yield* protocolError(
                   `OpenCode model '${turnInput.modelSelection.model}' must use provider/model format`,
                 );
+              }
+              // A resumed native session retains its previous permissions.
+              // Apply the current turn's policy before admitting any tool use.
+              const permission = openCodePermissionRules(turnInput.runtimePolicy);
+              const permissionKey = JSON.stringify(permission);
+              if (appliedPermissions.get(sessionId) !== permissionKey) {
+                yield* sdkCall("session.update", { sessionID: sessionId, permission }, () =>
+                  client.session.update({ sessionID: sessionId, permission }),
+                );
+                appliedPermissions.set(sessionId, permissionKey);
               }
               const isCompaction =
                 turnInput.message.text.trim() === "/compact" &&
@@ -3343,7 +3428,11 @@ export function makeOpenCodeAdapterV2(
                   `OpenCode turn ${steerInput.providerTurnId} is not active`,
                 );
               }
-              const parsedModel = OpenCodeRuntime.parseOpenCodeModelSlug(turn.modelSelection.model);
+              const parsedModel = OpenCodeRuntime.parseOpenCodeModelSlug(
+                options.modelProviderId
+                  ? `${options.modelProviderId}/${turn.modelSelection.model}`
+                  : turn.modelSelection.model,
+              );
               if (parsedModel === null) {
                 return yield* protocolError(
                   `OpenCode model '${turn.modelSelection.model}' must use provider/model format`,
@@ -3695,6 +3784,7 @@ export function makeOpenCodeAdapterV2(
                     : { providerTurnId: forkInput.providerTurnId }),
                 },
                 now: forkedAt,
+                driver,
               });
               registerThread(nativeSession, providerThread, null);
               return providerThread;

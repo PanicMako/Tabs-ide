@@ -32,7 +32,7 @@ import { resolveSpawnCommand } from "@tabs/shared/shell";
 
 import { signalProcessGroup } from "../../process/processGroup.ts";
 
-export class PiRpcError extends Schema.TaggedErrorClass<PiRpcError>()("PiRpcError", {
+export class PiRpcError extends Schema.TaggedError<PiRpcError>()("PiRpcError", {
   operation: Schema.String,
   detail: Schema.optional(Schema.String),
   cause: Schema.optional(Schema.Defect()),
@@ -42,7 +42,7 @@ export class PiRpcError extends Schema.TaggedErrorClass<PiRpcError>()("PiRpcErro
   }
 }
 
-export class PiRpcTimeoutError extends Schema.TaggedErrorClass<PiRpcTimeoutError>()(
+export class PiRpcTimeoutError extends Schema.TaggedError<PiRpcTimeoutError>()(
   "PiRpcTimeoutError",
   {
     operation: Schema.String,

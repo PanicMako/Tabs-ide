@@ -47,7 +47,7 @@ export interface ProjectDeleteCommand {
 
 export type ProjectCommand = ProjectCreateCommand | ProjectMetaUpdateCommand | ProjectDeleteCommand;
 
-export class ProjectCommandInvariantError extends Schema.TaggedErrorClass<ProjectCommandInvariantError>()(
+export class ProjectCommandInvariantError extends Schema.TaggedError<ProjectCommandInvariantError>()(
   "ProjectCommandInvariantError",
   {
     commandType: Schema.String,
@@ -60,7 +60,7 @@ export class ProjectCommandInvariantError extends Schema.TaggedErrorClass<Projec
 }
 
 /** The command targets a project that does not exist or was deleted. */
-export class ProjectCommandMissingProjectError extends Schema.TaggedErrorClass<ProjectCommandMissingProjectError>()(
+export class ProjectCommandMissingProjectError extends Schema.TaggedError<ProjectCommandMissingProjectError>()(
   "ProjectCommandMissingProjectError",
   {
     commandType: Schema.String,
@@ -72,7 +72,7 @@ export class ProjectCommandMissingProjectError extends Schema.TaggedErrorClass<P
   }
 }
 
-export class ProjectWorkspaceConflictError extends Schema.TaggedErrorClass<ProjectWorkspaceConflictError>()(
+export class ProjectWorkspaceConflictError extends Schema.TaggedError<ProjectWorkspaceConflictError>()(
   "ProjectWorkspaceConflictError",
   {
     workspaceRoot: Schema.String,

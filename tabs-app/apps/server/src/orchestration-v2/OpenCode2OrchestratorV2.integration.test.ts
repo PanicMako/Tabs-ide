@@ -315,13 +315,15 @@ const runScenario = (input: {
       scenario: input.name,
       entries: input.entries,
     });
-    const steps = input.commands.flatMap((command): Array<OrchestratorV2ScenarioStep> => [
-      { type: "dispatch", command },
-      { type: "advance_clock", duration: "1 millis" },
-      ...(command.type === "message.dispatch"
-        ? [{ type: "await_thread_idle" as const, threadId: input.threadId }]
-        : []),
-    ]);
+    const steps = input.commands.flatMap(
+      (command): Array<OrchestratorV2ScenarioStep> => [
+        { type: "dispatch", command },
+        { type: "advance_clock", duration: "1 millis" },
+        ...(command.type === "message.dispatch"
+          ? [{ type: "await_thread_idle" as const, threadId: input.threadId }]
+          : []),
+      ],
+    );
     const result = yield* runOrchestratorV2ProviderReplayScenario(
       { name: input.name, transcript, commands: input.commands, steps },
       OpenCode2OrchestratorReplayHarness,

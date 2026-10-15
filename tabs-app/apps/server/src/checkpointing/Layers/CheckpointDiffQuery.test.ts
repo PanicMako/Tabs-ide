@@ -10,7 +10,7 @@ import {
 import { Effect, Layer } from "effect";
 import { describe, expect, it } from "vitest";
 
-import { ProjectionSnapshotQuery } from "../../orchestration/Services/ProjectionSnapshotQuery.ts";
+import { ProjectionSnapshotQuery } from "../../orchestration-v2/ProjectionSnapshotQuery.ts";
 import { checkpointRefForThreadTurn } from "../Utils.ts";
 import { CheckpointDiffQueryLive } from "./CheckpointDiffQuery.ts";
 import { CheckpointStore, type CheckpointStoreShape } from "../Services/CheckpointStore.ts";

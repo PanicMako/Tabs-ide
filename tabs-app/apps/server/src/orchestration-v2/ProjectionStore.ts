@@ -77,7 +77,7 @@ import {
   THREAD_HISTORY_MAX_RAW_TURNS,
 } from "./threadHistoryPaging.ts";
 
-export class ProjectionStoreApplyEventError extends Schema.TaggedErrorClass<ProjectionStoreApplyEventError>()(
+export class ProjectionStoreApplyEventError extends Schema.TaggedError<ProjectionStoreApplyEventError>()(
   "ProjectionStoreApplyEventError",
   {
     eventType: Schema.String,
@@ -89,7 +89,7 @@ export class ProjectionStoreApplyEventError extends Schema.TaggedErrorClass<Proj
   }
 }
 
-export class ProjectionStoreSetupError extends Schema.TaggedErrorClass<ProjectionStoreSetupError>()(
+export class ProjectionStoreSetupError extends Schema.TaggedError<ProjectionStoreSetupError>()(
   "ProjectionStoreSetupError",
   {
     cause: Schema.optional(Schema.Defect()),
@@ -100,7 +100,7 @@ export class ProjectionStoreSetupError extends Schema.TaggedErrorClass<Projectio
   }
 }
 
-export class ProjectionStoreThreadNotFoundError extends Schema.TaggedErrorClass<ProjectionStoreThreadNotFoundError>()(
+export class ProjectionStoreThreadNotFoundError extends Schema.TaggedError<ProjectionStoreThreadNotFoundError>()(
   "ProjectionStoreThreadNotFoundError",
   {
     threadId: ThreadId,
@@ -111,7 +111,7 @@ export class ProjectionStoreThreadNotFoundError extends Schema.TaggedErrorClass<
   }
 }
 
-export class ProjectionStoreReadError extends Schema.TaggedErrorClass<ProjectionStoreReadError>()(
+export class ProjectionStoreReadError extends Schema.TaggedError<ProjectionStoreReadError>()(
   "ProjectionStoreReadError",
   {
     threadId: ThreadId,
@@ -4555,11 +4555,14 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
         .withTransaction(
           Effect.gen(function* () {
             yield* requireThread(threadId);
+            const now = DateTime.formatIso(yield* DateTime.now);
             const rows = yield* sql<{ readonly ready: number }>`
           SELECT 1 AS ready FROM orchestration_v2_projection_threads AS thread
           WHERE thread.thread_id = ${threadId} AND thread.archived_at IS NULL AND thread.deleted_at IS NULL
             AND EXISTS (SELECT 1 FROM orchestration_v2_projection_runs
-              WHERE thread_id = ${threadId} AND status = 'queued')
+              WHERE thread_id = ${threadId} AND status = 'queued'
+                AND (json_extract(payload_json, '$.scheduledFor') IS NULL
+                  OR julianday(json_extract(payload_json, '$.scheduledFor')) <= julianday(${now})))
             AND NOT EXISTS (SELECT 1 FROM orchestration_v2_projection_runs
               WHERE thread_id = ${threadId}
                 AND (status IN ('preparing', 'starting', 'running', 'waiting')
@@ -5344,14 +5347,16 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
         `;
         return yield* Effect.forEach(rows, (row) =>
           decodeThreadPayload(row.payload_json).pipe(
-            Effect.map((thread): ProjectionThreadPullRequests => ({
-              id: thread.id,
-              projectId: thread.projectId,
-              lineage: thread.lineage,
-              settledOverride: thread.settledOverride,
-              settledAt: thread.settledAt,
-              pullRequests: thread.pullRequests ?? [],
-            })),
+            Effect.map(
+              (thread): ProjectionThreadPullRequests => ({
+                id: thread.id,
+                projectId: thread.projectId,
+                lineage: thread.lineage,
+                settledOverride: thread.settledOverride,
+                settledAt: thread.settledAt,
+                pullRequests: thread.pullRequests ?? [],
+              }),
+            ),
           ),
         );
       }).pipe(Effect.mapError((cause) => new ProjectionStoreSetupError({ cause })));
@@ -5826,14 +5831,16 @@ export const layerMemory: Layer.Layer<ProjectionStoreV2> = Layer.effect(
                   DateTime.toEpochMillis(left.updatedAt) -
                     DateTime.toEpochMillis(right.updatedAt) || left.id.localeCompare(right.id),
               )
-              .map((thread): ProjectionThreadPullRequests => ({
-                id: thread.id,
-                projectId: thread.projectId,
-                lineage: thread.lineage,
-                settledOverride: thread.settledOverride,
-                settledAt: thread.settledAt,
-                pullRequests: thread.pullRequests ?? [],
-              })),
+              .map(
+                (thread): ProjectionThreadPullRequests => ({
+                  id: thread.id,
+                  projectId: thread.projectId,
+                  lineage: thread.lineage,
+                  settledOverride: thread.settledOverride,
+                  settledAt: thread.settledAt,
+                  pullRequests: thread.pullRequests ?? [],
+                }),
+              ),
           ),
         ),
       getLimitRecoveryCandidates: (options) =>
@@ -6162,10 +6169,16 @@ export const layerMemory: Layer.Layer<ProjectionStoreV2> = Layer.effect(
           const projection = (yield* Ref.get(replayState)).projections.get(threadId);
           if (projection === undefined)
             return yield* new ProjectionStoreThreadNotFoundError({ threadId });
+          const now = yield* DateTime.now;
           return (
             projection.thread.archivedAt === null &&
             projection.thread.deletedAt === null &&
-            projection.runs.some((run) => run.status === "queued") &&
+            projection.runs.some(
+              (run) =>
+                run.status === "queued" &&
+                (run.scheduledFor == null ||
+                  DateTime.toEpochMillis(run.scheduledFor) <= DateTime.toEpochMillis(now)),
+            ) &&
             !projection.runs.some(
               (run) =>
                 run.status === "preparing" ||

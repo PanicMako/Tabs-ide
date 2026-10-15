@@ -3,7 +3,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as SqlClient from "effect/unstable/sql/SqlClient";
 
-import { migrationEntries, runMigrations } from "../Migrations.ts";
+import { migrationEntries, migrationManifest, runMigrations } from "../Migrations.ts";
 import * as NodeSqliteClient from "@tabs/shared/nodeSqliteClient";
 
 const layer = it.layer(Layer.mergeAll(NodeSqliteClient.layer({ filename: ":memory:" })));
@@ -13,7 +13,7 @@ layer("055_OrchestrationV2", (it) => {
     Effect.sync(() => {
       assert.deepStrictEqual(
         migrationEntries.map(([id]) => id),
-        Array.from({ length: 58 }, (_, index) => index + 1),
+        Array.from({ length: 59 }, (_, index) => index + 1),
       );
     }),
   );
@@ -25,11 +25,12 @@ layer("055_OrchestrationV2", (it) => {
 
       const executed = yield* runMigrations();
       assert.deepStrictEqual(executed, [
-        [54, "ProjectionThreadsAutoSettleDisabledAt"],
-        [55, "OrchestrationV2"],
-        [56, "RemoveRedundantProjectionIndexes"],
-        [57, "ScheduledTaskWebhooks"],
-        [58, "WebhookRelayDeliveries"],
+        [54, "OrchestrationV2"],
+        [55, "RemoveRedundantProjectionIndexes"],
+        [56, "ScheduledTaskWebhooks"],
+        [57, "WebhookRelayDeliveries"],
+        [58, "ProjectionCompatibilityRepairs"],
+        [59, "OrchestrationV2CancellationIntents"],
       ]);
       assert.deepStrictEqual(yield* runMigrations(), []);
 
@@ -42,19 +43,12 @@ layer("055_OrchestrationV2", (it) => {
         WHERE migration_id >= 48
         ORDER BY migration_id
       `;
-      assert.deepStrictEqual(migrations, [
-        { migration_id: 48, name: "ProjectionThreadBranchPullRequest" },
-        { migration_id: 49, name: "ProjectionThreadsActiveOrderKey" },
-        { migration_id: 50, name: "ProjectionThreadPullRequests" },
-        { migration_id: 51, name: "ProjectionThreadMessageContext" },
-        { migration_id: 52, name: "ProjectionThreadTitleState" },
-        { migration_id: 53, name: "PullRequestFilesViewed" },
-        { migration_id: 54, name: "ProjectionThreadsAutoSettleDisabledAt" },
-        { migration_id: 55, name: "OrchestrationV2" },
-        { migration_id: 56, name: "RemoveRedundantProjectionIndexes" },
-        { migration_id: 57, name: "ScheduledTaskWebhooks" },
-        { migration_id: 58, name: "WebhookRelayDeliveries" },
-      ]);
+      assert.deepStrictEqual(
+        migrations,
+        migrationManifest
+          .filter(([id]) => id >= 48)
+          .map(([migration_id, name]) => ({ migration_id, name })),
+      );
 
       const tables = yield* sql<{ readonly name: string }>`
         SELECT name

@@ -14,7 +14,7 @@ import * as SqlClient from "effect/unstable/sql/SqlClient";
 import * as SqlSchema from "effect/unstable/sql/SqlSchema";
 
 /** Carries no query text: search input is user content. */
-export class ThreadSearchError extends Schema.TaggedErrorClass<ThreadSearchError>()(
+export class ThreadSearchError extends Schema.TaggedError<ThreadSearchError>()(
   "ThreadSearchError",
   {
     operation: Schema.Literals(["query", "decode"]),

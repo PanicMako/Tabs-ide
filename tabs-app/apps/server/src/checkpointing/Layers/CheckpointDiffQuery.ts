@@ -6,7 +6,7 @@ import {
 } from "@tabs/contracts";
 import { Effect, Layer, Schema } from "effect";
 
-import { ProjectionSnapshotQuery } from "../../orchestration/Services/ProjectionSnapshotQuery.ts";
+import { ProjectionSnapshotQuery } from "../../orchestration-v2/ProjectionSnapshotQuery.ts";
 import { CheckpointInvariantError, CheckpointUnavailableError } from "../Errors.ts";
 import { checkpointRefForThreadTurn, resolveThreadWorkspaceCwd } from "../Utils.ts";
 import { CheckpointStore } from "../Services/CheckpointStore.ts";

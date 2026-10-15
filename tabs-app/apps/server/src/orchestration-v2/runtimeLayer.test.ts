@@ -272,7 +272,7 @@ const layerTest = Layer.mergeAll(
   ThreadCommandExecutor.layer,
 ).pipe(
   Layer.provide(McpSessionRegistryTestkit.layer),
-  Layer.provide(SqlitePersistence.layerMemory),
+  Layer.provideMerge(SqlitePersistence.layerMemory),
   Layer.provide(layerCheckpointStoreTest),
   Layer.provide(layerServerConfig),
   Layer.provide(ServerSettings.layerTest()),
@@ -477,6 +477,74 @@ const layerSharedApplicationDataPlaneTest = Layer.mergeAll(
 );
 
 it.layer(layerTest)("OrchestrationV2LayerLive", (it) => {
+  it.effect(
+    "durably schedules the first composer message and edits its deadline without browser delivery",
+    () =>
+      Effect.gen(function* () {
+        const orchestrator = yield* Orchestrator.OrchestratorV2;
+        const sql = yield* SqlClient.SqlClient;
+        const threadId = ThreadId.make("scheduled-composer-thread");
+        const now = yield* DateTime.now;
+        const due = DateTime.addDuration(now, "1 hour");
+        yield* orchestrator.dispatch({
+          type: "thread.create",
+          createdBy: "user",
+          creationSource: "web",
+          commandId: CommandId.make("scheduled-composer-create"),
+          threadId,
+          projectId: ProjectId.make("scheduled-composer-project"),
+          title: "Scheduled composer",
+          modelSelection,
+          runtimeMode: "full-access",
+          interactionMode: "default",
+          branch: null,
+          worktreePath: process.cwd(),
+        });
+        const command = {
+          type: "message.dispatch" as const,
+          createdBy: "user" as const,
+          creationSource: "web" as const,
+          commandId: CommandId.make("scheduled-composer-send"),
+          threadId,
+          messageId: MessageId.make("scheduled-composer-message"),
+          text: "Send later",
+          attachments: [],
+          modelSelection,
+          scheduledFor: due,
+          dispatchMode: { type: "queue_after_active" as const },
+        };
+        yield* orchestrator.dispatch(command);
+        yield* orchestrator.dispatch(command);
+        const before = yield* orchestrator.getThreadProjection(threadId);
+        assert.equal(before.runs.length, 1);
+        const run = before.runs[0]!;
+        assert.equal(run.status, "queued");
+        assert.equal(DateTime.formatIso(run.scheduledFor!), DateTime.formatIso(due));
+        const persisted = yield* sql<{ readonly payload_json: string }>`
+        SELECT payload_json FROM orchestration_v2_projection_runs WHERE run_id = ${run.id}
+      `;
+        assert.equal(JSON.parse(persisted[0]!.payload_json).scheduledFor, DateTime.formatIso(due));
+        assert.equal(yield* orchestrator.resumeQueuedRuns, 0);
+        yield* orchestrator.dispatch({
+          type: "queued-run.edit",
+          commandId: CommandId.make("scheduled-composer-edit"),
+          threadId,
+          runId: run.id,
+          text: "Updated delivery",
+          scheduledFor: DateTime.addDuration(due, "1 hour"),
+        });
+        yield* TestClock.adjust("1 hour");
+        assert.equal(yield* orchestrator.resumeQueuedRuns, 0);
+        yield* TestClock.adjust("1 hour");
+        assert.equal(yield* orchestrator.resumeQueuedRuns, 1);
+        const after = yield* orchestrator.getThreadProjection(threadId);
+        assert.equal(after.runs[0]?.id, run.id);
+        assert.notEqual(after.runs[0]?.status, "queued");
+        assert.equal(after.messages[0]?.text, "Updated delivery");
+        assert.equal(yield* orchestrator.resumeQueuedRuns, 0);
+      }),
+  );
+
   it.effect("emits model updates separately from provider switches", () =>
     Effect.gen(function* () {
       const orchestrator = yield* Orchestrator.OrchestratorV2;

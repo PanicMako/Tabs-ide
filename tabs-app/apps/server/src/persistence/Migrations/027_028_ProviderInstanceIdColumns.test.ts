@@ -14,10 +14,12 @@ layer("027_028_ProviderInstanceIdColumns", (it) => {
       const sql = yield* SqlClient.SqlClient;
 
       yield* runMigrations({ toMigrationInclusive: 26 });
-      yield* sql`
-        ALTER TABLE provider_session_runtime
-        ADD COLUMN provider_instance_id TEXT
-      `;
+      // Tabs migration17 already added the nullable runtime routing column.
+      // The later catch-up migrations must tolerate that partial state.
+      const before = yield* sql<{
+        readonly name: string;
+      }>`PRAGMA table_info(provider_session_runtime)`;
+      assert.ok(before.some((column) => column.name === "provider_instance_id"));
 
       yield* runMigrations({ toMigrationInclusive: 28 });
 
@@ -33,7 +35,7 @@ layer("027_028_ProviderInstanceIdColumns", (it) => {
       assert.deepStrictEqual(migrations, [
         {
           migration_id: 27,
-          name: "ProviderSessionRuntimeInstanceId",
+          name: "ProviderSessionRuntimeInstanceIdV2",
         },
         {
           migration_id: 28,

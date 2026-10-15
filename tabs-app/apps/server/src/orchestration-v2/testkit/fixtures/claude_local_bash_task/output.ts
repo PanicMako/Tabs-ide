@@ -53,6 +53,6 @@ export function assertClaudeLocalBashTaskOutput(
 
   const command = projection.turnItems.find((item) => item.type === "command_execution");
   assert.isDefined(command);
-  assert.include(JSON.stringify(command ?? null), "vp run --filter @tabs/web typecheck");
+  assert.include(JSON.stringify(command ?? null), "vp run --filter @t3tools/web typecheck");
   assert.include(JSON.stringify(command?.output ?? null), "tsgo --noEmit");
 }

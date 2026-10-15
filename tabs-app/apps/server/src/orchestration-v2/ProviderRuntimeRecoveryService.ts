@@ -28,7 +28,7 @@ import {
   mergeRestartCancelledBackgroundWork,
 } from "./RestartBackgroundNote.ts";
 
-export class ProviderRuntimeRecoveryError extends Schema.TaggedErrorClass<ProviderRuntimeRecoveryError>()(
+export class ProviderRuntimeRecoveryError extends Schema.TaggedError<ProviderRuntimeRecoveryError>()(
   "ProviderRuntimeRecoveryError",
   {
     operation: Schema.Literals(["read-projections", "reconcile", "drain-outbox"]),

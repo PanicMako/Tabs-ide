@@ -36,7 +36,7 @@ import * as TurnItemPositionStore from "./TurnItemPositionStore.ts";
 /**
  * ERRORS
  */
-export class EventSinkWriteError extends Schema.TaggedErrorClass<EventSinkWriteError>()(
+export class EventSinkWriteError extends Schema.TaggedError<EventSinkWriteError>()(
   "EventSinkWriteError",
   {
     eventCount: Schema.Number,
@@ -49,7 +49,7 @@ export class EventSinkWriteError extends Schema.TaggedErrorClass<EventSinkWriteE
   }
 }
 
-export class EventSinkStreamError extends Schema.TaggedErrorClass<EventSinkStreamError>()(
+export class EventSinkStreamError extends Schema.TaggedError<EventSinkStreamError>()(
   "EventSinkStreamError",
   {
     threadId: Schema.optional(ThreadId),

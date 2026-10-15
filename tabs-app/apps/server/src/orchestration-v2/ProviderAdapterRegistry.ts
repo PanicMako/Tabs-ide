@@ -22,7 +22,7 @@ import * as ProviderAdapter from "./ProviderAdapter.ts";
 
 const isProviderSetupError = Schema.is(ProviderSetupError);
 
-export class ProviderAdapterRegistryLookupError extends Schema.TaggedErrorClass<ProviderAdapterRegistryLookupError>()(
+export class ProviderAdapterRegistryLookupError extends Schema.TaggedError<ProviderAdapterRegistryLookupError>()(
   "ProviderAdapterRegistryLookupError",
   {
     instanceId: ProviderInstanceId,
@@ -33,7 +33,7 @@ export class ProviderAdapterRegistryLookupError extends Schema.TaggedErrorClass<
   }
 }
 
-export class ProviderAdapterRegistryMetadataError extends Schema.TaggedErrorClass<ProviderAdapterRegistryMetadataError>()(
+export class ProviderAdapterRegistryMetadataError extends Schema.TaggedError<ProviderAdapterRegistryMetadataError>()(
   "ProviderAdapterRegistryMetadataError",
   { instanceId: ProviderInstanceId, cause: Schema.Defect() },
 ) {}

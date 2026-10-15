@@ -122,6 +122,10 @@ it.effect.each(["sqlite", "memory"] as const)(
       }
       assert.deepEqual(yield* store.getRunMessage(threadId, runId), message);
       assert.isTrue(yield* store.canStartQueuedRun(threadId));
+      yield* putRun({ ...run, scheduledFor: DateTime.addDuration(now, "1 hour") });
+      assert.isFalse(yield* store.canStartQueuedRun(threadId));
+      yield* putRun({ ...run, scheduledFor: now });
+      assert.isTrue(yield* store.canStartQueuedRun(threadId));
       yield* putRun({ ...run, queueHeld: true });
       assert.isFalse(yield* store.canStartQueuedRun(threadId));
       yield* putRun(run);

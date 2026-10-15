@@ -54,7 +54,7 @@ import {
   restartCancelledBackgroundWorkNote,
 } from "./RestartBackgroundNote.ts";
 
-export class ProviderTurnStartError extends Schema.TaggedErrorClass<ProviderTurnStartError>()(
+export class ProviderTurnStartError extends Schema.TaggedError<ProviderTurnStartError>()(
   "ProviderTurnStartError",
   {
     runId: RunId,

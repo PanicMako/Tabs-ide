@@ -23,7 +23,7 @@ import * as ProviderEventLoggers from "../../provider/ProviderEventLoggers.ts";
 export const CURSOR_AGENT_SDK_PROTOCOL = "cursor-agent-sdk.local" as const;
 export const CURSOR_PROVIDER = ProviderDriverKind.make("cursor");
 
-export class CursorAgentSdkRunnerError extends Schema.TaggedErrorClass<CursorAgentSdkRunnerError>()(
+export class CursorAgentSdkRunnerError extends Schema.TaggedError<CursorAgentSdkRunnerError>()(
   "CursorAgentSdkRunnerError",
   {
     method: Schema.String,

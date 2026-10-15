@@ -181,7 +181,7 @@ export interface PendingOrchestrationEffectV2 {
   readonly availableAt?: DateTime.Utc;
 }
 
-export class EffectOutboxError extends Schema.TaggedErrorClass<EffectOutboxError>()(
+export class EffectOutboxError extends Schema.TaggedError<EffectOutboxError>()(
   "EffectOutboxError",
   {
     operation: Schema.String,
@@ -274,21 +274,23 @@ const decodeRequest = Schema.decodeUnknownEffect(
 
 const rowToEffect = (row: EffectRow) =>
   decodeRequest(row.payload_json).pipe(
-    Effect.map((request): OrchestrationEffectV2 => ({
-      id: row.effect_id,
-      commandId: CommandId.make(row.command_id),
-      threadId: ThreadId.make(row.thread_id),
-      request,
-      status: row.status as OrchestrationEffectStatusV2,
-      attemptCount: row.attempt_count,
-      availableAt: row.available_at,
-      leaseOwner: row.lease_owner,
-      leaseExpiresAt: row.lease_expires_at,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-      completedAt: row.completed_at,
-      lastError: row.last_error,
-    })),
+    Effect.map(
+      (request): OrchestrationEffectV2 => ({
+        id: row.effect_id,
+        commandId: CommandId.make(row.command_id),
+        threadId: ThreadId.make(row.thread_id),
+        request,
+        status: row.status as OrchestrationEffectStatusV2,
+        attemptCount: row.attempt_count,
+        availableAt: row.available_at,
+        leaseOwner: row.lease_owner,
+        leaseExpiresAt: row.lease_expires_at,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        completedAt: row.completed_at,
+        lastError: row.last_error,
+      }),
+    ),
   );
 
 export const layer: Layer.Layer<EffectOutboxV2, never, SqlClient.SqlClient> = Layer.effect(

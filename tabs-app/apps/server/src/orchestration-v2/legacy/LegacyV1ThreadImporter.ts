@@ -1,7 +1,4 @@
-import {
-  threadPullRequestKeysEqual,
-  threadPullRequestsOf,
-} from "@tabs/shared/threadPullRequests";
+import { threadPullRequestKeysEqual, threadPullRequestsOf } from "@tabs/shared/threadPullRequests";
 import {
   ChatAttachment,
   OrchestrationMessageContext,
@@ -90,7 +87,7 @@ export interface LegacyV1ImportSummary {
   readonly importedMessageCount: number;
 }
 
-export class LegacyV1ThreadImportError extends Schema.TaggedErrorClass<LegacyV1ThreadImportError>()(
+export class LegacyV1ThreadImportError extends Schema.TaggedError<LegacyV1ThreadImportError>()(
   "LegacyV1ThreadImportError",
   {
     operation: Schema.String,

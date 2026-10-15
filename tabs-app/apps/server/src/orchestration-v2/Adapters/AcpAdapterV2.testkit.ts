@@ -30,7 +30,7 @@ export type AcpReplayTranscript = typeof AcpReplayTranscript.Type;
 const decodeAcpReplayTranscriptSchema = Schema.decodeUnknownEffect(AcpReplayTranscript);
 const encodeReplayTranscriptJson = Schema.encodeSync(Schema.fromJsonString(Schema.Unknown));
 
-export class AcpReplayTranscriptDecodeError extends Schema.TaggedErrorClass<AcpReplayTranscriptDecodeError>()(
+export class AcpReplayTranscriptDecodeError extends Schema.TaggedError<AcpReplayTranscriptDecodeError>()(
   "AcpReplayTranscriptDecodeError",
   {
     expectedProvider: ProviderDriverKind,

@@ -16,7 +16,7 @@ import * as Schema from "effect/Schema";
 import * as SqlClient from "effect/unstable/sql/SqlClient";
 import * as SqlSchema from "effect/unstable/sql/SqlSchema";
 
-export class ProjectStoreV2Error extends Schema.TaggedErrorClass<ProjectStoreV2Error>()(
+export class ProjectStoreV2Error extends Schema.TaggedError<ProjectStoreV2Error>()(
   "ProjectStoreV2Error",
   {
     operation: Schema.String,

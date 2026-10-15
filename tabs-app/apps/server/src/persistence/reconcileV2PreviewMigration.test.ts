@@ -6,9 +6,8 @@ import * as Migrator from "effect/unstable/sql/Migrator";
 import * as SqlClient from "effect/unstable/sql/SqlClient";
 
 import { migrationManifest, runMigrations } from "./Migrations.ts";
-import PullRequestFilesViewed from "./Migrations/053_PullRequestFilesViewed.ts";
-import RemoveRedundantProjectionIndexes from "./Migrations/056_RemoveRedundantProjectionIndexes.ts";
-import OrchestrationV2 from "./Migrations/055_OrchestrationV2.ts";
+import RemoveRedundantProjectionIndexes from "./Migrations/055_RemoveRedundantProjectionIndexes.ts";
+import OrchestrationV2 from "./Migrations/054_OrchestrationV2.ts";
 
 // The V2 schema is unchanged from the published September 15–16 previews.
 const seedPreview = Effect.gen(function* () {
@@ -34,11 +33,12 @@ describe("V2 preview upgrade", () => {
       yield* seedPreview;
       const imports = yield* sql`SELECT * FROM orchestration_v2_legacy_imports`;
       assert.deepStrictEqual(yield* runMigrations(), [
-        [53, "PullRequestFilesViewed"],
-        [54, "ProjectionThreadsAutoSettleDisabledAt"],
-        [56, "RemoveRedundantProjectionIndexes"],
-        [57, "ScheduledTaskWebhooks"],
-        [58, "WebhookRelayDeliveries"],
+        [53, "ProjectionThreadsAutoSettleDisabledAt"],
+        [55, "RemoveRedundantProjectionIndexes"],
+        [56, "ScheduledTaskWebhooks"],
+        [57, "WebhookRelayDeliveries"],
+        [58, "ProjectionCompatibilityRepairs"],
+        [59, "OrchestrationV2CancellationIntents"],
       ]);
       assert.deepStrictEqual(yield* runMigrations(), []);
       assert.deepStrictEqual(yield* sql`SELECT * FROM orchestration_v2_legacy_imports`, imports);
@@ -50,7 +50,7 @@ describe("V2 preview upgrade", () => {
         migrationManifest,
       );
       assert.deepStrictEqual(
-        yield* sql`SELECT created_at FROM effect_sql_migrations WHERE migration_id = 55`,
+        yield* sql`SELECT created_at FROM effect_sql_migrations WHERE migration_id = 54`,
         [{ created_at: "2026-09-15 00:00:00" }],
       );
       yield* sql`
@@ -67,10 +67,9 @@ describe("V2 preview upgrade", () => {
     (withIndexes) =>
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient;
-        yield* runMigrations({ toMigrationInclusive: 52 });
+        yield* runMigrations({ toMigrationInclusive: 53 });
         yield* Migrator.make({})({
           loader: Migrator.fromRecord({
-            "53_PullRequestFilesViewed": PullRequestFilesViewed,
             "54_OrchestrationV2": OrchestrationV2,
             ...(withIndexes
               ? { "55_RemoveRedundantProjectionIndexes": RemoveRedundantProjectionIndexes }
@@ -100,7 +99,7 @@ describe("V2 preview upgrade", () => {
       yield* seedPreview;
       yield* sql`
         CREATE TRIGGER fail_preview_upgrade BEFORE INSERT ON effect_sql_migrations
-        WHEN NEW.name = 'PullRequestFilesViewed'
+        WHEN NEW.name = 'ProjectionThreadsAutoSettleDisabledAt'
         BEGIN SELECT RAISE(ABORT, 'injected failure'); END
       `;
       assert.ok(Exit.isFailure(yield* Effect.exit(runMigrations())));
@@ -108,18 +107,17 @@ describe("V2 preview upgrade", () => {
         yield* sql`SELECT migration_id, name FROM effect_sql_migrations WHERE migration_id >= 53`,
         [{ migration_id: 53, name: "OrchestrationV2" }],
       );
-      assert.deepStrictEqual(
-        yield* sql`SELECT name FROM sqlite_master WHERE name = 'pull_request_files_viewed'`,
-        [],
-      );
+      const columns = yield* sql<{ readonly name: string }>`PRAGMA table_info(projection_threads)`;
+      assert.isFalse(columns.some((column) => column.name === "auto_settle_disabled_at"));
       assert.strictEqual((yield* sql`SELECT * FROM orchestration_v2_legacy_imports`).length, 1);
       yield* sql`DROP TRIGGER fail_preview_upgrade`;
       assert.deepStrictEqual(yield* runMigrations(), [
-        [53, "PullRequestFilesViewed"],
-        [54, "ProjectionThreadsAutoSettleDisabledAt"],
-        [56, "RemoveRedundantProjectionIndexes"],
-        [57, "ScheduledTaskWebhooks"],
-        [58, "WebhookRelayDeliveries"],
+        [53, "ProjectionThreadsAutoSettleDisabledAt"],
+        [55, "RemoveRedundantProjectionIndexes"],
+        [56, "ScheduledTaskWebhooks"],
+        [57, "WebhookRelayDeliveries"],
+        [58, "ProjectionCompatibilityRepairs"],
+        [59, "OrchestrationV2CancellationIntents"],
       ]);
     }).pipe(Effect.provide(NodeSqliteClient.layer({ filename: ":memory:" }))),
   );

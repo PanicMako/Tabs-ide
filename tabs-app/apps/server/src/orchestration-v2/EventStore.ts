@@ -14,7 +14,7 @@ import * as Stream from "effect/Stream";
 import type * as SqlClient from "effect/unstable/sql/SqlClient";
 import * as OrchestrationEventStore from "../persistence/OrchestrationEventStore.ts";
 
-export class EventStoreAppendEventsError extends Schema.TaggedErrorClass<EventStoreAppendEventsError>()(
+export class EventStoreAppendEventsError extends Schema.TaggedError<EventStoreAppendEventsError>()(
   "EventStoreAppendEventsError",
   {
     eventCount: Schema.Number,
@@ -26,7 +26,7 @@ export class EventStoreAppendEventsError extends Schema.TaggedErrorClass<EventSt
   }
 }
 
-export class EventStoreReadEventsError extends Schema.TaggedErrorClass<EventStoreReadEventsError>()(
+export class EventStoreReadEventsError extends Schema.TaggedError<EventStoreReadEventsError>()(
   "EventStoreReadEventsError",
   {
     afterSequence: Schema.optional(Schema.Number),
