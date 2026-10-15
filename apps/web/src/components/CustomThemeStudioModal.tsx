@@ -408,7 +408,7 @@ export const CustomThemeStudioModal: React.FC<CustomThemeStudioModalProps> = ({
                 </span>
               </div>
               <OrbitGroup
-                className="tabs-segmented flex"
+                className="tabs-segmented flex rounded-full"
                 role="group"
                 aria-label="Base window variant"
               >
@@ -416,7 +416,7 @@ export const CustomThemeStudioModal: React.FC<CustomThemeStudioModalProps> = ({
                   type="button"
                   onClick={() => updateDraft({ ...draftConfig, baseVariant: "dark" })}
                   aria-pressed={draftConfig.baseVariant === "dark"}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all cursor-pointer ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full transition-all cursor-pointer ${
                     draftConfig.baseVariant === "dark"
                       ? "bg-background text-foreground font-bold shadow-xs border border-border/50"
                       : "text-muted-foreground hover:text-foreground"
@@ -429,7 +429,7 @@ export const CustomThemeStudioModal: React.FC<CustomThemeStudioModalProps> = ({
                   type="button"
                   onClick={() => updateDraft({ ...draftConfig, baseVariant: "light" })}
                   aria-pressed={draftConfig.baseVariant === "light"}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all cursor-pointer ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full transition-all cursor-pointer ${
                     draftConfig.baseVariant === "light"
                       ? "bg-background text-foreground font-bold shadow-xs border border-border/50"
                       : "text-muted-foreground hover:text-foreground"

@@ -87,7 +87,7 @@ export const WorkbenchMiniPreview: React.FC<WorkbenchMiniPreviewProps> = ({ conf
       {/* Surface Showcase Mode Switcher Deck */}
       <div className="flex items-center justify-center py-1">
         <OrbitGroup
-          className="tabs-segmented flex items-center justify-center max-w-md w-full"
+          className="tabs-segmented flex items-center justify-center max-w-md w-full rounded-full"
           role="group"
           aria-label="Preview surface"
         >

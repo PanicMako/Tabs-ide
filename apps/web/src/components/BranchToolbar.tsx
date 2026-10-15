@@ -15,6 +15,7 @@ import {
 } from "./BranchToolbar.logic";
 import { BranchToolbarBranchSelector } from "./BranchToolbarBranchSelector";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "./ui/select";
+import { toastManager } from "./ui/toast";
 
 const envModeItems = [
   { value: "local", label: "Local" },
@@ -67,37 +68,58 @@ export default function BranchToolbar({
   });
 
   const setThreadBranch = useCallback(
-    (branch: string | null, worktreePath: string | null) => {
+    async (branch: string | null, worktreePath: string | null) => {
       if (!activeThreadId) return;
-      // If the effective cwd is about to change, stop the running session so the
-      // next message creates a new one with the correct cwd.
-      if (serverThread?.session && worktreePath !== activeWorktreePath) {
-        void environmentApi(activeProject?.environmentId).then((api) =>
-          api.orchestration
-            .dispatchCommand({
-              type: "thread.session.stop",
+      const api = await environmentApi(activeProject?.environmentId);
+
+      // If the effective cwd is about to change, interrupt the active run first so the
+      // next message creates a new session in the correct cwd.
+      if (hasServerThread && worktreePath !== activeWorktreePath) {
+        const activeRunId = serverThread?.activeRunId;
+        if (activeRunId) {
+          try {
+            await api.orchestration.dispatchCommand({
+              type: "run.interrupt",
               commandId: newCommandId(),
               threadId: activeThreadId,
-              createdAt: new Date().toISOString(),
-            })
-            .catch(() => undefined),
-        );
+              runId: activeRunId,
+              holdQueue: true,
+              reason: "Worktree switched",
+            });
+          } catch (err) {
+            toastManager.add({
+              type: "error",
+              title: "Cannot switch worktree",
+              description:
+                err instanceof Error
+                  ? err.message
+                  : "Failed to stop active run before switching worktree.",
+            });
+            return;
+          }
+        }
       }
+
       if (hasServerThread) {
-        void environmentApi(activeProject?.environmentId).then((api) =>
-          api.orchestration.dispatchCommand({
-            type: "thread.meta.update",
+        try {
+          await api.orchestration.dispatchCommand({
+            type: "thread.metadata.update",
             commandId: newCommandId(),
             threadId: activeThreadId,
             branch,
             worktreePath,
-          }),
-        );
-      }
-      if (hasServerThread) {
-        setThreadBranchAction(activeThreadId, branch, worktreePath, environmentId);
+          });
+          setThreadBranchAction(activeThreadId, branch, worktreePath, environmentId);
+        } catch (err) {
+          toastManager.add({
+            type: "error",
+            title: "Cannot update branch metadata",
+            description: err instanceof Error ? err.message : String(err),
+          });
+        }
         return;
       }
+
       const nextDraftEnvMode = resolveDraftEnvModeAfterBranchChange({
         nextWorktreePath: worktreePath,
         currentWorktreePath: activeWorktreePath,
@@ -110,16 +132,16 @@ export default function BranchToolbar({
       });
     },
     [
-      activeThreadId,
-      serverThread?.session,
-      activeWorktreePath,
-      hasServerThread,
-      setThreadBranchAction,
-      setDraftThreadContext,
-      threadId,
-      effectiveEnvMode,
       activeProject?.environmentId,
+      activeThreadId,
+      activeWorktreePath,
+      effectiveEnvMode,
       environmentId,
+      hasServerThread,
+      serverThread?.activeRunId,
+      setDraftThreadContext,
+      setThreadBranchAction,
+      threadId,
     ],
   );
 

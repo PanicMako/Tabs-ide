@@ -1,4 +1,4 @@
-import { memo, useCallback, useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import type { ThreadId } from "@tabs/contracts";
 import { CompanionHeading, CompanionEmpty } from "./CompanionChrome";
 import { useThreadTerminalState, terminalActions } from "~/state/terminal";
@@ -7,6 +7,7 @@ import { useComposerDraftStore } from "~/composerDraftStore";
 import { scopedComposerThreadId } from "~/state/composerDrafts";
 import { environmentApi } from "~/connection/environmentApiRegistry";
 import { toastManager } from "~/components/ui/toast";
+import { projectScriptRuntimeEnv } from "~/projectScripts";
 import ThreadTerminalDrawer from "~/components/ThreadTerminalDrawer";
 
 function createTerminalId(): string {
@@ -24,6 +25,13 @@ export const CompanionTerminalPanel = memo(function CompanionTerminalPanel({
 }: CompanionTerminalPanelProps) {
   const target = useActiveProjectTarget(threadId);
   const effectiveThreadId = threadId ?? target?.threadId ?? null;
+  const runtimeEnv = useMemo(
+    () =>
+      target
+        ? projectScriptRuntimeEnv({ project: { cwd: target.projectCwd }, worktreePath: target.cwd })
+        : {},
+    [target?.cwd, target?.projectCwd],
+  );
   const terminalState = useThreadTerminalState(effectiveThreadId);
   const [focusRequestId, setFocusRequestId] = useState(0);
 
@@ -109,6 +117,8 @@ export const CompanionTerminalPanel = memo(function CompanionTerminalPanel({
     <div className="companion-workspace">
       <CompanionHeading kind="terminal" detail={target.cwd} />
       <ThreadTerminalDrawer
+        environmentId={target.environmentId}
+        runtimeEnv={runtimeEnv}
         threadId={effectiveThreadId}
         cwd={target.cwd}
         variant="embedded"

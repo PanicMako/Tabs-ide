@@ -8,6 +8,8 @@ import {
 import { showCustomConfirm } from "~/lib/customConfirm";
 import { isElectron } from "~/env";
 import { SurfaceTabs, SurfaceChooser } from "./agents/companion/SurfaceTabs";
+import { useAtomValue } from "@effect/atom-react";
+import { threadsAtom } from "~/state/threads";
 import { usePromptStashStore } from "~/promptStashStore";
 import { useMessageQueueStore, getThreadQueuedMessages } from "~/stores/messageQueueStore";
 import { useRightPanelStore, type RightPanelTab } from "~/stores/rightPanelStore";
@@ -49,6 +51,12 @@ export const RightPanelTabs = memo(function RightPanelTabs({
   const stashes = usePromptStashStore((state) => state.entries);
   const queueByThread = useMessageQueueStore((state) => state.queueByThread);
   const queuedMessages = getThreadQueuedMessages(queueByThread, threadId);
+  const threads = useAtomValue(threadsAtom);
+  const serverThread = threads.find((t) => t.id === threadId);
+  const serverQueuedCount = serverThread?.queuedRuns?.length ?? 0;
+  const serverMessageIds = new Set(serverThread?.queuedRuns?.map((r) => r.userMessageId));
+  const pendingLocalCount = queuedMessages.filter((m) => !serverMessageIds.has(m.id as any)).length;
+  const totalQueuedCount = serverQueuedCount + pendingLocalCount;
 
   const shouldUseDragRegion = isElectron && mode !== "sheet";
 
@@ -141,7 +149,7 @@ export const RightPanelTabs = memo(function RightPanelTabs({
         onSelect={handleSelectTab}
         onClosePanel={onClose}
         dragRegion={shouldUseDragRegion}
-        counts={{ stash: stashes.length, queue: queuedMessages.length }}
+        counts={{ stash: stashes.length, queue: totalQueuedCount }}
         onChooserChange={setChoosing}
       />
 
@@ -181,18 +189,7 @@ export const RightPanelTabs = memo(function RightPanelTabs({
           </div>
         ) : (
           <div className="companion-workspace">
-            <MessageQueuePanel
-              activeThreadId={threadId}
-              onSendNow={(message) => {
-                if (!threadId) return;
-                const queue = useMessageQueueStore.getState();
-                queue.updateMessageSchedule(threadId, message.id, null);
-                const index = getThreadQueuedMessages(queue.queueByThread, threadId).findIndex(
-                  (item) => item.id === message.id,
-                );
-                queue.reorderQueue(threadId, index, 0);
-              }}
-            />
+            <MessageQueuePanel activeThreadId={threadId} environmentId={environmentId} />
           </div>
         )}
       </div>

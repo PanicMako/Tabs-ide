@@ -68,6 +68,7 @@ import {
 } from "./ui/dialog";
 import { Menu, MenuTrigger, MenuPopup, MenuItem, MenuSeparator } from "./ui/menu";
 import { Button } from "./ui/button";
+import { Badge } from "./ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Tooltip, TooltipTrigger, TooltipPopup } from "./ui/tooltip";
 import { useConfirm } from "~/hooks/useConfirm";
@@ -82,6 +83,7 @@ import {
   useWorkspaceActiveProjectId,
   workspaceShellActions,
 } from "../state/workspaceShell";
+import { useWorkspaceAppearanceStore } from "../stores/workspaceAppearanceStore";
 import { useSettingsViewState } from "~/state/scopedStateStore";
 import { registerDraftSource, useSettingsDraftSource } from "../state/settingsDraftRegistry";
 import {
@@ -777,6 +779,11 @@ export function ProjectWorkspaceSettingsSection() {
     );
   }, []);
 
+  const showProjectTabIcons = useWorkspaceAppearanceStore((s) => s.showProjectTabIcons);
+  const setShowProjectTabIcons = useWorkspaceAppearanceStore((s) => s.setShowProjectTabIcons);
+  const projectTabIconOverrides = useWorkspaceAppearanceStore((s) => s.projectTabIconOverrides);
+  const setProjectTabIconOverride = useWorkspaceAppearanceStore((s) => s.setProjectTabIconOverride);
+
   if (!activeProjectId || !activeProject || !projectSettings) {
     return (
       <section className="space-y-3">
@@ -784,6 +791,22 @@ export function ProjectWorkspaceSettingsSection() {
           title="Workspace"
           description="Configure tools and settings for your project."
         />
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
+            <div>
+              <CardTitle className="text-sm font-semibold">Project Icons in Window Tabs</CardTitle>
+              <CardDescription className="text-xs text-muted-foreground">
+                Display project logos and icons next to project names in the top titlebar tabs by
+                default across all projects (off by default).
+              </CardDescription>
+            </div>
+            <Switch
+              checked={showProjectTabIcons}
+              onCheckedChange={setShowProjectTabIcons}
+              aria-label="Toggle project icons in window tabs"
+            />
+          </CardHeader>
+        </Card>
         <Card>
           <CardHeader>
             <CardTitle>No active project</CardTitle>
@@ -798,6 +821,10 @@ export function ProjectWorkspaceSettingsSection() {
 
   const projectId = activeProjectId;
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
+  const hasProjectIconOverride = projectTabIconOverrides[activeProject.id] !== undefined;
+  const isProjectIconVisibleInTabs = hasProjectIconOverride
+    ? projectTabIconOverrides[activeProject.id]!
+    : showProjectTabIcons;
 
   const handleSelectIcon = async (icon: ProjectIconOverride) => {
     try {
@@ -996,6 +1023,91 @@ export function ProjectWorkspaceSettingsSection() {
         </Card>
 
         <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold">Project Icons in Window Tabs</CardTitle>
+            <CardDescription className="text-xs text-muted-foreground">
+              Configure whether project logos and icons appear next to project names in the top
+              titlebar tabs.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 pt-0">
+            {/* Toggle 1: Global default for all projects */}
+            <div className="flex items-center justify-between gap-4 rounded-xl border border-border/60 bg-muted/20 px-3.5 py-2.5">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-foreground">
+                    All projects by default
+                  </span>
+                  <Badge
+                    variant={showProjectTabIcons ? "default" : "secondary"}
+                    className="text-[10px] h-4.5 px-1.5 font-normal"
+                  >
+                    {showProjectTabIcons ? "On" : "Off by default"}
+                  </Badge>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Default setting applied across all workspace projects unless customized below.
+                </p>
+              </div>
+              <Switch
+                checked={showProjectTabIcons}
+                onCheckedChange={setShowProjectTabIcons}
+                aria-label="Toggle project icons for all projects by default"
+              />
+            </div>
+
+            {/* Toggle 2: Current project override */}
+            {activeProject && (
+              <div className="flex items-center justify-between gap-4 rounded-xl border border-border/60 bg-muted/20 px-3.5 py-2.5">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium text-foreground">
+                      This project ({activeProject.name})
+                    </span>
+                    {hasProjectIconOverride ? (
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] h-4.5 px-1.5 font-normal text-muted-foreground border-border/70"
+                      >
+                        Project override
+                      </Badge>
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground/70 font-mono">
+                        (Inheriting global: {showProjectTabIcons ? "visible" : "hidden"})
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    {hasProjectIconOverride
+                      ? `Custom setting for ${activeProject.name}. Click Reset to inherit global default.`
+                      : `Display or hide project icon specifically for ${activeProject.name}.`}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {hasProjectIconOverride && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                      onClick={() => setProjectTabIconOverride(activeProject.id, null)}
+                    >
+                      Reset to default
+                    </Button>
+                  )}
+                  <Switch
+                    checked={isProjectIconVisibleInTabs}
+                    onCheckedChange={(checked) =>
+                      setProjectTabIconOverride(activeProject.id, checked)
+                    }
+                    aria-label={`Toggle project icon for ${activeProject.name}`}
+                  />
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
           <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
             <div>
               <CardTitle>Toolbar Tools</CardTitle>
@@ -1188,7 +1300,7 @@ export function ProjectWorkspaceSettingsSection() {
                     </div>
                   </div>
                   <OrbitGroup
-                    className="tabs-segmented flex shrink-0 self-start sm:self-auto"
+                    className="tabs-segmented flex shrink-0 self-start sm:self-auto rounded-full"
                     role="group"
                     aria-label="Project browser session isolation"
                   >
@@ -1197,7 +1309,7 @@ export function ProjectWorkspaceSettingsSection() {
                       onClick={() => setBrowserPartitionModeDraft("shared")}
                       aria-pressed={browserPartitionModeDraft === "shared"}
                       className={cn(
-                        "text-xs px-3 py-1.5 rounded-md font-medium transition-colors cursor-pointer",
+                        "text-xs px-3.5 py-1.5 rounded-full font-medium transition-colors cursor-pointer",
                         browserPartitionModeDraft === "shared"
                           ? "font-semibold"
                           : "text-muted-foreground hover:text-foreground",
@@ -1210,7 +1322,7 @@ export function ProjectWorkspaceSettingsSection() {
                       onClick={() => setBrowserPartitionModeDraft("isolated")}
                       aria-pressed={browserPartitionModeDraft === "isolated"}
                       className={cn(
-                        "text-xs px-3 py-1.5 rounded-md font-medium transition-colors cursor-pointer",
+                        "text-xs px-3.5 py-1.5 rounded-full font-medium transition-colors cursor-pointer",
                         browserPartitionModeDraft === "isolated"
                           ? "font-semibold"
                           : "text-muted-foreground hover:text-foreground",
@@ -1460,7 +1572,7 @@ export function ProjectWorkspaceSettingsSection() {
                                       </div>
                                     </div>
                                     <OrbitGroup
-                                      className="tabs-segmented flex shrink-0 self-start sm:self-auto"
+                                      className="tabs-segmented flex shrink-0 self-start sm:self-auto rounded-full"
                                       role="group"
                                       aria-label="Tab browser session isolation"
                                     >
@@ -1473,7 +1585,7 @@ export function ProjectWorkspaceSettingsSection() {
                                           (activeDraft.partitionMode ?? "shared") === "shared"
                                         }
                                         className={cn(
-                                          "text-xs px-3 py-1.5 rounded-md font-medium transition-colors cursor-pointer",
+                                          "text-xs px-3 py-1.5 rounded-full font-medium transition-colors cursor-pointer",
                                           (activeDraft.partitionMode ?? "shared") === "shared"
                                             ? "font-semibold"
                                             : "text-muted-foreground hover:text-foreground",
@@ -1488,7 +1600,7 @@ export function ProjectWorkspaceSettingsSection() {
                                         }
                                         aria-pressed={activeDraft.partitionMode === "isolated"}
                                         className={cn(
-                                          "text-xs px-3 py-1.5 rounded-md font-medium transition-colors cursor-pointer",
+                                          "text-xs px-3 py-1.5 rounded-full font-medium transition-colors cursor-pointer",
                                           activeDraft.partitionMode === "isolated"
                                             ? "font-semibold"
                                             : "text-muted-foreground hover:text-foreground",
@@ -1503,7 +1615,7 @@ export function ProjectWorkspaceSettingsSection() {
                                         }
                                         aria-pressed={activeDraft.partitionMode === "profile"}
                                         className={cn(
-                                          "text-xs px-3 py-1.5 rounded-md font-medium transition-colors cursor-pointer",
+                                          "text-xs px-3 py-1.5 rounded-full font-medium transition-colors cursor-pointer",
                                           activeDraft.partitionMode === "profile"
                                             ? "font-semibold"
                                             : "text-muted-foreground hover:text-foreground",

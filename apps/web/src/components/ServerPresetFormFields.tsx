@@ -403,7 +403,11 @@ export function ServerPresetFormFields(props: {
 
             <div className="flex items-center justify-between gap-4">
               <div className="text-sm font-medium text-foreground">Target Browser</div>
-              <OrbitGroup className="tabs-segmented flex" role="group" aria-label="Target browser">
+              <OrbitGroup
+                className="tabs-segmented flex rounded-full"
+                role="group"
+                aria-label="Target browser"
+              >
                 <button
                   type="button"
                   onClick={() =>
@@ -414,7 +418,7 @@ export function ServerPresetFormFields(props: {
                   }
                   aria-pressed={preset.previewOpenTarget !== "external"}
                   className={cn(
-                    "text-xs px-3 py-1.5 rounded-md font-medium transition-colors cursor-pointer",
+                    "text-xs px-3 py-1.5 rounded-full font-medium transition-colors cursor-pointer",
                     preset.previewOpenTarget !== "external"
                       ? "font-semibold"
                       : "text-muted-foreground hover:text-foreground",
@@ -432,7 +436,7 @@ export function ServerPresetFormFields(props: {
                   }
                   aria-pressed={preset.previewOpenTarget === "external"}
                   className={cn(
-                    "text-xs px-3 py-1.5 rounded-md font-medium transition-colors cursor-pointer",
+                    "text-xs px-3 py-1.5 rounded-full font-medium transition-colors cursor-pointer",
                     preset.previewOpenTarget === "external"
                       ? "font-semibold"
                       : "text-muted-foreground hover:text-foreground",

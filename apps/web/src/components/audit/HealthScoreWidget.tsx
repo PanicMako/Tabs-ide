@@ -37,7 +37,7 @@ export function HealthScoreWidget({ summary }: { summary: AuditScanSummary }) {
     >
       <div className="flex items-center gap-4">
         <div
-          className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border-2 font-mono text-2xl font-bold ${scoreColor}`}
+          className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border-2 font-sans tabular-nums text-2xl font-bold ${scoreColor}`}
         >
           {score}
         </div>

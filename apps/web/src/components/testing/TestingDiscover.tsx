@@ -1811,7 +1811,7 @@ export const TestingDiscover = memo(function TestingDiscover({ projectId }: Test
                               capture. Deleting the page never changes repository files.
                             </p>
                             <OrbitGroup
-                              className="tabs-segmented mt-4 flex flex-wrap"
+                              className="tabs-segmented mt-4 flex flex-wrap rounded-full"
                               role="tablist"
                               aria-label="Page Object details"
                             >
@@ -1828,6 +1828,7 @@ export const TestingDiscover = memo(function TestingDiscover({ projectId }: Test
                                   id={`locator-page-tab-${id}`}
                                   type="button"
                                   size="sm"
+                                  className="rounded-full"
                                   variant={locatorPageTab === id ? "secondary" : "ghost"}
                                   role="tab"
                                   aria-selected={locatorPageTab === id}

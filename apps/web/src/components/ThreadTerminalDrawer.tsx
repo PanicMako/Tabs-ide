@@ -7,7 +7,7 @@ import {
   Trash2,
   XIcon,
 } from "lucide-react";
-import { type ThreadId } from "@tabs/contracts";
+import { type ThreadId, type NativeApi } from "@tabs/contracts";
 import { Terminal, type ITheme } from "@xterm/xterm";
 import {
   type PointerEvent as ReactPointerEvent,
@@ -44,7 +44,8 @@ import {
   MAX_TERMINALS_PER_GROUP,
   type ThreadTerminalGroup,
 } from "../types";
-import { readNativeApi, ensureNativeApi } from "~/nativeApi";
+import { useQuery } from "@tanstack/react-query";
+import { environmentApi } from "~/connection/environmentApiRegistry";
 
 const MIN_DRAWER_HEIGHT = 180;
 const MAX_DRAWER_HEIGHT_RATIO = 0.75;
@@ -205,6 +206,7 @@ interface TerminalViewportProps {
   terminalLabel: string;
   cwd: string;
   runtimeEnv?: Record<string, string>;
+  environmentId?: string | null | undefined;
   onSessionExited: () => void;
   onAddTerminalContext: (selection: TerminalContextSelection) => void;
   focusRequestId: number;
@@ -213,7 +215,23 @@ interface TerminalViewportProps {
   drawerHeight: number;
 }
 
-function TerminalViewport({
+function TerminalViewport(props: TerminalViewportProps) {
+  const connection = useQuery({
+    queryKey: ["terminal-environment-api", props.environmentId ?? null],
+    queryFn: () => environmentApi(props.environmentId),
+    staleTime: Infinity,
+  });
+  if (!connection.data)
+    return (
+      <div role="status">
+        {connection.error ? "Could not connect terminal" : "Connecting terminal…"}
+      </div>
+    );
+  return <ConnectedTerminalViewport {...props} api={connection.data} />;
+}
+
+function ConnectedTerminalViewport({
+  api,
   threadId,
   terminalId,
   terminalLabel,
@@ -225,7 +243,7 @@ function TerminalViewport({
   autoFocus,
   resizeEpoch,
   drawerHeight,
-}: TerminalViewportProps) {
+}: TerminalViewportProps & { api: NativeApi }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -274,9 +292,6 @@ function TerminalViewport({
 
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
-
-    const api = readNativeApi();
-    if (!api) return;
 
     const clearSelectionAction = () => {
       selectionActionRequestIdRef.current += 1;
@@ -634,7 +649,7 @@ function TerminalViewport({
     // autoFocus is intentionally omitted;
     // it is only read at mount time and must not trigger terminal teardown/recreation.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cwd, runtimeEnv, terminalId, threadId]);
+  }, [api, cwd, runtimeEnv, terminalId, threadId]);
 
   useEffect(() => {
     if (!autoFocus) return;
@@ -664,7 +679,6 @@ function TerminalViewport({
 
       animationFrameId = window.requestAnimationFrame(() => {
         animationFrameId = null;
-        const api = readNativeApi();
         const terminal = terminalRef.current;
         const fitAddon = fitAddonRef.current;
         if (!api || !terminal || !fitAddon) return;
@@ -693,7 +707,7 @@ function TerminalViewport({
       }
       observer.disconnect();
     };
-  }, [terminalId, threadId]);
+  }, [api, terminalId, threadId]);
   return (
     <div ref={containerRef} className="relative h-full w-full overflow-hidden rounded-[4px]" />
   );
@@ -703,6 +717,7 @@ interface ThreadTerminalDrawerProps {
   threadId: ThreadId;
   cwd: string;
   runtimeEnv?: Record<string, string>;
+  environmentId?: string | null | undefined;
   height: number;
   variant?: "drawer" | "embedded";
   showControls?: boolean;
@@ -759,6 +774,7 @@ export default function ThreadTerminalDrawer({
   threadId,
   cwd,
   runtimeEnv,
+  environmentId,
   height,
   variant = "drawer",
   showControls = true,
@@ -1094,6 +1110,7 @@ export default function ThreadTerminalDrawer({
                   >
                     <div className="h-full p-1">
                       <TerminalViewport
+                        environmentId={environmentId}
                         threadId={threadId}
                         terminalId={terminalId}
                         terminalLabel={terminalLabelById.get(terminalId) ?? "Terminal"}
@@ -1113,6 +1130,7 @@ export default function ThreadTerminalDrawer({
             ) : (
               <div className="h-full p-1">
                 <TerminalViewport
+                  environmentId={environmentId}
                   key={resolvedActiveTerminalId}
                   threadId={threadId}
                   terminalId={resolvedActiveTerminalId}
