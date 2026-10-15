@@ -66,7 +66,7 @@ const formatProcessInvocation = (input: {
     : `'${input.command}' in '${executionCwd}'`;
 };
 
-export class ProcessSpawnError extends Schema.TaggedErrorClass<ProcessSpawnError>()(
+export class ProcessSpawnError extends Schema.TaggedError<ProcessSpawnError>()(
   "ProcessSpawnError",
   {
     ...ProcessInvocationFields,
@@ -81,7 +81,7 @@ export class ProcessSpawnError extends Schema.TaggedErrorClass<ProcessSpawnError
   }
 }
 
-export class ProcessStdinError extends Schema.TaggedErrorClass<ProcessStdinError>()(
+export class ProcessStdinError extends Schema.TaggedError<ProcessStdinError>()(
   "ProcessStdinError",
   {
     ...ProcessInvocationFields,
@@ -94,7 +94,7 @@ export class ProcessStdinError extends Schema.TaggedErrorClass<ProcessStdinError
   }
 }
 
-export class ProcessOutputLimitError extends Schema.TaggedErrorClass<ProcessOutputLimitError>()(
+export class ProcessOutputLimitError extends Schema.TaggedError<ProcessOutputLimitError>()(
   "ProcessOutputLimitError",
   {
     ...ProcessInvocationFields,
@@ -108,20 +108,17 @@ export class ProcessOutputLimitError extends Schema.TaggedErrorClass<ProcessOutp
   }
 }
 
-export class ProcessReadError extends Schema.TaggedErrorClass<ProcessReadError>()(
-  "ProcessReadError",
-  {
-    ...ProcessInvocationFields,
-    stream: Schema.Literals(["stdout", "stderr", "exitCode"]),
-    cause: Schema.Defect(),
-  },
-) {
+export class ProcessReadError extends Schema.TaggedError<ProcessReadError>()("ProcessReadError", {
+  ...ProcessInvocationFields,
+  stream: Schema.Literals(["stdout", "stderr", "exitCode"]),
+  cause: Schema.Defect(),
+}) {
   override get message(): string {
     return `Failed to read ${this.stream} for process ${formatProcessInvocation(this)}`;
   }
 }
 
-export class ProcessTimeoutError extends Schema.TaggedErrorClass<ProcessTimeoutError>()(
+export class ProcessTimeoutError extends Schema.TaggedError<ProcessTimeoutError>()(
   "ProcessTimeoutError",
   {
     ...ProcessInvocationFields,
@@ -242,11 +239,13 @@ const collectText = Effect.fnUntraced(function* (input: {
         });
       },
     ),
-    Effect.map((state): CollectedUint8StreamText => ({
-      ...decodeUtf8(Buffer.concat(state.chunks, state.bytes)),
-      bytes: state.bytes,
-      truncated: false,
-    })),
+    Effect.map(
+      (state): CollectedUint8StreamText => ({
+        ...decodeUtf8(Buffer.concat(state.chunks, state.bytes)),
+        bytes: state.bytes,
+        truncated: false,
+      }),
+    ),
   );
 });
 
@@ -474,7 +473,11 @@ function normalizeExitError(
   args: readonly string[],
   result: ProcessRunResult,
 ): Error {
-  if (process.platform === "win32" && (result.code === 9009 || /is not recognized as an internal or external command/i.test(result.stderr))) {
+  if (
+    process.platform === "win32" &&
+    (result.code === 9009 ||
+      /is not recognized as an internal or external command/i.test(result.stderr))
+  ) {
     return new Error(`Command not found: ${command}`);
   }
 

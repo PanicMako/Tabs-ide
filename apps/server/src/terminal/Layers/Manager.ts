@@ -1645,8 +1645,7 @@ export const TerminalManagerLive = Layer.effect(
           try: () => runtime.list(),
           catch: (cause) => new TerminalError({ message: "Failed to list terminals", cause }),
         }),
-      attachStream: (_input: any, _listener: any) =>
-        Effect.succeed(() => {}),
+      attachStream: (_input: any, _listener: any) => Effect.succeed(() => {}),
       write: (input: any) =>
         Effect.tryPromise({
           try: () => runtime.write(input),

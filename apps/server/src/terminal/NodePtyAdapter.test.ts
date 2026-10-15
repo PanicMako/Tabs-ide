@@ -357,7 +357,7 @@ it.effect.each(["spawn", "interrupt"] as const)(
       assert.equal(messages.length, 1);
       expect(messages[0]).toMatchObject([
         "failed to cancel Windows terminal startup",
-        { terminalPid: 0, cause: { cause: killError } },
+        { terminalPid: 0, cause: killError },
       ]);
       assert.equal(nativeProcess.events.listenerCount("exit"), 0);
       assert.equal(nativeProcess._socket.listenerCount("ready_datapipe"), 0);

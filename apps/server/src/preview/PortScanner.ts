@@ -37,7 +37,7 @@ import * as Scope from "effect/Scope";
 import * as Semaphore from "effect/Semaphore";
 import { FetchHttpClient, HttpClient } from "effect/unstable/http";
 
-import { runProcess } from "../processRunner";
+import { runProcess } from "../processRunner.ts";
 
 export interface ProcessRunnerShape {
   readonly run: (input: {

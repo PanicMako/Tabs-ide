@@ -34,6 +34,8 @@ describe("terminal output window", () => {
             supportsAck: true,
             supportsTransferables: false,
             supportsSpanPropagation: false,
+            supportsNotifications: true,
+            codecFor: Schema.toCodecJson,
           };
         }),
       );

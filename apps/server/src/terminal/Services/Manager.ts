@@ -21,7 +21,7 @@ import {
 import { PtyProcess } from "./PTY";
 import { Effect, Schema } from "effect";
 
-export class TerminalError extends Schema.TaggedErrorClass<TerminalError>()("TerminalError", {
+export class TerminalError extends Schema.TaggedError<TerminalError>()("TerminalError", {
   message: Schema.String,
   cause: Schema.optional(Schema.Unknown),
 }) {}
@@ -57,7 +57,4 @@ export interface TerminalStartInput extends TerminalOpenInput {
   rows: number;
 }
 
-export {
-  TerminalManager,
-  type TerminalManagerShape,
-} from "../Manager.ts";
+export { TerminalManager, type TerminalManagerShape } from "../Manager.ts";
