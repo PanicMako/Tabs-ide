@@ -1016,26 +1016,50 @@ async function run() {
     `);
     await new Promise((r) => setTimeout(r, 400));
 
-    // In SchedulePicker, click "+1 hour" preset
-    await cdp.evaluate(`
-      (() => {
-        const buttons = Array.from(document.querySelectorAll("button"));
-        const plusHour = buttons.find((b) => b.textContent && b.textContent.includes("+1 hour"));
-        if (!plusHour) throw new Error("STRICT ACCEPTANCE FAILURE: '+1 hour' button not found in SchedulePicker");
-        plusHour.click();
-      })()
-    `);
+    // In SchedulePicker, click "+1 hour" preset with bounded wait
+    let plusHourClicked = false;
+    for (let i = 0; i < 30; i++) {
+      plusHourClicked = await cdp.evaluate(`
+        (() => {
+          const buttons = Array.from(document.querySelectorAll("button"));
+          const plusHour = buttons.find((b) => b.getAttribute("data-testid") === "schedule-preset-60" || (b.textContent && b.textContent.includes("+1 hour")));
+          if (plusHour && !plusHour.disabled) {
+            plusHour.click();
+            return true;
+          }
+          return false;
+        })()
+      `);
+      if (plusHourClicked) break;
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    if (!plusHourClicked) {
+      throw new Error(
+        "STRICT ACCEPTANCE FAILURE: '+1 hour' button not found or disabled in SchedulePicker",
+      );
+    }
     await new Promise((r) => setTimeout(r, 200));
 
-    // Click Schedule submit button
-    await cdp.evaluate(`
-      (() => {
-        const buttons = Array.from(document.querySelectorAll("button"));
-        const submitBtn = buttons.find((b) => b.getAttribute("type") === "submit" && b.textContent && b.textContent.includes("Schedule"));
-        if (!submitBtn || submitBtn.disabled) throw new Error("STRICT ACCEPTANCE FAILURE: Schedule submit button not found or disabled");
-        submitBtn.click();
-      })()
-    `);
+    // Click Schedule submit button with bounded wait
+    let submitClicked = false;
+    for (let i = 0; i < 30; i++) {
+      submitClicked = await cdp.evaluate(`
+        (() => {
+          const buttons = Array.from(document.querySelectorAll("button"));
+          const submitBtn = buttons.find((b) => b.getAttribute("data-testid") === "schedule-submit-button" || (b.getAttribute("type") === "submit" && b.textContent && b.textContent.includes("Schedule")));
+          if (submitBtn && !submitBtn.disabled) {
+            submitBtn.click();
+            return true;
+          }
+          return false;
+        })()
+      `);
+      if (submitClicked) break;
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    if (!submitClicked) {
+      throw new Error("STRICT ACCEPTANCE FAILURE: Schedule submit button not found or disabled");
+    }
     await new Promise((r) => setTimeout(r, 500));
 
     // Verify queued run in server projection
