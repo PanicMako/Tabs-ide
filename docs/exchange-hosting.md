@@ -14,6 +14,10 @@ Neon Free includes 5 GB of Object Storage and 5 GB of monthly public network tra
 
 R2 remains an alternative, not an active dependency. R2 Standard includes 10 GB-month of storage, one million Class A operations, and ten million Class B operations monthly, with free direct egress. Usage above that allowance is billable. No R2 subscription was activated and no payment method was added by this setup.
 
+Render failed to check out the full monorepo because a vendored Code-OSS simulation fixture is unavailable from the fork's Git LFS endpoint. A service-level `GIT_LFS_SKIP_SMUDGE` variable did not affect Render's checkout step. The deployment source is therefore `codex/exchange-deployment`, produced by `git subtree split --prefix=tabs-app`. It contains the application workspace at its root, with no LFS pointers, while the full repository and original commits remain on the integration branch. Render uses Docker context `.` and Dockerfile `apps/exchange/Dockerfile` on this deployment branch.
+
+After committing changes to the full repository, update the deployment projection with `git subtree split --prefix=tabs-app` and push the returned commit to `refs/heads/codex/exchange-deployment` without forcing. Verify that the projection tree matches `HEAD:tabs-app` before deploying it. Auto-deploy remains off.
+
 ## Alternatives considered
 
 - Koyeb Free offers one 512 MB, 0.1-vCPU instance in Frankfurt or Washington, sleeps after an hour, and cannot be a worker service. Its signup/billing flow requires a card and can default to a paid plan. It is not the safest default for a strict no-spend request.
@@ -24,7 +28,7 @@ The workspace already contains an unrelated Free service, `user-management`. Bot
 
 ## Configuration still needed
 
-The remaining hosting account/service, a canonical HTTPS registry origin, GitHub OAuth application, reviewed publisher terms, operator GitHub IDs, and a production TUF root/signing arrangement. Database and private storage credentials are now present only in the ignored Exchange environment file. The remaining production service and OAuth/signing configuration has not been completed. Test identities and test signing roots must not replace them.
+The Free Render service `tabs-exchange-api` now has the assigned origin `https://tabs-exchange-api.onrender.com`. Database, private storage, and GitHub OAuth credentials are configured privately on Render; operator access is restricted to the owner's numeric GitHub ID. Deployment and an actual GitHub sign-in must still be verified. Reviewed publisher terms, a scanning deployment, and a production TUF root/signing arrangement remain necessary before enabling publication. Test identities and test signing roots must not replace them.
 
 The marketing website may link to a same-origin portal on the registry host. If the Exchange portal itself is moved to Vercel, proxy authentication and API routes through the portal origin and verify cookies, CSRF, signed metadata, and streaming. Do not split protected frontend/API origins by changing a URL alone.
 
