@@ -1,0 +1,46 @@
+---
+import Exchange from "../../../layouts/Exchange.astro";
+import DocumentationSearch from "../../../components/DocumentationSearch.astro";
+import contract from "../../../../../src/public-openapi.json";
+import { openapiParameters } from "../../../lib/openapiParameters";
+const operations = Object.entries(contract.paths).flatMap(([path, methods]) =>
+  Object.entries(methods).map(([method, operation]) => ({
+    path,
+    method,
+    operation: operation as {
+      operationId: string;
+      summary?: string;
+      description?: string;
+      parameters?: Array<{ name: string; in: string; required?: boolean; description?: string; schema?: unknown }>;
+      requestBody?: unknown;
+      responses?: Record<string, { description?: string }>;
+    },
+  }))
+);
+---
+<Exchange title="Registry API reference" description="Browsable Tabs-native registry API reference." active="docs">
+  <nav class="docs-breadcrumb" aria-label="Breadcrumb">
+    <a href="/developers">Developers</a>
+    <svg aria-hidden="true" width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M3 1l4 4-4 4"/></svg>
+    <a href="/docs/extensions">Documentation</a>
+    <svg aria-hidden="true" width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M3 1l4 4-4 4"/></svg>
+    <span aria-current="page">Registry API</span>
+  </nav>
+
+  <div class="docs-api-search"><DocumentationSearch /></div>
+  <section class="api-reference-heading" aria-labelledby="api-title">
+    <div><p class="eyebrow">OpenAPI · Version {contract.info.version}</p><h1 id="api-title">The registry,<br /><em class="editorial-accent">in detail.</em></h1><p class="lead">Find the request you need. Explore discovery, package uploads, signed metadata, and reviewed assets.</p><details class="api-trust-contract"><summary>Client trust and authentication requirements</summary><p>{contract.info.description}</p></details></div>
+    <div class="api-contract-note"><span class="api-contract-braces" aria-hidden="true">{"{ }"}</span><div><strong>One contract. Compatible clients.</strong><p>Requests use your configured registry origin. The example origin is not a hosted service.</p><a class="text-link" href="/v1/openapi.json">Download OpenAPI JSON <span aria-hidden="true">↗</span></a><a href="/docs/extensions/registry">Read the client integration guide</a></div></div>
+  </section>
+  <div class="api-reference-layout">
+    <aside class="api-reference-index"><label for="api-operation-search">Find an endpoint</label><input id="api-operation-search" type="search" maxlength="100" placeholder="Path, method, or keyword" aria-controls="api-operation-index" /><p id="api-operation-status" role="status" aria-live="polite">{operations.length} endpoints</p><nav aria-label="API operations"><ul id="api-operation-index">{operations.map(({ method, path, operation }) => <li data-api-link={operation.operationId}><a href={`#${operation.operationId}`}><span class="api-method" data-method={method}>{method.toUpperCase()}</span><span>{path}</span></a></li>)}</ul></nav></aside>
+    <div class="api-reference-operations">{operations.map(({ method, path, operation }) => <section class="api-operation" id={operation.operationId} data-api-search={`${method} ${path} ${operation.summary ?? operation.operationId} ${operation.description ?? ""}`}>
+      <div class="api-operation-path"><span class="api-method" data-method={method}>{method.toUpperCase()}</span><code>{path}</code></div>
+      <h2>{operation.summary ?? operation.operationId}</h2><p>{operation.description}</p>
+      {operation.parameters?.length ? <div><h3>Parameters</h3><dl class="api-parameters">{openapiParameters(contract, operation.parameters).map((parameter) => <div><dt><code>{parameter.name}</code><span>{parameter.in}{parameter.required ? " · required" : " · optional"}</span></dt><dd>{parameter.description}<details><summary>Type and limits</summary><pre>{JSON.stringify(parameter.schema, null, 2)}</pre></details></dd></div>)}</dl></div> : <p class="api-no-parameters">No parameters declared.</p>}
+      {operation.requestBody && <details class="api-request-body"><summary>Request body contract</summary><pre>{JSON.stringify(operation.requestBody, null, 2)}</pre></details>}
+      <h3>Responses</h3><dl class="api-responses">{Object.entries(operation.responses ?? {}).map(([code, response]) => <div><dt><code data-success={code.startsWith("2") ? "true" : undefined}>{code}</code></dt><dd>{response.description}</dd></div>)}</dl>
+    </section>)}</div>
+  </div>
+</Exchange>
+<script>import "../../../scripts/docs-search"; import "../../../scripts/api-reference";</script>

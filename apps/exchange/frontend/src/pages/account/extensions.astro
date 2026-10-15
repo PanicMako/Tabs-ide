@@ -1,0 +1,13 @@
+---
+import Account from "../../layouts/Account.astro";
+---
+<Account title="Your" titleAccent="submissions" section="extensions">
+  <p>Every submitted version has its own review and signing status.</p>
+  <section class="release-desk" aria-labelledby="release-desk-title"><div class="section-heading"><div><p class="step-label">Your release record</p><h2 id="release-desk-title">Recent versions</h2></div><a href="/docs/extensions/publishing">Publishing guide ↗</a></div><ul id="account-submissions"></ul></section>
+  <div class="submission-path" aria-label="Submission stages"><span>01 / Package</span><span aria-hidden="true">→</span><span>02 / Scan & review</span><span aria-hidden="true">→</span><span>03 / Signed publication</span></div><p class="muted">Approval and signed publication are separate steps. Open an exact version to see its current status.</p>
+  <p id="submissions-count" role="status"></p>
+  <div class="actions"><a class="button" href="/publish">Submit a package</a><button class="button secondary" id="submissions-refresh" type="button">Refresh submissions</button></div>
+</Account>
+<script>
+  import "../../scripts/submissions";
+</script>

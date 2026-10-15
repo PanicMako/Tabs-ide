@@ -1,0 +1,55 @@
+---
+import Exchange from "../../layouts/Exchange.astro";
+---
+<Exchange title="Explore extensions" description="Browse reviewed, signed Tabs-native workspace tools." active="extensions">
+  <section class="catalog-heading" aria-labelledby="catalog-title">
+    <div><p class="eyebrow">The extension registry</p><h1 id="catalog-title">A tool for your<br /><em class="editorial-accent">next good idea.</em></h1></div>
+    <div><div class="catalog-tool-sketch" aria-hidden="true"><span>&lt;/&gt;</span><span>+ Your tool</span><i>↗</i></div><p class="lead">Explore published workspace tools. See what they do, who made them, and the access they need.</p><a class="text-link" href="/developers">Have an idea of your own? <span aria-hidden="true">↗</span></a></div>
+  </section>
+  <form id="catalog-search" class="catalog-filters" role="search" method="get" action="/extensions" aria-label="Filter extensions">
+    <label>Search
+      <input id="catalog-query" name="q" type="search" maxlength="100" placeholder="Search by name, publisher, keyword…" />
+    </label>
+    <label>Category
+      <select id="catalog-category" name="category">
+        <option value="">All categories</option><option value="productivity">Productivity</option><option value="development">Development</option><option value="collaboration">Collaboration</option><option value="utilities">Utilities</option><option value="ai">AI</option><option value="__custom">Other category…</option>
+      </select>
+      <input id="catalog-custom-category" maxlength="40" placeholder="Category slug" aria-label="Other category" hidden />
+    </label>
+    <label>Sort by
+      <select id="catalog-sort" name="sort">
+        <option value="">Default order</option>
+        <option value="relevance">Relevance</option>
+        <option value="newest">Newest published</option>
+        <option value="name">Name</option>
+      </select>
+    </label>
+    <button type="submit" class="button">Search</button>
+    <a class="text-link catalog-reset" href="/extensions">Reset filters</a>
+  </form>
+
+  <p class="muted" style="font-size:14px;margin:12px 0 28px">Search uses relevance when you enter a query. Categories are supplied by publishers.</p>
+  <p id="catalog-status" role="status" aria-live="polite" aria-atomic="true" class="registry-status">Loading published extensions…</p>
+
+  <div id="catalog-error" hidden class="registry-empty"><span class="empty-mark" aria-hidden="true">↗</span><div><h2>Let’s reconnect the registry.</h2>
+    <p id="catalog-error-message" style="color:#991b1b;font-weight:600"></p>
+    <div class="actions" style="margin-top:12px">
+      <button id="catalog-retry" class="button secondary" type="button">Retry search</button>
+      <a id="catalog-signin" class="button" href="/auth/github/start">Sign in to reconnect</a>
+    </div>
+  </div></div>
+
+  <div id="catalog-empty" class="registry-empty" hidden><span class="empty-mark" aria-hidden="true">+</span><div><h2>Room for a different search.</h2><p>Try another word or reset the filters to explore all published tools.</p><a class="text-link" href="/extensions">Reset filters <span aria-hidden="true">↗</span></a></div></div>
+
+  <section aria-label="Extension search results" id="catalog-region" aria-busy="true">
+    <ul id="catalog-results" class="catalog-results"></ul>
+  </section>
+
+  <div style="text-align:center;margin-top:36px">
+    <button id="catalog-more" class="button secondary" type="button" hidden>Load more extensions</button>
+  </div>
+
+  <noscript><p class="notice" style="margin-top:32px">Enable JavaScript to search this registry. The <a href="/docs/extensions/registry-api">public API reference</a> describes alternative compatible clients.</p></noscript>
+  <p class="instance-note">Manual review is not a security guarantee. Installation requires Tabs to verify signed metadata and request your permission. Browsing never grants access to your projects.</p>
+</Exchange>
+<script>import "../../scripts/catalog";</script>

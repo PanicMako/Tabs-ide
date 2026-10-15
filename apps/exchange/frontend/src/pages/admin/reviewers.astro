@@ -1,0 +1,45 @@
+---
+import Operations from "../../layouts/Operations.astro";
+---
+<Operations title="People you trust" accent="to review." description="Manage your review team and track access changes." section="people">
+  <p id="roles-status" tabindex="-1" class="operations-status" role="status" aria-live="polite">Checking operator access…</p>
+
+  <a id="roles-signin" href="/auth/github/start?returnTo=%2Fadmin%2Freviewers" hidden>Sign in with GitHub</a>
+  <section id="roles-content" hidden aria-label="Reviewer access management">
+    <p id="roles-identity" class="operator-identity"></p>
+    <p class="access-prerequisite">Ask your teammate to sign in to this Exchange first.</p><details class="task-help"><summary>Accounts managed by configuration</summary><p>Configured operators and legacy reviewers are managed through server configuration, not this form.</p></details>
+    <div class="access-workbench access-studio">
+      <section class="operations-panel">
+        <p class="step-label">Your review team</p><h2>Change reviewer access</h2>
+        <form id="roles-form" class="task-form">
+          <fieldset id="roles-fields">
+            <legend class="sr-only">Prepare an access change</legend><p class="muted access-form-guidance">Choose an account and record a reason. You’ll confirm the change before it applies.</p>
+            <div class="form-field"><label for="roles-login">GitHub username</label><input id="roles-login" required pattern="[a-zA-Z0-9][a-zA-Z0-9-]{0,38}" maxlength="39" autocomplete="off" /></div>
+            <div class="form-field"><label for="roles-action">Access change</label><select id="roles-action"><option value="grant">Grant reviewer access</option><option value="revoke">Revoke reviewer access</option></select></div>
+            <div class="form-field"><label for="roles-reason">Reason (recorded in the audit history)</label><textarea id="roles-reason" required maxlength="1000"></textarea></div>
+            <button class="button" id="roles-prepare" type="submit">Review access change</button>
+          </fieldset>
+        </form>
+        <section id="roles-confirmation" hidden aria-labelledby="roles-confirm-title" tabindex="-1">
+          <h2 id="roles-confirm-title">Confirm access change</h2><p id="roles-summary"></p>
+          <p>Granting access permits inspection of all quarantined submissions and review decisions. Revocation applies to existing sessions on their next request. No automatic retry is made.</p>
+          <div class="actions"><button class="button" id="roles-confirm" type="button">Confirm access change</button><button class="button secondary" id="roles-cancel" type="button">Cancel</button></div>
+        </section>
+      </section>
+      <section class="access-boundaries">
+        <p class="step-label">Access boundaries</p><h2>Who can do what</h2><div class="role-boundary-map" aria-label="Operator and reviewer capabilities"><div><span>Operator / you</span><strong>Assign & audit</strong></div><span aria-hidden="true">↓</span><div><span>Reviewer / your team</span><strong>Inspect & decide</strong></div></div>
+        <p>Reviewers sign in with their own GitHub accounts before you can grant access. Tell them separately; invitations are not sent automatically.</p>
+        <p>They inspect quarantined packages and decide on exact versions and digests.</p>
+        <p>Reviewers <strong>cannot</strong>: delegate access to others, obtain signing keys, or bypass signed publication.</p>
+        <p class="muted">Revocation takes effect on the reviewer's next privileged request, not immediately.</p>
+      </section>
+    </div>
+    <div class="section-heading team-record-heading"><h2>Team & activity</h2><button class="button secondary" id="roles-refresh" type="button">Refresh access</button></div><div class="team-record-grid">
+    <section class="operations-ledger"><p class="step-label">Current access</p><h2>Latest assignments</h2><p>Up to 100 most recently changed assignments.</p><ul id="roles-assignments" class="audit-list team-ledger"></ul></section>
+    <section class="operations-ledger"><p class="step-label">The record</p><h2>Audit history</h2><p>Up to 100 most recent grant and revoke events, newest first. Repeat requests do not create duplicate changes.</p><ul id="roles-events" class="audit-list"></ul></section>
+    </div>
+  </section>
+</Operations>
+<script>
+  import "../../scripts/reviewer-roles";
+</script>
