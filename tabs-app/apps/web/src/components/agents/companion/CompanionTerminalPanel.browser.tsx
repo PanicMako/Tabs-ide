@@ -12,7 +12,8 @@ vi.mock("~/hooks/useActiveProjectTarget", () => ({
   useActiveProjectTarget: () => ({
     projectId: "project",
     projectName: "Project",
-    cwd: "/workspace",
+    cwd: "/worktree",
+    projectCwd: "/workspace",
     environmentId: "environment",
     threadId: "thread",
   }),
@@ -29,10 +30,17 @@ vi.mock("~/state/terminal", () => ({
 vi.mock("~/components/ThreadTerminalDrawer", () => ({
   default: ({
     onAddTerminalContext,
+    environmentId,
+    runtimeEnv,
   }: {
     onAddTerminalContext: (selection: TerminalContextSelection) => void;
+    environmentId?: string | null;
+    runtimeEnv?: Record<string, string>;
   }) => (
     <button
+      data-environment={environmentId}
+      data-project-root={runtimeEnv?.TABS_PROJECT_ROOT}
+      data-worktree={runtimeEnv?.TABS_WORKTREE_PATH}
       onClick={() =>
         onAddTerminalContext({
           terminalId: "terminal",
@@ -53,7 +61,11 @@ it("attaches terminal selections to the correct environment's composer", async (
   const storageId = scopedComposerThreadId(EnvironmentId.makeUnsafe("environment"), thread);
   const view = await render(<CompanionTerminalPanel threadId={thread} />);
   try {
-    await page.getByRole("button", { name: "Add selection to composer" }).click();
+    const button = page.getByRole("button", { name: "Add selection to composer" });
+    await expect.element(button).toHaveAttribute("data-environment", "environment");
+    await expect.element(button).toHaveAttribute("data-project-root", "/workspace");
+    await expect.element(button).toHaveAttribute("data-worktree", "/worktree");
+    await button.click();
     const draft = useComposerDraftStore.getState().draftsByThreadId[storageId];
     expect(draft?.terminalContexts).toHaveLength(1);
     expect(draft?.terminalContexts[0]?.text).toBe("build failed");

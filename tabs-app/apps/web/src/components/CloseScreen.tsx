@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef, useId, useCallback } from "react";
 import { useTheme } from "../hooks/useTheme";
 import { cn } from "~/lib/utils";
-import { FONT_COMBOS } from "../lib/themes";
 import "./close-animation.css";
 import "./loaders.css";
+import { resolveAnimationFonts } from "../lib/animationTypography";
 
 export type ClosePhase = "idle" | "closing" | "holding";
 
@@ -27,33 +27,6 @@ const CLOSE_SOLARI_MESSAGES = [
   "BLAMING THE LAST COMMIT",
   "SHUTTING DOWN (PROBABLY)",
 ];
-
-function resolveAnimationFonts(
-  fontComboId?: string | undefined,
-  customFontProp?: string | undefined,
-): { headingFont?: string | undefined; uiFont?: string | undefined } {
-  if (!fontComboId || fontComboId === "app-default") return {};
-  if (fontComboId === "custom") {
-    const customFont =
-      customFontProp ||
-      (typeof window !== "undefined"
-        ? (window.localStorage?.getItem("tabs.customAnimationFont") ?? "'Inter', sans-serif")
-        : "'Inter', sans-serif");
-    return {
-      headingFont: customFont,
-      uiFont: customFont,
-    };
-  }
-  const combo = FONT_COMBOS.find((c) => c.id === fontComboId);
-  if (!combo) return {};
-  const displayFont = combo.uiFont !== "custom" ? combo.uiFont : undefined;
-  return {
-    headingFont: displayFont,
-    uiFont: displayFont,
-  };
-}
-
-/* ── Rotating Label (reuses loaders.css rl-in/rl-out keyframes) ─────── */
 
 function RotatingLabel({
   messages,
@@ -113,7 +86,13 @@ interface CloseAnimationProps {
   palette: "block" | "mono";
   isDark: boolean;
   onIntroEnd?: (() => void) | undefined;
-  fonts?: { headingFont?: string | undefined; uiFont?: string | undefined } | undefined;
+  fonts?:
+    | {
+        headingFont?: string | undefined;
+        headingWeight?: number | undefined;
+        uiFont?: string | undefined;
+      }
+    | undefined;
 }
 
 function MoltenGlassClose({ phase, palette, isDark, onIntroEnd, fonts }: CloseAnimationProps) {
@@ -186,7 +165,11 @@ function MoltenGlassClose({ phase, palette, isDark, onIntroEnd, fonts }: CloseAn
 
   const animating = phase === "closing" || phase === "holding";
   const headingStyle = fonts?.headingFont
-    ? { fontFamily: fonts.headingFont, filter: `url(#${filterId})` }
+    ? {
+        fontFamily: fonts.headingFont,
+        fontWeight: fonts.headingWeight,
+        filter: `url(#${filterId})`,
+      }
     : { filter: `url(#${filterId})` };
 
   return (
@@ -343,7 +326,7 @@ function SolariGridClose({ phase, palette, isDark, onIntroEnd, fonts }: CloseAni
                 )}
                 style={{
                   ...(animating ? { transitionDelay: `${i * 70}ms` } : {}),
-                  ...(tileFont ? { fontFamily: tileFont } : {}),
+                  ...(tileFont ? { fontFamily: tileFont, fontWeight: fonts?.headingWeight } : {}),
                 }}
               >
                 <div
@@ -401,7 +384,7 @@ export function CloseScreen({
   fontComboId,
   customFont,
 }: CloseScreenProps) {
-  const { resolvedTheme } = useTheme();
+  const { resolvedTheme, fontPreferences } = useTheme();
   const effectiveTheme =
     overrideTheme && overrideTheme !== "system" ? overrideTheme : resolvedTheme;
   const isDark = effectiveTheme === "dark";
@@ -422,7 +405,7 @@ export function CloseScreen({
         undefined)
       : undefined);
 
-  const fonts = resolveAnimationFonts(storedComboId, storedCustomFont);
+  const fonts = resolveAnimationFonts(storedComboId, storedCustomFont, fontPreferences);
 
   return (
     <div

@@ -145,7 +145,7 @@ export const ThemeImportExportModal: React.FC<ThemeImportExportModalProps> = ({
 
           <div className="flex items-center gap-2">
             <OrbitGroup
-              className="tabs-segmented flex text-xs"
+              className="tabs-segmented flex text-xs rounded-full"
               role="group"
               aria-label="Theme transfer mode"
             >
@@ -153,7 +153,7 @@ export const ThemeImportExportModal: React.FC<ThemeImportExportModalProps> = ({
                 type="button"
                 onClick={() => setActiveTab("import")}
                 aria-pressed={activeTab === "import"}
-                className={`rounded-lg px-3 py-1 font-semibold transition-colors cursor-pointer ${
+                className={`rounded-full px-3 py-1 font-semibold transition-colors cursor-pointer ${
                   activeTab === "import"
                     ? "bg-background text-foreground shadow-xs"
                     : "text-muted-foreground hover:text-foreground"
@@ -165,7 +165,7 @@ export const ThemeImportExportModal: React.FC<ThemeImportExportModalProps> = ({
                 type="button"
                 onClick={() => setActiveTab("export")}
                 aria-pressed={activeTab === "export"}
-                className={`rounded-lg px-3 py-1 font-semibold transition-colors cursor-pointer ${
+                className={`rounded-full px-3 py-1 font-semibold transition-colors cursor-pointer ${
                   activeTab === "export"
                     ? "bg-background text-foreground shadow-xs"
                     : "text-muted-foreground hover:text-foreground"

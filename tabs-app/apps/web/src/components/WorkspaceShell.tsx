@@ -1,6 +1,14 @@
+import { AgentBackground } from "./AgentBackground";
+import { interfaceStudyAccent } from "../lib/interfaceStudy";
+import { useSettingsLabsStore } from "../stores/settingsLabsStore";
+import { InterfaceStudyTopBar } from "./InterfaceStudyTopBar";
+import "./settings/wallpaper-labs.css";
 import { useGsapInsets } from "../hooks/useGsapInsets";
 import { useWindowControlsInset } from "../hooks/useWindowControlsInset";
 import { BrowserToolbar } from "./browser/BrowserToolbar";
+import { ExtensionToolSurface } from "./ExtensionToolSurface";
+import { useInstalledExtensions } from "../state/extensions";
+import { extensionProfileForProject } from "@tabs/shared/extensions";
 import type { FileDiffMetadata, Hunk } from "@pierre/diffs";
 import { createPortal } from "react-dom";
 import { useAtomValue } from "@effect/atom-react";
@@ -80,6 +88,7 @@ import {
   ChevronDownIcon,
   ChevronRightIcon,
   ChevronUpIcon,
+  CopyIcon,
   ExternalLinkIcon,
   FlaskConicalIcon,
   FolderSearchIcon,
@@ -95,6 +104,7 @@ import {
   MonitorIcon,
   MousePointer2Icon,
   PlayIcon,
+  PuzzleIcon,
   PencilIcon,
   PlusIcon,
   RefreshCwIcon,
@@ -233,6 +243,7 @@ import { Badge } from "./ui/badge";
 import { initializeZoom, resetZoom, zoomIn, zoomOut } from "../state/zoom";
 import { Button } from "./ui/button";
 import { CloneRepositoryDialog } from "./CloneRepositoryDialog";
+import { WorkspaceWelcomeScreen } from "./WorkspaceWelcomeScreen";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Checkbox } from "./ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
@@ -315,6 +326,8 @@ import { MercuryChromeLoader } from "./MercuryChromeLoader";
 import { Spinner } from "./ui/spinner";
 import { NotificationHistoryPanel } from "./NotificationHistoryPanel";
 import { resolveTabActivityIndicator } from "../lib/tabActivityIndicator";
+import { ProjectFavicon } from "./ProjectFavicon";
+import { useWorkspaceAppearanceStore } from "../stores/workspaceAppearanceStore";
 import { isSnoozed, isSettled } from "../state/threadLifecycle";
 import { resolveSnoozePresets } from "../state/snoozePresets";
 import { planPinnedMove, planPinnedReorder, sortPinnedThreads } from "../state/pinnedThreadOrder";
@@ -323,7 +336,11 @@ import { planPinnedMove, planPinnedReorder, sortPinnedThreads } from "../state/p
 // chat is actually opened, so keep it out of the always-loaded shell bundle.
 const ChatView = lazy(() => import("./ChatView"));
 import { VscodeEntryIcon } from "./chat/VscodeEntryIcon";
-import { getCodeHostUnavailableMessage } from "./codeHost.logic";
+import {
+  getCodeHostUnavailableMessage,
+  getDefaultCodeHostUnavailableMessage,
+} from "./codeHost.logic";
+import { openWelcomeWizard } from "../onboarding/firstRun";
 import { CodeActivityRail } from "./code/CodeActivityRail";
 import { CodeHeaderBar } from "./code/CodeHeaderBar";
 import {
@@ -575,6 +592,8 @@ function toolIcon(tool: ProjectToolKind) {
       return <FlaskConicalIcon aria-hidden="true" className="size-3.5" />;
     case "custom_process":
       return <TerminalSquareIcon className="size-3.5" />;
+    case "extension":
+      return <PuzzleIcon className="size-3.5" />;
   }
 }
 
@@ -941,6 +960,51 @@ function TitlebarNotificationBell({ onOpenSettings }: { onOpenSettings?: () => v
   );
 }
 
+function TabBottomFillets() {
+  return (
+    <>
+      <svg
+        className="tab-bottom-fillet pointer-events-none absolute -bottom-px -left-2.5 w-3 h-2.5 z-10"
+        viewBox="0 0 12 10"
+        fill="none"
+        aria-hidden="true"
+      >
+        <path
+          d="M 0 10 A 10 10 0 0 0 10 0 L 12 0 L 12 10 Z"
+          className="tab-bottom-fillet-fill"
+          fill="currentColor"
+        />
+        <path
+          d="M 0 10 A 10 10 0 0 0 10 0"
+          className="tab-bottom-fillet-stroke"
+          stroke="var(--border)"
+          strokeWidth="1"
+          fill="none"
+        />
+      </svg>
+      <svg
+        className="tab-bottom-fillet pointer-events-none absolute -bottom-px -right-2.5 w-3 h-2.5 z-10"
+        viewBox="0 0 12 10"
+        fill="none"
+        aria-hidden="true"
+      >
+        <path
+          d="M 0 0 L 2 0 A 10 10 0 0 0 12 10 L 0 10 Z"
+          className="tab-bottom-fillet-fill"
+          fill="currentColor"
+        />
+        <path
+          d="M 2 0 A 10 10 0 0 0 12 10"
+          className="tab-bottom-fillet-stroke"
+          stroke="var(--border)"
+          strokeWidth="1"
+          fill="none"
+        />
+      </svg>
+    </>
+  );
+}
+
 function ProjectTabs(props: {
   projects: ReadonlyArray<Project>;
   openProjects: ReadonlyArray<Project>;
@@ -955,6 +1019,7 @@ function ProjectTabs(props: {
   onClosePendingTab: (pendingId: string) => void;
   showSettings?: boolean;
   onOpenSettings?: () => void;
+  hasToolbar?: boolean;
 }) {
   const windowControlsInset = useWindowControlsInset(
     isWindowsDesktop || isMacDesktop,
@@ -985,12 +1050,17 @@ function ProjectTabs(props: {
     ),
   ];
 
+  const showProjectTabIcons = useWorkspaceAppearanceStore((s) => s.showProjectTabIcons);
+  const projectTabIconOverrides = useWorkspaceAppearanceStore((s) => s.projectTabIconOverrides);
+
   return (
     <div
       ref={titlebarRef}
+      data-slot="workspace-tabbar"
       className={cn(
-        "drag-region flex items-end justify-between gap-2 overflow-x-auto border-b px-3 pt-2 select-none backdrop-blur-md transition-colors duration-200",
-        "border-border/80 bg-background/95 text-foreground",
+        "drag-region flex items-end justify-between gap-2 px-3 pt-2 select-none backdrop-blur-md transition-colors duration-200",
+        props.hasToolbar ? "border-b-0" : "border-b border-border/80",
+        "bg-background/95 text-foreground",
         // Linux uses native decorations outside the DOM. Overlaid controls on
         // macOS/Windows report the usable area rather than a presumed side.
         isWindowsDesktop && "h-[52px] shrink-0",
@@ -1000,36 +1070,72 @@ function ProjectTabs(props: {
         paddingRight: Math.max(12, windowControlsInset.right),
       }}
     >
-      <div className="flex min-w-0 flex-1 items-end gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="flex min-w-0 flex-1 items-end gap-2.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {tabs.map((entry) => {
           if (entry.kind === "project") {
             const { project } = entry;
             const active = project.id === props.activeProjectId && !props.activePendingTabId;
             const projectThreads = (props.threads ?? []).filter((t) => t.projectId === project.id);
             const activityIndicator = !active ? resolveTabActivityIndicator(projectThreads) : null;
+            const isTabIconVisible = projectTabIconOverrides[project.id] ?? showProjectTabIcons;
             return (
               <div
                 key={project.id}
+                data-slot="workspace-project-tab"
+                style={interfaceStudyAccent(project.id)}
                 data-active={active ? "true" : undefined}
                 className={cn(
                   "drag-region group relative inline-flex min-w-[9.5rem] max-w-[15rem] items-center gap-2 rounded-t-xl border px-3.5 py-2 text-xs font-semibold transition-all duration-150 cursor-pointer select-none",
                   active
-                    ? "relative -mb-px border-border border-b-card bg-card text-card-foreground shadow-sm"
+                    ? cn(
+                        "relative -mb-px border-border bg-card text-card-foreground",
+                        props.hasToolbar ? "border-b-0 shadow-none" : "border-b-card shadow-sm",
+                      )
                     : "border-transparent text-muted-foreground hover:bg-muted/70 hover:text-foreground",
                 )}
                 onClick={() => props.onActivateProject(project.id)}
               >
-                <button
-                  type="button"
-                  className={cn(
-                    "min-w-0 flex-1 truncate text-left leading-normal pb-0.5 tracking-tight",
-                    active
-                      ? "font-semibold text-card-foreground"
-                      : "font-medium text-muted-foreground group-hover:text-foreground",
-                  )}
-                >
-                  {project.name}
-                </button>
+                {active && <TabBottomFillets />}
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <div className="flex min-w-0 flex-1 items-center gap-1.5 truncate">
+                        {isTabIconVisible && (
+                          <span className="flex size-4 shrink-0 items-center justify-center rounded overflow-hidden">
+                            <ProjectFavicon
+                              project={{
+                                workspaceRoot: project.cwd,
+                                title: project.name,
+                                faviconPath: project.faviconPath,
+                                projectIcon: project.projectIcon,
+                                environmentId: project.environmentId,
+                              }}
+                              className="size-3.5"
+                            />
+                          </span>
+                        )}
+                        <span
+                          className={cn(
+                            "min-w-0 flex-1 truncate text-left leading-normal pb-0.5 tracking-tight",
+                            active
+                              ? "font-semibold text-card-foreground"
+                              : "font-medium text-muted-foreground group-hover:text-foreground",
+                          )}
+                        >
+                          {project.name}
+                        </span>
+                      </div>
+                    }
+                  />
+                  <TooltipPopup side="bottom">
+                    <div className="space-y-0.5 max-w-xs">
+                      <p className="font-semibold text-xs">{project.name}</p>
+                      <p className="font-mono text-[10px] text-muted-foreground break-all">
+                        {project.cwd}
+                      </p>
+                    </div>
+                  </TooltipPopup>
+                </Tooltip>
                 {activityIndicator && (
                   <span
                     className={cn(
@@ -1070,11 +1176,17 @@ function ProjectTabs(props: {
               className={cn(
                 "drag-region group relative inline-flex min-w-[9.5rem] max-w-[15rem] items-center gap-2 rounded-t-xl border px-3.5 py-2 text-xs font-semibold transition-all duration-150 cursor-pointer select-none",
                 active
-                  ? "relative -mb-px border-border border-b-card bg-card text-card-foreground shadow-sm ring-1 ring-border/50"
+                  ? cn(
+                      "relative -mb-px border-border bg-card text-card-foreground",
+                      props.hasToolbar
+                        ? "border-b-0 shadow-none"
+                        : "border-b-card shadow-sm ring-1 ring-border/50",
+                    )
                   : "border-transparent text-muted-foreground hover:bg-muted/70 hover:text-foreground",
               )}
               onClick={() => props.onActivatePendingTab(pendingId)}
             >
+              {active && <TabBottomFillets />}
               <button
                 type="button"
                 className={cn(
@@ -1185,8 +1297,15 @@ function ProjectToolBar(props: {
   }, [activeIndex, props.availableTools, toolbarStyle]);
 
   return (
-    <div className="flex items-center justify-between gap-3 border-b border-border/70 bg-card/85 px-3 py-2">
+    <div
+      data-slot="workspace-toolbar-shell"
+      className="flex items-center justify-between gap-3 border-b border-border/70 bg-card px-3 py-2"
+    >
       <div
+        data-slot="workspace-toolbar"
+        style={interfaceStudyAccent(
+          props.availableTools.find((tool) => tool.id === props.activeToolId)?.kind ?? "code",
+        )}
         ref={trackRef}
         role="tablist"
         aria-label="Project tools"
@@ -1216,12 +1335,21 @@ function ProjectToolBar(props: {
               key={tool.id}
               type="button"
               role="tab"
+              data-tool-kind={tool.kind}
+              style={interfaceStudyAccent(tool.kind)}
               aria-selected={active}
               tabIndex={active ? 0 : -1}
               onClick={() => props.onSelectTool(tool.id)}
               className={cn("nav-tab", active && "active")}
             >
-              {toolIcon(tool.kind)}
+              <span
+                className={cn(
+                  "nav-tab-icon inline-flex items-center justify-center shrink-0 transition-colors",
+                  active ? "text-foreground font-semibold" : "text-muted-foreground",
+                )}
+              >
+                {toolIcon(tool.kind)}
+              </span>
               <span>{tool.label}</span>
               {toolActivityIndicator && (
                 <span
@@ -1379,17 +1507,23 @@ function AgentsThreadList(props: {
       } else if (action === "settle") {
         if (
           !thread.settledAt &&
-          (thread.session?.status === "running" || thread.latestTurn?.state === "running")
+          (thread.activeRunId ||
+            thread.session?.status === "running" ||
+            thread.latestTurn?.state === "running")
         ) {
-          try {
-            await api.orchestration.dispatchCommand({
-              type: "thread.session.stop",
-              commandId: newCommandId(),
-              threadId: thread.id,
-              createdAt: new Date().toISOString(),
-            });
-          } catch {
-            // best-effort session stop
+          if (thread.activeRunId) {
+            try {
+              await api.orchestration.dispatchCommand({
+                type: "run.interrupt",
+                commandId: newCommandId(),
+                threadId: thread.id,
+                runId: thread.activeRunId,
+                holdQueue: true,
+                reason: "Thread settled",
+              });
+            } catch {
+              // best-effort run interrupt
+            }
           }
         }
         await api.orchestration.dispatchCommand(
@@ -2679,8 +2813,11 @@ function AgentsThreadList(props: {
       </div>
 
       {/* ── Main content ── */}
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
-        {props.children}
+      <div
+        data-wallpaper-shell="chat-area"
+        className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background"
+      >
+        <AgentBackground threadId={props.activeThreadId}>{props.children}</AgentBackground>
       </div>
 
       {/* ── Delete confirmation dialog ── */}
@@ -2714,6 +2851,172 @@ function AgentsThreadList(props: {
           </AlertDialogFooter>
         </AlertDialogPopup>
       </AlertDialog>
+    </div>
+  );
+}
+
+function CodeHostUnavailableView(props: {
+  project: Project;
+  errorReason: string | null;
+  onRetry: () => void;
+  onOpenInEditor: () => void;
+}) {
+  const [copied, setCopied] = useState(false);
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
+  const [showFilesFallback, setShowFilesFallback] = useState(false);
+
+  const buildCommand = "cd ../tabs-code-oss && npm install && npm run compile";
+
+  const handleCopy = useCallback(() => {
+    void navigator.clipboard.writeText(buildCommand);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }, [buildCommand]);
+
+  const rawReason = props.errorReason ?? getDefaultCodeHostUnavailableMessage();
+  const isProjectFolderMissing = props.errorReason?.includes("project folder no longer exists");
+
+  return (
+    <div className="flex h-full min-h-0 min-w-0 flex-col overflow-y-auto bg-background/50">
+      <div className="flex min-h-full items-center justify-center p-6 md:p-10">
+        <div
+          className="relative w-full max-w-2xl overflow-hidden rounded-[28px] border border-border/70 bg-card/85 p-8 shadow-2xl backdrop-blur-2xl md:p-10"
+          style={{ fontFamily: "var(--font-sans)" }}
+        >
+          {/* Subtle background glow */}
+          <div className="pointer-events-none absolute -left-20 -top-20 size-60 rounded-full bg-primary/10 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-20 -right-20 size-60 rounded-full bg-primary/5 blur-3xl" />
+
+          {/* Header Icon + Title */}
+          <div className="relative mb-6">
+            <div className="mb-4 inline-flex size-14 items-center justify-center rounded-2xl border border-primary/25 bg-primary/10 text-primary shadow-sm">
+              <CodeIcon className="size-7" />
+            </div>
+            <h2 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+              {isProjectFolderMissing
+                ? "Project Folder Unavailable"
+                : "Code-OSS Runtime Not Available"}
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+              {isProjectFolderMissing
+                ? "The configured workspace directory could not be resolved on disk. Verify the directory path or re-run the setup wizard."
+                : "The embedded Code-OSS editor runtime has not been compiled for this worktree yet. Build the local runtime or continue working with an external editor."}
+            </p>
+          </div>
+
+          {/* Copyable Build Command */}
+          {!isProjectFolderMissing && (
+            <div className="relative mb-6 overflow-hidden rounded-2xl border border-border/60 bg-muted/30 p-3.5 backdrop-blur-sm">
+              <div className="mb-2 flex items-center justify-between text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                <span className="flex items-center gap-1.5">
+                  <TerminalSquareIcon className="size-3.5 text-muted-foreground/80" />
+                  Build Command
+                </span>
+                <span className="text-[10px] text-muted-foreground/60">One-time setup</span>
+              </div>
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-border/40 bg-background/80 px-3.5 py-2.5 font-mono text-xs text-foreground">
+                <code className="select-all overflow-x-auto whitespace-pre font-mono text-xs">
+                  {buildCommand}
+                </code>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  onClick={handleCopy}
+                  className="shrink-0 gap-1.5 rounded-full text-xs font-sans text-muted-foreground hover:text-foreground"
+                >
+                  {copied ? (
+                    <>
+                      <CheckIcon className="size-3.5 text-emerald-500" />
+                      <span className="text-emerald-500">Copied</span>
+                    </>
+                  ) : (
+                    <>
+                      <CopyIcon className="size-3.5" />
+                      <span>Copy</span>
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Unified Action Buttons */}
+          <div className="relative flex flex-wrap items-center gap-2.5 pt-1">
+            <Button type="button" onClick={props.onOpenInEditor} className="gap-2 rounded-full">
+              <ExternalLinkIcon className="size-3.5" />
+              Open in External Editor
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={props.onRetry}
+              className="gap-2 rounded-full"
+            >
+              <RefreshCwIcon className="size-3.5" />
+              Retry Connection
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => openWelcomeWizard()}
+              className="gap-2 rounded-full"
+            >
+              <SparklesIcon className="size-3.5" />
+              Open Setup Wizard
+            </Button>
+          </div>
+
+          {/* Diagnostic Details Disclosure & Workspace Files Fallback */}
+          <div className="mt-8 border-t border-border/50 pt-4">
+            <div className="flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setShowDiagnostics((prev) => !prev)}
+                className="inline-flex items-center gap-1.5 text-xs text-muted-foreground/80 transition-colors hover:text-foreground cursor-pointer"
+              >
+                {showDiagnostics ? (
+                  <ChevronUpIcon className="size-3.5" />
+                ) : (
+                  <ChevronDownIcon className="size-3.5" />
+                )}
+                <span>
+                  {showDiagnostics ? "Hide diagnostic details" : "Show diagnostic details"}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowFilesFallback((prev) => !prev)}
+                className="text-xs text-muted-foreground/60 transition-colors hover:text-foreground hover:underline cursor-pointer"
+              >
+                {showFilesFallback ? "Hide file browser" : "Explore project files"}
+              </button>
+            </div>
+
+            {showDiagnostics && (
+              <div className="mt-3 space-y-2 rounded-xl border border-border/50 bg-muted/20 p-3.5 font-mono text-[11px] text-muted-foreground">
+                <div>
+                  <span className="font-semibold text-foreground/80">Workspace Root: </span>
+                  <span className="break-all">{props.project.cwd}</span>
+                </div>
+                <div>
+                  <span className="font-semibold text-foreground/80">Diagnostic Info: </span>
+                  <p className="mt-1 whitespace-pre-wrap break-all rounded bg-background/50 p-2 font-mono text-[10px] text-muted-foreground/90">
+                    {rawReason}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {showFilesFallback && (
+            <div className="mt-6 border-t border-border/50 pt-4">
+              <FallbackCodeTool project={props.project} />
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -3481,44 +3784,16 @@ function DesktopCodeTool(props: { project: Project }) {
 
   if (shouldUseFallbackTool) {
     return (
-      <div className="flex h-full min-h-0 min-w-0 flex-col bg-background">
-        <div className="border-b border-border/70 bg-card/60 px-4 py-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="min-w-0">
-              <div className="text-sm font-medium text-foreground">
-                {hostError?.includes("project folder no longer exists")
-                  ? "Project folder unavailable"
-                  : "Embedded Code-OSS unavailable"}
-              </div>
-              <div className="text-xs text-muted-foreground">
-                {getCodeHostUnavailableMessage(hostError ?? codeHostState?.reason ?? null)}
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setHostError(null);
-                  setHostReady(false);
-                  setRetryNonce((n) => n + 1);
-                }}
-              >
-                <RefreshCwIcon className="mr-1.5 size-3.5" />
-                Retry
-              </Button>
-              <Button type="button" size="sm" onClick={() => void openProjectInEditor()}>
-                <FolderSearchIcon className="size-3.5" />
-                Open In Editor
-              </Button>
-            </div>
-          </div>
-        </div>
-        <div className="min-h-0 flex-1">
-          <FallbackCodeTool project={props.project} />
-        </div>
-      </div>
+      <CodeHostUnavailableView
+        project={props.project}
+        errorReason={hostError ?? codeHostState?.reason ?? null}
+        onRetry={() => {
+          setHostError(null);
+          setHostReady(false);
+          setRetryNonce((n) => n + 1);
+        }}
+        onOpenInEditor={() => void openProjectInEditor()}
+      />
     );
   }
 
@@ -4743,14 +5018,14 @@ function GitTool(props: {
     const createdAt = new Date().toISOString();
     try {
       await api.orchestration.dispatchCommand({
-        type: "thread.turn.start",
+        type: "message.dispatch",
         commandId,
         threadId: activeAgentsThread.id,
-        message: { messageId, role: "user", text: prompt, attachments: [] },
+        messageId,
+        text: prompt,
+        attachments: [],
         modelSelection: activeAgentsThread.modelSelection,
-        runtimeMode: activeAgentsThread.runtimeMode,
-        interactionMode: activeAgentsThread.interactionMode,
-        createdAt,
+        dispatchMode: { type: "start_immediately" },
       });
       toastManager.add({
         type: "success",
@@ -4870,19 +5145,14 @@ function GitTool(props: {
 
     try {
       await api.orchestration.dispatchCommand({
-        type: "thread.turn.start",
+        type: "message.dispatch",
         commandId,
         threadId: activeAgentsThread.id,
-        message: {
-          messageId,
-          role: "user",
-          text: prompt,
-          attachments: [],
-        },
+        messageId,
+        text: prompt,
+        attachments: [],
         modelSelection: activeAgentsThread.modelSelection,
-        runtimeMode: activeAgentsThread.runtimeMode,
-        interactionMode: activeAgentsThread.interactionMode,
-        createdAt,
+        dispatchMode: { type: "start_immediately" },
       });
       setAiConflictState({
         status: "waiting",
@@ -8258,26 +8528,21 @@ function DesktopBrowserChrome(props: {
             const task = reproductionTasks.find((thread) => thread.id === reproduction.taskId);
             if (!api || !task) throw new Error("The selected task is no longer available.");
             await api.orchestration.dispatchCommand({
-              type: "thread.turn.start",
+              type: "message.dispatch",
               commandId: CommandId.makeUnsafe(`reproduction-${reproduction.id}`),
               threadId: task.id,
-              message: {
-                messageId: MessageId.makeUnsafe(reproduction.id),
-                role: "user",
-                attachments: [],
-                text: [
-                  `Investigate this browser issue in ${props.projectCwd}.`,
-                  `Expected result: ${reproduction.expectedResult}`,
-                  `Reproduction: ${reproduction.specPath}`,
-                  `Evidence and reviewed steps: tests/e2e/reproductions/${reproduction.id}.json`,
-                  `Verification: ${reproduction.verificationStatus}. ${reproduction.verificationMessage ?? ""}`,
-                  "Run the reviewed assertions to verify any fix. Required inputs are environment variables; do not put secrets in source files.",
-                ].join("\n"),
-              },
+              messageId: MessageId.makeUnsafe(reproduction.id),
+              text: [
+                `Investigate this browser issue in ${props.projectCwd}.`,
+                `Expected result: ${reproduction.expectedResult}`,
+                `Reproduction: ${reproduction.specPath}`,
+                `Evidence and reviewed steps: tests/e2e/reproductions/${reproduction.id}.json`,
+                `Verification: ${reproduction.verificationStatus}. ${reproduction.verificationMessage ?? ""}`,
+                "Run the reviewed assertions to verify any fix. Required inputs are environment variables; do not put secrets in source files.",
+              ].join("\n"),
+              attachments: [],
               modelSelection: task.modelSelection,
-              runtimeMode: task.runtimeMode,
-              interactionMode: task.interactionMode,
-              createdAt: reproduction.createdAt,
+              dispatchMode: { type: "start_immediately" },
             });
           }}
           isOpen={recordIssueDialogOpen}
@@ -10960,12 +11225,14 @@ function ServerTool(props: {
 }
 
 export function WorkspaceShell(props: { agentsContent: ReactNode; settingsContent: ReactNode }) {
+  const installedExtensions = useInstalledExtensions();
   useDesktopIconThemeSync();
   useAutoRefreshModelsOnStartup();
   const openAddProjectCommandPalette = useOpenAddProjectCommandPalette();
   const navigate = useNavigate();
   const location = useLocation();
   const [isSettingsNavigationPending, setIsSettingsNavigationPending] = useState(false);
+  const isInterfaceStudy = useSettingsLabsStore((state) => state.editorialSettings);
   const openSettings = useCallback(() => {
     if (location.pathname === "/settings") return;
 
@@ -11205,9 +11472,13 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
     .map((projectId) => projects.find((project) => project.id === projectId) ?? null)
     .filter((project): project is Project => project !== null);
   const activeProjectSettings = useProjectWorkspaceSettings(activeProject?.id ?? null);
-  const resolvedTools = activeProjectSettings ? resolveProjectTools(activeProjectSettings) : [];
+  const resolvedTools = activeProjectSettings
+    ? resolveProjectTools(activeProjectSettings, installedExtensions, activeProject?.id)
+    : [];
   const activeToolId = activeProject
-    ? (workspaceState.session.activeToolIdByProjectId[activeProject.id] ??
+    ? (resolvedTools.find(
+        (tool) => tool.id === workspaceState.session.activeToolIdByProjectId[activeProject.id],
+      )?.id ??
       resolvedTools[0]?.id ??
       "agents")
     : null;
@@ -12759,90 +13030,14 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
       }
     };
     content = (
-      <div className="flex h-full min-h-0 overflow-auto bg-background px-10 py-12">
-        <div className="mx-auto flex w-full max-w-4xl flex-col gap-10">
-          <div className="space-y-2">
-            <h1 className="text-4xl font-medium tracking-tight text-foreground">Welcome</h1>
-            <p className="text-base text-muted-foreground">
-              Open a local project to start using the workspace shell.
-            </p>
-          </div>
-
-          <div className="grid gap-12 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)]">
-            <div className="space-y-5">
-              <div>
-                <div className="text-xl font-medium text-foreground">Start</div>
-              </div>
-              <div className="space-y-1">
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-accent/40"
-                  onClick={() => void handleCreateProject()}
-                >
-                  <PlusIcon className="size-4 text-muted-foreground" />
-                  <span>Add Project...</span>
-                </button>
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-accent/40"
-                  onClick={() => void handleOpenProjectFile()}
-                >
-                  <FolderSearchIcon className="size-4 text-muted-foreground" />
-                  <span>Open File...</span>
-                </button>
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-accent/40"
-                  onClick={() => openAddProjectCommandPalette()}
-                >
-                  <GitBranchIcon className="size-4 text-muted-foreground" />
-                  <span>Clone from Git...</span>
-                </button>
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-accent/40"
-                  onClick={openSettings}
-                >
-                  <SettingsIcon className="size-4 text-muted-foreground" />
-                  <span>Workspace Settings</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="space-y-5">
-              <div>
-                <div className="text-xl font-medium text-foreground">Recent</div>
-              </div>
-              {recentProjects.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-border/70 px-4 py-5 text-sm text-muted-foreground">
-                  No recent projects yet.
-                </div>
-              ) : (
-                <div className="space-y-1">
-                  {recentProjects.map((project) => (
-                    <button
-                      key={project.id}
-                      type="button"
-                      className="flex w-full items-start justify-between gap-4 rounded-lg px-3 py-2 text-left transition-colors hover:bg-accent/40"
-                      onClick={() => handleRecentProject(project)}
-                    >
-                      <div className="min-w-0">
-                        <div className="truncate text-sm font-medium text-foreground">
-                          {project.name}
-                        </div>
-                        <div className="truncate text-xs text-muted-foreground">{project.cwd}</div>
-                      </div>
-                      <div className="shrink-0 pt-0.5 text-[11px] uppercase tracking-[0.14em] text-muted-foreground/70">
-                        Open
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
+      <WorkspaceWelcomeScreen
+        recentProjects={recentProjects}
+        onCreateProject={() => void handleCreateProject()}
+        onOpenFile={() => void handleOpenProjectFile()}
+        onCloneGit={() => openAddProjectCommandPalette()}
+        onOpenSettings={openSettings}
+        onSelectProject={(project) => void handleRecentProject(project)}
+      />
     );
   } else if (!activeProject || !activeProjectSettings) {
     // No pending tab is active, but still no real project resolved — this is the
@@ -12855,90 +13050,14 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
       )
       .slice(0, 6);
     content = (
-      <div className="flex h-full min-h-0 overflow-auto bg-background px-10 py-12">
-        <div className="mx-auto flex w-full max-w-4xl flex-col gap-10">
-          <div className="space-y-2">
-            <h1 className="text-4xl font-medium tracking-tight text-foreground">Welcome</h1>
-            <p className="text-base text-muted-foreground">
-              Open a local project to start using the workspace shell.
-            </p>
-          </div>
-
-          <div className="grid gap-12 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)]">
-            <div className="space-y-5">
-              <div>
-                <div className="text-xl font-medium text-foreground">Start</div>
-              </div>
-              <div className="space-y-1">
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-accent/40"
-                  onClick={() => void handleCreateProject()}
-                >
-                  <PlusIcon className="size-4 text-muted-foreground" />
-                  <span>Add Project...</span>
-                </button>
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-accent/40"
-                  onClick={() => void handleOpenProjectFile()}
-                >
-                  <FolderSearchIcon className="size-4 text-muted-foreground" />
-                  <span>Open File...</span>
-                </button>
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-accent/40"
-                  onClick={() => openAddProjectCommandPalette()}
-                >
-                  <GitBranchIcon className="size-4 text-muted-foreground" />
-                  <span>Clone from Git...</span>
-                </button>
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-accent/40"
-                  onClick={openSettings}
-                >
-                  <SettingsIcon className="size-4 text-muted-foreground" />
-                  <span>Workspace Settings</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="space-y-5">
-              <div>
-                <div className="text-xl font-medium text-foreground">Recent</div>
-              </div>
-              {recentProjects.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-border/70 px-4 py-5 text-sm text-muted-foreground">
-                  No recent projects yet.
-                </div>
-              ) : (
-                <div className="space-y-1">
-                  {recentProjects.map((project) => (
-                    <button
-                      key={project.id}
-                      type="button"
-                      className="flex w-full items-start justify-between gap-4 rounded-lg px-3 py-2 text-left transition-colors hover:bg-accent/40"
-                      onClick={() => void focusProject(project.id)}
-                    >
-                      <div className="min-w-0">
-                        <div className="truncate text-sm font-medium text-foreground">
-                          {project.name}
-                        </div>
-                        <div className="truncate text-xs text-muted-foreground">{project.cwd}</div>
-                      </div>
-                      <div className="shrink-0 pt-0.5 text-[11px] uppercase tracking-[0.14em] text-muted-foreground/70">
-                        Open
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
+      <WorkspaceWelcomeScreen
+        recentProjects={recentProjects}
+        onCreateProject={() => void handleCreateProject()}
+        onOpenFile={() => void handleOpenProjectFile()}
+        onCloneGit={() => openAddProjectCommandPalette()}
+        onOpenSettings={openSettings}
+        onSelectProject={(project) => void focusProject(project.id)}
+      />
     );
   } else if (activeTool?.kind === "agents") {
     content = (
@@ -13007,6 +13126,23 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
     content = customEmbedTool;
   } else if (activeTool?.kind === "custom_process") {
     content = customProcessTool;
+  } else if (activeTool?.kind === "extension") {
+    const extension = installedExtensions.find((item) => item.id === activeTool.extensionId);
+    content =
+      activeProject && extension && activeTool.extensionToolId ? (
+        <ExtensionToolSurface
+          key={`${activeProject.id}:${extension.id}:${activeTool.extensionToolId}`}
+          label={activeTool.label}
+          source={extension.source}
+          {...(extension.registryOrigin ? { registryOrigin: extension.registryOrigin } : {})}
+          input={{
+            projectId: activeProject.id,
+            extensionId: extension.id,
+            toolId: activeTool.extensionToolId,
+            profileId: extensionProfileForProject(extension.assignment, activeProject.id),
+          }}
+        />
+      ) : null;
   } else {
     content = browserTool;
   }
@@ -13037,64 +13173,120 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
         onOpenChange={setCloneDialogOpen}
         onCloned={handleClonedRepository}
       />
-      {!threadsHydrated || shouldHideShellChrome ? null : (
-        <ProjectTabs
-          projects={projects}
-          openProjects={openProjects}
-          activeProjectId={activeProject?.id ?? null}
-          pendingTabIds={pendingTabIds}
-          activePendingTabId={activePendingTabId}
-          threads={threads}
-          onActivateProject={(projectId) => void focusProject(projectId)}
-          onCloseProject={(projectId) => {
-            const wasActive = workspaceState.session.activeProjectId === projectId;
-            void requestCloseProject(projectId).then((closed) => {
-              if (!closed || !wasActive) return;
-              const remainingProjectIds = workspaceState.session.openProjectIds.filter(
-                (id) => id !== projectId,
-              );
-              const fallbackProjectId = remainingProjectIds[remainingProjectIds.length - 1] ?? null;
-              if (fallbackProjectId) {
-                void focusProject(fallbackProjectId);
-              } else {
-                void navigate({ to: "/" });
-              }
-            });
-          }}
-          onNewTab={() => {
-            const pendingId = randomUUID();
-            openPendingTab(pendingId);
-            void navigate({ to: "/" });
-          }}
-          onActivatePendingTab={(pendingId) => {
-            openPendingTab(pendingId);
-            void navigate({ to: "/" });
-          }}
-          onClosePendingTab={(pendingId) => {
-            closePendingTab(pendingId);
-          }}
-          showSettings={
-            !isSettingsSurfaceActive && Boolean(activeProject) && availableTools.length <= 1
-          }
-          onOpenSettings={openSettings}
-        />
+      {!threadsHydrated || shouldHideShellChrome ? null : isInterfaceStudy ? (
+        !isSettingsSurfaceActive ? (
+          <InterfaceStudyTopBar
+            projects={projects}
+            openProjects={openProjects}
+            activeProject={activeProject}
+            pendingTabIds={pendingTabIds}
+            activePendingTabId={activePendingTabId}
+            activeToolId={activeTool?.id ?? ""}
+            availableTools={availableTools}
+            threads={threads}
+            onActivateProject={(projectId) => void focusProject(projectId)}
+            onCloseProject={(projectId) => {
+              const wasActive = workspaceState.session.activeProjectId === projectId;
+              void requestCloseProject(projectId).then((closed) => {
+                if (!closed || !wasActive) return;
+                const remainingProjectIds = workspaceState.session.openProjectIds.filter(
+                  (id) => id !== projectId,
+                );
+                const fallbackProjectId =
+                  remainingProjectIds[remainingProjectIds.length - 1] ?? null;
+                if (fallbackProjectId) {
+                  void focusProject(fallbackProjectId);
+                } else {
+                  void navigate({ to: "/" });
+                }
+              });
+            }}
+            onNewTab={() => {
+              const pendingId = randomUUID();
+              openPendingTab(pendingId);
+              void navigate({ to: "/" });
+            }}
+            onActivatePendingTab={(pendingId) => {
+              openPendingTab(pendingId);
+              void navigate({ to: "/" });
+            }}
+            onClosePendingTab={(pendingId) => {
+              closePendingTab(pendingId);
+            }}
+            onSelectTool={(toolId) => void handleSelectTool(toolId)}
+            onOpenSettings={openSettings}
+          />
+        ) : null
+      ) : (
+        <>
+          <ProjectTabs
+            projects={projects}
+            openProjects={openProjects}
+            activeProjectId={activeProject?.id ?? null}
+            pendingTabIds={pendingTabIds}
+            activePendingTabId={activePendingTabId}
+            threads={threads}
+            onActivateProject={(projectId) => void focusProject(projectId)}
+            onCloseProject={(projectId) => {
+              const wasActive = workspaceState.session.activeProjectId === projectId;
+              void requestCloseProject(projectId).then((closed) => {
+                if (!closed || !wasActive) return;
+                const remainingProjectIds = workspaceState.session.openProjectIds.filter(
+                  (id) => id !== projectId,
+                );
+                const fallbackProjectId =
+                  remainingProjectIds[remainingProjectIds.length - 1] ?? null;
+                if (fallbackProjectId) {
+                  void focusProject(fallbackProjectId);
+                } else {
+                  void navigate({ to: "/" });
+                }
+              });
+            }}
+            onNewTab={() => {
+              const pendingId = randomUUID();
+              openPendingTab(pendingId);
+              void navigate({ to: "/" });
+            }}
+            onActivatePendingTab={(pendingId) => {
+              openPendingTab(pendingId);
+              void navigate({ to: "/" });
+            }}
+            onClosePendingTab={(pendingId) => {
+              closePendingTab(pendingId);
+            }}
+            showSettings={
+              !isSettingsSurfaceActive && Boolean(activeProject) && availableTools.length <= 1
+            }
+            onOpenSettings={openSettings}
+            hasToolbar={
+              !isSettingsSurfaceActive && Boolean(activeProject) && availableTools.length >= 2
+            }
+          />
+          {!shouldHideShellChrome &&
+          !isSettingsSurfaceActive &&
+          activeProject &&
+          availableTools.length >= 2 ? (
+            <ProjectToolBar
+              activeToolId={activeTool?.id ?? ""}
+              availableTools={availableTools}
+              threads={threads}
+              activeProjectId={activeProject?.id ?? null}
+              onSelectTool={(toolId) => void handleSelectTool(toolId)}
+              onOpenSettings={openSettings}
+            />
+          ) : null}
+        </>
       )}
 
-      {!shouldHideShellChrome &&
-      !isSettingsSurfaceActive &&
-      activeProject &&
-      availableTools.length >= 2 ? (
-        <ProjectToolBar
-          activeToolId={activeTool?.id ?? ""}
-          availableTools={availableTools}
-          threads={threads}
-          activeProjectId={activeProject?.id ?? null}
-          onSelectTool={(toolId) => void handleSelectTool(toolId)}
-          onOpenSettings={openSettings}
-        />
-      ) : null}
-
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <div
+        className={cn(
+          "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
+          isInterfaceStudy &&
+            !isSettingsSurfaceActive &&
+            "study-workspace-card rounded-t-[28px] bg-card relative z-1",
+        )}
+      >
         <ToolErrorBoundary
           resetKey={`${activeProject?.environmentId ?? "none"}:${activeProject?.id ?? "none"}:${activeTool?.id ?? "none"}`}
         >

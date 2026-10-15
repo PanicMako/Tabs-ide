@@ -562,7 +562,7 @@ export default function Sidebar() {
       void environmentApi(thread.environmentId)
         .then((api) =>
           api.orchestration.dispatchCommand({
-            type: "thread.meta.update",
+            type: "thread.metadata.update",
             commandId: newCommandId(),
             threadId: thread.id,
             linkedPullRequest: next,
@@ -647,9 +647,10 @@ export default function Sidebar() {
           defaultModelSelection: makeAppModelSelection("codex", DEFAULT_MODEL),
           createdAt,
         });
-        await handleNewThread(projectId, {
-          ...(appSettings.defaultThreadEnvMode ? { envMode: appSettings.defaultThreadEnvMode } : {}),
-        }).catch(() => undefined);
+        await handleNewThread(
+          projectId,
+          appSettings.defaultThreadEnvMode ? { envMode: appSettings.defaultThreadEnvMode } : {},
+        ).catch(() => undefined);
       } catch (error) {
         const description =
           error instanceof Error ? error.message : "An error occurred while adding the project.";
@@ -739,7 +740,7 @@ export default function Sidebar() {
       try {
         const api = await environmentApi(thread.environmentId);
         await api.orchestration.dispatchCommand({
-          type: "thread.meta.update",
+          type: "thread.metadata.update",
           commandId: newCommandId(),
           threadId,
           title: trimmed,
@@ -807,13 +808,15 @@ export default function Sidebar() {
           ].join("\n"),
         ));
 
-      if (thread.session && thread.session.status !== "closed") {
+      if (thread.activeRunId) {
         await api.orchestration
           .dispatchCommand({
-            type: "thread.session.stop",
+            type: "run.interrupt",
             commandId: newCommandId(),
             threadId,
-            createdAt: new Date().toISOString(),
+            runId: thread.activeRunId,
+            holdQueue: true,
+            reason: "Thread deleted",
           })
           .catch(() => undefined);
       }
@@ -1004,7 +1007,7 @@ export default function Sidebar() {
       }
       if (clicked === "regenerate-title") {
         await api.orchestration.dispatchCommand({
-          type: "thread.meta.update",
+          type: "thread.metadata.update",
           commandId: newCommandId(),
           threadId,
           regenerateTitle: true,
