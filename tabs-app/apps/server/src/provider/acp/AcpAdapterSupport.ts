@@ -10,7 +10,7 @@ import {
   ProviderAdapterRequestError,
   ProviderAdapterSessionClosedError,
   type ProviderAdapterError,
-} from "../Errors";
+} from "../Errors.ts";
 const isAcpProcessExitedError = Schema.is(EffectAcpErrors.AcpProcessExitedError);
 const isAcpRequestError = Schema.is(EffectAcpErrors.AcpRequestError);
 

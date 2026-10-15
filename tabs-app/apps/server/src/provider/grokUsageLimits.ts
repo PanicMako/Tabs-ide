@@ -169,6 +169,7 @@ export const readGrokAccount = Effect.fn("readGrokAccount")(function* (
     return grokUsageResponseToLimits(body, checkedAt);
   }).pipe(
     Effect.timeout("10 seconds"),
+    Effect.catchDefect(() => Effect.succeed(probeFailed)),
     Effect.orElseSucceed(() => probeFailed),
   );
   return { email, usageLimits };

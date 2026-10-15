@@ -31,16 +31,16 @@ import { ChildProcessSpawner } from "effect/unstable/process";
 import * as EffectAcpErrors from "effect-acp/errors";
 import type * as EffectAcpSchema from "effect-acp/schema";
 
-import { resolveAttachmentPath } from "../../attachmentStore";
-import { ServerConfig } from "../../config";
+import { resolveAttachmentPath } from "../../attachmentStore.ts";
+import { ServerConfig } from "../../config.ts";
 import {
   ProviderAdapterProcessError,
   ProviderAdapterRequestError,
   ProviderAdapterSessionNotFoundError,
   ProviderAdapterValidationError,
-} from "../Errors";
-import { mapAcpToAdapterError } from "../acp/AcpAdapterSupport";
-import { type AcpSessionRuntimeShape } from "../acp/AcpSessionRuntime";
+} from "../Errors.ts";
+import { mapAcpToAdapterError } from "../acp/AcpAdapterSupport.ts";
+import { type AcpSessionRuntimeShape } from "../acp/AcpSessionRuntime.ts";
 import {
   makeAcpAssistantItemEvent,
   makeAcpContentDeltaEvent,
@@ -48,19 +48,19 @@ import {
   makeAcpRequestOpenedEvent,
   makeAcpRequestResolvedEvent,
   makeAcpToolCallEvent,
-} from "../acp/AcpCoreRuntimeEvents";
-import { parsePermissionRequest, type AcpPlanUpdate } from "../acp/AcpRuntimeModel";
-import { makeAcpNativeLoggerFactory } from "../acp/AcpNativeLogging";
+} from "../acp/AcpCoreRuntimeEvents.ts";
+import { parsePermissionRequest, type AcpPlanUpdate } from "../acp/AcpRuntimeModel.ts";
+import { makeAcpNativeLoggerFactory } from "../acp/AcpNativeLogging.ts";
 import {
   applyCopilotAcpModelSelection,
   currentCopilotModelIdFromSessionSetup,
   makeCopilotAcpRuntime,
   resolveCopilotAcpBaseModelId,
-} from "../acp/CopilotAcpSupport";
-import { type CopilotAdapterShape } from "../Services/CopilotAdapter";
-import { type EventNdjsonLogger, makeEventNdjsonLogger } from "./EventNdjsonLogger";
+} from "../acp/CopilotAcpSupport.ts";
+import { type CopilotAdapterShape } from "../Services/CopilotAdapter.ts";
+import { type EventNdjsonLogger, makeEventNdjsonLogger } from "./EventNdjsonLogger.ts";
 
-const encodeUnknownJsonStringExit = Schema.encodeUnknownExit(Schema.UnknownFromJsonString);
+const encodeUnknownJsonStringExit = Schema.encodeUnknownExit(Schema.fromJsonString(Schema.Unknown));
 
 const PROVIDER = "copilot" as ProviderDriverKind;
 const COPILOT_RESUME_VERSION = 1 as const;
@@ -103,6 +103,7 @@ interface CopilotSessionContext {
   lastPlanFingerprint: string | undefined;
   activeTurnId: TurnId | undefined;
   currentModelId: string | undefined;
+  protocolVersion?: number | undefined;
   stopped: boolean;
 }
 
@@ -528,6 +529,7 @@ export function makeCopilotAdapter(
             yield* validateAdvertisedModel(requestedModelId, "session/start");
             currentModelId = yield* applyCopilotAcpModelSelection({
               runtime: acp,
+              protocolVersion: started.initializeResult.protocolVersion,
               currentModelId,
               requestedModelId,
               mapError: (cause) =>
@@ -565,6 +567,7 @@ export function makeCopilotAdapter(
             lastPlanFingerprint: undefined,
             activeTurnId: undefined,
             currentModelId,
+            protocolVersion: started.initializeResult.protocolVersion,
             stopped: false,
           };
 
@@ -654,6 +657,7 @@ export function makeCopilotAdapter(
               yield* validateAdvertisedModel(requestedModelId, "turn/send");
               ctx.currentModelId = yield* applyCopilotAcpModelSelection({
                 runtime: ctx.acp,
+                protocolVersion: ctx.protocolVersion,
                 currentModelId: ctx.currentModelId,
                 requestedModelId,
                 mapError: (cause) =>

@@ -30,9 +30,9 @@ import {
   AUTH_PROBE_TIMEOUT_MS,
   buildServerProvider,
   type ServerProviderDraft,
-} from "../providerSnapshot";
-import { expandHomePath } from "../../pathExpansion";
-import { codexAppServerArgs, resolveCodexLaunchArgs } from "./codexLaunchArgs";
+} from "../providerSnapshot.ts";
+import { expandHomePath } from "../../pathExpansion.ts";
+import { codexAppServerArgs, resolveCodexLaunchArgs } from "./codexLaunchArgs.ts";
 import packageJson from "../../../package.json" with { type: "json" };
 import { makeUnavailableUsageLimits } from "../providerUsageLimits.ts";
 import {

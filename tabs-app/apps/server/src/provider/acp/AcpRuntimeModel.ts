@@ -6,10 +6,7 @@ import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
 import * as EffectAcpSchema from "effect-acp/compat";
 import * as EffectAcpSchemaV1 from "effect-acp/schema-v1";
-import {
-  deriveToolActivityPresentation,
-  mergeToolActivityData,
-} from "@tabs/shared/toolActivity";
+import { deriveToolActivityPresentation, mergeToolActivityData } from "@tabs/shared/toolActivity";
 import { T3_MCP_TOOL_NAMES } from "@tabs/shared/t3McpToolPresentation";
 import type {
   OrchestrationV2ProviderThreadNativeMetadata,

@@ -82,6 +82,7 @@ export interface AntigravityProfile {
   readonly acpDirectory: string;
   readonly tokenPath: string;
   readonly browserCommand: string;
+  readonly tempDirectory?: string;
 }
 
 /**
@@ -194,7 +195,9 @@ export const resolveAntigravityInstanceDirectories = Effect.fn(
 )(function* (stateDir: string, instanceId: ProviderInstanceId) {
   const crypto = yield* Crypto.Crypto;
   const path = yield* Path.Path;
-  const key = Encoding.encodeHex(yield* crypto.digest("SHA-256", new TextEncoder().encode(instanceId)));
+  const key = Encoding.encodeHex(
+    yield* crypto.digest("SHA-256", new TextEncoder().encode(instanceId)),
+  );
   return {
     profile: path.join(stateDir, "providers", "antigravity", key),
     runtimeTemp: path.join(stateDir, "antigravity-tmp", key.slice(0, 12)),
@@ -246,6 +249,7 @@ function antigravityEnvironment(
 /** Prepares a private profile without reading or copying Google credentials. */
 export const prepareAntigravityProfile = Effect.fn("prepareAntigravityProfile")(function* (input: {
   readonly profileDirectory: string;
+  readonly tempDirectory?: string;
   readonly baseEnv?: NodeJS.ProcessEnv;
   readonly runtimeExecutablePath?: string;
   readonly platform?: NodeJS.Platform;
@@ -281,6 +285,7 @@ export const prepareAntigravityProfile = Effect.fn("prepareAntigravityProfile")(
     acpDirectory,
     tokenPath: path.join(acpDirectory, "acp_token.json"),
     browserCommand,
+    ...(input.tempDirectory ? { tempDirectory: path.resolve(input.tempDirectory) } : {}),
   };
   const environment = antigravityEnvironment(profile, input.baseEnv ?? process.env, auth);
   yield* Effect.gen(function* () {
@@ -322,7 +327,11 @@ export const prepareAntigravityProfile = Effect.fn("prepareAntigravityProfile")(
     ),
   );
 
-  for (const directory of [geminiHome, acpDirectory]) {
+  for (const directory of [
+    geminiHome,
+    acpDirectory,
+    ...(profile.tempDirectory ? [profile.tempDirectory] : []),
+  ]) {
     yield* fs
       .makeDirectory(directory, { recursive: true, mode: 0o700 })
       .pipe(
@@ -360,6 +369,7 @@ export function buildAntigravityAcpSpawnInput(input: {
     readonly harnessPath: string;
   };
   readonly profile: AntigravityProfile;
+  readonly runtimeTempDirectory?: string;
   readonly cwd: string;
   readonly baseEnv?: NodeJS.ProcessEnv;
   readonly auth?: AntigravityAuthConfig;
@@ -375,6 +385,13 @@ export function buildAntigravityAcpSpawnInput(input: {
         input.auth ?? ANTIGRAVITY_PERSONAL_AUTH,
       ),
       ANTIGRAVITY_HARNESS_PATH: input.installation.harnessPath,
+      ...(input.runtimeTempDirectory
+        ? {
+            TMPDIR: input.runtimeTempDirectory,
+            TMP: input.runtimeTempDirectory,
+            TEMP: input.runtimeTempDirectory,
+          }
+        : {}),
     },
     extendEnv: false,
   };

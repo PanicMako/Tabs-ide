@@ -25,13 +25,13 @@ import {
   parseGenericCliVersion,
   spawnAndCollect,
   type ServerProviderDraft,
-} from "../providerSnapshot";
+} from "../providerSnapshot.ts";
 import {
   enrichProviderSnapshotWithVersionAdvisory,
   type ProviderMaintenanceCapabilities,
-} from "../providerMaintenance";
-import { buildCopilotEnvironment } from "../acp/CopilotAcpSupport";
-import { getCopilotToken } from "../CopilotCredentialStore";
+} from "../providerMaintenance.ts";
+import { buildCopilotEnvironment } from "../acp/CopilotAcpSupport.ts";
+import { getCopilotToken } from "../CopilotCredentialStore.ts";
 
 export const COPILOT_PRESENTATION = {
   displayName: "GitHub Copilot",

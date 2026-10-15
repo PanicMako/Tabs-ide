@@ -1,4 +1,8 @@
-import { deleteProviderSecret, getProviderSecret, setProviderSecret } from "./ProviderSecretStore";
+import {
+  deleteProviderSecret,
+  getProviderSecret,
+  setProviderSecret,
+} from "./ProviderSecretStore.ts";
 
 export function getCopilotToken(): Promise<string | null> {
   return getProviderSecret("copilot.github-token");

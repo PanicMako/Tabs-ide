@@ -279,9 +279,24 @@ it.layer(NodeServices.layer)("Antigravity installation", (it) => {
   it.effect.each([
     {
       name: "the expected release",
+      protocolVersion: 1,
       agentName: "antigravity-acp",
       version: "fixture-new",
       valid: true,
+    },
+    {
+      name: "the expected release negotiating protocol 2",
+      protocolVersion: 2,
+      agentName: "antigravity-acp",
+      version: "fixture-new",
+      valid: true,
+    },
+    {
+      name: "an unsupported protocol",
+      protocolVersion: 3,
+      agentName: "antigravity-acp",
+      version: "fixture-new",
+      valid: false,
     },
     { name: "a different agent", agentName: "other-agent", version: "fixture-new", valid: false },
     {
@@ -352,7 +367,7 @@ it.layer(NodeServices.layer)("Antigravity installation", (it) => {
                       ...(request.method === "initialize"
                         ? {
                             result: {
-                              protocolVersion: 1,
+                              protocolVersion: testCase.protocolVersion ?? 1,
                               agentInfo: { name: testCase.agentName, version: testCase.version },
                               agentCapabilities: {
                                 loadSession: true,

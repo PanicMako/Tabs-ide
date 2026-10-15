@@ -449,6 +449,8 @@ it.layer(NodeServices.layer)("checkGrokProviderStatus", (it) => {
         status: "authenticated",
         type: "cached_token",
         label: "Grok account",
+        credentialSource: "account",
+        billingLabel: "Grok account",
       });
       // The mock agent advertises grok-4.6 with reasoning options in initialize._meta.
       expect(snapshot.models.map((model) => model.slug)).toEqual(["grok-4.6", "grok-mock-alt"]);
@@ -527,6 +529,8 @@ it.layer(NodeServices.layer)("checkGrokProviderStatus", (it) => {
         status: "authenticated",
         type: "api_key",
         label: "xAI API key",
+        credentialSource: "api_key",
+        billingLabel: "xAI API key",
       });
       expect(snapshot.status).toBe("warning");
     }),

@@ -1,3 +1,5 @@
+import { CodexDriver as ModernCodexDriver } from "./CodexDriver.modern.ts";
+import { ProviderRuntimeGeneration } from "../ProviderRuntimeGeneration.ts";
 /**
  * CodexDriver — first concrete `ProviderDriver` in the new per-instance model.
  *
@@ -36,51 +38,61 @@ import * as Stream from "effect/Stream";
 import { HttpClient } from "effect/unstable/http";
 import { ChildProcessSpawner } from "effect/unstable/process";
 
-import { makeCodexTextGeneration } from "../../textGeneration/CodexTextGeneration";
-import { ServerConfig } from "../../config";
-import { ProviderDriverError } from "../Errors";
-import { makeCodexAdapter } from "../Layers/CodexAdapter";
+import { makeCodexTextGeneration } from "../../textGeneration/CodexTextGeneration.ts";
+import { ServerConfig } from "../../config.ts";
+import { expandHomePath } from "../../pathExpansion.ts";
+import { ProviderDriverError } from "../Errors.ts";
+import { makeCodexAdapter } from "../Layers/CodexAdapter.ts";
 import {
   CODEX_RESET_CREDIT_TIMEOUT,
   CodexResetCreditCoordinator,
-} from "../Layers/codexResetCredit";
+} from "../Layers/codexResetCredit.ts";
 import {
   checkCodexProviderStatus,
   makePendingCodexProvider,
   probeCodexSkillsForCwd,
   withCodexAppServerClient,
-} from "../Layers/CodexProvider";
-import { resolveCodexLaunchArgs } from "../Layers/codexLaunchArgs";
-import { ProviderEventLoggers } from "../Layers/ProviderEventLoggers";
-import { makeManagedServerProvider } from "../makeManagedServerProvider";
+} from "../Layers/CodexProvider.ts";
+import { resolveCodexLaunchArgs } from "../Layers/codexLaunchArgs.ts";
+import { ProviderEventLoggers } from "../Layers/ProviderEventLoggers.ts";
+import { makeManagedServerProvider } from "../makeManagedServerProvider.ts";
 import {
   makeExternalCliLifecycle,
   makeProviderInstanceCapabilities,
   type ProviderDriver,
   type ProviderInstance,
-} from "../ProviderDriver";
-import type { ServerProviderDraft } from "../providerSnapshot";
-import { mergeProviderInstanceEnvironment } from "../ProviderInstanceEnvironment";
+} from "../ProviderDriver.ts";
+import type { ServerProviderDraft } from "../providerSnapshot.ts";
+import { mergeProviderInstanceEnvironment } from "../ProviderInstanceEnvironment.ts";
 import {
   enrichProviderSnapshotWithVersionAdvisory,
   makePackageManagedProviderMaintenanceResolver,
   resolveProviderMaintenanceCapabilitiesEffect,
-} from "../providerMaintenance";
+} from "../providerMaintenance.ts";
+import { makeManagedCodexProvider } from "./CodexManagedProvider.ts";
 import {
   codexContinuationIdentity,
   materializeCodexShadowHome,
   resolveCodexHomeLayout,
-} from "./CodexHomeLayout";
+} from "./CodexHomeLayout.ts";
 const decodeCodexSettings = Schema.decodeSync(CodexSettings);
 
 const DRIVER_KIND = "codex" as ProviderDriverKind;
 const SNAPSHOT_REFRESH_INTERVAL = Duration.minutes(5);
-const UPDATE = makePackageManagedProviderMaintenanceResolver({
-  provider: DRIVER_KIND,
-  npmPackageName: "@openai/codex",
-  homebrewFormula: "codex",
-  nativeUpdate: null,
-});
+const makeUpdateResolver = (sharedHomePath: string) =>
+  makePackageManagedProviderMaintenanceResolver({
+    provider: DRIVER_KIND,
+    npmPackageName: "@openai/codex",
+    homebrewFormula: "codex",
+    nativeUpdate: {
+      executable: "codex",
+      args: ["update"],
+      lockKey: "codex-native",
+      env: { CODEX_HOME: sharedHomePath },
+      isCommandPath: (commandPath) =>
+        commandPath.replaceAll("\\", "/").includes("/packages/standalone/"),
+    },
+  });
 
 /**
  * Services the driver needs to materialize an instance. Surfaced as the
@@ -118,7 +130,7 @@ const withInstanceIdentity =
     continuation: { groupKey: input.continuationGroupKey },
   });
 
-export const CodexDriver: ProviderDriver<CodexSettings, any> = {
+const LegacyCodexDriver: ProviderDriver<CodexSettings, any> = {
   driverKind: DRIVER_KIND,
   metadata: {
     displayName: "Codex",
@@ -128,6 +140,16 @@ export const CodexDriver: ProviderDriver<CodexSettings, any> = {
   defaultConfig: (): CodexSettings => decodeCodexSettings({}),
   create: ({ instanceId, displayName, accentColor, environment, enabled, config }) =>
     Effect.gen(function* () {
+      if (config.setupMode === "managed") {
+        return yield* makeManagedCodexProvider({
+          instanceId,
+          displayName,
+          accentColor,
+          environment,
+          enabled,
+          config,
+        });
+      }
       const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
       const resetCreditCoordinator = yield* CodexResetCreditCoordinator;
       const httpClient = yield* HttpClient.HttpClient;
@@ -155,12 +177,16 @@ export const CodexDriver: ProviderDriver<CodexSettings, any> = {
       const effectiveConfig = {
         ...config,
         enabled,
+        binaryPath: expandHomePath(config.binaryPath.trim()),
         homePath: homeLayout.effectiveHomePath ?? "",
       } satisfies CodexSettings;
-      const maintenanceCapabilities = yield* resolveProviderMaintenanceCapabilitiesEffect(UPDATE, {
-        binaryPath: effectiveConfig.binaryPath,
-        env: processEnv,
-      });
+      const maintenanceCapabilities = yield* resolveProviderMaintenanceCapabilitiesEffect(
+        makeUpdateResolver(homeLayout.sharedHomePath),
+        {
+          binaryPath: effectiveConfig.binaryPath,
+          env: processEnv,
+        },
+      );
 
       // `makeCodexAdapter` and `makeCodexTextGeneration` have `never` error
       // channels at construction time — their failure modes are all on the
@@ -321,5 +347,19 @@ export const CodexDriver: ProviderDriver<CodexSettings, any> = {
         adapter,
         textGeneration,
       } satisfies ProviderInstance;
+    }),
+};
+
+// Both server generations share the provider catalog during the transition.
+// Legacy registry assembly explicitly retains its existing adapters until
+// the browser migration is accepted.
+export const CodexDriver: typeof LegacyCodexDriver = {
+  ...LegacyCodexDriver,
+  create: (input) =>
+    Effect.gen(function* () {
+      const generation = yield* ProviderRuntimeGeneration;
+      return yield* generation === "v2"
+        ? ModernCodexDriver.create(input)
+        : LegacyCodexDriver.create(input);
     }),
 };

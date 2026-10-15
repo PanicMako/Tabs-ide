@@ -31,16 +31,16 @@ import { ChildProcessSpawner } from "effect/unstable/process";
 import * as EffectAcpErrors from "effect-acp/errors";
 import type * as EffectAcpSchema from "effect-acp/schema";
 
-import { resolveAttachmentPath } from "../../attachmentStore";
-import { ServerConfig } from "../../config";
+import { resolveAttachmentPath } from "../../attachmentStore.ts";
+import { ServerConfig } from "../../config.ts";
 import {
   ProviderAdapterProcessError,
   ProviderAdapterRequestError,
   ProviderAdapterSessionNotFoundError,
   ProviderAdapterValidationError,
-} from "../Errors";
-import { mapAcpToAdapterError } from "../acp/AcpAdapterSupport";
-import { type AcpSessionRuntimeShape } from "../acp/AcpSessionRuntime";
+} from "../Errors.ts";
+import { mapAcpToAdapterError } from "../acp/AcpAdapterSupport.ts";
+import { type AcpSessionRuntimeShape } from "../acp/AcpSessionRuntime.ts";
 import {
   makeAcpAssistantItemEvent,
   makeAcpContentDeltaEvent,
@@ -48,20 +48,20 @@ import {
   makeAcpRequestOpenedEvent,
   makeAcpRequestResolvedEvent,
   makeAcpToolCallEvent,
-} from "../acp/AcpCoreRuntimeEvents";
-import { parsePermissionRequest, type AcpPlanUpdate } from "../acp/AcpRuntimeModel";
-import { makeAcpNativeLoggerFactory } from "../acp/AcpNativeLogging";
+} from "../acp/AcpCoreRuntimeEvents.ts";
+import { parsePermissionRequest, type AcpPlanUpdate } from "../acp/AcpRuntimeModel.ts";
+import { makeAcpNativeLoggerFactory } from "../acp/AcpNativeLogging.ts";
 import {
   applyDroidAcpModelSelection,
   currentDroidModelIdFromSessionSetup,
   discoverDroidAcpModels,
   makeDroidAcpRuntime,
   resolveDroidAcpBaseModelId,
-} from "../acp/DroidAcpSupport";
-import { type DroidAdapterShape } from "../Services/DroidAdapter";
-import { type EventNdjsonLogger, makeEventNdjsonLogger } from "./EventNdjsonLogger";
+} from "../acp/DroidAcpSupport.ts";
+import { type DroidAdapterShape } from "../Services/DroidAdapter.ts";
+import { type EventNdjsonLogger, makeEventNdjsonLogger } from "./EventNdjsonLogger.ts";
 
-const encodeUnknownJsonStringExit = Schema.encodeUnknownExit(Schema.UnknownFromJsonString);
+const encodeUnknownJsonStringExit = Schema.encodeUnknownExit(Schema.fromJsonString(Schema.Unknown));
 
 const PROVIDER = "droid" as ProviderDriverKind;
 const DROID_RESUME_VERSION = 1 as const;
@@ -523,7 +523,9 @@ export function makeDroidAdapter(
               );
           });
 
-          let currentModelId = currentDroidModelIdFromSessionSetup(started.sessionSetupResult as any);
+          let currentModelId = currentDroidModelIdFromSessionSetup(
+            started.sessionSetupResult as any,
+          );
           if (droidModelSelection?.model) {
             const requestedModelId = resolveDroidAcpBaseModelId(droidModelSelection.model);
             yield* validateAdvertisedModel(requestedModelId, "session/start");

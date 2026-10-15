@@ -14,7 +14,7 @@ import { ProviderDriverKind, type ProviderInstanceId, type ServerProvider } from
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 
-import { buildServerProvider } from "./providerSnapshot";
+import { buildServerProvider } from "./providerSnapshot.ts";
 
 export interface UnavailableProviderSnapshotInput {
   readonly driverKind: ProviderDriverKind | string;

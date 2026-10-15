@@ -17,7 +17,7 @@ import {
   extractAuthBoolean,
   toTitleCaseWords,
   type CommandResult,
-} from "./providerCliOutput";
+} from "./providerCliOutput.ts";
 
 function claudeAuthOutput(result: CommandResult): string {
   return `${result.stdout}\n${result.stderr}`.toLowerCase();

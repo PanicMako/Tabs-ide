@@ -10,7 +10,7 @@ import {
   DEFAULT_TIMEOUT_MS,
   parseGenericCliVersion,
   spawnAndCollect,
-} from "../providerSnapshot";
+} from "../providerSnapshot.ts";
 
 export const checkDroidProviderStatus = Effect.fn("checkDroidProviderStatus")(function* (
   settings: DroidSettings,

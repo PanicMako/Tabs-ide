@@ -244,7 +244,8 @@ export function currentGrokReasoningEffortFromSessionSetup(
 }
 
 export function applyGrokAcpModelSelection<E>(input: {
-  readonly runtime: Pick<AcpSessionRuntime.AcpSessionRuntime["Service"], "setSessionModel">;
+  readonly runtime: Pick<AcpSessionRuntime.AcpSessionRuntime["Service"], "setSessionModel"> &
+    Partial<Pick<AcpSessionRuntime.AcpSessionRuntime["Service"], "setModel">>;
   readonly currentModelId: string | undefined;
   readonly currentReasoningEffort?: string | undefined;
   readonly requestedModelId: string | undefined;
@@ -272,7 +273,16 @@ export function applyGrokAcpModelSelection<E>(input: {
   // provided at all, we also send no meta, but we only reach this call when the model itself
   // changed - an omitted reasoning preference must not be treated as an explicit clear of the
   // CLI-advertised default (e.g. Extra High) on same-model reselections.
-  return input.runtime
-    .setSessionModel(targetModelId, reasoningMeta)
-    .pipe(Effect.mapError(input.mapError), Effect.as(targetModelId));
+  return input.runtime.setSessionModel(targetModelId, reasoningMeta).pipe(
+    Effect.catch((cause) =>
+      cause._tag === "AcpRequestError" &&
+      cause.code === -32601 &&
+      reasoningMeta === undefined &&
+      input.runtime.setModel !== undefined
+        ? input.runtime.setModel(targetModelId)
+        : Effect.fail(cause),
+    ),
+    Effect.mapError(input.mapError),
+    Effect.as(targetModelId),
+  );
 }

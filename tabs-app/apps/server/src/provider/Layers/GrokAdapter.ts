@@ -32,16 +32,16 @@ import * as EffectAcpErrors from "effect-acp/errors";
 import type * as EffectAcpSchema from "effect-acp/schema";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 
-import { resolveAttachmentPath } from "../../attachmentStore";
-import { ServerConfig } from "../../config";
+import { resolveAttachmentPath } from "../../attachmentStore.ts";
+import { ServerConfig } from "../../config.ts";
 import {
   ProviderAdapterProcessError,
   ProviderAdapterRequestError,
   ProviderAdapterSessionNotFoundError,
   ProviderAdapterValidationError,
-} from "../Errors";
-import { mapAcpToAdapterError } from "../acp/AcpAdapterSupport";
-import { type AcpSessionRuntimeShape } from "../acp/AcpSessionRuntime";
+} from "../Errors.ts";
+import { mapAcpToAdapterError } from "../acp/AcpAdapterSupport.ts";
+import { type AcpSessionRuntimeShape } from "../acp/AcpSessionRuntime.ts";
 import {
   makeAcpAssistantItemEvent,
   makeAcpContentDeltaEvent,
@@ -49,25 +49,25 @@ import {
   makeAcpRequestOpenedEvent,
   makeAcpRequestResolvedEvent,
   makeAcpToolCallEvent,
-} from "../acp/AcpCoreRuntimeEvents";
-import { parsePermissionRequest } from "../acp/AcpRuntimeModel";
-import { makeAcpNativeLoggerFactory } from "../acp/AcpNativeLogging";
+} from "../acp/AcpCoreRuntimeEvents.ts";
+import { parsePermissionRequest } from "../acp/AcpRuntimeModel.ts";
+import { makeAcpNativeLoggerFactory } from "../acp/AcpNativeLogging.ts";
 import {
   applyGrokAcpModelSelection,
   currentGrokModelIdFromSessionSetup,
   makeGrokAcpRuntime,
   resolveGrokAcpBaseModelId,
-} from "../acp/GrokAcpSupport";
+} from "../acp/GrokAcpSupport.ts";
 import {
   extractXAiAskUserQuestions,
   makeXAiAskUserQuestionCancelledResponse,
   makeXAiAskUserQuestionResponse,
   XAiAskUserQuestionRequest,
-} from "../acp/XAiAcpExtension";
-import { type GrokAdapterShape } from "../Services/GrokAdapter";
-import { type EventNdjsonLogger, makeEventNdjsonLogger } from "./EventNdjsonLogger";
+} from "../acp/XAiAcpExtension.ts";
+import { type GrokAdapterShape } from "../Services/GrokAdapter.ts";
+import { type EventNdjsonLogger, makeEventNdjsonLogger } from "./EventNdjsonLogger.ts";
 
-const encodeUnknownJsonStringExit = Schema.encodeUnknownExit(Schema.UnknownFromJsonString);
+const encodeUnknownJsonStringExit = Schema.encodeUnknownExit(Schema.fromJsonString(Schema.Unknown));
 
 const PROVIDER = "grok" as ProviderDriverKind;
 const GROK_RESUME_VERSION = 1 as const;
@@ -325,6 +325,9 @@ export function makeGrokAdapter(grokSettings: GrokSettings, options?: GrokAdapte
         if (ctx.notificationFiber) {
           yield* Fiber.interrupt(ctx.notificationFiber);
         }
+        if (ctx.acp.terminateProcessGroup) {
+          yield* ctx.acp.terminateProcessGroup.pipe(Effect.ignoreCause({ log: true }));
+        }
         yield* Effect.ignore(Scope.close(ctx.scope, Exit.void));
         sessions.delete(ctx.threadId);
         yield* offerRuntimeEvent({
@@ -505,7 +508,9 @@ export function makeGrokAdapter(grokSettings: GrokSettings, options?: GrokAdapte
                     }),
                   );
                   const selectedOptionId =
-                    resolved === "cancel" ? undefined : selectPermissionOptionId(params as any, resolved);
+                    resolved === "cancel"
+                      ? undefined
+                      : selectPermissionOptionId(params as any, resolved);
                   return {
                     outcome: selectedOptionId
                       ? {
@@ -611,7 +616,12 @@ export function makeGrokAdapter(grokSettings: GrokSettings, options?: GrokAdapte
                     return;
                   case "PlanUpdated":
                     yield* logNative(ctx.threadId, "session/update", event.rawPayload);
-                    yield* emitPlanUpdate(ctx, event.payload as any, event.rawPayload, "session/update");
+                    yield* emitPlanUpdate(
+                      ctx,
+                      event.payload as any,
+                      event.rawPayload,
+                      "session/update",
+                    );
                     return;
                   case "ToolCallUpdated":
                     yield* logNative(ctx.threadId, "session/update", event.rawPayload);

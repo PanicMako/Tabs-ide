@@ -38,17 +38,17 @@ import {
   providerModelsFromSettings,
   spawnAndCollect,
   type ServerProviderDraft,
-} from "../providerSnapshot";
-import { makeUnavailableUsageLimits } from "../providerUsageLimits";
-import { parseClaudeAuthStatusFromOutput } from "../claudeAuthStatus";
-import { acquireClaudeAuthStatusLock } from "../claudeAuthStatusLock";
-import { makeClaudeEnvironment } from "../Drivers/ClaudeHome";
+} from "../providerSnapshot.ts";
+import { makeUnavailableUsageLimits } from "../providerUsageLimits.ts";
+import { parseClaudeAuthStatusFromOutput } from "../claudeAuthStatus.ts";
+import { acquireClaudeAuthStatusLock } from "../claudeAuthStatusLock.ts";
+import { makeClaudeEnvironment } from "../Drivers/ClaudeHome.ts";
 import {
   type ClaudeScopedLimitNames,
   type ClaudeUsageResponse,
   claudeUsageResponseToLimits,
   recordClaudeUsageResponse,
-} from "./claudeUsageLimits";
+} from "./claudeUsageLimits.ts";
 
 const DEFAULT_CLAUDE_MODEL_CAPABILITIES: ModelCapabilities = createModelCapabilities({
   optionDescriptors: [],

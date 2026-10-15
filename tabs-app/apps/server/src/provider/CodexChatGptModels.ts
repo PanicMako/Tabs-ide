@@ -3,7 +3,7 @@ import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import { HttpClient, HttpClientRequest } from "effect/unstable/http";
 
-export class ChatGptCatalogError extends Schema.TaggedErrorClass<ChatGptCatalogError>()(
+export class ChatGptCatalogError extends Schema.TaggedError<ChatGptCatalogError>()(
   "ChatGptCatalogError",
   { status: Schema.Int },
 ) {}

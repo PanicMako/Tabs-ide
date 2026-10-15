@@ -20,6 +20,7 @@ import { ChildProcessSpawner } from "effect/unstable/process";
 
 import { ProviderRegistry, type ProviderRegistryShape } from "./Services/ProviderRegistry";
 import * as ProviderMaintenanceRunner from "./providerMaintenanceRunner";
+import { AntigravityInstallation } from "./AntigravityInstallation";
 import {
   clearLatestProviderVersionCacheForTests,
   makeProviderMaintenanceCapabilities,
@@ -125,6 +126,7 @@ function mockSpawnerLayer(
   handler: (
     command: string,
     args: ReadonlyArray<string>,
+    env?: Readonly<Record<string, string>>,
   ) => {
     readonly stdout?: string;
     readonly stderr?: string;
@@ -138,8 +140,11 @@ function mockSpawnerLayer(
       const childProcess = command as unknown as {
         readonly command: string;
         readonly args: ReadonlyArray<string>;
+        readonly options: { readonly env?: Readonly<Record<string, string>> };
       };
-      return Effect.succeed(mockHandle(handler(childProcess.command, childProcess.args)));
+      return Effect.succeed(
+        mockHandle(handler(childProcess.command, childProcess.args, childProcess.options.env)),
+      );
     }),
   );
 }
@@ -209,6 +214,40 @@ const makeTestRunner = (registry: ProviderRegistryShape) =>
   );
 
 describe("providerMaintenanceRunner", () => {
+  it.effect("waits for managed Antigravity installation to finish before reporting success", () => {
+    let completed = false;
+    return Effect.gen(function* () {
+      const provider = {
+        ...baseProvider,
+        driver: ProviderDriverKind.make("antigravity"),
+        instanceId: ProviderInstanceId.make("antigravity"),
+      };
+      const { registry } = yield* makeRegistry(provider);
+      const updater = yield* makeTestRunner(registry);
+      const result = yield* updater.installProvider(provider.driver);
+      assert.isTrue(completed);
+      assert.strictEqual(result.providers[0]?.updateState?.status, "succeeded");
+    }).pipe(
+      Effect.provideService(AntigravityInstallation, {
+        start: Effect.succeed({ phase: "downloading" }),
+        changes: Stream.fromEffect(
+          Effect.sync(() => {
+            completed = true;
+            return { phase: "succeeded", installedVersion: "1.0.0" };
+          }),
+        ),
+      } as unknown as AntigravityInstallation["Service"]),
+      Effect.provide(
+        Layer.mergeAll(
+          latestVersionHttpClient("1.0.0"),
+          mockSpawnerLayer(() => {
+            throw new Error("Managed installation must not invoke a shell installer");
+          }),
+        ),
+      ),
+    );
+  });
+
   it.effect("runs the allowlisted provider update command and records success", () => {
     const calls: Array<{ command: string; args: ReadonlyArray<string> }> = [];
     return Effect.gen(function* () {
@@ -406,6 +445,7 @@ describe("providerMaintenanceRunner", () => {
               updateExecutable: "vp",
               updateArgs: ["i", "-g", "@openai/codex"],
               updateLockKey: "vite-plus-global",
+              updateEnv: { CODEX_HOME: "/selected/shared-home" },
             }),
           ).pipe(
             Effect.tap(() => Effect.sync(() => assert.strictEqual(instanceId, personalInstanceId))),
@@ -440,7 +480,8 @@ describe("providerMaintenanceRunner", () => {
       Effect.provide(
         Layer.mergeAll(
           latestVersionHttpClient("0.124.0-alpha.3"),
-          mockSpawnerLayer((command, args) => {
+          mockSpawnerLayer((command, args, env) => {
+            assert.strictEqual(env?.CODEX_HOME, "/selected/shared-home");
             calls.push({ command, args });
             return { stdout: "updated" };
           }),

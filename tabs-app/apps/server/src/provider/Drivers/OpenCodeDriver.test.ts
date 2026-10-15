@@ -121,8 +121,8 @@ it.layer(layer)("OpenCodeDriver runtime selection", (it) => {
       const instance = yield* create({ serverUrl: "http://127.0.0.1:9" }, hang);
 
       // No probe has succeeded yet, and the server never answers: the 1.x default applies.
-      const capabilities = yield* instance.orchestrationAdapter!
-        .getCapabilities()
+      const capabilities = yield* instance
+        .orchestrationAdapter!.getCapabilities()
         .pipe(Effect.forkChild);
       yield* Effect.yieldNow;
       assert.isDefined(capabilities.pollUnsafe());

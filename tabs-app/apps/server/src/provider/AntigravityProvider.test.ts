@@ -281,6 +281,7 @@ it.layer(layerTest)("Antigravity provider snapshots", (it) => {
         expect((yield* provider.snapshot.getSnapshot).auth).toEqual({
           status: "unknown",
           type: "gemini-api-key",
+          credentialSource: "api_key",
         });
       }),
     ),

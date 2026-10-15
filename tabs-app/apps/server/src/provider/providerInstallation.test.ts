@@ -1,10 +1,6 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, describe, it } from "@effect/vitest";
-import {
-  ProviderDriverKind,
-  ProviderInstanceId,
-  type ProviderInstallState,
-} from "@tabs/contracts";
+import { ProviderDriverKind, ProviderInstanceId, type ProviderInstallState } from "@tabs/contracts";
 import { HostProcessPlatform } from "@tabs/shared/hostProcess";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";

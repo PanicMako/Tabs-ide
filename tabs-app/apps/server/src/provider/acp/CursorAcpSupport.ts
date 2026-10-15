@@ -9,13 +9,13 @@ import {
   CURSOR_PARAMETERIZED_MODEL_PICKER_CAPABILITIES,
   resolveCursorAcpBaseModelId,
   resolveCursorAcpConfigUpdates,
-} from "../Layers/CursorProvider";
+} from "../Layers/CursorProvider.ts";
 import {
   AcpSessionRuntime,
   type AcpSessionRuntimeOptions,
   type AcpSessionRuntimeShape,
   type AcpSpawnInput,
-} from "./AcpSessionRuntime";
+} from "./AcpSessionRuntime.ts";
 
 type CursorAcpRuntimeCursorSettings = Pick<CursorSettings, "apiEndpoint" | "binaryPath">;
 

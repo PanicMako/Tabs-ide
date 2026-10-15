@@ -578,11 +578,13 @@ export const ProviderRegistryLive = Layer.effect(
           (candidate) => candidate.instanceId === instanceId,
         );
         if (instance?.snapshot.resolveMaintenance) {
-          return yield* instance.snapshot.resolveMaintenance().pipe(
-            Effect.orElseSucceed(() =>
-              makeManualOnlyProviderMaintenanceCapabilities({ provider, packageName: null }),
-            ),
-          );
+          return yield* instance.snapshot
+            .resolveMaintenance()
+            .pipe(
+              Effect.orElseSucceed(() =>
+                makeManualOnlyProviderMaintenanceCapabilities({ provider, packageName: null }),
+              ),
+            );
         }
         return makeManualOnlyProviderMaintenanceCapabilities({ provider, packageName: null });
       });

@@ -9,19 +9,19 @@ import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 
-import { makeGeminiTextGeneration } from "../../textGeneration/GeminiTextGeneration";
-import { ProviderAdapterRequestError, ProviderDriverError } from "../Errors";
-import type { ProviderAdapterShape } from "../Services/ProviderAdapter";
-import { makeManagedServerProvider } from "../makeManagedServerProvider";
+import { makeGeminiTextGeneration } from "../../textGeneration/GeminiTextGeneration.ts";
+import { ProviderAdapterRequestError, ProviderDriverError } from "../Errors.ts";
+import type { ProviderAdapterShape } from "../Services/ProviderAdapter.ts";
+import { makeManagedServerProvider } from "../makeManagedServerProvider.ts";
 import {
   defaultProviderContinuationIdentity,
   makeProviderInstanceCapabilities,
   type ProviderDriver,
   type ProviderInstance,
-} from "../ProviderDriver";
-import { buildServerProvider } from "../providerSnapshot";
-import { makeManualOnlyProviderMaintenanceCapabilities } from "../providerMaintenance";
-import { getProviderSecret } from "../ProviderSecretStore";
+} from "../ProviderDriver.ts";
+import { buildServerProvider } from "../providerSnapshot.ts";
+import { makeManualOnlyProviderMaintenanceCapabilities } from "../providerMaintenance.ts";
+import { getProviderSecret } from "../ProviderSecretStore.ts";
 
 const decodeGeminiSettings = Schema.decodeSync(GeminiSettings);
 

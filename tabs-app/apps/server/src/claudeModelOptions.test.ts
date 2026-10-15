@@ -46,6 +46,18 @@ describe("compileClaudeModelSelection", () => {
         selection("claude-sonnet-4-6", [{ id: "effort", value: "ultrathink" }]),
       ),
     ).toMatchObject({ effort: "high", promptEffort: "ultrathink" });
+    const defaultSelection = compileClaudeModelSelection(selection("claude-sonnet-4-6", []));
+    const promptSelection = compileClaudeModelSelection(
+      selection("claude-sonnet-4-6", [{ id: "effort", value: "ultrathink" }]),
+    );
+    expect(promptSelection.queryIdentity).toBe(defaultSelection.queryIdentity);
+    expect(defaultSelection.promptEffort).toBeUndefined();
+  });
+
+  it("preserves explicit SDK effort without injecting a prompt", () => {
+    expect(
+      compileClaudeModelSelection(selection("claude-sonnet-4-6", [{ id: "effort", value: "low" }])),
+    ).toMatchObject({ effort: "low", promptEffort: undefined });
   });
 
   it("compiles the thinking toggle for models that expose it", () => {

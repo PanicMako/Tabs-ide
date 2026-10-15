@@ -20,10 +20,10 @@ import {
   ProviderAdapterRequestError,
   ProviderAdapterSessionNotFoundError,
   ProviderAdapterValidationError,
-} from "../Errors";
-import type { ProviderAdapterShape } from "../Services/ProviderAdapter";
-import { appendFileAttachmentsPromptBlock } from "../attachmentProjection";
-import { teardownChildProcessTree } from "../supervisedProcessTeardown";
+} from "../Errors.ts";
+import type { ProviderAdapterShape } from "../Services/ProviderAdapter.ts";
+import { appendFileAttachmentsPromptBlock } from "../attachmentProjection.ts";
+import { teardownChildProcessTree } from "../supervisedProcessTeardown.ts";
 
 const PROVIDER = "antigravity" as ProviderDriverKind;
 const PRINT_TIMEOUT = "30m";

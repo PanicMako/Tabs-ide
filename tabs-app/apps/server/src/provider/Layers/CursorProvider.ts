@@ -39,13 +39,13 @@ import {
   providerModelsFromSettings,
   type CommandResult,
   type ServerProviderDraft,
-} from "../providerSnapshot";
+} from "../providerSnapshot.ts";
 import {
   enrichProviderSnapshotWithVersionAdvisory,
   type ProviderMaintenanceCapabilities,
-} from "../providerMaintenance";
-import { AcpSessionRuntime } from "../acp/AcpSessionRuntime";
-import { CursorListAvailableModelsResponse } from "../acp/CursorAcpExtension";
+} from "../providerMaintenance.ts";
+import { AcpSessionRuntime } from "../acp/AcpSessionRuntime.ts";
+import { CursorListAvailableModelsResponse } from "../acp/CursorAcpExtension.ts";
 
 const decodeCursorListAvailableModelsResponse = Schema.decodeUnknownEffect(
   CursorListAvailableModelsResponse,
@@ -139,14 +139,14 @@ function flattenSessionConfigSelectOptions(
           } satisfies CursorSessionSelectOption,
         ]
       : Array.isArray(entry.options)
-      ? entry.options.map(
-          (option) =>
-            ({
-              value: String(option.value).trim(),
-              name: String(option.name).trim(),
-            }) satisfies CursorSessionSelectOption,
-        )
-      : [],
+        ? entry.options.map(
+            (option) =>
+              ({
+                value: String(option.value).trim(),
+                name: String(option.name).trim(),
+              }) satisfies CursorSessionSelectOption,
+          )
+        : [],
   );
 }
 
@@ -168,7 +168,7 @@ function normalizeCursorReasoningValue(value: string | null | undefined): string
 }
 
 function getCursorOptionConfigId(option: any): string {
-  return ((option?.configId ?? option?.id) ?? "").trim();
+  return (option?.configId ?? option?.id ?? "").trim();
 }
 
 function getCursorConfigOptionCategory(option: any): string {
@@ -188,9 +188,7 @@ function isCursorEffortConfigOption(option: any): boolean {
   );
 }
 
-function findCursorEffortConfigOption(
-  configOptions: ReadonlyArray<any>,
-): any | undefined {
+function findCursorEffortConfigOption(configOptions: ReadonlyArray<any>): any | undefined {
   const candidates = configOptions.filter(
     (option) => option.type === "select" && isCursorEffortConfigOption(option),
   );

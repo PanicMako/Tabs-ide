@@ -47,7 +47,7 @@ const isExecutionEnd = (type: string): type is (typeof EXECUTION_ENDS)[number] =
   (EXECUTION_ENDS as ReadonlyArray<string>).includes(type);
 
 /** The server sent nothing, not even a heartbeat, for `SILENT_STREAM_TIMEOUT`. */
-export class OpenCode2SilentStreamError extends Schema.TaggedErrorClass<OpenCode2SilentStreamError>()(
+export class OpenCode2SilentStreamError extends Schema.TaggedError<OpenCode2SilentStreamError>()(
   "OpenCode2SilentStreamError",
   {},
 ) {
@@ -75,7 +75,7 @@ export interface OpenCode2Api {
   readonly events: Effect.Effect<
     Stream.Stream<
       OpenCode2StreamEvent,
-      HttpClientError.HttpClientError | Sse.Retry | OpenCode2SilentStreamError
+      HttpClientError.HttpClientError | Sse.Retry | Sse.SseError | OpenCode2SilentStreamError
     >,
     HttpClientError.HttpClientError
   >;
@@ -98,13 +98,7 @@ export class OpenCode2Client extends Context.Service<
  */
 const SILENT_STREAM_TIMEOUT = "45 seconds";
 
-const decodeEvent = (data: string): Result.Result<OpenCodeEvent, unknown> => {
-  try {
-    return Result.succeed(JSON.parse(data) as OpenCodeEvent);
-  } catch (cause) {
-    return Result.fail(cause);
-  }
-};
+const decodeEvent = Schema.decodeUnknownResult(Schema.fromJsonString(OpenCodeEvent));
 // Just enough of an event to route it, for frames the full schema rejects.
 const decodeEnvelope = Schema.decodeUnknownOption(
   Schema.fromJsonString(

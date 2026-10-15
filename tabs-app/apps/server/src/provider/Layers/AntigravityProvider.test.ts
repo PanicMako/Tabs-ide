@@ -35,7 +35,9 @@ describe("parseAntigravityModels", () => {
       { value: "high", label: "High" },
     ]);
     expect(
-      models.slice(2).every((model) => (model.capabilities?.reasoningEffortLevels?.length ?? 0) === 0),
+      models
+        .slice(2)
+        .every((model) => (model.capabilities?.reasoningEffortLevels?.length ?? 0) === 0),
     ).toBe(true);
     expect(parseAntigravityModels("\n# unavailable\n")).toEqual([]);
   });

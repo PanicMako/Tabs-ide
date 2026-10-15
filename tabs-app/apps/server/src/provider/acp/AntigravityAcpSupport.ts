@@ -146,7 +146,6 @@ export function discoverAntigravityAcpModels(
   }));
 }
 
-
 function antigravityModelOptions(
   configOptions: ReadonlyArray<EffectAcpSchema.SessionConfigOption>,
 ) {

@@ -40,7 +40,7 @@ import {
   getModelSelectionBooleanOptionValue,
   getModelSelectionStringOptionValue,
 } from "@tabs/shared/model";
-import { getCodexServiceTierOptionValue } from "../../codexModelOptions";
+import { getCodexServiceTierOptionValue } from "../../codexModelOptions.ts";
 
 import {
   ProviderAdapterRequestError,
@@ -49,11 +49,11 @@ import {
   ProviderAdapterSessionNotFoundError,
   ProviderAdapterValidationError,
   type ProviderAdapterError,
-} from "../Errors";
-import { type CodexAdapterShape } from "../Services/CodexAdapter";
-import { resolveAttachmentPath } from "../../attachmentStore";
-import { ServerConfig } from "../../config";
-import * as McpProviderSession from "../../mcp/McpProviderSession";
+} from "../Errors.ts";
+import { type CodexAdapterShape } from "../Services/CodexAdapter.ts";
+import { resolveAttachmentPath } from "../../attachmentStore.ts";
+import { ServerConfig } from "../../config.ts";
+import * as McpProviderSession from "../../mcp/McpProviderSession.ts";
 import {
   CodexResumeCursorSchema,
   CodexSessionRuntimeThreadIdMissingError,
@@ -61,8 +61,8 @@ import {
   type CodexSessionRuntimeError,
   type CodexSessionRuntimeOptions,
   type CodexSessionRuntimeShape,
-} from "./CodexSessionRuntime";
-import { type EventNdjsonLogger, makeEventNdjsonLogger } from "./EventNdjsonLogger";
+} from "./CodexSessionRuntime.ts";
+import { type EventNdjsonLogger, makeEventNdjsonLogger } from "./EventNdjsonLogger.ts";
 import { codexRateLimitsToUpdate } from "./codexUsageLimits.ts";
 const isCodexAppServerProcessExitedError = Schema.is(CodexErrors.CodexAppServerProcessExitedError);
 const isCodexAppServerTransportError = Schema.is(CodexErrors.CodexAppServerTransportError);
@@ -514,7 +514,19 @@ function mapToRuntimeEvents(
     if (event.method === "item/tool/requestUserInput") {
       const payload =
         readPayload(EffectCodexSchema.ServerRequest__ToolRequestUserInputParams, event.payload) ??
-        readPayload(EffectCodexSchema.ToolRequestUserInputParams, event.payload);
+        readPayload(EffectCodexSchema.ToolRequestUserInputParams, event.payload) ??
+        // Older supported app-server builds predate the required isBlocking field.
+        readPayload(
+          Schema.Struct({
+            itemId: Schema.String,
+            threadId: Schema.String,
+            turnId: Schema.String,
+            questions: Schema.Array(
+              EffectCodexSchema.ToolRequestUserInputParams__ToolRequestUserInputQuestion,
+            ),
+          }),
+          event.payload,
+        );
       const questions = payload ? toUserInputQuestions(payload.questions) : undefined;
       if (!questions) {
         return [];

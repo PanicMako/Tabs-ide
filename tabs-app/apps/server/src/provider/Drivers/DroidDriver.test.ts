@@ -11,7 +11,7 @@ describe("Droid maintenance routing", () => {
         platform: "darwin",
         env: { PATH: "" },
       }).update?.command,
-    ).toBe("droid update");
+    ).toBe("/Users/test/.local/bin/droid update");
   });
 
   it("uses Homebrew for a Homebrew-managed binary", () => {

@@ -37,12 +37,12 @@ import type * as Effect from "effect/Effect";
 import type * as Schema from "effect/Schema";
 import type * as Scope from "effect/Scope";
 
-import type { TextGenerationShape } from "../textGeneration/TextGeneration";
-import type { ProviderAdapterV2Shape } from "../orchestration-v2/ProviderAdapter";
-import type { ProviderAdapterError, ProviderDriverError } from "./Errors";
-import type { ProviderAuthController } from "./ProviderAuthService";
-import type { ProviderAdapterShape } from "./Services/ProviderAdapter";
-import type { ServerProviderShape } from "./ServerProvider";
+import type { TextGenerationShape } from "../textGeneration/TextGeneration.ts";
+import type { ProviderAdapterV2Shape } from "../orchestration-v2/ProviderAdapter.ts";
+import type { ProviderAdapterError, ProviderDriverError } from "./Errors.ts";
+import type { ProviderAuthController } from "./ProviderAuthService.ts";
+import type { ProviderAdapterShape } from "./Services/ProviderAdapter.ts";
+import type { ServerProviderShape } from "./ServerProvider.ts";
 
 export type ProviderCapabilitySupport = "supported" | "external" | "unsupported";
 
