@@ -12,9 +12,13 @@ const types: Record<string, string> = {
   ".gz": "application/gzip",
   ".md": "text/plain; charset=utf-8",
   ".woff2": "font/woff2",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
 };
 
 export function frontendAsset(pathname: string): string | undefined {
+  if (["/favicon.svg", "/favicon-32x32.png", "/apple-touch-icon.png"].includes(pathname))
+    return pathname.slice(1);
   if (pathname === "/sign-in" || pathname === "/sign-in/") return "sign-in/index.html";
   if (pathname === "/publisher" || pathname === "/publisher/") return "publisher/index.html";
   if (pathname === "/publisher-terms" || pathname === "/publisher-terms/")
