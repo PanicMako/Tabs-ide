@@ -1,0 +1,33 @@
+---
+interface Props { section: string; compact?: boolean }
+const { section, compact = false } = Astro.props;
+const kind = section.includes('namespace') ? 'identity' : section.includes('token') ? 'access' : section.includes('people') ? 'people' : section.includes('security') || section.includes('block') || section.includes('verification') || section.includes('revocation') ? 'security' : section.includes('review') || section.includes('appeal') ? 'review' : section.includes('submission') || section === 'extensions' ? 'release' : 'workspace';
+---
+<div class:list={["dashboard-drawing", `drawing-${kind}`, compact && "drawing-compact"]} aria-hidden="true">
+  <svg viewBox="0 0 240 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+    {kind === 'identity' ? <>
+      <g class="drawing-back"><rect x="67" y="29" width="151" height="107" rx="7" fill="#e8f3ed" stroke="#a9c5b4"/><path d="M83 50h118M83 113h66" stroke="#a9c5b4"/></g>
+      <g class="drawing-front"><rect x="19" y="16" width="167" height="105" rx="7" fill="#fff2e3" stroke="#c9a97e"/><text x="35" y="39" class="drawing-micro">PUBLISHER IDENTITY</text><text x="35" y="74" class="drawing-title">namespace<tspan fill="#3259ed">.tool</tspan></text><path d="M35 91h132" stroke="#c9a97e"/><circle cx="156" cy="101" r="4" fill="#3259ed"/></g>
+    </> : kind === 'access' ? <>
+      <g class="drawing-back"><path d="M29 24h184v33a11 11 0 0 0 0 22v57H29V79a11 11 0 0 0 0-22V24Z" fill="#edf0fb" stroke="#aebbe1"/><path d="M164 24v112" stroke="#aebbe1" stroke-dasharray="3 5"/><text x="182" y="62" class="drawing-micro" transform="rotate(90 182 62)">SCOPED ACCESS</text></g>
+      <g class="drawing-front"><circle cx="59" cy="54" r="11" stroke="#3259ed" stroke-width="3"/><path d="m68 62 24 24m-8-8 5-5m-13-3 5-5" stroke="#3259ed" stroke-width="3"/><text x="48" y="113" class="drawing-title">read <tspan fill="#636c7b">/</tspan> publish</text></g>
+    </> : kind === 'people' ? <>
+      <path d="M116 61v32h55" stroke="#8495c5" stroke-dasharray="4 4"/>
+      <g class="drawing-back"><rect x="126" y="84" width="95" height="62" rx="6" fill="#e8f3ed" stroke="#a9c5b4"/><circle cx="145" cy="103" r="5" fill="#3259ed"/><text x="140" y="129" class="drawing-micro">REVIEWER</text></g>
+      <g class="drawing-front"><rect x="22" y="14" width="124" height="66" rx="6" fill="#3259ed" stroke="#3259ed"/><circle cx="43" cy="36" r="6" fill="white"/><path d="M59 36h63" stroke="#ffffff70"/><text x="39" y="62" class="drawing-micro" fill="white">OPERATOR</text></g>
+    </> : kind === 'security' ? <>
+      <g class="drawing-back"><rect x="46" y="18" width="145" height="122" rx="7" fill="#edf0fb" stroke="#aebbe1"/><text x="63" y="40" class="drawing-micro">EXACT MATERIAL</text><path d="M63 55h110M63 99h110M63 112h78" stroke="#aebbe1"/></g>
+      <g class="drawing-front"><rect x="24" y="64" width="192" height="27" rx="4" fill="white" stroke="#3259ed"/><path d="M38 71v13m5-13v13m9-13v13m6-13v13m10-13v13m3-13v13m11-13v13m5-13v13m7-13v13m9-13v13m4-13v13m10-13v13m8-13v13m3-13v13m12-13v13m4-13v13m9-13v13m7-13v13m5-13v13m10-13v13m6-13v13" stroke="#3259ed"/><text x="141" y="130" class="drawing-micro">SHA-256</text></g>
+    </> : kind === 'review' ? <>
+      <g class="drawing-back"><rect x="30" y="16" width="137" height="124" rx="6" fill="white" stroke="#adb8ce"/><text x="47" y="40" class="drawing-micro">PACKAGE EVIDENCE</text><path d="M47 57h101M47 69h80M47 81h91M47 109h43" stroke="#b9c4db"/><path d="m47 120 5 5 11-13" stroke="#3259ed" stroke-width="2"/></g>
+      <g class="drawing-front"><circle cx="157" cy="84" r="29" fill="#e8f3ed" fill-opacity=".9" stroke="#3259ed" stroke-width="3"/><path d="m177 106 30 30" stroke="#3259ed" stroke-width="7" stroke-linecap="round"/><path d="M145 75h25M145 86h19M145 97h10" stroke="#3259ed"/></g>
+    </> : kind === 'release' ? <>
+      <path d="M30 119h183" stroke="#9caacc"/>
+      <g class="drawing-back"><rect x="102" y="22" width="109" height="93" rx="6" fill="#edf0fb" stroke="#aebbe1"/><text x="119" y="45" class="drawing-micro">NEXT VERSION</text><path d="M119 65h74M119 77h53" stroke="#aebbe1"/></g>
+      <g class="drawing-front"><rect x="23" y="42" width="125" height="92" rx="6" fill="#e8f3ed" stroke="#a9c5b4"/><text x="40" y="65" class="drawing-micro">EXACT RELEASE</text><text x="40" y="98" class="drawing-title">.tabsext</text><path d="M40 114h67" stroke="#a9c5b4"/></g>
+    </> : <>
+      <g class="drawing-back"><path d="M32 23h57l8 12h112v98H32V23Z" fill="#fff2e3" stroke="#c9a97e"/></g>
+      <g class="drawing-front"><rect x="20" y="50" width="180" height="87" rx="7" fill="white" stroke="#aebbe1"/><path d="M20 75h180" stroke="#aebbe1"/><text x="34" y="66" class="drawing-micro">CODE</text><text x="86" y="66" class="drawing-micro">BROWSER</text><text x="150" y="66" class="drawing-micro" fill="#3259ed">TOOL</text><path d="M98 94v26m-13-13h26" stroke="#3259ed" stroke-width="2"/></g>
+    </>}
+  </svg>
+</div>

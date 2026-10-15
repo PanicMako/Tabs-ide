@@ -1,0 +1,14 @@
+---
+interface Props { section: string }
+const { section } = Astro.props;
+---
+  <nav class="account-nav" aria-label="Account sections">
+    <p class="step-label">Publishing</p>
+    <a href="/account" class="account-nav-link" aria-current={section === "overview" ? "page" : undefined}><span>Overview</span><small>Your next steps</small></a>
+    <a href="/account/namespaces" class="account-nav-link" aria-current={section === "namespaces" ? "page" : undefined}><span>Namespaces</span><small>Identity & collaborators</small></a>
+    <a href="/account/extensions" class="account-nav-link" aria-current={(section === "extensions" || section === "submission") ? "page" : undefined}><span>Submissions</span><small>Versions & review progress</small></a>
+    <a href="/account/tokens" class="account-nav-link" aria-current={section === "tokens" ? "page" : undefined}><span>CLI access</span><small>Scoped access tokens</small></a>
+    <a href="/publish" class="account-nav-link" aria-current={section === "publish" ? "page" : undefined}><span>Publish</span><small>Submit a built package</small></a>
+    <a href="/publisher" class="account-nav-link" aria-current={section === "advanced" ? "page" : undefined}><span>Advanced</span><small>Extra controls & recovery</small></a>
+    <div class="dashboard-role-nav"><a id="reviewer-link" href="/admin" class="account-nav-link" aria-current={section === "review" || section === "security" ? "page" : undefined} hidden><span>Review desk</span><small>Package decisions & registry health</small></a><a id="operator-link" href="/admin/reviewers" class="account-nav-link" aria-current={section === "people" ? "page" : undefined} hidden><span>Reviewer access</span><small>Your review team</small></a></div>
+  </nav>

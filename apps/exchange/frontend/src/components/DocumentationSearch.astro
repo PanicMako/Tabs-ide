@@ -1,0 +1,23 @@
+<button data-quiet-control class="docs-search-trigger" id="docs-search-open" type="button" aria-haspopup="dialog">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg>
+  <span>Search documentation</span>
+</button>
+<dialog class="docs-search-dialog" id="docs-search-dialog" aria-labelledby="docs-search-title">
+  <header class="docs-search-heading">
+    <div><p class="eyebrow">The developer library</p><h2 id="docs-search-title">Find your next step.</h2></div>
+    <button data-quiet-control id="docs-search-close" class="docs-search-close" type="button" aria-label="Close documentation search"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg></button>
+  </header>
+  <div class="docs-search-field">
+    <label class="sr-only" for="docs-search">Search documentation</label>
+    <input id="docs-search" type="search" maxlength="200" placeholder="Try storage, permissions, or publishing…" autocomplete="off" aria-controls="docs-search-results" aria-describedby="docs-search-status" />
+    <button data-quiet-control id="docs-search-clear" type="button" hidden>Clear</button>
+  </div>
+  <fieldset class="docs-search-filters"><legend>Search in</legend>
+    {[["all", "Everything"], ["guides", "Guides"], ["sdk", "SDK & permissions"], ["publishing", "Publishing"], ["registry", "Registry & API"]].map(([value, label]) => (
+      <label><input type="radio" name="docs-search-scope" value={value} checked={value === "all"} /><span>{label}</span></label>
+    ))}
+  </fieldset>
+  <p id="docs-search-status" class="docs-search-status" role="status" aria-live="polite"></p>
+  <div class="docs-search-scroll" id="docs-search-region" aria-busy="false"><ul id="docs-search-results"></ul></div>
+  <footer class="docs-search-help"><span>↑ ↓ move through results · Tab to filters</span><span>Esc to close</span></footer>
+</dialog>
