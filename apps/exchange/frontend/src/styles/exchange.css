@@ -1748,6 +1748,19 @@ h3 {
   font-size: 15px;
   background: transparent;
 }
+.home-search:focus-within {
+  border-color: var(--muted);
+  box-shadow: 0 0 0 1px var(--muted);
+}
+.home-search input[type="search"]:focus-visible {
+  outline: none;
+}
+@media (forced-colors: active) {
+  .home-search:focus-within {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
+}
 .home-search .button {
   padding: 10px 18px;
   font-size: 22px;

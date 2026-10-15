@@ -66,6 +66,8 @@ describe("Exchange frontend routes", () => {
   it("serves only known build assets with CSP and preserves private caching", async () => {
     const directory = await FS.mkdtemp(Path.join(OS.tmpdir(), "tabs-exchange-frontend-"));
     await FS.writeFile(Path.join(directory, "index.html"), "<h1>Tabs Exchange</h1>");
+    const favicon = await FS.readFile(new URL("../frontend/public/favicon.svg", import.meta.url));
+    await FS.writeFile(Path.join(directory, "favicon.svg"), favicon);
     const server = Http.createServer(async (request, response) => {
       response.setHeader("Cache-Control", "private, no-store");
       if (
@@ -87,6 +89,11 @@ describe("Exchange frontend routes", () => {
       expect(page.headers.get("content-security-policy")).toContain("frame-ancestors 'none'");
       expect(page.headers.get("content-security-policy")).not.toContain("unsafe-inline");
       expect(page.headers.get("x-content-type-options")).toBe("nosniff");
+      const icon = await fetch(`${origin}/favicon.svg`);
+      expect(icon.status).toBe(200);
+      expect(icon.headers.get("content-type")).toBe("image/svg+xml");
+      expect(icon.headers.get("x-content-type-options")).toBe("nosniff");
+      expect(Buffer.from(await icon.arrayBuffer())).toEqual(favicon);
       expect((await fetch(`${origin}/config.ts`)).status).toBe(404);
       expect((await fetch(`${origin}/docs/extensions/missing`)).status).toBe(404);
     } finally {
@@ -97,6 +104,11 @@ describe("Exchange frontend routes", () => {
     }
   });
   it("resolves the shared shell and documentation without touching API routes", () => {
+    expect(frontendAsset("/favicon.svg")).toBe("favicon.svg");
+    expect(frontendAsset("/favicon-32x32.png")).toBe("favicon-32x32.png");
+    expect(frontendAsset("/apple-touch-icon.png")).toBe("apple-touch-icon.png");
+    expect(frontendAsset("/other.svg")).toBeUndefined();
+    expect(frontendAsset("/favicon.svg/../config.ts")).toBeUndefined();
     expect(frontendAsset("/admin")).toBe("admin/index.html");
     expect(frontendAsset("/admin/")).toBe("admin/index.html");
     expect(frontendAsset("/admin/reviewers")).toBe("admin/reviewers/index.html");
