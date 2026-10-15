@@ -37,7 +37,8 @@ export interface AcpRequestContext {
 /** Lossless string identity for JSON-RPC request IDs used by callback maps. */
 export function acpRequestIdentity(requestId: unknown): string {
   const prefix = "$t3:jsonrpc:";
-  if (typeof requestId === "number" || typeof requestId === "bigint") return `${prefix}number:${requestId}`;
+  if (typeof requestId === "number" || typeof requestId === "bigint")
+    return `${prefix}number:${requestId}`;
   if (typeof requestId === "string") {
     return requestId.startsWith(prefix) ? `${prefix}string:${requestId}` : requestId;
   }
@@ -179,7 +180,11 @@ const makeStrictNdJsonRpcParser = () => {
       let encoded = codec.encode(response);
       if (encoded === undefined) return undefined;
       const resp = response as any;
-      if (resp._tag === "Exit" && resp.exit?._tag === "Failure" && Array.isArray(resp.exit?.cause)) {
+      if (
+        resp._tag === "Exit" &&
+        resp.exit?._tag === "Failure" &&
+        Array.isArray(resp.exit?.cause)
+      ) {
         const failure = resp.exit.cause.find((f: any) => f._tag === "Fail");
         const realError = failure?.error;
         if (
@@ -203,12 +208,7 @@ const makeStrictNdJsonRpcParser = () => {
           }
         }
       }
-      const expectedId =
-        "requestId" in resp
-          ? resp.requestId
-          : "id" in resp
-            ? resp.id
-            : undefined;
+      const expectedId = "requestId" in resp ? resp.requestId : "id" in resp ? resp.id : undefined;
       if (typeof expectedId === "string" && Number.isNaN(Number(expectedId))) {
         const encodedStr = typeof encoded === "string" ? encoded : decoder.decode(encoded);
         const parsed = JSON.parse(encodedStr);
@@ -888,17 +888,18 @@ export const makeAcpPatchedProtocol = Effect.fn("makeAcpPatchedProtocol")(functi
       ),
     supportsAck: true,
     supportsTransferables: false,
+    codecFor: Schema.toCodecJson,
   });
 
-  const rpcServerIdMap = new Map<bigint, AcpError.AcpRequestId>();
-  let nextSyntheticRpcServerId = 1n;
+  const rpcServerIdMap = new Map<number, AcpError.AcpRequestId>();
+  let nextSyntheticRpcServerId = 1;
   const resolveRequestId = (requestId: unknown): unknown => {
-    if (typeof requestId === "bigint" && rpcServerIdMap.has(requestId)) {
+    if (typeof requestId === "number" && rpcServerIdMap.has(requestId)) {
       return rpcServerIdMap.get(requestId);
     }
     if (typeof requestId === "string") {
       try {
-        const asBig = BigInt(requestId);
+        const asBig = Number(requestId);
         if (rpcServerIdMap.has(asBig)) return rpcServerIdMap.get(asBig);
       } catch {}
     }
@@ -915,7 +916,7 @@ export const makeAcpPatchedProtocol = Effect.fn("makeAcpPatchedProtocol")(functi
               const originalId = message.id as AcpError.AcpRequestId;
               const syntheticId = nextSyntheticRpcServerId++;
               rpcServerIdMap.set(syntheticId, originalId);
-              return f(0, { ...message, id: syntheticId as any });
+              return f(0, { ...message, id: syntheticId });
             }
           }
           return f(0, message);
@@ -934,12 +935,12 @@ export const makeAcpPatchedProtocol = Effect.fn("makeAcpPatchedProtocol")(functi
       ) {
         if ("requestId" in resp) {
           const rawId =
-            typeof resp.requestId === "bigint"
+            typeof resp.requestId === "number"
               ? resp.requestId
               : typeof resp.requestId === "string"
                 ? (() => {
                     try {
-                      return BigInt(resp.requestId);
+                      return Number(resp.requestId);
                     } catch {
                       return undefined;
                     }
@@ -970,6 +971,8 @@ export const makeAcpPatchedProtocol = Effect.fn("makeAcpPatchedProtocol")(functi
     supportsAck: true,
     supportsTransferables: false,
     supportsSpanPropagation: true,
+    supportsNotifications: true,
+    codecFor: Schema.toCodecJson,
   });
 
   // JSON-RPC notifications carry no `id`. Encoding a Request without `isNotification`

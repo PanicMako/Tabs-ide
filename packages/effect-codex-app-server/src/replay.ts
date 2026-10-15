@@ -43,7 +43,7 @@ export const CodexAppServerReplayTranscript = Schema.Struct({
 export type CodexAppServerReplayTranscript = typeof CodexAppServerReplayTranscript.Type;
 const decodeOutboundJsonFrame = Schema.decodeUnknownSync(Schema.fromJsonString(Schema.Unknown));
 
-export class CodexAppServerReplayJsonParseError extends Schema.TaggedErrorClass<CodexAppServerReplayJsonParseError>()(
+export class CodexAppServerReplayJsonParseError extends Schema.TaggedError<CodexAppServerReplayJsonParseError>()(
   "CodexAppServerReplayJsonParseError",
   {
     scenario: Schema.String,
@@ -56,7 +56,7 @@ export class CodexAppServerReplayJsonParseError extends Schema.TaggedErrorClass<
   }
 }
 
-export class CodexAppServerReplayExhaustedError extends Schema.TaggedErrorClass<CodexAppServerReplayExhaustedError>()(
+export class CodexAppServerReplayExhaustedError extends Schema.TaggedError<CodexAppServerReplayExhaustedError>()(
   "CodexAppServerReplayExhaustedError",
   {
     scenario: Schema.String,
@@ -69,7 +69,7 @@ export class CodexAppServerReplayExhaustedError extends Schema.TaggedErrorClass<
   }
 }
 
-export class CodexAppServerReplayUnexpectedOutboundError extends Schema.TaggedErrorClass<CodexAppServerReplayUnexpectedOutboundError>()(
+export class CodexAppServerReplayUnexpectedOutboundError extends Schema.TaggedError<CodexAppServerReplayUnexpectedOutboundError>()(
   "CodexAppServerReplayUnexpectedOutboundError",
   {
     scenario: Schema.String,
@@ -83,7 +83,7 @@ export class CodexAppServerReplayUnexpectedOutboundError extends Schema.TaggedEr
   }
 }
 
-export class CodexAppServerReplayFrameMismatchError extends Schema.TaggedErrorClass<CodexAppServerReplayFrameMismatchError>()(
+export class CodexAppServerReplayFrameMismatchError extends Schema.TaggedError<CodexAppServerReplayFrameMismatchError>()(
   "CodexAppServerReplayFrameMismatchError",
   {
     scenario: Schema.String,
@@ -98,7 +98,7 @@ export class CodexAppServerReplayFrameMismatchError extends Schema.TaggedErrorCl
   }
 }
 
-export class CodexAppServerReplayRuntimeExitError extends Schema.TaggedErrorClass<CodexAppServerReplayRuntimeExitError>()(
+export class CodexAppServerReplayRuntimeExitError extends Schema.TaggedError<CodexAppServerReplayRuntimeExitError>()(
   "CodexAppServerReplayRuntimeExitError",
   {
     scenario: Schema.String,
@@ -112,7 +112,7 @@ export class CodexAppServerReplayRuntimeExitError extends Schema.TaggedErrorClas
   }
 }
 
-export class CodexAppServerReplayIncompleteError extends Schema.TaggedErrorClass<CodexAppServerReplayIncompleteError>()(
+export class CodexAppServerReplayIncompleteError extends Schema.TaggedError<CodexAppServerReplayIncompleteError>()(
   "CodexAppServerReplayIncompleteError",
   {
     scenario: Schema.String,

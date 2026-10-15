@@ -119,10 +119,12 @@ const resourceAttributes = Config.schema(resourceAttributesSchema, RESOURCE_ATTR
   Config.orElse(() =>
     Config.string(RESOURCE_ATTRIBUTES).pipe(
       // The value is left out because attributes can carry credentials.
-      Config.map((): ResourceAttributes => ({
-        value: {},
-        warning: `${RESOURCE_ATTRIBUTES} is not a list of percent-encoded key=value pairs and was ignored`,
-      })),
+      Config.map(
+        (): ResourceAttributes => ({
+          value: {},
+          warning: `${RESOURCE_ATTRIBUTES} is not a list of percent-encoded key=value pairs and was ignored`,
+        }),
+      ),
     ),
   ),
   Config.withDefault<ResourceAttributes>({ value: {} }),

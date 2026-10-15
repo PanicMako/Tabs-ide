@@ -1107,7 +1107,7 @@ export const make = Effect.fn("effect-acp/AcpClient.make")(function* (
 
   let nextRpcRequestId = 2 ** 32;
   const rpc = yield* RpcClient.make(AcpRpcs.CompatAgentRpcs, {
-    generateRequestId: () => RpcMessage.RequestId(BigInt(nextRpcRequestId++)),
+    generateRequestId: () => RpcMessage.RequestId(nextRpcRequestId++),
   }).pipe(Effect.provideService(RpcClient.Protocol, transport.clientProtocol));
 
   return AcpClient.of({

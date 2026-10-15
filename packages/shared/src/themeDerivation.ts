@@ -16,6 +16,8 @@ export interface CustomThemeConfig {
     editorFont: string;
     /** Optional heading/display font pairing (e.g. from a named font combo like "Syne Dropped"). */
     headingFont?: string;
+    sectionFont?: string | undefined;
+    supportingFont?: string | undefined;
   };
 }
 

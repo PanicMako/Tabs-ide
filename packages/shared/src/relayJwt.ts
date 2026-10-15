@@ -15,7 +15,7 @@ export const RELAY_HOOK_DELIVERY_TYP = "t3-relay-hook-delivery+jwt";
 /** Header carrying the signed proof that a webhook request came from the relay. */
 export const RELAY_HOOK_DELIVERY_HEADER = "x-t3-relay-delivery";
 
-export class RelayJwtError extends Schema.TaggedErrorClass<RelayJwtError>()("RelayJwtError", {
+export class RelayJwtError extends Schema.TaggedError<RelayJwtError>()("RelayJwtError", {
   operation: Schema.Literals(["sign", "verify"]),
   typ: Schema.String,
   issuer: Schema.optional(Schema.String),

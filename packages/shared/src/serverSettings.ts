@@ -251,7 +251,7 @@ function translateLegacyProjectOverridePatch(
     for (const [projectId, value] of Object.entries(map)) {
       if (canonicalProjectIds.has(projectId)) continue;
       const entry: ProjectSettingsOverrides = {
-        ...(entries.get(projectId) ?? currentEntries[projectId] ?? {}),
+        ...(entries.get(projectId) ?? currentEntries[projectId]),
       };
       if (value === null || value === undefined) {
         delete entry[key];
@@ -450,8 +450,7 @@ export function applyServerSettingsPatch(
     return nextWithReplacements;
   }
 
-  const fallbackSelection =
-    current.textGenerationModelSelection ??
+  const fallbackSelection = current.textGenerationModelSelection ??
     DEFAULT_SERVER_SETTINGS.textGenerationModelSelection ?? {
       instanceId: "codex" as ProviderInstanceId,
       model: "gpt-5.4-mini",

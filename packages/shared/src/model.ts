@@ -337,7 +337,6 @@ export function normalizeCustomModelSlug(model: string | null | undefined): stri
   return model.trim() || null;
 }
 
-
 export function resolveSelectableModel(
   provider: string,
   value: string | null | undefined,

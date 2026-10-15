@@ -3,7 +3,7 @@ import * as Schema from "effect/Schema";
 import * as NodeHttp from "node:http";
 import { codexAuthorizationRequest, codexCallbackUrl } from "@tabs/shared/codexAuthHandoff";
 
-export class CodexAuthCallbackError extends Schema.TaggedErrorClass<CodexAuthCallbackError>()(
+export class CodexAuthCallbackError extends Schema.TaggedError<CodexAuthCallbackError>()(
   "CodexAuthCallbackError",
   { detail: Schema.String },
 ) {
