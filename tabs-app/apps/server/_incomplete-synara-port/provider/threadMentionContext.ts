@@ -7,7 +7,7 @@ import { isThreadMentionPath, threadIdFromThreadMentionPath } from "@tabs/shared
 import { Effect, Option } from "effect";
 
 import { paginateThreadMessages } from "../agentGateway/threadSummary.ts";
-import type { ProjectionSnapshotQueryShape } from "../orchestration/Services/ProjectionSnapshotQuery.ts";
+import type { ProjectionSnapshotQueryShape } from "../../src/orchestration-v2/ProjectionSnapshotQuery.ts";
 
 export const THREAD_MENTION_MESSAGE_LIMIT = 20;
 export const THREAD_MENTION_MAX_MESSAGE_CHARS = 1_500;
