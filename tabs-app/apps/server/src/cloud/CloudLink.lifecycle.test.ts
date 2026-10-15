@@ -12,7 +12,12 @@ import * as PlatformError from "effect/PlatformError";
 import * as Schema from "effect/Schema";
 import * as TestClock from "effect/testing/TestClock";
 import * as Stream from "effect/Stream";
-import { HttpClient, HttpClientResponse, HttpServer, type HttpClientRequest } from "effect/unstable/http";
+import {
+  HttpClient,
+  HttpClientResponse,
+  HttpServer,
+  type HttpClientRequest,
+} from "effect/unstable/http";
 
 import { DESKTOP_UPDATE_RESTART_MARKER_FILE, EnvironmentId } from "@tabs/contracts";
 import * as EnvironmentAuth from "../auth/EnvironmentAuth.ts";

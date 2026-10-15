@@ -96,7 +96,7 @@ function pruneTools(root, specs, flat) {
 }
 `;
 
-class DeviceToolMaintenanceError extends Schema.TaggedErrorClass<DeviceToolMaintenanceError>()(
+class DeviceToolMaintenanceError extends Schema.TaggedError<DeviceToolMaintenanceError>()(
   "DeviceToolMaintenanceError",
   {
     operation: Schema.Literal("prune"),

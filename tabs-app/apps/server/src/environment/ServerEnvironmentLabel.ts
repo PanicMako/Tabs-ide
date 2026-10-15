@@ -3,7 +3,7 @@ import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Schema from "effect/Schema";
 
-import { runProcess } from "../processRunner.ts";
+import { ProcessRunner } from "../processRunner.ts";
 
 interface ResolveServerEnvironmentLabelInput {
   readonly cwdBaseName: string;
@@ -15,7 +15,7 @@ const ServerEnvironmentLabelCommandProbe = Schema.Literals([
 ]);
 type ServerEnvironmentLabelCommandProbe = typeof ServerEnvironmentLabelCommandProbe.Type;
 
-export class ServerEnvironmentLabelFileError extends Schema.TaggedErrorClass<ServerEnvironmentLabelFileError>()(
+export class ServerEnvironmentLabelFileError extends Schema.TaggedError<ServerEnvironmentLabelFileError>()(
   "ServerEnvironmentLabelFileError",
   {
     operation: Schema.Literals(["inspect", "read"]),
@@ -28,7 +28,7 @@ export class ServerEnvironmentLabelFileError extends Schema.TaggedErrorClass<Ser
   }
 }
 
-export class ServerEnvironmentLabelCommandError extends Schema.TaggedErrorClass<ServerEnvironmentLabelCommandError>()(
+export class ServerEnvironmentLabelCommandError extends Schema.TaggedError<ServerEnvironmentLabelCommandError>()(
   "ServerEnvironmentLabelCommandError",
   {
     probe: ServerEnvironmentLabelCommandProbe,
@@ -110,42 +110,37 @@ const runFriendlyLabelCommand = Effect.fn("runFriendlyLabelCommand")(function* (
   readonly command: string;
   readonly args: readonly string[];
 }) {
-  const result = yield* Effect.tryPromise({
-    try: () =>
-      runProcess(input.command, input.args, {
-        timeoutMs: 5_000,
-        allowNonZeroExit: true,
-      }),
-    catch: (cause) =>
-      new ServerEnvironmentLabelCommandError({
-        probe: input.probe,
-        executable: input.command,
-        argumentCount: input.args.length,
-        cause,
-      }),
-  }).pipe(
-    Effect.mapError(
-      (cause) =>
-        new ServerEnvironmentLabelCommandError({
-          probe: input.probe,
-          executable: input.command,
-          argumentCount: input.args.length,
-          cause,
-        }),
-    ),
-    Effect.catchTags({
-      ServerEnvironmentLabelCommandError: (error) =>
-        Effect.logDebug(error.message).pipe(
-          Effect.annotateLogs({
-            probe: error.probe,
-            executable: error.executable,
-            argumentCount: error.argumentCount,
-            cause: error,
+  const runner = yield* ProcessRunner;
+  const result = yield* runner
+    .run({
+      command: input.command,
+      args: input.args,
+      timeout: "5 seconds",
+      timeoutBehavior: "timedOutResult",
+    })
+    .pipe(
+      Effect.mapError(
+        (cause) =>
+          new ServerEnvironmentLabelCommandError({
+            probe: input.probe,
+            executable: input.command,
+            argumentCount: input.args.length,
+            cause,
           }),
-          Effect.as(null),
-        ),
-    }),
-  );
+      ),
+      Effect.catchTags({
+        ServerEnvironmentLabelCommandError: (error) =>
+          Effect.logDebug(error.message).pipe(
+            Effect.annotateLogs({
+              probe: error.probe,
+              executable: error.executable,
+              argumentCount: error.argumentCount,
+              cause: error,
+            }),
+            Effect.as(null),
+          ),
+      }),
+    );
 
   if (result === null || result.code !== 0) {
     return null;

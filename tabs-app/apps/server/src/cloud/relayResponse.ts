@@ -10,7 +10,7 @@ import { isHttpClientError } from "effect/unstable/http/HttpClientError";
  * retry; the relay refused the other kinds. The description is safe to show:
  * it carries the relay's own explanation and trace ID, never request details.
  */
-export class RelayRequestError extends Schema.TaggedErrorClass<RelayRequestError>()(
+export class RelayRequestError extends Schema.TaggedError<RelayRequestError>()(
   "RelayRequestError",
   {
     rejection: Schema.Literals(["unauthorized", "forbidden", "rejected", "unavailable"]),

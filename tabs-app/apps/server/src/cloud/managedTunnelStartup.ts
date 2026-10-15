@@ -44,7 +44,7 @@ export const retryManagedTunnelRegistration = <A, E, R>(
   onRetryWindowExhausted?: Effect.Effect<void, never, R>,
 ) => {
   const schedule = Schedule.exponential("1 second").pipe(
-    Schedule.modifyDelay((duration) =>
+    Schedule.modifyDelay(({ duration }) =>
       Effect.succeed(Duration.min(duration, Duration.seconds(30))),
     ),
     Schedule.jittered,
@@ -53,7 +53,7 @@ export const retryManagedTunnelRegistration = <A, E, R>(
     Effect.retry({
       while: isRetryable,
       schedule: schedule.pipe(
-        Schedule.both(Schedule.during(MANAGED_TUNNEL_REGISTRATION_RETRY_WINDOW)),
+        Schedule.upTo({ duration: MANAGED_TUNNEL_REGISTRATION_RETRY_WINDOW }),
       ),
     }),
   );
