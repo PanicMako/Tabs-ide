@@ -425,9 +425,7 @@ export function getSelectedTraits(
   const promptInjectedEffortLevels = caps.promptInjectedEffortLevels ?? [];
   const effortLevels = allowPromptInjectedEffort
     ? reasoningEffortLevels
-    : reasoningEffortLevels.filter(
-        (option) => !promptInjectedEffortLevels.includes(option.value),
-      );
+    : reasoningEffortLevels.filter((option) => !promptInjectedEffortLevels.includes(option.value));
   const defaultEffort = getDefaultEffort(caps);
 
   const resolvedEffort = getRawEffort(provider, modelOptions);

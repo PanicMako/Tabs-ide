@@ -1,3 +1,5 @@
+import { ensureDraftThreadExists, type DraftThreadCreation } from "../stores/ensureDraftThread";
+import { onApiServerProvidersUpdated } from "../wsNativeApi";
 import {
   ADD_WORKSPACE_FILE_EVENT,
   WORKSPACE_FILE_MIME,
@@ -24,6 +26,7 @@ import {
   type ServerProvider,
   type ThreadId,
   type TurnId,
+  RunId,
   OrchestrationThreadActivity,
   ProviderInteractionMode,
   RuntimeMode,
@@ -31,9 +34,9 @@ import {
   type ServerProviderModel,
   type ServerProviderSlashCommand,
   type ProviderOptionSelection,
-  type PreviewAnnotationPayload,
   type ServerProviderSkill,
   type AssistantCitation,
+  type OrchestrationV2ThreadProjection,
 } from "@tabs/contracts";
 import {
   formatProviderSkillDisplayName,
@@ -160,6 +163,7 @@ import {
 import {
   useMessageQueueStore,
   getThreadQueuedMessages,
+  migrateLocalQueueToServer,
   type QueuedMessage,
 } from "../stores/messageQueueStore";
 import { useRightPanelStore, type RightPanelTab } from "../stores/rightPanelStore";
@@ -226,6 +230,8 @@ import { deriveLatestContextWindowSnapshot } from "../lib/contextWindow";
 import { shouldUseCompactComposerFooter } from "./composerFooterLayout";
 import { terminalActions, useThreadTerminalState } from "../state/terminal";
 import { projectsAtom, threadsAtom } from "../state/threads";
+import { applyThreadProjectionToAtoms } from "~/state/readModel";
+import { applyOrchestrationV2ProjectionEvent } from "@tabs/client-runtime/state/orchestrationV2Projection";
 import { ComposerPromptEditor, type ComposerPromptEditorHandle } from "./ComposerPromptEditor";
 import { ComposerPromptLengthValidation } from "./chat/ComposerPromptLengthValidation";
 import { getComposerPromptLengthValidationMessage } from "./chat/composerSubmission";
@@ -455,9 +461,21 @@ export default function ChatView({
   useEffect(() => {
     let active = true;
     setThreadApi(null);
-    void environmentApi(environmentId).then((api) => {
-      if (active) setThreadApi(api);
-    });
+    void environmentApi(environmentId)
+      .then((api) => {
+        if (active) {
+          setThreadApi(api);
+          void migrateLocalQueueToServer(environmentId, api);
+        }
+      })
+      .catch((error: unknown) => {
+        if (active)
+          toastManager.add({
+            type: "error",
+            title: "Could not connect to this environment",
+            description: error instanceof Error ? error.message : String(error),
+          });
+      });
     return () => {
       active = false;
     };
@@ -762,7 +780,6 @@ export default function ChatView({
   const peekNextReadyMessage = useMessageQueueStore((state) => state.peekNextReadyMessage);
   const threadQueuedMessages = getThreadQueuedMessages(queueByThread, threadId);
   const [isSchedulePopoverOpen, setIsSchedulePopoverOpen] = useState(false);
-  const [isIdleSchedulePopoverOpen, setIsIdleSchedulePopoverOpen] = useState(false);
   const [isStuck, setIsStuck] = useState(false);
   const interruptAttemptedAtRef = useRef<number | null>(null);
   const stuckTimerRef = useRef<number | null>(null);
@@ -784,6 +801,8 @@ export default function ChatView({
     [compact, environmentId, navigate, threadId],
   );
 
+  const queueThreadCreationRef = useRef<DraftThreadCreation | null>(null);
+  const queueModelSelectionRef = useRef<ModelSelection | null>(null);
   const composerScopeRef = useRef(`${environmentId}:${threadId}`);
   composerScopeRef.current = `${environmentId}:${threadId}`;
   const persistingDraftRef = useRef(false);
@@ -1000,6 +1019,8 @@ export default function ChatView({
     async (scheduledFor?: string | null) => {
       if (!threadId || persistingDraftRef.current) return;
       const scopeForQueue = composerScopeRef.current;
+      const modelForQueue = queueModelSelectionRef.current;
+      const creationForQueue = queueThreadCreationRef.current;
       const draftKey = environmentId ? scopedComposerThreadId(environmentId, threadId) : threadId;
       const draftForQueue = useComposerDraftStore.getState().draftsByThreadId[draftKey];
       const promptForQueue = promptRef.current;
@@ -1022,16 +1043,18 @@ export default function ChatView({
       try {
         const persistAttachment = async (
           item: ComposerImageAttachment | ComposerFileAttachment,
+          type: "image" | "file",
         ) => ({
           id: item.id,
+          type,
           name: item.name,
           mimeType: item.mimeType,
           sizeBytes: item.sizeBytes,
           dataUrl: await readFileAsDataUrl(item.file),
         });
         [attachments, files] = await Promise.all([
-          Promise.all(composerImages.map(persistAttachment)),
-          Promise.all(composerFiles.map(persistAttachment)),
+          Promise.all(composerImages.map((img) => persistAttachment(img, "image"))),
+          Promise.all(composerFiles.map((file) => persistAttachment(file, "file"))),
         ]);
       } catch {
         persistingDraftRef.current = false;
@@ -1042,24 +1065,28 @@ export default function ChatView({
         });
         return;
       }
-      try {
-        enqueueMessage({
-          attachments,
-          files,
-          id: `queue-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-          threadId,
-          environmentId,
-          text: appendReviewCommentsToPrompt(
-            composerPreviewAnnotations.reduce(
-              (text, annotation) => appendPreviewAnnotationPrompt(text, annotation),
-              appendTerminalContextsToPrompt(trimmed, sendableTerminalContexts),
-            ),
-            composerReviewComments,
+      const threadModel = modelForQueue ?? threads.find((t) => t.id === threadId)?.modelSelection;
+      const queuedItem: QueuedMessage = {
+        attachments,
+        files,
+        id: `queue-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        threadId,
+        environmentId,
+        text: appendReviewCommentsToPrompt(
+          composerPreviewAnnotations.reduce(
+            (text, annotation) => appendPreviewAnnotationPrompt(text, annotation),
+            appendTerminalContextsToPrompt(trimmed, sendableTerminalContexts),
           ),
-          terminalContextIds: sendableTerminalContexts.map((c) => c.id),
-          createdAt: new Date().toISOString(),
-          scheduledFor: scheduledFor ?? undefined,
-        });
+          composerReviewComments,
+        ),
+        terminalContextIds: sendableTerminalContexts.map((c) => c.id),
+        createdAt: new Date().toISOString(),
+        scheduledFor: scheduledFor ?? undefined,
+        modelSelection: threadModel,
+        threadCreation: creationForQueue ?? undefined,
+      };
+      try {
+        enqueueMessage(queuedItem);
       } catch {
         toastManager.add({
           type: "error",
@@ -1070,6 +1097,23 @@ export default function ChatView({
       } finally {
         persistingDraftRef.current = false;
       }
+
+      // Immediately sync queued message to authoritative server V2 intake
+      const intake = (
+        threadApi
+          ? migrateLocalQueueToServer(environmentId, threadApi, threadModel)
+          : environmentApi(environmentId).then((api) =>
+              migrateLocalQueueToServer(environmentId, api, threadModel),
+            )
+      ).catch((error: unknown) => {
+        useMessageQueueStore
+          .getState()
+          .setMessageError(
+            threadId,
+            queuedItem.id,
+            error instanceof Error ? error.message : String(error),
+          );
+      });
       // Leave a newer draft or a newly selected thread intact after serialization.
       if (
         composerScopeRef.current !== scopeForQueue ||
@@ -1085,6 +1129,28 @@ export default function ChatView({
       setComposerCursor(0);
       setComposerTrigger(null);
 
+      try {
+        await intake;
+      } catch (error: unknown) {
+        useMessageQueueStore
+          .getState()
+          .setMessageError(
+            threadId,
+            queuedItem.id,
+            error instanceof Error ? error.message : String(error),
+          );
+      }
+      const retained = useMessageQueueStore
+        .getState()
+        .queueByThread[threadId]?.find((message) => message.id === queuedItem.id);
+      if (retained) {
+        toastManager.add({
+          type: "error",
+          title: "Message retained in Queue",
+          description: `Reconnect the owning environment and choose Retry. ${retained.dispatchError ?? "Server intake has not been confirmed."}`,
+        });
+        return;
+      }
       toastManager.add({
         type: "info",
         title: scheduledFor ? "Message scheduled" : "Message queued",
@@ -1205,6 +1271,35 @@ export default function ChatView({
   const canCheckoutPullRequestIntoThread = isLocalDraftThread;
   const diffOpen = propDiffOpen !== undefined ? propDiffOpen : rawSearch.diff === "1";
   const activeThreadId = activeThread?.id ?? null;
+  const projectionRef = useRef<OrchestrationV2ThreadProjection | null>(null);
+  useEffect(() => {
+    if (!threadApi || !activeThreadId || !isServerThread) {
+      projectionRef.current = null;
+      return;
+    }
+    const unsubscribe = threadApi.orchestration.subscribeThread(
+      { threadId: activeThreadId, acceptBoundedSnapshot: true },
+      (item) => {
+        if ("kind" in item && item.kind === "snapshot") {
+          projectionRef.current = item.projection;
+          applyThreadProjectionToAtoms(item.projection, environmentId);
+        } else if ("kind" in item && item.kind === "event") {
+          const current = projectionRef.current;
+          if (current) {
+            const next = applyOrchestrationV2ProjectionEvent(current, item.event);
+            projectionRef.current = next;
+            if (next) {
+              applyThreadProjectionToAtoms(next, environmentId);
+            }
+          }
+        }
+      },
+    );
+    return () => {
+      unsubscribe();
+      projectionRef.current = null;
+    };
+  }, [activeThreadId, environmentId, threadApi, isServerThread]);
   const activeLatestTurn = activeThread?.latestTurn ?? null;
   const activeContextWindow = useMemo(
     () => deriveLatestContextWindowSnapshot(activeThread?.activities ?? []),
@@ -1356,8 +1451,14 @@ export default function ChatView({
         selectedProviderByThreadId ??
         null) as ProviderKind | null)
     : null;
-  const serverConfigQuery = useQuery(serverConfigQueryOptions());
+  const serverConfigQuery = useQuery(serverConfigQueryOptions(environmentId));
   const providerStatuses = serverConfigQuery.data?.providers ?? EMPTY_PROVIDERS;
+  useEffect(() => {
+    if (!threadApi) return;
+    return onApiServerProvidersUpdated(threadApi, () => {
+      void queryClient.invalidateQueries({ queryKey: serverQueryKeys.config(environmentId) });
+    });
+  }, [threadApi, queryClient, environmentId]);
   // For new threads, default to the provider the user configured in Settings.
   const settingsDefaultProvider = settings.textGenerationModelSelection?.instanceId ?? "codex";
   const unlockedSelectedProvider = resolveSelectableProvider(
@@ -1392,6 +1493,18 @@ export default function ChatView({
     () => makeAppModelSelection(selectedProvider, selectedModel, selectedModelOptionsForDispatch),
     [selectedModel, selectedModelOptionsForDispatch, selectedProvider],
   );
+  queueModelSelectionRef.current = selectedModelSelection;
+  queueThreadCreationRef.current =
+    isLocalDraftThread && activeThread
+      ? {
+          projectId: activeThread.projectId,
+          modelSelection: selectedModelSelection,
+          runtimeMode,
+          interactionMode,
+          branch: activeThread.branch,
+          worktreePath: activeThread.worktreePath,
+        }
+      : null;
   const selectedModelForPicker = selectedModel;
 
   // If the user manually removes the Ultrathink prefix from the prompt, revert the model selection
@@ -2024,7 +2137,7 @@ export default function ChatView({
       .refreshProviders({ instanceId: activeProviderStatus.instanceId, cwd: gitCwd })
       .then((payload) => {
         queryClient.setQueryData(
-          serverQueryKeys.config(),
+          serverQueryKeys.config(environmentId),
           (current: typeof serverConfigQuery.data) =>
             current ? { ...current, providers: payload.providers } : current,
         );
@@ -2046,7 +2159,15 @@ export default function ChatView({
           };
         }
       });
-  }, [activeProviderStatus, gitCwd, prompt, queryClient, serverConfigQuery.data, threadApi]);
+  }, [
+    activeProviderStatus,
+    gitCwd,
+    prompt,
+    queryClient,
+    serverConfigQuery.data,
+    threadApi,
+    environmentId,
+  ]);
   const workspaceEntriesQuery = useQuery(
     projectSearchEntriesQueryOptions({
       environmentId: activeProject?.environmentId,
@@ -2578,7 +2699,7 @@ export default function ChatView({
             JSON.stringify(serverThread.modelSelection.options ?? null))
       ) {
         await api.orchestration.dispatchCommand({
-          type: "thread.meta.update",
+          type: "thread.model-selection.set",
           commandId: newCommandId(),
           threadId: input.threadId,
           modelSelection: input.modelSelection,
@@ -3377,7 +3498,7 @@ export default function ChatView({
       if (!isActivePane) return;
       const detail = (event as CustomEvent<PreviewAnnotationPickedDetail>).detail;
       if (!detail || detail.projectId !== activeProject?.id || !activeThreadId) return;
-      const annotation: PreviewAnnotationPayload = detail.annotation;
+      const annotation = detail.annotation;
       addComposerDraftPreviewAnnotation(activeThreadId, annotation);
       void previewAnnotationScreenshotFile(annotation)
         .then((file) => {
@@ -3596,19 +3717,14 @@ export default function ChatView({
         interactionMode,
       });
       await api.orchestration.dispatchCommand({
-        type: "thread.turn.start",
+        type: "message.dispatch",
         commandId: newCommandId(),
         threadId,
-        message: {
-          messageId,
-          role: "user",
-          text: "/compact",
-          attachments: [],
-        },
+        messageId,
+        text: "/compact",
+        attachments: [],
         modelSelection: selectedModelSelection,
-        runtimeMode,
-        interactionMode,
-        createdAt,
+        dispatchMode: { type: "start_immediately" },
       });
     } catch (err) {
       setOptimisticUserMessages((messages) =>
@@ -3634,7 +3750,7 @@ export default function ChatView({
   ]);
 
   const currentPreviewAnnotations = composerPreviewAnnotations;
-  const onSend = async (e?: { preventDefault: () => void }, queued?: QueuedMessage) => {
+  const sendMessage = async (e?: { preventDefault: () => void }, queued?: QueuedMessage) => {
     const composerImages = queued
       ? hydrateImagesFromPersisted(queued.attachments ?? [])
       : composerImagesRef.current;
@@ -3659,7 +3775,15 @@ export default function ChatView({
     const composerReviewComments = queued ? [] : composerReviewCommentsRef.current;
     e?.preventDefault();
     const api = threadApi;
-    if (!api || !activeThread || isSendBusy || isConnecting || sendInFlightRef.current) return;
+    if (!api || !activeThread) {
+      toastManager.add({
+        type: "error",
+        title: "Message retained",
+        description: "This thread's environment is not connected. Reconnect it and retry sending.",
+      });
+      return false;
+    }
+    if (isSendBusy || isConnecting || sendInFlightRef.current) return;
     if (activePendingProgress) {
       onAdvanceActivePendingUserInput();
       return;
@@ -3771,6 +3895,13 @@ export default function ChatView({
     const activeProviderSnapshot = providerStatuses.find(
       (p) => p.instanceId === selectedProvider || p.driver === selectedProvider,
     );
+    if (activeProviderSnapshot?.capabilities?.agentSessions === "unsupported") {
+      setThreadError(
+        activeThread.id,
+        `${activeProviderSnapshot?.displayName ?? selectedProvider} provides text generation only. Select an agent provider to send this draft.`,
+      );
+      return;
+    }
     if (
       activeProviderSnapshot &&
       activeProviderSnapshot.auth?.status === "authenticated_unentitled"
@@ -3865,7 +3996,7 @@ export default function ChatView({
       messageTextWithPreviewAnnotations,
       composerReviewCommentsSnapshot,
     );
-    const messageIdForSend = newMessageId();
+    const messageIdForSend = queued ? (queued.id as MessageId) : newMessageId();
     const messageCreatedAt = new Date().toISOString();
     const outgoingMessageText = formatOutgoingPrompt({
       provider: selectedProvider,
@@ -3934,10 +4065,6 @@ export default function ChatView({
         description: toastCopy.description,
       });
     }
-    if (!queued) {
-      promptRef.current = "";
-      clearComposerDraftContent(threadIdForSend);
-    }
     setComposerHighlightedItemId(null);
     setComposerCursor(0);
     setComposerTrigger(null);
@@ -3961,7 +4088,7 @@ export default function ChatView({
         nextThreadWorktreePath = result.worktree.path;
         if (isServerThread) {
           await api.orchestration.dispatchCommand({
-            type: "thread.meta.update",
+            type: "thread.metadata.update",
             commandId: newCommandId(),
             threadId: threadIdForSend,
             branch: result.worktree.branch,
@@ -4005,18 +4132,14 @@ export default function ChatView({
       );
 
       if (isLocalDraftThread) {
-        await api.orchestration.dispatchCommand({
-          type: "thread.create",
-          commandId: newCommandId(),
-          threadId: threadIdForSend,
-          projectId: activeProject.id,
+        await ensureDraftThreadExists(api.orchestration, threadIdForSend, {
           title,
+          projectId: activeProject.id,
           modelSelection: threadCreateModelSelection,
           runtimeMode,
           interactionMode,
           branch: nextThreadBranch,
           worktreePath: nextThreadWorktreePath,
-          createdAt: activeThread.createdAt,
         });
         createdServerThreadForLocalDraft = true;
       }
@@ -4049,7 +4172,7 @@ export default function ChatView({
       // Auto-title from first message
       if (isFirstMessage && isServerThread) {
         await api.orchestration.dispatchCommand({
-          type: "thread.meta.update",
+          type: "thread.metadata.update",
           commandId: newCommandId(),
           threadId: threadIdForSend,
           title,
@@ -4068,34 +4191,59 @@ export default function ChatView({
 
       beginSendPhase("sending-turn");
       const turnAttachments = await turnAttachmentsPromise;
-      await api.orchestration.dispatchCommand({
-        type: "thread.turn.start",
-        commandId: newCommandId(),
+      // Direct sends use the same durable outbox as scheduled intake. Persist
+      // identity and attachment bytes before clearing the composer or sending.
+      // Retry/reconnect can then replay exactly this message after a lost ACK.
+      enqueueMessage({
+        id: messageIdForSend,
         threadId: threadIdForSend,
-        message: {
-          messageId: messageIdForSend,
-          role: "user",
-          text: outgoingMessageText,
-          attachments: turnAttachments,
-        },
-        modelSelection: selectedModelSelection,
-        runtimeMode,
-        interactionMode,
+        environmentId,
+        text: outgoingMessageText,
         createdAt: messageCreatedAt,
+        attachments: turnAttachments.map((attachment, index) => ({
+          ...attachment,
+          id: optimisticAttachments[index]!.id,
+        })),
+        modelSelection: selectedModelSelection,
+        dispatchMode: "start_immediately",
       });
+      if (!queued && promptRef.current === promptForSend) {
+        promptRef.current = "";
+        clearComposerDraftContent(threadIdForSend);
+      }
+      await migrateLocalQueueToServer(environmentId, api, selectedModelSelection);
+      const retained = useMessageQueueStore
+        .getState()
+        .queueByThread[threadIdForSend]?.find((message) => message.id === messageIdForSend);
+      if (retained)
+        throw new Error(
+          retained.dispatchError ??
+            "Message intake is still uncertain. Open Queue and retry this message to reconcile its delivery.",
+        );
       turnStartSucceeded = true;
+      void api.orchestration
+        .getThreadProjection({ threadId: threadIdForSend })
+        .then((projection) => applyThreadProjectionToAtoms(projection, environmentId))
+        .catch((error: unknown) =>
+          setThreadError(threadIdForSend, error instanceof Error ? error.message : String(error)),
+        );
     })().catch(async (err: unknown) => {
-      if (createdServerThreadForLocalDraft && !turnStartSucceeded) {
-        await api.orchestration
-          .dispatchCommand({
-            type: "thread.delete",
-            commandId: newCommandId(),
-            threadId: threadIdForSend,
-          })
-          .catch(() => undefined);
+      const retainedInOutbox = useMessageQueueStore
+        .getState()
+        .queueByThread[threadIdForSend]?.some((message) => message.id === messageIdForSend);
+      if (retainedInOutbox) {
+        setOptimisticUserMessages((existing) =>
+          existing.filter((message) => message.id !== messageIdForSend),
+        );
+        toastManager.add({
+          type: "error",
+          title: "Message retained in Queue",
+          description: `Open Queue and choose Retry. ${err instanceof Error ? err.message : String(err)}`,
+        });
       }
       if (
         !queued &&
+        !retainedInOutbox &&
         !turnStartSucceeded &&
         promptRef.current.length === 0 &&
         composerImagesRef.current.length === 0 &&
@@ -4134,151 +4282,28 @@ export default function ChatView({
     return turnStartSucceeded;
   };
 
-  const isAutoDispatchingRef = useRef(false);
-  const [scheduleTick, setScheduleTick] = useState(0);
-
-  // Periodic tick for scheduled messages in queue
-  useEffect(() => {
-    const hasScheduled = threadQueuedMessages.some((m) => Boolean(m.scheduledFor));
-    if (!hasScheduled) return;
-
-    const interval = window.setInterval(() => {
-      setScheduleTick((t) => t + 1);
-    }, 4000);
-
-    return () => window.clearInterval(interval);
-  }, [threadQueuedMessages]);
-
-  // Auto-dispatch queued messages when turn completes or scheduled time arrives
-  useEffect(() => {
-    if (!activeThread?.id) return;
-
-    // latestTurnSettled is false when there has never been a turn (activeLatestTurn
-    // is null). A fresh thread with no history is still eligible for dispatch, so
-    // allow it through when activeLatestTurn is null and the thread isn't running.
-    const canDispatch = latestTurnSettled || (!activeLatestTurn && phase !== "running");
-    if (!canDispatch) return;
-
-    if (
-      phase === "running" ||
-      isSendBusy ||
-      isConnecting ||
-      sendInFlightRef.current ||
-      isAutoDispatchingRef.current
-    ) {
-      return;
+  const onSend = async (e?: { preventDefault: () => void }, queued?: QueuedMessage) => {
+    try {
+      return await sendMessage(e, queued);
+    } catch (error: unknown) {
+      sendInFlightRef.current = false;
+      resetSendPhase();
+      const detail = error instanceof Error ? error.message : String(error);
+      setThreadError(threadId, detail);
+      toastManager.add({ type: "error", title: "Could not send message", description: detail });
+      return false;
     }
-    if (activePendingApproval || activePendingProgress || showPlanFollowUpPrompt) return;
-    if (activeThread.error) return;
-    // A queued follow-up must never replace a draft the user is composing.
-    if (
-      promptRef.current.trim() ||
-      composerImagesRef.current.length ||
-      composerFilesRef.current.length ||
-      composerTerminalContextsRef.current.length ||
-      composerPreviewAnnotations.length ||
-      composerReviewCommentsRef.current.length
-    )
-      return;
-
-    const nextReady = peekNextReadyMessage(activeThread.id);
-    if (!nextReady) return;
-
-    // Mark as dispatching immediately (synchronously) to prevent a concurrent
-    // effect re-run from also dequeuing while we wait for the 80ms timeout.
-    isAutoDispatchingRef.current = true;
-
-    const threadIdForDispatch = activeThread.id;
-    const timer = window.setTimeout(() => {
-      // Re-check guards inside the timeout to handle the case where the
-      // component re-renders or a user-initiated send started in the gap.
-      if (
-        sendInFlightRef.current ||
-        promptRef.current.trim() ||
-        composerImagesRef.current.length ||
-        composerFilesRef.current.length ||
-        composerTerminalContextsRef.current.length ||
-        composerReviewCommentsRef.current.length ||
-        (useComposerDraftStore.getState().draftsByThreadId[
-          environmentId
-            ? scopedComposerThreadId(environmentId, threadIdForDispatch)
-            : threadIdForDispatch
-        ]?.previewAnnotations.length ??
-          0)
-      ) {
-        isAutoDispatchingRef.current = false;
-        return;
-      }
-
-      const dequeued = peekNextReadyMessage(threadIdForDispatch);
-      if (!dequeued) {
-        isAutoDispatchingRef.current = false;
-        return;
-      }
-
-      if (dequeued.environmentId && dequeued.environmentId !== environmentId) {
-        isAutoDispatchingRef.current = false;
-        return;
-      }
-
-      toastManager.add({
-        type: "info",
-        title: dequeued.scheduledFor
-          ? "Dispatching scheduled message"
-          : "Dispatching queued message",
-        description: dequeued.text.length > 50 ? `${dequeued.text.slice(0, 50)}...` : dequeued.text,
-      });
-
-      void onSend(undefined, dequeued)
-        .then((sent) => {
-          if (sent)
-            useMessageQueueStore.getState().removeQueuedMessage(threadIdForDispatch, dequeued.id);
-          else
-            useMessageQueueStore
-              .getState()
-              .setMessageError(
-                threadIdForDispatch,
-                dequeued.id,
-                "Could not send. Check the thread or provider, then retry.",
-              );
-        })
-        .catch((error: unknown) => {
-          useMessageQueueStore
-            .getState()
-            .setMessageError(
-              threadIdForDispatch,
-              dequeued.id,
-              error instanceof Error ? error.message : "Queued message failed.",
-            );
-        })
-        .finally(() => {
-          isAutoDispatchingRef.current = false;
-        });
-    }, 80);
-
-    return () => {
-      window.clearTimeout(timer);
-      isAutoDispatchingRef.current = false;
-    };
-  }, [
-    activePendingApproval,
-    activePendingProgress,
-    activeLatestTurn,
-    activeThread?.error,
-    activeThread?.id,
-    isConnecting,
-    isSendBusy,
-    latestTurnSettled,
-    onSend,
-    peekNextReadyMessage,
-    phase,
-    scheduleTick,
-    setPrompt,
-  ]);
+  };
 
   const onInterrupt = async () => {
     const api = threadApi;
     if (!api || !activeThread) return;
+
+    const runId =
+      activeThread.activeRunId ??
+      (activeThread.session?.activeTurnId
+        ? RunId.make(activeThread.session.activeTurnId)
+        : RunId.make(activeThread.id));
 
     // Double-click escape hatch: if user clicks stop again within 15s while waiting,
     // force stop the session immediately
@@ -4288,10 +4313,12 @@ export default function ChatView({
     ) {
       try {
         await api.orchestration.dispatchCommand({
-          type: "thread.session.stop",
+          type: "run.interrupt",
           commandId: newCommandId(),
           threadId: activeThread.id,
-          createdAt: new Date().toISOString(),
+          runId,
+          holdQueue: true,
+          reason: "User double-click force stop",
         });
         setIsStuck(false);
         interruptAttemptedAtRef.current = null;
@@ -4305,8 +4332,13 @@ export default function ChatView({
           description: "Generation was forcefully stopped.",
         });
         return;
-      } catch {
-        // fall through to turn interrupt
+      } catch (error) {
+        toastManager.add({
+          type: "error",
+          title: "Could not stop session",
+          description: error instanceof Error ? error.message : "Failed to stop session.",
+        });
+        return;
       }
     }
 
@@ -4322,13 +4354,21 @@ export default function ChatView({
       }
     }, 5_000);
 
-    await api.orchestration.dispatchCommand({
-      type: "thread.turn.interrupt",
-      commandId: newCommandId(),
-      threadId: activeThread.id,
-      ...(activeThread.session?.activeTurnId ? { turnId: activeThread.session.activeTurnId } : {}),
-      createdAt: new Date().toISOString(),
-    });
+    try {
+      await api.orchestration.dispatchCommand({
+        type: "run.interrupt",
+        commandId: newCommandId(),
+        threadId: activeThread.id,
+        runId,
+        holdQueue: true,
+      });
+    } catch (error) {
+      toastManager.add({
+        type: "error",
+        title: "Could not interrupt turn",
+        description: error instanceof Error ? error.message : "Failed to interrupt running turn.",
+      });
+    }
   };
 
   // Reset stuck state when phase leaves "running"
@@ -4362,12 +4402,11 @@ export default function ChatView({
       );
       await api.orchestration
         .dispatchCommand({
-          type: "thread.approval.respond",
+          type: "runtime-request.respond",
           commandId: newCommandId(),
           threadId: activeThreadId,
-          requestId,
+          requestId: requestId as any,
           decision,
-          createdAt: new Date().toISOString(),
         })
         .catch((err: unknown) => {
           setStoreThreadError(
@@ -4391,12 +4430,11 @@ export default function ChatView({
       );
       await api.orchestration
         .dispatchCommand({
-          type: "thread.user-input.respond",
+          type: "runtime-request.respond",
           commandId: newCommandId(),
           threadId: activeThreadId,
-          requestId,
+          requestId: requestId as any,
           answers,
-          createdAt: new Date().toISOString(),
         })
         .catch((err: unknown) => {
           setStoreThreadError(
@@ -4568,27 +4606,22 @@ export default function ChatView({
         setComposerDraftInteractionMode(threadIdForSend, nextInteractionMode);
 
         await api.orchestration.dispatchCommand({
-          type: "thread.turn.start",
+          type: "message.dispatch",
           commandId: newCommandId(),
           threadId: threadIdForSend,
-          message: {
-            messageId: messageIdForSend,
-            role: "user",
-            text: outgoingMessageText,
-            attachments: [],
-          },
+          messageId: messageIdForSend,
+          text: outgoingMessageText,
+          attachments: [],
           modelSelection: selectedModelSelection,
-          runtimeMode,
-          interactionMode: nextInteractionMode,
+          dispatchMode: { type: "start_immediately" },
           ...(nextInteractionMode === "default" && activeProposedPlan
             ? {
-                sourceProposedPlan: {
+                sourcePlanRef: {
                   threadId: activeThread.id,
-                  planId: activeProposedPlan.id,
+                  planId: activeProposedPlan.id as any,
                 },
               }
             : {}),
-          createdAt: messageCreatedAt,
         });
         // Optimistically open the plan sidebar when implementing (not refining).
         // "default" mode here means the agent is executing the plan, which produces
@@ -4684,24 +4717,25 @@ export default function ChatView({
       })
       .then(() => {
         return api.orchestration.dispatchCommand({
-          type: "thread.turn.start",
+          type: "message.dispatch",
           commandId: newCommandId(),
           threadId: nextThreadId,
-          message: {
-            messageId: newMessageId(),
-            role: "user",
-            text: outgoingImplementationPrompt,
-            attachments: [],
-          },
+          messageId: newMessageId(),
+          text: outgoingImplementationPrompt,
+          attachments: [],
           modelSelection: selectedModelSelection,
-          runtimeMode,
-          interactionMode: "default",
-          createdAt,
+          dispatchMode: { type: "start_immediately" },
+          ...(activeProposedPlan
+            ? {
+                sourcePlanRef: {
+                  threadId: activeThread.id,
+                  planId: activeProposedPlan.id as any,
+                },
+              }
+            : {}),
         });
       })
-      .then(() => api.orchestration.getSnapshot())
-      .then((snapshot) => {
-        syncServerReadModel(snapshot);
+      .then(() => {
         // Signal that the plan sidebar should open on the new thread.
         planSidebarOpenOnNextThreadRef.current = true;
         return routeToThread(nextThreadId);
@@ -4712,12 +4746,6 @@ export default function ChatView({
             type: "thread.delete",
             commandId: newCommandId(),
             threadId: nextThreadId,
-          })
-          .catch(() => undefined);
-        await api.orchestration
-          .getSnapshot()
-          .then((snapshot) => {
-            syncServerReadModel(snapshot);
           })
           .catch(() => undefined);
         toastManager.add({
@@ -5924,11 +5952,18 @@ export default function ChatView({
                           className="font-medium underline underline-offset-2 cursor-pointer hover:text-amber-950 dark:hover:text-amber-200 transition-colors"
                           onClick={async () => {
                             try {
+                              const runId =
+                                activeThread.activeRunId ??
+                                (activeThread.session?.activeTurnId
+                                  ? RunId.make(activeThread.session.activeTurnId)
+                                  : RunId.make(activeThread.id));
                               await threadApi.orchestration.dispatchCommand({
-                                type: "thread.session.stop",
+                                type: "run.interrupt",
                                 commandId: newCommandId(),
                                 threadId: activeThread.id,
-                                createdAt: new Date().toISOString(),
+                                runId,
+                                holdQueue: true,
+                                reason: "User stuck unblock",
                               });
                               setIsStuck(false);
                               interruptAttemptedAtRef.current = null;
@@ -5954,11 +5989,18 @@ export default function ChatView({
                           className="font-medium underline underline-offset-2 cursor-pointer hover:text-amber-950 dark:hover:text-amber-200 transition-colors"
                           onClick={async () => {
                             try {
+                              const runId =
+                                activeThread.activeRunId ??
+                                (activeThread.session?.activeTurnId
+                                  ? RunId.make(activeThread.session.activeTurnId)
+                                  : RunId.make(activeThread.id));
                               await threadApi.orchestration.dispatchCommand({
-                                type: "thread.session.stop",
+                                type: "run.interrupt",
                                 commandId: newCommandId(),
                                 threadId: activeThread.id,
-                                createdAt: new Date().toISOString(),
+                                runId,
+                                holdQueue: true,
+                                reason: "User stuck settle",
                               });
                               await threadApi.orchestration.dispatchCommand({
                                 type: "thread.settle",
@@ -5994,39 +6036,16 @@ export default function ChatView({
                             <ListOrderedIcon className="size-3.5 text-foreground" />
                             <span>Queue</span>
                           </Button>
-                          <Dialog
-                            open={isSchedulePopoverOpen}
-                            onOpenChange={setIsSchedulePopoverOpen}
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="secondary"
+                            className="h-8 w-8 rounded-l-none rounded-r-lg border border-border/80 bg-secondary/90 p-0 text-muted-foreground hover:text-foreground hover:bg-secondary transition-all cursor-pointer shadow-2xs"
+                            aria-label="Schedule message for specific time"
+                            onClick={() => setIsSchedulePopoverOpen(true)}
                           >
-                            <DialogTrigger
-                              render={
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="secondary"
-                                  className="h-8 w-8 rounded-l-none rounded-r-lg border border-border/80 bg-secondary/90 p-0 text-muted-foreground hover:text-foreground hover:bg-secondary transition-all cursor-pointer shadow-2xs"
-                                  title="Schedule message for specific time..."
-                                  aria-label="Schedule message for specific time"
-                                >
-                                  <ClockIcon className="size-3.5" />
-                                </Button>
-                              }
-                            />
-                            <DialogPopup
-                              showCloseButton={false}
-                              bottomStickOnMobile={false}
-                              className="max-w-[620px] overflow-auto"
-                            >
-                              <DialogTitle className="sr-only">Schedule message</DialogTitle>
-                              <SchedulePicker
-                                onConfirm={(scheduledDate) => {
-                                  onQueueMessage(scheduledDate.toISOString());
-                                  setIsSchedulePopoverOpen(false);
-                                }}
-                                onCancel={() => setIsSchedulePopoverOpen(false)}
-                              />
-                            </DialogPopup>
-                          </Dialog>
+                            <ClockIcon className="size-3.5" />
+                          </Button>
                         </div>
                       )}
                       <button
@@ -6168,44 +6187,22 @@ export default function ChatView({
                         )}
                       </button>
                       {/* Clock / schedule button — always visible even on idle/fresh threads */}
-                      <Dialog
-                        open={isIdleSchedulePopoverOpen}
-                        onOpenChange={setIsIdleSchedulePopoverOpen}
+                      <button
+                        type="button"
+                        disabled={
+                          !composerSendState.hasSendableContent ||
+                          isSendBusy ||
+                          isConnecting ||
+                          threadDetailLoading ||
+                          Boolean(composerPromptLengthValidationMessage)
+                        }
+                        aria-label="Schedule message for a specific time"
+                        title="Schedule this message to send at a specific time"
+                        className="flex h-9 w-7 enabled:cursor-pointer items-center justify-center rounded-l-none rounded-r-lg border-l border-foreground/15 bg-foreground text-background/70 transition-all duration-150 hover:bg-foreground/90 hover:text-background disabled:pointer-events-none disabled:opacity-30 disabled:hover:scale-100 sm:h-8"
+                        onClick={() => setIsSchedulePopoverOpen(true)}
                       >
-                        <DialogTrigger
-                          render={
-                            <button
-                              type="button"
-                              disabled={
-                                !composerSendState.hasSendableContent ||
-                                isSendBusy ||
-                                isConnecting ||
-                                threadDetailLoading ||
-                                Boolean(composerPromptLengthValidationMessage)
-                              }
-                              aria-label="Schedule message for a specific time"
-                              title="Schedule this message to send at a specific time"
-                              className="flex h-9 w-7 enabled:cursor-pointer items-center justify-center rounded-l-none rounded-r-lg border-l border-foreground/15 bg-foreground text-background/70 transition-all duration-150 hover:bg-foreground/90 hover:text-background disabled:pointer-events-none disabled:opacity-30 disabled:hover:scale-100 sm:h-8"
-                            />
-                          }
-                        >
-                          <ClockIcon className="size-3" />
-                        </DialogTrigger>
-                        <DialogPopup
-                          showCloseButton={false}
-                          bottomStickOnMobile={false}
-                          className="max-w-[620px] overflow-auto"
-                        >
-                          <DialogTitle className="sr-only">Schedule message</DialogTitle>
-                          <SchedulePicker
-                            onConfirm={(scheduledDate) => {
-                              onQueueMessage(scheduledDate.toISOString());
-                              setIsIdleSchedulePopoverOpen(false);
-                            }}
-                            onCancel={() => setIsIdleSchedulePopoverOpen(false)}
-                          />
-                        </DialogPopup>
-                      </Dialog>
+                        <ClockIcon className="size-3" />
+                      </button>
                     </div>
                   )
                 ) : null}
@@ -6241,13 +6238,14 @@ export default function ChatView({
       {compact ? null : (
         <header
           className={cn(
-            "@container/chat-header transition-colors",
+            "@container/chat-header transition-colors relative z-30",
             isSplitActive ? "px-2.5 sm:px-3" : "px-3 sm:px-5",
             isElectron ? "drag-region flex min-h-[52px] items-center py-2" : "py-2 sm:py-3",
             isSplitActive && !isActivePane && "opacity-80 hover:opacity-100 transition-opacity",
           )}
         >
           <ChatHeader
+            projectId={activeProject?.id}
             activeThreadId={activeThread.id}
             activeThreadTitle={activeThread.title}
             activeProjectName={activeProject?.name}
@@ -6370,7 +6368,10 @@ export default function ChatView({
               </div>
 
               {shouldCenterEmptyThreadComposer ? (
-                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none px-6 text-center">
+                <div
+                  data-wallpaper-empty-heading="true"
+                  className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none px-6 text-center"
+                >
                   <h2 className="text-balance text-3xl font-semibold tracking-tight text-foreground/92 sm:text-4xl">
                     {activeProject?.name
                       ? `What should we build in ${activeProject.name}?`
@@ -6478,6 +6479,22 @@ export default function ChatView({
       {expandedImage && (
         <ExpandedImageDialog preview={expandedImage} onClose={closeExpandedImage} />
       )}
+      <Dialog open={isSchedulePopoverOpen} onOpenChange={setIsSchedulePopoverOpen}>
+        <DialogPopup
+          showCloseButton={false}
+          bottomStickOnMobile={false}
+          className="max-w-[620px] overflow-auto"
+        >
+          <DialogTitle className="sr-only">Schedule message</DialogTitle>
+          <SchedulePicker
+            onConfirm={(scheduledDate) => {
+              void onQueueMessage(scheduledDate.toISOString());
+              setIsSchedulePopoverOpen(false);
+            }}
+            onCancel={() => setIsSchedulePopoverOpen(false)}
+          />
+        </DialogPopup>
+      </Dialog>
       {confirmDialog}
     </div>
   );
