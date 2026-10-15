@@ -32,7 +32,10 @@ fi
 "$target" &
 new_pid="$!"
 sleep 3
-if kill -0 "$new_pid" 2>/dev/null; then
+new_state="$(ps -o stat= -p "$new_pid" 2>/dev/null || true)"
+# An exited child can retain a PID until its parent reaps it. A zombie is not
+# evidence that the new app launched successfully.
+if kill -0 "$new_pid" 2>/dev/null && [ -n "$new_state" ] && ! printf '%s' "$new_state" | grep -q 'Z'; then
   echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) installed and relaunched update"
   rm -f -- "$backup"
   rm -rf -- "$stage_root"
