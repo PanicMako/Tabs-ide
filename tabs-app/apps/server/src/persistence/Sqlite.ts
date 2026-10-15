@@ -32,9 +32,18 @@ export const assertDatabaseCompatibility = Effect.fn("assertDatabaseCompatibilit
       preview.length === 1 &&
       preview[0]?.migration_id === 53 &&
       preview[0]?.name === "OrchestrationV2";
+    // Migration 58 repairs these known Tabs V1 lineages without rewriting their
+    // recorded names. An arbitrary renamed migration is still incompatible.
+    const legacyNames = new Map([
+      [41, "ThreadSummaryTimeline"],
+      [44, "ClearAutomaticProjectModelDefaults"],
+      [45, "ProjectionProjectsAutoPull"],
+      [46, "RepairAutomaticSettlementTimestamps"],
+    ]);
     const incompatible = migrations.find(
       (row) =>
         !(supportedPreview && row.migration_id === 53) &&
+        legacyNames.get(row.migration_id) !== row.name &&
         !migrationEntries.some(([id, name]) => id === row.migration_id && name === row.name),
     );
     if (incompatible) {
