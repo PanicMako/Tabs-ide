@@ -3,6 +3,7 @@ import {
   CANONICAL_DEV_DIR_NAME,
   CANONICAL_PROD_DIR_NAME,
   FsProbe,
+  resolveDesktopBaseDir,
   resolveDesktopStateDir,
   resolveKnownUserDataPathsWithFs,
   resolveUserDataPathWithFs,
@@ -281,5 +282,17 @@ describe("desktop state isolation", () => {
     const baseDir = "/Users/testuser/.tabs";
     expect(resolveDesktopStateDir(baseDir, true)).toBe(`${baseDir}/dev`);
     expect(resolveDesktopStateDir(baseDir, false)).toBe(`${baseDir}/userdata`);
+  });
+});
+
+describe("backend data root isolation", () => {
+  it("isolates direct unpackaged launches even without a renderer dev URL", () => {
+    expect(resolveDesktopBaseDir(true, "", "/home/testuser")).toBe("/home/testuser/.tabs-dev");
+    expect(resolveDesktopBaseDir(false, "", "/home/testuser")).toBe("/home/testuser/.tabs");
+  });
+  it("preserves an explicitly configured home", () => {
+    expect(resolveDesktopBaseDir(true, " /tmp/custom-home ", "/home/testuser")).toBe(
+      "/tmp/custom-home",
+    );
   });
 });

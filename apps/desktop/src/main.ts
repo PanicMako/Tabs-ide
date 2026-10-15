@@ -1,3 +1,5 @@
+import { publishDesktopResources } from "./desktopResourceTelemetry";
+import { createBackendStartupErrorDecoder } from "@tabs/shared/backendStartup";
 import desktopPackage from "../package.json" with { type: "json" };
 import { isTrustedIpcFrame, isTrustedTabsUrl } from "./ipcSecurity";
 import { AgentsWindowManager } from "./agentsWindowManager";
@@ -24,6 +26,7 @@ import {
   nativeTheme,
   powerMonitor,
   protocol,
+  safeStorage,
   session,
   shell,
 } from "electron";
@@ -37,8 +40,16 @@ import type {
   DesktopUpdateActionResult,
   DesktopUpdateState,
   DesktopSshEnvironmentTarget,
+  DesktopExtensionBoundsInput,
+  DesktopExtensionViewInput,
+  DesktopExchangeListing,
+  TabsExtensionAssignment,
 } from "@tabs/contracts";
-import { BrowserImportInput } from "@tabs/contracts";
+import {
+  BrowserImportInput,
+  ORCHESTRATION_PROTOCOL_QUERY_PARAM,
+  ORCHESTRATION_PROTOCOL_VERSION,
+} from "@tabs/contracts";
 import { DEFAULT_DESKTOP_ICON_THEME } from "@tabs/contracts/settings";
 import { autoUpdater } from "electron-updater";
 import { DEFAULT_KEYBINDINGS, parseKeybindingShortcut } from "@tabs/shared/keybindings";
@@ -85,11 +96,20 @@ import {
 import { CodeHostManager, resolveCodeHostConfig } from "./codeHostManager";
 import { BrowserHostManager } from "./browserHostManager";
 import {
+  resolveDesktopBaseDir,
   resolveDesktopStateDir,
   resolveKnownUserDataPathsWithFs,
   resolveUserDataPathWithFs,
 } from "./userDataPath";
 import { resetTabsUserData } from "./userDataReset";
+import { ExtensionViewManager } from "./extensionViewManager";
+import { RegistryCredentials, registryFetch } from "./registryCredentials";
+import { ExtensionAiBrokerServer } from "./extensionAiBrokerServer";
+import { configuredExchangeOrigin, discoverExchangePage } from "./exchangeCatalog";
+import { ExchangeUpdateMonitor } from "./exchangeUpdateMonitor";
+import { ExchangeAutomaticUpdater } from "./exchangeAutomaticUpdater";
+import { ExchangeSignedMetadataHints } from "./exchangeSignedMetadataHints";
+import { configuredExchangeTrust, ExchangeInstallService } from "./exchangeInstall";
 import { NativeViewStackCoordinator } from "./nativeViewStackCoordinator";
 import {
   normalizeNotificationToasts,
@@ -142,6 +162,7 @@ const QUIT_CONFIRMATION_RESPONSE_CHANNEL = "desktop:quit-confirmation-response";
 const GET_CONFIRM_BEFORE_QUIT_CHANNEL = "desktop:get-confirm-before-quit";
 const SET_CONFIRM_BEFORE_QUIT_CHANNEL = "desktop:set-confirm-before-quit";
 const RESET_TABS_USER_DATA_CHANNEL = "desktop:reset-tabs-user-data";
+const GET_BACKEND_STARTUP_ERROR_CHANNEL = "desktop:get-backend-startup-error";
 const GET_TABS_DATA_RESET_STARTUP_ERROR_CHANNEL = "desktop:get-data-reset-startup-error";
 const RESET_TABS_USER_DATA_ARG = "--tabs-reset-user-data";
 const UPDATE_STATE_CHANNEL = "desktop:update-state";
@@ -179,6 +200,35 @@ const CODE_HOST_RUN_COMMAND_CHANNEL = "vscode:tabs-code-host:run-command";
 const CODE_HOST_GET_CHROME_STATE_CHANNEL = "desktop:code-host:get-chrome-state";
 const CODE_HOST_CHROME_STATE_CHANNEL = "desktop:code-host:chrome-state";
 const BROWSER_HOST_GET_STATE_CHANNEL = "desktop:browser-host:get-state";
+const EXTENSION_LIST_CHANNEL = "desktop:extension:list";
+const EXTENSION_CHANGED_CHANNEL = "desktop:extension:changed";
+const EXTENSION_DISCOVER_CHANNEL = "desktop:extension:discover";
+const EXTENSION_CHECK_UPDATE_CHANNEL = "desktop:extension:check-update";
+const EXTENSION_EXCHANGE_AVAILABLE_CHANNEL = "desktop:extension:exchange-available";
+const EXTENSION_EXCHANGE_PREPARE_CHANNEL = "desktop:extension:exchange-prepare";
+const EXTENSION_EXCHANGE_CONFIRM_CHANNEL = "desktop:extension:exchange-confirm";
+const EXTENSION_EXCHANGE_CANCEL_CHANNEL = "desktop:extension:exchange-cancel";
+const EXTENSION_UNINSTALL_CHANNEL = "desktop:extension:uninstall";
+const EXTENSION_SET_DISABLED_CHANNEL = "desktop:extension:set-disabled";
+const EXTENSION_SET_UPDATES_PINNED_CHANNEL = "desktop:extension:set-updates-pinned";
+const EXTENSION_INSTALL_DEV_CHANNEL = "desktop:extension:install-dev";
+const EXTENSION_RELOAD_DEV_CHANNEL = "desktop:extension:reload-dev";
+const REGISTRY_CONNECTION_CHANNEL = "desktop:extension:registry-connection";
+const REGISTRY_CREDENTIAL_CHANNEL = "desktop:extension:registry-credential";
+const EXTENSION_INSTALL_LOCAL_PACKAGE_CHANNEL = "desktop:extension:install-local-package";
+const EXTENSION_ASSIGN_CHANNEL = "desktop:extension:assign";
+const EXTENSION_ADD_PROFILE_CHANNEL = "desktop:extension:add-profile";
+const EXTENSION_CREDENTIALS_LIST_CHANNEL = "desktop:extension:credentials-list";
+const EXTENSION_CREDENTIAL_SET_CHANNEL = "desktop:extension:credential-set";
+const EXTENSION_ACTIVATE_CHANNEL = "desktop:extension:activate";
+export const EXTENSION_VIEW_ERROR_CHANNEL = "desktop:extension:view-error";
+const EXTENSION_SET_BOUNDS_CHANNEL = "desktop:extension:set-bounds";
+const EXTENSION_HIDE_CHANNEL = "desktop:extension:hide";
+const EXTENSION_STORAGE_CHANNEL = "desktop:extension:storage";
+const EXTENSION_WORKSPACE_READ_CHANNEL = "desktop:extension:workspace-read";
+const EXTENSION_GIT_STATUS_CHANNEL = "desktop:extension:git-status";
+const EXTENSION_NETWORK_GET_CHANNEL = "desktop:extension:network-get";
+const EXTENSION_LOGIC_INVOKE_CHANNEL = "desktop:extension:logic-invoke";
 const WRITE_CLIPBOARD_TEXT_CHANNEL = "desktop:clipboard:write-text";
 const READ_CLIPBOARD_TEXT_CHANNEL = "desktop:clipboard:read-text";
 const DESKTOP_CAPTURE_SCREEN_CHANNEL = "desktop:capture:screen";
@@ -247,7 +297,7 @@ const VSCODE_OPEN_DEVTOOLS_CHANNEL = "vscode:openDevTools";
 const VSCODE_RELOAD_WINDOW_CHANNEL = "vscode:reloadWindow";
 const VSCODE_NOTIFY_ZOOM_LEVEL_CHANNEL = "vscode:notifyZoomLevel";
 const isDevelopment = Boolean(process.env.VITE_DEV_SERVER_URL || !app.isPackaged);
-const BASE_DIR = process.env.TABS_HOME?.trim() || Path.join(OS.homedir(), ".tabs");
+const BASE_DIR = resolveDesktopBaseDir(isDevelopment);
 const STATE_DIR = resolveDesktopStateDir(BASE_DIR, isDevelopment);
 const DESKTOP_THEME_STATE_PATH = Path.join(STATE_DIR, "desktop-theme.json");
 const DESKTOP_SCHEME = "tabs";
@@ -396,6 +446,7 @@ let backendAuthToken = "";
 let backendWsUrl = "";
 let backendHttpUrl = "";
 let restartAttempt = 0;
+let backendStartupError: string | null = null;
 let restartTimer: ReturnType<typeof setTimeout> | null = null;
 let isQuitting = false;
 let isQuittingConfirmed = false;
@@ -489,6 +540,130 @@ if (persistedDesktopTheme) {
   });
 }
 const browserHostManager = new BrowserHostManager(() => mainWindow, nativeViewCoordinator);
+const extensionViewManager = new ExtensionViewManager(
+  () => mainWindow,
+  nativeViewCoordinator,
+  Path.join(STATE_DIR, "development-extensions.json"),
+  app.getVersion(),
+  !app.isPackaged,
+  safeStorage,
+);
+const extensionAiBrokerServer = new ExtensionAiBrokerServer(extensionViewManager);
+const registryCredentials = new RegistryCredentials(
+  Path.join(STATE_DIR, "registry-credentials"),
+  safeStorage,
+);
+const authenticatedRegistryFetch = registryFetch(registryCredentials);
+let extensionAiBrokerConfig: { readonly endpoint: string; readonly token: string } | null = null;
+let exchangeInstallService: ExchangeInstallService | null = null;
+let exchangeStatusTimer: ReturnType<typeof setInterval> | null = null;
+let exchangeUpdateTimer: ReturnType<typeof setInterval> | null = null;
+let exchangeUpdateStartupTimer: ReturnType<typeof setTimeout> | null = null;
+let exchangeSignedMetadataHints: ExchangeSignedMetadataHints | null = null;
+app.on("will-quit", () => {
+  extensionAiBrokerServer.close();
+  if (exchangeStatusTimer) clearInterval(exchangeStatusTimer);
+  if (exchangeUpdateTimer) clearInterval(exchangeUpdateTimer);
+  if (exchangeUpdateStartupTimer) clearTimeout(exchangeUpdateStartupTimer);
+  exchangeSignedMetadataHints?.stop();
+  exchangeInstallService?.dispose();
+});
+function requireExchangeInstallService(): ExchangeInstallService {
+  if (exchangeInstallService) return exchangeInstallService;
+  const origin = configuredExchangeOrigin(process.env.TABS_EXCHANGE_ORIGIN, !app.isPackaged);
+  const configuration = configuredExchangeTrust(process.env, origin);
+  if (!configuration) {
+    throw new Error("Exchange installation needs an out-of-band pinned trust root.");
+  }
+  exchangeInstallService = new ExchangeInstallService(
+    configuration,
+    Path.join(STATE_DIR, "exchange-trust"),
+    app.getVersion(),
+    () => extensionViewManager.list(),
+    (archive, registryOrigin, digest, options) =>
+      extensionViewManager.installVerifiedExchangePackage(archive, registryOrigin, digest, options),
+    authenticatedRegistryFetch,
+  );
+  return exchangeInstallService;
+}
+const exchangeUpdateMonitor = new ExchangeUpdateMonitor(
+  () => extensionViewManager.list(),
+  (extension) => requireExchangeInstallService().availableUpdate(extension),
+  () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send(EXTENSION_CHANGED_CHANNEL);
+    }
+  },
+  (id, error) => {
+    writeDesktopLogHeader(`Exchange update check failed for ${id}: ${formatErrorMessage(error)}`);
+  },
+);
+const exchangeAutomaticUpdater = new ExchangeAutomaticUpdater(
+  () => extensionViewManager.list(),
+  (entry) => exchangeUpdateMonitor.availableFor(entry),
+  (id) =>
+    extensionViewManager.canApplySilentUpdate(id) && !exchangeInstallService?.hasManualReview(id),
+  (listing, options) => requireExchangeInstallService().prepare(listing, options),
+  (token, options) => requireExchangeInstallService().confirm(token, options),
+  (token) => exchangeInstallService?.cancel(token),
+  () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send(EXTENSION_CHANGED_CHANNEL);
+    }
+  },
+  (id, error) => {
+    writeDesktopLogHeader(
+      `Exchange automatic update failed for ${id}: ${formatErrorMessage(error)}`,
+    );
+  },
+);
+function applyAvailableExchangeUpdates(): void {
+  if (process.env.TABS_EXCHANGE_AUTOMATIC_UPDATES !== "true") return;
+  void exchangeAutomaticUpdater.applyAvailable().catch((error) => {
+    writeDesktopLogHeader(`Exchange automatic update failed: ${formatErrorMessage(error)}`);
+  });
+}
+function checkAllInstalledExchangeUpdates(): void {
+  if (!process.env.TABS_EXCHANGE_TRUST_ROOT_PATH || !process.env.TABS_EXCHANGE_ORIGIN) return;
+  void exchangeUpdateMonitor
+    .check()
+    .then(applyAvailableExchangeUpdates)
+    .catch((error) => {
+      writeDesktopLogHeader(`Exchange update monitor failed: ${formatErrorMessage(error)}`);
+    });
+}
+async function checkInstalledExchangeStatus(extensionId: string): Promise<void> {
+  const installed = extensionViewManager.list().find((entry) => entry.id === extensionId);
+  if (!installed || installed.source !== "exchange" || installed.revoked) return;
+  const status = await requireExchangeInstallService().statusFor(installed);
+  if (status === "revoked" && installed.registryOrigin && installed.digest) {
+    try {
+      extensionViewManager.revokeIfCurrent(
+        installed.id,
+        installed.registryOrigin,
+        installed.digest,
+      );
+    } finally {
+      const current = extensionViewManager.list().find((entry) => entry.id === installed.id);
+      if (current?.revoked && mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send(EXTENSION_CHANGED_CHANNEL);
+      }
+    }
+  }
+}
+
+async function checkAllInstalledExchangeStatuses(): Promise<void> {
+  const extensions = extensionViewManager.list().filter((entry) => entry.source === "exchange");
+  await Promise.all(
+    extensions.map((entry) =>
+      checkInstalledExchangeStatus(entry.id).catch((error) => {
+        writeDesktopLogHeader(
+          `Exchange status check failed for ${entry.id}: ${formatErrorMessage(error)}`,
+        );
+      }),
+    ),
+  );
+}
 const desktopCaptureCoordinator = new DesktopCaptureCoordinator();
 nativeTheme.on("updated", () => {
   updateWindowControlsOverlay(
@@ -783,6 +958,10 @@ function recoverFailedUpdateInstall(message: string): void {
 function registerPrivilegedSchemes(): void {
   protocol.registerSchemesAsPrivileged([
     {
+      scheme: "tabs-extension",
+      privileges: { standard: true, secure: true, supportFetchAPI: true },
+    },
+    {
       scheme: DESKTOP_SCHEME,
       privileges: {
         standard: true,
@@ -1007,7 +1186,7 @@ function getDesktopAssetContentType(pathname: string): string {
 }
 
 function registerDesktopProtocol(): void {
-  if (isDevelopment || desktopProtocolRegistered) return;
+  if (Boolean(process.env.VITE_DEV_SERVER_URL) || desktopProtocolRegistered) return;
 
   const staticRoot = resolveDesktopStaticDir();
   if (!staticRoot) {
@@ -1975,7 +2154,11 @@ function configureAutoUpdater(): void {
   updatePollTimer.unref();
 }
 function scheduleBackendRestart(reason: string): void {
-  if (isQuitting || restartTimer) return;
+  if (isQuitting || restartTimer || backendStartupError) return;
+  if (restartAttempt >= 5) {
+    backendStartupError = `Tabs could not start its workspace server after repeated attempts (${reason}). Your saved data has been preserved. Quit and reopen Tabs after resolving the error. Diagnostic logs: ${LOG_DIR}`;
+    return;
+  }
 
   const delayMs = Math.min(500 * 2 ** restartAttempt, 10_000);
   restartAttempt += 1;
@@ -2009,15 +2192,14 @@ function startBackend(): void {
       ...backendChildEnv(),
       ELECTRON_RUN_AS_NODE: "1",
     },
-    stdio: captureBackendLogs
-      ? ["ignore", "pipe", "pipe", "pipe"]
-      : ["ignore", "inherit", "inherit", "pipe"],
+    stdio: ["ignore", "pipe", "pipe", "pipe", "pipe"],
   });
   const bootstrapStream = child.stdio[3];
   if (bootstrapStream && "write" in bootstrapStream) {
     bootstrapStream.write(
       `${JSON.stringify({
         mode: "desktop",
+        desktopTelemetryFd: 4,
         noBrowser: true,
         port: backendPort,
         host: "127.0.0.1",
@@ -2027,6 +2209,7 @@ function startBackend(): void {
         desktopBootstrapToken: backendAuthToken,
         tailscaleServeEnabled: false,
         tailscaleServePort: 443,
+        ...(extensionAiBrokerConfig ? { desktopExtensionBroker: extensionAiBrokerConfig } : {}),
       })}\n`,
     );
     bootstrapStream.end();
@@ -2035,6 +2218,18 @@ function startBackend(): void {
     scheduleBackendRestart("missing desktop bootstrap pipe");
     return;
   }
+  const telemetryStream = child.stdio[4];
+  const stopTelemetry =
+    telemetryStream && "write" in telemetryStream
+      ? publishDesktopResources(
+          telemetryStream,
+          () => app.getAppMetrics(),
+          readHostPowerSnapshot,
+          process.pid,
+        )
+      : () => undefined;
+  child.once("exit", stopTelemetry);
+  child.once("error", stopTelemetry);
   backendProcess = child;
   let backendSessionClosed = false;
   const closeBackendSession = (details: string) => {
@@ -2047,10 +2242,15 @@ function startBackend(): void {
     `pid=${child.pid ?? "unknown"} port=${backendPort} cwd=${resolveBackendCwd()}`,
   );
   captureBackendOutput(child);
-
-  child.once("spawn", () => {
-    restartAttempt = 0;
+  const decodeStartupError = createBackendStartupErrorDecoder((message) => {
+    backendStartupError = `${message}\nDatabase: ${Path.join(STATE_DIR, "state.sqlite")}\nDiagnostic logs: ${LOG_DIR}`;
   });
+  child.stderr?.on("data", (chunk: Buffer) => decodeStartupError(chunk.toString("utf8")));
+  if (!captureBackendLogs) {
+    child.stdout?.on("data", (chunk: Buffer) => process.stdout.write(chunk));
+    child.stderr?.on("data", (chunk: Buffer) => process.stderr.write(chunk));
+  }
+  const startedAt = Date.now();
 
   child.on("error", (error) => {
     if (backendProcess === child) {
@@ -2068,6 +2268,7 @@ function startBackend(): void {
       `pid=${child.pid ?? "unknown"} code=${code ?? "null"} signal=${signal ?? "null"}`,
     );
     if (isQuitting) return;
+    if (Date.now() - startedAt > 60_000) restartAttempt = 0;
     const reason = `code=${code ?? "null"} signal=${signal ?? "null"}`;
     scheduleBackendRestart(reason);
   });
@@ -2217,6 +2418,391 @@ function registerIpcHandlers(): void {
     electron: process.versions.electron,
   }));
 
+  const requireMainRenderer = (event: Electron.IpcMainInvokeEvent): void => {
+    if (!mainWindow || event.sender !== mainWindow.webContents) {
+      throw new Error("Extension management is available only to the Tabs window.");
+    }
+  };
+  ipcMain.removeHandler(EXTENSION_LIST_CHANNEL);
+  ipcMain.handle(EXTENSION_LIST_CHANNEL, async (event) => {
+    requireMainRenderer(event);
+    return extensionViewManager.list().map((entry) => {
+      const availableUpdate = exchangeUpdateMonitor.availableFor(entry);
+      return availableUpdate ? { ...entry, availableUpdate } : entry;
+    });
+  });
+  ipcMain.removeHandler(EXTENSION_DISCOVER_CHANNEL);
+  ipcMain.handle(EXTENSION_DISCOVER_CHANNEL, async (event, query: unknown, cursor: unknown) => {
+    requireMainRenderer(event);
+    if (typeof query !== "string") throw new Error("Invalid Exchange search query.");
+    if (cursor !== undefined && typeof cursor !== "string")
+      throw new Error("Invalid Exchange search cursor.");
+    const origin = configuredExchangeOrigin(process.env.TABS_EXCHANGE_ORIGIN, !app.isPackaged);
+    if (!origin) return null;
+    return discoverExchangePage(
+      origin,
+      app.getVersion(),
+      query,
+      cursor ?? null,
+      authenticatedRegistryFetch,
+    );
+  });
+  ipcMain.removeHandler(EXTENSION_CHECK_UPDATE_CHANNEL);
+  ipcMain.handle(EXTENSION_CHECK_UPDATE_CHANNEL, async (event, id: unknown) => {
+    requireMainRenderer(event);
+    if (typeof id !== "string" || !/^[a-z][a-z0-9-]{1,62}\.[a-z][a-z0-9-]{1,62}$/.test(id)) {
+      throw new Error("Invalid extension identity.");
+    }
+    const installed = extensionViewManager.list().find((entry) => entry.id === id);
+    if (!installed) throw new Error("Extension is not installed.");
+    return requireExchangeInstallService().availableUpdate(installed);
+  });
+  ipcMain.removeHandler(EXTENSION_EXCHANGE_AVAILABLE_CHANNEL);
+  ipcMain.handle(EXTENSION_EXCHANGE_AVAILABLE_CHANNEL, (event) => {
+    requireMainRenderer(event);
+    const origin = configuredExchangeOrigin(process.env.TABS_EXCHANGE_ORIGIN, !app.isPackaged);
+    return configuredExchangeTrust(process.env, origin) !== null;
+  });
+  ipcMain.removeHandler(EXTENSION_EXCHANGE_PREPARE_CHANNEL);
+  ipcMain.handle(EXTENSION_EXCHANGE_PREPARE_CHANNEL, async (event, listing: unknown) => {
+    requireMainRenderer(event);
+    if (!listing || typeof listing !== "object" || Array.isArray(listing)) {
+      throw new Error("Invalid Exchange listing.");
+    }
+    return requireExchangeInstallService().prepare(listing as DesktopExchangeListing);
+  });
+  ipcMain.removeHandler(EXTENSION_EXCHANGE_CONFIRM_CHANNEL);
+  ipcMain.handle(EXTENSION_EXCHANGE_CONFIRM_CHANNEL, async (event, token: unknown) => {
+    requireMainRenderer(event);
+    if (typeof token !== "string" || !/^[a-f0-9]{48}$/.test(token)) {
+      throw new Error("Invalid Exchange install token.");
+    }
+    return requireExchangeInstallService().confirm(token);
+  });
+  ipcMain.removeHandler(EXTENSION_EXCHANGE_CANCEL_CHANNEL);
+  ipcMain.handle(EXTENSION_EXCHANGE_CANCEL_CHANNEL, (event, token: unknown) => {
+    requireMainRenderer(event);
+    if (typeof token !== "string" || !/^[a-f0-9]{48}$/.test(token)) {
+      throw new Error("Invalid Exchange install token.");
+    }
+    exchangeInstallService?.cancel(token);
+  });
+  ipcMain.removeHandler(EXTENSION_UNINSTALL_CHANNEL);
+  ipcMain.handle(EXTENSION_UNINSTALL_CHANNEL, async (event, id: unknown, deleteData: unknown) => {
+    requireMainRenderer(event);
+    if (
+      typeof id !== "string" ||
+      !/^[a-z][a-z0-9-]{1,62}\.[a-z][a-z0-9-]{1,62}$/.test(id) ||
+      typeof deleteData !== "boolean"
+    ) {
+      throw new Error("Invalid extension identity.");
+    }
+    try {
+      if (deleteData) await extensionViewManager.uninstallAndDeleteData(id);
+      else extensionViewManager.uninstall(id);
+    } finally {
+      if (
+        !extensionViewManager.list().some((entry) => entry.id === id) &&
+        mainWindow &&
+        !mainWindow.isDestroyed()
+      ) {
+        mainWindow.webContents.send(EXTENSION_CHANGED_CHANNEL);
+      }
+    }
+  });
+  ipcMain.removeHandler(EXTENSION_SET_DISABLED_CHANNEL);
+  ipcMain.handle(EXTENSION_SET_DISABLED_CHANNEL, (event, id: unknown, disabled: unknown) => {
+    requireMainRenderer(event);
+    if (
+      typeof id !== "string" ||
+      !/^[a-z][a-z0-9-]{1,62}\.[a-z][a-z0-9-]{1,62}$/.test(id) ||
+      typeof disabled !== "boolean"
+    ) {
+      throw new Error("Invalid extension disabled state.");
+    }
+    extensionViewManager.setDisabled(id, disabled);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send(EXTENSION_CHANGED_CHANNEL);
+    }
+  });
+  ipcMain.removeHandler(EXTENSION_SET_UPDATES_PINNED_CHANNEL);
+  ipcMain.handle(EXTENSION_SET_UPDATES_PINNED_CHANNEL, (event, id: unknown, pinned: unknown) => {
+    requireMainRenderer(event);
+    if (
+      typeof id !== "string" ||
+      !/^[a-z][a-z0-9-]{1,62}\.[a-z][a-z0-9-]{1,62}$/.test(id) ||
+      typeof pinned !== "boolean"
+    ) {
+      throw new Error("Invalid extension update pin.");
+    }
+    extensionViewManager.setUpdatesPinned(id, pinned);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send(EXTENSION_CHANGED_CHANNEL);
+    }
+  });
+  ipcMain.removeHandler(EXTENSION_INSTALL_DEV_CHANNEL);
+  ipcMain.removeHandler(EXTENSION_RELOAD_DEV_CHANNEL);
+  ipcMain.removeHandler(REGISTRY_CONNECTION_CHANNEL);
+  ipcMain.handle(REGISTRY_CONNECTION_CHANNEL, (event) => {
+    requireMainRenderer(event);
+    const origin = configuredExchangeOrigin(process.env.TABS_EXCHANGE_ORIGIN, !app.isPackaged);
+    return {
+      origin,
+      connected: origin?.startsWith("https:") ? registryCredentials.has(origin) : false,
+    };
+  });
+  ipcMain.removeHandler(REGISTRY_CREDENTIAL_CHANNEL);
+  ipcMain.handle(REGISTRY_CREDENTIAL_CHANNEL, (event, origin: unknown, token: unknown) => {
+    requireMainRenderer(event);
+    const configured = configuredExchangeOrigin(process.env.TABS_EXCHANGE_ORIGIN, !app.isPackaged);
+    if (
+      typeof origin !== "string" ||
+      origin !== configured ||
+      (token !== null && typeof token !== "string")
+    )
+      throw new Error("Registry credential does not match the configured origin.");
+    if (token === null) registryCredentials.remove(origin);
+    else registryCredentials.set(origin, token);
+    exchangeSignedMetadataHints?.stop();
+    exchangeInstallService?.dispose();
+    exchangeInstallService = null;
+  });
+  ipcMain.handle(EXTENSION_RELOAD_DEV_CHANNEL, (event, id: unknown) => {
+    requireMainRenderer(event);
+    if (typeof id !== "string") throw new Error("Invalid extension identity.");
+    return extensionViewManager.reloadDevelopment(id);
+  });
+  ipcMain.handle(EXTENSION_INSTALL_DEV_CHANNEL, async (event, directory: unknown) => {
+    requireMainRenderer(event);
+    if (app.isPackaged || typeof directory !== "string") {
+      throw new Error("Unpacked extensions can only be loaded in development builds.");
+    }
+    return extensionViewManager.installDevelopment(directory);
+  });
+  ipcMain.removeHandler(EXTENSION_INSTALL_LOCAL_PACKAGE_CHANNEL);
+  ipcMain.handle(EXTENSION_INSTALL_LOCAL_PACKAGE_CHANNEL, async (event, archive: unknown) => {
+    requireMainRenderer(event);
+    if (app.isPackaged || typeof archive !== "string") {
+      throw new Error("Local extension packages can only be loaded in development builds.");
+    }
+    return extensionViewManager.installLocalPackage(archive);
+  });
+  ipcMain.removeHandler(EXTENSION_ASSIGN_CHANNEL);
+  ipcMain.handle(EXTENSION_ASSIGN_CHANNEL, async (event, id: unknown, assignment: unknown) => {
+    requireMainRenderer(event);
+    if (typeof id !== "string" || !assignment || typeof assignment !== "object") {
+      throw new Error("Invalid extension assignment.");
+    }
+    extensionViewManager.setAssignment(id, assignment as TabsExtensionAssignment);
+  });
+  ipcMain.removeHandler(EXTENSION_ADD_PROFILE_CHANNEL);
+  ipcMain.handle(
+    EXTENSION_ADD_PROFILE_CHANNEL,
+    async (event, id: unknown, profile: unknown, label: unknown, scope: unknown) => {
+      requireMainRenderer(event);
+      if (typeof id !== "string" || typeof profile !== "string" || typeof label !== "string") {
+        throw new Error("Invalid extension profile.");
+      }
+      if (scope !== "shared" && scope !== "project") {
+        throw new Error("Invalid extension profile scope.");
+      }
+      extensionViewManager.addProfile(id, profile, label, scope);
+    },
+  );
+  ipcMain.removeHandler(EXTENSION_CREDENTIALS_LIST_CHANNEL);
+  ipcMain.handle(EXTENSION_CREDENTIALS_LIST_CHANNEL, (event, id: unknown) => {
+    requireMainRenderer(event);
+    if (typeof id !== "string") throw new Error("Invalid extension identity.");
+    return extensionViewManager.listCredentialStatuses(id);
+  });
+  ipcMain.removeHandler(EXTENSION_CREDENTIAL_SET_CHANNEL);
+  ipcMain.handle(
+    EXTENSION_CREDENTIAL_SET_CHANNEL,
+    (event, id: unknown, profileId: unknown, host: unknown, value: unknown, projectId: unknown) => {
+      requireMainRenderer(event);
+      if (
+        typeof id !== "string" ||
+        typeof profileId !== "string" ||
+        typeof host !== "string" ||
+        (value !== null && typeof value !== "string") ||
+        (projectId !== undefined && typeof projectId !== "string")
+      ) {
+        throw new Error("Invalid extension credential request.");
+      }
+      extensionViewManager.setProfileCredential(id, profileId, host, value, projectId);
+      mainWindow?.webContents.send(EXTENSION_CHANGED_CHANNEL);
+    },
+  );
+  ipcMain.removeHandler(EXTENSION_ACTIVATE_CHANNEL);
+  ipcMain.handle(EXTENSION_ACTIVATE_CHANNEL, async (event, input: unknown) => {
+    requireMainRenderer(event);
+    if (!input || typeof input !== "object") throw new Error("Invalid extension view.");
+    const value = input as DesktopExtensionViewInput;
+    if (
+      ![value.extensionId, value.toolId, value.projectId, value.profileId].every(
+        (item) => typeof item === "string" && item.length > 0,
+      )
+    )
+      throw new Error("Invalid extension view.");
+    if (
+      typeof value.activationId !== "string" ||
+      value.activationId.length === 0 ||
+      value.activationId.length > 128 ||
+      !/^[a-zA-Z0-9_-]+$/.test(value.activationId)
+    ) {
+      throw new Error("Invalid activation attempt ID.");
+    }
+    const before = extensionViewManager.list().find((entry) => entry.id === value.extensionId);
+    if (before?.source === "exchange") {
+      if (before.revoked) throw new Error("This extension version has been revoked.");
+      await checkInstalledExchangeStatus(before.id);
+      const after = extensionViewManager.list().find((entry) => entry.id === value.extensionId);
+      if (!after || after.digest !== before.digest || after.revoked) {
+        throw new Error("Extension status changed; select the tool again.");
+      }
+    }
+    await extensionViewManager.activate(value);
+  });
+  ipcMain.removeHandler(EXTENSION_SET_BOUNDS_CHANNEL);
+  ipcMain.handle(EXTENSION_SET_BOUNDS_CHANNEL, async (event, input: unknown) => {
+    requireMainRenderer(event);
+    if (!input || typeof input !== "object") return;
+    const value = input as DesktopExtensionBoundsInput;
+    if (
+      typeof value.activationId !== "string" ||
+      value.activationId.length === 0 ||
+      value.activationId.length > 128 ||
+      !/^[a-zA-Z0-9_-]+$/.test(value.activationId)
+    ) {
+      return;
+    }
+    extensionViewManager.setBounds(value);
+  });
+  ipcMain.removeHandler(EXTENSION_HIDE_CHANNEL);
+  ipcMain.handle(EXTENSION_HIDE_CHANNEL, async (event, input?: unknown) => {
+    requireMainRenderer(event);
+    let activationId: string | undefined;
+    if (typeof input === "string") {
+      activationId = input;
+    } else if (input === undefined) {
+      // Legacy unscoped hide request.
+    } else if (input && typeof input === "object" && "activationId" in input) {
+      const candidate = (input as { activationId?: unknown }).activationId;
+      if (typeof candidate !== "string") return;
+      activationId = candidate;
+    } else {
+      return;
+    }
+    if (
+      activationId !== undefined &&
+      (activationId.length === 0 ||
+        activationId.length > 128 ||
+        !/^[a-zA-Z0-9_-]+$/.test(activationId))
+    ) {
+      return;
+    }
+    extensionViewManager.hide(activationId ? { activationId } : undefined);
+    applyAvailableExchangeUpdates();
+  });
+  ipcMain.removeHandler(EXTENSION_STORAGE_CHANNEL);
+  ipcMain.handle(EXTENSION_STORAGE_CHANNEL, (event, operation: unknown) => {
+    if (event.senderFrame !== event.sender.mainFrame) {
+      throw new Error("Extension storage is available only to the main frame.");
+    }
+    return extensionViewManager.invokeStorage(
+      event.sender,
+      operation as Parameters<ExtensionViewManager["invokeStorage"]>[1],
+    );
+  });
+  ipcMain.removeHandler(EXTENSION_WORKSPACE_READ_CHANNEL);
+  ipcMain.removeHandler(EXTENSION_GIT_STATUS_CHANNEL);
+  ipcMain.removeHandler(EXTENSION_NETWORK_GET_CHANNEL);
+  ipcMain.removeHandler(EXTENSION_LOGIC_INVOKE_CHANNEL);
+  ipcMain.handle(EXTENSION_LOGIC_INVOKE_CHANNEL, (event, commandId: unknown, input: unknown) => {
+    if (event.senderFrame !== event.sender.mainFrame) {
+      throw new Error("Extension commands are available only to the main frame.");
+    }
+    return extensionViewManager.invokeLogic(event.sender, commandId as string, input);
+  });
+  ipcMain.handle(
+    EXTENSION_NETWORK_GET_CHANNEL,
+    (event, rawUrl: unknown, useCredential: unknown) => {
+      if (event.senderFrame !== event.sender.mainFrame) {
+        throw new Error("Extension network access is available only to the main frame.");
+      }
+      if (useCredential !== undefined && typeof useCredential !== "boolean") {
+        throw new Error("Invalid network credential option.");
+      }
+      return extensionViewManager.invokeNetworkGetText(
+        event.sender,
+        rawUrl as string,
+        useCredential === true,
+      );
+    },
+  );
+  ipcMain.handle(EXTENSION_WORKSPACE_READ_CHANNEL, async (event, relativePath: unknown) => {
+    if (event.senderFrame !== event.sender.mainFrame) {
+      throw new Error("Extension workspace access is available only to the main frame.");
+    }
+    return extensionViewManager.invokeWorkspaceRead(
+      event.sender,
+      relativePath as string,
+      async (projectId, path) => {
+        if (!backendHttpUrl || !backendAuthToken)
+          throw new Error("Project backend is unavailable.");
+        const response = await fetch(`${backendHttpUrl}/internal/extensions/read-project-file`, {
+          method: "POST",
+          redirect: "error",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Tabs-Backend-Token": backendAuthToken,
+          },
+          body: JSON.stringify({ projectId, relativePath: path }),
+          signal: AbortSignal.timeout(10_000),
+        });
+        if (!response.ok)
+          throw new Error("Project file is unavailable or outside the granted workspace.");
+        const value: unknown = await response.json();
+        if (
+          !value ||
+          typeof value !== "object" ||
+          typeof (value as { contents?: unknown }).contents !== "string"
+        ) {
+          throw new Error("Invalid project file response.");
+        }
+        return (value as { contents: string }).contents;
+      },
+    );
+  });
+  ipcMain.handle(EXTENSION_GIT_STATUS_CHANNEL, async (event) => {
+    if (event.senderFrame !== event.sender.mainFrame) {
+      throw new Error("Extension Git status is available only to the main frame.");
+    }
+    return extensionViewManager.invokeGitStatus(event.sender, async (projectId) => {
+      if (!backendHttpUrl || !backendAuthToken) throw new Error("Project backend is unavailable.");
+      const response = await fetch(`${backendHttpUrl}/internal/extensions/git-status`, {
+        method: "POST",
+        redirect: "error",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Tabs-Backend-Token": backendAuthToken,
+        },
+        body: JSON.stringify({ projectId }),
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (!response.ok) throw new Error("Git status is unavailable for this project.");
+      const value: unknown = await response.json();
+      if (
+        !value ||
+        typeof value !== "object" ||
+        typeof (value as { branch?: unknown }).branch !== "string" ||
+        typeof (value as { dirty?: unknown }).dirty !== "boolean"
+      ) {
+        throw new Error("Invalid Git status response.");
+      }
+      return value as { branch: string; dirty: boolean };
+    });
+  });
   ipcMain.removeHandler(HOST_POWER_GET_CHANNEL);
   handleTabsIpc(HOST_POWER_GET_CHANNEL, () => readHostPowerSnapshot());
 
@@ -2360,6 +2946,12 @@ function registerIpcHandlers(): void {
     if (typeof value === "boolean") {
       setConfirmBeforeQuit(value);
     }
+  });
+
+  ipcMain.removeHandler(GET_BACKEND_STARTUP_ERROR_CHANNEL);
+  handleTabsIpc(GET_BACKEND_STARTUP_ERROR_CHANNEL, (event) => {
+    if (event.sender !== mainWindow?.webContents) return null;
+    return backendStartupError;
   });
 
   ipcMain.removeHandler(GET_TABS_DATA_RESET_STARTUP_ERROR_CHANNEL);
@@ -4135,9 +4727,17 @@ async function bootstrap(): Promise<void> {
   writeDesktopLogHeader(`reserved backend port via NetService port=${backendPort}`);
   backendAuthToken = Crypto.randomBytes(24).toString("hex");
   const wsBaseUrl = `ws://127.0.0.1:${backendPort}`;
-  backendWsUrl = `${wsBaseUrl}/?token=${encodeURIComponent(backendAuthToken)}`;
+  backendWsUrl = `${wsBaseUrl}/ws?${ORCHESTRATION_PROTOCOL_QUERY_PARAM}=${ORCHESTRATION_PROTOCOL_VERSION}&token=${encodeURIComponent(backendAuthToken)}`;
   backendHttpUrl = `http://127.0.0.1:${backendPort}`;
   writeDesktopLogHeader(`bootstrap resolved websocket endpoint baseUrl=${wsBaseUrl}`);
+  try {
+    extensionAiBrokerConfig = await extensionAiBrokerServer.start();
+    writeDesktopLogHeader("bootstrap extension AI broker started");
+  } catch (error) {
+    writeDesktopLogHeader(
+      `bootstrap extension AI broker unavailable: ${formatErrorMessage(error)}`,
+    );
+  }
 
   if (codeHostConfig.runtime) {
     // Do not hold first paint behind Code-OSS's large compatibility imports.
@@ -4201,6 +4801,45 @@ async function bootstrap(): Promise<void> {
   startBackend();
   writeDesktopLogHeader("bootstrap backend start requested");
   mainWindow = createWindow();
+  void checkAllInstalledExchangeStatuses();
+  if (process.env.TABS_EXCHANGE_TRUST_ROOT_PATH && process.env.TABS_EXCHANGE_ORIGIN) {
+    try {
+      const hintOrigin = configuredExchangeOrigin(
+        process.env.TABS_EXCHANGE_ORIGIN,
+        !app.isPackaged,
+      );
+      if (!hintOrigin) throw new Error("Exchange registry origin is unavailable.");
+      exchangeSignedMetadataHints = new ExchangeSignedMetadataHints(
+        hintOrigin,
+        () => {
+          void checkAllInstalledExchangeStatuses();
+          checkAllInstalledExchangeUpdates();
+        },
+        (error) => {
+          writeDesktopLogHeader(
+            `Exchange signed-metadata hints failed: ${formatErrorMessage(error)}`,
+          );
+        },
+        authenticatedRegistryFetch,
+      );
+      exchangeSignedMetadataHints.start();
+    } catch (error) {
+      writeDesktopLogHeader(
+        `Exchange signed-metadata hints unavailable: ${formatErrorMessage(error)}`,
+      );
+    }
+  }
+  exchangeStatusTimer = setInterval(() => {
+    void checkAllInstalledExchangeStatuses();
+  }, 60_000);
+  exchangeStatusTimer.unref();
+  exchangeUpdateStartupTimer = setTimeout(() => {
+    exchangeUpdateStartupTimer = null;
+    checkAllInstalledExchangeUpdates();
+  }, 30_000);
+  exchangeUpdateStartupTimer.unref();
+  exchangeUpdateTimer = setInterval(checkAllInstalledExchangeUpdates, 6 * 60 * 60_000);
+  exchangeUpdateTimer.unref();
   writeDesktopLogHeader(
     `bootstrap main window created durationMs=${Math.round(performance.now() - bootstrapStartedAt)}`,
   );
@@ -4435,6 +5074,7 @@ if (clerkBridge.isPrimaryInstance) {
 
       powerMonitor.on("resume", () => {
         hostSuspended = false;
+        void checkAllInstalledExchangeStatuses();
         const window = mainWindow;
         if (!window || window.isDestroyed()) return;
         window.webContents.send(SYSTEM_RESUME_CHANNEL);
