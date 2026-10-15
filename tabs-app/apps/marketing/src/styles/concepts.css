@@ -3607,7 +3607,7 @@ a[aria-busy="true"] {
 }
 .signature-nav {
   display: grid;
-  grid-template-columns: 2fr repeat(4, 1fr) auto;
+  grid-template-columns: 2fr repeat(5, minmax(0, 1fr)) auto;
   align-items: start;
   gap: 24px;
   padding: 28px 0;
