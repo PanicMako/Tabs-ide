@@ -13,17 +13,26 @@ import {
   Search,
   Telescope,
   Square,
+  Pin,
   X,
 } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { GitWatchedBranchStatus } from "@tabs/contracts";
 import { useQueryClient } from "@tanstack/react-query";
 import { invalidateGitQueries } from "../../lib/gitReactQuery";
 import { toGitUserFacingErrorMessage } from "../../lib/gitErrorMessages";
 import { useGitApi, useGitScopeKey } from "./gitApiContext";
+import {
+  loadPinnedBranches,
+  savePinnedBranches,
+  togglePinnedBranch,
+  unpinAllBranches,
+  MAX_PINNED_BRANCHES,
+} from "./pinnedBranches";
 import { toastManager } from "../ui/toast";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
+import { cn } from "../../lib/utils";
 import {
   Dialog,
   DialogFooter,
@@ -77,9 +86,66 @@ export function DivergencePanel({
   const [confirmRebaseBranch, setConfirmRebaseBranch] = useState<string | null>(null);
   const [isSubmittingModal, setIsSubmittingModal] = useState(false);
 
+  // Pinned comparison target branches (synced with Agents chat header)
+  const [pinnedBranches, setPinnedBranches] = useState<string[]>(() =>
+    loadPinnedBranches(gitScopeKey),
+  );
+
+  useEffect(() => {
+    setPinnedBranches(loadPinnedBranches(gitScopeKey));
+  }, [gitScopeKey]);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const custom = e as CustomEvent<{ gitScopeKey: string; branches: string[] }>;
+      if (custom.detail?.gitScopeKey === gitScopeKey && Array.isArray(custom.detail.branches)) {
+        setPinnedBranches(custom.detail.branches);
+      }
+    };
+    window.addEventListener("tabs:pinned-branches-changed", handler);
+    return () => window.removeEventListener("tabs:pinned-branches-changed", handler);
+  }, [gitScopeKey]);
+
+  const handleTogglePinTarget = useCallback(
+    (branchName: string) => {
+      const res = togglePinnedBranch(gitScopeKey, pinnedBranches, branchName);
+      if (res.action === "limit_reached") {
+        toastManager.add({
+          type: "warning",
+          title: `Maximum ${MAX_PINNED_BRANCHES} branches can be pinned`,
+          description: `Unpin a branch first to pin '${branchName}'.`,
+        });
+        return;
+      }
+      setPinnedBranches(res.branches);
+      if (res.action === "pinned") {
+        toastManager.add({
+          type: "success",
+          title: `Pinned '${branchName}' for divergence comparison (${res.branches.length}/${MAX_PINNED_BRANCHES})`,
+        });
+      } else {
+        toastManager.add({
+          type: "info",
+          title: `Unpinned '${branchName}'`,
+        });
+      }
+    },
+    [gitScopeKey, pinnedBranches],
+  );
+
   // Search & Tab State
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeView, setActiveView] = useState<ViewMode>("active");
+  const [activeView, setActiveView] = useState<ViewMode>(() => {
+    try {
+      const saved =
+        localStorage.getItem(`tabs_default_divergence_view_${gitScopeKey}`) ||
+        localStorage.getItem("tabs_default_divergence_view");
+      if (saved === "spotlight" || saved === "active" || saved === "archived") {
+        return saved as ViewMode;
+      }
+    } catch {}
+    return "spotlight";
+  });
 
   // Selection mode — explicit toggle, not hover-driven
   const [isSelectMode, setIsSelectMode] = useState(false);
@@ -253,6 +319,9 @@ export function DivergencePanel({
     setActiveView(view);
     exitSelectMode();
     setSearchQuery("");
+    try {
+      localStorage.setItem(`tabs_default_divergence_view_${gitScopeKey}`, view);
+    } catch {}
   };
 
   const api = useGitApi();
@@ -338,6 +407,68 @@ export function DivergencePanel({
         </div>
       </div>
 
+      {/* Pinned target branches banner */}
+      <div className="flex items-center justify-between gap-2 bg-muted/40 border border-border/70 rounded-lg px-3 py-2 mb-4 text-xs">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Pin
+            size={13}
+            className={cn(
+              "shrink-0",
+              pinnedBranches.length > 0
+                ? "text-sky-500 fill-sky-500/30"
+                : "text-muted-foreground/60",
+            )}
+          />
+          <span className="text-muted-foreground text-[11px]">
+            {pinnedBranches.length > 0 ? (
+              <>
+                Pinned comparison branches for Agents ({pinnedBranches.length}/{MAX_PINNED_BRANCHES}
+                ):
+              </>
+            ) : (
+              <>
+                No branches pinned for Agents (0/{MAX_PINNED_BRANCHES}). Click the{" "}
+                <strong>Pin</strong> icon on any branch to track its divergence.
+              </>
+            )}
+          </span>
+          {pinnedBranches.length > 0 && (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {pinnedBranches.map((b) => (
+                <Badge
+                  key={b}
+                  variant="outline"
+                  className="border-sky-500/40 text-sky-500 bg-sky-500/10 text-[10px] gap-1 px-1.5 py-0 font-mono"
+                >
+                  <span>{b}</span>
+                  <button
+                    type="button"
+                    aria-label={`Unpin ${b}`}
+                    onClick={() => handleTogglePinTarget(b)}
+                    className="hover:text-foreground cursor-pointer opacity-70 hover:opacity-100"
+                  >
+                    <X size={10} />
+                  </button>
+                </Badge>
+              ))}
+            </div>
+          )}
+        </div>
+        {pinnedBranches.length > 0 && (
+          <button
+            type="button"
+            onClick={() => {
+              const next = unpinAllBranches(gitScopeKey);
+              setPinnedBranches(next);
+              toastManager.add({ type: "info", title: "Unpinned all branches" });
+            }}
+            className="text-[11px] font-mono text-muted-foreground hover:text-foreground hover:underline cursor-pointer shrink-0"
+          >
+            Unpin all
+          </button>
+        )}
+      </div>
+
       {/* Control Bar */}
       <div className="flex items-center justify-between gap-3 mb-4">
         {/* Search */}
@@ -368,7 +499,7 @@ export function DivergencePanel({
         <div className="flex items-center gap-2 shrink-0">
           {/* View Switcher — three tabs: Spotlight | Active | Archived */}
           <OrbitGroup
-            className="tabs-segmented flex items-center"
+            className="tabs-segmented flex items-center h-8 rounded-full"
             role="group"
             aria-label="Branch view"
           >
@@ -376,7 +507,7 @@ export function DivergencePanel({
               type="button"
               aria-pressed={activeView === "spotlight"}
               onClick={() => switchView("spotlight")}
-              className={`flex items-center gap-1.5 px-3 py-1 text-[11px] font-medium rounded-md transition-colors ${
+              className={`flex items-center gap-1.5 px-3 h-full text-[11px] font-medium rounded-full transition-colors ${
                 activeView === "spotlight"
                   ? "font-semibold shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
@@ -389,7 +520,7 @@ export function DivergencePanel({
               type="button"
               aria-pressed={activeView === "active"}
               onClick={() => switchView("active")}
-              className={`px-3 py-1 text-[11px] font-medium rounded-md transition-colors ${
+              className={`flex items-center px-3 h-full text-[11px] font-medium rounded-full transition-colors ${
                 activeView === "active"
                   ? "bg-accent text-foreground font-semibold shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
@@ -401,7 +532,7 @@ export function DivergencePanel({
               type="button"
               aria-pressed={activeView === "archived"}
               onClick={() => switchView("archived")}
-              className={`px-3 py-1 text-[11px] font-medium rounded-md transition-colors ${
+              className={`flex items-center px-3 h-full text-[11px] font-medium rounded-full transition-colors ${
                 activeView === "archived"
                   ? "bg-accent text-foreground font-semibold shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
@@ -416,19 +547,19 @@ export function DivergencePanel({
             <button
               type="button"
               onClick={() => setIsSelectMode(true)}
-              className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded-md border border-border bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
+              className="flex items-center gap-1.5 px-3 h-8 text-[11px] font-medium rounded-full border border-border/70 bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors cursor-pointer shadow-2xs"
               title="Enter selection mode"
             >
-              <MousePointerClick size={13} />
+              <MousePointerClick size={12} />
               Select
             </button>
           ) : (
             <button
               type="button"
               onClick={exitSelectMode}
-              className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded-md border border-sky-500/30 bg-sky-500/10 text-sky-700 dark:border-sky-700 dark:bg-sky-900/30 dark:text-sky-300 transition-colors"
+              className="flex items-center gap-1.5 px-3 h-8 text-[11px] font-medium rounded-full border border-sky-500/40 bg-sky-500/15 text-sky-700 dark:border-sky-700/60 dark:bg-sky-950/40 dark:text-sky-300 transition-colors cursor-pointer shadow-2xs"
             >
-              <X size={13} />
+              <X size={12} />
               Done
             </button>
           )}
@@ -558,6 +689,9 @@ export function DivergencePanel({
             {displayedBranches.map((b, idx, arr) => {
               const isSelected = selectedBranchNames.has(b.name);
               const isSpotlit = spotlightSet.has(b.name.toLowerCase());
+              const isPinnedTarget = pinnedBranches.some(
+                (p) => p.toLowerCase() === b.name.toLowerCase(),
+              );
               return (
                 <div
                   key={b.name}
@@ -589,6 +723,15 @@ export function DivergencePanel({
                     </span>
                     {b.isRemote && <Badge variant="outline">remote</Badge>}
                     {b.isDefault && <Badge variant="success">default</Badge>}
+                    {isPinnedTarget && (
+                      <Badge
+                        variant="outline"
+                        className="border-sky-500/40 text-sky-500 bg-sky-500/10 text-[10px] gap-1 px-1.5 py-0"
+                      >
+                        <Pin size={9} className="fill-current" />
+                        pinned
+                      </Badge>
+                    )}
 
                     {b.behindCount > 0 && (
                       <span
@@ -622,6 +765,30 @@ export function DivergencePanel({
                     >
                       Rebase
                     </Button>
+
+                    {/* Pin as comparison target toggle */}
+                    <button
+                      type="button"
+                      aria-label={
+                        isPinnedTarget
+                          ? `Unpin ${b.name} as comparison target`
+                          : `Pin ${b.name} as comparison target (${pinnedBranches.length}/${MAX_PINNED_BRANCHES})`
+                      }
+                      aria-pressed={isPinnedTarget}
+                      title={
+                        isPinnedTarget
+                          ? `Pinned comparison target (${pinnedBranches.length}/${MAX_PINNED_BRANCHES}) — click to unpin`
+                          : `Pin ${b.name} as comparison target for Agents (${pinnedBranches.length}/${MAX_PINNED_BRANCHES})`
+                      }
+                      onClick={() => handleTogglePinTarget(b.name)}
+                      className={`p-1 rounded transition-colors cursor-pointer ${
+                        isPinnedTarget
+                          ? "text-sky-500 fill-sky-500/20 hover:bg-muted/50"
+                          : "text-muted-foreground/70 hover:text-foreground hover:bg-muted/50"
+                      }`}
+                    >
+                      <Pin size={14} className={isPinnedTarget ? "fill-sky-500" : ""} />
+                    </button>
 
                     {/* Spotlight toggle */}
                     <button

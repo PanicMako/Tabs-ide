@@ -295,6 +295,12 @@ export function PRsPanel({
       capabilities ? capabilities.actions.includes(action) : action !== "request_changes",
     [capabilities],
   );
+  const branchHasNoPullRequest =
+    viewMode === "branch" &&
+    activeQuery.error instanceof Error &&
+    /pull request not found|no pull requests? found|no pull request associated/i.test(
+      activeQuery.error.message,
+    );
   const loading = activeQuery.isLoading;
 
   const prs = useMemo<PullRequestRow[]>(() => {
@@ -531,7 +537,7 @@ export function PRsPanel({
         ) : null}
       </div>
 
-      {activeQuery.isError ? (
+      {activeQuery.isError && !branchHasNoPullRequest ? (
         <div role="alert">
           <Card className="border-destructive/40 bg-destructive/5 p-6 text-center">
             <GitPullRequest className="mx-auto mb-2 text-destructive" size={28} />

@@ -15,7 +15,7 @@ import {
   Tag,
   Users,
 } from "lucide-react";
-import { type KeyboardEvent, type ReactNode, useRef } from "react";
+import { type KeyboardEvent, type ReactNode, useRef, Fragment } from "react";
 
 export type NavPanel =
   | "overview"
@@ -141,6 +141,7 @@ function RailTooltip({
 }
 
 export function Sidebar({
+  redesigned = false,
   repoName,
   panel,
   setPanel,
@@ -152,6 +153,7 @@ export function Sidebar({
   hasConflict,
   idPrefix,
 }: {
+  redesigned?: boolean;
   repoName: string;
   panel: NavPanel;
   setPanel: (p: NavPanel) => void;
@@ -193,6 +195,7 @@ export function Sidebar({
   if (collapsed) {
     return (
       <div
+        data-collapsed="true"
         className="w-16 flex flex-col items-center border-r border-border/50 shrink-0 h-full py-4 gap-2"
         style={wrapStyle}
       >
@@ -276,7 +279,11 @@ export function Sidebar({
   }
 
   return (
-    <div className="w-64 flex flex-col border-r border-border/50 shrink-0 h-full" style={wrapStyle}>
+    <div
+      data-collapsed="false"
+      className="git-sidebar w-64 flex flex-col border-r border-border/50 shrink-0 h-full"
+      style={wrapStyle}
+    >
       <div className="p-4 pb-3 flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="flex items-center gap-1.5 text-muted-foreground/70">
@@ -325,47 +332,57 @@ export function Sidebar({
                   ? reviewBadgeCount
                   : null;
           return (
-            <button
-              key={n.id}
-              type="button"
-              {...tabProps(n, index)}
-              data-panel={n.id}
-              onClick={() => setPanel(n.id)}
-              className={`group relative w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left transition-colors cursor-pointer ${
-                isActive ? "bg-muted" : "hover:bg-muted/50"
-              }`}
-            >
-              {isActive && (
-                <span
-                  className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full"
-                  style={{ backgroundColor: "var(--fg)" }}
-                />
+            <Fragment key={n.id}>
+              {redesigned && ["overview", "branches", "accounts"].includes(n.id) && (
+                <div className="git-nav-group" aria-hidden="true">
+                  {n.id === "overview"
+                    ? "Workspace"
+                    : n.id === "branches"
+                      ? "Repository"
+                      : "Preferences"}
+                </div>
               )}
-              <Icon
-                aria-hidden="true"
-                size={14}
-                className={
-                  isActive
-                    ? "text-foreground"
-                    : "text-muted-foreground/70 group-hover:text-foreground/90"
-                }
-              />
-              <span
-                className={`text-xs flex-1 truncate ${isActive ? "text-foreground font-medium" : "text-muted-foreground group-hover:text-foreground"}`}
+              <button
+                type="button"
+                {...tabProps(n, index)}
+                data-panel={n.id}
+                onClick={() => setPanel(n.id)}
+                className={`group relative w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left transition-colors cursor-pointer ${
+                  isActive ? "bg-muted" : "hover:bg-muted/50"
+                }`}
               >
-                {n.label}
-              </span>
-              {count ? (
+                {isActive && (
+                  <span
+                    className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full"
+                    style={{ backgroundColor: "var(--fg)" }}
+                  />
+                )}
+                <Icon
+                  aria-hidden="true"
+                  size={14}
+                  className={
+                    isActive
+                      ? "text-foreground"
+                      : "text-muted-foreground/70 group-hover:text-foreground/90"
+                  }
+                />
                 <span
-                  className="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-muted/50 border border-border/50"
-                  style={{
-                    color: n.id === "changes" && hasConflict ? "var(--sem-red)" : "var(--fg-40)",
-                  }}
+                  className={`text-xs flex-1 truncate ${isActive ? "text-foreground font-medium" : "text-muted-foreground group-hover:text-foreground"}`}
                 >
-                  {count}
+                  {n.label}
                 </span>
-              ) : null}
-            </button>
+                {count ? (
+                  <span
+                    className="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-muted/50 border border-border/50"
+                    style={{
+                      color: n.id === "changes" && hasConflict ? "var(--sem-red)" : "var(--fg-40)",
+                    }}
+                  >
+                    {count}
+                  </span>
+                ) : null}
+              </button>
+            </Fragment>
           );
         })}
       </div>

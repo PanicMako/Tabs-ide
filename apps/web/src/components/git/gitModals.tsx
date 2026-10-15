@@ -595,7 +595,7 @@ export function CreatePRModal({
                   PR Visibility
                 </label>
                 <OrbitGroup
-                  className="tabs-segmented grid grid-cols-2 text-xs"
+                  className="tabs-segmented grid grid-cols-2 text-xs rounded-full"
                   role="group"
                   aria-label="Pull request visibility"
                 >
@@ -603,7 +603,7 @@ export function CreatePRModal({
                     type="button"
                     onClick={() => setDraft(false)}
                     aria-pressed={!draft}
-                    className={`flex items-center justify-center gap-1.5 py-2 rounded-lg font-medium transition-all ${
+                    className={`flex items-center justify-center gap-1.5 py-2 rounded-full font-medium transition-all ${
                       !draft ? "font-semibold" : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
@@ -617,7 +617,7 @@ export function CreatePRModal({
                     type="button"
                     onClick={() => setDraft(true)}
                     aria-pressed={draft}
-                    className={`flex items-center justify-center gap-1.5 py-2 rounded-lg font-medium transition-all ${
+                    className={`flex items-center justify-center gap-1.5 py-2 rounded-full font-medium transition-all ${
                       draft ? "font-semibold" : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
@@ -1156,7 +1156,7 @@ export function DraftReleaseModal({
                   Release Type
                 </label>
                 <OrbitGroup
-                  className="tabs-segmented grid grid-cols-2 text-xs"
+                  className="tabs-segmented grid grid-cols-2 text-xs rounded-full"
                   role="group"
                   aria-label="Release type"
                 >
@@ -1164,7 +1164,7 @@ export function DraftReleaseModal({
                     type="button"
                     onClick={() => setPrerelease(false)}
                     aria-pressed={!prerelease}
-                    className={`flex items-center justify-center gap-1.5 py-2 rounded-lg font-medium transition-all ${
+                    className={`flex items-center justify-center gap-1.5 py-2 rounded-full font-medium transition-all ${
                       !prerelease ? "font-semibold" : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
@@ -1178,7 +1178,7 @@ export function DraftReleaseModal({
                     type="button"
                     onClick={() => setPrerelease(true)}
                     aria-pressed={prerelease}
-                    className={`flex items-center justify-center gap-1.5 py-2 rounded-lg font-medium transition-all ${
+                    className={`flex items-center justify-center gap-1.5 py-2 rounded-full font-medium transition-all ${
                       prerelease ? "font-semibold" : "text-muted-foreground hover:text-foreground"
                     }`}
                   >

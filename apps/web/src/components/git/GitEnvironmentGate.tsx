@@ -50,12 +50,26 @@ export function GitEnvironmentGate(props: {
   isRepo: boolean | undefined;
   isLoading: boolean;
   initPending: boolean;
+  error?: string | undefined;
+  onRetry?: () => void;
   onInitRepo: () => void;
   children: ReactNode;
 }) {
   const { environment, isRepo, isLoading, initPending, onInitRepo, children } = props;
 
   const isDataReady = !isLoading && environment !== undefined && isRepo !== undefined;
+
+  if (props.error) {
+    return (
+      <GateShell
+        icon={<FolderGitIcon className="size-7" />}
+        title="Couldn’t load Git"
+        description={props.error}
+      >
+        <Button onClick={props.onRetry}>Retry</Button>
+      </GateShell>
+    );
+  }
 
   // Git missing is a definitive, blocking state.
   if (environment && !environment.git.installed) {
