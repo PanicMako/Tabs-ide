@@ -69,7 +69,9 @@ app.whenReady().then(async () => {
 
     const { ExtensionViewManager, NativeViewStackCoordinator, packTabsext } = require(bundlePath);
     const root = path.resolve(__dirname, "../../..");
-    const tabsVersion = JSON.parse(fs.readFileSync(path.join(root, "apps/desktop/package.json"), "utf8")).version;
+    const tabsVersion = JSON.parse(
+      fs.readFileSync(path.join(root, "apps/desktop/package.json"), "utf8"),
+    ).version;
     const helloExtensionDir = path.join(root, "examples/hello-extension");
     const storageSource = path.join(temporary, "storage-example-source");
     fs.cpSync(helloExtensionDir, storageSource, { recursive: true });
