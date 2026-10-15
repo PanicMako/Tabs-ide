@@ -4,6 +4,7 @@ let departure: HTMLElement | undefined;
 let cleanupTimer: ReturnType<typeof setTimeout> | undefined;
 
 function resetDeparture() {
+  document.documentElement.classList.remove("exchange-is-leaving");
   departure?.remove();
   departure = undefined;
   clearTimeout(cleanupTimer);
@@ -51,6 +52,7 @@ document.addEventListener("click", (event) => {
   const destination = link.href;
 
   try {
+    document.documentElement.classList.add("exchange-is-leaving");
     document.body.append(sheet);
     const reveal = sheet.animate(
       [
