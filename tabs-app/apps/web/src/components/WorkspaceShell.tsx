@@ -11232,7 +11232,9 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
   const navigate = useNavigate();
   const location = useLocation();
   const [isSettingsNavigationPending, setIsSettingsNavigationPending] = useState(false);
-  const isInterfaceStudy = useSettingsLabsStore((state) => state.editorialSettings);
+  const isInterfaceStudy = useSettingsLabsStore(
+    (state) => state.editorialSettings && !state.editorialSettingsOnly,
+  );
   const openSettings = useCallback(() => {
     if (location.pathname === "/settings") return;
 

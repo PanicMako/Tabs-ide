@@ -35,6 +35,9 @@ export const baseConfig = defineConfig({
     exclude: [
       ...configDefaults.exclude,
       "testing-demo/**",
+      // Historical source snapshots retain their original, non-runnable imports.
+      "docs/t3-parity/independent-audit/**",
+      "**/src.backup/**",
       "apps/server/_incomplete-synara-port/**",
     ],
     // Server tests spawn processes and databases. Bound the aggregate runner

@@ -1,4 +1,5 @@
-"use client";
+import { useScopedPortalContainer } from "~/lib/scopedPortal";
+("use client");
 
 import { useGsapSurface } from "~/hooks/useGsapSurface";
 
@@ -10,7 +11,10 @@ const AlertDialogCreateHandle = AlertDialogPrimitive.createHandle;
 
 const AlertDialog = AlertDialogPrimitive.Root;
 
-const AlertDialogPortal = AlertDialogPrimitive.Portal;
+function AlertDialogPortal(props: AlertDialogPrimitive.Portal.Props) {
+  const container = useScopedPortalContainer();
+  return <AlertDialogPrimitive.Portal container={container} {...props} />;
+}
 
 function AlertDialogTrigger(props: AlertDialogPrimitive.Trigger.Props) {
   return <AlertDialogPrimitive.Trigger data-slot="alert-dialog-trigger" {...props} />;

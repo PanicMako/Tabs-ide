@@ -1,14 +1,16 @@
 import "../../index.css";
 import "../../localFonts.css";
 import { expect, it } from "vitest";
-import { page } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 import { render } from "vitest-browser-react";
 import { SettingsEditorialFrame, SettingsWorkspaceIdentity } from "./SettingsEditorialFrame";
 import { SettingsSection, SettingsRow, SettingsSectionHeader } from "./SettingsLayout";
 import { useSettingsLabsStore } from "../../stores/settingsLabsStore";
 import LabsSettings from "./LabsSettings";
+import { Popover, PopoverTrigger, PopoverPopup } from "../ui/popover";
 
 it("switches shared settings surfaces together, preserves fonts, and restores the classic layout", async () => {
+  useSettingsLabsStore.getState().setEditorialSettingsOnly(false);
   useSettingsLabsStore.getState().setEditorialSettings(false);
   useSettingsLabsStore.getState().setEditorialAppearance("dark");
   await page.viewport(1280, 800);
@@ -77,6 +79,67 @@ it("switches shared settings surfaces together, preserves fonts, and restores th
   } finally {
     useSettingsLabsStore.getState().setEditorialSettings(false);
     useSettingsLabsStore.getState().setEditorialAppearance("dark");
+    await view.unmount();
+  }
+});
+
+it("limits the study to Settings while preserving the workspace appearance", async () => {
+  const store = useSettingsLabsStore.getState();
+  store.setEditorialSettings(false);
+  store.setEditorialSettingsOnly(false);
+  store.setEditorialAppearance("dark");
+  const view = await render(
+    <SettingsEditorialFrame>
+      <LabsSettings />
+      <Popover>
+        <PopoverTrigger>Open settings overlay</PopoverTrigger>
+        <PopoverPopup>
+          <span data-testid="settings-overlay">Scoped overlay</span>
+        </PopoverPopup>
+      </Popover>
+      <div data-testid="appearance-probe" className="dark:hidden">
+        Light settings
+      </div>
+    </SettingsEditorialFrame>,
+  );
+  const background = document.documentElement.style.getPropertyValue("--background");
+  const originalDark = document.documentElement.classList.contains("dark");
+  const savedTheme = localStorage.getItem("tabs:theme");
+  try {
+    await page.getByRole("switch", { name: "Interface study", exact: true }).click();
+    await page.getByRole("switch", { name: "Settings page only", exact: true }).click();
+    expect(document.documentElement.hasAttribute("data-interface-study")).toBe(false);
+    expect(document.documentElement.style.getPropertyValue("--background")).toBe(background);
+    expect(document.documentElement.classList.contains("dark")).toBe(originalDark);
+    await expect.element(page.getByTestId("appearance-probe")).not.toBeVisible();
+    await page.getByRole("button", { name: "Light", exact: true }).click();
+    await expect.element(page.getByTestId("appearance-probe")).toBeVisible();
+    const frame = page.getByTestId("appearance-probe").element().closest("[data-settings-design]")!;
+    expect(getComputedStyle(frame).backgroundColor).toBe("rgb(245, 244, 240)");
+    await page.getByRole("button", { name: "Open settings overlay", exact: true }).click();
+    await expect.element(page.getByTestId("settings-overlay")).toBeVisible();
+    expect(page.getByTestId("settings-overlay").element().closest("[data-settings-design]")).toBe(
+      frame,
+    );
+    expect(
+      getComputedStyle(page.getByTestId("settings-overlay").element())
+        .getPropertyValue("--background")
+        .trim(),
+    ).toBe("#f5f4f0");
+    await userEvent.keyboard("{Escape}");
+    expect(document.documentElement.classList.contains("dark")).toBe(originalDark);
+    expect(document.documentElement.style.getPropertyValue("--background")).toBe(background);
+    expect(localStorage.getItem("tabs:theme")).toBe(savedTheme);
+    expect(localStorage.getItem("tabs_settings_labs_v1")).toContain('"editorialSettingsOnly":true');
+    await page.getByRole("switch", { name: "Interface study", exact: true }).click();
+    await expect
+      .element(page.getByRole("switch", { name: "Settings page only", exact: true }))
+      .not.toBeInTheDocument();
+    expect(frame.getAttribute("data-settings-design")).toBe("classic");
+  } finally {
+    store.setEditorialSettings(false);
+    store.setEditorialSettingsOnly(false);
+    store.setEditorialAppearance("dark");
     await view.unmount();
   }
 });

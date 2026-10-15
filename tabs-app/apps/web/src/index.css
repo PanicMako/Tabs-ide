@@ -286,7 +286,8 @@ html[data-reduced-motion="reduce"]
   transition: none !important;
 }
 
-@custom-variant dark (&:is(.dark, .dark *));
+/* Settings can preview either appearance without changing the workspace theme. */
+@custom-variant dark (&:is(.dark, .dark *, [data-settings-design="editorial"][data-settings-appearance="dark"], [data-settings-design="editorial"][data-settings-appearance="dark"] *):not([data-settings-design="editorial"][data-settings-appearance="light"], [data-settings-design="editorial"][data-settings-appearance="light"] *));
 /* Window Controls Overlay: active when Electron exposes native titlebar control geometry. */
 @custom-variant wco (&:is(.wco, .wco *));
 

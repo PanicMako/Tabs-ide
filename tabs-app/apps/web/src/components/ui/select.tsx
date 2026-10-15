@@ -1,4 +1,5 @@
-"use client";
+import { useScopedPortalContainer } from "~/lib/scopedPortal";
+("use client");
 
 import { useGsapSurface } from "~/hooks/useGsapSurface";
 
@@ -126,7 +127,7 @@ function SelectPopup({
   const motionRef = useGsapSurface(props.ref);
 
   return (
-    <SelectPrimitive.Portal>
+    <SelectScopedPortal>
       <SelectPrimitive.Positioner
         align={align}
         alignItemWithTrigger={alignItemWithTrigger}
@@ -165,7 +166,7 @@ function SelectPopup({
           </SelectPrimitive.ScrollDownArrow>
         </SelectPrimitive.Popup>
       </SelectPrimitive.Positioner>
-    </SelectPrimitive.Portal>
+    </SelectScopedPortal>
   );
 }
 
@@ -251,3 +252,8 @@ export {
   SelectGroup,
   SelectGroupLabel,
 };
+
+function SelectScopedPortal(props: SelectPrimitive.Portal.Props) {
+  const container = useScopedPortalContainer();
+  return <SelectPrimitive.Portal container={container} {...props} />;
+}

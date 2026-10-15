@@ -1,4 +1,5 @@
-"use client";
+import { useScopedPortalContainer } from "~/lib/scopedPortal";
+("use client");
 
 import { useGsapSurface } from "~/hooks/useGsapSurface";
 
@@ -12,7 +13,10 @@ const DialogCreateHandle = DialogPrimitive.createHandle;
 
 const Dialog = DialogPrimitive.Root;
 
-const DialogPortal = DialogPrimitive.Portal;
+function DialogPortal(props: DialogPrimitive.Portal.Props) {
+  const container = useScopedPortalContainer();
+  return <DialogPrimitive.Portal container={container} {...props} />;
+}
 
 function DialogTrigger(props: DialogPrimitive.Trigger.Props) {
   return <DialogPrimitive.Trigger data-slot="dialog-trigger" {...props} />;

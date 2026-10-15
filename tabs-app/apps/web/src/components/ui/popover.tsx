@@ -1,4 +1,5 @@
-"use client";
+import { useScopedPortalContainer } from "~/lib/scopedPortal";
+("use client");
 
 import { useGsapSurface } from "~/hooks/useGsapSurface";
 
@@ -58,7 +59,7 @@ function PopoverPopup({
   const motionRef = useGsapSurface(props.ref);
 
   return (
-    <PopoverPrimitive.Portal>
+    <PopoverScopedPortal>
       {hasBackdrop && <PopoverBackdrop className={backdropClassName} />}
       <PopoverPrimitive.Positioner
         align={align}
@@ -94,7 +95,7 @@ function PopoverPopup({
           </PopoverPrimitive.Viewport>
         </PopoverPrimitive.Popup>
       </PopoverPrimitive.Positioner>
-    </PopoverPrimitive.Portal>
+    </PopoverScopedPortal>
   );
 }
 
@@ -133,3 +134,8 @@ export {
   PopoverDescription,
   PopoverClose,
 };
+
+function PopoverScopedPortal(props: PopoverPrimitive.Portal.Props) {
+  const container = useScopedPortalContainer();
+  return <PopoverPrimitive.Portal container={container} {...props} />;
+}

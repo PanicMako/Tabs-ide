@@ -33,7 +33,9 @@ export function WorkspaceWelcomeScreen<T extends { id: any; name: string; cwd: s
   onOpenSettings,
   onSelectProject,
 }: WorkspaceWelcomeScreenProps<T>) {
-  const editorial = useSettingsLabsStore((state) => state.editorialSettings);
+  const editorial = useSettingsLabsStore(
+    (state) => state.editorialSettings && !state.editorialSettingsOnly,
+  );
 
   if (!editorial) {
     // Classic Welcome Layout
