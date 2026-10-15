@@ -1,3 +1,8 @@
+/* Keep the oversized footer letters from becoming fragments behind the circular reveal. */
+.exchange-is-leaving .signature-stage {
+  visibility: hidden;
+}
+
 .exchange-departure {
   position: fixed;
   inset: 0;
