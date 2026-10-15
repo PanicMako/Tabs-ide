@@ -235,4 +235,3 @@ const appLayer = Layer.mergeAll(
 export async function discoverSourceControl(): Promise<SourceControlDiscoveryResult> {
   return Effect.runPromise(discoveryEffect.pipe(Effect.provide(appLayer)));
 }
-

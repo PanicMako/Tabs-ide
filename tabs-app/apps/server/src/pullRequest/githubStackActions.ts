@@ -17,7 +17,7 @@ const stackErrorIdentity = {
   stackNumber: Schema.Int,
 };
 
-export class GitHubStackChangedError extends Schema.TaggedErrorClass<GitHubStackChangedError>()(
+export class GitHubStackChangedError extends Schema.TaggedError<GitHubStackChangedError>()(
   "GitHubStackChangedError",
   { ...stackErrorIdentity, completed: Schema.Int },
 ) {
@@ -32,7 +32,7 @@ export class GitHubStackChangedError extends Schema.TaggedErrorClass<GitHubStack
   }
 }
 
-export class GitHubStackUnsupportedError extends Schema.TaggedErrorClass<GitHubStackUnsupportedError>()(
+export class GitHubStackUnsupportedError extends Schema.TaggedError<GitHubStackUnsupportedError>()(
   "GitHubStackUnsupportedError",
   stackErrorIdentity,
 ) {
@@ -45,7 +45,7 @@ export class GitHubStackUnsupportedError extends Schema.TaggedErrorClass<GitHubS
   }
 }
 
-export class GitHubStackResponseInvalidError extends Schema.TaggedErrorClass<GitHubStackResponseInvalidError>()(
+export class GitHubStackResponseInvalidError extends Schema.TaggedError<GitHubStackResponseInvalidError>()(
   "GitHubStackResponseInvalidError",
   { ...stackErrorIdentity, cause: Schema.optional(Schema.Defect()) },
 ) {
@@ -58,7 +58,7 @@ export class GitHubStackResponseInvalidError extends Schema.TaggedErrorClass<Git
   }
 }
 
-export class GitHubStackMergeRejectedError extends Schema.TaggedErrorClass<GitHubStackMergeRejectedError>()(
+export class GitHubStackMergeRejectedError extends Schema.TaggedError<GitHubStackMergeRejectedError>()(
   "GitHubStackMergeRejectedError",
   { ...stackErrorIdentity, cause: Schema.Defect() },
 ) {
@@ -71,7 +71,7 @@ export class GitHubStackMergeRejectedError extends Schema.TaggedErrorClass<GitHu
   }
 }
 
-export class GitHubStackMergePendingError extends Schema.TaggedErrorClass<GitHubStackMergePendingError>()(
+export class GitHubStackMergePendingError extends Schema.TaggedError<GitHubStackMergePendingError>()(
   "GitHubStackMergePendingError",
   stackErrorIdentity,
 ) {
@@ -84,7 +84,7 @@ export class GitHubStackMergePendingError extends Schema.TaggedErrorClass<GitHub
   }
 }
 
-export class GitHubStackPermissionError extends Schema.TaggedErrorClass<GitHubStackPermissionError>()(
+export class GitHubStackPermissionError extends Schema.TaggedError<GitHubStackPermissionError>()(
   "GitHubStackPermissionError",
   stackErrorIdentity,
 ) {
@@ -97,7 +97,7 @@ export class GitHubStackPermissionError extends Schema.TaggedErrorClass<GitHubSt
   }
 }
 
-export class GitHubStackRebaseFailedError extends Schema.TaggedErrorClass<GitHubStackRebaseFailedError>()(
+export class GitHubStackRebaseFailedError extends Schema.TaggedError<GitHubStackRebaseFailedError>()(
   "GitHubStackRebaseFailedError",
   { ...stackErrorIdentity, completed: Schema.Int, cause: Schema.Defect() },
 ) {

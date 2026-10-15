@@ -19,7 +19,7 @@ import type { SourceControlProviderContext } from "./SourceControlProvider.ts";
 
 const encodeApiBody = Schema.encodeEffect(Schema.fromJsonString(Schema.Unknown));
 
-export class ForgejoCliError extends Schema.TaggedErrorClass<ForgejoCliError>()("ForgejoCliError", {
+export class ForgejoCliError extends Schema.TaggedError<ForgejoCliError>()("ForgejoCliError", {
   command: Schema.Literals(["fj", "tea"]),
   cwd: Schema.String,
   detail: Schema.String,
