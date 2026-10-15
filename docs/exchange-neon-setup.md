@@ -72,7 +72,8 @@ HTTPS liveness, PostgreSQL readiness, homepage, sign-in, and catalog routes all
 returned HTTP 200. `/v1/registry` confirms public reads with publishing disabled.
 The login route redirects to the configured GitHub app and exact callback with
 Secure, HttpOnly, and SameSite=Lax cookies. Actual owner browser authorization
-is still pending; scanning and production signing are not yet deployed.
+is now verified by the owner and an active session for the expected GitHub
+identity in Neon. Scanning and production signing are not yet deployed.
 
 The final local workspace checks passed: 18/18 test tasks (including 7,518 server
 tests), 16/16 typecheck tasks, zero `vp check` errors with 651 existing warnings,

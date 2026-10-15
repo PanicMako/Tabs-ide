@@ -44,7 +44,8 @@ The registered GitHub OAuth application uses the same HTTPS homepage and
 `https://tabs-exchange-api.onrender.com/auth/github/callback`. Wildcard matching
 and Device Flow are disabled. The owner supplied the secret through an ignored,
 private environment file. The deployed login redirect and cookie protections
-have been checked; actual browser authorization is still pending.
+have been checked. The owner completed real browser authorization, and the
+expected GitHub identity and active session were verified in Neon.
 
 The live `/livez`, `/healthz`, `/`, `/sign-in`, and `/v1/extensions` routes return
 HTTP 200, and `/v1/registry` confirms publishing is disabled. Database and storage
