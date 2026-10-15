@@ -1,0 +1,8 @@
+---
+import { extensionMarkPath, extensionMarkViewBox } from "../lib/extensionMark";
+---
+<figure class="publication-art" aria-label="Package publication workflow">
+  <div class="publication-parcel" aria-hidden="true"><span class="parcel-label">YOUR TOOL / PACKAGED</span><svg viewBox={extensionMarkViewBox} fill="currentColor"><path d={extensionMarkPath} fill-rule="evenodd" /></svg><span class="parcel-format">.tabsext</span><span class="parcel-seal">↗</span></div>
+  <ol class="publication-track"><li><span>01</span><div><strong>Scanned in quarantine</strong><p>The exact archive is checked before review.</p></div></li><li><span>02</span><div><strong>Reviewed by a person</strong><p>A decision is recorded against its digest.</p></div></li><li><span>03</span><div><strong>Published with signatures</strong><p>Approved releases become discoverable only after signed publication.</p></div></li></ol>
+  <figcaption>Approval and publication are separate. Review does not guarantee safety.</figcaption>
+</figure>

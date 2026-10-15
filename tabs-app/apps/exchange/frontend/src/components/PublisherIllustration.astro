@@ -1,0 +1,12 @@
+---
+import { extensionMarkPath, extensionMarkViewBox } from "../lib/extensionMark";
+interface Props { section: string }
+const { section } = Astro.props;
+const identity = section === "namespaces";
+const access = section === "tokens";
+---
+<figure class="publisher-art" data-kind={access ? "access" : identity ? "identity" : "package"} aria-label={access ? "CLI access is scoped to reading the registry or publishing in one namespace." : identity ? "A namespace connects a publisher identity to its tools and collaborators." : "A built tool moves from its workspace into an exact-version package for review."}>
+  <div class="publisher-art-caption" aria-hidden="true"><span>{access ? "ACCESS / BY DESIGN" : identity ? "IDENTITY / MADE YOURS" : "YOUR NEXT / GOOD ADDITION"}</span><span>✳</span></div>
+  {access ? <div class="access-ticket" aria-hidden="true"><div class="ticket-key"><span></span><i></i></div><div><span class="art-micro">ONE WORKFLOW. ONE SCOPE.</span><strong>A key with<br /><em>boundaries.</em></strong><div class="ticket-scope"><span>read</span><span>or</span><span>publish / namespace</span></div></div></div> : identity ? <div class="identity-stationery" aria-hidden="true"><div class="identity-slip"><span class="art-micro">PUBLISHER IDENTITY</span><strong>namespace<span>.tool</span></strong><div class="identity-rule"></div><span>A space to build together.</span></div><span class="identity-seal">made<br />by you</span></div> : <div class="publisher-workspace-art" aria-hidden="true"><div class="publisher-mini-window"><div><span>Tabs</span><span>＋</span></div><nav><span>Code</span><span>Browser</span><span class="mini-tab-active">Your tool</span></nav><svg viewBox={extensionMarkViewBox} fill="currentColor"><path d={extensionMarkPath} fill-rule="evenodd" /></svg><span class="art-micro">ROOM FOR YOUR IDEA</span></div><div class="publisher-mini-package"><span class="art-micro">BUILT & PACKAGED</span><strong>.tabsext</strong><span>↗</span></div></div>}
+  <figcaption>{access ? "Only the access your workflow needs." : identity ? "Your identity. Your collaborators. Your tools." : "Build something worth sharing."}</figcaption>
+</figure>

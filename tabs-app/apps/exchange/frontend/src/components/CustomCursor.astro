@@ -1,0 +1,30 @@
+<div class="tabs-cursor" aria-hidden="true">
+  <span class="cursor-pointer"><i class="cursor-hotspot"></i></span>
+  <div class="cursor-toy"><i class="cursor-tab cursor-tab-peach"></i><i class="cursor-tab cursor-tab-mint"></i><i class="cursor-tab cursor-tab-blue"><span data-cursor-symbol>✳</span><svg class="cursor-download-arrow" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v10m-4-4 4 4 4-4"/></svg></i></div>
+</div>
+<style is:global>
+  .tabs-cursor { display:none; position:fixed; left:0; top:0; pointer-events:none; z-index:10000; color:#3259ed; }
+  .cursor-pointer { position:absolute; left:0; top:0; width:18px; height:18px; translate:-50% -50%; border:1px solid currentColor; border-radius:50%; box-sizing:border-box; transform-origin:center; transition:width .25s,height .25s,rotate .3s,scale .2s; }
+  .cursor-hotspot { position:absolute; left:50%; top:50%; translate:-50% -50%; width:4px; height:4px; border-radius:50%; background:currentColor; }
+  .tabs-cursor[data-mode="action"] .cursor-pointer, .tabs-cursor[data-mode="download"] .cursor-pointer { width:14px; height:14px; border-inline-color:transparent; rotate:45deg; }
+  .tabs-cursor[data-scrolling="true"] .cursor-pointer { width:18px; height:18px; border-color:currentColor; rotate:0deg; }
+  .tabs-cursor[data-pointer-light="true"] .cursor-pointer { color:white; }
+  .cursor-toy { position:absolute; left:0; top:0; width:25px; height:28px; will-change:transform; }
+  .cursor-tab { position:absolute; inset:4px 0 0; border-radius:3px 5px 5px 5px; transform-origin:50% 85%; box-shadow:0 2px 4px #202b4415; }
+  .cursor-tab::before { content:""; position:absolute; top:-3px; left:0; width:12px; height:5px; background:inherit; border-radius:3px 3px 0 0; }
+  .cursor-tab-peach { background:#f6b88c; }
+  .cursor-tab-mint { background:#a4d6be; }
+  .cursor-tab-blue { display:grid; place-items:center; background:#3259ed; color:#fff; }
+  .cursor-tab-blue span { display:block; position:relative; font:18px/1 Arial,sans-serif; font-style:normal; }
+  .cursor-download-arrow { display:none; }
+  .tabs-cursor[data-mode="download"] .cursor-tab-blue span { display:none; }
+  .tabs-cursor[data-mode="download"] .cursor-download-arrow { display:block; }
+  .tabs-cursor[data-footer="true"] .cursor-pointer { color:white; }
+  .tabs-cursor[data-footer="true"] .cursor-tab-blue { background:#fff; color:#3259ed; }
+  .tabs-cursor[data-pressed="true"] .cursor-pointer { scale:.72; }
+  @media (hover:hover) and (pointer:fine) and (prefers-reduced-motion:no-preference) {
+    html.tabs-cursor-active .tabs-cursor { display:block; }
+    html.tabs-cursor-active, html.tabs-cursor-active body, html.tabs-cursor-active body * { cursor:none !important; }
+  }
+</style>
+<script>import "../scripts/custom-cursor";</script>

@@ -1,0 +1,31 @@
+---
+import { extensionMarkPath, extensionMarkViewBox } from "../lib/extensionMark";
+---
+<figure class="extension-story" role="img" aria-label="Build a custom extension, add it alongside Code, Browser, and Terminal in your Tabs workspace, then share it through Exchange for others to use.">
+  <div class="extension-story-art" aria-hidden="true">
+    <div class="story-caption">A little idea. A whole new possibility.<span>↘</span></div>
+    <div class="story-maker">
+      <span class="story-extension-mark"><svg viewBox={extensionMarkViewBox} fill="currentColor"><path d={extensionMarkPath} fill-rule="evenodd" /></svg></span>
+      <div><span class="story-small-label">MADE BY YOU</span><strong>Your extension</strong><span class="story-source">&lt;/&gt; React or HTML · Your idea inside.</span></div>
+      <svg class="story-connection" width="70" height="60" viewBox="0 0 70 60" fill="none"><path d="M6 6C62 0 60 34 37 50" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4 5"/><path d="m37 40-1 12 12-2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <div class="story-workspace">
+      <div class="story-titlebar"><span class="story-window-dots"><i></i><i></i><i></i></span><span>Tabs / Your project</span><span>↗</span></div>
+      <div class="story-toolbar">
+        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="m8 7-5 5 5 5m8-10 5 5-5 5m-3-13-2 16"/></svg>Code</span>
+        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M3 9h18m-14-2h1m2 0h1"/></svg>Browser</span>
+        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="m4 6 6 6-6 6m9 0h7"/></svg>Terminal</span>
+        <span class="story-custom-tool"><svg viewBox={extensionMarkViewBox} fill="currentColor"><path d={extensionMarkPath} fill-rule="evenodd" /></svg>Your tool</span>
+      </div>
+      <div class="story-tool-space">
+        <div class="story-tool-heading"><span class="story-spark">✳</span><span>Built for the way<br /><em>you work.</em></span></div>
+        <div class="story-tool-canvas">
+          <div class="story-canvas-note"><span>01 / YOUR IDEA</span><strong>A place to<br />make it happen.</strong><svg width="44" height="26" viewBox="0 0 44 26" fill="none"><path d="M2 20c15-24 19 8 39-14m-9 0 10-2-1 11" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div class="story-canvas-blocks"><span><i></i>Make something useful.</span><span><i></i>Keep your project close.</span><span><i></i>Give it room to grow.</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="story-sharing"><span class="story-sharing-mark">↗</span><div><span class="story-small-label">SHARED THROUGH EXCHANGE</span><strong>Your tool. Someone else’s next good idea.</strong></div><span class="story-other-workspace"><svg width="28" height="24" viewBox="0 0 28 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="24" height="20" rx="3"/><path d="M2 8h24M8 8v14m8-9v6m-3-3h6"/></svg></span></div>
+  </div>
+  <figcaption>Illustrative workspace · Custom tools, made by you.</figcaption>
+</figure>

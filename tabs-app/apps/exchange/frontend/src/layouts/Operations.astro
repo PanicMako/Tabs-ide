@@ -1,0 +1,10 @@
+---
+import Dashboard from "./Dashboard.astro";
+interface Props { title: string; accent: string; description: string; section: "review" | "people" | "security" }
+const { description, section } = Astro.props;
+const links = [["review", "Package review", "/admin"], ["security", "Registry security", "/admin/security"], ["people", "Reviewer access", "/admin/reviewers"]];
+---
+<Dashboard title={section === "people" ? "Reviewer access" : section === "security" ? "Registry security" : "Review desk"} description={description} section={section}>
+  <nav class="operations-nav" aria-label="Review workspace">{links.map(([key, label, href]) => <a href={href} aria-current={section === key ? "page" : undefined}><span>{label}</span><span aria-hidden="true">↗</span></a>)}</nav>
+  <div class="operations-workspace"><slot /></div>
+</Dashboard>

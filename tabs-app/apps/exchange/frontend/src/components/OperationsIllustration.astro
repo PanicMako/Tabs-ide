@@ -1,0 +1,15 @@
+---
+interface Props { kind?: "review" | "people" | "security" }
+const { kind = "review" } = Astro.props;
+const people = kind === "people";
+const security = kind === "security";
+---
+<figure class="operations-art" data-kind={kind} aria-label={people ? "Operators assign reviewer access; reviewers inspect packages without delegating access." : security ? "Package evidence is inspected before a recorded security decision." : "A package, its exact digest, and human review evidence belong together."}>
+  <div class="ops-art-top" aria-hidden="true"><span>TABS / {people ? "PEOPLE" : security ? "EVIDENCE" : "REVIEW DESK"}</span><span>✳</span></div>
+  <div class="ops-art-scene" aria-hidden="true">
+    <div class="ops-art-sheet"><span class="ops-art-label">{people ? "OPERATOR" : "PACKAGE RECORD"}</span><strong>{people ? "You" : ".tabsext"}</strong><div class="ops-art-lines"><i></i><i></i><i></i></div><span class="ops-art-stamp">{people ? "Assign & audit" : "Exact digest"}</span></div>
+    <span class="ops-art-connector">↗</span>
+    <div class="ops-art-note"><span class="ops-art-label">{people ? "REVIEWER" : security ? "INDEPENDENT PROOF" : "HUMAN REVIEW"}</span><strong>{people ? "A trusted pair of eyes." : security ? "Look closer." : "Every detail counts."}</strong><span>{people ? "Inspect / decide" : security ? "Inspect / record" : "Evidence / decision"}</span></div>
+  </div>
+  <figcaption>{people ? "Shared responsibility. Clear boundaries." : security ? "Trust starts with evidence." : "Good tools deserve a careful look."}</figcaption>
+</figure>
