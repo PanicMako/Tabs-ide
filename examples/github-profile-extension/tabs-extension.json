@@ -1,0 +1,14 @@
+{
+  "manifestVersion": 1,
+  "publisher": "tabs-example",
+  "name": "github-profile",
+  "version": "0.1.0",
+  "displayName": "GitHub Profile",
+  "description": "Shows the GitHub account assigned to this Tabs project.",
+  "engines": { "tabs": ">=1.3.0 <2.0.0", "api": "^1.1.0" },
+  "capabilities": ["network", "credentials"],
+  "networkHosts": ["api.github.com"],
+  "contributes": {
+    "tools": [{ "id": "account", "label": "GitHub Account", "entry": "dist/index.html" }]
+  }
+}

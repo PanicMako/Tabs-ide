@@ -1,0 +1,23 @@
+{
+  "manifestVersion": 1,
+  "publisher": "tabs-example",
+  "name": "project-companion",
+  "version": "0.1.0",
+  "displayName": "Project Companion",
+  "description": "An integrated sample for named accounts, scoped workspace reads, and a pure AI-callable command.",
+  "engines": { "tabs": ">=1.3.0 <2.0.0", "api": "^1.3.0" },
+  "capabilities": ["profile-storage", "workspace-read", "network", "credentials", "ai-tools"],
+  "networkHosts": ["api.github.com"],
+  "logic": { "entry": "dist/logic.js" },
+  "contributes": {
+    "tools": [{ "id": "companion", "label": "Project Companion", "entry": "dist/index.html" }],
+    "commands": [
+      {
+        "id": "analyze-text",
+        "label": "Analyze Text",
+        "description": "Count words, lines, and Unicode characters in supplied text without accessing the workspace or network.",
+        "aiCallable": true
+      }
+    ]
+  }
+}
