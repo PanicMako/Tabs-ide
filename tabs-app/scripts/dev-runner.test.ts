@@ -68,7 +68,7 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
   });
 
   describe("createDevRunnerEnv", () => {
-    it.effect("defaults TABS_HOME to ~/.tabs when not provided", () =>
+    it.effect("defaults TABS_HOME to an isolated ~/.tabs-dev when not provided", () =>
       Effect.gen(function* () {
         const env = yield* createDevRunnerEnv({
           mode: "dev",
@@ -85,7 +85,7 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
           devUrl: undefined,
         });
 
-        assert.equal(env.TABS_HOME, resolve(homedir(), ".tabs"));
+        assert.equal(env.TABS_HOME, resolve(homedir(), ".tabs-dev"));
       }),
     );
 

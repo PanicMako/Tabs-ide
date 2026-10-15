@@ -17,7 +17,7 @@ const MAX_HASH_OFFSET = 3000;
 const MAX_PORT = 65535;
 
 export const DEFAULT_TABS_HOME = Effect.map(Effect.service(Path.Path), (path) =>
-  path.join(homedir(), ".tabs"),
+  path.join(homedir(), ".tabs-dev"),
 );
 
 const MODE_ARGS = {
