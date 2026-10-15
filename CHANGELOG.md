@@ -2,6 +2,25 @@
 
 All notable changes to Tabs IDE will be documented in this file.
 
+## [v2.0.0] - 2026-10-16
+
+Tabs brings conversations, queued work, project tools and source control into a shared workspace. This release also introduces the Exchange developer ecosystem and more focused appearance controls.
+
+### What changed
+
+- Schedule queued messages, edit their delivery time, reorder them, or send them next from the conversation's Queue panel.
+- Use companion panels to keep files, browser pages and pull requests alongside agent conversations.
+- Navigate a redesigned Git workspace with dedicated views for changes, history, branches and accounts.
+- Try Interface Study in Labs across the app, or enable Settings page only and choose its light or dark appearance independently of your workspace theme.
+- Open Tabs Exchange from the website to browse developer documentation and download extension development tools. Public publishing remains disabled during the pilot.
+- Get clearer startup guidance when a workspace database belongs to an incompatible build. Supported legacy upgrades preserve conversation history, and development uses a separate default data directory.
+
+### Upgrade notes
+
+This release updates the workspace runtime and database schema. Back up your Tabs data before upgrading; older builds may not be able to open a database upgraded by Tabs 2.0. Keep the backup if you need to return to an earlier version.
+
+macOS builds are not Apple Developer ID signed or notarized. After attempting to open a downloaded build, use System Settings → Privacy & Security → Open Anyway.
+
 ## [v1.3.34] - 2026-10-05
 
 ### Refined setup typography and interactive workspace previews
