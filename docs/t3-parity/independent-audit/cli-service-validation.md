@@ -1,0 +1,3 @@
+# CLI service review
+
+Batch294: Complete299-line source and276-line tests reviewed.19 tests passed1.27s/exit0. CLI delegates service status/restart/uninstall to BootService; reconcile leaves current service unchanged, refuses newer installed version unless override, otherwise delegates install. Onboarding avoids prompting for newer service and catches typed prerequisite/install/update/downgrade errors into manual fallback. Connect calls recovery wrapper at687. Tests mock BootService and prove CLI parsing/delegation, not native service installation or daemon health. No production service changed.

@@ -1,0 +1,5 @@
+# Environment theme publishing
+
+Batch335: Complete307-line source and273-line tests reviewed;9 tests passed1.19s/exit0, log /tmp/tabs-audit-environment-theme.log. Real temp files, symlink rejection and native filesystem watch add/remove event publication. Descriptor-bound O_NOFOLLOW/O_NONBLOCK/fstat read with bounded allocation traced; Windows lstat/open race acknowledged.32 examined files/32KiB each/192KiB accepted total, reserved IDs and malformed/colorless schemas skipped.
+
+Sequenced snapshots, serialized refresh and capacity1 sliding queue traced. Actual installed Effect Equal diagnostic returns true for equal distinct arrays/plain objects, resolving equality concern. Test named never replays older set uses only runHead after a single added file, so does not exercise later stale queue delivery. No client rendered repaint verification; watch add/remove test verifies service event delivery. Aggregate skipped-file budget covered; exact caps/FIFO/Windows races and unchanged-file watcher dedup lack explicit tests.

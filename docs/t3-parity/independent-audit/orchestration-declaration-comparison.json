@@ -1,0 +1,886 @@
+[
+  {
+    "name": "ORCHESTRATION_WS_METHODS",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ProviderApprovalPolicy",
+    "target": "providerPolicy",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ProviderKind",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "DEFAULT_PROVIDER_KIND",
+    "target": "orchestration",
+    "normalizedEqual": false
+  },
+  {
+    "name": "ProviderSandboxMode",
+    "target": "providerPolicy",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ModelSelectionWire",
+    "target": "modelSelection",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ModelSelectionSource",
+    "target": "modelSelection",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ModelSelection",
+    "target": "modelSelection",
+    "normalizedEqual": false
+  },
+  {
+    "name": "RuntimeMode",
+    "target": "providerPolicy",
+    "normalizedEqual": false
+  },
+  {
+    "name": "DEFAULT_RUNTIME_MODE",
+    "target": "providerPolicy",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ProviderInteractionMode",
+    "target": "providerPolicy",
+    "normalizedEqual": true
+  },
+  {
+    "name": "DEFAULT_PROVIDER_INTERACTION_MODE",
+    "target": "providerPolicy",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ProviderRequestKind",
+    "target": "providerPolicy",
+    "normalizedEqual": false
+  },
+  {
+    "name": "AssistantDeliveryMode",
+    "target": "providerPolicy",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ProviderApprovalDecision",
+    "target": "providerPolicy",
+    "normalizedEqual": false
+  },
+  {
+    "name": "ProviderApprovalOption",
+    "target": "providerPolicy",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ProviderUserInputAnswers",
+    "target": "providerPolicy",
+    "normalizedEqual": true
+  },
+  {
+    "name": "PROVIDER_SEND_TURN_MAX_INPUT_CHARS",
+    "target": "chatAttachment",
+    "normalizedEqual": true
+  },
+  {
+    "name": "PROVIDER_SEND_TURN_MAX_ATTACHMENTS",
+    "target": "chatAttachment",
+    "normalizedEqual": false
+  },
+  {
+    "name": "PROVIDER_SEND_TURN_MAX_IMAGE_BYTES",
+    "target": "chatAttachment",
+    "normalizedEqual": true
+  },
+  {
+    "name": "PROVIDER_SEND_TURN_MAX_FILE_BYTES",
+    "target": "chatAttachment",
+    "normalizedEqual": true
+  },
+  {
+    "name": "PROVIDER_SEND_TURN_MAX_IMAGE_DATA_URL_CHARS",
+    "target": "chatAttachment",
+    "normalizedEqual": true
+  },
+  {
+    "name": "PROVIDER_SEND_TURN_MAX_FILE_DATA_URL_CHARS",
+    "target": null
+  },
+  {
+    "name": "CHAT_ATTACHMENT_ID_MAX_CHARS",
+    "target": "chatAttachment",
+    "normalizedEqual": true
+  },
+  {
+    "name": "CorrelationId",
+    "target": "orchestration",
+    "normalizedEqual": false
+  },
+  {
+    "name": "ChatAttachmentId",
+    "target": "chatAttachment",
+    "normalizedEqual": false
+  },
+  {
+    "name": "ChatImageAttachment",
+    "target": "chatAttachment",
+    "normalizedEqual": false
+  },
+  {
+    "name": "ChatFileAttachment",
+    "target": "chatAttachment",
+    "normalizedEqual": false
+  },
+  {
+    "name": "UploadChatImageAttachment",
+    "target": "chatAttachment",
+    "normalizedEqual": false
+  },
+  {
+    "name": "UploadChatFileAttachment",
+    "target": "chatAttachment",
+    "normalizedEqual": false
+  },
+  {
+    "name": "ChatAttachment",
+    "target": "chatAttachment",
+    "normalizedEqual": false
+  },
+  {
+    "name": "UploadChatAttachment",
+    "target": "chatAttachment",
+    "normalizedEqual": false
+  },
+  {
+    "name": "ProjectScriptIcon",
+    "target": "project",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ProjectScript",
+    "target": "project",
+    "normalizedEqual": false
+  },
+  {
+    "name": "ProjectFaviconPath",
+    "target": "project",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ProjectIconColor",
+    "target": "project",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ProjectLucideIconName",
+    "target": "project",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ProjectEmoji",
+    "target": "project",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ProjectIconOverride",
+    "target": "project",
+    "normalizedEqual": false
+  },
+  {
+    "name": "OrchestrationProject",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "OrchestrationMessageRole",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "OrchestrationMessage",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "OrchestrationProposedPlanId",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "OrchestrationProposedPlan",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "SourceProposedPlanReference",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "OrchestrationSessionStatus",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "OrchestrationSession",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "OrchestrationCheckpointFile",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "OrchestrationCheckpointStatus",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "OrchestrationCheckpointSummary",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "OrchestrationThreadActivityTone",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "OrchestrationThreadActivity",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "OrchestrationLatestTurnState",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "OrchestrationLatestTurn",
+    "target": "orchestration",
+    "normalizedEqual": false
+  },
+  {
+    "name": "ThreadTitleRegeneration",
+    "target": "threadTitle",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadLinkedPullRequest",
+    "target": "threadPullRequest",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadPullRequestLinkSource",
+    "target": "threadPullRequest",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadPullRequestSnapshot",
+    "target": "threadPullRequest",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadPullRequestStackLayer",
+    "target": "threadPullRequest",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadPullRequestStack",
+    "target": "threadPullRequest",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadPullRequestKey",
+    "target": "threadPullRequest",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadPullRequestLink",
+    "target": "threadPullRequest",
+    "normalizedEqual": false
+  },
+  {
+    "name": "OrchestrationThread",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "OrchestrationReadModel",
+    "target": "orchestration",
+    "normalizedEqual": false
+  },
+  {
+    "name": "OrchestrationProjectShell",
+    "target": "orchestrationProject",
+    "normalizedEqual": false
+  },
+  {
+    "name": "OrchestrationThreadShell",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "OrchestrationShellSnapshot",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "OrchestrationShellStreamEvent",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "OrchestrationShellStreamItem",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "OrchestrationSubscribeShellInput",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "OrchestrationSubscribeThreadInput",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "OrchestrationThreadDetailSnapshot",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ProjectCreateCommand",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ProjectMetaUpdateCommand",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ProjectDeleteCommand",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadCreateCommand",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadDeleteCommand",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadArchiveCommand",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadUnarchiveCommand",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadSettleCommand",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadUnsettleCommand",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadSnoozeCommand",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadUnsnoozeCommand",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadPinCommand",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadUnpinCommand",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadPinReorderCommand",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadMetaUpdateCommand",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadPullRequestLinkCommand",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadPullRequestUnlinkCommand",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadRuntimeModeSetCommand",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadInteractionModeSetCommand",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadTurnStartBootstrapCreateThread",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadTurnStartBootstrapPrepareWorktree",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadTurnStartBootstrap",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadTurnStartCommand",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ClientThreadTurnStartCommand",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadTurnInterruptCommand",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadApprovalRespondCommand",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadUserInputRespondCommand",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadCheckpointRevertCommand",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadSessionStopCommand",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "DispatchableClientOrchestrationCommand",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ClientOrchestrationCommand",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadSessionSetCommand",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadMessageAssistantDeltaCommand",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadMessageAssistantCompleteCommand",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadProposedPlanUpsertCommand",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadTurnDiffCompleteCommand",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadActivityAppendCommand",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadRevertCompleteCommand",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadTitleRegenerationCompleteCommand",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadPullRequestLinkSyncCommand",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadHistoryImportCommand",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "InternalOrchestrationCommand",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "OrchestrationCommand",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "OrchestrationEventType",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "OrchestrationAggregateKind",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "OrchestrationActorKind",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ProjectCreatedPayload",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ProjectMetaUpdatedPayload",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ProjectDeletedPayload",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadCreatedPayload",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadDeletedPayload",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadArchivedPayload",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadUnarchivedPayload",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadSettledPayload",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadUnsettledPayload",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadSnoozedPayload",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadUnsnoozedPayload",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadPinnedPayload",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadUnpinnedPayload",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadPinReorderedPayload",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadMetaUpdatedPayload",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadPullRequestLinkedPayload",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadPullRequestUnlinkedPayload",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadPullRequestSyncedPayload",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadRuntimeModeSetPayload",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadInteractionModeSetPayload",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadMessageSentPayload",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadTurnStartRequestedPayload",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadTurnInterruptRequestedPayload",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadApprovalResponseRequestedPayload",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadUserInputResponseRequestedPayload",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadCheckpointRevertRequestedPayload",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadRevertedPayload",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadSessionStopRequestedPayload",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadSessionSetPayload",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadProposedPlanUpsertedPayload",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadTurnDiffCompletedPayload",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadActivityAppendedPayload",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "OrchestrationEventMetadata",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "EventBaseFields",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "OrchestrationEvent",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "OrchestrationThreadStreamItem",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "OrchestrationCommandReceiptStatus",
+    "target": "orchestration",
+    "normalizedEqual": false
+  },
+  {
+    "name": "TurnCountRange",
+    "target": "checkpointDiff",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ThreadTurnDiff",
+    "target": "checkpointDiff",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ProviderSessionRuntimeStatus",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ProjectionThreadTurnStatus",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ProjectionCheckpointRow",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ProjectionPendingApprovalStatus",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ProjectionPendingApprovalDecision",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "DispatchResult",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "OrchestrationGetTurnDiffInput",
+    "target": "checkpointDiff",
+    "normalizedEqual": true
+  },
+  {
+    "name": "OrchestrationGetTurnDiffResult",
+    "target": "checkpointDiff",
+    "normalizedEqual": true
+  },
+  {
+    "name": "OrchestrationGetFullThreadDiffInput",
+    "target": "checkpointDiff",
+    "normalizedEqual": true
+  },
+  {
+    "name": "OrchestrationGetFullThreadDiffResult",
+    "target": "checkpointDiff",
+    "normalizedEqual": true
+  },
+  {
+    "name": "OrchestrationReplayEventsInput",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "OrchestrationReplayEventsResult",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "OrchestrationRpcSchemas",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "OrchestrationGetSnapshotError",
+    "target": "orchestration",
+    "normalizedEqual": false
+  },
+  {
+    "name": "OrchestrationDispatchCommandError",
+    "target": "orchestrationDispatch",
+    "normalizedEqual": false
+  },
+  {
+    "name": "OrchestrationGetTurnDiffError",
+    "target": "checkpointDiff",
+    "normalizedEqual": true
+  },
+  {
+    "name": "OrchestrationGetFullThreadDiffError",
+    "target": "checkpointDiff",
+    "normalizedEqual": true
+  },
+  {
+    "name": "OrchestrationReplayEventsError",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "OrchestrationGetSnapshotInput",
+    "target": "orchestration",
+    "normalizedEqual": true
+  },
+  {
+    "name": "ORCHESTRATION_WS_CHANNELS",
+    "target": "orchestration",
+    "normalizedEqual": true
+  }
+]

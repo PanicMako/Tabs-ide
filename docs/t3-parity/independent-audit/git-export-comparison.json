@@ -1,0 +1,5 @@
+{
+  "removed": [],
+  "added": ["GitCommandFailureReason"],
+  "method": "regex export-name inventory, not semantic proof"
+}

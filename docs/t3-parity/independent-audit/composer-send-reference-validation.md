@@ -1,0 +1,5 @@
+# Composer legacy send and provider references
+
+Four files951lines fully read. Fresh legacy serializer9/9,785ms exit0; reference18/18,786ms exit0. Tests cover terminal/review/preview legacy roundtrips, separators, bounded line numbering; reference identity, label sanitation, offsets, deduplication, unavailable identities, payload-kind preference, envelope tag escaping, authoritative paths/skills and thread reference instructions. Legacy upgrader452lines itself not fully read in this batch; passing roundtrip cases do not substitute for its full audit.
+
+Production search finds projection in V2 ProviderTurnStart/Control, remap in ThreadMessageIntake. Selected turn-start938–961 and intake130–151 source confirm actual payload transformations. No app caller of serializeLegacyContextMessage found, so older-server frontend compatibility is not established. Remap pairs attachment arrays by index and lacks direct tests in the reviewed reference suite; ordering obligation remains open. Shipped desktop V2 wiring remains a previously identified integration gap. No production changes.

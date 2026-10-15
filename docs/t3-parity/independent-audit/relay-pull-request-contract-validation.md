@@ -1,0 +1,9 @@
+# Relay and pull-request contract changes
+
+Complete111-added-line relay diff and166-added/3-removed-line pull-request diff reviewed. Initial combined output truncated; missing viewed-file additions recovered from a bounded second read. Unchanged1210/1426-line source not fully read.
+
+Relay adds recovery registration/proof forms, signed webhook-delivery claims, link preferences, wake-held-hooks and unauthenticated forwarding endpoint declarations. Endpoint declarations alone do not demonstrate relay-side authentication/body forwarding. RelayDeliveryProof current source binds verified signature/type/issuer/audience/age to environment, delivery id, receive time and hook id; failures fall back to direct requests. HeldHooksWaker source gates wake on preferences/connection, debounces tunnel events and applies bounded retries. These helpers are composed in server.ts, while previously identified shipped serverLayers composition gap remains. No production relay execution tested.
+
+Pull requests add optional bot/check-required/edit/observation/stack/head/truncation fields, account routing shapes and guard inputs, viewed-file tracking, Forgejo help and host handling. Viewed paths preserve spaces and cap4096 characters; writes cap500 entries. Optional fields preserve old payload compatibility at the contract level. Selected service1550–1595 rejects routed operations when expected account/host verification fails. Selected3245–3275 isolates viewed-file invalidation from full patch invalidation. Search of web TypeScript sources found no literal expectedAccountId/filesViewedOnly/setFilesViewed consumers; broader client package routing and UI integration remain open.
+
+Reused824 passing contract tests; no new test run or production changes. Full provider/service source, external relay and native UI remain unverified.

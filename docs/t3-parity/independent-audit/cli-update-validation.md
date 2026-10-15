@@ -1,0 +1,5 @@
+# CLI updater
+
+Batch293: Full599-line updater and109-line tests reviewed. Three native filesystem launcher tests passed1.28s/exit0. Updater pages release index up to10 pages, validates exact target, protects downgrade against newest service/executable, prompts preview separately, only targets a service whose installedBaseDir matches selected home. Downloaded runtime must return exact target from --version before launcher repoint and service installation. Declining restart still rewrites service unit and prints pending restart; manually launched server only gets notice. These branches were statically traced, not end-to-end executed.
+
+Coverage limitation: tests cover POSIX launcher repointing, leaving foreign/plain launchers, and PATH resolution. They do not cover release HTTP selection, archive validation, Windows shim rewriting or actual service restart. Repoint temp symlink lacks failure cleanup; no demonstrated operational failure recorded. Boot-service install may fail after launcher switches, with explicit partial-success error rather than rollback. No production updates or remote downloads performed.

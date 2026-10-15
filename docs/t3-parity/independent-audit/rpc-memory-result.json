@@ -1,0 +1,21 @@
+{
+  "batch": 411,
+  "prefix_memory": {
+    "checkpoints": [
+      {
+        "subscriptions": 2,
+        "retained": 0,
+        "payloadMiB": 0.125,
+        "heapMiB": 13
+      },
+      {
+        "subscriptions": 4,
+        "retained": 0,
+        "payloadMiB": 0.25,
+        "heapMiB": 13
+      }
+    ]
+  },
+  "original_fixture_status": "Blocked before assertions by module loading; extension resolution workaround then exposes effect/Types Mutable runtime import error.",
+  "scope": "Isolated actual rpcInitialItems prefix pipeline only; snapshot/replay retention remains unverified."
+}

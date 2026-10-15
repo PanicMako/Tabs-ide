@@ -1,0 +1,6 @@
+{
+  "runtime_only": [],
+  "json_only": [],
+  "runtime_tags_count": 43,
+  "note": "Lexical dotted/hyphenated literal comparison, not AST or full field equivalence."
+}

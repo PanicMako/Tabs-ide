@@ -1,0 +1,26 @@
+{
+  "previewCapability": false,
+  "rendererCalls": 1,
+  "result": {
+    "_id": "Option",
+    "_tag": "Some",
+    "value": {
+      "result": {
+        "width": 640,
+        "contentHeight": 100,
+        "capturedHeight": 100,
+        "consoleMessages": [],
+        "screenshot": { "mimeType": "image/png", "data": "", "width": 640, "height": 100 }
+      },
+      "isFailure": false,
+      "preliminary": false,
+      "encodedResult": {
+        "width": 640,
+        "contentHeight": 100,
+        "capturedHeight": 100,
+        "consoleMessages": [],
+        "screenshot": { "mimeType": "image/png", "data": "", "width": 640, "height": 100 }
+      }
+    }
+  }
+}

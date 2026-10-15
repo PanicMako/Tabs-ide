@@ -1,0 +1,11 @@
+{
+  "head": "bb89383e8516d6ee6c730579be3e353a8e43a0e9",
+  "original_scope_unique": 2110,
+  "ledger_records": 825,
+  "normalized_unique_paths": 789,
+  "original_paths_with_any_record": 744,
+  "original_paths_without_record": 1366,
+  "hash_current_records": 787,
+  "hash_mismatches": ["tabs-app/apps/web/src/components/ui/segmented-control.tsx"],
+  "limitations": "Any record may be partial; representation is not full source review, hunk review, runtime validation or requirement acceptance."
+}

@@ -1,0 +1,3 @@
+# RPC contract test review — batch239
+
+Complete70line new test file reviewed. Existing contracts824test passing evidence reused. Three assertions test optional environmentThemes payload and old empty-struct acceptance. Transport assertion checks presence of all V2 methods and absence of orchestrationV1-prefixed names; title is broader than assertions because it does not exclude all possible legacy aliases. One forged checkpoint.rollback.fail is rejected while checkpoint.rollback succeeds. This is not exhaustive proof of server-internal command filtering and does not verify shipped ws entrypoint. Full1923line rpc source remains separate review scope. No production changes.

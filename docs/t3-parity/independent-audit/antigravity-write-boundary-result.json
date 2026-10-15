@@ -1,0 +1,10 @@
+{
+  "confirmed": "Actual helper writes synthetic file outside allowed root via symlink ancestor with missing parent directory",
+  "upstream_normalized_equal": true,
+  "scope": "Real Effect/Node filesystem; canonical temporary allowed/outside roots; no native Antigravity process",
+  "log": "/tmp/tabs-audit-antigravity-write-boundary.log",
+  "initial_fixture": "Noncanonical macOS /var temp alias caused safe rejection; canonicalized temp root then reproduction passed",
+  "classification": "Inherited upstream containment defect",
+  "call_chain": "AntigravityAdapterV2 clientFileSystem.writeTextFile196\u2013202 supplies cwd+attachments roots; AcpAdapterV2 handler5596 calls it using active policy cwd",
+  "runtime_limit": "No native ACP process invoked; approval behavior delegated to agent protocol, separate from containment"
+}
