@@ -93,6 +93,11 @@ const OrchestrationV2CreationFields = {
   creationSource: OrchestrationV2CreationSource,
 } as const;
 
+const OrchestrationV2CommandCreationFields = {
+  createdBy: Schema.optional(OrchestrationV2Actor),
+  creationSource: Schema.optional(OrchestrationV2CreationSource),
+} as const;
+
 export const OrchestrationV2NativeRefStrength = Schema.Literals(["strong", "weak", "none"]);
 export type OrchestrationV2NativeRefStrength = typeof OrchestrationV2NativeRefStrength.Type;
 
@@ -550,6 +555,8 @@ export const OrchestrationV2Run = Schema.Struct({
   activeAttemptId: Schema.NullOr(RunAttemptId),
   status: OrchestrationV2RunStatus,
   queuePosition: Schema.optional(Schema.NullOr(PositiveInt)),
+  /** A durable composer delivery deadline; null or absent means ready now. */
+  scheduledFor: Schema.optional(Schema.NullOr(Schema.DateTimeUtc)),
   /** Restart recovery holds the queue until the user explicitly resumes it. */
   queueHeld: Schema.optional(Schema.Boolean),
   requestedAt: Schema.DateTimeUtc,
@@ -1220,7 +1227,7 @@ export const OrchestrationV2CheckpointRollbackRequest = Schema.Struct({
 export type OrchestrationV2CheckpointRollbackRequest =
   typeof OrchestrationV2CheckpointRollbackRequest.Type;
 
-export class OrchestrationV2CheckpointUnavailableError extends Schema.TaggedErrorClass<OrchestrationV2CheckpointUnavailableError>()(
+export class OrchestrationV2CheckpointUnavailableError extends Schema.TaggedError<OrchestrationV2CheckpointUnavailableError>()(
   "OrchestrationV2CheckpointUnavailableError",
   {
     threadId: ThreadId,
@@ -2015,6 +2022,7 @@ export type OrchestrationV2AppThreadJson = typeof OrchestrationV2AppThreadJson.T
 
 export const OrchestrationV2RunJson = OrchestrationV2Run.mapFields((fields) => ({
   ...fields,
+  scheduledFor: Schema.optional(Schema.NullOr(Schema.DateTimeUtcFromString)),
   requestedAt: Schema.DateTimeUtcFromString,
   startedAt: Schema.NullOr(Schema.DateTimeUtcFromString),
   completedAt: Schema.NullOr(Schema.DateTimeUtcFromString),
@@ -2608,7 +2616,7 @@ export type OrchestrationV2StoredEventJson = typeof OrchestrationV2StoredEventJs
 export const OrchestrationV2Command = Schema.Union([
   Schema.Struct({
     type: Schema.Literal("thread.create"),
-    ...OrchestrationV2CreationFields,
+    ...OrchestrationV2CommandCreationFields,
     commandId: CommandId,
     threadId: ThreadId,
     projectId: ProjectId,
@@ -2834,7 +2842,7 @@ export const OrchestrationV2Command = Schema.Union([
   Schema.Struct({
     type: Schema.Literal("message.dispatch"),
     notification: Schema.optional(OrchestrationV2Notification),
-    ...OrchestrationV2CreationFields,
+    ...OrchestrationV2CommandCreationFields,
     scheduledTaskId: Schema.optional(ScheduledTaskId),
     senderThreadId: Schema.optional(ThreadId),
     commandId: CommandId,
@@ -2843,6 +2851,7 @@ export const OrchestrationV2Command = Schema.Union([
     text: Schema.String,
     context: Schema.optional(OrchestrationMessageContext),
     attachments: Schema.Array(ChatAttachment),
+    scheduledFor: Schema.optional(Schema.NullOr(Schema.DateTimeUtc)),
     /** Seed the temporary title and generate a durable replacement for the first message. */
     titleSeed: Schema.optional(TrimmedNonEmptyString),
     modelSelection: Schema.optional(ModelSelection),
@@ -2949,6 +2958,8 @@ export const OrchestrationV2Command = Schema.Union([
     threadId: ThreadId,
     runId: RunId,
     text: Schema.String,
+    /** Absent preserves the deadline; null clears it. */
+    scheduledFor: Schema.optional(Schema.NullOr(Schema.DateTimeUtc)),
     // Full replacement list. Absent = leave the message's attachments as-is,
     // so pre-attachment clients editing text keep the original attachments.
     attachments: Schema.optional(Schema.Array(ChatAttachment)),
@@ -2978,7 +2989,7 @@ export const OrchestrationV2Command = Schema.Union([
   }),
   Schema.Struct({
     type: Schema.Literal("thread.fork"),
-    ...OrchestrationV2CreationFields,
+    ...OrchestrationV2CommandCreationFields,
     commandId: CommandId,
     sourceThreadId: ThreadId,
     targetThreadId: ThreadId,
@@ -2988,7 +2999,7 @@ export const OrchestrationV2Command = Schema.Union([
   }),
   Schema.Struct({
     type: Schema.Literal("thread.merge_back"),
-    ...OrchestrationV2CreationFields,
+    ...OrchestrationV2CommandCreationFields,
     commandId: CommandId,
     sourceThreadId: ThreadId,
     targetThreadId: ThreadId,
@@ -2997,7 +3008,7 @@ export const OrchestrationV2Command = Schema.Union([
   }),
   Schema.Struct({
     type: Schema.Literal("delegated_task.request"),
-    ...OrchestrationV2CreationFields,
+    ...OrchestrationV2CommandCreationFields,
     commandId: CommandId,
     parentThreadId: ThreadId,
     parentRunId: RunId,
@@ -3145,6 +3156,8 @@ export const ORCHESTRATION_V2_WS_METHODS = {
   subscribeArchivedShell: "orchestration.subscribeArchivedShell",
   subscribeShell: "orchestration.subscribeShell",
   subscribeThread: "orchestration.subscribeThread",
+  reconcileIntake: "orchestration.reconcileIntake",
+  recordCancellationIntent: "orchestration.recordCancellationIntent",
 } as const;
 
 export const OrchestrationV2ArchivedShellSnapshot = Schema.Struct({
@@ -3206,6 +3219,7 @@ export type OrchestrationV2ThreadLaunchResult = typeof OrchestrationV2ThreadLaun
 
 export const OrchestrationV2DispatchCommandResult = Schema.Struct({
   sequence: NonNegativeInt,
+  runId: Schema.optional(RunId),
 });
 export type OrchestrationV2DispatchCommandResult = typeof OrchestrationV2DispatchCommandResult.Type;
 
@@ -3395,7 +3409,7 @@ export const OrchestrationV2ThreadStreamItem = Schema.Union([
   OrchestrationV2UnknownThreadStreamEvent,
 ]);
 
-export class OrchestrationV2DispatchCommandError extends Schema.TaggedErrorClass<OrchestrationV2DispatchCommandError>()(
+export class OrchestrationV2DispatchCommandError extends Schema.TaggedError<OrchestrationV2DispatchCommandError>()(
   "OrchestrationV2DispatchCommandError",
   {
     commandId: CommandId,
@@ -3406,7 +3420,7 @@ export class OrchestrationV2DispatchCommandError extends Schema.TaggedErrorClass
   },
 ) {}
 
-export class OrchestrationV2GetThreadProjectionError extends Schema.TaggedErrorClass<OrchestrationV2GetThreadProjectionError>()(
+export class OrchestrationV2GetThreadProjectionError extends Schema.TaggedError<OrchestrationV2GetThreadProjectionError>()(
   "OrchestrationV2GetThreadProjectionError",
   {
     threadId: ThreadId,
@@ -3415,7 +3429,7 @@ export class OrchestrationV2GetThreadProjectionError extends Schema.TaggedErrorC
   },
 ) {}
 
-export class OrchestrationV2GetShellSnapshotError extends Schema.TaggedErrorClass<OrchestrationV2GetShellSnapshotError>()(
+export class OrchestrationV2GetShellSnapshotError extends Schema.TaggedError<OrchestrationV2GetShellSnapshotError>()(
   "OrchestrationV2GetShellSnapshotError",
   {
     message: Schema.String,
@@ -3423,7 +3437,7 @@ export class OrchestrationV2GetShellSnapshotError extends Schema.TaggedErrorClas
   },
 ) {}
 
-export class OrchestrationV2ThreadLaunchError extends Schema.TaggedErrorClass<OrchestrationV2ThreadLaunchError>()(
+export class OrchestrationV2ThreadLaunchError extends Schema.TaggedError<OrchestrationV2ThreadLaunchError>()(
   "OrchestrationV2ThreadLaunchError",
   {
     commandId: CommandId,
@@ -3433,11 +3447,79 @@ export class OrchestrationV2ThreadLaunchError extends Schema.TaggedErrorClass<Or
   },
 ) {}
 
+export class OrchestrationV2ReconcileIntakeError extends Schema.TaggedError<OrchestrationV2ReconcileIntakeError>()(
+  "OrchestrationV2ReconcileIntakeError",
+  {
+    threadId: ThreadId,
+    messageId: MessageId,
+    message: Schema.String,
+    cause: Schema.optional(Schema.Defect()),
+  },
+) {}
+
+export class OrchestrationV2RecordCancellationIntentError extends Schema.TaggedError<OrchestrationV2RecordCancellationIntentError>()(
+  "OrchestrationV2RecordCancellationIntentError",
+  {
+    threadId: ThreadId,
+    messageId: MessageId,
+    message: Schema.String,
+    cause: Schema.optional(Schema.Defect()),
+  },
+) {}
+
+export const OrchestrationV2ReconcileIntakeInput = Schema.Struct({
+  threadId: ThreadId,
+  messageId: MessageId,
+  commandId: Schema.optional(CommandId),
+  cancelIfFound: Schema.optional(Schema.Boolean),
+});
+export type OrchestrationV2ReconcileIntakeInput = typeof OrchestrationV2ReconcileIntakeInput.Type;
+
+export const OrchestrationV2ReconcileIntakeOutcome = Schema.Literals([
+  "cancelled",
+  "interrupted",
+  "already_completed",
+  "definitively_rejected",
+  "queued",
+  "running",
+  "unknown",
+]);
+export type OrchestrationV2ReconcileIntakeOutcome =
+  typeof OrchestrationV2ReconcileIntakeOutcome.Type;
+
+export const OrchestrationV2ReconcileIntakeResult = Schema.Struct({
+  outcome: OrchestrationV2ReconcileIntakeOutcome,
+  runId: Schema.NullOr(RunId),
+  runStatus: Schema.NullOr(Schema.String),
+  message: Schema.optional(Schema.String),
+});
+export type OrchestrationV2ReconcileIntakeResult = typeof OrchestrationV2ReconcileIntakeResult.Type;
+
+export const OrchestrationV2RecordCancellationIntentInput = Schema.Struct({
+  threadId: ThreadId,
+  messageId: MessageId,
+  commandId: Schema.optional(CommandId),
+});
+export type OrchestrationV2RecordCancellationIntentInput =
+  typeof OrchestrationV2RecordCancellationIntentInput.Type;
+
+export const OrchestrationV2RecordCancellationIntentResult = Schema.Struct({
+  recorded: Schema.Boolean,
+  appliedImmediateOutcome: Schema.NullOr(
+    Schema.Literals(["cancelled", "interrupted", "already_completed"]),
+  ),
+  runId: Schema.NullOr(RunId),
+});
+export type OrchestrationV2RecordCancellationIntentResult =
+  typeof OrchestrationV2RecordCancellationIntentResult.Type;
+
 export const OrchestrationV2RpcError = Schema.Union([
   OrchestrationV2DispatchCommandError,
   OrchestrationV2GetThreadProjectionError,
   OrchestrationV2GetShellSnapshotError,
   OrchestrationV2ThreadLaunchError,
+  OrchestrationV2ReconcileIntakeError,
+  OrchestrationV2RecordCancellationIntentError,
 ]);
 export type OrchestrationV2RpcError = typeof OrchestrationV2RpcError.Type;
 
@@ -3483,7 +3565,7 @@ const WORKFLOW_SCRIPT_ERROR_MESSAGES = {
   "read-failed": "Script read failed.",
 } as const;
 
-export class OrchestrationGetWorkflowScriptError extends Schema.TaggedErrorClass<OrchestrationGetWorkflowScriptError>()(
+export class OrchestrationGetWorkflowScriptError extends Schema.TaggedError<OrchestrationGetWorkflowScriptError>()(
   "OrchestrationGetWorkflowScriptError",
   {
     reason: Schema.Literals([
@@ -3505,23 +3587,67 @@ export class OrchestrationGetWorkflowScriptError extends Schema.TaggedErrorClass
   }
 }
 
-export interface OrchestrationV2RpcSchemaDefinition<Input extends Schema.Top, Output extends Schema.Top> {
+export interface OrchestrationV2RpcSchemaDefinition<
+  Input extends Schema.Top,
+  Output extends Schema.Top,
+> {
   readonly input: Input;
   readonly output: Output;
 }
 
 export interface OrchestrationV2RpcSchemasShape {
-  readonly dispatchCommand: OrchestrationV2RpcSchemaDefinition<typeof OrchestrationV2Command, typeof OrchestrationV2DispatchCommandResult>;
-  readonly getTurnDiff: OrchestrationV2RpcSchemaDefinition<typeof OrchestrationGetTurnDiffInput, typeof OrchestrationGetTurnDiffResult>;
-  readonly getFullThreadDiff: OrchestrationV2RpcSchemaDefinition<typeof OrchestrationGetFullThreadDiffInput, typeof OrchestrationGetFullThreadDiffResult>;
-  readonly getArchivedShellSnapshot: OrchestrationV2RpcSchemaDefinition<Schema.Struct<{}>, typeof OrchestrationV2ArchivedShellSnapshot>;
-  readonly getThreadProjection: OrchestrationV2RpcSchemaDefinition<typeof OrchestrationV2GetThreadProjectionInput, typeof OrchestrationV2ThreadProjection>;
-  readonly getWorkflowScript: OrchestrationV2RpcSchemaDefinition<typeof OrchestrationV2GetWorkflowScriptInput, typeof OrchestrationV2GetWorkflowScriptResult>;
-  readonly getTurnItem: OrchestrationV2RpcSchemaDefinition<typeof OrchestrationV2GetTurnItemInput, typeof OrchestrationV2GetTurnItemResult>;
-  readonly launchThread: OrchestrationV2RpcSchemaDefinition<typeof OrchestrationV2ThreadLaunchInput, typeof OrchestrationV2ThreadLaunchResult>;
-  readonly subscribeArchivedShell: OrchestrationV2RpcSchemaDefinition<Schema.Struct<{}>, typeof OrchestrationV2ArchivedShellStreamItem>;
-  readonly subscribeShell: OrchestrationV2RpcSchemaDefinition<typeof OrchestrationV2SubscribeShellInput, typeof OrchestrationV2ShellStreamItem>;
-  readonly subscribeThread: OrchestrationV2RpcSchemaDefinition<typeof OrchestrationV2SubscribeThreadInput, typeof OrchestrationV2ThreadStreamItem>;
+  readonly dispatchCommand: OrchestrationV2RpcSchemaDefinition<
+    typeof OrchestrationV2Command,
+    typeof OrchestrationV2DispatchCommandResult
+  >;
+  readonly getTurnDiff: OrchestrationV2RpcSchemaDefinition<
+    typeof OrchestrationGetTurnDiffInput,
+    typeof OrchestrationGetTurnDiffResult
+  >;
+  readonly getFullThreadDiff: OrchestrationV2RpcSchemaDefinition<
+    typeof OrchestrationGetFullThreadDiffInput,
+    typeof OrchestrationGetFullThreadDiffResult
+  >;
+  readonly getArchivedShellSnapshot: OrchestrationV2RpcSchemaDefinition<
+    Schema.Struct<{}>,
+    typeof OrchestrationV2ArchivedShellSnapshot
+  >;
+  readonly getThreadProjection: OrchestrationV2RpcSchemaDefinition<
+    typeof OrchestrationV2GetThreadProjectionInput,
+    typeof OrchestrationV2ThreadProjection
+  >;
+  readonly getWorkflowScript: OrchestrationV2RpcSchemaDefinition<
+    typeof OrchestrationV2GetWorkflowScriptInput,
+    typeof OrchestrationV2GetWorkflowScriptResult
+  >;
+  readonly getTurnItem: OrchestrationV2RpcSchemaDefinition<
+    typeof OrchestrationV2GetTurnItemInput,
+    typeof OrchestrationV2GetTurnItemResult
+  >;
+  readonly launchThread: OrchestrationV2RpcSchemaDefinition<
+    typeof OrchestrationV2ThreadLaunchInput,
+    typeof OrchestrationV2ThreadLaunchResult
+  >;
+  readonly subscribeArchivedShell: OrchestrationV2RpcSchemaDefinition<
+    Schema.Struct<{}>,
+    typeof OrchestrationV2ArchivedShellStreamItem
+  >;
+  readonly subscribeShell: OrchestrationV2RpcSchemaDefinition<
+    typeof OrchestrationV2SubscribeShellInput,
+    typeof OrchestrationV2ShellStreamItem
+  >;
+  readonly subscribeThread: OrchestrationV2RpcSchemaDefinition<
+    typeof OrchestrationV2SubscribeThreadInput,
+    typeof OrchestrationV2ThreadStreamItem
+  >;
+  readonly reconcileIntake: OrchestrationV2RpcSchemaDefinition<
+    typeof OrchestrationV2ReconcileIntakeInput,
+    typeof OrchestrationV2ReconcileIntakeResult
+  >;
+  readonly recordCancellationIntent: OrchestrationV2RpcSchemaDefinition<
+    typeof OrchestrationV2RecordCancellationIntentInput,
+    typeof OrchestrationV2RecordCancellationIntentResult
+  >;
 }
 
 export const OrchestrationV2RpcSchemas: OrchestrationV2RpcSchemasShape = {
@@ -3568,6 +3694,14 @@ export const OrchestrationV2RpcSchemas: OrchestrationV2RpcSchemasShape = {
   subscribeThread: {
     input: OrchestrationV2SubscribeThreadInput,
     output: OrchestrationV2ThreadStreamItem,
+  },
+  reconcileIntake: {
+    input: OrchestrationV2ReconcileIntakeInput,
+    output: OrchestrationV2ReconcileIntakeResult,
+  },
+  recordCancellationIntent: {
+    input: OrchestrationV2RecordCancellationIntentInput,
+    output: OrchestrationV2RecordCancellationIntentResult,
   },
 } as const;
 

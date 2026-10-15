@@ -1,6 +1,17 @@
 import type { BrowserReadinessResult } from "./browserReadiness.ts";
 import type { BrowserComparisonInput } from "./browserComparison.ts";
 import type { NotificationToastPayload } from "./notificationOverlay.ts";
+import type {
+  DesktopExtensionBoundsInput,
+  DesktopExtensionViewInput,
+  DesktopExtensionHideInput,
+  DesktopExchangeListing,
+  DesktopExchangePage,
+  DesktopInstalledExtension,
+  DesktopExtensionCredentialStatus,
+  DesktopPreparedExchangeInstall,
+  TabsExtensionAssignment,
+} from "./extensions.ts";
 export * from "./notificationOverlay.ts";
 import type {
   VcsCreateRefInput,
@@ -232,12 +243,27 @@ import type {
   OrchestrationEvent,
 } from "./orchestration.ts";
 import type {
+  OrchestrationV2Command,
+  OrchestrationV2GetThreadProjectionInput,
+  OrchestrationV2ReconcileIntakeInput,
+  OrchestrationV2ReconcileIntakeResult,
+  OrchestrationV2RecordCancellationIntentInput,
+  OrchestrationV2RecordCancellationIntentResult,
+  OrchestrationV2ShellStreamItem,
+  OrchestrationV2ThreadProjection,
+  OrchestrationV2ThreadStreamItem,
+} from "./orchestrationV2.ts";
+import type {
+  PersistChatAttachmentsInput,
+  PersistChatAttachmentsResult,
+} from "./chatAttachment.ts";
+import type {
   OrchestrationGetFullThreadDiffInput,
   OrchestrationGetFullThreadDiffResult,
   OrchestrationGetTurnDiffInput,
   OrchestrationGetTurnDiffResult,
 } from "./checkpointDiff.ts";
-import { EnvironmentId } from "./baseSchemas.ts";
+import { EnvironmentId, ThreadId, RunId } from "./baseSchemas.ts";
 import { AuthAccessTokenResult, AuthSessionState, AuthWebSocketTicketResult } from "./auth.ts";
 import { AdvertisedEndpoint } from "./remoteAccess.ts";
 import { EditorId } from "./editor.ts";
@@ -1190,7 +1216,59 @@ export interface DesktopBuildInfo {
   readonly electron: string;
 }
 
+export interface DesktopExtensionViewErrorEvent {
+  readonly projectId: string;
+  readonly extensionId: string;
+  readonly toolId: string;
+  readonly profileId: string;
+  readonly activationId?: string;
+  readonly error: string;
+}
+
 export interface DesktopBridge {
+  listExtensions: () => Promise<DesktopInstalledExtension[]>;
+  onExtensionsChanged: (listener: () => void) => () => void;
+  onExtensionViewError?: (listener: (event: DesktopExtensionViewErrorEvent) => void) => () => void;
+  discoverExchangeExtensions: (
+    query: string,
+    cursor?: string,
+  ) => Promise<DesktopExchangePage | null>;
+  checkExtensionUpdate: (extensionId: string) => Promise<DesktopExchangeListing | null>;
+  exchangeInstallAvailable: () => Promise<boolean>;
+  prepareExchangeInstall: (
+    listing: DesktopExchangeListing,
+  ) => Promise<DesktopPreparedExchangeInstall>;
+  confirmExchangeInstall: (token: string) => Promise<DesktopInstalledExtension>;
+  cancelExchangeInstall: (token: string) => Promise<void>;
+  uninstallExtension: (extensionId: string, deleteData?: boolean) => Promise<void>;
+  setExtensionDisabled: (extensionId: string, disabled: boolean) => Promise<void>;
+  setExtensionUpdatesPinned: (extensionId: string, pinned: boolean) => Promise<void>;
+  installDevelopmentExtension: (directory: string) => Promise<DesktopInstalledExtension>;
+  reloadDevelopmentExtension?: (id: string) => Promise<DesktopInstalledExtension>;
+  getRegistryConnection?: () => Promise<{ origin: string | null; connected: boolean }>;
+  setRegistryCredential?: (origin: string, token: string | null) => Promise<void>;
+  installLocalExtensionPackage: (archive: string) => Promise<DesktopInstalledExtension>;
+  setExtensionAssignment: (
+    extensionId: string,
+    assignment: TabsExtensionAssignment,
+  ) => Promise<void>;
+  addExtensionProfile: (
+    extensionId: string,
+    id: string,
+    label: string,
+    scope: "shared" | "project",
+  ) => Promise<void>;
+  listExtensionCredentials: (extensionId: string) => Promise<DesktopExtensionCredentialStatus[]>;
+  setExtensionCredential: (
+    extensionId: string,
+    profileId: string,
+    host: string,
+    value: string | null,
+    projectId?: string,
+  ) => Promise<void>;
+  activateExtensionTool: (input: DesktopExtensionViewInput) => Promise<void>;
+  setExtensionBounds: (input: DesktopExtensionBoundsInput) => Promise<void>;
+  hideExtensionTool: (input?: DesktopExtensionHideInput | string) => Promise<void>;
   writeClipboardText: (text: string) => Promise<void>;
   readClipboardText?: (type?: "clipboard" | "selection") => Promise<string>;
   getDesktopCapturePermissionStatus?: () => Promise<DesktopCapturePermissionStatus>;
@@ -1395,6 +1473,7 @@ export interface DesktopBridge {
   notifyReadyToExit: () => Promise<void>;
   getConfirmBeforeQuit: () => Promise<boolean>;
   resetTabsUserData?: () => Promise<boolean>;
+  getBackendStartupError?: () => Promise<string | null>;
   getDataResetStartupError?: () => Promise<string | null>;
   setConfirmBeforeQuit: (value: boolean) => Promise<void>;
   onQuitConfirmationRequested: (listener: () => void) => () => void;
@@ -1596,6 +1675,9 @@ export interface EnvironmentApi {
   };
   assets: {
     createUrl: (input: AssetCreateUrlInput) => Promise<AssetCreateUrlResult>;
+    persistChatAttachments: (
+      input: PersistChatAttachmentsInput,
+    ) => Promise<PersistChatAttachmentsResult>;
   };
   sourceControl: {
     lookupRepository: (
@@ -1648,21 +1730,39 @@ export interface EnvironmentApi {
     getDiffPreview: (input: ReviewDiffPreviewInput) => Promise<ReviewDiffPreviewResult>;
   };
   orchestration: {
-    dispatchCommand: (command: ClientOrchestrationCommand) => Promise<{ sequence: number }>;
+    dispatchCommand: (
+      command: ClientOrchestrationCommand | OrchestrationV2Command,
+    ) => Promise<{ sequence: number; runId?: RunId }>;
     getTurnDiff: (input: OrchestrationGetTurnDiffInput) => Promise<OrchestrationGetTurnDiffResult>;
     getFullThreadDiff: (
       input: OrchestrationGetFullThreadDiffInput,
     ) => Promise<OrchestrationGetFullThreadDiffResult>;
     getArchivedShellSnapshot: () => Promise<OrchestrationShellSnapshot>;
+    getThreadProjection: (
+      input: OrchestrationV2GetThreadProjectionInput,
+    ) => Promise<OrchestrationV2ThreadProjection>;
+    reconcileIntake: (
+      input: OrchestrationV2ReconcileIntakeInput,
+    ) => Promise<OrchestrationV2ReconcileIntakeResult>;
+    recordCancellationIntent: (
+      input: OrchestrationV2RecordCancellationIntentInput,
+    ) => Promise<OrchestrationV2RecordCancellationIntentResult>;
     subscribeShell: (
-      callback: (event: OrchestrationShellStreamItem) => void,
+      callback: (event: OrchestrationV2ShellStreamItem) => void,
       options?: {
         onResubscribe?: () => void;
       },
     ) => () => void;
     subscribeThread: (
-      input: OrchestrationSubscribeThreadInput,
-      callback: (event: OrchestrationThreadStreamItem) => void,
+      input:
+        | OrchestrationSubscribeThreadInput
+        | {
+            readonly threadId: ThreadId;
+            readonly afterSequence?: number;
+            readonly requestCompletionMarker?: boolean;
+            readonly acceptBoundedSnapshot?: boolean;
+          },
+      callback: (event: OrchestrationV2ThreadStreamItem) => void,
       options?: {
         onResubscribe?: () => void;
       },

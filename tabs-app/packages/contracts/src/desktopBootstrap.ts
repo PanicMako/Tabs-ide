@@ -14,6 +14,9 @@ export const DesktopBackendBootstrap = Schema.Struct({
   host: Schema.optionalKey(Schema.String),
   desktopBootstrapToken: Schema.optionalKey(Schema.String),
   authToken: Schema.optionalKey(Schema.String),
+  desktopExtensionBroker: Schema.optionalKey(
+    Schema.Struct({ endpoint: Schema.String, token: Schema.String }),
+  ),
   desktopBootstrapSecret: Schema.optionalKey(Schema.String),
   desktopTelemetryFd: Schema.optionalKey(Schema.Int),
   desktopTelemetryControlFd: Schema.optionalKey(Schema.Int),

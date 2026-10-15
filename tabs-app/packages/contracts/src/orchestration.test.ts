@@ -17,10 +17,7 @@ import {
   ThreadCreatedPayload,
   ThreadTurnStartRequestedPayload,
 } from "./orchestration.ts";
-import {
-  DEFAULT_PROVIDER_INTERACTION_MODE,
-  DEFAULT_RUNTIME_MODE,
-} from "./providerPolicy.ts";
+import { DEFAULT_PROVIDER_INTERACTION_MODE, DEFAULT_RUNTIME_MODE } from "./providerPolicy.ts";
 import { ModelSelection } from "./modelSelection.ts";
 import {
   OrchestrationGetFullThreadDiffInput,

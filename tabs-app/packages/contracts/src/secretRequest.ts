@@ -39,7 +39,7 @@ export const SecretRequestFailureReason = Schema.Literals(
 export type SecretRequestFailureReason = typeof SecretRequestFailureReason.Type;
 
 /** Answering a request or using its ref failed; the message is shown to users and agents. */
-export class SecretRequestError extends Schema.TaggedErrorClass<SecretRequestError>()(
+export class SecretRequestError extends Schema.TaggedError<SecretRequestError>()(
   "SecretRequestError",
   {
     reason: SecretRequestFailureReason,

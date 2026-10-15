@@ -1390,8 +1390,6 @@ export const DispatchResult = Schema.Struct({
 });
 export type DispatchResult = typeof DispatchResult.Type;
 
-
-
 export const OrchestrationReplayEventsInput = Schema.Struct({
   fromSequenceExclusive: NonNegativeInt,
 });
@@ -1431,7 +1429,7 @@ export const OrchestrationRpcSchemas = {
   },
 } as const;
 
-export class OrchestrationGetSnapshotError extends Schema.TaggedErrorClass<OrchestrationGetSnapshotError>()(
+export class OrchestrationGetSnapshotError extends Schema.TaggedError<OrchestrationGetSnapshotError>()(
   "OrchestrationGetSnapshotError",
   {
     message: TrimmedNonEmptyString,
@@ -1441,7 +1439,7 @@ export class OrchestrationGetSnapshotError extends Schema.TaggedErrorClass<Orche
 
 export { OrchestrationDispatchCommandError } from "./orchestrationDispatch.ts";
 
-export class OrchestrationReplayEventsError extends Schema.TaggedErrorClass<OrchestrationReplayEventsError>()(
+export class OrchestrationReplayEventsError extends Schema.TaggedError<OrchestrationReplayEventsError>()(
   "OrchestrationReplayEventsError",
   {
     message: TrimmedNonEmptyString,
