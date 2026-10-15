@@ -1,6 +1,6 @@
 import { SegmentedControl } from "../../ui/segmented-control";
 import "./usage.css";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useAtomValue } from "@effect/atom-react";
 import { formatCount, formatPercent, formatTokens, formatUsd } from "@tabs/shared/usageFormat";
 import { isModelCostUnknown, mergeUsage } from "@tabs/shared/usageMerge";
@@ -27,6 +27,8 @@ import {
   type Icon,
 } from "../../Icons";
 import { UsageDailyChart } from "./UsageDailyChart";
+import { ModelDetailModal } from "./ModelDetailModal";
+import type { ModelTotals } from "@tabs/shared/usageMerge";
 import { Button } from "../../ui/button";
 import { UsagePriceOverrides } from "../../usage/UsagePriceOverrides";
 import { SlidersHorizontalIcon, DatabaseIcon } from "lucide-react";
@@ -121,13 +123,14 @@ const WINDOW_PRESETS = [
   { id: "all" as const, label: "All time" },
 ];
 
-export function UsageTab() {
+export function UsageTab({ subTabControl }: { subTabControl?: ReactNode } = {}) {
   const timeWindow = useAtomValue(usageTimeWindowAtom);
   const summaryState = useAtomValue(usageSummaryStateAtom);
   const [metric, setMetric] = useState<"cost" | "tokens">("tokens");
   const [breakdownView, setBreakdownView] = useState<"model" | "provider">("model");
   const [showPriceOverrides, setShowPriceOverrides] = useState(false);
   const [priceModelId, setPriceModelId] = useState<string | undefined>();
+  const [inspectModel, setInspectModel] = useState<ModelTotals | null>(null);
 
   const summary = summaryState.data;
   const merged = useMemo(() => mergeUsage(summary), [summary]);
@@ -148,14 +151,19 @@ export function UsageTab() {
   return (
     <div className="usage-dashboard">
       <div className="usage-toolbar">
-        <SegmentedControl
-          value={timeWindow}
-          onValueChange={selectWindow}
-          options={WINDOW_PRESETS.map((p) => ({ value: p.id, label: p.label }))}
-          aria-label="Usage date range"
-          size="sm"
-        />
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center justify-start justify-self-start min-w-0">
+          {subTabControl}
+        </div>
+        <div className="flex items-center justify-center justify-self-center">
+          <SegmentedControl
+            value={timeWindow}
+            onValueChange={selectWindow}
+            options={WINDOW_PRESETS.map((p) => ({ value: p.id, label: p.label }))}
+            aria-label="Usage date range"
+            size="sm"
+          />
+        </div>
+        <div className="flex items-center justify-end justify-self-end gap-2">
           <SegmentedControl
             value={metric}
             onValueChange={setMetric}
@@ -188,6 +196,23 @@ export function UsageTab() {
             void fetchUsageSummary();
           }}
           onOpenChange={setShowPriceOverrides}
+        />
+      ) : null}
+      {inspectModel ? (
+        <ModelDetailModal
+          model={inspectModel}
+          summary={summary}
+          timeWindow={timeWindow}
+          parentDays={
+            timeWindow === "24h"
+              ? merged.hourly.map((hour) => hour.hourStart)
+              : merged.daily.map((day) => day.day)
+          }
+          onClose={() => setInspectModel(null)}
+          onSetPrice={(modelId) => {
+            setPriceModelId(modelId);
+            setShowPriceOverrides(true);
+          }}
         />
       ) : null}
       {summaryState.error ? (
@@ -336,10 +361,14 @@ export function UsageTab() {
                         return (
                           <tr
                             key={`${m.provider}-${m.model}`}
-                            className="hover:bg-muted/30 transition-colors"
+                            className="hover:bg-muted/40 transition-colors cursor-pointer group"
+                            onClick={() => setInspectModel(m)}
+                            title={`Inspect ${m.model} usage statistics`}
                           >
                             <td className="py-2.5 px-4 font-medium text-foreground font-mono break-all">
-                              {m.model}
+                              <span className="group-hover:text-primary transition-colors underline-offset-4 group-hover:underline">
+                                {m.model}
+                              </span>
                             </td>
                             <td className="py-2.5 px-4 text-muted-foreground">
                               <div className="flex items-center gap-1.5">
@@ -352,7 +381,8 @@ export function UsageTab() {
                                 <button
                                   type="button"
                                   className="usage-price-action"
-                                  onClick={() => {
+                                  onClick={(event) => {
+                                    event.stopPropagation();
                                     setPriceModelId(m.model);
                                     setShowPriceOverrides(true);
                                   }}

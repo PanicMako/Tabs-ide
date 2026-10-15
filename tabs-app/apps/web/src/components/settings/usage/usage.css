@@ -3,13 +3,36 @@
   gap: 20px;
   min-width: 0;
 }
-.usage-toolbar,
 .usage-section-heading {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+.usage-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+}
+.usage-toolbar > :first-child {
+  justify-self: start;
+}
+.usage-toolbar > :nth-child(2) {
+  justify-self: center;
+}
+.usage-toolbar > :nth-child(3) {
+  justify-self: end;
+}
+@media (max-width: 900px) {
+  .usage-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 12px;
+  }
 }
 .usage-section-heading {
   font-size: 12px;
@@ -90,7 +113,10 @@
 .usage-provider > strong {
   display: block;
   margin: 14px 0 10px;
-  font: 600 20px var(--font-mono);
+  font-family: var(--font-sans);
+  font-size: 20px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
   color: var(--foreground);
 }
 .usage-share {
@@ -141,7 +167,10 @@
   font-size: 11px;
 }
 .usage-token-details dd {
-  font: 500 16px var(--font-mono);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
   margin-top: 6px;
 }
 .usage-empty {
@@ -184,10 +213,10 @@
   .usage-activity {
     padding: 16px 10px 4px;
   }
-  .usage-toolbar > .tabs-segmented {
+  .usage-toolbar .tabs-segmented {
     width: 100%;
   }
-  .usage-toolbar > .tabs-segmented > button {
+  .usage-toolbar .tabs-segmented > button {
     flex: 1;
     padding-inline: 6px;
   }

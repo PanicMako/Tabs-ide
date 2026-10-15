@@ -302,7 +302,7 @@ export function IconStat({
         </div>
         <div
           className={cn(
-            "mt-2 font-mono text-xl sm:text-2xl font-bold tracking-tight tabular-nums text-foreground",
+            "mt-2 font-sans text-xl sm:text-2xl font-bold tracking-tight tabular-nums text-foreground",
             tone === "warning" && "text-amber-600 dark:text-amber-400",
             tone === "danger" && "text-destructive",
           )}
@@ -448,7 +448,7 @@ export function HistoryWindowSelector({
 }) {
   return (
     <OrbitGroup
-      className="tabs-segmented inline-flex items-center select-none"
+      className="tabs-segmented inline-flex items-center select-none rounded-full"
       role="group"
       aria-label="History window"
     >
@@ -459,7 +459,7 @@ export function HistoryWindowSelector({
           onClick={() => onSelect(option.windowMs)}
           aria-pressed={selectedWindowMs === option.windowMs}
           className={cn(
-            "font-semibold rounded-md transition-all px-2.5 py-1 text-xs cursor-pointer",
+            "font-semibold rounded-full transition-all px-2.5 py-1 text-xs cursor-pointer",
             selectedWindowMs === option.windowMs
               ? "bg-background text-foreground shadow-xs border border-foreground/20 dark:bg-accent"
               : "text-muted-foreground hover:text-foreground hover:bg-muted/40",

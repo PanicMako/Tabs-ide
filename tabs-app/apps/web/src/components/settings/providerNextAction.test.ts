@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { providerNextAction, type ProviderNextActionInput } from "./providerNextAction";
+import {
+  providerNextAction,
+  isProviderDetectionPending,
+  type ProviderNextActionInput,
+} from "./providerNextAction";
 
 const ready: ProviderNextActionInput = {
   enabled: true,
@@ -8,6 +12,19 @@ const ready: ProviderNextActionInput = {
   needsAttention: false,
 };
 describe("provider next action", () => {
+  it("distinguishes the initial unchecked CLI snapshot from a confirmed missing CLI", () => {
+    const pending = {
+      installed: false,
+      status: "warning",
+      auth: { status: "unknown" },
+      message: "Codex provider status has not been checked in this session yet.",
+    };
+    expect(isProviderDetectionPending(pending)).toBe(true);
+    expect(
+      isProviderDetectionPending({ ...pending, status: "error", message: "Codex CLI not found." }),
+    ).toBe(false);
+    expect(isProviderDetectionPending({ ...pending, installed: true })).toBe(false);
+  });
   it("prioritizes installation and authentication before an update", () => {
     const pending = {
       ...ready,

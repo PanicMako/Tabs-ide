@@ -30,7 +30,7 @@ import { useMemo, useState, type ComponentType, type ReactNode } from "react";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { useTheme } from "~/hooks/useTheme";
-import { getActiveFontCombo } from "~/lib/themes";
+import { getActiveFontCombo, getFontComboPageHeading } from "~/lib/themes";
 import { cn } from "~/lib/utils";
 import { SettingsSection } from "./SettingsLayout";
 import { useSettingsViewState } from "~/state/scopedStateStore";
@@ -820,9 +820,12 @@ export function DocumentationSettings({
             <h2
               className={cn(
                 "text-[28px] leading-relaxed pb-1 text-foreground mb-2 font-bold",
-                activeFontCombo.sansClass,
+                getFontComboPageHeading(activeFontCombo).className,
               )}
-              style={{ fontFamily: "var(--font-sans)", textTransform: "capitalize" }}
+              style={{
+                fontFamily: getFontComboPageHeading(activeFontCombo).fontFamily,
+                textTransform: "capitalize",
+              }}
             >
               Documentation
             </h2>

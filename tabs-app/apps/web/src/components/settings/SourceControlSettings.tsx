@@ -17,7 +17,7 @@ import { cn } from "~/lib/utils";
 import { RedactedSensitiveText } from "./RedactedSensitiveText";
 import { SettingsSection } from "./SettingsLayout";
 import { useTheme } from "~/hooks/useTheme";
-import { getActiveFontCombo } from "~/lib/themes";
+import { getActiveFontCombo, getFontComboPageHeading } from "~/lib/themes";
 
 const SOURCE_CONTROL_COMMANDS: Record<string, { name: string; install?: string; login?: string }> =
   {
@@ -108,13 +108,17 @@ export function SourceControlSettingsPanel({
   if (isLoading && !data) {
     return (
       <div className="space-y-6">
-        <div className="mb-2 space-y-1.5">
+        <div data-slot="settings-page-header" className="mb-2 space-y-1.5">
           <h2
+            data-slot="settings-page-title"
             className={cn(
               "text-[28px] leading-relaxed pb-1 text-foreground mb-2 font-bold",
-              activeFontCombo.sansClass,
+              getFontComboPageHeading(activeFontCombo, fontPreferences).className,
             )}
-            style={{ fontFamily: "var(--font-sans)", textTransform: "capitalize" }}
+            style={{
+              fontFamily: getFontComboPageHeading(activeFontCombo, fontPreferences).fontFamily,
+              textTransform: "capitalize",
+            }}
           >
             Source Control
           </h2>
@@ -134,13 +138,17 @@ export function SourceControlSettingsPanel({
   if (error) {
     return (
       <div className="space-y-6">
-        <div className="mb-2 space-y-1.5">
+        <div data-slot="settings-page-header" className="mb-2 space-y-1.5">
           <h2
+            data-slot="settings-page-title"
             className={cn(
               "text-[28px] leading-relaxed pb-1 text-foreground mb-2 font-bold",
-              activeFontCombo.sansClass,
+              getFontComboPageHeading(activeFontCombo, fontPreferences).className,
             )}
-            style={{ fontFamily: "var(--font-sans)", textTransform: "capitalize" }}
+            style={{
+              fontFamily: getFontComboPageHeading(activeFontCombo, fontPreferences).fontFamily,
+              textTransform: "capitalize",
+            }}
           >
             Source Control
           </h2>
@@ -173,14 +181,18 @@ export function SourceControlSettingsPanel({
 
   return (
     <div className="space-y-6">
-      <div>
+      <div data-slot="settings-page-header">
         <div className="space-y-1.5">
           <h2
+            data-slot="settings-page-title"
             className={cn(
               "text-[28px] leading-relaxed pb-1 text-foreground mb-2 font-bold",
-              activeFontCombo.sansClass,
+              getFontComboPageHeading(activeFontCombo, fontPreferences).className,
             )}
-            style={{ fontFamily: "var(--font-sans)", textTransform: "capitalize" }}
+            style={{
+              fontFamily: getFontComboPageHeading(activeFontCombo, fontPreferences).fontFamily,
+              textTransform: "capitalize",
+            }}
           >
             Source Control
           </h2>
@@ -189,10 +201,12 @@ export function SourceControlSettingsPanel({
           </p>
         </div>
         <div
+          data-slot="settings-divider"
           className="h-[5px] w-full my-5 rounded-full dark:block hidden"
           style={{ background: "linear-gradient(to right, rgba(255,255,255,0.25), transparent)" }}
         />
         <div
+          data-slot="settings-divider"
           className="h-[5px] w-full my-5 rounded-full dark:hidden block"
           style={{ background: "linear-gradient(to right, rgba(0,0,0,0.12), transparent)" }}
         />
