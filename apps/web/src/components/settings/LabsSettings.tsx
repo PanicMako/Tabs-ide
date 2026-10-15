@@ -16,6 +16,8 @@ const WallpaperSettings = lazy(() => import("./WallpaperSettings"));
 
 export default function LabsSettings() {
   const editorial = useSettingsLabsStore((state) => state.editorialSettings);
+  const settingsOnly = useSettingsLabsStore((state) => state.editorialSettingsOnly);
+  const setSettingsOnly = useSettingsLabsStore((state) => state.setEditorialSettingsOnly);
   const setEditorial = useSettingsLabsStore((state) => state.setEditorialSettings);
   const appearance = useSettingsLabsStore((state) => state.editorialAppearance);
   const setAppearance = useSettingsLabsStore((state) => state.setEditorialAppearance);
@@ -79,6 +81,21 @@ export default function LabsSettings() {
             </div>
           }
         />
+        {editorial && (
+          <div className="ml-4 border-l border-border pl-4">
+            <SettingsRow
+              title="Settings page only"
+              description="Keep this look in Settings. Your workspace keeps its saved theme and layout."
+              control={
+                <Switch
+                  aria-label="Settings page only"
+                  checked={settingsOnly}
+                  onCheckedChange={setSettingsOnly}
+                />
+              }
+            />
+          </div>
+        )}
       </SettingsSection>
       <SettingsSection title="Workspace experiments">
         <SettingsRow

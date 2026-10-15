@@ -376,8 +376,9 @@ function applyTheme(
 
   const originalConfig = config;
   const study = useSettingsLabsStore.getState();
-  if (study.editorialSettings) config = interfaceStudyTheme(study.editorialAppearance, fonts);
-  if (study.editorialSettings)
+  if (study.editorialSettings && !study.editorialSettingsOnly)
+    config = interfaceStudyTheme(study.editorialAppearance, fonts);
+  if (study.editorialSettings && !study.editorialSettingsOnly)
     document.documentElement?.setAttribute?.("data-interface-study", study.editorialAppearance);
   else document.documentElement?.removeAttribute?.("data-interface-study");
   const isDark = config.baseVariant === "dark";
@@ -627,6 +628,7 @@ if (typeof window !== "undefined") {
   useSettingsLabsStore.subscribe((state, previous) => {
     if (
       state.editorialSettings !== previous.editorialSettings ||
+      state.editorialSettingsOnly !== previous.editorialSettingsOnly ||
       state.editorialAppearance !== previous.editorialAppearance
     ) {
       applyTheme(getStoredPreference(), true);
@@ -724,14 +726,15 @@ export function useTheme() {
     ? undefined
     : THEME_DEFINITIONS[activeThemeId as ThemeId];
   const study = useSettingsLabsStore.getState();
-  const resolvedTheme: "light" | "dark" = study.editorialSettings
-    ? study.editorialAppearance
-    : activeThemeId.startsWith("environment:")
-      ? (environmentThemes.find((item) => `environment:${item.id}` === activeThemeId)?.appearance ??
-        "dark")
-      : activeThemeId === "custom"
-        ? customConfig.baseVariant
-        : (themeDef?.baseVariant ?? (getSystemDark() ? "dark" : "light"));
+  const resolvedTheme: "light" | "dark" =
+    study.editorialSettings && !study.editorialSettingsOnly
+      ? study.editorialAppearance
+      : activeThemeId.startsWith("environment:")
+        ? (environmentThemes.find((item) => `environment:${item.id}` === activeThemeId)
+            ?.appearance ?? "dark")
+        : activeThemeId === "custom"
+          ? customConfig.baseVariant
+          : (themeDef?.baseVariant ?? (getSystemDark() ? "dark" : "light"));
 
   const setTheme = useCallback((next: ThemePreference | "light" | "dark") => {
     const normalized: ThemePreference =

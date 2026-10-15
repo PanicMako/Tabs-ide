@@ -1,3 +1,4 @@
+import { useScopedPortalContainer } from "~/lib/scopedPortal";
 import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip";
 
 import { cn } from "~/lib/utils";
@@ -27,7 +28,7 @@ function TooltipPopup({
   anchor?: TooltipPrimitive.Positioner.Props["anchor"];
 }) {
   return (
-    <TooltipPrimitive.Portal>
+    <TooltipScopedPortal>
       <TooltipPrimitive.Positioner
         align={align}
         anchor={anchor}
@@ -52,8 +53,13 @@ function TooltipPopup({
           </TooltipPrimitive.Viewport>
         </TooltipPrimitive.Popup>
       </TooltipPrimitive.Positioner>
-    </TooltipPrimitive.Portal>
+    </TooltipScopedPortal>
   );
 }
 
 export { TooltipCreateHandle, TooltipProvider, Tooltip, TooltipTrigger, TooltipPopup };
+
+function TooltipScopedPortal(props: TooltipPrimitive.Portal.Props) {
+  const container = useScopedPortalContainer();
+  return <TooltipPrimitive.Portal container={container} {...props} />;
+}

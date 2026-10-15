@@ -1,4 +1,5 @@
-"use client";
+import { useScopedPortalContainer } from "~/lib/scopedPortal";
+("use client");
 
 import { useGsapSurface } from "~/hooks/useGsapSurface";
 
@@ -13,7 +14,10 @@ const MenuCreateHandle = MenuPrimitive.createHandle;
 
 const Menu = MenuPrimitive.Root;
 
-const MenuPortal = MenuPrimitive.Portal;
+function MenuPortal(props: MenuPrimitive.Portal.Props) {
+  const container = useScopedPortalContainer();
+  return <MenuPrimitive.Portal container={container} {...props} />;
+}
 
 function MenuTrigger({ className, children, ...props }: MenuPrimitive.Trigger.Props) {
   return (
@@ -52,7 +56,7 @@ function MenuPopup({
 
   if (isUnstyled) {
     return (
-      <MenuPrimitive.Portal>
+      <MenuPortal>
         <MenuPrimitive.Positioner
           align={align}
           alignOffset={alignOffset}
@@ -82,12 +86,12 @@ function MenuPopup({
             {children}
           </MenuPrimitive.Popup>
         </MenuPrimitive.Positioner>
-      </MenuPrimitive.Portal>
+      </MenuPortal>
     );
   }
 
   return (
-    <MenuPrimitive.Portal>
+    <MenuPortal>
       <MenuPrimitive.Positioner
         align={align}
         alignOffset={alignOffset}
@@ -112,7 +116,7 @@ function MenuPopup({
           <div className="max-h-(--available-height) w-full overflow-y-auto p-1">{children}</div>
         </MenuPrimitive.Popup>
       </MenuPrimitive.Positioner>
-    </MenuPrimitive.Portal>
+    </MenuPortal>
   );
 }
 

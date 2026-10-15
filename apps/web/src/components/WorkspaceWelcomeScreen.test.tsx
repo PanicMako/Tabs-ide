@@ -2,9 +2,11 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 let mockEditorial = false;
+let mockSettingsOnly = false;
 vi.mock("../stores/settingsLabsStore", () => ({
-  useSettingsLabsStore: (selector: (state: { editorialSettings: boolean }) => boolean) =>
-    selector({ editorialSettings: mockEditorial }),
+  useSettingsLabsStore: (
+    selector: (state: { editorialSettings: boolean; editorialSettingsOnly: boolean }) => boolean,
+  ) => selector({ editorialSettings: mockEditorial, editorialSettingsOnly: mockSettingsOnly }),
 }));
 
 import { WorkspaceWelcomeScreen } from "./WorkspaceWelcomeScreen";
@@ -37,6 +39,27 @@ describe("WorkspaceWelcomeScreen", () => {
     expect(markup).toContain("Workspace Settings");
     expect(markup).toContain("tabs");
     expect(markup).toContain("throttle");
+  });
+
+  it("keeps the classic workspace when only Settings uses the study", () => {
+    mockEditorial = true;
+    mockSettingsOnly = true;
+    try {
+      const markup = renderToStaticMarkup(
+        <WorkspaceWelcomeScreen
+          recentProjects={dummyProjects}
+          onCreateProject={vi.fn()}
+          onOpenFile={vi.fn()}
+          onCloneGit={vi.fn()}
+          onOpenSettings={vi.fn()}
+          onSelectProject={vi.fn()}
+        />,
+      );
+      expect(markup).toContain("Add Project...");
+      expect(markup).toContain("Workspace Settings");
+    } finally {
+      mockSettingsOnly = false;
+    }
   });
 
   it("renders editorial welcome screen when editorialSettings is enabled", () => {

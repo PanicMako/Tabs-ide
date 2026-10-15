@@ -1,5 +1,6 @@
 import { ArrowLeftIcon } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
+import { ScopedPortalContext } from "../../lib/scopedPortal";
 import { useSettingsLabsStore } from "../../stores/settingsLabsStore";
 import "./settings-editorial.css";
 
@@ -10,16 +11,20 @@ export function SettingsEditorialFrame({
   children: ReactNode;
   className?: string;
 }) {
+  const [container, setContainer] = useState<HTMLDivElement | null>(null);
   const enabled = useSettingsLabsStore((state) => state.editorialSettings);
   const appearance = useSettingsLabsStore((state) => state.editorialAppearance);
   return (
-    <div
-      data-settings-design={enabled ? "editorial" : "classic"}
-      data-settings-appearance={appearance}
-      className={className}
-    >
-      {children}
-    </div>
+    <ScopedPortalContext.Provider value={enabled ? (container ?? undefined) : undefined}>
+      <div
+        ref={setContainer}
+        data-settings-design={enabled ? "editorial" : "classic"}
+        data-settings-appearance={appearance}
+        className={className}
+      >
+        {children}
+      </div>
+    </ScopedPortalContext.Provider>
   );
 }
 
