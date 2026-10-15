@@ -18,7 +18,7 @@ describe("interface font scaling", () => {
 
 describe("stored font preferences", () => {
   it("restores a selected combo when client settings contain an older font", () => {
-    const combo = FONT_COMBOS.find((item) => item.id === "unbounded-swag")!;
+    const combo = FONT_COMBOS.find((item) => item.id === "funnel-weights")!;
     const stored = new Map([
       ["tabs:client-settings:v1", JSON.stringify({ fontFamilySans: "'Syne', sans-serif" })],
       [
@@ -37,4 +37,22 @@ describe("stored font preferences", () => {
       vi.stubGlobal("localStorage", originalStorage);
     }
   });
+});
+
+it("restores independent typography roles from storage", () => {
+  const custom = {
+    uiFont: "'Syne', sans-serif",
+    headingFont: "'Coconat', serif",
+    sectionFont: "'Parkinsans', sans-serif",
+    supportingFont: "'Absans', sans-serif",
+    editorFont: "Menlo",
+  };
+  vi.stubGlobal("localStorage", {
+    getItem: (key: string) => (key === "tabs:font-preferences" ? JSON.stringify(custom) : null),
+  });
+  try {
+    expect(getStoredFontPreferences()).toMatchObject(custom);
+  } finally {
+    vi.unstubAllGlobals();
+  }
 });

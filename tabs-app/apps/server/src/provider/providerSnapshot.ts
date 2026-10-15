@@ -1,5 +1,7 @@
 import type {
+  CustomModelSetting,
   ProviderDriverKind,
+  RuntimeMode,
   ModelCapabilities,
   ServerProvider,
   ServerProviderAuth,
@@ -14,14 +16,19 @@ import * as Effect from "effect/Effect";
 import * as Data from "effect/Data";
 import * as Stream from "effect/Stream";
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
-import { normalizeModelSlug } from "@tabs/shared/model";
-import { isWindowsCommandNotFound } from "../processRunner";
-import { createProviderVersionAdvisory } from "./providerMaintenance";
-import { collectUint8StreamText } from "../stream/collectUint8StreamText";
+import { normalizeModelSlug, readCustomModelEntries } from "@tabs/shared/model";
+import { isWindowsCommandNotFound } from "../processRunner.ts";
+import { createProviderVersionAdvisory } from "./providerMaintenance.ts";
+import { collectUint8StreamText } from "../stream/collectUint8StreamText.ts";
 
 export const DEFAULT_TIMEOUT_MS = 4_000;
 // Auth status checks involve disk/network lookups and can be slow on first run (especially Windows)
 export const AUTH_PROBE_TIMEOUT_MS = 10_000;
+
+export const COMPACT_SLASH_COMMAND = {
+  name: "compact",
+  description: "Summarize the conversation and reduce context usage",
+} satisfies ServerProviderSlashCommand;
 
 export interface CommandResult {
   readonly stdout: string;
@@ -49,12 +56,16 @@ export interface ServerProviderPresentation {
   readonly badgeLabel?: string;
   readonly showInteractionModeToggle?: boolean;
   readonly requiresNewThreadForModelChange?: boolean;
+  readonly supportsConversationRollback?: boolean;
+  readonly supportsTextGeneration?: boolean;
+  readonly reportsContextWindow?: boolean;
+  readonly supportedRuntimeModes?: ReadonlyArray<RuntimeMode>;
 }
 
 function inferCredentialSource(auth: ServerProviderAuth): ProviderCredentialSource {
   const type = auth.type?.trim().toLowerCase();
   if (!type) return auth.status === "authenticated" ? "account" : "unknown";
-  if (type === "apikey" || type === "api_key") return "api_key";
+  if (["apikey", "api_key", "api-key", "gemini-api-key"].includes(type)) return "api_key";
   if (type === "byok") return "byok";
   if (type === "amazonbedrock" || type === "googlevertex" || type === "cloudcredential") {
     return "cloud_credential";
@@ -84,9 +95,17 @@ export function nonEmptyTrimmed(value: string | undefined): string | undefined {
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
-export function isCommandMissingCause(error: { readonly message: string }): boolean {
-  const lower = error.message.toLowerCase();
-  return lower.includes("enoent") || lower.includes("notfound");
+export function isCommandMissingCause(error: unknown): boolean {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "message" in error &&
+    typeof (error as any).message === "string"
+  ) {
+    const lower = (error as any).message.toLowerCase();
+    return lower.includes("enoent") || lower.includes("notfound");
+  }
+  return false;
 }
 
 export const spawnAndCollect = (binaryPath: string, command: ChildProcess.Command) =>
@@ -103,7 +122,7 @@ export const spawnAndCollect = (binaryPath: string, command: ChildProcess.Comman
     );
 
     const result: CommandResult = { stdout, stderr, code: exitCode };
-    if (isWindowsCommandNotFound(exitCode, stderr)) {
+    if (yield* isWindowsCommandNotFound(exitCode, stderr)) {
       return yield* new ProviderCommandExecutionError({ message: `spawn ${binaryPath} ENOENT` });
     }
     return result;
@@ -146,32 +165,65 @@ export function extractAuthBoolean(value: unknown): boolean | undefined {
 }
 
 export function parseGenericCliVersion(output: string): string | null {
-  const match = output.match(/\b(\d+\.\d+\.\d+)\b/);
+  const match = output.match(/\bv?(\d+\.\d+\.\d+)\b/);
   return match?.[1] ?? null;
 }
 
 export function providerModelsFromSettings(
   builtInModels: ReadonlyArray<ServerProviderModel>,
-  provider: ProviderDriverKind,
-  customModels: ReadonlyArray<string>,
+  customModels: ReadonlyArray<CustomModelSetting>,
   customModelCapabilities: ModelCapabilities,
+): ReadonlyArray<ServerProviderModel>;
+export function providerModelsFromSettings(
+  builtInModels: ReadonlyArray<ServerProviderModel>,
+  provider: ProviderDriverKind,
+  customModels: ReadonlyArray<CustomModelSetting>,
+  customModelCapabilities: ModelCapabilities,
+): ReadonlyArray<ServerProviderModel>;
+export function providerModelsFromSettings(
+  builtInModels: ReadonlyArray<ServerProviderModel>,
+  arg2: ReadonlyArray<CustomModelSetting> | ProviderDriverKind,
+  arg3: ModelCapabilities | ReadonlyArray<CustomModelSetting>,
+  arg4?: ModelCapabilities,
 ): ReadonlyArray<ServerProviderModel> {
   const resolvedBuiltInModels = [...builtInModels];
   const seen = new Set(resolvedBuiltInModels.map((model) => model.slug));
   const customEntries: ServerProviderModel[] = [];
 
-  for (const candidate of customModels) {
-    const normalized = normalizeModelSlug(candidate, provider);
-    if (!normalized || seen.has(normalized)) {
-      continue;
+  if (typeof arg2 === "string") {
+    const provider = arg2 as ProviderDriverKind;
+    const customModels = arg3 as ReadonlyArray<CustomModelSetting>;
+    const customModelCapabilities = arg4!;
+    for (const candidate of customModels) {
+      const slugCandidate = typeof candidate === "string" ? candidate : candidate.slug;
+      const normalized = normalizeModelSlug(slugCandidate, provider);
+      if (!normalized || seen.has(normalized)) {
+        continue;
+      }
+      seen.add(normalized);
+      const name = typeof candidate === "string" ? normalized : (candidate.name ?? normalized);
+      customEntries.push({
+        slug: normalized,
+        name,
+        isCustom: true,
+        capabilities: customModelCapabilities,
+      });
     }
-    seen.add(normalized);
-    customEntries.push({
-      slug: normalized,
-      name: normalized,
-      isCustom: true,
-      capabilities: customModelCapabilities,
-    });
+  } else {
+    const customModels = arg2 as ReadonlyArray<CustomModelSetting>;
+    const customModelCapabilities = arg3 as ModelCapabilities;
+    for (const entry of readCustomModelEntries(customModels)) {
+      if (seen.has(entry.slug)) {
+        continue;
+      }
+      seen.add(entry.slug);
+      customEntries.push({
+        slug: entry.slug,
+        name: entry.name,
+        isCustom: true,
+        capabilities: entry.capabilities ?? customModelCapabilities,
+      });
+    }
   }
 
   return [...resolvedBuiltInModels, ...customEntries];
@@ -249,6 +301,18 @@ export function buildServerProvider(input: {
     ...(typeof input.presentation.requiresNewThreadForModelChange === "boolean"
       ? { requiresNewThreadForModelChange: input.presentation.requiresNewThreadForModelChange }
       : {}),
+    ...(input.presentation.supportsConversationRollback === undefined
+      ? {}
+      : { supportsConversationRollback: input.presentation.supportsConversationRollback }),
+    ...(input.presentation.supportsTextGeneration === undefined
+      ? {}
+      : { supportsTextGeneration: input.presentation.supportsTextGeneration }),
+    ...(input.presentation.reportsContextWindow === undefined
+      ? {}
+      : { reportsContextWindow: input.presentation.reportsContextWindow }),
+    ...(input.presentation.supportedRuntimeModes === undefined
+      ? {}
+      : { supportedRuntimeModes: [...input.presentation.supportedRuntimeModes] }),
     enabled: input.enabled,
     installed: input.probe.installed,
     version: input.probe.version,
@@ -269,5 +333,6 @@ export function buildServerProvider(input: {
 
 export const collectStreamAsString = <E>(
   stream: Stream.Stream<Uint8Array, E>,
+  options?: { readonly maxBytes?: number | undefined },
 ): Effect.Effect<string, E> =>
-  collectUint8StreamText({ stream }).pipe(Effect.map((collected) => collected.text));
+  collectUint8StreamText({ stream, ...options }).pipe(Effect.map((collected) => collected.text));

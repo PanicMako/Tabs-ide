@@ -13,6 +13,7 @@ export interface StashedFileReference {
   readonly name: string;
   readonly mimeType: string;
   readonly sizeBytes: number;
+  readonly dataUrl?: string;
   readonly attachmentId?: string;
   readonly environmentId?: EnvironmentId;
 }

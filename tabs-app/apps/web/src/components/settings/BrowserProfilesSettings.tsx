@@ -41,6 +41,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogPanel,
+  DialogDetails,
   DialogTitle,
 } from "../ui/dialog";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
@@ -319,6 +320,7 @@ export function BrowserProfilesSettings() {
 
   // Create / Edit modal state
   const [modalOpen, setModalOpen] = useState(false);
+  const profileDialogOpener = useRef<HTMLElement | null>(null);
   const [editingProfile, setEditingProfile] = useState<BrowserProfileDefinition | null>(null);
   const [labelDraft, setLabelDraft] = useState("");
   const [idDraft, setIdDraft] = useState("");
@@ -334,6 +336,8 @@ export function BrowserProfilesSettings() {
   const [loginWindowOpen, setLoginWindowOpen] = useState(false);
 
   const openCreateModal = () => {
+    profileDialogOpener.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setEditingProfile(null);
     setLabelDraft("");
     setIdDraft("");
@@ -343,6 +347,8 @@ export function BrowserProfilesSettings() {
   };
 
   const openEditModal = (profile: BrowserProfileDefinition) => {
+    profileDialogOpener.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setEditingProfile(profile);
     setLabelDraft(profile.label);
     setIdDraft(profile.id);
@@ -1069,7 +1075,7 @@ export function BrowserProfilesSettings() {
           }
         }}
       >
-        <DialogContent showCloseButton={false} className="p-6 space-y-4 sm:max-w-3xl">
+        <DialogContent showCloseButton={false} className="p-5 space-y-3 sm:max-w-3xl">
           <DialogHeader className="p-0 space-y-1">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5 min-w-0">
@@ -1258,11 +1264,6 @@ export function BrowserProfilesSettings() {
             )}
           </div>
 
-          <p className="text-xs text-muted-foreground">
-            Import copies supported cookies only; passkeys, passwords, and local storage are not
-            transferred. Linux Secret Service requires secret-tool and an unlocked keyring. Windows
-            App-Bound (v20) cookies are unsupported and will be reported as skipped.
-          </p>
           <div className="flex items-center justify-end gap-2 pt-3 border-t border-border/40">
             <Button
               size="sm"
@@ -1279,119 +1280,100 @@ export function BrowserProfilesSettings() {
 
       {/* Create / Edit Profile Dialog */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent showCloseButton={false} className="sm:max-w-md p-6 space-y-4">
-          <DialogHeader className="p-0 space-y-1">
-            <div className="flex items-center justify-between gap-3">
-              <DialogTitle className="text-base font-semibold flex items-center gap-2">
-                <FingerprintIcon className="size-5 text-foreground" />
-                {editingProfile ? "Edit Browser Profile" : "Create Browser Profile"}
-              </DialogTitle>
-              <Button
-                size="icon-xs"
-                variant="ghost"
-                onClick={() => setModalOpen(false)}
-                className="size-7 text-muted-foreground hover:text-foreground cursor-pointer rounded-md"
-                title="Close"
-              >
-                <XIcon className="size-4" />
-              </Button>
-            </div>
-            <DialogDescription className="text-xs text-muted-foreground">
-              Configure a named session profile to isolate cookies, logins, and accounts across your
-              browser tabs.
-            </DialogDescription>
+        <DialogContent className="max-w-sm" finalFocus={profileDialogOpener}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 pr-8">
+              <FingerprintIcon className="size-4 text-muted-foreground" aria-hidden="true" />
+              {editingProfile ? "Edit profile" : "New browser profile"}
+            </DialogTitle>
+            <DialogDescription>Keep a separate set of browser logins.</DialogDescription>
           </DialogHeader>
-
-          <div className="space-y-4 py-1">
-            <div>
-              <label className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground block mb-1.5">
-                Profile Name
+          <DialogPanel className="space-y-4">
+            <div className="space-y-1.5">
+              <label htmlFor="browser-profile-name" className="text-xs font-medium">
+                Name
               </label>
               <Input
+                id="browser-profile-name"
                 value={labelDraft}
                 onChange={(e) => {
                   setLabelDraft(e.target.value);
-                  if (!editingProfile) {
-                    setIdDraft(slugifyProfileId(e.target.value));
-                  }
+                  if (!editingProfile) setIdDraft(slugifyProfileId(e.target.value));
                 }}
-                placeholder="e.g. Work Team, Client Acme, Personal"
+                placeholder="Work, Personal…"
                 className="text-xs h-9"
                 autoFocus
               />
             </div>
-
-            <div>
-              <label className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground block mb-1.5">
-                Profile Identifier / Slug
-              </label>
-              <Input
-                value={idDraft}
-                onChange={(e) => setIdDraft(slugifyProfileId(e.target.value))}
-                placeholder="e.g. work, client-acme"
-                disabled={Boolean(editingProfile)}
-                className="text-xs h-9 font-mono"
-              />
-              <span className="text-[11px] text-muted-foreground mt-1.5 block">
-                Maps to Electron partition:{" "}
-                <code className="font-mono text-foreground font-semibold">
-                  persist:tabs-browser:profile:{idDraft || "..."}
-                </code>
-              </span>
-            </div>
-
-            <div>
-              <label className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground block mb-1.5">
-                Description (Optional)
-              </label>
-              <Input
-                value={descriptionDraft}
-                onChange={(e) => setDescriptionDraft(e.target.value)}
-                placeholder="e.g. Primary work Figma and Linear logins"
-                className="text-xs h-9"
-              />
-            </div>
-
-            <div>
-              <label className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground block mb-1.5">
-                Color Accent
-              </label>
-              <div className="flex items-center gap-3 pt-1.5">
+            <fieldset className="space-y-2">
+              <legend className="text-xs font-medium">Color</legend>
+              <div className="flex flex-wrap items-center gap-2">
                 {PRESET_COLORS.map((color) => (
                   <button
                     key={color}
                     type="button"
+                    aria-label={`Profile color ${color}`}
+                    aria-pressed={colorDraft === color}
                     onClick={() => setColorDraft(color)}
                     className={cn(
-                      "size-8 rounded-full transition-all cursor-pointer flex items-center justify-center ring-offset-2 ring-offset-background",
+                      "size-7 rounded-full transition-shadow cursor-pointer flex items-center justify-center ring-offset-2 ring-offset-background focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-4",
                       colorDraft === color
-                        ? "ring-2 ring-primary scale-110 shadow-sm"
-                        : "hover:scale-105 opacity-85 hover:opacity-100",
+                        ? "ring-2 ring-foreground/60"
+                        : "hover:ring-2 hover:ring-border",
                     )}
                     style={{ backgroundColor: color }}
                   >
                     {colorDraft === color && (
-                      <CheckIcon className="size-4 text-white drop-shadow-md stroke-[2.5]" />
+                      <CheckIcon
+                        aria-hidden="true"
+                        className="size-3.5 text-white drop-shadow-md"
+                      />
                     )}
                   </button>
                 ))}
               </div>
-            </div>
-          </div>
-
-          <p className="text-xs text-muted-foreground">
-            Import copies supported cookies only; passkeys, passwords, and local storage are not
-            transferred. Linux Secret Service requires secret-tool and an unlocked keyring. Windows
-            App-Bound (v20) cookies are unsupported and will be reported as skipped.
-          </p>
-          <div className="flex items-center justify-end gap-2 pt-3 border-t border-border/40">
+            </fieldset>
+            <DialogDetails title="More options">
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <label htmlFor="browser-profile-id" className="text-xs font-medium">
+                    Identifier
+                  </label>
+                  <Input
+                    id="browser-profile-id"
+                    value={idDraft}
+                    onChange={(e) => setIdDraft(slugifyProfileId(e.target.value))}
+                    disabled={Boolean(editingProfile)}
+                    placeholder="work"
+                    className="text-xs h-9 font-mono"
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Generated from the name. Cannot change after creation.
+                  </p>
+                </div>
+                <div className="space-y-1.5">
+                  <label htmlFor="browser-profile-note" className="text-xs font-medium">
+                    Note <span className="text-muted-foreground">(optional)</span>
+                  </label>
+                  <Input
+                    id="browser-profile-note"
+                    value={descriptionDraft}
+                    onChange={(e) => setDescriptionDraft(e.target.value)}
+                    placeholder="What this profile is for"
+                    className="text-xs h-9"
+                  />
+                </div>
+              </div>
+            </DialogDetails>
+          </DialogPanel>
+          <DialogFooter variant="bare">
             <Button variant="ghost" size="sm" onClick={() => setModalOpen(false)}>
               Cancel
             </Button>
             <Button size="sm" onClick={handleSaveProfile} disabled={!labelDraft.trim()}>
-              {editingProfile ? "Save Changes" : "Create Profile"}
+              {editingProfile ? "Save" : "Create profile"}
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -1407,12 +1389,11 @@ export function BrowserProfilesSettings() {
               Import Browser Session
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
-              Import existing login cookies from an installed browser directly into an isolated Tabs
-              profile. Passwords and browsing history are never read.
+              Copy login cookies from an installed browser. Passwords and history stay untouched.
             </DialogDescription>
           </DialogHeader>
 
-          <DialogPanel className="space-y-4 px-6 py-2 text-xs">
+          <DialogPanel className="space-y-3 py-2 text-xs">
             {importSources.length === 0 ? (
               <div className="p-4 border rounded-md border-dashed text-center text-muted-foreground">
                 No supported desktop browsers detected on this system.
@@ -1517,12 +1498,6 @@ export function BrowserProfilesSettings() {
                             ))}
                           </SelectPopup>
                         </Select>
-                        <span className="text-[11px] text-muted-foreground mt-1.5 block">
-                          Cookies will be imported into partition:{" "}
-                          <code className="font-mono text-foreground font-medium">
-                            persist:tabs-browser:profile:{importTargetProfileId}
-                          </code>
-                        </span>
                       </div>
                     </>
                   );
@@ -1530,11 +1505,16 @@ export function BrowserProfilesSettings() {
               </>
             )}
 
-            <p className="text-xs text-muted-foreground pt-1 leading-relaxed">
-              Import copies supported cookies only; passkeys, passwords, and local storage are not
-              transferred. Linux Secret Service requires secret-tool and an unlocked keyring.
-              Windows App-Bound (v20) cookies are unsupported and will be reported as skipped.
+            <p className="text-xs text-muted-foreground">
+              Only supported cookies are copied. Passkeys, passwords and local storage stay in the
+              source browser.
             </p>
+            <DialogDetails title="Import compatibility">
+              <p className="pt-2 leading-relaxed">
+                Linux requires secret-tool and an unlocked keyring. Windows App-Bound (v20) cookies
+                are skipped.
+              </p>
+            </DialogDetails>
           </DialogPanel>
 
           <DialogFooter>

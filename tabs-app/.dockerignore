@@ -1,0 +1,17 @@
+**/node_modules
+**/.env
+**/.env.*
+**/.neon
+**/.git
+**/.test-data
+**/.git-redesign
+**/src.backup
+**/target
+**/dist
+**/developer-releases
+**/coverage
+**/.turbo
+**/.vite
+**/.DS_Store
+.repos
+.worktrees

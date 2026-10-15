@@ -1,4 +1,6 @@
-import type { ReactNode } from "react";
+import { isValidElement, Children, type ReactNode } from "react";
+import { SunMoon, Moon, Sun, Clock3 } from "lucide-react";
+import { OrbitGroup } from "./orbit-group";
 import { cn } from "../../lib/utils";
 
 export interface SegmentOption<T extends string> {
@@ -6,6 +8,19 @@ export interface SegmentOption<T extends string> {
   label: ReactNode;
   ariaLabel?: string;
   disabled?: boolean;
+  icon?: ReactNode;
+}
+
+function labelIcon(label: ReactNode): ReactNode | undefined {
+  if (!isValidElement(label)) return undefined;
+  const props = label.props as { size?: number; children?: ReactNode };
+  if (label.type === "svg" || (typeof label.type !== "string" && typeof props.size === "number"))
+    return label;
+  for (const child of Children.toArray(props.children)) {
+    const icon = labelIcon(child);
+    if (icon) return icon;
+  }
+  return undefined;
 }
 
 export function SegmentedControl<T extends string>({
@@ -15,6 +30,8 @@ export function SegmentedControl<T extends string>({
   className,
   itemClassName,
   size = "default",
+  orbitKind,
+  itemRole = "radio",
   "aria-label": ariaLabel,
 }: {
   value: T;
@@ -23,13 +40,49 @@ export function SegmentedControl<T extends string>({
   className?: string;
   itemClassName?: string;
   size?: "sm" | "default";
+  orbitKind?: "spotlight" | "theme" | "time" | "icons";
+  itemRole?: "button" | "radio";
   "aria-label"?: string;
 }) {
+  const icons = options.map((option) => option.icon ?? labelIcon(option.label));
+  const kind =
+    orbitKind !== undefined
+      ? orbitKind
+      : icons.length > 0 && icons.every(Boolean)
+        ? "icons"
+        : "spotlight";
+  const selectedSymbol = icons[options.findIndex((option) => option.value === value)];
+  const selectedIndex = options.findIndex((option) => option.value === value && !option.disabled);
+  const tabStop =
+    selectedIndex >= 0 ? selectedIndex : options.findIndex((option) => !option.disabled);
   return (
-    <div
-      role="radiogroup"
+    <OrbitGroup
+      orbitKind={kind}
+      symbol={
+        kind === "theme" ? (
+          value === "dark" ? (
+            <Moon size={17} />
+          ) : value === "light" ? (
+            <Sun size={17} />
+          ) : (
+            <SunMoon size={17} />
+          )
+        ) : kind === "time" ? (
+          value === "12-hour" ? (
+            "12"
+          ) : value === "24-hour" ? (
+            "24"
+          ) : (
+            <Clock3 size={17} />
+          )
+        ) : kind === "icons" ? (
+          selectedSymbol
+        ) : undefined
+      }
+      role={itemRole === "button" ? "group" : "radiogroup"}
+      data-current={value}
       aria-label={ariaLabel}
-      className={cn("tabs-segmented inline-flex items-center select-none", className)}
+      className={cn("tabs-segmented inline-flex items-center rounded-lg select-none", className)}
     >
       {options.map((opt, index) => {
         const isSelected = opt.value === value;
@@ -37,10 +90,12 @@ export function SegmentedControl<T extends string>({
           <button
             key={opt.value}
             type="button"
-            role="radio"
-            aria-checked={isSelected}
+            role={itemRole}
+            aria-pressed={itemRole === "button" ? isSelected : undefined}
+            aria-checked={itemRole === "radio" ? isSelected : undefined}
+            data-value={opt.value}
             aria-label={opt.ariaLabel}
-            tabIndex={isSelected ? 0 : -1}
+            tabIndex={index === tabStop ? 0 : -1}
             disabled={opt.disabled}
             onClick={() => onValueChange(opt.value)}
             onKeyDown={(event) => {
@@ -66,19 +121,19 @@ export function SegmentedControl<T extends string>({
               }
             }}
             className={cn(
-              "font-semibold rounded-md transition-all whitespace-nowrap cursor-pointer flex items-center justify-center gap-1.5",
-              size === "sm" ? "px-2 py-1 text-xs" : "px-3 py-1.5 text-xs",
+              "font-medium rounded-md transition-colors whitespace-nowrap cursor-pointer flex items-center justify-center gap-1.5",
+              size === "sm" ? "px-2.5 py-1 text-xs" : "px-3.5 py-1.5 text-xs",
               isSelected
-                ? "font-semibold"
+                ? "text-foreground"
                 : "text-muted-foreground hover:text-foreground hover:bg-muted/40",
               opt.disabled && "opacity-50 cursor-not-allowed",
               itemClassName,
             )}
           >
-            {opt.label}
+            <span className="orbit-label">{opt.label}</span>
           </button>
         );
       })}
-    </div>
+    </OrbitGroup>
   );
 }

@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { parseUserStory } from "./storyImporter";
+import { parseUserStory } from "./storyImporter.ts";
 
 describe("user story import", () => {
   it("accepts pasted text and preserves a local provenance label", async () => {

@@ -1,0 +1,483 @@
+/* A temporary product skin. All selectors disappear when the Labs switch is off. */
+html[data-interface-study] {
+  color-scheme: dark;
+}
+html[data-interface-study="light"] {
+  color-scheme: light;
+}
+html[data-interface-study] :is([data-slot="workspace-tabbar"], [data-slot="workspace-toolbar"]) {
+  background: var(--background);
+  border-color: var(--border);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+html[data-interface-study] [data-slot="workspace-tabbar"] {
+  padding-top: 6px;
+}
+html[data-interface-study] [data-slot="workspace-tabbar"] button {
+  box-shadow: none;
+}
+html[data-interface-study] [data-slot="workspace-toolbar"] {
+  padding-block: 6px;
+}
+html[data-interface-study]
+  :is([data-slot="button"], [data-slot="toggle-group"], [data-slot="toggle-group-item"]) {
+  box-shadow: none;
+}
+html[data-interface-study]
+  :is(
+    [data-slot="card"],
+    [data-slot="dialog-popup"],
+    [data-slot="popover-popup"],
+    [data-slot="menu-popup"]
+  ) {
+  background: var(--card);
+  color: var(--card-foreground);
+  border-color: var(--border);
+  border-radius: 14px;
+}
+html[data-interface-study] :is([data-slot="sidebar-inner"], [data-slot="sidebar-inset"]) {
+  background: var(--background);
+}
+html[data-interface-study] [data-slot="sidebar-menu-button"] {
+  border-radius: 999px;
+}
+html[data-interface-study] [data-slot="card"] {
+  box-shadow: none;
+}
+html[data-interface-study] [data-slot="input"] {
+  box-shadow: none;
+  background: var(--card);
+  border-color: var(--border);
+}
+html[data-interface-study] [data-slot="tabs-list"] {
+  box-shadow: none;
+  background: var(--muted);
+}
+html[data-interface-study] [data-slot="tabs-trigger"][data-active] {
+  background: var(--accent);
+  color: var(--foreground);
+  box-shadow: none;
+}
+
+/* Modern segmented control styling for Interface Study (matching Image 1) */
+html[data-interface-study] .tabs-segmented.orbit-group {
+  height: auto !important;
+  background: color-mix(in srgb, var(--foreground) 6%, var(--card));
+  border: 1px solid var(--border);
+  border-radius: 9999px !important;
+  padding: 3px !important;
+  box-shadow: none;
+}
+html[data-interface-study="light"] .tabs-segmented.orbit-group {
+  background: #eceae3;
+  border-color: #dfdcd3;
+}
+html[data-interface-study="dark"] .tabs-segmented.orbit-group {
+  background: #141416;
+  border-color: rgba(255, 255, 255, 0.12);
+}
+html[data-interface-study] .orbit-group > .orbit-orb {
+  border-radius: 9999px !important;
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.12),
+    0 1px 2px rgba(0, 0, 0, 0.08);
+  z-index: 0;
+}
+html[data-interface-study="light"] .orbit-group > .orbit-orb {
+  background: #ffffff !important;
+  color: #18181b !important;
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.08),
+    0 1px 2px rgba(0, 0, 0, 0.04);
+}
+html[data-interface-study="dark"] .orbit-group > .orbit-orb {
+  background: #f4f4f0 !important;
+  color: #121212 !important;
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.4),
+    0 1px 2px rgba(0, 0, 0, 0.2);
+}
+html[data-interface-study] .orbit-group[data-orbit-kind="spotlight"] > .orbit-orb {
+  background: inherit;
+}
+html[data-interface-study="dark"] .orbit-group[data-orbit-kind="spotlight"] > .orbit-orb {
+  background: #f4f4f0 !important;
+  color: #121212 !important;
+}
+html[data-interface-study] .tabs-segmented.orbit-group > button {
+  border-radius: 9999px !important;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  padding: 5px 12px;
+  transition: color 150ms ease;
+}
+html[data-interface-study="dark"] .tabs-segmented.orbit-group > button {
+  color: #a1a1aa !important;
+}
+html[data-interface-study="dark"] .tabs-segmented.orbit-group > button:hover {
+  color: #ffffff !important;
+}
+html[data-interface-study="light"] .tabs-segmented.orbit-group > button {
+  color: #686762 !important;
+}
+html[data-interface-study="light"] .tabs-segmented.orbit-group > button:hover {
+  color: #18181b !important;
+}
+html[data-interface-study="dark"]
+  .tabs-segmented.orbit-group
+  > :is(button[aria-pressed="true"], button[aria-checked="true"], button[aria-selected="true"]) {
+  color: #121212 !important;
+  font-weight: 600 !important;
+}
+html[data-interface-study="light"]
+  .tabs-segmented.orbit-group
+  > :is(button[aria-pressed="true"], button[aria-checked="true"], button[aria-selected="true"]) {
+  color: #18181b !important;
+  font-weight: 600 !important;
+}
+html[data-interface-study] .orbit-group[data-orbit-kind="spotlight"]::before {
+  display: none;
+}
+
+/* Clean, modern workspace tab bar and toolbar inspired by the Settings page design system. */
+html[data-interface-study] [data-slot="workspace-tabbar"] {
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  margin: 0;
+  padding: 8px 16px 8px;
+  gap: 6px;
+  background: var(--background);
+  backdrop-filter: none;
+}
+html[data-interface-study] [data-slot="workspace-tabbar"] > div:first-child {
+  gap: 6px;
+  align-items: center;
+}
+html[data-interface-study] [data-slot="workspace-project-tab"] {
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 6px 14px;
+  margin-bottom: 0;
+  min-height: 32px;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  transition: all 160ms cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: none;
+}
+html[data-interface-study] [data-slot="workspace-project-tab"]:hover {
+  background: color-mix(in srgb, var(--foreground) 7%, transparent);
+  color: var(--foreground);
+}
+html[data-interface-study] [data-slot="workspace-project-tab"][data-active="true"] {
+  background: var(--card);
+  border-color: var(--border);
+  color: var(--foreground);
+  font-weight: 600;
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.08),
+    0 4px 12px -2px rgba(0, 0, 0, 0.05);
+}
+html[data-interface-study="light"] [data-slot="workspace-project-tab"][data-active="true"] {
+  background: #ffffff;
+  border-color: #e2e0d8;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    0 4px 14px -2px rgba(0, 0, 0, 0.06);
+}
+html[data-interface-study] [data-slot="workspace-project-tab"] [class*="text-muted-foreground"] {
+  color: inherit;
+}
+html[data-interface-study] [data-slot="workspace-toolbar-shell"] {
+  background: var(--background);
+  border-bottom: 1px solid var(--border);
+  padding: 8px 16px;
+}
+html[data-interface-study] [data-slot="workspace-toolbar"] {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px;
+  gap: 2px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+html[data-interface-study="light"] [data-slot="workspace-toolbar"] {
+  background: #ffffff;
+  border-color: #e2e0d8;
+}
+html[data-interface-study] [data-slot="workspace-toolbar"] .active-pill {
+  display: block;
+  border-radius: 999px;
+  background: var(--foreground);
+  border: 0;
+  box-shadow: 0 2px 8px -2px rgba(0, 0, 0, 0.25);
+  z-index: 2;
+  transition:
+    transform 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    width 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+html[data-interface-study] [data-slot="workspace-toolbar"] .active-pill::before,
+html[data-interface-study] [data-slot="workspace-toolbar"] .active-pill::after {
+  display: none;
+}
+html[data-interface-study] [data-slot="workspace-toolbar"] .nav-tab {
+  background: transparent;
+  color: var(--muted-foreground);
+  border: 0;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 12.5px;
+  font-weight: 500;
+  transition: color 150ms ease;
+  position: relative;
+  z-index: 10;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+html[data-interface-study] [data-slot="workspace-toolbar"] .nav-tab:hover {
+  color: var(--foreground);
+}
+html[data-interface-study] [data-slot="workspace-toolbar"] .nav-tab.active,
+html[data-interface-study] [data-slot="workspace-toolbar"].design-solid .nav-tab.active {
+  color: var(--background) !important;
+  font-weight: 600;
+  text-shadow: none;
+}
+html[data-interface-study] [data-slot="workspace-toolbar"] .nav-tab.active svg {
+  color: var(--background) !important;
+  stroke: currentColor !important;
+  stroke-width: 2.25;
+}
+html[data-interface-study] [data-slot="workspace-toolbar-shell"] button {
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 500;
+  transition: all 150ms ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-interface-study] [data-slot="workspace-toolbar"] .active-pill {
+    transition: none;
+  }
+  .study-tool-tab-indicator,
+  .study-project-deck {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Interface Study Top Bar & Framing (inspired by "Tabs IDE · Frame" prototype)
+   ───────────────────────────────────────────────────────────────────────────── */
+html[data-interface-study="light"] {
+  --background: #eae8e1;
+}
+
+html[data-interface-study="dark"] {
+  --background: #0f1015;
+}
+
+.study-topbar-header {
+  position: relative;
+  z-index: 20;
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 52px;
+  height: 52px;
+  background: #eae8e1;
+  color: var(--foreground);
+  border-bottom: none !important;
+}
+
+html[data-interface-study="dark"] .study-topbar-header {
+  background: #0f1015;
+  border-bottom: none !important;
+}
+
+html[data-interface-study="light"] .study-topbar-header {
+  background: #eae8e1;
+  border-bottom: none !important;
+}
+
+/* Tools Nav as Integrated Browser Tabs */
+.study-tools-nav {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: safe center;
+  gap: 8px;
+  height: 100%;
+  padding: 0 8px;
+  margin: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  background: transparent !important;
+  border: none !important;
+}
+
+.study-tools-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.study-tool-tab-indicator {
+  display: none !important;
+}
+
+.study-tool-tab {
+  flex-shrink: 0;
+  position: relative;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 38px;
+  padding: 0 16px;
+  font-family: var(--font-sans, "Bricolage Grotesque", system-ui, sans-serif);
+  font-weight: 500;
+  font-size: 13px;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  color: var(--muted-foreground);
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 12px 12px 0 0;
+  transition:
+    color 150ms ease,
+    background 150ms ease;
+  user-select: none;
+  cursor: pointer;
+}
+
+.study-tool-tab:hover {
+  color: var(--foreground);
+  background: rgba(0, 0, 0, 0.04);
+}
+
+html[data-interface-study="dark"] .study-tool-tab:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.study-tool-tab:hover .study-tool-tab-icon {
+  color: var(--foreground);
+}
+
+.study-tool-tab.active {
+  z-index: 10;
+  color: var(--foreground) !important;
+  font-weight: 700;
+  background: #ffffff !important;
+  border: none !important;
+  margin-bottom: 0;
+}
+
+html[data-interface-study="dark"] .study-tool-tab.active {
+  background: #22242a !important;
+  border: none !important;
+  margin-bottom: 0;
+}
+
+.study-tool-tab.active .study-tool-tab-icon {
+  color: var(--foreground) !important;
+}
+
+.study-tool-tab.active .study-tool-tab-icon svg {
+  stroke: var(--foreground) !important;
+  stroke-width: 2.3 !important;
+}
+
+.study-tab-fillet {
+  color: #ffffff;
+}
+
+html[data-interface-study="light"] .study-tab-fillet {
+  color: #ffffff;
+}
+
+html[data-interface-study="dark"] .study-tab-fillet {
+  color: #22242a;
+}
+
+html[data-interface-study="light"] .study-tab-fillet path[stroke] {
+  display: none;
+}
+
+html[data-interface-study="dark"] .study-tab-fillet path[stroke] {
+  display: none;
+}
+
+/* Project switcher button in Interface Study */
+.study-project-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 12px 5px 6px;
+  border-radius: 18px;
+  transition: background 160ms ease;
+  cursor: pointer;
+  user-select: none;
+}
+
+.study-project-button:hover,
+.study-project-button[aria-expanded="true"] {
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+}
+
+/* Project deck dropdown */
+.study-project-deck {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  width: min(340px, calc(100vw - 32px));
+  background: var(--card);
+  color: var(--card-foreground);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  padding: 8px;
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.25),
+    0 0 0 1px var(--border);
+  z-index: 50;
+  transform-origin: 20% 0;
+  animation: study-pop 240ms cubic-bezier(0.2, 1.2, 0.3, 1) both;
+}
+
+@keyframes study-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.94) translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Main workspace card below topbar in Interface Study */
+.study-workspace-card {
+  background: var(--card) !important;
+  border-top-left-radius: 28px !important;
+  border-top-right-radius: 28px !important;
+  border: none !important;
+  overflow: hidden !important;
+  box-shadow: none !important;
+}
+
+html[data-interface-study="light"] .study-workspace-card {
+  background: #ffffff !important;
+  --background: #ffffff;
+}
+
+html[data-interface-study="dark"] .study-workspace-card {
+  background: #22242a !important;
+  --background: #22242a;
+}

@@ -192,8 +192,7 @@ function getMenuActionDisabledReason({
 }
 
 const COMMIT_DIALOG_TITLE = "Commit changes";
-const COMMIT_DIALOG_DESCRIPTION =
-  "Review and confirm your commit. Leave the message blank to auto-generate one.";
+const COMMIT_DIALOG_DESCRIPTION = "Leave the message blank to generate one.";
 
 function GitActionItemIcon({ icon }: { icon: GitActionIconName }) {
   if (icon === "commit") return <GitCommitIcon className="size-4 shrink-0 text-foreground" />;
@@ -766,7 +765,7 @@ export default function GitActionsControl({
           type="button"
           disabled={initMutation.isPending}
           onClick={() => initMutation.mutate()}
-          className="inline-flex h-7 items-center justify-center rounded-lg border border-border/80 bg-background px-2.5 text-xs font-medium text-foreground hover:bg-accent/40 hover:border-border transition-colors disabled:opacity-50 shadow-2xs shrink-0"
+          className="flex h-8 w-full items-center justify-center rounded-lg border border-border/80 bg-background px-2.5 text-xs font-medium text-foreground hover:bg-accent/40 hover:border-border transition-colors disabled:opacity-50 shadow-2xs"
         >
           {initMutation.isPending ? "Initializing..." : "Initialize Git"}
         </button>
@@ -774,7 +773,7 @@ export default function GitActionsControl({
         <div
           role="group"
           aria-label="Git actions"
-          className="inline-flex h-7 items-center rounded-lg border border-border/80 bg-background hover:bg-accent/40 hover:border-border transition-colors shadow-2xs shrink-0 text-foreground"
+          className="flex h-8 w-full items-center rounded-lg border border-border/80 bg-background hover:bg-accent/40 hover:border-border transition-colors shadow-2xs text-foreground"
         >
           {quickActionDisabledReason ? (
             <Popover>
@@ -785,7 +784,7 @@ export default function GitActionsControl({
                     type="button"
                     aria-disabled="true"
                     aria-label={`Git: ${quickAction.label}`}
-                    className="flex h-full items-center justify-center gap-1.5 rounded-l-[7px] px-2 text-xs font-medium text-muted-foreground/60 cursor-not-allowed opacity-60 focus-visible:outline-none"
+                    className="flex h-full flex-1 items-center justify-center gap-1.5 rounded-l-[8px] px-3 text-xs font-medium text-muted-foreground/60 cursor-not-allowed opacity-60 focus-visible:outline-none"
                   />
                 }
               >
@@ -806,7 +805,7 @@ export default function GitActionsControl({
                     onClick={runQuickAction}
                     aria-label={`Git: ${quickAction.label}`}
                     title={`Git: ${quickAction.label}`}
-                    className="flex h-full items-center justify-center gap-1.5 rounded-l-[7px] px-2 text-xs font-medium text-foreground hover:bg-accent/60 transition-colors disabled:opacity-40 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    className="flex h-full flex-1 items-center justify-center gap-1.5 rounded-l-[8px] px-3 text-xs font-medium text-foreground hover:bg-accent/60 transition-colors disabled:opacity-40 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   />
                 }
               >

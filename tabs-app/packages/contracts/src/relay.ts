@@ -164,6 +164,34 @@ export const RelayManagedEndpointRuntimeConfig = Schema.Struct({
 });
 export type RelayManagedEndpointRuntimeConfig = typeof RelayManagedEndpointRuntimeConfig.Type;
 
+export const RelayManagedEndpointRecoveryRequest = Schema.Struct({
+  cloudUserId: TrimmedNonEmptyString,
+  origin: RelayManagedEndpointOrigin,
+  proof: TrimmedNonEmptyString,
+});
+export type RelayManagedEndpointRecoveryRequest = typeof RelayManagedEndpointRecoveryRequest.Type;
+
+export const RelayManagedEndpointRecoveryRegistrationRequest = Schema.Struct({
+  cloudUserId: TrimmedNonEmptyString,
+  tunnelId: TrimmedNonEmptyString,
+  origin: RelayManagedEndpointOrigin,
+  proof: TrimmedNonEmptyString,
+});
+export type RelayManagedEndpointRecoveryRegistrationRequest =
+  typeof RelayManagedEndpointRecoveryRegistrationRequest.Type;
+
+export const RelayManagedEndpointRecoveryRegistrationResponse = Schema.Struct({
+  status: Schema.Literals(["ready", "recovery_required"]),
+});
+export type RelayManagedEndpointRecoveryRegistrationResponse =
+  typeof RelayManagedEndpointRecoveryRegistrationResponse.Type;
+
+export const RelayManagedEndpointRecoveryResponse = Schema.Struct({
+  endpoint: RelayManagedEndpoint,
+  endpointRuntime: RelayManagedEndpointRuntimeConfig,
+});
+export type RelayManagedEndpointRecoveryResponse = typeof RelayManagedEndpointRecoveryResponse.Type;
+
 export const RelayLinkProofRequest = Schema.Struct({
   challenge: Schema.String,
   relayIssuer: Schema.String,
@@ -190,6 +218,26 @@ const RelaySignedJwtRegisteredClaims = {
   iat: Schema.Int,
   exp: Schema.Int,
 } as const;
+
+export const RelayManagedEndpointRecoveryProofPayload = Schema.Union([
+  Schema.Struct({
+    ...RelaySignedJwtRegisteredClaims,
+    action: Schema.Literal("register"),
+    environmentId: EnvironmentId,
+    cloudUserId: TrimmedNonEmptyString,
+    tunnelId: TrimmedNonEmptyString,
+    origin: RelayManagedEndpointOrigin,
+  }),
+  Schema.Struct({
+    ...RelaySignedJwtRegisteredClaims,
+    action: Schema.Literal("recover"),
+    environmentId: EnvironmentId,
+    cloudUserId: TrimmedNonEmptyString,
+    origin: RelayManagedEndpointOrigin,
+  }),
+]);
+export type RelayManagedEndpointRecoveryProofPayload =
+  typeof RelayManagedEndpointRecoveryProofPayload.Type;
 
 export const RelayAgentActivityPublishProofPayload = Schema.Struct({
   ...RelaySignedJwtRegisteredClaims,
@@ -338,7 +386,7 @@ export const RelayInternalErrorReason = Schema.Literals([
 ]);
 export type RelayInternalErrorReason = typeof RelayInternalErrorReason.Type;
 
-export class RelayAuthInvalidError extends Schema.TaggedErrorClass<RelayAuthInvalidError>()(
+export class RelayAuthInvalidError extends Schema.TaggedError<RelayAuthInvalidError>()(
   "RelayAuthInvalidError",
   {
     code: Schema.Literal("auth_invalid"),
@@ -354,7 +402,7 @@ export class RelayAuthInvalidError extends Schema.TaggedErrorClass<RelayAuthInva
   }
 }
 
-export class RelayEnvironmentLinkProofExpiredError extends Schema.TaggedErrorClass<RelayEnvironmentLinkProofExpiredError>()(
+export class RelayEnvironmentLinkProofExpiredError extends Schema.TaggedError<RelayEnvironmentLinkProofExpiredError>()(
   "RelayEnvironmentLinkProofExpiredError",
   {
     code: Schema.Literal("environment_link_proof_expired"),
@@ -367,7 +415,7 @@ export class RelayEnvironmentLinkProofExpiredError extends Schema.TaggedErrorCla
   }
 }
 
-export class RelayEnvironmentLinkProofInvalidError extends Schema.TaggedErrorClass<RelayEnvironmentLinkProofInvalidError>()(
+export class RelayEnvironmentLinkProofInvalidError extends Schema.TaggedError<RelayEnvironmentLinkProofInvalidError>()(
   "RelayEnvironmentLinkProofInvalidError",
   {
     code: Schema.Literal("environment_link_proof_invalid"),
@@ -394,7 +442,7 @@ export const RelayEnvironmentConnectNotAuthorizedReason = Schema.Literals([
 export type RelayEnvironmentConnectNotAuthorizedReason =
   typeof RelayEnvironmentConnectNotAuthorizedReason.Type;
 
-export class RelayEnvironmentConnectNotAuthorizedError extends Schema.TaggedErrorClass<RelayEnvironmentConnectNotAuthorizedError>()(
+export class RelayEnvironmentConnectNotAuthorizedError extends Schema.TaggedError<RelayEnvironmentConnectNotAuthorizedError>()(
   "RelayEnvironmentConnectNotAuthorizedError",
   {
     code: Schema.Literal("environment_connect_not_authorized"),
@@ -412,7 +460,7 @@ export class RelayEnvironmentConnectNotAuthorizedError extends Schema.TaggedErro
   }
 }
 
-export class RelayEnvironmentEndpointUnavailableError extends Schema.TaggedErrorClass<RelayEnvironmentEndpointUnavailableError>()(
+export class RelayEnvironmentEndpointUnavailableError extends Schema.TaggedError<RelayEnvironmentEndpointUnavailableError>()(
   "RelayEnvironmentEndpointUnavailableError",
   {
     code: Schema.Literal("environment_endpoint_unavailable"),
@@ -426,7 +474,7 @@ export class RelayEnvironmentEndpointUnavailableError extends Schema.TaggedError
   }
 }
 
-export class RelayEnvironmentEndpointTimedOutError extends Schema.TaggedErrorClass<RelayEnvironmentEndpointTimedOutError>()(
+export class RelayEnvironmentEndpointTimedOutError extends Schema.TaggedError<RelayEnvironmentEndpointTimedOutError>()(
   "RelayEnvironmentEndpointTimedOutError",
   {
     code: Schema.Literal("environment_endpoint_timed_out"),
@@ -439,7 +487,7 @@ export class RelayEnvironmentEndpointTimedOutError extends Schema.TaggedErrorCla
   }
 }
 
-export class RelayEnvironmentLinkFailedError extends Schema.TaggedErrorClass<RelayEnvironmentLinkFailedError>()(
+export class RelayEnvironmentLinkFailedError extends Schema.TaggedError<RelayEnvironmentLinkFailedError>()(
   "RelayEnvironmentLinkFailedError",
   {
     code: Schema.Literal("environment_link_failed"),
@@ -453,7 +501,7 @@ export class RelayEnvironmentLinkFailedError extends Schema.TaggedErrorClass<Rel
   }
 }
 
-export class RelayEnvironmentLinkUnavailableError extends Schema.TaggedErrorClass<RelayEnvironmentLinkUnavailableError>()(
+export class RelayEnvironmentLinkUnavailableError extends Schema.TaggedError<RelayEnvironmentLinkUnavailableError>()(
   "RelayEnvironmentLinkUnavailableError",
   {
     code: Schema.Literal("environment_link_unavailable"),
@@ -467,7 +515,7 @@ export class RelayEnvironmentLinkUnavailableError extends Schema.TaggedErrorClas
   }
 }
 
-export class RelayEnvironmentLinkLimitExceededError extends Schema.TaggedErrorClass<RelayEnvironmentLinkLimitExceededError>()(
+export class RelayEnvironmentLinkLimitExceededError extends Schema.TaggedError<RelayEnvironmentLinkLimitExceededError>()(
   "RelayEnvironmentLinkLimitExceededError",
   {
     code: Schema.Literal("environment_link_limit_exceeded"),
@@ -481,7 +529,7 @@ export class RelayEnvironmentLinkLimitExceededError extends Schema.TaggedErrorCl
   }
 }
 
-export class RelayAgentActivityPublishProofExpiredError extends Schema.TaggedErrorClass<RelayAgentActivityPublishProofExpiredError>()(
+export class RelayAgentActivityPublishProofExpiredError extends Schema.TaggedError<RelayAgentActivityPublishProofExpiredError>()(
   "RelayAgentActivityPublishProofExpiredError",
   {
     code: Schema.Literal("agent_activity_publish_proof_expired"),
@@ -494,7 +542,7 @@ export class RelayAgentActivityPublishProofExpiredError extends Schema.TaggedErr
   }
 }
 
-export class RelayAgentActivityPublishProofInvalidError extends Schema.TaggedErrorClass<RelayAgentActivityPublishProofInvalidError>()(
+export class RelayAgentActivityPublishProofInvalidError extends Schema.TaggedError<RelayAgentActivityPublishProofInvalidError>()(
   "RelayAgentActivityPublishProofInvalidError",
   {
     code: Schema.Literal("agent_activity_publish_proof_invalid"),
@@ -508,7 +556,7 @@ export class RelayAgentActivityPublishProofInvalidError extends Schema.TaggedErr
   }
 }
 
-export class RelayInternalError extends Schema.TaggedErrorClass<RelayInternalError>()(
+export class RelayInternalError extends Schema.TaggedError<RelayInternalError>()(
   "RelayInternalError",
   {
     code: Schema.Literal("internal_error"),
@@ -839,6 +887,21 @@ export const RelayEnvironmentMintResponse = Schema.Struct({
 });
 export type RelayEnvironmentMintResponse = typeof RelayEnvironmentMintResponse.Type;
 
+/**
+ * Sent with every webhook the relay forwards, signed with the relay's mint key
+ * (`x-t3-relay-delivery`). The environment trusts the relay's delivery id,
+ * receive time and trace context only when this verifies, since its webhook
+ * URL can also be called directly.
+ */
+export const RelayHookDeliveryProofPayload = Schema.Struct({
+  ...RelaySignedJwtRegisteredClaims,
+  environmentId: EnvironmentId,
+  deliveryId: TrimmedNonEmptyString,
+  receivedAt: TrimmedNonEmptyString,
+  hookId: TrimmedNonEmptyString,
+});
+export type RelayHookDeliveryProofPayload = typeof RelayHookDeliveryProofPayload.Type;
+
 export const RelayDeliveryKind = Schema.Literals([
   "live_activity_start",
   "live_activity_update",
@@ -1061,6 +1124,18 @@ export const RelayDpopClientGroup = HttpApiGroup.make("dpopClient")
   .annotate(OpenApi.Description, "DPoP-authenticated client access to linked environments.")
   .middleware(RelayDpopClientAuth);
 
+export const RelayEnvironmentLinkPreferencesRequest = Schema.Struct({
+  holdWebhooksWhileOffline: Schema.Boolean,
+});
+export type RelayEnvironmentLinkPreferencesRequest =
+  typeof RelayEnvironmentLinkPreferencesRequest.Type;
+
+export const RelayWakeHeldHooksResponse = Schema.Struct({
+  /** True when the relay was holding requests and has started delivering them. */
+  pending: Schema.Boolean,
+});
+export type RelayWakeHeldHooksResponse = typeof RelayWakeHeldHooksResponse.Type;
+
 export const RelayServerGroup = HttpApiGroup.make("server")
   .add(
     HttpApiEndpoint.post(
@@ -1076,9 +1151,43 @@ export const RelayServerGroup = HttpApiGroup.make("server")
         error: RelayAgentActivityPublishErrors,
       },
     ).annotate(OpenApi.Summary, "Publish agent activity"),
+    HttpApiEndpoint.post(
+      "updateLinkPreferences",
+      "/v1/environments/:environmentId/link-preferences",
+      {
+        params: Schema.Struct({ environmentId: EnvironmentId }),
+        payload: RelayEnvironmentLinkPreferencesRequest,
+        success: RelayEnvironmentLinkPreferencesRequest,
+        error: RelayAuthAndInternalErrors,
+      },
+    ).annotate(OpenApi.Summary, "Update an environment's link preferences"),
+    HttpApiEndpoint.post("wakeHeldHooks", "/v1/environments/:environmentId/hooks/wake", {
+      params: Schema.Struct({ environmentId: EnvironmentId }),
+      success: RelayWakeHeldHooksResponse,
+      error: RelayAuthAndInternalErrors,
+    }).annotate(
+      OpenApi.Summary,
+      "Deliver webhook requests held while the environment was offline now",
+    ),
   )
   .annotate(OpenApi.Description, "Environment-authenticated activity publication.")
   .middleware(RelayEnvironmentAuth);
+
+const RelayHookParams = Schema.Struct({
+  endpointKey: Schema.String,
+  hookId: Schema.String,
+  token: Schema.String,
+});
+const RELAY_HOOK_PATH = "/v1/hooks/:endpointKey/:hookId/:token";
+const relayHookEndpoint = { params: RelayHookParams } as const;
+export const RelayHooksGroup = HttpApiGroup.make("hooks")
+  .add(
+    HttpApiEndpoint.post("forwardPost", RELAY_HOOK_PATH, relayHookEndpoint),
+    HttpApiEndpoint.put("forwardPut", RELAY_HOOK_PATH, relayHookEndpoint),
+    HttpApiEndpoint.patch("forwardPatch", RELAY_HOOK_PATH, relayHookEndpoint),
+    HttpApiEndpoint.get("forwardGet", RELAY_HOOK_PATH, relayHookEndpoint),
+  )
+  .annotate(OpenApi.Description, "Forward webhook requests to an environment.");
 
 export const RelayApi = HttpApi.make("RelayApi")
   .add(
@@ -1089,6 +1198,7 @@ export const RelayApi = HttpApi.make("RelayApi")
     RelayTokenGroup,
     RelayDpopClientGroup,
     RelayServerGroup,
+    RelayHooksGroup,
   )
   .annotate(OpenApi.Title, "Tabs Relay API")
   .annotate(OpenApi.Version, "1.0.0")

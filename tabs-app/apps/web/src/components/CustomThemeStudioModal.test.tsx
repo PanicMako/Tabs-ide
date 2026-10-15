@@ -19,6 +19,8 @@ import { AppAtomRegistryProvider, appAtomRegistry } from "../state/atomRegistry"
 import { clearAllDraftSources, settingsDraftRegistryAtom } from "../state/settingsDraftRegistry";
 
 vi.mock("./ui/dialog", () => ({
+  DialogTitle: ({ children, ...props }: any) => <h2 {...props}>{children}</h2>,
+  DialogDescription: ({ children, ...props }: any) => <p {...props}>{children}</p>,
   Dialog: ({ children, open }: any) => (open ? <div data-slot="dialog">{children}</div> : null),
   DialogPopup: ({ children, showCloseButton: _showCloseButton, ...props }: any) => (
     <div data-slot="dialog-popup" {...props}>

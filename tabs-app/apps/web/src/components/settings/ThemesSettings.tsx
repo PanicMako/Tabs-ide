@@ -43,11 +43,13 @@ import { CustomThemeStudioModal } from "../CustomThemeStudioModal";
 import { ThemeImportExportModal } from "../ThemeImportExportModal";
 import {
   DEFAULT_FONT_PREFERENCES,
+  getActiveFontCombo,
+  prepareCustomFontPreferences,
+  selectFontCombo,
   EDITOR_FONT_OPTIONS,
-  FONT_COMBOS,
-  HEADING_FONT_OPTIONS,
-  THEME_DEFINITIONS,
   UI_FONT_OPTIONS,
+  FONT_COMBOS,
+  THEME_DEFINITIONS,
   calculateContrastRatio,
   hexToHsv,
   hexToRgb,
@@ -58,6 +60,7 @@ import {
   type ThemePreference,
 } from "../../lib/themes";
 import { SettingsSection, SettingsSectionHeader } from "./SettingsLayout";
+import { SavedTypography } from "./SavedTypography";
 
 export interface SavedCustomPreset {
   id: string;
@@ -890,13 +893,8 @@ export function ThemesSettings() {
     });
   }, []);
 
-  const isCustomSelection = !FONT_COMBOS.some(
-    (combo) =>
-      combo.id !== "custom" &&
-      fontPreferences.uiFont === combo.uiFont &&
-      fontPreferences.headingFont === combo.headingFont,
-  );
-  const showCustomMixer = isCustomFontMode || isCustomSelection;
+  const isCustomSelection = getActiveFontCombo(fontPreferences).id === "custom";
+  const showCustomMixer = isCustomFontMode;
 
   return (
     <div className="space-y-6">
@@ -1027,7 +1025,7 @@ export function ThemesSettings() {
           {FONT_COMBOS.filter((c) => c.isNeutral).map((combo) => {
             const isCustomCombo = combo.id === "custom";
             const isActive = isCustomCombo
-              ? showCustomMixer
+              ? showCustomMixer || isCustomSelection
               : !showCustomMixer &&
                 fontPreferences.uiFont === combo.uiFont &&
                 fontPreferences.headingFont === combo.headingFont;
@@ -1039,13 +1037,10 @@ export function ThemesSettings() {
                 onClick={() => {
                   if (isCustomCombo) {
                     setIsCustomFontMode(true);
+                    setFontPreferences((prev) => prepareCustomFontPreferences(prev));
                   } else {
                     setIsCustomFontMode(false);
-                    setFontPreferences((prev) => ({
-                      ...prev,
-                      uiFont: combo.uiFont,
-                      headingFont: combo.headingFont,
-                    }));
+                    setFontPreferences((prev) => selectFontCombo(prev, combo));
                     updateSettings({ fontFamilySans: combo.uiFont });
                   }
                 }}
@@ -1093,9 +1088,7 @@ export function ThemesSettings() {
         <div className="p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
           {FONT_COMBOS.filter((c) => !c.isNeutral).map((combo) => {
             const isActive =
-              !showCustomMixer &&
-              fontPreferences.uiFont === combo.uiFont &&
-              fontPreferences.headingFont === combo.headingFont;
+              !showCustomMixer && getActiveFontCombo(fontPreferences).id === combo.id;
 
             return (
               <button
@@ -1103,13 +1096,11 @@ export function ThemesSettings() {
                 type="button"
                 onClick={() => {
                   setIsCustomFontMode(false);
-                  setFontPreferences((prev) => ({
-                    ...prev,
-                    uiFont: combo.uiFont,
-                    headingFont: combo.headingFont,
-                  }));
+                  setFontPreferences((prev) => selectFontCombo(prev, combo));
                   updateSettings({ fontFamilySans: combo.uiFont });
                 }}
+                aria-pressed={isActive}
+                aria-label={`Select ${combo.name}: ${combo.desc}`}
                 className={cn(
                   "group relative flex flex-col items-start rounded-xl border p-3.5 text-left transition-all duration-200 cursor-pointer overflow-hidden",
                   isActive
@@ -1133,35 +1124,53 @@ export function ThemesSettings() {
                   </div>
                 )}
 
-                <div className="mb-3 leading-none">
-                  <span
-                    className={cn("text-[28px] leading-none", combo.sansClass)}
-                    style={{
-                      fontFamily: combo.uiFont,
-                      color: "inherit",
-                    }}
-                  >
-                    {combo.sansText}
-                  </span>
-                  <span
-                    className={cn("text-[28px] leading-none", combo.serifClass)}
-                    style={{
-                      fontFamily: combo.headingFont,
-                      color: "inherit",
-                    }}
-                  >
-                    {combo.serifText}
-                  </span>
-                  {combo.sansText2 && (
-                    <span
-                      className={cn("text-[28px] leading-none", combo.sansClass)}
-                      style={{
-                        fontFamily: combo.uiFont,
-                        color: "inherit",
-                      }}
-                    >
-                      {combo.sansText2}
-                    </span>
+                <div className="mb-4 leading-none w-full">
+                  {combo.typography ? (
+                    <div className="text-[28px] leading-[1.05] tracking-tight min-h-[62px]">
+                      <span
+                        style={{
+                          fontFamily: combo.headingFont,
+                          fontWeight: combo.typography.headingWeight,
+                          letterSpacing: combo.typography.headingTracking,
+                          display: "block",
+                        }}
+                      >
+                        {combo.sansText}
+                      </span>
+                      <span
+                        style={{
+                          fontFamily: combo.typography.specimenFont,
+                          fontWeight: combo.typography.specimenWeight,
+                          fontStyle: combo.typography.specimenStyle,
+                          display: "block",
+                        }}
+                      >
+                        {combo.serifText}
+                      </span>
+                    </div>
+                  ) : (
+                    <div>
+                      <span
+                        className={cn("text-[28px] leading-none", combo.sansClass)}
+                        style={{ fontFamily: combo.uiFont }}
+                      >
+                        {combo.sansText}
+                      </span>
+                      <span
+                        className={cn("text-[28px] leading-none", combo.serifClass)}
+                        style={{ fontFamily: combo.headingFont }}
+                      >
+                        {combo.serifText}
+                      </span>
+                      {combo.sansText2 && (
+                        <span
+                          className={cn("text-[28px] leading-none", combo.sansClass)}
+                          style={{ fontFamily: combo.uiFont }}
+                        >
+                          {combo.sansText2}
+                        </span>
+                      )}
+                    </div>
                   )}
                 </div>
 
@@ -1196,101 +1205,18 @@ export function ThemesSettings() {
           })}
         </div>
 
-        {showCustomMixer && (
-          <div className="mx-4 my-2 p-4 rounded-xl border border-primary/40 bg-primary/5 space-y-3">
-            <div className="flex items-center justify-between">
-              <h4 className="text-xs font-semibold text-foreground uppercase tracking-wider">
-                Custom Typography Mixer
-              </h4>
-              <span className="text-[10px] text-muted-foreground font-medium">
-                Mix &amp; match any UI, heading, or editor font
-              </span>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
-              <div className="space-y-1.5 rounded-lg border border-border/60 bg-card/60 p-3">
-                <label className="text-xs font-semibold text-foreground block">
-                  Interface Font
-                </label>
-                <p className="text-[10px] text-muted-foreground line-clamp-1">
-                  UI labels, buttons, navigation
-                </p>
-                <Select
-                  value={fontPreferences.uiFont}
-                  onValueChange={(val) => {
-                    if (!val) return;
-                    setFontPreferences((prev) => ({ ...prev, uiFont: val }));
-                    updateSettings({ fontFamilySans: val });
-                  }}
-                >
-                  <SelectTrigger className="w-full text-xs rounded-lg bg-background border-border/80">
-                    <SelectValue placeholder="Select Interface Font" />
-                  </SelectTrigger>
-                  <SelectPopup align="start">
-                    {UI_FONT_OPTIONS.map((f) => (
-                      <SelectItem key={f.value} value={f.value} className="text-xs">
-                        {f.label}
-                      </SelectItem>
-                    ))}
-                  </SelectPopup>
-                </Select>
-              </div>
-
-              <div className="space-y-1.5 rounded-lg border border-border/60 bg-card/60 p-3">
-                <label className="text-xs font-semibold text-foreground block">Heading Font</label>
-                <p className="text-[10px] text-muted-foreground line-clamp-1">
-                  Headings, section titles, headers
-                </p>
-                <Select
-                  value={fontPreferences.headingFont}
-                  onValueChange={(val) =>
-                    val &&
-                    setFontPreferences((prev) => ({
-                      ...prev,
-                      headingFont: val,
-                    }))
-                  }
-                >
-                  <SelectTrigger className="w-full text-xs rounded-lg bg-background border-border/80">
-                    <SelectValue placeholder="Select Heading Font" />
-                  </SelectTrigger>
-                  <SelectPopup align="start">
-                    {HEADING_FONT_OPTIONS.map((f) => (
-                      <SelectItem key={f.value} value={f.value} className="text-xs">
-                        {f.label}
-                      </SelectItem>
-                    ))}
-                  </SelectPopup>
-                </Select>
-              </div>
-
-              <div className="space-y-1.5 rounded-lg border border-border/60 bg-card/60 p-3">
-                <label className="text-xs font-semibold text-foreground block">Editor Font</label>
-                <p className="text-[10px] text-muted-foreground line-clamp-1">
-                  Monospace code, terminals, inputs
-                </p>
-                <Select
-                  value={fontPreferences.editorFont}
-                  onValueChange={(val) => {
-                    if (!val) return;
-                    setFontPreferences((prev) => ({ ...prev, editorFont: val }));
-                    updateSettings({ fontFamilyCode: val });
-                  }}
-                >
-                  <SelectTrigger className="w-full text-xs rounded-lg bg-background border-border/80">
-                    <SelectValue placeholder="Select Editor Font" />
-                  </SelectTrigger>
-                  <SelectPopup align="start">
-                    {EDITOR_FONT_OPTIONS.map((f) => (
-                      <SelectItem key={f.value} value={f.value} className="text-xs">
-                        {f.label}
-                      </SelectItem>
-                    ))}
-                  </SelectPopup>
-                </Select>
-              </div>
-            </div>
-          </div>
-        )}
+        <SavedTypography
+          showMixer={showCustomMixer}
+          onCloseMixer={() => setIsCustomFontMode(false)}
+          fonts={fontPreferences}
+          onChange={(fonts) => {
+            setFontPreferences(fonts);
+            if (fonts.uiFont !== fontPreferences.uiFont)
+              updateSettings({ fontFamilySans: fonts.uiFont });
+            if (fonts.editorFont !== fontPreferences.editorFont)
+              updateSettings({ fontFamilyCode: fonts.editorFont });
+          }}
+        />
 
         {!showCustomMixer && (
           <div className="border-t border-border/60 px-4 py-4">
@@ -1620,6 +1546,10 @@ export function ThemesSettings() {
             uiFont: fontPreferences.uiFont,
             editorFont: fontPreferences.editorFont,
             headingFont: fontPreferences.headingFont || fontPreferences.uiFont,
+            ...(fontPreferences.sectionFont ? { sectionFont: fontPreferences.sectionFont } : {}),
+            ...(fontPreferences.supportingFont
+              ? { supportingFont: fontPreferences.supportingFont }
+              : {}),
           },
         };
         let exportName = editingStudioPresetName || "Custom Theme";
@@ -1640,6 +1570,12 @@ export function ThemesSettings() {
                 uiFont: fontPreferences.uiFont,
                 editorFont: fontPreferences.editorFont,
                 headingFont: fontPreferences.headingFont || fontPreferences.uiFont,
+                ...(fontPreferences.sectionFont
+                  ? { sectionFont: fontPreferences.sectionFont }
+                  : {}),
+                ...(fontPreferences.supportingFont
+                  ? { supportingFont: fontPreferences.supportingFont }
+                  : {}),
               },
             };
             exportName = def.name;

@@ -2,7 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { TestingService } from "./TestingService";
+import { TestingService } from "./TestingService.ts";
 
 describe("preview locator discovery", () => {
   it("captures the visible page, follows subpages, and preserves saved data on failed scans", async () => {

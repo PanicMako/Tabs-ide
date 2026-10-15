@@ -1,4 +1,5 @@
 import {
+  type CustomModelSetting,
   type GrokSettings,
   type ModelCapabilities,
   ProviderDriverKind,
@@ -23,11 +24,11 @@ import {
   providerModelsFromSettings,
   spawnAndCollect,
   type ServerProviderDraft,
-} from "../providerSnapshot";
+} from "../providerSnapshot.ts";
 import {
   enrichProviderSnapshotWithVersionAdvisory,
   type ProviderMaintenanceCapabilities,
-} from "../providerMaintenance";
+} from "../providerMaintenance.ts";
 
 const GROK_PRESENTATION = {
   displayName: "Grok",
@@ -87,7 +88,7 @@ export function buildInitialGrokProviderSnapshot(
 }
 
 function grokModelsFromSettings(
-  customModels: ReadonlyArray<string> | undefined,
+  customModels: ReadonlyArray<CustomModelSetting> | undefined,
   builtInModels: ReadonlyArray<ServerProviderModel> = [],
 ): ReadonlyArray<ServerProviderModel> {
   return providerModelsFromSettings(

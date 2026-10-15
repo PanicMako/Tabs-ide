@@ -1,3 +1,4 @@
+import { OrbitGroup } from "../ui/orbit-group";
 import type { DesktopSshPasswordPromptRequest } from "@tabs/contracts";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
@@ -7,7 +8,7 @@ import { SettingsSection } from "./SettingsLayout";
 import { toastManager } from "~/components/ui/toast";
 import { useConfirm } from "~/hooks/useConfirm";
 import { useTheme } from "~/hooks/useTheme";
-import { getActiveFontCombo } from "~/lib/themes";
+import { getActiveFontCombo, getFontComboPageHeading } from "~/lib/themes";
 import {
   Link2Icon,
   MonitorIcon,
@@ -311,9 +312,12 @@ export function ConnectionsSettings() {
           <h2
             className={cn(
               "text-[28px] leading-relaxed pb-1 text-foreground mb-2 font-bold",
-              activeFontCombo.sansClass,
+              getFontComboPageHeading(activeFontCombo).className,
             )}
-            style={{ fontFamily: "var(--font-sans)", textTransform: "capitalize" }}
+            style={{
+              fontFamily: getFontComboPageHeading(activeFontCombo).fontFamily,
+              textTransform: "capitalize",
+            }}
           >
             Connections
           </h2>
@@ -827,8 +831,8 @@ export function ConnectionsSettings() {
                   <DialogPanel className="space-y-6 pt-2 pb-3">
                     <>
                       {/* Connection Type Toggle */}
-                      <div
-                        className="tabs-segmented grid grid-cols-2"
+                      <OrbitGroup
+                        className="tabs-segmented grid grid-cols-2 rounded-full"
                         role="group"
                         aria-label="Connection type"
                       >
@@ -837,7 +841,7 @@ export function ConnectionsSettings() {
                           onClick={() => setAddMode("remote")}
                           aria-pressed={addMode === "remote"}
                           className={cn(
-                            "flex items-center justify-center gap-2 py-2 px-3 rounded-md text-xs font-semibold transition-all",
+                            "flex items-center justify-center gap-2 py-2 px-3 rounded-full text-xs font-semibold transition-all",
                             addMode === "remote"
                               ? "font-semibold"
                               : "text-muted-foreground hover:text-foreground",
@@ -851,16 +855,16 @@ export function ConnectionsSettings() {
                           onClick={() => setAddMode("ssh")}
                           aria-pressed={addMode === "ssh"}
                           className={cn(
-                            "flex items-center justify-center gap-2 py-2 px-3 rounded-md text-xs font-semibold transition-all",
+                            "flex items-center justify-center gap-2 py-2 px-3 rounded-full text-xs font-semibold transition-all",
                             addMode === "ssh"
                               ? "font-semibold"
                               : "text-muted-foreground hover:text-foreground",
                           )}
                         >
                           <TerminalIcon className="size-3.5" />
-                          SSH Connection
+                          SSH connection
                         </button>
-                      </div>
+                      </OrbitGroup>
 
                       {/* Fields */}
                       {addMode === "remote" ? (

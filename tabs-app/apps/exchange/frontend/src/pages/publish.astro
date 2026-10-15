@@ -1,0 +1,90 @@
+---
+import Account from "../layouts/Account.astro";
+import PublicationIllustration from "../components/PublicationIllustration.astro";
+import { extensionMarkPath, extensionMarkViewBox } from "../lib/extensionMark";
+---
+<Account title="Publish an" titleAccent="extension" section="publish">
+  <div class="publish-intro" style="margin-bottom:32px">
+    <p class="lead">Upload a built <code>.tabsext</code> package. Every version is scanned and manually reviewed before signed publication. Approval alone does not publish a package.</p>
+    <p class="muted" style="font-size:14px;margin-top:8px">New to extension development? <a href="/docs/extensions">Build your first tool with the SDK</a>. Browser submissions do not require a CLI token.</p>
+  </div>
+
+  <div class="publish-layout">
+    <form id="publish-form" class="publish-panel">
+      <fieldset id="publish-fields" disabled>
+        <legend class="sr-only">Prepare your submission</legend>
+
+        <section class="publish-step" aria-labelledby="publish-identity-heading">
+          <p class="step-label">01 / Publisher identity</p>
+          <h2 id="publish-identity-heading">Publisher namespace</h2>
+          <p class="muted" style="font-size:14px;margin-bottom:18px">Choose the publisher for this release. Membership does not confer verified ownership.</p>
+          <label for="publish-namespace" style="font-weight:600;font-size:13px;text-transform:uppercase;letter-spacing:0.04em;color:var(--muted)">Publisher namespace</label>
+          <select id="publish-namespace" required style="margin-top:8px">
+            <option value="">Select your namespace</option>
+          </select>
+          <p style="font-size:13px;margin:12px 0 20px"><a href="/account/namespaces">Create or manage a namespace</a> · Required before publishing.</p>
+          <div class="publish-name-planner" aria-labelledby="name-planner-heading">
+            <h3 id="name-planner-heading">Give your tool a name</h3>
+            <p class="muted">People see a title like <strong>Simulators</strong>. The package ID pairs its name with your publisher or studio namespace.</p>
+            <div class="name-planner-fields">
+              <div><label for="tool-display-name">Display name</label><input id="tool-display-name" maxlength="100" placeholder="Simulators" /></div>
+              <div><label for="tool-package-name">Package name</label><input id="tool-package-name" maxlength="63" placeholder="simulators" aria-describedby="tool-name-status" /></div>
+            </div>
+            <div class="name-planner-actions"><button type="button" id="tool-name-check" class="button secondary">Check package name</button><a id="tool-name-search" href="/extensions">Explore similar tools</a></div>
+            <p id="tool-name-status" role="status" aria-live="polite">Select a namespace and enter a package name to check it.</p>
+            <div id="tool-name-selection" hidden>
+              <p><strong id="tool-name-title"></strong><br /><code id="tool-name-id"></code></p>
+              <p>Use these values in <code>tabs-extension.json</code> before building your archive. This check does not reserve a name or rename an uploaded package.</p>
+              <pre id="tool-name-manifest"></pre>
+              <button id="tool-name-copy" type="button" class="button secondary">Copy manifest fields</button>
+            </div>
+            <details class="extension-naming-help"><summary>Can two tools share a name?</summary><p>Display names can be shared. Within a namespace, a package name identifies one tool across all its versions. A name already in your namespace is for updating that tool. Your namespace can be a studio or team name; it does not have to match your GitHub username.</p></details>
+          </div>
+          <label style="display:flex;align-items:flex-start;gap:10px;font-size:14px;cursor:pointer">
+            <input id="publish-agreement" type="checkbox" required style="margin-top:3px" />
+            <span>I have read and accept this instance's <a href="/publisher-terms">publisher terms</a>.</span>
+          </label>
+          <p id="publish-terms" class="muted" style="font-size:12px;margin:8px 0 0 24px">Loading publisher terms version…</p>
+        </section>
+
+        <section class="publish-step" aria-labelledby="publish-package-heading">
+          <p class="step-label">02 / Built package</p>
+          <h2 id="publish-package-heading">Package archive</h2>
+          <div id="publish-drop" class="package-drop">
+            <div class="upload-art" aria-hidden="true">
+              <span class="upload-art-note">Made by you.<br /><em>Ready to travel.</em></span>
+              <div class="upload-art-file"><span class="upload-art-file-top">YOUR TOOL <span>↗</span></span><svg viewBox={extensionMarkViewBox} fill="currentColor"><path d={extensionMarkPath} fill-rule="evenodd" /></svg><span class="upload-art-extension">.tabsext</span></div>
+              <div class="upload-art-folder"><span>Next stop</span><strong>A new workspace.</strong><span class="upload-art-arrow">↑</span></div>
+            </div>
+            <div class="upload-choice">
+              <label for="publish-file">Choose a package</label>
+              <p>Drop one built package here, or choose it below.</p>
+              <input id="publish-file" type="file" accept=".tabsext" aria-describedby="publish-file-help" required />
+            </div>
+            <p id="publish-file-help" class="muted upload-help">One <code>.tabsext</code> file · Up to 25 MiB. The registry validates the package before review.</p>
+            <p id="publish-file-summary" aria-live="polite" style="font-weight:700;color:var(--accent);margin-top:12px"></p>
+          </div>
+          <button class="button" type="submit" style="width:100%" disabled>Submit for review</button>
+        </section>
+      </fieldset>
+
+      <progress id="publish-progress" max="100" value="0" aria-label="Package upload progress" hidden></progress>
+      <div class="actions" style="margin-top:16px">
+        <button id="publish-cancel" class="button secondary" type="button" hidden>Cancel upload</button>
+      </div>
+      <p id="publish-status" role="status" aria-live="polite" class="notice" style="margin:20px 0">Checking publishing prerequisites…</p>
+      <p style="font-size:14px"><a href="/account/extensions">View existing submissions</a></p>
+    </form>
+
+    <aside class="publication-guide" aria-labelledby="publication-guide-title">
+      <p class="eyebrow">Where your package goes</p>
+      <h2 id="publication-guide-title">One archive.<br /><em class="editorial-accent">A careful journey.</em></h2>
+      <PublicationIllustration />
+      <a href="/docs/extensions/publishing" class="text-link">Read the publishing guide <span aria-hidden="true">↗</span></a>
+    </aside>
+  </div>
+</Account>
+<script>
+  import "../scripts/publish";
+  import "../scripts/tool-naming";
+</script>

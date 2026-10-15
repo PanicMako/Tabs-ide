@@ -54,7 +54,10 @@ import {
   writeProviderStatusCache,
 } from "../providerStatusCache";
 import type { ProviderInstance } from "../ProviderDriver";
-import { makeManualOnlyProviderMaintenanceCapabilities } from "../providerMaintenance";
+import {
+  makeManualOnlyProviderMaintenanceCapabilities,
+  type ProviderMaintenanceCapabilities,
+} from "../providerMaintenance";
 import type { ProviderSnapshotSource } from "../builtInProviderCatalog";
 
 const loadProviders = (
@@ -566,17 +569,25 @@ export const ProviderRegistryLive = Layer.effect(
       return yield* refreshOneSource(providerSource).pipe(Effect.timeout("15 seconds"));
     });
 
-    const getProviderMaintenanceCapabilitiesForInstance = Effect.fn(
-      "getProviderMaintenanceCapabilitiesForInstance",
-    )(function* (instanceId: ProviderInstanceId, provider: ProviderDriverKind) {
-      const instance = Array.from((yield* Ref.get(liveSubsRef)).values()).find(
-        (candidate) => candidate.instanceId === instanceId,
-      );
-      return (
-        instance?.snapshot.maintenanceCapabilities ??
-        makeManualProviderMaintenanceCapabilities(provider)
-      );
-    });
+    const getProviderMaintenanceCapabilitiesForInstance = (
+      instanceId: ProviderInstanceId,
+      provider: ProviderDriverKind,
+    ): Effect.Effect<ProviderMaintenanceCapabilities> =>
+      Effect.gen(function* () {
+        const instance = Array.from((yield* Ref.get(liveSubsRef)).values()).find(
+          (candidate) => candidate.instanceId === instanceId,
+        );
+        if (instance?.snapshot.resolveMaintenance) {
+          return yield* instance.snapshot
+            .resolveMaintenance()
+            .pipe(
+              Effect.orElseSucceed(() =>
+                makeManualOnlyProviderMaintenanceCapabilities({ provider, packageName: null }),
+              ),
+            );
+        }
+        return makeManualOnlyProviderMaintenanceCapabilities({ provider, packageName: null });
+      });
 
     /**
      * Diff the aggregator's live-source set against the current

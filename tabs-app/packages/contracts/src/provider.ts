@@ -8,11 +8,13 @@ import {
   ThreadId,
   TurnId,
 } from "./baseSchemas.ts";
+import { ModelSelection } from "./modelSelection.ts";
 import {
   ChatAttachment,
-  ModelSelection,
   PROVIDER_SEND_TURN_MAX_ATTACHMENTS,
   PROVIDER_SEND_TURN_MAX_INPUT_CHARS,
+} from "./chatAttachment.ts";
+import {
   ProviderApprovalDecision,
   ProviderApprovalPolicy,
   ProviderInteractionMode,
@@ -20,7 +22,7 @@ import {
   ProviderSandboxMode,
   ProviderUserInputAnswers,
   RuntimeMode,
-} from "./orchestration.ts";
+} from "./providerPolicy.ts";
 import { ProviderOptionDescriptor } from "./model.ts";
 import { ProviderInstanceId, ProviderDriverKind } from "./providerInstance.ts";
 
@@ -182,6 +184,29 @@ export const ProviderRespondToUserInputInput = Schema.Struct({
   answers: ProviderUserInputAnswers,
 });
 export type ProviderRespondToUserInputInput = typeof ProviderRespondToUserInputInput.Type;
+
+export const ProviderUploadFeedbackInput = Schema.Struct({
+  threadId: ThreadId,
+  reason: Schema.optional(TrimmedNonEmptyString),
+});
+export type ProviderUploadFeedbackInput = typeof ProviderUploadFeedbackInput.Type;
+
+export const ProviderUploadFeedbackResult = Schema.Struct({
+  feedbackId: TrimmedNonEmptyString,
+});
+export type ProviderUploadFeedbackResult = typeof ProviderUploadFeedbackResult.Type;
+
+export class ProviderUploadFeedbackError extends Schema.TaggedError<ProviderUploadFeedbackError>()(
+  "ProviderUploadFeedbackError",
+  {
+    threadId: ThreadId,
+    cause: Schema.optional(Schema.Defect()),
+  },
+) {
+  override get message(): string {
+    return `Failed to upload feedback for thread ${this.threadId}.`;
+  }
+}
 
 const ProviderEventKind = Schema.Literals(["session", "notification", "request", "error"]);
 

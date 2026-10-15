@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { LoaderCircleIcon, MinusIcon, PlusIcon, RotateCcwIcon } from "lucide-react";
+import { LoaderCircleIcon, RotateCcwIcon } from "lucide-react";
 import {
   DEFAULT_DESKTOP_ICON_THEME,
   DEFAULT_PANEL_ANIMATION_DURATION_MS,
@@ -12,11 +12,14 @@ import { useDebouncedSettingField, useSettings, useUpdateSettings } from "../../
 import { useConfirm } from "../../hooks/useConfirm";
 import { useTheme } from "../../hooks/useTheme";
 import { useResetOnboarding } from "../../onboarding/firstRun";
-import { useZoomFactor, ZOOM_SNAP_POINTS } from "../../state/zoom";
+import { useZoomFactor } from "../../state/zoom";
 import { useWorkspaceActiveProjectId } from "../../state/workspaceShell";
+import { useWorkspaceAppearanceStore } from "../../stores/workspaceAppearanceStore";
 import { useServerConfig } from "../../state/settings";
 import { isElectron } from "../../env";
 import { Button } from "../ui/button";
+import { ZoomRuler } from "./ZoomRuler";
+import { PanelAnimationPill } from "./PanelAnimationPill";
 import { Switch } from "../ui/switch";
 import { SegmentedControl } from "../ui/segmented-control";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
@@ -156,6 +159,8 @@ export function GeneralSettings() {
   const [isReloadingCode, setIsReloadingCode] = useState(false);
   const [isReloadingBrowser, setIsReloadingBrowser] = useState(false);
   const serverConfig = useServerConfig();
+  const showProjectTabIcons = useWorkspaceAppearanceStore((s) => s.showProjectTabIcons);
+  const setShowProjectTabIcons = useWorkspaceAppearanceStore((s) => s.setShowProjectTabIcons);
 
   const panelDurationField = useDebouncedSettingField<number>({
     value: settings.panelAnimationDurationMs ?? DEFAULT_PANEL_ANIMATION_DURATION_MS,
@@ -224,6 +229,7 @@ export function GeneralSettings() {
                     timestampFormat: DEFAULT_UNIFIED_SETTINGS.timestampFormat,
                     diffWordWrap: DEFAULT_UNIFIED_SETTINGS.diffWordWrap,
                     enableAssistantStreaming: DEFAULT_UNIFIED_SETTINGS.enableAssistantStreaming,
+                    responseStreamingMode: DEFAULT_UNIFIED_SETTINGS.responseStreamingMode,
                     defaultThreadEnvMode: DEFAULT_UNIFIED_SETTINGS.defaultThreadEnvMode,
                     confirmThreadDelete: DEFAULT_UNIFIED_SETTINGS.confirmThreadDelete,
                     confirmTabClose: DEFAULT_UNIFIED_SETTINGS.confirmTabClose,
@@ -242,88 +248,13 @@ export function GeneralSettings() {
       <SettingsSection title="Appearance & Interface">
         <SettingsRow
           title="Zoom & Scale"
-          description="Adjust interface zoom level. Drag slider or use Cmd + / Cmd -."
+          description="Drag the ruler or choose a percentage. Click the value to reset."
           resetAction={
             zoomFactor !== 1.0 ? (
               <SettingResetButton label="zoom" onClick={() => updateZoom(1.0)} />
             ) : null
           }
-          control={(() => {
-            const currentIndex = Math.max(
-              0,
-              ZOOM_SNAP_POINTS.findIndex((pt) => Math.abs(zoomFactor - pt) < 0.01),
-            );
-            return (
-              <div className="flex flex-col gap-2 w-full sm:w-72">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground/70 font-medium">Scale Range</span>
-                  <span className="font-mono font-bold text-foreground bg-accent/60 px-2.5 py-0.5 rounded-md text-xs shadow-xs border border-border/50">
-                    {Math.round(zoomFactor * 100)}%
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground shrink-0"
-                    onClick={() =>
-                      updateZoom(ZOOM_SNAP_POINTS[Math.max(0, currentIndex - 1)] ?? 1.0)
-                    }
-                    title="Zoom Out (Cmd -)"
-                    aria-label="Zoom Out"
-                  >
-                    <MinusIcon className="h-3.5 w-3.5" />
-                  </Button>
-
-                  <div className="relative flex-1 flex items-center px-1">
-                    <input
-                      type="range"
-                      min="0"
-                      max={ZOOM_SNAP_POINTS.length - 1}
-                      step="1"
-                      value={currentIndex}
-                      onChange={(e) =>
-                        updateZoom(ZOOM_SNAP_POINTS[parseInt(e.target.value, 10)] ?? 1.0)
-                      }
-                      aria-label="Zoom level slider"
-                      className="w-full accent-primary h-1.5 bg-secondary rounded-lg appearance-none cursor-pointer focus:outline-none relative z-10"
-                    />
-                  </div>
-
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground shrink-0"
-                    onClick={() =>
-                      updateZoom(
-                        ZOOM_SNAP_POINTS[Math.min(ZOOM_SNAP_POINTS.length - 1, currentIndex + 1)] ??
-                          1.0,
-                      )
-                    }
-                    title="Zoom In (Cmd +)"
-                    aria-label="Zoom In"
-                  >
-                    <PlusIcon className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-
-                <div className="flex justify-between px-8 text-[10px] font-mono text-muted-foreground/60 select-none">
-                  {ZOOM_SNAP_POINTS.map((pt) => (
-                    <button
-                      key={pt}
-                      type="button"
-                      onClick={() => updateZoom(pt)}
-                      className="hover:text-foreground transition-colors cursor-pointer text-center w-8 -mx-1"
-                      style={Math.abs(zoomFactor - pt) < 0.01 ? { fontWeight: "bold" } : undefined}
-                    >
-                      {Math.round(pt * 100)}%
-                    </button>
-                  ))}
-                </div>
-              </div>
-            );
-          })()}
+          control={<ZoomRuler value={zoomFactor} onValueChange={updateZoom} />}
         />
 
         {isElectron ? (
@@ -344,6 +275,7 @@ export function GeneralSettings() {
             }
             control={
               <SegmentedControl
+                orbitKind="spotlight"
                 value={settings.desktopIconTheme}
                 onValueChange={(val) => {
                   if (val !== "dark" && val !== "light" && val !== "system") return;
@@ -375,6 +307,7 @@ export function GeneralSettings() {
           }
           control={
             <SegmentedControl
+              orbitKind="spotlight"
               value={settings.timestampFormat}
               onValueChange={(fmt) => updateSettings({ timestampFormat: fmt })}
               options={(["locale", "12-hour", "24-hour"] as const).map((fmt) => ({
@@ -445,7 +378,7 @@ export function GeneralSettings() {
 
         <SettingsRow
           title="Panel animations"
-          description="Set how fast workspace panels open and close (0 ms suppresses panel transitions)."
+          description="Choose how fast panels open and close. Set to Off for instant changes."
           resetAction={
             panelDurationField.value !== DEFAULT_PANEL_ANIMATION_DURATION_MS ? (
               <SettingResetButton
@@ -458,31 +391,11 @@ export function GeneralSettings() {
             ) : null
           }
           control={
-            <div className="flex items-center gap-3 w-full sm:w-72">
-              <output
-                htmlFor="panel-animation-duration"
-                className="min-w-16 rounded-md bg-muted px-2 py-1 text-center font-mono text-xs font-medium tabular-nums text-foreground border border-border/50"
-              >
-                {panelDurationField.value} ms
-              </output>
-              <input
-                id="panel-animation-duration"
-                type="range"
-                min={0}
-                max={400}
-                step={25}
-                value={panelDurationField.value}
-                onChange={(e) => {
-                  const val = Number(e.target.value);
-                  if (Number.isInteger(val) && val >= 0 && val <= 400) {
-                    panelDurationField.onChange(val);
-                  }
-                }}
-                onBlur={panelDurationField.onBlur}
-                aria-label="Panel animation duration slider"
-                className="w-full accent-primary h-1.5 bg-secondary rounded-lg appearance-none cursor-pointer focus:outline-none relative z-10"
-              />
-            </div>
+            <PanelAnimationPill
+              value={panelDurationField.value}
+              onValueChange={panelDurationField.onChange}
+              onBlur={panelDurationField.onBlur}
+            />
           }
         />
 
@@ -531,6 +444,17 @@ export function GeneralSettings() {
             />
           }
         />
+        <SettingsRow
+          title="Project logo in titlebar tabs"
+          description="Display each project's logo or icon next to its name in the top window tabs by default. Can be overridden per project in Workspace settings."
+          control={
+            <Switch
+              checked={showProjectTabIcons}
+              onCheckedChange={setShowProjectTabIcons}
+              aria-label="Toggle project logo in titlebar tabs"
+            />
+          }
+        />
       </SettingsSection>
 
       {/* Group 2: Assistant & Code Generation */}
@@ -566,15 +490,15 @@ export function GeneralSettings() {
 
         <SettingsRow
           title="Assistant output"
-          description="Show token-by-token output while a response is in progress."
+          description="Show the first response text immediately. Turn off to wait for the complete response."
           resetAction={
-            settings.enableAssistantStreaming !==
-            DEFAULT_UNIFIED_SETTINGS.enableAssistantStreaming ? (
+            settings.responseStreamingMode !== DEFAULT_UNIFIED_SETTINGS.responseStreamingMode ? (
               <SettingResetButton
                 label="assistant output"
                 onClick={() =>
                   updateSettings({
                     enableAssistantStreaming: DEFAULT_UNIFIED_SETTINGS.enableAssistantStreaming,
+                    responseStreamingMode: DEFAULT_UNIFIED_SETTINGS.responseStreamingMode,
                   })
                 }
               />
@@ -582,10 +506,11 @@ export function GeneralSettings() {
           }
           control={
             <Switch
-              checked={settings.enableAssistantStreaming}
+              checked={settings.responseStreamingMode === "token"}
               onCheckedChange={(checked) =>
                 updateSettings({
                   enableAssistantStreaming: Boolean(checked),
+                  responseStreamingMode: checked ? "token" : "turn",
                 })
               }
               aria-label="Stream assistant messages"

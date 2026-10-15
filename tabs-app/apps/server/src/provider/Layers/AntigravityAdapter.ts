@@ -32,16 +32,16 @@ import { ChildProcessSpawner } from "effect/unstable/process";
 import * as EffectAcpErrors from "effect-acp/errors";
 import type * as EffectAcpSchema from "effect-acp/schema";
 
-import { resolveAttachmentPath } from "../../attachmentStore";
-import { ServerConfig } from "../../config";
+import { resolveAttachmentPath } from "../../attachmentStore.ts";
+import { ServerConfig } from "../../config.ts";
 import {
   ProviderAdapterProcessError,
   ProviderAdapterRequestError,
   ProviderAdapterSessionNotFoundError,
   ProviderAdapterValidationError,
-} from "../Errors";
-import { mapAcpToAdapterError } from "../acp/AcpAdapterSupport";
-import { type AcpSessionRuntimeShape } from "../acp/AcpSessionRuntime";
+} from "../Errors.ts";
+import { mapAcpToAdapterError } from "../acp/AcpAdapterSupport.ts";
+import { type AcpSessionRuntimeShape } from "../acp/AcpSessionRuntime.ts";
 import {
   makeAcpAssistantItemEvent,
   makeAcpContentDeltaEvent,
@@ -49,9 +49,9 @@ import {
   makeAcpRequestOpenedEvent,
   makeAcpRequestResolvedEvent,
   makeAcpToolCallEvent,
-} from "../acp/AcpCoreRuntimeEvents";
-import { parsePermissionRequest } from "../acp/AcpRuntimeModel";
-import { makeAcpNativeLoggerFactory } from "../acp/AcpNativeLogging";
+} from "../acp/AcpCoreRuntimeEvents.ts";
+import { parsePermissionRequest, type AcpPlanUpdate } from "../acp/AcpRuntimeModel.ts";
+import { makeAcpNativeLoggerFactory } from "../acp/AcpNativeLogging.ts";
 import {
   antigravityApprovalOptions,
   extractAntigravityUserInputQuestion,
@@ -62,7 +62,7 @@ import {
   normalizeAntigravityToolCall,
   planAntigravitySubagentUpdate,
   selectAntigravityPermissionOptionId,
-} from "../acp/AntigravityProtocol";
+} from "../acp/AntigravityProtocol.ts";
 import {
   antigravityPermissionMode,
   applyAntigravityAcpModelSelection,
@@ -71,11 +71,11 @@ import {
   discoverAntigravityAcpModels,
   makeAntigravityAcpRuntime,
   resolveAntigravityAcpBaseModelId,
-} from "../acp/AntigravityAcpSupport";
-import { type AntigravityAdapterShape } from "../Services/AntigravityAdapter";
-import { type EventNdjsonLogger, makeEventNdjsonLogger } from "./EventNdjsonLogger";
+} from "../acp/AntigravityAcpSupport.ts";
+import { type AntigravityAdapterShape } from "../Services/AntigravityAdapter.ts";
+import { type EventNdjsonLogger, makeEventNdjsonLogger } from "./EventNdjsonLogger.ts";
 
-const encodeUnknownJsonStringExit = Schema.encodeUnknownExit(Schema.UnknownFromJsonString);
+const encodeUnknownJsonStringExit = Schema.encodeUnknownExit(Schema.fromJsonString(Schema.Unknown));
 
 const PROVIDER = "antigravity" as ProviderDriverKind;
 const ANTIGRAVITY_RESUME_VERSION = 1 as const;
@@ -284,13 +284,7 @@ export function makeAntigravityAdapter(
 
     const emitPlanUpdate = (
       ctx: AntigravitySessionContext,
-      payload: {
-        readonly explanation?: string | null;
-        readonly plan: ReadonlyArray<{
-          readonly step: string;
-          readonly status: "pending" | "inProgress" | "completed";
-        }>;
-      },
+      payload: AcpPlanUpdate,
       rawPayload: unknown,
       method: string,
     ) =>
@@ -394,12 +388,6 @@ export function makeAntigravityAdapter(
             childProcessSpawner,
             cwd,
             clientFileSystem: true,
-            profileDirectory: path.join(
-              serverConfig.baseDir,
-              "providers",
-              "antigravity",
-              boundInstanceId,
-            ),
             ...(resumeSessionId ? { resumeSessionId } : {}),
             clientInfo: { name: "tabs-ide", version: "0.0.0" },
             ...acpNativeLoggers,
@@ -507,7 +495,7 @@ export function makeAntigravityAdapter(
                       turnId: sessions.get(input.threadId)?.activeTurnId,
                       requestId: runtimeRequestId,
                       permissionRequest,
-                      options: approvalOptions,
+                      approvalOptions,
                       detail:
                         permissionRequest.detail ??
                         encodeJsonStringForDiagnostics(params)?.slice(0, 2000) ??
@@ -1018,12 +1006,6 @@ export function makeAntigravityAdapter(
             ...(options?.environment ? { environment: options.environment } : {}),
             childProcessSpawner,
             cwd,
-            profileDirectory: path.join(
-              serverConfig.baseDir,
-              "providers",
-              "antigravity",
-              boundInstanceId,
-            ),
             clientInfo: { name: "tabs-model-discovery", version: "0.0.0" },
           }).pipe(
             Effect.provideService(FileSystem.FileSystem, fileSystem),

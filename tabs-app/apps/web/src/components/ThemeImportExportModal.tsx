@@ -1,3 +1,4 @@
+import { OrbitGroup } from "./ui/orbit-group";
 import React, { useState, useMemo, useRef } from "react";
 import {
   AlertCircle,
@@ -16,7 +17,7 @@ import {
 } from "@tabs/shared/themeImportExport";
 import { runThemeWcagCheck } from "@tabs/shared/themeDerivation";
 import { Button } from "./ui/button";
-import { Dialog, DialogPopup } from "./ui/dialog";
+import { Dialog, DialogPopup, DialogTitle, DialogDescription } from "./ui/dialog";
 
 interface ThemeImportExportModalProps {
   isOpen: boolean;
@@ -129,22 +130,22 @@ export const ThemeImportExportModal: React.FC<ThemeImportExportModalProps> = ({
         className="max-h-[85vh] w-full max-w-2xl flex-col p-0 overflow-hidden rounded-3xl border border-border/80 bg-card text-card-foreground shadow-2xl"
       >
         {/* Header Bar */}
-        <div className="flex items-center justify-between border-b border-border/70 px-6 py-4 bg-background/60 shrink-0">
+        <div className="flex items-center justify-between border-b border-border/70 px-5 py-3 bg-background/60 shrink-0">
           <div className="flex items-center gap-2.5">
             <FileCode2 className="size-5 text-foreground" />
             <div>
-              <h3 className="text-base font-bold text-foreground tracking-tight">
-                Import & Export Theme
-              </h3>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Share custom palettes or import any VS Code color theme.
-              </p>
+              <DialogTitle className="text-base font-bold text-foreground tracking-tight">
+                Theme transfer
+              </DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                Import or export a color theme.
+              </DialogDescription>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            <div
-              className="tabs-segmented flex text-xs"
+            <OrbitGroup
+              className="tabs-segmented flex text-xs rounded-full"
               role="group"
               aria-label="Theme transfer mode"
             >
@@ -152,7 +153,7 @@ export const ThemeImportExportModal: React.FC<ThemeImportExportModalProps> = ({
                 type="button"
                 onClick={() => setActiveTab("import")}
                 aria-pressed={activeTab === "import"}
-                className={`rounded-lg px-3 py-1 font-semibold transition-colors cursor-pointer ${
+                className={`rounded-full px-3 py-1 font-semibold transition-colors cursor-pointer ${
                   activeTab === "import"
                     ? "bg-background text-foreground shadow-xs"
                     : "text-muted-foreground hover:text-foreground"
@@ -164,7 +165,7 @@ export const ThemeImportExportModal: React.FC<ThemeImportExportModalProps> = ({
                 type="button"
                 onClick={() => setActiveTab("export")}
                 aria-pressed={activeTab === "export"}
-                className={`rounded-lg px-3 py-1 font-semibold transition-colors cursor-pointer ${
+                className={`rounded-full px-3 py-1 font-semibold transition-colors cursor-pointer ${
                   activeTab === "export"
                     ? "bg-background text-foreground shadow-xs"
                     : "text-muted-foreground hover:text-foreground"
@@ -172,7 +173,7 @@ export const ThemeImportExportModal: React.FC<ThemeImportExportModalProps> = ({
               >
                 Export
               </button>
-            </div>
+            </OrbitGroup>
 
             <button
               type="button"

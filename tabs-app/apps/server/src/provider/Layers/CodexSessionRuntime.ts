@@ -35,12 +35,12 @@ import * as CodexErrors from "effect-codex-app-server/errors";
 import * as CodexRpc from "effect-codex-app-server/rpc";
 import * as EffectCodexSchema from "effect-codex-app-server/schema";
 
-import { buildCodexInitializeParams } from "./CodexProvider";
-import { expandHomePath } from "../../pathExpansion";
+import { buildCodexInitializeParams } from "./CodexProvider.ts";
+import { expandHomePath } from "../../pathExpansion.ts";
 import {
   CODEX_DEFAULT_MODE_DEVELOPER_INSTRUCTIONS,
   CODEX_PLAN_MODE_DEVELOPER_INSTRUCTIONS,
-} from "../CodexDeveloperInstructions";
+} from "../CodexDeveloperInstructions.ts";
 const decodeV2TurnStartResponse = Schema.decodeUnknownEffect(EffectCodexSchema.V2TurnStartResponse);
 
 const PROVIDER = "codex" as ProviderDriverKind;
@@ -90,8 +90,7 @@ const formatSchemaIssue = SchemaIssue.makeFormatterDefault();
 export type CodexResumeCursor = typeof CodexResumeCursorSchema.Type;
 type CodexServiceTier = NonNullable<EffectCodexSchema.V2ThreadStartParams["serviceTier"]>;
 type CodexThreadItem =
-  | EffectCodexSchema.V2ThreadReadResponse["thread"]["turns"][number]["items"][number]
-  | EffectCodexSchema.V2ThreadRollbackResponse["thread"]["turns"][number]["items"][number];
+  EffectCodexSchema.V2ThreadReadResponse["thread"]["turns"][number]["items"][number];
 
 export interface CodexSessionRuntimeOptions {
   readonly threadId: ThreadId;
@@ -159,7 +158,7 @@ export type CodexSessionRuntimeError =
   | CodexSessionRuntimeInvalidUserInputAnswersError
   | CodexSessionRuntimeThreadIdMissingError;
 
-export class CodexSessionRuntimePendingApprovalNotFoundError extends Schema.TaggedErrorClass<CodexSessionRuntimePendingApprovalNotFoundError>()(
+export class CodexSessionRuntimePendingApprovalNotFoundError extends Schema.TaggedError<CodexSessionRuntimePendingApprovalNotFoundError>()(
   "CodexSessionRuntimePendingApprovalNotFoundError",
   {
     requestId: Schema.String,
@@ -170,7 +169,7 @@ export class CodexSessionRuntimePendingApprovalNotFoundError extends Schema.Tagg
   }
 }
 
-export class CodexSessionRuntimePendingUserInputNotFoundError extends Schema.TaggedErrorClass<CodexSessionRuntimePendingUserInputNotFoundError>()(
+export class CodexSessionRuntimePendingUserInputNotFoundError extends Schema.TaggedError<CodexSessionRuntimePendingUserInputNotFoundError>()(
   "CodexSessionRuntimePendingUserInputNotFoundError",
   {
     requestId: Schema.String,
@@ -181,7 +180,7 @@ export class CodexSessionRuntimePendingUserInputNotFoundError extends Schema.Tag
   }
 }
 
-export class CodexSessionRuntimeInvalidUserInputAnswersError extends Schema.TaggedErrorClass<CodexSessionRuntimeInvalidUserInputAnswersError>()(
+export class CodexSessionRuntimeInvalidUserInputAnswersError extends Schema.TaggedError<CodexSessionRuntimeInvalidUserInputAnswersError>()(
   "CodexSessionRuntimeInvalidUserInputAnswersError",
   {
     questionId: Schema.String,
@@ -192,7 +191,7 @@ export class CodexSessionRuntimeInvalidUserInputAnswersError extends Schema.Tagg
   }
 }
 
-export class CodexSessionRuntimeThreadIdMissingError extends Schema.TaggedErrorClass<CodexSessionRuntimeThreadIdMissingError>()(
+export class CodexSessionRuntimeThreadIdMissingError extends Schema.TaggedError<CodexSessionRuntimeThreadIdMissingError>()(
   "CodexSessionRuntimeThreadIdMissingError",
   {
     threadId: Schema.String,
@@ -646,13 +645,13 @@ function toCodexUserInputAnswers(
 }
 
 function toProtocolParseError(
-  detail: string,
+  _detail: string,
   cause: Schema.SchemaError,
 ): CodexErrors.CodexAppServerProtocolParseError {
-  return new CodexErrors.CodexAppServerProtocolParseError({
-    detail: `${detail}: ${formatSchemaIssue(cause.issue)}`,
+  return CodexErrors.CodexAppServerProtocolParseError.fromSchemaError(
+    "decode-notification-payload",
     cause,
-  });
+  );
 }
 
 function currentProviderThreadId(session: ProviderSession): string | undefined {
@@ -673,12 +672,10 @@ function updateSession(
   });
 }
 
-function parseThreadSnapshot(
-  response: EffectCodexSchema.V2ThreadReadResponse | EffectCodexSchema.V2ThreadRollbackResponse,
-): CodexThreadSnapshot {
+function parseThreadSnapshot(response: any): CodexThreadSnapshot {
   return {
     threadId: response.thread.id,
-    turns: response.thread.turns.map((turn) => ({
+    turns: (response.thread.turns ?? []).map((turn: any) => ({
       id: turn.id as TurnId,
       items: turn.items,
     })),
@@ -744,7 +741,7 @@ export const makeCodexSessionRuntime = (
       Effect.mapError(
         (cause) =>
           new CodexErrors.CodexAppServerTransportError({
-            detail: "Failed to generate Codex runtime identifier.",
+            operation: "read-input-stream",
             cause,
           }),
       ),
@@ -985,8 +982,8 @@ export const makeCodexSessionRuntime = (
           ),
         );
         return {
-          decision: resolved,
-        } satisfies EffectCodexSchema.CommandExecutionRequestApprovalResponse;
+          decision: resolved as any,
+        } as any;
       }),
     );
 
@@ -1041,8 +1038,8 @@ export const makeCodexSessionRuntime = (
           ),
         );
         return {
-          decision: resolved,
-        } satisfies EffectCodexSchema.FileChangeRequestApprovalResponse;
+          decision: resolved as any,
+        } as any;
       }),
     );
 
@@ -1303,10 +1300,15 @@ export const makeCodexSessionRuntime = (
         });
         return parseThreadSnapshot(response);
       }),
-      rollbackThread: (numTurns) =>
+      rollbackThread: (numTurns): Effect.Effect<CodexThreadSnapshot, CodexSessionRuntimeError> =>
         Effect.gen(function* () {
           const providerThreadId = yield* readProviderThreadId;
-          const response = yield* client.request("thread/rollback", {
+          const response = yield* (
+            client.request as (
+              method: string,
+              params: unknown,
+            ) => Effect.Effect<any, CodexErrors.CodexAppServerError>
+          )("thread/rollback", {
             threadId: providerThreadId,
             numTurns,
           });

@@ -1,0 +1,5 @@
+# Legacy composer upgrader
+
+Complete new source452/test643 read. Fresh68/68,876ms exit0. Suite covers malformed entries preserving original message, invalid/oversized wire records, terminal numeric/Unicode word boundaries, literal private-use token collision, backtick-fenced closing review tags, multiline preview comments, nested elements, adjacent annotations, inline/trailing reviews and combined legacy send order. Extra U+FFFC placeholders are intentionally removed by an explicit test; not classified as an accidental regression.
+
+The upgrader validates final record array atomically against wire schema, capped200, but begins parsing before that check; no whole-message time/heap bound established. Literal delimiter-like text can be ambiguous in legacy serialization; existing targeted cases do not prove arbitrary captured-text roundtrip fidelity. Production apps search found no upgradeLegacyContextMessage caller. Thus pass results validate helper behavior, not actual historical message rendering/migration. No production changes.

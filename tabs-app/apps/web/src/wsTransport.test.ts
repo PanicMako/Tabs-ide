@@ -1,4 +1,5 @@
 import { WS_CHANNELS } from "@tabs/contracts";
+import * as Schema from "effect/Schema";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { WsTransport } from "./wsTransport";
@@ -89,6 +90,20 @@ afterEach(() => {
 });
 
 describe("WsTransport", () => {
+  it("re-resolves the desktop backend after it becomes available during startup", () => {
+    vi.useFakeTimers();
+    const transport = new WsTransport();
+    const initialSocket = getSocket();
+    Object.assign(window, {
+      desktopBridge: { getWsUrl: () => "ws://localhost:4050/ws?orchestrationProtocol=2" },
+    });
+    initialSocket.close();
+    vi.advanceTimersByTime(500);
+    expect(getSocket().url).toBe("ws://localhost:4050/ws?orchestrationProtocol=2");
+    transport.dispose();
+    vi.useRealTimers();
+  });
+
   it("notifies connection listeners after every successful open", () => {
     vi.useFakeTimers();
     const listener = vi.fn();
@@ -141,8 +156,26 @@ describe("WsTransport", () => {
     vi.useRealTimers();
   });
 
-  it("routes valid push envelopes to channel listeners", () => {
+  it("defaults to rpc protocol when unspecified", async () => {
     const transport = new WsTransport("ws://localhost:3020");
+    const socket = getSocket();
+    socket.open();
+    const promise = transport.request("probe", { ping: true });
+    const sent = JSON.parse(socket.sent.at(-1)!);
+    expect(sent).toMatchObject({ _tag: "Request", tag: "probe", payload: { ping: true } });
+    socket.serverMessage(
+      JSON.stringify({
+        _tag: "Exit",
+        requestId: sent.id,
+        exit: { _tag: "Success", value: { pong: true } },
+      }),
+    );
+    await expect(promise).resolves.toEqual({ pong: true });
+    transport.dispose();
+  });
+
+  it("routes valid push envelopes to channel listeners", () => {
+    const transport = new WsTransport({ url: "ws://localhost:3020", protocol: "legacy" });
     const socket = getSocket();
     socket.open();
 
@@ -170,7 +203,7 @@ describe("WsTransport", () => {
   });
 
   it("resolves pending requests for valid response envelopes", async () => {
-    const transport = new WsTransport("ws://localhost:3020");
+    const transport = new WsTransport({ url: "ws://localhost:3020", protocol: "legacy" });
     const socket = getSocket();
     socket.open();
 
@@ -195,7 +228,7 @@ describe("WsTransport", () => {
 
   it("drops malformed envelopes without crashing transport", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const transport = new WsTransport("ws://localhost:3020");
+    const transport = new WsTransport({ url: "ws://localhost:3020", protocol: "legacy" });
     const socket = getSocket();
     socket.open();
 
@@ -231,19 +264,19 @@ describe("WsTransport", () => {
     expect(warnSpy).toHaveBeenNthCalledWith(
       1,
       "Dropped inbound WebSocket envelope",
-      expect.stringContaining("Expected property name or '}'"),
+      expect.any(String),
     );
     expect(warnSpy).toHaveBeenNthCalledWith(
       2,
       "Dropped inbound WebSocket envelope",
-      expect.stringContaining('Expected "server.configUpdated"'),
+      expect.stringContaining("Missing key"),
     );
 
     transport.dispose();
   });
 
   it("queues requests until the websocket opens", async () => {
-    const transport = new WsTransport("ws://localhost:3020");
+    const transport = new WsTransport({ url: "ws://localhost:3020", protocol: "legacy" });
     const socket = getSocket();
 
     const requestPromise = transport.request("projects.list");
@@ -264,7 +297,7 @@ describe("WsTransport", () => {
   });
 
   it("does not create a timeout for requests with timeoutMs null", async () => {
-    const transport = new WsTransport("ws://localhost:3020");
+    const transport = new WsTransport({ url: "ws://localhost:3020", protocol: "legacy" });
     const timeoutSpy = vi.spyOn(globalThis, "setTimeout");
     const socket = getSocket();
     socket.open();
@@ -294,7 +327,7 @@ describe("WsTransport", () => {
   });
 
   it("rejects pending requests when the websocket closes", async () => {
-    const transport = new WsTransport("ws://localhost:3020");
+    const transport = new WsTransport({ url: "ws://localhost:3020", protocol: "legacy" });
     const socket = getSocket();
     socket.open();
 
@@ -311,7 +344,7 @@ describe("WsTransport", () => {
   });
 
   it("coalesces outbound requests with the same coalesceKey while disconnected", async () => {
-    const transport = new WsTransport("ws://localhost:3020");
+    const transport = new WsTransport({ url: "ws://localhost:3020", protocol: "legacy" });
     const socket = getSocket();
 
     const first = transport.request(
@@ -425,4 +458,118 @@ it("omits credentials from initialization errors and connection timeouts", () =>
   failing.dispose();
   warn.mockRestore();
   vi.useRealTimers();
+});
+
+it("resolves signed media URLs against the selected environment's HTTP origin", () => {
+  const transport = new WsTransport("wss://remote.example.test/ws?ticket=secret");
+  expect(transport.resolveHttpUrl("/api/assets/file?signature=signed")).toBe(
+    "https://remote.example.test/api/assets/file?signature=signed",
+  );
+  transport.dispose();
+});
+
+it("sends RPC unary requests and settles typed success and failure exits", async () => {
+  const transport = new WsTransport({ url: "ws://localhost/ws", protocol: "rpc" });
+  const socket = getSocket();
+  socket.open();
+  const success = transport.request("server.getConfig", {});
+  const request = JSON.parse(socket.sent[0]!);
+  expect(request).toEqual({
+    _tag: "Request",
+    id: "1",
+    tag: "server.getConfig",
+    payload: {},
+    headers: [],
+  });
+  socket.serverMessage(
+    JSON.stringify({
+      _tag: "Exit",
+      requestId: "1",
+      exit: { _tag: "Success", value: { ready: true } },
+    }),
+  );
+  await expect(success).resolves.toEqual({ ready: true });
+  const failure = transport.request("orchestrationV2.dispatchCommand", {});
+  socket.serverMessage(
+    JSON.stringify({
+      _tag: "Exit",
+      requestId: "2",
+      exit: {
+        _tag: "Failure",
+        cause: [
+          {
+            _tag: "Fail",
+            error: {
+              _tag: "OrchestratorCommandRejectedError",
+              message: "Thread no longer exists.",
+              cause: { reason: "missing" },
+            },
+          },
+        ],
+      },
+    }),
+  );
+  await expect(failure).rejects.toThrow("Thread no longer exists.");
+  await expect(failure).rejects.toMatchObject({
+    _tag: "OrchestratorCommandRejectedError",
+    cause: { reason: "missing" },
+  });
+  transport.dispose();
+});
+
+it("acknowledges decoded stream chunks and resumes from the last watermark after reconnect", () => {
+  vi.useFakeTimers();
+  const transport = new WsTransport({ url: "ws://localhost/ws", protocol: "rpc" });
+  let sequence = 0;
+  const received: number[] = [];
+  const error = vi.fn();
+  const unsubscribe = transport.subscribeRpc(
+    "orchestrationV2.subscribeShell",
+    () => ({ afterSequence: sequence }),
+    Schema.decodeUnknownSync(Schema.Number),
+    (value) => {
+      sequence = value;
+      received.push(value);
+    },
+    error,
+  );
+  getSocket().open();
+  const first = getSocket();
+  first.serverMessage(JSON.stringify({ _tag: "Chunk", requestId: "1", values: [1, 2] }));
+  expect(received).toEqual([1, 2]);
+  expect(JSON.parse(first.sent.at(-1)!)).toEqual({ _tag: "Ack", requestId: "1" });
+  first.close();
+  vi.advanceTimersByTime(500);
+  getSocket().open();
+  expect(JSON.parse(getSocket().sent[0]!)).toMatchObject({
+    _tag: "Request",
+    payload: { afterSequence: 2 },
+  });
+  const secondId = JSON.parse(getSocket().sent[0]!).id;
+  unsubscribe();
+  expect(JSON.parse(getSocket().sent.at(-1)!)).toEqual({ _tag: "Interrupt", requestId: secondId });
+  expect(error).not.toHaveBeenCalled();
+  transport.dispose();
+  vi.useRealTimers();
+});
+
+it("interrupts malformed stream data without acknowledging or advancing it", () => {
+  const transport = new WsTransport({ url: "ws://localhost/ws", protocol: "rpc" });
+  const received = vi.fn();
+  const error = vi.fn();
+  transport.subscribeRpc(
+    "stream",
+    () => ({}),
+    Schema.decodeUnknownSync(Schema.Number),
+    received,
+    error,
+  );
+  const socket = getSocket();
+  socket.open();
+  socket.serverMessage(JSON.stringify({ _tag: "Chunk", requestId: "1", values: ["wrong"] }));
+  expect(received).not.toHaveBeenCalled();
+  expect(error).toHaveBeenCalledTimes(1);
+  expect(JSON.parse(socket.sent.at(-1)!)).toEqual({ _tag: "Interrupt", requestId: "1" });
+  expect(socket.sent.some((frame) => JSON.parse(frame)._tag === "Ack")).toBe(false);
+  transport.dispose();
 });

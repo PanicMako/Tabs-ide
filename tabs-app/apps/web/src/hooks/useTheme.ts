@@ -1,8 +1,13 @@
+import { useSettingsLabsStore } from "../stores/settingsLabsStore";
+import { interfaceStudyTheme } from "../lib/interfaceStudy";
+import "../interface-study.css";
 import { useCallback, useEffect, useSyncExternalStore } from "react";
 import { evaluateThemeTokens, ensureMinContrast } from "@tabs/shared/themeDerivation";
 import {
   DEFAULT_CUSTOM_THEME,
   DEFAULT_FONT_PREFERENCES,
+  upgradeFontPreferences,
+  resolveFontTypography,
   DEFAULT_THEME_ID,
   THEME_DEFINITIONS,
   getOptimalPrimaryForeground,
@@ -82,6 +87,10 @@ export function refreshTheme() {
 }
 
 export function getStoredFontPreferences(): FontPreferences {
+  return upgradeFontPreferences(readStoredFontPreferences());
+}
+
+function readStoredFontPreferences(): FontPreferences {
   try {
     if (typeof localStorage !== "undefined") {
       const clientSettingsRaw = localStorage.getItem("tabs:client-settings:v1");
@@ -113,6 +122,12 @@ export function getStoredFontPreferences(): FontPreferences {
               parsed.uiFont ||
               clientFontSettings.uiFont ||
               DEFAULT_FONT_PREFERENCES.headingFont,
+            ...(typeof parsed.sectionFont === "string" && parsed.sectionFont.trim()
+              ? { sectionFont: parsed.sectionFont }
+              : {}),
+            ...(typeof parsed.supportingFont === "string" && parsed.supportingFont.trim()
+              ? { supportingFont: parsed.supportingFont }
+              : {}),
             editorFont:
               parsed.editorFont ||
               clientFontSettings.editorFont ||
@@ -150,7 +165,12 @@ export function getStoredFontPreferences(): FontPreferences {
     if (customConfig && customConfig.fonts) {
       return {
         uiFont: customConfig.fonts.uiFont || DEFAULT_FONT_PREFERENCES.uiFont,
-        headingFont: customConfig.fonts.uiFont || DEFAULT_FONT_PREFERENCES.headingFont,
+        headingFont:
+          customConfig.fonts.headingFont ||
+          customConfig.fonts.uiFont ||
+          DEFAULT_FONT_PREFERENCES.headingFont,
+        sectionFont: customConfig.fonts.sectionFont,
+        supportingFont: customConfig.fonts.supportingFont,
         editorFont: customConfig.fonts.editorFont || DEFAULT_FONT_PREFERENCES.editorFont,
         fontSizeInterface: DEFAULT_FONT_PREFERENCES.fontSizeInterface,
         fontSizeCode: DEFAULT_FONT_PREFERENCES.fontSizeCode,
@@ -182,6 +202,15 @@ export function getStoredCustomThemeConfig(): CustomThemeConfig {
           fonts: {
             uiFont: parsed.fonts.uiFont || DEFAULT_CUSTOM_THEME.fonts.uiFont,
             editorFont: parsed.fonts.editorFont || DEFAULT_CUSTOM_THEME.fonts.editorFont,
+            ...(typeof parsed.fonts.headingFont === "string"
+              ? { headingFont: parsed.fonts.headingFont }
+              : {}),
+            ...(typeof parsed.fonts.sectionFont === "string"
+              ? { sectionFont: parsed.fonts.sectionFont }
+              : {}),
+            ...(typeof parsed.fonts.supportingFont === "string"
+              ? { supportingFont: parsed.fonts.supportingFont }
+              : {}),
           },
         };
       }
@@ -304,6 +333,11 @@ function applyTheme(
 
   const activeThemeId = resolveActiveThemeId(preference);
 
+  const themeDef =
+    !activeThemeId.startsWith("environment:") && activeThemeId !== "custom"
+      ? (THEME_DEFINITIONS[activeThemeId as ThemeId] ?? THEME_DEFINITIONS[DEFAULT_THEME_ID])
+      : undefined;
+
   let config: CustomThemeConfig;
   if (activeThemeId.startsWith("environment:")) {
     const published = environmentThemes.find((item) => `environment:${item.id}` === activeThemeId);
@@ -326,7 +360,7 @@ function applyTheme(
   } else if (activeThemeId === "custom") {
     config = customConfigOverride ?? getStoredCustomThemeConfig();
   } else {
-    const def = THEME_DEFINITIONS[activeThemeId as ThemeId] ?? THEME_DEFINITIONS[DEFAULT_THEME_ID];
+    const def = themeDef ?? THEME_DEFINITIONS[DEFAULT_THEME_ID];
     config = {
       baseVariant: def.baseVariant,
       colors: {
@@ -340,6 +374,13 @@ function applyTheme(
     };
   }
 
+  const originalConfig = config;
+  const study = useSettingsLabsStore.getState();
+  if (study.editorialSettings && !study.editorialSettingsOnly)
+    config = interfaceStudyTheme(study.editorialAppearance, fonts);
+  if (study.editorialSettings && !study.editorialSettingsOnly)
+    document.documentElement?.setAttribute?.("data-interface-study", study.editorialAppearance);
+  else document.documentElement?.removeAttribute?.("data-interface-study");
   const isDark = config.baseVariant === "dark";
   const diffColorScheme = getStoredDiffColorScheme();
   const evaluatedTokens = evaluateThemeTokens(config, diffColorScheme);
@@ -351,7 +392,10 @@ function applyTheme(
   const border = evaluatedTokens["sideBar.border"] || config.colors.border;
   const primary = evaluatedTokens["app.primaryBackground"] || config.colors.primary;
   const primaryFg =
-    evaluatedTokens["app.primaryForeground"] || getOptimalPrimaryForeground(primary);
+    config.tokenOverrides?.["app.primaryForeground"] ||
+    themeDef?.colors?.primaryForeground ||
+    evaluatedTokens["app.primaryForeground"] ||
+    getOptimalPrimaryForeground(primary);
 
   const secondaryBg = evaluatedTokens["app.secondaryBackground"] || cardBg;
   const secondaryFg = evaluatedTokens["app.secondaryForeground"] || foreground;
@@ -439,7 +483,9 @@ function applyTheme(
   }
 
   const desktopConfig =
-    activeThemeId === "custom" || activeThemeId.startsWith("environment:") ? config : undefined;
+    activeThemeId === "custom" || activeThemeId.startsWith("environment:")
+      ? originalConfig
+      : undefined;
   if (options.deferDesktopSync) {
     schedulePreviewDesktopThemeSync(activeThemeId, preference, desktopConfig, fonts);
   } else {
@@ -467,6 +513,18 @@ function applyFontPreferencesToDom(fonts: FontPreferences): void {
   style.setProperty("--font-sans", fonts.uiFont);
   style.setProperty("--font-display", fonts.headingFont || fonts.uiFont);
   style.setProperty("--font-mono", fonts.editorFont);
+  const typography = resolveFontTypography(fonts);
+  style.setProperty("--font-section", typography?.sectionFont ?? fonts.headingFont);
+  style.setProperty("--font-section-weight", String(typography?.sectionWeight ?? 400));
+  style.setProperty("--font-section-style", typography?.sectionStyle ?? "italic");
+  style.setProperty("--font-section-transform", typography?.sectionTransform ?? "none");
+  style.setProperty("--font-section-tracking", typography?.sectionTracking ?? "normal");
+  style.setProperty("--font-row", typography?.rowFont ?? fonts.uiFont);
+  style.setProperty("--font-row-weight", String(typography?.rowWeight ?? 700));
+  style.setProperty("--font-controls", typography?.controlsFont ?? fonts.uiFont);
+  style.setProperty("--font-ui-meta", typography.metadataFont);
+  style.setProperty("--font-supporting", typography.supportingFont);
+  style.setProperty("--font-supporting-style", typography.supportingStyle);
   if (typeof fonts.fontSizeInterface === "number") {
     applyInterfaceFontSize(style, fonts.fontSizeInterface);
   }
@@ -567,6 +625,16 @@ function syncDesktopTheme(
 // Apply immediately on module load to prevent flash
 if (typeof window !== "undefined") {
   applyTheme(getStoredPreference());
+  useSettingsLabsStore.subscribe((state, previous) => {
+    if (
+      state.editorialSettings !== previous.editorialSettings ||
+      state.editorialSettingsOnly !== previous.editorialSettingsOnly ||
+      state.editorialAppearance !== previous.editorialAppearance
+    ) {
+      applyTheme(getStoredPreference(), true);
+      emitChange();
+    }
+  });
 }
 
 /**
@@ -580,6 +648,8 @@ export function buildFontPreferencesFromThemeConfig(config: CustomThemeConfig): 
     uiFont: config.fonts.uiFont || current.uiFont,
     headingFont: config.fonts.headingFont || config.fonts.uiFont || current.headingFont,
     editorFont: config.fonts.editorFont || current.editorFont,
+    sectionFont: config.fonts.sectionFont,
+    supportingFont: config.fonts.supportingFont,
     fontSizeInterface: current.fontSizeInterface,
     fontSizeCode: current.fontSizeCode,
     fontSizePrompt: current.fontSizePrompt,
@@ -655,12 +725,16 @@ export function useTheme() {
   const themeDef = activeThemeId.startsWith("environment:")
     ? undefined
     : THEME_DEFINITIONS[activeThemeId as ThemeId];
-  const resolvedTheme: "light" | "dark" = activeThemeId.startsWith("environment:")
-    ? (environmentThemes.find((item) => `environment:${item.id}` === activeThemeId)?.appearance ??
-      "dark")
-    : activeThemeId === "custom"
-      ? customConfig.baseVariant
-      : (themeDef?.baseVariant ?? (getSystemDark() ? "dark" : "light"));
+  const study = useSettingsLabsStore.getState();
+  const resolvedTheme: "light" | "dark" =
+    study.editorialSettings && !study.editorialSettingsOnly
+      ? study.editorialAppearance
+      : activeThemeId.startsWith("environment:")
+        ? (environmentThemes.find((item) => `environment:${item.id}` === activeThemeId)
+            ?.appearance ?? "dark")
+        : activeThemeId === "custom"
+          ? customConfig.baseVariant
+          : (themeDef?.baseVariant ?? (getSystemDark() ? "dark" : "light"));
 
   const setTheme = useCallback((next: ThemePreference | "light" | "dark") => {
     const normalized: ThemePreference =

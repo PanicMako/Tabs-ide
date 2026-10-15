@@ -44,7 +44,7 @@ import {
 import { parseKeybindingShortcut } from "@tabs/shared/keybindings";
 import { isElectron } from "../../env";
 import { useTheme } from "../../hooks/useTheme";
-import { getActiveFontCombo } from "../../lib/themes";
+import { getActiveFontCombo, getFontComboPageHeading } from "../../lib/themes";
 import { formatShortcutLabel } from "../../keybindings";
 import { cn, isMacPlatform } from "../../lib/utils";
 import { ensureNativeApi } from "../../nativeApi";
@@ -1220,9 +1220,12 @@ export function KeybindingsSettings({
                 <h2
                   className={cn(
                     "text-[28px] leading-relaxed pb-1 text-foreground mb-2 font-bold",
-                    activeFontCombo.sansClass,
+                    getFontComboPageHeading(activeFontCombo).className,
                   )}
-                  style={{ fontFamily: "var(--font-sans)", textTransform: "capitalize" }}
+                  style={{
+                    fontFamily: getFontComboPageHeading(activeFontCombo).fontFamily,
+                    textTransform: "capitalize",
+                  }}
                 >
                   Keybindings
                 </h2>

@@ -210,7 +210,10 @@ cursorAdapterTestLayer("CursorAdapterLive", (it) => {
       assert.isDefined(delta);
       if (delta?.type === "content.delta") {
         assert.equal(delta.payload.delta, "hello from mock");
-        assert.match(String(delta.itemId), /^assistant:mock-session-1:segment:0$/);
+        assert.match(
+          String(delta.itemId),
+          /^assistant:mock-session-1:(?:runtime:[^:]+:)?segment:0$/,
+        );
       }
 
       const assistantCompleted = runtimeEvents.find(
@@ -601,7 +604,10 @@ cursorAdapterTestLayer("CursorAdapterLive", (it) => {
           if (contentDelta?.type === "content.delta") {
             assert.equal(String(contentDelta.turnId), String(turn.turnId));
             assert.equal(contentDelta.payload.delta, "hello from mock");
-            assert.equal(String(contentDelta.itemId), "assistant:mock-session-1:segment:0");
+            assert.match(
+              String(contentDelta.itemId),
+              /^assistant:mock-session-1:(?:runtime:[^:]+:)?segment:0$/,
+            );
           }
         });
 
@@ -931,7 +937,16 @@ cursorAdapterTestLayer("CursorAdapterLive", (it) => {
         assert.equal(turnCompleted.payload.stopReason, "cancelled");
       }
 
-      const requests = yield* Effect.promise(() => readJsonLines(requestLogPath));
+      const requests = yield* Effect.promise(async () => {
+        for (let i = 0; i < 40; i++) {
+          const lines = await readJsonLines(requestLogPath);
+          if (lines.some((entry) => entry.method === "session/cancel")) {
+            return lines;
+          }
+          await new Promise((resolve) => setTimeout(resolve, 50));
+        }
+        return readJsonLines(requestLogPath);
+      });
       assert.isTrue(requests.some((entry) => entry.method === "session/cancel"));
       assert.isTrue(
         requests.some(

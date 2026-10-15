@@ -26,6 +26,7 @@ import { getLocalStorageItem } from "./hooks/useLocalStorage";
 import {
   makeAppModelSelection,
   resolveAppModelSelection,
+  resolveNewDraftModelSeed,
   selectionsToTypedOptions,
   typedOptionsToSelections,
 } from "./modelSelection";
@@ -481,7 +482,7 @@ function shouldPersistDraftThreadState(
 }
 
 function normalizeProviderKind(value: unknown): ProviderKind | null {
-  return value === "codex" || value === "claudeAgent" ? value : null;
+  return Schema.is(ProviderInstanceId)(value) ? (value as ProviderKind) : null;
 }
 
 function normalizeProviderModelOptions(
@@ -696,6 +697,7 @@ export function deriveEffectiveComposerModelState(input: {
   selectedProvider: ProviderKind;
   threadModelSelection: ModelSelection | null | undefined;
   projectModelSelection: ModelSelection | null | undefined;
+  isNewThread?: boolean;
   settings: UnifiedSettings;
 }): EffectiveComposerModelState {
   // Resolve the base model respecting the settings custom-model lists so that
@@ -703,8 +705,13 @@ export function deriveEffectiveComposerModelState(input: {
   // available options for that provider.  When neither thread nor project
   // provides a model, fall back to the settings-configured default model for
   // the selected provider (mirrors T3's resolveAppModelSelection behaviour).
-  const candidateModel =
-    input.threadModelSelection?.model ?? input.projectModelSelection?.model ?? null;
+  const seedModel = (model: string | null | undefined) =>
+    input.isNewThread
+      ? resolveNewDraftModelSeed(input.selectedProvider, input.settings, input.providers, model)
+      : model;
+  const candidateModel = seedModel(
+    input.threadModelSelection?.model ?? input.projectModelSelection?.model ?? null,
+  );
   const baseModel = resolveAppModelSelection(
     input.selectedProvider,
     input.settings,
@@ -717,7 +724,7 @@ export function deriveEffectiveComposerModelState(input: {
         input.selectedProvider,
         input.settings,
         input.providers,
-        activeSelection.model,
+        seedModel(activeSelection.model),
       )
     : baseModel;
   const modelOptions =
@@ -2499,6 +2506,7 @@ export function useEffectiveComposerModelState(input: {
   selectedProvider: ProviderKind;
   threadModelSelection: ModelSelection | null | undefined;
   projectModelSelection: ModelSelection | null | undefined;
+  isNewThread?: boolean;
   settings: UnifiedSettings;
 }): EffectiveComposerModelState {
   const draft = useComposerThreadDraft(input.threadId);
@@ -2511,6 +2519,7 @@ export function useEffectiveComposerModelState(input: {
         selectedProvider: input.selectedProvider,
         threadModelSelection: input.threadModelSelection,
         projectModelSelection: input.projectModelSelection,
+        isNewThread: input.isNewThread ?? false,
         settings: input.settings,
       }),
     [
@@ -2518,6 +2527,7 @@ export function useEffectiveComposerModelState(input: {
       input.providers,
       input.settings,
       input.projectModelSelection,
+      input.isNewThread,
       input.selectedProvider,
       input.threadModelSelection,
     ],
@@ -2552,7 +2562,16 @@ export function clearPromotedDraftThreads(
       }
     }
     if (serverThreadIds.has(draftId) || serverThreadIds.has(semanticDraftId)) {
-      store.clearDraftThread(draftId);
+      // Promotion changes thread ownership, not message ownership. The user's
+      // composer content must survive creation, a failed intake, and reconnect.
+      useComposerDraftStore.setState((state) => ({
+        draftThreadsByThreadId: Object.fromEntries(
+          Object.entries(state.draftThreadsByThreadId).filter(([id]) => id !== draftId),
+        ),
+        projectDraftThreadIdByProjectId: Object.fromEntries(
+          Object.entries(state.projectDraftThreadIdByProjectId).filter(([, id]) => id !== draftId),
+        ),
+      }));
     }
   }
 }

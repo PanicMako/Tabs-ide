@@ -3,6 +3,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import {
+  FlaskConicalIcon,
   ActivityIcon,
   ArrowLeftIcon,
   ArrowUpCircleIcon,
@@ -24,6 +25,10 @@ import {
   GaugeIcon,
   XIcon,
 } from "lucide-react";
+import {
+  SettingsEditorialFrame,
+  SettingsWorkspaceIdentity,
+} from "~/components/settings/SettingsEditorialFrame";
 import { Button } from "~/components/ui/button";
 import { Dialog, DialogDescription, DialogPopup, DialogTitle } from "~/components/ui/dialog";
 import { SidebarTrigger } from "~/components/ui/sidebar";
@@ -38,9 +43,21 @@ import ThreadTerminalDrawer from "~/components/ThreadTerminalDrawer";
 import { DEFAULT_THREAD_TERMINAL_ID } from "~/types";
 import { ensureNativeApi, readNativeApi } from "~/nativeApi";
 import { serverQueryKeys } from "~/lib/serverReactQuery";
-import { cn, getHashAwareSearchParams, isPopoutMode } from "~/lib/utils";
+import {
+  cn,
+  getHashAwareSearchParams,
+  isMacPlatform,
+  isPopoutMode,
+  isWindowsPlatform,
+} from "~/lib/utils";
 import { isElectron } from "~/env";
+import { useWindowControlsInset } from "~/hooks/useWindowControlsInset";
 import { useConfirm } from "~/hooks/useConfirm";
+
+const isMacDesktop =
+  isElectron && typeof navigator !== "undefined" && /Mac/i.test(navigator.platform);
+const isWindowsDesktop =
+  isElectron && typeof navigator !== "undefined" && isWindowsPlatform(navigator.platform);
 import {
   useIsAnyDraftDirty,
   useDirtyDraftSources,
@@ -103,6 +120,7 @@ function NotificationsBadge() {
 }
 
 const GeneralSettings = lazy(() => import("~/components/settings/GeneralSettings"));
+const LabsSettings = lazy(() => import("~/components/settings/LabsSettings"));
 const ThemesSettings = lazy(() => import("~/components/settings/ThemesSettings"));
 const AnimationsSettings = lazy(() => import("~/components/settings/AnimationsSettings"));
 const ProvidersSettings = lazy(() => import("~/components/settings/ProvidersSettings"));
@@ -154,6 +172,7 @@ const SourceControlSettingsPanel = lazy(() =>
 );
 
 export type SettingsSectionId =
+  | "labs"
   | "general"
   | "notifications"
   | "themes"
@@ -188,6 +207,7 @@ const SETTINGS_NAV: ReadonlyArray<{
   { id: "profiles", label: "Browser Profiles", icon: FingerprintIcon },
   { id: "keybindings", label: "Keybindings", icon: KeyboardIcon },
   { id: "about", label: "About", icon: InfoIcon },
+  { id: "labs", label: "Labs", icon: FlaskConicalIcon },
 ];
 
 const EMPTY_KEYBINDINGS: ResolvedKeybindingsConfig = [];
@@ -217,6 +237,11 @@ function SettingsRouteView() {
   const settings = useSettings();
   const { updateSettings } = useUpdateSettings();
   const queryClient = useQueryClient();
+
+  const windowControlsInset = useWindowControlsInset(
+    isWindowsDesktop || isMacDesktop,
+    isMacDesktop ? { left: 92, right: 0 } : { left: 0, right: 140 },
+  );
 
   const isPopout = isPopoutMode();
 
@@ -346,6 +371,7 @@ function SettingsRouteView() {
     threadId: ThreadId;
   } | null>(null);
   const providerActionCommandSentRef = useRef<string | null>(null);
+  const [managedProviderActionBusy, setManagedProviderActionBusy] = useState(false);
 
   const startProviderAction = useCallback(
     (input: {
@@ -355,6 +381,44 @@ function SettingsRouteView() {
       followUpCommand?: string;
       kind: ProviderActionKind;
     }) => {
+      if (input.provider === "antigravity" && input.kind === "install") {
+        const api = readNativeApi();
+        const instance = serverConfig?.providers.find(
+          (provider) => provider.driver === "antigravity",
+        );
+        if (!api || !instance) {
+          toastManager.add({ type: "error", title: "Antigravity provider is unavailable" });
+          return;
+        }
+        setManagedProviderActionBusy(true);
+        toastManager.add({ type: "info", title: "Installing Antigravity runtime" });
+        void api.server
+          .runProviderMaintenance({ instanceId: instance.instanceId, action: "install" })
+          .then((result) => {
+            const installed = result.providers.find(
+              (provider) => provider.instanceId === instance.instanceId,
+            );
+            toastManager.add({
+              type: installed?.installed ? "success" : "error",
+              title: installed?.installed
+                ? "Antigravity installed"
+                : "Antigravity installation failed",
+              description: installed?.updateState?.message ?? installed?.message ?? undefined,
+            });
+          })
+          .catch((error: unknown) => {
+            toastManager.add({
+              type: "error",
+              title: "Antigravity installation failed",
+              description: error instanceof Error ? error.message : "Installation failed.",
+            });
+          })
+          .finally(() => {
+            setManagedProviderActionBusy(false);
+            refreshProviders();
+          });
+        return;
+      }
       let command = input.command.trim();
       if (command.length === 0) return;
       if (input.provider === "copilot" && input.kind === "login") {
@@ -373,7 +437,7 @@ function SettingsRouteView() {
         threadId: ThreadId.makeUnsafe(`settings-${input.kind}-${input.provider}-${Date.now()}`),
       });
     },
-    [settings.providers.copilot?.gheHost],
+    [settings.providers.copilot?.gheHost, serverConfig?.providers, refreshProviders],
   );
 
   const closeProviderAction = useCallback(() => {
@@ -405,7 +469,14 @@ function SettingsRouteView() {
             terminalId: DEFAULT_THREAD_TERMINAL_ID,
             data: `${command}\r`,
           })
-          .catch(() => undefined);
+          .catch((error: unknown) => {
+            providerActionCommandSentRef.current = null;
+            toastManager.add({
+              type: "error",
+              title: "Could not run provider command",
+              description: error instanceof Error ? error.message : "Terminal command failed.",
+            });
+          });
         if (followUpCommand) {
           setTimeout(() => {
             void api.terminal
@@ -518,7 +589,7 @@ function SettingsRouteView() {
 
   if (isPopout) {
     return (
-      <div className="isolate flex h-screen min-h-0 min-w-0 flex-col overflow-y-auto overscroll-y-none bg-background text-foreground">
+      <SettingsEditorialFrame className="isolate flex h-screen min-h-0 min-w-0 flex-col overflow-y-auto overscroll-y-none bg-background text-foreground">
         <Suspense fallback={<SettingsLoadingState label="Loading settings" className="h-64" />}>
           {activeSettingsSection === "documentation" ? (
             <div className="mx-auto w-full max-w-7xl p-6">
@@ -529,22 +600,40 @@ function SettingsRouteView() {
           )}
         </Suspense>
         {confirmDialog}
-      </div>
+      </SettingsEditorialFrame>
     );
   }
 
   return (
-    <div className="isolate flex h-full min-h-0 min-w-0 flex-col overflow-hidden overscroll-y-none bg-background text-foreground">
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-background text-foreground">
+    <SettingsEditorialFrame className="isolate flex h-full min-h-0 min-w-0 flex-col overflow-hidden overscroll-y-none bg-background text-foreground">
+      <div
+        data-slot="settings-shell"
+        className="flex min-h-0 min-w-0 flex-1 flex-col bg-background text-foreground"
+      >
         {!isElectron && (
-          <header className="border-b border-border px-3 py-2 sm:px-5">
+          <header data-slot="settings-topbar" className="border-b border-border px-3 py-2 sm:px-5">
             <div className="flex items-center gap-2">
               <SidebarTrigger className="size-7 shrink-0 md:hidden" />
-              <Button size="xs" variant="ghost" onClick={handleBack}>
+              <Button
+                data-slot="settings-classic-back"
+                size="xs"
+                variant="ghost"
+                onClick={handleBack}
+              >
                 <ArrowLeftIcon className="size-3.5" />
                 Back
               </Button>
-              <span className="text-sm font-medium text-foreground">Settings</span>
+              <span
+                data-slot="settings-classic-label"
+                className="text-sm font-medium text-foreground"
+              >
+                Settings
+              </span>
+              <SettingsWorkspaceIdentity
+                onBack={handleBack}
+                pageName={SETTINGS_NAV.find((item) => item.id === activeSettingsSection)?.label}
+                onSettingsHome={() => setActiveSettingsSection("general")}
+              />
               <div id="settings-header-actions" className="ms-auto flex items-center gap-2">
                 <NotificationBellButton
                   active={activeSettingsSection === "notifications"}
@@ -557,14 +646,35 @@ function SettingsRouteView() {
         )}
 
         {isElectron && (
-          <div className="drag-region flex h-[52px] shrink-0 items-center border-b border-border px-5">
-            <Button size="xs" variant="ghost" className="no-drag" onClick={handleBack}>
+          <div
+            data-slot="settings-topbar"
+            className="drag-region flex h-[52px] shrink-0 items-center border-b border-border px-5"
+            style={{
+              paddingLeft: Math.max(20, windowControlsInset.left),
+              paddingRight: Math.max(20, windowControlsInset.right),
+            }}
+          >
+            <Button
+              data-slot="settings-classic-back"
+              size="xs"
+              variant="ghost"
+              className="no-drag"
+              onClick={handleBack}
+            >
               <ArrowLeftIcon className="size-3.5" />
               Back
             </Button>
-            <span className="ml-2 text-xs font-medium tracking-wide text-muted-foreground/70">
+            <span
+              data-slot="settings-classic-label"
+              className="ml-2 text-xs font-medium tracking-wide text-muted-foreground/70"
+            >
               Settings
             </span>
+            <SettingsWorkspaceIdentity
+              onBack={handleBack}
+              pageName={SETTINGS_NAV.find((item) => item.id === activeSettingsSection)?.label}
+              onSettingsHome={() => setActiveSettingsSection("general")}
+            />
             <div id="settings-header-actions" className="ms-auto flex items-center gap-2">
               <NotificationBellButton
                 active={activeSettingsSection === "notifications"}
@@ -576,8 +686,16 @@ function SettingsRouteView() {
         )}
 
         <div className="min-h-0 flex-1 overflow-hidden">
-          <div className="flex h-full w-full gap-6 px-6 sm:px-10 lg:px-16">
-            <nav className="w-48 shrink-0 space-y-0.5 py-4">
+          <div
+            data-slot="settings-columns"
+            className="flex h-full w-full gap-6 px-6 sm:px-10 lg:px-16"
+          >
+            <nav
+              data-slot="settings-nav"
+              aria-label="Settings pages"
+              className="w-48 shrink-0 space-y-0.5 py-4 overflow-y-auto"
+            >
+              <span data-slot="settings-nav-label">Settings</span>
               {SETTINGS_NAV.map((item) => {
                 const NavIcon = item.icon;
                 const active = activeSettingsSection === item.id;
@@ -585,6 +703,7 @@ function SettingsRouteView() {
                   <button
                     key={item.id}
                     type="button"
+                    aria-current={active ? "page" : undefined}
                     onClick={() => setActiveSettingsSection(item.id)}
                     className={cn(
                       "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-xs font-medium transition-colors cursor-pointer",
@@ -600,8 +719,14 @@ function SettingsRouteView() {
                 );
               })}
             </nav>
-            <div className="min-w-0 flex-1 overflow-y-auto overscroll-y-contain py-6">
-              <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 pb-12">
+            <div
+              data-slot="settings-scroll"
+              className="min-w-0 flex-1 overflow-y-auto overscroll-y-contain py-6"
+            >
+              <div
+                data-slot="settings-content"
+                className="mx-auto flex w-full max-w-5xl flex-col gap-6 pb-12"
+              >
                 <Suspense
                   fallback={
                     <SettingsLoadingState
@@ -621,7 +746,9 @@ function SettingsRouteView() {
                     {activeSettingsSection === "source-control" ? (
                       <SourceControlSettingsPanel
                         startProviderAction={startProviderAction}
-                        providerActionBusy={providerActionSession !== null}
+                        providerActionBusy={
+                          providerActionSession !== null || managedProviderActionBusy
+                        }
                       />
                     ) : null}
                     {activeSettingsSection === "connections" ? <ConnectionsSettings /> : null}
@@ -633,7 +760,9 @@ function SettingsRouteView() {
                         refreshProviders={refreshProviders}
                         isRefreshingProviders={isRefreshingProviders}
                         startProviderAction={startProviderAction}
-                        providerActionBusy={providerActionSession !== null}
+                        providerActionBusy={
+                          providerActionSession !== null || managedProviderActionBusy
+                        }
                       />
                     ) : null}
                     {activeSettingsSection === "keybindings" ? (
@@ -650,8 +779,13 @@ function SettingsRouteView() {
                     {activeSettingsSection === "usage" ? <UsageLimitsPage /> : null}
                     {activeSettingsSection === "diagnostics" ? <DiagnosticsSettings /> : null}
                     {activeSettingsSection === "about" ? <AboutSettings /> : null}
+                    {activeSettingsSection === "labs" ? <LabsSettings /> : null}
                   </SettingsSurface>
                 </Suspense>
+                <footer data-slot="settings-footer">
+                  <span>Built around your workflow.</span>
+                  <span>Settings · Experimental layout</span>
+                </footer>
               </div>
             </div>
           </div>
@@ -740,7 +874,7 @@ function SettingsRouteView() {
         </Dialog>
       </div>
       {confirmDialog}
-    </div>
+    </SettingsEditorialFrame>
   );
 }
 

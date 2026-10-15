@@ -3,6 +3,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import type * as Schema from "effect/Schema";
 import type {
+  BranchNamingOptions,
   ChatAttachment,
   ModelSelection,
   ProviderInstanceId,
@@ -10,11 +11,9 @@ import type {
 } from "@tabs/contracts";
 import { TextGenerationError } from "@tabs/contracts";
 
-import {
-  ProviderInstanceRegistry,
-  type ProviderInstanceRegistryShape,
-} from "../provider/Services/ProviderInstanceRegistry";
-import type { ProviderInstance } from "../provider/ProviderDriver";
+import * as ProviderInstanceRegistry from "../provider/ProviderInstanceRegistry.ts";
+import type { ProviderInstance } from "../provider/ProviderDriver.ts";
+import type { TextGenerationPolicy } from "./TextGenerationPolicy.ts";
 
 export type TextGenerationProvider =
   | "codex"
@@ -34,6 +33,7 @@ export interface CommitMessageGenerationInput {
   stagedPatch: string;
   /** When true, the model also returns a semantic branch name for the change. */
   includeBranch?: boolean;
+  policy?: TextGenerationPolicy | undefined;
   /** What model and provider to use for generation. */
   modelSelection: ModelSelection;
 }
@@ -52,6 +52,8 @@ export interface PrContentGenerationInput {
   commitSummary: string;
   diffSummary: string;
   diffPatch: string;
+  changeRequestTemplate?: string | undefined;
+  policy?: TextGenerationPolicy | undefined;
   /** What model and provider to use for generation. */
   modelSelection: ModelSelection;
 }
@@ -62,6 +64,7 @@ export interface PrContentGenerationResult {
 }
 
 export interface BranchNameGenerationInput {
+  naming?: BranchNamingOptions | undefined;
   cwd: string;
   message: string;
   attachments?: ReadonlyArray<ChatAttachment> | undefined;
@@ -74,8 +77,11 @@ export interface BranchNameGenerationResult {
 }
 
 export interface ThreadTitleGenerationInput {
+  linkedContext?: string | undefined;
   cwd: string;
   message: string;
+  /** Present when replacing an existing title from the current thread history. */
+  previousTitle?: string | undefined;
   attachments?: ReadonlyArray<ChatAttachment> | undefined;
   /** What model and provider to use for generation. */
   modelSelection: ModelSelection;
@@ -83,6 +89,7 @@ export interface ThreadTitleGenerationInput {
 
 export interface ThreadTitleGenerationResult {
   title: string;
+  needsRefinement?: boolean | undefined;
 }
 
 export interface DiffSummaryGenerationInput {
@@ -209,7 +216,7 @@ type TextGenerationOp =
   | "generateStructuredTesting";
 
 const resolveInstance = (
-  registry: ProviderInstanceRegistryShape,
+  registry: ProviderInstanceRegistry.ProviderInstanceRegistry["Service"],
   operation: TextGenerationOp,
   instanceId: ProviderInstanceId,
 ): Effect.Effect<ProviderInstance["textGeneration"], TextGenerationError> =>
@@ -227,7 +234,7 @@ const resolveInstance = (
   );
 
 export const makeTextGenerationFromRegistry = (
-  registry: ProviderInstanceRegistryShape,
+  registry: ProviderInstanceRegistry.ProviderInstanceRegistry["Service"],
 ): TextGenerationShape => ({
   generateCommitMessage: (input) =>
     resolveInstance(registry, "generateCommitMessage", input.modelSelection.instanceId).pipe(
@@ -259,7 +266,7 @@ export const makeTextGenerationFromRegistry = (
               detail: "Selected provider is unavailable",
             }),
           );
-        if (input.playwrightTools && instance.capabilities.testingMcpTools !== "supported")
+        if (input.playwrightTools && instance.capabilities?.testingMcpTools !== "supported")
           return Effect.fail(
             new TextGenerationError({
               operation: "generateStructuredTesting",
@@ -275,7 +282,7 @@ export const makeTextGenerationFromRegistry = (
 export const layer = Layer.effect(
   TextGeneration,
   Effect.gen(function* () {
-    const registry = yield* ProviderInstanceRegistry;
+    const registry = yield* ProviderInstanceRegistry.ProviderInstanceRegistry;
     return makeTextGenerationFromRegistry(registry);
   }),
 );

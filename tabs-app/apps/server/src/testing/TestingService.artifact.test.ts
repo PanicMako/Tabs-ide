@@ -5,8 +5,8 @@ import { join } from "node:path";
 import { ProviderInstanceId } from "@tabs/contracts";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { TestingGraphStore } from "./graphStore";
-import { TestingService } from "./TestingService";
+import { TestingGraphStore } from "./graphStore.ts";
+import { TestingService } from "./TestingService.ts";
 
 const cleanupPaths: string[] = [];
 

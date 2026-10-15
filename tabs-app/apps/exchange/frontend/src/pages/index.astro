@@ -1,0 +1,38 @@
+---
+import Exchange from "../layouts/Exchange.astro";
+import WorkspaceIllustration from "../components/WorkspaceIllustration.astro";
+---
+<Exchange title="Make room for your next tool" description="Discover and build full-workspace tools for Tabs. An open extension ecosystem for your way of working.">
+  <section class="home-hero" aria-labelledby="home-title">
+    <div class="home-hero-copy">
+      <p class="eyebrow">An open space for your next tool</p>
+      <h1 id="home-title">Your workflow.<br />A little more<br /><em class="editorial-accent">possibility.</em></h1>
+      <p class="lead">Good tools make room for good ideas. Discover workspace extensions for Tabs, or build the one you wish existed.</p>
+      <form class="home-search" action="/extensions" method="get" role="search" aria-label="Search the extension marketplace">
+        <label for="home-extension-query" class="sr-only">Search extensions</label>
+        <input id="home-extension-query" type="search" name="q" maxlength="100" placeholder="Find your next workspace tool" />
+        <button class="button" type="submit" aria-label="Search extensions"><span aria-hidden="true">↗</span></button>
+      </form>
+      <div class="hero-links"><a class="text-link" href="/extensions">Explore the registry <span aria-hidden="true">↗</span></a><a class="text-link muted" href="/developers">Make something new <span aria-hidden="true">↗</span></a></div>
+    </div>
+    <WorkspaceIllustration />
+  </section>
+
+  <div class="trust-line"><span>More room. Thoughtfully built.</span><div><span>Manual review</span><span>Signed releases</span><span>Scoped permissions</span></div><a href="/docs/extensions/permissions">How it works <span aria-hidden="true">↗</span></a></div>
+
+  <section class="discovery-section" aria-labelledby="discovery-title">
+    <div class="section-heading"><div><p class="eyebrow">01 / Out in the open</p><h2 id="discovery-title">Find your next<br /><em class="editorial-accent">good addition.</em></h2></div><div><p>Published tools from this registry. Explore what they do, who made them, and the access they request.</p><a class="text-link" href="/extensions">All extensions <span aria-hidden="true">↗</span></a></div></div>
+    <p id="home-catalog-status" class="registry-status" role="status" aria-live="polite">Loading published extensions…</p>
+    <section id="home-catalog-region" aria-label="Recently published extensions" aria-busy="true"><ul id="home-catalog-results" class="catalog-results"></ul></section>
+    <div id="home-catalog-empty" class="registry-empty" hidden><span class="empty-mark" aria-hidden="true">+</span><div><h3>A little room for something new.</h3><p>This registry has no published extensions yet. A tool you build could be someone else’s next good idea.</p><a class="text-link" href="/developers">Start building <span aria-hidden="true">↗</span></a></div></div>
+    <div id="home-catalog-error" class="registry-empty" hidden><span class="empty-mark" aria-hidden="true">↗</span><div><h3>The registry is out of reach.</h3><p id="home-catalog-error-message"></p><div class="actions"><button class="button secondary" id="home-catalog-retry" type="button">Try again</button><a class="text-link" href="/extensions">Open the catalog <span aria-hidden="true">↗</span></a></div></div></div>
+    <noscript><p class="notice">Enable JavaScript to load this registry’s published tools. You can still explore <a href="/developers">developer resources</a> and <a href="/docs/extensions">documentation</a>.</p></noscript>
+  </section>
+
+  <section class="make-section" aria-labelledby="make-title">
+    <div><p class="eyebrow">02 / Made by you</p><h2 id="make-title">Some tools<br />don’t exist.<br /><em class="editorial-accent">Yet.</em></h2><p class="lead">That’s where you come in. Give your idea a full-workspace view, then share it through a transparent publication process.</p><a class="button" href="/developers">Build your first tool <span aria-hidden="true">↗</span></a></div>
+    <ol class="make-path"><li><span>01</span><div><h3>Make a space for it.</h3><p>Start with React or plain HTML. Your extension becomes a tool in the project toolbar.</p><a href="/docs/extensions">Meet the SDK <span aria-hidden="true">↗</span></a></div></li><li><span>02</span><div><h3>Build it your way.</h3><p>Use a scoped host API. Request the capabilities your tool needs and test in a compatible Tabs development build.</p><a href="/docs/extensions/development">Explore development <span aria-hidden="true">↗</span></a></div></li><li><span>03</span><div><h3>Put it out in the open.</h3><p>Package, submit, and follow review. Only releases included in signed metadata become discoverable.</p><a href="/publish">Meet the publishing flow <span aria-hidden="true">↗</span></a></div></li></ol>
+  </section>
+  <p class="instance-note">An ecosystem taking shape. Tooling is experimental; availability and publishing depend on this registry. Manual review is not a security guarantee.</p>
+</Exchange>
+<script>import "../scripts/home-catalog";</script>

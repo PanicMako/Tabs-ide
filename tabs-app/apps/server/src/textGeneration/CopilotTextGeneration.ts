@@ -10,7 +10,7 @@ import { sanitizeBranchFragment, sanitizeFeatureBranchName } from "@tabs/shared/
 import { extractJsonObject, fromLenientJson } from "@tabs/shared/schemaJson";
 
 import { TextGenerationError } from "@tabs/contracts";
-import { type ThreadTitleGenerationResult, type TextGenerationShape } from "./TextGeneration";
+import { type ThreadTitleGenerationResult, type TextGenerationShape } from "./TextGeneration.ts";
 import {
   buildBranchNamePrompt,
   buildCommitMessagePrompt,
@@ -18,20 +18,20 @@ import {
   buildPrContentPrompt,
   buildThreadTitlePrompt,
   buildStructuredTestingPrompt,
-} from "./TextGenerationPrompts";
+} from "./TextGenerationPrompts.ts";
 import {
   buildSchemaConstrainedPrompt,
   logStructuredGenerationRequest,
   sanitizeCommitSubject,
   sanitizePrTitle,
   sanitizeThreadTitle,
-} from "./TextGenerationUtils";
+} from "./TextGenerationUtils.ts";
 import {
   applyCopilotAcpModelSelection,
   currentCopilotModelIdFromSessionSetup,
   makeCopilotAcpRuntime,
   resolveCopilotAcpBaseModelId,
-} from "../provider/acp/CopilotAcpSupport";
+} from "../provider/acp/CopilotAcpSupport.ts";
 
 const COPILOT_TIMEOUT_MS = 180_000;
 
@@ -134,6 +134,7 @@ export const makeCopilotTextGeneration = Effect.fn("makeCopilotTextGeneration")(
         const started = yield* runtime.start();
         yield* applyCopilotAcpModelSelection({
           runtime,
+          protocolVersion: started.initializeResult.protocolVersion,
           currentModelId: currentCopilotModelIdFromSessionSetup(started.sessionSetupResult),
           requestedModelId: resolvedModel,
           mapError: (cause) =>

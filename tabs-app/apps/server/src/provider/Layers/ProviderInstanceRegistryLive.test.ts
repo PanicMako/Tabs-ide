@@ -1,3 +1,6 @@
+import * as Stream from "effect/Stream";
+import * as BackgroundPolicy from "../../background/BackgroundPolicy.ts";
+import * as ServerSettingsModule from "../../serverSettings.ts";
 /**
  * Multi-instance validation slices for `ProviderInstanceRegistryLive`.
  *
@@ -53,6 +56,14 @@ import {
   ProviderInstanceRegistryMutableLayer,
 } from "./ProviderInstanceRegistryLive";
 
+import * as OpenCodeServerLedger from "../OpenCodeServerLedger.ts";
+
+const backgroundPolicyForTests = Layer.mock(BackgroundPolicy.BackgroundPolicy)({
+  shouldRunScopeWork: () => Effect.succeed(true),
+  shouldRunOpportunisticWork: Effect.succeed(true),
+  streamChanges: Stream.empty,
+});
+
 const TestHttpClientLive = Layer.succeed(
   HttpClient.HttpClient,
   HttpClient.make((request) =>
@@ -65,6 +76,7 @@ const makeCodexConfig = (overrides: Partial<CodexSettings>): CodexSettings => ({
   binaryPath: "codex",
   homePath: "",
   shadowHomePath: "",
+  launchArgs: "",
   customModels: [],
   ...overrides,
 });
@@ -75,6 +87,7 @@ const makeClaudeConfig = (overrides: Partial<ClaudeSettings>): ClaudeSettings =>
   homePath: "",
   customModels: [],
   launchArgs: "",
+  autoCompactWindow: "",
   ...overrides,
 });
 
@@ -99,7 +112,6 @@ const makeOpenCodeConfig = (overrides: Partial<OpenCodeSettings>): OpenCodeSetti
   serverUrl: "",
   serverPassword: "",
   customModels: [],
-  experimentalWebSockets: false,
   ...overrides,
 });
 
@@ -112,7 +124,13 @@ describe("ProviderInstanceRegistryLive — multi-instance codex slice", () => {
   const testLayer = ServerConfig.layerTest(process.cwd(), {
     prefix: "provider-instance-registry-test",
   }).pipe(
-    Layer.provideMerge(NodeServices.layer),
+    Layer.provideMerge(
+      Layer.mergeAll(
+        NodeServices.layer,
+        backgroundPolicyForTests,
+        ServerSettingsModule.layerTest(),
+      ),
+    ),
     Layer.provideMerge(TestHttpClientLive),
     Layer.provideMerge(Layer.succeed(ProviderEventLoggers, NoOpProviderEventLoggers)),
     Layer.provideMerge(CodexResetCredit.layerTest),
@@ -246,7 +264,16 @@ describe("ProviderInstanceRegistryLive — all drivers slice", () => {
   // provides `OpenCodeRuntimeLive`'s deps while keeping its own outputs
   // surfaced; that merged layer then provides `ServerConfig.layerTest`'s
   // `FileSystem` dep while keeping everything else surfaced to the test.
-  const infraLayer = OpenCodeRuntimeLive.pipe(Layer.provideMerge(NodeServices.layer));
+  const infraLayer = OpenCodeRuntimeLive.pipe(
+    Layer.provide(OpenCodeServerLedger.layerTest),
+    Layer.provideMerge(
+      Layer.mergeAll(
+        NodeServices.layer,
+        backgroundPolicyForTests,
+        ServerSettingsModule.layerTest(),
+      ),
+    ),
+  );
   const testLayer = ServerConfig.layerTest(process.cwd(), {
     prefix: "provider-instance-registry-all-drivers-test",
   }).pipe(

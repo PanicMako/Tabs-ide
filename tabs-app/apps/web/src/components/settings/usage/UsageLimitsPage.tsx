@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { SegmentedControl } from "../../ui/segmented-control";
+import "./usage.css";
+import { useEffect, useState } from "react";
 import { useAtomValue } from "@effect/atom-react";
 import {
   usageActiveSubTabAtom,
@@ -15,13 +17,10 @@ import { UsageTab } from "./UsageTab";
 import { LimitsTab } from "./LimitsTab";
 import { Button } from "../../ui/button";
 import { cn } from "../../../lib/utils";
-import { getActiveFontCombo } from "../../../lib/themes";
-import { useTheme } from "../../../hooks/useTheme";
-import { BarChart3Icon, GaugeIcon, RefreshCwIcon } from "lucide-react";
+import { SettingsSectionHeader } from "../SettingsLayout";
+import { RefreshCwIcon } from "lucide-react";
 
 export function UsageLimitsPage() {
-  const { fontPreferences } = useTheme();
-  const activeFontCombo = useMemo(() => getActiveFontCombo(fontPreferences), [fontPreferences]);
   const activeSubTab = useAtomValue(usageActiveSubTabAtom);
   const summaryState = useAtomValue(usageSummaryStateAtom);
   const snapshotsState = useAtomValue(providerUsageSnapshotsAtom);
@@ -36,7 +35,7 @@ export function UsageLimitsPage() {
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      await Promise.all([fetchUsageSummary(), refreshAllProviderUsage()]);
+      await Promise.all([fetchUsageSummary(undefined, { force: true }), refreshAllProviderUsage()]);
     } finally {
       setIsRefreshing(false);
     }
@@ -48,97 +47,46 @@ export function UsageLimitsPage() {
 
   const isLoading = isRefreshing || summaryState.loading || snapshotsState.loading;
 
+  const subTabControl = (
+    <SegmentedControl
+      value={activeSubTab}
+      onValueChange={setSubTab}
+      options={[
+        { value: "usage", label: "Overview" },
+        { value: "limits", label: "Provider limits" },
+      ]}
+      aria-label="Usage settings section"
+      size="sm"
+    />
+  );
+
   return (
-    <div className="space-y-6">
-      {/* Top Header */}
-      <div>
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="space-y-1.5">
-            <h2
-              className={cn(
-                "text-[28px] font-bold leading-relaxed pb-1 text-foreground",
-                activeFontCombo.sansClass,
-              )}
-              style={{ fontFamily: "var(--font-sans)", textTransform: "capitalize" }}
-            >
-              Usage & Limits
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              Monitor your LLM token consumption, estimated full API rates, and provider quota
-              limits.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Button
-              onClick={handleRefresh}
-              disabled={isLoading}
-              variant="outline"
-              size="sm"
-              className="gap-1.5 shadow-xs border-border/80"
-              aria-label={isLoading ? "Refreshing usage and limits" : "Refresh usage and limits"}
-            >
-              <RefreshCwIcon className={cn("size-3.5", isLoading && "animate-spin")} />
-              <span>Refresh</span>
-            </Button>
-          </div>
-        </div>
-
-        {/* Decorative Divider Gradient matching neighboring settings pages */}
-        <div
-          className="h-[5px] w-full my-5 rounded-full dark:block hidden"
-          style={{
-            background: "linear-gradient(to right, rgba(255,255,255,0.25), transparent)",
-          }}
-        />
-        <div
-          className="h-[5px] w-full my-5 rounded-full dark:hidden block"
-          style={{
-            background: "linear-gradient(to right, rgba(0,0,0,0.12), transparent)",
-          }}
-        />
-      </div>
-
-      {/* Sub-tab Navigation (Usage / Limits) */}
-      <div className="flex items-center gap-2 border-b border-border/60 pb-3">
-        <div
-          className="tabs-segmented flex items-center"
-          role="group"
-          aria-label="Usage settings section"
-        >
-          <button
-            type="button"
-            onClick={() => setSubTab("usage")}
-            aria-pressed={activeSubTab === "usage"}
-            className={cn(
-              "flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-semibold transition-all",
-              activeSubTab === "usage"
-                ? "bg-primary/10 text-foreground border border-primary/20 shadow-xs"
-                : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
-            )}
+    <div className="usage-page space-y-5">
+      <SettingsSectionHeader
+        title="Usage & Limits"
+        description="Your agent activity and reported provider quotas."
+        actions={
+          <Button
+            onClick={handleRefresh}
+            disabled={isLoading}
+            variant="outline"
+            size="sm"
+            aria-label={isLoading ? "Refreshing usage and limits" : "Refresh usage and limits"}
           >
-            <BarChart3Icon className="size-4" />
-            <span>Usage</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setSubTab("limits")}
-            aria-pressed={activeSubTab === "limits"}
-            className={cn(
-              "flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-semibold transition-all",
-              activeSubTab === "limits"
-                ? "bg-primary/10 text-foreground border border-primary/20 shadow-xs"
-                : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
-            )}
-          >
-            <GaugeIcon className="size-4" />
-            <span>Limits</span>
-          </button>
-        </div>
-      </div>
+            <RefreshCwIcon className={cn("size-3.5 mr-1.5", isLoading && "animate-spin")} />
+            Refresh
+          </Button>
+        }
+      />
 
       {/* Main Tab Content */}
-      <div className="min-w-0">{activeSubTab === "usage" ? <UsageTab /> : <LimitsTab />}</div>
+      <div className="min-w-0">
+        {activeSubTab === "usage" ? (
+          <UsageTab subTabControl={subTabControl} />
+        ) : (
+          <LimitsTab subTabControl={subTabControl} />
+        )}
+      </div>
     </div>
   );
 }

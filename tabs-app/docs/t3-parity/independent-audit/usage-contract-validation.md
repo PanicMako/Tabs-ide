@@ -1,0 +1,5 @@
+# Usage contract — batch237
+
+Complete312line current source and modified hunks reviewed, with truncated initial combined read recovered. Contracts824test evidence reused. Contract version2 becomes6 with merge floor4; buckets move from flat tokens/estimated cost to totals/costUsd and source fingerprints replace home metadata. This is deliberately incompatible with old v2 shape, not merely optional fields. Earlier shared merge review covered compatibility logic; active UI still used primary summary in earlier traced caller, so multi-environment UI completion remains unproven.
+
+Schema enforces nonnegative integer token/session/record counts but does not constrain reasoningTokens subset of outputTokens or finite/nonnegative costs. UsageDay validates date shape rather than actual calendar validity; window/zone validation belongs to service. Selected pricing split scales category rates to provider cost and computes speed premium; full pricing/aggregation producers remain separate review scope. Forward-compatible arrays drop unknown providers rather than invalidating whole summary. No production changes.

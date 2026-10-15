@@ -1,3 +1,7 @@
+import { openCodeUpdateFor as modernOpenCodeUpdateFor } from "./OpenCodeDriver.modern.ts";
+import { resolveProviderMaintenanceCapabilitiesEffect as resolveModernMaintenance } from "../providerMaintenance.modern.ts";
+import { OpenCodeDriver as ModernOpenCodeDriver } from "./OpenCodeDriver.modern.ts";
+import { ProviderRuntimeGeneration } from "../ProviderRuntimeGeneration.ts";
 /**
  * OpenCodeDriver — `ProviderDriver` for the OpenCode runtime.
  *
@@ -13,6 +17,7 @@
  * @module provider/Drivers/OpenCodeDriver
  */
 import { OpenCodeSettings, ProviderDriverKind, type ServerProvider } from "@tabs/contracts";
+import * as Crypto from "effect/Crypto";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
@@ -21,35 +26,37 @@ import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import { HttpClient } from "effect/unstable/http";
 import { ChildProcessSpawner } from "effect/unstable/process";
+import { readOpenCodeGoUsageLimits } from "../openCodeUsageLimits.ts";
 
-import { makeOpenCodeTextGeneration } from "../../textGeneration/OpenCodeTextGeneration";
-import { ServerConfig } from "../../config";
-import { ProviderDriverError } from "../Errors";
-import { makeOpenCodeAdapter } from "../Layers/OpenCodeAdapter";
+import { makeOpenCodeTextGeneration } from "../../textGeneration/OpenCodeTextGeneration.ts";
+import { ServerConfig } from "../../config.ts";
+import { ProviderDriverError } from "../Errors.ts";
+import { makeOpenCodeAdapter } from "../Layers/OpenCodeAdapter.ts";
 import {
   checkOpenCodeProviderStatus,
   makePendingOpenCodeProvider,
   openCodeSkillsToServerProviderSkills,
-} from "../Layers/OpenCodeProvider";
-import { ProviderEventLoggers } from "../Layers/ProviderEventLoggers";
-import { makeManagedServerProvider } from "../makeManagedServerProvider";
-import { OpenCodeRuntime } from "../opencodeRuntime";
+} from "../Layers/OpenCodeProvider.ts";
+import { ProviderEventLoggers } from "../Layers/ProviderEventLoggers.ts";
+import { makeManagedServerProvider } from "../makeManagedServerProvider.ts";
+import { OpenCodeRuntime } from "../opencodeRuntime.ts";
 import {
   defaultProviderContinuationIdentity,
   makeExternalCliLifecycle,
   makeProviderInstanceCapabilities,
   type ProviderDriver,
   type ProviderInstance,
-} from "../ProviderDriver";
-import type { ServerProviderDraft } from "../providerSnapshot";
-import { mergeProviderInstanceEnvironment } from "../ProviderInstanceEnvironment";
-import { getProviderSecret } from "../ProviderSecretStore";
+} from "../ProviderDriver.ts";
+import type { ServerProviderDraft } from "../providerSnapshot.ts";
+import { mergeProviderInstanceEnvironment } from "../ProviderInstanceEnvironment.ts";
+import { getProviderSecret } from "../ProviderSecretStore.ts";
 import {
+  makeManualOnlyProviderMaintenanceCapabilities,
   enrichProviderSnapshotWithVersionAdvisory,
   makePackageManagedProviderMaintenanceResolver,
   normalizeCommandPath,
   resolveProviderMaintenanceCapabilitiesEffect,
-} from "../providerMaintenance";
+} from "../providerMaintenance.ts";
 const decodeOpenCodeSettings = Schema.decodeSync(OpenCodeSettings);
 
 const DRIVER_KIND = "opencode" as ProviderDriverKind;
@@ -63,20 +70,24 @@ function isOpenCodeNativeCommandPath(commandPath: string): boolean {
   );
 }
 
-const UPDATE = makePackageManagedProviderMaintenanceResolver({
-  provider: DRIVER_KIND,
-  npmPackageName: "opencode-ai",
-  homebrewFormula: "anomalyco/tap/opencode",
-  nativeUpdate: {
-    executable: "opencode",
-    args: ["upgrade"],
-    lockKey: "opencode-native",
-    isCommandPath: isOpenCodeNativeCommandPath,
-  },
-});
+const legacyOpenCodeUpdateFor = (generation: "v1" | "v2") =>
+  makePackageManagedProviderMaintenanceResolver({
+    provider: DRIVER_KIND,
+    npmPackageName: generation === "v2" ? "@opencode/cli" : "opencode-ai",
+    homebrewFormula: "anomalyco/tap/opencode",
+    nativeUpdate: {
+      executable: "opencode",
+      args: ["upgrade"],
+      lockKey: "opencode-native",
+      isCommandPath: isOpenCodeNativeCommandPath,
+    },
+  });
+
+const UPDATE = legacyOpenCodeUpdateFor("v1");
 
 export type OpenCodeDriverEnv =
   | ChildProcessSpawner.ChildProcessSpawner
+  | Crypto.Crypto
   | FileSystem.FileSystem
   | HttpClient.HttpClient
   | OpenCodeRuntime
@@ -100,7 +111,7 @@ const withInstanceIdentity =
     continuation: { groupKey: input.continuationGroupKey },
   });
 
-export const OpenCodeDriver: ProviderDriver<OpenCodeSettings, OpenCodeDriverEnv> = {
+const LegacyOpenCodeDriver: ProviderDriver<OpenCodeSettings, any> = {
   driverKind: DRIVER_KIND,
   metadata: {
     displayName: "OpenCode",
@@ -112,6 +123,9 @@ export const OpenCodeDriver: ProviderDriver<OpenCodeSettings, OpenCodeDriverEnv>
     Effect.gen(function* () {
       const openCodeRuntime = yield* OpenCodeRuntime;
       const serverConfig = yield* ServerConfig;
+      const fileSystem = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const crypto = yield* Crypto.Crypto;
       const httpClient = yield* HttpClient.HttpClient;
       const eventLoggers = yield* ProviderEventLoggers;
       const processEnv = mergeProviderInstanceEnvironment(environment);
@@ -134,7 +148,7 @@ export const OpenCodeDriver: ProviderDriver<OpenCodeSettings, OpenCodeDriverEnv>
         serverPassword: secureServerPassword ?? config.serverPassword,
       } satisfies OpenCodeSettings;
       const maintenanceCapabilities = yield* resolveProviderMaintenanceCapabilitiesEffect(UPDATE, {
-        binaryPath: effectiveConfig.binaryPath,
+        ...(effectiveConfig.binaryPath ? { binaryPath: effectiveConfig.binaryPath } : {}),
         env: processEnv,
       });
 
@@ -145,11 +159,31 @@ export const OpenCodeDriver: ProviderDriver<OpenCodeSettings, OpenCodeDriverEnv>
       });
       const textGeneration = yield* makeOpenCodeTextGeneration(effectiveConfig, processEnv);
 
-      const checkProvider = checkOpenCodeProviderStatus(
-        effectiveConfig,
-        serverConfig.cwd,
-        processEnv,
-      ).pipe(Effect.map(stampIdentity), Effect.provideService(OpenCodeRuntime, openCodeRuntime));
+      const checkProvider = Effect.all(
+        {
+          provider: checkOpenCodeProviderStatus(effectiveConfig, serverConfig.cwd, processEnv),
+          usageLimits: readOpenCodeGoUsageLimits({
+            enabled: effectiveConfig.enabled,
+            serverUrl: effectiveConfig.serverUrl,
+            environment: processEnv,
+          }).pipe(
+            Effect.catchDefect(() => Effect.succeed(undefined)),
+            Effect.orElseSucceed(() => undefined),
+          ),
+        },
+        { concurrency: "unbounded" },
+      ).pipe(
+        Effect.map(({ provider, usageLimits }) => ({
+          ...provider,
+          ...(usageLimits ? { usageLimits } : {}),
+        })),
+        Effect.map(stampIdentity),
+        Effect.provideService(FileSystem.FileSystem, fileSystem),
+        Effect.provideService(Path.Path, path),
+        Effect.provideService(HttpClient.HttpClient, httpClient),
+        Effect.provideService(Crypto.Crypto, crypto),
+        Effect.provideService(OpenCodeRuntime, openCodeRuntime),
+      );
 
       const snapshot = yield* makeManagedServerProvider<OpenCodeSettings>({
         maintenanceCapabilities,
@@ -183,7 +217,7 @@ export const OpenCodeDriver: ProviderDriver<OpenCodeSettings, OpenCodeDriverEnv>
             const server = yield* openCodeRuntime.connectToOpenCodeServer({
               binaryPath: effectiveConfig.binaryPath,
               serverUrl: effectiveConfig.serverUrl,
-              cwd,
+              directory: cwd,
               environment: processEnv,
             });
             const client = openCodeRuntime.createOpenCodeSdkClient({
@@ -248,3 +282,25 @@ export const OpenCodeDriver: ProviderDriver<OpenCodeSettings, OpenCodeDriverEnv>
       } satisfies ProviderInstance;
     }),
 };
+
+// Both server generations share the provider catalog during the transition.
+// Legacy registry assembly explicitly retains its existing adapters until
+// the browser migration is accepted.
+export const OpenCodeDriver: typeof LegacyOpenCodeDriver = {
+  ...LegacyOpenCodeDriver,
+  create: (input) =>
+    Effect.gen(function* () {
+      const generation = yield* ProviderRuntimeGeneration;
+      return yield* generation === "v2"
+        ? ModernOpenCodeDriver.create(input)
+        : LegacyOpenCodeDriver.create(input);
+    }),
+};
+
+export const openCodeUpdateFor = (generation: "v1" | "v2") => ({
+  resolve: () =>
+    makeManualOnlyProviderMaintenanceCapabilities({ provider: DRIVER_KIND, packageName: null }),
+  resolveEffect: (
+    options?: import("../providerMaintenance.ts").ProviderMaintenanceCapabilityResolutionOptions,
+  ) => resolveModernMaintenance(modernOpenCodeUpdateFor(generation), options),
+});

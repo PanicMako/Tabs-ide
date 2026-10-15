@@ -1,4 +1,5 @@
-"use client";
+import { useScopedPortalContainer } from "~/lib/scopedPortal";
+("use client");
 
 import { useGsapSurface } from "~/hooks/useGsapSurface";
 
@@ -10,7 +11,10 @@ const AlertDialogCreateHandle = AlertDialogPrimitive.createHandle;
 
 const AlertDialog = AlertDialogPrimitive.Root;
 
-const AlertDialogPortal = AlertDialogPrimitive.Portal;
+function AlertDialogPortal(props: AlertDialogPrimitive.Portal.Props) {
+  const container = useScopedPortalContainer();
+  return <AlertDialogPrimitive.Portal container={container} {...props} />;
+}
 
 function AlertDialogTrigger(props: AlertDialogPrimitive.Trigger.Props) {
   return <AlertDialogPrimitive.Trigger data-slot="alert-dialog-trigger" {...props} />;
@@ -61,7 +65,7 @@ function AlertDialogPopup({
       >
         <AlertDialogPrimitive.Popup
           className={cn(
-            "-translate-y-[calc(1.25rem*var(--nested-dialogs))] relative row-start-2 flex max-h-full min-h-0 w-full min-w-0 max-w-lg scale-[calc(1-0.1*var(--nested-dialogs))] flex-col rounded-2xl border bg-popover backdrop-blur-3xl not-dark:bg-clip-padding text-popover-foreground opacity-[calc(1-0.1*var(--nested-dialogs))] shadow-lg/5 transition-[scale,opacity,translate] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none motion-reduce:duration-0 will-change-transform before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--radius-2xl)-1px)] before:shadow-[0_1px_--theme(--color-black/4%)] data-nested:data-ending-style:translate-y-8 data-nested-dialog-open:origin-top data-ending-style:scale-98 data-ending-style:opacity-0 dark:before:shadow-[0_-1px_--theme(--color-white/6%)]",
+            "-translate-y-[calc(1.25rem*var(--nested-dialogs))] relative row-start-2 flex max-h-[calc(100dvh-2rem)] min-h-0 w-full min-w-0 max-w-md scale-[calc(1-0.1*var(--nested-dialogs))] flex-col rounded-3xl border bg-popover backdrop-blur-3xl not-dark:bg-clip-padding text-popover-foreground opacity-[calc(1-0.1*var(--nested-dialogs))] shadow-lg/5 transition-[scale,opacity,translate] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none motion-reduce:duration-0 will-change-transform before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--radius-3xl)-1px)] before:shadow-[0_1px_--theme(--color-black/4%)] data-nested:data-ending-style:translate-y-8 data-nested-dialog-open:origin-top data-ending-style:scale-98 data-ending-style:opacity-0 dark:before:shadow-[0_-1px_--theme(--color-white/6%)]",
             bottomStickOnMobile &&
               "max-sm:max-w-none max-sm:rounded-none max-sm:border-x-0 max-sm:border-t max-sm:border-b-0 max-sm:opacity-[calc(1-min(var(--nested-dialogs),1))] max-sm:data-ending-style:translate-y-4 max-sm:before:hidden max-sm:before:rounded-none",
             className,
@@ -78,7 +82,7 @@ function AlertDialogPopup({
 function AlertDialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
-      className={cn("flex flex-col gap-2 p-6 text-center max-sm:pb-4 sm:text-left", className)}
+      className={cn("flex flex-col gap-1.5 p-5 text-center max-sm:pb-4 sm:text-left", className)}
       data-slot="alert-dialog-header"
       {...props}
     />
@@ -95,9 +99,9 @@ function AlertDialogFooter({
   return (
     <div
       className={cn(
-        "flex flex-col-reverse gap-2 px-6 sm:flex-row sm:justify-end sm:rounded-b-[calc(var(--radius-2xl)-1px)]",
-        variant === "default" && "border-t bg-muted/72 py-4",
-        variant === "bare" && "pb-6",
+        "flex flex-col-reverse gap-2 px-5 sm:flex-row sm:justify-end sm:rounded-b-[calc(var(--radius-3xl)-1px)]",
+        variant === "default" && "border-t bg-muted/30 py-3",
+        variant === "bare" && "pb-5",
         className,
       )}
       data-slot="alert-dialog-footer"
@@ -109,7 +113,7 @@ function AlertDialogFooter({
 function AlertDialogTitle({ className, ...props }: AlertDialogPrimitive.Title.Props) {
   return (
     <AlertDialogPrimitive.Title
-      className={cn("font-heading font-semibold text-xl leading-none", className)}
+      className={cn("font-heading font-semibold text-lg leading-tight tracking-tight", className)}
       data-slot="alert-dialog-title"
       {...props}
     />
@@ -119,7 +123,7 @@ function AlertDialogTitle({ className, ...props }: AlertDialogPrimitive.Title.Pr
 function AlertDialogDescription({ className, ...props }: AlertDialogPrimitive.Description.Props) {
   return (
     <AlertDialogPrimitive.Description
-      className={cn("text-muted-foreground text-sm", className)}
+      className={cn("text-muted-foreground text-xs leading-relaxed", className)}
       data-slot="alert-dialog-description"
       {...props}
     />

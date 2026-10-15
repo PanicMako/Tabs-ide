@@ -1,0 +1,21 @@
+---
+import Account from "../../../layouts/Account.astro";
+---
+<Account title="Submission details" section="submission">
+  <div class="release-passport"><div class="release-passport-identity"><p class="step-label">Exact version / immutable package</p><h2 id="submission-identity">Loading package identity…</h2>
+  <p id="submission-state" role="status" aria-live="polite"></p>
+  <dl id="submission-metadata"></dl></div>
+  <section class="publisher-ledger release-passport-lifecycle"><h2>Release journey</h2><ol id="submission-timeline"></ol><p>Approval is not publication. A release becomes discoverable on this registry only after inclusion in signed metadata. Review is not a safety guarantee.</p></section></div>
+  <section class="publisher-ledger release-evidence"><h2>Review and scan results</h2><p id="submission-reason"></p><ul id="submission-issues"></ul><details><summary>Scan summary</summary><pre id="submission-scan"></pre></details></section>
+  <div class="actions"><button class="button secondary" id="submission-refresh" type="button">Refresh status</button><a class="button" id="submission-public-link" hidden>View published extension</a><a id="submission-correction" href="#submission-correction-options" hidden>Correction and appeal options</a></div>
+  <section id="submission-correction-options" hidden aria-labelledby="submission-correction-heading">
+    <h2 id="submission-correction-heading">Correct or appeal this release</h2>
+    <p>To change package contents, increment the manifest version, rebuild, validate and package it, then <a href="/publish">submit a new version</a>. Submitted bytes cannot be replaced. Every new version requires review.</p>
+    <form id="submission-appeal" class="task-form"><fieldset id="submission-appeal-fields"><legend>Appeal the displayed package digest</legend><div class="form-field"><label for="submission-appeal-message">Explain what the reviewer should reconsider (up to 4000 characters)</label><textarea id="submission-appeal-message" required maxlength="4000"></textarea></div><button class="button" type="submit">Submit appeal</button></fieldset></form>
+    <p id="submission-appeal-state" role="status" aria-live="polite"></p>
+  </section>
+  <section class="publisher-ledger" aria-labelledby="submission-appeals-heading"><h2 id="submission-appeals-heading">Appeal history and responses</h2><p id="submission-appeals-state" role="status" aria-live="polite"></p><ol id="submission-appeals"></ol><p>Refresh status to check for responses. Up to 100 appeals for this exact digest are shown. A response does not itself change the release decision.</p></section>
+</Account>
+<script>
+  import "../../../scripts/submission";
+</script>

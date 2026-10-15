@@ -22,7 +22,8 @@ import {
   ProviderInstanceId,
 } from "@tabs/contracts";
 import { createModelSelection } from "@tabs/shared/model";
-import { assert, describe, it } from "@effect/vitest";
+import { describe, it } from "@effect/vitest";
+import assert from "node:assert";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
@@ -680,7 +681,7 @@ describe("ClaudeAdapterLive", () => {
         mimeType: "image/png",
         sizeBytes: 4,
       };
-      const attachmentPath = path.join(attachmentsDir, attachmentRelativePath(attachment));
+      const attachmentPath = path.join(attachmentsDir, attachmentRelativePath(attachment)!);
       mkdirSync(path.dirname(attachmentPath), { recursive: true });
       writeFileSync(attachmentPath, Uint8Array.from([1, 2, 3, 4]));
 
@@ -698,7 +699,7 @@ describe("ClaudeAdapterLive", () => {
 
       const createInput = harness.getLastCreateQueryInput();
       const promptMessage = yield* Effect.promise(() => readFirstPromptMessage(createInput));
-      assert.isDefined(promptMessage);
+      assert(promptMessage !== undefined);
       assert.deepEqual(promptMessage?.message.content, [
         {
           type: "text",
@@ -1158,6 +1159,7 @@ describe("ClaudeAdapterLive", () => {
       const planUpdated = runtimeEvents.find((event) => event.type === "turn.plan.updated");
       assert.equal(planUpdated?.type, "turn.plan.updated");
       if (planUpdated?.type === "turn.plan.updated") {
+        Schema.decodeUnknownSync(ProviderRuntimeEvent)(planUpdated);
         assert.equal(String(planUpdated.turnId), String(turn.turnId));
         assert.deepEqual(planUpdated.payload.plan, [
           { step: "Task", status: "inProgress" },
@@ -2597,6 +2599,7 @@ describe("ClaudeAdapterLive", () => {
         "Bash",
         { command: "pwd" },
         {
+          requestId: "req-1",
           signal: new AbortController().signal,
           suggestions: [
             {
@@ -2680,6 +2683,7 @@ describe("ClaudeAdapterLive", () => {
         "Agent",
         {},
         {
+          requestId: "req-agent-1",
           signal: new AbortController().signal,
           toolUseID: "tool-agent-1",
         },
@@ -2704,6 +2708,7 @@ describe("ClaudeAdapterLive", () => {
         "Grep",
         { pattern: "foo", path: "src" },
         {
+          requestId: "req-grep-1",
           signal: new AbortController().signal,
           toolUseID: "tool-grep-approval-1",
         },
@@ -3239,6 +3244,7 @@ describe("ClaudeAdapterLive", () => {
           allowedPrompts: [{ tool: "Bash", prompt: "run tests" }],
         },
         {
+          requestId: "req-exit-1",
           signal: new AbortController().signal,
           toolUseID: "tool-exit-1",
         },
@@ -3403,6 +3409,7 @@ describe("ClaudeAdapterLive", () => {
       };
 
       const permissionPromise = canUseTool("AskUserQuestion", askInput, {
+        requestId: "req-ask-1",
         signal: new AbortController().signal,
         toolUseID: "tool-ask-1",
       });
@@ -3533,6 +3540,7 @@ describe("ClaudeAdapterLive", () => {
       };
 
       const permissionPromise = canUseTool("AskUserQuestion", askInput, {
+        requestId: "req-ask-2",
         signal: new AbortController().signal,
         toolUseID: "tool-ask-2",
       });
@@ -3604,6 +3612,7 @@ describe("ClaudeAdapterLive", () => {
           ],
         },
         {
+          requestId: "req-ask-abort",
           signal: controller.signal,
           toolUseID: "tool-ask-abort",
         },

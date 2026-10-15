@@ -284,6 +284,12 @@ export function parseNativeTheme(
           uiFont: typeof value.fonts.uiFont === "string" ? value.fonts.uiFont : "system-ui",
           editorFont:
             typeof value.fonts.editorFont === "string" ? value.fonts.editorFont : "monospace",
+          ...(typeof value.fonts.sectionFont === "string" && value.fonts.sectionFont.trim()
+            ? { sectionFont: value.fonts.sectionFont.trim() }
+            : {}),
+          ...(typeof value.fonts.supportingFont === "string" && value.fonts.supportingFont.trim()
+            ? { supportingFont: value.fonts.supportingFont.trim() }
+            : {}),
           ...(typeof value.fonts.headingFont === "string" && value.fonts.headingFont.trim()
             ? { headingFont: value.fonts.headingFont.trim() }
             : {}),
@@ -408,6 +414,8 @@ export function exportCustomThemeAsJson(config: CustomThemeConfig, name: string)
   if (config.fonts.headingFont) {
     fonts.headingFont = config.fonts.headingFont;
   }
+  if (config.fonts.sectionFont) fonts.sectionFont = config.fonts.sectionFont;
+  if (config.fonts.supportingFont) fonts.supportingFont = config.fonts.supportingFont;
   const payload = {
     schema: "tabs:custom-theme:v1",
     version: 1,
@@ -469,6 +477,12 @@ export function safeRecoverTheme(
         typeof fonts.editorFont === "string" && fonts.editorFont.trim().length > 0
           ? fonts.editorFont
           : fallback.fonts.editorFont,
+      ...(typeof fonts.sectionFont === "string" && fonts.sectionFont.trim()
+        ? { sectionFont: fonts.sectionFont.trim() }
+        : {}),
+      ...(typeof fonts.supportingFont === "string" && fonts.supportingFont.trim()
+        ? { supportingFont: fonts.supportingFont.trim() }
+        : {}),
       ...(typeof fonts.headingFont === "string" && fonts.headingFont.trim().length > 0
         ? { headingFont: fonts.headingFont.trim() }
         : {}),

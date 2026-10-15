@@ -1,3 +1,4 @@
+import { OrbitGroup } from "../ui/orbit-group";
 import type { GitHistoryCommit, GitStatusFile, GitStatusResult } from "@tabs/contracts";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -322,8 +323,8 @@ export function DiffPage({
 
   return (
     <div>
-      <div
-        className="tabs-segmented flex items-center mb-4 w-fit"
+      <OrbitGroup
+        className="tabs-segmented flex items-center mb-4 w-fit rounded-full"
         role="group"
         aria-label="Diff source"
       >
@@ -331,7 +332,7 @@ export function DiffPage({
           type="button"
           aria-pressed={diffMode === "working"}
           onClick={() => setDiffMode("working")}
-          className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+          className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-colors cursor-pointer ${
             diffMode === "working"
               ? "bg-accent text-foreground"
               : "text-muted-foreground/70 hover:text-foreground"
@@ -343,7 +344,7 @@ export function DiffPage({
           type="button"
           aria-pressed={diffMode === "history"}
           onClick={() => setDiffMode("history")}
-          className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+          className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-colors cursor-pointer ${
             diffMode === "history"
               ? "bg-accent text-foreground"
               : "text-muted-foreground/70 hover:text-foreground"
@@ -351,7 +352,7 @@ export function DiffPage({
         >
           Commit history
         </button>
-      </div>
+      </OrbitGroup>
 
       {list.length === 0 ? (
         <div className="text-center text-xs text-muted-foreground/70 py-10">

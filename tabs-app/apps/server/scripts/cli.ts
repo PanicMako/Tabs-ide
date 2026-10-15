@@ -59,6 +59,38 @@ const buildCmd = Command.make(
         })`bun tsdown`,
       );
 
+      // Ship the same native monitor used by T3; diagnostics must work without a source checkout.
+      yield* runCommand(
+        ChildProcess.make({
+          cwd: repoRoot,
+          stdout: config.verbose ? "inherit" : "ignore",
+          stderr: "inherit",
+          shell: process.platform === "win32",
+        })`cargo build --release --locked --manifest-path native/resource-monitor/Cargo.toml`,
+      );
+      const monitorName =
+        process.platform === "win32" ? "t3-resource-monitor.exe" : "t3-resource-monitor";
+      const monitorSource = path.join(
+        repoRoot,
+        "native/resource-monitor/target/release",
+        monitorName,
+      );
+      const monitorTarget = path.join(
+        serverDir,
+        "dist/resource-monitor",
+        `${process.platform}-${process.arch}`,
+      );
+      const monitorDevTarget = path.join(
+        repoRoot,
+        "native/resource-monitor/target",
+        `${process.platform}-${process.arch}`,
+        "release",
+      );
+      yield* fs.makeDirectory(monitorDevTarget, { recursive: true });
+      yield* fs.copyFile(monitorSource, path.join(monitorDevTarget, monitorName));
+      yield* fs.makeDirectory(monitorTarget, { recursive: true });
+      yield* fs.copyFile(monitorSource, path.join(monitorTarget, monitorName));
+
       const webDist = path.join(repoRoot, "apps/web/dist");
       const clientTarget = path.join(serverDir, "dist/client");
 

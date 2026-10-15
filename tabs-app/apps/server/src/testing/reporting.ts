@@ -21,8 +21,8 @@ import {
 } from "docx";
 import { chromium } from "playwright";
 
-import type { TestingGraphStore } from "./graphStore";
-import { shortDigest } from "./security";
+import type { TestingGraphStore } from "./graphStore.ts";
+import { shortDigest } from "./security.ts";
 
 function escapeHtml(value: string): string {
   return value

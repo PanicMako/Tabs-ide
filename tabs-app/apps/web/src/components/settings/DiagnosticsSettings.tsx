@@ -1,3 +1,6 @@
+import { DiagnosticsOverview as ResourcesExplorerOverview } from "./DiagnosticsOverview";
+import "./diagnostics.css";
+import { OrbitGroup } from "../ui/orbit-group";
 import type {
   BackgroundActivityProfile,
   ResourceTelemetryHistory,
@@ -28,15 +31,14 @@ import {
   GitBranchIcon,
   HardDriveIcon,
   InfoIcon,
-  MemoryStickIcon,
   RefreshCwIcon,
   XIcon,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { useConfirm } from "../../hooks/useConfirm";
 import { useTheme } from "../../hooks/useTheme";
-import { getActiveFontCombo } from "../../lib/themes";
+import { getActiveFontCombo, getFontComboPageHeading } from "../../lib/themes";
 import { cn, getHashAwareSearchParams, isPopoutMode } from "../../lib/utils";
 import { ensureNativeApi } from "../../nativeApi";
 import { formatRelativeTime } from "../../timestampFormat";
@@ -44,15 +46,13 @@ import { Button } from "../ui/button";
 import { ScrollArea } from "../ui/scroll-area";
 import { SegmentedControl, type SegmentOption } from "../ui/segmented-control";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
-import { SettingsHeaderPortal, SettingsRow, SettingsSection } from "./SettingsLayout";
+import { SettingsRow, SettingsSection } from "./SettingsLayout";
 import { RendererResponsivenessDiagnostics } from "./RendererResponsivenessDiagnostics";
 import { ExpandableText } from "./ExpandableText";
 import {
   AttributionTable,
   formatBytes,
   formatCpuTime,
-  formatDurationMicros,
-  formatSampleInterval,
   HISTORY_WINDOWS,
   HistoryProcessTable,
   HostAndCollectionSection,
@@ -94,7 +94,7 @@ const DIAGNOSTICS_TABS: ReadonlyArray<SegmentOption<DiagnosticsTabId>> = [
     label: (
       <span className="flex items-center gap-1.5">
         <ClockIcon className="size-3.5" />
-        <span>Resource Timeline</span>
+        <span>Timeline</span>
       </span>
     ),
   },
@@ -112,7 +112,7 @@ const DIAGNOSTICS_TABS: ReadonlyArray<SegmentOption<DiagnosticsTabId>> = [
     label: (
       <span className="flex items-center gap-1.5">
         <HardDriveIcon className="size-3.5" />
-        <span>Application I/O</span>
+        <span>App I/O</span>
       </span>
     ),
   },
@@ -121,7 +121,7 @@ const DIAGNOSTICS_TABS: ReadonlyArray<SegmentOption<DiagnosticsTabId>> = [
     label: (
       <span className="flex items-center gap-1.5">
         <CpuIcon className="size-3.5" />
-        <span>Live Processes</span>
+        <span>Processes</span>
       </span>
     ),
   },
@@ -138,278 +138,12 @@ const DIAGNOSTICS_TABS: ReadonlyArray<SegmentOption<DiagnosticsTabId>> = [
 
 export const PRIMARY_POPOUT_TABS: ReadonlyArray<{ id: DiagnosticsTabId; label: string }> = [
   { id: "overview", label: "Overview" },
-  { id: "timeline", label: "CPU & Memory" },
-  { id: "application-io", label: "Disk" },
-  { id: "traces", label: "Network" },
+  { id: "timeline", label: "Timeline" },
+  { id: "application-io", label: "App I/O" },
+  { id: "traces", label: "Traces" },
   { id: "process-tree", label: "Process Tree" },
-  { id: "live-processes", label: "Live Processes" },
+  { id: "live-processes", label: "Processes" },
 ];
-
-function ResourcesExplorerOverview({
-  snapshot,
-  onNavigateTab,
-}: {
-  readonly snapshot: ResourceTelemetrySnapshot | null;
-  readonly onNavigateTab: (tab: DiagnosticsTabId) => void;
-}) {
-  const allT3 = snapshot?.groups.allT3;
-  const backend = snapshot?.groups.backend;
-  const electron = snapshot?.groups.electron;
-  const monitor = snapshot?.groups.monitor;
-
-  const terminalProcesses = snapshot?.processes.filter((p) => p.category === "terminal-root") ?? [];
-  const providerProcesses = snapshot?.processes.filter((p) => p.category === "provider-root") ?? [];
-
-  const terminalCpu = terminalProcesses.reduce((acc, p) => acc + p.cpuPercent, 0);
-  const terminalRss = terminalProcesses.reduce((acc, p) => acc + p.residentBytes, 0);
-
-  const providerCpu = providerProcesses.reduce((acc, p) => acc + p.cpuPercent, 0);
-  const providerRss = providerProcesses.reduce((acc, p) => acc + p.residentBytes, 0);
-
-  // CPU
-  const observedCpu = allT3?.currentCpuPercent ?? 0;
-  const systemCpu = Math.min(100, Math.max(5, Math.round(observedCpu + 10)));
-  const nonTabsCpu = Math.max(0, systemCpu - observedCpu);
-
-  // Memory
-  const totalRss = allT3?.currentRssBytes ?? 0;
-  const systemMemPercent = Math.min(
-    95,
-    Math.max(20, Math.round((totalRss / (16 * 1024 * 1024 * 1024)) * 100) + 65),
-  );
-
-  // Disk
-  const totalIoBytes = allT3 ? allT3.ioReadBytes + allT3.ioWriteBytes : 0;
-
-  return (
-    <div className="space-y-3 sm:space-y-3.5">
-      {/* 3 Top Resource Cards (Trae-style) */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
-        {/* Card 1: CPU (System) */}
-        <div className="flex flex-col justify-between rounded-xl border border-border/60 bg-card/85 p-3 sm:p-3.5 shadow-2xs">
-          <div>
-            <div className="flex items-center justify-between pb-1.5">
-              <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
-                <CpuIcon className="size-3.5" />
-                <span>CPU (System)</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => onNavigateTab("timeline")}
-                className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded cursor-pointer"
-                aria-label="View CPU & Memory details"
-              >
-                <ChevronRightIcon className="size-3.5" />
-              </button>
-            </div>
-            <div className="font-mono text-xl sm:text-2xl font-bold tracking-tight text-foreground">
-              {allT3 ? `${systemCpu}%` : "..."}
-            </div>
-
-            <div className="my-2 flex items-center gap-2">
-              <span className="text-[10px] sm:text-[10.5px] font-medium text-muted-foreground/70 shrink-0">
-                Tabs usage
-              </span>
-              <div className="h-px w-full bg-border/50" />
-            </div>
-
-            <div className="space-y-1 text-[11px] sm:text-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">IDE Basic Service</span>
-                <span className="font-mono tabular-nums text-foreground/90">
-                  {backend ? `${backend.currentCpuPercent.toFixed(1)}%` : "<1%"}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">User Terminal</span>
-                <span className="font-mono tabular-nums text-foreground/90">
-                  {terminalCpu > 0 ? `${terminalCpu.toFixed(1)}%` : "<1%"}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Agents / Providers</span>
-                <span className="font-mono tabular-nums text-foreground/90">
-                  {providerCpu > 0 ? `${providerCpu.toFixed(1)}%` : "<1%"}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Desktop Shell</span>
-                <span className="font-mono tabular-nums text-foreground/90">
-                  {electron ? `${electron.currentCpuPercent.toFixed(1)}%` : "1%"}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Others</span>
-                <span className="font-mono tabular-nums text-foreground/90">
-                  {monitor ? `${monitor.currentCpuPercent.toFixed(1)}%` : "0%"}
-                </span>
-              </div>
-              <div className="flex items-center justify-between pt-1 border-t border-border/30">
-                <span className="text-muted-foreground/80">Non-Tabs Occupation</span>
-                <span className="font-mono tabular-nums text-foreground/70">{`${nonTabsCpu.toFixed(1)}%`}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Card 2: Memory (System) */}
-        <div className="flex flex-col justify-between rounded-xl border border-border/60 bg-card/85 p-3 sm:p-3.5 shadow-2xs">
-          <div>
-            <div className="flex items-center justify-between pb-1.5">
-              <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
-                <MemoryStickIcon className="size-3.5" />
-                <span>Memory (System)</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => onNavigateTab("timeline")}
-                className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded cursor-pointer"
-                aria-label="View Memory details"
-              >
-                <ChevronRightIcon className="size-3.5" />
-              </button>
-            </div>
-            <div className="font-mono text-xl sm:text-2xl font-bold tracking-tight text-foreground">
-              {allT3 ? `${systemMemPercent}%` : "..."}
-            </div>
-
-            <div className="my-2 flex items-center gap-2">
-              <span className="text-[10px] sm:text-[10.5px] font-medium text-muted-foreground/70 shrink-0">
-                Tabs usage
-              </span>
-              <div className="h-px w-full bg-border/50" />
-            </div>
-
-            <div className="space-y-1 text-[11px] sm:text-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">IDE Basic Service</span>
-                <span className="font-mono tabular-nums text-foreground/90">
-                  {backend ? formatBytes(backend.currentRssBytes) : "..."}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">User Terminal</span>
-                <span className="font-mono tabular-nums text-foreground/90">
-                  {terminalRss > 0 ? formatBytes(terminalRss) : "42.14 MB"}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Agents / Providers</span>
-                <span className="font-mono tabular-nums text-foreground/90">
-                  {providerRss > 0 ? formatBytes(providerRss) : "368.39 MB"}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Desktop Shell</span>
-                <span className="font-mono tabular-nums text-foreground/90">
-                  {electron ? formatBytes(electron.currentRssBytes) : "..."}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Others</span>
-                <span className="font-mono tabular-nums text-foreground/90">
-                  {monitor ? formatBytes(monitor.currentRssBytes) : "..."}
-                </span>
-              </div>
-              <div className="flex items-center justify-between pt-1 border-t border-border/30">
-                <span className="text-muted-foreground/80">Non-Tabs Occupation</span>
-                <span className="font-mono tabular-nums text-foreground/70">~14.5 GB</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Card 3: Disk (System) */}
-        <div className="flex flex-col justify-between rounded-xl border border-border/60 bg-card/85 p-3 sm:p-3.5 shadow-2xs">
-          <div>
-            <div className="flex items-center justify-between pb-1.5">
-              <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
-                <HardDriveIcon className="size-3.5" />
-                <span>Disk (System)</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => onNavigateTab("application-io")}
-                className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded cursor-pointer"
-                aria-label="View Disk details"
-              >
-                <ChevronRightIcon className="size-3.5" />
-              </button>
-            </div>
-            <div className="font-mono text-xs sm:text-sm font-bold tracking-tight text-foreground truncate">
-              87%{" "}
-              <span className="text-[11px] font-normal text-muted-foreground">
-                Available 57.06 GB / 460.43 GB
-              </span>
-            </div>
-
-            <div className="my-2 flex items-center gap-2">
-              <span className="text-[10px] sm:text-[10.5px] font-medium text-muted-foreground/70 shrink-0">
-                Tabs usage
-              </span>
-              <div className="h-px w-full bg-border/50" />
-            </div>
-
-            <div className="space-y-1 text-[11px] sm:text-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Workspace & Projects</span>
-                <span className="font-mono tabular-nums text-foreground/90">
-                  {formatBytes(Math.max(1024 * 1024 * 1024 * 1.88, totalIoBytes))}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Log Files</span>
-                <span className="font-mono tabular-nums text-foreground/90">49.39 MB</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Telemetry & History</span>
-                <span className="font-mono tabular-nums text-foreground/90">20.87 MB</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Chat Snapshots</span>
-                <span className="font-mono tabular-nums text-foreground/90">6.95 MB</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Others</span>
-                <span className="font-mono tabular-nums text-foreground/90">0 KB</span>
-              </div>
-              <div className="flex items-center justify-between pt-1 border-t border-border/30">
-                <span className="text-muted-foreground/80">Non-Tabs Occupation</span>
-                <span className="font-mono tabular-nums text-foreground/70">401.43 GB</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* System Overview Bottom Card (Trae-style) */}
-      <div className="rounded-xl border border-border/60 bg-card/85 p-3 sm:p-3.5 shadow-2xs">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="relative flex size-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
-            </span>
-            <div className="text-xs font-semibold text-foreground tracking-tight">
-              System Overview
-            </div>
-          </div>
-          <span className="text-[10.5px] sm:text-[11px] text-muted-foreground">
-            Thermal:{" "}
-            <span className="font-medium text-foreground">
-              {snapshot?.power.thermalState ?? "nominal"}
-            </span>
-          </span>
-        </div>
-        <p className="mt-1.5 text-xs text-muted-foreground leading-relaxed">
-          CPU, memory, and disk are in healthy ranges. Background collection interval adjusts
-          dynamically with machine state. All core services (Backend, Agents, Terminal, Desktop
-          Shell) are operating normally.
-        </p>
-      </div>
-    </div>
-  );
-}
 
 function formatCount(value: number): string {
   return value.toLocaleString();
@@ -1313,7 +1047,7 @@ export function DiagnosticsSettings() {
     if (typeof window !== "undefined" && window.desktopBridge?.openPopoutWindow) {
       void window.desktopBridge.openPopoutWindow({
         url: targetUrl,
-        title: "Resources Explorer",
+        title: "Tabs Diagnostics",
         width,
         height,
       });
@@ -1330,12 +1064,17 @@ export function DiagnosticsSettings() {
 
   useEffect(() => {
     if (isPopout) {
-      document.title = `Resources Explorer — ${TAB_TITLES[activeTab] ?? "Overview"}`;
+      document.title = `Tabs Diagnostics — ${TAB_TITLES[activeTab] ?? "Overview"}`;
     }
   }, [isPopout, activeTab]);
 
   return (
-    <div className={cn(isPopout ? "min-h-screen bg-background text-foreground" : "space-y-6")}>
+    <div
+      className={cn(
+        "diagnostics-page",
+        isPopout ? "diagnostics-popout min-h-screen bg-background text-foreground" : "space-y-5",
+      )}
+    >
       {/* Native Desktop Popout Window Header (Resources Explorer) */}
       {isPopout ? (
         <header className="drag-region sticky top-0 z-50 flex flex-col w-full border-b border-border/60 bg-background/90 backdrop-blur-md">
@@ -1345,7 +1084,7 @@ export function DiagnosticsSettings() {
             <div className={cn("flex items-center gap-2", isDarwin ? "pl-[72px]" : "pl-1")}>
               <ActivityIcon className="size-3.5 text-foreground/80 shrink-0" />
               <span className="text-xs font-semibold tracking-tight text-foreground leading-none select-none">
-                Resources Explorer
+                Diagnostics
               </span>
             </div>
 
@@ -1358,7 +1097,7 @@ export function DiagnosticsSettings() {
                 className="h-6.5 px-2 text-[11px] cursor-pointer border-primary/40 bg-primary/10 text-foreground hover:bg-primary/20 hover:text-foreground transition-all font-medium"
               >
                 <ActivityIcon className="mr-1 size-3" aria-hidden="true" />
-                Run quick check
+                Quick check
               </Button>
               <Button
                 size="xs"
@@ -1389,24 +1128,15 @@ export function DiagnosticsSettings() {
             role="group"
             aria-label="Diagnostics section"
           >
-            <div className="tabs-segmented flex items-center">
-              {PRIMARY_POPOUT_TABS.map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => handleTabChange(tab.id)}
-                  aria-pressed={activeTab === tab.id}
-                  className={cn(
-                    "rounded-md px-2.5 py-1 text-[11px] font-medium transition-all cursor-pointer",
-                    activeTab === tab.id
-                      ? "bg-card text-foreground shadow-2xs border border-border/70"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted/40",
-                  )}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
+            <SegmentedControl
+              value={activeTab}
+              onValueChange={handleTabChange}
+              orbitKind="spotlight"
+              options={PRIMARY_POPOUT_TABS.map((tab) => ({ value: tab.id, label: tab.label }))}
+              aria-label="Diagnostics section"
+              size="sm"
+              className="diagnostics-navigation"
+            />
           </div>
         </header>
       ) : null}
@@ -1414,17 +1144,19 @@ export function DiagnosticsSettings() {
       <div className={cn("space-y-4", isPopout ? "p-3.5 sm:p-4 w-full" : "space-y-6")}>
         {/* Normal In-Settings Header (Only shown when not in popout) */}
         {!isPopout ? (
-          <div>
-            <div className="flex items-start justify-between gap-4">
+          <div data-slot="settings-page-header">
+            <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="space-y-1.5">
                 <div className="flex items-center gap-2.5">
                   <h2
+                    data-slot="settings-page-title"
                     className={cn(
                       "text-[28px] leading-relaxed pb-1 text-foreground mb-2 font-bold",
-                      activeFontCombo.sansClass,
+                      getFontComboPageHeading(activeFontCombo, fontPreferences).className,
                     )}
                     style={{
-                      fontFamily: "var(--font-sans)",
+                      fontFamily: getFontComboPageHeading(activeFontCombo, fontPreferences)
+                        .fontFamily,
                       textTransform: "capitalize",
                     }}
                   >
@@ -1432,23 +1164,31 @@ export function DiagnosticsSettings() {
                   </h2>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  Inspect system footprint, live process trees, internal I/O attribution, and
-                  structured execution traces.
+                  Find resource-heavy processes and investigate errors.
                 </p>
               </div>
-            </div>
 
-            <SettingsHeaderPortal>
-              <div className="flex items-center gap-2">
+              {/* Header Right Actions */}
+              <div className="flex items-center gap-2 pt-1">
                 <Button
                   size="xs"
                   variant="outline"
-                  onClick={handleQuickResourceCheck}
-                  className="cursor-pointer border-primary/40 bg-primary/10 text-foreground hover:bg-primary/20 hover:text-foreground transition-all font-medium"
+                  disabled={exporting}
+                  onClick={() => void exportSupportBundle()}
                 >
-                  <ActivityIcon className="mr-1.5 size-3.5" aria-hidden="true" />
-                  Run quick check
+                  <DownloadIcon className="mr-1.5 size-3.5" />
+                  {exporting ? "Exporting…" : "Export report"}
                 </Button>
+                <Button
+                  size="xs"
+                  variant="outline"
+                  disabled={loading}
+                  onClick={() => void refresh()}
+                >
+                  <RefreshCwIcon className={cn("mr-1.5 size-3.5", loading && "animate-spin")} />
+                  Refresh
+                </Button>
+                <div className="h-4 w-px bg-border/60 mx-1" />
                 <Tooltip>
                   <TooltipTrigger
                     render={
@@ -1457,45 +1197,28 @@ export function DiagnosticsSettings() {
                         variant="outline"
                         onClick={openPopoutWindow}
                         aria-label="Open Diagnostics in new window"
+                        className="text-muted-foreground hover:text-foreground hover:border-foreground/30"
                       >
-                        <ExternalLinkIcon className="mr-1 size-3.5" />
+                        <ExternalLinkIcon className="mr-1.5 size-3.5" />
                         Pop out
                       </Button>
                     }
                   />
-                  <TooltipPopup side="bottom">
-                    Open Resources Explorer in a standalone window
-                  </TooltipPopup>
+                  <TooltipPopup side="bottom">Open Diagnostics in a standalone window</TooltipPopup>
                 </Tooltip>
-                <Button
-                  size="xs"
-                  variant="outline"
-                  disabled={exporting}
-                  onClick={() => void exportSupportBundle()}
-                >
-                  <DownloadIcon className="mr-1 size-3.5" />
-                  {exporting ? "Exporting…" : "Export support bundle"}
-                </Button>
-                <Button
-                  size="xs"
-                  variant="outline"
-                  disabled={loading}
-                  onClick={() => void refresh()}
-                >
-                  <RefreshCwIcon className={cn("mr-1 size-3.5", loading && "animate-spin")} />
-                  Refresh
-                </Button>
               </div>
-            </SettingsHeaderPortal>
+            </div>
 
             {/* Canonical Tabs 5px Dual Gradient Divider Line */}
             <div
+              data-slot="settings-divider"
               className="h-[5px] w-full my-5 rounded-full dark:block hidden"
               style={{
                 background: "linear-gradient(to right, rgba(255,255,255,0.25), transparent)",
               }}
             />
             <div
+              data-slot="settings-divider"
               className="h-[5px] w-full my-5 rounded-full dark:hidden block"
               style={{
                 background: "linear-gradient(to right, rgba(0,0,0,0.12), transparent)",
@@ -1509,7 +1232,8 @@ export function DiagnosticsSettings() {
                 onValueChange={(tab) => handleTabChange(tab as DiagnosticsTabId)}
                 options={DIAGNOSTICS_TABS}
                 aria-label="Diagnostics navigation tabs"
-                className="max-w-full overflow-x-auto rounded-2xl bg-muted/40 border border-border/50 backdrop-blur-xs p-1"
+                orbitKind="spotlight"
+                className="diagnostics-navigation"
                 itemClassName="rounded-xl px-3.5 py-1.5 text-xs transition-all font-medium"
               />
             </div>
@@ -1541,7 +1265,7 @@ export function DiagnosticsSettings() {
                 />
                 <div>
                   <div className="text-xs font-semibold tracking-tight">
-                    Quick Resource Assessment —{" "}
+                    Quick check —{" "}
                     {resourceAssessment.status === "healthy"
                       ? "Within Thresholds"
                       : resourceAssessment.status === "warning"
@@ -1551,11 +1275,14 @@ export function DiagnosticsSettings() {
                   <p className="mt-1 text-xs leading-relaxed opacity-90">
                     {resourceAssessment.summary}
                   </p>
-                  <ul className="mt-2 space-y-1 text-[11.5px] opacity-80 list-disc list-inside">
-                    {resourceAssessment.details.map((detail, idx) => (
-                      <li key={idx}>{detail}</li>
-                    ))}
-                  </ul>
+                  <details className="mt-2 text-xs">
+                    <summary className="cursor-pointer">Details</summary>
+                    <ul className="mt-2 space-y-1 text-[11.5px] opacity-80 list-disc list-inside">
+                      {resourceAssessment.details.map((detail, idx) => (
+                        <li key={idx}>{detail}</li>
+                      ))}
+                    </ul>
+                  </details>
                 </div>
               </div>
               <button
@@ -1580,56 +1307,73 @@ export function DiagnosticsSettings() {
           </div>
         ) : null}
 
-        <RendererResponsivenessDiagnostics />
-
         {/* TAB 1: OVERVIEW (Sections 1 & 2 + Background Activity Profile) */}
         {activeTab === "overview" ? (
           <div className="space-y-6">
             {/* Trae-style Resources Explorer Cards */}
-            <ResourcesExplorerOverview snapshot={telemetry} onNavigateTab={handleTabChange} />
-
-            {/* Section 1: Resource monitor header section */}
-            <ResourceMonitorHeaderSection
+            <ResourcesExplorerOverview
               snapshot={telemetry}
-              isRefreshing={loading}
-              onRefresh={() => void refresh()}
+              onNavigateTab={handleTabChange}
+              onQuickCheck={handleQuickResourceCheck}
             />
 
-            {/* Section 2: Host & collection section */}
-            <HostAndCollectionSection
-              snapshot={telemetry}
-              isRetrying={loading}
-              onRetry={() => void handleRetrySidecar()}
-            />
-
-            {/* Background Activity Profile Settings */}
-            <SettingsSection
-              title="Background activity"
-              description="Balance provider checks and repository refreshes against power consumption for this environment."
-            >
-              <SettingsRow
-                title="Activity Profile"
-                description="Select power and polling profile for repository refresh and background provider checks."
-                control={
-                  <SegmentedControl
-                    value={backgroundProfile}
-                    onValueChange={async (profile) => {
-                      await ensureNativeApi().server.updateSettings({
-                        backgroundActivity: { schemaVersion: 1, profile, overrides: {} },
-                        backgroundActivityProfile: profile,
-                      });
-                      setBackgroundProfile(profile);
-                    }}
-                    options={[
-                      { value: "battery-saver", label: "Battery saver" },
-                      { value: "balanced", label: "Balanced" },
-                      { value: "performance", label: "Performance" },
-                    ]}
-                    aria-label="Background activity profile"
-                  />
-                }
+            <details className="diagnostics-details">
+              <summary>
+                Collector & host details <span>Sampling, power & monitor status</span>
+              </summary>
+              {/* Section 1: Resource monitor header section */}
+              <ResourceMonitorHeaderSection
+                snapshot={telemetry}
+                isRefreshing={loading}
+                onRefresh={() => void refresh()}
               />
-            </SettingsSection>
+
+              {/* Section 2: Host & collection section */}
+              <HostAndCollectionSection
+                snapshot={telemetry}
+                isRetrying={loading}
+                onRetry={() => void handleRetrySidecar()}
+              />
+            </details>
+            <details className="diagnostics-details">
+              <summary>
+                Slow interactions <span>Renderer responsiveness</span>
+              </summary>
+              <RendererResponsivenessDiagnostics />
+            </details>
+            <details className="diagnostics-details">
+              <summary>
+                Background activity <span>Power & polling preferences</span>
+              </summary>
+              {/* Background Activity Profile Settings */}
+              <SettingsSection
+                title="Background activity"
+                description="Balance provider checks and repository refreshes against power consumption for this environment."
+              >
+                <SettingsRow
+                  title="Activity Profile"
+                  description="Choose how actively Tabs refreshes in the background."
+                  control={
+                    <SegmentedControl
+                      value={backgroundProfile}
+                      onValueChange={async (profile) => {
+                        await ensureNativeApi().server.updateSettings({
+                          backgroundActivity: { schemaVersion: 1, profile, overrides: {} },
+                          backgroundActivityProfile: profile,
+                        });
+                        setBackgroundProfile(profile);
+                      }}
+                      options={[
+                        { value: "battery-saver", label: "Battery saver" },
+                        { value: "balanced", label: "Balanced" },
+                        { value: "performance", label: "Performance" },
+                      ]}
+                      aria-label="Background activity profile"
+                    />
+                  }
+                />
+              </SettingsSection>
+            </details>
           </div>
         ) : null}
 
@@ -1642,8 +1386,8 @@ export function DiagnosticsSettings() {
               description="Multi-metric CPU average, I/O read throughput, and I/O write throughput history."
               headerAction={
                 <div className="flex items-center gap-1.5">
-                  <div
-                    className="tabs-segmented flex items-center text-xs"
+                  <OrbitGroup
+                    className="tabs-segmented flex items-center text-xs rounded-full"
                     role="group"
                     aria-label="Resource timeline window"
                   >
@@ -1654,7 +1398,7 @@ export function DiagnosticsSettings() {
                         onClick={() => setHistoryWindowIndex(idx)}
                         aria-pressed={historyWindowIndex === idx}
                         className={cn(
-                          "rounded px-2 py-0.5 text-[11px] font-medium transition-colors cursor-pointer",
+                          "rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors cursor-pointer",
                           historyWindowIndex === idx
                             ? "bg-background text-foreground shadow-xs font-semibold"
                             : "text-muted-foreground hover:text-foreground",
@@ -1663,7 +1407,7 @@ export function DiagnosticsSettings() {
                         {win.label}
                       </button>
                     ))}
-                  </div>
+                  </OrbitGroup>
                   <Button size="icon-xs" variant="ghost" onClick={() => void refresh()}>
                     <RefreshCwIcon className={cn("size-3.5", loading && "animate-spin")} />
                   </Button>
@@ -1717,7 +1461,7 @@ export function DiagnosticsSettings() {
           <div className="space-y-6">
             <SettingsSection
               title="Live process tree"
-              description="Process hierarchy across Tabs server, desktop shells, and child processes. Identity is tracked by PID + start time to prevent stale recycling."
+              description="Monitored processes and their children."
               headerAction={
                 <Button size="icon-xs" variant="ghost" onClick={() => void refresh()}>
                   <RefreshCwIcon className={cn("size-3.5", loading && "animate-spin")} />
@@ -1739,7 +1483,7 @@ export function DiagnosticsSettings() {
           <div className="space-y-6">
             <SettingsSection
               title="Instrumented application I/O"
-              description="Internal application read and write call sites (e.g. structured trace streaming and support bundle exports)."
+              description="Reads and writes attributed to Tabs operations."
               headerAction={
                 <Button size="icon-xs" variant="ghost" onClick={() => void refresh()}>
                   <RefreshCwIcon className={cn("size-3.5", loading && "animate-spin")} />
@@ -1756,7 +1500,7 @@ export function DiagnosticsSettings() {
           <div className="space-y-6">
             <SettingsSection
               title="Live Processes"
-              description="Live descendant and provider processes spawned by the active server instance."
+              description="Processes started by the active server."
               headerAction={
                 <div className="flex items-center gap-1.5">
                   <span className="text-xs text-muted-foreground font-mono">
@@ -1886,122 +1630,134 @@ export function DiagnosticsSettings() {
             </SettingsSection>
 
             {/* Latest Failures Table with Expandable Full Error Stack */}
-            <SettingsSection title="Latest Failures">
-              {traces && traces.latestFailures.length > 0 ? (
-                <DiagnosticsTable headers={["Span", "Cause", "Duration", "Ended"]}>
-                  {traces.latestFailures.map((failure) => (
-                    <tr key={`${failure.traceId}:${failure.spanId}`}>
-                      <td className="px-4 py-3 align-top text-xs font-medium text-foreground first:sm:pl-5">
-                        {failure.name}
-                      </td>
-                      <td className="max-w-[420px] px-4 py-3 align-top text-muted-foreground">
-                        <ExpandableText text={failure.cause} />
-                      </td>
-                      <td className="px-4 py-3 align-top font-mono tabular-nums">
-                        {formatDuration(failure.durationMs)}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3 align-top font-mono tabular-nums text-muted-foreground last:sm:pr-5">
-                        {formatRelativeNoWrap(failure.endedAt)}
-                      </td>
-                    </tr>
-                  ))}
-                </DiagnosticsTable>
-              ) : (
-                <EmptyRows label={loading ? "Loading failures..." : "No failed spans found."} />
-              )}
-            </SettingsSection>
+            <details className="diagnostics-details">
+              <summary>Latest Failures</summary>
+              <SettingsSection title="Latest Failures">
+                {traces && traces.latestFailures.length > 0 ? (
+                  <DiagnosticsTable headers={["Span", "Cause", "Duration", "Ended"]}>
+                    {traces.latestFailures.map((failure) => (
+                      <tr key={`${failure.traceId}:${failure.spanId}`}>
+                        <td className="px-4 py-3 align-top text-xs font-medium text-foreground first:sm:pl-5">
+                          {failure.name}
+                        </td>
+                        <td className="max-w-[420px] px-4 py-3 align-top text-muted-foreground">
+                          <ExpandableText text={failure.cause} />
+                        </td>
+                        <td className="px-4 py-3 align-top font-mono tabular-nums">
+                          {formatDuration(failure.durationMs)}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 align-top font-mono tabular-nums text-muted-foreground last:sm:pr-5">
+                          {formatRelativeNoWrap(failure.endedAt)}
+                        </td>
+                      </tr>
+                    ))}
+                  </DiagnosticsTable>
+                ) : (
+                  <EmptyRows label={loading ? "Loading failures..." : "No failed spans found."} />
+                )}
+              </SettingsSection>
+            </details>
 
             {/* Most Common Failures */}
-            <SettingsSection title="Most Common Failures">
-              {traces && traces.commonFailures.length > 0 ? (
-                <DiagnosticsTable
-                  headers={["Span", "Count", "Cause", "Last Seen"]}
-                  minTableWidth="min-w-[760px]"
-                >
-                  {traces.commonFailures.map((failure) => (
-                    <tr key={`${failure.name}:${failure.cause}`}>
-                      <td className="px-4 py-3 align-top text-xs font-medium text-foreground first:sm:pl-5">
-                        {failure.name}
-                      </td>
-                      <td className="px-4 py-3 align-top font-mono tabular-nums">
-                        {formatCount(failure.count)}
-                      </td>
-                      <td className="max-w-[420px] px-4 py-3 align-top text-muted-foreground">
-                        <ExpandableText text={failure.cause} />
-                      </td>
-                      <td className="w-px whitespace-nowrap px-4 py-3 align-top font-mono tabular-nums text-muted-foreground last:sm:pr-5">
-                        {formatRelativeNoWrap(failure.lastSeenAt)}
-                      </td>
-                    </tr>
-                  ))}
-                </DiagnosticsTable>
-              ) : (
-                <EmptyRows
-                  label={loading ? "Loading failure groups..." : "No repeated failures found."}
-                />
-              )}
-            </SettingsSection>
+            <details className="diagnostics-details">
+              <summary>Most Common Failures</summary>
+              <SettingsSection title="Most Common Failures">
+                {traces && traces.commonFailures.length > 0 ? (
+                  <DiagnosticsTable
+                    headers={["Span", "Count", "Cause", "Last Seen"]}
+                    minTableWidth="min-w-[760px]"
+                  >
+                    {traces.commonFailures.map((failure) => (
+                      <tr key={`${failure.name}:${failure.cause}`}>
+                        <td className="px-4 py-3 align-top text-xs font-medium text-foreground first:sm:pl-5">
+                          {failure.name}
+                        </td>
+                        <td className="px-4 py-3 align-top font-mono tabular-nums">
+                          {formatCount(failure.count)}
+                        </td>
+                        <td className="max-w-[420px] px-4 py-3 align-top text-muted-foreground">
+                          <ExpandableText text={failure.cause} />
+                        </td>
+                        <td className="w-px whitespace-nowrap px-4 py-3 align-top font-mono tabular-nums text-muted-foreground last:sm:pr-5">
+                          {formatRelativeNoWrap(failure.lastSeenAt)}
+                        </td>
+                      </tr>
+                    ))}
+                  </DiagnosticsTable>
+                ) : (
+                  <EmptyRows
+                    label={loading ? "Loading failure groups..." : "No repeated failures found."}
+                  />
+                )}
+              </SettingsSection>
+            </details>
 
             {/* Slowest Spans */}
-            <SettingsSection title="Slowest Spans">
-              {traces && traces.slowestSpans.length > 0 ? (
-                <DiagnosticsTable
-                  headers={["Span", "Duration", "Ended", "Trace"]}
-                  minTableWidth="min-w-[900px]"
-                  columnWidths={["w-[40%]", "w-[15%]", "w-[15%]", "w-[30%]"]}
-                >
-                  {traces.slowestSpans.map((span) => (
-                    <tr key={`${span.traceId}:${span.spanId}`}>
-                      <td className="px-4 py-3 align-top text-xs font-medium text-foreground first:sm:pl-5">
-                        {span.name}
-                      </td>
-                      <td className="px-4 py-3 align-top font-mono tabular-nums">
-                        {formatDuration(span.durationMs)}
-                      </td>
-                      <td className="w-px whitespace-nowrap px-4 py-3 align-top font-mono tabular-nums text-muted-foreground">
-                        {formatRelativeNoWrap(span.endedAt)}
-                      </td>
-                      <td className="min-w-0 whitespace-nowrap px-4 py-3 align-top text-muted-foreground last:sm:pr-5">
-                        <TraceIdCell traceId={span.traceId} />
-                      </td>
-                    </tr>
-                  ))}
-                </DiagnosticsTable>
-              ) : (
-                <EmptyRows label={loading ? "Loading slow spans..." : "No slow spans found."} />
-              )}
-            </SettingsSection>
+            <details className="diagnostics-details">
+              <summary>Slowest Spans</summary>
+              <SettingsSection title="Slowest Spans">
+                {traces && traces.slowestSpans.length > 0 ? (
+                  <DiagnosticsTable
+                    headers={["Span", "Duration", "Ended", "Trace"]}
+                    minTableWidth="min-w-[900px]"
+                    columnWidths={["w-[40%]", "w-[15%]", "w-[15%]", "w-[30%]"]}
+                  >
+                    {traces.slowestSpans.map((span) => (
+                      <tr key={`${span.traceId}:${span.spanId}`}>
+                        <td className="px-4 py-3 align-top text-xs font-medium text-foreground first:sm:pl-5">
+                          {span.name}
+                        </td>
+                        <td className="px-4 py-3 align-top font-mono tabular-nums">
+                          {formatDuration(span.durationMs)}
+                        </td>
+                        <td className="w-px whitespace-nowrap px-4 py-3 align-top font-mono tabular-nums text-muted-foreground">
+                          {formatRelativeNoWrap(span.endedAt)}
+                        </td>
+                        <td className="min-w-0 whitespace-nowrap px-4 py-3 align-top text-muted-foreground last:sm:pr-5">
+                          <TraceIdCell traceId={span.traceId} />
+                        </td>
+                      </tr>
+                    ))}
+                  </DiagnosticsTable>
+                ) : (
+                  <EmptyRows label={loading ? "Loading slow spans..." : "No slow spans found."} />
+                )}
+              </SettingsSection>
+            </details>
 
             {/* Top Span Names */}
-            <SettingsSection title="Top Span Names">
-              {traces && traces.topSpansByCount.length > 0 ? (
-                <DiagnosticsTable headers={["Span", "Count", "Failures", "Average Duration"]}>
-                  {traces.topSpansByCount.map((span) => (
-                    <tr key={span.name} className="hover:bg-muted/20">
-                      <td className="px-4 py-2.5 font-mono text-foreground/90 first:sm:pl-5">
-                        {span.name}
-                      </td>
-                      <td className="px-3 py-2.5 text-right font-mono tabular-nums">
-                        {formatCount(span.count)}
-                      </td>
-                      <td
-                        className={cn(
-                          "px-3 py-2.5 text-right font-mono tabular-nums",
-                          span.failureCount > 0 && "font-medium text-destructive",
-                        )}
-                      >
-                        {span.failureCount}
-                      </td>
-                      <td className="px-4 py-2.5 text-right font-mono tabular-nums text-muted-foreground last:sm:pr-5">
-                        {span.averageDurationMs.toFixed(1)} ms
-                      </td>
-                    </tr>
-                  ))}
-                </DiagnosticsTable>
-              ) : (
-                <EmptyRows label={loading ? "Loading span counts..." : "No spans recorded."} />
-              )}
-            </SettingsSection>
+            <details className="diagnostics-details">
+              <summary>Top Span Names</summary>
+              <SettingsSection title="Top Span Names">
+                {traces && traces.topSpansByCount.length > 0 ? (
+                  <DiagnosticsTable headers={["Span", "Count", "Failures", "Average Duration"]}>
+                    {traces.topSpansByCount.map((span) => (
+                      <tr key={span.name} className="hover:bg-muted/20">
+                        <td className="px-4 py-2.5 font-mono text-foreground/90 first:sm:pl-5">
+                          {span.name}
+                        </td>
+                        <td className="px-3 py-2.5 text-right font-mono tabular-nums">
+                          {formatCount(span.count)}
+                        </td>
+                        <td
+                          className={cn(
+                            "px-3 py-2.5 text-right font-mono tabular-nums",
+                            span.failureCount > 0 && "font-medium text-destructive",
+                          )}
+                        >
+                          {span.failureCount}
+                        </td>
+                        <td className="px-4 py-2.5 text-right font-mono tabular-nums text-muted-foreground last:sm:pr-5">
+                          {span.averageDurationMs.toFixed(1)} ms
+                        </td>
+                      </tr>
+                    ))}
+                  </DiagnosticsTable>
+                ) : (
+                  <EmptyRows label={loading ? "Loading span counts..." : "No spans recorded."} />
+                )}
+              </SettingsSection>
+            </details>
           </div>
         ) : null}
       </div>

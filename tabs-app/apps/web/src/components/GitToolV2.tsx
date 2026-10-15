@@ -36,7 +36,8 @@ import { HistoryPanel } from "./git/HistoryPanel";
 import { OverviewPanel } from "./git/OverviewPanel";
 import { PRsPanel } from "./git/PRsPanel";
 import { SettingsPanel } from "./git/SettingsPanel";
-import { Sidebar, type NavPanel } from "./git/Sidebar";
+import { SettingsSectionHeader } from "./settings/SettingsLayout";
+import { Sidebar, NAV, type NavPanel } from "./git/Sidebar";
 import { StashesPanel } from "./git/StashesPanel";
 import { TagsPanel } from "./git/TagsPanel";
 import { TopBar } from "./git/TopBar";
@@ -491,16 +492,40 @@ export function GitToolV2({
 
   const switchAccount = useCallback(
     (login: string) => {
-      void switchMutation.mutateAsync({ host: "github.com", login });
+      return switchMutation
+        .mutateAsync({
+          host: accounts.find((a) => a.login === login)?.host ?? "github.com",
+          login: accounts.find((a) => a.login === login)?.authLogin ?? login,
+        })
+        .then(() => undefined)
+        .catch((error: unknown) => {
+          toastManager.add({
+            type: "error",
+            title: "Could not update GitHub account",
+            description: toGitUserFacingErrorMessage(error),
+          });
+        });
     },
-    [switchMutation],
+    [switchMutation, accounts],
   );
 
   const removeAccount = useCallback(
     (login: string) => {
-      void logoutMutation.mutateAsync({ host: "github.com", login });
+      return logoutMutation
+        .mutateAsync({
+          host: accounts.find((a) => a.login === login)?.host ?? "github.com",
+          login: accounts.find((a) => a.login === login)?.authLogin ?? login,
+        })
+        .then(() => undefined)
+        .catch((error: unknown) => {
+          toastManager.add({
+            type: "error",
+            title: "Could not update GitHub account",
+            description: toGitUserFacingErrorMessage(error),
+          });
+        });
     },
-    [logoutMutation],
+    [logoutMutation, accounts],
   );
 
   const repoName = cwd.split("/").pop() ?? cwd;
@@ -513,7 +538,20 @@ export function GitToolV2({
         role="tabpanel"
         aria-labelledby={`${panelIdPrefix}-tab-${panel}`}
         tabIndex={0}
+        className={panel === "prs" ? undefined : "git-page"}
       >
+        {panel !== "prs" && (
+          <SettingsSectionHeader
+            title={
+              panel === "overview"
+                ? "Repository overview"
+                : panel === "settings"
+                  ? "Git settings"
+                  : (NAV.find((item) => item.id === panel)?.label ?? panelName)
+            }
+            description={NAV.find((item) => item.id === panel)?.desc ?? ""}
+          />
+        )}
         {content}
       </div>
     </PanelErrorBoundary>
@@ -647,6 +685,8 @@ export function GitToolV2({
             onOpenConnectAccount={() => setModal("deviceAuth")}
             onSwitchAccount={switchAccount}
             onRemoveAccount={removeAccount}
+            onRefresh={() => gitEnvironmentQuery.refetch().then(() => undefined)}
+            isRefreshing={gitEnvironmentQuery.isFetching}
           />,
         );
       case "settings":
@@ -671,15 +711,26 @@ export function GitToolV2({
         environment={environmentData ?? undefined}
         isRepo={branchList?.isRepo}
         isLoading={gitEnvironmentQuery.isLoading || branchesQuery.isLoading}
+        error={
+          gitEnvironmentQuery.error || branchesQuery.error
+            ? toGitUserFacingErrorMessage(gitEnvironmentQuery.error ?? branchesQuery.error)
+            : undefined
+        }
+        onRetry={() => {
+          void gitEnvironmentQuery.refetch();
+          void branchesQuery.refetch();
+        }}
         initPending={gitInitMutation.isPending}
         onInitRepo={() => void gitInitMutation.mutateAsync()}
       >
         <div
           className="git-tool-v2 flex h-full min-h-0 overflow-hidden"
+          data-redesigned={panel !== "prs"}
           style={{ backgroundColor: "var(--bg-base)", color: "var(--fg)" }}
         >
           {/* Sidebar (w-64 expanded, w-16 collapsed) */}
           <Sidebar
+            redesigned={panel !== "prs"}
             repoName={repoName}
             panel={panel}
             setPanel={setPanel}
@@ -692,7 +743,7 @@ export function GitToolV2({
           />
 
           {/* Main Panel Area */}
-          <div className="flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden">
+          <div className="git-main flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden">
             <TopBar
               repoName={repoName}
               branchLabel={branchName}
@@ -705,8 +756,8 @@ export function GitToolV2({
               onOpenAccounts={() => setPanel("accounts")}
               onOpenSignIn={() => setModal("deviceAuth")}
             />
-            <div className="flex-1 overflow-y-auto px-6 py-5 custom-scrollbar">
-              <div className="w-full max-w-[1400px] mx-auto">{renderPanel()}</div>
+            <div className="git-content-scroll flex-1 overflow-y-auto px-6 py-5 custom-scrollbar">
+              <div className="git-content-width w-full max-w-[1400px] mx-auto">{renderPanel()}</div>
             </div>
           </div>
         </div>

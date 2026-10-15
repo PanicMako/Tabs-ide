@@ -1,0 +1,3 @@
+# CLI auth callback page
+
+Batch315: Full155-line HTML renderer reviewed. Actual Bun render all3 stages matched expected data-stage and no script, exit0. Static interpolation only stage enum and fixed brand; current CliTokenManager477 calls without request-controlled stage. Caller checks callback state/nonempty code, resolves deferred and renders page before token exchange finishes; wording asks return to terminal to finish setup. Upstream T3 branding remains, default stage dev unless compile constant supplied. No browser/OAuth flow executed; no visual/accessibility guarantee inferred from markup.

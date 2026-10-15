@@ -421,16 +421,16 @@ export function getSelectedTraits(
   allowPromptInjectedEffort: boolean,
 ) {
   const caps = getProviderModelCapabilities(models, model, provider);
+  const reasoningEffortLevels = caps.reasoningEffortLevels ?? [];
+  const promptInjectedEffortLevels = caps.promptInjectedEffortLevels ?? [];
   const effortLevels = allowPromptInjectedEffort
-    ? caps.reasoningEffortLevels
-    : caps.reasoningEffortLevels.filter(
-        (option) => !caps.promptInjectedEffortLevels.includes(option.value),
-      );
+    ? reasoningEffortLevels
+    : reasoningEffortLevels.filter((option) => !promptInjectedEffortLevels.includes(option.value));
   const defaultEffort = getDefaultEffort(caps);
 
   const resolvedEffort = getRawEffort(provider, modelOptions);
   const isPromptInjected = resolvedEffort
-    ? caps.promptInjectedEffortLevels.includes(resolvedEffort)
+    ? promptInjectedEffortLevels.includes(resolvedEffort)
     : false;
   const effort =
     resolvedEffort && !isPromptInjected && hasEffortLevel(caps, resolvedEffort)
@@ -449,7 +449,7 @@ export function getSelectedTraits(
 
   const ultrathinkPromptControlled =
     allowPromptInjectedEffort &&
-    caps.promptInjectedEffortLevels.length > 0 &&
+    promptInjectedEffortLevels.length > 0 &&
     isClaudeUltrathinkPrompt(prompt);
 
   return {

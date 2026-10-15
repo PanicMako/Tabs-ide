@@ -41,7 +41,7 @@ const RepoRoot = Effect.service(Path.Path).pipe(
 const LightBrandLogoSource = Effect.zipWith(RepoRoot, Effect.service(Path.Path), (repoRoot, path) =>
   path.join(repoRoot, BRAND_LOGO_SVG_PATHS.light),
 );
-const encodeJsonString = Schema.encodeEffect(Schema.UnknownFromJsonString);
+const encodeJsonString = Schema.encodeEffect(Schema.fromJsonString(Schema.Unknown));
 
 interface PlatformConfig {
   readonly cliFlag: "--mac" | "--linux" | "--win";

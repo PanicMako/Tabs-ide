@@ -10,10 +10,12 @@ export function readNativeApi(): NativeApi | undefined {
 
   if (window.nativeApi) {
     cachedApi = window.nativeApi;
+    (window as any).__tabsNativeApi = cachedApi;
     return cachedApi;
   }
 
   cachedApi = createWsNativeApi();
+  (window as any).__tabsNativeApi = cachedApi;
   return cachedApi;
 }
 

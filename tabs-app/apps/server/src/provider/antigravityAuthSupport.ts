@@ -4,7 +4,9 @@ import * as NodePath from "node:path";
 
 import type { AntigravityAuthMethod, ProviderInstanceId } from "@tabs/contracts";
 import { HostProcessExecutablePath, HostProcessPlatform } from "@tabs/shared/hostProcess";
+import * as Crypto from "effect/Crypto";
 import * as Effect from "effect/Effect";
+import * as Encoding from "effect/Encoding";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import type * as PlatformError from "effect/PlatformError";
@@ -80,6 +82,7 @@ export interface AntigravityProfile {
   readonly acpDirectory: string;
   readonly tokenPath: string;
   readonly browserCommand: string;
+  readonly tempDirectory?: string;
 }
 
 /**
@@ -177,6 +180,30 @@ export function isAntigravitySignInRequiredError(error: unknown): boolean {
 }
 
 /** Keeps case-sensitive instance IDs separate on case-insensitive filesystems. */
+export interface AntigravityInstanceDirectories {
+  /** GEMINI_HOME for the agent. Holds the instance's Google sign-in. */
+  readonly profile: string;
+  /**
+   * Parent of the per-process directories the agent unpacks into.
+   */
+  readonly runtimeTemp: string;
+}
+
+/** Hashes the instance ID so case-only differences stay separate on case-insensitive filesystems. */
+export const resolveAntigravityInstanceDirectories = Effect.fn(
+  "resolveAntigravityInstanceDirectories",
+)(function* (stateDir: string, instanceId: ProviderInstanceId) {
+  const crypto = yield* Crypto.Crypto;
+  const path = yield* Path.Path;
+  const key = Encoding.encodeHex(
+    yield* crypto.digest("SHA-256", new TextEncoder().encode(instanceId)),
+  );
+  return {
+    profile: path.join(stateDir, "providers", "antigravity", key),
+    runtimeTemp: path.join(stateDir, "antigravity-tmp", key.slice(0, 12)),
+  } satisfies AntigravityInstanceDirectories;
+});
+
 export function resolveAntigravityProfileDirectory(
   stateDir: string,
   instanceId: ProviderInstanceId,
@@ -222,6 +249,7 @@ function antigravityEnvironment(
 /** Prepares a private profile without reading or copying Google credentials. */
 export const prepareAntigravityProfile = Effect.fn("prepareAntigravityProfile")(function* (input: {
   readonly profileDirectory: string;
+  readonly tempDirectory?: string;
   readonly baseEnv?: NodeJS.ProcessEnv;
   readonly runtimeExecutablePath?: string;
   readonly platform?: NodeJS.Platform;
@@ -257,6 +285,7 @@ export const prepareAntigravityProfile = Effect.fn("prepareAntigravityProfile")(
     acpDirectory,
     tokenPath: path.join(acpDirectory, "acp_token.json"),
     browserCommand,
+    ...(input.tempDirectory ? { tempDirectory: path.resolve(input.tempDirectory) } : {}),
   };
   const environment = antigravityEnvironment(profile, input.baseEnv ?? process.env, auth);
   yield* Effect.gen(function* () {
@@ -298,7 +327,11 @@ export const prepareAntigravityProfile = Effect.fn("prepareAntigravityProfile")(
     ),
   );
 
-  for (const directory of [geminiHome, acpDirectory]) {
+  for (const directory of [
+    geminiHome,
+    acpDirectory,
+    ...(profile.tempDirectory ? [profile.tempDirectory] : []),
+  ]) {
     yield* fs
       .makeDirectory(directory, { recursive: true, mode: 0o700 })
       .pipe(
@@ -336,6 +369,7 @@ export function buildAntigravityAcpSpawnInput(input: {
     readonly harnessPath: string;
   };
   readonly profile: AntigravityProfile;
+  readonly runtimeTempDirectory?: string;
   readonly cwd: string;
   readonly baseEnv?: NodeJS.ProcessEnv;
   readonly auth?: AntigravityAuthConfig;
@@ -351,6 +385,13 @@ export function buildAntigravityAcpSpawnInput(input: {
         input.auth ?? ANTIGRAVITY_PERSONAL_AUTH,
       ),
       ANTIGRAVITY_HARNESS_PATH: input.installation.harnessPath,
+      ...(input.runtimeTempDirectory
+        ? {
+            TMPDIR: input.runtimeTempDirectory,
+            TMP: input.runtimeTempDirectory,
+            TEMP: input.runtimeTempDirectory,
+          }
+        : {}),
     },
     extendEnv: false,
   };

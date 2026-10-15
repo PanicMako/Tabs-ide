@@ -8,7 +8,8 @@ import { isWorkspaceImagePreviewPath } from "@tabs/shared/filePreview";
 import * as Option from "effect/Option";
 import * as Predicate from "effect/Predicate";
 import * as Schema from "effect/Schema";
-import * as EffectAcpSchema from "effect-acp/schema";
+import type * as EffectAcpSchema from "effect-acp/compat";
+import * as AcpWireSchema from "effect-acp/schema-v1";
 
 import type { AcpToolCallState } from "./AcpRuntimeModel.ts";
 
@@ -36,9 +37,8 @@ const decodeNativeToolFields = Schema.decodeUnknownOption(NativeToolFields);
 const decodeSingleAnswer = Schema.decodeUnknownOption(
   Schema.Union([Schema.String, Schema.Tuple([Schema.String])]),
 );
-const decodeToolCallContent = Schema.decodeUnknownOption(EffectAcpSchema.ToolCallContent);
+const decodeToolCallContent = Schema.decodeUnknownOption(AcpWireSchema.ToolCallContent);
 
-// AG-002: Distinguish native Antigravity interaction questions from security approval requests.
 /** Native questions share the permission method, but their choices are not approvals. */
 export function isAntigravityUserInputRequest(
   request: EffectAcpSchema.RequestPermissionRequest,
@@ -69,7 +69,6 @@ const decodeSecurityWarning = Schema.decodeUnknownOption(
   }),
 );
 
-// AG-004: Surface native prompt-injection warnings on Allow Always without losing fidelity.
 /**
  * The agent marks "Allow Always" on shell and web tools with a prompt injection
  * warning in `_meta`. Surface it as option text so both clients can show it.
@@ -231,7 +230,6 @@ function sanitizeToolValue(value: unknown, budget: ToolPayloadBudget, depth: num
   return Object.fromEntries(entries);
 }
 
-// AG-003: Keep Antigravity tool payloads bounded before retaining runtime state.
 /** Bound both retained raw events and display data before they enter the event stream. */
 export function sanitizeAntigravityToolPayload(payload: unknown): unknown {
   return sanitizeToolValue(payload, { nodes: 512, text: 64_000 }, 0);
@@ -265,7 +263,9 @@ export function normalizeAntigravitySessionUpdate(
         ? { rawOutput: sanitizeAntigravityToolPayload(update.rawOutput) }
         : {}),
       ...(update.content !== undefined ? { content: content ?? [] } : {}),
-      ...(update._meta !== undefined ? { _meta: Predicate.isObject(meta) ? meta : null } : {}),
+      ...(update._meta !== undefined
+        ? { _meta: Schema.is(Schema.Record(Schema.String, Schema.Json))(meta) ? meta : null }
+        : {}),
     },
   };
 }
@@ -351,11 +351,14 @@ export function isAntigravityOpenCommand(toolCall: AcpToolCallState): boolean {
   return toolCall.kind === "execute" && toolCall.status === "inProgress";
 }
 
-// AG-006: Classify Antigravity subagent calls vs ordinary MCP tools.
-/** ACP 1.1.1 exposes subagent invocations as ordinary tools, without child IDs or models. */
+/**
+ * ACP 1.1.1 exposes subagent invocations as ordinary tools, without child IDs
+ * or models. Reads the update's `_meta` from `data.meta`, or from the raw
+ * notification when given.
+ */
 export function classifyAntigravitySubagentToolCall(
   toolCall: AcpToolCallState,
-  rawPayload: unknown,
+  rawPayload?: unknown,
 ): "subagent" | "mcp" | undefined {
   if (
     (toolCall.kind !== undefined && toolCall.kind !== "other") ||
@@ -363,7 +366,7 @@ export function classifyAntigravitySubagentToolCall(
   )
     return undefined;
   const update = Predicate.isObject(rawPayload) ? rawPayload.update : undefined;
-  const meta = Predicate.isObject(update) ? update._meta : undefined;
+  const meta = Predicate.isObject(update) ? update._meta : toolCall.data.meta;
   return Predicate.isObject(meta) && meta.is_mcp_tool_call === true ? "mcp" : "subagent";
 }
 

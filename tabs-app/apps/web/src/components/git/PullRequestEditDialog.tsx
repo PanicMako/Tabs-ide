@@ -1,3 +1,4 @@
+import { OrbitGroup } from "../ui/orbit-group";
 import { useState, useEffect, useCallback } from "react";
 import { Dialog, DialogPopup } from "../ui/dialog";
 import { Button } from "../ui/button";
@@ -77,8 +78,8 @@ export function PullRequestEditForm({
             <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
               Description
             </span>
-            <div
-              className="tabs-segmented flex items-center"
+            <OrbitGroup
+              className="tabs-segmented flex items-center rounded-full"
               role="group"
               aria-label="Description editor mode"
             >
@@ -86,7 +87,7 @@ export function PullRequestEditForm({
                 type="button"
                 size="sm"
                 variant={activeTab === "write" ? "secondary" : "ghost"}
-                className="h-6 px-2 text-xs gap-1"
+                className="h-6 px-2.5 text-xs gap-1 rounded-full"
                 onClick={() => setActiveTab("write")}
                 aria-pressed={activeTab === "write"}
               >
@@ -97,14 +98,14 @@ export function PullRequestEditForm({
                 type="button"
                 size="sm"
                 variant={activeTab === "preview" ? "secondary" : "ghost"}
-                className="h-6 px-2 text-xs gap-1"
+                className="h-6 px-2.5 text-xs gap-1 rounded-full"
                 onClick={() => setActiveTab("preview")}
                 aria-pressed={activeTab === "preview"}
               >
                 <Eye className="size-3" />
                 <span>Preview</span>
               </Button>
-            </div>
+            </OrbitGroup>
           </div>
 
           {activeTab === "write" ? (

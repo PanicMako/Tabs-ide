@@ -4,17 +4,10 @@ import * as Schema from "effect/Schema";
 
 import {
   ClientOrchestrationCommand,
-  DEFAULT_PROVIDER_INTERACTION_MODE,
-  DEFAULT_RUNTIME_MODE,
-  ModelSelection,
   OrchestrationCommand,
   OrchestrationEvent,
-  OrchestrationGetFullThreadDiffInput,
-  OrchestrationGetTurnDiffInput,
   OrchestrationLatestTurn,
   ProjectCreatedPayload,
-  ProjectFaviconPath,
-  ProjectIconOverride,
   ProjectMetaUpdatedPayload,
   OrchestrationProposedPlan,
   OrchestrationSession,
@@ -22,9 +15,16 @@ import {
   ThreadMetaUpdatedPayload,
   ThreadTurnStartCommand,
   ThreadCreatedPayload,
-  ThreadTurnDiff,
   ThreadTurnStartRequestedPayload,
 } from "./orchestration.ts";
+import { DEFAULT_PROVIDER_INTERACTION_MODE, DEFAULT_RUNTIME_MODE } from "./providerPolicy.ts";
+import { ModelSelection } from "./modelSelection.ts";
+import {
+  OrchestrationGetFullThreadDiffInput,
+  OrchestrationGetTurnDiffInput,
+  ThreadTurnDiff,
+} from "./checkpointDiff.ts";
+import { ProjectFaviconPath, ProjectIconOverride } from "./project.ts";
 import { ProviderInstanceId } from "./providerInstance.ts";
 
 const decodeTurnDiffInput = Schema.decodeUnknownEffect(OrchestrationGetTurnDiffInput);

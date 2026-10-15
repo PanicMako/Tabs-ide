@@ -1,0 +1,5 @@
+# CLI project review
+
+Batch297: Full575-line source and447-line tests reviewed.14 tests passed6.41s/exit0 using actual CLI/temp SQLite. Covers add/rename/remove, refusing unforced removal with active or archived threads, force deletion events and unrelated project preservation, absent workspaces, separate environments and separately registered symlink aliases. Workspace directories are preserved. Error wrapper tests keep human message generic while retaining cause.
+
+Live mode creates temporary administrative session, revokes it after use, and uses one-second snapshot/mutation timeouts. Discovery probes persisted origin and, on any failure (including auth/server failure/timeout), clears runtime descriptor and falls back to offline database operations. That can select offline mode while a slow live server remains running; concurrency impact is not verified by tests, which do not exercise live server requests. Live mode also obtains a second session/snapshot after probe. Packaged entry blocker remains separate. No production project modified.

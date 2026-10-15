@@ -20,18 +20,18 @@
  *
  * @module provider/builtInDrivers
  */
-import { ClaudeDriver, type ClaudeDriverEnv } from "./Drivers/ClaudeDriver";
-import { CodexDriver, type CodexDriverEnv } from "./Drivers/CodexDriver";
-import { CopilotDriver, type CopilotDriverEnv } from "./Drivers/CopilotDriver";
-import { CursorDriver, type CursorDriverEnv } from "./Drivers/CursorDriver";
-import { GeminiDriver } from "./Drivers/GeminiDriver";
-import { GrokDriver, type GrokDriverEnv } from "./Drivers/GrokDriver";
-import { KiloDriver, type KiloDriverEnv } from "./Drivers/KiloDriver";
-import { OpenCodeDriver, type OpenCodeDriverEnv } from "./Drivers/OpenCodeDriver";
-import { DroidDriver, type DroidDriverEnv } from "./Drivers/DroidDriver";
-import { AntigravityDriver, type AntigravityDriverEnv } from "./Drivers/AntigravityDriver";
-import { OpenRouterDriver } from "./Drivers/OpenRouterDriver";
-import type { AnyProviderDriver } from "./ProviderDriver";
+import { ClaudeDriver, type ClaudeDriverEnv } from "./Drivers/ClaudeDriver.ts";
+import { CodexDriver, type CodexDriverEnv } from "./Drivers/CodexDriver.ts";
+import { CopilotDriver, type CopilotDriverEnv } from "./Drivers/CopilotDriver.ts";
+import { CursorDriver, type CursorDriverEnv } from "./Drivers/CursorDriver.ts";
+import { GeminiDriver } from "./Drivers/GeminiDriver.ts";
+import { GrokDriver, type GrokDriverEnv } from "./Drivers/GrokDriver.ts";
+import { KiloDriver, type KiloDriverEnv } from "./Drivers/KiloDriver.ts";
+import { OpenCodeDriver, type OpenCodeDriverEnv } from "./Drivers/OpenCodeDriver.ts";
+import { DroidDriver, type DroidDriverEnv } from "./Drivers/DroidDriver.ts";
+import { AntigravityDriver, type AntigravityDriverEnv } from "./Drivers/AntigravityDriver.ts";
+import { OpenRouterDriver } from "./Drivers/OpenRouterDriver.ts";
+import type { AnyProviderDriver } from "./ProviderDriver.ts";
 
 /**
  * Union of infrastructure services required to construct any built-in

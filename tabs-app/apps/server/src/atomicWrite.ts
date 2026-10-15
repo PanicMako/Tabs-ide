@@ -1,6 +1,7 @@
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
+import { resolveSymlinkTarget } from "@tabs/shared/symlink";
 
 export const writeFileStringAtomically = (input: {
   readonly filePath: string;
@@ -10,16 +11,20 @@ export const writeFileStringAtomically = (input: {
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
-      const targetDirectory = path.dirname(input.filePath);
+      const targetPath = yield* resolveSymlinkTarget(input.filePath);
+      const targetDirectory = path.dirname(targetPath);
 
       yield* fs.makeDirectory(targetDirectory, { recursive: true });
-      const tempDirectory = yield* fs.makeTempDirectoryScoped({
-        directory: targetDirectory,
-        prefix: `${path.basename(input.filePath)}.`,
-      });
+      const tempDirectory = yield* Effect.acquireRelease(
+        fs.makeTempDirectory({
+          directory: targetDirectory,
+          prefix: `${path.basename(targetPath)}.`,
+        }),
+        (directory) => fs.remove(directory, { recursive: true }).pipe(Effect.ignore({ log: true })),
+      );
       const tempPath = path.join(tempDirectory, "contents.tmp");
 
       yield* fs.writeFileString(tempPath, input.contents);
-      yield* fs.rename(tempPath, input.filePath);
+      yield* fs.rename(tempPath, targetPath);
     }),
   );

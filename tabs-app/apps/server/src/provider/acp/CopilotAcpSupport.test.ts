@@ -137,21 +137,62 @@ describe("resolveCopilotAuthMethodId", () => {
 
 describe("applyCopilotAcpModelSelection", () => {
   const makeRecordingRuntime = (failure?: EffectAcpErrors.AcpError) => {
-    const modelCalls: Array<string> = [];
+    const sessionModelCalls: Array<string> = [];
+    const setModelCalls: Array<string> = [];
     const runtime = {
       setSessionModel: (modelId: string) =>
         Effect.gen(function* () {
-          modelCalls.push(modelId);
+          sessionModelCalls.push(modelId);
+          if (failure) return yield* failure;
+          return {};
+        }),
+      setModel: (modelId: string) =>
+        Effect.gen(function* () {
+          setModelCalls.push(modelId);
           if (failure) return yield* failure;
           return {};
         }),
     };
-    return { runtime, modelCalls };
+    return { runtime, sessionModelCalls, setModelCalls };
   };
 
-  it.effect("calls session/set_model when the requested model differs from current", () =>
+  it.effect("calls session/set_model when protocolVersion is 1", () =>
     Effect.gen(function* () {
-      const { runtime, modelCalls } = makeRecordingRuntime();
+      const { runtime, sessionModelCalls, setModelCalls } = makeRecordingRuntime();
+      const result = yield* applyCopilotAcpModelSelection({
+        runtime,
+        protocolVersion: 1,
+        currentModelId: "account-model-a",
+        requestedModelId: "account-model-b",
+        mapError: (cause) => cause.message,
+      });
+
+      expect(result).toBe("account-model-b");
+      expect(sessionModelCalls).toEqual(["account-model-b"]);
+      expect(setModelCalls).toHaveLength(0);
+    }),
+  );
+
+  it.effect("calls setModel when protocolVersion is 2", () =>
+    Effect.gen(function* () {
+      const { runtime, sessionModelCalls, setModelCalls } = makeRecordingRuntime();
+      const result = yield* applyCopilotAcpModelSelection({
+        runtime,
+        protocolVersion: 2,
+        currentModelId: "account-model-a",
+        requestedModelId: "account-model-c",
+        mapError: (cause) => cause.message,
+      });
+
+      expect(result).toBe("account-model-c");
+      expect(setModelCalls).toEqual(["account-model-c"]);
+      expect(sessionModelCalls).toHaveLength(0);
+    }),
+  );
+
+  it.effect("falls back to setSessionModel when protocolVersion is undefined", () =>
+    Effect.gen(function* () {
+      const { runtime, sessionModelCalls, setModelCalls } = makeRecordingRuntime();
       const result = yield* applyCopilotAcpModelSelection({
         runtime,
         currentModelId: "account-model-a",
@@ -160,22 +201,25 @@ describe("applyCopilotAcpModelSelection", () => {
       });
 
       expect(result).toBe("account-model-b");
-      expect(modelCalls).toEqual(["account-model-b"]);
+      expect(sessionModelCalls).toEqual(["account-model-b"]);
+      expect(setModelCalls).toHaveLength(0);
     }),
   );
 
   it.effect("no-ops when requested model equals current model", () =>
     Effect.gen(function* () {
-      const { runtime, modelCalls } = makeRecordingRuntime();
+      const { runtime, sessionModelCalls, setModelCalls } = makeRecordingRuntime();
       const result = yield* applyCopilotAcpModelSelection({
         runtime,
+        protocolVersion: 2,
         currentModelId: "account-model-a",
         requestedModelId: "account-model-a",
         mapError: (cause) => cause.message,
       });
 
       expect(result).toBe("account-model-a");
-      expect(modelCalls).toHaveLength(0);
+      expect(sessionModelCalls).toHaveLength(0);
+      expect(setModelCalls).toHaveLength(0);
     }),
   );
 });

@@ -30,9 +30,9 @@ import {
   AUTH_PROBE_TIMEOUT_MS,
   buildServerProvider,
   type ServerProviderDraft,
-} from "../providerSnapshot";
-import { expandHomePath } from "../../pathExpansion";
-import { codexAppServerArgs, resolveCodexLaunchArgs } from "./codexLaunchArgs";
+} from "../providerSnapshot.ts";
+import { expandHomePath } from "../../pathExpansion.ts";
+import { codexAppServerArgs, resolveCodexLaunchArgs } from "./codexLaunchArgs.ts";
 import packageJson from "../../../package.json" with { type: "json" };
 import { makeUnavailableUsageLimits } from "../providerUsageLimits.ts";
 import {
@@ -457,7 +457,7 @@ const probeCodexAppServerProvider = Effect.fn("probeCodexAppServerProvider")(fun
         cwds: [input.cwd],
       }),
       requestAllCodexModels(client),
-      client.request("account/rateLimits/read", undefined).pipe(
+      client.request("account/rateLimits/read", null).pipe(
         Effect.map(
           (response: any): CodexRateLimitsProbe => ({
             snapshot: response.rateLimits,
@@ -495,9 +495,9 @@ const probeCodexAppServerProvider = Effect.fn("probeCodexAppServerProvider")(fun
 const emptyCodexModelsFromSettings = (codexSettings: CodexSettings): ServerProvider["models"] => {
   const models = new Set<string>();
   for (const model of codexSettings.customModels) {
-    const trimmed = model.trim();
-    if (trimmed.length > 0) {
-      models.add(trimmed);
+    const slug = typeof model === "string" ? model.trim() : model.slug.trim();
+    if (slug.length > 0) {
+      models.add(slug);
     }
   }
   return Array.from(models, (model) => ({
@@ -620,7 +620,7 @@ export const checkCodexProviderStatus = Effect.fn("checkCodexProviderStatus")(fu
     binaryPath: codexSettings.binaryPath,
     homePath: codexSettings.homePath,
     cwd: process.cwd(),
-    customModels: codexSettings.customModels,
+    customModels: codexSettings.customModels.map((m) => (typeof m === "string" ? m : m.slug)),
     environment,
   }).pipe(Effect.scoped, Effect.timeoutOption(Duration.millis(AUTH_PROBE_TIMEOUT_MS)), Effect.exit);
 

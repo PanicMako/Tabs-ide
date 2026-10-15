@@ -1,0 +1,286 @@
+CREATE TABLE IF NOT EXISTS exchange_users (
+  id BIGINT PRIMARY KEY,
+  login TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS exchange_reviewers (
+  user_id BIGINT PRIMARY KEY REFERENCES exchange_users(id),
+  active BOOLEAN NOT NULL DEFAULT false,
+  changed_by BIGINT NOT NULL REFERENCES exchange_users(id),
+  reason TEXT NOT NULL,
+  changed_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS exchange_reviewer_events (
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT NOT NULL REFERENCES exchange_users(id),
+  actor_id BIGINT NOT NULL REFERENCES exchange_users(id),
+  action TEXT NOT NULL CHECK (action IN ('grant', 'revoke')),
+  reason TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS exchange_sessions (
+  token_hash TEXT PRIMARY KEY,
+  user_id BIGINT NOT NULL REFERENCES exchange_users(id),
+  csrf_hash TEXT NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS exchange_publisher_agreements (
+  user_id BIGINT NOT NULL REFERENCES exchange_users(id),
+  terms_version TEXT NOT NULL,
+  accepted_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, terms_version)
+);
+
+CREATE TABLE IF NOT EXISTS exchange_oauth_states (
+  state_hash TEXT PRIMARY KEY,
+  expires_at TIMESTAMPTZ NOT NULL
+);
+
+ALTER TABLE exchange_oauth_states ADD COLUMN IF NOT EXISTS return_route TEXT NOT NULL DEFAULT '/publisher';
+
+CREATE TABLE IF NOT EXISTS exchange_access_tokens (
+  id UUID PRIMARY KEY,
+  token_hash TEXT UNIQUE NOT NULL,
+  user_id BIGINT NOT NULL REFERENCES exchange_users(id),
+  label TEXT NOT NULL,
+  scope TEXT NOT NULL CHECK (scope IN ('read', 'publish')),
+  namespace TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at TIMESTAMPTZ NOT NULL,
+  revoked_at TIMESTAMPTZ,
+  CHECK ((scope = 'read' AND namespace IS NULL) OR (scope = 'publish' AND namespace ~ '^[a-z][a-z0-9-]{1,62}$'))
+);
+
+CREATE TABLE IF NOT EXISTS exchange_namespaces (
+  name TEXT PRIMARY KEY CHECK (name ~ '^[a-z][a-z0-9-]{1,62}$'),
+  verified BOOLEAN NOT NULL DEFAULT false,
+  terms_version TEXT NOT NULL,
+  created_by BIGINT NOT NULL REFERENCES exchange_users(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS exchange_namespace_members (
+  namespace TEXT NOT NULL REFERENCES exchange_namespaces(name),
+  user_id BIGINT NOT NULL REFERENCES exchange_users(id),
+  role TEXT NOT NULL CHECK (role IN ('owner', 'contributor')),
+  PRIMARY KEY (namespace, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS exchange_namespace_member_events (
+  id BIGSERIAL PRIMARY KEY,
+  namespace TEXT NOT NULL REFERENCES exchange_namespaces(name),
+  user_id BIGINT NOT NULL REFERENCES exchange_users(id),
+  role TEXT NOT NULL CHECK (role IN ('owner', 'contributor')),
+  actor_id BIGINT NOT NULL REFERENCES exchange_users(id),
+  action TEXT NOT NULL CHECK (action = 'remove'),
+  reason TEXT NOT NULL CHECK (length(reason) BETWEEN 1 AND 2000),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS exchange_namespace_member_events_history
+  ON exchange_namespace_member_events (namespace, created_at DESC, id DESC);
+
+CREATE TABLE IF NOT EXISTS exchange_namespace_invitations (
+  id BIGSERIAL PRIMARY KEY,
+  namespace TEXT NOT NULL REFERENCES exchange_namespaces(name),
+  user_id BIGINT NOT NULL REFERENCES exchange_users(id),
+  role TEXT NOT NULL CHECK (role IN ('owner', 'contributor')),
+  invited_by BIGINT NOT NULL REFERENCES exchange_users(id),
+  status TEXT NOT NULL CHECK (status IN ('pending', 'accepted', 'declined', 'expired', 'revoked')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at TIMESTAMPTZ NOT NULL,
+  decided_at TIMESTAMPTZ,
+  decided_by BIGINT REFERENCES exchange_users(id),
+  decision_reason TEXT CHECK (decision_reason IS NULL OR length(decision_reason) BETWEEN 1 AND 2000),
+  accepted_terms_version TEXT
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS exchange_namespace_one_pending_invitation
+  ON exchange_namespace_invitations (namespace, user_id) WHERE status = 'pending';
+CREATE INDEX IF NOT EXISTS exchange_namespace_incoming_invitations
+  ON exchange_namespace_invitations (user_id, created_at DESC) WHERE status = 'pending';
+
+ALTER TABLE exchange_namespace_invitations
+  ADD COLUMN IF NOT EXISTS accepted_terms_version TEXT;
+ALTER TABLE exchange_namespace_invitations
+  ADD COLUMN IF NOT EXISTS decided_by BIGINT REFERENCES exchange_users(id);
+ALTER TABLE exchange_namespace_invitations
+  ADD COLUMN IF NOT EXISTS decision_reason TEXT;
+
+ALTER TABLE exchange_namespace_invitations
+  DROP CONSTRAINT IF EXISTS exchange_namespace_invitations_status_check;
+ALTER TABLE exchange_namespace_invitations
+  ADD CONSTRAINT exchange_namespace_invitations_status_check
+  CHECK (status IN ('pending', 'accepted', 'declined', 'expired', 'revoked'));
+ALTER TABLE exchange_namespace_invitations
+  DROP CONSTRAINT IF EXISTS exchange_namespace_invitations_decision_reason_check;
+ALTER TABLE exchange_namespace_invitations
+  ADD CONSTRAINT exchange_namespace_invitations_decision_reason_check
+  CHECK (decision_reason IS NULL OR length(decision_reason) BETWEEN 1 AND 2000);
+
+CREATE TABLE IF NOT EXISTS exchange_namespace_verifications (
+  id BIGSERIAL PRIMARY KEY,
+  namespace TEXT NOT NULL REFERENCES exchange_namespaces(name),
+  actor_id BIGINT NOT NULL REFERENCES exchange_users(id),
+  verified BOOLEAN NOT NULL,
+  proof_url TEXT,
+  reason TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS exchange_versions (
+  namespace TEXT NOT NULL REFERENCES exchange_namespaces(name),
+  name TEXT NOT NULL CHECK (name ~ '^[a-z][a-z0-9-]{1,62}$'),
+  version TEXT NOT NULL,
+  digest TEXT NOT NULL CHECK (digest ~ '^[a-f0-9]{64}$'),
+  bytes INTEGER NOT NULL CHECK (bytes > 0 AND bytes <= 26214400),
+  manifest JSONB NOT NULL,
+  object_key TEXT NOT NULL UNIQUE,
+  status TEXT NOT NULL CHECK (status IN ('queued', 'scanning', 'review', 'rejected', 'approved', 'revoked')),
+  scan_result JSONB,
+  scan_claimed_at TIMESTAMPTZ,
+  scan_token UUID,
+  uploaded_by BIGINT NOT NULL REFERENCES exchange_users(id),
+  submitted_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  reviewed_at TIMESTAMPTZ,
+  reviewed_by BIGINT REFERENCES exchange_users(id),
+  review_reason TEXT,
+  PRIMARY KEY (namespace, name, version),
+  UNIQUE (namespace, name, digest)
+);
+
+CREATE INDEX IF NOT EXISTS exchange_versions_public_search
+  ON exchange_versions (namespace, name, submitted_at DESC)
+  WHERE status = 'approved';
+
+-- Lifecycle history is distinct from the renewable worker lease.
+ALTER TABLE exchange_versions ADD COLUMN IF NOT EXISTS scan_started_at TIMESTAMPTZ;
+ALTER TABLE exchange_versions ADD COLUMN IF NOT EXISTS scan_completed_at TIMESTAMPTZ;
+
+CREATE INDEX IF NOT EXISTS exchange_versions_review_history
+  ON exchange_versions (namespace, name, submitted_at DESC);
+
+CREATE TABLE IF NOT EXISTS exchange_worker_heartbeats (
+  worker_id UUID PRIMARY KEY,
+  heartbeat_at TIMESTAMPTZ NOT NULL,
+  last_scan_at TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS exchange_review_events (
+  id BIGSERIAL PRIMARY KEY,
+  namespace TEXT NOT NULL,
+  name TEXT NOT NULL,
+  version TEXT NOT NULL,
+  digest TEXT NOT NULL,
+  actor_id BIGINT NOT NULL REFERENCES exchange_users(id),
+  action TEXT NOT NULL CHECK (action IN ('approve', 'reject', 'revoke', 'rescan')),
+  reason TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  FOREIGN KEY (namespace, name, version)
+    REFERENCES exchange_versions(namespace, name, version)
+);
+
+CREATE INDEX IF NOT EXISTS exchange_review_events_history
+  ON exchange_review_events (namespace, name, created_at DESC, id DESC);
+
+ALTER TABLE exchange_review_events
+  DROP CONSTRAINT IF EXISTS exchange_review_events_action_check;
+ALTER TABLE exchange_review_events
+  ADD CONSTRAINT exchange_review_events_action_check
+  CHECK (action IN ('approve', 'reject', 'revoke', 'rescan'));
+
+CREATE TABLE IF NOT EXISTS exchange_appeals (
+  id BIGSERIAL PRIMARY KEY,
+  namespace TEXT NOT NULL,
+  name TEXT NOT NULL,
+  version TEXT NOT NULL,
+  digest TEXT NOT NULL,
+  actor_id BIGINT NOT NULL REFERENCES exchange_users(id),
+  message TEXT NOT NULL CHECK (length(message) BETWEEN 1 AND 4000),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  response TEXT,
+  responded_by BIGINT REFERENCES exchange_users(id),
+  responded_at TIMESTAMPTZ,
+  FOREIGN KEY (namespace, name, version)
+    REFERENCES exchange_versions(namespace, name, version)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS exchange_appeals_one_open_per_version
+  ON exchange_appeals (namespace, name, version) WHERE responded_at IS NULL;
+
+-- Operator-reviewed package or contained-file hashes. Entries are immutable;
+-- a correction requires an explicit audited removal before adding a new rule.
+CREATE TABLE IF NOT EXISTS exchange_blocked_digests (
+  digest TEXT PRIMARY KEY CHECK (digest ~ '^[a-f0-9]{64}$'),
+  reason TEXT NOT NULL CHECK (length(reason) BETWEEN 1 AND 2000),
+  created_by BIGINT NOT NULL REFERENCES exchange_users(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS exchange_blocked_digest_events (
+  id BIGSERIAL PRIMARY KEY,
+  digest TEXT NOT NULL CHECK (digest ~ '^[a-f0-9]{64}$'),
+  action TEXT NOT NULL CHECK (action IN ('add', 'remove')),
+  reason TEXT NOT NULL,
+  actor_id BIGINT NOT NULL REFERENCES exchange_users(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Signed TUF bytes are produced offline and published separately from review.
+-- API and worker containers never hold metadata signing keys.
+CREATE TABLE IF NOT EXISTS exchange_tuf_metadata (
+  name TEXT PRIMARY KEY CHECK (name ~ '^([1-9][0-9]*\.)?(root|snapshot|targets)\.json$|^timestamp\.json$'),
+  bytes BYTEA NOT NULL CHECK (octet_length(bytes) > 0 AND octet_length(bytes) <= 4194304),
+  sha256 TEXT NOT NULL CHECK (sha256 ~ '^[a-f0-9]{64}$'),
+  published_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Derived from the verified targets role in the same publication transaction.
+-- Approval alone never makes a package discoverable or downloadable.
+CREATE TABLE IF NOT EXISTS exchange_published_targets (
+  namespace TEXT NOT NULL,
+  name TEXT NOT NULL,
+  version TEXT NOT NULL,
+  digest TEXT NOT NULL CHECK (digest ~ '^[a-f0-9]{64}$'),
+  bytes INTEGER NOT NULL CHECK (bytes > 0 AND bytes <= 26214400),
+  PRIMARY KEY (namespace, name, version),
+  FOREIGN KEY (namespace, name, version)
+    REFERENCES exchange_versions(namespace, name, version)
+);
+
+-- Materialized from the same verified targets bundle as published_targets.
+-- Durable first-publication history survives replacement of current signed targets.
+CREATE TABLE IF NOT EXISTS exchange_publication_history (
+  namespace TEXT NOT NULL,
+  name TEXT NOT NULL,
+  version TEXT NOT NULL,
+  digest TEXT NOT NULL CHECK (digest ~ '^[a-f0-9]{64}$'),
+  first_published_at TIMESTAMPTZ,
+  PRIMARY KEY (namespace, name, version, digest),
+  FOREIGN KEY (namespace, name, version) REFERENCES exchange_versions(namespace, name, version)
+);
+
+-- Existing signed targets prove publication, but not its first date. Preserve
+-- unknown dates rather than using migration, upload, or metadata-refresh time.
+INSERT INTO exchange_publication_history(namespace, name, version, digest, first_published_at)
+SELECT p.namespace, p.name, p.version, p.digest, NULL
+FROM exchange_published_targets p JOIN exchange_versions v
+  ON v.namespace = p.namespace AND v.name = p.name AND v.version = p.version
+  AND v.digest = p.digest AND v.bytes = p.bytes
+ON CONFLICT DO NOTHING;
+
+-- Materialized from the same verified targets bundle as published_targets.
+-- Search reads one semantic-version head per extension instead of ranking
+-- every historical release on each request. Deleting targets cascades heads.
+CREATE TABLE IF NOT EXISTS exchange_published_heads (
+  namespace TEXT NOT NULL,
+  name TEXT NOT NULL,
+  version TEXT NOT NULL,
+  PRIMARY KEY (namespace, name),
+  FOREIGN KEY (namespace, name, version)
+    REFERENCES exchange_published_targets(namespace, name, version) ON DELETE CASCADE
+);

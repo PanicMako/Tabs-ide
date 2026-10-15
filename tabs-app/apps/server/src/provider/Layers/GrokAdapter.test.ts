@@ -12,6 +12,7 @@ import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
+import * as TestClock from "effect/testing/TestClock";
 
 import {
   ApprovalRequestId,
@@ -37,6 +38,7 @@ async function makeMockGrokWrapper(extraEnv?: Record<string, string>) {
     .map(([key, value]) => `export ${key}=${JSON.stringify(value)}`)
     .join("\n");
   const script = `#!/bin/sh
+export T3_ACP_GROK_CONFIG_MODELS=1
 ${envExports}
 exec ${JSON.stringify(mockAgentCommand)} ${JSON.stringify(mockAgentPath)} "$@"
 `;
@@ -60,7 +62,7 @@ function waitForFileContent(filePath: string, attempts = 40): Effect.Effect<stri
       yield* Effect.sleep("25 millis");
       return yield* readAttempt(remainingAttempts - 1);
     });
-  return readAttempt(attempts);
+  return TestClock.withLive(readAttempt(attempts));
 }
 
 async function readJsonLines(filePath: string) {
@@ -171,7 +173,7 @@ it.layer(grokAdapterTestLayer)("GrokAdapterLive", (it) => {
         modelSelection: { instanceId: "grok" as ProviderInstanceId, model: "grok-build" },
       });
 
-      yield* adapter.stopSession(threadId);
+      yield* adapter.stopSession(threadId).pipe(Effect.timeout("5 seconds"));
 
       const exitLog = yield* waitForFileContent(exitLogPath);
       assert.include(exitLog, "SIGTERM");

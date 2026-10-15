@@ -3,7 +3,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { resolveProjectAutoPull } from "@tabs/shared/serverSettings";
 import { normalizeProjectPathForComparison } from "@tabs/shared/path";
-import { ProjectionSnapshotQuery } from "../../orchestration/Services/ProjectionSnapshotQuery.ts";
+import { ProjectionSnapshotQuery } from "../../orchestration-v2/ProjectionSnapshotQuery.ts";
 import { ServerSettingsService } from "../../serverSettings.ts";
 
 export interface VcsAutoPullPolicyShape {

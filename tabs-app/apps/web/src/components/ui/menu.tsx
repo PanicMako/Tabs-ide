@@ -1,4 +1,5 @@
-"use client";
+import { useScopedPortalContainer } from "~/lib/scopedPortal";
+("use client");
 
 import { useGsapSurface } from "~/hooks/useGsapSurface";
 
@@ -13,7 +14,10 @@ const MenuCreateHandle = MenuPrimitive.createHandle;
 
 const Menu = MenuPrimitive.Root;
 
-const MenuPortal = MenuPrimitive.Portal;
+function MenuPortal(props: MenuPrimitive.Portal.Props) {
+  const container = useScopedPortalContainer();
+  return <MenuPrimitive.Portal container={container} {...props} />;
+}
 
 function MenuTrigger({ className, children, ...props }: MenuPrimitive.Trigger.Props) {
   return (
@@ -52,7 +56,7 @@ function MenuPopup({
 
   if (isUnstyled) {
     return (
-      <MenuPrimitive.Portal>
+      <MenuPortal>
         <MenuPrimitive.Positioner
           align={align}
           alignOffset={alignOffset}
@@ -82,12 +86,12 @@ function MenuPopup({
             {children}
           </MenuPrimitive.Popup>
         </MenuPrimitive.Positioner>
-      </MenuPrimitive.Portal>
+      </MenuPortal>
     );
   }
 
   return (
-    <MenuPrimitive.Portal>
+    <MenuPortal>
       <MenuPrimitive.Positioner
         align={align}
         alignOffset={alignOffset}
@@ -101,7 +105,7 @@ function MenuPopup({
       >
         <MenuPrimitive.Popup
           className={cn(
-            "transition-opacity duration-150 ease-out motion-reduce:transition-none data-ending-style:opacity-0 relative flex not-[class*='w-']:min-w-32 origin-(--transform-origin) rounded-lg border bg-popover not-dark:bg-clip-padding shadow-lg/5 outline-none before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--radius-lg)-1px)] before:shadow-[0_1px_--theme(--color-black/4%)] focus:outline-none dark:before:shadow-[0_-1px_--theme(--color-white/6%)]",
+            "transition-opacity duration-150 ease-out motion-reduce:transition-none data-ending-style:opacity-0 relative flex not-[class*='w-']:min-w-32 origin-(--transform-origin) rounded-xl border bg-popover not-dark:bg-clip-padding shadow-xl/10 outline-none before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--radius-xl)-1px)] before:shadow-[0_1px_--theme(--color-black/4%)] focus:outline-none dark:before:shadow-[0_-1px_--theme(--color-white/6%)]",
             className,
           )}
           style={style}
@@ -112,7 +116,7 @@ function MenuPopup({
           <div className="max-h-(--available-height) w-full overflow-y-auto p-1">{children}</div>
         </MenuPrimitive.Popup>
       </MenuPrimitive.Positioner>
-    </MenuPrimitive.Portal>
+    </MenuPortal>
   );
 }
 
@@ -132,7 +136,7 @@ function MenuItem({
   return (
     <MenuPrimitive.Item
       className={cn(
-        "[&>svg]:-mx-0.5 flex min-h-8 cursor-default select-none items-center gap-2 rounded-sm px-2 py-1 text-base text-foreground outline-none data-disabled:pointer-events-none data-highlighted:bg-accent data-inset:ps-8 data-[variant=destructive]:text-destructive dark:data-[variant=destructive]:text-red-400 data-highlighted:text-accent-foreground data-disabled:opacity-64 sm:min-h-7 sm:text-sm [&>svg:not([class*='opacity-'])]:opacity-80 [&>svg:not([class*='size-'])]:size-4.5 sm:[&>svg:not([class*='size-'])]:size-4 [&>svg]:pointer-events-none [&>svg]:shrink-0",
+        "[&>svg]:-mx-0.5 flex min-h-8 cursor-default select-none items-center gap-2 rounded-lg px-2 py-1 text-base text-foreground outline-none data-disabled:pointer-events-none data-highlighted:bg-accent data-inset:ps-8 data-[variant=destructive]:text-destructive dark:data-[variant=destructive]:text-red-400 data-highlighted:text-accent-foreground data-disabled:opacity-64 sm:min-h-7 sm:text-sm [&>svg:not([class*='opacity-'])]:opacity-80 [&>svg:not([class*='size-'])]:size-4.5 sm:[&>svg:not([class*='size-'])]:size-4 [&>svg]:pointer-events-none [&>svg]:shrink-0",
         className,
       )}
       data-inset={inset}

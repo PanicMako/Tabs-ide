@@ -263,6 +263,7 @@ export function AboutSettings() {
             <Button
               variant="ghost"
               size="sm"
+              style={{ fontFamily: "var(--font-ui-meta, var(--font-sans))" }}
               aria-expanded={showBuildDetails}
               onClick={() => setShowBuildDetails((shown) => !shown)}
             >
@@ -285,7 +286,10 @@ export function AboutSettings() {
             title="Code-OSS version"
             description="The embedded editor runtime selected by this Tabs installation."
             control={
-              <code className="text-xs font-medium text-muted-foreground">
+              <code
+                className="text-xs font-medium text-muted-foreground"
+                style={{ fontFamily: "var(--font-ui-meta, var(--font-mono))" }}
+              >
                 {codeHostState?.version ??
                   (codeHostState?.available === false ? "Unavailable" : "Unknown")}
               </code>

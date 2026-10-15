@@ -1,5 +1,14 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+  getIsAgentWallpaperEnabled,
+  saveIsAgentWallpaperEnabled,
+  saveAgentWallpaperPreference,
+  resolveWallpaperForThread,
+  saveThreadWallpaper,
+  clearThreadWallpaper,
+  addCustomWallpaper,
+  removeCustomWallpaper,
+  getAllAgentWallpapers,
   WALLPAPERS,
   WALLPAPER_CATEGORIES,
   getInitialWallpaper,
@@ -78,5 +87,22 @@ describe("wallpapers collection", () => {
     saveWallpaperPreference("/invalid/path.jpg");
     const fallback = getInitialWallpaper();
     expect(fallback.url).toBe(WALLPAPERS[0]!.url);
+  });
+  it("keeps wallpapers opt-in and separates workspace and thread choices from onboarding", () => {
+    expect(getIsAgentWallpaperEnabled()).toBe(false);
+    saveIsAgentWallpaperEnabled(true);
+    expect(getIsAgentWallpaperEnabled()).toBe(true);
+    saveWallpaperPreference(WALLPAPERS[0]!.url);
+    saveAgentWallpaperPreference(WALLPAPERS[1]!.url);
+    saveThreadWallpaper("first", WALLPAPERS[2]!.url);
+    expect(resolveWallpaperForThread("first").url).toBe(WALLPAPERS[2]!.url);
+    expect(resolveWallpaperForThread("second").url).toBe(WALLPAPERS[1]!.url);
+    expect(getInitialWallpaper().url).toBe(WALLPAPERS[0]!.url);
+    clearThreadWallpaper("first");
+    expect(resolveWallpaperForThread("first").url).toBe(WALLPAPERS[1]!.url);
+    const custom = addCustomWallpaper({ label: "My scene", url: "data:image/png;base64,AA==" });
+    expect(getAllAgentWallpapers()).toContainEqual(custom);
+    removeCustomWallpaper(custom.id);
+    expect(getAllAgentWallpapers()).not.toContainEqual(custom);
   });
 });

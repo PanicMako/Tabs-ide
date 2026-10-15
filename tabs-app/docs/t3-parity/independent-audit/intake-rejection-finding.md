@@ -1,0 +1,7 @@
+# Unused attachment copies after definite pre-dispatch management rejection
+
+ThreadMessageIntake.sendToThread claims pending uploads before ThreadManagementService.sendToThread. Management checks archived state and whether steer/restart has an active provider turn before invoking orchestrator.dispatch (ThreadManagementService545–578). dispatchWasNotAccepted recognizes only orchestrator tags, omitting ThreadManagementThreadArchivedError and ThreadManagementNoSteerableRunError. Both definite pre-dispatch failures therefore retain new thread-owned copies.
+
+Independent IntakeRejectionAudit uses real temporary files and actual claim/intake code, mocks the management service to return each documented error, and requires pending source preservation plus no unreferenced thread-owned copy. Fresh Node24 run: both assertions fail, session32067 terminal1,3.91s. Restore fixture into apps/server/src/orchestration-v2/ to run with original relative imports.
+
+Scope: confirmed helper cleanup gap, not demonstrated end-to-end production exploit. MCP attachment handler checks archived state before intake and selects auto, so ordinary archived/no-steerable calls are blocked/avoided at that caller. A concurrent archive between that check and management validation is plausible but untested. Thread-owned copies are not covered by pending-upload expiry sweeping; no disk growth measurement performed. Production files unchanged.

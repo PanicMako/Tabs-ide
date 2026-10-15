@@ -1,0 +1,21 @@
+{
+  "passed": 8,
+  "duration_seconds": 1.32,
+  "log": "/tmp/tabs-audit-exchange-lifecycle.log",
+  "verified": [
+    "HTTPS rejects development override",
+    "archive install prepare/confirm",
+    "profile storage and credential separation with mock encryption",
+    "permission increase cancellation preserves old package",
+    "updater unsafe/pinned gates with mocked prepare/confirm",
+    "entry failure restores old package/digest/assignment",
+    "workspace/git response-boundary grant revocation and stale activation denial"
+  ],
+  "not_proven": [
+    "TUF signed discovery/revocation chain in injected resolver/revocation cases",
+    "neutral update actual installation",
+    "rollback restores changed storage snapshot or happens exactly once across repeated failure",
+    "cross-registry incumbent protection independently of untrusted-origin rejection",
+    "native Electron brokers/React UI/full desktop integration"
+  ]
+}

@@ -25,17 +25,17 @@ import * as Stream from "effect/Stream";
 import type { OpencodeClient, Part, PermissionRequest, QuestionRequest } from "@opencode-ai/sdk/v2";
 import { getModelSelectionStringOptionValue } from "@tabs/shared/model";
 
-import { resolveAttachmentPath } from "../../attachmentStore";
-import { ServerConfig } from "../../config";
-import { type EventNdjsonLogger, makeEventNdjsonLogger } from "./EventNdjsonLogger";
+import { resolveAttachmentPath } from "../../attachmentStore.ts";
+import { ServerConfig } from "../../config.ts";
+import { type EventNdjsonLogger, makeEventNdjsonLogger } from "./EventNdjsonLogger.ts";
 import {
   ProviderAdapterProcessError,
   ProviderAdapterRequestError,
   ProviderAdapterSessionClosedError,
   ProviderAdapterSessionNotFoundError,
   ProviderAdapterValidationError,
-} from "../Errors";
-import { type OpenCodeAdapterShape } from "../Services/OpenCodeAdapter";
+} from "../Errors.ts";
+import { type OpenCodeAdapterShape } from "../Services/OpenCodeAdapter.ts";
 import {
   buildOpenCodePermissionRules,
   OpenCodeRuntime,
@@ -48,7 +48,7 @@ import {
   toOpenCodePermissionReply,
   toOpenCodeQuestionAnswers,
   type OpenCodeServerConnection,
-} from "../opencodeRuntime";
+} from "../opencodeRuntime.ts";
 import * as Option from "effect/Option";
 
 const PROVIDER = "opencode" as ProviderDriverKind;

@@ -1,4 +1,4 @@
-import { runProcess } from "../../processRunner";
+import { runProcess } from "../../processRunner.ts";
 
 export type GitPushAccess = "write" | "read_only" | "unknown";
 

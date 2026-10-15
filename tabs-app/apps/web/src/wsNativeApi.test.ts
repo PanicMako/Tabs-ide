@@ -4,6 +4,7 @@ import {
   EventId,
   ORCHESTRATION_WS_CHANNELS,
   ORCHESTRATION_WS_METHODS,
+  ORCHESTRATION_V2_WS_METHODS,
   ProviderInstanceId,
   type OrchestrationEvent,
   ProjectId,
@@ -21,6 +22,7 @@ import { makeAppModelSelection } from "./modelSelection";
 import { makeTestServerProvider } from "./test/serverProviderFixture";
 
 const requestMock = vi.fn<(...args: Array<unknown>) => Promise<unknown>>();
+const subscribeRpcMock = vi.fn(() => () => undefined);
 const showContextMenuFallbackMock =
   vi.fn<
     <T extends string>(
@@ -56,7 +58,11 @@ vi.mock("./wsTransport", () => {
   return {
     WsTransport: class MockWsTransport {
       request = requestMock;
+      resolveHttpUrl(path: string) {
+        return new URL(path, "https://connected.test").href;
+      }
       subscribe = subscribeMock;
+      subscribeRpc = subscribeRpcMock;
       onOpen(listener: () => void) {
         listener();
         return () => undefined;
@@ -108,6 +114,7 @@ beforeEach(() => {
   requestMock.mockReset();
   showContextMenuFallbackMock.mockReset();
   subscribeMock.mockClear();
+  subscribeRpcMock.mockClear();
   channelListeners.clear();
   latestPushByChannel.clear();
   nextPushSequence = 1;
@@ -119,6 +126,149 @@ afterEach(() => {
 });
 
 describe("wsNativeApi", () => {
+  it("routes usage summaries to the V2 service and reads authoritative quota snapshots", async () => {
+    const { createWsNativeApi } = await import("./wsNativeApi");
+    const api = createWsNativeApi();
+    const input = {
+      sinceDay: "2026-10-01",
+      untilDay: "2026-10-14",
+      timeZone: "Asia/Kolkata",
+    } as Parameters<typeof api.server.readUsageSummary>[0];
+    requestMock.mockResolvedValueOnce({ buckets: [] });
+    await api.server.readUsageSummary(input);
+    expect(requestMock).toHaveBeenLastCalledWith("server.getUsageSummary", input);
+    requestMock.mockResolvedValueOnce({ providers: [makeTestServerProvider()] });
+    await api.server.listUsageSnapshots();
+    expect(requestMock).toHaveBeenLastCalledWith(WS_METHODS.serverGetConfig);
+  });
+
+  it("subscribes to resource telemetry as an RPC stream instead of a unary request", async () => {
+    const { createWsNativeApi } = await import("./wsNativeApi");
+    const api = createWsNativeApi();
+    const stop = vi.fn();
+    subscribeRpcMock.mockReturnValueOnce(stop);
+    const callback = vi.fn();
+    const unsubscribe = api.server.onResourceTelemetry!(callback);
+    expect(subscribeRpcMock).toHaveBeenCalledWith(
+      WS_METHODS.subscribeResourceTelemetry,
+      expect.any(Function),
+      expect.any(Function),
+      callback,
+      expect.any(Function),
+    );
+    expect(requestMock).not.toHaveBeenCalledWith(WS_METHODS.subscribeResourceTelemetry, {});
+    unsubscribe();
+    expect(stop).toHaveBeenCalledOnce();
+  });
+
+  it("forwards V2 snapshots and provider changes to settings and late listeners", async () => {
+    const { createWsNativeApi, onServerConfigUpdated, onServerProvidersUpdated } =
+      await import("./wsNativeApi");
+    createWsNativeApi();
+    const subscription = (subscribeRpcMock.mock.calls as unknown[][]).find(
+      (call) => call[0] === WS_METHODS.subscribeServerConfig,
+    )!;
+    const receive = subscription[3] as (event: unknown) => void;
+    const configListener = vi.fn();
+    const providerListener = vi.fn();
+    const stopConfig = onServerConfigUpdated(configListener);
+    const stopProviders = onServerProvidersUpdated(providerListener);
+    const failed = makeTestServerProvider({ status: "error", message: "Status probe timed out" });
+    receive({ version: 1, type: "snapshot", config: { issues: [], providers: [failed] } });
+    const ready = makeTestServerProvider({ status: "ready" });
+    receive({ version: 1, type: "providerStatuses", payload: { providers: [ready] } });
+    expect(configListener).toHaveBeenLastCalledWith(
+      expect.objectContaining({ providers: [ready] }),
+    );
+    expect(providerListener).toHaveBeenLastCalledWith({ providers: [ready] });
+    const late = vi.fn();
+    const stopLate = onServerProvidersUpdated(late);
+    expect(late).toHaveBeenCalledWith({ providers: [ready] });
+    stopConfig();
+    stopProviders();
+    stopLate();
+  });
+
+  it("keeps composer provider updates and late replay owned by their environment API", async () => {
+    const { createWsNativeApi, onApiServerProvidersUpdated } = await import("./wsNativeApi");
+    const apiA = createWsNativeApi({ singleton: false });
+    const apiB = createWsNativeApi({ singleton: false });
+    const subscriptions = (subscribeRpcMock.mock.calls as unknown[][]).filter(
+      (call) => call[0] === WS_METHODS.subscribeServerConfig,
+    );
+    const receiveA = subscriptions[0]![3] as (event: unknown) => void;
+    const receiveB = subscriptions[1]![3] as (event: unknown) => void;
+    const providerA = makeTestServerProvider({ instanceId: "grok" });
+    const providerB = makeTestServerProvider({ instanceId: "opencode" });
+    receiveA({ version: 1, type: "snapshot", config: { issues: [], providers: [providerA] } });
+    const a = vi.fn(),
+      b = vi.fn();
+    const stopA = onApiServerProvidersUpdated(apiA, a);
+    const stopB = onApiServerProvidersUpdated(apiB, b);
+    expect(a).toHaveBeenCalledWith({ providers: [providerA] });
+    expect(b).not.toHaveBeenCalled();
+    receiveB({ version: 1, type: "snapshot", config: { issues: [], providers: [providerB] } });
+    expect(a).toHaveBeenCalledOnce();
+    expect(b).toHaveBeenCalledWith({ providers: [providerB] });
+    stopA();
+    stopB();
+  });
+
+  it("receives terminal startup/output over the V2 RPC stream and releases both subscriptions", async () => {
+    const { createWsNativeApi } = await import("./wsNativeApi");
+    const unsubscribeRpc = vi.fn();
+    const rpc = vi.fn(() => unsubscribeRpc);
+    const unsubscribePush = vi.fn();
+    const transport = {
+      request: requestMock,
+      subscribe: vi.fn(() => unsubscribePush),
+      subscribeRpc: rpc,
+      onOpen: () => () => undefined,
+      getLatestPush: () => null,
+    } as never;
+    const api = createWsNativeApi({ transport, singleton: false });
+    const callback = vi.fn();
+    const unsubscribe = api.terminal.onEvent(callback);
+    expect(rpc).toHaveBeenCalledWith(
+      WS_METHODS.subscribeTerminalEvents,
+      expect.any(Function),
+      expect.any(Function),
+      callback,
+      expect.any(Function),
+    );
+    const args = rpc.mock.calls.find(
+      (call) => (call as unknown[])[0] === WS_METHODS.subscribeTerminalEvents,
+    ) as unknown as [string, () => unknown, (v: unknown) => unknown, (v: unknown) => void];
+    const event = {
+      type: "output",
+      threadId: "settings-update-codex",
+      terminalId: "default",
+      data: "ready",
+    };
+    args[3](args[2](event));
+    expect(callback).toHaveBeenCalledWith(event);
+    unsubscribe();
+    expect(unsubscribeRpc).toHaveBeenCalledOnce();
+    expect(unsubscribePush).toHaveBeenCalled();
+  });
+
+  it("requests signed assets from the environment and resolves the actual server URL", async () => {
+    const { createWsNativeApi } = await import("./wsNativeApi");
+    requestMock.mockResolvedValue({
+      relativeUrl: "/api/assets/media?signature=ok",
+      expiresAt: 123,
+    });
+    const api = createWsNativeApi();
+    const input = {
+      resource: { _tag: "draft-workspace-file" as const, cwd: "/workspace", path: "image.png" },
+    };
+    expect(await api.assets.createUrl(input)).toEqual({
+      relativeUrl: "https://connected.test/api/assets/media?signature=ok",
+      expiresAt: 123,
+    });
+    expect(requestMock).toHaveBeenCalledWith(WS_METHODS.assetsCreateUrl, input);
+  });
+
   it("forwards workspace provider refresh inputs", async () => {
     const { createWsNativeApi } = await import("./wsNativeApi");
     requestMock.mockResolvedValue({ providers: [] });
@@ -140,6 +290,7 @@ describe("wsNativeApi", () => {
     const makeTransport = (listeners: Map<string, (message: WsPush) => void>) =>
       ({
         request: requestMock,
+        subscribeRpc: vi.fn(() => () => undefined),
         subscribe: (channel: string, listener: (message: WsPush) => void) => {
           listeners.set(channel, listener);
           return () => listeners.delete(channel);
@@ -420,12 +571,24 @@ describe("wsNativeApi", () => {
     unsubscribe();
   });
 
-  it("wraps orchestration dispatch commands in the command envelope", async () => {
+  it("forwards orchestration dispatch commands directly and routes project commands to projectsMutate", async () => {
     requestMock.mockResolvedValue(undefined);
     const { createWsNativeApi } = await import("./wsNativeApi");
 
     const api = createWsNativeApi();
-    const command = {
+    const threadCommand = {
+      type: "thread.archive",
+      commandId: CommandId.makeUnsafe("cmd-archive"),
+      threadId: "thread-1",
+    } as const;
+    await api.orchestration.dispatchCommand(threadCommand as any);
+
+    expect(requestMock).toHaveBeenCalledWith(
+      ORCHESTRATION_V2_WS_METHODS.dispatchCommand,
+      threadCommand,
+    );
+
+    const projectCommand = {
       type: "project.create",
       commandId: CommandId.makeUnsafe("cmd-1"),
       projectId: ProjectId.makeUnsafe("project-1"),
@@ -434,11 +597,18 @@ describe("wsNativeApi", () => {
       defaultModelSelection: makeAppModelSelection("codex", "gpt-5-codex"),
       createdAt: "2026-02-24T00:00:00.000Z",
     } as const;
-    await api.orchestration.dispatchCommand(command);
+    await api.orchestration.dispatchCommand(projectCommand);
 
-    expect(requestMock).toHaveBeenCalledWith(ORCHESTRATION_WS_METHODS.dispatchCommand, {
-      command,
-    });
+    expect(requestMock).toHaveBeenCalledWith(
+      WS_METHODS.projectsMutate,
+      expect.objectContaining({
+        type: "project.create",
+        commandId: projectCommand.commandId,
+        projectId: projectCommand.projectId,
+        title: projectCommand.title,
+        workspaceRoot: projectCommand.workspaceRoot,
+      }),
+    );
   });
 
   it("forwards workspace file writes to the websocket project method", async () => {
@@ -583,5 +753,562 @@ describe("wsNativeApi", () => {
       [{ id: "delete", label: "Delete", destructive: true }],
       { x: 20, y: 30 },
     );
+  });
+
+  it("normalizes legacy orchestration commands to V2 equivalents", async () => {
+    requestMock.mockResolvedValue(undefined);
+    const { createWsNativeApi } = await import("./wsNativeApi");
+    const api = createWsNativeApi();
+
+    // 1. thread.turn.start -> message.dispatch
+    await api.orchestration.dispatchCommand({
+      type: "thread.turn.start" as any,
+      threadId: "thread-1" as any,
+      input: { text: "Hello", attachments: [] },
+    } as any);
+    expect(requestMock).toHaveBeenLastCalledWith(
+      ORCHESTRATION_V2_WS_METHODS.dispatchCommand,
+      expect.objectContaining({
+        type: "message.dispatch",
+        threadId: "thread-1",
+        text: "Hello",
+        dispatchMode: { type: "start_immediately" },
+      }),
+    );
+
+    // 2. thread.approval.respond -> runtime-request.respond
+    await api.orchestration.dispatchCommand({
+      type: "thread.approval.respond" as any,
+      threadId: "thread-1" as any,
+      requestId: "req-1" as any,
+      decision: "approved",
+    } as any);
+    expect(requestMock).toHaveBeenLastCalledWith(
+      ORCHESTRATION_V2_WS_METHODS.dispatchCommand,
+      expect.objectContaining({
+        type: "runtime-request.respond",
+        threadId: "thread-1",
+        requestId: "req-1",
+        decision: "approved",
+      }),
+    );
+
+    // 3. thread.user-input.respond -> runtime-request.respond
+    await api.orchestration.dispatchCommand({
+      type: "thread.user-input.respond" as any,
+      threadId: "thread-1" as any,
+      requestId: "req-2" as any,
+      answers: { q1: "answer1" },
+    } as any);
+    expect(requestMock).toHaveBeenLastCalledWith(
+      ORCHESTRATION_V2_WS_METHODS.dispatchCommand,
+      expect.objectContaining({
+        type: "runtime-request.respond",
+        threadId: "thread-1",
+        requestId: "req-2",
+        answers: { q1: "answer1" },
+      }),
+    );
+
+    // 4. thread.meta.update -> thread.metadata.update
+    await api.orchestration.dispatchCommand({
+      type: "thread.meta.update" as any,
+      threadId: "thread-1" as any,
+      title: "New Title",
+    } as any);
+    expect(requestMock).toHaveBeenLastCalledWith(
+      ORCHESTRATION_V2_WS_METHODS.dispatchCommand,
+      expect.objectContaining({
+        type: "thread.metadata.update",
+        threadId: "thread-1",
+        title: "New Title",
+      }),
+    );
+
+    // 5. thread.meta.update with only modelSelection -> thread.model-selection.set
+    await api.orchestration.dispatchCommand({
+      type: "thread.meta.update" as any,
+      threadId: "thread-1" as any,
+      modelSelection: { provider: "codex", model: "gpt-5" },
+    } as any);
+    expect(requestMock).toHaveBeenLastCalledWith(
+      ORCHESTRATION_V2_WS_METHODS.dispatchCommand,
+      expect.objectContaining({
+        type: "thread.model-selection.set",
+        threadId: "thread-1",
+        modelSelection: { provider: "codex", model: "gpt-5" },
+      }),
+    );
+  });
+
+  describe("Authoritative snapshot compatibility (Area 4)", () => {
+    it("throws before initial snapshot arrives", async () => {
+      const { createWsNativeApi } = await import("./wsNativeApi");
+      const { removeEnvironmentReadModelFromAtoms } = await import("./state/readModel");
+      removeEnvironmentReadModelFromAtoms("primary" as any);
+      const api = createWsNativeApi();
+
+      await expect(api.orchestration.getSnapshot()).rejects.toThrow(
+        /Orchestration snapshot unavailable/,
+      );
+    });
+
+    it("returns real sequence and empty arrays for legitimately empty environment", async () => {
+      const { createWsNativeApi } = await import("./wsNativeApi");
+      const { applyShellStreamItemToAtoms } = await import("./state/readModel");
+      const api = createWsNativeApi();
+
+      applyShellStreamItemToAtoms(
+        {
+          kind: "snapshot",
+          snapshot: {
+            schemaVersion: 1 as any,
+            snapshotSequence: 105,
+            projects: [],
+            threads: [],
+            archivedThreads: [],
+          },
+        },
+        "primary" as any,
+      );
+
+      const snapshot = await api.orchestration.getSnapshot();
+      expect(snapshot.snapshotSequence).toBe(105);
+      expect(snapshot.projects).toEqual([]);
+      expect(snapshot.threads).toEqual([]);
+      expect(snapshot.updatedAt).toBeDefined();
+    });
+
+    it("correctly scopes primary and secondary environments without mixing", async () => {
+      const { createWsNativeApi } = await import("./wsNativeApi");
+      const { applyShellStreamItemToAtoms } = await import("./state/readModel");
+      const { setPrimaryEnvironmentIdForTesting } =
+        await import("./connection/environmentApiRegistry");
+      setPrimaryEnvironmentIdForTesting("env-primary");
+
+      const primaryTransport = {
+        environmentId: "env-primary",
+        subscribe: vi.fn(() => () => {}),
+        subscribeRpc: vi.fn(() => () => undefined),
+      } as any;
+      const secondaryTransport = {
+        environmentId: "env-secondary",
+        subscribe: vi.fn(() => () => {}),
+        subscribeRpc: vi.fn(() => () => undefined),
+      } as any;
+
+      const primaryApi = createWsNativeApi({ transport: primaryTransport, singleton: false });
+      const secondaryApi = createWsNativeApi({ transport: secondaryTransport, singleton: false });
+
+      // Seed primary snapshot
+      applyShellStreamItemToAtoms(
+        {
+          kind: "snapshot",
+          snapshot: {
+            schemaVersion: 1 as any,
+            snapshotSequence: 10,
+            projects: [
+              {
+                id: "proj-primary" as any,
+                title: "Primary Project",
+                workspaceRoot: "/primary",
+                defaultModelSelection: { provider: "codex", model: "gpt-5" },
+                scripts: [],
+                tools: [],
+                environmentId: "env-primary" as any,
+              } as any,
+            ],
+            threads: [],
+            archivedThreads: [],
+          },
+        },
+        "env-primary" as any,
+      );
+
+      // Seed secondary snapshot
+      applyShellStreamItemToAtoms(
+        {
+          kind: "snapshot",
+          snapshot: {
+            schemaVersion: 1 as any,
+            snapshotSequence: 20,
+            projects: [
+              {
+                id: "proj-secondary" as any,
+                title: "Secondary Project",
+                workspaceRoot: "/secondary",
+                defaultModelSelection: { provider: "codex", model: "gpt-5" },
+                scripts: [],
+                tools: [],
+                environmentId: "env-secondary" as any,
+              } as any,
+            ],
+            threads: [],
+            archivedThreads: [],
+          },
+        },
+        "env-secondary" as any,
+      );
+
+      const primarySnapshot = await primaryApi.orchestration.getSnapshot();
+      expect(primarySnapshot.snapshotSequence).toBe(10);
+      expect(primarySnapshot.projects).toHaveLength(1);
+      expect((primarySnapshot.projects[0] as any).id).toBe("proj-primary");
+
+      const secondarySnapshot = await secondaryApi.orchestration.getSnapshot();
+      expect(secondarySnapshot.snapshotSequence).toBe(20);
+      expect(secondarySnapshot.projects).toHaveLength(1);
+      expect((secondarySnapshot.projects[0] as any).id).toBe("proj-secondary");
+    });
+
+    it("updates sequence after reconnect/resubscription shell update", async () => {
+      const { createWsNativeApi } = await import("./wsNativeApi");
+      const { applyShellStreamItemToAtoms } = await import("./state/readModel");
+      const api = createWsNativeApi();
+
+      applyShellStreamItemToAtoms(
+        {
+          kind: "snapshot",
+          snapshot: {
+            schemaVersion: 1 as any,
+            snapshotSequence: 50,
+            projects: [],
+            threads: [],
+            archivedThreads: [],
+          },
+        },
+        "primary" as any,
+      );
+
+      let snapshot = await api.orchestration.getSnapshot();
+      expect(snapshot.snapshotSequence).toBe(50);
+
+      // Reconnect/stream event update
+      applyShellStreamItemToAtoms(
+        {
+          kind: "snapshot",
+          snapshot: {
+            schemaVersion: 1 as any,
+            snapshotSequence: 75,
+            projects: [],
+            threads: [],
+            archivedThreads: [],
+          },
+        },
+        "primary" as any,
+      );
+
+      snapshot = await api.orchestration.getSnapshot();
+      expect(snapshot.snapshotSequence).toBe(75);
+    });
+
+    it("throws when environment state becomes unavailable or disconnected", async () => {
+      const { createWsNativeApi } = await import("./wsNativeApi");
+      const { applyShellStreamItemToAtoms, removeEnvironmentReadModelFromAtoms } =
+        await import("./state/readModel");
+      const secondaryTransport = {
+        environmentId: "env-temporary",
+        subscribe: vi.fn(() => () => {}),
+        subscribeRpc: vi.fn(() => () => undefined),
+      } as any;
+      const api = createWsNativeApi({ transport: secondaryTransport, singleton: false });
+
+      applyShellStreamItemToAtoms(
+        {
+          kind: "snapshot",
+          snapshot: {
+            schemaVersion: 1 as any,
+            snapshotSequence: 1,
+            projects: [],
+            threads: [],
+            archivedThreads: [],
+          },
+        },
+        "env-temporary" as any,
+      );
+
+      // Verified available
+      expect((await api.orchestration.getSnapshot()).snapshotSequence).toBe(1);
+
+      // Environment disconnects
+      removeEnvironmentReadModelFromAtoms("env-temporary" as any);
+
+      // Now fails faithfully instead of returning empty state
+      await expect(api.orchestration.getSnapshot()).rejects.toThrow(
+        /Orchestration snapshot unavailable/,
+      );
+    });
+
+    it("preserves existing threads when receiving an enrichment refresh frame", async () => {
+      const { createWsNativeApi } = await import("./wsNativeApi");
+      const { applyShellStreamItemToAtoms } = await import("./state/readModel");
+      const api = createWsNativeApi();
+
+      // 1. Initial authoritative snapshot with a thread
+      applyShellStreamItemToAtoms(
+        {
+          kind: "snapshot",
+          snapshot: {
+            schemaVersion: 1 as any,
+            snapshotSequence: 10,
+            projects: [
+              {
+                id: "proj-1" as any,
+                title: "Project 1",
+                workspaceRoot: "/workspace/proj-1",
+                defaultModelSelection: null,
+                defaultThreadEnvMode: null,
+                faviconPath: null,
+                projectIcon: null,
+                createdAt: "2026-10-13T00:00:00.000Z" as any,
+                updatedAt: "2026-10-13T00:00:00.000Z" as any,
+                scripts: [],
+              },
+            ],
+            threads: [
+              {
+                id: "thread-1" as any,
+                projectId: "proj-1" as any,
+                title: "Thread 1",
+                status: "idle",
+                modelSelection: { instanceId: "codex" as any, model: "gpt-5.3-codex" },
+                runtimeMode: "full-access",
+                interactionMode: "default",
+                providerInstanceId: "codex" as any,
+                createdAt: "2026-10-13T00:00:00.000Z" as any,
+                updatedAt: "2026-10-13T00:00:00.000Z" as any,
+              } as any,
+            ],
+            archivedThreads: [],
+          },
+        },
+        "primary" as any,
+      );
+
+      const snap1 = await api.orchestration.getSnapshot();
+      expect(snap1.threads).toHaveLength(1);
+      expect(snap1.threads[0]?.id).toBe("thread-1");
+
+      // 2. Enrichment refresh frame arrives (threads: [], resolvedRepositoryIdentityRoots defined)
+      applyShellStreamItemToAtoms(
+        {
+          kind: "snapshot",
+          snapshot: {
+            schemaVersion: 1 as any,
+            snapshotSequence: 11,
+            projects: [
+              {
+                id: "proj-1" as any,
+                title: "Project 1 Enriched",
+                workspaceRoot: "/workspace/proj-1",
+                defaultModelSelection: null,
+                defaultThreadEnvMode: null,
+                faviconPath: null,
+                projectIcon: null,
+                createdAt: "2026-10-13T00:00:00.000Z" as any,
+                updatedAt: "2026-10-13T00:00:00.000Z" as any,
+                scripts: [],
+              },
+            ],
+            threads: [],
+            archivedThreads: [],
+          },
+          resolvedRepositoryIdentityRoots: ["/workspace/proj-1"],
+        },
+        "primary" as any,
+      );
+
+      // Existing threads must NOT be wiped!
+      const snap2 = await api.orchestration.getSnapshot();
+      expect(snap2.threads).toHaveLength(1);
+      expect(snap2.threads[0]?.id).toBe("thread-1");
+      expect(snap2.projects).toHaveLength(1);
+      expect(snap2.projects[0]?.title).toBe("Project 1 Enriched");
+      expect(snap2.snapshotSequence).toBe(11);
+    });
+  });
+
+  describe("Public V2 command contract validation and alignment (Area 3)", () => {
+    it("dispatches run.interrupt with holdQueue for normal interruption", async () => {
+      const { createWsNativeApi } = await import("./wsNativeApi");
+      const api = createWsNativeApi();
+
+      await api.orchestration.dispatchCommand({
+        type: "run.interrupt",
+        commandId: "cmd-interrupt-1" as any,
+        threadId: "thread-1" as any,
+        runId: "run-1" as any,
+        holdQueue: true,
+      });
+
+      expect(requestMock).toHaveBeenLastCalledWith(
+        ORCHESTRATION_V2_WS_METHODS.dispatchCommand,
+        expect.objectContaining({
+          type: "run.interrupt",
+          commandId: "cmd-interrupt-1",
+          threadId: "thread-1",
+          runId: "run-1",
+          holdQueue: true,
+        }),
+      );
+    });
+
+    it("dispatches run.interrupt with holdQueue and reason for forced stop escape", async () => {
+      const { createWsNativeApi } = await import("./wsNativeApi");
+      const api = createWsNativeApi();
+
+      await api.orchestration.dispatchCommand({
+        type: "run.interrupt",
+        commandId: "cmd-force-stop-1" as any,
+        threadId: "thread-1" as any,
+        runId: "run-1" as any,
+        holdQueue: true,
+        reason: "User force stop",
+      });
+
+      expect(requestMock).toHaveBeenLastCalledWith(
+        ORCHESTRATION_V2_WS_METHODS.dispatchCommand,
+        expect.objectContaining({
+          type: "run.interrupt",
+          commandId: "cmd-force-stop-1",
+          threadId: "thread-1",
+          runId: "run-1",
+          holdQueue: true,
+          reason: "User force stop",
+        }),
+      );
+    });
+
+    it("validates runtime-request.respond approval decision against public V2 schema", async () => {
+      const { OrchestrationV2Command } = await import("@tabs/contracts");
+      const { Schema } = await import("effect");
+
+      const validApprovalCommand = {
+        type: "runtime-request.respond",
+        commandId: "cmd-approval-1",
+        threadId: "thread-1",
+        requestId: "req-1",
+        decision: "accept",
+      };
+
+      const decoded = Schema.decodeUnknownSync(OrchestrationV2Command)(validApprovalCommand);
+      expect(decoded.type).toBe("runtime-request.respond");
+    });
+
+    it("validates runtime-request.respond user input answers against public V2 schema", async () => {
+      const { OrchestrationV2Command } = await import("@tabs/contracts");
+      const { Schema } = await import("effect");
+
+      const validUserInputCommand = {
+        type: "runtime-request.respond",
+        commandId: "cmd-user-input-1",
+        threadId: "thread-1",
+        requestId: "req-1",
+        answers: { question1: "answer1" },
+      };
+
+      const decoded = Schema.decodeUnknownSync(OrchestrationV2Command)(validUserInputCommand);
+      expect(decoded.type).toBe("runtime-request.respond");
+    });
+
+    it("catches and rejects obsolete browser command types (inventory check)", async () => {
+      const { OrchestrationV2Command } = await import("@tabs/contracts");
+      const { Schema } = await import("effect");
+
+      // thread.session.stop is NOT in public V2 command schema
+      expect(() => {
+        Schema.decodeUnknownSync(OrchestrationV2Command)({
+          type: "thread.session.stop",
+          commandId: "cmd-1",
+          threadId: "thread-1",
+        });
+      }).toThrow();
+
+      // thread.turn.interrupt is NOT in public V2 command schema
+      expect(() => {
+        Schema.decodeUnknownSync(OrchestrationV2Command)({
+          type: "thread.turn.interrupt",
+          commandId: "cmd-1",
+          threadId: "thread-1",
+        });
+      }).toThrow();
+    });
+
+    it("performs prerequisite stop when changing worktree while active run exists", async () => {
+      const { createWsNativeApi } = await import("./wsNativeApi");
+      const api = createWsNativeApi();
+
+      const dispatchedCommands: any[] = [];
+      requestMock.mockImplementation(async (method, payload) => {
+        dispatchedCommands.push({ method, payload });
+        return { success: true };
+      });
+
+      // Emulate BranchToolbar setThreadBranch logic
+      const activeRunId = "run-active-123";
+      const activeThreadId = "thread-123";
+
+      // 1. Prerequisite stop
+      await api.orchestration.dispatchCommand({
+        type: "run.interrupt",
+        commandId: "cmd-interrupt-prereq" as any,
+        threadId: activeThreadId as any,
+        runId: activeRunId as any,
+        holdQueue: true,
+        reason: "Worktree switched",
+      });
+
+      // 2. Metadata update
+      await api.orchestration.dispatchCommand({
+        type: "thread.metadata.update",
+        commandId: "cmd-meta-update" as any,
+        threadId: activeThreadId as any,
+        branch: "feature/new",
+        worktreePath: "/new/worktree",
+      });
+
+      expect(dispatchedCommands).toHaveLength(2);
+      expect(dispatchedCommands[0].payload).toMatchObject({
+        type: "run.interrupt",
+        runId: activeRunId,
+        holdQueue: true,
+        reason: "Worktree switched",
+      });
+      expect(dispatchedCommands[1].payload).toMatchObject({
+        type: "thread.metadata.update",
+        branch: "feature/new",
+        worktreePath: "/new/worktree",
+      });
+    });
+
+    it("aborts metadata update when prerequisite stop fails", async () => {
+      const { createWsNativeApi } = await import("./wsNativeApi");
+      const api = createWsNativeApi();
+
+      requestMock.mockImplementationOnce(async () => {
+        throw new Error("Provider rejected stop request");
+      });
+
+      const activeRunId = "run-active-123";
+      const activeThreadId = "thread-123";
+
+      let prerequisiteStopFailed = false;
+      try {
+        await api.orchestration.dispatchCommand({
+          type: "run.interrupt",
+          commandId: "cmd-interrupt-fail" as any,
+          threadId: activeThreadId as any,
+          runId: activeRunId as any,
+          holdQueue: true,
+          reason: "Worktree switched",
+        });
+      } catch {
+        prerequisiteStopFailed = true;
+      }
+
+      expect(prerequisiteStopFailed).toBe(true);
+      // The caller aborts; no subsequent metadata update is dispatched
+      expect(requestMock).toHaveBeenCalledTimes(1);
+    });
   });
 });

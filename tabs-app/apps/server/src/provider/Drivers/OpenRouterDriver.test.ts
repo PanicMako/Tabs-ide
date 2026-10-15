@@ -19,9 +19,14 @@ describe("discoverOpenRouterModels", () => {
 
   it("returns the live catalog for a valid key", async () => {
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
-      new Response(JSON.stringify({ data: [{ id: "vendor/model", name: "Live Model" }] }), {
-        status: 200,
-      }),
+      new Response(
+        JSON.stringify({
+          data: [{ id: "vendor/model", name: "Live Model", supported_parameters: ["tools"] }],
+        }),
+        {
+          status: 200,
+        },
+      ),
     );
     const result = await discoverOpenRouterModels(settings("valid-key"), fetchImpl);
     expect(result).toMatchObject({
@@ -34,7 +39,7 @@ describe("discoverOpenRouterModels", () => {
     );
   });
 
-  it("omits models that explicitly do not support response_format", async () => {
+  it("omits models without declared tool support", async () => {
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -42,7 +47,7 @@ describe("discoverOpenRouterModels", () => {
             {
               id: "vendor/compatible",
               name: "Compatible",
-              supported_parameters: ["response_format"],
+              supported_parameters: ["tools"],
             },
             {
               id: "vendor/incompatible",

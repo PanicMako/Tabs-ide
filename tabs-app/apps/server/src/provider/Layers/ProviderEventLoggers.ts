@@ -27,12 +27,11 @@
  *
  * @module provider/Layers/ProviderEventLoggers
  */
-import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 
-import { ServerConfig } from "../../config";
-import { type EventNdjsonLogger, makeEventNdjsonLogger } from "./EventNdjsonLogger";
+import { ServerConfig } from "../../config.ts";
+import { type EventNdjsonLogger, makeEventNdjsonLogger } from "./EventNdjsonLogger.ts";
 
 export interface ProviderEventLoggersShape {
   readonly native: EventNdjsonLogger | undefined;
@@ -47,10 +46,8 @@ export interface ProviderEventLoggersShape {
  * (`ProviderEventLoggersLive`); consumers (drivers, `ProviderService`) read
  * one tag and pluck the field they need.
  */
-export class ProviderEventLoggers extends Context.Service<
-  ProviderEventLoggers,
-  ProviderEventLoggersShape
->()("tabs/provider/Layers/ProviderEventLoggers") {}
+export { ProviderEventLoggers } from "../ProviderEventLoggers.ts";
+import { ProviderEventLoggers } from "../ProviderEventLoggers.ts";
 
 /**
  * Constant value used by tests / boot layers that want to opt out of native

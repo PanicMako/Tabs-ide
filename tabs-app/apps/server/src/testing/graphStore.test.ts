@@ -4,8 +4,8 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { TestingGraphStore } from "./graphStore";
-import { RuntimeSqliteDatabase } from "./sqlite";
+import { TestingGraphStore } from "./graphStore.ts";
+import { RuntimeSqliteDatabase } from "./sqlite.ts";
 
 describe("TestingGraphStore", () => {
   it("persists graph, auth, PII, and cache metadata outside the project workspace", async () => {

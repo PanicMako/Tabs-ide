@@ -1,7 +1,9 @@
-import { useMemo, useRef, useState, useCallback } from "react";
+import { useMemo, useRef, useState, useCallback, useLayoutEffect } from "react";
 import type { DailyTotals } from "@tabs/shared/usageMerge";
 import { formatDayShort, formatTokens, formatUsd } from "@tabs/shared/usageFormat";
 import { PROVIDER_DISPLAY_NAMES } from "@tabs/contracts";
+import { SegmentedControl } from "../../ui/segmented-control";
+import { PROVIDER_PRESENTATION } from "../../usage/usageProviders";
 import { cn } from "../../../lib/utils";
 
 const VIEW_WIDTH = 800;
@@ -12,6 +14,7 @@ const PADDING_LEFT = 72; // Generous margin so numbers like $2,843.97 never coll
 const PADDING_RIGHT = 24;
 
 export interface UsageDailyChartProps {
+  readonly hourly?: boolean;
   readonly days: readonly string[];
   readonly daily: readonly DailyTotals[];
   readonly metric?: "cost" | "tokens";
@@ -118,10 +121,24 @@ function buildSmoothPath(
   return { linePath: lineD, areaPath: areaD };
 }
 
-export function UsageDailyChart({ days, daily, metric = "cost", className }: UsageDailyChartProps) {
+export function UsageDailyChart({
+  days,
+  daily,
+  metric = "cost",
+  hourly = false,
+  className,
+}: UsageDailyChartProps) {
   const svgRef = useRef<SVGSVGElement | null>(null);
+  const plotRef = useRef<HTMLDivElement | null>(null);
+  const tooltipRef = useRef<HTMLDivElement | null>(null);
+  const hoverPosition = useRef<{ x: number; y: number } | null>(null);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
+  const [view, setView] = useState<"combined" | "providers">("combined");
+  const providers = useMemo(
+    () => [...new Set(daily.flatMap((entry) => [...entry.byProvider.keys()]))].sort(),
+    [daily],
+  );
   const dailyByDay = useMemo(() => {
     const map = new Map<string, DailyTotals>();
     for (const d of daily) {
@@ -176,6 +193,24 @@ export function UsageDailyChart({ days, daily, metric = "cost", className }: Usa
     [points, bottomY],
   );
 
+  const providerLines = useMemo(
+    () =>
+      providers.map((provider) => {
+        const series = points.map((point) => {
+          const stats = point.entry?.byProvider.get(provider);
+          const value = stats ? (metric === "cost" ? stats.costUsd : stats.totalTokens) : 0;
+          return { ...point, value, y: bottomY - (value / maxValue) * plotHeight };
+        });
+        return {
+          provider,
+          points: series,
+          color: PROVIDER_PRESENTATION[provider].color,
+          ...buildSmoothPath(series, VIEW_HEIGHT, bottomY),
+        };
+      }),
+    [providers, points, metric, bottomY, maxValue, plotHeight],
+  );
+
   const yTicks = useMemo(() => {
     const count = 4;
     return Array.from({ length: count }, (_, i) => {
@@ -202,11 +237,45 @@ export function UsageDailyChart({ days, daily, metric = "cost", className }: Usa
     return ticks;
   }, [points]);
 
+  const positionTooltip = useCallback(() => {
+    const plot = plotRef.current;
+    const tooltip = tooltipRef.current;
+    if (!plot || !tooltip) return;
+    const position = hoverPosition.current ?? { x: plot.clientWidth / 2, y: 0 };
+    const gap = 12;
+    const left =
+      position.x + gap + tooltip.offsetWidth <= plot.clientWidth
+        ? position.x + gap
+        : position.x - gap - tooltip.offsetWidth;
+    const top =
+      position.y + gap + tooltip.offsetHeight <= plot.clientHeight
+        ? position.y + gap
+        : position.y - gap - tooltip.offsetHeight;
+    plot.style.setProperty(
+      "--usage-tooltip-left",
+      `${Math.max(0, Math.min(left, plot.clientWidth - tooltip.offsetWidth))}px`,
+    );
+    plot.style.setProperty(
+      "--usage-tooltip-top",
+      `${Math.max(0, Math.min(top, plot.clientHeight - tooltip.offsetHeight))}px`,
+    );
+  }, []);
+  useLayoutEffect(() => {
+    if (hoverIndex === null) return;
+    positionTooltip();
+    const observer = new ResizeObserver(positionTooltip);
+    if (plotRef.current) observer.observe(plotRef.current);
+    if (tooltipRef.current) observer.observe(tooltipRef.current);
+    return () => observer.disconnect();
+  }, [hoverIndex, view, metric, positionTooltip]);
+
   const handlePointerMove = useCallback(
     (e: React.PointerEvent<SVGSVGElement>) => {
       if (!svgRef.current || points.length === 0) return;
       const rect = svgRef.current.getBoundingClientRect();
       const clientX = e.clientX - rect.left;
+      hoverPosition.current = { x: clientX, y: e.clientY - rect.top };
+      positionTooltip();
       const scaleX = VIEW_WIDTH / rect.width;
       const svgX = clientX * scaleX;
 
@@ -222,7 +291,7 @@ export function UsageDailyChart({ days, daily, metric = "cost", className }: Usa
       }
       setHoverIndex(closestIdx);
     },
-    [points],
+    [points, positionTooltip],
   );
 
   const handlePointerLeave = useCallback(() => {
@@ -233,9 +302,40 @@ export function UsageDailyChart({ days, daily, metric = "cost", className }: Usa
 
   return (
     <div className={cn("relative w-full select-none", className)}>
-      <div className="w-full overflow-hidden rounded-xl border border-border bg-card/40 p-4 backdrop-blur-sm shadow-xs">
-        <div className="relative aspect-[800/220] w-full">
+      <div className="mb-3 flex flex-wrap items-center gap-2" aria-label="Chart controls">
+        <SegmentedControl
+          value={view}
+          onValueChange={setView}
+          options={[
+            { value: "combined", label: "Combined" },
+            { value: "providers", label: "By provider" },
+          ]}
+          aria-label="Usage chart view"
+          size="sm"
+        />
+      </div>
+      <div className="w-full rounded-xl border border-border bg-card/40 p-4 backdrop-blur-sm shadow-xs">
+        <div ref={plotRef} className="relative aspect-[800/220] w-full">
           <svg
+            role="img"
+            aria-label={`${hourly ? "Hourly" : "Daily"} ${metric === "cost" ? "API-equivalent cost" : "token usage"} across ${points.length} intervals`}
+            tabIndex={0}
+            onFocus={() => setHoverIndex(points.length ? 0 : null)}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") setHoverIndex(null);
+              if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+                event.preventDefault();
+                setHoverIndex((index) =>
+                  Math.max(
+                    0,
+                    Math.min(
+                      points.length - 1,
+                      (index ?? 0) + (event.key === "ArrowRight" ? 1 : -1),
+                    ),
+                  ),
+                );
+              }
+            }}
             ref={svgRef}
             viewBox={`0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}`}
             className="size-full overflow-visible"
@@ -279,7 +379,7 @@ export function UsageDailyChart({ days, daily, metric = "cost", className }: Usa
             ))}
 
             {/* Area fill */}
-            {areaPath ? (
+            {view === "combined" && areaPath ? (
               <path
                 d={areaPath}
                 fill="url(#usageAreaGradient)"
@@ -288,7 +388,7 @@ export function UsageDailyChart({ days, daily, metric = "cost", className }: Usa
             ) : null}
 
             {/* Stroke Line */}
-            {linePath ? (
+            {view === "combined" && linePath ? (
               <path
                 d={linePath}
                 fill="none"
@@ -300,6 +400,22 @@ export function UsageDailyChart({ days, daily, metric = "cost", className }: Usa
               />
             ) : null}
 
+            {view === "providers"
+              ? providerLines.map((line) => (
+                  <path
+                    key={line.provider}
+                    data-provider={line.provider}
+                    aria-label={`${normalizeProviderName(line.provider)} usage`}
+                    d={line.linePath}
+                    fill="none"
+                    stroke={line.color}
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                ))
+              : null}
+
             {/* X-axis Date Labels */}
             {xTicks.map((tick, i) => (
               <text
@@ -309,7 +425,9 @@ export function UsageDailyChart({ days, daily, metric = "cost", className }: Usa
                 textAnchor="middle"
                 className="fill-muted-foreground text-[10px] tabular-nums font-medium"
               >
-                {formatDayShort(tick.day)}
+                {hourly
+                  ? new Date(tick.day).toLocaleTimeString(undefined, { hour: "numeric" })
+                  : formatDayShort(tick.day)}
               </text>
             ))}
 
@@ -326,19 +444,30 @@ export function UsageDailyChart({ days, daily, metric = "cost", className }: Usa
                   strokeWidth="1.5"
                   strokeDasharray="2 2"
                 />
-                <circle
-                  cx={activePoint.x}
-                  cy={activePoint.y}
-                  r="5"
-                  className="fill-primary stroke-background"
-                  strokeWidth="2.5"
-                />
-                <circle
-                  cx={activePoint.x}
-                  cy={activePoint.y}
-                  r="9"
-                  className="fill-primary/20 animate-ping"
-                />
+                {view === "combined" ? (
+                  <circle
+                    cx={activePoint.x}
+                    cy={activePoint.y}
+                    r="4"
+                    className="fill-primary stroke-background"
+                    strokeWidth="2"
+                  />
+                ) : (
+                  providerLines.map((line) => {
+                    const point = hoverIndex === null ? undefined : line.points[hoverIndex];
+                    return point ? (
+                      <circle
+                        key={line.provider}
+                        cx={point.x}
+                        cy={point.y}
+                        r="4"
+                        fill={line.color}
+                        className="stroke-background"
+                        strokeWidth="2"
+                      />
+                    ) : null;
+                  })
+                )}
               </g>
             ) : null}
           </svg>
@@ -346,18 +475,26 @@ export function UsageDailyChart({ days, daily, metric = "cost", className }: Usa
           {/* Floating Tooltip */}
           {activePoint && hoverIndex !== null ? (
             <div
-              className="pointer-events-none absolute z-30 flex flex-col gap-1.5 rounded-lg border border-border/80 bg-popover/95 p-3 shadow-xl backdrop-blur-md transition-all duration-75 text-xs"
+              className="pointer-events-none absolute z-30 flex flex-col gap-1.5 rounded-lg border border-border/80 bg-popover/95 p-3 shadow-xl backdrop-blur-md text-xs"
+              ref={tooltipRef}
               style={{
-                left: `${(activePoint.x / VIEW_WIDTH) * 100}%`,
-                top: `${(activePoint.y / VIEW_HEIGHT) * 100}%`,
-                transform: `translate(${activePoint.x > VIEW_WIDTH * 0.65 ? "-105%" : "12px"}, ${
-                  activePoint.y > VIEW_HEIGHT * 0.6 ? "-100%" : "0"
-                })`,
-                minWidth: "160px",
+                left: "var(--usage-tooltip-left, 0px)",
+                top: "var(--usage-tooltip-top, 0px)",
+                minWidth: "180px",
+                maxWidth: "100%",
+                maxHeight: "100%",
+                overflowY: "auto",
               }}
             >
               <div className="flex items-center justify-between border-b border-border/50 pb-1 font-semibold text-foreground">
-                <span>{formatDayShort(activePoint.day)}</span>
+                <span>
+                  {hourly
+                    ? new Date(activePoint.day).toLocaleTimeString(undefined, {
+                        hour: "numeric",
+                        minute: "2-digit",
+                      })
+                    : formatDayShort(activePoint.day)}
+                </span>
                 <span className="text-[11px] font-normal text-muted-foreground tabular-nums">
                   {activePoint.day}
                 </span>
@@ -372,12 +509,16 @@ export function UsageDailyChart({ days, daily, metric = "cost", className }: Usa
                     : formatTokens(activePoint.entry?.totalTokens ?? 0)}
                 </span>
               </div>
-              <div className="flex items-baseline justify-between gap-4 text-[11px]">
-                <span className="text-muted-foreground">Tokens:</span>
-                <span className="text-muted-foreground tabular-nums">
-                  {formatTokens(activePoint.entry?.totalTokens ?? 0)}
-                </span>
-              </div>
+              {metric === "cost" ? (
+                <>
+                  <div className="flex items-baseline justify-between gap-4 text-[11px]">
+                    <span className="text-muted-foreground">Tokens:</span>
+                    <span className="text-muted-foreground tabular-nums">
+                      {formatTokens(activePoint.entry?.totalTokens ?? 0)}
+                    </span>
+                  </div>
+                </>
+              ) : null}
 
               {activePoint.entry && activePoint.entry.byProvider.size > 0 ? (
                 <div className="mt-1 border-t border-border/40 pt-1.5 space-y-1">

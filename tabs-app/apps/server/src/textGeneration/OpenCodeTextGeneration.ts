@@ -16,8 +16,8 @@ import { sanitizeBranchFragment, sanitizeFeatureBranchName } from "@tabs/shared/
 import { getModelSelectionStringOptionValue } from "@tabs/shared/model";
 import { extractJsonObject, fromLenientJson } from "@tabs/shared/schemaJson";
 
-import { ServerConfig } from "../config";
-import { resolveAttachmentPath } from "../attachmentStore";
+import { ServerConfig } from "../config.ts";
+import { resolveAttachmentPath } from "../attachmentStore.ts";
 import {
   buildBranchNamePrompt,
   buildCommitMessagePrompt,
@@ -25,15 +25,15 @@ import {
   buildPrContentPrompt,
   buildThreadTitlePrompt,
   buildStructuredTestingPrompt,
-} from "./TextGenerationPrompts";
-import { type TextGenerationShape } from "./TextGeneration";
+} from "./TextGenerationPrompts.ts";
+import { type TextGenerationShape } from "./TextGeneration.ts";
 import {
   buildSchemaConstrainedPrompt,
   logStructuredGenerationRequest,
   sanitizeCommitSubject,
   sanitizePrTitle,
   sanitizeThreadTitle,
-} from "./TextGenerationUtils";
+} from "./TextGenerationUtils.ts";
 import {
   OpenCodeRuntime,
   type OpenCodeServerConnection,
@@ -41,7 +41,7 @@ import {
   openCodeRuntimeErrorDetail,
   parseOpenCodeModelSlug,
   toOpenCodeFileParts,
-} from "../provider/opencodeRuntime";
+} from "../provider/opencodeRuntime.ts";
 
 const OPENCODE_TEXT_GENERATION_IDLE_TTL = "30 seconds";
 

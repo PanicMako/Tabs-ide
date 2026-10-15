@@ -1,0 +1,3 @@
+# Relay request tracing
+
+Batch310: Complete77-line helper and127-line tests reviewed;3 tests passed259ms/exit0. Unauthenticated traceRelayRequest does not read supplied HTTP parent, authenticated helper continues parsed parent and records authentication timing, explicit local-work wrapper changes tracer for inner service spans. Auth middleware228 selects authenticated helper after authentication. Tests collect in-memory spans; do not verify real exporter, production annotation contents or every handler wraps local work. Authenticated helper accepts caller timing and has no internal auth check, relying on middleware. Missing product tracer returns handler unchanged. No network export performed.

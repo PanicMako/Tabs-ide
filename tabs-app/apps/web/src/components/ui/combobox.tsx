@@ -1,4 +1,5 @@
-"use client";
+import { useScopedPortalContainer } from "~/lib/scopedPortal";
+("use client");
 
 import { Combobox as ComboboxPrimitive } from "@base-ui/react/combobox";
 import { CheckIcon, ChevronsUpDownIcon, XIcon } from "lucide-react";
@@ -155,7 +156,7 @@ function ComboboxPopup({
   const anchor = anchorProp ?? chipsRef;
 
   return (
-    <ComboboxPrimitive.Portal>
+    <ComboboxScopedPortal>
       <ComboboxPrimitive.Positioner
         align={align}
         alignOffset={alignOffset}
@@ -180,7 +181,7 @@ function ComboboxPopup({
           </ComboboxPrimitive.Popup>
         </span>
       </ComboboxPrimitive.Positioner>
-    </ComboboxPrimitive.Portal>
+    </ComboboxScopedPortal>
   );
 }
 
@@ -379,3 +380,8 @@ export {
   ComboboxChip,
   useComboboxFilter,
 };
+
+function ComboboxScopedPortal(props: ComboboxPrimitive.Portal.Props) {
+  const container = useScopedPortalContainer();
+  return <ComboboxPrimitive.Portal container={container} {...props} />;
+}

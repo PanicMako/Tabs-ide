@@ -1,7 +1,7 @@
 import { Effect, Layer } from "effect";
 import type { GitEnvironmentResult } from "@tabs/contracts";
 
-import { runProcess } from "../../processRunner";
+import { runProcess } from "../../processRunner.ts";
 import { GitHubCliError } from "../Errors.ts";
 import { clearPushAccessCache } from "../Services/PushAccessCache.ts";
 import {
@@ -17,12 +17,17 @@ function isCommandNotFound(error: unknown): boolean {
 }
 
 /** Run a command, returning null instead of throwing when the binary is absent. */
-const tryRun = (command: string, args: ReadonlyArray<string>, cwd: string) =>
+const tryRun = (
+  command: string,
+  args: ReadonlyArray<string>,
+  cwd: string,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+) =>
   Effect.tryPromise({
     try: () =>
       runProcess(command, args, {
         cwd,
-        timeoutMs: DEFAULT_TIMEOUT_MS,
+        timeoutMs,
         allowNonZeroExit: true,
       }),
     catch: (error) =>
@@ -57,6 +62,36 @@ const detect: GitEnvironmentShape["detect"] = ({ cwd }) =>
       ghStatus !== null ? parseGitHubAuthStatus(`${ghStatus.stdout}\n${ghStatus.stderr}`) : [];
     const activeAccount = accounts.find((account) => account.active) ?? accounts[0] ?? null;
 
+    // GitHub CLI may retain the username originally stored with the credential.
+    // Resolve active profiles from GitHub while keeping that credential label for CLI actions.
+    const profiles = yield* Effect.forEach(
+      accounts.filter((account) => account.active),
+      (account) =>
+        tryRun(
+          "gh",
+          ["api", "user", "--hostname", account.host, "--jq", ".login"],
+          cwd,
+          5_000,
+        ).pipe(
+          Effect.map((response) => ({
+            host: account.host,
+            authLogin: account.login,
+            login:
+              response?.code === 0 && /^[a-zA-Z0-9-]+$/.test(response.stdout.trim())
+                ? response.stdout.trim()
+                : account.login,
+          })),
+          Effect.catch(() =>
+            Effect.succeed({ host: account.host, authLogin: account.login, login: account.login }),
+          ),
+        ),
+      { concurrency: 4 },
+    );
+    const currentLogin = (account: (typeof accounts)[number]) =>
+      profiles.find(
+        (profile) => profile.host === account.host && profile.authLogin === account.login,
+      )?.login ?? account.login;
+
     const result: GitEnvironmentResult = {
       git: {
         installed: gitVersion !== null && gitVersion.code === 0,
@@ -68,11 +103,12 @@ const detect: GitEnvironmentShape["detect"] = ({ cwd }) =>
         authenticated: accounts.length > 0,
         accounts: accounts.map((account) => ({
           host: account.host,
-          login: account.login,
+          login: currentLogin(account),
+          authLogin: account.login,
           active: account.active,
           scopes: account.scopes,
         })),
-        activeLogin: activeAccount ? activeAccount.login : null,
+        activeLogin: activeAccount ? currentLogin(activeAccount) : null,
       },
     };
     return result;

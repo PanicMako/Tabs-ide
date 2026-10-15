@@ -1,0 +1,24 @@
+{
+  "source": ".logs/antigravity-audit/server-full-current.log",
+  "note": "Baseline before subsequent focused repairs and scheduled queue/Testing RPC additions; not current remaining failure count.",
+  "failures": [
+    " FAIL  |server| src/process/externalLauncher.test.ts > does not report the agy CLI as the Antigravity IDE on darwin",
+    " FAIL  |server| src/orchestration-v2/V1ImportBoundary.test.ts > keeps the V1 agent runtime and engine deleted",
+    " FAIL  |server| src/orchestration-v2/V1ImportBoundary.test.ts > reads the V1 tables only from the legacy importer",
+    " FAIL  |server| src/orchestration-v2/V1ImportBoundary.test.ts > keeps the legacy importer out of reach of new code",
+    " FAIL  |server| src/pullRequest/PullRequestReadCache.test.ts > PR filesystem cache > sweeps the cache directory every hour once the layer is built",
+    " FAIL  |server| src/provider/CodexProvider.test.ts > marks the most preferred available model as default",
+    " FAIL  |server| src/provider/ProviderRegistry.test.ts > ProviderRegistry > ProviderRegistry.layer > re-probes when settings change the codex binaryPath",
+    " FAIL  |server| src/provider/ProviderRegistry.test.ts > ProviderRegistry > ProviderRegistry.layer > keeps Cursor disabled and skips provider probing when settings use their defaults",
+    " FAIL  |server| src/terminal/NodePtyAdapter.test.ts > logs cleanup failures without replacing spawn",
+    " FAIL  |server| src/terminal/NodePtyAdapter.test.ts > logs cleanup failures without replacing interrupt",
+    " FAIL  |server| src/provider/Layers/CodexAdapter.test.ts > CodexAdapterLive lifecycle > maps requestUserInput requests and answered notifications to canonical user-input events",
+    " FAIL  |server| src/telemetry/Layers/AnalyticsService.test.ts > AnalyticsService test > without a Tabs project key, removes legacy identity and sends nothing",
+    " FAIL  |server| src/telemetry/Layers/AnalyticsService.test.ts > AnalyticsService test > defaults on with a Tabs key, sends only daily markers, and drains batches"
+  ],
+  "totals": [
+    " Test Files  8 failed | 642 passed | 11 skipped (661)",
+    "      Tests  13 failed | 7742 passed | 36 skipped (7791)",
+    "   Duration  349.87s (transform 15.44s, setup 1.74s, import 334.72s, tests 996.53s, environment 38ms)"
+  ]
+}

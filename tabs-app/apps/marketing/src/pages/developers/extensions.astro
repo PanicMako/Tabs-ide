@@ -1,0 +1,18 @@
+---
+import Layout from "../../layouts/ExchangeLayout.astro";
+import Icon from "../../components/Icon.astro";
+import { extensionApiVersion } from "../../lib/extension-docs";
+---
+<Layout title="Build a Tabs extension" description="Create, test, and publish your own full-workspace Tabs tools." active="develop">
+  <section class="exchange-hero">
+    <div><p class="exchange-eyebrow">Developer platform · Experimental API {extensionApiVersion}</p><h1>Your tool. A whole workspace.</h1><p class="exchange-lead">Build a React/TypeScript or plain JavaScript tool that lives in the Tabs project toolbar. Start with the standalone SDK and CLI, then share an immutable package through the Exchange.</p></div>
+    <div class="exchange-emblem" aria-hidden="true"><Icon name="Puzzle" size={56} /></div>
+  </section>
+  <div class="exchange-actions"><a class="exchange-button" href="/docs/extensions">Build your first extension <Icon name="ArrowUpRight" size={16} /></a><a class="exchange-button secondary" href="/docs/extensions/reference">SDK reference</a><a class="exchange-button secondary" href="/publish-extension">Publishing</a></div>
+  <div class="exchange-guide-content">
+    <section class="exchange-card"><h2>Start without cloning Tabs</h2><p>The standalone CLI creates an accessible React/TypeScript/Vite project. Build local assets, validate the staging directory, package it as .tabsext, and load it in a Tabs desktop development build.</p><p>The SDK and CLI are not yet published to npm. The quickstart explains local release tarballs; npm commands are clearly marked as future release commands.</p><a href="/docs/extensions">Follow the quickstart</a></section>
+    <section class="exchange-card"><h2>Understand what your tool can access</h2><p>Tabs extensions are not VS Code VSIX packages or native agents. They run in an isolated full-workspace view. Storage, accounts, projects, Git and declared network hosts require explicit host permissions.</p><a href="/docs/extensions/permissions">Permissions and accounts</a></section>
+    <section class="exchange-card"><h2>One package, one review process</h2><p>GitHub sign-in, namespaces and scoped tokens support browser or CLI submissions. Every version is scanned and manually reviewed by exact digest before signed publication. Approval is not a safety guarantee.</p><p>Publishing, downloads and compatible clients are free. Closed-source tools and disclosed publisher-managed subscriptions are allowed; Tabs does not handle checkout.</p><a href="/docs/extensions/publishing">Publishing workflow</a></section>
+    <section class="exchange-card"><h2>Operate your own Exchange</h2><p>Use the documented native registry API and independently provisioned TUF trust roots. Public or private instances run with Docker, PostgreSQL and S3-compatible storage.</p><a href="/docs/extensions/self-hosting">Self-hosting documentation</a></section>
+  </div>
+</Layout>

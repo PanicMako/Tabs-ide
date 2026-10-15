@@ -16,12 +16,12 @@ import {
   parseGenericCliVersion,
   providerModelsFromSettings,
   type ServerProviderDraft,
-} from "../providerSnapshot";
+} from "../providerSnapshot.ts";
 import {
   OpenCodeRuntime,
   openCodeRuntimeErrorDetail,
   type OpenCodeInventory,
-} from "../opencodeRuntime";
+} from "../opencodeRuntime.ts";
 import type { Agent, ProviderListResponse } from "@opencode-ai/sdk/v2";
 
 const PROVIDER = "kilo" as ProviderDriverKind;
@@ -383,7 +383,6 @@ export const checkKiloProviderStatus = Effect.fn("checkKiloProviderStatus")(func
           binaryPath: kiloSettings.binaryPath,
           serverUrl: kiloSettings.serverUrl,
           environment,
-          retryKiloCredentialStartup: true,
         });
         return yield* openCodeRuntime.loadOpenCodeInventory(
           openCodeRuntime.createOpenCodeSdkClient({

@@ -15,3 +15,9 @@ synara-main/
 .env*
 /openvsx-main
 /src
+# Local checkouts, planning notes, and generated previews
+/.worktrees/
+/TASKS.md
+/TODO.md
+/tabs-app/packages/contracts/src.backup/
+/tabs-app/apps/web/.git-redesign/

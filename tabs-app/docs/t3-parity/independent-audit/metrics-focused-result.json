@@ -1,0 +1,12 @@
+{
+  "rpc": {
+    "passed": 10,
+    "log": "/tmp/tabs-audit-rpc-instrumentation.log"
+  },
+  "metrics": {
+    "passed": 4,
+    "failed": 2,
+    "log": "/tmp/tabs-audit-metrics-focused.log"
+  },
+  "interpretation": "withMetrics uses Effect.exit then interruptible metric writes; interruption assertion fails. Monotonic test uses TestClock.setTime; native clock behavior not established by failure. No production edit."
+}

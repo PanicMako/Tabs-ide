@@ -60,3 +60,13 @@ describe("providerModelsFromSettings", () => {
     ]);
   });
 });
+
+it("classifies Cursor and Antigravity API-key auth without claiming an account login", () => {
+  for (const type of ["api-key", "gemini-api-key"]) {
+    expect(normalizeProviderAuth({ status: "unknown", type })).toEqual({
+      status: "unknown",
+      type,
+      credentialSource: "api_key",
+    });
+  }
+});

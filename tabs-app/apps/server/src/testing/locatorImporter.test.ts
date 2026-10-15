@@ -4,9 +4,9 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { TestingGraphStore } from "./graphStore";
-import { indexLocatorFolder } from "./locatorImporter";
-import { LocatorLibraryStore } from "./locatorLibrary";
+import { TestingGraphStore } from "./graphStore.ts";
+import { indexLocatorFolder } from "./locatorImporter.ts";
+import { LocatorLibraryStore } from "./locatorLibrary.ts";
 
 describe("static locator folder import", () => {
   it("reports recognized, warning, unsupported, and file coverage without execution", async () => {

@@ -12,7 +12,7 @@
  */
 
 import { Data, Effect } from "effect";
-import { runProcess, isWindowsCommandNotFound, type ProcessRunResult } from "../processRunner.ts";
+import { runProcess, type ProcessRunResult } from "../processRunner.ts";
 
 export interface SandboxExecutionOptions {
   readonly cwd: string;

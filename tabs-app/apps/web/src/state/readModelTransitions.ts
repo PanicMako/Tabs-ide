@@ -1,19 +1,43 @@
+import * as DateTime from "effect/DateTime";
 import {
   type EnvironmentId,
   type ProviderKind,
   ThreadId,
+  TurnId,
   type OrchestrationReadModel,
   type OrchestrationSessionStatus,
+  type OrchestrationV2ShellStreamItem,
+  type OrchestrationV2ShellSnapshot,
+  type OrchestrationProjectShell,
+  type OrchestrationV2ThreadShell,
+  type OrchestrationV2ThreadProjection,
+  type OrchestrationV2ShellThreadStatus,
 } from "@tabs/contracts";
 import { resolveModelSlugForProvider } from "@tabs/shared/model";
-import { type ChatMessage, type Project, type Thread } from "../types";
+import { type ChatMessage, type Project, type Thread, type QueuedRunItem } from "../types";
+
+function toIsoDate(val: unknown): string {
+  if (!val) return new Date().toISOString();
+  if (typeof val === "string") return val;
+  if (val instanceof Date) return val.toISOString();
+  if (DateTime.isDateTime(val)) return DateTime.formatIso(val);
+  if (typeof (val as any).toISOString === "function") return (val as any).toISOString();
+  return String(val);
+}
 
 // ── State ────────────────────────────────────────────────────────────
+
+export interface EnvironmentSnapshotMeta {
+  snapshotSequence: number;
+  updatedAt: string;
+  initialized: boolean;
+}
 
 export interface AppState {
   projects: Project[];
   threads: Thread[];
   threadsHydrated: boolean;
+  environmentSnapshots?: Record<string, EnvironmentSnapshotMeta> | undefined;
 }
 
 const PERSISTED_STATE_KEY = "tabs:renderer-state:v9";
@@ -213,6 +237,52 @@ function toLegacySessionStatus(
   }
 }
 
+function toLegacySessionStatusFromV2(
+  status: OrchestrationV2ShellThreadStatus,
+): "connecting" | "ready" | "running" | "error" | "closed" {
+  switch (status) {
+    case "preparing":
+    case "starting":
+    case "queued":
+      return "connecting";
+    case "running":
+    case "waiting":
+      return "running";
+    case "failed":
+      return "error";
+    case "interrupted":
+      return "ready";
+    case "completed":
+    case "cancelled":
+    case "rolled_back":
+    case "idle":
+      return "closed";
+  }
+}
+
+function toLegacyOrchestrationStatusFromV2(
+  status: OrchestrationV2ShellThreadStatus,
+): OrchestrationSessionStatus {
+  switch (status) {
+    case "preparing":
+    case "starting":
+    case "queued":
+      return "starting";
+    case "running":
+    case "waiting":
+      return "running";
+    case "failed":
+      return "error";
+    case "interrupted":
+      return "interrupted";
+    case "completed":
+    case "cancelled":
+    case "rolled_back":
+    case "idle":
+      return "idle";
+  }
+}
+
 function toLegacyProvider(providerName: string | null): ProviderKind {
   // Preserve the actual driver slug (codex, claudeAgent, cursor, grok, opencode,
   // …). Typed as the closed `ProviderKind` for legacy callers, but the runtime
@@ -315,9 +385,13 @@ export function syncServerReadModel(
             attachment.type === "image"
               ? {
                   ...attachment,
+                  type: "image" as const,
                   previewUrl: toAttachmentPreviewUrl(attachmentPreviewRoutePath(attachment.id)),
                 }
-              : attachment,
+              : {
+                  ...attachment,
+                  type: "file" as const,
+                },
           );
           const normalizedMessage: ChatMessage = {
             id: message.id,
@@ -543,4 +617,492 @@ export function setThreadBranch(
     environmentId,
   );
   return threads === state.threads ? state : { ...state, threads };
+}
+
+function mapProjectsFromV2Shells(
+  incoming: ReadonlyArray<OrchestrationProjectShell>,
+  previous: Project[],
+  environmentId?: EnvironmentId,
+): Project[] {
+  const previousById = new Map(previous.map((project) => [project.id, project] as const));
+  const previousByCwd = new Map(previous.map((project) => [project.cwd, project] as const));
+  const previousOrderById = new Map(previous.map((project, index) => [project.id, index] as const));
+  const previousOrderByCwd = new Map(
+    previous.map((project, index) => [project.cwd, index] as const),
+  );
+  const persistedOrderByKey = new Map(
+    persistedProjectOrderKeys.map((key, index) => [key, index] as const),
+  );
+  const usePersistedOrder = previous.length === 0;
+
+  const mappedProjects = incoming.map((project) => {
+    const existing = previousById.get(project.id) ?? previousByCwd.get(project.workspaceRoot);
+    return {
+      id: project.id,
+      environmentId: environmentId ?? existing?.environmentId,
+      name: project.title,
+      title: project.title,
+      cwd: project.workspaceRoot,
+      defaultModelSelection:
+        existing?.defaultModelSelection ??
+        (project.defaultModelSelection
+          ? {
+              ...project.defaultModelSelection,
+              model: resolveModelSlugForProvider(
+                project.defaultModelSelection.instanceId,
+                project.defaultModelSelection.model,
+              ),
+            }
+          : null),
+      defaultThreadEnvMode: project.defaultThreadEnvMode ?? existing?.defaultThreadEnvMode ?? null,
+      faviconPath: project.faviconPath ?? existing?.faviconPath ?? null,
+      projectIcon: project.projectIcon ?? existing?.projectIcon ?? null,
+      expanded:
+        existing?.expanded ??
+        (persistedExpandedProjectKeys.size > 0
+          ? persistedExpandedProjectKeys.has(
+              persistedProjectKey(environmentId, project.workspaceRoot),
+            ) || persistedExpandedProjectKeys.has(project.workspaceRoot)
+          : true),
+      createdAt: toIsoDate(project.createdAt),
+      updatedAt: toIsoDate(project.updatedAt),
+      scripts: project.scripts.map((script) => ({ ...script })),
+    } satisfies Project;
+  });
+
+  return mappedProjects
+    .map((project, incomingIndex) => {
+      const previousIndex =
+        previousOrderById.get(project.id) ?? previousOrderByCwd.get(project.cwd);
+      const persistedIndex = usePersistedOrder
+        ? (persistedOrderByKey.get(persistedProjectKey(environmentId, project.cwd)) ??
+          persistedOrderByKey.get(project.cwd))
+        : undefined;
+      const orderIndex =
+        previousIndex ??
+        persistedIndex ??
+        (usePersistedOrder ? persistedProjectOrderKeys.length : previous.length) + incomingIndex;
+      return { project, incomingIndex, orderIndex };
+    })
+    .toSorted((a, b) => {
+      const byOrder = a.orderIndex - b.orderIndex;
+      if (byOrder !== 0) return byOrder;
+      return a.incomingIndex - b.incomingIndex;
+    })
+    .map((entry) => entry.project);
+}
+
+function mapThreadFromV2Shell(
+  shell: OrchestrationV2ThreadShell,
+  existing?: Thread,
+  environmentId?: EnvironmentId,
+): Thread {
+  const createdAtIso = toIsoDate(shell.createdAt);
+  const updatedAtIso = toIsoDate(shell.updatedAt);
+  return {
+    id: shell.id,
+    environmentId: environmentId ?? existing?.environmentId,
+    codexThreadId: null,
+    projectId: shell.projectId,
+    title: shell.title,
+    modelSelection: {
+      ...shell.modelSelection,
+      model: resolveModelSlugForProvider(
+        shell.modelSelection.instanceId,
+        shell.modelSelection.model,
+      ),
+    },
+    runtimeMode: shell.runtimeMode,
+    interactionMode: shell.interactionMode,
+    session: {
+      provider: toLegacyProvider(shell.providerInstanceId),
+      status: toLegacySessionStatusFromV2(shell.status),
+      orchestrationStatus: toLegacyOrchestrationStatusFromV2(shell.status),
+      activeTurnId: undefined,
+      createdAt: updatedAtIso,
+      updatedAt: updatedAtIso,
+      ...(shell.lastError ? { lastError: shell.lastError } : {}),
+    },
+    messages: existing?.messages ?? [],
+    proposedPlans: existing?.proposedPlans ?? [],
+    error: shell.lastError ?? null,
+    createdAt: createdAtIso,
+    updatedAt: updatedAtIso,
+    latestTurn: existing?.latestTurn ?? null,
+    lastVisitedAt: existing?.lastVisitedAt ?? updatedAtIso,
+    archivedAt: shell.archivedAt ? toIsoDate(shell.archivedAt) : null,
+    settledOverride: shell.settledOverride ?? null,
+    settledAt: shell.settledAt ? toIsoDate(shell.settledAt) : null,
+    unsettledAt: shell.unsettledAt ? toIsoDate(shell.unsettledAt) : null,
+    snoozedUntil: shell.snoozedUntil ? toIsoDate(shell.snoozedUntil) : null,
+    snoozedAt: shell.snoozedAt ? toIsoDate(shell.snoozedAt) : null,
+    pinnedAt: shell.pinnedAt ? toIsoDate(shell.pinnedAt) : null,
+    pinOrderKey: shell.pinOrderKey ?? null,
+    linkedPullRequest: shell.linkedPullRequest ?? null,
+    pullRequests: shell.pullRequests ? shell.pullRequests.map((link) => ({ ...link })) : [],
+    titleRegeneration: existing?.titleRegeneration ?? null,
+    branch: shell.branch ?? null,
+    worktreePath: shell.worktreePath ?? null,
+    turnDiffSummaries: existing?.turnDiffSummaries ?? [],
+    activities: existing?.activities ?? [],
+    queuedRuns: existing?.queuedRuns ?? [],
+    activeRunId: existing?.activeRunId ?? null,
+    activeRunUserMessageId: existing?.activeRunUserMessageId ?? null,
+  };
+}
+
+export function syncV2ShellSnapshot(
+  state: AppState,
+  snapshot: OrchestrationV2ShellSnapshot,
+  environmentId?: EnvironmentId,
+): AppState {
+  const previousProjects = environmentId
+    ? state.projects.filter((project) => project.environmentId === environmentId)
+    : state.projects;
+  const previousThreads = environmentId
+    ? state.threads.filter((thread) => thread.environmentId === environmentId)
+    : state.threads;
+
+  const environmentProjects = mapProjectsFromV2Shells(
+    snapshot.projects,
+    previousProjects,
+    environmentId,
+  );
+
+  const existingThreadById = new Map(previousThreads.map((thread) => [thread.id, thread] as const));
+  const allShellThreads = [...snapshot.threads, ...(snapshot.archivedThreads ?? [])];
+  const environmentThreads = allShellThreads.map((shell) =>
+    mapThreadFromV2Shell(shell, existingThreadById.get(shell.id), environmentId),
+  );
+
+  const projects = environmentId
+    ? [
+        ...state.projects.filter((project) => project.environmentId !== environmentId),
+        ...environmentProjects,
+      ]
+    : environmentProjects;
+  const threads = environmentId
+    ? [
+        ...state.threads.filter((thread) => thread.environmentId !== environmentId),
+        ...environmentThreads,
+      ]
+    : environmentThreads;
+
+  const envKey = (environmentId ?? "primary") as string;
+  const environmentSnapshots = {
+    ...state.environmentSnapshots,
+    [envKey]: {
+      snapshotSequence: snapshot.snapshotSequence,
+      updatedAt: new Date().toISOString(),
+      initialized: true,
+    },
+  };
+
+  return {
+    ...state,
+    projects,
+    threads,
+    threadsHydrated: true,
+    environmentSnapshots,
+  };
+}
+
+export function mergeV2ProjectEnrichment(
+  state: AppState,
+  snapshot: OrchestrationV2ShellSnapshot,
+  environmentId?: EnvironmentId,
+): AppState {
+  const previousProjects = environmentId
+    ? state.projects.filter((project) => project.environmentId === environmentId)
+    : state.projects;
+
+  const enrichedProjects = mapProjectsFromV2Shells(
+    snapshot.projects,
+    previousProjects,
+    environmentId,
+  );
+
+  const enrichedById = new Map(enrichedProjects.map((p) => [p.id, p] as const));
+  const projects = state.projects.map((p) => {
+    if (environmentId !== undefined && p.environmentId !== environmentId) {
+      return p;
+    }
+    const enriched = enrichedById.get(p.id);
+    return enriched ?? p;
+  });
+
+  for (const enriched of enrichedProjects) {
+    if (
+      !projects.some(
+        (p) =>
+          p.id === enriched.id &&
+          (environmentId === undefined || p.environmentId === environmentId),
+      )
+    ) {
+      projects.push(enriched);
+    }
+  }
+
+  const envKey = (environmentId ?? "primary") as string;
+  const prevMeta = state.environmentSnapshots?.[envKey];
+  const environmentSnapshots = {
+    ...state.environmentSnapshots,
+    [envKey]: {
+      snapshotSequence: Math.max(snapshot.snapshotSequence, prevMeta?.snapshotSequence ?? 0),
+      updatedAt: new Date().toISOString(),
+      initialized: true,
+    },
+  };
+
+  return {
+    ...state,
+    projects,
+    environmentSnapshots,
+  };
+}
+
+export function applyShellStreamItem(
+  state: AppState,
+  item: OrchestrationV2ShellStreamItem,
+  environmentId?: EnvironmentId,
+): AppState {
+  const envKey = (environmentId ?? "primary") as string;
+  const updateSequence = (
+    sequence: number,
+  ): Record<string, EnvironmentSnapshotMeta> | undefined => {
+    const prev = state.environmentSnapshots?.[envKey];
+    if (!prev) return state.environmentSnapshots;
+    return {
+      ...state.environmentSnapshots,
+      [envKey]: {
+        ...prev,
+        snapshotSequence: sequence,
+        updatedAt: new Date().toISOString(),
+      },
+    };
+  };
+
+  const getSnapshotUpdate = (sequence: number) => {
+    const updated = updateSequence(sequence);
+    return updated !== undefined ? { environmentSnapshots: updated } : {};
+  };
+
+  switch (item.kind) {
+    case "synchronized":
+      return state;
+    case "snapshot":
+      if (item.resolvedRepositoryIdentityRoots !== undefined) {
+        return mergeV2ProjectEnrichment(state, item.snapshot, environmentId);
+      }
+      return syncV2ShellSnapshot(state, item.snapshot, environmentId);
+    case "project.updated": {
+      const existingIndex = state.projects.findIndex(
+        (p) =>
+          p.id === item.project.id &&
+          (environmentId === undefined || p.environmentId === environmentId),
+      );
+      const mapped = mapProjectsFromV2Shells(
+        [item.project],
+        existingIndex >= 0 ? [state.projects[existingIndex]!] : [],
+        environmentId,
+      )[0]!;
+      const projects =
+        existingIndex >= 0
+          ? state.projects.map((p, idx) => (idx === existingIndex ? mapped : p))
+          : [...state.projects, mapped];
+      return { ...state, projects, ...getSnapshotUpdate(item.sequence) };
+    }
+    case "project.removed": {
+      const projects = state.projects.filter(
+        (p) =>
+          !(
+            p.id === item.projectId &&
+            (environmentId === undefined || p.environmentId === environmentId)
+          ),
+      );
+      return {
+        ...state,
+        projects,
+        ...getSnapshotUpdate(item.sequence),
+      };
+    }
+    case "thread.updated": {
+      const existing = state.threads.find(
+        (t) =>
+          t.id === item.thread.id &&
+          (environmentId === undefined || t.environmentId === environmentId),
+      );
+      const mapped = mapThreadFromV2Shell(item.thread, existing, environmentId);
+      const threads = existing
+        ? state.threads.map((t) => (t.id === item.thread.id ? mapped : t))
+        : [...state.threads, mapped];
+      return { ...state, threads, ...getSnapshotUpdate(item.sequence) };
+    }
+    case "thread.removed": {
+      const threads = state.threads.filter(
+        (t) =>
+          !(
+            t.id === item.threadId &&
+            (environmentId === undefined || t.environmentId === environmentId)
+          ),
+      );
+      return {
+        ...state,
+        threads,
+        ...getSnapshotUpdate(item.sequence),
+      };
+    }
+  }
+}
+
+export function applyThreadProjection(
+  state: AppState,
+  projection: OrchestrationV2ThreadProjection,
+  environmentId?: EnvironmentId,
+): AppState {
+  const existing = state.threads.find(
+    (t) =>
+      t.id === projection.thread.id &&
+      (environmentId === undefined || t.environmentId === environmentId),
+  );
+  const updatedAtIso = toIsoDate(projection.updatedAt);
+  const createdAtIso = toIsoDate(projection.thread.createdAt);
+
+  const mappedMessages: ChatMessage[] = projection.messages.map((message) => {
+    const attachments = message.attachments?.map((attachment) =>
+      attachment.type === "image"
+        ? {
+            ...attachment,
+            type: "image" as const,
+            previewUrl: toAttachmentPreviewUrl(attachmentPreviewRoutePath(attachment.id)),
+          }
+        : {
+            ...attachment,
+            type: "file" as const,
+          },
+    );
+    return {
+      id: message.id,
+      role: message.role,
+      text: message.text,
+      createdAt: toIsoDate(message.createdAt),
+      streaming: message.streaming,
+      ...(message.streaming
+        ? {}
+        : {
+            completedAt: toIsoDate(message.updatedAt),
+          }),
+      ...(attachments && attachments.length > 0 ? { attachments } : {}),
+    };
+  });
+
+  const queuedRuns: QueuedRunItem[] = (projection.runs ?? [])
+    .filter((r) => r.status === "queued")
+    .sort((a, b) => {
+      const posA = a.queuePosition ?? a.ordinal;
+      const posB = b.queuePosition ?? b.ordinal;
+      return posA - posB;
+    })
+    .map((r) => {
+      const msg = projection.messages.find((m) => m.id === r.userMessageId);
+      const attachments = msg?.attachments?.map((attachment) =>
+        attachment.type === "image"
+          ? {
+              ...attachment,
+              type: "image" as const,
+              previewUrl: toAttachmentPreviewUrl(attachmentPreviewRoutePath(attachment.id)),
+            }
+          : {
+              ...attachment,
+              type: "file" as const,
+            },
+      );
+      return {
+        id: r.id,
+        ordinal: r.ordinal,
+        userMessageId: r.userMessageId,
+        text: msg?.text ?? "",
+        ...(attachments && attachments.length > 0 ? { attachments } : {}),
+        scheduledFor: r.scheduledFor ? toIsoDate(r.scheduledFor) : null,
+        queuePosition: r.queuePosition ?? null,
+        queueHeld: r.queueHeld ?? false,
+        createdAt: toIsoDate(r.requestedAt),
+      };
+    });
+
+  const activeRun = (projection.runs ?? []).find(
+    (r) =>
+      r.status === "running" ||
+      r.status === "starting" ||
+      r.status === "preparing" ||
+      r.status === "waiting",
+  );
+  const activeRunId = activeRun?.id ?? null;
+  const activeRunUserMessageId = activeRun?.userMessageId ?? null;
+
+  const updatedThread: Thread = {
+    id: projection.thread.id,
+    environmentId: environmentId ?? existing?.environmentId,
+    codexThreadId: null,
+    projectId: projection.thread.projectId,
+    title: projection.thread.title,
+    modelSelection: {
+      ...projection.thread.modelSelection,
+      model: resolveModelSlugForProvider(
+        projection.thread.modelSelection.instanceId,
+        projection.thread.modelSelection.model,
+      ),
+    },
+    runtimeMode: projection.thread.runtimeMode,
+    interactionMode: projection.thread.interactionMode,
+    session: existing?.session ?? null,
+    messages: mappedMessages,
+    proposedPlans: projection.plans.map((p) => ({
+      id: p.id as any,
+      turnId: null,
+      planMarkdown: p.kind === "proposed_plan" ? p.markdown : (p.explanation ?? ""),
+      implementedAt: (p as any).implementedAt ? toIsoDate((p as any).implementedAt) : null,
+      implementationThreadId: (p as any).implementationThreadId ?? null,
+      createdAt: (p as any).createdAt ? toIsoDate((p as any).createdAt) : createdAtIso,
+      updatedAt: (p as any).updatedAt ? toIsoDate((p as any).updatedAt) : updatedAtIso,
+    })),
+    error: existing?.error ?? null,
+    createdAt: createdAtIso,
+    updatedAt: updatedAtIso,
+    latestTurn: existing?.latestTurn ?? null,
+    lastVisitedAt: existing?.lastVisitedAt ?? updatedAtIso,
+    archivedAt: projection.thread.archivedAt ? toIsoDate(projection.thread.archivedAt) : null,
+    settledOverride: projection.thread.settledOverride ?? null,
+    settledAt: projection.thread.settledAt ? toIsoDate(projection.thread.settledAt) : null,
+    unsettledAt: projection.thread.unsettledAt ? toIsoDate(projection.thread.unsettledAt) : null,
+    snoozedUntil: projection.thread.snoozedUntil ? toIsoDate(projection.thread.snoozedUntil) : null,
+    snoozedAt: projection.thread.snoozedAt ? toIsoDate(projection.thread.snoozedAt) : null,
+    pinnedAt: projection.thread.pinnedAt ? toIsoDate(projection.thread.pinnedAt) : null,
+    pinOrderKey: projection.thread.pinOrderKey ?? null,
+    linkedPullRequest: projection.thread.linkedPullRequest ?? null,
+    pullRequests: projection.thread.pullRequests
+      ? projection.thread.pullRequests.map((link) => ({ ...link }))
+      : [],
+    titleRegeneration: existing?.titleRegeneration ?? null,
+    branch: projection.thread.branch ?? null,
+    worktreePath: projection.thread.worktreePath ?? null,
+    turnDiffSummaries: projection.checkpoints.map((cp) => ({
+      turnId: (cp as any).turnId ?? TurnId.makeUnsafe(cp.id),
+      completedAt: toIsoDate(cp.capturedAt),
+      status: cp.status,
+      assistantMessageId: (cp as any).assistantMessageId ?? undefined,
+      checkpointTurnCount: (cp as any).checkpointTurnCount ?? cp.ordinalWithinScope,
+      checkpointRef: cp.ref,
+      files: cp.files.map((f) => ({ ...f })),
+    })),
+    activities: existing?.activities ?? [],
+    queuedRuns,
+    activeRunId,
+    activeRunUserMessageId,
+  };
+
+  const threads = existing
+    ? state.threads.map((t) => (t.id === projection.thread.id ? updatedThread : t))
+    : [...state.threads, updatedThread];
+  return { ...state, threads };
 }

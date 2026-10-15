@@ -11,7 +11,7 @@ export function SetupCard({
     <section
       aria-labelledby={labelledBy}
       className="w-full max-w-5xl rounded-[36px] border border-white/20 bg-black/50 p-6 shadow-2xl shadow-black/60 backdrop-blur-3xl sm:rounded-[48px] sm:p-10"
-      style={{ fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif" }}
+      style={{ fontFamily: "var(--font-sans)" }}
     >
       {children}
     </section>

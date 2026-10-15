@@ -11,13 +11,14 @@ import {
   type TestingLocatorEntry,
 } from "@tabs/contracts";
 import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
 import * as Schema from "effect/Schema";
 
-import type { TextGenerationShape } from "../textGeneration/TextGeneration";
-import type { StoredGraphEdge, StoredGraphNode, TestingGraphStore } from "./graphStore";
-import type { LocatorLibraryStore } from "./locatorLibrary";
-import { sanitizePersistedUrl, sanitizeModelBoundText, shortDigest } from "./security";
-import { generateOfficialPlaywright } from "./officialPlaywright";
+import type { TextGenerationShape } from "../textGeneration/TextGeneration.ts";
+import type { StoredGraphEdge, StoredGraphNode, TestingGraphStore } from "./graphStore.ts";
+import type { LocatorLibraryStore } from "./locatorLibrary.ts";
+import { sanitizePersistedUrl, sanitizeModelBoundText, shortDigest } from "./security.ts";
+import { generateOfficialPlaywright } from "./officialPlaywright.ts";
 
 const GenerationPlan = Schema.Struct({
   featureSlug: Schema.String,
@@ -389,7 +390,10 @@ export function renderGenerationSteps(
 
 export class TestingGenerator {
   readonly #cancelledJobs = new Set<string>();
+  readonly #activeJobs = new Set<string>();
+  readonly #activeFibers = new Map<string, Fiber.Fiber<any, any>>();
   #queueTail: Promise<void> = Promise.resolve();
+  #closing = false;
 
   constructor(
     private readonly store: TestingGraphStore,
@@ -405,6 +409,9 @@ export class TestingGenerator {
       readonly background?: boolean;
     },
   ): Promise<TestingGenerationJob> {
+    if (this.#closing) {
+      throw new Error("Testing generator is shutting down");
+    }
     const allCases = this.store.listCases(input.projectId).cases;
     const requested = input.caseIds
       ? allCases.filter((testCase) => input.caseIds?.includes(testCase.id))
@@ -473,9 +480,13 @@ export class TestingGenerator {
       usageMeasured: false,
     });
 
+    this.#activeJobs.add(jobId);
     const run = this.#queueTail.then(() =>
       this.#run(jobId, input, cases, outputDirectory, options?.beforeRun),
     );
+    void run.finally(() => {
+      this.#activeJobs.delete(jobId);
+    });
     this.#queueTail = run.then(
       () => undefined,
       () => undefined,
@@ -490,6 +501,10 @@ export class TestingGenerator {
     if (!job) throw new Error("Generation job was not found");
     if (job.status === "queued" || job.status === "running") {
       this.#cancelledJobs.add(jobId);
+      const fiber = this.#activeFibers.get(jobId);
+      if (fiber) {
+        void Effect.runPromise(Fiber.interrupt(fiber));
+      }
       this.store.updateGenerationJob(jobId, {
         status: "cancelled",
         stage: "cancelled",
@@ -497,6 +512,21 @@ export class TestingGenerator {
       });
     }
     return this.store.generationJob(projectId, jobId)!;
+  }
+
+  async close(): Promise<void> {
+    if (this.#closing) return;
+    this.#closing = true;
+    for (const jobId of this.#activeJobs) {
+      this.#cancelledJobs.add(jobId);
+    }
+    for (const fiber of this.#activeFibers.values()) {
+      void Effect.runPromise(Fiber.interrupt(fiber));
+    }
+    await this.#queueTail.catch(() => undefined);
+    this.#activeJobs.clear();
+    this.#activeFibers.clear();
+    this.#cancelledJobs.clear();
   }
 
   async #run(
@@ -535,7 +565,7 @@ export class TestingGenerator {
       if (!targetUrl)
         throw new Error("The project has no captured target URL for generated test data");
       for (const testCase of cases) {
-        if (this.#cancelledJobs.has(jobId)) break;
+        if (this.#cancelledJobs.has(jobId) || this.#closing) break;
         if (input.engine === "official-playwright") {
           const failure = input.failureRunId
             ? this.store
@@ -563,7 +593,7 @@ export class TestingGenerator {
                 }
               : {}),
           });
-          if (this.#cancelledJobs.has(jobId)) break;
+          if (this.#cancelledJobs.has(jobId) || this.#closing) break;
           this.store.addGeneratedArtifact({
             jobId,
             caseId: testCase.id,
@@ -625,20 +655,28 @@ export class TestingGenerator {
           });
           return this.store.generationJob(input.projectId, jobId)!;
         }
-        const plan = await Effect.runPromise(
-          this.textGeneration.generateStructuredTesting({
-            cwd: input.projectPath,
-            taskKind: "test-generation",
-            sanitizedPrompt,
-            outputSchema: GenerationPlan,
-            modelSelection: input.modelSelection,
-            reasoningTier: input.reasoningTier ?? "medium",
-            budget: {
-              maxEstimatedTokens: maxTokens,
-              maxEstimatedCostUsd: maxCost,
-            },
-          }),
-        );
+        if (this.#cancelledJobs.has(jobId) || this.#closing) break;
+        const effect = this.textGeneration.generateStructuredTesting({
+          cwd: input.projectPath,
+          taskKind: "test-generation",
+          sanitizedPrompt,
+          outputSchema: GenerationPlan,
+          modelSelection: input.modelSelection,
+          reasoningTier: input.reasoningTier ?? "medium",
+          budget: {
+            maxEstimatedTokens: maxTokens,
+            maxEstimatedCostUsd: maxCost,
+          },
+        });
+        const fiber = Effect.runFork(effect);
+        this.#activeFibers.set(jobId, fiber);
+        let plan: GenerationPlan;
+        try {
+          plan = await Effect.runPromise(Fiber.join(fiber));
+        } finally {
+          this.#activeFibers.delete(jobId);
+        }
+        if (this.#cancelledJobs.has(jobId) || this.#closing) break;
         try {
           renderGenerationSteps(plan, locators);
           if (!plan.assertionText.trim()) throw new Error("Missing final assertion text");
@@ -756,41 +794,52 @@ export class TestingGenerator {
         (input.attemptCount && input.attemptCount > 1) ||
         (this.store.generationJob(input.projectId, jobId)?.attemptCount ?? 1) > 1,
       );
-      const stage = this.#cancelledJobs.has(jobId)
+      const isCancelled = this.#cancelledJobs.has(jobId) || this.#closing;
+      const stage = isCancelled
         ? "cancelled"
         : completedCases === 0 && blockedCases.length > 0
           ? "blocked"
           : isRepair
             ? "repair-proposed"
             : "generated";
-      const status = this.#cancelledJobs.has(jobId)
+      const status = isCancelled
         ? "cancelled"
         : completedCases === 0 && blockedCases.length > 0
           ? "failed"
           : "completed";
-      this.store.updateGenerationJob(jobId, {
-        status,
-        stage,
-        completedCases,
-        estimatedTokens,
-        estimatedCostUsd,
-        ...(blockedCases.length > 0
-          ? {
-              error: `Blocked cases requiring locator resolution: ${blockedCases.join("; ")}`,
-            }
-          : {}),
-      });
+      try {
+        this.store.updateGenerationJob(jobId, {
+          status,
+          stage,
+          completedCases,
+          estimatedTokens,
+          estimatedCostUsd,
+          ...(blockedCases.length > 0
+            ? {
+                error: `Blocked cases requiring locator resolution: ${blockedCases.join("; ")}`,
+              }
+            : {}),
+        });
+      } catch (storeError) {
+        if (!this.#closing) throw storeError;
+      }
     } catch (error) {
-      this.store.updateGenerationJob(jobId, {
-        status: "failed",
-        stage: "failed",
-        completedCases,
-        estimatedTokens,
-        estimatedCostUsd,
-        error: error instanceof Error ? error.message : String(error),
-      });
+      const isCancelled = this.#cancelledJobs.has(jobId) || this.#closing;
+      try {
+        this.store.updateGenerationJob(jobId, {
+          status: isCancelled ? "cancelled" : "failed",
+          stage: isCancelled ? "cancelled" : "failed",
+          completedCases,
+          estimatedTokens,
+          estimatedCostUsd,
+          error: isCancelled ? "Cancelled" : error instanceof Error ? error.message : String(error),
+        });
+      } catch (storeError) {
+        if (!this.#closing) throw storeError;
+      }
     } finally {
       this.#cancelledJobs.delete(jobId);
+      this.#activeFibers.delete(jobId);
     }
     return this.store.generationJob(input.projectId, jobId)!;
   }

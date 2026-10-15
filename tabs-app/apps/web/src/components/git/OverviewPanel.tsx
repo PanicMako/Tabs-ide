@@ -504,14 +504,14 @@ export function OverviewPanel({
           actions={
             <div className="flex items-center gap-2">
               <Button size="sm" onClick={() => setConfirmMergeBranch(urgentWatchedBranch.name)}>
-                <Download /> Merge {urgentWatchedBranch.name}
+                <Download /> Merge
               </Button>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setConfirmRebaseBranch(urgentWatchedBranch.name)}
               >
-                Rebase onto {urgentWatchedBranch.name}
+                Rebase
               </Button>
             </div>
           }
@@ -519,7 +519,7 @@ export function OverviewPanel({
       )}
 
       {/* Stat grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+      <div className="git-overview-stats grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
         <Card className="p-3">
           <div className="text-[10px] uppercase tracking-widest text-muted-foreground/70 mb-1">
             Branch
@@ -554,8 +554,11 @@ export function OverviewPanel({
           </div>
         </Card>
 
-        <Card
-          className="p-3 cursor-pointer hover:border-border transition-colors"
+        <button
+          className="p-3 text-left cursor-pointer hover:border-border transition-colors"
+          type="button"
+          data-slot="git-card"
+          aria-label="View working tree changes"
           onClick={onGoToChanges}
         >
           <div className="text-[10px] uppercase tracking-widest text-muted-foreground/70 mb-1">
@@ -570,7 +573,7 @@ export function OverviewPanel({
               </span>
             )}
           </div>
-        </Card>
+        </button>
 
         <Card className="p-3">
           <div className="text-[10px] uppercase tracking-widest text-muted-foreground/70 mb-1">
@@ -665,7 +668,7 @@ export function OverviewPanel({
       )}
 
       {/* Quick actions card */}
-      <SectionLabel>Quick actions</SectionLabel>
+      <SectionLabel>Commit & sync</SectionLabel>
       <Card className="p-4 mb-1">
         <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
           <span className="text-[10px] uppercase tracking-widest text-muted-foreground/70">
@@ -676,21 +679,10 @@ export function OverviewPanel({
               {stagedFiles.length} staged
               {unstagedFiles.length > 0 ? `, ${unstagedFiles.length} modified` : ""}
             </span>
-            {unstagedFiles.length > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={isStagingAll}
-                onClick={() => void handleStageAll()}
-                className="h-6 px-2 text-[10px] font-semibold text-foreground hover:text-foreground gap-1 cursor-pointer"
-              >
-                {isStagingAll ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
-                Stage All ({unstagedFiles.length})
-              </Button>
-            )}
           </div>
         </div>
         <AutoTextarea
+          aria-label="Commit message"
           value={msg}
           onChange={(e) => setMsg(e.target.value)}
           onKeyDown={(e) => {

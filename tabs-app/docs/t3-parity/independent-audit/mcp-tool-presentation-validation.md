@@ -1,0 +1,5 @@
+# MCP tool presentation
+
+Complete shared369/test101 and server70/test103 source. Shared10/10,125ms exit0 plus server12/12,219ms exit0. Shared suite checks all internal inventory names against prefix variants/completed suffix, other-server rejection, loose ACP separators and per-thread OpenCode suffix. Internal enumeration does not prove completeness against actual registered toolkit inventory. No tools renamed in this helper; prior tool-deprecation skill remains in force for registration changes.
+
+Server metadata tests cover explicit/result-source names/logos, fallback readable names, bounded160-character labels/4096 URL, non-HTTP scheme rejection and suppression of generic identity for known T3 tools. HTTP(S) logos are metadata only; fetch/privacy/content/rendering not exercised. Direct shared app imports are server ACP and McpToolPresentation; Codex presentation imports server helper. Full ACP runtime/native card rendering remains unverified. Device labels seen incidentally in shared inventory, no Labs implementation review/operation. Production unchanged.

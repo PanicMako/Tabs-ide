@@ -1,0 +1,37 @@
+{
+  "version": "154.0.8037.92",
+  "method": "HEAD",
+  "origin": "https://storage.googleapis.com/chrome-for-testing-public",
+  "results": [
+    {
+      "platform": "linux64",
+      "status": 200,
+      "bytes": 120477194
+    },
+    {
+      "platform": "linux-arm64",
+      "status": 200,
+      "bytes": 121182296
+    },
+    {
+      "platform": "mac-arm64",
+      "status": 200,
+      "bytes": 99221129
+    },
+    {
+      "platform": "mac-x64",
+      "status": 200,
+      "bytes": 104748425
+    },
+    {
+      "platform": "win32",
+      "status": 200,
+      "bytes": 114295943
+    },
+    {
+      "platform": "win64",
+      "status": 200,
+      "bytes": 120822223
+    }
+  ]
+}

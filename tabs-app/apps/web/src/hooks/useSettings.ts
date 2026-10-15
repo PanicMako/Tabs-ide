@@ -107,15 +107,14 @@ function mergeServerSettingsPatch(
   const hasModel = "model" in selectionPatch && selectionPatch.model !== undefined;
   const hasOptions = "options" in selectionPatch;
 
+  const currentSel = current.textGenerationModelSelection;
   if (hasProvider || hasModel) {
     return {
       ...next,
       textGenerationModelSelection: makeAppModelSelection(
-        selectionPatch.instanceId ?? current.textGenerationModelSelection.instanceId,
-        selectionPatch.model ?? current.textGenerationModelSelection.model,
-        hasOptions
-          ? (selectionPatch.options ?? null)
-          : current.textGenerationModelSelection.options,
+        selectionPatch.instanceId ?? currentSel?.instanceId ?? ("codex" as any),
+        selectionPatch.model ?? currentSel?.model ?? "",
+        hasOptions ? (selectionPatch.options ?? null) : (currentSel?.options ?? null),
       ) as unknown as ServerSettings["textGenerationModelSelection"],
     };
   }
@@ -123,17 +122,16 @@ function mergeServerSettingsPatch(
   if (hasOptions) {
     return {
       ...next,
-      textGenerationModelSelection: {
-        ...current.textGenerationModelSelection,
-        ...(selectionPatch.options
-          ? {
-              options: deepMerge(
-                current.textGenerationModelSelection.options ?? {},
-                selectionPatch.options,
-              ),
-            }
-          : {}),
-      } as ServerSettings["textGenerationModelSelection"],
+      textGenerationModelSelection: currentSel
+        ? ({
+            ...currentSel,
+            ...(selectionPatch.options
+              ? {
+                  options: deepMerge(currentSel.options ?? {}, selectionPatch.options),
+                }
+              : {}),
+          } as ServerSettings["textGenerationModelSelection"])
+        : null,
     };
   }
 
@@ -654,7 +652,7 @@ export function buildLegacyServerSettingsMigrationPatch(
   }
 
   if (Array.isArray(legacySettings.favorites)) {
-    patch.favorites = legacySettings.favorites as NonNullable<(typeof patch)["favorites"]>;
+    (patch as any).favorites = legacySettings.favorites;
   }
 
   return patch;

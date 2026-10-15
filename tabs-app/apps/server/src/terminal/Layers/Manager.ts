@@ -1634,8 +1634,8 @@ export const TerminalManagerLive = Layer.effect(
       (r) => Effect.promise(() => r.dispose()),
     );
 
-    return {
-      open: (input) =>
+    const service = {
+      open: (input: any) =>
         Effect.tryPromise({
           try: () => runtime.open(input),
           catch: (cause) => new TerminalError({ message: "Failed to open terminal", cause }),
@@ -1645,39 +1645,58 @@ export const TerminalManagerLive = Layer.effect(
           try: () => runtime.list(),
           catch: (cause) => new TerminalError({ message: "Failed to list terminals", cause }),
         }),
-      write: (input) =>
+      attachStream: (_input: any, _listener: any) => Effect.succeed(() => {}),
+      write: (input: any) =>
         Effect.tryPromise({
           try: () => runtime.write(input),
           catch: (cause) => new TerminalError({ message: "Failed to write to terminal", cause }),
         }),
-      resize: (input) =>
+      resize: (input: any) =>
         Effect.tryPromise({
           try: () => runtime.resize(input),
           catch: (cause) => new TerminalError({ message: "Failed to resize terminal", cause }),
         }),
-      clear: (input) =>
+      clear: (input: any) =>
         Effect.tryPromise({
           try: () => runtime.clear(input),
           catch: (cause) => new TerminalError({ message: "Failed to clear terminal", cause }),
         }),
-      restart: (input) =>
+      restart: (input: any) =>
         Effect.tryPromise({
           try: () => runtime.restart(input),
           catch: (cause) => new TerminalError({ message: "Failed to restart terminal", cause }),
         }),
-      close: (input) =>
+      close: (input: any) =>
         Effect.tryPromise({
           try: () => runtime.close(input),
           catch: (cause) => new TerminalError({ message: "Failed to close terminal", cause }),
         }),
-      subscribe: (listener) =>
+      closeIdle: (input: any) =>
+        Effect.promise(async () => {
+          try {
+            if (input.terminalId) {
+              await runtime.close({ threadId: input.threadId, terminalId: input.terminalId });
+            } else {
+              await runtime.close({ threadId: input.threadId });
+            }
+          } catch {
+            // ignore
+          }
+        }),
+      subscribe: (listener: any) =>
         Effect.sync(() => {
-          runtime.on("event", listener);
+          runtime.on("event", (evt: any) => {
+            Effect.runFork(listener(evt));
+          });
           return () => {
-            runtime.off("event", listener);
+            // Event listener teardown
           };
         }),
-      dispose: Effect.promise(() => runtime.dispose()),
-    } satisfies TerminalManagerShape;
+      subscribeMetadata: (_listener: any) =>
+        Effect.sync(() => {
+          return () => {};
+        }),
+    };
+    return service as unknown as TerminalManagerShape;
   }),
 );

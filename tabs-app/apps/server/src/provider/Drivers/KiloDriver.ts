@@ -15,30 +15,32 @@ import * as Stream from "effect/Stream";
 import { HttpClient } from "effect/unstable/http";
 import { ChildProcessSpawner } from "effect/unstable/process";
 
-import { makeOpenCodeTextGeneration } from "../../textGeneration/OpenCodeTextGeneration";
-import { ServerConfig } from "../../config";
-import { ProviderDriverError } from "../Errors";
-import { makeOpenCodeAdapter } from "../Layers/OpenCodeAdapter";
-import { checkKiloProviderStatus, makePendingKiloProvider } from "../Layers/KiloProvider";
-import { ProviderEventLoggers } from "../Layers/ProviderEventLoggers";
-import { makeManagedServerProvider } from "../makeManagedServerProvider";
-import { OpenCodeRuntime } from "../opencodeRuntime";
+import { makeOpenCodeTextGeneration } from "../../textGeneration/OpenCodeTextGeneration.ts";
+import { ServerConfig } from "../../config.ts";
+import { KiloAdapterV2Driver } from "../../orchestration-v2/Adapters/KiloAdapterV2.ts";
+import { ProviderDriverError } from "../Errors.ts";
+import { makeOpenCodeAdapter } from "../Layers/OpenCodeAdapter.ts";
+import { checkKiloProviderStatus, makePendingKiloProvider } from "../Layers/KiloProvider.ts";
+import { ProviderEventLoggers } from "../Layers/ProviderEventLoggers.ts";
+import { ProviderRuntimeGeneration } from "../ProviderRuntimeGeneration.ts";
+import { makeManagedServerProvider } from "../makeManagedServerProvider.ts";
+import { OpenCodeRuntime } from "../opencodeRuntime.ts";
 import {
   defaultProviderContinuationIdentity,
   makeExternalCliLifecycle,
   makeProviderInstanceCapabilities,
   type ProviderDriver,
   type ProviderInstance,
-} from "../ProviderDriver";
-import type { ServerProviderDraft } from "../providerSnapshot";
-import { mergeProviderInstanceEnvironment } from "../ProviderInstanceEnvironment";
-import { getProviderSecret } from "../ProviderSecretStore";
+} from "../ProviderDriver.ts";
+import type { ServerProviderDraft } from "../providerSnapshot.ts";
+import { mergeProviderInstanceEnvironment } from "../ProviderInstanceEnvironment.ts";
+import { getProviderSecret } from "../ProviderSecretStore.ts";
 import {
   enrichProviderSnapshotWithVersionAdvisory,
   makePackageManagedProviderMaintenanceResolver,
   normalizeCommandPath,
   resolveProviderMaintenanceCapabilitiesEffect,
-} from "../providerMaintenance";
+} from "../providerMaintenance.ts";
 
 const decodeKiloSettings = Schema.decodeSync(KiloSettings);
 
@@ -87,7 +89,7 @@ const withInstanceIdentity =
     continuation: { groupKey: input.continuationGroupKey },
   });
 
-export const KiloDriver: ProviderDriver<KiloSettings, KiloDriverEnv> = {
+export const KiloDriver: ProviderDriver<KiloSettings, any> = {
   driverKind: DRIVER_KIND,
   metadata: {
     displayName: "Kilo",
@@ -167,6 +169,29 @@ export const KiloDriver: ProviderDriver<KiloSettings, KiloDriverEnv> = {
         ),
       );
 
+      const generation = yield* ProviderRuntimeGeneration;
+      const orchestrationAdapter =
+        generation === "v2"
+          ? yield* KiloAdapterV2Driver.create({
+              instanceId,
+              displayName,
+              accentColor,
+              environment,
+              enabled,
+              config: effectiveConfig,
+            }).pipe(
+              Effect.mapError(
+                (cause) =>
+                  new ProviderDriverError({
+                    driver: DRIVER_KIND,
+                    instanceId,
+                    detail: `Failed to build Kilo orchestration adapter: ${cause.message ?? String(cause)}`,
+                    cause,
+                  }),
+              ),
+            )
+          : undefined;
+
       return {
         instanceId,
         driverKind: DRIVER_KIND,
@@ -192,6 +217,7 @@ export const KiloDriver: ProviderDriver<KiloSettings, KiloDriverEnv> = {
         snapshot,
         adapter,
         textGeneration,
+        ...(orchestrationAdapter === undefined ? {} : { orchestrationAdapter }),
       } satisfies ProviderInstance;
     }),
 };

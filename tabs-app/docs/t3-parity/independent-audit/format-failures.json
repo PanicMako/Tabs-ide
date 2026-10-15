@@ -1,0 +1,594 @@
+[
+  {
+    "file": "tabs-app/apps/desktop/package.json",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/package.json",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/assets/MediaFile.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/auth/EnvironmentAuth.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/auth/ServerSecretStore.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/binCli.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/cli/auth.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/cli/config.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/cli/connect.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/cli/pair.test.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/cli/pair.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/cli/update.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/cloud/CliTokenManager.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/cloud/CloudLink.lifecycle.test.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/cloud/CloudLink.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/cloud/publicConfig.test.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/cloud/publicConfig.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/device/LocalDeviceHost.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/diagnostics/ProcessDiagnostics.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/git/GitManager.test.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/git/GitManager.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/htmlRender/HtmlRender.test.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/htmlRender/publicProxy.test.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/http.test.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/mcp/McpDeviceToolkit.test.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/mcp/McpHttpServer.test.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/mcp/McpSessionRegistry.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/mcp/OrchestratorMcpToolkit.integration.test.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/mcp/WorktreeMcpService.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/mcp/toolkits/core.test.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/mcp/toolkits/pullRequests/handlers.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/mcp/toolkits/worktree/registration.test.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/observability/HeapSnapshot.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/observability/RpcInstrumentation.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/orchestration-v2/Adapters/AntigravityAdapterV2.test.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/orchestration-v2/Adapters/AntigravityAdapterV2.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/orchestration-v2/ContextHandoffBudget.test.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/orchestration-v2/ContextHandoffDelivery.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/orchestration-v2/EffectOutbox.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/orchestration-v2/OpenCode2OrchestratorV2.integration.test.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/orchestration-v2/Orchestrator.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/orchestration-v2/ProjectionStore.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/orchestration-v2/ProviderSessionManager.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/orchestration-v2/PullRequestWatchReactor.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/orchestration-v2/legacy/LegacyV1ThreadImporter.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/orchestration-v2/pullRequestWatch.test.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/process/externalLauncher.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/processRunner.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/project/AgentSessionImporter.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/project/AgentSessionScanner.test.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/project/ProjectSetupScriptRunner.test.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/provider/AntigravityAuth.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/provider/CodexChatGptHandoff.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/provider/CodexProvider.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/provider/Drivers/CodexDriver.test.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/provider/Drivers/CodexManagedProvider.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/provider/Drivers/OpenCodeDriver.test.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/provider/Layers/AntigravityProvider.test.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/provider/Layers/ClaudeAdapter.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/provider/Layers/CodexSessionRuntime.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/provider/Layers/CursorAdapter.test.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/provider/Layers/CursorProvider.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/provider/Layers/DroidAdapter.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/provider/Layers/GrokAdapter.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/provider/Layers/ProviderRegistry.test.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/provider/Layers/ProviderRegistry.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/provider/ProviderInstanceRegistry.test.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/provider/ProviderRegistry.test.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/provider/acp/AcpClientTerminals.test.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/provider/acp/AcpRegistryAuth.test.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/provider/acp/AcpRegistrySupport.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/provider/acp/AcpRuntimeModel.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/provider/acp/AcpSessionRuntime.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/provider/acp/AntigravityAcpSupport.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/provider/acp/AntigravityProtocol.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/provider/acp/CopilotAcpSupport.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/provider/acp/DroidAcpSupport.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/provider/antigravityAuthSupport.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/provider/cursorSdkModel.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/provider/makeManagedServerProvider.test.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/provider/opencodeRuntime.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/provider/piThinkingCapabilities.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/provider/providerInstallation.test.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/provider/providerMaintenance.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/provider/providerSnapshot.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/pullRequest/AzureDevOpsPullRequestProvider.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/pullRequest/BitbucketPullRequestProvider.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/pullRequest/GitHubPullRequestProvider.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/pullRequest/GitLabPullRequestProvider.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/pullRequest/PullRequestService.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/pullRequest/gitHubPullRequestJson.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/resourceTelemetry/DesktopTelemetryReceiver.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/resourceTelemetry/ResourceTelemetry.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/serverLogger.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/serverSettings.test.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/sourceControl/BitbucketApi.test.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/sourceControl/BitbucketApi.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/sourceControl/discovery.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/storageCleanup.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/terminal/Layers/Manager.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/terminal/Manager.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/terminal/Services/Manager.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/textGeneration/AntigravityTextGeneration.test.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/textGeneration/GrokTextGeneration.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/textGeneration/TextGenerationPrompts.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/vcs/VcsProcess.test.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/workspace/WorkspaceSearchIndex.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/server/src/ws.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/web/public/fonts/approved/claude-assets-README.md",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/web/src/components/Sidebar.tsx",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/web/src/components/chat/ChatHeader.tsx",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/web/src/components/chat/TraitsPicker.tsx",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/web/src/components/git/SettingsPanel.tsx",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/web/src/components/git/TopBar.tsx",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/web/src/hooks/useSettings.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/apps/web/src/routes/_chat.index.tsx",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/docs/t3-parity/codex-babysit-walkthrough.md",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/docs/t3-parity/codex-handoff.md",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/docs/t3-parity/independent-audit/entry-import-graph.json",
+    "in_original_scope": false
+  },
+  {
+    "file": "tabs-app/docs/t3-parity/independent-audit/symlink-write-repro.ts",
+    "in_original_scope": false
+  },
+  {
+    "file": "tabs-app/docs/t3-parity/progress.md",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/docs/t3-parity/requirements.md",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/docs/t3-parity/validation.md",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/docs/t3-parity/walkthrough.md",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/packages/contracts/src/baseSchemas.test.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/packages/contracts/src/chatAttachment.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/packages/contracts/src/editor.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/packages/contracts/src/git.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/packages/contracts/src/model.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/packages/contracts/src/orchestration.test.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/packages/contracts/src/orchestration.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/packages/contracts/src/orchestrationV2.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/packages/contracts/src/relay.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/packages/effect-acp/src/protocol.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/packages/effect-codex-app-server/src/_generated/schema.gen.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/packages/effect-codex-app-server/src/client.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/packages/shared/package.json",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/packages/shared/src/agentAwareness.test.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/packages/shared/src/agentAwareness.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/packages/shared/src/composerContextClipboard.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/packages/shared/src/model.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/packages/shared/src/observability.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/packages/shared/src/otelEnvironment.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/packages/shared/src/qrCode.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/packages/shared/src/schemaYaml.ts",
+    "in_original_scope": true
+  },
+  {
+    "file": "tabs-app/packages/shared/src/serverSettings.ts",
+    "in_original_scope": true
+  }
+]

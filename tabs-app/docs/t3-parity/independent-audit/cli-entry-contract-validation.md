@@ -1,0 +1,3 @@
+# CLI entry review
+
+Batch275: complete bin27/binCli100/cli-server71/service-launcher27/service-preflight17 lines and original-base new-file changes reviewed. bin dynamically imports fast ACP path or binCli; makeCli exposes start/serve and hidden service commands, with conditional Connect. cli/server imports ../server.ts, whereas current apps/server/tsdown.config.ts entry and package dev script remain src/index.ts. This reinforces the previously recorded shipped-entry gap; it is not a second independent defect. Bare missing directory rejects unless explicit path; existing bare directory accepted. Service launcher handler intentionally starts detached promise; actual shutdown and service installation remain unverified. No production edits or native processes launched.

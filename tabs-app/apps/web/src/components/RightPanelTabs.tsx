@@ -1,26 +1,37 @@
-import { BookmarkIcon, Columns2Icon, FileDiffIcon, ListOrderedIcon, XIcon } from "lucide-react";
-import { memo, useCallback } from "react";
+import { memo, useCallback, useEffect, useRef } from "react";
 import type { EnvironmentId, ThreadId } from "@tabs/contracts";
+import { useActiveProjectTarget } from "~/hooks/useActiveProjectTarget";
+import {
+  EMPTY_COMPANION_WORKSPACE,
+  useCompanionSurfaceStore,
+} from "~/stores/companionSurfaceStore";
+import { showCustomConfirm } from "~/lib/customConfirm";
 import { isElectron } from "~/env";
-import { cn } from "~/lib/utils";
+import { SurfaceTabs, SurfaceChooser } from "./agents/companion/SurfaceTabs";
+import { useAtomValue } from "@effect/atom-react";
+import { threadsAtom } from "~/state/threads";
 import { usePromptStashStore } from "~/promptStashStore";
 import { useMessageQueueStore, getThreadQueuedMessages } from "~/stores/messageQueueStore";
 import { useRightPanelStore, type RightPanelTab } from "~/stores/rightPanelStore";
 import { PromptStashPanel } from "./chat/PromptStashPanel";
 import { MessageQueuePanel } from "./chat/MessageQueuePanel";
-import { Button } from "./ui/button";
+import { CompanionBrowserPanel } from "./agents/companion/CompanionBrowserPanel";
+import { CompanionFilesPanel } from "./agents/companion/CompanionFilesPanel";
+import { CompanionTerminalPanel } from "./agents/companion/CompanionTerminalPanel";
+import { CompanionPRPanel } from "./agents/companion/CompanionPRPanel";
 import type { DiffPanelMode } from "./DiffPanelShell";
-import { lazy, Suspense } from "react";
-import { DiffWorkerPoolProvider } from "./DiffWorkerPoolProvider";
-import { DiffPanelHeaderSkeleton, DiffPanelLoadingState, DiffPanelShell } from "./DiffPanelShell";
-
-const DiffPanel = lazy(() => import("./DiffPanel"));
+import {
+  isNativeBrowserRecordingActive,
+  stopNativeBrowserRecording,
+} from "./NativePreviewAutomationHost";
+import { CompanionDiffPanel } from "./agents/companion/CompanionDiffPanel";
 
 export interface RightPanelTabsProps {
   mode: DiffPanelMode;
   threadId?: ThreadId | null | undefined;
   environmentId?: EnvironmentId | null | undefined;
   onClose: () => void;
+  visible?: boolean;
 }
 
 export const RightPanelTabs = memo(function RightPanelTabs({
@@ -28,170 +39,158 @@ export const RightPanelTabs = memo(function RightPanelTabs({
   threadId,
   environmentId,
   onClose,
+  visible = true,
 }: RightPanelTabsProps) {
+  const maximized = useRightPanelStore((state) => state.maximized);
+  const setMaximized = useRightPanelStore((state) => state.setMaximized);
+  const choosing = useRightPanelStore((state) => state.choosingSurface);
+  const setChoosing = useRightPanelStore((state) => state.setChoosingSurface);
   const activeTab = useRightPanelStore((state) => state.activeTab);
   const setActiveTab = useRightPanelStore((state) => state.setActiveTab);
 
   const stashes = usePromptStashStore((state) => state.entries);
   const queueByThread = useMessageQueueStore((state) => state.queueByThread);
   const queuedMessages = getThreadQueuedMessages(queueByThread, threadId);
+  const threads = useAtomValue(threadsAtom);
+  const serverThread = threads.find((t) => t.id === threadId);
+  const serverQueuedCount = serverThread?.queuedRuns?.length ?? 0;
+  const serverMessageIds = new Set(serverThread?.queuedRuns?.map((r) => r.userMessageId));
+  const pendingLocalCount = queuedMessages.filter((m) => !serverMessageIds.has(m.id as any)).length;
+  const totalQueuedCount = serverQueuedCount + pendingLocalCount;
 
   const shouldUseDragRegion = isElectron && mode !== "sheet";
 
+  const target = useActiveProjectTarget(threadId);
+  const scope = `${environmentId ?? target?.environmentId ?? "local"}:${threadId ?? target?.projectId ?? "projectless"}`;
+  const workspace = useCompanionSurfaceStore(
+    (state) => state.workspaces[scope] ?? EMPTY_COMPANION_WORKSPACE,
+  );
+  const active = workspace.tabs.find((tab) => tab.id === workspace.activeId);
+  const previousScope = useRef(scope);
+  useEffect(() => {
+    if (previousScope.current !== scope) {
+      previousScope.current = scope;
+      if (active) {
+        setActiveTab(active.kind);
+        return;
+      }
+    }
+    if (choosing || active?.kind === activeTab) return;
+    const store = useCompanionSurfaceStore.getState();
+    const existing = workspace.tabs.find((tab) => tab.kind === activeTab);
+    if (existing) store.activate(scope, existing.id);
+    else store.open(scope, activeTab);
+  }, [active?.kind, activeTab, choosing, scope, workspace.tabs, setActiveTab]);
+
   const handleSelectTab = useCallback(
     (tab: RightPanelTab) => {
+      useCompanionSurfaceStore.getState().open(scope, tab);
       setActiveTab(tab);
+      setChoosing(false);
     },
-    [setActiveTab],
+    [scope, setActiveTab, setChoosing],
   );
+  const handleSelectInstance = (id: string) => {
+    const tab = workspace.tabs.find((item) => item.id === id);
+    if (!tab) return;
+    useCompanionSurfaceStore.getState().activate(scope, id);
+    setActiveTab(tab.kind);
+    setChoosing(false);
+  };
+  const handleCloseInstance = async (id: string) => {
+    const tab = workspace.tabs.find((item) => item.id === id);
+    if (
+      tab?.draftContents !== undefined &&
+      !(await showCustomConfirm("Discard this file's unsaved changes?"))
+    )
+      return;
+    if (tab?.kind === "browser" && target && window.desktopBridge) {
+      const sessionId = `agents-surface-${id}`;
+      if (isNativeBrowserRecordingActive(target.projectId, sessionId)) {
+        if (
+          !(await showCustomConfirm("Stop and save the recording before closing this browser tab?"))
+        )
+          return;
+        try {
+          await stopNativeBrowserRecording(window.desktopBridge, target.projectId, sessionId);
+        } catch {
+          return;
+        }
+      }
+      void window.desktopBridge
+        .destroyBrowserSession?.({ projectId: target.projectId, sessionId })
+        .catch(() => undefined);
+    }
+    useCompanionSurfaceStore.getState().close(scope, id);
+    const next = useCompanionSurfaceStore.getState().workspaces[scope];
+    const selected = next?.tabs.find((item) => item.id === next.activeId);
+    if (selected) setActiveTab(selected.kind);
+    else setChoosing(true);
+    requestAnimationFrame(() =>
+      document
+        .getElementById(selected ? `surface-tab-${selected.id}` : "surface-add-button")
+        ?.focus(),
+    );
+  };
 
   return (
-    <div className="flex h-full min-w-0 flex-col bg-background text-foreground">
-      {/* Top Level Surface Switcher Header */}
-      <div
-        className={cn(
-          "flex shrink-0 items-center justify-between border-b border-border/70 bg-muted/20 px-3 py-1.5",
-          shouldUseDragRegion ? "drag-region h-[46px]" : "h-11",
-        )}
-      >
-        {/* Tab switcher buttons */}
-        <div
-          className="tabs-segmented flex items-center [-webkit-app-region:no-drag]"
-          role="tablist"
-          aria-label="Side panel views"
-          onKeyDown={(event) => {
-            if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
-            const tabs = [
-              ...event.currentTarget.querySelectorAll<HTMLButtonElement>('button[role="tab"]'),
-            ];
-            const current = tabs.indexOf(document.activeElement as HTMLButtonElement);
-            if (current < 0 || tabs.length === 0) return;
-            event.preventDefault();
-            const next =
-              event.key === "Home"
-                ? 0
-                : event.key === "End"
-                  ? tabs.length - 1
-                  : (current + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
-            tabs[next]?.focus();
-            tabs[next]?.click();
-          }}
-        >
-          {/* Diffs tab */}
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === "diff"}
-            tabIndex={activeTab === "diff" ? 0 : -1}
-            onClick={() => handleSelectTab("diff")}
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-all duration-150 cursor-pointer select-none",
-              activeTab === "diff"
-                ? "bg-accent text-accent-foreground shadow-2xs"
-                : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-            )}
-          >
-            <FileDiffIcon className="size-3.5" />
-            <span>Diffs</span>
-          </button>
-
-          {/* Stash tab */}
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === "stash"}
-            tabIndex={activeTab === "stash" ? 0 : -1}
-            onClick={() => handleSelectTab("stash")}
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-all duration-150 cursor-pointer select-none",
-              activeTab === "stash"
-                ? "bg-accent text-accent-foreground shadow-2xs"
-                : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-            )}
-          >
-            <BookmarkIcon className="size-3.5 text-foreground" />
-            <span>Stash</span>
-            {stashes.length > 0 && (
-              <span
-                className={cn(
-                  "rounded-full px-1.5 py-0.2 text-[10px] font-mono tabular-nums leading-none",
-                  activeTab === "stash"
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-muted-foreground",
-                )}
-              >
-                {stashes.length}
-              </span>
-            )}
-          </button>
-
-          {/* Queue tab */}
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === "queue"}
-            tabIndex={activeTab === "queue" ? 0 : -1}
-            onClick={() => handleSelectTab("queue")}
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-all duration-150 cursor-pointer select-none",
-              activeTab === "queue"
-                ? "bg-accent text-accent-foreground shadow-2xs"
-                : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-            )}
-          >
-            <ListOrderedIcon className="size-3.5 text-sky-500" />
-            <span>Queue</span>
-            {queuedMessages.length > 0 && (
-              <span
-                className={cn(
-                  "rounded-full px-1.5 py-0.2 text-[10px] font-mono tabular-nums leading-none",
-                  activeTab === "queue"
-                    ? "bg-sky-500 text-white"
-                    : "bg-muted text-muted-foreground",
-                )}
-              >
-                {queuedMessages.length}
-              </span>
-            )}
-          </button>
-        </div>
-
-        {/* Global right panel close button */}
-        <div className="flex items-center gap-1 [-webkit-app-region:no-drag]">
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close side panel"
-            title="Close side panel"
-            className="inline-flex size-6 items-center justify-center rounded-md border border-border/70 bg-background/90 text-muted-foreground transition-colors hover:border-border hover:text-foreground"
-          >
-            <XIcon className="size-3.5" />
-          </button>
-        </div>
-      </div>
+    <div className="companion-frame flex h-full min-w-0 flex-col bg-background text-foreground">
+      <SurfaceTabs
+        instances={workspace.tabs}
+        activeInstanceId={workspace.activeId}
+        onSelectInstance={handleSelectInstance}
+        onCloseInstance={(id) => {
+          void handleCloseInstance(id);
+        }}
+        maximized={maximized}
+        onToggleMaximized={() => setMaximized(!maximized)}
+        choosing={choosing}
+        activeTab={activeTab}
+        onSelect={handleSelectTab}
+        onClosePanel={onClose}
+        dragRegion={shouldUseDragRegion}
+        counts={{ stash: stashes.length, queue: totalQueuedCount }}
+        onChooserChange={setChoosing}
+      />
 
       {/* Surface Body */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        {activeTab === "diff" ? (
-          <DiffWorkerPoolProvider>
-            <Suspense
-              fallback={
-                <DiffPanelShell mode={mode} header={<DiffPanelHeaderSkeleton />}>
-                  <DiffPanelLoadingState label="Loading diff viewer..." />
-                </DiffPanelShell>
-              }
-            >
-              <DiffPanel mode={mode} />
-            </Suspense>
-          </DiffWorkerPoolProvider>
-        ) : activeTab === "stash" ? (
-          <PromptStashPanel
-            activeThreadId={threadId}
-            currentEnvironmentId={environmentId}
-            onLoadedIntoComposer={onClose}
-          />
+      <div
+        id="companion-surface-body"
+        role={choosing ? undefined : "tabpanel"}
+        aria-labelledby={choosing ? undefined : `surface-tab-${active?.id}`}
+        className="flex min-h-0 flex-1 flex-col overflow-hidden"
+      >
+        {choosing ? (
+          <SurfaceChooser onSelect={handleSelectTab} />
+        ) : !active ? null : active.kind === "diff" ? (
+          <CompanionDiffPanel threadId={threadId} />
+        ) : active.kind === "browser" ? (
+          visible ? (
+            <CompanionBrowserPanel
+              key={active.id}
+              surface={active}
+              scope={scope}
+              threadId={threadId}
+            />
+          ) : null
+        ) : active.kind === "files" ? (
+          <CompanionFilesPanel key={active.id} surface={active} scope={scope} threadId={threadId} />
+        ) : active.kind === "terminal" ? (
+          <CompanionTerminalPanel threadId={threadId} />
+        ) : active.kind === "pr" ? (
+          <CompanionPRPanel key={threadId} threadId={threadId} />
+        ) : active.kind === "stash" ? (
+          <div className="companion-workspace">
+            <PromptStashPanel
+              activeThreadId={threadId}
+              currentEnvironmentId={environmentId}
+              onLoadedIntoComposer={onClose}
+            />
+          </div>
         ) : (
-          <MessageQueuePanel activeThreadId={threadId} />
+          <div className="companion-workspace">
+            <MessageQueuePanel activeThreadId={threadId} environmentId={environmentId} />
+          </div>
         )}
       </div>
     </div>

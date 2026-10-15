@@ -1,23 +1,29 @@
-import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
-import * as NodeServices from "@effect/platform-node/NodeServices";
-import * as Effect from "effect/Effect";
-import * as Layer from "effect/Layer";
+/**
+ * Desktop development and server entrypoint.
+ * The modern V2 CLI runs binCli.ts.
+ */
+import { isEntrypoint } from "./entrypoint.ts";
 
-import { CliConfig, tabsCli } from "./main";
-import { OpenLive } from "./open";
-import { Command } from "effect/unstable/cli";
-import { version } from "../package.json" with { type: "json" };
-import { ServerLive } from "./wsServer";
-import { layer as netServiceLayer } from "@tabs/shared/Net";
-import { FetchHttpClient } from "effect/unstable/http";
+if (
+  isEntrypoint({
+    moduleUrl: import.meta.url,
+    entryPath: process.argv[1],
+    runtimeMain: import.meta.main,
+  })
+) {
+  void (async () => {
+    const command = process.argv[2];
+    if (command === "acp-mcp-bridge" || command === "acp-mcp-call") {
+      const { runAcpMcpCliFastPath } = await import("./mcp/AcpMcpStdioBridge.ts");
+      await runAcpMcpCliFastPath(command, process.argv.slice(3));
+    } else {
+      const { runCli } = await import("./binCli.ts");
+      runCli();
+    }
+  })().catch((cause) => {
+    console.error(cause);
+    process.exitCode = 1;
+  });
+}
 
-const RuntimeLayer = Layer.empty.pipe(
-  Layer.provideMerge(CliConfig.layer),
-  Layer.provideMerge(ServerLive),
-  Layer.provideMerge(OpenLive),
-  Layer.provideMerge(netServiceLayer),
-  Layer.provideMerge(NodeServices.layer),
-  Layer.provideMerge(FetchHttpClient.layer),
-);
-
-Command.run(tabsCli, { version }).pipe(Effect.provide(RuntimeLayer), NodeRuntime.runMain);
+export { runCli } from "./binCli.ts";

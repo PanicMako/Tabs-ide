@@ -1,0 +1,5 @@
+# DPoP and relay JWT helpers
+
+Complete five shared files668lines and server auth/dpop source read. Original10/10,288ms exit0 use real Node EC signing and Noble signature verification, malformed JSON/private JWK rejection, method/URL/key/time/token-hash mismatches, and relay error context. Independent RelayJwtBindingAudit.test.ts1/1,204ms exit0 uses actual Ed25519 signed JWT and verifies rejection for wrong typ, issuer, audience and expired age. Restore to packages/shared/src to run.
+
+Shared DPoP implementation/common and relay test are unchanged dependencies, not original-change credit. Relay diff adds new recovery/hook types/header. Server DPoP code hashes thumbprint+jti and creates exclusive replay secret, maps existing marker to replay; full store concurrency/expiry not demonstrated here. Selected RelayDeliveryProof50–100 uses type/issuer/environment audience plus delivery/header/hook binding. No deployed transport, origin construction, relay replay or cloud-device operation verified. Production unchanged.

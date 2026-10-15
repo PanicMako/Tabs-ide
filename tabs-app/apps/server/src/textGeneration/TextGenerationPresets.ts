@@ -1,4 +1,4 @@
-import type { TextGenerationPolicy, TextGenerationPolicyKind } from "./TextGenerationPolicy";
+import type { TextGenerationPolicy, TextGenerationPolicyKind } from "./TextGenerationPolicy.ts";
 
 export const defaultTextGenerationPolicy: TextGenerationPolicy = {
   kind: "default",

@@ -40,16 +40,16 @@ import { ChildProcessSpawner } from "effect/unstable/process";
 import * as EffectAcpErrors from "effect-acp/errors";
 import type * as EffectAcpSchema from "effect-acp/schema";
 
-import { resolveAttachmentPath } from "../../attachmentStore";
-import { ServerConfig } from "../../config";
+import { resolveAttachmentPath } from "../../attachmentStore.ts";
+import { ServerConfig } from "../../config.ts";
 import {
   ProviderAdapterProcessError,
   ProviderAdapterRequestError,
   ProviderAdapterSessionNotFoundError,
   ProviderAdapterValidationError,
-} from "../Errors";
-import { acpPermissionOutcome, mapAcpToAdapterError } from "../acp/AcpAdapterSupport";
-import { type AcpSessionRuntimeShape } from "../acp/AcpSessionRuntime";
+} from "../Errors.ts";
+import { acpPermissionOutcome, mapAcpToAdapterError } from "../acp/AcpAdapterSupport.ts";
+import { type AcpSessionRuntimeShape } from "../acp/AcpSessionRuntime.ts";
 import {
   makeAcpAssistantItemEvent,
   makeAcpContentDeltaEvent,
@@ -57,14 +57,15 @@ import {
   makeAcpRequestOpenedEvent,
   makeAcpRequestResolvedEvent,
   makeAcpToolCallEvent,
-} from "../acp/AcpCoreRuntimeEvents";
+} from "../acp/AcpCoreRuntimeEvents.ts";
 import {
+  type AcpPlanUpdate,
   type AcpSessionMode,
   type AcpSessionModeState,
   parsePermissionRequest,
-} from "../acp/AcpRuntimeModel";
-import { makeAcpNativeLoggerFactory } from "../acp/AcpNativeLogging";
-import { applyCursorAcpModelSelection, makeCursorAcpRuntime } from "../acp/CursorAcpSupport";
+} from "../acp/AcpRuntimeModel.ts";
+import { makeAcpNativeLoggerFactory } from "../acp/AcpNativeLogging.ts";
+import { applyCursorAcpModelSelection, makeCursorAcpRuntime } from "../acp/CursorAcpSupport.ts";
 import {
   CursorAskQuestionRequest,
   CursorCreatePlanRequest,
@@ -72,16 +73,16 @@ import {
   extractAskQuestions,
   extractPlanMarkdown,
   extractTodosAsPlan,
-} from "../acp/CursorAcpExtension";
+} from "../acp/CursorAcpExtension.ts";
 import {
   discoverCursorSkills,
   hasCursorSkillMention,
   rewriteCursorSkillMentions,
-} from "../Drivers/CursorSkills";
-import { type CursorAdapterShape } from "../Services/CursorAdapter";
-import { resolveCursorAcpBaseModelId } from "./CursorProvider";
-import { type EventNdjsonLogger, makeEventNdjsonLogger } from "./EventNdjsonLogger";
-const encodeUnknownJsonStringExit = Schema.encodeUnknownExit(Schema.UnknownFromJsonString);
+} from "../Drivers/CursorSkills.ts";
+import { type CursorAdapterShape } from "../Services/CursorAdapter.ts";
+import { resolveCursorAcpBaseModelId } from "./CursorProvider.ts";
+import { type EventNdjsonLogger, makeEventNdjsonLogger } from "./EventNdjsonLogger.ts";
+const encodeUnknownJsonStringExit = Schema.encodeUnknownExit(Schema.fromJsonString(Schema.Unknown));
 
 const PROVIDER = "cursor" as ProviderDriverKind;
 const CURSOR_RESUME_VERSION = 1 as const;
@@ -413,13 +414,7 @@ export function makeCursorAdapter(
 
     const emitPlanUpdate = (
       ctx: CursorSessionContext,
-      payload: {
-        readonly explanation?: string | null;
-        readonly plan: ReadonlyArray<{
-          readonly step: string;
-          readonly status: "pending" | "inProgress" | "completed";
-        }>;
-      },
+      payload: AcpPlanUpdate,
       rawPayload: unknown,
       source: "acp.jsonrpc" | "acp.cursor.extension",
       method: string,
@@ -633,9 +628,15 @@ export function makeCursorAdapter(
                       "acp.cursor.extension",
                     );
                     if (ctx) {
+                      const todosPlan = extractTodosAsPlan(params);
                       yield* emitPlanUpdate(
                         ctx,
-                        extractTodosAsPlan(params),
+                        {
+                          nativePlanId: "cursor-todos",
+                          kind: "items",
+                          plan: todosPlan.plan,
+                          explanation: todosPlan.explanation,
+                        } as any,
                         params,
                         "acp.cursor.extension",
                         "cursor/update_todos",
@@ -654,7 +655,7 @@ export function makeCursorAdapter(
                     "acp.jsonrpc",
                   );
                   if (input.runtimeMode === "full-access") {
-                    const autoApprovedOptionId = selectAutoApprovedPermissionOption(params);
+                    const autoApprovedOptionId = selectAutoApprovedPermissionOption(params as any);
                     if (autoApprovedOptionId !== undefined) {
                       return {
                         outcome: {
@@ -988,7 +989,7 @@ export function makeCursorAdapter(
 
         const result = yield* ctx.acp
           .prompt({
-            prompt: promptParts,
+            prompt: promptParts as any,
           })
           .pipe(
             Effect.mapError((error) =>

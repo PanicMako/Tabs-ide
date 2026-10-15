@@ -9,8 +9,8 @@ import {
 describe("runtimeTaskList", () => {
   it("normalizes provider task statuses", () => {
     expect(normalizeRuntimeTaskStatus("pending")).toBe("pending");
-    expect(normalizeRuntimeTaskStatus("in_progress")).toBe("inProgress");
-    expect(normalizeRuntimeTaskStatus("inProgress")).toBe("inProgress");
+    expect(normalizeRuntimeTaskStatus("in_progress")).toBe("running");
+    expect(normalizeRuntimeTaskStatus("inProgress")).toBe("running");
     expect(normalizeRuntimeTaskStatus("completed")).toBe("completed");
     expect(normalizeRuntimeTaskStatus("unknown")).toBe("pending");
   });
@@ -18,7 +18,7 @@ describe("runtimeTaskList", () => {
   it("builds trimmed task items and rejects empty labels", () => {
     expect(makeRuntimeTaskListItem("  Inspect files  ", "in_progress")).toEqual({
       task: "Inspect files",
-      status: "inProgress",
+      status: "running",
     });
     expect(makeRuntimeTaskListItem("   ", "pending")).toBeNull();
     expect(makeRuntimeTaskListItem(undefined, "pending")).toBeNull();

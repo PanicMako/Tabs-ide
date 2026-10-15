@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef, useId } from "react";
 import { useTheme } from "../hooks/useTheme";
 import { cn } from "~/lib/utils";
-import { FONT_COMBOS, type FontCombo } from "../lib/themes";
 import "./loaders.css";
+import { resolveAnimationFonts } from "../lib/animationTypography";
 
 // Give the loader enough time to resolve into the Tabs wordmark on a warm
 // launch, then reveal the workspace with a deliberate one-second upward wipe.
@@ -30,31 +30,6 @@ const SOLARI_MESSAGES = [
 const SOLARI_WORD = "TABS IDE";
 
 const SOLARI_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ ".split("");
-
-function resolveAnimationFonts(
-  fontComboId?: string | undefined,
-  customFontProp?: string | undefined,
-): { headingFont?: string | undefined; uiFont?: string | undefined } {
-  if (!fontComboId || fontComboId === "app-default") return {};
-  if (fontComboId === "custom") {
-    const customFont =
-      customFontProp ||
-      (typeof window !== "undefined"
-        ? (window.localStorage?.getItem("tabs.customAnimationFont") ?? "'Inter', sans-serif")
-        : "'Inter', sans-serif");
-    return {
-      headingFont: customFont,
-      uiFont: customFont,
-    };
-  }
-  const combo = FONT_COMBOS.find((c) => c.id === fontComboId);
-  if (!combo) return {};
-  const displayFont = combo.uiFont !== "custom" ? combo.uiFont : undefined;
-  return {
-    headingFont: displayFont,
-    uiFont: displayFont,
-  };
-}
 
 function RotatingLabel({
   messages,
@@ -120,7 +95,13 @@ function MoltenGlass({
 }: {
   palette: "block" | "mono";
   isDark: boolean;
-  fonts?: { headingFont?: string | undefined; uiFont?: string | undefined } | undefined;
+  fonts?:
+    | {
+        headingFont?: string | undefined;
+        headingWeight?: number | undefined;
+        uiFont?: string | undefined;
+      }
+    | undefined;
 }) {
   const filterId = useId().replace(/:/g, "");
   const isBlock = palette === "block";
@@ -145,7 +126,11 @@ function MoltenGlass({
   }, []);
 
   const headingStyle = fonts?.headingFont
-    ? { fontFamily: fonts.headingFont, filter: `url(#${filterId})` }
+    ? {
+        fontFamily: fonts.headingFont,
+        fontWeight: fonts.headingWeight,
+        filter: `url(#${filterId})`,
+      }
     : { filter: `url(#${filterId})` };
 
   return (
@@ -226,12 +211,14 @@ function SolariTile({
   isBlock,
   isDark,
   tileFont,
+  tileWeight,
 }: {
   target: string;
   index: number;
   isBlock: boolean;
   isDark: boolean;
   tileFont?: string | undefined;
+  tileWeight?: number | undefined;
 }) {
   const [ch, setCh] = useState(target);
   const [justSettled, setJustSettled] = useState(false);
@@ -273,7 +260,7 @@ function SolariTile({
               )
             : cn("border-border shadow-none", isDark ? "bg-white/4" : "bg-black/3"),
       )}
-      style={tileFont ? { fontFamily: tileFont } : undefined}
+      style={tileFont ? { fontFamily: tileFont, fontWeight: tileWeight } : undefined}
     >
       <div className="absolute inset-x-0 top-1/2 h-px bg-black/35" />
       {ch === " " ? "\u00A0" : ch}
@@ -288,7 +275,13 @@ function SolariGrid({
 }: {
   palette: "block" | "mono";
   isDark: boolean;
-  fonts?: { headingFont?: string | undefined; uiFont?: string | undefined } | undefined;
+  fonts?:
+    | {
+        headingFont?: string | undefined;
+        headingWeight?: number | undefined;
+        uiFont?: string | undefined;
+      }
+    | undefined;
 }) {
   const word = "TABS IDE".padEnd(8, " ").split("");
   const isBlock = palette === "block";
@@ -316,6 +309,7 @@ function SolariGrid({
               isBlock={isBlock}
               isDark={isDark}
               tileFont={fonts?.headingFont || fonts?.uiFont}
+              tileWeight={fonts?.headingWeight}
             />
           ))}
         </div>
@@ -352,7 +346,7 @@ export function SplashScreen({
   fontComboId,
   customFont,
 }: SplashScreenProps) {
-  const { resolvedTheme } = useTheme();
+  const { resolvedTheme, fontPreferences } = useTheme();
   const effectiveTheme =
     overrideTheme && overrideTheme !== "system" ? overrideTheme : resolvedTheme;
   const isDark = effectiveTheme === "dark";
@@ -372,7 +366,7 @@ export function SplashScreen({
         undefined)
       : undefined);
 
-  const fonts = resolveAnimationFonts(storedComboId, storedCustomFont);
+  const fonts = resolveAnimationFonts(storedComboId, storedCustomFont, fontPreferences);
 
   return (
     <div

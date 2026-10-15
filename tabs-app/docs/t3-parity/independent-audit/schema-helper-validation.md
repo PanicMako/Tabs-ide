@@ -1,0 +1,5 @@
+# JSON/YAML schema helpers
+
+HEAD bb89383e8516d6ee6c730579be3e353a8e43a0e9. Fourfiles627lines complete afterrecovering initialtruncatedJSONtail/test; fullmodifiedJSONdiff read. Fresh17/17,244ms exit0 actualSchema/yaml. JSONdiagnostics removeactualvalues/custommessages, retainboundedpaths, atmost8issues/16segments/64charsegment/2048output andomittedcount; genericdefectsummary omitsmessage. YAMLparseerrors exposecode/location, stringifyerrors generic. Tests prove selectedinvalidvalue secrecy, not arbitraryinput-controlledkey secrecy.
+
+LenientJSONcomment/trailingcomma support andbalancedobjectextraction reviewed. Regexpreprocessing doesnotconstitute fullJSONClexer; mixedcomment token edgecases andresourcebounds notindependentlytested. Diagnostics outputbounded butrecursiveissuewalking stilltraversesentiretree; no actualDoS/runtimefailureclaim. Callersearch JSONWStransport/server/settings/providers/keybindings confirmed; YAMLdirectproductionconsumer notfound. Fulltransport/settings/nativeexecution proofpending; no newdefectconfirmed andproductionunchanged.

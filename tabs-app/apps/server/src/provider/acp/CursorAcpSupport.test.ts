@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { applyCursorAcpModelSelection, buildCursorAcpSpawnInput } from "./CursorAcpSupport";
 
-const parameterizedGpt54ConfigOptions: ReadonlyArray<EffectAcpSchema.SessionConfigOption> = [
+const parameterizedGpt54ConfigOptions: any = [
   {
     id: "model",
     name: "Model",
@@ -106,7 +106,7 @@ describe("applyCursorAcpModelSelection", () => {
 
     await Effect.runPromise(
       applyCursorAcpModelSelection({
-        runtime,
+        runtime: runtime as any,
         model: "gpt-5.4-medium-fast[reasoning=medium,context=272k]",
         selections: [
           { id: "reasoning", value: "xhigh" },

@@ -186,10 +186,7 @@ export function PullRequestThreadDialog({
       <DialogPopup className="max-w-xl">
         <DialogHeader>
           <DialogTitle>Checkout Pull Request</DialogTitle>
-          <DialogDescription>
-            Resolve a GitHub pull request, then create the draft thread in the main repo or in a
-            dedicated worktree.
-          </DialogDescription>
+          <DialogDescription>Start a thread from a GitHub pull request.</DialogDescription>
         </DialogHeader>
         <DialogPanel className="space-y-4">
           <label className="grid gap-1.5">

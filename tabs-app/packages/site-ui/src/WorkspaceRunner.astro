@@ -1,0 +1,44 @@
+<details class="workspace-runner" data-workspace-runner>
+  <summary>Take a little break · Lose the window shuffle</summary>
+  <div class="runner-body">
+    <p>Jump over scattered windows and collect Code, Agents, Git, and Browser into one workspace. A playful take on keeping your tools together.</p>
+    <p>Choose animated or untimed play, then Start. Use the Jump button or Up arrow. Pause whenever you like; Escape closes the game. No account, timer in untimed mode, or saved score.</p>
+    <label>Play mode <select data-runner-mode><option value="animated">Animated runner</option><option value="untimed">Untimed, one encounter at a time</option></select></label>
+    <svg data-runner-scene viewBox="0 0 640 180" aria-hidden="true" focusable="false">
+      <path d="M0 165H640" stroke="currentColor" opacity=".2" />
+      <g data-runner-player transform="translate(70,132)"><rect width="44" height="32" rx="7" fill="currentColor" /><text x="22" y="21" font-size="11" text-anchor="middle" fill="white">Tabs</text></g>
+      <g data-runner-obstacle transform="translate(510,0)"><rect x="0" y="110" width="90" height="54" rx="7" fill="none" stroke="currentColor" stroke-width="2" /><path d="M0 123H90" stroke="currentColor" /><text data-runner-label x="45" y="146" text-anchor="middle" font-size="10" fill="currentColor">Window shuffle</text></g>
+      <text x="12" y="25" font-size="12" fill="currentColor">YOUR WORKSPACE →</text>
+    </svg>
+    <p data-runner-collected>In your workspace: no tools yet</p>
+    <p data-runner-status role="status" aria-live="polite" aria-atomic="true">Open the game to load its controls.</p>
+    <div class="runner-controls"><button type="button" data-runner-start>Start run</button><button type="button" data-runner-jump disabled>Jump</button><button type="button" data-runner-advance hidden disabled>Advance / collect</button><button type="button" data-runner-pause disabled>Resume run</button></div>
+    <noscript><p>JavaScript is required for this optional game. Browsing does not depend on playing.</p></noscript>
+  </div>
+</details>
+<script>
+  for (const root of document.querySelectorAll<HTMLDetailsElement>("[data-workspace-runner]")) {
+    let loading = false;
+    root.addEventListener("toggle", async () => {
+      if (!root.open || loading || root.dataset.ready === "true") return;
+      loading = true;
+      try { const { mountWorkspaceRunner } = await import("./workspaceRunner"); mountWorkspaceRunner(root); }
+      catch { const status = root.querySelector<HTMLElement>("[data-runner-status]"); if (status) status.textContent = "Game unavailable. Close and reopen to retry; other features are unaffected."; }
+      finally { loading = false; }
+    });
+  }
+</script>
+<style>
+  .workspace-runner { margin: 32px 0; padding: 24px; border: 1px solid #dce2ee; border-radius: 18px; background: #fbfcfe; color: #202b44; font: 14px/1.6 "DM Sans", system-ui, sans-serif; }
+  summary { cursor: pointer; font-size: 18px; font-weight: 600; }
+  .runner-body { max-width: 760px; }
+  svg { display: block; width: 100%; height: auto; margin: 24px 0; color: #3259ed; border: 1px solid #dce2ee; border-radius: 12px; background: #f1f4fd; }
+  label { display: grid; gap: 8px; max-width: 340px; }
+  select, button { font: inherit; min-height: 44px; padding: 10px 16px; border: 1px solid #dce2ee; border-radius: 8px; color: #202b44; background: #fff; }
+  .runner-controls { display: flex; flex-wrap: wrap; gap: 10px; }
+  button { cursor: pointer; }
+  button:disabled { cursor: not-allowed; opacity: .6; }
+  button[data-runner-start] { background: #3259ed; color: #fff; border-color: #3259ed; }
+  :is(summary, button, select):focus-visible { outline: 3px solid #3259ed; outline-offset: 4px; }
+  [hidden] { display: none !important; }
+</style>

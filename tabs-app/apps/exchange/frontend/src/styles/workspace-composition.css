@@ -1,0 +1,1121 @@
+/* Exchange is a working publication desk. Color belongs to actions and recorded state;
+   forms, team records and operational evidence use the same quiet document rhythm. */
+body[data-dashboard="true"] {
+  background: #fbfcfe;
+  --accent: #3259ed;
+}
+[data-dashboard="true"] main.dashboard-main {
+  max-width: 1440px;
+  padding: 40px clamp(20px, 4vw, 64px) 80px;
+}
+[data-dashboard="true"] .dashboard-layout {
+  grid-template-columns: 180px minmax(0, 1fr);
+  gap: clamp(32px, 5vw, 76px);
+}
+[data-dashboard="true"] .dashboard-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 32px;
+  padding-bottom: 28px;
+  border-bottom: 1px solid var(--line);
+}
+.dashboard-heading-copy {
+  min-width: 0;
+  flex: 1;
+}
+[data-dashboard="true"] .dashboard-heading h1 {
+  font-size: clamp(36px, 4vw, 58px);
+  font-weight: 500;
+  letter-spacing: -0.06em;
+  line-height: 1.06;
+  margin: 14px 0;
+}
+[data-dashboard="true"] .dashboard-heading h1 em {
+  font-weight: 400;
+  letter-spacing: -0.025em;
+}
+[data-dashboard="true"] .dashboard-heading .eyebrow {
+  color: var(--muted);
+  font-size: 11px;
+}
+[data-dashboard="true"] .dashboard-heading-copy > p:last-child {
+  font-size: 14px;
+  max-width: 60ch;
+  margin: 0;
+  color: var(--muted);
+}
+[data-dashboard="true"] .dashboard-sidebar {
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+.workspace-rail-caption {
+  display: none;
+}
+[data-dashboard="true"] .dashboard-sidebar .step-label {
+  font-size: 10px;
+  margin: 8px 0 16px;
+  color: var(--muted);
+}
+@media (min-width: 1025px) {
+  [data-dashboard="true"] .dashboard-sidebar .account-nav-link {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    min-height: 46px;
+    padding: 10px 0;
+    margin: 0;
+    border-radius: 0;
+    font-size: 14px;
+    font-weight: 450;
+    background: transparent;
+    box-shadow: none;
+  }
+  [data-dashboard="true"] .dashboard-sidebar .account-nav-link small {
+    display: none;
+  }
+  [data-dashboard="true"] .dashboard-sidebar .account-nav-link[aria-current="page"] {
+    color: var(--accent);
+    background: transparent;
+    box-shadow: none;
+    font-weight: 650;
+  }
+  [data-dashboard="true"] .dashboard-role-nav {
+    padding-top: 18px;
+    margin-top: 20px;
+    border-top: 1px solid var(--line);
+  }
+}
+.dashboard-drawing {
+  flex: 0 0 150px;
+  width: 150px;
+}
+.dashboard-drawing svg {
+  width: 100%;
+  display: block;
+  overflow: visible;
+}
+.dashboard-drawing .drawing-micro {
+  font:
+    8px "DM Sans Variable",
+    sans-serif;
+  letter-spacing: 0.5px;
+  fill: #636c7b;
+}
+.dashboard-drawing text[fill="white"] {
+  fill: white;
+}
+.dashboard-drawing text[fill="#3259ed"] {
+  fill: #3259ed;
+}
+.dashboard-drawing .drawing-title {
+  font:
+    20px "Instrument Serif",
+    serif;
+  fill: #202b44;
+}
+[data-dashboard="true"] .task-panel-heading {
+  display: block;
+  min-height: 0;
+  margin-bottom: 24px;
+}
+.task-panel-heading > .dashboard-drawing {
+  display: block;
+  width: 112px;
+  flex-basis: 112px;
+}
+[data-dashboard="true"] .task-panel-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: center;
+}
+[data-dashboard="true"] .task-panel-heading h2 {
+  font-size: 28px;
+  font-weight: 500;
+  letter-spacing: -0.04em;
+  margin: 0;
+}
+[data-dashboard="true"] .task-panel-heading .step-label {
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+/* Task navigation reads as a compact index, separate from the document below. */
+[data-dashboard="true"] .workspace-controls {
+  gap: 8px;
+  padding: 0 0 20px;
+  border-bottom: 1px solid var(--line);
+}
+[data-dashboard="true"] .workspace-controls a,
+[data-dashboard="true"] .workspace-controls > a {
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  box-shadow: none;
+  min-height: 44px;
+  padding: 10px 14px;
+  margin: 0;
+  color: var(--muted);
+}
+[data-dashboard="true"] .workspace-controls a[aria-current="location"] {
+  background: #edf0fb;
+  color: var(--accent);
+  border: 0;
+  box-shadow: none;
+}
+[data-dashboard="true"] .workspace-controls strong {
+  font-size: 13px;
+  font-weight: 550;
+}
+[data-dashboard="true"] .workspace-controls a:hover:not([aria-current]) {
+  background: #f1f3f7;
+  border: 0;
+}
+[data-dashboard="true"] .operations-nav a[aria-current="page"] {
+  box-shadow: none;
+  font-weight: 650;
+}
+
+/* A single surface for each task; no accent strips or nested card frames. */
+[data-dashboard="true"] :is(.publisher-ledger, .operations-ledger, .release-desk, .dashboard-task) {
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  padding: 28px 0;
+  margin: 28px 0;
+}
+[data-dashboard="true"] :is(.namespace-memberships, .namespace-team-grid .dashboard-task) {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+[data-dashboard="true"] :is(.operations-panel, .access-studio .operations-panel),
+[data-dashboard="true"] :is(.advanced-control-room, .review-control-room) > [data-workspace-panel] {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 28px 0;
+  margin: 0;
+}
+body[data-dashboard="true"][data-page="operations"]
+  :is(#security-content, #review-content)
+  > section[data-workspace-panel] {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 28px 0;
+  margin: 0;
+}
+[data-dashboard="true"]
+  :is(.advanced-control-room, .review-control-room, .security-control-room)
+  .task-form,
+[data-dashboard="true"] .advanced-identity-grid > div .task-form,
+[data-dashboard="true"]
+  :is(
+    #blocked-digests-section,
+    #verification-section,
+    #security-material-panel,
+    #security-ownership-panel
+  )
+  > .task-form {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+  margin: 24px 0;
+  max-width: 640px;
+}
+[data-dashboard="true"]
+  :is(
+    #account-status,
+    #roles-status,
+    #security-status,
+    #review-status,
+    .operator-identity,
+    .access-prerequisite,
+    .notice
+  ) {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  padding: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+[data-dashboard="true"] :is(button.button, a.button, .button, .dashboard-task button) {
+  box-shadow: none;
+}
+[data-dashboard="true"] .package-inspection {
+  border: 0;
+  padding: 0;
+}
+[data-dashboard="true"] .package-inspection .task-form {
+  padding: 20px 0;
+  background: transparent;
+}
+[data-dashboard="true"] :is(.task-help, .review-guidance, .scope-help) {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+}
+[data-dashboard="true"] :is(.task-help, .review-guidance, .scope-help) > summary {
+  min-height: 44px;
+  padding: 12px 0;
+  font-size: 13px;
+}
+
+/* Namespace records and their team are adjacent; invitations have their own inbox. */
+[data-dashboard="true"] #account-namespaces {
+  list-style: none;
+  padding: 0;
+  margin: 20px 0;
+}
+[data-dashboard="true"] #account-namespaces > li {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  padding: 16px 0;
+  margin: 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  overflow-wrap: anywhere;
+}
+.namespace-record-name {
+  font-size: 18px;
+  font-weight: 550;
+  letter-spacing: -0.025em;
+}
+.namespace-record-access,
+.namespace-record-verification {
+  font-size: 12px;
+  color: var(--muted);
+}
+[data-dashboard="true"] #namespace-members {
+  margin: 0 0 40px;
+}
+[data-dashboard="true"] #namespace-members .member-desk {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  padding: 24px;
+  margin: 20px 0;
+}
+[data-dashboard="true"] .member-desk .section-heading {
+  gap: 16px;
+  align-items: center;
+}
+[data-dashboard="true"] #namespace-members .member-desk h2 {
+  font-size: 20px;
+  margin: 0;
+}
+[data-dashboard="true"] .member-desk > p {
+  font-size: 13px;
+  max-width: 70ch;
+  margin: 12px 0 20px;
+}
+[data-dashboard="true"] .member-desk h3 {
+  font-size: 13px;
+  margin: 24px 0 0;
+  color: var(--muted);
+}
+[data-dashboard="true"] .member-desk > ul {
+  margin: 8px 0;
+  padding: 0;
+}
+[data-dashboard="true"] .member-desk li {
+  padding: 12px 0;
+}
+[data-dashboard="true"] .member-desk .member-identity {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0;
+  font-size: 14px;
+}
+.member-role {
+  font-size: 12px;
+  color: var(--muted);
+}
+[data-dashboard="true"] .member-desk details {
+  margin: 8px 0 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+}
+[data-dashboard="true"] .member-desk > [role="status"] {
+  font-size: 12px;
+  margin: 16px 0 0;
+}
+[data-dashboard="true"] .namespace-team-grid {
+  gap: 48px;
+  align-items: start;
+  margin: 40px 0;
+}
+[data-dashboard="true"] .namespace-team-grid .dashboard-task {
+  height: auto;
+}
+[data-dashboard="true"] .collaborator-desk .task-form {
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+[data-dashboard="true"] .invitation-desk {
+  padding-left: 28px;
+  border-left: 1px solid var(--line);
+}
+[data-dashboard="true"] .invitation-desk > p {
+  font-size: 13px;
+  color: var(--muted);
+}
+[data-dashboard="true"] :is(.task-desk, .access-create-desk) {
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  padding: 32px 0;
+  gap: 40px;
+  margin: 32px 0;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+}
+[data-dashboard="true"]
+  :is(.task-intro, .token-panel-intro, .task-desk > div:last-child, .access-form-side) {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+[data-dashboard="true"] :is(.task-intro, .token-panel-intro) h2 {
+  font-size: 28px;
+  font-weight: 500;
+  letter-spacing: -0.04em;
+}
+[data-dashboard="true"] .namespace-example {
+  margin: 24px 0 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  transform: none;
+  background: transparent;
+  font: 13px monospace;
+}
+[data-dashboard="true"] .namespace-example span:first-child {
+  color: var(--ink);
+}
+[data-dashboard="true"] .access-form-side::before,
+[data-dashboard="true"] .access-form-side::after {
+  content: none;
+}
+.access-lifetime {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  margin: 24px 0 0;
+  font-size: 14px;
+}
+.access-lifetime > span {
+  font-size: 14px;
+  font-weight: 650;
+}
+.access-lifetime small {
+  font-size: 12px;
+  color: var(--muted);
+}
+[data-dashboard="true"] .scope-help {
+  margin-top: 16px;
+}
+
+/* Overview: actions above the release ledger, followed by actual account records. */
+.workbench-intro {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: baseline;
+  margin-bottom: 24px;
+}
+.workbench-intro p {
+  margin: 0;
+  font-size: 14px;
+}
+.workbench-intro a {
+  font-size: 12px;
+}
+.workbench-caption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 16px;
+}
+[data-dashboard="true"] .workbench-caption h2 {
+  font-size: 16px;
+  font-weight: 550;
+  margin: 0;
+}
+.workbench-caption > span,
+.workbench-dot {
+  display: none;
+}
+.workbench-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.workbench-tabs > a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+}
+.workbench-tabs > a:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.workbench-sheet {
+  margin-top: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
+[data-dashboard="true"] .workbench-record .overview-releases {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+[data-dashboard="true"] .workbench-record h2 {
+  font-size: 28px;
+  font-weight: 500;
+  letter-spacing: -0.04em;
+  margin: 0;
+}
+[data-dashboard="true"] .workbench-record #submissions-count {
+  font-size: 12px;
+  margin: 16px 0;
+}
+[data-dashboard="true"] .overview-releases > .text-link {
+  display: inline-flex;
+  margin-top: 20px;
+  font-size: 13px;
+}
+[data-dashboard="true"] .overview-releases #account-submissions .submission-digest {
+  display: none;
+}
+[data-dashboard="true"] .account-namespace-panel #account-namespaces > li {
+  border: 0;
+}
+
+/* Exact package records share readable identity, provenance and material columns. */
+[data-dashboard="true"] #account-submissions > li {
+  align-items: center;
+  padding: 22px 0;
+}
+[data-dashboard="true"] .submission-link {
+  display: block;
+  color: var(--ink);
+  text-decoration: none;
+}
+.submission-publisher {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.submission-tool {
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.035em;
+}
+.submission-version {
+  font: 12px monospace;
+  color: var(--muted);
+  margin-left: 12px;
+}
+[data-dashboard="true"] .submission-link:hover .submission-tool {
+  color: var(--accent);
+}
+[data-dashboard="true"] .submission-state-badge {
+  font-size: 12px;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--muted);
+}
+[data-dashboard="true"] #account-submissions .submission-digest {
+  font: 11px/1.6 monospace;
+  color: var(--muted);
+}
+[data-dashboard="true"] .release-passport {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+  gap: 36px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  margin-bottom: 32px;
+}
+.release-passport-identity {
+  padding: 0;
+}
+[data-dashboard="true"] .release-passport #submission-identity {
+  font-size: 28px;
+  font-weight: 500;
+  letter-spacing: -0.04em;
+}
+[data-dashboard="true"] .release-passport #submission-state {
+  font-size: 14px;
+}
+[data-dashboard="true"] .release-passport #submission-metadata {
+  display: block;
+  border: 0;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  margin-top: 24px;
+}
+[data-dashboard="true"] .release-passport #submission-metadata dt {
+  font-size: 11px;
+  color: var(--muted);
+  padding: 16px 0 4px;
+  border: 0;
+}
+[data-dashboard="true"] .release-passport #submission-metadata dd {
+  font: 12px/1.6 monospace;
+  padding: 0 0 16px;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+[data-dashboard="true"] .release-passport-lifecycle {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+[data-dashboard="true"] #submission-timeline {
+  list-style: none;
+  padding: 0;
+  margin: 24px 0;
+}
+[data-dashboard="true"] #submission-timeline > li {
+  position: relative;
+  padding: 0 0 24px 26px;
+  border: 0;
+  border-left: 1px solid var(--line);
+  margin: 0 0 0 6px;
+  font-size: 12px;
+  background: transparent;
+  border-radius: 0;
+}
+[data-dashboard="true"] #submission-timeline > li::before {
+  content: "";
+  position: absolute;
+  left: -5px;
+  top: 5px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+[data-dashboard="true"] #submission-timeline > li[data-recorded="false"]::before {
+  background: #fbfcfe;
+  border: 1px solid #a0a9ba;
+}
+[data-dashboard="true"] #submission-timeline > li:last-child {
+  border-left-color: transparent;
+  padding-bottom: 0;
+}
+[data-dashboard="true"] #submission-timeline > li > strong {
+  display: block;
+  font-weight: 550;
+  margin-bottom: 6px;
+}
+[data-dashboard="true"] #submission-timeline time {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+}
+[data-dashboard="true"] .release-passport-lifecycle > p {
+  font-size: 12px;
+  color: var(--muted);
+}
+[data-dashboard="true"] #submission-correction-options {
+  padding: 24px 0;
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+}
+[data-dashboard="true"] #submission-correction-options .task-form {
+  max-width: 640px;
+}
+
+/* Review data is a record, not a collection of colored cards. */
+[data-dashboard="true"] #review-history-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  max-width: none;
+}
+[data-dashboard="true"] #review-history-form > button {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+[data-dashboard="true"]
+  :is(
+    #review-history-versions,
+    #review-history-decisions,
+    #review-operations-activity,
+    #review-appeals,
+    #security-blocked
+  ) {
+  list-style: none;
+  padding: 0;
+}
+[data-dashboard="true"]
+  :is(
+    #review-history-versions,
+    #review-history-decisions,
+    #review-operations-activity,
+    #review-appeals,
+    #security-blocked
+  )
+  > li {
+  padding: 18px 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  overflow-wrap: anywhere;
+}
+[data-dashboard="true"] #review-health-panel {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 28px 0;
+}
+[data-dashboard="true"] #review-health-panel h3 {
+  font-size: 16px;
+}
+[data-dashboard="true"] #review-operations-metadata {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 0;
+  gap: 0 24px;
+  list-style: none;
+}
+[data-dashboard="true"] #review-operations-metadata > li {
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  padding: 16px 0;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+[data-dashboard="true"] .review-health-strip {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: transparent;
+}
+[data-dashboard="true"] .access-boundaries {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+  margin: 28px 0 0;
+}
+[data-dashboard="true"] .role-boundary-map strong {
+  font:
+    550 17px/1.4 "DM Sans Variable",
+    sans-serif;
+  color: var(--ink);
+}
+[data-dashboard="true"] .audit-list > .team-empty {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 16px 0;
+}
+[data-dashboard="true"] .team-empty strong {
+  font:
+    500 14px/1.5 "DM Sans Variable",
+    sans-serif;
+  color: var(--ink);
+}
+[data-dashboard="true"] .history-record-title {
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+}
+[data-dashboard="true"] .history-record-provenance {
+  font-size: 11px;
+  color: var(--muted);
+  margin: 8px 0;
+}
+[data-dashboard="true"] .history-record-digest {
+  font: 11px/1.6 monospace;
+  color: var(--muted);
+  margin: 8px 0;
+  overflow-wrap: anywhere;
+}
+[data-dashboard="true"] .history-record-reason {
+  font-size: 13px;
+  line-height: 1.6;
+  max-width: 72ch;
+  margin: 14px 0 0;
+}
+
+/* Publishing concentrates on the selected archive. The operational diagram stays in the guide. */
+[data-dashboard="true"]
+  :is(
+    .publish-panel,
+    .publish-step,
+    .publication-guide,
+    .package-drop,
+    #advanced-upload .task-form
+  ) {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
+[data-dashboard="true"] .publish-step {
+  padding: 0 0 28px;
+}
+[data-dashboard="true"] .upload-art {
+  display: block;
+}
+[data-dashboard="true"] :is(.package-drop, #upload-drop) {
+  border: 1px dashed #a0a9ba;
+  border-radius: 8px;
+  background: white;
+  padding: 24px;
+}
+[data-dashboard="true"] .publication-guide {
+  padding: 0 0 0 28px;
+  border-left: 1px solid var(--line);
+}
+[data-dashboard="true"] .publish-layout h2 {
+  font-size: 24px;
+}
+
+@media (max-width: 1024px) {
+  [data-dashboard="true"] .dashboard-layout {
+    grid-template-columns: 1fr;
+  }
+  [data-dashboard="true"] .dashboard-sidebar .step-label {
+    display: none;
+  }
+  /* This must outrank the desktop sidebar's transparent background. */
+  [data-dashboard="true"] .dashboard-sidebar.dashboard-menu-open {
+    background: #3259ed;
+    opacity: 1;
+    animation: none;
+    color: white;
+    border: 0;
+    z-index: 100;
+    padding: 24px;
+  }
+  [data-dashboard="true"] .dashboard-sidebar.dashboard-menu-open .account-nav-link {
+    color: white;
+    background: transparent;
+    box-shadow: none;
+  }
+  [data-dashboard="true"] .dashboard-sidebar.dashboard-menu-open .account-nav-link small {
+    color: #e0e7ff;
+  }
+}
+@media (max-width: 680px) {
+  [data-dashboard="true"] main.dashboard-main {
+    padding: 24px 18px 48px;
+  }
+  [data-dashboard="true"] .dashboard-heading {
+    gap: 12px;
+    align-items: flex-start;
+  }
+  .dashboard-heading > .dashboard-drawing {
+    width: 70px;
+    flex-basis: 70px;
+    margin-top: 28px;
+  }
+  [data-dashboard="true"] .dashboard-heading h1 {
+    font-size: 34px;
+  }
+  [data-dashboard="true"] .task-panel-heading h2 {
+    font-size: 26px;
+  }
+  [data-dashboard="true"] :is(.task-desk, .access-create-desk) {
+    grid-template-columns: 1fr;
+    gap: 24px;
+    padding: 28px 0;
+  }
+  [data-dashboard="true"] .namespace-team-grid {
+    gap: 32px;
+  }
+  [data-dashboard="true"] .invitation-desk {
+    border-left: 0;
+    border-top: 1px solid var(--line);
+    padding: 24px 0 0;
+  }
+  [data-dashboard="true"] .member-desk {
+    padding: 20px;
+  }
+  [data-dashboard="true"] .member-desk .section-heading {
+    align-items: flex-start;
+  }
+  .workbench-intro {
+    flex-direction: column;
+    gap: 6px;
+  }
+  .workbench-tabs {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .workbench-tabs > a {
+    padding: 14px 16px;
+  }
+  [data-dashboard="true"]
+    :is(#review-history-form, #review-operations-metadata, .release-passport) {
+    grid-template-columns: 1fr;
+  }
+  [data-dashboard="true"] .publication-guide {
+    padding: 24px 0 0;
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+}
+
+/* Roster actions expand into a deliberate, local decision surface. */
+[data-dashboard="true"] .member-desk .team-roster > li {
+  position: relative;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line);
+  list-style: none;
+}
+[data-dashboard="true"] .member-desk .member-identity {
+  align-items: center;
+  justify-content: start;
+  flex-wrap: wrap;
+  gap: 10px;
+  min-height: 40px;
+  padding-right: 160px;
+}
+[data-dashboard="true"] .member-desk .member-role {
+  margin-left: auto;
+  text-transform: capitalize;
+}
+.member-monogram {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: #edf0f6;
+  color: #53617b;
+  font-size: 11px;
+  font-weight: 650;
+}
+[data-dashboard="true"] .member-desk .member-access {
+  margin: 0;
+}
+[data-dashboard="true"] .member-access > summary {
+  position: absolute;
+  top: 18px;
+  right: 0;
+  list-style: none;
+  font-size: 12px;
+  font-weight: 550;
+  color: var(--muted);
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.member-access > summary::-webkit-details-marker {
+  display: none;
+}
+[data-dashboard="true"] .member-access[open] > summary {
+  color: var(--ink);
+  background: #edf0f6;
+}
+[data-dashboard="true"] .member-desk .member-decision {
+  max-width: 640px;
+  margin: 16px 0 0;
+  padding: 20px;
+  background: #f5f6f9;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 16px;
+}
+[data-dashboard="true"] .member-decision > p {
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 0;
+}
+[data-dashboard="true"] .member-decision .decision-reason {
+  display: grid;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 550;
+}
+[data-dashboard="true"] .member-decision textarea {
+  min-height: 88px;
+}
+[data-dashboard="true"] .member-decision .decision-acknowledgement {
+  display: flex;
+  align-items: start;
+  gap: 10px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+[data-dashboard="true"] .decision-acknowledgement input {
+  flex: 0 0 auto;
+  margin-top: 3px;
+}
+.decision-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+[data-dashboard="true"] .decision-actions .button {
+  font-size: 12px;
+  min-height: 40px;
+  padding: 9px 13px;
+  box-shadow: none;
+}
+[data-dashboard="true"] .decision-actions .decision-submit {
+  background: #9e3443;
+  border-color: #9e3443;
+  color: white;
+}
+@media (max-width: 600px) {
+  [data-dashboard="true"] .member-desk .member-identity {
+    padding-right: 0;
+    padding-bottom: 42px;
+  }
+  [data-dashboard="true"] .member-desk .member-role {
+    margin-left: 0;
+  }
+  [data-dashboard="true"] .member-access > summary {
+    top: 58px;
+    left: 0;
+    right: auto;
+  }
+  [data-dashboard="true"] .member-desk .member-decision {
+    padding: 16px;
+  }
+  .task-panel-heading > .dashboard-drawing {
+    width: 80px;
+    flex-basis: 80px;
+  }
+}
+
+[data-dashboard="true"] .publish-name-planner {
+  margin: 24px 0;
+  padding: 24px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+[data-dashboard="true"] .publish-name-planner h3 {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+[data-dashboard="true"] .publish-name-planner p {
+  font-size: 13px;
+  line-height: 1.6;
+}
+.name-planner-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin: 20px 0 16px;
+}
+.name-planner-fields label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.name-planner-actions {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+[data-dashboard="true"] #tool-name-status {
+  color: var(--muted);
+  margin: 12px 0;
+}
+[data-dashboard="true"] #tool-name-selection pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: #f4f6fa;
+  padding: 16px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+@media (max-width: 600px) {
+  .name-planner-fields {
+    grid-template-columns: 1fr;
+  }
+}
+
+[data-dashboard="true"] .member-protected {
+  position: absolute;
+  top: 28px;
+  right: 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+[data-dashboard="true"] .member-desk .team-roster {
+  list-style: none;
+  padding: 0;
+}
+[data-dashboard="true"] .member-decision label {
+  margin: 0;
+}
+[data-dashboard="true"] .member-decision :is(input:not([type="checkbox"]), textarea) {
+  margin: 0;
+  border-radius: 6px;
+}
+@media (max-width: 600px) {
+  [data-dashboard="true"] .member-protected {
+    top: 66px;
+    left: 0;
+    right: auto;
+  }
+}
+
+/* Keep task controls legible throughout hover; illustration motion stays intact. */
+[data-dashboard="true"] .button.secondary::before,
+[data-dashboard="true"] .button.secondary::after {
+  content: none;
+}
+[data-dashboard="true"] .button.secondary:hover:not(:disabled) {
+  background: #edf0fb;
+  color: var(--accent);
+  border-color: #bbc7ec;
+  transform: none;
+  box-shadow: none;
+}

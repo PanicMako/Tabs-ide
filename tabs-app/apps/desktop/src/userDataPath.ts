@@ -33,6 +33,14 @@ export const CANONICAL_DEV_DIR_NAME = "tabs-dev";
 export const VERIFIED_LEGACY_PROD_DIR_NAMES = ["Tabs (Alpha)", "Tabs"] as const;
 export const VERIFIED_LEGACY_DEV_DIR_NAMES = ["Tabs (Dev)"] as const;
 
+export function resolveDesktopBaseDir(
+  isDevelopment: boolean,
+  configuredPath: string | undefined = process.env.TABS_HOME,
+  homedir: string = OS.homedir(),
+): string {
+  return configuredPath?.trim() || Path.join(homedir, isDevelopment ? ".tabs-dev" : ".tabs");
+}
+
 export function resolveDesktopStateDir(baseDir: string, isDevelopment: boolean): string {
   return Path.join(baseDir, isDevelopment ? "dev" : "userdata");
 }

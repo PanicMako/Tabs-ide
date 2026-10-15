@@ -1,0 +1,16 @@
+{
+  "name": "tabs-exchange-monitor",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "cf dev",
+    "build": "cf build",
+    "deploy": "cf deploy",
+    "test": "node --test worker.test.mjs"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "beta",
+    "cf": "1.0.0-beta.17",
+    "vite": "^8.3.0"
+  }
+}

@@ -1,38 +1,69 @@
 import {
   ArrowDownIcon,
   ArrowUpIcon,
-  ClockIcon,
-  PlayIcon,
   SendIcon,
   Trash2Icon,
-  ListOrderedIcon,
+  InfoIcon,
+  ChevronDownIcon,
   CalendarClockIcon,
   ZapIcon,
 } from "lucide-react";
 import { memo, useCallback, useState } from "react";
-import type { ThreadId } from "@tabs/contracts";
+import * as DateTime from "effect/DateTime";
+import { useAtomValue } from "@effect/atom-react";
+import type { EnvironmentId, ThreadId } from "@tabs/contracts";
+import type { RunId } from "@tabs/contracts";
+import { environmentApi } from "~/connection/environmentApiRegistry";
 import {
   useMessageQueueStore,
   getThreadQueuedMessages,
+  sendNextQueuedItem,
+  retryQueuedMessage,
   type QueuedMessage,
+  type QueuedMessageIntakeStatus,
 } from "~/stores/messageQueueStore";
+import { threadsAtom } from "~/state/threads";
 import { formatRelativeTime } from "~/timestampFormat";
-import { cn } from "~/lib/utils";
+import { cn, newCommandId } from "~/lib/utils";
 import { Button } from "../ui/button";
-import { ScrollArea } from "../ui/scroll-area";
 import { toastManager } from "../ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
-import { Popover, PopoverTrigger, PopoverPopup } from "../ui/popover";
-import { AppleTimePicker } from "../ui/AppleTimePicker";
+import { Dialog, DialogTrigger, DialogPopup, DialogTitle } from "../ui/dialog";
+import { CompanionEmpty } from "../agents/companion/CompanionChrome";
+import { showCustomConfirm } from "~/lib/customConfirm";
+import { SchedulePicker } from "../ui/SchedulePicker";
+
+if (typeof window !== "undefined") {
+  (window as any).__tabsMessageQueueStore = useMessageQueueStore;
+}
+
+export interface UnifiedQueueItem {
+  readonly id: string;
+  readonly runId?: RunId | undefined;
+  readonly userMessageId: string;
+  readonly text: string;
+  readonly scheduledFor?: string | null | undefined;
+  readonly attachments?: ReadonlyArray<any> | undefined;
+  readonly files?: ReadonlyArray<any> | undefined;
+  readonly dispatchError?: string | undefined;
+  readonly intakeStatus?: QueuedMessageIntakeStatus | undefined;
+  readonly cancellationError?: string | undefined;
+  readonly isServerAuthoritative: boolean;
+  readonly queuePosition?: number | null | undefined;
+  readonly queueHeld?: boolean | undefined;
+  readonly createdAt: string;
+}
 
 export interface MessageQueuePanelProps {
   activeThreadId?: ThreadId | null | undefined;
+  environmentId?: EnvironmentId | null | undefined;
   onSendNow?: ((message: QueuedMessage) => void) | undefined;
   className?: string | undefined;
 }
 
 export const MessageQueuePanel = memo(function MessageQueuePanel({
   activeThreadId,
+  environmentId,
   onSendNow,
   className,
 }: MessageQueuePanelProps) {
@@ -42,273 +73,583 @@ export const MessageQueuePanel = memo(function MessageQueuePanel({
   const reorderQueue = useMessageQueueStore((state) => state.reorderQueue);
   const updateMessageSchedule = useMessageQueueStore((state) => state.updateMessageSchedule);
 
+  const threads = useAtomValue(threadsAtom);
+  const currentThread = threads.find(
+    (t) =>
+      t.id === activeThreadId && (environmentId === undefined || t.environmentId === environmentId),
+  );
+  const serverQueuedRuns = currentThread?.queuedRuns ?? [];
+  const localQueuedMessages = getThreadQueuedMessages(queueByThread, activeThreadId);
+
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [schedulingMsgId, setSchedulingMsgId] = useState<string | null>(null);
+  const [inFlightActionIds, setInFlightActionIds] = useState<Set<string>>(() => new Set());
 
-  const queuedMessages = getThreadQueuedMessages(queueByThread, activeThreadId);
+  const serverUserMessageIds = new Set(serverQueuedRuns.map((r) => r.userMessageId));
 
-  const handleClear = useCallback(() => {
+  const serverItems: UnifiedQueueItem[] = serverQueuedRuns.map((r) => ({
+    id: r.id,
+    runId: r.id,
+    userMessageId: r.userMessageId,
+    text: r.text,
+    scheduledFor: r.scheduledFor,
+    attachments: r.attachments,
+    isServerAuthoritative: true,
+    queuePosition: r.queuePosition,
+    queueHeld: r.queueHeld,
+    createdAt: r.createdAt,
+  }));
+
+  const localPendingItems: UnifiedQueueItem[] = localQueuedMessages
+    .filter((m) => {
+      if (serverUserMessageIds.has(m.id as any)) return false;
+      if (environmentId !== undefined && m.environmentId && m.environmentId !== environmentId) {
+        return false;
+      }
+      return true;
+    })
+    .map((m) => ({
+      id: m.id,
+      runId: undefined,
+      userMessageId: m.id,
+      text: m.text,
+      scheduledFor: m.scheduledFor,
+      attachments: m.attachments,
+      files: m.files,
+      dispatchError: m.dispatchError,
+      intakeStatus: m.intakeStatus,
+      cancellationError: m.cancellationError,
+      isServerAuthoritative: false,
+      createdAt: m.createdAt,
+    }));
+
+  const queuedItems: UnifiedQueueItem[] = [...serverItems, ...localPendingItems];
+
+  const handleClear = useCallback(async () => {
     if (!activeThreadId) return;
+    if (!(await showCustomConfirm("Remove every queued message in this thread?"))) return;
+    const serverRuns = queuedItems.filter((i) => i.isServerAuthoritative && i.runId);
     clearQueue(activeThreadId);
-    toastManager.add({
-      type: "info",
-      title: "Queue cleared",
-      description: "Removed all queued messages for this thread.",
-    });
-  }, [activeThreadId, clearQueue]);
-
-  const handleDelete = useCallback(
-    (msgId: string) => {
-      if (!activeThreadId) return;
-      removeQueuedMessage(activeThreadId, msgId);
+    if (serverRuns.length > 0 && environmentId !== undefined) {
+      try {
+        const api = await environmentApi(environmentId);
+        await Promise.all(
+          serverRuns.map((item) =>
+            api.orchestration.dispatchCommand({
+              type: "queued-run.cancel",
+              commandId: newCommandId(),
+              threadId: activeThreadId,
+              runId: item.runId!,
+            }),
+          ),
+        );
+        toastManager.add({
+          type: "info",
+          title: "Queue cleared",
+          description: "Removed all queued messages for this thread.",
+        });
+      } catch (err) {
+        toastManager.add({
+          type: "error",
+          title: "Failed to clear queued runs",
+          description: err instanceof Error ? err.message : String(err),
+        });
+      }
+    } else {
       toastManager.add({
         type: "info",
-        title: "Message removed from queue",
+        title: "Queue cleared",
+        description: "Removed all queued messages for this thread.",
       });
+    }
+  }, [activeThreadId, clearQueue, environmentId, queuedItems]);
+
+  const handleDelete = useCallback(
+    async (item: UnifiedQueueItem) => {
+      if (!activeThreadId) return;
+      if (inFlightActionIds.has(item.id)) return;
+      if (item.intakeStatus === "cancellation_requested") return;
+
+      if (item.isServerAuthoritative && item.runId) {
+        setInFlightActionIds((prev) => new Set(prev).add(item.id));
+        try {
+          const api = await environmentApi(environmentId);
+          await api.orchestration.dispatchCommand({
+            type: "queued-run.cancel",
+            commandId: newCommandId(),
+            threadId: activeThreadId,
+            runId: item.runId,
+          });
+          toastManager.add({
+            type: "info",
+            title: "Queued run cancelled",
+          });
+        } catch (err) {
+          toastManager.add({
+            type: "error",
+            title: "Failed to cancel queued run",
+            description: err instanceof Error ? err.message : String(err),
+          });
+        } finally {
+          setInFlightActionIds((prev) => {
+            const next = new Set(prev);
+            next.delete(item.id);
+            return next;
+          });
+        }
+      } else {
+        removeQueuedMessage(activeThreadId, item.userMessageId);
+        toastManager.add({
+          type: "info",
+          title: "Message removed from queue",
+        });
+      }
     },
-    [activeThreadId, removeQueuedMessage],
+    [activeThreadId, environmentId, inFlightActionIds, removeQueuedMessage],
+  );
+
+  const handleSendNext = useCallback(
+    async (item: UnifiedQueueItem) => {
+      if (!activeThreadId) return;
+      if (inFlightActionIds.has(item.id)) return;
+
+      setInFlightActionIds((prev) => new Set(prev).add(item.id));
+      try {
+        const api = await environmentApi(environmentId);
+        await sendNextQueuedItem(
+          activeThreadId,
+          {
+            userMessageId: item.userMessageId,
+            runId: item.runId,
+            isServerAuthoritative: item.isServerAuthoritative,
+            text: item.text,
+            attachments: item.attachments,
+            environmentId,
+          },
+          api,
+          serverQueuedRuns,
+        );
+        toastManager.add({
+          type: "success",
+          title: "Moved to front of queue",
+          description: "Schedule cleared. Will send next when the agent is ready.",
+        });
+      } catch (err) {
+        toastManager.add({
+          type: "error",
+          title: "Failed to send next",
+          description: err instanceof Error ? err.message : String(err),
+        });
+      } finally {
+        setInFlightActionIds((prev) => {
+          const next = new Set(prev);
+          next.delete(item.id);
+          return next;
+        });
+      }
+    },
+    [activeThreadId, environmentId, inFlightActionIds, serverQueuedRuns],
+  );
+
+  const handleRetry = useCallback(
+    async (item: UnifiedQueueItem) => {
+      if (!activeThreadId) return;
+      if (inFlightActionIds.has(item.id)) return;
+
+      setInFlightActionIds((prev) => new Set(prev).add(item.id));
+      try {
+        const api = await environmentApi(environmentId);
+        const success = await retryQueuedMessage(activeThreadId, item.userMessageId, api);
+        if (success) {
+          toastManager.add({
+            type: "success",
+            title: "Queued message retried",
+          });
+        }
+      } catch (err) {
+        toastManager.add({
+          type: "error",
+          title: "Failed to retry queued message",
+          description: err instanceof Error ? err.message : String(err),
+        });
+      } finally {
+        setInFlightActionIds((prev) => {
+          const next = new Set(prev);
+          next.delete(item.id);
+          return next;
+        });
+      }
+    },
+    [activeThreadId, environmentId, inFlightActionIds],
   );
 
   const handleUpdateSchedule = useCallback(
-    (msgId: string, date: Date | null) => {
+    async (item: UnifiedQueueItem, date: Date | null) => {
       if (!activeThreadId) return;
-      updateMessageSchedule(activeThreadId, msgId, date ? date.toISOString() : null);
       setSchedulingMsgId(null);
-      toastManager.add({
-        type: "success",
-        title: date ? "Schedule updated" : "Scheduled removed",
-        description: date
-          ? `Will dispatch on ${date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
-          : "Will dispatch automatically on turn completion.",
-      });
+      if (item.isServerAuthoritative && item.runId) {
+        try {
+          const api = await environmentApi(environmentId);
+          await api.orchestration.dispatchCommand({
+            type: "queued-run.edit",
+            commandId: newCommandId(),
+            threadId: activeThreadId,
+            runId: item.runId,
+            text: item.text,
+            scheduledFor: date ? DateTime.makeUnsafe(date) : null,
+          });
+          toastManager.add({
+            type: "success",
+            title: date ? "Schedule updated" : "Schedule removed",
+            description: date
+              ? `Will dispatch on ${date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
+              : "Will send when the agent is idle and the composer is empty.",
+          });
+        } catch (err) {
+          toastManager.add({
+            type: "error",
+            title: "Failed to update schedule",
+            description: err instanceof Error ? err.message : String(err),
+          });
+        }
+      } else {
+        updateMessageSchedule(activeThreadId, item.userMessageId, date ? date.toISOString() : null);
+        toastManager.add({
+          type: "success",
+          title: date ? "Schedule updated" : "Schedule removed",
+          description: date
+            ? `Will dispatch on ${date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
+            : "Will send when the agent is idle and the composer is empty.",
+        });
+      }
     },
-    [activeThreadId, updateMessageSchedule],
+    [activeThreadId, environmentId, updateMessageSchedule],
+  );
+
+  const handleReorder = useCallback(
+    async (fromIndex: number, toIndex: number) => {
+      if (!activeThreadId) return;
+      const target = queuedItems[fromIndex];
+      if (!target) return;
+      if (target.isServerAuthoritative && target.runId) {
+        const reordered = [...queuedItems];
+        const [moved] = reordered.splice(fromIndex, 1);
+        if (moved) {
+          reordered.splice(toIndex, 0, moved);
+          const nextTarget = reordered[toIndex + 1];
+          try {
+            const api = await environmentApi(environmentId);
+            await api.orchestration.dispatchCommand({
+              type: "queued-run.reorder",
+              commandId: newCommandId(),
+              threadId: activeThreadId,
+              runId: target.runId,
+              beforeRunId: nextTarget?.runId ?? null,
+            });
+          } catch (err) {
+            toastManager.add({
+              type: "error",
+              title: "Failed to reorder queued runs",
+              description: err instanceof Error ? err.message : String(err),
+            });
+          }
+        }
+      } else {
+        reorderQueue(activeThreadId, fromIndex, toIndex);
+      }
+    },
+    [activeThreadId, environmentId, queuedItems, reorderQueue],
   );
 
   return (
-    <div className={cn("flex h-full min-h-0 flex-col bg-background text-foreground", className)}>
-      {/* Header */}
-      <div className="flex shrink-0 items-center justify-between border-b border-border/60 p-3">
-        <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-          <ListOrderedIcon className="size-4 text-foreground" />
-          <span>Message Queue</span>
-          <span className="ml-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-mono tabular-nums text-muted-foreground">
-            {queuedMessages.length}
-          </span>
-        </div>
-        {queuedMessages.length > 0 && (
+    <div
+      className={cn(
+        "companion-queue flex h-full min-h-0 flex-col bg-background text-foreground",
+        className,
+      )}
+    >
+      <div className="companion-toolbar queue-toolbar" data-testid="queue-toolbar">
+        <span className="queue-toolbar-label">When ready</span>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-7"
+                aria-label="How queued messages send"
+              />
+            }
+          >
+            <InfoIcon size={14} />
+          </TooltipTrigger>
+          <TooltipPopup>
+            Messages send in order when the agent is idle and the composer is empty. Scheduled
+            messages wait until their time arrives. Send next moves a message to the front and
+            removes its schedule.
+          </TooltipPopup>
+        </Tooltip>
+        {queuedItems.length > 0 && (
           <Button
             type="button"
             variant="ghost"
-            size="sm"
-            onClick={handleClear}
-            className="h-6 px-2 text-[11px] text-muted-foreground hover:text-destructive"
+            size="icon"
+            className="ml-auto size-7 text-muted-foreground hover:text-destructive"
+            aria-label="Clear queue"
+            title="Clear queue"
+            data-testid="queue-clear-button"
+            onClick={() => void handleClear()}
           >
-            <Trash2Icon className="mr-1 size-3" />
-            Clear queue
+            <Trash2Icon size={14} />
           </Button>
         )}
       </div>
 
-      {/* Helper notice */}
-      <div className="bg-muted/30 px-3 py-2 border-b border-border/40 text-[11px] text-muted-foreground leading-relaxed">
-        <span className="font-medium text-foreground">Auto-dispatch:</span> Messages queued here
-        execute in order. Messages with a scheduled time wait until their scheduled time arrives.
-      </div>
-
       {/* Main List Area */}
-      {queuedMessages.length === 0 ? (
-        <div className="flex flex-1 flex-col items-center justify-center p-6 text-center text-xs text-muted-foreground">
-          <div className="mb-3 flex size-12 items-center justify-center rounded-2xl bg-muted/60 text-muted-foreground/70">
-            <ClockIcon className="size-6" />
-          </div>
-          <p className="font-medium text-foreground">No messages in queue</p>
-          <p className="mt-1 max-w-xs text-[11px] text-muted-foreground/80 leading-relaxed">
-            While the agent is working, write your follow-up message in the composer and click{" "}
-            <span className="font-semibold text-foreground">Queue</span> or schedule it for a
-            specific time.
-          </p>
-        </div>
+      {queuedItems.length === 0 ? (
+        <CompanionEmpty kind="queue" title="What’s next?">
+          Queue a follow-up from the composer. It will send when the agent is ready.
+        </CompanionEmpty>
       ) : (
-        <ScrollArea className="flex-1 overflow-y-auto p-2">
-          <div className="space-y-2">
-            {queuedMessages.map((msg, index) => {
-              const { value: timeVal, suffix: timeSuffix } = formatRelativeTime(msg.createdAt);
-              const isFirst = index === 0;
-              const isLast = index === queuedMessages.length - 1;
+        <div className="queue-messages">
+          {queuedItems.map((item, index) => {
+            const { value: timeVal, suffix: timeSuffix } = formatRelativeTime(item.createdAt);
+            const isFirst = index === 0;
+            const isLast = index === queuedItems.length - 1;
 
-              const isScheduled = Boolean(msg.scheduledFor);
-              const scheduledDate = msg.scheduledFor ? new Date(msg.scheduledFor) : null;
-              const isPastScheduled = scheduledDate && scheduledDate.getTime() <= Date.now();
+            const isScheduled = Boolean(item.scheduledFor);
+            const scheduledDate = item.scheduledFor ? new Date(item.scheduledFor) : null;
+            const expanded = expandedId === item.id;
+            const normalized = item.text.trim().replace(/\s+/g, " ");
+            const snippet =
+              normalized.length > 120
+                ? `${normalized.slice(0, 117)}…`
+                : normalized || "Attached follow-up";
 
-              return (
-                <div
-                  key={msg.id}
-                  className="group relative flex flex-col gap-2 rounded-lg border border-border/70 bg-card/60 p-3 shadow-2xs transition-colors hover:border-border"
-                >
-                  <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                    <div className="flex items-center gap-1.5 font-semibold text-foreground">
-                      <span className="flex size-5 items-center justify-center rounded-full bg-primary/10 text-[10px] font-bold text-foreground">
-                        #{index + 1}
-                      </span>
-                      <span>{isFirst ? "Up Next" : `Queue Position ${index + 1}`}</span>
-                    </div>
-
-                    <div className="flex items-center gap-1">
-                      <span>
-                        {timeVal} {timeSuffix ?? ""}
-                      </span>
-
-                      {/* Reorder Buttons */}
-                      <div className="flex items-center ml-1 opacity-80 group-hover:opacity-100">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          disabled={isFirst || !activeThreadId}
-                          onClick={() =>
-                            activeThreadId && reorderQueue(activeThreadId, index, index - 1)
-                          }
-                          className="size-5 text-muted-foreground disabled:opacity-20 cursor-pointer"
-                          title="Move up"
-                        >
-                          <ArrowUpIcon className="size-3" />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          disabled={isLast || !activeThreadId}
-                          onClick={() =>
-                            activeThreadId && reorderQueue(activeThreadId, index, index + 1)
-                          }
-                          className="size-5 text-muted-foreground disabled:opacity-20 cursor-pointer"
-                          title="Move down"
-                        >
-                          <ArrowDownIcon className="size-3" />
-                        </Button>
-                      </div>
-
-                      {/* Delete */}
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDelete(msg.id)}
-                        className="size-5 text-muted-foreground hover:text-destructive ml-0.5 cursor-pointer"
-                        title="Delete from queue"
-                      >
-                        <Trash2Icon className="size-3" />
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* Message Preview */}
-                  <div className="rounded-md bg-muted/40 p-2 font-mono text-xs leading-relaxed whitespace-pre-wrap select-text text-foreground">
-                    {msg.text}
-                  </div>
-
-                  {/* Attachments preview */}
-                  {msg.attachments && msg.attachments.length > 0 && (
-                    <div className="flex items-center gap-1.5 pt-1">
-                      {msg.attachments.map((att) => (
-                        <img
-                          key={att.id}
-                          src={att.dataUrl}
-                          alt={att.name}
-                          className="size-8 rounded border border-border/80 object-cover"
-                        />
-                      ))}
-                      <span className="text-[10px] text-muted-foreground">
-                        {msg.attachments.length} attachment{msg.attachments.length === 1 ? "" : "s"}
-                      </span>
-                    </div>
+            return (
+              <article
+                key={item.id}
+                className="queue-message"
+                data-testid="queue-item"
+                data-run-id={item.runId ?? ""}
+              >
+                <div className="queue-message-meta">
+                  <span className="queue-position">{String(index + 1).padStart(2, "0")}</span>
+                  <span>{isFirst ? "Next" : "In line"}</span>
+                  <time dateTime={item.createdAt}>
+                    {timeVal} {timeSuffix ?? ""}
+                  </time>
+                  {item.isServerAuthoritative && (
+                    <span className="text-[10px] text-muted-foreground ml-auto font-mono">
+                      server
+                    </span>
                   )}
+                  {item.intakeStatus === "cancellation_requested" && (
+                    <span
+                      className="text-[11px] text-amber-500 font-medium ml-2"
+                      data-testid="queue-cancelling-badge"
+                    >
+                      Cancelling...
+                    </span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  className="queue-message-heading"
+                  aria-label={`Preview queued message: ${snippet}`}
+                  aria-expanded={expanded}
+                  onClick={() => setExpandedId(expanded ? null : item.id)}
+                >
+                  <span className="queue-message-title">{snippet}</span>
+                  <ChevronDownIcon
+                    size={14}
+                    className={expanded ? "rotate-180 shrink-0" : "shrink-0"}
+                    aria-hidden="true"
+                  />
+                </button>
+                {expanded && <p className="queue-message-text">{item.text}</p>}
 
-                  {/* Dispatch Trigger Bar */}
-                  <div className="flex items-center justify-between pt-1 text-[11px]">
-                    <div className="flex items-center gap-1">
-                      <Popover
-                        open={schedulingMsgId === msg.id}
-                        onOpenChange={(open) => setSchedulingMsgId(open ? msg.id : null)}
-                        modal
-                      >
-                        <PopoverTrigger
-                          render={
-                            <button
-                              type="button"
-                              className={cn(
-                                "flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors cursor-pointer",
-                                isScheduled
-                                  ? isPastScheduled
-                                    ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
-                                    : "bg-primary/10 text-foreground hover:bg-primary/20"
-                                  : "bg-muted/70 text-muted-foreground hover:text-foreground",
-                              )}
-                            >
-                              {isScheduled ? (
-                                <>
-                                  <CalendarClockIcon className="size-3" />
-                                  <span>
-                                    {scheduledDate?.toLocaleDateString([], {
-                                      weekday: "short",
-                                      hour: "numeric",
-                                      minute: "2-digit",
-                                    })}
-                                  </span>
-                                </>
-                              ) : (
-                                <>
-                                  <ZapIcon className="size-3" />
-                                  <span>Next turn</span>
-                                </>
-                              )}
-                            </button>
-                          }
-                        />
-                        <PopoverPopup
-                          align="start"
-                          side="top"
-                          hasBackdrop
-                          className="p-0 border-none bg-transparent shadow-none"
-                        >
-                          <AppleTimePicker
-                            value={scheduledDate ?? undefined}
-                            onConfirm={(date) => handleUpdateSchedule(msg.id, date)}
-                            onCancel={() => setSchedulingMsgId(null)}
-                          />
-                        </PopoverPopup>
-                      </Popover>
+                {item.dispatchError && (
+                  <p
+                    role="alert"
+                    className="rounded-lg bg-destructive/10 p-2 text-xs text-destructive"
+                  >
+                    {item.dispatchError}
+                  </p>
+                )}
+                {item.intakeStatus === "cancellation_failed" && (
+                  <p
+                    role="alert"
+                    data-testid="queue-cancellation-error"
+                    className="rounded-lg bg-destructive/10 p-2 text-xs text-destructive"
+                  >
+                    Cancellation failed:{" "}
+                    {item.cancellationError || "Unable to cancel queued run on server."}
+                  </p>
+                )}
+                {(item.files?.length ?? 0) > 0 && (
+                  <div className="stash-files">
+                    {item.files!.map((file) => (
+                      <span key={file.id}>{file.name}</span>
+                    ))}
+                  </div>
+                )}
+                {/* Attachments preview */}
+                {item.attachments && item.attachments.length > 0 && (
+                  <div className="stash-images">
+                    {item.attachments.map((image: any) => (
+                      <figure key={image.id}>
+                        <img src={image.previewUrl || image.dataUrl || ""} alt={image.name} />
+                        <figcaption title={image.name}>{image.name}</figcaption>
+                      </figure>
+                    ))}
+                  </div>
+                )}
 
-                      {isScheduled && (
+                {/* Dispatch Trigger Bar */}
+                <div className="queue-message-controls">
+                  <Dialog
+                    open={schedulingMsgId === item.id}
+                    onOpenChange={(open) => setSchedulingMsgId(open ? item.id : null)}
+                  >
+                    <DialogTrigger
+                      render={
                         <button
                           type="button"
-                          onClick={() => handleUpdateSchedule(msg.id, null)}
-                          className="text-[10px] text-muted-foreground hover:text-foreground underline cursor-pointer ml-1"
+                          className="queue-schedule"
+                          aria-label={`Schedule queued message ${index + 1}`}
+                          data-testid={`queue-schedule-button-${index + 1}`}
                         >
-                          Clear time
+                          {isScheduled ? (
+                            <>
+                              <CalendarClockIcon className="size-3" />
+                              <span>
+                                {scheduledDate?.toLocaleDateString([], {
+                                  weekday: "short",
+                                  hour: "numeric",
+                                  minute: "2-digit",
+                                })}
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <ZapIcon className="size-3" />
+                              <span>When ready</span>
+                            </>
+                          )}
                         </button>
-                      )}
-                    </div>
+                      }
+                    />
+                    <DialogPopup
+                      showCloseButton={false}
+                      bottomStickOnMobile={false}
+                      className="max-w-[620px] overflow-auto"
+                    >
+                      <DialogTitle className="sr-only">Schedule message</DialogTitle>
+                      <SchedulePicker
+                        value={scheduledDate ?? undefined}
+                        onConfirm={(date) => handleUpdateSchedule(item, date)}
+                        onCancel={() => setSchedulingMsgId(null)}
+                      />
+                    </DialogPopup>
+                  </Dialog>
 
-                    {/* Manual Send Now */}
-                    {onSendNow && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => onSendNow(msg)}
-                        className="h-6 gap-1 px-2 text-[11px] font-medium text-foreground hover:bg-accent cursor-pointer"
-                      >
-                        <SendIcon className="size-3 text-foreground" />
-                        <span>Dispatch Now</span>
-                      </Button>
-                    )}
+                  {isScheduled && (
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateSchedule(item, null)}
+                      className="text-[10px] text-muted-foreground hover:text-foreground underline cursor-pointer ml-1"
+                    >
+                      Clear time
+                    </button>
+                  )}
+                  <div className="queue-reorder">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-7"
+                      aria-label={`Move queued message ${index + 1} up`}
+                      data-testid={`queue-move-up-button-${index + 1}`}
+                      disabled={isFirst || !activeThreadId || inFlightActionIds.has(item.id)}
+                      onClick={() => void handleReorder(index, index - 1)}
+                    >
+                      <ArrowUpIcon size={13} />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-7"
+                      aria-label={`Move queued message ${index + 1} down`}
+                      data-testid={`queue-move-down-button-${index + 1}`}
+                      disabled={isLast || !activeThreadId || inFlightActionIds.has(item.id)}
+                      onClick={() => void handleReorder(index, index + 1)}
+                    >
+                      <ArrowDownIcon size={13} />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-7 text-muted-foreground hover:text-destructive"
+                      aria-label={`Delete queued message ${index + 1}`}
+                      data-testid={`queue-delete-button-${index + 1}`}
+                      disabled={
+                        inFlightActionIds.has(item.id) ||
+                        item.intakeStatus === "cancellation_requested"
+                      }
+                      onClick={() => void handleDelete(item)}
+                    >
+                      <Trash2Icon size={13} />
+                    </Button>
                   </div>
+                  {/* Manual Send Next / Retry */}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    data-testid={
+                      item.dispatchError ? "queue-retry-button" : "queue-send-next-button"
+                    }
+                    aria-label={
+                      item.dispatchError
+                        ? `Retry sending queued message ${index + 1}`
+                        : `Send queued message ${index + 1} next`
+                    }
+                    disabled={
+                      inFlightActionIds.has(item.id) ||
+                      item.intakeStatus === "cancellation_requested"
+                    }
+                    onClick={async () => {
+                      if (item.dispatchError) {
+                        await handleRetry(item);
+                      } else {
+                        await handleSendNext(item);
+                      }
+                      if (onSendNow) {
+                        onSendNow({
+                          id: item.userMessageId,
+                          threadId: activeThreadId!,
+                          environmentId,
+                          text: item.text,
+                          createdAt: item.createdAt,
+                          attachments: item.attachments as any,
+                          files: item.files as any,
+                        });
+                      }
+                    }}
+                    className="h-6 gap-1 px-2 text-[11px] font-medium text-foreground hover:bg-accent cursor-pointer disabled:opacity-50"
+                  >
+                    <SendIcon className="size-3 text-foreground" />
+                    <span>{item.dispatchError ? "Retry" : "Send next"}</span>
+                  </Button>
                 </div>
-              );
-            })}
-          </div>
-        </ScrollArea>
+              </article>
+            );
+          })}
+        </div>
       )}
     </div>
   );

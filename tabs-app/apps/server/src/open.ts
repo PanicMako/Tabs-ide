@@ -18,7 +18,7 @@ import { Schema, Effect, Layer } from "effect";
 // Definitions
 // ==============================
 
-export class OpenError extends Schema.TaggedErrorClass<OpenError>()("OpenError", {
+export class OpenError extends Schema.TaggedError<OpenError>()("OpenError", {
   message: Schema.String,
   cause: Schema.optional(Schema.Unknown),
 }) {}

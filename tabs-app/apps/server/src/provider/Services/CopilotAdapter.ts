@@ -3,8 +3,8 @@
  *
  * @module CopilotAdapter
  */
-import type { ProviderAdapterError } from "../Errors";
-import type { ProviderAdapterShape } from "./ProviderAdapter";
+import type { ProviderAdapterError } from "../Errors.ts";
+import type { ProviderAdapterShape } from "./ProviderAdapter.ts";
 
 /**
  * CopilotAdapterShape — per-instance Copilot adapter contract.

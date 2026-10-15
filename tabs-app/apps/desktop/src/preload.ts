@@ -30,6 +30,7 @@ const QUIT_CONFIRMATION_RESPONSE_CHANNEL = "desktop:quit-confirmation-response";
 const GET_CONFIRM_BEFORE_QUIT_CHANNEL = "desktop:get-confirm-before-quit";
 const SET_CONFIRM_BEFORE_QUIT_CHANNEL = "desktop:set-confirm-before-quit";
 const RESET_TABS_USER_DATA_CHANNEL = "desktop:reset-tabs-user-data";
+const GET_BACKEND_STARTUP_ERROR_CHANNEL = "desktop:get-backend-startup-error";
 const GET_TABS_DATA_RESET_STARTUP_ERROR_CHANNEL = "desktop:get-data-reset-startup-error";
 const APP_CLEANUP_DONE_CHANNEL = "desktop:app-cleanup-done";
 const APP_READY_TO_EXIT_CHANNEL = "desktop:app-ready-to-exit";
@@ -71,6 +72,30 @@ const CODE_HOST_RUN_COMMAND_CHANNEL = "vscode:tabs-code-host:run-command";
 const CODE_HOST_GET_CHROME_STATE_CHANNEL = "desktop:code-host:get-chrome-state";
 const CODE_HOST_CHROME_STATE_CHANNEL = "desktop:code-host:chrome-state";
 const BROWSER_HOST_GET_STATE_CHANNEL = "desktop:browser-host:get-state";
+const EXTENSION_LIST_CHANNEL = "desktop:extension:list";
+const EXTENSION_CHANGED_CHANNEL = "desktop:extension:changed";
+const EXTENSION_DISCOVER_CHANNEL = "desktop:extension:discover";
+const EXTENSION_CHECK_UPDATE_CHANNEL = "desktop:extension:check-update";
+const EXTENSION_EXCHANGE_AVAILABLE_CHANNEL = "desktop:extension:exchange-available";
+const EXTENSION_EXCHANGE_PREPARE_CHANNEL = "desktop:extension:exchange-prepare";
+const EXTENSION_EXCHANGE_CONFIRM_CHANNEL = "desktop:extension:exchange-confirm";
+const EXTENSION_EXCHANGE_CANCEL_CHANNEL = "desktop:extension:exchange-cancel";
+const EXTENSION_UNINSTALL_CHANNEL = "desktop:extension:uninstall";
+const EXTENSION_SET_DISABLED_CHANNEL = "desktop:extension:set-disabled";
+const EXTENSION_SET_UPDATES_PINNED_CHANNEL = "desktop:extension:set-updates-pinned";
+const EXTENSION_INSTALL_DEV_CHANNEL = "desktop:extension:install-dev";
+const EXTENSION_RELOAD_DEV_CHANNEL = "desktop:extension:reload-dev";
+const REGISTRY_CONNECTION_CHANNEL = "desktop:extension:registry-connection";
+const REGISTRY_CREDENTIAL_CHANNEL = "desktop:extension:registry-credential";
+const EXTENSION_INSTALL_LOCAL_PACKAGE_CHANNEL = "desktop:extension:install-local-package";
+const EXTENSION_ASSIGN_CHANNEL = "desktop:extension:assign";
+const EXTENSION_ADD_PROFILE_CHANNEL = "desktop:extension:add-profile";
+const EXTENSION_CREDENTIALS_LIST_CHANNEL = "desktop:extension:credentials-list";
+const EXTENSION_CREDENTIAL_SET_CHANNEL = "desktop:extension:credential-set";
+const EXTENSION_ACTIVATE_CHANNEL = "desktop:extension:activate";
+const EXTENSION_VIEW_ERROR_CHANNEL = "desktop:extension:view-error";
+const EXTENSION_SET_BOUNDS_CHANNEL = "desktop:extension:set-bounds";
+const EXTENSION_HIDE_CHANNEL = "desktop:extension:hide";
 const BROWSER_HOST_GET_SESSION_STATE_CHANNEL = "desktop:browser-host:get-session-state";
 const BROWSER_HOST_ENSURE_SESSION_CHANNEL = "desktop:browser-host:ensure-session";
 const BROWSER_HOST_ACTIVATE_SESSION_CHANNEL = "desktop:browser-host:activate-session";
@@ -269,6 +294,65 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   captureBrowserComparison: (input) =>
     ipcRenderer.invoke("desktop:browser-comparison:capture", input),
   getBrowserHostState: () => ipcRenderer.invoke(BROWSER_HOST_GET_STATE_CHANNEL),
+  listExtensions: () => ipcRenderer.invoke(EXTENSION_LIST_CHANNEL),
+  onExtensionsChanged: (listener) => {
+    const handler = () => listener();
+    ipcRenderer.on(EXTENSION_CHANGED_CHANNEL, handler);
+    return () => ipcRenderer.removeListener(EXTENSION_CHANGED_CHANNEL, handler);
+  },
+  onExtensionViewError: (listener) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      payload: Parameters<NonNullable<DesktopBridge["onExtensionViewError"]>>[0] extends (
+        event: infer E,
+      ) => void
+        ? E
+        : never,
+    ) => listener(payload);
+    ipcRenderer.on(EXTENSION_VIEW_ERROR_CHANNEL, handler);
+    return () => ipcRenderer.removeListener(EXTENSION_VIEW_ERROR_CHANNEL, handler);
+  },
+  discoverExchangeExtensions: (query, cursor) =>
+    ipcRenderer.invoke(EXTENSION_DISCOVER_CHANNEL, query, cursor),
+  checkExtensionUpdate: (extensionId) =>
+    ipcRenderer.invoke(EXTENSION_CHECK_UPDATE_CHANNEL, extensionId),
+  exchangeInstallAvailable: () => ipcRenderer.invoke(EXTENSION_EXCHANGE_AVAILABLE_CHANNEL),
+  prepareExchangeInstall: (listing) =>
+    ipcRenderer.invoke(EXTENSION_EXCHANGE_PREPARE_CHANNEL, listing),
+  confirmExchangeInstall: (token) => ipcRenderer.invoke(EXTENSION_EXCHANGE_CONFIRM_CHANNEL, token),
+  cancelExchangeInstall: (token) => ipcRenderer.invoke(EXTENSION_EXCHANGE_CANCEL_CHANNEL, token),
+  uninstallExtension: (extensionId, deleteData) =>
+    ipcRenderer.invoke(EXTENSION_UNINSTALL_CHANNEL, extensionId, deleteData ?? false),
+  setExtensionDisabled: (extensionId, disabled) =>
+    ipcRenderer.invoke(EXTENSION_SET_DISABLED_CHANNEL, extensionId, disabled),
+  setExtensionUpdatesPinned: (extensionId, pinned) =>
+    ipcRenderer.invoke(EXTENSION_SET_UPDATES_PINNED_CHANNEL, extensionId, pinned),
+  installDevelopmentExtension: (directory) =>
+    ipcRenderer.invoke(EXTENSION_INSTALL_DEV_CHANNEL, directory),
+  reloadDevelopmentExtension: (id) => ipcRenderer.invoke(EXTENSION_RELOAD_DEV_CHANNEL, id),
+  getRegistryConnection: () => ipcRenderer.invoke(REGISTRY_CONNECTION_CHANNEL),
+  setRegistryCredential: (origin, token) =>
+    ipcRenderer.invoke(REGISTRY_CREDENTIAL_CHANNEL, origin, token),
+  installLocalExtensionPackage: (archive) =>
+    ipcRenderer.invoke(EXTENSION_INSTALL_LOCAL_PACKAGE_CHANNEL, archive),
+  setExtensionAssignment: (extensionId, assignment) =>
+    ipcRenderer.invoke(EXTENSION_ASSIGN_CHANNEL, extensionId, assignment),
+  addExtensionProfile: (extensionId, id, label, scope) =>
+    ipcRenderer.invoke(EXTENSION_ADD_PROFILE_CHANNEL, extensionId, id, label, scope),
+  listExtensionCredentials: (extensionId) =>
+    ipcRenderer.invoke(EXTENSION_CREDENTIALS_LIST_CHANNEL, extensionId),
+  setExtensionCredential: (extensionId, profileId, host, value, projectId) =>
+    ipcRenderer.invoke(
+      EXTENSION_CREDENTIAL_SET_CHANNEL,
+      extensionId,
+      profileId,
+      host,
+      value,
+      projectId,
+    ),
+  activateExtensionTool: (input) => ipcRenderer.invoke(EXTENSION_ACTIVATE_CHANNEL, input),
+  setExtensionBounds: (input) => ipcRenderer.invoke(EXTENSION_SET_BOUNDS_CHANNEL, input),
+  hideExtensionTool: (input) => ipcRenderer.invoke(EXTENSION_HIDE_CHANNEL, input),
   getBrowserSessionState: (input) =>
     ipcRenderer.invoke(BROWSER_HOST_GET_SESSION_STATE_CHANNEL, input),
   ensureBrowserSession: (input) => ipcRenderer.invoke(BROWSER_HOST_ENSURE_SESSION_CHANNEL, input),
@@ -396,6 +480,7 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   },
   getConfirmBeforeQuit: () => ipcRenderer.invoke(GET_CONFIRM_BEFORE_QUIT_CHANNEL),
   resetTabsUserData: () => ipcRenderer.invoke(RESET_TABS_USER_DATA_CHANNEL),
+  getBackendStartupError: () => ipcRenderer.invoke(GET_BACKEND_STARTUP_ERROR_CHANNEL),
   getDataResetStartupError: () => ipcRenderer.invoke(GET_TABS_DATA_RESET_STARTUP_ERROR_CHANNEL),
   setConfirmBeforeQuit: (value: boolean) =>
     ipcRenderer.invoke(SET_CONFIRM_BEFORE_QUIT_CHANNEL, value),

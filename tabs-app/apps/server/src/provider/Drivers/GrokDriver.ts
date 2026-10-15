@@ -1,3 +1,5 @@
+import { GrokDriver as ModernGrokDriver } from "./GrokDriver.modern.ts";
+import { ProviderRuntimeGeneration } from "../ProviderRuntimeGeneration.ts";
 import { GrokSettings, ProviderDriverKind, type ServerProvider } from "@tabs/contracts";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
@@ -5,35 +7,37 @@ import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
+import * as Crypto from "effect/Crypto";
 import { HttpClient } from "effect/unstable/http";
 import { ChildProcessSpawner } from "effect/unstable/process";
+import { readGrokAccount } from "../grokUsageLimits.ts";
 
-import { ServerConfig } from "../../config";
-import { makeGrokTextGeneration } from "../../textGeneration/GrokTextGeneration";
-import { ProviderDriverError } from "../Errors";
-import { makeGrokAdapter } from "../Layers/GrokAdapter";
+import { ServerConfig } from "../../config.ts";
+import { makeGrokTextGeneration } from "../../textGeneration/GrokTextGeneration.ts";
+import { ProviderDriverError } from "../Errors.ts";
+import { makeGrokAdapter } from "../Layers/GrokAdapter.ts";
 import {
   buildInitialGrokProviderSnapshot,
   checkGrokProviderStatus,
   enrichGrokSnapshot,
-} from "../Layers/GrokProvider";
-import { ProviderEventLoggers } from "../Layers/ProviderEventLoggers";
-import { makeManagedServerProvider } from "../makeManagedServerProvider";
+} from "../Layers/GrokProvider.ts";
+import { ProviderEventLoggers } from "../Layers/ProviderEventLoggers.ts";
+import { makeManagedServerProvider } from "../makeManagedServerProvider.ts";
 import {
   defaultProviderContinuationIdentity,
   makeExternalCliLifecycle,
   makeProviderInstanceCapabilities,
   type ProviderDriver,
   type ProviderInstance,
-} from "../ProviderDriver";
-import type { ServerProviderDraft } from "../providerSnapshot";
-import { mergeProviderInstanceEnvironment } from "../ProviderInstanceEnvironment";
+} from "../ProviderDriver.ts";
+import type { ServerProviderDraft } from "../providerSnapshot.ts";
+import { mergeProviderInstanceEnvironment } from "../ProviderInstanceEnvironment.ts";
 import {
   makeManualOnlyProviderMaintenanceCapabilities,
   makeStaticProviderMaintenanceResolver,
   resolveProviderMaintenanceCapabilitiesEffect,
-} from "../providerMaintenance";
-import { discoverGrokSkills } from "./GrokSkills";
+} from "../providerMaintenance.ts";
+import { discoverGrokSkills } from "./GrokSkills.ts";
 const decodeGrokSettings = Schema.decodeSync(GrokSettings);
 
 const DRIVER_KIND = "grok" as ProviderDriverKind;
@@ -47,6 +51,7 @@ const UPDATE = makeStaticProviderMaintenanceResolver(
 
 export type GrokDriverEnv =
   | ChildProcessSpawner.ChildProcessSpawner
+  | Crypto.Crypto
   | FileSystem.FileSystem
   | HttpClient.HttpClient
   | Path.Path
@@ -69,7 +74,7 @@ const withInstanceIdentity =
     continuation: { groupKey: input.continuationGroupKey },
   });
 
-export const GrokDriver: ProviderDriver<GrokSettings, GrokDriverEnv> = {
+const LegacyGrokDriver: ProviderDriver<GrokSettings, any> = {
   driverKind: DRIVER_KIND,
   metadata: {
     displayName: "Grok",
@@ -80,6 +85,9 @@ export const GrokDriver: ProviderDriver<GrokSettings, GrokDriverEnv> = {
   create: ({ instanceId, displayName, accentColor, environment, enabled, config }) =>
     Effect.gen(function* () {
       const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
+      const fileSystem = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const crypto = yield* Crypto.Crypto;
       const httpClient = yield* HttpClient.HttpClient;
       const eventLoggers = yield* ProviderEventLoggers;
       const processEnv = mergeProviderInstanceEnvironment(environment);
@@ -107,7 +115,26 @@ export const GrokDriver: ProviderDriver<GrokSettings, GrokDriverEnv> = {
       const textGeneration = yield* makeGrokTextGeneration(effectiveConfig, processEnv);
 
       const checkProvider = checkGrokProviderStatus(effectiveConfig, processEnv).pipe(
+        Effect.flatMap((snapshot) =>
+          effectiveConfig.enabled && snapshot.installed && snapshot.auth.status === "authenticated"
+            ? readGrokAccount(processEnv).pipe(
+                Effect.catchDefect(() =>
+                  Effect.succeed({ email: undefined, usageLimits: undefined }),
+                ),
+                Effect.orElseSucceed(() => ({ email: undefined, usageLimits: undefined })),
+                Effect.map(({ email, usageLimits }) => ({
+                  ...snapshot,
+                  auth: email ? { ...snapshot.auth, email } : snapshot.auth,
+                  usageLimits,
+                })),
+              )
+            : Effect.succeed(snapshot),
+        ),
         Effect.map(stampIdentity),
+        Effect.provideService(HttpClient.HttpClient, httpClient),
+        Effect.provideService(FileSystem.FileSystem, fileSystem),
+        Effect.provideService(Path.Path, path),
+        Effect.provideService(Crypto.Crypto, crypto),
         Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
       );
 
@@ -184,5 +211,19 @@ export const GrokDriver: ProviderDriver<GrokSettings, GrokDriverEnv> = {
         adapter,
         textGeneration,
       } satisfies ProviderInstance;
+    }),
+};
+
+// Both server generations share the provider catalog during the transition.
+// Legacy registry assembly explicitly retains its existing adapters until
+// the browser migration is accepted.
+export const GrokDriver: typeof LegacyGrokDriver = {
+  ...LegacyGrokDriver,
+  create: (input) =>
+    Effect.gen(function* () {
+      const generation = yield* ProviderRuntimeGeneration;
+      return yield* generation === "v2"
+        ? ModernGrokDriver.create(input)
+        : LegacyGrokDriver.create(input);
     }),
 };

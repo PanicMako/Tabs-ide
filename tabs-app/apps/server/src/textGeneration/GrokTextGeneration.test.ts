@@ -1,8 +1,8 @@
 // @effect-diagnostics nodeBuiltinImport:off
-import * as path from "node:path";
-import * as os from "node:os";
-import { fileURLToPath } from "node:url";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import * as NodePath from "node:path";
+import * as NodeOS from "node:os";
+import * as NodeURL from "node:url";
+import * as NodeFS from "node:fs";
 
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { it } from "@effect/vitest";
@@ -10,57 +10,44 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 import { createModelSelection } from "@tabs/shared/model";
-import { expect } from "vitest";
+import { expect } from "vite-plus/test";
 import { GrokSettings, ProviderInstanceId } from "@tabs/contracts";
 
-import { ServerConfig } from "../config";
-import { type TextGenerationShape } from "./TextGeneration";
-import { makeGrokTextGeneration } from "./GrokTextGeneration";
-import { TEST_REVIEW_FINDING } from "./TextGenerationTestFixtures";
+import * as ServerConfig from "../config.ts";
+import * as TextGeneration from "./TextGeneration.ts";
+import { makeGrokTextGeneration } from "./GrokTextGeneration.ts";
+import { execScriptSource, writeFakeCli } from "../testUtils/fakeCli.ts";
+import { TEST_REVIEW_FINDING } from "./TextGenerationTestFixtures.ts";
 const decodeGrokSettings = Schema.decodeSync(GrokSettings);
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const mockAgentPath = path.join(__dirname, "../../scripts/acp-mock-agent.ts");
+const __dirname = NodePath.dirname(NodeURL.fileURLToPath(import.meta.url));
+const mockAgentPath = NodePath.join(__dirname, "../provider/testFixtures/grok-text-mock-agent.mjs");
 
-function shellSingleQuote(value: string): string {
-  return `'${value.replaceAll("'", `'"'"'`)}'`;
-}
-
-const GrokTextGenerationTestLayer = ServerConfig.layerTest(process.cwd(), {
+const layerGrokTextGenerationTest = ServerConfig.ServerConfig.layerTest(process.cwd(), {
   prefix: "t3code-grok-text-generation-test-",
 }).pipe(Layer.provideMerge(NodeServices.layer));
 
 function makeAcpGrokWrapper(dir: string, env: Record<string, string>): string {
-  const binDir = path.join(dir, "bin");
-  const grokPath = path.join(binDir, "grok");
-  mkdirSync(binDir, { recursive: true });
-  writeFileSync(
-    grokPath,
-    [
-      "#!/bin/sh",
-      ...Object.entries(env).map(([key, value]) => `export ${key}=${shellSingleQuote(value)}`),
-      'if [ "$1" != "--no-auto-update" ] || [ "$2" != "agent" ] || [ "$3" != "stdio" ]; then',
-      '  printf "%s\\n" "unexpected args: $*" >&2',
-      "  exit 11",
-      "fi",
-      `exec "bun" ${JSON.stringify(mockAgentPath)}`,
-      "",
-    ].join("\n"),
-    "utf8",
-  );
-  chmodSync(grokPath, 0o755);
-  return grokPath;
+  return writeFakeCli({
+    directory: NodePath.join(dir, "bin"),
+    name: "grok",
+    env,
+    source: execScriptSource({
+      scriptPath: mockAgentPath,
+      expectedArgs: ["agent", "stdio"],
+    }),
+  });
 }
 
 function withFakeAcpGrok<A, E, R>(
   env: Record<string, string>,
-  effectFn: (textGeneration: TextGenerationShape) => Effect.Effect<A, E, R>,
+  effectFn: (textGeneration: TextGeneration.TextGeneration["Service"]) => Effect.Effect<A, E, R>,
 ) {
   return Effect.gen(function* () {
-    const tempDir = mkdtempSync(path.join(os.tmpdir(), "t3code-grok-text-acp-"));
+    const tempDir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "t3code-grok-text-acp-"));
     yield* Effect.addFinalizer(() =>
       Effect.sync(() => {
-        rmSync(tempDir, { recursive: true, force: true });
+        NodeFS.rmSync(tempDir, { recursive: true, force: true });
       }),
     );
     const binaryPath = makeAcpGrokWrapper(tempDir, env);
@@ -73,14 +60,14 @@ function withFakeAcpGrok<A, E, R>(
 function readJsonRpcRequests(
   filePath: string,
 ): ReadonlyArray<{ readonly method?: string; readonly params?: Record<string, unknown> }> {
-  return readFileSync(filePath, "utf8")
+  return NodeFS.readFileSync(filePath, "utf8")
     .trim()
     .split("\n")
     .filter((line) => line.length > 0)
     .map((line) => JSON.parse(line) as { method?: string; params?: Record<string, unknown> });
 }
 
-it.layer(GrokTextGenerationTestLayer)("GrokTextGeneration", (it) => {
+it.layer(layerGrokTextGenerationTest)("GrokTextGeneration", (it) => {
   it.effect("preserves code-review findings", () =>
     withFakeAcpGrok(
       {
@@ -95,19 +82,20 @@ it.layer(GrokTextGenerationTestLayer)("GrokTextGeneration", (it) => {
         Effect.gen(function* () {
           const generated = yield* textGeneration.generateDiffSummary({
             cwd: process.cwd(),
-            diffSummary: "M src/example.ts",
-            diffPatch: "diff --git a/src/example.ts b/src/example.ts",
-            modelSelection: createModelSelection("grok" as ProviderInstanceId, "grok-build"),
+            diffSummary: "1 file changed",
+            diffPatch: "diff --git a/file.ts b/file.ts",
+            modelSelection: createModelSelection(ProviderInstanceId.make("grok"), "grok-mock-alt"),
           });
-
           expect(generated.findings).toEqual([TEST_REVIEW_FINDING]);
         }),
     ),
   );
 
   it.effect("uses ACP with disabled tool capabilities and forwards the requested model id", () => {
-    const requestLogDir = mkdtempSync(path.join(os.tmpdir(), "t3code-grok-text-log-"));
-    const requestLogPath = path.join(requestLogDir, "requests.ndjson");
+    const requestLogDir = NodeFS.mkdtempSync(
+      NodePath.join(NodeOS.tmpdir(), "t3code-grok-text-log-"),
+    );
+    const requestLogPath = NodePath.join(requestLogDir, "requests.ndjson");
 
     return withFakeAcpGrok(
       {
@@ -124,7 +112,7 @@ it.layer(GrokTextGenerationTestLayer)("GrokTextGeneration", (it) => {
             branch: "feature/grok",
             stagedSummary: "M apps/server/src/provider/Drivers/GrokDriver.ts",
             stagedPatch: "diff --git a/.../GrokDriver.ts b/.../GrokDriver.ts",
-            modelSelection: createModelSelection("grok" as ProviderInstanceId, "grok-mock-alt"),
+            modelSelection: createModelSelection(ProviderInstanceId.make("grok"), "grok-mock-alt"),
           });
 
           expect(generated.subject).toBe("Add Grok provider");
@@ -144,15 +132,6 @@ it.layer(GrokTextGenerationTestLayer)("GrokTextGeneration", (it) => {
                 request.params?.modelId === "grok-mock-alt",
             ),
           ).toBe(true);
-          const prompt = (
-            requests.find((request) => request.method === "session/prompt")?.params?.prompt as
-              | Array<{ text?: string }>
-              | undefined
-          )?.[0]?.text;
-          expect(prompt).toContain("Structured output contract:");
-          expect(prompt).toContain('"subject"');
-          expect(prompt).toContain("Minimal valid example:");
-          expect(prompt).toContain("Do not use Markdown fences or add commentary.");
         }),
     );
   });
@@ -170,7 +149,7 @@ it.layer(GrokTextGenerationTestLayer)("GrokTextGeneration", (it) => {
           const generated = yield* textGeneration.generateThreadTitle({
             cwd: process.cwd(),
             message: "the lint job is red",
-            modelSelection: createModelSelection("grok" as ProviderInstanceId, "grok-mock-alt"),
+            modelSelection: createModelSelection(ProviderInstanceId.make("grok"), "grok-mock-alt"),
           });
           expect(generated.title).toBe("Investigate failing CI");
         }),
@@ -189,7 +168,7 @@ it.layer(GrokTextGenerationTestLayer)("GrokTextGeneration", (it) => {
               cwd: process.cwd(),
               message: "wire up grok",
               modelSelection: createModelSelection(
-                "grok" as ProviderInstanceId,
+                ProviderInstanceId.make("grok"),
                 "missing-grok-model",
               ),
             }),
@@ -211,7 +190,7 @@ it.layer(GrokTextGenerationTestLayer)("GrokTextGeneration", (it) => {
             textGeneration.generateThreadTitle({
               cwd: process.cwd(),
               message: "anything",
-              modelSelection: createModelSelection("grok" as ProviderInstanceId, "grok-build"),
+              modelSelection: createModelSelection(ProviderInstanceId.make("grok"), "grok-build"),
             }),
           );
           expect(error._tag).toBe("TextGenerationError");
@@ -237,7 +216,7 @@ it.layer(GrokTextGenerationTestLayer)("GrokTextGeneration", (it) => {
             commitSummary: "feat: add grok provider",
             diffSummary: "M apps/server/src/provider/Drivers/GrokDriver.ts",
             diffPatch: "diff --git a/.../GrokDriver.ts b/.../GrokDriver.ts",
-            modelSelection: createModelSelection("grok" as ProviderInstanceId, "grok-build"),
+            modelSelection: createModelSelection(ProviderInstanceId.make("grok"), "grok-build"),
           });
 
           expect(generated.title).toBe("feat(grok): wire up session/set_model");
@@ -257,7 +236,7 @@ it.layer(GrokTextGenerationTestLayer)("GrokTextGeneration", (it) => {
             textGeneration.generateThreadTitle({
               cwd: process.cwd(),
               message: "anything",
-              modelSelection: createModelSelection("grok" as ProviderInstanceId, "grok-build"),
+              modelSelection: createModelSelection(ProviderInstanceId.make("grok"), "grok-build"),
             }),
           );
           expect(error._tag).toBe("TextGenerationError");

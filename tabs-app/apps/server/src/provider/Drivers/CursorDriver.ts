@@ -1,3 +1,6 @@
+import { CursorDriver as ModernCursorDriver } from "./CursorDriver.modern.ts";
+import { ProviderRuntimeGeneration } from "../ProviderRuntimeGeneration.ts";
+import { readCursorUsageLimits } from "../cursorUsageLimits.ts";
 /**
  * CursorDriver — `ProviderDriver` for the Cursor Agent (`agent`) runtime.
  *
@@ -21,32 +24,32 @@ import * as Stream from "effect/Stream";
 import { HttpClient } from "effect/unstable/http";
 import { ChildProcessSpawner } from "effect/unstable/process";
 
-import { ServerConfig } from "../../config";
-import { makeCursorTextGeneration } from "../../textGeneration/CursorTextGeneration";
-import { ProviderDriverError } from "../Errors";
-import { makeCursorAdapter } from "../Layers/CursorAdapter";
+import { ServerConfig } from "../../config.ts";
+import { makeCursorTextGeneration } from "../../textGeneration/CursorTextGeneration.ts";
+import { ProviderDriverError } from "../Errors.ts";
+import { makeCursorAdapter } from "../Layers/CursorAdapter.ts";
 import {
   buildInitialCursorProviderSnapshot,
   checkCursorProviderStatus,
   enrichCursorSnapshot,
-} from "../Layers/CursorProvider";
-import { ProviderEventLoggers } from "../Layers/ProviderEventLoggers";
-import { makeManagedServerProvider } from "../makeManagedServerProvider";
+} from "../Layers/CursorProvider.ts";
+import { ProviderEventLoggers } from "../Layers/ProviderEventLoggers.ts";
+import { makeManagedServerProvider } from "../makeManagedServerProvider.ts";
 import {
   defaultProviderContinuationIdentity,
   makeExternalCliLifecycle,
   makeProviderInstanceCapabilities,
   type ProviderDriver,
   type ProviderInstance,
-} from "../ProviderDriver";
-import type { ServerProviderDraft } from "../providerSnapshot";
-import { mergeProviderInstanceEnvironment } from "../ProviderInstanceEnvironment";
+} from "../ProviderDriver.ts";
+import type { ServerProviderDraft } from "../providerSnapshot.ts";
+import { mergeProviderInstanceEnvironment } from "../ProviderInstanceEnvironment.ts";
 import {
   makeProviderMaintenanceCapabilities,
   makeStaticProviderMaintenanceResolver,
   resolveProviderMaintenanceCapabilitiesEffect,
-} from "../providerMaintenance";
-import { probeCursorSkills } from "./CursorSkills";
+} from "../providerMaintenance.ts";
+import { probeCursorSkills } from "./CursorSkills.ts";
 const decodeCursorSettings = Schema.decodeSync(CursorSettings);
 
 const DRIVER_KIND = "cursor" as ProviderDriverKind;
@@ -85,7 +88,7 @@ const withInstanceIdentity =
     continuation: { groupKey: input.continuationGroupKey },
   });
 
-export const CursorDriver: ProviderDriver<CursorSettings, CursorDriverEnv> = {
+const LegacyCursorDriver: ProviderDriver<CursorSettings, any> = {
   driverKind: DRIVER_KIND,
   metadata: {
     displayName: "Cursor",
@@ -113,7 +116,7 @@ export const CursorDriver: ProviderDriver<CursorSettings, CursorDriverEnv> = {
       });
       const effectiveConfig = { ...config, enabled } satisfies CursorSettings;
       const maintenanceCapabilities = yield* resolveProviderMaintenanceCapabilitiesEffect(UPDATE, {
-        binaryPath: effectiveConfig.binaryPath,
+        ...(effectiveConfig.binaryPath ? { binaryPath: effectiveConfig.binaryPath } : {}),
         env: processEnv,
       });
 
@@ -125,6 +128,31 @@ export const CursorDriver: ProviderDriver<CursorSettings, CursorDriverEnv> = {
       const textGeneration = yield* makeCursorTextGeneration(effectiveConfig, processEnv);
 
       const checkProvider = checkCursorProviderStatus(effectiveConfig, processEnv).pipe(
+        Effect.flatMap((snapshot) =>
+          effectiveConfig.enabled && snapshot.installed
+            ? readCursorUsageLimits(effectiveConfig, processEnv, true).pipe(
+                Effect.catchDefect(() => Effect.succeed(undefined)),
+                Effect.orElseSucceed(() => undefined),
+                Effect.map((usageLimits) =>
+                  usageLimits && usageLimits.windows && usageLimits.windows.length > 0
+                    ? {
+                        ...snapshot,
+                        usageLimits,
+                        status: snapshot.status === "error" ? "ready" : snapshot.status,
+                        auth: {
+                          ...snapshot.auth,
+                          status: "authenticated" as const,
+                        },
+                        ...(snapshot.message?.includes("Sign in with Cursor")
+                          ? { message: undefined }
+                          : {}),
+                      }
+                    : snapshot,
+                ),
+              )
+            : Effect.succeed(snapshot),
+        ),
+        Effect.provideService(HttpClient.HttpClient, httpClient),
         Effect.map(stampIdentity),
         Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
         Effect.provideService(FileSystem.FileSystem, fileSystem),
@@ -208,5 +236,19 @@ export const CursorDriver: ProviderDriver<CursorSettings, CursorDriverEnv> = {
         adapter,
         textGeneration,
       } satisfies ProviderInstance;
+    }),
+};
+
+// Both server generations share the provider catalog during the transition.
+// Legacy registry assembly explicitly retains its existing adapters until
+// the browser migration is accepted.
+export const CursorDriver: typeof LegacyCursorDriver = {
+  ...LegacyCursorDriver,
+  create: (input) =>
+    Effect.gen(function* () {
+      const generation = yield* ProviderRuntimeGeneration;
+      return yield* generation === "v2"
+        ? ModernCursorDriver.create(input)
+        : LegacyCursorDriver.create(input);
     }),
 };

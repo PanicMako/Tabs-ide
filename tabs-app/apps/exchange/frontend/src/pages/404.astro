@@ -1,0 +1,7 @@
+---
+import Exchange from "../layouts/Exchange.astro";
+import { extensionMarkPath, extensionMarkViewBox } from "../lib/extensionMark";
+---
+<Exchange title="Page not found" description="Find your way back to Exchange.">
+  <section class="lost-page" aria-labelledby="lost-title"><div class="lost-piece" aria-hidden="true"><span>404</span><svg viewBox={extensionMarkViewBox} fill="currentColor"><path d={extensionMarkPath} fill-rule="evenodd" /></svg><i>↗</i></div><p class="eyebrow">A little off the map</p><h1 id="lost-title">This piece<br /><em class="editorial-accent">is missing.</em></h1><p class="lead">We couldn’t find that page. Check the address, or pick up somewhere familiar.</p><div class="actions"><a class="button" href="/">Back to Exchange</a><a class="text-link" href="/extensions">Browse tools <span aria-hidden="true">↗</span></a><a class="text-link" href="/docs/extensions">Read the docs <span aria-hidden="true">↗</span></a></div></section>
+</Exchange>

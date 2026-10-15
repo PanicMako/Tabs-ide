@@ -1,3 +1,5 @@
+import { SegmentedControl } from "../ui/segmented-control";
+import { OrbitGroup } from "../ui/orbit-group";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { MonitorPlayIcon, RotateCcwIcon, SaveIcon, XIcon } from "lucide-react";
@@ -205,10 +207,10 @@ export function AnimationsSettings() {
         return (
           window.localStorage?.getItem("tabs.startupCustomAnimationFont") ??
           window.localStorage?.getItem("tabs.customAnimationFont") ??
-          "'Inter', sans-serif"
+          "var(--font-sans)"
         );
       } catch {
-        return "'Inter', sans-serif";
+        return "var(--font-sans)";
       }
     },
   );
@@ -237,10 +239,10 @@ export function AnimationsSettings() {
       return (
         window.localStorage?.getItem("tabs.closeCustomAnimationFont") ??
         window.localStorage?.getItem("tabs.customAnimationFont") ??
-        "'Inter', sans-serif"
+        "var(--font-sans)"
       );
     } catch {
-      return "'Inter', sans-serif";
+      return "var(--font-sans)";
     }
   });
 
@@ -393,13 +395,17 @@ export function AnimationsSettings() {
               <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                 {animationTab === "startup" ? "Startup Animation" : "Close Animation"}
               </h3>
-              <div className="tabs-segmented flex" role="group" aria-label="Animation preview">
+              <OrbitGroup
+                className="tabs-segmented flex rounded-full"
+                role="group"
+                aria-label="Animation preview"
+              >
                 <button
                   type="button"
                   aria-pressed={animationTab === "startup"}
                   onClick={() => setAnimationTab("startup")}
                   className={cn(
-                    "px-3 py-1.5 text-xs font-medium rounded-md transition-all whitespace-nowrap cursor-pointer",
+                    "px-3 py-1.5 text-xs font-medium rounded-full transition-all whitespace-nowrap cursor-pointer",
                     animationTab === "startup"
                       ? "bg-background text-foreground shadow-sm"
                       : "text-muted-foreground hover:text-foreground hover:bg-background/50",
@@ -412,7 +418,7 @@ export function AnimationsSettings() {
                   aria-pressed={animationTab === "close"}
                   onClick={() => setAnimationTab("close")}
                   className={cn(
-                    "px-3 py-1.5 text-xs font-medium rounded-md transition-all whitespace-nowrap cursor-pointer",
+                    "px-3 py-1.5 text-xs font-medium rounded-full transition-all whitespace-nowrap cursor-pointer",
                     animationTab === "close"
                       ? "bg-background text-foreground shadow-sm"
                       : "text-muted-foreground hover:text-foreground hover:bg-background/50",
@@ -420,7 +426,7 @@ export function AnimationsSettings() {
                 >
                   Close
                 </button>
-              </div>
+              </OrbitGroup>
             </div>
 
             {/* Live Preview Container */}
@@ -462,22 +468,16 @@ export function AnimationsSettings() {
                 <div className="bg-muted px-4 py-3 flex items-center justify-between border-t border-border">
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-muted-foreground mr-2">Preview Theme:</span>
-                    <div className="flex bg-background/80 rounded-md p-1 gap-0.5 shadow-inner border border-black/5 dark:border-white/5">
-                      {["system", "dark", "light"].map((t) => (
-                        <button
-                          key={t}
-                          onClick={() => setActiveTheme(t as any)}
-                          className={cn(
-                            "px-3 py-1 text-xs font-medium rounded transition-colors capitalize cursor-pointer",
-                            activeTheme === t
-                              ? "bg-background text-foreground shadow-sm"
-                              : "text-muted-foreground hover:text-foreground",
-                          )}
-                        >
-                          {t === "system" ? "Auto" : t}
-                        </button>
-                      ))}
-                    </div>
+                    <SegmentedControl
+                      size="sm"
+                      aria-label="Animation preview theme"
+                      value={activeTheme}
+                      onValueChange={setActiveTheme}
+                      options={(["system", "dark", "light"] as const).map((value) => ({
+                        value,
+                        label: value === "system" ? "Auto" : value === "dark" ? "Dark" : "Light",
+                      }))}
+                    />
                   </div>
                   <Button
                     variant="outline"
@@ -503,7 +503,11 @@ export function AnimationsSettings() {
               title="Style"
               description={`Choose the visual aesthetic for the ${animationTab} animation.`}
               control={
-                <div className="tabs-segmented flex" role="group" aria-label="Animation style">
+                <OrbitGroup
+                  className="tabs-segmented flex rounded-full"
+                  role="group"
+                  aria-label="Animation style"
+                >
                   {[
                     { value: "glass", label: "Molten Glass" },
                     { value: "solari", label: "Solari Grid" },
@@ -514,7 +518,7 @@ export function AnimationsSettings() {
                       onClick={() => setActiveStyle(option.value as any)}
                       aria-pressed={activeStyle === option.value}
                       className={cn(
-                        "px-3 py-1.5 text-sm font-medium rounded-md transition-all whitespace-nowrap cursor-pointer",
+                        "px-3 py-1.5 text-sm font-medium rounded-full transition-all whitespace-nowrap cursor-pointer",
                         activeStyle === option.value
                           ? "bg-background text-foreground shadow-sm"
                           : "text-muted-foreground hover:text-foreground hover:bg-background/50",
@@ -523,7 +527,7 @@ export function AnimationsSettings() {
                       {option.label}
                     </button>
                   ))}
-                </div>
+                </OrbitGroup>
               }
             />
 
@@ -531,7 +535,11 @@ export function AnimationsSettings() {
               title="Color palette"
               description={`Choose the color palette for the ${animationTab} animation.`}
               control={
-                <div className="tabs-segmented flex" role="group" aria-label="Animation palette">
+                <OrbitGroup
+                  className="tabs-segmented flex rounded-full"
+                  role="group"
+                  aria-label="Animation palette"
+                >
                   {[
                     { value: "block", label: "Solid Block" },
                     { value: "mono", label: "Monochrome" },
@@ -542,7 +550,7 @@ export function AnimationsSettings() {
                       onClick={() => setActivePalette(option.value as any)}
                       aria-pressed={activePalette === option.value}
                       className={cn(
-                        "px-3 py-1.5 text-sm font-medium rounded-md transition-all whitespace-nowrap cursor-pointer",
+                        "px-3 py-1.5 text-sm font-medium rounded-full transition-all whitespace-nowrap cursor-pointer",
                         activePalette === option.value
                           ? "bg-background text-foreground shadow-sm"
                           : "text-muted-foreground hover:text-foreground hover:bg-background/50",
@@ -551,7 +559,7 @@ export function AnimationsSettings() {
                       {option.label}
                     </button>
                   ))}
-                </div>
+                </OrbitGroup>
               }
             />
 

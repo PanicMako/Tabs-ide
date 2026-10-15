@@ -1,0 +1,180 @@
+.zoom-ruler-control {
+  --zoom-step: 52px;
+  width: 320px;
+  max-width: 100%;
+  min-width: 0;
+}
+.zoom-ruler-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.zoom-ruler-value {
+  padding: 3px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--muted);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.zoom-ruler-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.zoom-ruler-step {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  color: var(--foreground);
+  background: var(--muted);
+  cursor: pointer;
+  transition: background-color 150ms ease;
+}
+.zoom-ruler-step:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.zoom-ruler-step:not(:disabled):hover,
+.zoom-ruler-value:hover {
+  background: var(--accent);
+}
+.zoom-ruler-window {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 66px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--muted) 45%, var(--background));
+}
+.zoom-ruler-window::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+  background: linear-gradient(
+    90deg,
+    var(--background),
+    transparent 20%,
+    transparent 80%,
+    var(--background)
+  );
+  opacity: 0.8;
+}
+.zoom-ruler-tape {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  height: 100%;
+  transform: translateX(calc(var(--zoom-index) * var(--zoom-step) * -1));
+  transition: transform 380ms cubic-bezier(0.3, 1.25, 0.5, 1);
+}
+.zoom-ruler-minor {
+  position: absolute;
+  left: calc(-3 * var(--zoom-step));
+  width: calc(11 * var(--zoom-step));
+  top: 14px;
+  height: 12px;
+  background: repeating-linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--muted-foreground) 30%, transparent) 0 1px,
+    transparent 1px calc(var(--zoom-step) / 5)
+  );
+}
+.zoom-ruler-mark {
+  position: absolute;
+  top: auto;
+  bottom: 0;
+  height: 24px;
+  width: var(--zoom-step);
+  margin-left: calc(var(--zoom-step) / -2);
+  padding: 0 0 9px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+  color: var(--muted-foreground);
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.zoom-ruler-mark::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -32px;
+  pointer-events: none;
+  width: 2px;
+  height: 23px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--muted-foreground) 65%, transparent);
+}
+.zoom-ruler-mark[aria-pressed="true"] {
+  color: var(--foreground);
+  font-weight: 700;
+}
+.zoom-ruler-mark:hover {
+  color: var(--primary);
+}
+.zoom-ruler-needle {
+  position: absolute;
+  left: calc(50% - 1.5px);
+  top: 7px;
+  height: 30px;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--primary);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--primary) 30%, transparent);
+  z-index: 4;
+  pointer-events: none;
+}
+.zoom-ruler-drag {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 40px;
+  z-index: 5;
+  cursor: ew-resize;
+  touch-action: none;
+}
+.zoom-ruler-drag:focus-visible {
+  outline: none;
+}
+.zoom-ruler-window:has(.zoom-ruler-drag:focus-visible),
+.zoom-ruler-step:focus-visible,
+.zoom-ruler-value:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+.zoom-ruler-window:has(.zoom-ruler-drag[data-dragging]) .zoom-ruler-tape {
+  transition: none;
+}
+html[data-reduced-motion="reduce"] .zoom-ruler-tape {
+  transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  html:not([data-reduced-motion="no-preference"]) .zoom-ruler-tape {
+    transition: none;
+  }
+}
+@media (max-width: 639px) {
+  .zoom-ruler-control {
+    width: 100%;
+  }
+}

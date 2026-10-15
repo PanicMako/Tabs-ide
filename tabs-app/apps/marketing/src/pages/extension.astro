@@ -1,0 +1,214 @@
+---
+import Layout from "../layouts/ExchangeLayout.astro";
+import Icon from "../components/Icon.astro";
+import { configuredExchangeOrigin } from "../lib/exchange-url";
+
+const exchange = configuredExchangeOrigin(import.meta.env.PUBLIC_TABS_EXCHANGE_URL);
+---
+
+<Layout title="Tabs Extension Details" description="Review a Tabs-native extension's published versions and requested access.">
+  <section>
+    <a class="exchange-detail-back" href="/extensions"><Icon name="ArrowLeft" size={16} /> Back to Explore Extensions</a>
+    <div class="exchange-hero"><div><p class="exchange-eyebrow"><Icon name="Puzzle" size={16} /> Tabs-native tool</p><h1 id="extension-title">Extension details</h1><p class="exchange-lead">Versions, permissions, and everything you need to know before adding a tool to your workspace.</p></div><div class="exchange-emblem" aria-hidden="true"><Icon name="Puzzle" size={56} /></div></div>
+    {exchange ? (
+      <div id="extension-detail" data-exchange-url={exchange} data-preview={import.meta.env.DEV && import.meta.env.PUBLIC_TABS_EXCHANGE_PREVIEW === "true" ? "true" : undefined}>
+        <p class="exchange-status" id="detail-status" role="status" aria-live="polite">Loading extension details...</p>
+        <p class="exchange-status" id="extension-identity"></p>
+        <ol class="exchange-versions" id="version-list" aria-label="Published extension versions"></ol>
+      </div>
+    ) : (
+      <div class="exchange-empty"><h2>The Exchange is getting ready.</h2><p role="status">Tabs Exchange details are not available yet.</p><div class="exchange-actions"><a class="exchange-button secondary" href="/extensions">Back to Explore</a></div></div>
+    )}
+    <div class="exchange-note"><Icon name="ShieldCheck" size={18} /><p>Public versions are manually reviewed and included in signed registry metadata. Review is not a security guarantee. Install through Tabs with a trusted Exchange root; a browser download alone does not verify signed metadata.</p></div>
+  </section>
+</Layout>
+
+<script>
+  import { isExchangeIdentifier, safePublisherUrl } from "../lib/extension-listing";
+  import { extensionMarkdown } from "../lib/extension-markdown";
+
+  interface PublicVersion {
+    namespace: string;
+    name: string;
+    version: string;
+    digest: string;
+    bytes: number;
+    submitted_at: string;
+    verified: boolean;
+    manifest: {
+      displayName: string;
+      description: string;
+      engines?: { tabs?: string };
+      capabilities?: string[];
+      networkHosts?: string[];
+      releaseNotes?: string;
+      sourceUrl?: string;
+      supportUrl?: string;
+      privacyUrl?: string;
+      listing?: { readme?: string; icon?: string; license?: string; categories?: string[]; keywords?: string[]; externalServices?: string };
+    };
+  }
+
+  function detail(parent: HTMLElement, label: string, value: string): void {
+    const term = document.createElement("dt");
+    term.textContent = label;
+    const description = document.createElement("dd");
+    description.textContent = value;
+    parent.append(term, description);
+  }
+
+  function publisherLink(parent: HTMLElement, label: string, value: unknown): void {
+    const link = safePublisherUrl(value);
+    if (!link) {
+      detail(parent, label, "Not provided");
+      return;
+    }
+    const term = document.createElement("dt");
+    term.textContent = label;
+    const description = document.createElement("dd");
+    const anchor = document.createElement("a");
+    anchor.href = link;
+    anchor.target = "_blank";
+    anchor.rel = "noopener noreferrer";
+    anchor.textContent = link;
+    description.append(anchor);
+    parent.append(term, description);
+  }
+
+  const root = document.getElementById("extension-detail");
+  if (root) {
+    const origin = root.dataset.exchangeUrl!;
+    const preview = root.dataset.preview === "true";
+    if (preview) document.getElementById("version-list")?.setAttribute("aria-label", "Sample extension versions");
+    const status = document.getElementById("detail-status")!;
+    const title = document.getElementById("extension-title")!;
+    const identity = document.getElementById("extension-identity")!;
+    const list = document.getElementById("version-list")!;
+    const params = new URLSearchParams(window.location.search);
+    const path = /^\/extensions\/([a-z][a-z0-9-]{1,62})\/([a-z][a-z0-9-]{1,62})\/?$/.exec(window.location.pathname);
+    const namespace = path?.[1] ?? params.get("namespace");
+    const name = path?.[2] ?? params.get("name");
+    if (!isExchangeIdentifier(namespace) || !isExchangeIdentifier(name)) {
+      status.textContent = "Choose an extension from Explore Extensions.";
+    } else {
+      if (!path) window.history.replaceState(null, "", `/extensions/${namespace}/${name}`);
+      const selectedNamespace = namespace;
+      const selectedName = name;
+      void (async () => {
+        try {
+          const versions: PublicVersion[] = [];
+          const seenCursors = new Set<string>();
+          const seenVersions = new Set<string>();
+          let cursor: string | null = null;
+          let complete = false;
+          for (let page = 0; page < 10; page += 1) {
+            const url = new URL(`/v1/extensions/${selectedNamespace}/${selectedName}`, origin);
+            if (cursor) url.searchParams.set("cursor", cursor);
+            const response = await fetch(url.href);
+            if (!response.ok) throw new Error("This extension is unavailable or no longer published.");
+            const data: { versions?: PublicVersion[]; nextCursor?: unknown } = await response.json();
+            if (!Array.isArray(data.versions) || data.versions.length > 100) {
+              throw new Error("The registry returned an invalid version page.");
+            }
+            for (const entry of data.versions) {
+              if (
+                entry.namespace !== selectedNamespace ||
+                entry.name !== selectedName ||
+                typeof entry.version !== "string" ||
+                seenVersions.has(entry.version)
+              ) {
+                throw new Error("The registry returned a mismatched or duplicate version.");
+              }
+              seenVersions.add(entry.version);
+              versions.push(entry);
+            }
+            if (data.nextCursor === null || data.nextCursor === undefined) {
+              complete = true;
+              break;
+            }
+            if (
+              typeof data.nextCursor !== "string" ||
+              !/^[A-Za-z0-9_-]{1,512}$/.test(data.nextCursor) ||
+              data.versions.length === 0 ||
+              seenCursors.has(data.nextCursor)
+            ) {
+              throw new Error("The registry returned an invalid version cursor.");
+            }
+            cursor = data.nextCursor;
+            seenCursors.add(cursor);
+          }
+          if (!complete) throw new Error("The extension has too many versions to display.");
+          if (!versions.length) throw new Error("No published versions are available.");
+          const first = versions[0]!;
+          title.textContent = first.manifest.displayName;
+          identity.textContent = `${selectedNamespace}.${selectedName} - ${first.verified ? "verified publisher" : "unverified publisher"}. Namespace membership alone is not verification.`;
+          for (const entry of versions) {
+            const item = document.createElement("li");
+            item.className = "exchange-version";
+            const heading = document.createElement("h2");
+            heading.textContent = `Version ${entry.version}`;
+            const summary = document.createElement("p");
+            summary.textContent = entry.manifest.description;
+            const metadata = document.createElement("dl");
+            detail(metadata, "Review status", preview ? "Local sample only - not reviewed or published" : "Approved and included in signed registry metadata");
+            detail(metadata, "Tabs compatibility", entry.manifest.engines?.tabs ?? "Not specified");
+            detail(metadata, "License", entry.manifest.listing?.license ?? "Not specified");
+            detail(metadata, "Categories", entry.manifest.listing?.categories?.join(", ") ?? "Not specified");
+            detail(metadata, "External services", entry.manifest.listing?.externalServices ?? "No external service disclosure supplied");
+            const assetBase = `${origin}/v1/extensions/${selectedNamespace}/${selectedName}/versions/${encodeURIComponent(entry.version)}/assets`;
+            if (!preview && entry.manifest.listing?.icon) {
+              const icon = document.createElement("img"); icon.src = `${assetBase}/icon`; icon.alt = ""; icon.width = 64; icon.height = 64; icon.loading = "lazy"; icon.referrerPolicy = "no-referrer"; item.append(icon);
+            }
+            if (!preview && entry.manifest.listing?.readme) {
+              const readme = document.createElement("details"); const heading = document.createElement("summary"); heading.textContent = "README";
+              const content = document.createElement("div"); content.className = "extension-doc-prose"; readme.append(heading, content); item.append(readme);
+              let loaded = false;
+              readme.addEventListener("toggle", async () => {
+                if (!readme.open || loaded) return; loaded = true; content.textContent = "Loading README…";
+                try {
+                  const response = await fetch(`${assetBase}/readme`, { redirect: "error", credentials: "omit", signal: AbortSignal.timeout(8000) });
+                  if (!response.ok || Number(response.headers.get("Content-Length")) > 512 * 1024) throw new Error("README unavailable");
+                  const reader = response.body?.getReader(); if (!reader) throw new Error("Missing README");
+                  const chunks: Uint8Array[] = []; let bytes = 0;
+                  try { for (;;) { const chunk = await reader.read(); if (chunk.done) break; bytes += chunk.value.length; if (bytes > 512 * 1024) throw new Error("README too large"); chunks.push(chunk.value); } } finally { await reader.cancel(); }
+                  const data = new Uint8Array(bytes); let offset = 0; for (const chunk of chunks) { data.set(chunk, offset); offset += chunk.length; }
+                  const body = new TextDecoder("utf-8", { fatal: true }).decode(data);
+                  content.replaceChildren(extensionMarkdown(body, entry.manifest.listing?.icon, `${assetBase}/icon`));
+                } catch { loaded = false; content.textContent = "README unavailable. Close and reopen to retry."; }
+              });
+            }
+            detail(metadata, "Requested permissions", entry.manifest.capabilities?.length ? entry.manifest.capabilities.join(", ") : "None");
+            detail(metadata, "Permitted network hosts", entry.manifest.networkHosts?.length ? entry.manifest.networkHosts.join(", ") : "None");
+            const packageDetails = document.createElement("details");
+            packageDetails.className = "exchange-package-details";
+            const packageSummary = document.createElement("summary");
+            packageSummary.textContent = "Package integrity & technical details";
+            const packageMetadata = document.createElement("dl");
+            detail(packageMetadata, "Package SHA-256", entry.digest);
+            detail(packageMetadata, "Package size", `${entry.bytes} bytes`);
+            detail(packageMetadata, "Submitted", entry.submitted_at);
+            packageDetails.append(packageSummary, packageMetadata);
+            publisherLink(metadata, "Source", entry.manifest.sourceUrl);
+            publisherLink(metadata, "Support", entry.manifest.supportUrl);
+            publisherLink(metadata, "Privacy", entry.manifest.privacyUrl);
+            const notesHeading = document.createElement("h3");
+            notesHeading.textContent = "Release notes";
+            const notes = document.createElement("p");
+            notes.className = "release-notes";
+            notes.textContent = entry.manifest.releaseNotes || "No release notes provided.";
+            const download = document.createElement("a");
+            download.className = "exchange-button secondary";
+            download.href = `${origin}/v1/extensions/${selectedNamespace}/${selectedName}/versions/${encodeURIComponent(entry.version)}/download`;
+            download.textContent = `Download version ${entry.version} package`;
+            item.append(heading, summary, metadata, notesHeading, notes, packageDetails);
+            if (!preview) item.append(download);
+            list.append(item);
+          }
+          status.textContent = preview ? `${list.children.length} sample version(s). Downloads are disabled in this design preview.` : `${list.children.length} published version(s) available. Install through Tabs with a trusted Exchange root; a browser download alone does not verify signed metadata.`;
+        } catch (error) {
+          status.textContent = error instanceof Error ? error.message : "Extension details are unavailable.";
+        }
+      })();
+    }
+  }
+</script>

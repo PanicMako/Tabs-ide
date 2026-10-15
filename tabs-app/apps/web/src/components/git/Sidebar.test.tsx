@@ -26,6 +26,15 @@ describe("Git sidebar accessibility", () => {
     expect(markup).toContain('id="git-test-tab-overview" role="tab" aria-selected="false"');
   });
 
+  it("adds navigation groups only to redesigned pages", () => {
+    const modern = renderToStaticMarkup(<Sidebar {...baseProps} collapsed={false} redesigned />);
+    const preserved = renderToStaticMarkup(<Sidebar {...baseProps} collapsed={false} />);
+    expect(modern).toContain("git-nav-group");
+    expect(modern).toContain("Preferences");
+    expect(preserved).not.toContain("git-nav-group");
+    expect(modern.match(/role="tab"/g)?.length).toBe(NAV.length);
+  });
+
   it("gives collapsed icon-only controls accessible names", () => {
     const markup = renderToStaticMarkup(<Sidebar {...baseProps} collapsed />);
 

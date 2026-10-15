@@ -3,7 +3,7 @@ import { Schema } from "effect";
 /**
  * GitCommandError - Git command execution failed.
  */
-export class GitCommandError extends Schema.TaggedErrorClass<GitCommandError>()("GitCommandError", {
+export class GitCommandError extends Schema.TaggedError<GitCommandError>()("GitCommandError", {
   operation: Schema.String,
   command: Schema.String,
   cwd: Schema.String,
@@ -18,7 +18,7 @@ export class GitCommandError extends Schema.TaggedErrorClass<GitCommandError>()(
 /**
  * GitHubCliError - GitHub CLI execution or authentication failed.
  */
-export class GitHubCliError extends Schema.TaggedErrorClass<GitHubCliError>()("GitHubCliError", {
+export class GitHubCliError extends Schema.TaggedError<GitHubCliError>()("GitHubCliError", {
   operation: Schema.String,
   detail: Schema.String,
   cause: Schema.optional(Schema.Unknown),
@@ -31,7 +31,7 @@ export class GitHubCliError extends Schema.TaggedErrorClass<GitHubCliError>()("G
 /**
  * TextGenerationError - Commit or PR text generation failed.
  */
-export class TextGenerationError extends Schema.TaggedErrorClass<TextGenerationError>()(
+export class TextGenerationError extends Schema.TaggedError<TextGenerationError>()(
   "TextGenerationError",
   {
     operation: Schema.String,
@@ -47,7 +47,7 @@ export class TextGenerationError extends Schema.TaggedErrorClass<TextGenerationE
 /**
  * GitManagerError - Stacked Git workflow orchestration failed.
  */
-export class GitManagerError extends Schema.TaggedErrorClass<GitManagerError>()("GitManagerError", {
+export class GitManagerError extends Schema.TaggedError<GitManagerError>()("GitManagerError", {
   operation: Schema.String,
   detail: Schema.String,
   phase: Schema.optional(Schema.NullOr(Schema.String)),
@@ -62,7 +62,7 @@ export class GitManagerError extends Schema.TaggedErrorClass<GitManagerError>()(
 /**
  * GitLabCliError - GitLab CLI execution or authentication failed.
  */
-export class GitLabCliError extends Schema.TaggedErrorClass<GitLabCliError>()("GitLabCliError", {
+export class GitLabCliError extends Schema.TaggedError<GitLabCliError>()("GitLabCliError", {
   operation: Schema.String,
   detail: Schema.String,
   cause: Schema.optional(Schema.Unknown),
@@ -75,7 +75,7 @@ export class GitLabCliError extends Schema.TaggedErrorClass<GitLabCliError>()("G
 /**
  * AzureDevOpsCliError - Azure DevOps CLI execution or authentication failed.
  */
-export class AzureDevOpsCliError extends Schema.TaggedErrorClass<AzureDevOpsCliError>()(
+export class AzureDevOpsCliError extends Schema.TaggedError<AzureDevOpsCliError>()(
   "AzureDevOpsCliError",
   {
     operation: Schema.String,
@@ -88,7 +88,7 @@ export class AzureDevOpsCliError extends Schema.TaggedErrorClass<AzureDevOpsCliE
   }
 }
 
-export class BitbucketApiError extends Schema.TaggedErrorClass<BitbucketApiError>()(
+export class BitbucketApiError extends Schema.TaggedError<BitbucketApiError>()(
   "BitbucketApiError",
   {
     operation: Schema.String,

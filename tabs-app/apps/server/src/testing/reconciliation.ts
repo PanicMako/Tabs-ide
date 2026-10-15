@@ -2,11 +2,11 @@ import { join } from "node:path";
 
 import type { TestingCaseSummary, TestingMismatch } from "@tabs/contracts";
 
-import { parseActionableElements } from "./crawler";
-import type { StoredGraphEdge, StoredGraphNode, TestingGraphStore } from "./graphStore";
-import { createPlaywrightMcpSession, extractAccessibilityYaml } from "./playwrightMcp";
-import { sanitizeAccessibilitySnapshot, shortDigest, tokenizePii } from "./security";
-import type { ParsedWorkbookCase } from "./workbookParser";
+import { parseActionableElements } from "./crawler.ts";
+import type { StoredGraphEdge, StoredGraphNode, TestingGraphStore } from "./graphStore.ts";
+import { createPlaywrightMcpSession, extractAccessibilityYaml } from "./playwrightMcp.ts";
+import { sanitizeAccessibilitySnapshot, shortDigest, tokenizePii } from "./security.ts";
+import type { ParsedWorkbookCase } from "./workbookParser.ts";
 
 const STOP_WORDS = new Set([
   "a",
