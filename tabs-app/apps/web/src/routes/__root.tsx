@@ -8,7 +8,6 @@ import {
 } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { QueryClient, useQueryClient } from "@tanstack/react-query";
-import { Throttler } from "@tanstack/react-pacer";
 import { useAtomValue } from "@effect/atom-react";
 
 import { APP_DISPLAY_NAME } from "../branding";
@@ -20,7 +19,12 @@ import { readNativeApi } from "../nativeApi";
 import { clearPromotedDraftThreads } from "../composerDraftStore";
 import { terminalActions } from "../state/terminal";
 import { terminalRunningSubprocessFromEvent } from "../terminalActivity";
-import { onServerConfigUpdated, onServerProvidersUpdated, onServerWelcome } from "../wsNativeApi";
+import {
+  onServerConfigUpdated,
+  onServerProvidersUpdated,
+  onServerWelcome,
+  getWsTransport,
+} from "../wsNativeApi";
 import { migrateLocalSettingsToServer, useSettings } from "../hooks/useSettings";
 import { useMinimumDuration } from "../hooks/useMinimumDuration";
 import {
@@ -44,10 +48,11 @@ import { SlowRpcRequestToastCoordinator } from "../components/SlowRpcRequestToas
 import { startRendererPerformanceCapture } from "../lib/rendererPerformance";
 import { createKeybindingsUpdateToastController } from "../components/KeybindingsUpdateToast.logic";
 import {
+  applyShellStreamItemToAtoms,
   removeEnvironmentReadModelFromAtoms,
   setProjectExpandedInAtoms,
-  syncServerReadModelToAtoms,
 } from "../state/readModel";
+import type { OrchestrationV2ShellStreamItem } from "@tabs/contracts";
 import { appAtomRegistry } from "../state/atomRegistry";
 import { readModelStateAtom } from "../state/readModel";
 import {
@@ -108,6 +113,7 @@ function FullAppRootView() {
   const threadsHydrated = useAtomValue(threadsHydratedAtom);
   const settings = useSettings();
   const [startupDeadlineElapsed, setStartupDeadlineElapsed] = useState(false);
+  const [backendStartupError, setBackendStartupError] = useState<string | null>(null);
   const bootstrapReady = isNativeApiReady && threadsHydrated;
   const ready = useMinimumDuration(bootstrapReady, STARTUP_ANIMATION_HOLD_MS);
   const [mounted, setMounted] = useState(true);
@@ -117,6 +123,24 @@ function FullAppRootView() {
       document.documentElement.dataset.diffColorScheme = settings.diffColorScheme;
     }
   }, [settings.diffColorScheme]);
+
+  useEffect(() => {
+    const getError = window.desktopBridge?.getBackendStartupError;
+    if (bootstrapReady || !getError) return;
+    let cancelled = false;
+    const poll = () =>
+      void getError()
+        .then((error) => {
+          if (!cancelled) setBackendStartupError(error);
+        })
+        .catch(() => {});
+    poll();
+    const timer = setInterval(poll, 1_000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [bootstrapReady]);
 
   useEffect(() => {
     if (bootstrapReady) return;
@@ -152,7 +176,15 @@ function FullAppRootView() {
             palette={settings.splashLoaderPalette}
             theme={settings.splashLoaderTheme}
           />
-          {startupDeadlineElapsed && !bootstrapReady ? (
+          {backendStartupError && !bootstrapReady ? (
+            <div
+              className="absolute inset-x-4 bottom-8 mx-auto max-w-2xl rounded-lg border bg-background p-5 text-sm shadow-lg"
+              role="alert"
+            >
+              <h1 className="mb-2 font-semibold">Tabs could not open your workspace</h1>
+              <p className="whitespace-pre-wrap text-muted-foreground">{backendStartupError}</p>
+            </div>
+          ) : startupDeadlineElapsed && !bootstrapReady ? (
             <p
               className="absolute inset-x-0 bottom-8 text-center text-xs text-muted-foreground"
               role="status"
@@ -303,7 +335,6 @@ function draftHasVisibleContent(
 }
 
 function EventRouter() {
-  const syncServerReadModel = syncServerReadModelToAtoms;
   const setProjectExpanded = setProjectExpandedInAtoms;
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -321,95 +352,72 @@ function EventRouter() {
       return null;
     });
     let disposed = false;
-    let latestSequence = 0;
-    let syncing = false;
-    let pending = false;
-    let needsProviderInvalidation = false;
-
-    const flushSnapshotSync = async (): Promise<void> => {
-      const snapshot = await api.orchestration.getSnapshot();
-      const primaryEnvironmentId = await primaryEnvironmentIdPromise;
+    let unsubscribeReconnect: (() => void) | undefined;
+    void primaryEnvironmentIdPromise.then((environmentId) => {
       if (disposed) return;
-      latestSequence = Math.max(latestSequence, snapshot.snapshotSequence);
-      syncServerReadModel(snapshot, primaryEnvironmentId ?? undefined);
-      clearPromotedDraftThreads(new Set(snapshot.threads.map((t) => t.id)), primaryEnvironmentId);
-      const draftThreadIds = Object.keys(
-        appAtomRegistry.get(composerDraftsAtom).draftThreadsByThreadId,
-      ) as ThreadId[];
-      // Collect custom-process IDs per project from the workspace store so
-      // their isolated terminal threads (server:<projectId>:custom:<processId>)
-      // are also retained by the orphan cleanup.
-      const projectSettingsByProjectId =
-        appAtomRegistry.get(workspaceShellAtom).projectSettingsByProjectId;
-      const customProcessIdsByProjectId = new Map<ProjectId, string[]>();
-      for (const project of snapshot.projects) {
-        const settings = projectSettingsByProjectId[project.id];
-        if (!settings) continue;
-        const customIds = settings.tools.flatMap((tool) =>
-          tool.kind === "custom_process" && tool.serverProcessId != null
-            ? [tool.serverProcessId]
-            : [],
+      unsubscribeReconnect = getWsTransport()?.onOpen(() => {
+        void import("../stores/messageQueueStore").then(({ reconcileAllPendingCancellations }) =>
+          reconcileAllPendingCancellations(api, undefined, environmentId ?? "primary"),
         );
-        if (customIds.length > 0) {
-          customProcessIdsByProjectId.set(project.id, customIds);
-        }
-      }
-      const activeThreadIds = collectActiveTerminalThreadIds({
-        snapshotThreads: snapshot.threads,
-        draftThreadIds,
-        projectIds: snapshot.projects.map((p) => p.id),
-        customProcessIdsByProjectId,
       });
-      terminalActions.removeOrphans(activeThreadIds);
-      if (pending) {
-        pending = false;
-        await flushSnapshotSync();
-      }
-    };
+    });
 
-    const syncSnapshot = async () => {
-      if (syncing) {
-        pending = true;
-        return;
-      }
-      syncing = true;
-      pending = false;
-      try {
-        await flushSnapshotSync();
-      } catch {
-        // Keep prior state and wait for next domain event to trigger a resync.
-      }
-      syncing = false;
-    };
+    const unsubShell = api.orchestration.subscribeShell(
+      async (item: OrchestrationV2ShellStreamItem) => {
+        if (disposed) return;
+        const primaryEnvironmentId = await primaryEnvironmentIdPromise;
+        if (disposed) return;
+        applyShellStreamItemToAtoms(item, primaryEnvironmentId ?? undefined);
+        void import("../stores/messageQueueStore").then(({ reconcileAllPendingCancellations }) =>
+          reconcileAllPendingCancellations(api, undefined, primaryEnvironmentId ?? "primary"),
+        );
 
-    const domainEventFlushThrottler = new Throttler(
-      () => {
-        if (needsProviderInvalidation) {
-          needsProviderInvalidation = false;
-          void queryClient.invalidateQueries({ queryKey: providerQueryKeys.all });
-          // Invalidate workspace entry queries so the @-mention file picker
-          // reflects files created, deleted, or restored during this turn.
+        if (item.kind === "project.updated" || item.kind === "project.removed") {
           void queryClient.invalidateQueries({ queryKey: projectQueryKeys.all });
         }
-        void syncSnapshot();
-      },
-      {
-        wait: 100,
-        leading: false,
-        trailing: true,
+
+        if (item.kind === "snapshot") {
+          if (item.resolvedRepositoryIdentityRoots !== undefined) {
+            void queryClient.invalidateQueries({ queryKey: projectQueryKeys.all });
+            return;
+          }
+          markStartupStage("provider-inventory-available");
+          void queryClient.invalidateQueries({ queryKey: providerQueryKeys.all });
+          void queryClient.invalidateQueries({ queryKey: projectQueryKeys.all });
+          const currentSnapshot = item.snapshot;
+          clearPromotedDraftThreads(
+            new Set(currentSnapshot.threads.map((t) => t.id)),
+            primaryEnvironmentId ?? undefined,
+          );
+          const draftThreadIds = Object.keys(
+            appAtomRegistry.get(composerDraftsAtom).draftThreadsByThreadId,
+          ) as ThreadId[];
+          const projectSettingsByProjectId =
+            appAtomRegistry.get(workspaceShellAtom).projectSettingsByProjectId;
+          const customProcessIdsByProjectId = new Map<ProjectId, string[]>();
+          for (const project of currentSnapshot.projects) {
+            const settings = projectSettingsByProjectId[project.id];
+            if (!settings) continue;
+            const customIds = settings.tools.flatMap((tool) =>
+              tool.kind === "custom_process" && tool.serverProcessId != null
+                ? [tool.serverProcessId]
+                : [],
+            );
+            if (customIds.length > 0) {
+              customProcessIdsByProjectId.set(project.id, customIds);
+            }
+          }
+          const activeThreadIds = collectActiveTerminalThreadIds({
+            snapshotThreads: currentSnapshot.threads,
+            draftThreadIds,
+            projectIds: currentSnapshot.projects.map((p) => p.id),
+            customProcessIdsByProjectId,
+          });
+          terminalActions.removeOrphans(activeThreadIds);
+        }
       },
     );
 
-    const unsubDomainEvent = api.orchestration.onDomainEvent((event) => {
-      if (event.sequence <= latestSequence) {
-        return;
-      }
-      latestSequence = event.sequence;
-      if (event.type === "thread.turn-diff-completed" || event.type === "thread.reverted") {
-        needsProviderInvalidation = true;
-      }
-      domainEventFlushThrottler.maybeExecute();
-    });
     const unsubTerminalEvent = api.terminal.onEvent((event) => {
       const hasRunningSubprocess = terminalRunningSubprocessFromEvent(event);
       if (hasRunningSubprocess === null) {
@@ -423,13 +431,13 @@ function EventRouter() {
         label,
       );
     });
+
     const unsubWelcome = onServerWelcome((payload) => {
       // DS-001: Backend connection established
       markStartupStage("backend-connection-ready");
       // Migrate old localStorage settings to server on first connect
       migrateLocalSettingsToServer();
       void (async () => {
-        await syncSnapshot();
         markStartupStage("provider-inventory-available");
         const primaryEnvironmentId = await primaryEnvironmentIdPromise;
         if (disposed) {
@@ -574,15 +582,14 @@ function EventRouter() {
     subscribed = true;
     return () => {
       disposed = true;
-      needsProviderInvalidation = false;
-      domainEventFlushThrottler.cancel();
-      unsubDomainEvent();
+      unsubscribeReconnect?.();
+      unsubShell();
       unsubTerminalEvent();
       unsubWelcome();
       unsubServerConfigUpdated();
       unsubProvidersUpdated();
     };
-  }, [navigate, queryClient, setProjectExpanded, syncServerReadModel]);
+  }, [navigate, queryClient, setProjectExpanded]);
 
   return null;
 }
@@ -599,45 +606,14 @@ function RemoteEnvironmentEventRouter() {
       }
       if (event.primary || cleanups.has(event.environmentId)) return;
 
-      let disposed = false;
-      let latestSequence = 0;
-      let syncPromise: Promise<void> | null = null;
-      let pending = false;
-      const syncSnapshot = async (): Promise<void> => {
-        if (syncPromise) {
-          pending = true;
-          return syncPromise;
-        }
-        syncPromise = (async () => {
-          do {
-            pending = false;
-            const snapshot = await event.api.orchestration.getSnapshot();
-            if (disposed) return;
-            latestSequence = Math.max(latestSequence, snapshot.snapshotSequence);
-            syncServerReadModelToAtoms(snapshot, event.environmentId);
-          } while (pending && !disposed);
-        })().finally(() => {
-          syncPromise = null;
-        });
-        return syncPromise;
-      };
-      const throttler = new Throttler(() => void syncSnapshot(), {
-        wait: 100,
-        leading: false,
-        trailing: true,
-      });
-      const unsubscribeDomain = event.api.orchestration.onDomainEvent((domainEvent) => {
-        if (domainEvent.sequence <= latestSequence) return;
-        latestSequence = domainEvent.sequence;
-        throttler.maybeExecute();
-      });
-      void syncSnapshot().catch((error) => {
-        console.warn(`Failed to sync environment ${event.environmentId}`, error);
+      const unsubscribeShell = event.api.orchestration.subscribeShell((item) => {
+        applyShellStreamItemToAtoms(item, event.environmentId);
+        void import("../stores/messageQueueStore").then(({ reconcileAllPendingCancellations }) =>
+          reconcileAllPendingCancellations(event.api, undefined, event.environmentId),
+        );
       });
       cleanups.set(event.environmentId, () => {
-        disposed = true;
-        unsubscribeDomain();
-        throttler.cancel();
+        unsubscribeShell();
       });
     });
 

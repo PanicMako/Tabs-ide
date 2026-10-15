@@ -6,6 +6,7 @@ import {
   createScopedComposerDraftActions,
   scopedComposerProjectId,
   scopedComposerThreadId,
+  physicalComposerProjectId,
 } from "./composerDrafts";
 
 const environmentA = EnvironmentId.makeUnsafe("environment-a");
@@ -24,6 +25,15 @@ beforeEach(() => {
 });
 
 describe("scoped composer drafts", () => {
+  it("resolves physical project IDs only for the owning environment", () => {
+    const physical = ProjectId.makeUnsafe("project / with spaces");
+    const scoped = scopedComposerProjectId(environmentA, physical);
+    expect(physicalComposerProjectId(scoped, environmentA)).toBe(physical);
+    expect(physicalComposerProjectId(physical, environmentA)).toBe(physical);
+    expect(() => physicalComposerProjectId(scoped, environmentB)).toThrow(
+      "Reconnect its owning environment",
+    );
+  });
   it("isolates identical project and thread ids while returning semantic ids", () => {
     const actionsA = createScopedComposerDraftActions(environmentA);
     const actionsB = createScopedComposerDraftActions(environmentB);
@@ -70,7 +80,13 @@ describe("scoped composer drafts", () => {
     actionsA.setProjectDraftThreadId(projectId, threadId);
     actionsB.setProjectDraftThreadId(projectId, threadId);
 
+    actionsA.setPrompt(threadId, "keep unsent content after promotion");
     clearPromotedDraftThreads(new Set([threadId]), environmentA);
+    expect(
+      useComposerDraftStore.getState().draftsByThreadId[
+        scopedComposerThreadId(environmentA, threadId)
+      ]?.prompt,
+    ).toBe("keep unsent content after promotion");
 
     const state = useComposerDraftStore.getState();
     expect(

@@ -62,6 +62,19 @@ function unscopedId(value: string): string {
   }
 }
 
+/** Resolve persisted draft ownership before sending an ID to an environment. */
+export function physicalComposerProjectId(projectId: ProjectId, environmentId: string): ProjectId {
+  const separator = projectId.indexOf(SCOPE_SEPARATOR);
+  if (separator < 0) return projectId;
+  const owner = decodeURIComponent(projectId.slice(0, separator));
+  if (owner !== environmentId) {
+    throw new Error(
+      `This queued draft belongs to environment ${owner}, not ${environmentId}. Reconnect its owning environment to retry.`,
+    );
+  }
+  return ProjectId.makeUnsafe(unscopedId(projectId));
+}
+
 function claimLegacyThread(environmentId: EnvironmentId, threadId: ThreadId): ThreadId {
   const scopedThreadId = scopedComposerThreadId(environmentId, threadId);
   const state = useComposerDraftStore.getState();

@@ -530,6 +530,42 @@ describe("composerDraftStore terminal contexts", () => {
     expect(mergedState.draftThreadsByThreadId).toEqual({});
     expect(mergedState.projectDraftThreadIdByProjectId).toEqual({});
   });
+
+  it.each([
+    "codex",
+    "claudeAgent",
+    "cursor",
+    "copilot",
+    "grok",
+    "opencode",
+    "kilo",
+    "droid",
+    "antigravity",
+    "openrouter",
+  ])("retains %s selection when a draft is restored", (instanceId) => {
+    const merge = useComposerDraftStore.persist.getOptions().merge!;
+    const selection = { instanceId, model: "native-model" };
+    const restored = merge(
+      {
+        draftsByThreadId: {
+          [threadId]: {
+            prompt: "retained",
+            attachments: [],
+            activeProvider: instanceId,
+            modelSelectionByProvider: { [instanceId]: selection },
+          },
+        },
+        stickyActiveProvider: instanceId,
+        stickyModelSelectionByProvider: { [instanceId]: selection },
+      },
+      useComposerDraftStore.getInitialState(),
+    );
+    expect(restored.draftsByThreadId[threadId]?.activeProvider).toBe(instanceId);
+    expect(restored.stickyActiveProvider).toBe(instanceId);
+    expect(restored.draftsByThreadId[threadId]?.modelSelectionByProvider).toMatchObject({
+      [instanceId]: selection,
+    });
+  });
 });
 
 describe("composerDraftStore project draft thread mapping", () => {

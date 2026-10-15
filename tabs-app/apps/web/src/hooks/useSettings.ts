@@ -114,9 +114,7 @@ function mergeServerSettingsPatch(
       textGenerationModelSelection: makeAppModelSelection(
         selectionPatch.instanceId ?? currentSel?.instanceId ?? ("codex" as any),
         selectionPatch.model ?? currentSel?.model ?? "",
-        hasOptions
-          ? (selectionPatch.options ?? null)
-          : (currentSel?.options ?? null),
+        hasOptions ? (selectionPatch.options ?? null) : (currentSel?.options ?? null),
       ) as unknown as ServerSettings["textGenerationModelSelection"],
     };
   }
@@ -129,10 +127,7 @@ function mergeServerSettingsPatch(
             ...currentSel,
             ...(selectionPatch.options
               ? {
-                  options: deepMerge(
-                    currentSel.options ?? {},
-                    selectionPatch.options,
-                  ),
+                  options: deepMerge(currentSel.options ?? {}, selectionPatch.options),
                 }
               : {}),
           } as ServerSettings["textGenerationModelSelection"])

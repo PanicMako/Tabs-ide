@@ -9,6 +9,7 @@ export interface ActiveProjectTarget {
   readonly environmentId: EnvironmentId | null;
   readonly projectId: ProjectId;
   readonly cwd: string;
+  readonly projectCwd: string;
   readonly projectName: string;
   readonly threadId?: ThreadId | null;
 }
@@ -43,6 +44,7 @@ export function useActiveProjectTarget(
     environmentId: project.environmentId ?? null,
     projectId: project.id,
     cwd,
+    projectCwd: project.cwd,
     projectName: project.name,
     threadId,
   };

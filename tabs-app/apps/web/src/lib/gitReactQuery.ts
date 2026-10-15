@@ -56,6 +56,7 @@ export function gitEnvironmentQueryOptions(cwd: string | null, environmentId?: s
     },
     enabled: cwd !== null,
     staleTime: GIT_ENVIRONMENT_STALE_TIME_MS,
+    refetchInterval: GIT_ENVIRONMENT_STALE_TIME_MS,
     refetchOnWindowFocus: "always",
     refetchOnReconnect: "always",
   });

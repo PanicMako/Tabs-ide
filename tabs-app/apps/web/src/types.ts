@@ -8,6 +8,7 @@ import type {
   ProjectScript as ContractProjectScript,
   ThreadId,
   ProjectId,
+  RunId,
   TurnId,
   MessageId,
   ProviderKind,
@@ -20,6 +21,18 @@ import type {
   ProjectIconOverride,
   ThreadEnvMode,
 } from "@tabs/contracts";
+
+export interface QueuedRunItem {
+  id: RunId;
+  ordinal: number;
+  userMessageId: MessageId;
+  text: string;
+  attachments?: ChatAttachment[];
+  scheduledFor?: string | null;
+  queuePosition?: number | null;
+  queueHeld?: boolean;
+  createdAt: string;
+}
 
 export type SessionPhase = "disconnected" | "connecting" | "ready" | "running";
 export const DEFAULT_RUNTIME_MODE: RuntimeMode = "full-access";
@@ -95,6 +108,7 @@ export interface Project {
   id: ProjectId;
   environmentId?: EnvironmentId | undefined;
   name: string;
+  title?: string;
   cwd: string;
   defaultModelSelection: ModelSelection | null;
   defaultThreadEnvMode?: ThreadEnvMode | null | undefined;
@@ -138,6 +152,9 @@ export interface Thread {
   worktreePath: string | null;
   turnDiffSummaries: TurnDiffSummary[];
   activities: OrchestrationThreadActivity[];
+  queuedRuns?: QueuedRunItem[];
+  activeRunId?: RunId | null;
+  activeRunUserMessageId?: MessageId | null;
 }
 
 export interface ThreadSession {
