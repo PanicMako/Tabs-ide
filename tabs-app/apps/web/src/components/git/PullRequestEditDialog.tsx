@@ -79,7 +79,7 @@ export function PullRequestEditForm({
               Description
             </span>
             <OrbitGroup
-              className="tabs-segmented flex items-center"
+              className="tabs-segmented flex items-center rounded-full"
               role="group"
               aria-label="Description editor mode"
             >
@@ -87,7 +87,7 @@ export function PullRequestEditForm({
                 type="button"
                 size="sm"
                 variant={activeTab === "write" ? "secondary" : "ghost"}
-                className="h-6 px-2 text-xs gap-1"
+                className="h-6 px-2.5 text-xs gap-1 rounded-full"
                 onClick={() => setActiveTab("write")}
                 aria-pressed={activeTab === "write"}
               >
@@ -98,7 +98,7 @@ export function PullRequestEditForm({
                 type="button"
                 size="sm"
                 variant={activeTab === "preview" ? "secondary" : "ghost"}
-                className="h-6 px-2 text-xs gap-1"
+                className="h-6 px-2.5 text-xs gap-1 rounded-full"
                 onClick={() => setActiveTab("preview")}
                 aria-pressed={activeTab === "preview"}
               >

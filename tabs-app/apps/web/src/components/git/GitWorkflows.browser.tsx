@@ -243,7 +243,7 @@ describe("Git workflow interaction states", () => {
       </QueryClientProvider>,
     );
 
-    await page.getByRole("button", { name: "All repository PRs" }).click();
+    await page.getByRole("radio", { name: /^(All repository PRs|Repository)$/ }).click();
     await vi.waitFor(() => expect(document.body.textContent).toContain("Open provider result"));
     await page.getByRole("button", { name: "Enable auto-merge…" }).click();
     await page.getByRole("button", { name: "Enable auto-merge", exact: true }).click();
@@ -269,7 +269,7 @@ describe("Git workflow interaction states", () => {
         body: "Updated provider description",
       }),
     );
-    await page.getByRole("button", { name: "merged" }).click();
+    await page.getByRole("radio", { name: "Merged", exact: true }).click();
     await vi.waitFor(() => expect(document.body.textContent).toContain("Merged provider result"));
     expect(listPullRequests).toHaveBeenCalledWith({
       cwd: "/workspace",
@@ -323,7 +323,7 @@ describe("Git workflow interaction states", () => {
       </QueryClientProvider>,
     );
 
-    await page.getByRole("button", { name: "All repository PRs" }).click();
+    await page.getByRole("radio", { name: /^(All repository PRs|Repository)$/ }).click();
     await page.getByRole("searchbox", { name: "Search pull requests" }).fill('fix "auth"');
     await page.getByRole("button", { name: "Search", exact: true }).click();
     await vi.waitFor(() =>
@@ -335,4 +335,25 @@ describe("Git workflow interaction states", () => {
       }),
     );
   });
+});
+
+it("Git setup failures show Retry instead of an endless loading animation", async () => {
+  const retry = vi.fn();
+  const screen = await render(
+    <GitEnvironmentGate
+      environment={undefined}
+      isRepo={undefined}
+      isLoading={false}
+      initPending={false}
+      onInitRepo={vi.fn()}
+      error="Git environment request failed"
+      onRetry={retry}
+    >
+      <div>Workspace</div>
+    </GitEnvironmentGate>,
+  );
+  await expect.element(screen.getByText("Couldn’t load Git")).toBeVisible();
+  await screen.getByRole("button", { name: "Retry" }).click();
+  expect(retry).toHaveBeenCalledOnce();
+  await screen.unmount();
 });

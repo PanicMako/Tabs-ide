@@ -1,16 +1,6 @@
-import {
-  AlertTriangle,
-  Check,
-  ChevronDown,
-  CircleAlert,
-  Copy,
-  Loader2,
-  Search,
-  Wand2,
-  X,
-} from "lucide-react";
+import { AlertTriangle, Check, CircleAlert, Copy, Loader2, Wand2, X } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import type { ModelSelection, ProviderInstanceId } from "@tabs/contracts";
+import { ModelSlug, ProviderInstanceId, type ModelSelection } from "@tabs/contracts";
 import { useSettings, useUpdateSettings } from "../../hooks/useSettings";
 import { useServerConfig } from "../../state/settings";
 import {
@@ -18,11 +8,10 @@ import {
   deriveProviderInstanceEntries,
   sortProviderInstanceEntries,
 } from "../../providerInstances";
-import {
-  getCustomModelOptionsByInstance,
-  resolveAppModelSelectionState,
-} from "../../modelSelection";
-import { SettingsProviderModelPicker } from "../chat/SettingsProviderModelPicker";
+import { makeAppModelSelection, resolveAppModelSelectionState } from "../../modelSelection";
+import { FusedModelPicker } from "../chat/FusedModelPicker";
+import { PROVIDER_OPTIONS } from "../../session-logic";
+import { pickGitProviderInstance } from "../../lib/gitModelSelection";
 import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
 
@@ -71,6 +60,7 @@ export function Banner({
   const Icon = tone === "warn" ? AlertTriangle : CircleAlert;
   return (
     <div
+      data-slot="git-banner"
       className="w-full flex items-center justify-between gap-4 rounded-lg border px-4 py-3 mb-4"
       style={{ borderColor: c.border, backgroundColor: c.soft }}
     >
@@ -114,7 +104,10 @@ export function SectionLabel({
   className?: string;
 }) {
   return (
-    <div className={cn("flex items-center justify-between mt-5 mb-2 first:mt-0", className)}>
+    <div
+      data-slot="git-section-label"
+      className={cn("flex items-center justify-between mt-5 mb-2 first:mt-0", className)}
+    >
       <span className="text-xs font-mono uppercase tracking-widest text-muted-foreground/70">
         {children}
       </span>
@@ -136,6 +129,7 @@ export function Card({
 }) {
   return (
     <div
+      data-slot="git-card"
       className={`border border-border rounded-lg ${className}`}
       style={{ backgroundColor: "var(--bg-surface)", ...style }}
       onClick={onClick}
@@ -319,6 +313,7 @@ export function AutoTextarea({
   placeholder,
   className = "",
   minRows = 3,
+  "aria-label": ariaLabel,
 }: {
   value: string;
   onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
@@ -326,6 +321,7 @@ export function AutoTextarea({
   placeholder?: string;
   className?: string;
   minRows?: number;
+  "aria-label"?: string;
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
@@ -337,6 +333,7 @@ export function AutoTextarea({
   return (
     <textarea
       ref={ref}
+      aria-label={ariaLabel ?? placeholder}
       rows={minRows}
       value={value}
       onChange={onChange}
@@ -357,7 +354,7 @@ export const Field = ({
   description?: ReactNode;
   children: ReactNode;
 }) => (
-  <div className="mb-3">
+  <div data-slot="git-field" className="mb-3">
     <label className="text-[10px] uppercase tracking-widest text-muted-foreground/70 block mb-1">
       {label}
     </label>
@@ -391,7 +388,9 @@ export const Select = ({
   children,
   className,
   disabled,
+  "aria-label": ariaLabel,
 }: {
+  "aria-label"?: string;
   value?: string | number;
   onChange?: (e: { target: { value: string } }) => void;
   children?: React.ReactNode;
@@ -421,7 +420,7 @@ export const Select = ({
         }
       }}
     >
-      <SelectTrigger className={className}>
+      <SelectTrigger className={className} aria-label={ariaLabel}>
         <SelectValue placeholder={typeof selectedLabel === "string" ? selectedLabel : "Select…"}>
           {selectedLabel}
         </SelectValue>
@@ -575,8 +574,6 @@ export function DiffSummaryCard({
   );
 }
 
-import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
-
 export interface GitModelPickerProps {
   selection?: ModelSelection | undefined;
   onSelect?: (selection: ModelSelection) => void;
@@ -591,341 +588,92 @@ export function GitModelPicker({
   selection,
   onSelect,
   className,
-  filterSourceMode,
   persistSelection = true,
   ariaLabel = "Select AI model",
   disabled = false,
 }: GitModelPickerProps) {
-  const [open, setOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
   const settings = useSettings();
   const updateSettings = useUpdateSettings();
   const serverConfig = useServerConfig();
-
-  const isGeminiKeyConfigured = Boolean(settings?.providers?.gemini?.apiKey?.trim());
-
-  const activeSelection = selection ||
-    settings?.gitAi?.gitTextGenerationModelSelection || {
-      instanceId: "gemini" as ProviderInstanceId,
-      model: "gemini-3.6-flash",
-    };
-
-  const serverProviders = useMemo(() => serverConfig?.providers ?? [], [serverConfig?.providers]);
-
-  const dynamicConnectedGroups = useMemo(() => {
-    const entries = sortProviderInstanceEntries(
-      applyProviderInstanceSettings(deriveProviderInstanceEntries(serverProviders), settings),
-    );
-    const optionsMap = getCustomModelOptionsByInstance(
-      settings,
-      serverProviders,
-      activeSelection.instanceId,
-      activeSelection.model,
-    );
-
-    return entries
-      .map((entry) => {
-        const opts = optionsMap.get(entry.instanceId) ?? [];
-        return {
-          id: "connected",
-          group: `${entry.displayName} (Connected Subscription)`,
-          items: opts.map((opt) => ({
-            instanceId: entry.instanceId,
-            model: opt.slug,
-            name: opt.name || opt.slug,
-            description: `${entry.displayName} subscription backend`,
-            badge: "Fusion",
-            badgeColor: "bg-primary/10 text-foreground border-primary/20",
-          })),
-        };
-      })
-      .filter((g) => g.items.length > 0);
-  }, [serverProviders, settings, activeSelection.instanceId, activeSelection.model]);
-
-  const directGeminiGroup = useMemo(() => {
-    return {
-      id: "direct_gemini",
-      group: "Google Gemini (Direct API Key)",
-      items: [
-        {
-          instanceId: "gemini" as ProviderInstanceId,
-          model: "gemini-3.6-flash",
-          name: "Gemini 3.6 Flash",
-          description: "Ultra-fast, 1M context token window (Recommended)",
-          badge: isGeminiKeyConfigured ? "Ready" : "Key Required",
-          badgeColor: isGeminiKeyConfigured
-            ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
-            : "bg-amber-500/10 text-amber-500 border-amber-500/20",
-        },
-        {
-          instanceId: "gemini" as ProviderInstanceId,
-          model: "gemini-2.5-pro",
-          name: "Gemini 2.5 Pro",
-          description: "Deep reasoning 1M context model",
-          badge: isGeminiKeyConfigured ? "Ready" : "Key Required",
-          badgeColor: isGeminiKeyConfigured
-            ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
-            : "bg-amber-500/10 text-amber-500 border-amber-500/20",
-        },
-        {
-          instanceId: "gemini" as ProviderInstanceId,
-          model: "gemini-2.0-flash",
-          name: "Gemini 2.0 Flash",
-          description: "Lightweight high-speed model",
-          badge: isGeminiKeyConfigured ? "Ready" : "Key Required",
-          badgeColor: isGeminiKeyConfigured
-            ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
-            : "bg-amber-500/10 text-amber-500 border-amber-500/20",
-        },
-        {
-          instanceId: "gemini" as ProviderInstanceId,
-          model: "gemini-1.5-pro",
-          name: "Gemini 1.5 Pro",
-          description: "High capacity reasoning model",
-          badge: isGeminiKeyConfigured ? "Ready" : "Key Required",
-          badgeColor: isGeminiKeyConfigured
-            ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
-            : "bg-amber-500/10 text-amber-500 border-amber-500/20",
-        },
-        {
-          instanceId: "gemini" as ProviderInstanceId,
-          model: "gemini-1.5-flash",
-          name: "Gemini 1.5 Flash",
-          description: "Fast multimodal model",
-          badge: isGeminiKeyConfigured ? "Ready" : "Key Required",
-          badgeColor: isGeminiKeyConfigured
-            ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
-            : "bg-amber-500/10 text-amber-500 border-amber-500/20",
-        },
-      ],
-    };
-  }, [isGeminiKeyConfigured]);
-
-  const allModelGroups = useMemo(() => {
-    if (filterSourceMode === "direct_gemini") {
-      return [directGeminiGroup];
-    }
-    if (filterSourceMode === "connected") {
-      return dynamicConnectedGroups.length > 0
-        ? dynamicConnectedGroups
-        : [
-            {
-              id: "connected",
-              group: "Connected Subscriptions (Fusion Backends)",
-              items: [
-                {
-                  instanceId: "codex" as ProviderInstanceId,
-                  model: "gpt-5.4-mini",
-                  name: "Codex (GPT-5.4 Mini)",
-                  description: "Codex subscription backend",
-                  badge: "Fusion",
-                  badgeColor: "bg-primary/10 text-foreground border-primary/20",
-                },
-                {
-                  instanceId: "codex" as ProviderInstanceId,
-                  model: "gpt-5.4",
-                  name: "Codex (GPT-5.4)",
-                  description: "Codex subscription backend",
-                  badge: "Fusion",
-                  badgeColor: "bg-primary/10 text-foreground border-primary/20",
-                },
-                {
-                  instanceId: "claudeAgent" as ProviderInstanceId,
-                  model: "claude-haiku-4-5",
-                  name: "Claude (Haiku 4.5)",
-                  description: "Claude Agent backend",
-                  badge: "Fusion",
-                  badgeColor: "bg-primary/10 text-foreground border-primary/20",
-                },
-                {
-                  instanceId: "claudeAgent" as ProviderInstanceId,
-                  model: "claude-sonnet-5",
-                  name: "Claude (Sonnet 5)",
-                  description: "Claude Agent backend",
-                  badge: "Fusion",
-                  badgeColor: "bg-primary/10 text-foreground border-primary/20",
-                },
-                {
-                  instanceId: "grok" as ProviderInstanceId,
-                  model: "grok-build",
-                  name: "Grok (Build)",
-                  description: "xAI Grok backend",
-                  badge: "Fusion",
-                  badgeColor: "bg-primary/10 text-foreground border-primary/20",
-                },
-                {
-                  instanceId: "cursor" as ProviderInstanceId,
-                  model: "composer-2",
-                  name: "Cursor (Composer 2)",
-                  description: "Cursor subscription backend",
-                  badge: "Fusion",
-                  badgeColor: "bg-primary/10 text-foreground border-primary/20",
-                },
-              ],
-            },
-          ];
-    }
-    return [directGeminiGroup, ...dynamicConnectedGroups];
-  }, [filterSourceMode, directGeminiGroup, dynamicConnectedGroups]);
-
-  const filteredGroups = useMemo(() => {
-    if (!searchQuery.trim()) return allModelGroups;
-    const q = searchQuery.toLowerCase().trim();
-    return allModelGroups
-      .map((g) => ({
-        ...g,
-        items: g.items.filter(
-          (item) =>
-            item.name.toLowerCase().includes(q) ||
-            item.model.toLowerCase().includes(q) ||
-            item.description.toLowerCase().includes(q) ||
-            g.group.toLowerCase().includes(q),
-        ),
-      }))
-      .filter((g) => g.items.length > 0);
-  }, [allModelGroups, searchQuery]);
-
-  const defaultItem = allModelGroups[0]?.items[0] ?? {
-    instanceId: "gemini" as ProviderInstanceId,
-    model: "gemini-3.6-flash",
-    name: "Gemini 2.5 Flash",
-    description: "Ultra-fast, 1M context token window",
-    badge: isGeminiKeyConfigured ? "Ready" : "Key Required",
-    badgeColor: isGeminiKeyConfigured
-      ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
-      : "bg-amber-500/10 text-amber-500 border-amber-500/20",
-  };
-
-  const currentItem =
-    allModelGroups
-      .flatMap((g) => g.items)
-      .find(
-        (i) => i.instanceId === activeSelection.instanceId && i.model === activeSelection.model,
-      ) ?? defaultItem;
-
-  const handleSelect = (inst: ProviderInstanceId, mdl: string) => {
-    const nextSelection = { instanceId: inst, model: mdl };
-    onSelect?.(nextSelection);
-    if (persistSelection) {
+  const providers = serverConfig?.providers ?? [];
+  const active =
+    selection ??
+    settings.gitAi?.gitTextGenerationModelSelection ??
+    resolveAppModelSelectionState(settings, providers);
+  const entries = sortProviderInstanceEntries(
+    applyProviderInstanceSettings(deriveProviderInstanceEntries(providers), settings),
+  ).filter((entry) => entry.enabled && entry.isAvailable);
+  const currentEntry = entries.find((entry) => entry.instanceId === active.instanceId);
+  const driver =
+    PROVIDER_OPTIONS.find((option) => option.value === currentEntry?.driverKind)?.value ?? "codex";
+  // Fusion uses driver tabs; keep the real configured instance ID when dispatching.
+  const catalog = PROVIDER_OPTIONS.flatMap(({ value }) => {
+    const entry = pickGitProviderInstance(entries, value, active.instanceId);
+    return entry ? [{ ...entry.snapshot, instanceId: ProviderInstanceId.makeUnsafe(value) }] : [];
+  });
+  const save = (next: ModelSelection) => {
+    if (persistSelection)
       updateSettings.updateSettings({
-        gitAi: {
-          gitTextGenerationModelSelection: nextSelection,
-        },
+        gitAi: { gitTextGenerationModelSelection: next, modelSourceMode: "connected" },
       });
-    }
-    setOpen(false);
+    onSelect?.(next);
   };
-
+  const instances = entries.filter((entry) => entry.driverKind === currentEntry?.driverKind);
   return (
-    <Popover
-      open={open}
-      onOpenChange={(val) => {
-        setOpen(val);
-        if (!val) setSearchQuery("");
-      }}
-    >
-      <PopoverTrigger
-        render={
-          <Button
-            aria-label={ariaLabel}
-            disabled={disabled}
-            variant="outline"
-            size="sm"
-            className={cn(
-              "h-8 gap-2 font-mono text-xs justify-between min-w-[210px] border-border/70 hover:border-border transition-colors",
-              className,
-            )}
-          >
-            <span className="truncate flex items-center gap-1.5">
-              <span className="font-semibold text-foreground">
-                {currentItem?.name ?? "Gemini 2.5 Flash"}
-              </span>
-            </span>
-            <ChevronDown className="size-3.5 text-muted-foreground shrink-0" />
-          </Button>
+    <div className={cn("flex flex-wrap items-center gap-2", className)}>
+      {instances.length > 1 && (
+        <Select
+          aria-label="Provider account for Git"
+          value={active.instanceId}
+          disabled={disabled}
+          onChange={(event) => {
+            const entry = entries.find((item) => item.instanceId === event.target.value);
+            if (entry)
+              save(
+                makeAppModelSelection(
+                  entry.instanceId,
+                  entry.models.find((model) => model.slug === active.model)?.slug ??
+                    entry.models[0]?.slug ??
+                    active.model,
+                ),
+              );
+          }}
+        >
+          {instances.map((entry) => (
+            <option key={entry.instanceId} value={entry.instanceId}>
+              {entry.displayName}
+            </option>
+          ))}
+        </Select>
+      )}
+      <FusedModelPicker
+        provider={driver}
+        model={active.model as ModelSlug}
+        lockedProvider={null}
+        providers={catalog}
+        prompt=""
+        onPromptChange={() => {}}
+        modelOptions={active.options}
+        ariaLabel={ariaLabel}
+        disabled={disabled || catalog.length === 0}
+        availableProviders={catalog.map(
+          (entry) => entry.driver as import("../../session-logic").ProviderPickerKind,
+        )}
+        labelOverride={
+          !currentEntry?.models.some((model) => model.slug === active.model)
+            ? active.model
+            : undefined
+        }
+        triggerClassName="border border-border rounded-lg px-3 h-10 text-foreground"
+        side="bottom"
+        onProviderModelChange={(nextDriver, model, options) => {
+          const entry = pickGitProviderInstance(entries, nextDriver, active.instanceId);
+          if (entry) save(makeAppModelSelection(entry.instanceId, model, options));
+        }}
+        onModelOptionsChange={(options) =>
+          save(makeAppModelSelection(active.instanceId, active.model, options))
         }
       />
-      <PopoverPopup
-        align="start"
-        className="w-[340px] p-0 overflow-hidden bg-background/95 backdrop-blur-md border border-border shadow-2xl rounded-xl z-50"
-      >
-        <div className="p-2 border-b border-border/50 bg-background/80 backdrop-blur-sm sticky top-0 z-10">
-          <div className="relative">
-            <Search
-              size={13}
-              className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground z-10"
-            />
-            <TextInput
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search models by name or provider…"
-              className="w-full text-xs font-mono pl-8 pr-7 h-8 bg-muted/40"
-              autoFocus
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                aria-label="Clear model search"
-                onClick={() => setSearchQuery("")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/70 hover:text-foreground cursor-pointer"
-              >
-                <X size={12} />
-              </button>
-            )}
-          </div>
-        </div>
-
-        <div className="max-h-72 overflow-y-auto custom-scrollbar p-2 space-y-3">
-          {filteredGroups.length === 0 ? (
-            <div className="text-center py-6 text-xs text-muted-foreground/70">
-              No models match "{searchQuery}"
-            </div>
-          ) : (
-            filteredGroups.map((group) => (
-              <div key={group.group} className="space-y-1">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 px-2.5 py-1">
-                  {group.group}
-                </div>
-                {group.items.map((item) => {
-                  const isSelected =
-                    activeSelection.instanceId === item.instanceId &&
-                    activeSelection.model === item.model;
-                  return (
-                    <button
-                      key={`${item.instanceId}::${item.model}`}
-                      type="button"
-                      onClick={() => handleSelect(item.instanceId, item.model)}
-                      className={cn(
-                        "w-full text-left px-2.5 py-2 rounded-lg text-xs flex items-center justify-between gap-2 transition-colors cursor-pointer",
-                        isSelected
-                          ? "bg-primary/10 border border-primary/20 text-foreground"
-                          : "hover:bg-muted/60 text-foreground/80",
-                      )}
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="font-medium text-foreground flex items-center gap-1.5">
-                          <span className="truncate">{item.name}</span>
-                        </div>
-                        <div className="text-[10px] text-muted-foreground/70 truncate">
-                          {item.description}
-                        </div>
-                      </div>
-                      <span
-                        className={cn(
-                          "text-[9px] font-mono px-1.5 py-0.5 rounded border shrink-0",
-                          item.badgeColor,
-                        )}
-                      >
-                        {item.badge}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            ))
-          )}
-        </div>
-      </PopoverPopup>
-    </Popover>
+    </div>
   );
 }

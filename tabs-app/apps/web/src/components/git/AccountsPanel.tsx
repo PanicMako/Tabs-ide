@@ -1,5 +1,5 @@
 import type { GitHubAccount } from "@tabs/contracts";
-import { KeyRound, Loader2 } from "lucide-react";
+import { KeyRound, Loader2, RefreshCw } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "../ui/button";
@@ -31,7 +31,7 @@ function AccountRow({
               className="text-[10px] px-1.5 py-0.5 rounded-full"
               style={{ backgroundColor: "var(--overlay-10)", color: "var(--fg-80)" }}
             >
-              used here
+              active
             </span>
           )}
         </div>
@@ -79,6 +79,8 @@ export function AccountsPanel({
   onOpenConnectAccount,
   onSwitchAccount,
   onRemoveAccount,
+  onRefresh,
+  isRefreshing = false,
 }: {
   accounts: ReadonlyArray<GitHubAccount>;
   activeAccountLogin: string | null;
@@ -87,6 +89,8 @@ export function AccountsPanel({
   onOpenConnectAccount: () => void;
   onSwitchAccount: (login: string) => void | Promise<void>;
   onRemoveAccount: (login: string) => void | Promise<void>;
+  onRefresh?: () => Promise<void>;
+  isRefreshing?: boolean;
 }) {
   const [actionAccountMap, setActionAccountMap] = useState<Record<string, "switch" | "remove">>({});
 
@@ -119,6 +123,15 @@ export function AccountsPanel({
   return (
     <div>
       <PanelToolbar>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => void onRefresh?.()}
+          disabled={isRefreshing || !onRefresh}
+        >
+          <RefreshCw size={14} className={isRefreshing ? "animate-spin" : ""} />
+          Refresh account details
+        </Button>
         <Button size="sm" onClick={onOpenConnectAccount}>
           Connect an account
         </Button>
@@ -149,15 +162,18 @@ export function AccountsPanel({
         )}
       </Card>
 
-      <SectionLabel>This project</SectionLabel>
+      <SectionLabel>GitHub authentication</SectionLabel>
       <p className="text-xs text-muted-foreground/70 leading-relaxed mb-2">
-        {repoName} pushes and opens pull requests as this account. Changing it here only affects
-        this project.
+        {repoName} uses this account for GitHub actions. Switching accounts changes GitHub CLI
+        authentication for this host across projects. Git push may use a separate SSH key or
+        credential helper.
       </p>
       <div className="flex items-center gap-2.5 bg-muted/50 border border-border rounded-lg px-3 py-2.5">
         <KeyRound size={13} className="text-muted-foreground/70 shrink-0" />
-        <span className="text-xs text-muted-foreground/80">Push and open PRs as</span>
+        <span className="text-xs text-muted-foreground/80">Active GitHub account</span>
         <Select
+          aria-label="Active GitHub account"
+          disabled={accounts.length === 0 || Object.keys(actionAccountMap).length > 0}
           value={activeAccountLogin || ""}
           onChange={(e) => void handleSwitch(e.target.value)}
           className="h-8 border-border rounded-md text-xs font-mono text-foreground/90 bg-background px-2 py-1 outline-none"

@@ -765,7 +765,7 @@ export default function GitActionsControl({
           type="button"
           disabled={initMutation.isPending}
           onClick={() => initMutation.mutate()}
-          className="flex h-9 w-full items-center justify-center rounded-xl border border-border/80 bg-background px-2.5 text-xs font-medium text-foreground hover:bg-accent/40 hover:border-border transition-colors disabled:opacity-50 shadow-2xs"
+          className="flex h-8 w-full items-center justify-center rounded-lg border border-border/80 bg-background px-2.5 text-xs font-medium text-foreground hover:bg-accent/40 hover:border-border transition-colors disabled:opacity-50 shadow-2xs"
         >
           {initMutation.isPending ? "Initializing..." : "Initialize Git"}
         </button>
@@ -773,7 +773,7 @@ export default function GitActionsControl({
         <div
           role="group"
           aria-label="Git actions"
-          className="flex h-9 w-full items-center rounded-xl border border-border/80 bg-background hover:bg-accent/40 hover:border-border transition-colors shadow-2xs text-foreground"
+          className="flex h-8 w-full items-center rounded-lg border border-border/80 bg-background hover:bg-accent/40 hover:border-border transition-colors shadow-2xs text-foreground"
         >
           {quickActionDisabledReason ? (
             <Popover>
