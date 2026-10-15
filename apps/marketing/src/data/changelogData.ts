@@ -21,15 +21,39 @@ export interface ChangelogRelease {
   }[];
 }
 
-export const TOTAL_TAGS_COUNT = 176;
+export const TOTAL_TAGS_COUNT = 177;
 
 export const changelogData: ChangelogRelease[] = [
+  {
+    tag: "v2.0.0",
+    title: "A connected workspace for agents and tools",
+    date: "October 16, 2026",
+    shortDate: "Oct 16",
+    isLatest: true,
+    type: "major",
+    summary:
+      "Conversations, queued work, project tools and source control come together, with the Exchange developer pilot and independent Settings appearance.",
+    highlights: [
+      "Schedule, reorder and manage queued messages from the conversation Queue panel.",
+      "Keep files, browser pages and pull requests alongside agent conversations.",
+      "Apply Interface Study only to Settings while keeping your workspace theme.",
+      "Explore Exchange developer tools and documentation; public publishing remains disabled during the pilot.",
+    ],
+    categories: [
+      {
+        title: "Upgrade notes",
+        items: [
+          "Back up your Tabs data before upgrading. Older builds may not open databases upgraded by Tabs 2.0.",
+        ],
+      },
+    ],
+  },
   {
     tag: "v1.3.34",
     title: "Refined setup typography and interactive workspace previews",
     date: "October 5, 2026",
     shortDate: "Oct 5",
-    isLatest: true,
+    isLatest: false,
     type: "patch",
     summary:
       "Tabs refines onboarding headings with balanced typography, and the site now showcases an interactive manifesto covering supported coding agents, web tools, and project tabs.",
