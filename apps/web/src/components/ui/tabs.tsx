@@ -67,7 +67,7 @@ export function TabsList({
         tabs[next]?.click();
       }}
       className={cn(
-        "tabs-segmented inline-flex h-9 items-center justify-center text-muted-foreground",
+        "tabs-segmented inline-flex h-9 items-center justify-center rounded-full text-muted-foreground",
         className,
       )}
     >
@@ -98,7 +98,7 @@ export function TabsTrigger({
       tabIndex={isSelected ? 0 : -1}
       onClick={() => context.onValueChange(value)}
       className={cn(
-        "inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+        "inline-flex items-center justify-center whitespace-nowrap rounded-full px-3.5 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
         isSelected
           ? "font-semibold"
           : "hover:bg-muted/80 hover:text-foreground border border-transparent",

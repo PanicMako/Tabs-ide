@@ -81,12 +81,12 @@ test("keeps rounded themed tracks and skips disabled choices with keyboard navig
   try {
     const system = page.getByRole("radio", { name: "System" });
     const light = page.getByRole("radio", { name: "Light" });
-    system.element().parentElement!.setAttribute("data-theme", "tabs-light");
+    system.element().parentElement!.setAttribute("data-theme", "dracula");
     const orb = system.element().parentElement!.querySelector<HTMLElement>("[data-orbit-orb]")!;
-    const lightBackground = getComputedStyle(orb).backgroundColor;
+    const draculaBackground = getComputedStyle(orb).backgroundColor;
     expect(getComputedStyle(system.element().parentElement!).borderRadius).toBe("9999px");
     system.element().parentElement!.setAttribute("data-theme", "tabs-dark");
-    await expect.poll(() => getComputedStyle(orb).backgroundColor).not.toBe(lightBackground);
+    await expect.poll(() => getComputedStyle(orb).backgroundColor).not.toBe(draculaBackground);
     system.element().focus();
     system
       .element()

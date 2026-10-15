@@ -1,5 +1,6 @@
 export type WallpaperCategory =
   | "All"
+  | "Custom"
   | "Sky"
   | "Sunset"
   | "Night"
@@ -15,10 +16,12 @@ export interface WallpaperOption {
   readonly url: string;
   readonly accentColor: string;
   readonly description: string;
+  readonly isCustom?: boolean;
 }
 
 export const WALLPAPER_CATEGORIES: readonly WallpaperCategory[] = [
   "All",
+  "Custom",
   "Sky",
   "Sunset",
   "Night",
@@ -295,5 +298,208 @@ export function getInitialWallpaper(): WallpaperOption {
 export function saveWallpaperPreference(url: string): void {
   try {
     localStorage.setItem(WALLPAPER_STORAGE_KEY, url);
+  } catch {}
+}
+
+// ── Agent-view wallpaper (separate from wizard preference) ────────────────
+
+const AGENT_WALLPAPER_STORAGE_KEY = "tabs:agentWallpaper";
+const AGENT_WALLPAPER_ENABLED_KEY = "tabs:agentWallpaperEnabled";
+const CUSTOM_WALLPAPERS_STORAGE_KEY = "tabs:customWallpapers";
+const THREAD_WALLPAPER_STORAGE_PREFIX = "tabs:threadWallpaper:";
+export const AGENT_WALLPAPER_CHANGE_EVENT = "tabs:agent-wallpaper-change";
+
+/**
+ * By user requirement: Wallpapers are OFF by default.
+ * Users can turn it on in Settings or customize per thread.
+ */
+export function getIsAgentWallpaperEnabled(): boolean {
+  try {
+    const saved = localStorage.getItem(AGENT_WALLPAPER_ENABLED_KEY);
+    if (saved !== null) {
+      return saved === "true";
+    }
+  } catch {}
+  return false;
+}
+
+export function saveIsAgentWallpaperEnabled(enabled: boolean): void {
+  try {
+    localStorage.setItem(AGENT_WALLPAPER_ENABLED_KEY, String(enabled));
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent(AGENT_WALLPAPER_CHANGE_EVENT, { detail: { enabled } }));
+    }
+  } catch {}
+}
+
+// ── Custom Wallpapers (User uploaded images or URLs) ─────────────────────
+
+export function getCustomWallpapers(): readonly WallpaperOption[] {
+  try {
+    const raw = localStorage.getItem(CUSTOM_WALLPAPERS_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+    }
+  } catch {}
+  return [];
+}
+
+export function addCustomWallpaper(options: {
+  label: string;
+  url: string;
+  description?: string;
+}): WallpaperOption {
+  const existing = [...getCustomWallpapers()];
+  const id = `custom-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const newWallpaper: WallpaperOption = {
+    id,
+    label: options.label.trim() || "Custom Anime Scene",
+    category: "Custom",
+    url: options.url,
+    accentColor: "#38bdf8",
+    description: options.description?.trim() || "User imported custom wallpaper",
+    isCustom: true,
+  };
+  existing.unshift(newWallpaper);
+  try {
+    localStorage.setItem(CUSTOM_WALLPAPERS_STORAGE_KEY, JSON.stringify(existing));
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent(AGENT_WALLPAPER_CHANGE_EVENT, { detail: { customAdded: newWallpaper } }),
+      );
+    }
+  } catch {}
+  return newWallpaper;
+}
+
+export function removeCustomWallpaper(id: string): void {
+  const existing = getCustomWallpapers().filter((w) => w.id !== id);
+  try {
+    localStorage.setItem(CUSTOM_WALLPAPERS_STORAGE_KEY, JSON.stringify(existing));
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent(AGENT_WALLPAPER_CHANGE_EVENT, { detail: { customRemoved: id } }),
+      );
+    }
+  } catch {}
+}
+
+export function getAllAgentWallpapers(): readonly WallpaperOption[] {
+  const custom = getCustomWallpapers();
+  return [...custom, ...WALLPAPERS];
+}
+
+// ── Global and Per-Thread Wallpaper Preferences ──────────────────────────
+
+export function getInitialAgentWallpaper(): WallpaperOption {
+  const all = getAllAgentWallpapers();
+  try {
+    const saved = localStorage.getItem(AGENT_WALLPAPER_STORAGE_KEY);
+    if (saved) {
+      const match = all.find((w) => w.url === saved);
+      if (match) return match;
+    }
+  } catch {}
+  // Default to Romantic Night (wp5076799)
+  return all.find((w) => w.id === "wp5076799") ?? all[0] ?? WALLPAPERS[0]!;
+}
+
+export function saveAgentWallpaperPreference(url: string): void {
+  try {
+    localStorage.setItem(AGENT_WALLPAPER_STORAGE_KEY, url);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent(AGENT_WALLPAPER_CHANGE_EVENT, { detail: { url } }));
+    }
+  } catch {}
+}
+
+// ── Per-Thread Wallpaper Assignments ─────────────────────────────────────
+
+export function getThreadWallpaper(threadId: string): WallpaperOption | null {
+  try {
+    const saved = localStorage.getItem(THREAD_WALLPAPER_STORAGE_PREFIX + threadId);
+    if (saved) {
+      const all = getAllAgentWallpapers();
+      const match = all.find((w) => w.url === saved);
+      if (match) return match;
+      // If it's a raw URL (custom or external) that is not in the list, construct an option
+      return {
+        id: `thread-${threadId}`,
+        label: "Thread Custom Wallpaper",
+        category: "Custom",
+        url: saved,
+        accentColor: "#38bdf8",
+        description: "Assigned to this specific thread",
+        isCustom: true,
+      };
+    }
+  } catch {}
+  return null;
+}
+
+export function saveThreadWallpaper(threadId: string, url: string): void {
+  try {
+    localStorage.setItem(THREAD_WALLPAPER_STORAGE_PREFIX + threadId, url);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent(AGENT_WALLPAPER_CHANGE_EVENT, { detail: { threadId, url } }),
+      );
+    }
+  } catch {}
+}
+
+export function clearThreadWallpaper(threadId: string): void {
+  try {
+    localStorage.removeItem(THREAD_WALLPAPER_STORAGE_PREFIX + threadId);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent(AGENT_WALLPAPER_CHANGE_EVENT, { detail: { threadId, cleared: true } }),
+      );
+    }
+  } catch {}
+}
+
+export function getAllThreadWallpaperAssignments(): Record<string, string> {
+  const result: Record<string, string> = {};
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(THREAD_WALLPAPER_STORAGE_PREFIX)) {
+        const threadId = key.slice(THREAD_WALLPAPER_STORAGE_PREFIX.length);
+        const url = localStorage.getItem(key);
+        if (url) result[threadId] = url;
+      }
+    }
+  } catch {}
+  return result;
+}
+
+export function resolveWallpaperForThread(threadId?: string | null): WallpaperOption {
+  if (threadId) {
+    const threadSpecific = getThreadWallpaper(threadId);
+    if (threadSpecific) return threadSpecific;
+  }
+  return getInitialAgentWallpaper();
+}
+
+// ── Floating Controller Minimized State ──────────────────────────────────
+export const AGENT_WALLPAPER_MINIMIZED_STORAGE_KEY = "tabs:agent-wallpaper-minimized";
+
+export function getIsAgentWallpaperMinimized(): boolean {
+  try {
+    const saved = localStorage.getItem(AGENT_WALLPAPER_MINIMIZED_STORAGE_KEY);
+    if (saved !== null) {
+      return saved === "true";
+    }
+  } catch {}
+  return true; // Minimized by default as requested
+}
+
+export function saveIsAgentWallpaperMinimized(minimized: boolean): void {
+  try {
+    localStorage.setItem(AGENT_WALLPAPER_MINIMIZED_STORAGE_KEY, String(minimized));
   } catch {}
 }

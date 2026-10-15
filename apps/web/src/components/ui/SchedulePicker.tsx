@@ -170,7 +170,7 @@ export function SchedulePicker({
     >
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
-          <h2 className="font-serif text-2xl italic">Schedule</h2>
+          <h2 className="font-display text-2xl italic">Schedule</h2>
           <p className="mt-1 text-xs text-muted-foreground">Pick a date. Scroll to set the time.</p>
         </div>
         <Clock size={18} className="mt-1 text-muted-foreground" />
