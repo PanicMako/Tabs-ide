@@ -1,5 +1,7 @@
-import { providerNextAction } from "./providerNextAction";
+import { providerNextAction, isProviderDetectionPending } from "./providerNextAction";
 import { ProviderFocusBar, type ProviderView } from "./ProviderFocusBar";
+import { AntigravityAccount } from "./AntigravityAccount";
+import { ProviderInstallProgress } from "./ProviderInstallProgress";
 import { ProviderDirectory } from "./ProviderDirectory";
 import { OrbitGroup } from "../ui/orbit-group";
 import { useState, useCallback, useMemo, useRef, type ReactNode } from "react";
@@ -77,7 +79,7 @@ import { useTheme } from "~/hooks/useTheme";
 import { useServerConfig } from "~/state/settings";
 import { useSettingsViewState } from "~/state/scopedStateStore";
 import { useCopyToClipboard } from "~/hooks/useCopyToClipboard";
-import { getActiveFontCombo } from "~/lib/themes";
+import { getActiveFontCombo, getFontComboPageHeading } from "~/lib/themes";
 import { readNativeApi } from "~/nativeApi";
 import { cn } from "~/lib/utils";
 import { formatRelativeTime } from "~/timestampFormat";
@@ -312,7 +314,7 @@ function getProviderSummary(provider: ServerProvider | undefined): {
   readonly headline: string;
   readonly detail: string | null;
 } {
-  if (!provider) {
+  if (!provider || isProviderDetectionPending(provider)) {
     return {
       headline: "Checking provider status",
       detail: "Waiting for the server to report installation and authentication details.",
@@ -506,7 +508,7 @@ function PinModelCommandPalette({
               {/* Provider Filter Pills */}
               <div className="flex items-center gap-1.5 overflow-x-auto px-4 py-2 border-b border-border/40 bg-muted/10 [&::-webkit-scrollbar]:hidden">
                 <OrbitGroup
-                  className="tabs-segmented inline-flex items-center shrink-0"
+                  className="tabs-segmented inline-flex items-center shrink-0 rounded-full"
                   role="group"
                   aria-label="Provider filter"
                 >
@@ -669,6 +671,7 @@ export default function ProvidersSettings(props: ProvidersSettingsProps) {
   const { refreshProviders, isRefreshingProviders, startProviderAction, providerActionBusy } =
     props;
 
+  const [antigravityInstalling, setAntigravityInstalling] = useState(false);
   const [providerViews, setProviderViews] = useState<
     Partial<Record<ProviderSettingsKey, ProviderView>>
   >({});
@@ -962,7 +965,12 @@ export default function ProvidersSettings(props: ProvidersSettingsProps) {
         summary,
         versionLabel: getProviderVersionLabel(liveProvider?.version),
         updatePrompt: getProviderUpdatePrompt(liveProvider?.versionAdvisory),
-        needsInstall: Boolean(providerConfig.enabled && liveProvider && !liveProvider.installed),
+        needsInstall: Boolean(
+          providerConfig.enabled &&
+          liveProvider &&
+          !liveProvider.installed &&
+          !isProviderDetectionPending(liveProvider),
+        ),
         installCommand: providerSettings.installCommand,
         needsAuth: Boolean(
           providerConfig.enabled &&
@@ -990,16 +998,17 @@ export default function ProvidersSettings(props: ProvidersSettingsProps) {
 
   return (
     <div className="providers-page space-y-5">
-      <div>
+      <div data-slot="settings-page-header">
         <div className="flex items-start justify-between">
           <div className="space-y-1.5">
             <h2
+              data-slot="settings-page-title"
               className={cn(
                 "text-[28px] leading-relaxed pb-1 text-foreground mb-2 font-bold",
-                activeFontCombo.sansClass,
+                getFontComboPageHeading(activeFontCombo, fontPreferences).className,
               )}
               style={{
-                fontFamily: "var(--font-sans)",
+                fontFamily: getFontComboPageHeading(activeFontCombo, fontPreferences).fontFamily,
                 textTransform: "capitalize",
               }}
             >
@@ -1027,12 +1036,14 @@ export default function ProvidersSettings(props: ProvidersSettingsProps) {
           </div>
         </div>
         <div
+          data-slot="settings-divider"
           className="h-[5px] w-full my-5 rounded-full dark:block hidden"
           style={{
             background: "linear-gradient(to right, rgba(255,255,255,0.25), transparent)",
           }}
         />
         <div
+          data-slot="settings-divider"
           className="h-[5px] w-full my-5 rounded-full dark:hidden block"
           style={{
             background: "linear-gradient(to right, rgba(0,0,0,0.12), transparent)",
@@ -1256,11 +1267,19 @@ export default function ProvidersSettings(props: ProvidersSettingsProps) {
               name: card.title,
               icon: card.icon,
               enabled: Boolean(card.providerConfig.enabled),
-              status: `${card.summary.headline}${card.providerConfig.enabled && card.updatePrompt?.command && action?.kind !== "update" ? " · Update available" : ""}`,
+              status:
+                card.provider === "antigravity" && antigravityInstalling
+                  ? "Installing runtime…"
+                  : `${card.summary.headline}${card.providerConfig.enabled && card.updatePrompt?.command && action?.kind !== "update" ? " · Update available" : ""}`,
               action: action
                 ? {
-                    label: action.label,
-                    disabled: providerActionBusy,
+                    label:
+                      card.provider === "antigravity" && antigravityInstalling
+                        ? "Installing…"
+                        : action.label,
+                    disabled:
+                      providerActionBusy ||
+                      (card.provider === "antigravity" && antigravityInstalling),
                     onClick: () => {
                       setOpenProviderDetails(() => ({ [card.provider]: true }));
                       setProviderViews((views) => ({ ...views, [card.provider]: "connection" }));
@@ -1389,8 +1408,13 @@ export default function ProvidersSettings(props: ProvidersSettingsProps) {
 
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
                         <span className="text-muted-foreground">
-                          {providerCard.summary.headline}
-                          {providerCard.summary.detail ? ` — ${providerCard.summary.detail}` : null}
+                          {providerCard.provider === "antigravity" && antigravityInstalling
+                            ? "Installing Antigravity runtime"
+                            : providerCard.summary.headline}
+                          {!(providerCard.provider === "antigravity" && antigravityInstalling) &&
+                          providerCard.summary.detail
+                            ? ` — ${providerCard.summary.detail}`
+                            : null}
                         </span>
                         {providerCard.badgeLabel ? (
                           <span className="rounded bg-accent px-1.5 py-0.5 font-mono text-[10px] uppercase text-muted-foreground">
@@ -1406,7 +1430,10 @@ export default function ProvidersSettings(props: ProvidersSettingsProps) {
                           size="sm"
                           variant="outline"
                           className="h-7 gap-1.5 px-2.5 text-xs cursor-pointer"
-                          disabled={providerActionBusy}
+                          disabled={
+                            providerActionBusy ||
+                            (providerCard.provider === "antigravity" && antigravityInstalling)
+                          }
                           onClick={() =>
                             startProviderAction({
                               provider: providerCard.provider,
@@ -1416,8 +1443,14 @@ export default function ProvidersSettings(props: ProvidersSettingsProps) {
                             })
                           }
                         >
-                          <DownloadIcon className="size-3.5" />
-                          Install
+                          {providerCard.provider === "antigravity" && antigravityInstalling ? (
+                            <LoaderIcon className="size-3.5 animate-spin" aria-hidden="true" />
+                          ) : (
+                            <DownloadIcon className="size-3.5" />
+                          )}
+                          {providerCard.provider === "antigravity" && antigravityInstalling
+                            ? "Installing…"
+                            : "Install"}
                         </Button>
                       ) : null}
 
@@ -1441,7 +1474,9 @@ export default function ProvidersSettings(props: ProvidersSettingsProps) {
                         </Button>
                       ) : null}
 
-                      {providerCard.needsAuth && providerCard.loginCommand ? (
+                      {providerCard.provider !== "antigravity" &&
+                      providerCard.needsAuth &&
+                      providerCard.loginCommand ? (
                         <Button
                           size="sm"
                           variant="outline"
@@ -1711,6 +1746,15 @@ export default function ProvidersSettings(props: ProvidersSettingsProps) {
                           </>
                         ) : null}
 
+                        {providerCard.provider === "antigravity" &&
+                        providerCard.liveProvider?.installed ? (
+                          <AntigravityAccount
+                            instanceId={providerCard.liveProvider.instanceId}
+                            authenticated={providerCard.isAuthenticated}
+                            onComplete={refreshProviders}
+                          />
+                        ) : null}
+
                         {/* Account & Session (Log out) */}
                         {providerCard.isAuthenticated && providerCard.logoutCommand ? (
                           <div className="border-t border-border/60 px-4 py-3 sm:px-5 flex items-center justify-between gap-4">
@@ -1796,6 +1840,13 @@ export default function ProvidersSettings(props: ProvidersSettingsProps) {
                           </div>
                         ) : null}
                       </div>
+                      {providerCard.provider === "antigravity" && providerCard.liveProvider ? (
+                        <ProviderInstallProgress
+                          instanceId={providerCard.liveProvider.instanceId}
+                          onActiveChange={setAntigravityInstalling}
+                          onComplete={refreshProviders}
+                        />
+                      ) : null}
                       <div
                         hidden={detailView !== "models"}
                         aria-label={`${providerDisplayName} model settings`}
@@ -2022,7 +2073,10 @@ export default function ProvidersSettings(props: ProvidersSettingsProps) {
                                           ? `No models match "${filterValue}".`
                                           : providerCard.provider === "copilot"
                                             ? "Copilot is not currently advertising any selectable models."
-                                            : "No models available."}
+                                            : providerCard.provider === "antigravity" &&
+                                                !providerCard.isAuthenticated
+                                              ? "Open Connection and sign in with Google to discover your available models."
+                                              : "No models available."}
                                       </div>
                                     ) : null}
                                     <DndContext
@@ -2254,7 +2308,11 @@ export default function ProvidersSettings(props: ProvidersSettingsProps) {
                                         [providerCard.provider]: event.target.value,
                                       }))
                                     }
-                                    placeholder="gpt-6.7-codex-ultra-preview"
+                                    placeholder={
+                                      providerCard.provider === "antigravity"
+                                        ? "Model ID from your Google account"
+                                        : "gpt-6.7-codex-ultra-preview"
+                                    }
                                     className="h-8 text-xs font-mono bg-background"
                                     onKeyDown={(event) => {
                                       if (event.key === "Enter") {

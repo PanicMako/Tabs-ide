@@ -14,6 +14,7 @@ import { useTheme } from "../../hooks/useTheme";
 import { useResetOnboarding } from "../../onboarding/firstRun";
 import { useZoomFactor } from "../../state/zoom";
 import { useWorkspaceActiveProjectId } from "../../state/workspaceShell";
+import { useWorkspaceAppearanceStore } from "../../stores/workspaceAppearanceStore";
 import { useServerConfig } from "../../state/settings";
 import { isElectron } from "../../env";
 import { Button } from "../ui/button";
@@ -158,6 +159,8 @@ export function GeneralSettings() {
   const [isReloadingCode, setIsReloadingCode] = useState(false);
   const [isReloadingBrowser, setIsReloadingBrowser] = useState(false);
   const serverConfig = useServerConfig();
+  const showProjectTabIcons = useWorkspaceAppearanceStore((s) => s.showProjectTabIcons);
+  const setShowProjectTabIcons = useWorkspaceAppearanceStore((s) => s.setShowProjectTabIcons);
 
   const panelDurationField = useDebouncedSettingField<number>({
     value: settings.panelAnimationDurationMs ?? DEFAULT_PANEL_ANIMATION_DURATION_MS,
@@ -226,6 +229,7 @@ export function GeneralSettings() {
                     timestampFormat: DEFAULT_UNIFIED_SETTINGS.timestampFormat,
                     diffWordWrap: DEFAULT_UNIFIED_SETTINGS.diffWordWrap,
                     enableAssistantStreaming: DEFAULT_UNIFIED_SETTINGS.enableAssistantStreaming,
+                    responseStreamingMode: DEFAULT_UNIFIED_SETTINGS.responseStreamingMode,
                     defaultThreadEnvMode: DEFAULT_UNIFIED_SETTINGS.defaultThreadEnvMode,
                     confirmThreadDelete: DEFAULT_UNIFIED_SETTINGS.confirmThreadDelete,
                     confirmTabClose: DEFAULT_UNIFIED_SETTINGS.confirmTabClose,
@@ -440,6 +444,17 @@ export function GeneralSettings() {
             />
           }
         />
+        <SettingsRow
+          title="Project logo in titlebar tabs"
+          description="Display each project's logo or icon next to its name in the top window tabs by default. Can be overridden per project in Workspace settings."
+          control={
+            <Switch
+              checked={showProjectTabIcons}
+              onCheckedChange={setShowProjectTabIcons}
+              aria-label="Toggle project logo in titlebar tabs"
+            />
+          }
+        />
       </SettingsSection>
 
       {/* Group 2: Assistant & Code Generation */}
@@ -475,15 +490,15 @@ export function GeneralSettings() {
 
         <SettingsRow
           title="Assistant output"
-          description="Show token-by-token output while a response is in progress."
+          description="Show the first response text immediately. Turn off to wait for the complete response."
           resetAction={
-            settings.enableAssistantStreaming !==
-            DEFAULT_UNIFIED_SETTINGS.enableAssistantStreaming ? (
+            settings.responseStreamingMode !== DEFAULT_UNIFIED_SETTINGS.responseStreamingMode ? (
               <SettingResetButton
                 label="assistant output"
                 onClick={() =>
                   updateSettings({
                     enableAssistantStreaming: DEFAULT_UNIFIED_SETTINGS.enableAssistantStreaming,
+                    responseStreamingMode: DEFAULT_UNIFIED_SETTINGS.responseStreamingMode,
                   })
                 }
               />
@@ -491,10 +506,11 @@ export function GeneralSettings() {
           }
           control={
             <Switch
-              checked={settings.enableAssistantStreaming}
+              checked={settings.responseStreamingMode === "token"}
               onCheckedChange={(checked) =>
                 updateSettings({
                   enableAssistantStreaming: Boolean(checked),
+                  responseStreamingMode: checked ? "token" : "turn",
                 })
               }
               aria-label="Stream assistant messages"

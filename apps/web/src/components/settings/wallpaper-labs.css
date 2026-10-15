@@ -1,0 +1,273 @@
+/* ─── Agent Wallpaper Mode ─────────────────────────────────────────────────
+ * Scoped exclusively to the agent chat pane below the header bar.
+ * The sidebar, project tabs bar, and toolbar remain solid IDE chrome.
+ * ───────────────────────────────────────────────────────────────────────── */
+
+/* Chat pane structural transparency so wallpaper shines through in both empty thread and active thread */
+[data-wallpaper-shell="chat-area"]:has([data-agent-wallpaper="active"]),
+[data-agent-wallpaper="active"] .relative.z-10,
+[data-agent-wallpaper="active"] [data-radix-scroll-area-viewport],
+[data-agent-wallpaper="active"] section[class*="group/pane"],
+[data-agent-wallpaper="active"] div[class*="group/pane"],
+[data-agent-wallpaper="active"] div[data-timeline-root="true"],
+[data-agent-wallpaper="active"]
+  .bg-background:not([data-chat-composer-form="true"] *):not(button):not(input):not(textarea):not(
+    [role="dialog"]
+  ):not([role="dialog"] *):not([data-radix-popper-content-wrapper] *) {
+  background-color: transparent !important;
+}
+
+/* ── DARK MODE WALLPAPER AESTHETICS ────────────────────────────────────── */
+
+/* Monospace work logs and tool calls: Solid dark glass card with high contrast text */
+[data-agent-wallpaper="active"]:not([data-theme="light"])
+  [data-timeline-root="true"]
+  div[class*="bg-card/50"],
+[data-agent-wallpaper="active"]:not([data-theme="light"])
+  [data-timeline-root="true"]
+  div[class*="rounded-lg border border-border"] {
+  background-color: rgba(14, 16, 24, 0.9) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-color: rgba(255, 255, 255, 0.14) !important;
+  box-shadow:
+    0 8px 30px rgba(0, 0, 0, 0.6),
+    0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+[data-agent-wallpaper="active"]:not([data-theme="light"])
+  [data-timeline-root="true"]
+  .text-muted-foreground\/55,
+[data-agent-wallpaper="active"]:not([data-theme="light"])
+  [data-timeline-root="true"]
+  .text-muted-foreground\/40,
+[data-agent-wallpaper="active"]:not([data-theme="light"])
+  [data-timeline-root="true"]
+  .text-muted-foreground\/25 {
+  color: rgba(220, 226, 238, 0.85) !important;
+}
+
+[data-agent-wallpaper="active"]:not([data-theme="light"])
+  [data-timeline-root="true"]
+  .text-foreground\/85 {
+  color: #ffffff !important;
+  font-weight: 550;
+}
+
+/* User message: Dark glass backing and high-contrast border */
+[data-agent-wallpaper="active"]:not([data-theme="light"])
+  [data-timeline-root="true"]
+  div[class*="border-r-2"] {
+  background-color: rgba(16, 18, 28, 0.72) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  padding: 0.625rem 1rem;
+  border-radius: 0.875rem 0.25rem 0.25rem 0.875rem;
+  border-right: 3px solid rgba(255, 255, 255, 0.9) !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  color: #ffffff !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
+}
+
+/* Assistant message markdown legibility (Dark) */
+[data-agent-wallpaper="active"]:not([data-theme="light"]) .chat-markdown {
+  color: rgba(255, 255, 255, 0.95);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+}
+[data-agent-wallpaper="active"]:not([data-theme="light"]) .chat-markdown p,
+[data-agent-wallpaper="active"]:not([data-theme="light"]) .chat-markdown li {
+  color: rgba(245, 247, 250, 0.94);
+}
+[data-agent-wallpaper="active"]:not([data-theme="light"]) .chat-markdown code {
+  background-color: rgba(0, 0, 0, 0.65) !important;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #7dd3fc !important;
+  text-shadow: none;
+}
+[data-agent-wallpaper="active"]:not([data-theme="light"]) .chat-markdown pre {
+  background-color: rgba(10, 12, 18, 0.92) !important;
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.65);
+}
+
+/* Empty thread view heading & subtitle (Dark) */
+[data-agent-wallpaper="active"]:not([data-theme="light"]) h2[class*="text-foreground"],
+[data-agent-wallpaper="active"]:not([data-theme="light"]) h1[class*="text-foreground"] {
+  color: #ffffff !important;
+  text-shadow:
+    0 2px 14px rgba(0, 0, 0, 0.95),
+    0 0 32px rgba(0, 0, 0, 0.7);
+}
+[data-agent-wallpaper="active"]:not([data-theme="light"]) p[class*="text-muted-foreground"] {
+  color: rgba(225, 230, 240, 0.88) !important;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.95);
+}
+
+/* Chat Header (Dark) */
+[data-agent-wallpaper="active"]:not([data-theme="light"]) header {
+  background-color: color-mix(in oklab, var(--background) 94%, transparent) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 80%, transparent) !important;
+}
+
+/* Chat Composer (Dark) */
+[data-agent-wallpaper="active"]:not([data-theme="light"])
+  [data-chat-composer-form="true"]
+  [class*="rounded-2xl border"] {
+  background-color: color-mix(in oklab, var(--card) 94%, black 6%) !important;
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-color: color-mix(in oklab, var(--border) 75%, white 12%) !important;
+  box-shadow:
+    0 16px 36px -6px rgba(0, 0, 0, 0.75),
+    0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+/* ── LIGHT MODE WALLPAPER AESTHETICS (Matching Reference from X) ───────── */
+
+/* Chat Header (Light) */
+[data-agent-wallpaper="active"][data-theme="light"] header {
+  background-color: rgba(255, 255, 255, 0.78) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important;
+}
+
+/* Work logs and tool calls (Light) */
+[data-agent-wallpaper="active"][data-theme="light"]
+  [data-timeline-root="true"]
+  div[class*="bg-card/50"],
+[data-agent-wallpaper="active"][data-theme="light"]
+  [data-timeline-root="true"]
+  div[class*="rounded-lg border border-border"] {
+  background-color: rgba(255, 255, 255, 0.9) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-color: rgba(0, 0, 0, 0.1) !important;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.05);
+  color: #1e293b !important;
+}
+
+[data-agent-wallpaper="active"][data-theme="light"]
+  [data-timeline-root="true"]
+  .text-muted-foreground\/55,
+[data-agent-wallpaper="active"][data-theme="light"]
+  [data-timeline-root="true"]
+  .text-muted-foreground\/40,
+[data-agent-wallpaper="active"][data-theme="light"]
+  [data-timeline-root="true"]
+  .text-muted-foreground\/25 {
+  color: #64748b !important;
+}
+
+[data-agent-wallpaper="active"][data-theme="light"]
+  [data-timeline-root="true"]
+  .text-foreground\/85 {
+  color: #0f172a !important;
+  font-weight: 550;
+}
+
+/* User message: Crisp white frosted bubble with accent border (Light) */
+[data-agent-wallpaper="active"][data-theme="light"]
+  [data-timeline-root="true"]
+  div[class*="border-r-2"] {
+  background-color: rgba(255, 255, 255, 0.92) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  padding: 0.625rem 1rem;
+  border-radius: 0.875rem 0.25rem 0.25rem 0.875rem;
+  border-right: 3px solid #0284c7 !important;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.06);
+  color: #0f172a !important;
+  text-shadow: none !important;
+}
+
+/* Assistant message markdown legibility (Light) */
+[data-agent-wallpaper="active"][data-theme="light"] .chat-markdown {
+  color: #0f172a !important;
+  text-shadow: none !important;
+}
+[data-agent-wallpaper="active"][data-theme="light"] .chat-markdown p,
+[data-agent-wallpaper="active"][data-theme="light"] .chat-markdown li {
+  color: #1e293b !important;
+}
+[data-agent-wallpaper="active"][data-theme="light"] .chat-markdown code {
+  background-color: rgba(241, 245, 249, 0.95) !important;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  color: #0284c7 !important;
+  text-shadow: none !important;
+}
+[data-agent-wallpaper="active"][data-theme="light"] .chat-markdown pre {
+  background-color: rgba(248, 250, 252, 0.96) !important;
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.06);
+}
+
+/* Empty thread view heading & subtitle (Light) */
+[data-agent-wallpaper="active"][data-theme="light"] h2[class*="text-foreground"],
+[data-agent-wallpaper="active"][data-theme="light"] h1[class*="text-foreground"] {
+  color: #0f172a !important;
+  text-shadow:
+    0 1px 12px rgba(255, 255, 255, 0.9),
+    0 0 24px rgba(255, 255, 255, 0.8) !important;
+}
+[data-agent-wallpaper="active"][data-theme="light"] p[class*="text-muted-foreground"] {
+  color: #475569 !important;
+  text-shadow: 0 1px 8px rgba(255, 255, 255, 0.9) !important;
+}
+
+/* Chat Composer: Floating white luxury card (Light) */
+[data-agent-wallpaper="active"][data-theme="light"]
+  [data-chat-composer-form="true"]
+  [class*="rounded-2xl border"] {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-color: rgba(0, 0, 0, 0.12) !important;
+  box-shadow:
+    0 16px 36px -6px rgba(0, 0, 0, 0.08),
+    0 0 0 1px rgba(0, 0, 0, 0.04);
+}
+[data-agent-wallpaper="active"][data-theme="light"] [data-chat-composer-form="true"] textarea {
+  color: #0f172a !important;
+}
+[data-agent-wallpaper="active"][data-theme="light"]
+  [data-chat-composer-form="true"]
+  textarea::placeholder {
+  color: #64748b !important;
+}
+
+/* A fine screen-print layer sits over the actual artwork, without a travelling wave. */
+.agent-wallpaper-halftone {
+  background-image: radial-gradient(circle, rgba(2, 4, 10, 0.64) 0.65px, transparent 0.85px);
+  background-size: 3px 3px;
+  opacity: 0.48;
+  mix-blend-mode: multiply;
+  mask-image: linear-gradient(165deg, #000 10%, rgba(0, 0, 0, 0.3) 60%, #000);
+}
+.agent-wallpaper-grain {
+  background-image: url("/wallpapers/print-grain.svg");
+  background-size: 180px 180px;
+  opacity: 0.12;
+  mix-blend-mode: soft-light;
+}
+[data-agent-wallpaper="active"][data-theme="light"] .agent-wallpaper-grain {
+  opacity: 0.08;
+  mix-blend-mode: multiply;
+}
+/* Local, feathered reading light has no hard rectangle around the welcome copy. */
+[data-agent-wallpaper="active"] [data-wallpaper-empty-heading="true"]::before {
+  content: "";
+  position: absolute;
+  width: min(90%, 900px);
+  height: 280px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(5, 7, 12, 0.72), transparent 70%);
+  z-index: -1;
+}
+[data-agent-wallpaper="active"][data-theme="light"] [data-wallpaper-empty-heading="true"]::before {
+  background: radial-gradient(ellipse, rgba(255, 255, 255, 0.88), transparent 70%);
+}

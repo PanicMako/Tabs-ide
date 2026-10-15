@@ -207,10 +207,10 @@ export function AnimationsSettings() {
         return (
           window.localStorage?.getItem("tabs.startupCustomAnimationFont") ??
           window.localStorage?.getItem("tabs.customAnimationFont") ??
-          "'Inter', sans-serif"
+          "var(--font-sans)"
         );
       } catch {
-        return "'Inter', sans-serif";
+        return "var(--font-sans)";
       }
     },
   );
@@ -239,10 +239,10 @@ export function AnimationsSettings() {
       return (
         window.localStorage?.getItem("tabs.closeCustomAnimationFont") ??
         window.localStorage?.getItem("tabs.customAnimationFont") ??
-        "'Inter', sans-serif"
+        "var(--font-sans)"
       );
     } catch {
-      return "'Inter', sans-serif";
+      return "var(--font-sans)";
     }
   });
 
@@ -396,7 +396,7 @@ export function AnimationsSettings() {
                 {animationTab === "startup" ? "Startup Animation" : "Close Animation"}
               </h3>
               <OrbitGroup
-                className="tabs-segmented flex"
+                className="tabs-segmented flex rounded-full"
                 role="group"
                 aria-label="Animation preview"
               >
@@ -405,7 +405,7 @@ export function AnimationsSettings() {
                   aria-pressed={animationTab === "startup"}
                   onClick={() => setAnimationTab("startup")}
                   className={cn(
-                    "px-3 py-1.5 text-xs font-medium rounded-md transition-all whitespace-nowrap cursor-pointer",
+                    "px-3 py-1.5 text-xs font-medium rounded-full transition-all whitespace-nowrap cursor-pointer",
                     animationTab === "startup"
                       ? "bg-background text-foreground shadow-sm"
                       : "text-muted-foreground hover:text-foreground hover:bg-background/50",
@@ -418,7 +418,7 @@ export function AnimationsSettings() {
                   aria-pressed={animationTab === "close"}
                   onClick={() => setAnimationTab("close")}
                   className={cn(
-                    "px-3 py-1.5 text-xs font-medium rounded-md transition-all whitespace-nowrap cursor-pointer",
+                    "px-3 py-1.5 text-xs font-medium rounded-full transition-all whitespace-nowrap cursor-pointer",
                     animationTab === "close"
                       ? "bg-background text-foreground shadow-sm"
                       : "text-muted-foreground hover:text-foreground hover:bg-background/50",
@@ -504,7 +504,7 @@ export function AnimationsSettings() {
               description={`Choose the visual aesthetic for the ${animationTab} animation.`}
               control={
                 <OrbitGroup
-                  className="tabs-segmented flex"
+                  className="tabs-segmented flex rounded-full"
                   role="group"
                   aria-label="Animation style"
                 >
@@ -518,7 +518,7 @@ export function AnimationsSettings() {
                       onClick={() => setActiveStyle(option.value as any)}
                       aria-pressed={activeStyle === option.value}
                       className={cn(
-                        "px-3 py-1.5 text-sm font-medium rounded-md transition-all whitespace-nowrap cursor-pointer",
+                        "px-3 py-1.5 text-sm font-medium rounded-full transition-all whitespace-nowrap cursor-pointer",
                         activeStyle === option.value
                           ? "bg-background text-foreground shadow-sm"
                           : "text-muted-foreground hover:text-foreground hover:bg-background/50",
@@ -536,7 +536,7 @@ export function AnimationsSettings() {
               description={`Choose the color palette for the ${animationTab} animation.`}
               control={
                 <OrbitGroup
-                  className="tabs-segmented flex"
+                  className="tabs-segmented flex rounded-full"
                   role="group"
                   aria-label="Animation palette"
                 >
@@ -550,7 +550,7 @@ export function AnimationsSettings() {
                       onClick={() => setActivePalette(option.value as any)}
                       aria-pressed={activePalette === option.value}
                       className={cn(
-                        "px-3 py-1.5 text-sm font-medium rounded-md transition-all whitespace-nowrap cursor-pointer",
+                        "px-3 py-1.5 text-sm font-medium rounded-full transition-all whitespace-nowrap cursor-pointer",
                         activePalette === option.value
                           ? "bg-background text-foreground shadow-sm"
                           : "text-muted-foreground hover:text-foreground hover:bg-background/50",

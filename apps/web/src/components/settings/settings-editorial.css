@@ -1,0 +1,699 @@
+/* Labs owns this palette locally; leaving the experiment restores the app theme. */
+[data-settings-design="editorial"] {
+  --background: #202020;
+  --foreground: #eeede8;
+  --card: #252525;
+  --card-foreground: #eeede8;
+  --popover: #252525;
+  --popover-foreground: #eeede8;
+  --muted: #2b2b2b;
+  --muted-foreground: #aaa9a3;
+  --accent: #363636;
+  --accent-foreground: #eeede8;
+  --secondary: #363636;
+  --secondary-foreground: #eeede8;
+  --primary: #454642;
+  --primary-foreground: #eeede8;
+  --border: #383838;
+  --input: #404040;
+  --ring: #b8b7b1;
+  --accent-wash-bg: #363636;
+  --accent-wash-border: #484848;
+  color-scheme: dark;
+  background: var(--background);
+  color: var(--foreground);
+}
+[data-settings-design="editorial"][data-settings-appearance="light"] {
+  --background: #f5f4f0;
+  --foreground: #242424;
+  --card: #f0efeb;
+  --card-foreground: #242424;
+  --popover: #f5f4f0;
+  --popover-foreground: #242424;
+  --muted: #eae9e4;
+  --muted-foreground: #686762;
+  --accent: #e2e1db;
+  --accent-foreground: #242424;
+  --secondary: #e2e1db;
+  --secondary-foreground: #242424;
+  --primary: #dfddd5;
+  --primary-foreground: #242424;
+  --border: #dcdad3;
+  --input: #cfcdc5;
+  --ring: #686762;
+  --accent-wash-bg: #e2e1db;
+  --accent-wash-border: #cfcdc5;
+  color-scheme: light;
+}
+/* Outer boxing: the editorial frame sits as a contained box below Electron tabs */
+[data-settings-design="editorial"] {
+  margin: 12px;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.18),
+    0 2px 16px rgba(0, 0, 0, 0.18);
+  height: calc(100% - 24px) !important;
+}
+[data-settings-design="editorial"][data-settings-appearance="light"] {
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.1),
+    0 2px 10px rgba(0, 0, 0, 0.08);
+}
+[data-settings-design="editorial"] [data-slot="settings-shell"] {
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  overflow: hidden;
+}
+[data-slot="settings-wordmark"],
+[data-slot="settings-breadcrumb"],
+[data-slot="settings-workspace-link"],
+[data-slot="settings-nav-label"],
+[data-slot="settings-footer"] {
+  display: none;
+}
+[data-settings-design="editorial"] [data-slot="settings-topbar"] {
+  position: relative;
+  height: 48px;
+  min-height: 48px;
+  padding: 0 24px;
+}
+[data-settings-design="editorial"] [data-slot="settings-topbar"] > div {
+  height: 100%;
+}
+[data-settings-design="editorial"]
+  :is([data-slot="settings-classic-back"], [data-slot="settings-classic-label"]) {
+  display: none;
+}
+[data-settings-design="editorial"] [data-slot="settings-wordmark"] {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  font-size: 19px;
+  font-weight: 750;
+  letter-spacing: -0.05em;
+  cursor: pointer;
+  line-height: 1;
+}
+[data-settings-design="editorial"] [data-slot="settings-wordmark-ide"] {
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  opacity: 0.75;
+  text-transform: uppercase;
+  margin-left: 1px;
+}
+[data-settings-design="editorial"] [data-slot="settings-breadcrumb"] {
+  display: flex;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  gap: 6px;
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+[data-settings-design="editorial"] [data-slot="settings-workspace-link"] {
+  display: block;
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+[data-settings-design="editorial"] #settings-header-actions {
+  margin-left: 12px;
+}
+[data-settings-design="editorial"] [data-slot="settings-columns"] {
+  padding: 0;
+  gap: 0;
+}
+[data-settings-design="editorial"] [data-slot="settings-nav"] {
+  width: 192px;
+  padding: 20px 14px;
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+}
+[data-settings-design="editorial"] [data-slot="settings-nav-label"] {
+  display: block;
+  padding: 0 12px 14px;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.13em;
+  color: var(--muted-foreground);
+}
+[data-settings-design="editorial"] [data-slot="settings-nav"] button {
+  min-height: 32px;
+  padding: 7px 12px;
+  margin-bottom: 2px;
+  border-radius: 999px;
+  font-size: 12px;
+  box-shadow: none;
+}
+[data-settings-design="editorial"] [data-slot="settings-nav"] button > svg {
+  display: none;
+}
+[data-settings-design="editorial"] [data-slot="settings-scroll"] {
+  padding: 26px clamp(20px, 3vw, 42px);
+}
+[data-settings-design="editorial"] [data-slot="settings-content"] {
+  max-width: 1100px;
+  gap: 20px;
+  padding-bottom: 24px;
+}
+[data-settings-design="editorial"] [data-slot="settings-page-header"] {
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 24px;
+}
+[data-settings-design="editorial"] [data-slot="settings-page-title"] {
+  font-family: var(
+    --font-display,
+    var(--font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif)
+  );
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.25;
+  text-transform: none;
+  padding: 0;
+  margin: 0 0 4px 0;
+  color: var(--foreground);
+  overflow-wrap: normal;
+}
+[data-settings-design="editorial"]
+  [data-slot="settings-page-header"]
+  > [data-slot="settings-divider"] {
+  display: none;
+}
+[data-settings-design="editorial"] [data-slot="settings-page-header"] > p {
+  max-width: none;
+  font-family: var(
+    --font-supporting,
+    var(--font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif)
+  );
+  font-style: var(--font-supporting-style, normal);
+  font-size: 13px;
+  margin-top: 4px;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+
+/* Minimalist, clean vertical layout with refined typography */
+[data-settings-design="editorial"] [data-slot="settings-section"] {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 24px;
+  margin-top: 28px;
+  padding-top: 0;
+}
+@media (max-width: 1024px) {
+  [data-settings-design="editorial"] [data-slot="settings-section"] {
+    grid-template-columns: 1fr;
+  }
+}
+[data-settings-design="editorial"] [data-slot="settings-section"]:first-child {
+  margin-top: 4px;
+}
+[data-settings-design="editorial"] [data-slot="settings-section"] > div:first-child {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-inline: 2px;
+}
+[data-settings-design="editorial"] [data-slot="settings-section"] > div:first-child h2 {
+  font-family: var(
+    --font-section,
+    var(
+      --font-display,
+      var(--font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif)
+    )
+  );
+  font-size: 16px;
+  line-height: 1.35;
+  color: var(--foreground);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
+}
+[data-settings-design="editorial"] [data-slot="settings-section"] > div:first-child h3 {
+  font-family: var(--font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted-foreground);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
+}
+[data-settings-design="editorial"]
+  [data-slot="settings-section"]
+  > div:first-child
+  :is(h2, h3)::before {
+  display: none !important;
+}
+[data-settings-design="editorial"] [data-slot="settings-section"] > div:first-child p,
+[data-settings-design="editorial"]
+  [data-slot="settings-section"]
+  > div:first-child
+  div[class*="text-muted-foreground"] {
+  font-family: var(
+    --font-supporting,
+    var(--font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif)
+  );
+  font-style: var(--font-supporting-style, normal);
+  font-size: 12px;
+  color: var(--muted-foreground);
+  line-height: 1.5;
+  margin-top: 2px;
+}
+
+/* Clean, lightweight cards and rows */
+[data-settings-design="editorial"] [data-slot="settings-section-panel"] {
+  background: #19191c;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  position: relative;
+}
+[data-settings-design="editorial"] [data-slot="settings-section-panel"]::before {
+  display: none;
+}
+[data-settings-design="editorial"][data-settings-appearance="light"]
+  [data-slot="settings-section-panel"] {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+[data-settings-design="editorial"] [data-slot="settings-row"] {
+  padding: 13px 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  transition: background 150ms ease;
+}
+[data-settings-design="editorial"][data-settings-appearance="light"] [data-slot="settings-row"] {
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+[data-settings-design="editorial"] [data-slot="settings-row"]:first-child {
+  border-top: 0;
+}
+[data-settings-design="editorial"] [data-slot="settings-row"]:last-child {
+  border-bottom: 0;
+}
+[data-settings-design="editorial"] [data-slot="settings-row"]:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+[data-settings-design="editorial"][data-settings-appearance="light"]
+  [data-slot="settings-row"]:hover {
+  background: rgba(0, 0, 0, 0.02);
+}
+[data-settings-design="editorial"] [data-slot="settings-row"] h3 {
+  font-family: var(
+    --font-row,
+    var(--font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif)
+  );
+  font-size: 13.5px;
+  font-weight: var(--font-row-weight, 500);
+  letter-spacing: -0.01em;
+  color: var(--foreground);
+}
+[data-settings-design="editorial"] [data-slot="settings-row"] p {
+  font-family: var(
+    --font-supporting,
+    var(--font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif)
+  );
+  font-style: var(--font-supporting-style, normal);
+  font-size: 12px;
+  color: var(--muted-foreground);
+  line-height: 1.45;
+  max-width: 68ch;
+}
+[data-settings-design="editorial"] [data-slot="settings-footer"] {
+  display: flex;
+  justify-content: space-between;
+  border-top: 1px solid var(--border);
+  margin-top: 24px;
+  padding-top: 16px;
+  font-size: 10px;
+  color: var(--muted-foreground);
+}
+[data-settings-design="editorial"] [data-slot="settings-content"] button {
+  box-shadow: none;
+}
+[data-settings-design="editorial"]
+  :is([data-slot="settings-wordmark"], [data-slot="settings-workspace-link"]):focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+@media (max-width: 800px) {
+  [data-settings-design="editorial"] [data-slot="settings-shell"] {
+    margin: 0;
+    border-radius: 0;
+  }
+  [data-settings-design="editorial"] [data-slot="settings-nav"] {
+    width: 160px;
+    padding: 16px 10px;
+  }
+  [data-settings-design="editorial"] [data-slot="settings-scroll"] {
+    padding: 22px 18px;
+  }
+  [data-settings-design="editorial"] [data-slot="settings-workspace-link"] {
+    display: none;
+  }
+  [data-settings-design="editorial"] #settings-header-actions {
+    margin-left: auto;
+  }
+}
+@media (max-width: 560px) {
+  [data-settings-design="editorial"] [data-slot="settings-columns"] {
+    flex-direction: column;
+  }
+  [data-settings-design="editorial"] [data-slot="settings-nav"] {
+    display: flex;
+    width: 100%;
+    gap: 4px;
+    padding: 8px;
+    overflow-x: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  [data-settings-design="editorial"] [data-slot="settings-nav"] button {
+    width: auto;
+    flex-shrink: 0;
+    white-space: nowrap;
+    margin: 0;
+  }
+  [data-settings-design="editorial"] [data-slot="settings-nav-label"] {
+    display: none;
+  }
+  [data-settings-design="editorial"] [data-slot="settings-breadcrumb"] {
+    position: static;
+    transform: none;
+    margin-left: 14px;
+  }
+}
+@media (max-width: 1000px) and (min-width: 561px) {
+  [data-settings-design="editorial"] [data-slot="settings-breadcrumb"] {
+    position: static;
+    transform: none;
+    margin-left: 20px;
+  }
+  [data-settings-design="editorial"] [data-slot="settings-workspace-link"] {
+    display: none;
+  }
+  [data-settings-design="editorial"] #settings-header-actions {
+    margin-left: auto;
+  }
+}
+[data-slot="settings-study-back"] {
+  display: none;
+}
+[data-settings-design="editorial"] [data-slot="settings-study-back"] {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--muted-foreground);
+  margin-right: 12px;
+  cursor: pointer;
+}
+/* High-contrast segmented controls matching Image 4 */
+[data-settings-design="editorial"] .tabs-segmented.orbit-group,
+.dark [data-settings-design="editorial"] .tabs-segmented.orbit-group,
+[data-settings-design="editorial"][data-settings-appearance="dark"] .tabs-segmented.orbit-group {
+  height: auto !important;
+  background: #141416 !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 9999px !important;
+  padding: 3px !important;
+  gap: 2px !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+[data-settings-design="editorial"][data-settings-appearance="light"] .tabs-segmented.orbit-group {
+  background: #eceae3 !important;
+  border: 1px solid #dfdcd3 !important;
+  box-shadow: none;
+}
+
+[data-settings-design="editorial"] .tabs-segmented.orbit-group > button,
+.dark [data-settings-design="editorial"] .tabs-segmented.orbit-group > button,
+[data-settings-design="editorial"][data-settings-appearance="dark"]
+  .tabs-segmented.orbit-group
+  > button {
+  border-radius: 9999px !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  color: #a1a1aa !important;
+  padding: 5px 14px !important;
+  transition: color 150ms ease;
+  z-index: 1;
+}
+[data-settings-design="editorial"][data-settings-appearance="light"]
+  .tabs-segmented.orbit-group
+  > button {
+  color: #686762 !important;
+}
+
+[data-settings-design="editorial"] .tabs-segmented.orbit-group > button:hover,
+.dark [data-settings-design="editorial"] .tabs-segmented.orbit-group > button:hover,
+[data-settings-design="editorial"][data-settings-appearance="dark"]
+  .tabs-segmented.orbit-group
+  > button:hover {
+  color: #ffffff !important;
+  background: transparent !important;
+}
+[data-settings-design="editorial"][data-settings-appearance="light"]
+  .tabs-segmented.orbit-group
+  > button:hover {
+  color: #18181b !important;
+}
+
+/* Active selected item: high contrast off-white pill with dark text in dark mode (Image 4) */
+[data-settings-design="editorial"]
+  .tabs-segmented.orbit-group
+  > :is(button[aria-pressed="true"], button[aria-checked="true"], button[aria-selected="true"]),
+.dark
+  [data-settings-design="editorial"]
+  .tabs-segmented.orbit-group
+  > :is(button[aria-pressed="true"], button[aria-checked="true"], button[aria-selected="true"]),
+[data-settings-design="editorial"][data-settings-appearance="dark"]
+  .tabs-segmented.orbit-group
+  > :is(button[aria-pressed="true"], button[aria-checked="true"], button[aria-selected="true"]) {
+  color: #121212 !important;
+  font-weight: 600 !important;
+}
+[data-settings-design="editorial"][data-settings-appearance="light"]
+  .tabs-segmented.orbit-group
+  > :is(button[aria-pressed="true"], button[aria-checked="true"], button[aria-selected="true"]) {
+  color: #18181b !important;
+  font-weight: 600 !important;
+}
+
+[data-settings-design="editorial"] .tabs-segmented .orbit-orb,
+.dark [data-settings-design="editorial"] .tabs-segmented .orbit-orb,
+[data-settings-design="editorial"][data-settings-appearance="dark"] .tabs-segmented .orbit-orb {
+  background: #f4f4f0 !important;
+  color: #121212 !important;
+  border-radius: 9999px !important;
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.4),
+    0 1px 2px rgba(0, 0, 0, 0.2) !important;
+  z-index: 0;
+}
+[data-settings-design="editorial"][data-settings-appearance="light"] .tabs-segmented .orbit-orb {
+  background: #ffffff !important;
+  color: #18181b !important;
+  border-radius: 9999px !important;
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.08),
+    0 1px 2px rgba(0, 0, 0, 0.04) !important;
+}
+
+/* Minimalist Zoom & Scale slider matching Image 4 */
+/* Zoom ruler: match reference prototype with soft pill styling, mask fade, and clean typography */
+[data-settings-design="editorial"] .zoom-ruler-control {
+  width: 340px;
+}
+[data-settings-design="editorial"] .zoom-ruler-heading {
+  margin-bottom: 8px;
+}
+[data-settings-design="editorial"] .zoom-ruler-heading span {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+}
+[data-settings-design="editorial"] .zoom-ruler-value {
+  font-family: var(--font-sans);
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: none;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--foreground);
+}
+[data-settings-design="editorial"]:hover .zoom-ruler-value:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+[data-settings-design="editorial"][data-settings-appearance="light"] .zoom-ruler-value {
+  background: #eae8e1;
+  color: #18181b;
+  border: none;
+  box-shadow: none;
+}
+[data-settings-design="editorial"][data-settings-appearance="light"] .zoom-ruler-value:hover {
+  background: #dfdcd3;
+}
+[data-settings-design="editorial"] .zoom-ruler-step {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--foreground);
+}
+[data-settings-design="editorial"] .zoom-ruler-step:not(:disabled):hover {
+  background: rgba(255, 255, 255, 0.13);
+}
+[data-settings-design="editorial"][data-settings-appearance="light"] .zoom-ruler-step {
+  background: #eae8e1;
+  border: none;
+  color: #18181b;
+}
+[data-settings-design="editorial"][data-settings-appearance="light"]
+  .zoom-ruler-step:not(:disabled):hover {
+  background: #dfdcd3;
+}
+[data-settings-design="editorial"] .zoom-ruler-window {
+  height: 60px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #232327;
+}
+[data-settings-design="editorial"][data-settings-appearance="light"] .zoom-ruler-window {
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  background: #edece6;
+}
+/* Seamless gradient fade on left and right edges matching window background */
+[data-settings-design="editorial"] .zoom-ruler-window::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+  opacity: 1;
+  background: linear-gradient(90deg, #232327, transparent 22%, transparent 78%, #232327);
+}
+[data-settings-design="editorial"][data-settings-appearance="light"] .zoom-ruler-window::after {
+  background: linear-gradient(90deg, #edece6, transparent 22%, transparent 78%, #edece6);
+}
+[data-settings-design="editorial"] .zoom-ruler-minor {
+  top: 15px;
+  height: 8px;
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.2) 0 1px,
+    transparent 1px calc(var(--zoom-step) / 5)
+  );
+}
+[data-settings-design="editorial"][data-settings-appearance="light"] .zoom-ruler-minor {
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.18) 0 1px,
+    transparent 1px calc(var(--zoom-step) / 5)
+  );
+}
+[data-settings-design="editorial"] .zoom-ruler-mark {
+  padding: 0 0 6px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 10.5px;
+}
+[data-settings-design="editorial"][data-settings-appearance="light"] .zoom-ruler-mark {
+  color: #71717a;
+}
+[data-settings-design="editorial"] .zoom-ruler-mark::before {
+  top: -26px;
+  height: 18px;
+  width: 1.5px;
+  left: calc(50% - 0.75px);
+  background: rgba(255, 255, 255, 0.35);
+}
+[data-settings-design="editorial"][data-settings-appearance="light"] .zoom-ruler-mark::before {
+  background: rgba(0, 0, 0, 0.35);
+}
+/* When a mark is active/centered under the needle, suppress its tick so it doesn't double-render */
+[data-settings-design="editorial"] .zoom-ruler-mark[aria-pressed="true"]::before {
+  opacity: 0;
+}
+[data-settings-design="editorial"] .zoom-ruler-mark[aria-pressed="true"] {
+  color: #ffffff;
+  font-weight: 700;
+}
+[data-settings-design="editorial"][data-settings-appearance="light"]
+  .zoom-ruler-mark[aria-pressed="true"] {
+  color: #18181b;
+  font-weight: 700;
+}
+[data-settings-design="editorial"] .zoom-ruler-needle {
+  left: calc(50% - 1px);
+  top: 8px;
+  width: 2px;
+  height: 22px;
+  border-radius: 2px;
+  background: #ffffff;
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.3);
+}
+[data-settings-design="editorial"][data-settings-appearance="light"] .zoom-ruler-needle {
+  background: #27272a;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+[data-settings-design="editorial"] [data-slot="settings-breadcrumb"] button {
+  cursor: pointer;
+}
+[data-settings-design="editorial"] [data-slot="settings-breadcrumb"] [aria-current="page"] {
+  color: var(--foreground);
+}
+[data-settings-design="editorial"] [data-slot="settings-breadcrumb"] button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+[data-settings-design="editorial"] [data-slot="settings-nav"] button[aria-current="page"],
+[data-settings-design="editorial"] [data-slot="settings-nav"] button[data-active="true"] {
+  background: color-mix(in srgb, var(--foreground) 9%, transparent);
+  color: var(--foreground);
+  font-weight: 600;
+}
+html[data-interface-study="dark"]
+  [data-settings-design="editorial"]
+  [data-slot="settings-nav"]
+  button[aria-current="page"],
+html[data-interface-study="dark"]
+  [data-settings-design="editorial"]
+  [data-slot="settings-nav"]
+  button[data-active="true"] {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--foreground);
+  font-weight: 600;
+}
+html[data-interface-study="light"]
+  [data-settings-design="editorial"]
+  [data-slot="settings-nav"]
+  button[aria-current="page"],
+html[data-interface-study="light"]
+  [data-settings-design="editorial"]
+  [data-slot="settings-nav"]
+  button[data-active="true"] {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--foreground);
+  font-weight: 600;
+}

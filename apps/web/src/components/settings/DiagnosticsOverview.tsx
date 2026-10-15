@@ -6,6 +6,7 @@ import {
   GitBranchIcon,
   ChevronRightIcon,
 } from "lucide-react";
+import { Button } from "../ui/button";
 import { formatBytes, formatRate, safeIsoString } from "./ResourceTelemetryDiagnostics";
 import type { DiagnosticsTabId } from "./DiagnosticsSettings";
 import "./diagnostics.css";
@@ -13,9 +14,11 @@ import "./diagnostics.css";
 export function DiagnosticsOverview({
   snapshot,
   onNavigateTab,
+  onQuickCheck,
 }: {
   snapshot: ResourceTelemetrySnapshot | null;
   onNavigateTab: (tab: DiagnosticsTabId) => void;
+  onQuickCheck?: () => void;
 }) {
   const total = snapshot?.groups.allT3;
   const cards = [
@@ -50,11 +53,24 @@ export function DiagnosticsOverview({
             ? `Collector: ${snapshot.health.native.status}`
             : "Waiting for a resource sample"}
         </span>
-        <span>
-          {snapshot
-            ? `Sampled ${new Date(safeIsoString(snapshot.readAt) ?? "").toLocaleTimeString()}`
-            : "Refresh to retry"}
-        </span>
+        <div className="flex items-center gap-3">
+          <span>
+            {snapshot
+              ? `Sampled ${new Date(safeIsoString(snapshot.readAt) ?? "").toLocaleTimeString()}`
+              : "Refresh to retry"}
+          </span>
+          {onQuickCheck ? (
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={onQuickCheck}
+              className="h-6.5 px-2.5 text-[11px] cursor-pointer border-primary/40 bg-primary/10 text-foreground hover:bg-primary/20 hover:text-foreground transition-all font-medium"
+            >
+              <ActivityIcon className="mr-1.5 size-3 text-primary" aria-hidden="true" />
+              Quick check
+            </Button>
+          ) : null}
+        </div>
       </div>
       <div className="diagnostics-metrics">
         {cards.map(({ label, value, detail, icon: Icon, tab }) => (

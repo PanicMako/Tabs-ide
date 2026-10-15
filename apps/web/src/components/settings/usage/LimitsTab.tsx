@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useAtomValue } from "@effect/atom-react";
 import { providerUsageSnapshotsAtom } from "../../../state/usage";
 import { ProviderQuotaCard } from "./ProviderQuotaCard";
@@ -6,7 +7,7 @@ import { UsageProviderSettings } from "../UsageProviderSettings";
 import { PageLoadingState } from "../../PageLoadingState";
 import "./usage.css";
 
-export function LimitsTab() {
+export function LimitsTab({ subTabControl }: { subTabControl?: ReactNode } = {}) {
   const state = useAtomValue(providerUsageSnapshotsAtom);
   const snapshots = state.data ?? [];
   const reported = snapshots.filter((snapshot) => snapshot.status === "ok");
@@ -14,6 +15,7 @@ export function LimitsTab() {
 
   return (
     <div className="usage-dashboard">
+      {subTabControl ? <div className="usage-toolbar">{subTabControl}</div> : null}
       <div className="usage-section-heading">
         <h3>Provider limits</h3>
         <span>{reported.length} reporting</span>

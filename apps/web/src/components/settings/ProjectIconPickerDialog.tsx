@@ -21,7 +21,7 @@ import {
 } from "~/components/ui/dialog";
 import { Input } from "~/components/ui/input";
 import { ScrollArea } from "~/components/ui/scroll-area";
-import { Toggle, ToggleGroup } from "~/components/ui/toggle-group";
+import { SegmentedControl } from "~/components/ui/segmented-control";
 
 const DEFAULT_ICON: IconName = "folder-code";
 const DEFAULT_COLOR: ProjectIconColor = "blue";
@@ -87,18 +87,17 @@ export function ProjectIconPickerDialog({
           <DialogDescription>Pick any Lucide icon and color, or use an emoji.</DialogDescription>
         </DialogHeader>
         <DialogPanel className="flex min-h-0 flex-col gap-4">
-          <ToggleGroup
-            aria-label="Icon type"
-            variant="outline"
-            value={[mode]}
-            onValueChange={(next) => {
-              const value = next[0];
+          <SegmentedControl
+            value={mode}
+            onValueChange={(value) => {
               if (value === "lucide" || value === "emoji") setMode(value);
             }}
-          >
-            <Toggle value="lucide">Icons</Toggle>
-            <Toggle value="emoji">Emoji</Toggle>
-          </ToggleGroup>
+            options={[
+              { value: "lucide", label: "Icons" },
+              { value: "emoji", label: "Emoji" },
+            ]}
+            aria-label="Icon type"
+          />
 
           {mode === "lucide" ? (
             <>

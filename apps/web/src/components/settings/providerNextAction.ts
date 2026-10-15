@@ -8,6 +8,25 @@ export interface ProviderNextActionInput {
   needsAttention: boolean;
 }
 
+export function isProviderDetectionPending(
+  provider:
+    | {
+        installed: boolean;
+        status: string;
+        auth: { status: string };
+        message?: string | null | undefined;
+      }
+    | undefined,
+): boolean {
+  return Boolean(
+    provider &&
+    !provider.installed &&
+    provider.status === "warning" &&
+    provider.auth.status === "unknown" &&
+    /has not been checked|^Checking\b/i.test(provider.message ?? ""),
+  );
+}
+
 export function providerNextAction(input: ProviderNextActionInput) {
   if (!input.enabled) return null;
   if (input.needsInstall) {

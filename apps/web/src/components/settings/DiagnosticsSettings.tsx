@@ -38,7 +38,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 
 import { useConfirm } from "../../hooks/useConfirm";
 import { useTheme } from "../../hooks/useTheme";
-import { getActiveFontCombo } from "../../lib/themes";
+import { getActiveFontCombo, getFontComboPageHeading } from "../../lib/themes";
 import { cn, getHashAwareSearchParams, isPopoutMode } from "../../lib/utils";
 import { ensureNativeApi } from "../../nativeApi";
 import { formatRelativeTime } from "../../timestampFormat";
@@ -1144,17 +1144,19 @@ export function DiagnosticsSettings() {
       <div className={cn("space-y-4", isPopout ? "p-3.5 sm:p-4 w-full" : "space-y-6")}>
         {/* Normal In-Settings Header (Only shown when not in popout) */}
         {!isPopout ? (
-          <div>
-            <div className="flex items-start justify-between gap-4">
+          <div data-slot="settings-page-header">
+            <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="space-y-1.5">
                 <div className="flex items-center gap-2.5">
                   <h2
+                    data-slot="settings-page-title"
                     className={cn(
                       "text-[28px] leading-relaxed pb-1 text-foreground mb-2 font-bold",
-                      activeFontCombo.sansClass,
+                      getFontComboPageHeading(activeFontCombo, fontPreferences).className,
                     )}
                     style={{
-                      fontFamily: "var(--font-sans)",
+                      fontFamily: getFontComboPageHeading(activeFontCombo, fontPreferences)
+                        .fontFamily,
                       textTransform: "capitalize",
                     }}
                   >
@@ -1165,42 +1167,16 @@ export function DiagnosticsSettings() {
                   Find resource-heavy processes and investigate errors.
                 </p>
               </div>
-            </div>
 
-            <div className="diagnostics-actions">
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  size="xs"
-                  variant="outline"
-                  onClick={handleQuickResourceCheck}
-                  className="cursor-pointer border-primary/40 bg-primary/10 text-foreground hover:bg-primary/20 hover:text-foreground transition-all font-medium"
-                >
-                  <ActivityIcon className="mr-1.5 size-3.5" aria-hidden="true" />
-                  Quick check
-                </Button>
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <Button
-                        size="xs"
-                        variant="outline"
-                        onClick={openPopoutWindow}
-                        aria-label="Open Diagnostics in new window"
-                      >
-                        <ExternalLinkIcon className="mr-1 size-3.5" />
-                        Pop out
-                      </Button>
-                    }
-                  />
-                  <TooltipPopup side="bottom">Open Diagnostics in a standalone window</TooltipPopup>
-                </Tooltip>
+              {/* Header Right Actions */}
+              <div className="flex items-center gap-2 pt-1">
                 <Button
                   size="xs"
                   variant="outline"
                   disabled={exporting}
                   onClick={() => void exportSupportBundle()}
                 >
-                  <DownloadIcon className="mr-1 size-3.5" />
+                  <DownloadIcon className="mr-1.5 size-3.5" />
                   {exporting ? "Exporting…" : "Export report"}
                 </Button>
                 <Button
@@ -1209,20 +1185,40 @@ export function DiagnosticsSettings() {
                   disabled={loading}
                   onClick={() => void refresh()}
                 >
-                  <RefreshCwIcon className={cn("mr-1 size-3.5", loading && "animate-spin")} />
+                  <RefreshCwIcon className={cn("mr-1.5 size-3.5", loading && "animate-spin")} />
                   Refresh
                 </Button>
+                <div className="h-4 w-px bg-border/60 mx-1" />
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        onClick={openPopoutWindow}
+                        aria-label="Open Diagnostics in new window"
+                        className="text-muted-foreground hover:text-foreground hover:border-foreground/30"
+                      >
+                        <ExternalLinkIcon className="mr-1.5 size-3.5" />
+                        Pop out
+                      </Button>
+                    }
+                  />
+                  <TooltipPopup side="bottom">Open Diagnostics in a standalone window</TooltipPopup>
+                </Tooltip>
               </div>
             </div>
 
             {/* Canonical Tabs 5px Dual Gradient Divider Line */}
             <div
+              data-slot="settings-divider"
               className="h-[5px] w-full my-5 rounded-full dark:block hidden"
               style={{
                 background: "linear-gradient(to right, rgba(255,255,255,0.25), transparent)",
               }}
             />
             <div
+              data-slot="settings-divider"
               className="h-[5px] w-full my-5 rounded-full dark:hidden block"
               style={{
                 background: "linear-gradient(to right, rgba(0,0,0,0.12), transparent)",
@@ -1315,7 +1311,11 @@ export function DiagnosticsSettings() {
         {activeTab === "overview" ? (
           <div className="space-y-6">
             {/* Trae-style Resources Explorer Cards */}
-            <ResourcesExplorerOverview snapshot={telemetry} onNavigateTab={handleTabChange} />
+            <ResourcesExplorerOverview
+              snapshot={telemetry}
+              onNavigateTab={handleTabChange}
+              onQuickCheck={handleQuickResourceCheck}
+            />
 
             <details className="diagnostics-details">
               <summary>
@@ -1387,7 +1387,7 @@ export function DiagnosticsSettings() {
               headerAction={
                 <div className="flex items-center gap-1.5">
                   <OrbitGroup
-                    className="tabs-segmented flex items-center text-xs"
+                    className="tabs-segmented flex items-center text-xs rounded-full"
                     role="group"
                     aria-label="Resource timeline window"
                   >
@@ -1398,7 +1398,7 @@ export function DiagnosticsSettings() {
                         onClick={() => setHistoryWindowIndex(idx)}
                         aria-pressed={historyWindowIndex === idx}
                         className={cn(
-                          "rounded px-2 py-0.5 text-[11px] font-medium transition-colors cursor-pointer",
+                          "rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors cursor-pointer",
                           historyWindowIndex === idx
                             ? "bg-background text-foreground shadow-xs font-semibold"
                             : "text-muted-foreground hover:text-foreground",
