@@ -1,4 +1,5 @@
 ---
+import HeaderNavigation from "../components/HeaderNavigation.astro";
 import ExchangeLink from "../components/ExchangeLink.astro";
 import TabsLogo from "../components/TabsLogo.astro";
 import Icon from "../components/Icon.astro";
@@ -30,7 +31,7 @@ const { title, description, path } = Astro.props;
           <span class="hs-brand-divider" aria-hidden="true"></span>
           <div class="hs-access-tag" aria-label="Public Beta"><span>PUBLIC</span><span>BETA</span></div>
         </div>
-        <nav aria-label="Page navigation"><a href="/#hs-workspace">Inside Tabs</a><a href="/changelog">What's new</a><ExchangeLink /><a href="/community" aria-current={path === "/community" ? "page" : undefined}>Community</a></nav>
+        <HeaderNavigation><a href="/#hs-workspace">Inside Tabs</a><a href="/changelog">What's new</a><ExchangeLink /><a href="/community" aria-current={path === "/community" ? "page" : undefined}>Community</a></HeaderNavigation>
         <a class="hs-nav-download" href="/downloads"><span class="btn-fill" aria-hidden="true"></span><span>Get Tabs</span><Icon name="ArrowDown" size={16} /></a>
       </header>
       <main id="main"><slot /></main>
