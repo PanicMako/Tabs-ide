@@ -13,7 +13,9 @@ it.each(["regular", "handoff", "handoff-compact", "handoff-failure"])(
     const fixture = NodeURL.fileURLToPath(
       new URL("./testkit/ProviderTurnStartMemory.fixture.mjs", import.meta.url),
     );
-    const { stdout } = await execFile(process.execPath, ["--expose-gc", fixture, root, mode]);
+    const { stdout } = await execFile(process.execPath, ["--expose-gc", fixture, root, mode], {
+      timeout: 55_000,
+    });
     const result = JSON.parse(stdout) as {
       checkpoints: ReadonlyArray<{ runs: number; retained: number }>;
     };
@@ -22,4 +24,6 @@ it.each(["regular", "handoff", "handoff-compact", "handoff-failure"])(
       { runs: 4, retained: 0 },
     ]);
   },
+  // Cold TypeScript fixture imports and explicit GC need headroom on shared CI runners.
+  60_000,
 );
