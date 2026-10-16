@@ -156,7 +156,8 @@ jobs:
             if [ "$run_name" = "Build Desktop Installers" ]; then
               if [ "$run_sha" != "$GITHUB_SHA" ]; then
                 git fetch origin "$run_sha" --depth=1 || true
-                modified_runtime_files=$(git diff --name-only "$run_sha" "$GITHUB_SHA" -- . ':(exclude)*.test.ts' ':(exclude)*.test.tsx' ':(exclude)*.spec.ts' ':(exclude)*.md' ':(exclude).github/*')
+                # Test scheduling helpers are not bundled application entry points.
+                modified_runtime_files=$(git diff --name-only "$run_sha" "$GITHUB_SHA" -- . ':(exclude)*.test.ts' ':(exclude)*.test.tsx' ':(exclude)*.spec.ts' ':(exclude)tabs-app/apps/server/src/testUtils/**' ':(exclude)*.md' ':(exclude).github/*')
                 if [ -n "$modified_runtime_files" ]; then
                   echo "::error::Installer artifacts must come from a successful build of this exact commit. Modified runtime files:"
                   echo "$modified_runtime_files"

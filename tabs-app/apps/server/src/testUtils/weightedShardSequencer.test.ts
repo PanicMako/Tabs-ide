@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { TestSpecification, Vitest } from "vite-plus/test/node";
+import type { TestSpecification, Vitest } from "vitest/node";
 
 import shardWeights from "./shardWeights.json" with { type: "json" };
 import { WeightedShardSequencer } from "./weightedShardSequencer.ts";
