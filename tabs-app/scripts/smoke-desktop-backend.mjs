@@ -9,7 +9,7 @@ if (!desktopLogPath || !serverLogPath) {
 const nativeBackendMarker = "bootstrap native Code-OSS main-process backend started";
 const sessionStart = /---- APP SESSION START run=([^\s]+)/g;
 const sessionEnd = /---- APP SESSION END run=([^\s]+)/g;
-const timeoutAt = Date.now() + 30_000;
+const timeoutAt = Date.now() + Number(process.env.TABS_SMOKE_BACKEND_TIMEOUT_MS ?? 30_000);
 let lastError = "No desktop backend logs were written.";
 
 async function readLog(path) {

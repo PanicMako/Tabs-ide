@@ -94,17 +94,19 @@ it.layer(NodeServices.layer)("readBootstrapEnvelope", (it) => {
     });
     bootstrapPipe.end('{"mode":"desktop"}\n');
 
+    let timeout: ReturnType<typeof setTimeout>;
     const exit = await Promise.race([
-      new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve) => {
+      new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve, reject) => {
         child.once("close", (code, signal) => resolve({ code, signal }));
+        child.once("error", reject);
       }),
       new Promise<never>((_, reject) => {
-        setTimeout(() => {
+        timeout = setTimeout(() => {
           child.kill("SIGKILL");
           reject(new Error("Child-process bootstrap test timed out."));
-        }, 5000).unref();
+        }, 5000);
       }),
-    ]);
+    ]).finally(() => clearTimeout(timeout));
 
     assert.equal(exit.code, 0, `Child bootstrap failed (${exit.signal}): ${stderr}`);
     assert.include(stdout, "Child-process bootstrap pipe passed.");

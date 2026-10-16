@@ -255,6 +255,9 @@ jobs:
       - name: Test release replacement recovery
         run: node --test scripts/replace-desktop-release.test.mjs
 
+      - name: Test packaged workspace backend smoke gate
+        run: node --test tabs-app/scripts/smoke-desktop-backend.test.mjs
+
       - name: Test restored workspace RPC routes
         working-directory: tabs-app
         run: bun run test:workspace-rpc
