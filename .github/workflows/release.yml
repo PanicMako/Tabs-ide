@@ -185,7 +185,7 @@ jobs:
               if [ "$run_sha" != "$GITHUB_SHA" ]; then
                 git fetch origin "$run_sha" --depth=1 || true
                 # Test scheduling helpers are not bundled application entry points.
-                modified_runtime_files=$(git diff --name-only "$run_sha" "$GITHUB_SHA" -- . ':(exclude)*.test.ts' ':(exclude)*.test.tsx' ':(exclude)*.spec.ts' ':(exclude)tabs-app/apps/server/src/testUtils/**' ':(exclude)*.md' ':(exclude).github/*')
+                modified_runtime_files=$(git diff --name-only "$run_sha" "$GITHUB_SHA" -- . ':(exclude)*.test.ts' ':(exclude)*.test.tsx' ':(exclude)*.spec.ts' ':(exclude)*.test.mjs' ':(exclude)tabs-app/apps/server/src/testUtils/**' ':(exclude)scripts/replace-desktop-release.mjs' ':(exclude)*.md' ':(exclude).github/*')
                 if [ -n "$modified_runtime_files" ]; then
                   echo "::error::Installer artifacts must come from a successful build of this exact commit. Modified runtime files:"
                   echo "$modified_runtime_files"
