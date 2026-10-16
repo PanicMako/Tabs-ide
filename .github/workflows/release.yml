@@ -20,6 +20,19 @@ on:
         required: false
         type: string
 
+      replacement_release_id:
+        description: "Explicitly authorized existing release ID to archive and replace (v2.0.0 only)"
+        required: false
+        type: string
+      replacement_tag_sha:
+        description: "Expected original tag object SHA; required for replacement"
+        required: false
+        type: string
+
+concurrency:
+  group: tabs-desktop-release
+  cancel-in-progress: false
+
 permissions:
   contents: write
   id-token: write
@@ -39,6 +52,7 @@ jobs:
       make_latest: ${{ steps.release_meta.outputs.make_latest }}
       previous_version: ${{ steps.validate_release.outputs.previous_version }}
       artifact_run_id: ${{ steps.validate_release.outputs.artifact_run_id }}
+      publication_tag: ${{ steps.validate_release.outputs.publication_tag }}
       ref: ${{ steps.validate_release.outputs.source_sha }}
     steps:
       - name: Checkout
@@ -119,6 +133,8 @@ jobs:
           RELEASE_VERSION: ${{ steps.release_meta.outputs.version }}
           RELEASE_TAG: ${{ steps.release_meta.outputs.tag }}
           REQUESTED_ARTIFACT_RUN_ID: ${{ inputs.artifact_run_id }}
+          REPLACEMENT_RELEASE_ID: ${{ inputs.replacement_release_id }}
+          REPLACEMENT_TAG_SHA: ${{ inputs.replacement_tag_sha }}
         run: |
           set -euo pipefail
           node - <<'NODE'
@@ -137,11 +153,23 @@ jobs:
             }
           }
           NODE
-          if release_draft=$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft 2>/dev/null); then
-            if [ "$release_draft" != "true" ]; then
-              echo "::error::Release $RELEASE_TAG is already published; use a new version."
-              exit 1
+          if [ -n "$REPLACEMENT_RELEASE_ID" ]; then
+            if [ "$GITHUB_EVENT_NAME" != "workflow_dispatch" ] || [ "$RELEASE_TAG" != "v2.0.0" ]; then
+              echo "::error::Replacement is restricted to explicitly dispatched v2.0.0."; exit 1
             fi
+            actual_id=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" --jq .id)
+            actual_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" --jq .object.sha)
+            if [ "$actual_id" != "$REPLACEMENT_RELEASE_ID" ] || [ "$actual_sha" != "$REPLACEMENT_TAG_SHA" ]; then
+              echo "::error::Existing release identity changed; refusing replacement."; exit 1
+            fi
+            echo "publication_tag=rerelease-candidate/$RELEASE_TAG-$GITHUB_RUN_ID" >> "$GITHUB_OUTPUT"
+          else
+            if release_draft=$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft 2>/dev/null); then
+              if [ "$release_draft" != "true" ]; then
+                echo "::error::Release $RELEASE_TAG is already published; use a new version."; exit 1
+              fi
+            fi
+            echo "publication_tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
           fi
           previous_tag=$(gh release view --json tagName --jq .tagName)
           echo "previous_version=${previous_tag#v}" >> "$GITHUB_OUTPUT"
@@ -223,6 +251,13 @@ jobs:
       - name: Lint
         working-directory: tabs-app
         run: bun run lint
+
+      - name: Test release replacement recovery
+        run: node --test scripts/replace-desktop-release.test.mjs
+
+      - name: Test restored workspace RPC routes
+        working-directory: tabs-app
+        run: bun run test:workspace-rpc
 
       - name: Test
         working-directory: tabs-app
@@ -768,6 +803,7 @@ jobs:
             "../.github/release-notes/v$RELEASE_VERSION.md"
 
       - name: Refuse to replace a published release
+        if: inputs.replacement_release_id == ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ needs.preflight.outputs.tag }}
@@ -783,7 +819,7 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           token: ${{ secrets.TABS_RELEASE_TOKEN }}
-          tag_name: ${{ needs.preflight.outputs.tag }}
+          tag_name: ${{ needs.preflight.outputs.publication_tag }}
           target_commitish: ${{ needs.preflight.outputs.ref }}
           name: Tabs v${{ needs.preflight.outputs.version }}
           body_path: .github/release-notes/${{ needs.preflight.outputs.tag }}.md
@@ -805,7 +841,8 @@ jobs:
       - name: Verify release assets and publish atomically
         env:
           GH_TOKEN: ${{ secrets.TABS_RELEASE_TOKEN }}
-          TAG: ${{ needs.preflight.outputs.tag }}
+          TAG: ${{ needs.preflight.outputs.publication_tag }}
+          REPLACEMENT_RELEASE_ID: ${{ inputs.replacement_release_id }}
           MAKE_LATEST: ${{ needs.preflight.outputs.make_latest }}
         run: |
           set -euo pipefail
@@ -852,6 +889,9 @@ jobs:
             fi
           done
 
+          if [ -n "$REPLACEMENT_RELEASE_ID" ]; then
+            echo "Replacement candidate assets verified; final cutover follows."; exit 0
+          fi
           echo "Publishing release $TAG atomically (draft: false)..."
           if [ "$MAKE_LATEST" = "true" ]; then
             gh release edit "$TAG" --draft=false --latest
@@ -859,3 +899,23 @@ jobs:
             gh release edit "$TAG" --draft=false --latest=false
           fi
           echo "Release $TAG published successfully."
+
+      - name: Replace explicitly authorized v2.0.0 and archive the original
+        if: inputs.replacement_release_id != ''
+        env:
+          GH_TOKEN: ${{ secrets.TABS_RELEASE_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ needs.preflight.outputs.tag }}
+          CANDIDATE_TAG: ${{ needs.preflight.outputs.publication_tag }}
+          EXPECTED_RELEASE_ID: ${{ inputs.replacement_release_id }}
+          EXPECTED_TAG_SHA: ${{ inputs.replacement_tag_sha }}
+          RELEASE_SHA: ${{ needs.preflight.outputs.ref }}
+        run: node scripts/replace-desktop-release.mjs
+
+      - name: Preserve replacement recovery metadata
+        if: always() && inputs.replacement_release_id != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: original-v2-release-recovery
+          path: original-release-recovery.json
+          if-no-files-found: warn

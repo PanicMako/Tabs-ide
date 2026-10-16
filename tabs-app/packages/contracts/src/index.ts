@@ -84,3 +84,5 @@ export * from "./browserProfile.ts";
 export * from "./device.ts";
 
 export * from "./testingRpc.ts";
+
+export { WorkspaceCompatibilityError } from "./workspaceCompatibilityRpc.ts";

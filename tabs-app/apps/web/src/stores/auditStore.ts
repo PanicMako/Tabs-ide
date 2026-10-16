@@ -1,3 +1,4 @@
+import { auditReviewResult } from "../lib/auditReviewResult";
 import { useEffect, useState } from "react";
 import type {
   AuditCategory,
@@ -8,6 +9,8 @@ import type {
   AuditSeverity,
   FindingVerificationState,
   ModelSelection,
+  GitGenerateReviewResult,
+  NativeApi,
   ReviewProgressEvent,
 } from "@tabs/contracts";
 import { toastManager } from "../components/ui/toast";
@@ -154,7 +157,7 @@ export function useAuditStore(cwd: string, runtimeCwd: string = cwd) {
         description: `Loaded audit run from ${new Date(record.timestamp).toLocaleTimeString()} (${record.result.findings?.length ?? 0} findings).`,
       });
     },
-    runAudit: async (api: any) => {
+    runAudit: async (api: NativeApi) => {
       const startedAt = Date.now();
       const initialLog: ReviewProgressEvent = {
         cwd: runtimeCwd,
@@ -172,13 +175,21 @@ export function useAuditStore(cwd: string, runtimeCwd: string = cwd) {
       });
 
       try {
-        const result: AuditScanResult = await api.git.generateReview({
+        if (state.scopeKind === "folder" && state.targetPaths.length === 0)
+          throw new Error("Choose a repository folder before starting the review.");
+        const review: GitGenerateReviewResult = await api.git.generateReview({
           cwd: runtimeCwd,
           target: {
             kind: state.scopeKind === "changed_files_only" ? "working_tree" : "full_codebase",
           },
           modelSelection: state.modelSelection,
+          audit: {
+            mode: state.activeMode,
+            depth: state.depth,
+            ...(state.scopeKind === "folder" ? { targetPaths: state.targetPaths } : {}),
+          },
         });
+        const result = auditReviewResult(review, runtimeCwd, startedAt);
 
         const newRecord: AuditHistoryRecord = {
           id: `record-${Date.now()}`,
@@ -201,7 +212,7 @@ export function useAuditStore(cwd: string, runtimeCwd: string = cwd) {
         toastManager.add({
           type: "success",
           title: "Codebase Audit Complete",
-          description: `Discovered ${result.findings?.length ?? 0} verified findings across repository files.`,
+          description: `Reported ${result.findings.length} AI findings for review.`,
         });
       } catch (err: unknown) {
         const errorMsg = err instanceof Error ? err.message : String(err);

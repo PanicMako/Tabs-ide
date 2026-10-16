@@ -1,8 +1,9 @@
+import { makeWorkspaceCompatibilityHandlers } from "./workspaceCompatibilityHandlers.ts";
 import { makeGitCore } from "./git/Layers/GitCore.ts";
 import { GitEnvironment } from "./git/Services/GitEnvironment.ts";
 import { GitEnvironmentLive } from "./git/Layers/GitEnvironment.ts";
 import { GitCommandError as LegacyGitCommandError } from "./git/Errors.ts";
-import { CoreWsRpcGroup, TestingWsRpcGroup } from "@tabs/contracts";
+import { CoreWsRpcGroup, TestingWsRpcGroup, WorkspaceCompatibilityRpcGroup } from "@tabs/contracts";
 import { TestingRuntime } from "./testing/TestingRuntime.ts";
 import { testingRpcHandlers } from "./testing/TestingRpcHandlers.ts";
 import { OrchestrationDispatchCommandError } from "@tabs/contracts";
@@ -1199,7 +1200,8 @@ const layerWsRpc = (
   clientAnalyticsProps: Readonly<Record<string, unknown>>,
   previewAutomationBroker: PreviewAutomationBroker.PreviewAutomationBroker["Service"],
 ) =>
-  Layer.merge(
+  Layer.mergeAll(
+    WorkspaceCompatibilityRpcGroup.toLayer(makeWorkspaceCompatibilityHandlers),
     CoreWsRpcGroup.toLayer(
       Effect.gen(function* () {
         const currentSessionId = currentSession.sessionId;

@@ -76,7 +76,14 @@ export function resolvePassesToRun(
   }
   // Default ceiling is 2 passes; opting into 3 requires explicit config
   const validPasses = configuredPasses.filter(
-    (p) => p === "correctness" || p === "security" || p === "api_compatibility",
+    (p) =>
+      p === "correctness" ||
+      p === "security" ||
+      p === "api_compatibility" ||
+      p === "architecture" ||
+      p === "performance" ||
+      p === "refactoring" ||
+      p === "test_gap",
   );
   return validPasses.length > 0 ? validPasses : [...DEFAULT_REVIEW_PASSES];
 }
@@ -157,6 +164,18 @@ export function runReviewPasses(
           "PASS 3: API COMPATIBILITY FOCUS. Scan specifically for breaking contract changes, modified function signatures, removed exports, and parameter type mismatches.";
       }
 
+      if (passName === "architecture")
+        passInstructions =
+          "ARCHITECTURE FOCUS. Identify concrete dependency, layering, ownership, and lifecycle defects. Avoid speculative redesign advice.";
+      if (passName === "performance")
+        passInstructions =
+          "PERFORMANCE FOCUS. Identify concrete unbounded work, resource leaks, repeated expensive operations, and responsiveness problems.";
+      if (passName === "refactoring")
+        passInstructions =
+          "REFACTORING FOCUS. Identify concrete duplication or complexity causing bugs and propose scoped behavior-preserving repairs.";
+      if (passName === "test_gap")
+        passInstructions =
+          "TEST COVERAGE FOCUS. Identify missing behavioral regression tests for concrete failure paths in the supplied code.";
       const passHint = [input.userHint?.trim(), passInstructions].filter(Boolean).join("\n\n");
 
       // Generate diff summary + findings for this pass

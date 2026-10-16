@@ -2031,6 +2031,7 @@ function configureAutoUpdater(): void {
       repository: `${owner}/${repo}`,
       arch: desktopRuntimeInfo.hostArch === "arm64" ? "arm64" : "x64",
       tempDirectory: app.getPath("temp"),
+      downloadCacheDirectory: Path.join(app.getPath("userData"), "update-cache"),
       ...(githubToken ? { requestHeaders: { Authorization: `Bearer ${githubToken}` } } : {}),
     });
     setUpdateState({ ...updateState, distribution: "unsigned-preview" });
