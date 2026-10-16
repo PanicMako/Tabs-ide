@@ -4,7 +4,7 @@ import { replaceDesktopRelease } from "./replace-desktop-release.mjs";
 
 const oldSha = "a".repeat(40), newSha = "b".repeat(40);
 const options = { repository: "PanicMako/Tabs-ide", tag: "v2.0.0", candidateTag: "rerelease-candidate/v2.0.0-123", expectedReleaseId: "10", expectedTagSha: oldSha, sourceSha: newSha };
-function fixture({ failPublish = false, changed = false } = {}) {
+function fixture({ failPublish = false, changed = false, loseArchiveResponse = false } = {}) {
   const calls = [];
   const releases = new Map([[10, { id: 10, tag_name: "v2.0.0", name: "Tabs v2.0.0", draft: false, prerelease: false, assets: [{ id: 999 }] }], [20, { id: 20, tag_name: options.candidateTag, draft: true, target_commitish: newSha, assets: Array.from({ length: 14 }, (_, id) => ({ id, state: "uploaded", digest: "sha256:test", size: 1 })) }]]);
   let tagSha = changed ? "c".repeat(40) : oldSha;
@@ -19,7 +19,9 @@ function fixture({ failPublish = false, changed = false } = {}) {
     if (method === "PATCH") {
       const id = Number(path.split("/").at(-1));
       if (id === 20 && body.draft === false && failPublish) throw Error("Publication failed");
-      Object.assign(releases.get(id), body); return structuredClone(releases.get(id));
+      Object.assign(releases.get(id), body);
+      if (id === 10 && body.draft === true && loseArchiveResponse) throw Error("Archive response lost");
+      return structuredClone(releases.get(id));
     }
     throw Error("Unexpected API call");
   };
@@ -41,5 +43,13 @@ test("refuses stale release identity before any mutation", async () => {
 test("restores original tag and publication if candidate publishing fails", async () => {
   const state = fixture({ failPublish: true }); await assert.rejects(replaceDesktopRelease(options, state.api), /Publication failed/);
   assert.equal(state.tagSha(), oldSha); assert.equal(state.releases.get(10).draft, false); assert.equal(state.releases.get(10).tag_name, "v2.0.0");
+  assert.equal(state.releases.get(20).draft, true);
+});
+test("recovers an ambiguous archive response and rolls back a failed cutover", async () => {
+  const state = fixture({ failPublish: true, loseArchiveResponse: true });
+  await assert.rejects(replaceDesktopRelease(options, state.api), /Publication failed/);
+  assert.equal(state.tagSha(), oldSha);
+  assert.equal(state.releases.get(10).draft, false);
+  assert.equal(state.releases.get(10).tag_name, "v2.0.0");
   assert.equal(state.releases.get(20).draft, true);
 });
