@@ -13,7 +13,9 @@ it.each(["prefix", "snapshot", "replay"])(
     const fixture = NodeURL.fileURLToPath(
       new URL("./testkit/RpcInitialMemory.fixture.mjs", import.meta.url),
     );
-    const { stdout } = await execFile(process.execPath, ["--expose-gc", fixture, root, mode]);
+    const { stdout } = await execFile(process.execPath, ["--expose-gc", fixture, root, mode], {
+      timeout: 55_000,
+    });
     const result = JSON.parse(stdout) as {
       checkpoints: ReadonlyArray<{ subscriptions: number; retained: number }>;
     };
@@ -24,4 +26,6 @@ it.each(["prefix", "snapshot", "replay"])(
       { subscriptions: 4, retained: 0 },
     ]);
   },
+  // Cold TypeScript fixture imports and explicit GC need headroom on shared CI runners.
+  60_000,
 );
