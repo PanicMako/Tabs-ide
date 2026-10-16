@@ -226,7 +226,8 @@ jobs:
 
       - name: Test
         working-directory: tabs-app
-        run: bun run test
+        # Avoid concurrent package compilers competing with process/GC integration tests.
+        run: bun run test --concurrency=1
 
   build:
     name: Build ${{ matrix.label }}
