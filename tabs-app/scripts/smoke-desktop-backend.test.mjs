@@ -5,7 +5,8 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterEach, test } from "node:test";
+const runner = process.env.VITEST ? await import("vitest") : await import("node:test");
+const { afterEach, test } = runner;
 
 const script = fileURLToPath(new URL("./smoke-desktop-backend.mjs", import.meta.url));
 const fixtures = [];
