@@ -34,6 +34,7 @@ export function AuditPanel({
     setActiveMode,
     setScopeKind,
     setDepth,
+    setTargetPaths,
     setModelSelection,
     setSelectedFindingId,
     setFilterSeverity,
@@ -147,6 +148,8 @@ export function AuditPanel({
                   onSelectMode={setActiveMode}
                   onScopeChange={setScopeKind}
                   onDepthChange={setDepth}
+                  targetPaths={state.targetPaths}
+                  onTargetPathsChange={setTargetPaths}
                   onRunScan={() => runAudit(api)}
                 />
               </div>

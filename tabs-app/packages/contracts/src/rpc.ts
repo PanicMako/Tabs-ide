@@ -1,3 +1,4 @@
+import { WorkspaceCompatibilityRpcs } from "./workspaceCompatibilityRpc.ts";
 import { TESTING_WS_METHODS, TestingRpcs } from "./testingRpc.ts";
 import { OrchestrationDispatchCommandError } from "./orchestrationDispatch.ts";
 import {
@@ -2057,4 +2058,7 @@ export const CoreWsRpcGroup = RpcGroup.make(
 ).middleware(RpcScopeAuthorization);
 
 export const TestingWsRpcGroup = RpcGroup.make(...TestingRpcs).middleware(RpcScopeAuthorization);
-export const WsRpcGroup = CoreWsRpcGroup.merge(TestingWsRpcGroup);
+export const WorkspaceCompatibilityRpcGroup = RpcGroup.make(
+  ...WorkspaceCompatibilityRpcs,
+).middleware(RpcScopeAuthorization);
+export const WsRpcGroup = CoreWsRpcGroup.merge(TestingWsRpcGroup, WorkspaceCompatibilityRpcGroup);

@@ -166,3 +166,35 @@ describe("RPC scope middleware", () => {
     }).pipe(Effect.scoped),
   );
 });
+
+it.effect("denies restored Git writes to read-only clients before executing them", () => {
+  const group = WsRpcGroup.omit(
+    ...[...WsRpcGroup.requests.keys()].filter(
+      (tag): tag is Exclude<keyof typeof RPC_REQUIRED_SCOPES, "git.stageFiles"> =>
+        tag !== "git.stageFiles",
+    ),
+  );
+  return Effect.gen(function* () {
+    let ran = false;
+    const client = yield* RpcTest.makeClient(group).pipe(
+      Effect.provide(
+        Layer.mergeAll(
+          group.toLayerHandler("git.stageFiles", () =>
+            Effect.sync(() => {
+              ran = true;
+            }),
+          ),
+          RpcAuthorization.layer([AuthOrchestrationReadScope]),
+        ),
+      ),
+    );
+    const error = yield* client["git.stageFiles"]({ cwd: "/fixture", paths: ["file.txt"] }).pipe(
+      Effect.flip,
+    );
+    expect(error).toMatchObject({
+      _tag: "EnvironmentAuthorizationError",
+      requiredScope: AuthOrchestrationOperateScope,
+    });
+    expect(ran).toBe(false);
+  }).pipe(Effect.scoped);
+});

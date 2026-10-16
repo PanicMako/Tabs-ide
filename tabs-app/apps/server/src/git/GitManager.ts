@@ -1,3 +1,4 @@
+import { auditReviewPlan } from "../review/AuditReviewPlan.ts";
 import * as Arr from "effect/Array";
 import * as Cache from "effect/Cache";
 import * as Context from "effect/Context";
@@ -3172,6 +3173,17 @@ export const make = Effect.gen(function* () {
         });
       }
 
+      const auditPlan = input.audit
+        ? yield* Effect.try({
+            try: () => auditReviewPlan(input.audit!),
+            catch: (cause) =>
+              new GitManagerError({
+                operation: "generateReview",
+                cwd: input.cwd,
+                detail: cause instanceof Error ? cause.message : "Invalid audit scope.",
+              }),
+          })
+        : undefined;
       let diffSummary = "";
       let rawPatch = "";
       let targetScope: "staged" | "working_tree" | "commit" | "full_codebase" = "working_tree";
@@ -3207,6 +3219,8 @@ export const make = Effect.gen(function* () {
             "--no-ext-diff",
             "4b825dc642cb6eb9a060e54bf8d69288fbee4904",
             "HEAD",
+            "--",
+            ...(auditPlan?.targetPaths.map((path) => `:(literal)${path}`) ?? []),
           ],
           allowNonZeroExit: true,
         });
@@ -3278,9 +3292,11 @@ export const make = Effect.gen(function* () {
         }
 
         fileLineCount++;
-        if (fileLineCount > 150) {
-          if (fileLineCount === 151) {
-            filteredLines.push("[... file patch truncated at 150 lines ...]");
+        if (fileLineCount > (auditPlan?.maxFileLines ?? 150)) {
+          if (fileLineCount === (auditPlan?.maxFileLines ?? 150) + 1) {
+            filteredLines.push(
+              `[... file patch truncated at ${auditPlan?.maxFileLines ?? 150} lines ...]`,
+            );
             wasTruncated = true;
           }
           continue;
@@ -3290,9 +3306,10 @@ export const make = Effect.gen(function* () {
       }
 
       let patchContent = filteredLines.join("\n");
-      if (patchContent.length > 300_000) {
+      if (patchContent.length > (auditPlan?.maxPatchChars ?? 300_000)) {
         patchContent =
-          patchContent.slice(0, 300_000) + "\n[... diff patch capped at 300,000 characters ...]";
+          patchContent.slice(0, auditPlan?.maxPatchChars ?? 300_000) +
+          "\n[... diff patch capped to the selected review context budget ...]";
         wasTruncated = true;
       }
 
@@ -3364,7 +3381,7 @@ export const make = Effect.gen(function* () {
         repoContextSection = rcResult.contextSection;
       }
 
-      const configuredPasses = settings.gitAi?.review?.passes;
+      const configuredPasses = auditPlan?.passes ?? settings.gitAi?.review?.passes;
 
       const reviewResult = yield* runReviewPasses(
         {
@@ -3436,6 +3453,7 @@ export const make = Effect.gen(function* () {
       });
 
       const result: GitGenerateReviewResult = {
+        filesInspected: initialChangedFiles.length,
         summary: reviewResult.summary,
         keyChanges: reviewResult.keyChanges,
         notesAndRisk: reviewResult.notesAndRisk,

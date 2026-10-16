@@ -28,12 +28,14 @@ export interface AuditConfigProps {
   ) => void;
   readonly onDepthChange: (depth: AuditScanDepth) => void;
   readonly onRunScan: () => void;
+  readonly targetPaths: string[];
+  readonly onTargetPathsChange: (paths: string[]) => void;
 }
 
 const DEPTH_OPTIONS: { id: AuditScanDepth; label: string; hint: string }[] = [
-  { id: "quick", label: "Quick", hint: "Static pattern scan — results in seconds." },
-  { id: "standard", label: "Standard", hint: "2-pass AI review across symbols & imports." },
-  { id: "deep", label: "Deep", hint: "Full AST graph + disproof verifier pass." },
+  { id: "quick", label: "Quick", hint: "One focused AI review pass with a smaller context." },
+  { id: "standard", label: "Standard", hint: "Focused AI passes using the selected review mode." },
+  { id: "deep", label: "Deep", hint: "More context plus API and test-coverage review passes." },
 ];
 
 const SCOPES = [
@@ -73,13 +75,16 @@ export function AuditConfigPanel({
   onScopeChange,
   onDepthChange,
   onRunScan,
+  targetPaths,
+  onTargetPathsChange,
 }: AuditConfigProps) {
-  const [targetFolderPath, setTargetFolderPath] = useState("apps/web");
+  const [targetFolderPath, setTargetFolderPath] = useState(targetPaths[0] ?? "");
   const [scopeError, setScopeError] = useState<string | null>(null);
 
   const validateAndSetFolder = (inputPath: string) => {
     const trimmed = inputPath.trim();
     setTargetFolderPath(trimmed);
+    onTargetPathsChange([]);
 
     if (!trimmed) {
       setScopeError("Path cannot be empty.");
@@ -103,6 +108,19 @@ export function AuditConfigPanel({
       }
     }
 
+    const root = (cwd ?? "").replaceAll("\\", "/").replace(/\/$/, "");
+    const relative = trimmed.replaceAll("\\", "/").startsWith(root + "/")
+      ? trimmed.replaceAll("\\", "/").slice(root.length + 1)
+      : trimmed.replaceAll("\\", "/");
+    if (
+      relative.startsWith("/") ||
+      /^[A-Za-z]:/.test(relative) ||
+      relative.split("/").some((part) => part === ".." || part === "")
+    ) {
+      setScopeError("Choose a relative folder inside this repository.");
+      return;
+    }
+    onTargetPathsChange([relative]);
     setScopeError(null);
   };
 

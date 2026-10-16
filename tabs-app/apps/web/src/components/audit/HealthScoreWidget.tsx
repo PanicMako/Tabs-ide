@@ -11,7 +11,7 @@ export function HealthScoreWidget({ summary }: { summary: AuditScanSummary }) {
   const durationSec =
     typeof rawDuration === "number" && !isNaN(rawDuration) && rawDuration > 0
       ? (rawDuration / 1000).toFixed(1)
-      : "0.4";
+      : "0.0";
 
   const totalFindings = summary?.totalFindings ?? 0;
   const criticalCount = summary?.criticalCount ?? 0;
@@ -20,7 +20,7 @@ export function HealthScoreWidget({ summary }: { summary: AuditScanSummary }) {
   const infoCount = summary?.infoCount ?? 0;
 
   let scoreColor = "text-emerald-500 bg-emerald-500/10 border-emerald-500/30";
-  let statusText = "Excellent Health";
+  let statusText = "No High-Severity Findings";
 
   if (score < 60) {
     scoreColor = "text-red-500 bg-red-500/10 border-red-500/30";
@@ -43,7 +43,7 @@ export function HealthScoreWidget({ summary }: { summary: AuditScanSummary }) {
         </div>
         <div>
           <div className="flex items-center gap-2">
-            <h3 className="text-base font-semibold text-foreground">Repository Health Score</h3>
+            <h3 className="text-base font-semibold text-foreground">Review Finding Score</h3>
             <Badge variant="outline" className="text-xs border-border">
               {statusText}
             </Badge>
