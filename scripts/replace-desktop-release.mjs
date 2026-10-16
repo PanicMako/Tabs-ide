@@ -9,7 +9,10 @@ export async function replaceDesktopRelease(options, api) {
   const base = `repos/${repository}`;
   const tagPath = `${base}/git/refs/tags/${tag}`;
   const original = await api("GET", `${base}/releases/tags/${tag}`);
-  const candidate = await api("GET", `${base}/releases/tags/${encodeURIComponent(candidateTag)}`);
+  const releases = await api("GET", `${base}/releases?per_page=100`).catch(() => api("GET", `${base}/releases`).catch(() => []));
+  const candidate = (Array.isArray(releases) ? releases.find(r => r.tag_name === candidateTag) : null) ??
+    await api("GET", `${base}/releases/tags/${encodeURIComponent(candidateTag)}`).catch(() => null);
+  if (!candidate) throw new Error(`Candidate release with tag ${candidateTag} not found.`);
   const reference = await api("GET", `${base}/git/ref/tags/${tag}`);
   if (String(original.id) !== String(expectedReleaseId) || reference.object.sha !== expectedTagSha || original.draft || original.immutable) throw new Error("Published release changed or is immutable; refusing replacement.");
   if (!candidate.draft || candidate.id === original.id || candidate.target_commitish !== sourceSha || candidate.assets.length < 14 || candidate.assets.some(asset => asset.state !== "uploaded" || !asset.digest || asset.size <= 0)) throw new Error("Candidate is not a complete verified draft for this commit.");

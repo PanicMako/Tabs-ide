@@ -12,7 +12,12 @@ function fixture({ failPublish = false, changed = false, loseArchiveResponse = f
     calls.push({ method, path, body, credential });
     if (method === "GET" && path.endsWith("git/ref/tags/v2.0.0")) return { object: { sha: tagSha } };
     if (method === "GET" && path.includes("/git/ref/tags/archive/")) throw Error("Not found");
-    if (method === "GET" && path.includes("/releases/tags/")) return structuredClone([...releases.values()].find(release => path.endsWith(encodeURIComponent(release.tag_name)) || path.endsWith(release.tag_name)));
+    if (method === "GET" && (path.endsWith("/releases") || path.includes("/releases?"))) return structuredClone([...releases.values()]);
+    if (method === "GET" && path.includes("/releases/tags/")) {
+      const found = [...releases.values()].find(release => path.endsWith(encodeURIComponent(release.tag_name)) || path.endsWith(release.tag_name));
+      if (found && !found.draft) return structuredClone(found);
+      throw Error("Not found");
+    }
     if (method === "GET" && /releases\/\d+$/.test(path)) return structuredClone(releases.get(Number(path.split("/").at(-1))));
     if (method === "POST") return {};
     if (method === "PATCH" && path.includes("/git/refs/")) { tagSha = body.sha; return {}; }
@@ -52,4 +57,10 @@ test("recovers an ambiguous archive response and rolls back a failed cutover", a
   assert.equal(state.releases.get(10).draft, false);
   assert.equal(state.releases.get(10).tag_name, "v2.0.0");
   assert.equal(state.releases.get(20).draft, true);
+});
+
+test("throws if candidate draft release is missing from releases list", async () => {
+  const state = fixture();
+  state.releases.delete(20);
+  await assert.rejects(replaceDesktopRelease(options, state.api), /Candidate release with tag rerelease-candidate\/v2\.0\.0-123 not found/);
 });
