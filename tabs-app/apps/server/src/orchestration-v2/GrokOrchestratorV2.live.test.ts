@@ -15,7 +15,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as CodexResetCreditCoordinator from "../provider/Layers/codexResetCredit.ts";
 import { FetchHttpClient } from "effect/unstable/http";
-import { describe } from "vite-plus/test";
+import { describe } from "vitest";
 
 import * as CheckpointStore from "../checkpointing/CheckpointStore.ts";
 import * as BackgroundPolicy from "../background/BackgroundPolicy.ts";

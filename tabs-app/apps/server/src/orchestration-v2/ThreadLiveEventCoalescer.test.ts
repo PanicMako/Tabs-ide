@@ -12,7 +12,7 @@ import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import * as TestClock from "effect/testing/TestClock";
-import { describe, expect } from "vite-plus/test";
+import { describe, expect } from "vitest";
 import {
   coalesceLiveToolUpdatedEvents,
   coalesceThreadLiveStream,

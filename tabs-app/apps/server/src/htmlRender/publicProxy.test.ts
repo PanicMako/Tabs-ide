@@ -1,6 +1,6 @@
 // @effect-diagnostics nodeBuiltinImport:off - raw sockets speak SOCKS5 to the proxy.
 import { describe, expect, it } from "@effect/vitest";
-import { vi } from "vite-plus/test";
+import { vi } from "vitest";
 import * as Effect from "effect/Effect";
 import * as NodeNet from "node:net";
 import * as NodeOS from "node:os";

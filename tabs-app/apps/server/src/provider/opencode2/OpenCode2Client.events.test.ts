@@ -8,7 +8,7 @@ import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import { TestClock } from "effect/testing";
 import { HttpClient, HttpClientResponse } from "effect/unstable/http";
-import { describe } from "vite-plus/test";
+import { describe } from "vitest";
 
 import * as OpenCode2Client from "./OpenCode2Client.ts";
 

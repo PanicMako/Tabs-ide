@@ -5,7 +5,7 @@ import * as Fiber from "effect/Fiber";
 import * as PubSub from "effect/PubSub";
 import * as Queue from "effect/Queue";
 import * as Stream from "effect/Stream";
-import { describe, expect } from "vite-plus/test";
+import { describe, expect } from "vitest";
 
 import {
   bufferLiveStream,

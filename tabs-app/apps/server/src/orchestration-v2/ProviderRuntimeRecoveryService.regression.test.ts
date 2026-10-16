@@ -7,7 +7,7 @@ import {
 } from "@tabs/contracts";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import { expect, it } from "vite-plus/test";
+import { expect, it } from "vitest";
 
 import * as EffectWorker from "./EffectWorker.ts";
 import * as EffectOutbox from "./EffectOutbox.ts";

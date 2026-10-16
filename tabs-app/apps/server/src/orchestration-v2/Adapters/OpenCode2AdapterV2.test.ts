@@ -35,7 +35,7 @@ import * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
 import * as Exit from "effect/Exit";
 import { TestClock } from "effect/testing";
-import { describe } from "vite-plus/test";
+import { describe } from "vitest";
 
 import type {
   ProviderAdapterV2Event,

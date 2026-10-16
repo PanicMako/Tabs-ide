@@ -21,7 +21,7 @@ import * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
 import { FetchHttpClient } from "effect/unstable/http";
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
-import { describe } from "vite-plus/test";
+import { describe } from "vitest";
 
 import * as OpenCodeRuntime from "../opencodeRuntime.ts";
 import * as OpenCodeServerLedger from "../OpenCodeServerLedger.ts";

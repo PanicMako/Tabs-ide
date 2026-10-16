@@ -22,7 +22,7 @@ import * as Stream from "effect/Stream";
 import { FetchHttpClient } from "effect/unstable/http";
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 import * as NodeCrypto from "node:crypto";
-import { describe } from "vite-plus/test";
+import { describe } from "vitest";
 
 import * as OpenCode2Client from "./OpenCode2Client.ts";
 

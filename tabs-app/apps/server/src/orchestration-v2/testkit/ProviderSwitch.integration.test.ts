@@ -1,4 +1,4 @@
-import { vi } from "vite-plus/test";
+import { vi } from "vitest";
 import { historyResponseItems } from "../ContextHandoffBudget.ts";
 import { assert, describe, it } from "@effect/vitest";
 import {

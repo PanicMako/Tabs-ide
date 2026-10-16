@@ -1,6 +1,6 @@
 import * as DateTime from "effect/DateTime";
 
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it } from "vitest";
 
 import { queuedRunsInDeliveryOrder, readyQueuedRunsInDeliveryOrder } from "./QueuedRunOrder.ts";
 

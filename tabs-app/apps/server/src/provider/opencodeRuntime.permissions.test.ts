@@ -1,7 +1,7 @@
 import * as NodeAssert from "node:assert/strict";
 
 import * as RegExpUtils from "effect/RegExp";
-import { describe, it } from "vite-plus/test";
+import { describe, it } from "vitest";
 
 import { buildOpenCodePermissionRules, toOpenCodePermissionReply } from "./opencodeRuntime.ts";
 

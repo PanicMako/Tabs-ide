@@ -5,7 +5,7 @@ import * as Layer from "effect/Layer";
 import * as PlatformError from "effect/PlatformError";
 import * as ChildProcessSpawner from "effect/unstable/process/ChildProcessSpawner";
 import { HostProcessPlatform } from "@tabs/shared/hostProcess";
-import { vi } from "vite-plus/test";
+import { vi } from "vitest";
 
 import * as ProcessRunner from "../processRunner.ts";
 import {
