@@ -1,6 +1,6 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { expect, it } from "@effect/vitest";
-import { vi } from "vite-plus/test";
+import { vi } from "vitest";
 import { CopilotSettings, ProviderInstanceId, ProviderSessionId, ThreadId } from "@tabs/contracts";
 import { resolveSelfInvocation } from "@tabs/shared/nodeRuntime";
 import * as Crypto from "effect/Crypto";

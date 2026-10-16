@@ -41,7 +41,7 @@ import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
 import { FetchHttpClient, HttpClient } from "effect/unstable/http";
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
-import { describe } from "vite-plus/test";
+import { describe } from "vitest";
 
 import * as CodexResetCreditCoordinator from "../provider/Layers/codexResetCredit.ts";
 import * as CheckpointStore from "../checkpointing/CheckpointStore.ts";

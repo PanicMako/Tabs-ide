@@ -1,5 +1,5 @@
 import { ProjectId } from "@tabs/contracts";
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it } from "vitest";
 
 import { pullRequestSyncKey } from "./pullRequestSyncKey.ts";
 

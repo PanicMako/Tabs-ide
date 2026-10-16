@@ -18,7 +18,7 @@ import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
 import { TestClock } from "effect/testing";
 import { ChildProcessSpawner } from "effect/unstable/process";
-import { expect } from "vite-plus/test";
+import { expect } from "vitest";
 import type {
   GitActionProgressEvent,
   GitPreparePullRequestThreadInput,

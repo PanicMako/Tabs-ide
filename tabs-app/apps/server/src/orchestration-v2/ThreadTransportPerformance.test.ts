@@ -14,7 +14,7 @@ import {
 import * as DateTime from "effect/DateTime";
 import * as Schema from "effect/Schema";
 import type * as RpcMessage from "effect/unstable/rpc/RpcMessage";
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it } from "vitest";
 
 import { buildBoundedThreadStreamSnapshot } from "./ThreadStream.ts";
 import { buildBoundedThreadProjection } from "./threadHistoryPaging.ts";

@@ -2,7 +2,7 @@
 import * as NodeChildProcess from "node:child_process";
 import * as NodeURL from "node:url";
 import * as NodeUtil from "node:util";
-import { expect, it } from "vite-plus/test";
+import { expect, it } from "vitest";
 const execFile = NodeUtil.promisify(NodeChildProcess.execFile);
 it.each([false, true])(
   "a detached cache lookup releases the traced caller snapshot (failure=%s)",

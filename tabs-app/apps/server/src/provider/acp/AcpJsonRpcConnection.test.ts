@@ -15,7 +15,7 @@ import * as Scope from "effect/Scope";
 import * as Result from "effect/Result";
 import * as TestClock from "effect/testing/TestClock";
 import * as Stream from "effect/Stream";
-import { describe, expect } from "vite-plus/test";
+import { describe, expect } from "vitest";
 
 import * as AcpSessionRuntime from "./AcpSessionRuntime.ts";
 import type * as EffectAcpProtocol from "effect-acp/protocol";

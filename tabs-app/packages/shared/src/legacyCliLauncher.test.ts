@@ -4,7 +4,7 @@ import * as NodeEvents from "node:events";
 import * as NodeFSP from "node:fs/promises";
 import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
-import { expect, it } from "vite-plus/test";
+import { expect, it } from "vitest";
 
 import { legacyCliLauncherScript } from "./legacyCliLauncher.ts";
 

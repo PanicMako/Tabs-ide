@@ -6,7 +6,7 @@ import * as NodeV8 from "node:v8";
 import { assert, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
-import { vi } from "vite-plus/test";
+import { vi } from "vitest";
 
 import { writeHeapSnapshot } from "./HeapSnapshot.ts";
 

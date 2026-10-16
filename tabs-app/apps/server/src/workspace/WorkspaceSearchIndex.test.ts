@@ -9,7 +9,7 @@ import { afterEach, expect, it } from "@effect/vitest";
 import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
-import { vi } from "vite-plus/test";
+import { vi } from "vitest";
 
 import * as WorkspaceSearchIndex from "./WorkspaceSearchIndex.ts";
 

@@ -1,5 +1,5 @@
 import { ComposerContextId, type ComposerContextRecord } from "@tabs/contracts";
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it } from "vitest";
 
 import { upgradeLegacyContextMessage } from "./composerContextLegacy.ts";
 import { formatComposerContextReference } from "./composerContextReferences.ts";

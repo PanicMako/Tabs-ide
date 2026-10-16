@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it } from "vitest";
 import type { TestSpecification, Vitest } from "vite-plus/test/node";
 
 import shardWeights from "./shardWeights.json" with { type: "json" };

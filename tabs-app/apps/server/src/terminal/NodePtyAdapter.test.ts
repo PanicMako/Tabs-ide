@@ -11,7 +11,7 @@ import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
 import * as Logger from "effect/Logger";
 import * as Scheduler from "effect/Scheduler";
-import { expect, vi } from "vite-plus/test";
+import { expect, vi } from "vitest";
 
 import * as NodePtyAdapter from "./NodePtyAdapter.ts";
 import * as PtyAdapter from "./PtyAdapter.ts";

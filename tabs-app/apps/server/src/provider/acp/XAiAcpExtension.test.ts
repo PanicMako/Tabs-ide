@@ -5,7 +5,7 @@ import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import * as Schema from "effect/Schema";
-import { describe, expect } from "vite-plus/test";
+import { describe, expect } from "vitest";
 
 import {
   XAiExitPlanModeRequest,

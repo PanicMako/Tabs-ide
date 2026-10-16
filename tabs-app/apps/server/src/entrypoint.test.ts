@@ -4,7 +4,7 @@ import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
 import * as NodeURL from "node:url";
 
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it } from "vitest";
 
 import { isEntrypoint } from "./entrypoint.ts";
 import { symlinksSupported } from "@tabs/shared/testing/symlinks";

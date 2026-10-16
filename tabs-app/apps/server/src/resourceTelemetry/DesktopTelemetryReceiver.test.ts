@@ -9,7 +9,7 @@ import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as PubSub from "effect/PubSub";
 import * as Ref from "effect/Ref";
-import { assert, describe, expect } from "vite-plus/test";
+import { assert, describe, expect } from "vitest";
 
 import {
   type DesktopTelemetryReceiverHealth,

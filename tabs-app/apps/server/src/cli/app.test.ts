@@ -19,7 +19,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 import { Command } from "effect/unstable/cli";
-import { afterEach, describe, expect, vi } from "vite-plus/test";
+import { afterEach, describe, expect, vi } from "vitest";
 
 import { makeCli } from "../binCli.ts";
 import { PersistedServerRuntimeState } from "../serverRuntimeState.ts";

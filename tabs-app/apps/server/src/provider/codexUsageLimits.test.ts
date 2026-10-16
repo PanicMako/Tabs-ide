@@ -1,5 +1,5 @@
 import * as CodexErrors from "effect-codex-app-server/errors";
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it } from "vitest";
 
 import {
   codexRateLimitsFailureMessage,

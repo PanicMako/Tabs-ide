@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it } from "vitest";
 import { filePreviewDelimiter, parseDelimitedPreview } from "./delimitedPreview.ts";
 
 describe("delimited file previews", () => {

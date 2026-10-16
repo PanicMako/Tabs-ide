@@ -8,7 +8,7 @@ import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Terminal from "effect/Terminal";
 import { Command } from "effect/unstable/cli";
-import { afterEach, vi } from "vite-plus/test";
+import { afterEach, vi } from "vitest";
 
 import packageJson from "../../package.json" with { type: "json" };
 import * as BootService from "../cloud/bootService.ts";

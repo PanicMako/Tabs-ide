@@ -16,7 +16,7 @@ import * as Fiber from "effect/Fiber";
 import * as FileSystem from "effect/FileSystem";
 import * as Stream from "effect/Stream";
 import { ChildProcessSpawner } from "effect/unstable/process";
-import { describe, expect } from "vite-plus/test";
+import { describe, expect } from "vitest";
 
 import { makeGrokAcpRuntime } from "./GrokAcpSupport.ts";
 

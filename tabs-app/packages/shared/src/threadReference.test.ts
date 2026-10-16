@@ -1,5 +1,5 @@
 import type { ThreadPullRequestLink } from "@tabs/contracts";
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it } from "vitest";
 
 import { resolveThreadReferenceCopyTarget } from "./threadReference.ts";
 
