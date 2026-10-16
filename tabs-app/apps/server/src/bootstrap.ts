@@ -106,6 +106,17 @@ const isFdReady = (fd: number) =>
 const makeBootstrapInputStream = (fd: number) =>
   Effect.try<Readable, BootstrapError>({
     try: () => {
+      const fdInfo = NFS.fstatSync(fd);
+      if (fdInfo.isSocket()) {
+        const stream = new Net.Socket({
+          fd,
+          readable: true,
+          writable: false,
+        });
+        stream.setEncoding("utf8");
+        return stream;
+      }
+
       const fdPath = resolveFdPath(fd);
       if (fdPath === undefined) {
         const stream = new Net.Socket({

@@ -38,6 +38,7 @@ export const changelogData: ChangelogRelease[] = [
       "Schedule, reorder and manage queued messages from the conversation Queue panel.",
       "Keep files, browser pages and pull requests alongside agent conversations.",
       "Apply Interface Study only to Settings while keeping your workspace theme.",
+      "Fix Linux startup for the bundled workspace backend.",
       "Explore Exchange developer tools and documentation; public publishing remains disabled during the pilot.",
     ],
     categories: [

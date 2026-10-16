@@ -1,5 +1,5 @@
 import { spawn, execFileSync } from "node:child_process";
-import { mkdtemp, writeFile, readFile, rm } from "node:fs/promises";
+import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:net";
@@ -28,35 +28,77 @@ const child = spawn(
   [join(root, "apps/server/dist/index.mjs"), "--bootstrap-fd", "3"],
   { cwd: repo, stdio: ["ignore", "pipe", "pipe", "pipe"] },
 );
-child.stdio[3].end(
-  JSON.stringify({
-    mode: "desktop",
-    noBrowser: true,
-    port,
-    host: "127.0.0.1",
-    tabsHome: join(scratch, "data"),
-    desktopBootstrapToken: token,
-  }) + "\n",
-);
 let logs = "";
+let bootstrapPipeError;
+let childSpawnError;
+const appendLog = (chunk) => {
+  logs = (logs + chunk.toString("utf8")).slice(-20_000);
+};
 child.stdout.on("data", (x) => {
-  logs += x;
+  appendLog(x);
 });
 child.stderr.on("data", (x) => {
-  logs += x;
+  appendLog(x);
+});
+child.on("error", (error) => {
+  childSpawnError = error;
+  appendLog(`Server process error: ${error.message}\n`);
 });
 
 let ws;
 try {
+  const bootstrapPipe = child.stdio[3];
+  if (!bootstrapPipe) throw Error("Server process did not expose bootstrap fd 3.");
+  bootstrapPipe.on("error", (error) => {
+    bootstrapPipeError = error;
+    appendLog(`Bootstrap pipe error: ${error.message}\n`);
+  });
+  bootstrapPipe.end(
+    JSON.stringify({
+      mode: "desktop",
+      noBrowser: true,
+      port,
+      host: "127.0.0.1",
+      tabsHome: join(scratch, "data"),
+      desktopBootstrapToken: token,
+    }) + "\n",
+  );
+
+  let serverReady = false;
   for (let i = 0; i < 150; i++) {
-    if (child.exitCode !== null) throw Error("Server exited early: " + logs.slice(-1500));
+    if (child.exitCode !== null || child.signalCode !== null) {
+      throw Error(
+        `Server exited before HTTP readiness (code=${child.exitCode}, signal=${child.signalCode}, error=${childSpawnError?.message ?? "none"}).\n${logs.slice(-1500)}`,
+      );
+    }
     try {
-      await fetch(`http://127.0.0.1:${port}/api/environment`, {
+      const response = await fetch(`http://127.0.0.1:${port}/.well-known/t3/environment`, {
         signal: AbortSignal.timeout(1000),
       });
+      if (!response.ok) {
+        throw Error(`Environment descriptor returned HTTP ${response.status}.`);
+      }
+      const descriptor = await response.json();
+      assert.equal(typeof descriptor.serverVersion, "string");
+      serverReady = true;
       break;
-    } catch {}
+    } catch (error) {
+      if (child.exitCode !== null || child.signalCode !== null) {
+        throw Error(
+          `Server exited before HTTP readiness (code=${child.exitCode}, signal=${child.signalCode}, error=${childSpawnError?.message ?? "none"}).\n${logs.slice(-1500)}`,
+          { cause: error },
+        );
+      }
+    }
     await new Promise((r) => setTimeout(r, 200));
+  }
+  if (!serverReady) {
+    const pipeDetails = bootstrapPipeError
+      ? `\nBootstrap pipe error: ${bootstrapPipeError.message}`
+      : "";
+    throw Error(
+      `Server did not return a healthy environment descriptor within 30 seconds.${pipeDetails}\n${logs.slice(-1500)}`,
+    );
   }
   ws = new WebSocket(`ws://127.0.0.1:${port}/ws?orchestrationProtocol=2&token=${token}`);
   await new Promise((resolve, reject) => {
@@ -147,11 +189,15 @@ try {
     }),
   );
 } catch (error) {
-  await writeFile(join(tmpdir(), "tabs-workspace-rpc-acceptance-failure.log"), logs);
-  throw error;
+  const pipeDetails = bootstrapPipeError
+    ? `\nBootstrap pipe error: ${bootstrapPipeError.message}`
+    : "";
+  const failure = `${error.stack ?? error}${pipeDetails}\nChild log tail:\n${logs.slice(-5000)}`;
+  await writeFile(join(tmpdir(), "tabs-workspace-rpc-acceptance-failure.log"), failure);
+  throw Error(failure, { cause: error });
 } finally {
   ws?.close();
-  child.kill("SIGTERM");
+  if (child.exitCode === null && child.signalCode === null) child.kill("SIGTERM");
   await Promise.race([
     new Promise((r) => child.once("exit", r)),
     new Promise((r) => setTimeout(r, 5000)),

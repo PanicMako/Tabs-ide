@@ -1,6 +1,7 @@
 import * as NFS from "node:fs";
 import * as path from "node:path";
 import { execFileSync, spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
 import { FileSystem, Schema } from "effect";
@@ -49,6 +50,67 @@ it.layer(NodeServices.layer)("readBootstrapEnvelope", (it) => {
       });
     }),
   );
+
+  it("reads a bootstrap envelope from a real child-process pipe", async () => {
+    const childSource = `
+      import { readBootstrapEnvelope } from './src/bootstrap.ts';
+      import * as Effect from 'effect/Effect';
+      import * as Option from 'effect/Option';
+      import * as Schema from 'effect/Schema';
+
+      const envelope = await Effect.runPromise(
+        readBootstrapEnvelope(Schema.Struct({ mode: Schema.String }), 3, { timeoutMs: 1000 }),
+      );
+      if (Option.isNone(envelope) || envelope.value.mode !== 'desktop') {
+        throw new Error('Child did not receive the bootstrap envelope.');
+      }
+      console.log('Child-process bootstrap pipe passed.');
+    `;
+    const child = spawn(
+      "node",
+      ["--experimental-strip-types", "--input-type=module", "-e", childSource],
+      {
+        cwd: path.resolve(fileURLToPath(new URL(".", import.meta.url)), ".."),
+        stdio: ["ignore", "pipe", "pipe", "pipe"],
+      },
+    );
+    const stdoutStream = child.stdout;
+    const stderrStream = child.stderr;
+    const bootstrapPipe = child.stdio[3];
+    if (!stdoutStream || !stderrStream || !bootstrapPipe || !("end" in bootstrapPipe)) {
+      child.kill("SIGKILL");
+      throw new Error("Child process did not expose the expected stdio pipes.");
+    }
+    let stdout = "";
+    let stderr = "";
+    stdoutStream.on("data", (chunk: Buffer) => {
+      stdout += chunk.toString("utf8");
+    });
+    stderrStream.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString("utf8");
+    });
+    bootstrapPipe.on("error", (error) => {
+      stderr += `Bootstrap pipe error: ${error.message}\n`;
+    });
+    bootstrapPipe.end('{"mode":"desktop"}\n');
+
+    let timeout: ReturnType<typeof setTimeout>;
+    const exit = await Promise.race([
+      new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve, reject) => {
+        child.once("close", (code, signal) => resolve({ code, signal }));
+        child.once("error", reject);
+      }),
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => {
+          child.kill("SIGKILL");
+          reject(new Error("Child-process bootstrap test timed out."));
+        }, 5000);
+      }),
+    ]).finally(() => clearTimeout(timeout));
+
+    assert.equal(exit.code, 0, `Child bootstrap failed (${exit.signal}): ${stderr}`);
+    assert.include(stdout, "Child-process bootstrap pipe passed.");
+  }, 10_000);
 
   it.effect("returns none when the fd is unavailable", () =>
     Effect.gen(function* () {
