@@ -523,10 +523,10 @@ jobs:
           path: tabs-app/release
           run-id: ${{ inputs.artifact_run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install virtual display
+      - name: Install Linux AppImage runtime dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y xvfb
+          sudo apt-get install -y xvfb libsecret-1-0
       - name: Launch packaged AppImage
         shell: bash
         run: |
