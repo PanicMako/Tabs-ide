@@ -34,6 +34,7 @@ export const changelogData: ChangelogRelease[] = [
     summary:
       "Conversations, queued work, project tools and source control come together, with the Exchange developer pilot and independent Settings appearance.",
     highlights: [
+      "Resume interrupted macOS update downloads and restore connected Git and workspace actions.",
       "Schedule, reorder and manage queued messages from the conversation Queue panel.",
       "Keep files, browser pages and pull requests alongside agent conversations.",
       "Apply Interface Study only to Settings while keeping your workspace theme.",
@@ -43,6 +44,7 @@ export const changelogData: ChangelogRelease[] = [
       {
         title: "Upgrade notes",
         items: [
+          "Already on 2.0.0? Install the refreshed download manually because its version number is unchanged.",
           "Back up your Tabs data before upgrading. Older builds may not open databases upgraded by Tabs 2.0.",
         ],
       },
