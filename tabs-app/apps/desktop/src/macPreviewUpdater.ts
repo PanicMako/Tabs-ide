@@ -3,7 +3,7 @@ import * as FS from "node:fs";
 import * as FSPromises from "node:fs/promises";
 import * as Path from "node:path";
 import { spawn } from "node:child_process";
-import type { ReadableStream as NodeReadableStream } from "node:stream/web";
+import { downloadUpdateArchive } from "./updateArchiveDownload.ts";
 
 const MANIFEST_NAME = "tabs-mac-preview-update.json";
 export const UPDATE_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
@@ -144,6 +144,9 @@ export interface MacPreviewUpdaterOptions {
   readonly repository: string;
   readonly arch: "arm64" | "x64";
   readonly tempDirectory: string;
+  readonly downloadCacheDirectory?: string;
+  /** Internal trust-root injection for signed updater integration tests. */
+  readonly manifestPublicKey?: string;
   readonly releaseChannel?: "beta" | "stable";
   readonly requestHeaders?: Readonly<Record<string, string>>;
 }
@@ -377,6 +380,7 @@ export class MacPreviewUpdater {
       manifestBytes,
       signatureText,
       this.#options.repository,
+      this.#options.manifestPublicKey ?? UPDATE_PUBLIC_KEY,
     );
     if (
       manifest.version !== tag.replace(/^v/, "") ||
@@ -397,52 +401,34 @@ export class MacPreviewUpdater {
     const manifest = this.#availableManifest;
     if (!manifest || !this.#availableTag) throw new Error("No verified macOS update is available.");
     const asset = manifest.assets[this.#options.arch];
-    const downloadDirectory = await FSPromises.mkdtemp(
-      Path.join(this.#options.tempDirectory, "tabs-preview-update-"),
-    );
+    const cacheRoot = this.#options.downloadCacheDirectory ?? this.#options.tempDirectory;
+    await FSPromises.mkdir(cacheRoot, { recursive: true, mode: 0o700 });
+    const cacheKey = createHash("sha256").update(asset.sha512).digest("hex").slice(0, 24);
+    const downloadDirectory = Path.join(cacheRoot, `tabs-preview-update-${cacheKey}`);
+    await FSPromises.mkdir(downloadDirectory, { mode: 0o700 }).catch((error) => {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+    });
+    const directory = await FSPromises.lstat(downloadDirectory);
+    if (
+      !directory.isDirectory() ||
+      directory.isSymbolicLink() ||
+      (process.getuid && directory.uid !== process.getuid()) ||
+      (directory.mode & 0o077) !== 0
+    ) {
+      throw new Error("The update cache directory is not private to this user.");
+    }
     const archivePath = Path.join(downloadDirectory, asset.name);
     const temporaryPath = `${archivePath}.download`;
-    try {
-      const response = await fetchRequired(
-        releaseAssetUrl(this.#options.repository, this.#availableTag, asset.name),
-        this.#options.requestHeaders ?? {},
-      );
-      if (!response.body) throw new Error("The update server returned an empty download.");
-
-      const hash = createHash("sha512");
-      const handle = await FSPromises.open(temporaryPath, "w", 0o600);
-      let received = 0;
-      try {
-        try {
-          const reader = (response.body as NodeReadableStream<Uint8Array>).getReader();
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            hash.update(value);
-            await handle.write(value);
-            received += value.byteLength;
-            if (received > asset.size) {
-              await reader.cancel();
-              throw new Error("The update download exceeded its signed size.");
-            }
-            onProgress(Math.min(99, (received / asset.size) * 100));
-          }
-        } finally {
-          await handle.close();
-        }
-      } catch (error) {
-        await FSPromises.rm(temporaryPath, { force: true });
-        throw error;
-      }
-      if (received !== asset.size || hash.digest("base64") !== asset.sha512) {
-        await FSPromises.rm(temporaryPath, { force: true });
-        throw new Error("The downloaded update did not match its signed checksum.");
-      }
-      await FSPromises.rename(temporaryPath, archivePath);
-    } catch (error) {
-      await removeUpdatePath(downloadDirectory).catch(() => undefined);
-      throw error;
-    }
+    // Retain only this signed target's partial bytes when a transfer stalls.
+    await downloadUpdateArchive({
+      url: releaseAssetUrl(this.#options.repository, this.#availableTag, asset.name),
+      partialPath: temporaryPath,
+      size: asset.size,
+      sha512: asset.sha512,
+      headers: this.#options.requestHeaders ?? {},
+      onProgress,
+    });
+    await FSPromises.rename(temporaryPath, archivePath);
     this.#downloadedUpdate = { manifest, archivePath };
     onProgress(100);
     return manifest.version;
