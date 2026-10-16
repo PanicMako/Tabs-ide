@@ -14,6 +14,7 @@ import { renderSvgToIcoFile, renderSvgToPngFile } from "./lib/icon-assets.ts";
 import { resolveCatalogDependencies } from "./lib/resolve-catalog.ts";
 import { updateMacUpdateMetadata } from "./lib/mac-update-artifact.ts";
 import { sanitizeMacAppSymlinks } from "./lib/mac-symlink-sanitizer.ts";
+import { resolveNativeDependencyTarget } from "./lib/native-dependency-target.ts";
 
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeServices from "@effect/platform-node/NodeServices";
@@ -1610,13 +1611,14 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
   yield* fs.writeFileString(path.join(stageAppDir, "package.json"), `${stagePackageJsonString}\n`);
 
   yield* Effect.log("[desktop-artifact] Installing staged production dependencies...");
+  const nativeDependencyTarget = resolveNativeDependencyTarget(options.platform, options.arch);
   yield* runCommandWithRetry(
-    ChildProcess.make({
+    ChildProcess.make("bun", nativeDependencyTarget.installArgs, {
       cwd: stageAppDir,
       ...commandOutputOptions(options.verbose),
       // Windows needs shell mode to resolve .cmd shims (e.g. bun.cmd).
       shell: process.platform === "win32",
-    })`bun install --production --no-progress`,
+    }),
     {
       attempts: 3,
       baseDelaySeconds: 20,
@@ -1652,6 +1654,9 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
       "node_modules/electron-store/index.js",
       "apps/desktop/prod-resources/code-oss-extensions/tabs-embed-defaults/package.json",
       "apps/desktop/prod-resources/code-oss-extensions/tabs-workbench-integration/package.json",
+      ...nativeDependencyTarget.requiredPackages.map((packageName) =>
+        path.join("node_modules", packageName, "package.json"),
+      ),
     ],
     "Staged desktop runtime",
   );
