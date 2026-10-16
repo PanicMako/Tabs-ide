@@ -2,7 +2,6 @@
 import * as NodeChildProcess from "node:child_process";
 import * as NodeFS from "node:fs";
 import * as NodePath from "node:path";
-import * as NodeURL from "node:url";
 
 import { describe, expect, it, vi } from "@effect/vitest";
 import { HostProcessPlatform } from "@tabs/shared/hostProcess";
@@ -35,9 +34,34 @@ import {
   type AcpPosixProcessTreeController,
 } from "./AcpSessionRuntime.ts";
 
-const threadSpawnHelperSource = NodeURL.fileURLToPath(
-  new URL("../../../scripts/acp-thread-spawn-helper.c", import.meta.url),
-);
+// Keep the Linux-only fixture beside its test so clean checkouts include it.
+const threadSpawnHelperSource = `
+#define _GNU_SOURCE
+#include <pthread.h>
+#include <stdio.h>
+#include <sys/syscall.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+static void *spawn_child(void *output) {
+  pid_t child = fork();
+  if (child < 0) return (void *)1;
+  if (child == 0) { for (;;) pause(); }
+  FILE *file = fopen((const char *)output, "w");
+  if (!file) return (void *)1;
+  fprintf(file, "%ld %ld\\n", (long)syscall(SYS_gettid), (long)child);
+  fclose(file);
+  for (;;) pause();
+  return NULL;
+}
+
+int main(int argc, char **argv) {
+  if (argc != 2) return 2;
+  pthread_t worker;
+  if (pthread_create(&worker, NULL, spawn_child, argv[1]) != 0) return 3;
+  return pthread_join(worker, NULL);
+}
+`;
 
 const identity = (
   pid: number,
@@ -536,14 +560,11 @@ describe("terminatePosixOwnedProcessTree", () => {
       const scratch = NodeFS.mkdtempSync(NodePath.join(scratchRoot, "acp-pthread-spawn-"));
       const binary = NodePath.join(scratch, "helper");
       const pidPath = NodePath.join(scratch, "pids");
-      expect(NodeFS.statSync(threadSpawnHelperSource).isFile()).toBe(true);
-      const compile = NodeChildProcess.spawnSync(
-        "cc",
-        ["-pthread", threadSpawnHelperSource, "-o", binary],
-        {
-          encoding: "utf8",
-        },
-      );
+      const source = NodePath.join(scratch, "helper.c");
+      NodeFS.writeFileSync(source, threadSpawnHelperSource);
+      const compile = NodeChildProcess.spawnSync("cc", ["-pthread", source, "-o", binary], {
+        encoding: "utf8",
+      });
       if ((compile.error as NodeJS.ErrnoException | undefined)?.code === "ENOENT") {
         NodeFS.rmSync(scratch, { recursive: true, force: true });
         return;
