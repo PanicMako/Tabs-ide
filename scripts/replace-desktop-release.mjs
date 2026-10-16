@@ -22,8 +22,15 @@ export async function replaceDesktopRelease(options, api) {
     // Recheck at the last possible point before changing the public release.
     const current = await api("GET", `${base}/git/ref/tags/${tag}`);
     if (current.object.sha !== expectedTagSha) throw new Error("Release tag moved during preparation.");
-    await api("PATCH", `${base}/releases/${original.id}`, { tag_name: archiveTag, draft: true, name: `${original.name} (original archive)`, make_latest: "false" });
-    originalArchived = true;
+    try {
+      await api("PATCH", `${base}/releases/${original.id}`, { tag_name: archiveTag, draft: true, name: `${original.name} (original archive)`, make_latest: "false" });
+      originalArchived = true;
+    } catch (archiveError) {
+      // GitHub may apply the update even when the client loses the response.
+      const observed = await api("GET", `${base}/releases/${original.id}`).catch(() => null);
+      originalArchived = observed?.tag_name === archiveTag && observed.draft === true;
+      if (!originalArchived) throw archiveError;
+    }
     // Use the workflow token for the ref to avoid starting a duplicate tag workflow.
     await api("PATCH", tagPath, { sha: sourceSha, force: true }, "workflow");
     await api("PATCH", `${base}/releases/${candidate.id}`, { tag_name: tag, target_commitish: sourceSha, name: "Tabs v2.0.0", draft: false, prerelease: false, make_latest: "true" });
