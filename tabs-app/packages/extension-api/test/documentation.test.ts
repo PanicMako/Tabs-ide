@@ -92,7 +92,8 @@ describe("published SDK documentation examples", () => {
         .getPreEmitDiagnostics(program)
         .map((diagnostic) => ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n")),
     ).toEqual([]);
-  });
+    // Creating a full TypeScript program can exceed five seconds on shared CI runners.
+  }, 30_000);
 
   for (const example of examples) {
     it(`executes ${example.name}`, async () => {
