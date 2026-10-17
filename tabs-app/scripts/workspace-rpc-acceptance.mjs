@@ -121,6 +121,10 @@ try {
       ws.send(JSON.stringify({ _tag: "Pong" }));
       return;
     }
+    if (m._tag === "Chunk") {
+      ws.send(JSON.stringify({ _tag: "Ack", requestId: m.requestId }));
+      return;
+    }
     const p = pending.get(String(m.requestId));
     if (p && m._tag === "Exit") {
       pending.delete(String(m.requestId));
@@ -135,7 +139,10 @@ try {
       pending.set(next, { resolve, reject, timer });
       ws.send(JSON.stringify({ _tag: "Request", id: next, tag, payload, headers: [] }));
     });
+  await request("git.status", { cwd: repo });
   await request("git.stageFiles", { cwd: repo, paths: ["file.txt"] });
+  const stagedStatus = await request("git.status", { cwd: repo });
+  assert.ok(stagedStatus.staged.files.some((file) => file.path === "file.txt"));
   assert.equal(
     execFileSync("git", ["-C", repo, "diff", "--cached", "--name-only"], {
       encoding: "utf8",
@@ -143,6 +150,8 @@ try {
     "file.txt",
   );
   await request("git.unstageFiles", { cwd: repo, paths: ["file.txt"] });
+  const unstagedStatus = await request("git.status", { cwd: repo });
+  assert.ok(!unstagedStatus.staged.files.some((file) => file.path === "file.txt"));
   assert.equal(
     execFileSync("git", ["-C", repo, "diff", "--cached", "--name-only"], {
       encoding: "utf8",
@@ -168,6 +177,47 @@ try {
   );
   const diff = await request("git.diff", { cwd: repo, path: "file.txt" });
   assert.ok(diff);
+  // Exercise real commit and synchronization against a local bare remote only.
+  const remote = join(scratch, "remote.git");
+  execFileSync("git", ["init", "--bare", remote]);
+  await request("git.performRepositoryAction", {
+    cwd: repo,
+    operation: { action: "add_remote", name: "origin", url: remote },
+  });
+  await request("git.stageFiles", { cwd: repo, paths: ["file.txt"] });
+  await request("git.runStackedAction", {
+    cwd: repo,
+    actionId: "acceptance-commit",
+    action: "commit",
+    commitMessage: "RPC commit",
+  });
+  assert.equal(
+    execFileSync("git", ["-C", repo, "log", "-1", "--format=%s"], { encoding: "utf8" }).trim(),
+    "RPC commit",
+  );
+  await request("git.runStackedAction", { cwd: repo, actionId: "acceptance-push", action: "push" });
+  const peer = join(scratch, "peer");
+  execFileSync("git", ["clone", "--branch", "test-branch", remote, peer]);
+  execFileSync("git", ["-C", peer, "config", "user.email", "test@example.invalid"]);
+  execFileSync("git", ["-C", peer, "config", "user.name", "RPC Peer"]);
+  execFileSync("git", ["-C", peer, "config", "commit.gpgsign", "false"]);
+  await writeFile(join(peer, "peer.txt"), "peer change\n");
+  execFileSync("git", ["-C", peer, "add", "peer.txt"]);
+  execFileSync("git", ["-C", peer, "commit", "-m", "peer commit"]);
+  execFileSync("git", ["-C", peer, "push", "origin", "test-branch"]);
+  await request("git.fetch", { cwd: repo });
+  await request("git.pull", { cwd: repo });
+  assert.equal(
+    execFileSync("git", ["-C", repo, "log", "-1", "--format=%s"], { encoding: "utf8" }).trim(),
+    "peer commit",
+  );
+  await request("git.createTag", { cwd: repo, name: "v0.0.1-acceptance" });
+  const tags = await request("git.listTags", { cwd: repo });
+  assert.ok(
+    tags.tags.some(
+      (tag) => tag.name === "v0.0.1-acceptance" && tag.subject === "peer commit" && tag.sha,
+    ),
+  );
   const terminals = await request("terminal.list");
   assert.ok(Array.isArray(terminals));
   const bundle = await request("server.createSupportBundle");
@@ -182,6 +232,8 @@ try {
         "stage and unstage on disposable repository",
         "create branch and checkout",
         "diff response",
+        "commit, push and pull against disposable local remote",
+        "tag creation and metadata",
         "reject option injection",
         "terminal listing",
         "support bundle export",
