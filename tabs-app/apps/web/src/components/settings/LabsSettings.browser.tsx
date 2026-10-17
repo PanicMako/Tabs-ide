@@ -51,8 +51,9 @@ it("switches shared settings surfaces together, preserves fonts, and restores th
     const frame = heading.closest("[data-settings-design]")!;
     expect(getComputedStyle(frame).backgroundColor).toBe("rgb(32, 32, 32)");
     const workspaceCard = page.getByTestId("workspace-study-card").element();
-    expect(getComputedStyle(workspaceCard).borderBottomLeftRadius).toBe("14px");
-    expect(getComputedStyle(workspaceCard).marginLeft).toBe("12px");
+    expect(getComputedStyle(workspaceCard).borderTopLeftRadius).toBe("28px");
+    expect(getComputedStyle(workspaceCard).borderBottomLeftRadius).toBe("0px");
+    expect(getComputedStyle(workspaceCard).marginLeft).toBe("0px");
     await expect.element(page.getByText("Make Tabs work your way.")).toBeVisible();
     await page.getByRole("button", { name: "Light", exact: true }).click();
     await expect.poll(() => getComputedStyle(frame).backgroundColor).toBe("rgb(245, 244, 240)");
