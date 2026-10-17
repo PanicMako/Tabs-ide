@@ -107,7 +107,13 @@ async function initialize(signal: AbortSignal) {
     controls.forEach((control) => {
       control.disabled = false;
     });
-  if (button.disabled) lock();
+  if (button.disabled) {
+    lock();
+    form.hidden = true;
+    guidance.textContent = !actor.publishingEnabled
+      ? "Team invitations are unavailable while this registry has publishing turned off. No account changes are needed to fix this; the registry operator must finish enabling publishing."
+      : "Create a namespace first. You can then invite other GitHub accounts to help manage its extensions.";
+  }
   const reconnect = (error: unknown) => {
     if (!(error instanceof RegistryRequestError) || ![401, 403].includes(error.status))
       return false;

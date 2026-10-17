@@ -56,7 +56,8 @@ async function namespaces(version: number, signal: AbortSignal) {
   list.replaceChildren();
   if (!data.namespaces.length) {
     const item = document.createElement("li");
-    item.textContent = "No namespace memberships yet. Create one or ask an owner to invite you.";
+    item.textContent =
+      "No namespaces yet. Create one when publishing is enabled, or accept an invitation from an existing owner.";
     list.append(item);
   }
   for (const namespace of data.namespaces) {
@@ -122,7 +123,7 @@ async function init() {
     if (availability)
       availability.textContent = actor.publishingEnabled
         ? "This instance accepts submissions. Every version still requires review and signed publication."
-        : "Publishing is disabled on this instance. Existing memberships remain visible; new namespaces and submissions are unavailable.";
+        : "You’re signed in, but publishing is turned off for this registry. Creating namespaces, uploading extensions, and inviting collaborators are unavailable. The registry operator must enable publishing after setup is complete. Existing memberships are still visible.";
     if (form) {
       for (const control of form.querySelectorAll<HTMLInputElement | HTMLButtonElement>(
         "input, button",
