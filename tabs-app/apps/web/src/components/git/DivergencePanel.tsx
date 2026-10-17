@@ -377,7 +377,8 @@ export function DivergencePanel({
             </h2>
           </div>
           <p className="text-xs text-muted-foreground/80 leading-relaxed mt-0.5">
-            Compare all branches against your current HEAD. Spotlight key branches, archive noise.
+            Ahead and behind compare your current HEAD with each listed branch, including branches
+            used by worktrees. Archive hides a branch from this list without deleting it.
           </p>
         </div>
 

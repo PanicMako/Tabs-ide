@@ -573,3 +573,48 @@ it("interrupts malformed stream data without acknowledging or advancing it", () 
   expect(socket.sent.some((frame) => JSON.parse(frame)._tag === "Ack")).toBe(false);
   transport.dispose();
 });
+
+it("acknowledges finite operation chunks and waits for the successful exit", async () => {
+  const transport = new WsTransport({ url: "ws://localhost/ws", protocol: "rpc" });
+  const socket = getSocket();
+  socket.open();
+  const onChunk = vi.fn();
+  const operation = transport.request("git.runStackedAction", {}, { onChunk });
+  socket.serverMessage(
+    JSON.stringify({ _tag: "Chunk", requestId: "1", values: [{ kind: "phase_started" }] }),
+  );
+  expect(onChunk).toHaveBeenCalledWith([{ kind: "phase_started" }]);
+  expect(JSON.parse(socket.sent.at(-1)!)).toEqual({ _tag: "Ack", requestId: "1" });
+  socket.serverMessage(JSON.stringify({ _tag: "Exit", requestId: "1", exit: { _tag: "Success" } }));
+  await expect(operation).resolves.toBeUndefined();
+  transport.dispose();
+});
+
+it("interrupts malformed finite operation chunks without acknowledging them", async () => {
+  const transport = new WsTransport({ url: "ws://localhost/ws", protocol: "rpc" });
+  const socket = getSocket();
+  socket.open();
+  const operation = transport.request(
+    "git.runStackedAction",
+    {},
+    {
+      onChunk: () => {
+        throw Error("Invalid progress");
+      },
+    },
+  );
+  socket.serverMessage(JSON.stringify({ _tag: "Chunk", requestId: "1", values: [{}] }));
+  await expect(operation).rejects.toThrow("Invalid progress");
+  expect(JSON.parse(socket.sent.at(-1)!)).toEqual({ _tag: "Interrupt", requestId: "1" });
+  transport.dispose();
+});
+
+it("settles void Git mutation responses whose JSON omits the undefined value", async () => {
+  const transport = new WsTransport({ url: "ws://localhost/ws", protocol: "rpc" });
+  const socket = getSocket();
+  socket.open();
+  const operation = transport.request("git.stageFiles", { cwd: "/repo", paths: ["file.ts"] });
+  socket.serverMessage(JSON.stringify({ _tag: "Exit", requestId: "1", exit: { _tag: "Success" } }));
+  await expect(operation).resolves.toBeUndefined();
+  transport.dispose();
+});

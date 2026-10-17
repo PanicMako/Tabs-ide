@@ -159,7 +159,7 @@ export function GitToolV2({
   const branchesQuery = useQuery(gitBranchesQueryOptions(cwd, environmentId));
   const historyQuery = useQuery({
     ...gitHistoryQueryOptions({ cwd, limit: historyLimit, environmentId }),
-    enabled: ["overview", "diff", "history", "tags"].includes(panel),
+    enabled: ["overview", "changes", "diff", "history", "tags"].includes(panel),
   });
 
   const stashQuery = useQuery({
@@ -570,6 +570,7 @@ export function GitToolV2({
             branchList={branchList}
             commits={commits}
             watchedBranchStatuses={watchedBranchStatuses}
+            onOpenDiff={() => setPanel("diff")}
             onGoToChanges={() => setPanel("changes")}
             onGoToAccounts={() => setPanel("accounts")}
             onGoToDivergence={() => setPanel("divergence")}
@@ -587,6 +588,9 @@ export function GitToolV2({
           <ChangesPanel
             cwd={cwd}
             statusData={statusData}
+            environmentData={environmentData}
+            branchList={branchList}
+            commits={commits}
             onOpenDiff={() => setPanel("diff")}
             onOpenStash={() => setModal("stash")}
             onOpenDiscardAll={() => setModal("discardAll")}
@@ -725,12 +729,12 @@ export function GitToolV2({
       >
         <div
           className="git-tool-v2 flex h-full min-h-0 overflow-hidden"
-          data-redesigned={panel !== "prs"}
+          data-redesigned={true}
           style={{ backgroundColor: "var(--bg-base)", color: "var(--fg)" }}
         >
           {/* Sidebar (w-64 expanded, w-16 collapsed) */}
           <Sidebar
-            redesigned={panel !== "prs"}
+            redesigned={true}
             repoName={repoName}
             panel={panel}
             setPanel={setPanel}

@@ -21,6 +21,7 @@ interface PendingRequest {
   sentAt: number | null;
   coalesceKey?: string | undefined;
   onAbort?: (() => void) | undefined;
+  onChunk?: ((values: readonly unknown[]) => void) | undefined;
 }
 
 interface SubscribeOptions {
@@ -31,6 +32,7 @@ export interface RequestOptions {
   readonly timeoutMs?: number | null | undefined;
   readonly coalesceKey?: string | undefined;
   readonly signal?: AbortSignal | undefined;
+  readonly onChunk?: ((values: readonly unknown[]) => void) | undefined;
 }
 
 interface QueuedOutboundMessage {
@@ -77,7 +79,7 @@ const decodeRpcEnvelope = decodeUnknownJsonResult(
     Schema.TaggedStruct("Exit", {
       requestId: rpcRequestId,
       exit: Schema.Union([
-        Schema.TaggedStruct("Success", { value: Schema.Unknown }),
+        Schema.TaggedStruct("Success", { value: Schema.optional(Schema.Unknown) }),
         Schema.TaggedStruct("Failure", { cause: Schema.Array(rpcCause) }),
       ]),
     }),
@@ -247,6 +249,7 @@ export class WsTransport {
         method,
         queuedAt: Date.now(),
         sentAt: null,
+        onChunk: options?.onChunk,
       };
 
       if (options?.signal) {
@@ -667,6 +670,22 @@ export class WsTransport {
           subscription.requestId = null;
           this.ws?.send(JSON.stringify({ _tag: "Interrupt", requestId: message.requestId }));
           subscription.onError(asError(cause, "Invalid server stream item."));
+        }
+        return;
+      }
+      if (message._tag === "Chunk" && Array.isArray(message.values)) {
+        const pending = this.pending.get(id);
+        if (!pending?.onChunk) return;
+        try {
+          pending.onChunk(message.values);
+          this.ws?.send(JSON.stringify({ _tag: "Ack", requestId: message.requestId }));
+        } catch (cause) {
+          this.pending.delete(id);
+          if (pending.timeout !== null) clearTimeout(pending.timeout);
+          pending.onAbort?.();
+          acknowledgeRpcRequest(id);
+          this.interruptRpcRequest(id);
+          pending.reject(asError(cause, "Invalid operation progress."));
         }
         return;
       }

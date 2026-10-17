@@ -1,6 +1,7 @@
 import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 import {
+  invalidateGitQueries,
   gitMutationKeys,
   gitPreparePullRequestThreadMutationOptions,
   gitPullMutationOptions,
@@ -69,5 +70,24 @@ describe("git query options", () => {
     const second = gitStatusQueryOptions("/repo/a", "environment-b");
 
     expect(first.queryKey).not.toEqual(second.queryKey);
+  });
+});
+
+describe("Git action refresh", () => {
+  it("invalidates scoped Git data without invalidating unrelated environment data", async () => {
+    const client = new QueryClient();
+    const keys = [
+      gitStatusQueryOptions("/repo", "desktop").queryKey,
+      gitStatusQueryOptions("/repo", "remote").queryKey,
+      ["environment", "desktop", "git", "history", "/repo"],
+      ["git", "status", "/legacy"],
+    ];
+    for (const key of keys) client.setQueryData(key, {});
+    const unrelated = ["environment", "desktop", "conversations"];
+    client.setQueryData(unrelated, {});
+    await invalidateGitQueries(client);
+    for (const key of keys) expect(client.getQueryState(key)?.isInvalidated).toBe(true);
+    expect(client.getQueryState(unrelated)?.isInvalidated).toBe(false);
+    client.clear();
   });
 });
