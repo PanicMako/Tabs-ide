@@ -465,11 +465,11 @@ html[data-interface-study="dark"] .study-tab-fillet path[stroke] {
 /* Main workspace card below topbar in Interface Study */
 .study-workspace-card {
   background: var(--card) !important;
-  border-top-left-radius: 28px !important;
-  border-top-right-radius: 28px !important;
-  border: none !important;
+  margin: 12px;
+  border-radius: 14px !important;
+  border: 1px solid color-mix(in srgb, var(--foreground) 12%, transparent) !important;
   overflow: hidden !important;
-  box-shadow: none !important;
+  box-shadow: 0 3px 16px color-mix(in srgb, var(--foreground) 6%, transparent) !important;
 }
 
 html[data-interface-study="light"] .study-workspace-card {

@@ -57,7 +57,11 @@ export default function LabsSettings() {
       <SettingsSection title="Experiments">
         <SettingsRow
           title="Interface study"
-          description="Try a new look across Tabs. Switch off to return to your theme."
+          description={
+            settingsOnly
+              ? "A separate appearance for Settings. Your workspace keeps its saved theme."
+              : "Try a new look across Tabs. Switch off to return to your theme."
+          }
           control={
             <div className="flex items-center gap-3">
               {editorial && (
@@ -82,7 +86,10 @@ export default function LabsSettings() {
           }
         />
         {editorial && (
-          <div className="ml-4 border-l border-border pl-4">
+          <div
+            data-slot="settings-study-scope"
+            className="mx-3 mb-3 overflow-hidden rounded-xl border border-border/60 bg-muted/25"
+          >
             <SettingsRow
               title="Settings page only"
               description="Keep this look in Settings. Your workspace keeps its saved theme and layout."

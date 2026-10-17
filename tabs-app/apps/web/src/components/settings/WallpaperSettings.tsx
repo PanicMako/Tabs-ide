@@ -33,8 +33,12 @@ import {
 } from "../onboarding/wallpapers";
 import { WallpaperGalleryModal } from "../onboarding/WallpaperGalleryModal";
 
+import { useSettingsStudyAppearance } from "./SettingsEditorialFrame";
+
 export default function WallpaperSettings() {
-  const { resolvedTheme } = useTheme();
+  const { resolvedTheme: workspaceTheme } = useTheme();
+  const studyAppearance = useSettingsStudyAppearance();
+  const resolvedTheme = studyAppearance ?? workspaceTheme;
   const isLight = resolvedTheme === "light";
 
   const [isEnabled, setIsEnabled] = useState<boolean>(() => getIsAgentWallpaperEnabled());

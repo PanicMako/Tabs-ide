@@ -1,8 +1,12 @@
 import { ArrowLeftIcon } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { createContext, useContext, type ReactNode, useState } from "react";
 import { ScopedPortalContext } from "../../lib/scopedPortal";
 import { useSettingsLabsStore } from "../../stores/settingsLabsStore";
 import "./settings-editorial.css";
+
+const SettingsStudyAppearanceContext = createContext<"dark" | "light" | null>(null);
+
+export const useSettingsStudyAppearance = () => useContext(SettingsStudyAppearanceContext);
 
 export function SettingsEditorialFrame({
   children,
@@ -13,18 +17,22 @@ export function SettingsEditorialFrame({
 }) {
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
   const enabled = useSettingsLabsStore((state) => state.editorialSettings);
+  const settingsOnly = useSettingsLabsStore((state) => state.editorialSettingsOnly);
   const appearance = useSettingsLabsStore((state) => state.editorialAppearance);
   return (
-    <ScopedPortalContext.Provider value={enabled ? (container ?? undefined) : undefined}>
-      <div
-        ref={setContainer}
-        data-settings-design={enabled ? "editorial" : "classic"}
-        data-settings-appearance={appearance}
-        className={className}
-      >
-        {children}
-      </div>
-    </ScopedPortalContext.Provider>
+    <SettingsStudyAppearanceContext.Provider value={enabled ? appearance : null}>
+      <ScopedPortalContext.Provider value={enabled ? (container ?? undefined) : undefined}>
+        <div
+          ref={setContainer}
+          data-settings-design={enabled ? "editorial" : "classic"}
+          data-settings-appearance={appearance}
+          data-settings-scope={enabled ? (settingsOnly ? "settings" : "workspace") : undefined}
+          className={className}
+        >
+          {children}
+        </div>
+      </ScopedPortalContext.Provider>
+    </SettingsStudyAppearanceContext.Provider>
   );
 }
 
