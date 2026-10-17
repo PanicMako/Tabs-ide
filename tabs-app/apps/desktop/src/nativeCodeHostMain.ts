@@ -24,6 +24,7 @@ import { pathToFileURL } from "node:url";
 import * as Path from "node:path";
 import * as OS from "node:os";
 
+import { resolveCodeHostIdentity } from "./codeHostIdentity";
 import { loadNativeCodeHostStorage, saveNativeCodeHostStorage } from "./nativeCodeHostStorage";
 import { handleNativeCodeHostCommand } from "./nativeCodeHostCommand";
 import {
@@ -634,11 +635,7 @@ export async function createNativeCodeHostMainBackend(
   );
   await agentHostConfiguration.initialize();
   // Keep these identifiers consistent with CodeHostManager's renderer configuration.
-  const agentHostTelemetryIds = {
-    machineId: createHash("sha256").update(`machine:${vscodeRoot}`).digest("hex"),
-    sqmId: createHash("sha256").update(`sqm:${vscodeRoot}`).digest("hex"),
-    devDeviceId: createHash("sha256").update(`dev:${vscodeRoot}`).digest("hex"),
-  };
+  const agentHostTelemetryIds = resolveCodeHostIdentity(stateDir, vscodeRoot);
   const agentHostStarter = new modules.ElectronAgentHostStarter(
     agentHostTelemetryIds,
     agentHostConfiguration,
