@@ -43,7 +43,10 @@ const scopedGitKey = (environmentId: string | undefined, key: readonly unknown[]
   ["environment", environmentId ?? "primary", ...key] as const;
 
 export function invalidateGitQueries(queryClient: QueryClient) {
-  return queryClient.invalidateQueries({ queryKey: gitQueryKeys.all });
+  return queryClient.invalidateQueries({
+    predicate: ({ queryKey }) =>
+      queryKey[0] === "git" || (queryKey[0] === "environment" && queryKey[2] === "git"),
+  });
 }
 
 export function gitEnvironmentQueryOptions(cwd: string | null, environmentId?: string) {

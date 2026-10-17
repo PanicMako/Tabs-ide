@@ -64,7 +64,7 @@ export function FileRow({
   rowLoadingAction?: "stage" | "unstage" | "discard" | null | undefined;
   onOpenDiff: (f: GitStatusFile) => void;
   onToggleStage: (f: GitStatusFile) => void;
-  onDiscard: (f: GitStatusFile) => void;
+  onDiscard?: (f: GitStatusFile) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [diffLines, setDiffLines] = useState<Array<{ type: string; text: string }> | null>(null);
@@ -157,27 +157,29 @@ export function FileRow({
           }
           aria-expanded={expanded}
           title="Toggle inline diff preview"
-          className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0 flex items-center justify-center w-5 h-5 rounded bg-muted/50 border border-border text-muted-foreground hover:text-foreground cursor-pointer"
+          className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity shrink-0 flex items-center justify-center w-5 h-5 rounded bg-muted/50 border border-border text-muted-foreground hover:text-foreground cursor-pointer"
         >
           <Eye size={10} />
         </button>
-        <button
-          type="button"
-          disabled={isRowLoading}
-          aria-label={`Discard changes to ${f.path}`}
-          onClick={(e) => {
-            e.stopPropagation();
-            if (!isRowLoading) onDiscard(f);
-          }}
-          title="Discard changes to this file"
-          className={`${rowLoadingAction === "discard" ? "opacity-100" : "opacity-0 group-hover:opacity-100"} transition-opacity shrink-0 flex items-center justify-center w-5 h-5 rounded bg-muted/50 border border-border text-muted-foreground hover:text-foreground cursor-pointer disabled:pointer-events-none`}
-        >
-          {rowLoadingAction === "discard" ? (
-            <Loader2 size={10} className="animate-spin" />
-          ) : (
-            <Trash2 size={10} />
-          )}
-        </button>
+        {onDiscard && (
+          <button
+            type="button"
+            disabled={isRowLoading}
+            aria-label={`Discard changes to ${f.path}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (!isRowLoading) onDiscard(f);
+            }}
+            title="Discard changes to this file"
+            className={`${rowLoadingAction === "discard" ? "opacity-100" : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100"} transition-opacity shrink-0 flex items-center justify-center w-5 h-5 rounded bg-muted/50 border border-border text-muted-foreground hover:text-foreground cursor-pointer disabled:pointer-events-none`}
+          >
+            {rowLoadingAction === "discard" ? (
+              <Loader2 size={10} className="animate-spin" />
+            ) : (
+              <Trash2 size={10} />
+            )}
+          </button>
+        )}
         <button
           type="button"
           disabled={isRowLoading}
@@ -187,7 +189,7 @@ export function FileRow({
             if (!isRowLoading) onToggleStage(f);
           }}
           title={staged ? "Unstage file" : "Stage file"}
-          className={`${rowLoadingAction === "stage" || rowLoadingAction === "unstage" ? "opacity-100" : "opacity-0 group-hover:opacity-100"} transition-opacity shrink-0 flex items-center justify-center w-5 h-5 rounded bg-muted/50 border border-border text-muted-foreground hover:text-foreground cursor-pointer disabled:pointer-events-none`}
+          className={`${rowLoadingAction === "stage" || rowLoadingAction === "unstage" ? "opacity-100" : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100"} transition-opacity shrink-0 flex items-center justify-center w-5 h-5 rounded bg-muted/50 border border-border text-muted-foreground hover:text-foreground cursor-pointer disabled:pointer-events-none`}
         >
           {rowLoadingAction === "stage" || rowLoadingAction === "unstage" ? (
             <Loader2 size={10} className="animate-spin" />
@@ -559,9 +561,7 @@ export function ChangesPanel({
   const ahead = statusData?.aheadCount ?? 0;
   const behind = statusData?.behindCount ?? 0;
   const stagedFiles = statusData?.staged?.files ?? [];
-  const unstagedFiles = (statusData?.unstaged?.files ?? []).filter(
-    (f) => !f.conflicted && !f.untracked,
-  );
+  const unstagedFiles = (statusData?.unstaged?.files ?? []).filter((f) => !f.conflicted);
   const conflictedFiles = statusData?.conflicted?.files ?? [];
   const hasConflict = conflictedFiles.length > 0;
   const totalChanged = stagedFiles.length + unstagedFiles.length;

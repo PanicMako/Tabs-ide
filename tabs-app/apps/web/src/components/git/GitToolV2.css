@@ -63,7 +63,7 @@
   --sem-purple-soft: rgba(192, 132, 252, 0.1);
 }
 
-/* Exclude pull-request pages from the new visual treatment. */
+/* Keep workspace navigation consistent; pull-request dialogs retain their own styling. */
 .git-tool-v2[data-redesigned="true"] .git-content-scroll {
   padding: clamp(24px, 3vw, 48px);
 }
