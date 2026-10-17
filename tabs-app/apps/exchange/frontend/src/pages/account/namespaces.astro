@@ -2,6 +2,7 @@
 import Account from "../../layouts/Account.astro";
 ---
 <Account title="Namespaces" section="namespaces">
+  <p id="publishing-availability" role="status" class="notice">Checking whether this registry accepts new publishers…</p>
   <section class="publisher-ledger namespace-memberships" aria-labelledby="membership-heading">
     <div class="section-heading"><div><p class="step-label">Your publisher identities</p><h2 id="membership-heading">Your namespaces</h2></div><a href="#new-namespace-heading">Create a namespace ↗</a></div>
     <ul id="account-namespaces"></ul>
@@ -11,7 +12,7 @@ import Account from "../../layouts/Account.astro";
   <div class="namespace-team-grid"><div id="namespace-collaborators"></div><div id="namespace-invitations"></div></div>
   <section class="namespace-create-desk task-desk" aria-labelledby="new-namespace-heading">
     <div class="task-intro"><p class="step-label">Publishing identity</p><h2 id="new-namespace-heading">Create a namespace</h2><p>A shared home for the tools you publish.</p><div class="namespace-example" aria-label="Namespace naming example"><span>your-name</span><span>.your-tool</span></div></div>
-    <div><p id="publishing-availability" role="status"></p><form id="create-namespace" class="task-form">
+    <div><form id="create-namespace" class="task-form">
       <div class="form-field"><label for="new-namespace">Namespace name</label><input id="new-namespace" disabled name="name" required pattern="[a-z][a-z0-9-]{1,62}" minlength="2" maxlength="63" autocomplete="off" placeholder="your-name" aria-describedby="namespace-name-help" /><p id="namespace-name-help" class="field-help">2–63 lowercase letters, numbers or hyphens. Start with a letter.</p></div>
       <label class="check"><input type="checkbox" id="accept-terms" disabled required /> <span>I have read and accept this instance's <a href="/publisher-terms">publisher terms</a>.</span></label>
       <div class="form-actions"><button class="button" type="submit" disabled>Create namespace</button></div>

@@ -110,3 +110,49 @@ it("opens a mobile navigation dialog, restores focus on Escape, and restores the
   expect(menu.hidden).toBe(false);
   expect(menu.hasAttribute("aria-modal")).toBe(false);
 });
+
+it("clears account UI after successful sign-out", async () => {
+  const navigate = vi.spyOn(location, "assign").mockImplementation(() => {});
+  transport.request.mockImplementation(async (path: string) =>
+    path === "/v1/me" ? { login: "owner", admin: true, operator: true } : undefined,
+  );
+  await import("../frontend/src/scripts/account");
+  await vi.waitFor(() => expect(element("operator-link").hidden).toBe(false));
+  element("dashboard-signout").click();
+  await vi.waitFor(() => expect(navigate).toHaveBeenCalledWith("/"));
+  expect(element("account-content").hidden).toBe(true);
+  expect(element("dashboard-signout").hidden).toBe(true);
+  expect(element("operator-link").hidden).toBe(true);
+  expect(element("reviewer-link").hidden).toBe(true);
+  expect(element("account-link").textContent).toBe("Sign in with GitHub");
+});
+
+it("treats an expired session as signed out", async () => {
+  const navigate = vi.spyOn(location, "assign").mockImplementation(() => {});
+  transport.request.mockImplementation(async (path: string) => {
+    if (path === "/v1/me") return { login: "publisher" };
+    throw Object.assign(new Error("Session expired"), { status: 401 });
+  });
+  await import("../frontend/src/scripts/account");
+  await vi.waitFor(() => expect(element("dashboard-signout").hidden).toBe(false));
+  element("dashboard-signout").click();
+  await vi.waitFor(() => expect(navigate).toHaveBeenCalledWith("/"));
+  expect(element("account-content").hidden).toBe(true);
+});
+
+it("keeps verification failures visible and never claims sign-out succeeded", async () => {
+  const navigate = vi.spyOn(location, "assign").mockImplementation(() => {});
+  transport.request.mockImplementation(async (path: string) => {
+    if (path === "/v1/me") return { login: "publisher" };
+    throw Object.assign(new Error("CSRF verification failed"), { status: 403 });
+  });
+  await import("../frontend/src/scripts/account");
+  await vi.waitFor(() => expect(element("dashboard-signout").hidden).toBe(false));
+  element("dashboard-signout").click();
+  await vi.waitFor(() =>
+    expect(element("dashboard-session-status").textContent).toContain("Reload this page"),
+  );
+  expect(navigate).not.toHaveBeenCalled();
+  expect(element("account-content").hidden).toBe(false);
+  expect((element("dashboard-signout") as HTMLButtonElement).disabled).toBe(false);
+});

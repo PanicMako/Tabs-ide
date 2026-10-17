@@ -77,20 +77,50 @@ window.addEventListener("pageshow", (event) => {
 });
 void updateAccount();
 
+function finishSignout() {
+  generation++;
+  pending?.abort();
+  reviewerLink.hidden = true;
+  if (operatorLink) operatorLink.hidden = true;
+  if (signout) signout.hidden = true;
+  accountLink.textContent = "Sign in with GitHub";
+  accountLink.href = "/auth/github/start";
+  const summary = document.getElementById("account-summary-name");
+  if (summary) summary.textContent = "Sign in";
+  const monogram = document.getElementById("account-monogram");
+  if (monogram) monogram.textContent = "T";
+  for (const id of ["account-content", "signed-in", "reviewer-content"]) {
+    const content = document.getElementById(id);
+    if (content) content.hidden = true;
+  }
+  if (sessionStatus) sessionStatus.textContent = "Signed out.";
+  location.assign("/");
+}
+
 signout?.addEventListener("click", async () => {
+  if (signout.disabled) return;
   signout.disabled = true;
+  // Do not let an older account lookup overwrite the sign-out result.
+  generation++;
+  pending?.abort();
   if (sessionStatus) sessionStatus.textContent = "Signing out…";
   try {
     await request("/v1/logout", "POST", {});
-    reviewerLink.hidden = true;
-    if (operatorLink) operatorLink.hidden = true;
-    const content = document.getElementById("account-content");
-    if (content) content.hidden = true;
-    location.assign("/");
+    finishSignout();
   } catch (error) {
-    if (sessionStatus)
+    if (error && typeof error === "object" && "status" in error && error.status === 401) {
+      // The session is already expired; no authenticated account remains.
+      finishSignout();
+      return;
+    }
+    signout.closest("details")?.setAttribute("open", "");
+    if (sessionStatus) {
       sessionStatus.textContent =
-        error instanceof Error ? error.message : "Sign-out failed. Try again.";
+        error && typeof error === "object" && "status" in error && error.status === 403
+          ? "Sign-out verification failed. Reload this page, then try Sign out again."
+          : `Could not confirm sign-out. Your account remains on this page. ${error instanceof Error ? error.message : "Check your connection and try again."}`;
+      sessionStatus.focus();
+    }
     signout.disabled = false;
   }
 });
