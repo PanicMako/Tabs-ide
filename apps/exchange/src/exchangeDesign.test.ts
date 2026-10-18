@@ -72,8 +72,9 @@ describe("Exchange visual constraints", () => {
     expect(source).toContain('<fieldset id="publish-fields" disabled>');
     expect(source).toContain('type="file" accept=".tabsext"');
     expect(source).toContain('aria-describedby="publish-file-help"');
-    expect(source).toContain('aria-labelledby="publication-guide-title"');
-    expect(source).toContain("Approval alone does not publish a package.");
+    expect(source).toContain('id="publish-choose-file"');
+    expect(source).toContain('aria-label="Your package preparation"');
+    expect(source).toContain("Approved versions become available after signed publication.");
   });
   it("uses shared panel, control, and badge geometry and solid surfaces", () => {
     const css = readFileSync(
