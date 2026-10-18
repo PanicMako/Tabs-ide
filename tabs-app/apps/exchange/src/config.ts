@@ -15,6 +15,8 @@ export interface ExchangeConfig {
   readonly operatorGithubIds?: ReadonlySet<string>;
   readonly bucket: string;
   readonly publishingEnabled: boolean;
+  readonly pilotPublisherGithubIds?: ReadonlySet<string>;
+  readonly embeddedScannerEnabled?: boolean;
   readonly namespaceManagementEnabled?: boolean;
   readonly visibility?: "public" | "private";
   readonly allowedGithubIds?: ReadonlySet<string>;
@@ -70,6 +72,8 @@ export function loadConfig(): ExchangeConfig {
     operatorGithubIds,
     bucket: required("S3_BUCKET"),
     publishingEnabled: process.env.EXCHANGE_PUBLISHING_ENABLED === "true",
+    pilotPublisherGithubIds: githubIds("EXCHANGE_PILOT_PUBLISHER_GITHUB_IDS"),
+    embeddedScannerEnabled: process.env.EXCHANGE_EMBEDDED_SCANNER_ENABLED === "true",
     namespaceManagementEnabled:
       process.env.EXCHANGE_NAMESPACE_MANAGEMENT_ENABLED === undefined
         ? process.env.EXCHANGE_PUBLISHING_ENABLED === "true"
@@ -106,4 +110,15 @@ export function createStorage(): S3Client {
 /** Account setup is independent of package uploads, with legacy-config fallback. */
 export function namespaceManagementEnabled(config: ExchangeConfig): boolean {
   return config.namespaceManagementEnabled ?? config.publishingEnabled;
+}
+
+/** A private publisher pilot does not open submissions for other accounts. */
+export function publishingEnabledForActor(
+  config: ExchangeConfig,
+  actor: { readonly id: string } | null,
+): boolean {
+  return (
+    config.publishingEnabled ||
+    (!!actor && config.pilotPublisherGithubIds?.has(String(actor.id)) === true)
+  );
 }

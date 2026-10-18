@@ -51,6 +51,8 @@ async function fixture(
     finalGranted?: boolean;
     agreementAccepted?: boolean;
     namespaceManagementEnabled?: boolean;
+    pilotPublisherIds?: string[];
+    scannerReady?: boolean;
   },
 ) {
   const actions: string[] = [];
@@ -376,6 +378,9 @@ async function fixture(
           rowCount: rows.length,
         };
       }
+      if (sql.includes("EXISTS(SELECT 1 FROM exchange_worker_heartbeats")) {
+        return { rows: [{ ready: membership?.scannerReady === true }], rowCount: 1 };
+      }
       if (sql.includes("FROM exchange_sessions")) {
         return {
           rows: [
@@ -455,6 +460,7 @@ async function fixture(
     {
       ...config,
       publishingEnabled: allowUploads,
+      pilotPublisherGithubIds: new Set(membership?.pilotPublisherIds ?? []),
       namespaceManagementEnabled: membership?.namespaceManagementEnabled ?? allowUploads,
     },
     signedMetadataEvents,
@@ -1922,4 +1928,70 @@ it("allows publisher account setup without allowing package uploads", async () =
   });
   expect(upload.status).toBe(503);
   expect(await upload.json()).toMatchObject({ code: "PUBLISHING_DISABLED" });
+});
+
+it("opens pilot submission only for the listed account and requires a live scanner", async () => {
+  const headers = {
+    Cookie: "tabs_exchange_session=opaque",
+    "X-CSRF-Token": csrf,
+    Origin: config.origin,
+  };
+  const pilot = await fixture(
+    true,
+    digest,
+    "review",
+    undefined,
+    undefined,
+    undefined,
+    false,
+    undefined,
+    false,
+    reviewObject,
+    undefined,
+    { pilotPublisherIds: ["42"], scannerReady: true },
+  );
+  expect((await (await fetch(`${pilot.base}/v1/registry`)).json()).publishingEnabled).toBe(false);
+  const me = await (await fetch(`${pilot.base}/v1/me`, { headers })).json();
+  expect(me).toMatchObject({ publishingEnabled: true, publishingPilot: true });
+  const allowed = await fetch(`${pilot.base}/v1/publisher/upload`, { method: "POST", headers });
+  expect(allowed.status).toBe(415);
+  const anonymous = await fetch(`${pilot.base}/v1/publisher/upload`, { method: "POST" });
+  expect(anonymous.status).toBe(503);
+  const other = await fixture(
+    true,
+    digest,
+    "review",
+    undefined,
+    undefined,
+    undefined,
+    false,
+    undefined,
+    false,
+    reviewObject,
+    undefined,
+    { pilotPublisherIds: ["99"], scannerReady: true },
+  );
+  expect((await (await fetch(`${other.base}/v1/me`, { headers })).json()).publishingEnabled).toBe(
+    false,
+  );
+  expect(
+    (await fetch(`${other.base}/v1/publisher/upload`, { method: "POST", headers })).status,
+  ).toBe(503);
+  const offline = await fixture(
+    true,
+    digest,
+    "review",
+    undefined,
+    undefined,
+    undefined,
+    false,
+    undefined,
+    false,
+    reviewObject,
+    undefined,
+    { pilotPublisherIds: ["42"], scannerReady: false },
+  );
+  const response = await fetch(`${offline.base}/v1/publisher/upload`, { method: "POST", headers });
+  expect(response.status).toBe(503);
+  expect(await response.json()).toMatchObject({ code: "SCANNER_UNAVAILABLE" });
 });

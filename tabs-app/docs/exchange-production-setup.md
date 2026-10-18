@@ -96,3 +96,26 @@ incomplete. The public registry and signed-in account API expose both flags so
 the portal can enable account setup while clearly explaining that uploads are
 closed. If the new setting is omitted, namespace management follows the existing
 publishing flag for backward compatibility; an explicit `false` disables it.
+
+## Account-only submission pilot, 18 October 2026
+
+`EXCHANGE_PILOT_PUBLISHER_GITHUB_IDS` allows an explicit list of numeric GitHub
+identities to submit while `EXCHANGE_PUBLISHING_ENABLED=false`. The deployed
+pilot is restricted to the owner's verified ID, `121330302`. Other accounts and
+anonymous clients remain unable to upload. Namespace membership, CSRF, terms,
+immutable storage, scans and manual review still apply. The signed-in `/v1/me`
+response reports that account's submission access; `/v1/registry` continues to
+report public submissions disabled. The Publish page labels the pilot explicitly.
+
+`EXCHANGE_EMBEDDED_SCANNER_ENABLED=true` runs the same scanning implementation
+alongside the API in the existing Render service. It processes one job at a time,
+records worker heartbeats and drains an active scan before closing database and
+storage clients at shutdown. Pilot uploads require a recent scanner heartbeat.
+This does not add a paid service or artificial keep-alive traffic, though scanning
+and heartbeat queries consume the existing database compute allowance while the
+service is awake. Render may sleep; queued work resumes when the service wakes.
+
+This opens submission and review, **not signed marketplace installation**. Private
+signing keys remain outside the API. Production trust-root provisioning,
+independently distributed desktop trust and signed publication are still separate
+acceptance work; the pilot does not bypass those checks or auto-approve a package.
