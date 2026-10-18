@@ -242,3 +242,94 @@ it("offers the build step when an existing identity is ready", async () => {
   );
   expect(byId<HTMLInputElement>("new-namespace").disabled).toBe(false);
 });
+
+function inlineFeedback() {
+  byId("create-namespace").insertAdjacentHTML(
+    "afterbegin",
+    '<p id="namespace-feedback" role="status"></p>',
+  );
+  document.body.insertAdjacentHTML(
+    "beforeend",
+    '<section id="namespace-ready" hidden tabindex="-1"><p id="namespace-ready-message"></p><p id="namespace-ready-availability"></p><button id="namespace-create-another">Create another namespace</button></section>',
+  );
+}
+it("normalizes capitals and shows a confirmed next step instead of the completed form", async () => {
+  inlineFeedback();
+  await start();
+  byId<HTMLInputElement>("new-namespace").value = " PanicMako ";
+  byId<HTMLInputElement>("accept-terms").checked = true;
+  api.request
+    .mockResolvedValueOnce({})
+    .mockResolvedValueOnce({ namespaces: [{ name: "panicmako", role: "owner", verified: false }] });
+  byId("create-namespace").querySelector<HTMLButtonElement>('button[type="submit"]')!.focus();
+  submit();
+  expect(byId("namespace-feedback").textContent).toContain("Creating panicmako");
+  expect(api.request.mock.calls[2]![2]).toMatchObject({ name: "panicmako" });
+  await vi.waitFor(() => expect(byId("namespace-ready").hidden).toBe(false));
+  expect(byId("namespace-ready-message").textContent).toContain("panicmako.relay");
+  expect(byId("create-namespace").hidden).toBe(true);
+  expect(document.activeElement?.id).toBe("namespace-ready");
+  byId<HTMLButtonElement>("namespace-create-another").click();
+  expect(byId("create-namespace").hidden).toBe(false);
+  expect(document.activeElement?.id).toBe("new-namespace");
+});
+it("shows invalid names at the action even when browser pattern validation is unavailable", async () => {
+  inlineFeedback();
+  await start();
+  byId<HTMLInputElement>("new-namespace").removeAttribute("pattern");
+  byId<HTMLInputElement>("new-namespace").value = "../bad";
+  byId<HTMLInputElement>("accept-terms").checked = true;
+  submit();
+  expect(api.request).toHaveBeenCalledTimes(2);
+  expect(byId("namespace-feedback").textContent).toContain("Choose 2–63");
+  expect(byId("new-namespace").getAttribute("aria-invalid")).toBe("true");
+});
+it("allows editing after a definite rejection without asking for uncertain-result recovery", async () => {
+  inlineFeedback();
+  await start();
+  api.request.mockRejectedValueOnce(
+    new RegistryRequestError(400, "INVALID_REQUEST", "Invalid namespace"),
+  );
+  byId<HTMLInputElement>("accept-terms").checked = true;
+  submit();
+  await vi.waitFor(() =>
+    expect(byId("namespace-feedback").textContent).toContain("registry rejected"),
+  );
+  expect(byId<HTMLInputElement>("new-namespace").disabled).toBe(false);
+  expect(
+    byId("create-namespace").querySelector<HTMLButtonElement>("button.secondary")!.hidden,
+  ).toBe(true);
+});
+it("keeps creation uncertain when acknowledgement succeeds but membership refresh fails", async () => {
+  inlineFeedback();
+  await start();
+  api.request
+    .mockResolvedValueOnce({})
+    .mockRejectedValueOnce(new RegistryRequestError(400, "INVALID_REQUEST", "Read failed"));
+  byId<HTMLInputElement>("accept-terms").checked = true;
+  submit();
+  await vi.waitFor(() =>
+    expect(byId("namespace-feedback").textContent).toContain("haven’t confirmed"),
+  );
+  expect(byId<HTMLInputElement>("new-namespace").disabled).toBe(true);
+  expect(byId("namespace-ready").hidden).toBe(true);
+  expect(
+    byId("create-namespace").querySelector<HTMLButtonElement>("button.secondary")!.hidden,
+  ).toBe(false);
+});
+it("restores the next step for an existing owner without implying uploads are open", async () => {
+  inlineFeedback();
+  api.request
+    .mockResolvedValueOnce({
+      login: "maker",
+      publishingEnabled: false,
+      namespaceManagementEnabled: true,
+      termsVersion: "test",
+    })
+    .mockResolvedValueOnce({ namespaces: [{ name: "maker", role: "owner", verified: false }] });
+  await import("../frontend/src/scripts/account-pages");
+  await vi.waitFor(() => expect(byId("namespace-ready").hidden).toBe(false));
+  expect(byId("create-namespace").hidden).toBe(true);
+  expect(byId("namespace-ready-availability").textContent).toContain("uploads are not open yet");
+  expect(api.request.mock.calls.every((call) => call[1] === "GET")).toBe(true);
+});

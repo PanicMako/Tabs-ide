@@ -821,3 +821,79 @@
     display: none;
   }
 }
+
+/* Keep creation feedback at the action, and replace the completed task with a next step. */
+[data-dashboard="true"] #namespace-feedback {
+  margin: 20px 0 0;
+  font-size: 13px;
+  line-height: 1.7;
+}
+#namespace-feedback:empty {
+  display: none;
+}
+[data-dashboard="true"] #namespace-feedback[data-state="error"] {
+  color: #8b3341;
+  background: #fff0f0;
+  border-left: 3px solid #bb5261;
+  border-radius: 4px;
+  padding: 12px 14px;
+}
+[data-dashboard="true"] #namespace-feedback[data-state="pending"]:not(:empty) {
+  padding: 12px 14px;
+  background: #f0f3ff;
+  border-radius: 6px;
+}
+[data-dashboard="true"] #create-namespace[aria-busy="true"] {
+  cursor: progress;
+}
+[data-dashboard="true"] #new-namespace[aria-invalid="true"] {
+  border-color: #bb5261;
+}
+.identity-form-actions .button.secondary {
+  margin-top: 14px;
+}
+.namespace-ready {
+  margin-top: 20px;
+  outline-offset: 6px;
+}
+.namespace-ready h3 {
+  font-size: 24px;
+  letter-spacing: -0.04em;
+  margin: 12px 0;
+}
+.namespace-ready > p {
+  font-size: 13px;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+  color: #5c6980;
+}
+.namespace-next-step {
+  margin: 22px 0;
+  border: 1px solid #c9d4ff;
+  background: #f0f3ff;
+  padding: 24px;
+  border-radius: 9px;
+}
+.namespace-next-step h3 {
+  font-size: 22px;
+  letter-spacing: -0.035em;
+  margin: 16px 0 10px;
+}
+.namespace-next-step p {
+  font-size: 13px;
+  line-height: 1.7;
+  color: #5c6980;
+}
+.namespace-next-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 18px;
+  margin-top: 18px;
+}
+.namespace-ready > .button.secondary {
+  margin-top: 16px;
+}
+.namespace-ready:focus-visible {
+  outline: 3px solid #3259ed;
+}
