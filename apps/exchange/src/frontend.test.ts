@@ -68,6 +68,11 @@ describe("Exchange frontend routes", () => {
     await FS.writeFile(Path.join(directory, "index.html"), "<h1>Tabs Exchange</h1>");
     const favicon = await FS.readFile(new URL("../frontend/public/favicon.svg", import.meta.url));
     await FS.writeFile(Path.join(directory, "favicon.svg"), favicon);
+    await FS.mkdir(Path.join(directory, "_astro"));
+    await FS.writeFile(
+      Path.join(directory, "_astro/publish@_@astro.build.css"),
+      ".release { color: blue; }",
+    );
     const server = Http.createServer(async (request, response) => {
       response.setHeader("Cache-Control", "private, no-store");
       if (
@@ -94,6 +99,10 @@ describe("Exchange frontend routes", () => {
       expect(icon.headers.get("content-type")).toBe("image/svg+xml");
       expect(icon.headers.get("x-content-type-options")).toBe("nosniff");
       expect(Buffer.from(await icon.arrayBuffer())).toEqual(favicon);
+      const pageStyle = await fetch(`${origin}/_astro/publish@_@astro.build.css`);
+      expect(pageStyle.status).toBe(200);
+      expect(pageStyle.headers.get("content-type")).toBe("text/css; charset=utf-8");
+      expect(await pageStyle.text()).toContain(".release");
       expect((await fetch(`${origin}/config.ts`)).status).toBe(404);
       expect((await fetch(`${origin}/docs/extensions/missing`)).status).toBe(404);
     } finally {
@@ -116,6 +125,11 @@ describe("Exchange frontend routes", () => {
     expect(frontendAsset("/_astro/dm-sans-latin-regular.woff2")).toBe(
       "_astro/dm-sans-latin-regular.woff2",
     );
+    expect(frontendAsset("/_astro/publish@_@astro.build.css")).toBe(
+      "_astro/publish@_@astro.build.css",
+    );
+    expect(frontendAsset("/_astro/@/secret.css")).toBeUndefined();
+    expect(frontendAsset("/_astro/publish@%2fsecret.css")).toBeUndefined();
     expect(frontendAsset("/_astro/../secret.woff2")).toBeUndefined();
     expect(frontendAsset("/admin/unknown")).toBeUndefined();
     expect(frontendAsset("/publish")).toBe("publish/index.html");
