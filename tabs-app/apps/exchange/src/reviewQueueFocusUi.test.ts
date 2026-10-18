@@ -125,7 +125,41 @@ it("nests pending and approved release headings under the package desk, with dee
   const inspections = [...items.querySelectorAll<HTMLDetailsElement>(".package-inspection")];
   expect(inspections.map((section) => section.open)).toEqual([false, false]);
   expect(inspections.map((section) => section.querySelector("summary")?.textContent)).toEqual([
-    "Inspect evidence & decide",
-    "Release controls",
+    "Review this package",
+    "Manage this release",
   ]);
+});
+
+it("opening a package shows decision guidance without sending a review action", async () => {
+  const digest = "a".repeat(64);
+  transport.request.mockImplementation(async (path: string) => {
+    if (path === "/v1/me") return { login: "reviewer", admin: true };
+    if (path.endsWith("/queue"))
+      return {
+        submissions: [
+          {
+            namespace: "publisher",
+            name: "relay",
+            version: "1.0.0",
+            digest,
+            status: "review",
+            manifest: { displayName: "Relay" },
+            scan_result: { passed: true, digest, issues: [] },
+          },
+        ],
+      };
+    if (path.endsWith("/approved")) return { versions: [] };
+    return {};
+  });
+  await ready();
+  const inspection = document.querySelector<HTMLDetailsElement>(".package-inspection")!;
+  inspection.open = true;
+  expect(document.querySelector(".review-package-badge")?.textContent).toBe("Ready for review");
+  expect(document.querySelector(".review-package-guidance")?.textContent).toContain(
+    "Inspect the package",
+  );
+  expect(inspection.textContent).toContain("Approval moves this version to signing");
+  expect(inspection.querySelectorAll(".review-fingerprint")).toHaveLength(2);
+  expect(inspection.querySelector("form")?.noValidate).toBe(true);
+  expect(transport.request.mock.calls.every(([, method]) => method !== "POST")).toBe(true);
 });

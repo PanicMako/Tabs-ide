@@ -4,6 +4,7 @@ import { clearReviewHistory, showReviewHistory } from "./review-history";
 import { clearOperationsDetail, showOperationsDetail } from "./review-operations";
 import { clearReviewAppeals, showReviewAppeals } from "./review-appeals";
 import { appendReviewEvidence } from "./review-evidence";
+import { reviewPresentation } from "../lib/reviewPresentation";
 import { filterReviewPackages } from "../lib/reviewFilter";
 
 interface Submission {
@@ -71,12 +72,43 @@ async function showOperations(current: number, signal?: AbortSignal) {
   }
 }
 
+function fingerprintControl(value: string) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "review-fingerprint";
+  const label = document.createElement("span");
+  label.textContent = "SHA-256 · exact package fingerprint";
+  const code = document.createElement("code");
+  code.textContent = value;
+  const copy = document.createElement("button");
+  copy.type = "button";
+  copy.textContent = "Copy fingerprint";
+  const feedback = document.createElement("span");
+  feedback.setAttribute("role", "status");
+  copy.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+      feedback.textContent = "Copied. Paste it in the confirmation field.";
+    } catch {
+      feedback.textContent =
+        "Copy this fingerprint manually, then paste it in the confirmation field.";
+      const selection = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(code);
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    }
+  });
+  wrapper.append(label, code, copy, feedback);
+  return wrapper;
+}
+
 function decisionForm(entry: Submission, index: number) {
   const form = document.createElement("form");
   form.className = "task-form";
+  form.noValidate = true;
   const fields = document.createElement("fieldset");
   const legend = document.createElement("legend");
-  legend.textContent = `Decision for ${entry.namespace}.${entry.name}@${entry.version}`;
+  legend.textContent = `Your decision · ${entry.namespace}.${entry.name}@${entry.version}`;
   fields.append(legend);
   const reason = document.createElement("textarea");
   reason.id = `review-reason-${index}`;
@@ -84,7 +116,9 @@ function decisionForm(entry: Submission, index: number) {
   reason.maxLength = 2000;
   const reasonLabel = document.createElement("label");
   reasonLabel.htmlFor = reason.id;
-  reasonLabel.textContent = "Decision reason (recorded in the audit trail)";
+  reasonLabel.textContent = "What did you find?";
+  reason.placeholder = "Describe what you checked and why you’re making this decision.";
+  reason.rows = 3;
   const digest = document.createElement("input");
   digest.id = `review-confirm-${index}`;
   digest.required = true;
@@ -92,27 +126,27 @@ function decisionForm(entry: Submission, index: number) {
   digest.autocomplete = "off";
   const digestLabel = document.createElement("label");
   digestLabel.htmlFor = digest.id;
-  digestLabel.textContent = "Paste the displayed SHA-256 digest to confirm this package";
+  digestLabel.textContent = "Confirm this package’s fingerprint";
+  digest.placeholder = "Paste the SHA-256 fingerprint shown below";
   const result = document.createElement("p");
   result.setAttribute("role", "status");
   const approve = document.createElement("button");
   approve.className = "button";
   approve.type = "submit";
   approve.value = "approve";
-  approve.textContent = "Approve exact digest";
+  approve.textContent = "Approve this version";
   approve.hidden = entry.status === "approved";
-  const scan = entry.scan_result as { passed?: boolean; digest?: string } | null;
-  approve.disabled = scan?.passed !== true || scan?.digest !== entry.digest;
+  approve.disabled = reviewPresentation(entry).tone !== "ready";
   const reject = document.createElement("button");
   reject.className = "button secondary";
   reject.type = "submit";
   reject.value = entry.status === "approved" ? "revoke" : "reject";
-  reject.textContent = entry.status === "approved" ? "Revoke exact digest" : "Reject exact digest";
+  reject.textContent = entry.status === "approved" ? "Revoke this version" : "Reject this version";
   const rescan = document.createElement("button");
   rescan.className = "button secondary";
   rescan.type = "submit";
   rescan.value = "rescan";
-  rescan.textContent = "Request a new scan for this digest";
+  rescan.textContent = "Request a new scan";
   rescan.hidden = entry.status !== "review";
   const reasonField = document.createElement("div");
   reasonField.className = "form-field";
@@ -123,7 +157,11 @@ function decisionForm(entry: Submission, index: number) {
   const actions = document.createElement("div");
   actions.className = "form-actions";
   actions.append(approve, reject, rescan);
-  fields.append(reasonField, digestField, actions);
+  const help = document.createElement("p");
+  help.className = "review-decision-help";
+  help.textContent =
+    "Your reason is recorded for the publisher. Approval moves this version to signing; it does not publish it immediately.";
+  fields.append(help, reasonField, fingerprintControl(entry.digest), digestField, actions);
   form.append(fields, result);
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -229,14 +267,31 @@ async function load(restoreFocus = false) {
       const item = document.createElement("li");
       item.dataset.reviewIdentity = `${entry.namespace}.${entry.name}@${entry.version} ${entry.digest}`;
       item.dataset.reviewStatus = entry.status;
+      const presentation = reviewPresentation(entry);
+      item.dataset.reviewTone = presentation.tone;
       const heading = document.createElement("h3");
-      heading.textContent = `${entry.namespace}.${entry.name}@${entry.version}`;
+      const manifest =
+        entry.manifest && typeof entry.manifest === "object"
+          ? (entry.manifest as { displayName?: unknown; description?: unknown })
+          : undefined;
+      heading.textContent =
+        typeof manifest?.displayName === "string"
+          ? manifest.displayName
+          : `${entry.namespace}.${entry.name}@${entry.version}`;
+      const badge = document.createElement("span");
+      badge.className = "review-package-badge";
+      badge.textContent = presentation.label;
       const identity = document.createElement("p");
-      identity.textContent = `${entry.status} · SHA-256 ${entry.digest}${entry.status === "approved" ? ". Approval alone does not prove signed publication." : ""}`;
-      item.append(heading, identity);
+      identity.className = "review-package-identity";
+      identity.textContent = `${entry.namespace}.${entry.name} · Version ${entry.version}`;
+      const guidance = document.createElement("p");
+      guidance.className = "review-package-guidance";
+      guidance.textContent = presentation.guidance;
+      item.append(badge, heading, identity, guidance);
       const history = document.createElement("button");
       history.type = "button";
-      history.textContent = `View history for ${entry.namespace}.${entry.name}`;
+      history.textContent = "Release history";
+      history.setAttribute("aria-label", `View history for ${entry.namespace}.${entry.name}`);
       history.addEventListener("click", () => {
         void showReviewHistory(entry.namespace, entry.name);
         document
@@ -244,17 +299,31 @@ async function load(restoreFocus = false) {
           ?.click();
         document.getElementById("review-history-namespace")!.focus();
       });
-      item.append(history);
+      const tools = document.createElement("div");
+      tools.className = "review-package-tools";
+      tools.append(history);
       const archive = document.createElement("a");
       archive.href = reviewArchivePath(entry);
-      archive.textContent = `Download ${entry.namespace}.${entry.name}@${entry.version} for independent inspection`;
-      item.append(archive);
+      archive.textContent = "Download package ↗";
+      archive.setAttribute(
+        "aria-label",
+        `Download ${entry.namespace}.${entry.name}@${entry.version} for independent inspection`,
+      );
+      tools.append(archive);
+      item.append(tools);
       const inspection = document.createElement("details");
       inspection.className = "package-inspection";
       const inspectionHeading = document.createElement("summary");
       inspectionHeading.textContent =
-        entry.status === "approved" ? "Release controls" : "Inspect evidence & decide";
+        entry.status === "approved" ? "Manage this release" : "Review this package";
       inspection.append(inspectionHeading);
+      const intro = document.createElement("div");
+      intro.className = "review-checklist";
+      intro.textContent =
+        entry.status === "approved"
+          ? "This review is complete. Record a reason and confirm the package fingerprint before revoking it."
+          : "01 Inspect requested access   →   02 Read scan findings & changes   →   03 Record your decision";
+      inspection.append(intro);
       if (entry.status !== "approved")
         appendReviewEvidence(inspection, entry.manifest, entry.scan_result, entry.digest);
       const evidenceSections: Array<readonly [string, unknown]> =
@@ -264,6 +333,11 @@ async function load(restoreFocus = false) {
               ["Raw manifest evidence", entry.manifest],
               ["Raw scan and version-difference evidence", entry.scan_result],
             ];
+      const technical = document.createElement("details");
+      technical.className = "review-technical";
+      const technicalTitle = document.createElement("summary");
+      technicalTitle.textContent = "Technical evidence · manifest & scan data";
+      technical.append(technicalTitle, fingerprintControl(entry.digest));
       for (const [label, evidence] of evidenceSections) {
         const details = document.createElement("details");
         const summary = document.createElement("summary");
@@ -274,8 +348,9 @@ async function load(restoreFocus = false) {
             ? "Scan evidence is not available yet."
             : JSON.stringify(evidence, null, 2);
         details.append(summary, text);
-        inspection.append(details);
+        technical.append(details);
       }
+      inspection.append(technical);
       if (entry.status === "review" || entry.status === "approved")
         inspection.append(decisionForm(entry, index));
       item.append(inspection);
@@ -292,6 +367,19 @@ async function load(restoreFocus = false) {
         "No pending submissions or approved releases were returned. Refresh the queue to check for new work.";
       empty.append(title, message);
       list.append(empty);
+    }
+    const counts = {
+      "review-ready-count": data.submissions.filter(
+        (entry) => reviewPresentation(entry).tone === "ready",
+      ).length,
+      "review-scanning-count": data.submissions.filter((entry) =>
+        ["queued", "scanning"].includes(entry.status),
+      ).length,
+      "review-approved-count": approved.versions.length,
+    };
+    for (const [id, count] of Object.entries(counts)) {
+      const target = document.getElementById(id);
+      if (target) target.textContent = String(count);
     }
     filter();
     content.hidden = false;

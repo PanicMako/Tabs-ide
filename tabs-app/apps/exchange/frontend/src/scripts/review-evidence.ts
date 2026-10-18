@@ -8,6 +8,7 @@ export function appendReviewEvidence(
 ) {
   for (const section of reviewEvidence(manifest, scan, digest)) {
     const container = document.createElement("section");
+    container.className = "review-evidence-section";
     const heading = document.createElement("h4");
     heading.textContent = section.title;
     const summary = document.createElement("p");
@@ -20,7 +21,14 @@ export function appendReviewEvidence(
         item.textContent = text;
         list.append(item);
       }
-      container.append(list);
+      if (["Package changes", "Dependency advisory coverage"].includes(section.title)) {
+        const disclosure = document.createElement("details");
+        const label = document.createElement("summary");
+        label.textContent =
+          section.title === "Package changes" ? "See changed files" : "See dependency findings";
+        disclosure.append(label, list);
+        container.append(disclosure);
+      } else container.append(list);
     }
     for (const preview of section.previews ?? []) {
       const details = document.createElement("details");
