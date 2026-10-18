@@ -1,4 +1,10 @@
-import { request, RegistryRequestError, type Actor, type Namespace } from "./api";
+import {
+  canManageNamespaces,
+  request,
+  RegistryRequestError,
+  type Actor,
+  type Namespace,
+} from "./api";
 
 let pending: AbortController | undefined;
 let mountedSection: HTMLElement | undefined;
@@ -65,7 +71,7 @@ async function initialize(signal: AbortSignal) {
   const button = document.createElement("button");
   button.type = "submit";
   button.textContent = "Send invitation";
-  button.disabled = !actor.publishingEnabled || !namespace.options.length;
+  button.disabled = !canManageNamespaces(actor) || !namespace.options.length;
   const status = document.createElement("p");
   status.id = "collaborator-status";
   login.setAttribute("aria-describedby", status.id);
@@ -73,8 +79,8 @@ async function initialize(signal: AbortSignal) {
   status.setAttribute("aria-live", "polite");
   if (!namespace.options.length)
     status.textContent = "You must own a namespace to invite collaborators.";
-  else if (!actor.publishingEnabled)
-    status.textContent = "Invitations are disabled while publishing is unavailable.";
+  else if (!canManageNamespaces(actor))
+    status.textContent = "Invitations are disabled while namespace management is unavailable.";
   form.className = "task-form";
   for (const [label, control] of [
     [namespaceLabel, namespace],
@@ -110,8 +116,8 @@ async function initialize(signal: AbortSignal) {
   if (button.disabled) {
     lock();
     form.hidden = true;
-    guidance.textContent = !actor.publishingEnabled
-      ? "Team invitations are unavailable while this registry has publishing turned off. No account changes are needed to fix this; the registry operator must finish enabling publishing."
+    guidance.textContent = !canManageNamespaces(actor)
+      ? "Team invitations are unavailable while namespace management is turned off. Contact the registry operator to enable account setup."
       : "Create a namespace first. You can then invite other GitHub accounts to help manage its extensions.";
   }
   const reconnect = (error: unknown) => {
@@ -146,13 +152,13 @@ async function initialize(signal: AbortSignal) {
       );
       if (signal.aborted) return;
       if (
-        !freshActor?.publishingEnabled ||
+        !canManageNamespaces(freshActor) ||
         !identities.namespaces.some(
           (entry) => entry.name === uncertain!.namespace && entry.role === "owner",
         )
       ) {
         status.textContent =
-          "Invitations remain unavailable. Publishing must be enabled and you must still own this namespace. Reload after access is restored.";
+          "Invitations remain unavailable. Namespace management must be enabled and you must still own this namespace. Reload after access is restored.";
         return;
       }
       const current = await request<{
@@ -275,3 +281,5 @@ window.addEventListener("pageshow", (event) => {
   if (event.persisted) mount();
 });
 mount();
+
+window.addEventListener("exchange:namespaces-changed", mount);

@@ -1,7 +1,10 @@
 // @vitest-environment happy-dom
 import { beforeEach, afterEach, expect, it, vi } from "vitest";
 const api = vi.hoisted(() => ({ request: vi.fn() }));
-vi.mock("../frontend/src/scripts/api", () => ({ request: api.request }));
+vi.mock("../frontend/src/scripts/api", async (original) => ({
+  ...(await original<typeof import("../frontend/src/scripts/api")>()),
+  request: api.request,
+}));
 const invitation = {
   id: "1",
   namespace: "maker",

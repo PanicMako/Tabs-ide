@@ -89,6 +89,7 @@ export async function request<T>(
 export interface Actor {
   login: string;
   publishingEnabled: boolean;
+  namespaceManagementEnabled?: boolean;
   termsVersion: string;
   admin: boolean;
   operator?: boolean;
@@ -97,4 +98,8 @@ export interface Namespace {
   name: string;
   role: "owner" | "contributor";
   verified: boolean;
+}
+
+export function canManageNamespaces(actor: Actor | null | undefined): boolean {
+  return actor?.namespaceManagementEnabled ?? actor?.publishingEnabled ?? false;
 }

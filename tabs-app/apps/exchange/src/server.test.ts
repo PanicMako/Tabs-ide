@@ -50,6 +50,7 @@ async function fixture(
     targetRole?: "owner" | "contributor";
     finalGranted?: boolean;
     agreementAccepted?: boolean;
+    namespaceManagementEnabled?: boolean;
   },
 ) {
   const actions: string[] = [];
@@ -451,7 +452,11 @@ async function fixture(
   const server = createExchangeServer(
     pool,
     storage,
-    allowUploads ? { ...config, publishingEnabled: true } : config,
+    {
+      ...config,
+      publishingEnabled: allowUploads,
+      namespaceManagementEnabled: membership?.namespaceManagementEnabled ?? allowUploads,
+    },
     signedMetadataEvents,
   );
   servers.push(server);
@@ -1859,4 +1864,62 @@ describe("Exchange HTTP boundaries", () => {
     expect(result.status).toBe(400);
     expect(ready.actions).toEqual([]);
   });
+});
+
+it("allows publisher account setup without allowing package uploads", async () => {
+  const ready = await fixture(
+    true,
+    digest,
+    "review",
+    undefined,
+    undefined,
+    undefined,
+    false,
+    undefined,
+    false,
+    reviewObject,
+    undefined,
+    { namespaceManagementEnabled: true },
+  );
+  const headers = {
+    Origin: config.origin,
+    Cookie: "tabs_exchange_session=session",
+    "X-CSRF-Token": csrf,
+    "Content-Type": "application/json",
+  };
+  const registry = await fetch(`${ready.base}/v1/registry`);
+  expect(await registry.json()).toMatchObject({
+    namespaceManagementEnabled: true,
+    publishingEnabled: false,
+  });
+  const me = await fetch(`${ready.base}/v1/me`, { headers });
+  expect(await me.json()).toMatchObject({
+    namespaceManagementEnabled: true,
+    publishingEnabled: false,
+  });
+  const created = await fetch(`${ready.base}/v1/namespaces`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ name: "my-studio", acceptTermsVersion: "2026-09-24" }),
+  });
+  expect(created.status).toBe(201);
+  const invited = await fetch(`${ready.base}/v1/namespaces/example/members`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ githubUserId: "43", role: "contributor" }),
+  });
+  expect(invited.status).toBe(202);
+  const accepted = await fetch(`${ready.base}/v1/publisher/invitations/7/accept`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ acceptTermsVersion: "2026-09-24" }),
+  });
+  expect(accepted.status).toBe(200);
+  const upload = await fetch(`${ready.base}/v1/publisher/upload`, {
+    method: "POST",
+    headers,
+    body: "not a package",
+  });
+  expect(upload.status).toBe(503);
+  expect(await upload.json()).toMatchObject({ code: "PUBLISHING_DISABLED" });
 });

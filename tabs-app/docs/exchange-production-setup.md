@@ -81,3 +81,18 @@ credentials confirms all three DB URLs and private/submissions-disabled API and
 worker settings resolve. A diagnostic with reserved URI characters confirms the
 URL-safe constraint is real. These Compose checks are separate from the live Render pilot. No paid plan or
 new DNS purchase was selected for the initial deployment.
+
+## Publisher account setup, 18 October 2026
+
+Namespace/team management is now controlled independently by
+`EXCHANGE_NAMESPACE_MANAGEMENT_ENABLED`. Set it to `true` to allow authenticated
+users to create namespaces, send owner-authorized team invitations, and accept
+invitations after explicit terms acceptance. It does not grant reviewer roles,
+mark publishers verified, permit uploads, or publish packages. Existing OAuth,
+CSRF, membership, invitation-recipient and last-owner checks remain in place.
+
+Keep `EXCHANGE_PUBLISHING_ENABLED=false` while scanning/signing readiness is
+incomplete. The public registry and signed-in account API expose both flags so
+the portal can enable account setup while clearly explaining that uploads are
+closed. If the new setting is omitted, namespace management follows the existing
+publishing flag for backward compatibility; an explicit `false` disables it.
