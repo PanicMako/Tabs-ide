@@ -22,7 +22,52 @@ recovery.type = "button";
 recovery.className = "button secondary";
 recovery.textContent = "Check namespace before retrying";
 recovery.hidden = true;
-form?.append(recovery);
+(form?.querySelector(".identity-form-actions") ?? form)?.append(recovery);
+const creationStatus = document.getElementById("namespace-feedback") ?? status;
+const ready = document.getElementById("namespace-ready");
+const createAnother = document.getElementById("namespace-create-another");
+function feedback(message: string, state: "pending" | "error" | "success" = "pending") {
+  if (creationStatus === status) delete status.dataset.state;
+  creationStatus.textContent = message;
+  creationStatus.dataset.state = state;
+}
+function showReady(name: string, moveFocus = false) {
+  if (!ready || !form) return;
+  const message = document.getElementById("namespace-ready-message");
+  if (message)
+    message.textContent = `Your publisher namespace is ${name}. For example, an extension named Relay would be ${name}.relay.`;
+  const availability = document.getElementById("namespace-ready-availability");
+  if (availability)
+    availability.textContent = actor?.publishingEnabled
+      ? "When your package is ready, submit it for review. Approval and signed publication are required before installation."
+      : "You can build your extension now. Exchange uploads are not open yet, so marketplace submission comes later.";
+  ready.hidden = false;
+  form.hidden = true;
+  const cardHeading = document.querySelector<HTMLElement>(
+    ".identity-form-card .publisher-card-heading",
+  );
+  if (cardHeading) cardHeading.hidden = true;
+  const heading = document.getElementById("new-namespace-heading");
+  if (heading) heading.textContent = "Your publisher is ready.";
+  const introduction = document.querySelector<HTMLElement>(
+    ".identity-form-card .card-introduction",
+  );
+  if (introduction) introduction.hidden = true;
+  if (moveFocus) ready.focus();
+}
+createAnother?.addEventListener("click", () => {
+  if (!ready || !form) return;
+  ready.hidden = true;
+  form.hidden = false;
+  const cardHeading = document.querySelector<HTMLElement>(
+    ".identity-form-card .publisher-card-heading",
+  );
+  if (cardHeading) cardHeading.hidden = false;
+  const heading = document.getElementById("new-namespace-heading");
+  if (heading) heading.textContent = "Create another publisher namespace";
+  feedback("");
+  form.querySelector<HTMLInputElement>("#new-namespace")?.focus();
+});
 function lock(locked: boolean) {
   for (const control of form?.querySelectorAll<HTMLInputElement | HTMLButtonElement>(
     "input, button",
@@ -31,6 +76,8 @@ function lock(locked: boolean) {
 }
 function conceal() {
   actor = null;
+  delete status.dataset.state;
+  if (ready) ready.hidden = true;
   lock(true);
   content.hidden = true;
   signin.hidden = false;
@@ -100,6 +147,8 @@ async function init() {
   lifetime = new AbortController();
   const { signal } = lifetime;
   actor = null;
+  if (ready) ready.hidden = true;
+  if (form) form.hidden = false;
   recovery.disabled = false;
   lock(true);
   delete status.dataset.state;
@@ -132,7 +181,9 @@ async function init() {
         : "Sign-in required.";
       return;
     }
-    if (document.getElementById("account-namespaces")) await namespaces(version, signal);
+    const memberships = document.getElementById("account-namespaces")
+      ? await namespaces(version, signal)
+      : undefined;
     if (!current(version, signal)) return;
     signin.hidden = true;
     content.hidden = false;
@@ -145,6 +196,8 @@ async function init() {
           ? "Create your namespace and manage your team. Extension uploads still require review and signed publication."
           : "Publisher setup is open. You can create a name and add your team; extension uploads are not open yet."
         : "Namespace setup is unavailable on this registry. Existing memberships remain visible; contact the registry operator to enable account setup.";
+    const ownedNamespace = memberships?.find((entry) => entry.role === "owner");
+    if (ownedNamespace && !uncertainName) showReady(ownedNamespace.name);
     if (form) {
       for (const control of form.querySelectorAll<HTMLInputElement | HTMLButtonElement>(
         "input, button",
@@ -154,25 +207,42 @@ async function init() {
         "submit",
         async (event) => {
           event.preventDefault();
-          delete status.dataset.state;
           const button = form.querySelector("button")!;
           const agreement = document.getElementById("accept-terms") as HTMLInputElement;
-          if (
-            button.disabled ||
-            !actor ||
-            !canManageNamespaces(actor) ||
-            !agreement.checked ||
-            !form.checkValidity()
-          )
+          if (button.disabled || !actor || !canManageNamespaces(actor)) return;
+          const nameInput = document.getElementById("new-namespace") as HTMLInputElement;
+          const name = nameInput.value.trim().toLowerCase();
+          nameInput.value = name;
+          nameInput.dispatchEvent(new Event("input"));
+          if (!/^[a-z][a-z0-9-]{1,62}$/.test(name)) {
+            nameInput.setAttribute("aria-invalid", "true");
+            feedback(
+              "Choose 2–63 letters, numbers or hyphens, starting with a letter. For example: panicmako.",
+              "error",
+            );
+            nameInput.focus();
             return;
+          }
+          nameInput.removeAttribute("aria-invalid");
+          if (!agreement.checked) {
+            feedback(
+              "Read and accept the publisher terms before creating your namespace.",
+              "error",
+            );
+            agreement.focus();
+            return;
+          }
           const controls = [
             ...form.querySelectorAll<HTMLInputElement | HTMLButtonElement>("input, button"),
           ].filter((control) => control !== recovery);
-          const name = (document.getElementById("new-namespace") as HTMLInputElement).value;
           const acceptedTerms = actor.termsVersion;
           const restoreFocus = form.contains(document.activeElement);
           uncertainName = name;
+          feedback(`Creating ${name}… Keep this page open while we confirm it.`);
+          form.setAttribute("aria-busy", "true");
+          button.textContent = "Creating namespace…";
           for (const control of controls) control.disabled = true;
+          let creationAcknowledged = false;
           try {
             await request(
               "/v1/namespaces",
@@ -184,19 +254,40 @@ async function init() {
               signal,
             );
             if (!current(version, signal)) return;
+            creationAcknowledged = true;
+            const entries = await namespaces(version, signal);
+            if (!current(version, signal)) return;
+            if (!entries?.some((entry) => entry.name === name && entry.role === "owner"))
+              throw new Error(
+                "The creation response arrived, but we could not confirm your ownership yet.",
+              );
             uncertainName = undefined;
             form.reset();
-            await namespaces(version, signal);
-            if (!current(version, signal)) return;
-            status.textContent = "Namespace created. Ownership is not yet verified.";
+            nameInput.dispatchEvent(new Event("input"));
+            feedback(
+              `Namespace created: ${name}. Next, build your extension. Ownership is not yet verified.`,
+              "success",
+            );
+            showReady(name, restoreFocus);
             window.dispatchEvent(new Event("exchange:namespaces-changed"));
           } catch (error) {
             if (!current(version, signal)) return;
+            const rejected =
+              !creationAcknowledged &&
+              error instanceof RegistryRequestError &&
+              [400, 409, 422].includes(error.status);
+            if (rejected) uncertainName = undefined;
             recovery.hidden = !uncertainName;
-            status.textContent =
-              error instanceof Error ? error.message : "Namespace creation failed.";
+            const message = error instanceof Error ? error.message : "Namespace creation failed.";
+            feedback(
+              rejected
+                ? error.status === 409
+                  ? "That namespace is already in use. Choose another name, or check Your namespaces if you created it earlier."
+                  : `The registry rejected this request. Check your name and the current publisher terms, then try again. ${message}`
+                : `${message} We haven’t confirmed whether ${name} was created. Choose “Check namespace before retrying”; this checks safely without creating it again.`,
+              "error",
+            );
             if (uncertainName) {
-              status.textContent += " The result needs checking before another creation request.";
               if (
                 restoreFocus &&
                 (document.activeElement === document.body || form.contains(document.activeElement))
@@ -205,14 +296,18 @@ async function init() {
             }
             if (error instanceof RegistryRequestError && [401, 403].includes(error.status)) {
               conceal();
+              status.textContent = message;
               signinLink.focus();
             }
           } finally {
             if (current(version, signal)) {
+              form.removeAttribute("aria-busy");
+              button.textContent = "Create namespace ↗";
               lock(!canManageNamespaces(actor) || !!uncertainName);
               if (
                 restoreFocus &&
                 !uncertainName &&
+                !form.hidden &&
                 (document.activeElement === document.body || form.contains(document.activeElement))
               )
                 button.focus();
@@ -228,7 +323,8 @@ async function init() {
           if (recovery.disabled || !uncertainName) return;
           const name = uncertainName;
           recovery.disabled = true;
-          status.textContent = "Checking current account and namespaces…";
+          feedback("Checking your account and namespace… No new namespace will be created.");
+          recovery.textContent = "Checking namespace…";
           try {
             const fresh = await request<Actor | null>("/v1/me", "GET", undefined, signal);
             if (!current(version, signal)) return;
@@ -253,22 +349,31 @@ async function init() {
               window.dispatchEvent(new Event("exchange:namespaces-changed"));
             }
             lock(!canManageNamespaces(actor));
-            status.textContent = existing
-              ? "The namespace exists and you are its owner. No second creation request was sent."
-              : "No matching namespace membership was found. You can retry creation if namespace management is enabled.";
-            form.querySelector<HTMLInputElement>("#new-namespace")?.focus();
+            feedback(
+              existing
+                ? "The namespace exists and you are its owner. No second creation request was sent. Next, build your extension."
+                : "No matching namespace membership was found. You can retry creation if namespace management is enabled.",
+              existing ? "success" : "pending",
+            );
+            if (existing) showReady(name, true);
+            else form.querySelector<HTMLInputElement>("#new-namespace")?.focus();
           } catch (error) {
             if (!current(version, signal)) return;
-            status.textContent =
+            feedback(
               error instanceof Error
                 ? error.message
-                : "Namespace verification failed. Creation remains locked.";
+                : "Namespace verification failed. Creation remains locked.",
+              "error",
+            );
             if (error instanceof RegistryRequestError && [401, 403].includes(error.status)) {
               conceal();
               signinLink.focus();
             }
           } finally {
-            if (current(version, signal)) recovery.disabled = false;
+            if (current(version, signal)) {
+              recovery.disabled = false;
+              recovery.textContent = "Check namespace before retrying";
+            }
           }
         },
         { signal },
@@ -276,8 +381,10 @@ async function init() {
     }
     if (!current(version, signal)) return;
     if (uncertainName)
-      status.textContent =
-        "The previous creation result needs checking. Check namespaces before retrying.";
+      feedback(
+        "The previous creation result needs checking. Check namespaces before retrying.",
+        "error",
+      );
     else {
       status.textContent = "Account loaded.";
       status.dataset.state = "ready";
