@@ -1,4 +1,4 @@
-import { request, type Actor } from "./api";
+import { canManageNamespaces, request, type Actor } from "./api";
 
 interface Invitation {
   id: string;
@@ -57,13 +57,13 @@ async function initialize() {
       decline.textContent = "Decline invitation";
       decline.setAttribute("aria-label", `Decline invitation to ${invitation.namespace}`);
       checkbox.addEventListener("change", () => {
-        accept.disabled = busy || !checkbox.checked || !actor!.publishingEnabled;
+        accept.disabled = busy || !checkbox.checked || !canManageNamespaces(actor);
       });
       async function decide(action: "accept" | "decline") {
         if (
           busy ||
           (action === "accept"
-            ? accept.disabled || !checkbox.checked || !actor!.publishingEnabled
+            ? accept.disabled || !checkbox.checked || !canManageNamespaces(actor)
             : decline.disabled)
         )
           return;

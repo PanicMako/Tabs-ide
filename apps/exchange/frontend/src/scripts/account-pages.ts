@@ -1,4 +1,10 @@
-import { request, RegistryRequestError, type Actor, type Namespace } from "./api";
+import {
+  canManageNamespaces,
+  request,
+  RegistryRequestError,
+  type Actor,
+  type Namespace,
+} from "./api";
 
 const content = document.getElementById("account-content")!;
 const status = document.getElementById("account-status")!;
@@ -57,7 +63,7 @@ async function namespaces(version: number, signal: AbortSignal) {
   if (!data.namespaces.length) {
     const item = document.createElement("li");
     item.textContent =
-      "No namespaces yet. Create one when publishing is enabled, or accept an invitation from an existing owner.";
+      "No namespaces yet. Create your publisher namespace below, or accept an invitation from an existing owner.";
     list.append(item);
   }
   for (const namespace of data.namespaces) {
@@ -95,6 +101,8 @@ async function init() {
       (typeof fresh.login !== "string" ||
         !/^[A-Za-z0-9][A-Za-z0-9-]{0,38}$/.test(fresh.login) ||
         typeof fresh.publishingEnabled !== "boolean" ||
+        (fresh.namespaceManagementEnabled !== undefined &&
+          typeof fresh.namespaceManagementEnabled !== "boolean") ||
         typeof fresh.termsVersion !== "string" ||
         !fresh.termsVersion ||
         fresh.termsVersion.length > 100)
@@ -121,14 +129,16 @@ async function init() {
     if (identity) identity.textContent = `Signed in as ${actor.login}.`;
     const availability = document.getElementById("publishing-availability");
     if (availability)
-      availability.textContent = actor.publishingEnabled
-        ? "This instance accepts submissions. Every version still requires review and signed publication."
-        : "You’re signed in, but publishing is turned off for this registry. Creating namespaces, uploading extensions, and inviting collaborators are unavailable. The registry operator must enable publishing after setup is complete. Existing memberships are still visible.";
+      availability.textContent = canManageNamespaces(actor)
+        ? actor.publishingEnabled
+          ? "Create your namespace and manage your team. Extension uploads still require review and signed publication."
+          : "You can create a namespace and manage your team. Extension uploads are not open yet; this does not prevent account setup."
+        : "Namespace setup is unavailable on this registry. Existing memberships remain visible; contact the registry operator to enable account setup.";
     if (form) {
       for (const control of form.querySelectorAll<HTMLInputElement | HTMLButtonElement>(
         "input, button",
       ))
-        if (control !== recovery) control.disabled = !actor.publishingEnabled || !!uncertainName;
+        if (control !== recovery) control.disabled = !canManageNamespaces(actor) || !!uncertainName;
       form.addEventListener(
         "submit",
         async (event) => {
@@ -138,7 +148,8 @@ async function init() {
           const agreement = document.getElementById("accept-terms") as HTMLInputElement;
           if (
             button.disabled ||
-            !actor?.publishingEnabled ||
+            !actor ||
+            !canManageNamespaces(actor) ||
             !agreement.checked ||
             !form.checkValidity()
           )
@@ -167,6 +178,7 @@ async function init() {
             await namespaces(version, signal);
             if (!current(version, signal)) return;
             status.textContent = "Namespace created. Ownership is not yet verified.";
+            window.dispatchEvent(new Event("exchange:namespaces-changed"));
           } catch (error) {
             if (!current(version, signal)) return;
             recovery.hidden = !uncertainName;
@@ -186,7 +198,7 @@ async function init() {
             }
           } finally {
             if (current(version, signal)) {
-              lock(!actor?.publishingEnabled || !!uncertainName);
+              lock(!canManageNamespaces(actor) || !!uncertainName);
               if (
                 restoreFocus &&
                 !uncertainName &&
@@ -225,11 +237,14 @@ async function init() {
               );
             uncertainName = undefined;
             recovery.hidden = true;
-            if (existing) form.reset();
-            lock(!actor.publishingEnabled);
+            if (existing) {
+              form.reset();
+              window.dispatchEvent(new Event("exchange:namespaces-changed"));
+            }
+            lock(!canManageNamespaces(actor));
             status.textContent = existing
               ? "The namespace exists and you are its owner. No second creation request was sent."
-              : "No matching namespace membership was found. You can retry creation if publishing is enabled.";
+              : "No matching namespace membership was found. You can retry creation if namespace management is enabled.";
             form.querySelector<HTMLInputElement>("#new-namespace")?.focus();
           } catch (error) {
             if (!current(version, signal)) return;

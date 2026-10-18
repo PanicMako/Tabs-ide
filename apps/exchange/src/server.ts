@@ -16,7 +16,13 @@ import {
   recoverGithubLogin,
   startGithubLogin,
 } from "./auth.ts";
-import { createPool, createStorage, loadConfig, type ExchangeConfig } from "./config.ts";
+import {
+  createPool,
+  createStorage,
+  loadConfig,
+  namespaceManagementEnabled,
+  type ExchangeConfig,
+} from "./config.ts";
 import { boundedObject, putImmutablePackageObject, verifiedPackageObject } from "./storage.ts";
 import { refreshPublishedHead } from "./publishedHeads.ts";
 import { decodeSearchCursor, encodeSearchCursor } from "./searchCursor.ts";
@@ -264,6 +270,7 @@ export function createExchangeServer(
           authentication:
             config.visibility === "private" ? "session-or-read-token" : "anonymous-read",
           publishingEnabled: config.publishingEnabled,
+          namespaceManagementEnabled: namespaceManagementEnabled(config),
           reviewRequired: true,
         });
         return;
@@ -545,6 +552,7 @@ export function createExchangeServer(
                 admin: actor.admin,
                 operator: actor.operator === true,
                 publishingEnabled: config.publishingEnabled,
+                namespaceManagementEnabled: namespaceManagementEnabled(config),
                 termsVersion: TERMS_VERSION,
               }
             : null,
@@ -744,8 +752,8 @@ export function createExchangeServer(
         return;
       }
       if (request.method === "POST" && path === "/v1/namespaces") {
-        if (!config.publishingEnabled)
-          throw new HttpError(503, "Publisher submissions are not enabled.");
+        if (!namespaceManagementEnabled(config))
+          throw new HttpError(503, "Namespace management is not enabled.");
         const actor = requireMutation(request, await actorFor(request, pool, config), config);
         const body = await readJson(request);
         const name = body.name;
@@ -863,8 +871,8 @@ export function createExchangeServer(
       }
       const memberMatch = request.method === "POST" ? MEMBER_ROUTE.exec(path) : null;
       if (memberMatch) {
-        if (!config.publishingEnabled)
-          throw new HttpError(503, "Publisher submissions are not enabled.");
+        if (!namespaceManagementEnabled(config))
+          throw new HttpError(503, "Namespace management is not enabled.");
         const actor = requireMutation(request, await actorFor(request, pool, config), config);
         const body = await readJson(request);
         if (!validInviteIdentity(body) || (body.role !== "owner" && body.role !== "contributor")) {
@@ -918,8 +926,8 @@ export function createExchangeServer(
       const invitationAccept =
         request.method === "POST" ? INVITATION_ACCEPT_ROUTE.exec(path) : null;
       if (invitationAccept) {
-        if (!config.publishingEnabled)
-          throw new HttpError(503, "Publisher submissions are not enabled.");
+        if (!namespaceManagementEnabled(config))
+          throw new HttpError(503, "Namespace management is not enabled.");
         const actor = requireMutation(request, await actorFor(request, pool, config), config);
         const body = await readJson(request);
         if (body.acceptTermsVersion !== TERMS_VERSION) {

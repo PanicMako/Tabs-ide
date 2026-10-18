@@ -12,6 +12,7 @@ beforeEach(() => {
     EXCHANGE_ADMIN_GITHUB_IDS: "",
     EXCHANGE_ALLOWED_GITHUB_IDS: "",
     EXCHANGE_VISIBILITY: "public",
+    EXCHANGE_NAMESPACE_MANAGEMENT_ENABLED: "",
     EXCHANGE_PUBLISHING_ENABLED: "false",
   }))
     vi.stubEnv(key, value);
@@ -123,4 +124,19 @@ it("passes operator and reviewer settings to both deployed registry processes", 
     expect(block).toContain("EXCHANGE_ADMIN_GITHUB_IDS: ${EXCHANGE_ADMIN_GITHUB_IDS:-}");
     expect(block).toContain("EXCHANGE_PUBLISHING_ENABLED: ${EXCHANGE_PUBLISHING_ENABLED:-false}");
   }
+});
+
+it("can enable namespace management while keeping package submissions closed", () => {
+  vi.stubEnv("EXCHANGE_NAMESPACE_MANAGEMENT_ENABLED", "true");
+  vi.stubEnv("EXCHANGE_PUBLISHING_ENABLED", "false");
+  expect(loadConfig()).toMatchObject({
+    namespaceManagementEnabled: true,
+    publishingEnabled: false,
+  });
+  vi.stubEnv("EXCHANGE_NAMESPACE_MANAGEMENT_ENABLED", "false");
+  vi.stubEnv("EXCHANGE_PUBLISHING_ENABLED", "true");
+  expect(loadConfig()).toMatchObject({
+    namespaceManagementEnabled: false,
+    publishingEnabled: true,
+  });
 });

@@ -4,6 +4,7 @@ import { request } from "../frontend/src/scripts/api.ts";
 
 const status = document.getElementById("status");
 let publishingEnabled = false;
+let namespaceManagementEnabled = false;
 let termsVersion = null;
 let tokenRevealGeneration = 0;
 
@@ -318,7 +319,7 @@ async function refreshInvitations() {
     const accept = document.createElement("button");
     accept.type = "button";
     accept.textContent = `Accept ${invitation.role} invitation for ${invitation.namespace}`;
-    accept.disabled = !publishingEnabled;
+    accept.disabled = !namespaceManagementEnabled;
     const termsLabel = document.createElement("label");
     const terms = document.createElement("input");
     terms.type = "checkbox";
@@ -1004,17 +1005,23 @@ try {
   document.getElementById(me ? "signed-in" : "signed-out").hidden = false;
   if (me) {
     publishingEnabled = me.publishingEnabled;
+    namespaceManagementEnabled = me.namespaceManagementEnabled ?? me.publishingEnabled;
     termsVersion = me.termsVersion;
     document.getElementById("terms-version").textContent = termsVersion;
     document.getElementById("identity").textContent = `Signed in as ${me.login}.`;
-    if (!me.publishingEnabled) {
-      for (const form of ["namespace-form", "member-form", "upload-form"]) {
-        for (const control of document.getElementById(form).elements) control.disabled = true;
-      }
-      announce(
-        "Public publishing is disabled until publisher terms and security review are finalized.",
-      );
+    for (const [form, enabled] of [
+      ["namespace-form", namespaceManagementEnabled],
+      ["member-form", namespaceManagementEnabled],
+      ["upload-form", publishingEnabled],
+    ]) {
+      for (const control of document.getElementById(form).elements) control.disabled = !enabled;
     }
+    if (!publishingEnabled)
+      announce(
+        namespaceManagementEnabled
+          ? "Namespace and team setup are available. Extension uploads are not open yet."
+          : "Namespace setup and extension uploads are unavailable on this registry.",
+      );
     document.getElementById("review-section").hidden = !me.admin;
     document.getElementById("revocation-section").hidden = !me.admin;
     document.getElementById("verification-section").hidden = !me.admin;

@@ -165,3 +165,37 @@ it("discards late page-exit completions and remounts with fresh access after BFC
   await vi.waitFor(() => expect(byId("invite-login")).not.toBeNull());
   expect(status().textContent).not.toContain("Invitation sent");
 });
+
+it("allows team setup when namespace management is enabled but uploads are closed", async () => {
+  api.request
+    .mockResolvedValueOnce({ ...actor, publishingEnabled: false, namespaceManagementEnabled: true })
+    .mockResolvedValueOnce(namespaces);
+  await import("../frontend/src/scripts/collaborators");
+  await vi.waitFor(() => expect(send()).not.toBeNull());
+  expect(byId<HTMLInputElement>("invite-login").disabled).toBe(false);
+  expect(document.querySelector<HTMLFormElement>("#namespace-collaborators form")!.hidden).toBe(
+    false,
+  );
+});
+
+it("unlocks invitations immediately after the first namespace is created", async () => {
+  api.request
+    .mockResolvedValueOnce({ ...actor, publishingEnabled: false, namespaceManagementEnabled: true })
+    .mockResolvedValueOnce({ namespaces: [] });
+  await import("../frontend/src/scripts/collaborators");
+  await vi.waitFor(() =>
+    expect(document.querySelector<HTMLFormElement>("#namespace-collaborators form")?.hidden).toBe(
+      true,
+    ),
+  );
+  api.request
+    .mockResolvedValueOnce({ ...actor, publishingEnabled: false, namespaceManagementEnabled: true })
+    .mockResolvedValueOnce(namespaces);
+  window.dispatchEvent(new Event("exchange:namespaces-changed"));
+  await vi.waitFor(() =>
+    expect(document.querySelector<HTMLFormElement>("#namespace-collaborators form")?.hidden).toBe(
+      false,
+    ),
+  );
+  expect(byId<HTMLSelectElement>("invite-namespace").value).toBe("maker");
+});

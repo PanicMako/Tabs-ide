@@ -201,3 +201,22 @@ it("rejects malformed account capability data before exposing controls", async (
   expect(byId<HTMLInputElement>("new-namespace").disabled).toBe(true);
   expect(api.request).toHaveBeenCalledTimes(1);
 });
+
+it("enables namespace creation independently of package publishing", async () => {
+  api.request
+    .mockResolvedValueOnce({
+      login: "maker",
+      publishingEnabled: false,
+      namespaceManagementEnabled: true,
+      termsVersion: "test",
+    })
+    .mockResolvedValueOnce({ namespaces: [] });
+  await import("../frontend/src/scripts/account-pages");
+  await vi.waitFor(() => expect(byId<HTMLInputElement>("new-namespace").disabled).toBe(false));
+  byId<HTMLInputElement>("accept-terms").checked = true;
+  api.request
+    .mockResolvedValueOnce({})
+    .mockResolvedValueOnce({ namespaces: [{ name: "maker", role: "owner", verified: false }] });
+  submit();
+  await vi.waitFor(() => expect(byId("account-status").textContent).toContain("Namespace created"));
+});

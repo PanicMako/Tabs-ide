@@ -15,6 +15,7 @@ export interface ExchangeConfig {
   readonly operatorGithubIds?: ReadonlySet<string>;
   readonly bucket: string;
   readonly publishingEnabled: boolean;
+  readonly namespaceManagementEnabled?: boolean;
   readonly visibility?: "public" | "private";
   readonly allowedGithubIds?: ReadonlySet<string>;
   readonly testGithubAuthUrls?: {
@@ -69,6 +70,10 @@ export function loadConfig(): ExchangeConfig {
     operatorGithubIds,
     bucket: required("S3_BUCKET"),
     publishingEnabled: process.env.EXCHANGE_PUBLISHING_ENABLED === "true",
+    namespaceManagementEnabled:
+      process.env.EXCHANGE_NAMESPACE_MANAGEMENT_ENABLED === undefined
+        ? process.env.EXCHANGE_PUBLISHING_ENABLED === "true"
+        : process.env.EXCHANGE_NAMESPACE_MANAGEMENT_ENABLED === "true",
     visibility,
     allowedGithubIds,
   };
@@ -96,4 +101,9 @@ export function createStorage(): S3Client {
       secretAccessKey: required("S3_SECRET_ACCESS_KEY", "AWS_SECRET_ACCESS_KEY"),
     },
   });
+}
+
+/** Account setup is independent of package uploads, with legacy-config fallback. */
+export function namespaceManagementEnabled(config: ExchangeConfig): boolean {
+  return config.namespaceManagementEnabled ?? config.publishingEnabled;
 }
