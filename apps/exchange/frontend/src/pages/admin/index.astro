@@ -3,19 +3,20 @@ import Operations from "../../layouts/Operations.astro";
 import DashboardDrawing from "../../components/DashboardDrawing.astro";
 import WorkspaceControls from "../../components/WorkspaceControls.astro";
 ---
-<Operations title="A careful look." accent="A better ecosystem." description="Inspect the package, check the evidence, and record a decision for its exact digest. Scanning informs your review; it never replaces it." section="review">
-  <p id="review-status" tabindex="-1" class="operations-status" role="status" aria-live="polite">Checking reviewer access…</p>
+<Operations title="Review desk." accent="One package at a time." description="See what’s ready, inspect the evidence, and leave a clear decision for the publisher." section="review">
+  <div class="review-session"><p id="review-status" tabindex="-1" class="operations-status" role="status" aria-live="polite">Checking reviewer access…</p>
   <button class="button secondary" id="review-refresh" type="button">Refresh queue</button>
-  <a id="review-signin" href="/auth/github/start?returnTo=%2Fadmin" hidden>Sign in with GitHub</a>
+  <a id="review-signin" href="/auth/github/start?returnTo=%2Fadmin" hidden>Sign in with GitHub</a></div>
   <section id="review-content" data-workspace-panels class="review-control-room" hidden aria-label="Pending package reviews">
-    <div class="review-health-strip"><p id="review-health-indicator" role="status">Checking registry health…</p><a href="#review-health-panel">Inspect health ↗</a></div>
-<WorkspaceControls label="Review desk tasks" entries={[["review-inbox", "Package desk", "Inspect submitted and approved versions"], ["review-health-panel", "Registry health", "Worker, signing, and operational alerts"], ["review-history-panel", "Release history", "Trace a publisher's exact versions"], ["review-appeals-panel", "Publisher appeals", "Review explanations and responses"]]} />
-    <section id="review-inbox" data-workspace-panel class="review-inbox" aria-labelledby="review-inbox-title"><div class="section-heading"><div><p class="step-label">01 / On your desk</p><h2 id="review-inbox-title">Packages to inspect</h2></div><a href="#review-history-heading">Find a release’s history ↗</a></div><div class="review-search-bar"><div><div class="form-field"><label for="review-query">Find a package</label><input id="review-query" type="search" placeholder="Namespace, tool, version, or SHA-256" autocomplete="off" /></div></div><div><div class="form-field"><label for="review-scope">Show versions</label><select id="review-scope"><option value="all">All loaded packages</option><option value="pending">Pending submissions</option><option value="approved">Approved releases</option></select></div></div></div><p id="review-filter-status" role="status" aria-live="polite">Search applies to packages loaded in this queue.</p><ul id="review-items"></ul>    <details class="review-guidance"><summary>How review and signed publication work</summary><p>The first 100 pending submissions are shown oldest first, followed by up to 100 recently approved releases. Approval requires a passing scan for the exact digest. Approval does not guarantee safety or publish a release.</p>
+    <div class="review-overview" aria-label="Loaded review queue"><div><span class="desk-kicker">YOUR QUEUE</span><h2>Your review queue</h2><p>Choose a package below to get started.</p></div><dl class="review-counts"><div><dt>Ready for review</dt><dd id="review-ready-count">—</dd></div><div><dt>Waiting for a scan</dt><dd id="review-scanning-count">—</dd></div><div><dt>Approved versions</dt><dd id="review-approved-count">—</dd></div></dl></div>
+
+<WorkspaceControls label="Review desk tasks" entries={[["review-inbox", "Packages", "Choose what to review"], ["review-health-panel", "Service health", "Scanner and signing status"], ["review-history-panel", "History", "Find a release"], ["review-appeals-panel", "Appeals", "Read publisher responses"]]} />
+    <section id="review-inbox" data-workspace-panel class="review-inbox" aria-labelledby="review-inbox-title"><div class="section-heading"><div><p class="step-label">PACKAGE QUEUE</p><h2 id="review-inbox-title">Choose a package</h2></div><a href="#review-history-heading">Look up release history ↗</a></div><div class="review-search-bar"><div><div class="form-field"><label for="review-query">Find a package</label><input id="review-query" type="search" placeholder="Search publisher, extension or version…" autocomplete="off" /></div></div><div><div class="form-field"><label for="review-scope">Show</label><select id="review-scope"><option value="all">All packages</option><option value="pending">Pending review</option><option value="approved">Approved versions</option></select></div></div></div><p id="review-filter-status" role="status" aria-live="polite">Search applies to packages loaded in this queue.</p><ul id="review-items"></ul>    <details class="review-guidance"><summary>How review and signed publication work</summary><p>The first 100 pending submissions are shown oldest first, followed by up to 100 recently approved releases. Approval requires a passing scan for the exact digest. Approval does not guarantee safety or publish a release.</p>
     <p>Signing remains an operator workflow outside the browser. After approval or revocation, publish updated TUF metadata using the documented operator procedure. Never upload signing keys here.</p>
     <a href="/docs/extensions/self-hosting">Operator and signing documentation</a></details></section>
 
-    <section id="review-health-panel" data-workspace-panel class="operations-panel" aria-labelledby="review-operations-heading"><div class="task-panel-heading"><p class="step-label">02 / Registry health</p>
-      <h2 id="review-operations-heading">Signing backlog and worker status</h2><DashboardDrawing section="review-health-panel" compact /></div>
+    <section id="review-health-panel" data-workspace-panel class="operations-panel" aria-labelledby="review-operations-heading">    <div class="review-health-strip"><p id="review-health-indicator" role="status">Checking registry health…</p><a href="/docs/extensions/self-hosting">Signing guide ↗</a></div><div class="task-panel-heading"><p class="step-label">02 / Registry health</p>
+      <h2 id="review-operations-heading">What needs attention?</h2><DashboardDrawing section="review-health-panel" compact /></div>
       <p id="review-operations" role="status" aria-live="polite">Operational status has not been loaded.</p>
       <p>This is a server-reported operational snapshot, not verification of signatures or confirmation that every installed client received a revocation.</p>
       <div id="review-operations-details" hidden>
@@ -27,7 +28,7 @@ import WorkspaceControls from "../../components/WorkspaceControls.astro";
       </div>
     </section>
     <section id="review-history-panel" data-workspace-panel class="operations-panel" aria-labelledby="review-history-heading"><div class="task-panel-heading"><p class="step-label">03 / Trace a release</p>
-      <h2 id="review-history-heading">Publisher and review history</h2><DashboardDrawing section="review-history-panel" compact /></div>
+      <h2 id="review-history-heading">Follow a release’s story</h2><DashboardDrawing section="review-history-panel" compact /></div>
       <form id="review-history-form" class="task-form">
         <div class="form-field"><label for="review-history-namespace">Publisher namespace</label><input id="review-history-namespace" required pattern="[a-z][a-z0-9-]{1,62}" maxlength="63" /></div>
         <div class="form-field"><label for="review-history-name">Extension name</label><input id="review-history-name" required pattern="[a-z][a-z0-9-]{1,62}" maxlength="63" /></div>
@@ -37,7 +38,7 @@ import WorkspaceControls from "../../components/WorkspaceControls.astro";
       <h3>Submitted versions</h3><ul id="review-history-versions"></ul>
       <h3>Review actions</h3><ul id="review-history-decisions"></ul>
     </section>
-    <section id="review-appeals-panel" data-workspace-panel class="operations-panel" aria-labelledby="review-appeals-heading"><div class="task-panel-heading"><p class="step-label">04 / Keep the conversation open</p><h2 id="review-appeals-heading">Open publisher appeals</h2><DashboardDrawing section="review-appeals-panel" compact /></div><p>Responding records an explanation only. Approval, rejection, revocation and signed publication remain separate actions.</p><p id="review-appeals-status" role="status" aria-live="polite">Appeals have not been loaded.</p><ul id="review-appeals"></ul></section>
+    <section id="review-appeals-panel" data-workspace-panel class="operations-panel" aria-labelledby="review-appeals-heading"><div class="task-panel-heading"><p class="step-label">04 / Keep the conversation open</p><h2 id="review-appeals-heading">Hear from publishers</h2><DashboardDrawing section="review-appeals-panel" compact /></div><p>Responding records an explanation only. Approval, rejection, revocation and signed publication remain separate actions.</p><p id="review-appeals-status" role="status" aria-live="polite">Appeals have not been loaded.</p><ul id="review-appeals"></ul></section>
 
   </section>
 </Operations>
