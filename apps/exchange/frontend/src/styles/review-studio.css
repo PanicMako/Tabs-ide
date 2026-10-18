@@ -824,3 +824,269 @@ body[data-page="operations"][data-dashboard="true"] .task-panel-heading > .dashb
     font-size: 11px;
   }
 }
+/* Readable, text-only package evidence; approval controls remain a separate form. */
+body[data-page="operations"][data-dashboard="true"] .review-technical {
+  padding: 18px;
+  background: #f9faff;
+}
+.evidence-workspace {
+  margin-top: 22px;
+}
+.evidence-workspace-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+body[data-page="operations"][data-dashboard="true"] .evidence-workspace h4 {
+  font-size: 18px;
+  letter-spacing: -0.035em;
+  margin: 0;
+}
+body[data-page="operations"][data-dashboard="true"] .evidence-workspace h5 {
+  font-size: 14px;
+  letter-spacing: -0.02em;
+  margin: 0 0 18px;
+}
+body[data-page="operations"][data-dashboard="true"] .evidence-workspace p {
+  font-family: inherit;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 12px;
+  line-height: 1.8;
+  color: #63718a;
+  margin: 10px 0 0;
+}
+.evidence-workspace-heading .button {
+  font-size: 12px;
+}
+.evidence-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  border-bottom: 1px solid var(--review-border);
+  margin-top: 24px;
+  padding-bottom: 12px;
+}
+body[data-page="operations"][data-dashboard="true"] .evidence-tabs button {
+  background: white;
+  color: #63718a;
+  border: 1px solid var(--review-border);
+  border-radius: 7px;
+  padding: 10px 16px;
+  min-height: 42px;
+  font-size: 12px;
+}
+body[data-page="operations"][data-dashboard="true"] .evidence-tabs button[aria-selected="true"] {
+  background: #edf1fd;
+  color: #3259ed;
+  border-color: #cad6ff;
+}
+.evidence-reader-panel:not([hidden]) {
+  display: block;
+  padding: 24px;
+  margin-top: 18px;
+  background: white;
+  border: 1px solid var(--review-border);
+  border-radius: 9px;
+}
+.evidence-reader-panel[hidden] {
+  display: none;
+}
+.evidence-workspace .evidence-fields {
+  display: grid;
+  grid-template-columns: minmax(130px, 0.65fr) minmax(0, 1.5fr);
+  margin: 0 0 24px;
+  gap: 0 20px;
+}
+body[data-page="operations"][data-dashboard="true"] .evidence-fields :is(dt, dd) {
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.8;
+  color: var(--ink);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid #edf0f7;
+  padding: 12px 0;
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+body[data-page="operations"][data-dashboard="true"] .evidence-fields dt {
+  color: #63718a;
+}
+.evidence-scan-row {
+  padding: 18px 0;
+  border-top: 1px solid var(--review-border);
+}
+.evidence-scan-row > strong {
+  font-size: 13px;
+}
+body[data-page="operations"][data-dashboard="true"] .evidence-scan-row li {
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.8;
+  background: none;
+  padding: 7px 0;
+  border: 0;
+  margin: 0;
+}
+.evidence-reader-panel > label {
+  display: block;
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+.evidence-reader-panel input {
+  font-size: 12px;
+}
+body[data-page="operations"][data-dashboard="true"] .evidence-file-list {
+  list-style: none;
+  padding: 0;
+  margin: 18px 0 0;
+}
+body[data-page="operations"][data-dashboard="true"] .evidence-file-list > li {
+  display: block;
+  background: none;
+  border: 0;
+  border-top: 1px solid var(--review-border);
+  border-radius: 0;
+  padding: 15px 0;
+  margin: 0;
+  font-family: inherit;
+  font-size: 12px;
+}
+.evidence-file-list li > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+}
+.evidence-file-list code {
+  font-size: 11px;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+.evidence-change-label {
+  color: #52617a;
+  background: #edf1fd;
+  border-radius: 5px;
+  padding: 3px 8px;
+  font-size: 10px;
+  flex-shrink: 0;
+}
+.evidence-file-list details {
+  border: 0;
+  background: none;
+  padding: 0;
+  margin-top: 10px;
+}
+.evidence-file-list summary {
+  cursor: pointer;
+  font-size: 11px;
+  color: #63718a;
+}
+.evidence-file-list details > code {
+  display: block;
+  padding-top: 10px;
+}
+.evidence-handoff {
+  padding: 24px;
+  margin-top: 20px;
+  border: 1px solid #e5d5c8;
+  border-radius: 9px;
+  background: #fff4e9;
+}
+body[data-page="operations"][data-dashboard="true"] .evidence-handoff .evidence-code-toggle {
+  border: 1px solid #ded9d3;
+  background: white;
+  color: var(--ink);
+  border-radius: 7px;
+  padding: 10px 14px;
+  margin: 18px 0 2px;
+  font-size: 12px;
+}
+body[data-page="operations"][data-dashboard="true"] .evidence-code-toggle[aria-pressed="true"] {
+  border-color: #3259ed;
+  color: #3259ed;
+}
+.evidence-handoff .evidence-brief-preview {
+  border: 0;
+  background: none;
+  padding: 18px 0 0;
+  margin-top: 18px;
+  border-top: 1px solid #e5d5c8;
+}
+.evidence-brief-preview summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: #52617a;
+}
+.evidence-brief-preview textarea {
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.8;
+  resize: vertical;
+  min-height: 220px;
+  margin-top: 16px;
+  white-space: pre-wrap;
+}
+.evidence-handoff .evidence-copy-status:empty {
+  display: none;
+}
+body[data-page="operations"][data-dashboard="true"] .evidence-copy-status:not(:empty) {
+  color: var(--ink);
+  font-size: 12px;
+  margin-top: 16px;
+}
+.review-raw-data {
+  margin-top: 20px;
+  background: none;
+  border: 0;
+  border-top: 1px solid var(--review-border);
+  padding: 18px 0 0;
+  border-radius: 0;
+}
+.review-raw-data summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: #63718a;
+}
+.review-raw-data > details {
+  margin: 16px 0 0;
+  padding: 14px;
+  background: white;
+}
+body[data-page="operations"][data-dashboard="true"] .review-raw-data pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 340px;
+  border-radius: 7px;
+  background: #f4f6fb;
+  padding: 16px;
+  margin-top: 14px;
+  font-size: 11px;
+}
+.evidence-workspace :is(button, input, summary, textarea, [role="tabpanel"]):focus-visible {
+  outline: 2px solid #3259ed;
+  outline-offset: 4px;
+}
+@media (max-width: 680px) {
+  .evidence-workspace .evidence-fields {
+    grid-template-columns: 1fr;
+  }
+  body[data-page="operations"][data-dashboard="true"] .evidence-fields dt {
+    border-bottom: 0;
+    padding-bottom: 0;
+    font-size: 11px;
+  }
+  body[data-page="operations"][data-dashboard="true"] .evidence-fields dd {
+    padding-top: 4px;
+  }
+  .evidence-reader-panel:not([hidden]),
+  .evidence-handoff {
+    padding: 18px;
+  }
+}
