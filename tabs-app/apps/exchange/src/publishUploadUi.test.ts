@@ -7,7 +7,14 @@ vi.mock("../frontend/src/scripts/upload", async (original) => ({
   ...(await original<typeof import("../frontend/src/scripts/upload")>()),
   uploadPackage: upload.package,
 }));
+let listeners: Array<[string, EventListenerOrEventListenerObject]> = [];
 beforeEach(() => {
+  listeners = [];
+  const add = window.addEventListener.bind(window);
+  vi.spyOn(window, "addEventListener").mockImplementation((type, listener, options) => {
+    if (listener) listeners.push([type, listener]);
+    add(type, listener, options);
+  });
   vi.resetModules();
   api.request.mockReset();
   upload.package.mockReset();
@@ -52,7 +59,11 @@ it("does not send a package when cancelled while terms acceptance is pending", a
   expect(document.querySelector<HTMLProgressElement>("#publish-progress")!.hidden).toBe(true);
   expect(document.querySelector<HTMLButtonElement>('button[type="submit"]')!.disabled).toBe(false);
 });
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  window.dispatchEvent(new Event("pagehide"));
+  for (const [type, listener] of listeners) window.removeEventListener(type, listener);
+  vi.restoreAllMocks();
+});
 it("reflects valid file selection without treating selection as submission or accepting invalid files", async () => {
   api.request
     .mockResolvedValueOnce({ publishingEnabled: true, termsVersion: "test" })
@@ -156,4 +167,79 @@ it("reuses the server-recorded current terms acceptance on a subsequent package 
     "POST",
     expect.anything(),
   );
+});
+
+it("keeps preparation editable while uploads are closed without accepting terms or uploading", async () => {
+  document.body.insertAdjacentHTML(
+    "beforeend",
+    '<p id="publish-gate-title"></p><p id="publish-submit-note"></p><div id="publish-agreement-panel"></div><button id="publish-remove-file" hidden></button>',
+  );
+  api.request
+    .mockResolvedValueOnce({ publishingEnabled: false, termsVersion: "test" })
+    .mockResolvedValueOnce({ termsVersion: "test", acceptedAt: null })
+    .mockResolvedValueOnce({
+      namespaces: [
+        { name: "maker", role: "owner" },
+        { name: "studio", role: "contributor" },
+      ],
+    });
+  await import("../frontend/src/scripts/publish");
+  const fields = document.querySelector<HTMLFieldSetElement>("#publish-fields")!;
+  await vi.waitFor(() => expect(fields.disabled).toBe(false));
+  const namespace = document.querySelector<HTMLSelectElement>("#publish-namespace")!;
+  namespace.value = "studio";
+  namespace.dispatchEvent(new Event("change"));
+  const input = document.querySelector<HTMLInputElement>("#publish-file")!;
+  Object.defineProperty(input, "files", {
+    configurable: true,
+    value: [new File(["test"], "tool.tabsext")],
+  });
+  input.dispatchEvent(new Event("change"));
+  document.querySelector<HTMLInputElement>("#publish-agreement")!.checked = true;
+  document.querySelector("#publish-form")!.dispatchEvent(new Event("submit", { cancelable: true }));
+  expect(document.querySelector<HTMLButtonElement>('button[type="submit"]')!.disabled).toBe(true);
+  expect(document.querySelector("#publish-submit-note")!.textContent).toContain(
+    "Uploads are not open yet",
+  );
+  expect(document.querySelector<HTMLElement>("#publish-agreement-panel")!.hidden).toBe(true);
+  expect(api.request).toHaveBeenCalledTimes(3);
+  expect(upload.package).not.toHaveBeenCalled();
+  document.querySelector<HTMLButtonElement>("#publish-remove-file")!.click();
+  expect(document.querySelector<HTMLElement>("#publish-drop")!.dataset.selected).toBe("false");
+  expect(document.querySelector("#publish-file-summary")!.textContent).toBe("");
+});
+it("selects a sole namespace and rejects oversized files during preparation", async () => {
+  api.request
+    .mockResolvedValueOnce({ publishingEnabled: false, termsVersion: "test" })
+    .mockResolvedValueOnce({ termsVersion: "test", acceptedAt: null })
+    .mockResolvedValueOnce({ namespaces: [{ name: "maker", role: "owner" }] });
+  await import("../frontend/src/scripts/publish");
+  await vi.waitFor(() =>
+    expect(document.querySelector<HTMLFieldSetElement>("#publish-fields")!.disabled).toBe(false),
+  );
+  expect(document.querySelector<HTMLSelectElement>("#publish-namespace")!.value).toBe("maker");
+  const input = document.querySelector<HTMLInputElement>("#publish-file")!;
+  const file = new File(["test"], "large.tabsext");
+  Object.defineProperty(file, "size", { value: 25 * 1024 * 1024 + 1 });
+  Object.defineProperty(input, "files", { value: [file] });
+  input.dispatchEvent(new Event("change"));
+  expect(document.querySelector("#publish-status")!.textContent).toContain("25 MiB");
+  expect(document.querySelector<HTMLElement>("#publish-status")!.dataset.state).toBe("error");
+  expect(document.querySelector<HTMLElement>("#publish-drop")!.dataset.selected).toBe("false");
+  expect(upload.package).not.toHaveBeenCalled();
+});
+it("discards account initialization after leaving the page", async () => {
+  let finish!: (value: unknown) => void;
+  api.request.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  await import("../frontend/src/scripts/publish");
+  window.dispatchEvent(new Event("pagehide"));
+  finish({ publishingEnabled: true, termsVersion: "test" });
+  await Promise.resolve();
+  expect(document.querySelector<HTMLFieldSetElement>("#publish-fields")!.disabled).toBe(true);
+  expect(api.request).toHaveBeenCalledTimes(1);
 });

@@ -2,80 +2,33 @@
 import Account from "../layouts/Account.astro";
 import PublisherJourney from "../components/PublisherJourney.astro";
 import { extensionMarkPath, extensionMarkViewBox } from "../lib/extensionMark";
+import "../styles/publish-studio.css";
 ---
-<Account title="Publish an" titleAccent="extension" section="publish">
-  <PublisherJourney current="package" />
-  <p class="publisher-availability">Every version is scanned and manually reviewed before signed publication. Approval alone does not publish a package.</p>
-  <div class="publish-layout publish-workspace-layout">
-    <form id="publish-form" class="publish-panel">
-      <p id="publish-status" role="status" aria-live="polite" class="notice" style="margin:20px 0">Checking publishing prerequisites…</p>
-      <fieldset id="publish-fields" disabled>
-        <legend class="sr-only">Prepare your submission</legend>
-
-        <section class="publish-step" aria-labelledby="publish-identity-heading">
-          <p class="step-label">01 / Publisher identity</p>
-          <h2 id="publish-identity-heading">Publisher namespace</h2>
-          <p class="muted" style="font-size:14px;margin-bottom:18px">Choose the publisher for this release. Membership does not confer verified ownership.</p>
-          <label for="publish-namespace" style="font-weight:600;font-size:13px;text-transform:uppercase;letter-spacing:0.04em;color:var(--muted)">Publisher namespace</label>
-          <select id="publish-namespace" required style="margin-top:8px">
-            <option value="">Select your namespace</option>
-          </select>
-          <p style="font-size:13px;margin:12px 0 20px"><a href="/account/namespaces">Create or manage a namespace</a> · Required before publishing.</p>
-          <details class="publish-name-planner"><summary id="name-planner-heading">Checking a new package name?</summary><div>
-
-            <p class="muted">People see a title like <strong>Simulators</strong>. The package ID pairs its name with your publisher or studio namespace.</p>
-            <div class="name-planner-fields">
-              <div><label for="tool-display-name">Display name</label><input id="tool-display-name" maxlength="100" placeholder="Simulators" /></div>
-              <div><label for="tool-package-name">Package name</label><input id="tool-package-name" maxlength="63" placeholder="simulators" aria-describedby="tool-name-status" /></div>
-            </div>
-            <div class="name-planner-actions"><button type="button" id="tool-name-check" class="button secondary">Check package name</button><a id="tool-name-search" href="/extensions">Explore similar tools</a></div>
-            <p id="tool-name-status" role="status" aria-live="polite">Select a namespace and enter a package name to check it.</p>
-            <div id="tool-name-selection" hidden>
-              <p><strong id="tool-name-title"></strong><br /><code id="tool-name-id"></code></p>
-              <p>Use these values in <code>tabs-extension.json</code> before building your archive. This check does not reserve a name or rename an uploaded package.</p>
-              <pre id="tool-name-manifest"></pre>
-              <button id="tool-name-copy" type="button" class="button secondary">Copy manifest fields</button>
-            </div>
-            <details class="extension-naming-help"><summary>Can two tools share a name?</summary><p>Display names can be shared. Within a namespace, a package name identifies one tool across all its versions. A name already in your namespace is for updating that tool. Your namespace can be a studio or team name; it does not have to match your GitHub username.</p></details>
-          </div></details>
-          <label class="publisher-agreement" style="display:flex;align-items:flex-start;gap:10px;font-size:14px;cursor:pointer">
-            <input id="publish-agreement" type="checkbox" required style="margin-top:3px" />
-            <span>I have read and accept this instance's <a href="/publisher-terms" target="_blank" rel="noopener">publisher terms<span class="sr-only"> (opens in a new tab)</span></a>.</span>
-          </label>
-          <p id="publish-terms" class="muted" style="font-size:12px;margin:8px 0 0 24px">Loading publisher terms version…</p>
-        </section>
-
-        <section class="publish-step" aria-labelledby="publish-package-heading">
-          <p class="step-label">02 / Built package</p>
-          <h2 id="publish-package-heading">Package archive</h2>
-          <div id="publish-drop" class="package-drop">
-            <div class="package-mark" aria-hidden="true"><svg viewBox={extensionMarkViewBox} fill="currentColor"><path d={extensionMarkPath} fill-rule="evenodd" /></svg><span>.tabsext</span></div>
-            <div class="upload-choice">
-              <label for="publish-file">Choose a package</label>
-              <p>Drop one built package here, or choose it below.</p>
-              <input id="publish-file" type="file" accept=".tabsext" aria-describedby="publish-file-help" required />
-            </div>
-            <p id="publish-file-help" class="muted upload-help">One <code>.tabsext</code> file · Up to 25 MiB. The registry validates the package before review.</p>
-            <p id="publish-file-summary" aria-live="polite" style="font-weight:700;color:var(--accent);margin-top:12px"></p>
-          </div>
-          <button class="button" type="submit" style="width:100%" disabled>Submit for review</button>
-        </section>
-      </fieldset>
-
-      <progress id="publish-progress" max="100" value="0" aria-label="Package upload progress" hidden></progress>
-      <div class="actions" style="margin-top:16px">
-        <button id="publish-cancel" class="button secondary" type="button" hidden>Cancel upload</button>
-      </div>
-      <p style="font-size:14px"><a href="/account/extensions">View existing submissions</a></p>
-    </form>
-
-    <aside class="publication-guide" aria-labelledby="publication-guide-title">
-      <p class="desk-kicker">FROM PACKAGE TO WORKSPACE</p>
-      <h2 id="publication-guide-title">A clear path.<br /><em class="editorial-accent">A careful review.</em></h2>
-      <ol class="publication-path"><li><strong>Send your package</strong><p>Upload the built archive from your extension project.</p></li><li><strong>Checks and review</strong><p>Automated scans and a manual review happen before publication.</p></li><li><strong>Signed publication</strong><p>An approved version still needs a signed release before it becomes available.</p></li></ol>
-      <div class="publisher-help-note"><strong>Still building?</strong><p>Start with the SDK, then return with your built package. You don’t need a CLI token to submit here.</p><a href="/docs/extensions">Build your first extension ↗</a></div>
-      <a href="/docs/extensions/publishing" class="quiet-text-link">Read the publishing guide ↗</a>
-    </aside>
+<Account title="Your next" titleAccent="release" section="publish">
+  <div class="publish-studio">
+    <PublisherJourney current="package" />
+    <section class="publish-gate" aria-labelledby="publish-gate-title"><span class="publish-gate-mark" aria-hidden="true">↗</span><div><h2 id="publish-gate-title">Checking submission availability…</h2><p id="publish-availability-note" role="status">Your preparation stays separate from sending a package.</p></div><a href="/docs/extensions/publishing" class="quiet-text-link">How publishing works ↗</a></section>
+    <div class="publish-studio-layout">
+      <form id="publish-form" class="publish-studio-form" novalidate>
+        <fieldset id="publish-fields" disabled>
+          <legend class="sr-only">Prepare your extension</legend>
+          <section class="release-form-step" aria-labelledby="publish-identity-heading"><div class="release-step-heading"><span class="release-step-number" aria-hidden="true">01</span><div><h2 id="publish-identity-heading">Who’s it from?</h2><p>Your namespace is the publisher name on this release.</p></div></div>
+            <label for="publish-namespace">Publisher namespace</label><select id="publish-namespace" required aria-describedby="publish-namespace-help"><option value="">Choose your publisher name</option></select><p class="field-help" id="publish-namespace-help">Loading your namespaces…</p><a class="quiet-text-link" href="/account/namespaces">Manage publisher names ↗</a>
+            <details class="publish-name-planner"><summary id="name-planner-heading">Naming a new extension?</summary><div><p>Already built your package? Its name comes from the archive. Use this optional planner when you’re still choosing a name.</p><div class="name-planner-fields"><div><label for="tool-display-name">Display name</label><input id="tool-display-name" maxlength="100" placeholder="My lovely tool" /></div><div><label for="tool-package-name">Package name</label><input id="tool-package-name" maxlength="63" placeholder="my-tool" aria-describedby="tool-name-status" /></div></div><div class="name-planner-actions"><button type="button" id="tool-name-check" class="button secondary">Check package name</button><a id="tool-name-search" href="/extensions">Explore similar tools ↗</a></div><p id="tool-name-status" role="status" aria-live="polite">Choose a namespace and enter a package name to check it.</p><div id="tool-name-selection" hidden><p><strong id="tool-name-title"></strong><br /><code id="tool-name-id"></code></p><p>Use these values in <code>tabs-extension.json</code> before building. Checking a name does not reserve it or rename an archive.</p><pre id="tool-name-manifest"></pre><button id="tool-name-copy" type="button" class="button secondary">Copy manifest fields</button></div><details class="extension-naming-help"><summary>Can two tools share a name?</summary><p>Display names can be shared. Each package name identifies one tool within its publisher namespace. Use that same identity when releasing a new version.</p></details></div></details>
+          </section>
+          <section class="release-form-step" aria-labelledby="publish-package-heading"><div class="release-step-heading"><span class="release-step-number" aria-hidden="true">02</span><div><h2 id="publish-package-heading">Bring your package.</h2><p>Selecting a file stays on your device. Nothing is uploaded yet.</p></div></div>
+            <div id="publish-drop" class="studio-package-drop"><span class="studio-drop-icon" aria-hidden="true"><svg viewBox={extensionMarkViewBox} fill="currentColor"><path d={extensionMarkPath} fill-rule="evenodd" /></svg></span><h3>Drop a little possibility here.</h3><p>One built <code>.tabsext</code> archive.</p><input id="publish-file" tabindex="-1" hidden type="file" accept=".tabsext" aria-label="Choose a package" aria-describedby="publish-file-help" required /><button type="button" class="button secondary" id="publish-choose-file" aria-describedby="publish-file-help">Choose a package ↗</button><p id="publish-file-help" class="field-help">Up to 25 MiB compressed · 50 MiB unpacked.</p></div>
+            <div class="studio-file-selection"><p id="publish-file-summary" aria-live="polite"></p><button type="button" id="publish-remove-file" class="quiet-remove" hidden>Remove file</button></div><p id="publish-status" class="studio-feedback" role="status" aria-live="polite">Checking your publishing account…</p>
+            <details class="package-size-help"><summary>What if my extension is bigger?</summary><p>The current limit is 25 MiB for the uploaded archive and 50 MiB after unpacking. Include only the files your tool needs to run, rather than development dependencies, caches, or build tooling.</p><p>Larger archives, including multi-gigabyte packages, aren’t supported yet. Supporting them needs changes to packaging, upload, review, and installation—not just a larger file picker limit.</p></details>
+          </section>
+          <section class="release-form-step release-submit-step" aria-labelledby="publish-send-heading"><div class="release-step-heading"><span class="release-step-number" aria-hidden="true">03</span><div><h2 id="publish-send-heading">Ready when you are.</h2><p>Sending starts the review process. It doesn’t publish instantly.</p></div></div>
+            <div id="publish-agreement-panel"><label class="publisher-agreement"><input id="publish-agreement" type="checkbox" required /><span>I have read and accept the <a href="/publisher-terms" target="_blank" rel="noopener">publisher terms<span class="sr-only"> (opens in a new tab)</span></a>.</span></label><p id="publish-terms" class="field-help">Loading the current terms…</p></div>
+            <p id="publish-submit-note" class="release-submit-note">Checking what’s needed before you can send.</p><button class="button" type="submit" disabled>Submit for review ↗</button><progress id="publish-progress" max="100" value="0" aria-label="Package upload progress" hidden></progress><button id="publish-cancel" class="button secondary" type="button" hidden>Cancel upload</button>
+          </section>
+        </fieldset>
+      </form>
+      <aside class="release-sidecar" aria-label="Your package preparation"><section class="release-receipt"><div class="release-parcel" aria-hidden="true"><span class="parcel-caption">YOUR IDEA, ALL WRAPPED UP</span><div class="release-parcel-sheet"><span>FROM YOUR WORKSPACE</span><svg viewBox={extensionMarkViewBox} fill="currentColor"><path d={extensionMarkPath} fill-rule="evenodd" /></svg><strong>something-good.tabsext</strong><i>↗</i></div><div class="release-parcel-route"><span>You</span><span>······ ↗ ······</span><span>A new workspace</span></div></div><span class="desk-kicker">YOUR RELEASE, AT A GLANCE</span><div class="release-receipt-heading"><span class="receipt-spark" aria-hidden="true">✳</span><h2>A good idea,<br /><em class="editorial-accent">taking shape.</em></h2></div><dl><div><dt>Publisher</dt><dd id="publish-summary-namespace">Choose a namespace</dd></div><div><dt>Package</dt><dd id="publish-summary-package">No file selected</dd></div><div><dt>Submission</dt><dd id="publish-summary-availability">Checking availability</dd></div></dl><p id="publish-local-check-note">File selection checks the extension and archive size. Package contents and publisher identity are validated by the registry after upload.</p></section><section class="release-aftercare"><span class="desk-kicker">AFTER YOU SEND</span><ol><li><strong>Package checks</strong><p>The registry validates and scans the archive.</p></li><li><strong>A human review</strong><p>Follow progress and feedback in Submissions.</p></li><li><strong>A signed release</strong><p>Approved versions become available after signed publication.</p></li></ol><a href="/account/extensions" class="quiet-text-link">Your submissions ↗</a></section><a class="release-builder-link" href="/developers"><strong>Still putting it together?</strong><span>Open the developer toolkit ↗</span></a></aside>
+    </div>
   </div>
 </Account>
 <script>
