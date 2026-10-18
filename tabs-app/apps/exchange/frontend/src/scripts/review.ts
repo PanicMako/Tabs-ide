@@ -270,6 +270,7 @@ async function load(restoreFocus = false) {
       const presentation = reviewPresentation(entry);
       item.dataset.reviewTone = presentation.tone;
       const heading = document.createElement("h3");
+      heading.className = "review-package-title";
       const manifest =
         entry.manifest && typeof entry.manifest === "object"
           ? (entry.manifest as { displayName?: unknown; description?: unknown })

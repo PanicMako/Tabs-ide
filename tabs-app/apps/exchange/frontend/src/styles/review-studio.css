@@ -233,7 +233,7 @@ body[data-page="operations"][data-dashboard="true"] #review-items > li {
 body[data-page="operations"][data-dashboard="true"] #review-items > li[hidden] {
   display: none;
 }
-body[data-page="operations"][data-dashboard="true"] #review-items > li > h3 {
+body[data-page="operations"][data-dashboard="true"] #review-items > li > h3.review-package-title {
   font-size: 25px;
   line-height: 1.25;
   margin: 12px 0 5px;
@@ -258,12 +258,20 @@ body[data-page="operations"][data-dashboard="true"] #review-items > li > h3 {
 }
 body[data-page="operations"][data-dashboard="true"] #review-items > li > .review-package-identity {
   font-size: 11px;
+  font-family: inherit;
+  padding: 0;
+  background: transparent;
+  border-radius: 0;
   color: #6e7a90;
   overflow-wrap: anywhere;
   margin: 0 0 14px;
 }
 body[data-page="operations"][data-dashboard="true"] #review-items > li > .review-package-guidance {
   font-size: 13px;
+  font-family: inherit;
+  padding: 0;
+  background: transparent;
+  border-radius: 0;
   color: #52617a;
   line-height: 1.8;
   margin: 0 0 16px;
