@@ -40,7 +40,7 @@ describe("Exchange visual constraints", () => {
       ),
     ) as { bin: Record<string, string> };
     const source = readFileSync(
-      new URL("../frontend/src/scripts/tokens.ts", import.meta.url),
+      new URL("../frontend/src/pages/account/tokens.astro", import.meta.url),
       "utf8",
     );
     expect(Object.keys(cli.bin)).toContain("tabsext");
