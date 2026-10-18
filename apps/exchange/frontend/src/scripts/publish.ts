@@ -334,10 +334,16 @@ async function initialize(): Promise<void> {
     const agreementPanel = document.getElementById("publish-agreement-panel");
     if (agreementPanel) agreementPanel.hidden = !registryOpen;
     availability(
-      registryOpen ? "Open for submissions." : "Prepare now. Submit when uploads open.",
-      registryOpen
-        ? "Choose your namespace and package, then send it for review."
-        : "Namespace selection and local file checks work now. Sending to the Exchange is not available yet.",
+      actor.publishingPilot
+        ? "Your publishing pilot is open."
+        : registryOpen
+          ? "Open for submissions."
+          : "Prepare now. Submit when uploads open.",
+      actor.publishingPilot
+        ? "Your account can submit packages for scanning and review. Marketplace installation follows a separate signed release."
+        : registryOpen
+          ? "Choose your namespace and package, then send it for review."
+          : "Namespace selection and local file checks work now. Sending to the Exchange is not available yet.",
     );
     message(agreementWarning);
     updateSubmit();

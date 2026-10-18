@@ -11,6 +11,7 @@ import { auditNpmDependencies } from "./dependencyAudit.ts";
 import { buildReviewDiff } from "./reviewDiff.ts";
 import { scanExtractedPackage, type ScanResult } from "./scan.ts";
 import { boundedObject } from "./storage.ts";
+import { runScanWorkerLoop } from "./scanWorkerLoop.ts";
 
 interface Job {
   readonly namespace: string;
@@ -226,33 +227,31 @@ export async function scanNextVersion(
   return completed.rowCount === 1;
 }
 
+export async function runScanWorker(
+  pool: Pool,
+  storage: S3Client,
+  config: ExchangeConfig,
+  signal: AbortSignal,
+): Promise<void> {
+  const workerId = Crypto.randomUUID();
+  await runScanWorkerLoop({
+    signal,
+    scan: () => scanNextVersion(pool, storage, config),
+    heartbeat: (completed) => recordWorkerHeartbeat(pool, workerId, completed),
+    report: (error) => process.stderr.write(`Exchange worker error: ${String(error)}\n`),
+  });
+}
+
 if (import.meta.main) {
-  const config = loadConfig();
   const pool = createPool();
   const storage = createStorage();
-  const workerId = Crypto.randomUUID();
-  void pool
-    .query("DELETE FROM exchange_worker_heartbeats WHERE heartbeat_at < now() - interval '1 day'")
-    .catch((error) => {
-      process.stderr.write(`Exchange worker heartbeat cleanup failed: ${String(error)}\n`);
-    });
-  const heartbeat = () => {
-    void recordWorkerHeartbeat(pool, workerId).catch((error) => {
-      process.stderr.write(`Exchange worker heartbeat failed: ${String(error)}\n`);
-    });
-  };
-  heartbeat();
-  setInterval(heartbeat, 5_000);
-  for (;;) {
-    try {
-      if (await scanNextVersion(pool, storage, config)) {
-        await recordWorkerHeartbeat(pool, workerId, true);
-      } else {
-        await new Promise((resolve) => setTimeout(resolve, 3_000));
-      }
-    } catch (error) {
-      process.stderr.write(`Exchange worker error: ${String(error)}\n`);
-      await new Promise((resolve) => setTimeout(resolve, 5_000));
-    }
+  const controller = new AbortController();
+  process.once("SIGTERM", () => controller.abort());
+  process.once("SIGINT", () => controller.abort());
+  try {
+    await runScanWorker(pool, storage, loadConfig(), controller.signal);
+  } finally {
+    await pool.end();
+    storage.destroy();
   }
 }

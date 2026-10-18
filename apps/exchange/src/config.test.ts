@@ -140,3 +140,17 @@ it("can enable namespace management while keeping package submissions closed", (
     publishingEnabled: true,
   });
 });
+
+it("allows only explicitly listed pilot publishers without opening public submissions", async () => {
+  const { publishingEnabledForActor } = await import("./config");
+  vi.stubEnv("EXCHANGE_PILOT_PUBLISHER_GITHUB_IDS", "123");
+  vi.stubEnv("EXCHANGE_EMBEDDED_SCANNER_ENABLED", "true");
+  const config = loadConfig();
+  expect(config.publishingEnabled).toBe(false);
+  expect(config.embeddedScannerEnabled).toBe(true);
+  expect(publishingEnabledForActor(config, { id: "123" })).toBe(true);
+  expect(publishingEnabledForActor(config, { id: "456" })).toBe(false);
+  expect(publishingEnabledForActor(config, null)).toBe(false);
+  vi.stubEnv("EXCHANGE_PILOT_PUBLISHER_GITHUB_IDS", "PanicMako");
+  expect(() => loadConfig()).toThrow("numeric GitHub IDs");
+});

@@ -21,8 +21,10 @@ import {
   createStorage,
   loadConfig,
   namespaceManagementEnabled,
+  publishingEnabledForActor,
   type ExchangeConfig,
 } from "./config.ts";
+import { runScanWorker } from "./worker.ts";
 import { boundedObject, putImmutablePackageObject, verifiedPackageObject } from "./storage.ts";
 import { refreshPublishedHead } from "./publishedHeads.ts";
 import { decodeSearchCursor, encodeSearchCursor } from "./searchCursor.ts";
@@ -551,7 +553,9 @@ export function createExchangeServer(
                 login: actor.login,
                 admin: actor.admin,
                 operator: actor.operator === true,
-                publishingEnabled: config.publishingEnabled,
+                publishingEnabled: publishingEnabledForActor(config, actor),
+                publishingPilot:
+                  !config.publishingEnabled && publishingEnabledForActor(config, actor),
                 namespaceManagementEnabled: namespaceManagementEnabled(config),
                 termsVersion: TERMS_VERSION,
               }
@@ -600,14 +604,15 @@ export function createExchangeServer(
         return;
       }
       if (path === "/v1/publisher/agreement" && request.method === "POST") {
-        if (!config.publishingEnabled)
+        const authenticated = await actorFor(request, pool, config);
+        if (!publishingEnabledForActor(config, authenticated))
           throw new HttpError(
             503,
             "Publisher submissions are not enabled.",
             "PUBLISHING_DISABLED",
             "Contact the registry operator. Do not retry automatically.",
           );
-        const actor = requireMutation(request, await actorFor(request, pool, config), config);
+        const actor = requireMutation(request, authenticated, config);
         const body = await readJson(request);
         if (body.acceptTermsVersion !== TERMS_VERSION)
           throw new HttpError(400, "Accept the current publisher terms version.");
@@ -1039,14 +1044,14 @@ export function createExchangeServer(
       }
       const uploadMatch = request.method === "POST" ? UPLOAD_ROUTE.exec(path) : null;
       if (uploadMatch || (request.method === "POST" && path === "/v1/publisher/upload")) {
-        if (!config.publishingEnabled)
+        const authenticated = await actorFor(request, pool, config);
+        if (!publishingEnabledForActor(config, authenticated))
           throw new HttpError(
             503,
             "Publisher submissions are not enabled.",
             "PUBLISHING_DISABLED",
             "Contact the registry operator. Do not retry automatically.",
           );
-        const authenticated = await actorFor(request, pool, config);
         const actor =
           uploadMatch &&
           authenticated?.tokenScope === "publish" &&
@@ -1059,6 +1064,18 @@ export function createExchangeServer(
             [uploadMatch[1], actor.id],
           );
           if (member.rowCount !== 1) throw new HttpError(403, "Not a namespace publisher.");
+        }
+        if (config.pilotPublisherGithubIds?.size && !config.publishingEnabled) {
+          const worker = await pool.query<{ ready: boolean }>(
+            "SELECT EXISTS(SELECT 1 FROM exchange_worker_heartbeats WHERE heartbeat_at >= now() - interval '15 seconds') AS ready",
+          );
+          if (!worker.rows[0]?.ready)
+            throw new HttpError(
+              503,
+              "The package scanner is starting. Try submitting again shortly.",
+              "SCANNER_UNAVAILABLE",
+              "Wait a moment, then submit the same file again.",
+            );
         }
         if (request.headers["content-type"] !== "application/octet-stream") {
           throw new HttpError(415, "Upload a raw .tabsext archive.");
@@ -1891,7 +1908,16 @@ if (import.meta.main) {
   const pool = createPool();
   const listenerPool = createPool({ direct: true });
   const signedMetadataEvents = new SignedMetadataEvents();
-  const server = createExchangeServer(pool, createStorage(), loadConfig(), signedMetadataEvents);
+  const config = loadConfig();
+  const storage = createStorage();
+  const scannerController = new AbortController();
+  const scanner = config.embeddedScannerEnabled
+    ? runScanWorker(pool, storage, config, scannerController.signal)
+    : Promise.resolve();
+  void scanner.catch((error) => {
+    process.stderr.write(`Exchange embedded scanner stopped: ${String(error)}\n`);
+  });
+  const server = createExchangeServer(pool, storage, config, signedMetadataEvents);
   signedMetadataEvents.start(listenerPool);
   server.on("close", () => signedMetadataEvents.stop());
   let shuttingDown = false;
@@ -1899,11 +1925,16 @@ if (import.meta.main) {
     if (shuttingDown) return;
     shuttingDown = true;
     signedMetadataEvents.stop();
+    scannerController.abort();
     server.close(() => {
-      void Promise.all([pool.end(), listenerPool.end()]).catch((error) => {
-        process.stderr.write(`Exchange database shutdown failed: ${String(error)}\n`);
-        process.exitCode = 1;
-      });
+      void scanner
+        .catch(() => undefined)
+        .then(() => Promise.all([pool.end(), listenerPool.end()]))
+        .finally(() => storage.destroy())
+        .catch((error) => {
+          process.stderr.write(`Exchange database shutdown failed: ${String(error)}\n`);
+          process.exitCode = 1;
+        });
     });
   };
   process.once("SIGTERM", shutdown);

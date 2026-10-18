@@ -89,6 +89,7 @@ export async function request<T>(
 export interface Actor {
   login: string;
   publishingEnabled: boolean;
+  publishingPilot?: boolean;
   namespaceManagementEnabled?: boolean;
   termsVersion: string;
   admin: boolean;
