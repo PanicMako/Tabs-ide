@@ -55,7 +55,7 @@ export function frontendAsset(pathname: string): string | undefined {
     return "docs/extensions/index.html";
   const documentation = /^\/docs\/extensions\/([a-z][a-z0-9-]{0,80})\/?$/.exec(pathname);
   if (documentation) return `docs/extensions/${documentation[1]}/index.html`;
-  if (/^\/_astro\/[A-Za-z0-9_.-]+\.(?:css|js|woff2)$/.test(pathname)) return pathname.slice(1);
+  if (/^\/_astro\/[A-Za-z0-9_@.-]+\.(?:css|js|woff2)$/.test(pathname)) return pathname.slice(1);
   return undefined;
 }
 
