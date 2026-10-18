@@ -3,6 +3,7 @@ import { reviewArchivePath, reviewDecision, reviewRescan } from "../lib/reviewDe
 import { clearReviewHistory, showReviewHistory } from "./review-history";
 import { clearOperationsDetail, showOperationsDetail } from "./review-operations";
 import { clearReviewAppeals, showReviewAppeals } from "./review-appeals";
+import { appendReviewWorkspace } from "./review-workspace";
 import { appendReviewEvidence } from "./review-evidence";
 import { reviewPresentation } from "../lib/reviewPresentation";
 import { filterReviewPackages } from "../lib/reviewFilter";
@@ -337,8 +338,15 @@ async function load(restoreFocus = false) {
       const technical = document.createElement("details");
       technical.className = "review-technical";
       const technicalTitle = document.createElement("summary");
-      technicalTitle.textContent = "Technical evidence · manifest & scan data";
-      technical.append(technicalTitle, fingerprintControl(entry.digest));
+      technicalTitle.textContent = "Evidence workspace · manifest, scan & files";
+      technical.append(technicalTitle);
+      if (entry.status !== "approved") appendReviewWorkspace(technical, entry, index);
+      technical.append(fingerprintControl(entry.digest));
+      const raw = document.createElement("details");
+      raw.className = "review-raw-data";
+      const rawTitle = document.createElement("summary");
+      rawTitle.textContent = "Full JSON records";
+      raw.append(rawTitle);
       for (const [label, evidence] of evidenceSections) {
         const details = document.createElement("details");
         const summary = document.createElement("summary");
@@ -349,8 +357,9 @@ async function load(restoreFocus = false) {
             ? "Scan evidence is not available yet."
             : JSON.stringify(evidence, null, 2);
         details.append(summary, text);
-        technical.append(details);
+        raw.append(details);
       }
+      if (evidenceSections.length) technical.append(raw);
       inspection.append(technical);
       if (entry.status === "review" || entry.status === "approved")
         inspection.append(decisionForm(entry, index));
