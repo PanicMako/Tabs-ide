@@ -1,24 +1,27 @@
 ---
 import Account from "../../layouts/Account.astro";
+import PublisherJourney from "../../components/PublisherJourney.astro";
 ---
-<Account title="Namespaces" section="namespaces">
-  <p id="publishing-availability" role="status" class="notice">Checking publisher account setup…</p>
-  <section class="publisher-ledger namespace-memberships" aria-labelledby="membership-heading">
-    <div class="section-heading"><div><p class="step-label">Your publisher identities</p><h2 id="membership-heading">Your namespaces</h2></div><a href="#new-namespace-heading">Create a namespace ↗</a></div>
-    <ul id="account-namespaces"></ul>
-    <details class="task-help"><summary>What is a namespace?</summary><p>Your namespace identifies the publisher; your extension has its own name. For example, <code>your-name.your-tool</code>. Creating a namespace does not confer verified status. <a href="/publisher#namespace-title">Advanced namespace controls</a></p></details>
-  </section>
-  <div id="namespace-members"></div>
-  <div class="namespace-team-grid"><div id="namespace-collaborators"></div><div id="namespace-invitations"></div></div>
-  <section class="namespace-create-desk task-desk" aria-labelledby="new-namespace-heading">
-    <div class="task-intro"><p class="step-label">Publishing identity</p><h2 id="new-namespace-heading">Create a namespace</h2><p>A shared home for the tools you publish.</p><div class="namespace-example" aria-label="Namespace naming example"><span>your-name</span><span>.your-tool</span></div></div>
-    <div><form id="create-namespace" class="task-form">
-      <div class="form-field"><label for="new-namespace">Namespace name</label><input id="new-namespace" disabled name="name" required pattern="[a-z][a-z0-9-]{1,62}" minlength="2" maxlength="63" autocomplete="off" placeholder="your-name" aria-describedby="namespace-name-help" /><p id="namespace-name-help" class="field-help">2–63 lowercase letters, numbers or hyphens. Start with a letter.</p></div>
-      <label class="check"><input type="checkbox" id="accept-terms" disabled required /> <span>I have read and accept this instance's <a href="/publisher-terms">publisher terms</a>.</span></label>
-      <div class="form-actions"><button class="button" type="submit" disabled>Create namespace</button></div>
-    </form></div>
-  </section>
+<Account title="Your publisher" titleAccent="identity" section="namespaces">
+  <PublisherJourney current="identity" />
+  <p id="publishing-availability" role="status" class="publisher-availability">Checking publisher account setup…</p>
+  <div class="identity-layout">
+    <section class="identity-form-card" aria-labelledby="new-namespace-heading">
+      <div class="publisher-card-heading"><span class="desk-kicker">START HERE</span><span class="quiet-badge">About a minute</span></div>
+      <h2 id="new-namespace-heading">What name will you publish under?</h2>
+      <p class="card-introduction">A personal name, a studio, or your team. This is your <strong>namespace</strong>—the first part of every extension’s ID.</p>
+      <form id="create-namespace" class="task-form">
+        <div class="form-field"><label for="new-namespace">Publisher namespace</label><input id="new-namespace" disabled name="name" required pattern="[a-z][a-z0-9-]{1,62}" minlength="2" maxlength="63" autocomplete="off" spellcheck="false" placeholder="e.g. rushil" aria-describedby="namespace-name-help" /><p id="namespace-name-help" class="field-help">2–63 lowercase letters, numbers or hyphens. Start with a letter.</p></div>
+        <div class="identity-preview" aria-label="Example extension identity"><span class="identity-preview-mark" aria-hidden="true">↗</span><div><small>YOUR EXTENSIONS WILL LOOK LIKE THIS</small><code><output id="namespace-example-name" for="new-namespace">your-name</output><span>.your-tool</span></code></div></div>
+        <label class="check publisher-agreement"><input type="checkbox" id="accept-terms" disabled required /> <span>I have read and accept the <a href="/publisher-terms" target="_blank" rel="noopener">publisher terms <span class="sr-only">(opens in a new tab)</span></a>.</span></label>
+        <div class="identity-form-actions"><button class="button" type="submit" disabled>Create namespace <span aria-hidden="true">↗</span></button><p>Your GitHub account stays the same.</p></div>
+      </form>
+    </section>
+    <aside class="identity-guide" aria-label="Publisher identity help">
+      <section class="identity-notes"><span class="desk-kicker">A NAME TO BUILD ON</span><h2>Yours, across<br /><em class="editorial-accent">every tool.</em></h2><p>One namespace can hold many extensions. It can be different from your GitHub username.</p><dl><div><dt>Namespace</dt><dd>The person or team publishing.</dd></div><div><dt>Extension name</dt><dd>The individual tool, such as <code>relay</code>.</dd></div></dl><a class="quiet-text-link" href="/docs/extensions/publishing">How publishing works ↗</a></section>
+      <section class="namespace-memberships publisher-owned-names" aria-labelledby="membership-heading"><div class="publisher-card-heading"><h2 id="membership-heading">Your namespaces</h2><span class="quiet-badge">Account</span></div><ul id="account-namespaces"></ul><details class="task-help"><summary>About publisher verification</summary><p>A namespace gives you a publishing identity. It does not confer verified status. <a href="/publisher#namespace-title">Advanced namespace controls</a></p></details></section>
+    </aside>
+  </div>
+  <section class="publisher-team" aria-labelledby="publisher-team-heading"><div class="publisher-section-heading"><div><span class="desk-kicker">WHEN YOU NEED A HAND</span><h2 id="publisher-team-heading">Make room for your team.</h2></div><span class="quiet-badge">Optional</span></div><div class="namespace-team-grid"><div id="namespace-collaborators"></div><div id="namespace-invitations"></div></div><div id="namespace-members"></div></section>
 </Account>
-<script>import "../../scripts/collaborators";</script>
-<script>import "../../scripts/invitations";</script>
-<script>import "../../scripts/members";</script>
+<script>import "../../scripts/collaborators"; import "../../scripts/invitations"; import "../../scripts/members"; import "../../scripts/publisher-setup";</script>

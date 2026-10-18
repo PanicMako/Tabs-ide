@@ -1,22 +1,10 @@
 ---
 import Exchange from "../layouts/Exchange.astro";
+import "../styles/publisher-workspace.css";
 ---
-<Exchange title="Draft publisher terms" description="Development publisher terms. Public publishing remains disabled." active="publish">
-<header class="workspace-heading terms-heading"><p class="eyebrow">Publisher agreement / Draft</p><h1>Publisher <em class="editorial-accent">terms.</em></h1><a href="/publish">Back to publishing ↗</a></header>
-<article class="prose terms-copy">
-
-      <p>
-        Version 2026-09-24. These terms are a development placeholder and must be reviewed and
-        replaced before public publishing is enabled.
-      </p>
-      <p>
-        Publishers must have the rights to distribute every file in the package, must not include
-        malware or undisclosed executable behavior, and must accurately describe permissions, data
-        collection, support, and any external charges. Tabs may reject, quarantine, or revoke a
-        version and retain review records. Approval is not a security certification.
-      </p>
-      <p>
-        These draft terms do not replace a privacy policy, a complete legal agreement, or a security
-        review. The Exchange operator must finalize all three before accepting public submissions.
-      </p>
-    </article></Exchange>
+<Exchange title="Draft publisher terms" description="Development publisher terms. Public publishing remains disabled." active="publish" utility>
+  <div class="publisher-terms-layout">
+    <header class="publisher-terms-header"><a class="terms-back" href="/account/namespaces">← Back to publisher setup</a><div class="terms-meta"><span class="desk-kicker">PUBLISHER AGREEMENT</span><span class="quiet-badge draft-badge">Draft · 2026-09-24</span></div><h1>Publisher <em class="editorial-accent">terms.</em></h1><p>What publishers are responsible for, and how the Exchange handles submitted extensions.</p></header>
+    <div class="terms-reading-layout"><article class="terms-reading-copy" aria-label="Draft publisher agreement"><section id="terms-status" class="terms-draft-note"><span class="desk-kicker">PLEASE READ FIRST</span><h2>These terms are still a draft.</h2><p>Version 2026-09-24. These terms are a development placeholder and must be reviewed and replaced before public publishing is enabled.</p></section><section id="terms-responsibilities"><span class="terms-section-number">01</span><h2>Your responsibilities</h2><p>Publishers must have the rights to distribute every file in the package, must not include malware or undisclosed executable behavior, and must accurately describe permissions, data collection, support, and any external charges.</p></section><section id="terms-review"><span class="terms-section-number">02</span><h2>Review and availability</h2><p>Tabs may reject, quarantine, or revoke a version and retain review records. Approval is not a security certification.</p></section><section id="terms-publication"><span class="terms-section-number">03</span><h2>Before public publishing</h2><p>These draft terms do not replace a privacy policy, a complete legal agreement, or a security review. The Exchange operator must finalize all three before accepting public submissions.</p></section><div class="terms-return"><p>You can return to setup without losing your place when you opened this page in a new tab.</p><a class="button secondary" href="/account/namespaces">Back to publisher setup <span aria-hidden="true">↗</span></a></div></article><aside class="terms-contents"><span class="desk-kicker">ON THIS PAGE</span><nav aria-label="Publisher terms contents"><a href="#terms-status">Draft status</a><a href="#terms-responsibilities">Your responsibilities</a><a href="#terms-review">Review and availability</a><a href="#terms-publication">Before public publishing</a></nav><div class="terms-side-note"><strong>Reading, not accepting.</strong><p>This page does not record agreement. Acceptance happens in the setup or submission form.</p></div><a class="quiet-text-link" href="/docs/extensions/publishing">Read the publishing guide ↗</a></aside></div>
+  </div>
+</Exchange>
