@@ -30,6 +30,15 @@ export function appendReviewEvidence(
         container.append(disclosure);
       } else container.append(list);
     }
+    let previewParent: HTMLElement = container;
+    if (section.previews?.length) {
+      const group = document.createElement("details");
+      const label = document.createElement("summary");
+      label.textContent = `Browse ${section.previews.length} file previews`;
+      group.append(label);
+      container.append(group);
+      previewParent = group;
+    }
     for (const preview of section.previews ?? []) {
       const details = document.createElement("details");
       const title = document.createElement("summary");
@@ -37,7 +46,7 @@ export function appendReviewEvidence(
       const text = document.createElement("pre");
       text.textContent = preview.text;
       details.append(title, text);
-      container.append(details);
+      previewParent.append(details);
     }
     parent.append(container);
   }
