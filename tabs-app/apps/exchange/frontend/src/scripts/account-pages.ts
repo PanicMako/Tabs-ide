@@ -62,8 +62,7 @@ async function namespaces(version: number, signal: AbortSignal) {
   list.replaceChildren();
   if (!data.namespaces.length) {
     const item = document.createElement("li");
-    item.textContent =
-      "No namespaces yet. Create your publisher namespace below, or accept an invitation from an existing owner.";
+    item.textContent = "Your first publisher namespace will appear here.";
     list.append(item);
   }
   for (const namespace of data.namespaces) {
@@ -79,6 +78,18 @@ async function namespaces(version: number, signal: AbortSignal) {
     verification.textContent = ` · ${namespace.verified ? "verified publisher" : "not verified"}`;
     item.append(name, access, verification);
     list.append(item);
+  }
+  for (const step of document.querySelectorAll<HTMLElement>(
+    '[data-publisher-setup-step="identity"]',
+  )) {
+    step.dataset.complete = String(data.namespaces.length > 0);
+    const label = step.querySelector("[data-step-description]");
+    if (label) label.textContent = data.namespaces.length ? "Identity ready" : "Identity & team";
+  }
+  const nextAction = document.getElementById("publisher-next-action") as HTMLAnchorElement | null;
+  if (nextAction && data.namespaces.length) {
+    nextAction.href = "/developers";
+    nextAction.textContent = "Build your extension ↗";
   }
   return data.namespaces;
 }
@@ -132,7 +143,7 @@ async function init() {
       availability.textContent = canManageNamespaces(actor)
         ? actor.publishingEnabled
           ? "Create your namespace and manage your team. Extension uploads still require review and signed publication."
-          : "You can create a namespace and manage your team. Extension uploads are not open yet; this does not prevent account setup."
+          : "Publisher setup is open. You can create a name and add your team; extension uploads are not open yet."
         : "Namespace setup is unavailable on this registry. Existing memberships remain visible; contact the registry operator to enable account setup.";
     if (form) {
       for (const control of form.querySelectorAll<HTMLInputElement | HTMLButtonElement>(

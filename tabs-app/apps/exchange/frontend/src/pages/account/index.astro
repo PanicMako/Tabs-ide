@@ -1,14 +1,11 @@
 ---
 import Account from "../../layouts/Account.astro";
+import PublisherJourney from "../../components/PublisherJourney.astro";
 ---
-<Account title="Your" titleAccent="workbench" section="overview">
-  <div class="workbench-intro"><p id="account-identity"></p><a class="text-link" href="/account/namespaces">Manage your publisher identity ↗</a></div>
-  <section class="workbench-launch" aria-labelledby="workbench-launch-title">
-    <div class="workbench-caption"><h2 id="workbench-launch-title">Publisher shortcuts</h2><span aria-hidden="true">↙</span></div>
-    <div class="workbench-tabs"><a href="/developers"><span class="workbench-dot" aria-hidden="true"></span>Build a tool ↗</a><a href="/publish"><span class="workbench-dot" aria-hidden="true"></span>Submit a package ↗</a><a href="/account/extensions"><span class="workbench-dot" aria-hidden="true"></span>Follow a release ↗</a></div>
-    <div class="workbench-sheet workbench-record"><section class="overview-releases" aria-labelledby="release-desk-title"><div class="section-heading"><div><p class="step-label">Your release record</p><h2 id="release-desk-title">Recent versions</h2></div><button class="button secondary" id="submissions-refresh" type="button">Refresh</button></div><p id="submissions-count" role="status" aria-live="polite">Loading submissions…</p><ul id="account-submissions"></ul><a class="text-link" href="/account/extensions">All submissions ↗</a></section></div>
-  </section>
-  <p class="notice" id="publishing-availability"></p>
-  <section class="publisher-ledger account-namespace-panel" aria-labelledby="your-namespaces-title"><div><span class="eyebrow">Your publishing identity</span><h2 id="your-namespaces-title">Your namespaces</h2><ul id="account-namespaces"></ul></div><a class="text-link" href="/account/namespaces">Manage namespaces ↗</a></section>
+<Account title="Your publishing" titleAccent="workspace" section="overview">
+  <div class="publisher-welcome"><div><span class="desk-kicker">FROM YOUR IDEA TO SOMEONE’S WORKSPACE</span><h2>A little setup.<br />A whole lot <em class="editorial-accent">of possibility.</em></h2><p>Give your tools a home in Tabs. Start with a publisher name, then bring an extension when you’re ready.</p><a class="button" href="/account/namespaces" id="publisher-next-action">Set up your publisher name <span aria-hidden="true">↗</span></a><p class="welcome-account" id="account-identity"></p></div><div class="publisher-welcome-art" aria-hidden="true"><span class="welcome-art-label">MADE BY YOU</span><div class="welcome-art-sheet"><span>your-name</span><strong>.your-idea</strong><i>↗</i></div><span class="welcome-art-bottom">A new place to work.</span></div></div>
+  <PublisherJourney current="identity" />
+  <p class="publisher-availability" id="publishing-availability" role="status"></p>
+  <div class="publisher-overview-grid"><section class="publisher-records" aria-labelledby="release-desk-title"><div class="publisher-section-heading"><div><span class="desk-kicker">WHAT YOU’VE BEEN MAKING</span><h2 id="release-desk-title">Recent submissions</h2></div><button class="button secondary" id="submissions-refresh" type="button">Refresh</button></div><p id="submissions-count" role="status" aria-live="polite">Loading submissions…</p><ul id="account-submissions"></ul><a class="quiet-text-link" href="/account/extensions">View all submissions ↗</a></section><aside class="overview-side"><section class="publisher-owned-names"><div class="publisher-section-heading"><h2>Your namespaces</h2><a class="quiet-text-link" href="/account/namespaces">Manage ↗</a></div><ul id="account-namespaces"></ul></section><section class="publisher-help-note"><span class="desk-kicker">STILL AT THE IDEA STAGE?</span><h2>Start with a working template.</h2><p>The developer toolkit gets a new extension running without cloning Tabs.</p><a class="quiet-text-link" href="/developers">Get the toolkit ↗</a></section></aside></div>
 </Account>
 <script>import "../../scripts/agreement"; import "../../scripts/submissions";</script>

@@ -1,16 +1,14 @@
 ---
 import Account from "../layouts/Account.astro";
-import PublicationIllustration from "../components/PublicationIllustration.astro";
+import PublisherJourney from "../components/PublisherJourney.astro";
 import { extensionMarkPath, extensionMarkViewBox } from "../lib/extensionMark";
 ---
 <Account title="Publish an" titleAccent="extension" section="publish">
-  <div class="publish-intro" style="margin-bottom:32px">
-    <p class="lead">Upload a built <code>.tabsext</code> package. Every version is scanned and manually reviewed before signed publication. Approval alone does not publish a package.</p>
-    <p class="muted" style="font-size:14px;margin-top:8px">New to extension development? <a href="/docs/extensions">Build your first tool with the SDK</a>. Browser submissions do not require a CLI token.</p>
-  </div>
-
-  <div class="publish-layout">
+  <PublisherJourney current="package" />
+  <p class="publisher-availability">Every version is scanned and manually reviewed before signed publication. Approval alone does not publish a package.</p>
+  <div class="publish-layout publish-workspace-layout">
     <form id="publish-form" class="publish-panel">
+      <p id="publish-status" role="status" aria-live="polite" class="notice" style="margin:20px 0">Checking publishing prerequisites…</p>
       <fieldset id="publish-fields" disabled>
         <legend class="sr-only">Prepare your submission</legend>
 
@@ -23,8 +21,8 @@ import { extensionMarkPath, extensionMarkViewBox } from "../lib/extensionMark";
             <option value="">Select your namespace</option>
           </select>
           <p style="font-size:13px;margin:12px 0 20px"><a href="/account/namespaces">Create or manage a namespace</a> · Required before publishing.</p>
-          <div class="publish-name-planner" aria-labelledby="name-planner-heading">
-            <h3 id="name-planner-heading">Give your tool a name</h3>
+          <details class="publish-name-planner"><summary id="name-planner-heading">Checking a new package name?</summary><div>
+
             <p class="muted">People see a title like <strong>Simulators</strong>. The package ID pairs its name with your publisher or studio namespace.</p>
             <div class="name-planner-fields">
               <div><label for="tool-display-name">Display name</label><input id="tool-display-name" maxlength="100" placeholder="Simulators" /></div>
@@ -39,10 +37,10 @@ import { extensionMarkPath, extensionMarkViewBox } from "../lib/extensionMark";
               <button id="tool-name-copy" type="button" class="button secondary">Copy manifest fields</button>
             </div>
             <details class="extension-naming-help"><summary>Can two tools share a name?</summary><p>Display names can be shared. Within a namespace, a package name identifies one tool across all its versions. A name already in your namespace is for updating that tool. Your namespace can be a studio or team name; it does not have to match your GitHub username.</p></details>
-          </div>
-          <label style="display:flex;align-items:flex-start;gap:10px;font-size:14px;cursor:pointer">
+          </div></details>
+          <label class="publisher-agreement" style="display:flex;align-items:flex-start;gap:10px;font-size:14px;cursor:pointer">
             <input id="publish-agreement" type="checkbox" required style="margin-top:3px" />
-            <span>I have read and accept this instance's <a href="/publisher-terms">publisher terms</a>.</span>
+            <span>I have read and accept this instance's <a href="/publisher-terms" target="_blank" rel="noopener">publisher terms<span class="sr-only"> (opens in a new tab)</span></a>.</span>
           </label>
           <p id="publish-terms" class="muted" style="font-size:12px;margin:8px 0 0 24px">Loading publisher terms version…</p>
         </section>
@@ -51,11 +49,7 @@ import { extensionMarkPath, extensionMarkViewBox } from "../lib/extensionMark";
           <p class="step-label">02 / Built package</p>
           <h2 id="publish-package-heading">Package archive</h2>
           <div id="publish-drop" class="package-drop">
-            <div class="upload-art" aria-hidden="true">
-              <span class="upload-art-note">Made by you.<br /><em>Ready to travel.</em></span>
-              <div class="upload-art-file"><span class="upload-art-file-top">YOUR TOOL <span>↗</span></span><svg viewBox={extensionMarkViewBox} fill="currentColor"><path d={extensionMarkPath} fill-rule="evenodd" /></svg><span class="upload-art-extension">.tabsext</span></div>
-              <div class="upload-art-folder"><span>Next stop</span><strong>A new workspace.</strong><span class="upload-art-arrow">↑</span></div>
-            </div>
+            <div class="package-mark" aria-hidden="true"><svg viewBox={extensionMarkViewBox} fill="currentColor"><path d={extensionMarkPath} fill-rule="evenodd" /></svg><span>.tabsext</span></div>
             <div class="upload-choice">
               <label for="publish-file">Choose a package</label>
               <p>Drop one built package here, or choose it below.</p>
@@ -72,15 +66,15 @@ import { extensionMarkPath, extensionMarkViewBox } from "../lib/extensionMark";
       <div class="actions" style="margin-top:16px">
         <button id="publish-cancel" class="button secondary" type="button" hidden>Cancel upload</button>
       </div>
-      <p id="publish-status" role="status" aria-live="polite" class="notice" style="margin:20px 0">Checking publishing prerequisites…</p>
       <p style="font-size:14px"><a href="/account/extensions">View existing submissions</a></p>
     </form>
 
     <aside class="publication-guide" aria-labelledby="publication-guide-title">
-      <p class="eyebrow">Where your package goes</p>
-      <h2 id="publication-guide-title">One archive.<br /><em class="editorial-accent">A careful journey.</em></h2>
-      <PublicationIllustration />
-      <a href="/docs/extensions/publishing" class="text-link">Read the publishing guide <span aria-hidden="true">↗</span></a>
+      <p class="desk-kicker">FROM PACKAGE TO WORKSPACE</p>
+      <h2 id="publication-guide-title">A clear path.<br /><em class="editorial-accent">A careful review.</em></h2>
+      <ol class="publication-path"><li><strong>Send your package</strong><p>Upload the built archive from your extension project.</p></li><li><strong>Checks and review</strong><p>Automated scans and a manual review happen before publication.</p></li><li><strong>Signed publication</strong><p>An approved version still needs a signed release before it becomes available.</p></li></ol>
+      <div class="publisher-help-note"><strong>Still building?</strong><p>Start with the SDK, then return with your built package. You don’t need a CLI token to submit here.</p><a href="/docs/extensions">Build your first extension ↗</a></div>
+      <a href="/docs/extensions/publishing" class="quiet-text-link">Read the publishing guide ↗</a>
     </aside>
   </div>
 </Account>

@@ -1,0 +1,16 @@
+---
+interface Props { current: "identity" | "package" | "release" }
+const { current } = Astro.props;
+const steps = [
+  { key: "identity", number: "01", title: "Your publisher name", detail: "Identity & team", href: "/account/namespaces" },
+  { key: "package", number: "02", title: "Your extension", detail: "Build & submit", href: "/publish" },
+  { key: "release", number: "03", title: "Your release", detail: "Review & availability", href: "/account/extensions" },
+];
+---
+<nav class="publisher-journey" aria-label="Publishing steps">
+  {steps.map(step => <a href={step.href} aria-current={current === step.key ? "step" : undefined} data-publisher-setup-step={step.key}>
+    <span class="journey-number" aria-hidden="true">{step.number}</span>
+    <span><strong>{step.title}</strong><small data-step-description>{step.detail}</small></span>
+    <span class="journey-arrow" aria-hidden="true">↗</span>
+  </a>)}
+</nav>

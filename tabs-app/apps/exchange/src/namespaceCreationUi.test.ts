@@ -220,3 +220,25 @@ it("enables namespace creation independently of package publishing", async () =>
   submit();
   await vi.waitFor(() => expect(byId("account-status").textContent).toContain("Namespace created"));
 });
+
+it("offers the build step when an existing identity is ready", async () => {
+  document.body.insertAdjacentHTML(
+    "beforeend",
+    '<a id="publisher-next-action" href="/account/namespaces">Set up</a><a data-publisher-setup-step="identity"><small data-step-description>Identity &amp; team</small></a>',
+  );
+  api.request
+    .mockResolvedValueOnce({
+      login: "maker",
+      publishingEnabled: false,
+      namespaceManagementEnabled: true,
+      termsVersion: "test",
+    })
+    .mockResolvedValueOnce({ namespaces: [{ name: "maker", role: "owner", verified: false }] });
+  await import("../frontend/src/scripts/account-pages");
+  await vi.waitFor(() => expect(byId("account-status").textContent).toBe("Account loaded."));
+  expect(byId("publisher-next-action").getAttribute("href")).toBe("/developers");
+  expect(document.querySelector("[data-publisher-setup-step]")?.getAttribute("data-complete")).toBe(
+    "true",
+  );
+  expect(byId<HTMLInputElement>("new-namespace").disabled).toBe(false);
+});

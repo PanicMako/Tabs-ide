@@ -3,7 +3,7 @@ import Dashboard from "./Dashboard.astro";
 interface Props { title: string; section: string; titleAccent?: string }
 const { title, section, titleAccent } = Astro.props;
 ---
-<Dashboard title={title} accent={titleAccent} section={section} description={section === "namespaces" ? "Manage your publisher identity and the people who build with you." : section === "tokens" ? "Connect your CLI with scoped access." : section === "extensions" || section === "submission" ? "Follow each version through scanning, review, and signed publication." : section === "publish" ? "Submit a built tool for review." : "Your tools, your team, and your next release."}>
+<Dashboard title={title} accent={titleAccent} section={section} description={section === "namespaces" ? "Choose a publishing name. Add teammates whenever you need them." : section === "tokens" ? "Connect your CLI with scoped access." : section === "extensions" || section === "submission" ? "Follow each version through scanning, review, and signed publication." : section === "publish" ? "Submit a built tool for review." : "A clear path from your first idea to your next release."}>
   <div class="publisher-main" data-publisher-section={section}>
   <p id="account-status" role="status" aria-live="polite" class="notice" style="margin-bottom:24px">Loading your account…</p>
 

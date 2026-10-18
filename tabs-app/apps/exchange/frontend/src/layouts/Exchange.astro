@@ -7,12 +7,12 @@ import CustomCursor from "../components/CustomCursor.astro";
 import { exchangeSiteConfiguration } from "../lib/siteConfiguration";
 import { extensionMarkPath, extensionMarkViewBox } from "../lib/extensionMark";
 const site = exchangeSiteConfiguration(process.env);
-interface Props { title: string; description?: string; active?: string; dashboard?: boolean }
-const { title, description = "An open extension ecosystem for Tabs. Discover, build, and publish workspace tools.", active, dashboard = false } = Astro.props;
+interface Props { title: string; description?: string; active?: string; dashboard?: boolean; utility?: boolean }
+const { title, description = "An open extension ecosystem for Tabs. Discover, build, and publish workspace tools.", active, dashboard = false, utility = false } = Astro.props;
 const path = Astro.url.pathname;
 const workspace = path.startsWith("/account") || path === "/publish" || path === "/publisher";
 const pageKind = workspace ? "workspace" : path.startsWith("/admin") ? "operations" : path.startsWith("/docs") ? "docs" : path === "/" ? "home" : active || "general";
-const showSignature = true;
+const showSignature = !utility;
 const navigation = [
   ["Extensions", "/extensions", "extensions"],
   ["Developers", "/developers", "developers"],
@@ -34,7 +34,7 @@ const navigation = [
     <meta name="exchange-site-name" content={site.name} />
 
   </head>
-  <body data-page={pageKind} data-dashboard={dashboard ? "true" : undefined}>
+  <body data-page={utility ? "utility" : pageKind} data-dashboard={dashboard ? "true" : undefined}>
     <CustomCursor />
     <a class="skip-link" href="#main">Skip to content</a>
     <header class:list={["site-header", dashboard && "dashboard-header"]}>
@@ -45,8 +45,8 @@ const navigation = [
       <details class="header-workspace-menu" data-header-workspace><summary role="button" aria-label={dashboard ? "Your account" : "Your workspace"}><span class="account-monogram" id="account-monogram" aria-hidden="true">T</span><span id="account-summary-name">{dashboard ? "Your account" : "Your workspace"}</span><svg class="account-chevron" aria-hidden="true" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="m3 4.5 3 3 3-3" /></svg></summary><nav aria-label={dashboard ? "Your account" : "Your workspace"}><p class="header-menu-label">{dashboard ? "ACCOUNT" : "WORKSPACE"}</p><a class="header-account-link" id="account-link" href="/account" aria-current={path === "/account" ? "page" : undefined}>Publisher workspace ↗</a>{!dashboard && <><a id="reviewer-link" href="/admin" aria-current={active === "review" ? "page" : undefined} hidden>Review desk</a><a id="operator-link" href="/admin/reviewers" aria-current={active === "operator" ? "page" : undefined} hidden>Reviewer access</a></>}{dashboard && <><button id="dashboard-signout" type="button" class="header-signout" data-quiet-control hidden>Sign out <span aria-hidden="true">↗</span></button><p id="dashboard-session-status" tabindex="-1" role="status" aria-live="polite"></p></>}</nav></details>
     </header>
     <main id="main" class:list={[dashboard && "dashboard-main"]} tabindex="-1"><slot /></main>
-    <footer class:list={["site-footer", dashboard && "dashboard-footer"]} id="exchange-footer">
-      {dashboard ? <div class="dashboard-footer-inner"><a href="/extensions" class="dashboard-exit">Browse Exchange ↗</a><nav aria-label="Footer navigation"><a href={site.docs}>Documentation</a><a href="/developers">Developer tools</a><a href="/resources">Resources</a><a href="/publisher-terms">Publisher terms</a><a href="/docs/extensions/registry-api">Registry API</a>{site.support && <a href={site.support}>Instance support</a>}</nav><a href="https://buildwithtabs.com">Built with Tabs ↗</a></div> : <>
+    <footer class:list={["site-footer", (dashboard || utility) && "dashboard-footer"]} id="exchange-footer">
+      {(dashboard || utility) ? <div class="dashboard-footer-inner"><a href="/extensions" class="dashboard-exit">Browse Exchange ↗</a><nav aria-label="Footer navigation"><a href={site.docs}>Documentation</a><a href="/developers">Developer tools</a><a href="/resources">Resources</a><a href="/publisher-terms">Publisher terms</a><a href="/docs/extensions/registry-api">Registry API</a>{site.support && <a href={site.support}>Instance support</a>}</nav><a href="https://buildwithtabs.com">Built with Tabs ↗</a></div> : <>
       <div class="footer-top"><span class="footer-spark" aria-hidden="true">✳</span><div><p class="eyebrow">A space for what’s next</p><p class="footer-intro">A good idea deserves<br /><em class="editorial-accent">a little room.</em></p></div><a class="button footer-cta" data-aurora-liquid="white" href="/developers">Make something for Tabs <span aria-hidden="true">↗</span></a></div>
       <div class="footer-links"><a href="https://buildwithtabs.com">Meet Tabs IDE <span aria-hidden="true">↗</span></a><nav aria-label="Footer navigation"><a href="/extensions">Extensions</a><a href="/developers">Developers</a><a href={site.docs}>Documentation</a><a href="/resources">Resources</a>{site.support && <a href={site.support}>Instance support</a>}<a href="/publisher-terms">Publisher terms</a><a href="/docs/extensions/registry-api">Registry API</a></nav></div>
       {showSignature && <><div class="exchange-signature" data-official={site.name === "Tabs Exchange" ? "true" : undefined} aria-label={site.name}>{site.name === "Tabs Exchange" ? <><span aria-hidden="true">Tabs</span><span aria-hidden="true">Exchange</span></> : <span aria-hidden="true">{site.name}</span>}</div><div class="exchange-baseline"><span>Make room for your next tool.</span><span>Built in the open.</span><a class="footer-back-top" href="#main" aria-label="Back to top">↑</a></div></>}
