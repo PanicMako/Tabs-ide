@@ -1,11 +1,11 @@
 ---
-interface Props { label: string; entries: Array<[string, string, string]>; secondaryAfter?: number }
-const { label, entries, secondaryAfter = entries.length } = Astro.props;
+interface Props { label: string; entries: Array<[string, string, string]>; secondaryAfter?: number; secondaryLabel?: string }
+const { label, entries, secondaryAfter = entries.length, secondaryLabel = "Review & security controls" } = Astro.props;
 const primary = entries.slice(0, secondaryAfter);
 const secondary = entries.slice(secondaryAfter);
 ---
 <nav class="workspace-controls" aria-label={label} data-workspace-navigation>
   {primary.map(([target, name, description], index) => <a href={`#${target}`} data-workspace-target={target}><span class="workspace-control-number" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span><span><strong>{name}</strong><small>{description}</small></span><span aria-hidden="true">↗</span></a>)}
-  {secondary.length > 0 && <details class="workspace-extra-controls"><summary>Review & security controls</summary><div>{secondary.map(([target, name, description]) => <a href={`#${target}`} data-workspace-target={target}><span class="workspace-control-number" aria-hidden="true">•</span><span><strong>{name}</strong><small>{description}</small></span><span aria-hidden="true">↗</span></a>)}</div></details>}
+  {secondary.length > 0 && <details class="workspace-extra-controls"><summary>{secondaryLabel}</summary><div>{secondary.map(([target, name, description]) => <a href={`#${target}`} data-workspace-target={target}><span class="workspace-control-number" aria-hidden="true">•</span><span><strong>{name}</strong><small>{description}</small></span><span aria-hidden="true">↗</span></a>)}</div></details>}
 </nav>
 <script>import "../scripts/workspace-panels";</script>

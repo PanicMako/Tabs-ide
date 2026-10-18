@@ -2,8 +2,9 @@
 import Dashboard from "../layouts/Dashboard.astro";
 import DashboardDrawing from "../components/DashboardDrawing.astro";
 import WorkspaceControls from "../components/WorkspaceControls.astro";
+import "../styles/advanced-studio.css";
 ---
-<Dashboard title="Advanced controls" description="Manage publisher identities, exact packages, and access. Choose a task below." section="advanced">
+<Dashboard title="A little more" accent="control." description="Access, recovery and the details behind your releases. Start with what you want to do." section="advanced">
   <div class="advanced-publisher"><div class="publisher-main">
       <p id="status" role="status" aria-live="polite" tabindex="-1"></p>
       <section id="signed-out" hidden class="signin-panel">
@@ -12,7 +13,8 @@ import WorkspaceControls from "../components/WorkspaceControls.astro";
         <a class="button" href="/auth/github/start">Sign in with GitHub</a>
       </section>
       <div id="signed-in" hidden data-workspace-panels class="advanced-control-room">
-<WorkspaceControls label="Advanced publisher tasks" secondaryAfter={5} entries={[
+<WorkspaceControls label="Advanced publisher tasks" secondaryAfter={1} secondaryLabel="Detailed controls" entries={[
+  ["advanced-home", "Start here", "Find the right tool"],
   ["advanced-namespace", "Identity & team", "Namespaces, members, invitations"],
   ["advanced-tokens", "CLI access", "Issue and revoke scoped tokens"],
   ["advanced-upload", "Package upload", "Submit an exact archive"],
@@ -24,6 +26,18 @@ import WorkspaceControls from "../components/WorkspaceControls.astro";
   ["verification-section", "Publisher verification", "Record independent ownership proof"],
 ]} />
         <div class="publisher-session"><p id="identity"></p><button class="button secondary" id="logout" type="button">Sign out</button></div>
+        <section id="advanced-home" data-workspace-panel aria-labelledby="advanced-home-title">
+          <div class="advanced-intro"><div><h2 id="advanced-home-title">What would you like to do?</h2><p>Everyday publishing has its own guided space. These shortcuts take you straight there.</p></div><span class="advanced-intro-spark" aria-hidden="true">✳</span></div>
+          <div class="advanced-task-grid">
+            <a class="advanced-task" href="/account/namespaces"><span class="advanced-task-icon" aria-hidden="true">◎</span><span><strong>Manage your publisher</strong><small>Names, collaborators and invitations.</small><span class="advanced-task-destination">Open Namespaces <span aria-hidden="true">↗</span></span></span></a>
+            <a class="advanced-task" href="/publish"><span class="advanced-task-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 16V4m-5 5 5-5 5 5M4 15v5h16v-5" /></svg></span><span><strong>Send an extension</strong><small>Choose a package and submit it for review.</small><span class="advanced-task-destination">Open Publish <span aria-hidden="true">↗</span></span></span></a>
+            <a class="advanced-task" href="/account/extensions"><span class="advanced-task-icon" aria-hidden="true">▤</span><span><strong>Follow a release</strong><small>See checks, feedback and what happens next.</small><span class="advanced-task-destination">Open Submissions <span aria-hidden="true">↗</span></span></span></a>
+            <a class="advanced-task" href="/account/tokens"><span class="advanced-task-icon" aria-hidden="true">⌘</span><span><strong>Connect your CLI</strong><small>Create or revoke a token for your tools.</small><span class="advanced-task-destination">Open CLI access <span aria-hidden="true">↗</span></span></span></a>
+          </div>
+          <div class="advanced-help-row"><div><h3>Need to respond to a decision?</h3><p>Read a reviewer’s response or send a correction through an appeal.</p></div><a href="#advanced-appeals">View appeals <span aria-hidden="true">→</span></a></div>
+          <aside class="advanced-detail-note" aria-label="About detailed controls"><DashboardDrawing section="advanced-tokens" compact /><div><h3>Looking for the manual controls?</h3><p>Open <strong>Detailed controls</strong> above for direct access to tokens, package uploads and recovery tools. The guided pages are the easiest place to start.</p></div></aside>
+          <section id="advanced-reviewer-tools" hidden class="advanced-reviewer-tools" aria-labelledby="advanced-reviewer-title"><div><p class="eyebrow">YOUR REVIEWER ACCESS</p><h3 id="advanced-reviewer-title">A separate space for review.</h3><p>Review packages and manage release safety from the review desk.</p></div><div class="advanced-reviewer-links"><a href="/admin">Review desk <span aria-hidden="true">↗</span></a><a href="/admin/security">Release safety <span aria-hidden="true">↗</span></a><a id="advanced-operator-link" hidden href="/admin/reviewers">Reviewer access <span aria-hidden="true">↗</span></a></div></section>
+        </section>
         <section id="advanced-tokens" data-workspace-panel aria-labelledby="tokens-title"><div class="task-panel-heading">
           <h2 id="tokens-title">Access tokens</h2><DashboardDrawing section="advanced-tokens" compact /></div>
           <p>
