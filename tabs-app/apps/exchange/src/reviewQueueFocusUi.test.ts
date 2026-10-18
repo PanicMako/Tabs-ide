@@ -144,7 +144,18 @@ it("opening a package shows decision guidance without sending a review action", 
             digest,
             status: "review",
             manifest: { displayName: "Relay" },
-            scan_result: { passed: true, digest, issues: [] },
+            scan_result: {
+              passed: true,
+              digest,
+              issues: [],
+              reviewDiff: {
+                entries: Array.from({ length: 20 }, (_, index) => ({
+                  file: `file-${index}.js`,
+                  change: "added",
+                  patch: "+new code",
+                })),
+              },
+            },
           },
         ],
       };
@@ -161,5 +172,11 @@ it("opening a package shows decision guidance without sending a review action", 
   expect(inspection.textContent).toContain("Approval moves this version to signing");
   expect(inspection.querySelectorAll(".review-fingerprint")).toHaveLength(2);
   expect(inspection.querySelector("form")?.noValidate).toBe(true);
+  const previews = [...inspection.querySelectorAll("section")]
+    .find((section) => section.querySelector("h4")?.textContent === "Text change previews")!
+    .querySelector<HTMLDetailsElement>(":scope > details")!;
+  expect(previews.open).toBe(false);
+  expect(previews.querySelector("summary")?.textContent).toBe("Browse 20 file previews");
+  expect(previews.querySelectorAll("details")).toHaveLength(20);
   expect(transport.request.mock.calls.every(([, method]) => method !== "POST")).toBe(true);
 });
