@@ -111,3 +111,53 @@ it("serializes refresh and preserves deliberate navigation focus", async () => {
   );
   expect(document.activeElement?.id).toBe("other");
 });
+
+function addStudioControls() {
+  byId("account-content").classList.add("submission-studio");
+  byId("account-content").insertAdjacentHTML(
+    "afterbegin",
+    '<input id="submission-search"><div><button data-submission-filter="all">All</button><button data-submission-filter="progress">In progress</button><button data-submission-filter="attention">Needs attention</button><button data-submission-filter="published">Published</button></div><span data-submission-count="all"></span><span data-submission-count="published"></span>',
+  );
+}
+it("filters recent versions locally without treating approval as publication", async () => {
+  addStudioControls();
+  api.request.mockResolvedValueOnce({
+    submissions: [
+      { ...entry, status: "approved", digest: "a".repeat(64) },
+      { ...entry, name: "live-tool", status: "approved", published: true, digest: "b".repeat(64) },
+      { ...entry, name: "needs-work", status: "rejected", digest: "c".repeat(64) },
+    ],
+  });
+  await import("../frontend/src/scripts/submissions");
+  await vi.waitFor(() => expect(byId("account-submissions").children).toHaveLength(3));
+  expect(document.querySelector('[data-submission-count="published"]')!.textContent).toBe("1");
+  document.querySelector<HTMLButtonElement>('[data-submission-filter="published"]')!.click();
+  expect(byId("account-submissions").textContent).toContain("live-tool");
+  expect(byId("account-submissions").textContent).not.toContain("Approval alone");
+  document.querySelector<HTMLButtonElement>('[data-submission-filter="progress"]')!.click();
+  expect(byId("account-submissions").textContent).toContain("Approval alone");
+  expect(byId("account-submissions").textContent).not.toContain("live-tool");
+  const search = byId<HTMLInputElement>("submission-search");
+  search.value = "DOES NOT EXIST";
+  search.dispatchEvent(new Event("input"));
+  expect(byId("account-submissions").textContent).toContain("No versions match");
+  byId("account-submissions").querySelector<HTMLButtonElement>("button")!.click();
+  expect(search.value).toBe("");
+  expect(document.activeElement).toBe(search);
+  expect(byId("account-submissions").children).toHaveLength(3);
+  expect(api.request).toHaveBeenCalledTimes(1);
+});
+
+it("cannot re-render stale private versions by searching after a failed refresh", async () => {
+  addStudioControls();
+  await start();
+  api.request.mockRejectedValueOnce(new Error("Unavailable"));
+  byId("submissions-refresh").click();
+  await vi.waitFor(() => expect(byId("submissions-count").textContent).toBe("Unavailable"));
+  const search = byId<HTMLInputElement>("submission-search");
+  search.value = "tool";
+  search.dispatchEvent(new Event("input"));
+  expect(search.disabled).toBe(true);
+  expect(byId("account-submissions").textContent).toBe("");
+  expect(document.querySelector('[data-submission-count="all"]')!.textContent).toBe("—");
+});

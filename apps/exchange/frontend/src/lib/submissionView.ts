@@ -2,6 +2,10 @@ export function clearSubmissionView(document: Pick<Document, "getElementById">) 
   const identity = document.getElementById("submission-identity");
   if (identity) identity.textContent = "Submission details are not currently available.";
   for (const id of [
+    "submission-status-title",
+    "submission-next-step",
+    "submission-scan-summary",
+    "submission-stage-list",
     "submission-metadata",
     "submission-timeline",
     "submission-reason",
@@ -21,6 +25,8 @@ export function clearSubmissionView(document: Pick<Document, "getElementById">) 
     if (element) element.hidden = true;
   }
   document.getElementById("submission-public-link")?.removeAttribute("href");
+  const card = document.getElementById("submission-current");
+  if (card) delete card.dataset.state;
   const message = document.getElementById(
     "submission-appeal-message",
   ) as HTMLTextAreaElement | null;

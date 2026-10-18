@@ -1,21 +1,16 @@
 ---
 import Account from "../../../layouts/Account.astro";
+import "../../../styles/submission-studio.css";
 ---
-<Account title="Submission details" section="submission">
-  <div class="release-passport"><div class="release-passport-identity"><p class="step-label">Exact version / immutable package</p><h2 id="submission-identity">Loading package identity…</h2>
-  <p id="submission-state" role="status" aria-live="polite"></p>
-  <dl id="submission-metadata"></dl></div>
-  <section class="publisher-ledger release-passport-lifecycle"><h2>Release journey</h2><ol id="submission-timeline"></ol><p>Approval is not publication. A release becomes discoverable on this registry only after inclusion in signed metadata. Review is not a safety guarantee.</p></section></div>
-  <section class="publisher-ledger release-evidence"><h2>Review and scan results</h2><p id="submission-reason"></p><ul id="submission-issues"></ul><details><summary>Scan summary</summary><pre id="submission-scan"></pre></details></section>
-  <div class="actions"><button class="button secondary" id="submission-refresh" type="button">Refresh status</button><a class="button" id="submission-public-link" hidden>View published extension</a><a id="submission-correction" href="#submission-correction-options" hidden>Correction and appeal options</a></div>
-  <section id="submission-correction-options" hidden aria-labelledby="submission-correction-heading">
-    <h2 id="submission-correction-heading">Correct or appeal this release</h2>
-    <p>To change package contents, increment the manifest version, rebuild, validate and package it, then <a href="/publish">submit a new version</a>. Submitted bytes cannot be replaced. Every new version requires review.</p>
-    <form id="submission-appeal" class="task-form"><fieldset id="submission-appeal-fields"><legend>Appeal the displayed package digest</legend><div class="form-field"><label for="submission-appeal-message">Explain what the reviewer should reconsider (up to 4000 characters)</label><textarea id="submission-appeal-message" required maxlength="4000"></textarea></div><button class="button" type="submit">Submit appeal</button></fieldset></form>
-    <p id="submission-appeal-state" role="status" aria-live="polite"></p>
-  </section>
-  <section class="publisher-ledger" aria-labelledby="submission-appeals-heading"><h2 id="submission-appeals-heading">Appeal history and responses</h2><p id="submission-appeals-state" role="status" aria-live="polite"></p><ol id="submission-appeals"></ol><p>Refresh status to check for responses. Up to 100 appeals for this exact digest are shown. A response does not itself change the release decision.</p></section>
+<Account title="Your release," titleAccent="step by step." section="submission">
+  <div class="submission-detail-studio">
+    <div class="submission-toolbar"><a href="/account/extensions">← All submissions</a><div class="actions"><button class="button secondary" id="submission-refresh" type="button">Refresh status</button><a class="button" id="submission-public-link" hidden>View published extension ↗</a></div></div>
+    <section class="submission-current" id="submission-current" aria-labelledby="submission-identity"><p class="eyebrow">ONE VERSION. ITS OWN JOURNEY.</p><div class="submission-identity-row"><h2 id="submission-identity">Loading package identity…</h2><p id="submission-state" role="status" aria-live="polite"></p></div><p id="submission-status-title" class="submission-explanation"></p><ol id="submission-stage-list" class="submission-stage-list" aria-label="Publication stages"></ol><div class="submission-next"><span>YOUR NEXT STEP</span><p id="submission-next-step"></p><a id="submission-correction" href="#submission-correction-options" hidden>See correction and appeal options ↗</a></div></section>
+    <section class="submission-evidence" aria-labelledby="submission-evidence-title"><header class="submission-records-heading"><div><p class="eyebrow">WHAT WE KNOW SO FAR</p><h2 id="submission-evidence-title">Checks & feedback</h2></div></header><div class="submission-evidence-grid"><article><h3>Automated checks</h3><p id="submission-scan-summary">Loading scan results…</p><ul id="submission-issues"></ul><details><summary>Technical scan results</summary><pre id="submission-scan"></pre></details></article><article><h3>Reviewer feedback</h3><p id="submission-reason"></p><p class="submission-review-note">A review decision does not guarantee that a package is safe.</p></article></div></section>
+    <section id="submission-correction-options" hidden class="submission-corrections" aria-labelledby="submission-correction-heading"><p class="eyebrow">CHOOSE YOUR NEXT STEP</p><h2 id="submission-correction-heading">Make a correction. Or ask for another look.</h2><div class="submission-correction-grid"><article><h3>Change the package</h3><p>Update the manifest version, rebuild and validate your archive, then submit the new version. Submitted files cannot be replaced; each version needs its own review.</p><a class="button secondary" href="/publish">Submit a corrected version ↗</a></article><form id="submission-appeal" class="task-form" novalidate><fieldset id="submission-appeal-fields"><legend>Appeal this decision</legend><p>Explain why the reviewer should reconsider this exact package. An appeal doesn’t change its files.</p><div class="form-field"><label for="submission-appeal-message">Your message <span>(up to 4000 characters)</span></label><textarea id="submission-appeal-message" required maxlength="4000" rows="5"></textarea></div><button class="button" type="submit">Submit appeal</button></fieldset><p id="submission-appeal-state" role="status" aria-live="polite"></p></form></div></section>
+    <details class="submission-history"><summary>Appeal history & responses</summary><p id="submission-appeals-state" role="status" aria-live="polite"></p><ol id="submission-appeals"></ol><p>Refresh status to check for responses. Up to 100 appeals for this package are shown. A response does not itself change the release decision.</p></details>
+    <details class="submission-history"><summary>Recorded events</summary><p>These are recorded timestamps, rather than estimates of when a step will finish.</p><ol id="submission-timeline"></ol></details>
+    <details class="submission-history"><summary>Package fingerprint & compatibility</summary><p>The fingerprint identifies the exact archive submitted for this version.</p><dl id="submission-metadata"></dl></details>
+  </div>
 </Account>
-<script>
-  import "../../../scripts/submission";
-</script>
+<script>import "../../../scripts/submission";</script>

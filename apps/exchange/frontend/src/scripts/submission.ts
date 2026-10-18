@@ -1,3 +1,4 @@
+import { submissionPresentation } from "../lib/submissionPresentation";
 import { utcTimeLabel } from "../lib/utcTime";
 import { submissionLifecycle } from "@tabs/shared/extensionSubmission";
 import { request, RegistryRequestError, type Actor } from "./api";
@@ -18,7 +19,7 @@ interface Submission {
   scan_completed_at?: string;
   review_reason?: string;
   manifest?: { engines?: { tabs?: string; api?: string } };
-  scan_result?: { issues?: Array<{ code?: string; message?: string }> };
+  scan_result?: { passed?: boolean; issues?: Array<{ code?: string; message?: string }> };
 }
 const state = document.getElementById("submission-state")!;
 const refresh = document.getElementById("submission-refresh") as HTMLButtonElement;
@@ -140,6 +141,41 @@ async function load() {
     document.getElementById("submission-identity")!.textContent =
       `${submission.namespace}.${submission.name}@${submission.version}`;
     state.textContent = lifecycle.label;
+    const presentation = submissionPresentation(submission);
+    const card = document.getElementById("submission-current");
+    if (card) card.dataset.state = presentation.group;
+    const explanation = document.getElementById("submission-status-title");
+    if (explanation) explanation.textContent = presentation.explanation;
+    const next = document.getElementById("submission-next-step");
+    if (next) next.textContent = presentation.next;
+    const stages = document.getElementById("submission-stage-list");
+    if (stages) {
+      stages.replaceChildren();
+      for (const [index, label] of [
+        "Package received",
+        "Checks & review",
+        "Signed release",
+      ].entries()) {
+        const item = document.createElement("li");
+        const number = document.createElement("span");
+        number.setAttribute("aria-hidden", "true");
+        number.textContent = String(index + 1).padStart(2, "0");
+        const title = document.createElement("strong");
+        title.textContent = label;
+        if (index === presentation.stage) item.setAttribute("aria-current", "step");
+        item.append(number, title);
+        stages.append(item);
+      }
+    }
+    const scanSummary = document.getElementById("submission-scan-summary");
+    if (scanSummary)
+      scanSummary.textContent =
+        submission.scan_result?.passed === true
+          ? "Automated checks passed for this package. Review and signed publication are separate steps."
+          : submission.scan_result?.passed === false
+            ? "The scan reported a problem. Read the findings below and the technical results."
+            : "No verified scan result is available yet. Refresh status to check again.";
+
     document.getElementById("submission-metadata")!.replaceChildren();
     metadata("Package SHA-256", submission.digest);
     metadata("Tabs compatibility", submission.manifest?.engines?.tabs ?? "Not available");

@@ -175,3 +175,34 @@ it("shows readable UTC timestamps while preserving exact event times and absent 
   expect(rows[1]!.dataset.recorded).toBe("false");
   expect(rows[1]!.textContent).toContain("Not yet recorded");
 });
+
+it("shows the next step without inventing scan success and clears new details on access loss", async () => {
+  document.body.insertAdjacentHTML(
+    "beforeend",
+    '<section id="submission-current"><p id="submission-status-title"></p><p id="submission-next-step"></p><p id="submission-scan-summary"></p><ol id="submission-stage-list"></ol></section>',
+  );
+  api.request
+    .mockResolvedValueOnce({ login: "maker" })
+    .mockResolvedValueOnce({ ...submission, status: "approved", scan_result: { issues: [] } })
+    .mockResolvedValueOnce({ appeals: [] });
+  await import("../frontend/src/scripts/submission");
+  await vi.waitFor(() =>
+    expect(byId("submission-next-step").textContent).toContain("Approval alone"),
+  );
+  expect(byId("submission-public-link").hidden).toBe(true);
+  expect(byId("submission-scan-summary").textContent).toContain("No verified scan result");
+  expect(
+    byId("submission-stage-list").querySelector('[aria-current="step"]')!.textContent,
+  ).toContain("Signed release");
+  api.request.mockResolvedValueOnce(null);
+  byId("submission-refresh").click();
+  await vi.waitFor(() => expect(byId("submission-state").textContent).toContain("Sign in"));
+  for (const id of [
+    "submission-status-title",
+    "submission-next-step",
+    "submission-scan-summary",
+    "submission-stage-list",
+  ])
+    expect(byId(id).textContent).toBe("");
+  expect(byId("submission-current").dataset.state).toBeUndefined();
+});
