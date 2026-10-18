@@ -1022,6 +1022,10 @@ try {
           ? "Namespace and team setup are available. Extension uploads are not open yet."
           : "Namespace setup and extension uploads are unavailable on this registry.",
       );
+    const reviewerTools = document.getElementById("advanced-reviewer-tools");
+    if (reviewerTools) reviewerTools.hidden = !me.admin;
+    const operatorLink = document.getElementById("advanced-operator-link");
+    if (operatorLink) operatorLink.hidden = !me.operator;
     document.getElementById("review-section").hidden = !me.admin;
     document.getElementById("revocation-section").hidden = !me.admin;
     document.getElementById("verification-section").hidden = !me.admin;
