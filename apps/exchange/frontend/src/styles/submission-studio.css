@@ -377,7 +377,7 @@
   background: white;
   margin: 0;
 }
-.submission-detail-studio h3,
+[data-dashboard="true"] .submission-detail-studio h3,
 .submission-detail-studio .submission-correction-grid legend {
   font-size: 16px;
   font-weight: 600;
