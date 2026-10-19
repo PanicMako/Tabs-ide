@@ -1,3 +1,4 @@
+import { extensionHostVersion } from "./extensionHostVersion";
 import { officialExchangeTrust } from "./officialExchangeTrust";
 import { fetchExchangeListingAsset } from "./exchangeListingAsset";
 import { RegistryTrustStore, DEFAULT_EXCHANGE_ORIGIN } from "./registryTrustStore";
@@ -549,7 +550,7 @@ const extensionViewManager = new ExtensionViewManager(
   () => mainWindow,
   nativeViewCoordinator,
   Path.join(STATE_DIR, "development-extensions.json"),
-  app.getVersion(),
+  extensionHostVersion(app),
   !app.isPackaged,
   safeStorage,
 );
@@ -639,7 +640,7 @@ function requireExchangeInstallService(): ExchangeInstallService {
   exchangeInstallService = new ExchangeInstallService(
     configuration,
     Path.join(STATE_DIR, "exchange-trust"),
-    app.getVersion(),
+    extensionHostVersion(app),
     () => extensionViewManager.list(),
     (archive, registryOrigin, digest, options) =>
       extensionViewManager.installVerifiedExchangePackage(archive, registryOrigin, digest, options),
@@ -2503,7 +2504,7 @@ function registerIpcHandlers(): void {
     if (!origin) return null;
     return discoverExchangePage(
       origin,
-      app.getVersion(),
+      extensionHostVersion(app),
       query,
       cursor ?? null,
       authenticatedRegistryFetch,
