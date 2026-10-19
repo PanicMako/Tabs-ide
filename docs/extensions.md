@@ -188,9 +188,28 @@ before creating a view. Older flat-hash storage can still be read by older
 installations, but cannot be completely inventoried. Their data-deletion choice
 remains unavailable pending an explicit migration.
 
-## Manually installing from a trusted Exchange
+## Installing from a trusted Exchange
 
-Set `TABS_EXCHANGE_ORIGIN` to the HTTPS origin of an Exchange deployment and
+In a packaged Tabs desktop build, open **Settings -> Labs -> Extensions**.
+The official Tabs Exchange is ready automatically: its public signing root is
+bundled with the desktop release and pinned to the operator's certificate.
+Choose **Install**, review requested access, and confirm installation. Enable the
+extension for the projects where you want it to appear. No connection files,
+account, or token are needed for the public marketplace.
+
+The certificate bootstraps TUF verification; signed metadata, expiry, rollback,
+package digests, and permission review are still enforced. Later root rotations
+follow the existing verified TUF chain, keeping the same trust identity.
+
+For a custom registry, open the **Marketplace settings** menu at the top right.
+Import the desktop connection settings and public `root.json` obtained from your
+registry operator's Release studio, then confirm the exact origin. Never import
+the private signing backup. Existing saved connections and environment-managed
+registries take precedence over the bundled official configuration. Custom origins
+never inherit the official certificate. Private registry read credentials remain
+optional and are kept separately in the OS-backed vault.
+
+For environment-managed deployments, set `TABS_EXCHANGE_ORIGIN` to the HTTPS origin of an Exchange deployment and
 provision these desktop environment variables independently of its catalog:
 
 - `TABS_EXCHANGE_TRUST_ROOT_PATH`: absolute path to an independently verified
@@ -201,8 +220,9 @@ provision these desktop environment variables independently of its catalog:
   it on routine root rotation because the client stores rollback-protected
   metadata under this identity.
 
-There is no official production root yet. Desktop discovery remains read-only
-without these settings. With them, **Review & install** refreshes signed TUF
+Desktop never derives installation trust from catalog responses. Without a
+saved or environment-managed trust root, discovery remains read-only. With a
+trusted connection, **Review & install** refreshes signed TUF
 metadata, downloads and validates the exact signed package, and presents its
 manifest and requested capabilities for a separate confirmation. Installation
 does not run or enable a new extension automatically. The installed identity

@@ -1,5 +1,5 @@
 import { expect, it } from "@effect/vitest";
-import { describe, vi } from "vite-plus/test";
+import { describe, vi } from "vitest";
 import * as NodeHttpPlatform from "@effect/platform-node/NodeHttpPlatform";
 import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer";
 import * as NodeServices from "@effect/platform-node/NodeServices";

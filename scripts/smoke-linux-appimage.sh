@@ -22,6 +22,7 @@ export TABS_HOME="$smoke_root/home"
 export TABS_DESKTOP_USER_DATA_DIR="$smoke_root/electron-profile"
 export TABS_DISABLE_AUTO_UPDATE=1
 log_file="$TABS_HOME/userdata/logs/desktop-main.log"
+server_log_file="$TABS_HOME/userdata/logs/server-child.log"
 launch_output="$smoke_root/launch-output.log"
 
 chmod +x "$appimage"
@@ -32,6 +33,7 @@ for ((attempt = 1; attempt <= 24; attempt++)); do
   sleep 5
   if [[ -f "$log_file" ]] && grep -Fq "bootstrap native Code-OSS main-process backend started" "$log_file"; then
     echo "AppImage launched with its bundled editor backend."
+    node tabs-app/scripts/smoke-desktop-backend.mjs "$log_file" "$server_log_file"
     exit 0
   fi
   if ! kill -0 "$app_pid" 2>/dev/null; then

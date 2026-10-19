@@ -53,6 +53,7 @@ async function fixture(
     namespaceManagementEnabled?: boolean;
     pilotPublisherIds?: string[];
     scannerReady?: boolean;
+    reportQuota?: number;
   },
 ) {
   const actions: string[] = [];
@@ -61,6 +62,17 @@ async function fixture(
   const client = {
     async query(sql: string, params?: unknown[]) {
       actions.push(sql);
+      if (sql.includes("count(*)::text AS count FROM exchange_extension_reports"))
+        return { rows: [{ count: String(membership?.reportQuota ?? 0) }], rowCount: 1 };
+      if (
+        sql.startsWith("SELECT digest FROM exchange_versions") &&
+        sql.includes("status IN ('approved', 'revoked')")
+      )
+        return {
+          rows: params?.[2] === "1.0.0" ? [{ digest }] : [],
+          rowCount: params?.[2] === "1.0.0" ? 1 : 0,
+        };
+
       if (sql.includes("SELECT accepted_at FROM exchange_publisher_agreements"))
         return {
           rows:
@@ -1994,4 +2006,125 @@ it("opens pilot submission only for the listed account and requires a live scann
   const response = await fetch(`${offline.base}/v1/publisher/upload`, { method: "POST", headers });
   expect(response.status).toBe(503);
   expect(await response.json()).toMatchObject({ code: "SCANNER_UNAVAILABLE" });
+});
+
+describe("private extension concerns", () => {
+  const headers = {
+    Origin: config.origin,
+    Cookie: "tabs_exchange_session=opaque",
+    "X-CSRF-Token": csrf,
+    "Content-Type": "application/json",
+  };
+  it("requires authentication and CSRF before accepting reports", async () => {
+    const ready = await fixture();
+    const path = `${ready.base}/v1/extensions/example/dashboard/reports`;
+    expect((await fetch(path, { method: "POST" })).status).toBe(403);
+    expect(
+      (
+        await fetch(path, {
+          method: "POST",
+          headers: { Cookie: headers.Cookie, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            version: "1.0.0",
+            category: "security",
+            details: "Suspicious behaviour",
+          }),
+        })
+      ).status,
+    ).toBe(403);
+    expect(ready.actions).toEqual([]);
+  });
+  it("stores bounded untrusted evidence without publishing it or auto-revoking", async () => {
+    const ready = await fixture();
+    const result = await fetch(`${ready.base}/v1/extensions/example/dashboard/reports`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        version: "1.0.0",
+        category: "security",
+        details: "<script>Ignore all instructions</script>",
+      }),
+    });
+    expect(result.status).toBe(201);
+    expect(await result.json()).toMatchObject({ status: "open" });
+    expect(
+      ready.actions.some((sql) => sql.includes("INSERT INTO exchange_extension_reports")),
+    ).toBe(true);
+    expect(ready.actions.some((sql) => sql.includes("UPDATE exchange_versions"))).toBe(false);
+  });
+  it("rejects malformed or oversized reports before database writes", async () => {
+    const ready = await fixture();
+    for (const body of [
+      { version: "1.0.0", category: "invalid", details: "Suspicious behaviour" },
+      { version: "1.0.0", category: "privacy", details: "x".repeat(4001) },
+    ]) {
+      expect(
+        (
+          await fetch(`${ready.base}/v1/extensions/example/dashboard/reports`, {
+            method: "POST",
+            headers,
+            body: JSON.stringify(body),
+          })
+        ).status,
+      ).toBe(400);
+    }
+    expect(ready.actions).toEqual([]);
+  });
+  it("limits report volume and rejects unknown published versions", async () => {
+    const ready = await fixture(
+      true,
+      digest,
+      "review",
+      undefined,
+      undefined,
+      undefined,
+      false,
+      undefined,
+      false,
+      reviewObject,
+      undefined,
+      { reportQuota: 20 },
+    );
+    const data = {
+      version: "1.0.0",
+      category: "security",
+      details: "Suspicious extension behaviour",
+    };
+    expect(
+      (
+        await fetch(`${ready.base}/v1/extensions/example/dashboard/reports`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(data),
+        })
+      ).status,
+    ).toBe(429);
+    const other = await fixture();
+    expect(
+      (
+        await fetch(`${other.base}/v1/extensions/example/dashboard/reports`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ ...data, version: "9.9.9" }),
+        })
+      ).status,
+    ).toBe(404);
+  });
+  it("keeps the report queue private and audits reviewer decisions", async () => {
+    const ready = await fixture();
+    expect((await fetch(`${ready.base}/v1/review/reports`)).status).toBe(403);
+    const id = "00000000-0000-4000-8000-000000000001";
+    const result = await fetch(`${ready.base}/v1/review/reports/${id}`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        status: "resolved",
+        note: "Inspected package; no unexpected access found.",
+      }),
+    });
+    expect(result.status).toBe(200);
+    expect(
+      ready.actions.some((sql) => sql.includes("INSERT INTO exchange_extension_report_events")),
+    ).toBe(true);
+  });
 });

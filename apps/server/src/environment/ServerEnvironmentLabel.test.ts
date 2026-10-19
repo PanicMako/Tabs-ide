@@ -8,7 +8,7 @@ import * as References from "effect/References";
 import * as Schema from "effect/Schema";
 import * as ChildProcessSpawner from "effect/unstable/process/ChildProcessSpawner";
 import { HostProcessHostname, HostProcessPlatform } from "@tabs/shared/hostProcess";
-import { vi } from "vite-plus/test";
+import { vi } from "vitest";
 
 import * as ProcessRunner from "../processRunner.ts";
 import * as ServerEnvironmentLabel from "./ServerEnvironmentLabel.ts";

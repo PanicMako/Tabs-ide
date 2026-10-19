@@ -25,6 +25,7 @@ import type {
 } from "@tabs/contracts";
 import { RotatingFileSink } from "@tabs/shared/logging";
 
+import { resolveCodeHostIdentity } from "./codeHostIdentity";
 import type { CodeControlChannel } from "./codeControlChannel";
 import type { NativeViewStackCoordinator } from "./nativeViewStackCoordinator";
 
@@ -2328,9 +2329,7 @@ export class CodeHostManager {
       },
       cssModules: this.getCssModules(runtime.vscodeRoot),
       mainPid: process.pid,
-      machineId: this.hashDesktopIdentity(`machine:${runtime.vscodeRoot}`),
-      sqmId: this.hashDesktopIdentity(`sqm:${runtime.vscodeRoot}`),
-      devDeviceId: this.hashDesktopIdentity(`dev:${runtime.vscodeRoot}`),
+      ...resolveCodeHostIdentity(runtime.stateDir, runtime.vscodeRoot),
       isPortable: false,
       execPath: process.execPath,
       profiles: {

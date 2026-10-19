@@ -80,26 +80,20 @@ afterEach(() => {
 });
 
 describe("ExtensionsSettings accessibility and UI journeys", () => {
-  it("names installed extension controls with their package and project context", () => {
+  it("shows a compact installed list with an explicit management action", () => {
     vi.stubGlobal("window", { desktopBridge: {} });
     const html = renderToStaticMarkup(<ExtensionsSettings />);
     expect(html).toContain('role="group" aria-label="Extension settings views"');
-    expect(html).toContain('aria-label="Dashboard installation and project settings"');
-    expect(html).toContain('aria-label="Enable Dashboard"');
-    expect(html).toContain('aria-label="Show Dashboard in all projects"');
-    expect(html).toContain('aria-label="Show Dashboard in Alpha"');
-    expect(html).toContain('aria-label="Check Dashboard for updates"');
-    expect(html).toContain("Pin Dashboard at version 1.0.0");
-    expect(html).toContain("Uninstall Dashboard");
+    expect(html).toContain('aria-label="Manage Dashboard"');
+    expect(html).not.toContain("Show in all projects");
+    expect(html).not.toContain("Profiles &amp; Permissions");
   });
-
-  it("shows clear revoked warning and disables enablement controls when version is revoked", () => {
+  it("makes revoked status visible in the compact installed list", () => {
     currentExtensions = [{ ...baseExtension, revoked: true }];
     vi.stubGlobal("window", { desktopBridge: {} });
     const html = renderToStaticMarkup(<ExtensionsSettings />);
-    expect(html).toContain('role="alert"');
-    expect(html).toContain("This version was revoked by its registry.");
-    expect(html).toContain('disabled=""');
+    expect(html).toContain("Revoked");
+    expect(html).toContain('aria-label="Manage Dashboard"');
   });
 
   it("renders desktop-only placeholder when bridge is unavailable", () => {

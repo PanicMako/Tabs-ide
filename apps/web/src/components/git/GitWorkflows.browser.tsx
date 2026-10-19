@@ -1,5 +1,5 @@
 import type { GitEnvironmentResult, GitStatusFile, NativeApi } from "@tabs/contracts";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { createRef } from "react";
 import { page } from "vitest/browser";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -8,11 +8,14 @@ import { render } from "vitest-browser-react";
 import "../../index.css";
 import { environmentApi } from "../../connection/environmentApiRegistry";
 import { useScopedStateStore } from "../../state/scopedStateStore";
-import { FileRow } from "./ChangesPanel";
+import { gitStatusQueryOptions } from "../../lib/gitReactQuery";
+import { ChangesPanel, FileRow } from "./ChangesPanel";
 import { GitEnvironmentGate } from "./GitEnvironmentGate";
 import { GitApiProvider } from "./gitApiContext";
 import { DeviceAuthModal, DiscardAllModal, ForcePushModal } from "./gitModals";
 import { PanelErrorBoundary } from "./PanelErrorBoundary";
+import { OverviewPanel } from "./OverviewPanel";
+import { TagsPanel } from "./TagsPanel";
 import { PRsPanel } from "./PRsPanel";
 
 vi.mock("../../connection/environmentApiRegistry", () => ({
@@ -356,4 +359,118 @@ it("Git setup failures show Retry instead of an endless loading animation", asyn
   await screen.getByRole("button", { name: "Retry" }).click();
   expect(retry).toHaveBeenCalledOnce();
   await screen.unmount();
+});
+
+function LiveChanges({ overview = false }: { overview?: boolean }) {
+  const { data } = useQuery(gitStatusQueryOptions("/workspace", "test"));
+  if (overview)
+    return (
+      <OverviewPanel
+        cwd="/workspace"
+        repoName="workspace"
+        statusData={data ?? null}
+        environmentData={environment(false)}
+        branchList={null}
+        commits={[]}
+        onOpenDiff={vi.fn()}
+        onGoToChanges={vi.fn()}
+        onGoToAccounts={vi.fn()}
+        onGoToDivergence={vi.fn()}
+        onOpenSignIn={vi.fn()}
+        onOpenAddRemote={vi.fn()}
+        onOpenCreateBranch={vi.fn()}
+        onOpenCreatePullRequest={vi.fn()}
+        onRunInTerminal={vi.fn()}
+        onInitRepo={vi.fn()}
+      />
+    );
+  return (
+    <ChangesPanel
+      cwd="/workspace"
+      statusData={data ?? null}
+      onOpenDiff={vi.fn()}
+      onOpenStash={vi.fn()}
+      onOpenDiscardAll={vi.fn()}
+      onRunInTerminal={vi.fn()}
+    />
+  );
+}
+
+describe("Git mutation refresh regression", () => {
+  it.each([false, true])(
+    "moves an untracked file immediately without navigating (overview=%s)",
+    async (overview) => {
+      const file = {
+        path: "new.ts",
+        staged: false,
+        unstaged: true,
+        untracked: true,
+        conflicted: false,
+        insertions: 1,
+        deletions: 0,
+      };
+      let staged = false;
+      const api = {
+        git: {
+          status: vi.fn(async () => ({
+            staged: { files: staged ? [{ ...file, staged: true, unstaged: false }] : [] },
+            unstaged: { files: staged ? [] : [file] },
+            conflicted: { files: [] },
+          })),
+          stageFiles: vi.fn(async () => {
+            staged = true;
+          }),
+          unstageFiles: vi.fn(async () => {
+            staged = false;
+          }),
+        },
+      } as unknown as NativeApi;
+      vi.mocked(environmentApi).mockResolvedValue(api);
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      await using _ = await mount(
+        <QueryClientProvider client={client}>
+          <GitApiProvider api={api} scopeKey="refresh">
+            <LiveChanges overview={overview} />
+          </GitApiProvider>
+        </QueryClientProvider>,
+      );
+      await page.getByRole("button", { name: "Stage all", exact: true }).click();
+      await expect
+        .element(page.getByRole("button", { name: "Unstage new.ts", exact: true }))
+        .toBeInTheDocument();
+      await page.getByRole("button", { name: "Unstage all", exact: true }).click();
+      await expect
+        .element(page.getByRole("button", { name: "Stage new.ts", exact: true }))
+        .toBeInTheDocument();
+      expect(api.git.stageFiles).toHaveBeenCalledWith({ cwd: "/workspace", paths: ["new.ts"] });
+      expect(api.git.unstageFiles).toHaveBeenCalledWith({ cwd: "/workspace", paths: ["new.ts"] });
+      client.clear();
+    },
+  );
+
+  it("shows and searches old tag metadata even when it is outside recent history", async () => {
+    const api = {
+      git: {
+        listTags: vi.fn().mockResolvedValue({
+          tags: [{ name: "v0.1.0", sha: "abc1234", subject: "First useful release" }],
+        }),
+        listWorkflowRuns: vi.fn().mockResolvedValue({ hasWorkflows: false, runs: [] }),
+      },
+    } as unknown as NativeApi;
+    vi.mocked(environmentApi).mockResolvedValue(api);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    await using _ = await mount(
+      <QueryClientProvider client={client}>
+        <GitApiProvider api={api} scopeKey="tags">
+          <TagsPanel cwd="/workspace" commits={[]} onOpenDraftRelease={vi.fn()} />
+        </GitApiProvider>
+      </QueryClientProvider>,
+    );
+    await expect
+      .element(page.getByText("First useful release", { exact: true }))
+      .toBeInTheDocument();
+    await page.getByRole("textbox").fill("First useful");
+    await expect.element(page.getByRole("button", { name: "Copy tag v0.1.0" })).toBeInTheDocument();
+    client.clear();
+  });
 });

@@ -300,3 +300,27 @@ CREATE TABLE IF NOT EXISTS exchange_signing_events (
   root_sha256 TEXT NOT NULL CHECK (root_sha256 ~ '^[a-f0-9]{64}$'),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Private user concerns; content is untrusted evidence, never executable markup.
+CREATE TABLE IF NOT EXISTS exchange_extension_reports (
+  id UUID PRIMARY KEY,
+  namespace TEXT NOT NULL,
+  name TEXT NOT NULL,
+  version TEXT NOT NULL,
+  reporter_id BIGINT NOT NULL REFERENCES exchange_users(id),
+  category TEXT NOT NULL CHECK (category IN ('security', 'privacy', 'impersonation', 'policy', 'other')),
+  details TEXT NOT NULL CHECK (length(details) BETWEEN 10 AND 4000),
+  status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'resolved')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (reporter_id, namespace, name, version)
+);
+CREATE INDEX IF NOT EXISTS exchange_extension_reports_queue ON exchange_extension_reports(status, created_at DESC);
+CREATE TABLE IF NOT EXISTS exchange_extension_report_events (
+  id UUID PRIMARY KEY,
+  report_id UUID NOT NULL REFERENCES exchange_extension_reports(id),
+  actor_id BIGINT NOT NULL REFERENCES exchange_users(id),
+  status TEXT NOT NULL CHECK (status IN ('open', 'resolved')),
+  note TEXT NOT NULL CHECK (length(note) BETWEEN 1 AND 2000),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);

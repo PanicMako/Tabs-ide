@@ -3,6 +3,7 @@ import type {
   GitHistoryCommit,
   GitListBranchesResult,
   GitStatusResult,
+  GitStatusFile,
   GitWatchedBranchStatus,
   GitRepositoryActionInput,
 } from "@tabs/contracts";
@@ -26,6 +27,7 @@ import { useCallback, useMemo, useState } from "react";
 import { deriveRepoState } from "../../lib/deriveRepoState";
 import { toGitUserFacingErrorMessage } from "../../lib/gitErrorMessages";
 import { invalidateGitQueries } from "../../lib/gitReactQuery";
+import { FileRow } from "./ChangesPanel";
 import { useGitApi } from "./gitApiContext";
 import { toastManager } from "../ui/toast";
 import { Badge } from "../ui/badge";
@@ -75,6 +77,7 @@ export function OverviewPanel({
   branchList,
   commits,
   watchedBranchStatuses = [],
+  onOpenDiff,
   onGoToChanges,
   onGoToAccounts,
   onGoToDivergence,
@@ -92,6 +95,7 @@ export function OverviewPanel({
   branchList: GitListBranchesResult | null;
   commits: ReadonlyArray<GitHistoryCommit>;
   watchedBranchStatuses?: ReadonlyArray<GitWatchedBranchStatus>;
+  onOpenDiff: (file: GitStatusFile) => void;
   onGoToChanges: () => void;
   onGoToAccounts: () => void;
   onGoToDivergence: () => void;
@@ -108,6 +112,7 @@ export function OverviewPanel({
   const [isCommitting, setIsCommitting] = useState(false);
   const [isCommittingAndPushing, setIsCommittingAndPushing] = useState(false);
   const [isStagingAll, setIsStagingAll] = useState(false);
+  const [stagingBusy, setStagingBusy] = useState(false);
   const [isMergingWatched, setIsMergingWatched] = useState(false);
   const [isRebasingWatched, setIsRebasingWatched] = useState(false);
   const [lastPushedAt, setLastPushedAt] = useState<number | null>(null);
@@ -127,7 +132,7 @@ export function OverviewPanel({
   const ahead = statusData?.aheadCount ?? 0;
   const behind = statusData?.behindCount ?? 0;
   const stagedFiles = statusData?.staged?.files ?? [];
-  const unstagedFiles = statusData?.unstaged?.files ?? [];
+  const unstagedFiles = (statusData?.unstaged?.files ?? []).filter((file) => !file.conflicted);
   const conflictedFiles = statusData?.conflicted?.files ?? [];
   const changed = stagedFiles.length + unstagedFiles.length;
   const isDetached = !branchList?.branches.some((b) => b.current);
@@ -301,6 +306,25 @@ export function OverviewPanel({
       setIsStagingAll(false);
     }
   }, [api, cwd, unstagedFiles, queryClient]);
+
+  const updateStaging = async (files: ReadonlyArray<GitStatusFile>, staged: boolean) => {
+    if (!api || stagingBusy || !files.length) return;
+    setStagingBusy(true);
+    try {
+      const input = { cwd, paths: files.map((file) => file.path) };
+      if (staged) await api.git.unstageFiles(input);
+      else await api.git.stageFiles(input);
+      await invalidateGitQueries(queryClient);
+    } catch (error) {
+      toastManager.add({
+        type: "error",
+        title: staged ? "Unstage failed" : "Stage failed",
+        description: toGitUserFacingErrorMessage(error),
+      });
+    } finally {
+      setStagingBusy(false);
+    }
+  };
 
   const handleCommit = async (andPush = false) => {
     if (!api || !msg.trim()) return;
@@ -680,6 +704,49 @@ export function OverviewPanel({
               {unstagedFiles.length > 0 ? `, ${unstagedFiles.length} modified` : ""}
             </span>
           </div>
+        </div>
+        <div className="mb-3 space-y-2" aria-busy={stagingBusy || isStagingAll}>
+          {(
+            [
+              { label: "Staged changes", files: stagedFiles, staged: true },
+              { label: "Changes", files: unstagedFiles, staged: false },
+            ] as const
+          ).map(({ label, files, staged }) => (
+            <div key={label}>
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>
+                  {label} ({files.length})
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={
+                    !files.length ||
+                    stagingBusy ||
+                    isStagingAll ||
+                    isCommitting ||
+                    isCommittingAndPushing
+                  }
+                  onClick={() => void updateStaging(files, staged)}
+                >
+                  {staged ? "Unstage all" : "Stage all"}
+                </Button>
+              </div>
+              {files.map((file) => (
+                <FileRow
+                  key={file.path}
+                  cwd={cwd}
+                  f={file}
+                  staged={staged}
+                  rowLoadingAction={
+                    stagingBusy || isStagingAll ? (staged ? "unstage" : "stage") : null
+                  }
+                  onOpenDiff={onOpenDiff}
+                  onToggleStage={(selected) => void updateStaging([selected], staged)}
+                />
+              ))}
+            </div>
+          ))}
         </div>
         <AutoTextarea
           aria-label="Commit message"

@@ -1,4 +1,4 @@
-import { generateKeyPairSync, sign } from "node:crypto";
+import { createHash, generateKeyPairSync, sign } from "node:crypto";
 import { execFile } from "node:child_process";
 import * as FSPromises from "node:fs/promises";
 import * as OS from "node:os";
@@ -7,6 +7,7 @@ import { promisify } from "node:util";
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  MacPreviewUpdater,
   compareMacPreviewVersions,
   selectMacPreviewRelease,
   createMacPreviewStageDirectory,
@@ -278,4 +279,123 @@ it("uses explicit beta channel for plain prerelease versions", () => {
   };
   expect(selectMacPreviewRelease([release], "1.3.30", "beta")).toBe(tag);
   expect(selectMacPreviewRelease([release], "1.3.30", "stable")).toBeNull();
+});
+
+describe("MacPreviewUpdater archive integration", () => {
+  async function setup(archive: Buffer) {
+    const directory = await FSPromises.mkdtemp(Path.join(OS.tmpdir(), "tabs-updater-integration-"));
+    const asset = {
+      name: "Tabs-1.4.0-arm64.zip",
+      size: archive.length,
+      sha512: createHash("sha512").update(archive).digest("base64"),
+    };
+    const fixture = createSignedManifest({
+      assets: { arm64: asset, x64: { ...asset, name: "Tabs-1.4.0-x64.zip" } },
+    });
+    const updater = new MacPreviewUpdater({
+      appBundlePath: Path.join(directory, "Tabs.app"),
+      currentVersion: "1.3.34",
+      repository: "PanicMako/Tabs-ide",
+      arch: "arm64",
+      tempDirectory: directory,
+      downloadCacheDirectory: directory,
+      manifestPublicKey: fixture.publicKey,
+    });
+    const metadata = (url: string) =>
+      url.includes("api.github.com")
+        ? Response.json([
+            {
+              tag_name: "v1.4.0",
+              draft: false,
+              prerelease: false,
+              assets: [
+                "tabs-mac-preview-update.json",
+                "tabs-mac-preview-update.json.sig",
+                "Tabs-1.4.0-arm64.zip",
+                "Tabs-1.4.0-x64.zip",
+              ].map((name) => ({ name })),
+            },
+          ])
+        : url.endsWith(".sig")
+          ? new Response(fixture.signature)
+          : new Response(fixture.bytes);
+    return { directory, updater, metadata };
+  }
+
+  it("downloads through the public updater beyond two minutes while bytes keep arriving", async () => {
+    const archive = Buffer.from("signed archive bytes");
+    const { directory, updater, metadata } = await setup(archive);
+    vi.useFakeTimers();
+    try {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (url: string) => {
+          if (!url.endsWith(".zip")) return metadata(url);
+          return new Response(
+            new ReadableStream({
+              start(controller) {
+                controller.enqueue(archive.subarray(0, 5));
+                setTimeout(() => controller.enqueue(archive.subarray(5, 10)), 70_000);
+                setTimeout(() => {
+                  controller.enqueue(archive.subarray(10));
+                  controller.close();
+                }, 140_000);
+              },
+            }),
+          );
+        }),
+      );
+      await updater.checkForUpdates();
+      const progress = vi.fn();
+      const download = updater.downloadUpdate(progress);
+      // Filesystem work must settle before advancing the simulated network clock.
+      await vi.waitFor(() =>
+        expect(progress.mock.calls.some(([percent]) => percent > 0)).toBe(true),
+      );
+      await vi.advanceTimersByTimeAsync(140_000);
+      await expect(download).resolves.toBe("1.4.0");
+      expect(progress).toHaveBeenLastCalledWith(100);
+    } finally {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+      await FSPromises.rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("retains verified-target partial bytes and resumes on the next download attempt", async () => {
+    const archive = Buffer.from("complete signed archive");
+    const { directory, updater, metadata } = await setup(archive);
+    let attempt = 0;
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (!url.endsWith(".zip")) return metadata(url);
+      if (++attempt === 1) {
+        let read = false;
+        return new Response(
+          new ReadableStream({
+            pull(controller) {
+              if (!read) {
+                read = true;
+                controller.enqueue(archive.subarray(0, 7));
+              } else controller.error(new Error("network interrupted"));
+            },
+          }),
+        );
+      }
+      expect(init?.headers).toMatchObject({ Range: "bytes=7-" });
+      return new Response(archive.subarray(7), {
+        status: 206,
+        headers: { "Content-Range": `bytes 7-${archive.length - 1}/${archive.length}` },
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      await updater.checkForUpdates();
+      await expect(updater.downloadUpdate(() => {})).rejects.toThrow("network interrupted");
+      await expect(updater.downloadUpdate(() => {})).resolves.toBe("1.4.0");
+      expect(attempt).toBe(2);
+    } finally {
+      vi.unstubAllGlobals();
+      await FSPromises.rm(directory, { recursive: true, force: true });
+    }
+  });
 });

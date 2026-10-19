@@ -97,16 +97,19 @@ const samplePreparedInstall: DesktopPreparedExchangeInstall = {
   },
 };
 
+const installedFixtures = [sampleExtension];
+const projectFixtures = [{ id: "project-a", name: "Alpha Project" }];
+
 vi.mock("@effect/atom-react", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   return {
     ...actual,
-    useAtomValue: () => [{ id: "project-a", name: "Alpha Project" }],
+    useAtomValue: () => projectFixtures,
   };
 });
 vi.mock("~/state/threads", () => ({ projectsAtom: Symbol("projects") }));
 vi.mock("~/state/extensions", () => ({
-  useInstalledExtensions: () => [sampleExtension],
+  useInstalledExtensions: () => installedFixtures,
   refreshExtensions: async () => {},
 }));
 vi.mock("~/state/workspaceShell", () => ({
@@ -149,13 +152,23 @@ test("ExtensionsSettings: navigates views, manages focus on dialogs, and support
   );
 
   // Tab buttons rendered
-  const discoverTab = screen.getByRole("button", { name: "Discover" });
-  const installedTab = screen.getByRole("button", { name: "Installed" });
-  const profilesTab = screen.getByRole("button", { name: "Profiles & Permissions" });
+  const discoverTab = screen.getByRole("button", { name: "Browse" });
+  const installedTab = screen.getByRole("button", { name: /^Installed/ });
 
   await expect.element(installedTab).toBeVisible();
   await expect.element(discoverTab).toBeVisible();
-  await expect.element(profilesTab).toBeVisible();
+  await expect
+    .element(screen.getByRole("button", { name: "Profiles & Permissions" }))
+    .not.toBeInTheDocument();
+  await screen.getByRole("button", { name: "Manage Dashboard" }).click();
+
+  // Custom project controls preserve the native assignment contract.
+  await screen
+    .getByRole("checkbox", { name: "Show Dashboard in Alpha Project", exact: true })
+    .click();
+  await expect
+    .poll(() => mockBridge.setExtensionAssignment)
+    .toHaveBeenCalledWith("acme.dashboard", expect.objectContaining({ enabledProjectIds: [] }));
 
   // Test uninstall flow with keyboard and focus restoration
   const uninstallButton = screen.getByRole("button", { name: "Uninstall Dashboard" });
@@ -176,28 +189,18 @@ test("ExtensionsSettings: navigates views, manages focus on dialogs, and support
   await expect.element(restoredUninstallButton).toBeVisible();
   await expect.poll(() => document.activeElement).toBe(restoredUninstallButton.element());
 
-  // Switch to Profiles & Permissions tab
-  (
-    Array.from(document.querySelectorAll("button")).find(
-      (btn) => btn.textContent === "Profiles & Permissions",
-    ) as HTMLButtonElement
-  ).click();
-
-  await expect
-    .element(page.getByText(/A shared profile uses one storage space across projects/))
-    .toBeVisible();
+  await screen.getByRole("button", { name: "Accounts & access", exact: true }).click();
   await expect
     .element(screen.getByRole("combobox", { name: "Default profile for Dashboard" }))
     .toBeVisible();
 
-  // Switch to Discover tab
-  (
-    Array.from(document.querySelectorAll("button")).find(
-      (btn) => btn.textContent === "Discover",
-    ) as HTMLButtonElement
-  ).click();
+  const scope = screen.getByRole("combobox", { name: "Storage scope for new Dashboard profile" });
+  await scope.click();
+  await screen.getByRole("option", { name: "Isolated per project" }).click();
+  await expect.element(scope).toHaveTextContent("Isolated per project");
 
-  await expect.element(screen.getByRole("heading", { name: "Discover" })).toBeVisible();
+  await discoverTab.click();
+  await expect.element(screen.getByRole("region", { name: "Browse extensions" })).toBeVisible();
 
   // Search Exchange
   const searchInput = screen.getByRole("textbox", { name: "Search Tabs Exchange extensions" });
@@ -205,6 +208,19 @@ test("ExtensionsSettings: navigates views, manages focus on dialogs, and support
   const searchButton = screen.getByRole("button", { name: "Search Exchange" });
   await searchButton.click();
 
+  // Filters update loaded results, remain visible as removable chips, and support Escape.
+  const filters = screen.getByRole("button", { name: "Filters", exact: true });
+  await filters.click();
+  await screen.getByRole("button", { name: "No permissions", exact: true }).click();
+  await expect
+    .element(screen.getByRole("button", { name: "View Analytics Tool" }))
+    .not.toBeInTheDocument();
+  await userEvent.keyboard("{Escape}");
+  await expect.element(filters).toHaveFocus();
+  await screen.getByRole("button", { name: "Remove requested access filter" }).click();
+  await expect.element(screen.getByRole("button", { name: "View Analytics Tool" })).toBeVisible();
+
+  await screen.getByRole("button", { name: "View Analytics Tool" }).click();
   // Listing appears
   const reviewButton = screen.getByRole("button", { name: "Review & install Analytics Tool" });
   await expect.element(reviewButton).toBeVisible();
@@ -256,9 +272,59 @@ test("ExtensionsSettings: navigates views, manages focus on dialogs, and support
     .toBeVisible();
   finishConfirm(sampleExtension);
   await expect
-    .element(screen.getByRole("button", { name: "Installed" }))
+    .element(screen.getByRole("button", { name: /^Installed/ }))
     .toHaveAttribute("aria-pressed", "true");
   await expect.poll(() => document.activeElement).toBe(installedTab.element());
 
+  delete (window as unknown as { desktopBridge?: unknown }).desktopBridge;
+});
+
+test("Install resumes the verified review after first-time connection, without installing automatically", async () => {
+  await page.viewport(1200, 850);
+  let trusted = false;
+  const prepare = vi.fn(async () => samplePreparedInstall);
+  const confirm = vi.fn();
+  const bridge: Partial<DesktopBridge> = {
+    setTheme: async () => {},
+    getRegistryConnection: async () => ({
+      origin: "https://exchange.example",
+      connected: false,
+      trusted,
+    }),
+    discoverExchangeExtensions: async () => ({ listings: [sampleListing], nextCursor: null }),
+    exchangeInstallAvailable: async () => trusted,
+    configureRegistryConnection: async () => {
+      trusted = true;
+      return { origin: "https://exchange.example", connected: false, trusted: true };
+    },
+    prepareExchangeInstall: prepare,
+    confirmExchangeInstall: confirm,
+    cancelExchangeInstall: async () => {},
+  };
+  (window as unknown as { desktopBridge: Partial<DesktopBridge> }).desktopBridge = bridge;
+  const screen = await render(<ExtensionsSettings />);
+  await screen.getByRole("button", { name: "Browse", exact: true }).click();
+  await screen.getByRole("button", { name: "Review & install Analytics Tool" }).click();
+  const upload = (label: string, value: unknown) => {
+    const input = document.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`)!;
+    const data = new DataTransfer();
+    data.items.add(new File([JSON.stringify(value)], "fixture.json", { type: "application/json" }));
+    input.files = data.files;
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  };
+  upload("Desktop connection settings file", {
+    TABS_EXCHANGE_ORIGIN: "https://exchange.example",
+    TABS_EXCHANGE_TRUST_ROOT_SHA256: "a".repeat(64),
+    TABS_EXCHANGE_TRUST_ID: "registry-fixture",
+  });
+  upload("Public root.json file", { signed: { _type: "root" }, signatures: [] });
+  await screen.getByLabelText("3. Confirm this registry").fill("https://exchange.example");
+  await screen.getByRole("button", { name: "Trust & connect" }).click();
+  await expect
+    .element(screen.getByRole("heading", { name: "Review Analytics Tool" }))
+    .toBeVisible();
+  expect(prepare).toHaveBeenCalledTimes(1);
+  expect(confirm).not.toHaveBeenCalled();
+  await screen.getByRole("button", { name: "Cancel install" }).click();
   delete (window as unknown as { desktopBridge?: unknown }).desktopBridge;
 });

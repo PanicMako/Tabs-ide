@@ -2,7 +2,7 @@
 // outside any Effect runtime, and only needs path.relative.
 import * as NodePath from "node:path";
 
-import { BaseSequencer, type TestSpecification } from "vite-plus/test/node";
+import { BaseSequencer, type TestSpecification } from "vitest/node";
 
 import shardWeights from "./shardWeights.json" with { type: "json" };
 

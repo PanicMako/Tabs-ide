@@ -7319,3 +7319,55 @@ main.dashboard-main {
 .mobile-site-menu.dashboard-menu-open :focus-visible {
   outline-color: white;
 }
+
+.publisher-verified-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--badge-radius);
+  color: var(--accent);
+  background: var(--accent-pale);
+  font-size: 12px;
+  font-weight: 650;
+}
+.publisher-verified-badge[hidden] {
+  display: none;
+}
+.extension-report-form fieldset {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  margin: 16px 0;
+  padding: 0;
+  border: 0;
+}
+.extension-report-form label {
+  font-size: 14px;
+  font-weight: 600;
+}
+.extension-report-form textarea,
+#agent-instructions {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 12px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--control-radius);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.6;
+  resize: vertical;
+}
+#agent-instructions {
+  margin-top: 12px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.extension-report-form textarea:focus-visible,
+#agent-instructions:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}

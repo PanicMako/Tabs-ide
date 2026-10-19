@@ -3,7 +3,7 @@ import { assert, describe, it } from "@effect/vitest";
 import { ProviderSessionId, ThreadId } from "@tabs/contracts";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import { vi } from "vite-plus/test";
+import { vi } from "vitest";
 
 import * as ProviderEventLoggers from "../../provider/ProviderEventLoggers.ts";
 import * as CursorAgentSdk from "./CursorAgentSdk.ts";

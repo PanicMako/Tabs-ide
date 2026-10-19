@@ -7,7 +7,7 @@ import {
   type UsageProviderKind,
   UsageSummary,
 } from "@tabs/contracts";
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it } from "vitest";
 import * as Schema from "effect/Schema";
 
 import { isModelCostUnknown, mergeUsage, type EnvironmentUsage } from "./usageMerge.ts";

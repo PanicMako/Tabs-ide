@@ -326,10 +326,10 @@ export const InterfaceStudyTopBar = memo(function InterfaceStudyTopBar(
           >
             {/* Title & branch/change status */}
             <div className="flex flex-col text-left leading-tight min-w-0">
-              <span className="font-display font-bold text-[14px] sm:text-[15px] tracking-tight text-foreground truncate max-w-[160px] sm:max-w-[200px]">
+              <span className="font-sans font-semibold text-[12px] tracking-normal text-foreground truncate max-w-[140px] sm:max-w-[180px]">
                 {activeProjectTitle}
               </span>
-              <span className="text-[10.5px] font-medium text-muted-foreground truncate max-w-[160px] sm:max-w-[200px]">
+              <span className="text-[10px] font-normal text-muted-foreground truncate max-w-[140px] sm:max-w-[180px]">
                 {activeSubtext}
               </span>
             </div>
@@ -386,9 +386,9 @@ export const InterfaceStudyTopBar = memo(function InterfaceStudyTopBar(
                         }
                       }}
                       className={cn(
-                        "group flex items-center gap-3 rounded-xl p-2 cursor-pointer transition-colors select-none",
+                        "study-project-item group flex items-center gap-3 rounded-lg px-3 py-2.5 cursor-pointer transition-colors select-none",
                         isSelected
-                          ? "bg-foreground/10 text-foreground font-semibold"
+                          ? "bg-foreground/5 text-foreground font-semibold"
                           : "hover:bg-foreground/5 text-foreground/80 hover:text-foreground",
                       )}
                     >

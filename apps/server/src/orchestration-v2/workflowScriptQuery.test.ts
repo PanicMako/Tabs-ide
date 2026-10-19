@@ -4,7 +4,7 @@ import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
 import { it as effectIt } from "@effect/vitest";
 import * as Effect from "effect/Effect";
-import { afterAll, assert, describe } from "vite-plus/test";
+import { afterAll, assert, describe } from "vitest";
 import { symlinksSupported } from "@tabs/shared/testing/symlinks";
 import { readWorkflowScript } from "./workflowScriptQuery.ts";
 

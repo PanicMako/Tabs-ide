@@ -1,4 +1,4 @@
-import type { GitHistoryCommit, GitPushAccess } from "@tabs/contracts";
+import type { GitHistoryCommit, GitPushAccess, GitTag } from "@tabs/contracts";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   CheckCircle2,
@@ -26,7 +26,17 @@ import { Card, InlineForm } from "./gitPrimitives";
  * Features a vivid semantic status icon paired with neutral font-mono status typography.
  */
 function TagCiStatus({ cwd, tagName }: { cwd: string; tagName: string }) {
-  const { data, isLoading, isError } = useQuery(gitWorkflowRunsQueryOptions(cwd, tagName, null));
+  const api = useGitApi();
+  const scopeKey = useGitScopeKey();
+  const { data, isLoading, isError } = useQuery({
+    ...gitWorkflowRunsQueryOptions(cwd, tagName, null),
+    queryKey: ["environment", scopeKey, "git", "workflowRuns", cwd, tagName],
+    queryFn: () => {
+      if (!api) throw new Error("Git environment is unavailable.");
+      return api.git.listWorkflowRuns({ cwd, branch: tagName, limit: 5 });
+    },
+    enabled: Boolean(api && cwd),
+  });
 
   if (isLoading) {
     return (
@@ -120,6 +130,7 @@ export function TagsPanel({
     [setGitState],
   );
   const [realTags, setRealTags] = useState<string[]>([]);
+  const [tagDetails, setTagDetails] = useState<Record<string, GitTag>>({});
   const [loadingTags, setLoadingTags] = useState(true);
   const searchQuery = gitState.tagSearch;
   const setSearchQuery = useCallback(
@@ -163,6 +174,7 @@ export function TagsPanel({
     try {
       const res = await api.git.listTags({ cwd });
       if (res?.tags) {
+        setTagDetails(Object.fromEntries(res.tags.map((tag) => [tag.name, tag])));
         for (const t of res.tags) {
           if (t.name) foundTags.add(t.name);
         }
@@ -240,9 +252,13 @@ export function TagsPanel({
         if (commit.shortSha.toLowerCase().includes(q)) return true;
         if (commit.subject.toLowerCase().includes(q)) return true;
       }
-      return false;
+      const detail = tagDetails[tagName];
+      return Boolean(
+        detail &&
+        (detail.sha.toLowerCase().includes(q) || detail.subject.toLowerCase().includes(q)),
+      );
     });
-  }, [realTags, searchQuery, commits]);
+  }, [realTags, searchQuery, commits, tagDetails]);
 
   const copyToClipboard = (text: string) => {
     void navigator.clipboard.writeText(text);
@@ -325,6 +341,10 @@ export function TagsPanel({
               c.refs?.some((r) => r === `tag: ${tagName}` || r.endsWith(`/${tagName}`)),
             );
 
+            const detail = tagDetails[tagName];
+            const subject = detail?.subject || commit?.subject;
+            const shortSha = detail?.sha || commit?.shortSha;
+
             return (
               <div
                 key={tagName}
@@ -332,7 +352,9 @@ export function TagsPanel({
               >
                 {/* Left: Tag Badge & Optional Commit Info */}
                 <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                  <div
+                  <button
+                    type="button"
+                    aria-label={`Copy tag ${tagName}`}
                     onClick={() => copyToClipboard(tagName)}
                     title="Click to copy tag name"
                     className="flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-border/70 bg-muted/50 text-xs font-mono font-semibold text-foreground/90 shrink-0 cursor-pointer hover:bg-muted/80 transition-colors"
@@ -343,18 +365,18 @@ export function TagsPanel({
                       size={9}
                       className="opacity-0 group-hover/row:opacity-60 transition-opacity ml-0.5 text-muted-foreground"
                     />
-                  </div>
+                  </button>
 
-                  {commit && (
+                  {(subject || shortSha) && (
                     <div className="hidden lg:flex items-center gap-2 min-w-0 overflow-hidden">
                       <span className="text-[11px] font-mono text-muted-foreground/60 bg-muted/30 px-1.5 py-0.5 rounded border border-border/40 shrink-0">
-                        {commit.shortSha}
+                        {shortSha}
                       </span>
                       <span
                         className="text-xs text-muted-foreground/80 truncate font-sans"
-                        title={commit.subject}
+                        title={subject}
                       >
-                        {commit.subject}
+                        {subject}
                       </span>
                     </div>
                   )}

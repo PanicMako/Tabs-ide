@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it } from "vitest";
 import { formatThreadTitleContext, limitTitleMessage } from "./ThreadTitleContext.ts";
 
 describe("thread title context", () => {

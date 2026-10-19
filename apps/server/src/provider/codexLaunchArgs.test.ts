@@ -1,6 +1,6 @@
 import * as NodeAssert from "node:assert/strict";
 
-import { describe, it } from "vite-plus/test";
+import { describe, it } from "vitest";
 
 import {
   codexAppServerArgs,

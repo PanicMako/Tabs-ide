@@ -419,9 +419,12 @@ html[data-interface-study="dark"] .study-tab-fillet path[stroke] {
 .study-project-button {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  padding: 5px 12px 5px 6px;
-  border-radius: 18px;
+  gap: 14px;
+  min-height: 36px;
+  padding: 4px 10px;
+  border: 1px solid color-mix(in srgb, var(--foreground) 10%, transparent);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--card) 65%, transparent);
   transition: background 160ms ease;
   cursor: pointer;
   user-select: none;
@@ -437,15 +440,13 @@ html[data-interface-study="dark"] .study-tab-fillet path[stroke] {
   position: absolute;
   top: calc(100% + 8px);
   left: 0;
-  width: min(340px, calc(100vw - 32px));
+  width: min(300px, calc(100vw - 32px));
   background: var(--card);
   color: var(--card-foreground);
   border: 1px solid var(--border);
-  border-radius: 24px;
-  padding: 8px;
-  box-shadow:
-    0 24px 60px rgba(0, 0, 0, 0.25),
-    0 0 0 1px var(--border);
+  border-radius: 14px;
+  padding: 6px;
+  box-shadow: 0 12px 32px color-mix(in srgb, var(--foreground) 14%, transparent);
   z-index: 50;
   transform-origin: 20% 0;
   animation: study-pop 240ms cubic-bezier(0.2, 1.2, 0.3, 1) both;
@@ -480,4 +481,16 @@ html[data-interface-study="light"] .study-workspace-card {
 html[data-interface-study="dark"] .study-workspace-card {
   background: #22242a !important;
   --background: #22242a;
+}
+
+/* Keep pointer activation quiet while retaining a clear keyboard focus indicator. */
+.study-project-button:focus:not(:focus-visible) {
+  outline: none;
+  box-shadow: none;
+}
+
+.study-project-button:focus-visible,
+.study-project-item:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
 }

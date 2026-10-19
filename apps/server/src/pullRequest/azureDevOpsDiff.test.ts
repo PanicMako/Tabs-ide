@@ -1,5 +1,5 @@
 import { unquoteGitPatchPath } from "@tabs/shared/gitPatchPath";
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it } from "vitest";
 
 import {
   azureDevOpsFilePatch,

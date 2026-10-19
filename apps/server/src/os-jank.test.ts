@@ -1,5 +1,5 @@
 import * as NodeOS from "node:os";
-import { assert, it } from "vite-plus/test";
+import { assert, it } from "vitest";
 
 import { hydratePosixHome } from "./os-jank.ts";
 

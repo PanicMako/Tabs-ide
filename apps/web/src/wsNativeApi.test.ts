@@ -689,7 +689,7 @@ describe("wsNativeApi", () => {
         cwd: "/repo",
         action: "commit",
       },
-      { timeoutMs: null },
+      expect.objectContaining({ timeoutMs: null, onChunk: expect.any(Function) }),
     );
   });
 
@@ -1311,4 +1311,41 @@ describe("wsNativeApi", () => {
       expect(requestMock).toHaveBeenCalledTimes(1);
     });
   });
+});
+
+it("consumes Git progress and resolves the final streamed result", async () => {
+  const result = {
+    action: "commit",
+    branch: { status: "skipped_not_requested" },
+    commit: { status: "created", commitSha: "abc1234", subject: "Test" },
+    push: { status: "skipped_not_requested" },
+    pr: { status: "skipped_not_requested" },
+    toast: { title: "Committed", cta: { kind: "none" } },
+  };
+  requestMock.mockImplementationOnce(async (_method, _input, options) => {
+    (options as { onChunk: (values: unknown[]) => void }).onChunk([
+      { actionId: "a", cwd: "/repo", action: "commit", kind: "action_finished", result },
+    ]);
+    return undefined;
+  });
+  const { createWsNativeApi } = await import("./wsNativeApi");
+  const api = createWsNativeApi({ singleton: false });
+  const progress = vi.fn();
+  const unsubscribe = api.git.onActionProgress(progress);
+  await expect(
+    api.git.runStackedAction({ actionId: "a", cwd: "/repo", action: "commit" }),
+  ).resolves.toEqual(result);
+  expect(progress).toHaveBeenCalledWith(
+    expect.objectContaining({ kind: "action_finished", result }),
+  );
+  unsubscribe();
+});
+
+it("does not report success when a Git stream closes without its final result", async () => {
+  requestMock.mockResolvedValueOnce(undefined);
+  const { createWsNativeApi } = await import("./wsNativeApi");
+  const api = createWsNativeApi({ singleton: false });
+  await expect(
+    api.git.runStackedAction({ actionId: "a", cwd: "/repo", action: "commit" }),
+  ).rejects.toThrow("without a completion result");
 });

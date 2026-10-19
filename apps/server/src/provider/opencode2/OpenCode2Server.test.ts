@@ -13,7 +13,7 @@ import * as Path from "effect/Path";
 import * as Redacted from "effect/Redacted";
 import * as TestClock from "effect/testing/TestClock";
 import { FetchHttpClient, HttpClient, HttpClientResponse } from "effect/unstable/http";
-import { describe } from "vite-plus/test";
+import { describe } from "vitest";
 
 import * as OpenCodeRuntime from "../opencodeRuntime.ts";
 import * as OpenCodeServerLedger from "../OpenCodeServerLedger.ts";

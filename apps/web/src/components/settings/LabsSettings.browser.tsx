@@ -3,11 +3,20 @@ import "../../localFonts.css";
 import { expect, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 import { render } from "vitest-browser-react";
-import { SettingsEditorialFrame, SettingsWorkspaceIdentity } from "./SettingsEditorialFrame";
+import {
+  SettingsEditorialFrame,
+  SettingsWorkspaceIdentity,
+  useSettingsStudyAppearance,
+} from "./SettingsEditorialFrame";
 import { SettingsSection, SettingsRow, SettingsSectionHeader } from "./SettingsLayout";
 import { useSettingsLabsStore } from "../../stores/settingsLabsStore";
 import LabsSettings from "./LabsSettings";
 import { Popover, PopoverTrigger, PopoverPopup } from "../ui/popover";
+
+function NestedAppearanceProbe() {
+  const appearance = useSettingsStudyAppearance();
+  return <span data-testid="nested-study-appearance">{appearance ?? "workspace"}</span>;
+}
 
 it("switches shared settings surfaces together, preserves fonts, and restores the classic layout", async () => {
   useSettingsLabsStore.getState().setEditorialSettingsOnly(false);
@@ -20,6 +29,9 @@ it("switches shared settings surfaces together, preserves fonts, and restores th
         <SettingsWorkspaceIdentity onBack={() => {}} pageName="General" onSettingsHome={() => {}} />
       </header>
       <LabsSettings />
+      <div data-testid="workspace-study-card" className="study-workspace-card">
+        Workspace card
+      </div>
       <SettingsSectionHeader title="General" description="Your workflow" />
       <SettingsSection title="Preferences">
         <SettingsRow title="Interface scale" description="Find your space" />
@@ -38,6 +50,10 @@ it("switches shared settings surfaces together, preserves fonts, and restores th
     await expect.element(page.getByRole("button", { name: "Personal workspace" })).toBeVisible();
     const frame = heading.closest("[data-settings-design]")!;
     expect(getComputedStyle(frame).backgroundColor).toBe("rgb(32, 32, 32)");
+    const workspaceCard = page.getByTestId("workspace-study-card").element();
+    expect(getComputedStyle(workspaceCard).borderTopLeftRadius).toBe("28px");
+    expect(getComputedStyle(workspaceCard).borderBottomLeftRadius).toBe("0px");
+    expect(getComputedStyle(workspaceCard).marginLeft).toBe("0px");
     await expect.element(page.getByText("Make Tabs work your way.")).toBeVisible();
     await page.getByRole("button", { name: "Light", exact: true }).click();
     await expect.poll(() => getComputedStyle(frame).backgroundColor).toBe("rgb(245, 244, 240)");
@@ -91,6 +107,7 @@ it("limits the study to Settings while preserving the workspace appearance", asy
   const view = await render(
     <SettingsEditorialFrame>
       <LabsSettings />
+      <NestedAppearanceProbe />
       <Popover>
         <PopoverTrigger>Open settings overlay</PopoverTrigger>
         <PopoverPopup>
@@ -112,10 +129,17 @@ it("limits the study to Settings while preserving the workspace appearance", asy
     expect(document.documentElement.style.getPropertyValue("--background")).toBe(background);
     expect(document.documentElement.classList.contains("dark")).toBe(originalDark);
     await expect.element(page.getByTestId("appearance-probe")).not.toBeVisible();
+    await expect.element(page.getByTestId("nested-study-appearance")).toHaveTextContent("dark");
     await page.getByRole("button", { name: "Light", exact: true }).click();
+    await expect.element(page.getByTestId("nested-study-appearance")).toHaveTextContent("light");
     await expect.element(page.getByTestId("appearance-probe")).toBeVisible();
     const frame = page.getByTestId("appearance-probe").element().closest("[data-settings-design]")!;
     expect(getComputedStyle(frame).backgroundColor).toBe("rgb(245, 244, 240)");
+    expect(frame.getAttribute("data-settings-scope")).toBe("settings");
+    expect(getComputedStyle(frame).borderRadius).toBe("14px");
+    const option = frame.querySelector('[data-slot="settings-study-scope"]')!;
+    expect(getComputedStyle(option).borderRadius).toBe("12px");
+    expect(option.classList.contains("border-l")).toBe(false);
     await page.getByRole("button", { name: "Open settings overlay", exact: true }).click();
     await expect.element(page.getByTestId("settings-overlay")).toBeVisible();
     expect(page.getByTestId("settings-overlay").element().closest("[data-settings-design]")).toBe(

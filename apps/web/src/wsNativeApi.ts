@@ -1,5 +1,6 @@
 import {
-  type GitActionProgressEvent,
+  GitActionProgressEvent,
+  type GitRunStackedActionResult,
   type ReviewProgressEvent,
   ORCHESTRATION_WS_CHANNELS,
   ORCHESTRATION_WS_METHODS,
@@ -523,8 +524,28 @@ export function createWsNativeApi(options?: {
       fetch: (input) => transport.request(WS_METHODS.gitFetch, input),
       pull: (input) => transport.request(WS_METHODS.gitPull, input),
       status: (input) => transport.request(WS_METHODS.gitStatus, input),
-      runStackedAction: (input) =>
-        transport.request(WS_METHODS.gitRunStackedAction, input, { timeoutMs: null }),
+      runStackedAction: async (input) => {
+        let completed: GitRunStackedActionResult | undefined;
+        const legacyResult = await transport.request<GitRunStackedActionResult>(
+          WS_METHODS.gitRunStackedAction,
+          input,
+          {
+            timeoutMs: null,
+            onChunk: (values) => {
+              for (const value of values) {
+                const event = Schema.decodeUnknownSync(GitActionProgressEvent)(value);
+                if (event.kind === "action_finished") completed = event.result;
+                for (const listener of activeGitActionProgressListeners) listener(event);
+              }
+            },
+          },
+        );
+        if (completed) return completed;
+        if (legacyResult) return legacyResult;
+        throw new Error(
+          "Git operation ended without a completion result. Refresh repository status before retrying.",
+        );
+      },
       listBranches: (input) => transport.request(WS_METHODS.gitListBranches, input),
       listWorkflowRuns: (input) => transport.request(WS_METHODS.gitListWorkflowRuns, input),
       createWorktree: (input) => transport.request(WS_METHODS.gitCreateWorktree, input),

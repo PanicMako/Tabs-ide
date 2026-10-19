@@ -884,13 +884,22 @@ export const ReviewCostPreviewEvent = Schema.Struct({
   estimatedPassCount: Schema.Number,
   estimatedInputTokens: Schema.Number,
 });
+export const AuditReviewOptions = Schema.Struct({
+  mode: Schema.Literals(["pr_review", "full_audit", "security", "architecture", "refactoring"]),
+  depth: Schema.Literals(["quick", "standard", "deep"]),
+  targetPaths: Schema.optional(Schema.Array(TrimmedNonEmptyStringSchema)),
+});
+export type AuditReviewOptions = typeof AuditReviewOptions.Type;
+
 export const GitGenerateReviewInput = Schema.Struct({
   cwd: TrimmedNonEmptyStringSchema,
   target: GitGenerateDiffSummaryTarget,
   modelSelection: Schema.optional(ModelSelection),
   userHint: Schema.optional(Schema.String),
+  audit: Schema.optional(AuditReviewOptions),
 });
 export const GitGenerateReviewResult = Schema.Struct({
+  filesInspected: Schema.optional(Schema.Number),
   summary: Schema.String,
   keyChanges: Schema.String,
   notesAndRisk: Schema.String,

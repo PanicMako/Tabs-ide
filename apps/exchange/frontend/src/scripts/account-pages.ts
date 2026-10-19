@@ -122,7 +122,7 @@ async function namespaces(version: number, signal: AbortSignal) {
     access.textContent = ` · ${namespace.role}`;
     const verification = document.createElement("span");
     verification.className = "namespace-record-verification";
-    verification.textContent = ` · ${namespace.verified ? "verified publisher" : "not verified"}`;
+    verification.textContent = namespace.verified ? " · ✓ Verified publisher" : "";
     item.append(name, access, verification);
     list.append(item);
   }

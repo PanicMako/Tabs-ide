@@ -1,3 +1,7 @@
+import { extensionHostVersion } from "./extensionHostVersion";
+import { officialExchangeTrust } from "./officialExchangeTrust";
+import { fetchExchangeListingAsset } from "./exchangeListingAsset";
+import { RegistryTrustStore, DEFAULT_EXCHANGE_ORIGIN } from "./registryTrustStore";
 import { publishDesktopResources } from "./desktopResourceTelemetry";
 import { createBackendStartupErrorDecoder } from "@tabs/shared/backendStartup";
 import desktopPackage from "../package.json" with { type: "json" };
@@ -213,7 +217,9 @@ const EXTENSION_SET_DISABLED_CHANNEL = "desktop:extension:set-disabled";
 const EXTENSION_SET_UPDATES_PINNED_CHANNEL = "desktop:extension:set-updates-pinned";
 const EXTENSION_INSTALL_DEV_CHANNEL = "desktop:extension:install-dev";
 const EXTENSION_RELOAD_DEV_CHANNEL = "desktop:extension:reload-dev";
+const EXCHANGE_LISTING_ASSET_CHANNEL = "desktop:extension:listing-asset";
 const REGISTRY_CONNECTION_CHANNEL = "desktop:extension:registry-connection";
+const REGISTRY_CONFIGURE_CHANNEL = "desktop:extension:registry-configure";
 const REGISTRY_CREDENTIAL_CHANNEL = "desktop:extension:registry-credential";
 const EXTENSION_INSTALL_LOCAL_PACKAGE_CHANNEL = "desktop:extension:install-local-package";
 const EXTENSION_ASSIGN_CHANNEL = "desktop:extension:assign";
@@ -544,7 +550,7 @@ const extensionViewManager = new ExtensionViewManager(
   () => mainWindow,
   nativeViewCoordinator,
   Path.join(STATE_DIR, "development-extensions.json"),
-  app.getVersion(),
+  extensionHostVersion(app),
   !app.isPackaged,
   safeStorage,
 );
@@ -554,6 +560,35 @@ const registryCredentials = new RegistryCredentials(
   safeStorage,
 );
 const authenticatedRegistryFetch = registryFetch(registryCredentials);
+const registryTrustStore = new RegistryTrustStore(Path.join(STATE_DIR, "registry-trust"));
+function currentExchangeOrigin(): string | null {
+  const configured = configuredExchangeOrigin(process.env.TABS_EXCHANGE_ORIGIN, !app.isPackaged);
+  if (configured) return configured;
+  try {
+    return registryTrustStore.read()?.origin ?? DEFAULT_EXCHANGE_ORIGIN;
+  } catch {
+    return DEFAULT_EXCHANGE_ORIGIN;
+  }
+}
+function currentExchangeTrust() {
+  const origin = currentExchangeOrigin();
+  const environmentManaged = Boolean(
+    process.env.TABS_EXCHANGE_TRUST_ROOT_PATH ||
+    process.env.TABS_EXCHANGE_TRUST_ROOT_SHA256 ||
+    process.env.TABS_EXCHANGE_TRUST_ID,
+  );
+  try {
+    return environmentManaged
+      ? configuredExchangeTrust(process.env, origin)
+      : origin
+        ? registryTrustStore.read()
+          ? registryTrustStore.configuration(origin)
+          : officialExchangeTrust(origin)
+        : null;
+  } catch {
+    return null;
+  }
+}
 let extensionAiBrokerConfig: { readonly endpoint: string; readonly token: string } | null = null;
 let exchangeInstallService: ExchangeInstallService | null = null;
 let exchangeStatusTimer: ReturnType<typeof setInterval> | null = null;
@@ -568,17 +603,44 @@ app.on("will-quit", () => {
   exchangeSignedMetadataHints?.stop();
   exchangeInstallService?.dispose();
 });
+function restartExchangeHints(): void {
+  exchangeSignedMetadataHints?.stop();
+  exchangeSignedMetadataHints = null;
+  if (currentExchangeTrust()) {
+    try {
+      const hintOrigin = currentExchangeOrigin();
+      if (!hintOrigin) throw new Error("Exchange registry origin is unavailable.");
+      exchangeSignedMetadataHints = new ExchangeSignedMetadataHints(
+        hintOrigin,
+        () => {
+          void checkAllInstalledExchangeStatuses();
+          checkAllInstalledExchangeUpdates();
+        },
+        (error) => {
+          writeDesktopLogHeader(
+            `Exchange signed-metadata hints failed: ${formatErrorMessage(error)}`,
+          );
+        },
+        authenticatedRegistryFetch,
+      );
+      exchangeSignedMetadataHints.start();
+    } catch (error) {
+      writeDesktopLogHeader(
+        `Exchange signed-metadata hints unavailable: ${formatErrorMessage(error)}`,
+      );
+    }
+  }
+}
 function requireExchangeInstallService(): ExchangeInstallService {
   if (exchangeInstallService) return exchangeInstallService;
-  const origin = configuredExchangeOrigin(process.env.TABS_EXCHANGE_ORIGIN, !app.isPackaged);
-  const configuration = configuredExchangeTrust(process.env, origin);
+  const configuration = currentExchangeTrust();
   if (!configuration) {
     throw new Error("Exchange installation needs an out-of-band pinned trust root.");
   }
   exchangeInstallService = new ExchangeInstallService(
     configuration,
     Path.join(STATE_DIR, "exchange-trust"),
-    app.getVersion(),
+    extensionHostVersion(app),
     () => extensionViewManager.list(),
     (archive, registryOrigin, digest, options) =>
       extensionViewManager.installVerifiedExchangePackage(archive, registryOrigin, digest, options),
@@ -624,7 +686,7 @@ function applyAvailableExchangeUpdates(): void {
   });
 }
 function checkAllInstalledExchangeUpdates(): void {
-  if (!process.env.TABS_EXCHANGE_TRUST_ROOT_PATH || !process.env.TABS_EXCHANGE_ORIGIN) return;
+  if (!currentExchangeTrust()) return;
   void exchangeUpdateMonitor
     .check()
     .then(applyAvailableExchangeUpdates)
@@ -2031,6 +2093,7 @@ function configureAutoUpdater(): void {
       repository: `${owner}/${repo}`,
       arch: desktopRuntimeInfo.hostArch === "arm64" ? "arm64" : "x64",
       tempDirectory: app.getPath("temp"),
+      downloadCacheDirectory: Path.join(app.getPath("userData"), "update-cache"),
       ...(githubToken ? { requestHeaders: { Authorization: `Bearer ${githubToken}` } } : {}),
     });
     setUpdateState({ ...updateState, distribution: "unsigned-preview" });
@@ -2437,11 +2500,11 @@ function registerIpcHandlers(): void {
     if (typeof query !== "string") throw new Error("Invalid Exchange search query.");
     if (cursor !== undefined && typeof cursor !== "string")
       throw new Error("Invalid Exchange search cursor.");
-    const origin = configuredExchangeOrigin(process.env.TABS_EXCHANGE_ORIGIN, !app.isPackaged);
+    const origin = currentExchangeOrigin();
     if (!origin) return null;
     return discoverExchangePage(
       origin,
-      app.getVersion(),
+      extensionHostVersion(app),
       query,
       cursor ?? null,
       authenticatedRegistryFetch,
@@ -2460,8 +2523,7 @@ function registerIpcHandlers(): void {
   ipcMain.removeHandler(EXTENSION_EXCHANGE_AVAILABLE_CHANNEL);
   ipcMain.handle(EXTENSION_EXCHANGE_AVAILABLE_CHANNEL, (event) => {
     requireMainRenderer(event);
-    const origin = configuredExchangeOrigin(process.env.TABS_EXCHANGE_ORIGIN, !app.isPackaged);
-    return configuredExchangeTrust(process.env, origin) !== null;
+    return currentExchangeTrust() !== null;
   });
   ipcMain.removeHandler(EXTENSION_EXCHANGE_PREPARE_CHANNEL);
   ipcMain.handle(EXTENSION_EXCHANGE_PREPARE_CHANNEL, async (event, listing: unknown) => {
@@ -2542,19 +2604,59 @@ function registerIpcHandlers(): void {
   });
   ipcMain.removeHandler(EXTENSION_INSTALL_DEV_CHANNEL);
   ipcMain.removeHandler(EXTENSION_RELOAD_DEV_CHANNEL);
+  ipcMain.removeHandler(EXCHANGE_LISTING_ASSET_CHANNEL);
+  ipcMain.handle(
+    EXCHANGE_LISTING_ASSET_CHANNEL,
+    (event, listing: unknown, asset: unknown, index: unknown) => {
+      requireMainRenderer(event);
+      const origin = currentExchangeOrigin();
+      if (!origin) throw new Error("No Exchange registry configured.");
+      return fetchExchangeListingAsset(origin, listing, asset, index, authenticatedRegistryFetch);
+    },
+  );
   ipcMain.removeHandler(REGISTRY_CONNECTION_CHANNEL);
   ipcMain.handle(REGISTRY_CONNECTION_CHANNEL, (event) => {
     requireMainRenderer(event);
-    const origin = configuredExchangeOrigin(process.env.TABS_EXCHANGE_ORIGIN, !app.isPackaged);
+    const origin = currentExchangeOrigin();
     return {
       origin,
       connected: origin?.startsWith("https:") ? registryCredentials.has(origin) : false,
+      trusted: currentExchangeTrust() !== null,
+      managed: Boolean(
+        process.env.TABS_EXCHANGE_ORIGIN ||
+        process.env.TABS_EXCHANGE_TRUST_ROOT_PATH ||
+        process.env.TABS_EXCHANGE_TRUST_ROOT_SHA256 ||
+        process.env.TABS_EXCHANGE_TRUST_ID,
+      ),
+    };
+  });
+  ipcMain.removeHandler(REGISTRY_CONFIGURE_CHANNEL);
+  ipcMain.handle(REGISTRY_CONFIGURE_CHANNEL, (event, input: unknown) => {
+    requireMainRenderer(event);
+    if (
+      process.env.TABS_EXCHANGE_ORIGIN ||
+      process.env.TABS_EXCHANGE_TRUST_ROOT_PATH ||
+      process.env.TABS_EXCHANGE_TRUST_ROOT_SHA256 ||
+      process.env.TABS_EXCHANGE_TRUST_ID
+    )
+      throw new Error(
+        "This connection is managed by desktop environment settings. Update those settings before using guided setup.",
+      );
+    registryTrustStore.save(input);
+    exchangeInstallService?.dispose();
+    exchangeInstallService = null;
+    restartExchangeHints();
+    return {
+      origin: currentExchangeOrigin(),
+      connected: registryCredentials.has(currentExchangeOrigin()!),
+      trusted: true,
+      managed: false,
     };
   });
   ipcMain.removeHandler(REGISTRY_CREDENTIAL_CHANNEL);
   ipcMain.handle(REGISTRY_CREDENTIAL_CHANNEL, (event, origin: unknown, token: unknown) => {
     requireMainRenderer(event);
-    const configured = configuredExchangeOrigin(process.env.TABS_EXCHANGE_ORIGIN, !app.isPackaged);
+    const configured = currentExchangeOrigin();
     if (
       typeof origin !== "string" ||
       origin !== configured ||
@@ -2563,9 +2665,9 @@ function registerIpcHandlers(): void {
       throw new Error("Registry credential does not match the configured origin.");
     if (token === null) registryCredentials.remove(origin);
     else registryCredentials.set(origin, token);
-    exchangeSignedMetadataHints?.stop();
     exchangeInstallService?.dispose();
     exchangeInstallService = null;
+    restartExchangeHints();
   });
   ipcMain.handle(EXTENSION_RELOAD_DEV_CHANNEL, (event, id: unknown) => {
     requireMainRenderer(event);
@@ -4802,33 +4904,7 @@ async function bootstrap(): Promise<void> {
   writeDesktopLogHeader("bootstrap backend start requested");
   mainWindow = createWindow();
   void checkAllInstalledExchangeStatuses();
-  if (process.env.TABS_EXCHANGE_TRUST_ROOT_PATH && process.env.TABS_EXCHANGE_ORIGIN) {
-    try {
-      const hintOrigin = configuredExchangeOrigin(
-        process.env.TABS_EXCHANGE_ORIGIN,
-        !app.isPackaged,
-      );
-      if (!hintOrigin) throw new Error("Exchange registry origin is unavailable.");
-      exchangeSignedMetadataHints = new ExchangeSignedMetadataHints(
-        hintOrigin,
-        () => {
-          void checkAllInstalledExchangeStatuses();
-          checkAllInstalledExchangeUpdates();
-        },
-        (error) => {
-          writeDesktopLogHeader(
-            `Exchange signed-metadata hints failed: ${formatErrorMessage(error)}`,
-          );
-        },
-        authenticatedRegistryFetch,
-      );
-      exchangeSignedMetadataHints.start();
-    } catch (error) {
-      writeDesktopLogHeader(
-        `Exchange signed-metadata hints unavailable: ${formatErrorMessage(error)}`,
-      );
-    }
-  }
+  restartExchangeHints();
   exchangeStatusTimer = setInterval(() => {
     void checkAllInstalledExchangeStatuses();
   }, 60_000);

@@ -697,3 +697,14 @@ html[data-interface-study="light"]
   color: var(--foreground);
   font-weight: 600;
 }
+
+[data-settings-design="editorial"] [data-slot="settings-study-scope"] {
+  margin: 0 16px 16px;
+  border: 1px solid color-mix(in srgb, var(--foreground) 9%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--foreground) 3%, transparent);
+}
+[data-settings-design="editorial"] [data-slot="settings-study-scope"] [data-slot="settings-row"] {
+  padding: 14px 16px;
+  border: 0;
+}

@@ -8,7 +8,7 @@ import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
 import * as PlatformError from "effect/PlatformError";
-import { vi } from "vite-plus/test";
+import { vi } from "vitest";
 
 import * as ServerConfig from "../config.ts";
 import { HostProcessPlatform } from "@tabs/shared/hostProcess";

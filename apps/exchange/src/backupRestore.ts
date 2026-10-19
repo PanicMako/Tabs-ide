@@ -9,7 +9,7 @@ import {
 import type { Pool } from "pg";
 
 export interface ExchangeBackupManifest {
-  readonly version: 1 | 2 | 3;
+  readonly version: 1 | 2 | 3 | 4;
   readonly createdAt: string;
   readonly tableRows: Record<string, ReadonlyArray<Record<string, unknown>>>;
   readonly objects: ReadonlyArray<{
@@ -38,6 +38,8 @@ const BACKUP_TABLES_ORDER = [
   "exchange_publication_history",
   "exchange_review_events",
   "exchange_appeals",
+  "exchange_extension_reports",
+  "exchange_extension_report_events",
   "exchange_blocked_digests",
   "exchange_blocked_digest_events",
   "exchange_tuf_metadata",
@@ -125,7 +127,7 @@ export async function backupExchangeData(
   } while (continuationToken);
 
   return {
-    version: 3,
+    version: 4,
     createdAt: new Date().toISOString(),
     tableRows,
     objects,
@@ -140,11 +142,22 @@ export async function restoreExchangeData(
   storage: S3Client,
   bucket: string,
 ): Promise<{ restoredTables: number; restoredObjects: number }> {
-  if (![1, 2, 3].includes(manifest.version) || manifest.objectCount !== manifest.objects.length) {
+  if (
+    ![1, 2, 3, 4].includes(manifest.version) ||
+    manifest.objectCount !== manifest.objects.length
+  ) {
     throw new Error("Invalid Exchange backup manifest.");
   }
   const tableRows = { ...manifest.tableRows };
   const tableCounts = { ...manifest.tableCounts };
+  if (manifest.version < 4) {
+    for (const table of ["exchange_extension_reports", "exchange_extension_report_events"]) {
+      if (tableRows[table] === undefined && tableCounts[table] === undefined) {
+        tableRows[table] = [];
+        tableCounts[table] = 0;
+      }
+    }
+  }
   if (manifest.version < 3) {
     for (const table of ["exchange_reviewers", "exchange_reviewer_events"]) {
       if (tableRows[table] === undefined && tableCounts[table] === undefined) {

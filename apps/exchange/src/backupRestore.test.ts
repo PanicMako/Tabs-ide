@@ -77,7 +77,7 @@ async function fixture() {
 
 it("preserves reviewer access, audit events, consent and publication timestamps in v3 backups", async () => {
   const subject = await fixture();
-  expect(subject.manifest.version).toBe(3);
+  expect(subject.manifest.version).toBe(4);
   expect(subject.manifest.tableRows.exchange_publisher_agreements?.[0]?.accepted_at).toBe(
     "2026-10-01T01:02:03.456Z",
   );
@@ -163,4 +163,21 @@ it("rejects a v2 backup missing mandatory history before inspecting or writing t
     ),
   ).rejects.toThrow("exchange_publication_history");
   expect(subject.operations).toEqual([]);
+});
+
+it("restores older v3 backups without inventing reports", async () => {
+  const subject = await fixture();
+  const tableRows = { ...subject.manifest.tableRows };
+  const tableCounts = { ...subject.manifest.tableCounts };
+  for (const table of ["exchange_extension_reports", "exchange_extension_report_events"]) {
+    delete tableRows[table];
+    delete tableCounts[table];
+  }
+  await restoreExchangeData(
+    { ...subject.manifest, version: 3, tableRows, tableCounts },
+    subject.target,
+    subject.storage,
+    "test",
+  );
+  expect(subject.restored.has("exchange_extension_reports")).toBe(false);
 });

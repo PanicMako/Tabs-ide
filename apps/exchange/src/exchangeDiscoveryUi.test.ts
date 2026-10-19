@@ -33,7 +33,8 @@ it("renders registry text safely and keeps publisher verification distinct from 
   expect(card.querySelector("h2")!.textContent).toContain("<img");
   expect(card.querySelector("script, img")).toBeNull();
   expect(card.querySelector("a")!.getAttribute("href")).toBe("/extensions/acme/review");
-  expect(card.textContent).toContain("Publisher not verified");
+  expect(card.textContent).not.toContain("Publisher not verified");
+  expect(card.textContent).not.toContain("Verified publisher");
   expect(card.textContent).toContain("v1.0.0");
 });
 

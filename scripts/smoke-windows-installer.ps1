@@ -330,6 +330,7 @@ try {
 
   $smokeHome = Join-Path $env:RUNNER_TEMP "TabsLaunchSmoke"
   $desktopLog = Join-Path $smokeHome "userdata/logs/desktop-main.log"
+  $serverLog = Join-Path $smokeHome "userdata/logs/server-child.log"
   $env:TABS_HOME = $smokeHome
   $env:TABS_DESKTOP_USER_DATA_DIR = Join-Path $smokeHome "electron-profile"
   $env:TABS_DISABLE_AUTO_UPDATE = "1"
@@ -350,6 +351,8 @@ try {
     throw "The upgraded app did not start its bundled editor backend within 120 seconds."
   }
   Write-Host "Upgraded Tabs launched with its bundled editor backend."
+  & node ./tabs-app/scripts/smoke-desktop-backend.mjs $desktopLog $serverLog
+  if ($LASTEXITCODE -ne 0) { throw "Workspace backend smoke failed." }
 } finally {
   foreach ($process in @($holder, $unrelated, $installedApp)) {
     if ($process -and -not $process.HasExited) {

@@ -1245,7 +1245,29 @@ export interface DesktopBridge {
   setExtensionUpdatesPinned: (extensionId: string, pinned: boolean) => Promise<void>;
   installDevelopmentExtension: (directory: string) => Promise<DesktopInstalledExtension>;
   reloadDevelopmentExtension?: (id: string) => Promise<DesktopInstalledExtension>;
-  getRegistryConnection?: () => Promise<{ origin: string | null; connected: boolean }>;
+  getExchangeListingAsset?: (
+    listing: DesktopExchangeListing,
+    asset: "icon" | "readme" | "screenshot",
+    index?: number,
+  ) => Promise<{ type: string; data: string } | null>;
+  getRegistryConnection?: () => Promise<{
+    origin: string | null;
+    connected: boolean;
+    trusted?: boolean;
+    managed?: boolean;
+  }>;
+  configureRegistryConnection?: (input: {
+    origin: string;
+    root: string;
+    rootSha256: string;
+    trustId: string;
+    confirmOrigin: string;
+  }) => Promise<{
+    origin: string | null;
+    connected: boolean;
+    trusted?: boolean;
+    managed?: boolean;
+  }>;
   setRegistryCredential?: (origin: string, token: string | null) => Promise<void>;
   installLocalExtensionPackage: (archive: string) => Promise<DesktopInstalledExtension>;
   setExtensionAssignment: (

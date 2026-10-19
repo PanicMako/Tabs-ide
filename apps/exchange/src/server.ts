@@ -279,6 +279,126 @@ export function createExchangeServer(
         response.setHeader("Cache-Control", "private, no-store");
         response.setHeader("Vary", "Authorization, Cookie");
       }
+      const reportRoute =
+        /^\/v1\/extensions\/([a-z][a-z0-9-]{1,62})\/([a-z][a-z0-9-]{1,62})\/reports$/.exec(path);
+      if (request.method === "POST" && reportRoute) {
+        const actor = requireMutation(request, await actorFor(request, pool, config), config);
+        const body = await readJson(request);
+        if (
+          typeof body.version !== "string" ||
+          !/^[0-9A-Za-z.+-]{1,128}$/.test(body.version) ||
+          typeof body.category !== "string" ||
+          !["security", "privacy", "impersonation", "policy", "other"].includes(body.category) ||
+          typeof body.details !== "string" ||
+          body.details.trim().length < 10 ||
+          body.details.length > 4000
+        )
+          throw new HttpError(
+            400,
+            "Choose a reason and describe the concern in 10–4000 characters.",
+          );
+        const details = body.details.trim();
+        const id = Crypto.randomUUID();
+        await inTransaction(pool, async (client) => {
+          await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
+            `extension-report:${actor.id}`,
+          ]);
+          const quota = await client.query<{ count: string }>(
+            "SELECT count(*)::text AS count FROM exchange_extension_reports WHERE reporter_id = $1 AND created_at > now() - interval '1 day'",
+            [actor.id],
+          );
+          if (Number(quota.rows[0]?.count ?? 0) >= 20)
+            throw new HttpError(429, "Report limit reached. Try again tomorrow.");
+          const target = await client.query(
+            "SELECT digest FROM exchange_versions v WHERE namespace = $1 AND name = $2 AND version = $3 AND status IN ('approved', 'revoked') AND EXISTS (SELECT 1 FROM exchange_publication_history h WHERE h.namespace = v.namespace AND h.name = v.name AND h.version = v.version AND h.digest = v.digest)",
+            [reportRoute[1], reportRoute[2], body.version],
+          );
+          if (!target.rowCount) throw new HttpError(404, "Published extension version not found.");
+          const saved = await client.query(
+            "INSERT INTO exchange_extension_reports(id, namespace, name, version, reporter_id, category, details) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (reporter_id, namespace, name, version) DO NOTHING RETURNING id",
+            [
+              id,
+              reportRoute[1],
+              reportRoute[2],
+              body.version,
+              actor.id,
+              body.category,
+              (body.details as string).trim(),
+            ],
+          );
+          if (!saved.rowCount)
+            throw new HttpError(
+              409,
+              "You have already reported this extension version. Your report is in Review Desk.",
+            );
+        });
+        json(response, 201, { id, status: "open" });
+        return;
+      }
+      if (request.method === "GET" && path === "/v1/review/reports") {
+        const actor = await actorFor(request, pool, config);
+        if (!actor?.admin) throw new HttpError(403, "Reviewer access required.");
+        const status = url.searchParams.get("status") ?? "open";
+        if (!["open", "resolved", "all"].includes(status))
+          throw new HttpError(400, "Invalid report status.");
+        const before = url.searchParams.get("before");
+        if (
+          before &&
+          !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(before)
+        )
+          throw new HttpError(400, "Invalid report cursor.");
+        const reports = await pool.query(
+          "SELECT r.*, u.login AS reporter_login, (SELECT json_agg(e) FROM (SELECT status, note, created_at FROM exchange_extension_report_events WHERE report_id = r.id ORDER BY created_at DESC LIMIT 1) e) AS decisions FROM exchange_extension_reports r JOIN exchange_users u ON u.id = r.reporter_id WHERE ($1 = 'all' OR r.status = $1) AND ($2::uuid IS NULL OR (r.created_at, r.id) < (SELECT created_at, id FROM exchange_extension_reports WHERE id = $2::uuid)) ORDER BY r.created_at DESC, r.id DESC LIMIT 25",
+          [status, before],
+        );
+        json(response, 200, {
+          reports: reports.rows,
+          limit: 25,
+          nextCursor: reports.rows.length === 25 ? reports.rows.at(-1)?.id : null,
+        });
+        return;
+      }
+      const reportDecision =
+        /^\/v1\/review\/reports\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$/.exec(
+          path,
+        );
+      if (request.method === "POST" && reportDecision) {
+        const actor = requireMutation(request, await actorFor(request, pool, config), config);
+        if (!actor.admin) throw new HttpError(403, "Reviewer access required.");
+        const body = await readJson(request);
+        if (
+          typeof body.status !== "string" ||
+          !["open", "resolved"].includes(body.status) ||
+          typeof body.note !== "string" ||
+          !body.note.trim() ||
+          body.note.length > 2000
+        )
+          throw new HttpError(400, "Choose a report status and record a decision note.");
+        const note = body.note.trim();
+        await inTransaction(pool, async (client) => {
+          const changed = await client.query(
+            "UPDATE exchange_extension_reports SET status = $2, updated_at = now() WHERE id = $1 AND status <> $2 RETURNING id",
+            [reportDecision[1], body.status],
+          );
+          if (!changed.rowCount)
+            throw new HttpError(
+              409,
+              "Report missing or already in this state. Refresh before retrying.",
+            );
+          await client.query(
+            "INSERT INTO exchange_extension_report_events(id, report_id, actor_id, status, note) VALUES ($1,$2,$3,$4,$5)",
+            [
+              Crypto.randomUUID(),
+              reportDecision[1],
+              actor.id,
+              body.status,
+              (body.note as string).trim(),
+            ],
+          );
+        });
+        json(response, 200, { status: body.status });
+        return;
+      }
       if (request.method === "GET" && path === "/v1/registry") {
         json(response, 200, {
           protocolVersion: "1.0.0",
