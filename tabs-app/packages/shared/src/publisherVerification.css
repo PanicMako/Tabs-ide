@@ -99,3 +99,25 @@
     stroke-dashoffset: 0;
   }
 }
+
+.vb .vb-leaf-0 {
+  --i: 0;
+}
+.vb .vb-leaf-1 {
+  --i: 1;
+}
+.vb .vb-leaf-2 {
+  --i: 2;
+}
+.vb .vb-leaf-3 {
+  --i: 3;
+}
+.vb .vb-leaf-4 {
+  --i: 4;
+}
+.vb .vb-leaf-5 {
+  --i: 5;
+}
+.vb .vb-leaf-6 {
+  --i: 6;
+}

@@ -32,7 +32,7 @@ export function publisherSealMarkup(instanceId: string): string {
 <linearGradient id="${gradient}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8aa3ff"/><stop offset="1" stop-color="#3a4fe0"/></linearGradient>
 <linearGradient id="${dark}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6d86ff"/><stop offset="1" stop-color="#2b3dc4"/></linearGradient></defs>
 ${stems.map((d) => `<path class="vb-draw vb-stem" pathLength="1" d="${d}" fill="none" stroke="url(#${dark})" stroke-width="1.1" stroke-linecap="round"/>`).join("")}
-${leaves.map(({ x, y, rotation, index }) => `<g transform="translate(${x.toFixed(2)} ${y.toFixed(2)}) rotate(${rotation.toFixed(1)})"><path class="vb-leaf" style="--i:${index}" d="M0 0C1.4-1.8 3.6-1.8 5 0 3.6 1.8 1.4 1.8 0 0z" fill="url(#${dark})"/></g>`).join("")}
+${leaves.map(({ x, y, rotation, index }) => `<g transform="translate(${x.toFixed(2)} ${y.toFixed(2)}) rotate(${rotation.toFixed(1)})"><path class="vb-leaf vb-leaf-${index}" d="M0 0C1.4-1.8 3.6-1.8 5 0 3.6 1.8 1.4 1.8 0 0z" fill="url(#${dark})"/></g>`).join("")}
 <path class="vb-crown" fill="url(#${gradient})" d="M8.2 5.4L7.6 1.6 10.2 3.4 12 .8l1.8 2.6 2.6-1.8-.6 3.8z"/>
 <circle class="vb-disc" cx="12" cy="14" r="5" fill="url(#${gradient})"/>
 <path class="vb-draw" pathLength="1" d="M9.7 14.1l1.7 1.7 2.9-3.3" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>`;
