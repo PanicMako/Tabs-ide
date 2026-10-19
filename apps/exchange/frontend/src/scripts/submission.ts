@@ -151,7 +151,11 @@ async function load() {
       studio.hidden =
         !actor.operator || submission.status !== "approved" || submission.published === true;
     const next = document.getElementById("submission-next-step");
-    if (next) next.textContent = presentation.next;
+    if (next)
+      next.textContent =
+        actor.operator && submission.status === "approved" && submission.published !== true
+          ? "Your review is complete. Open Release studio to set up signing and publish this approved version."
+          : presentation.next;
     const stages = document.getElementById("submission-stage-list");
     if (stages) {
       stages.replaceChildren();
