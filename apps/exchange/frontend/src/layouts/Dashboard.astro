@@ -4,15 +4,16 @@ import Exchange from "./Exchange.astro";
 import "../styles/dashboard.css";
 import "../styles/workspace-composition.css";
 import "../styles/publisher-workspace.css";
+import ReviewNavigation from "../components/ReviewNavigation.astro";
 import PublisherNavigation from "../components/PublisherNavigation.astro";
-interface Props { title: string; accent?: string; description?: string; section: string }
-const { title, accent, description, section } = Astro.props;
+interface Props { title: string; accent?: string; description?: string; section: string; operations?: boolean }
+const { title, accent, description, section, operations = false } = Astro.props;
 ---
 <Exchange title={accent ? `${title} ${accent}` : title} description={description} active="account" dashboard>
-  <div class="dashboard-layout">
-    <aside class="dashboard-sidebar" id="dashboard-sidebar" aria-label="Workspace navigation"><div class="dashboard-mobile-heading"><strong>Your workspace</strong><button id="dashboard-menu-close" type="button" data-quiet-control aria-label="Close workspace navigation">×</button></div><div class="workspace-rail-caption" aria-hidden="true"><span>YOUR TOOLS.</span><span>YOUR WORKSPACE.</span><span class="rail-spark">✳</span></div><PublisherNavigation section={section} /></aside>
+  <div class:list={["dashboard-layout", { "review-desk-layout": operations }]}>
+    <aside class="dashboard-sidebar" id="dashboard-sidebar" aria-label="Workspace navigation"><div class="dashboard-mobile-heading"><strong>{operations ? "Review desk" : "Your workspace"}</strong><button id="dashboard-menu-close" type="button" data-quiet-control aria-label="Close workspace navigation">×</button></div><div hidden={operations} class="workspace-rail-caption" aria-hidden="true"><span>YOUR TOOLS.</span><span>YOUR WORKSPACE.</span><span class="rail-spark">✳</span></div>{operations ? <ReviewNavigation section={section} /> : <PublisherNavigation section={section} />}</aside>
     <div class="dashboard-content">
-      <header class="dashboard-heading"><div class="dashboard-heading-copy"><p class="eyebrow">Your Exchange / {section === "submission" ? "Submissions" : section === "people" ? "Reviewer access" : section === "extensions" ? "Submissions" : section === "tokens" ? "CLI access" : section}</p><h1 id="account-page-title">{title}{accent && <> <em class="editorial-accent">{accent}</em></>}</h1>{description && <p>{description}</p>}</div><DashboardDrawing section={section} /></header>
+      <header class="dashboard-heading"><div class="dashboard-heading-copy"><p class="eyebrow">{operations ? "Review desk" : "Your Exchange"} / {section === "submission" ? "Submissions" : section === "people" ? "Reviewer access" : section === "extensions" ? "Submissions" : section === "tokens" ? "CLI access" : section}</p><h1 id="account-page-title">{title}{accent && <> <em class="editorial-accent">{accent}</em></>}</h1>{description && <p>{description}</p>}</div><DashboardDrawing section={section} /></header>
       <slot />
     </div>
   </div>

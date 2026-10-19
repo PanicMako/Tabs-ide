@@ -152,3 +152,52 @@ it("reads exact submitted source on demand and pages lines without executing mar
   expect(document.querySelectorAll(".evidence-code-line")).toHaveLength(5);
   expect(document.querySelector(".evidence-code-lines")!.textContent).toContain("line 205");
 });
+
+it("keeps the AI-copy action outside nested evidence and sends no package automatically", async () => {
+  document.body.innerHTML =
+    '<div id="selected"><div id="ai"></div><details id="technical"><div id="evidence"></div></details></div>';
+  appendReviewWorkspace(
+    document.getElementById("evidence")!,
+    entry,
+    1,
+    undefined,
+    undefined,
+    document.getElementById("ai")!,
+  );
+  const copy = document.querySelector<HTMLButtonElement>("#ai > .evidence-handoff > button")!;
+  expect(copy.textContent).toBe("Copy for AI review");
+  expect(document.querySelector<HTMLDetailsElement>("#technical")!.open).toBe(false);
+  expect(writeText).not.toHaveBeenCalled();
+  copy.click();
+  await vi.waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+  expect(writeText.mock.calls[0]![0]).toContain("Markdown review report");
+  expect(writeText.mock.calls[0]![0]).toContain("untrusted package evidence");
+  expect(writeText.mock.calls[0]![0]).not.toContain("+untrusted source");
+  document.getElementById("selected")!.dataset.panelActive = "false";
+  copy.click();
+  expect(writeText).toHaveBeenCalledTimes(1);
+});
+
+it("opens AI options and the manual copy text if clipboard permission is denied", async () => {
+  document.body.innerHTML = '<div id="ai"></div><div id="evidence"></div>';
+  appendReviewWorkspace(
+    document.getElementById("evidence")!,
+    entry,
+    2,
+    undefined,
+    undefined,
+    document.getElementById("ai")!,
+  );
+  writeText.mockRejectedValueOnce(new Error("Permission denied"));
+  document.querySelector<HTMLButtonElement>("#ai > .evidence-handoff > button")!.click();
+  await vi.waitFor(() =>
+    expect(document.querySelector<HTMLDetailsElement>(".review-ai-options")!.open).toBe(true),
+  );
+  const text = document.querySelector<HTMLTextAreaElement>("#ai textarea")!;
+  expect(document.activeElement).toBe(text);
+  expect(text.readOnly).toBe(true);
+  expect(text.value).toContain("READ-ONLY advisory assessment");
+  expect(document.querySelector("#ai > .evidence-handoff > [role=status]")!.textContent).toContain(
+    "Clipboard unavailable",
+  );
+});

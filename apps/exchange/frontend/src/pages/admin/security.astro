@@ -3,12 +3,12 @@ import Operations from "../../layouts/Operations.astro";
 import DashboardDrawing from "../../components/DashboardDrawing.astro";
 import WorkspaceControls from "../../components/WorkspaceControls.astro";
 ---
-<Operations title="Registry security." accent="Keep trust clear." description="Verify publisher ownership, manage blocked material, and keep a record of each decision." section="security">
+<Operations title="Publishers & safety" description="Verify publisher ownership, manage blocked material, and keep a record of each decision." section="security">
   <p id="security-status" tabindex="-1" class="operations-status" role="status" aria-live="polite">Checking reviewer access…</p>
   <button class="button secondary" id="security-refresh" type="button">Refresh security status</button>
   <a id="security-signin" href="/auth/github/start?returnTo=%2Fadmin%2Fsecurity" hidden>Sign in with GitHub</a>
   <div id="security-content" hidden data-workspace-panels class="security-control-room">
-    <WorkspaceControls label="Registry security tasks" entries={[["security-ownership-panel", "Ownership", "Verify a publisher"], ["security-material-panel", "Block material", "Record digest restrictions"], ["security-blocks-panel", "Current blocks", "Inspect active restrictions"]]} />
+    <WorkspaceControls label="Registry security tasks" entries={[["security-ownership-panel", "Verify publishers", "Check identity and ownership"], ["security-material-panel", "Block material", "Record digest restrictions"], ["security-blocks-panel", "Current blocks", "Inspect active restrictions"]]} />
     <section id="security-ownership-panel" data-workspace-panel class="operations-panel" aria-labelledby="verification-heading"><div class="task-panel-heading"><p class="step-label">01 / Know the publisher</p><h2 id="verification-heading">Verify a publisher</h2><DashboardDrawing section="security-ownership-panel" compact /></div><p>Verify someone you have independently identified: enter their publisher namespace, link to the GitHub profile or website you checked, and record how you confirmed ownership. The badge appears on their listings. You can remove it with a new decision. Verification does not approve their packages or bypass review.</p>
       <form id="security-verification" class="task-form"><fieldset><legend>Record a namespace decision</legend>
         <div class="form-field"><label for="security-namespace">Publisher namespace</label><input id="security-namespace" name="namespace" required pattern="[a-z][a-z0-9-]{1,62}" maxlength="63" /></div>
