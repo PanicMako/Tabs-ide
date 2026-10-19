@@ -3,6 +3,7 @@ import { reviewEvidence } from "../lib/reviewEvidence";
 import { reviewCodeLines, reviewCodePreviews } from "../lib/reviewCode";
 import { reviewArchivePath } from "../lib/reviewDecision";
 import { request, RegistryRequestError } from "./api";
+import { createReviewCodeStudio } from "./review-code-studio";
 
 const record = (value: unknown): Record<string, unknown> =>
   value !== null && typeof value === "object" && !Array.isArray(value)
@@ -46,12 +47,15 @@ export function appendReviewWorkspace(
   entry: ReviewBriefInput,
   index: number,
   onAccessLost?: () => void,
+  onUseNotes?: (text: string) => void,
 ) {
   const workspace = element("div", undefined, "evidence-workspace");
   const heading = element("div", undefined, "evidence-workspace-heading");
   const copy = element("button", "Copy review brief", "button secondary");
   copy.type = "button";
-  heading.append(element("h4", "A clearer look at the evidence"), copy);
+  const openCode = element("button", "Open code review ↗", "button studio-launch");
+  openCode.type = "button";
+  heading.append(element("h4", "A clearer look at the evidence"), openCode, copy);
   workspace.append(
     heading,
     element(
@@ -206,6 +210,15 @@ export function appendReviewWorkspace(
   const previewsByFile = new Map(previews.map((preview) => [preview.file, preview]));
   for (const preview of previews) if (!allFiles.has(preview.file)) allFiles.set(preview.file, null);
   const loadedFiles = [...allFiles];
+  const openStudio = createReviewCodeStudio({
+    entry,
+    files: loadedFiles,
+    changes: changesByFile,
+    owner: workspace,
+    onAccessLost,
+    onUseNotes,
+  });
+  openCode.addEventListener("click", () => openStudio(openCode));
   const source = element("section", undefined, "evidence-source-reader");
   source.setAttribute("aria-label", "Code change reader");
   const sourceTitle = element("h5", "Choose a file to read its code");
@@ -430,17 +443,28 @@ export function appendReviewWorkspace(
       fileList.append(element("li", "No files match your search."));
   };
   search.addEventListener("input", renderFiles);
-  fileView.append(
+  const launch = element("div", undefined, "studio-launch-card");
+  const launchButton = element("button", "Open code review ↗", "button");
+  launchButton.type = "button";
+  launchButton.addEventListener("click", () => openStudio(launchButton));
+  launch.append(
+    element("h5", "Your package, in a familiar workspace."),
     element(
       "p",
-      "Select a file below to inspect the recorded code changes. Binary, large and unchanged files may not have a preview.",
+      "Browse folders, read syntax-colored source, find a line, and leave comments or suggested changes beside the code.",
     ),
+    launchButton,
+  );
+  const quickReader = element("details", undefined, "studio-quick-reader");
+  quickReader.append(
+    element("summary", "Quick file lookup & fingerprints"),
     source,
     searchLabel,
     search,
     fileStatus,
     fileList,
   );
+  fileView.append(launch, quickReader);
   renderFiles();
   const initialPreview =
     previews.find(
@@ -528,4 +552,5 @@ export function appendReviewWorkspace(
   );
   workspace.append(handoff);
   parent.append(workspace);
+  return openStudio;
 }
