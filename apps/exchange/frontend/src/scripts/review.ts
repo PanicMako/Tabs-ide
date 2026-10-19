@@ -340,8 +340,37 @@ async function load(restoreFocus = false) {
       const technicalTitle = document.createElement("summary");
       technicalTitle.textContent = "Evidence workspace · manifest, scan & files";
       technical.append(technicalTitle);
-      if (entry.status !== "approved")
-        appendReviewWorkspace(technical, entry, index, reconnectReviewer);
+      if (entry.status !== "approved") {
+        const openStudio = appendReviewWorkspace(
+          technical,
+          entry,
+          index,
+          reconnectReviewer,
+          (notes) => {
+            const reason = inspection.querySelector<HTMLTextAreaElement>(`#review-reason-${index}`);
+            if (!reason) throw new Error("A decision form is not available for this package.");
+            const value = reason.value.trim() ? reason.value.trim() + "\n\n" + notes : notes;
+            if (value.length > 2000)
+              throw new Error(
+                "Combined notes exceed the decision's 2,000-character limit. Shorten them first.",
+              );
+            reason.value = value;
+            reason.dispatchEvent(new Event("input", { bubbles: true }));
+            queueMicrotask(() => {
+              if (reason.isConnected) reason.focus();
+            });
+          },
+        );
+        const browse = document.createElement("button");
+        browse.type = "button";
+        browse.className = "button studio-launch";
+        browse.textContent = "Open code review ↗";
+        browse.addEventListener("click", () => {
+          inspection.open = true;
+          openStudio(browse);
+        });
+        tools.prepend(browse);
+      }
       technical.append(fingerprintControl(entry.digest));
       const raw = document.createElement("details");
       raw.className = "review-raw-data";

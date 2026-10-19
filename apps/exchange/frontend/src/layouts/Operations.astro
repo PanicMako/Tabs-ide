@@ -1,6 +1,7 @@
 ---
 import Dashboard from "./Dashboard.astro";
 import "../styles/review-studio.css";
+import "../styles/review-code-studio.css";
 interface Props { title: string; accent: string; description: string; section: "review" | "people" | "security" }
 const { title, accent, description, section } = Astro.props;
 const links = [["review", "Package review", "/admin"], ["security", "Registry security", "/admin/security"], ["people", "Reviewer access", "/admin/reviewers"]];

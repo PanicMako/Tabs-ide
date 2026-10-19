@@ -50,7 +50,9 @@ it("supports keyboard tab navigation and renders file names as inert text", () =
 });
 it("copies only on demand and includes code only after explicit selection", async () => {
   expect(writeText).not.toHaveBeenCalled();
-  const copy = document.querySelector<HTMLButtonElement>(".evidence-workspace-heading button")!;
+  const copy = document.querySelector<HTMLButtonElement>(
+    ".evidence-workspace-heading button.secondary",
+  )!;
   copy.click();
   await vi.waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
   expect(writeText.mock.calls[0]![0]).not.toContain("+untrusted source");
@@ -62,7 +64,9 @@ it("copies only on demand and includes code only after explicit selection", asyn
 });
 it("offers a manual text selection when the clipboard is unavailable", async () => {
   writeText.mockRejectedValueOnce(new Error("Denied"));
-  document.querySelector<HTMLButtonElement>(".evidence-workspace-heading button")!.click();
+  document
+    .querySelector<HTMLButtonElement>(".evidence-workspace-heading button.secondary")!
+    .click();
   await vi.waitFor(() =>
     expect(document.querySelector<HTMLDetailsElement>(".evidence-brief-preview")!.open).toBe(true),
   );
@@ -73,7 +77,9 @@ it("offers a manual text selection when the clipboard is unavailable", async () 
 });
 it("does not copy a retained button after reviewer content is hidden or removed", () => {
   const parent = document.getElementById("parent")!;
-  const copy = document.querySelector<HTMLButtonElement>(".evidence-workspace-heading button")!;
+  const copy = document.querySelector<HTMLButtonElement>(
+    ".evidence-workspace-heading button.secondary",
+  )!;
   parent.hidden = true;
   copy.click();
   parent.remove();
