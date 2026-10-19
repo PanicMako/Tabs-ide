@@ -67,7 +67,7 @@ const TEST_S3_CREDENTIALS = {
   accessKeyId: process.env.TEST_S3_ACCESS_KEY_ID ?? "test",
   secretAccessKey: process.env.TEST_S3_SECRET_ACCESS_KEY ?? "test",
 };
-const TERMS_VERSION = "2026-09-24";
+const TERMS_VERSION = "2026-10-20";
 const TABS_VERSION = "1.3.17";
 
 interface UserIdentity {

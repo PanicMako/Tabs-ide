@@ -471,7 +471,7 @@ describe("Checkpoint 4: Trust, Operations, and Fork Hardening", () => {
         exchange_namespaces: [
           {
             name: "acme",
-            terms_version: "2026-09-24",
+            terms_version: "2026-10-20",
             created_by: "1",
             created_at: "2026-09-29T10:01:00Z",
           },

@@ -79,7 +79,7 @@ const INVITATION_CANCEL_ROUTE =
 const VERIFY_NAMESPACE_ROUTE = /^\/v1\/review\/namespaces\/([a-z][a-z0-9-]{1,62})\/verification$/;
 const BLOCKED_DIGEST_REMOVE_ROUTE = /^\/v1\/review\/blocked-digests\/([a-f0-9]{64})\/remove$/;
 const RESERVED_NAMESPACES = new Set(["tabs", "official", "admin", "system"]);
-const TERMS_VERSION = "2026-09-24";
+const TERMS_VERSION = "2026-10-20";
 const PUBLISHED_RELEASE_JOIN = `JOIN exchange_published_targets p
   ON p.namespace = v.namespace AND p.name = v.name AND p.version = v.version
   AND p.digest = v.digest AND p.bytes = v.bytes`;
@@ -624,6 +624,7 @@ export function createExchangeServer(
           file: "../dist/marketplace.js",
           type: "text/javascript; charset=utf-8",
         },
+        "/privacy": { file: "privacy.html", type: "text/html; charset=utf-8" },
         "/publisher-terms": {
           file: "publisher-terms.html",
           type: "text/html; charset=utf-8",

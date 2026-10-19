@@ -1,0 +1,26 @@
+---
+import Exchange from "../layouts/Exchange.astro";
+import { Content, getHeadings } from "../../../../../docs/exchange-privacy-policy.md";
+import "../styles/publisher-workspace.css";
+const headings = getHeadings().filter((heading) => heading.depth === 2);
+---
+<Exchange title="Privacy policy" description="How Tabs Exchange handles information and privacy requests." active="publish" utility>
+  <div class="publisher-terms-layout">
+    <header class="publisher-terms-header">
+      <a class="terms-back" href="/account/namespaces">← Back to publisher setup</a>
+      <div class="terms-meta"><span class="desk-kicker">TABS EXCHANGE</span><span class="quiet-badge">Effective 20 October 2026</span></div>
+    </header>
+    <div class="terms-reading-layout">
+      <article class="terms-reading-copy policy-reading-copy" aria-label="Privacy policy">
+        <Content />
+        <div class="terms-return"><a class="button secondary" href="/account/namespaces">Back to publisher setup</a></div>
+      </article>
+      <aside class="terms-contents">
+        <span class="desk-kicker">ON THIS PAGE</span>
+        <nav aria-label="Privacy policy contents">{headings.map((heading) => <a href={`#${heading.slug}`}>{heading.text}</a>)}</nav>
+        <div class="terms-side-note"><strong>Questions?</strong><p><a href="mailto:tabsappinbox@gmail.com">tabsappinbox@gmail.com</a></p></div>
+        <a class="quiet-text-link" href="/publisher-terms">Read the publisher terms ↗</a>
+      </aside>
+    </div>
+  </div>
+</Exchange>

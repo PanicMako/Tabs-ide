@@ -25,8 +25,15 @@ describe("Exchange frontend routes", () => {
       new URL("../frontend/src/pages/publisher-terms.astro", import.meta.url),
       "utf8",
     );
-    expect(terms).toContain("development placeholder");
-    expect(terms).toContain("Approval is not a security certification.");
+    expect(terms).toContain("exchange-publisher-terms.md");
+    expect(terms).toContain("getHeadings");
+    const policy = await FS.readFile(
+      new URL("../../../docs/exchange-publisher-terms.md", import.meta.url),
+      "utf8",
+    );
+    expect(policy).toContain("2026-10-20");
+    expect(policy).toContain("tabsappinbox@gmail.com");
+    expect(policy).not.toMatch(/\[SET|\[CONFIRM/);
   });
   it("renders public listing metadata into the built detail document with correct headers", async () => {
     const directory = await FS.mkdtemp(Path.join(OS.tmpdir(), "tabs-exchange-metadata-"));
@@ -170,6 +177,8 @@ describe("Exchange frontend routes", () => {
     expect(frontendAsset("/publisher")).toBe("publisher/index.html");
     expect(frontendAsset("/publisher/")).toBe("publisher/index.html");
     expect(frontendAsset("/publisher-terms")).toBe("publisher-terms/index.html");
+    expect(frontendAsset("/privacy")).toBe("privacy/index.html");
+    expect(frontendAsset("/privacy/")).toBe("privacy/index.html");
   });
   it.each([
     "/../config.ts",

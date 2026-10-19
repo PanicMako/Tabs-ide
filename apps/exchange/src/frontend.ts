@@ -23,6 +23,7 @@ export function frontendAsset(pathname: string): string | undefined {
   if (pathname === "/publisher" || pathname === "/publisher/") return "publisher/index.html";
   if (pathname === "/publisher-terms" || pathname === "/publisher-terms/")
     return "publisher-terms/index.html";
+  if (pathname === "/privacy" || pathname === "/privacy/") return "privacy/index.html";
   if (pathname === "/admin" || pathname === "/admin/") return "admin/index.html";
   if (pathname === "/admin/reports" || pathname === "/admin/reports/")
     return "admin/reports/index.html";
