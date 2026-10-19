@@ -25,6 +25,7 @@
     "@tabs/client-runtime": "workspace:*",
     "@tabs/extension-package": "workspace:*",
     "@tabs/ssh": "workspace:*",
+    "@tufjs/models": "5.0.0",
     "effect": "catalog:",
     "electron": "44.1.0",
     "electron-store": "^8.2.0",
@@ -37,7 +38,6 @@
   "devDependencies": {
     "@tabs/contracts": "workspace:*",
     "@tabs/shared": "workspace:*",
-    "@tufjs/models": "5.0.0",
     "@types/node": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",

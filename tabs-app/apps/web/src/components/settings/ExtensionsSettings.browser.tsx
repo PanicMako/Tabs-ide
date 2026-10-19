@@ -97,16 +97,19 @@ const samplePreparedInstall: DesktopPreparedExchangeInstall = {
   },
 };
 
+const installedFixtures = [sampleExtension];
+const projectFixtures = [{ id: "project-a", name: "Alpha Project" }];
+
 vi.mock("@effect/atom-react", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   return {
     ...actual,
-    useAtomValue: () => [{ id: "project-a", name: "Alpha Project" }],
+    useAtomValue: () => projectFixtures,
   };
 });
 vi.mock("~/state/threads", () => ({ projectsAtom: Symbol("projects") }));
 vi.mock("~/state/extensions", () => ({
-  useInstalledExtensions: () => [sampleExtension],
+  useInstalledExtensions: () => installedFixtures,
   refreshExtensions: async () => {},
 }));
 vi.mock("~/state/workspaceShell", () => ({
@@ -157,6 +160,14 @@ test("ExtensionsSettings: navigates views, manages focus on dialogs, and support
   await expect.element(discoverTab).toBeVisible();
   await expect.element(profilesTab).toBeVisible();
 
+  // Custom project controls preserve the native assignment contract.
+  await screen
+    .getByRole("checkbox", { name: "Show Dashboard in Alpha Project", exact: true })
+    .click();
+  await expect
+    .poll(() => mockBridge.setExtensionAssignment)
+    .toHaveBeenCalledWith("acme.dashboard", expect.objectContaining({ enabledProjectIds: [] }));
+
   // Test uninstall flow with keyboard and focus restoration
   const uninstallButton = screen.getByRole("button", { name: "Uninstall Dashboard" });
   await expect.element(uninstallButton).toBeVisible();
@@ -190,6 +201,11 @@ test("ExtensionsSettings: navigates views, manages focus on dialogs, and support
     .element(screen.getByRole("combobox", { name: "Default profile for Dashboard" }))
     .toBeVisible();
 
+  const scope = screen.getByRole("combobox", { name: "Storage scope for new Dashboard profile" });
+  await scope.click();
+  await screen.getByRole("option", { name: "Isolated per project" }).click();
+  await expect.element(scope).toHaveTextContent("Isolated per project");
+
   // Switch to Discover tab
   (
     Array.from(document.querySelectorAll("button")).find(
@@ -197,7 +213,7 @@ test("ExtensionsSettings: navigates views, manages focus on dialogs, and support
     ) as HTMLButtonElement
   ).click();
 
-  await expect.element(screen.getByRole("heading", { name: "Discover" })).toBeVisible();
+  await expect.element(screen.getByRole("heading", { name: "Find your next tool" })).toBeVisible();
 
   // Search Exchange
   const searchInput = screen.getByRole("textbox", { name: "Search Tabs Exchange extensions" });

@@ -34,9 +34,11 @@ Signed-metadata events are only best-effort wake-up hints; desktop still relies
 on periodic signed status checks when events are missed.
 Experimental permission-neutral automatic updates are available only with an
 independently pinned trust root and explicit desktop opt-in. Desktop builds can
-display compatible approved listings from
-`TABS_EXCHANGE_ORIGIN`; a separately provisioned trust root is required for
-manual installation. The versioned native `/v1` interface is described by
+display compatible approved listings from the public Tabs Exchange by default
+or from a configured registry. Packaged desktop builds provide guided setup in
+Settings -> Labs -> Extensions for an independently provisioned public trust
+root and fingerprint; environment-managed `TABS_EXCHANGE_ORIGIN` deployments
+remain supported. Browsing never establishes installation trust. The versioned native `/v1` interface is described by
 `/v1/openapi.json`; it is not VS Code gallery or Open VSX package compatibility.
 This testing branch has not launched a production registry or published its SDK.
 

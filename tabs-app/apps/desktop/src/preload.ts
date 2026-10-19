@@ -86,6 +86,7 @@ const EXTENSION_SET_UPDATES_PINNED_CHANNEL = "desktop:extension:set-updates-pinn
 const EXTENSION_INSTALL_DEV_CHANNEL = "desktop:extension:install-dev";
 const EXTENSION_RELOAD_DEV_CHANNEL = "desktop:extension:reload-dev";
 const REGISTRY_CONNECTION_CHANNEL = "desktop:extension:registry-connection";
+const REGISTRY_CONFIGURE_CHANNEL = "desktop:extension:registry-configure";
 const REGISTRY_CREDENTIAL_CHANNEL = "desktop:extension:registry-credential";
 const EXTENSION_INSTALL_LOCAL_PACKAGE_CHANNEL = "desktop:extension:install-local-package";
 const EXTENSION_ASSIGN_CHANNEL = "desktop:extension:assign";
@@ -331,6 +332,7 @@ contextBridge.exposeInMainWorld("desktopBridge", {
     ipcRenderer.invoke(EXTENSION_INSTALL_DEV_CHANNEL, directory),
   reloadDevelopmentExtension: (id) => ipcRenderer.invoke(EXTENSION_RELOAD_DEV_CHANNEL, id),
   getRegistryConnection: () => ipcRenderer.invoke(REGISTRY_CONNECTION_CHANNEL),
+  configureRegistryConnection: (input) => ipcRenderer.invoke(REGISTRY_CONFIGURE_CHANNEL, input),
   setRegistryCredential: (origin, token) =>
     ipcRenderer.invoke(REGISTRY_CREDENTIAL_CHANNEL, origin, token),
   installLocalExtensionPackage: (archive) =>

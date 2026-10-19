@@ -15,21 +15,22 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Select, SelectPopup, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { filterExchangeListings } from "~/lib/exchangeDiscovery";
-import { SettingsSection, SettingsSectionHeader } from "./SettingsLayout";
+import { SettingsSection } from "./SettingsLayout";
+import { RegistryConnectionCard, type RegistryConnection } from "./RegistryConnectionCard";
+import { ExtensionChoice, ExtensionCheckbox } from "./ExtensionChoice";
+import "./extensions-settings.css";
 
 type Tab = "discover" | "installed" | "profiles";
 
 export default function ExtensionsSettings() {
-  const [tab, setTab] = useState<Tab>("installed");
+  const extensions = useInstalledExtensions();
+  const [tab, setTab] = useState<Tab>(extensions.length ? "installed" : "discover");
+  const [connectionOpen, setConnectionOpen] = useState(false);
   const [profileExtensionId, setProfileExtensionId] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [registryConnection, setRegistryConnection] = useState<{
-    origin: string | null;
-    connected: boolean;
-  } | null>(null);
-  const [registryToken, setRegistryToken] = useState("");
+  const [registryConnection, setRegistryConnection] = useState<RegistryConnection | null>(null);
   const [profileNames, setProfileNames] = useState<Record<string, string>>({});
   const [profileScopes, setProfileScopes] = useState<Record<string, "shared" | "project">>({});
   const [credentialValues, setCredentialValues] = useState<Record<string, string>>({});
@@ -71,7 +72,6 @@ export default function ExtensionsSettings() {
   const reviewReturnExtensionId = useRef<string | null>(null);
   const installedTabButton = useRef<HTMLButtonElement | null>(null);
   const discoverTabButton = useRef<HTMLButtonElement | null>(null);
-  const extensions = useInstalledExtensions();
   const activeProfileExtensionId = extensions.some(
     (extension) => extension.id === profileExtensionId,
   )
@@ -160,9 +160,17 @@ export default function ExtensionsSettings() {
     if (!bridge) return;
     void run(() => bridge.setExtensionAssignment(extension.id, update));
   };
-  const searchExchange = async () => {
+  const catalogGeneration = useRef(0);
+  useEffect(
+    () => () => {
+      catalogGeneration.current++;
+    },
+    [],
+  );
+  const searchExchange = async (override?: string) => {
     if (!bridge) return;
-    const query = searchQuery.trim();
+    const generation = ++catalogGeneration.current;
+    const query = (override ?? searchQuery).trim();
     setBusy(true);
     setError(null);
     setCatalog(undefined);
@@ -175,23 +183,27 @@ export default function ExtensionsSettings() {
         bridge.discoverExchangeExtensions(query),
         bridge.exchangeInstallAvailable(),
       ]);
+      if (generation !== catalogGeneration.current) return;
       setCatalog(page ? [...page.listings] : null);
       setCatalogCursor(page?.nextCursor ?? null);
       if (page?.nextCursor) catalogSeenCursors.current.add(page.nextCursor);
       setExchangeInstallAvailable(available);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      if (generation === catalogGeneration.current)
+        setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
-      setBusy(false);
+      if (generation === catalogGeneration.current) setBusy(false);
     }
   };
   const loadMoreExchange = async () => {
     if (!bridge || !catalogCursor || !catalog) return;
+    const generation = catalogGeneration.current;
     setBusy(true);
     setError(null);
     const cursor = catalogCursor;
     try {
       const page = await bridge.discoverExchangeExtensions(catalogQuery, cursor);
+      if (generation !== catalogGeneration.current) return;
       if (!page || (page.nextCursor !== null && catalogSeenCursors.current.has(page.nextCursor)))
         throw new Error("Exchange search pagination is invalid.");
       const known = new Set(catalog.map((listing) => listing.id));
@@ -203,91 +215,81 @@ export default function ExtensionsSettings() {
       if (page.nextCursor) catalogSeenCursors.current.add(page.nextCursor);
       setCatalogPaged(true);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      if (generation === catalogGeneration.current)
+        setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
-      setBusy(false);
+      if (generation === catalogGeneration.current) setBusy(false);
     }
   };
 
+  useEffect(() => {
+    if (tab !== "discover" || !registryConnection?.origin || !bridge) return;
+    void searchExchange();
+    // A connection or view change starts a fresh catalog lookup, not each keystroke.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, registryConnection?.origin, registryConnection?.trusted, bridge]);
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-start gap-4">
-        <div className="mt-1 flex size-12 shrink-0 items-center justify-center rounded-2xl border border-border bg-muted/40 text-foreground">
-          <PuzzleIcon className="size-6" aria-hidden="true" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <SettingsSectionHeader
-            title="Extensions"
-            description="Your tools, right at home in your workspace."
-          />
-        </div>
-      </div>
-      {registryConnection && bridge?.setRegistryCredential && (
-        <section
-          aria-labelledby="registry-connection-title"
-          className="space-y-2 rounded-xl border border-border p-4"
-        >
-          <h3 id="registry-connection-title" className="font-medium">
-            Registry connection
-          </h3>
-          <p className="text-sm text-muted-foreground">
-            {registryConnection.origin ?? "No registry configured."}{" "}
-            {registryConnection.connected
-              ? "A read credential is saved."
-              : "Public registries need no credential."}{" "}
-            Registry credentials are separate from extension accounts. A separately provisioned
-            trust root is still required.
+    <div className="extensions-settings space-y-6">
+      <header className="extension-page-header">
+        <div>
+          <span className="extension-page-kicker">
+            <PuzzleIcon className="size-3.5" aria-hidden="true" /> Tabs Exchange
+          </span>
+          <h2 className="font-sans">Extensions</h2>
+          <p>
+            A little more possibility for your workspace. Find a tool, review its access, and make
+            it yours.
           </p>
-          {registryConnection.origin?.startsWith("https:") && (
-            <form
-              className="space-y-2"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void run(async () => {
-                  await bridge.setRegistryCredential!(registryConnection.origin!, registryToken);
-                  setRegistryToken("");
-                  setRegistryConnection(await bridge.getRegistryConnection!());
-                });
-              }}
-            >
-              <label htmlFor="registry-read-token" className="text-sm">
-                Private registry read token
-              </label>
-              <Input
-                id="registry-read-token"
-                type="password"
-                autoComplete="off"
-                value={registryToken}
-                onChange={(event) => setRegistryToken(event.target.value)}
-              />
-              <div className="flex flex-wrap gap-2">
-                <Button type="submit" disabled={busy || !registryToken}>
-                  Save read credential
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={busy || !registryConnection.connected}
-                  onClick={() =>
-                    void run(async () => {
-                      await bridge.setRegistryCredential!(registryConnection.origin!, null);
-                      setRegistryToken("");
-                      setRegistryConnection(await bridge.getRegistryConnection!());
-                    })
-                  }
-                >
-                  Disconnect registry credential
-                </Button>
-              </div>
-            </form>
-          )}
-        </section>
-      )}
-      <div
-        role="group"
-        aria-label="Extension settings views"
-        className="flex flex-wrap gap-1 rounded-xl border border-border bg-muted/30 p-1"
-      >
+        </div>
+        <svg className="extension-drawing" viewBox="0 0 160 120" fill="none" aria-hidden="true">
+          <rect
+            x="26"
+            y="14"
+            width="108"
+            height="81"
+            rx="8"
+            fill="currentColor"
+            opacity=".08"
+            transform="rotate(7 26 14)"
+          />
+          <rect
+            x="14"
+            y="27"
+            width="124"
+            height="79"
+            rx="8"
+            fill="var(--background)"
+            stroke="currentColor"
+            strokeOpacity=".4"
+          />
+          <path d="M14 47h124" stroke="currentColor" strokeOpacity=".25" />
+          <circle cx="27" cy="37" r="2" fill="currentColor" />
+          <circle cx="36" cy="37" r="2" fill="currentColor" opacity=".5" />
+          <rect x="30" y="62" width="28" height="27" rx="6" stroke="currentColor" />
+          <path
+            d="M39 75h10m-5-5v10M73 66h45M73 76h34M73 86h21"
+            stroke="currentColor"
+            strokeLinecap="round"
+          />
+        </svg>
+      </header>
+      <RegistryConnectionCard
+        bridge={bridge}
+        connection={registryConnection}
+        open={connectionOpen}
+        onOpenChange={setConnectionOpen}
+        busy={busy}
+        onConnected={(connection) => {
+          setRegistryConnection(connection);
+          setExchangeInstallAvailable(Boolean(connection.trusted));
+          setPreparedInstall(null);
+          setCatalog(undefined);
+          setCatalogCursor(null);
+          setTab("discover");
+        }}
+      />
+      <div role="group" aria-label="Extension settings views" className="extension-view-tabs">
         {(["discover", "installed", "profiles"] as const).map((item) => (
           <Button
             key={item}
@@ -354,24 +356,18 @@ export default function ExtensionsSettings() {
           </p>
         </SettingsSection>
       ) : tab === "discover" ? (
-        <SettingsSection
-          title="Discover"
-          description="Find your next full-workspace tool."
-          contentClassName="space-y-5 p-4 sm:p-5"
+        <section
+          className="extension-discover space-y-5"
+          aria-labelledby="extension-discover-title"
         >
-          <p className="text-sm text-muted-foreground">
-            Browse approved tools built for Tabs. Review access before installing, then choose the
-            projects where each tool appears.
-          </p>
-          <details className="text-xs text-muted-foreground">
-            <summary className="cursor-pointer">How installation is verified</summary>
-            <p className="mt-2 leading-relaxed">
-              Tabs checks signed registry metadata and the exact package digest. New installations
-              are disabled until you enable them for projects. Review is not a security guarantee.
-            </p>
-          </details>
+          <div className="extension-discover-heading">
+            <div>
+              <h3 id="extension-discover-title">Find your next tool</h3>
+              <p>Published extensions, built for Tabs.</p>
+            </div>
+          </div>
           <form
-            className="flex flex-col gap-2 sm:flex-row"
+            className="extension-search"
             onSubmit={(event) => {
               event.preventDefault();
               void searchExchange();
@@ -379,7 +375,7 @@ export default function ExtensionsSettings() {
           >
             <Input
               aria-label="Search Tabs Exchange extensions"
-              placeholder="Search extensions"
+              placeholder="Search by name or publisher…"
               className="min-w-0 flex-1"
               value={searchQuery}
               maxLength={100}
@@ -387,7 +383,7 @@ export default function ExtensionsSettings() {
               onChange={(event) => setSearchQuery(event.target.value)}
             />
             <Button type="submit" disabled={busy}>
-              Search Exchange
+              {busy ? "Searching…" : "Search Exchange"}
             </Button>
           </form>
           {catalog && (
@@ -470,11 +466,34 @@ export default function ExtensionsSettings() {
           )}
           <p role="status" className="text-sm text-muted-foreground">
             {catalog === null
-              ? "No Exchange registry is configured for this desktop build."
+              ? "Exchange is not connected yet. Use Connect Exchange above to get started."
               : catalog
                 ? `${filteredCatalog.length} of ${catalog.length} loaded compatible extensions shown.${catalogCursor ? " Load more to search additional results." : ""}`
                 : "Search to view compatible approved extensions."}
           </p>
+          {catalog && catalog.length === 0 && (
+            <div className="extension-empty">
+              <PuzzleIcon
+                className="mx-auto mb-4 size-8 text-muted-foreground"
+                aria-hidden="true"
+              />
+              <h4>No matching tools yet</h4>
+              <p>
+                Try another name or publisher. Only releases compatible with this version of Tabs
+                appear here.
+              </p>
+              <Button
+                variant="outline"
+                disabled={busy}
+                onClick={() => {
+                  setSearchQuery("");
+                  void searchExchange("");
+                }}
+              >
+                Browse all extensions
+              </Button>
+            </div>
+          )}
           {catalog && catalog.length > 0 && filteredCatalog.length === 0 && (
             <p className="text-sm text-muted-foreground">
               No loaded extensions match these filters. Clear filters
@@ -482,11 +501,11 @@ export default function ExtensionsSettings() {
             </p>
           )}
           {catalog?.length ? (
-            <ul className="space-y-3" aria-label="Exchange search results">
+            <ul className="extension-results" aria-label="Exchange search results">
               {filteredCatalog.map((listing) => (
                 <li
                   key={`${listing.registryOrigin}:${listing.id}`}
-                  className="space-y-3 rounded-xl border border-border bg-background/50 p-4"
+                  className="extension-result-card"
                 >
                   <div className="flex items-center gap-3">
                     <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-border bg-muted/40">
@@ -541,8 +560,12 @@ export default function ExtensionsSettings() {
                     id={`extension-discover-review-${listing.id}`}
                     type="button"
                     variant="outline"
-                    disabled={busy || !exchangeInstallAvailable}
+                    disabled={busy}
                     onClick={(event) => {
+                      if (!exchangeInstallAvailable) {
+                        setConnectionOpen(true);
+                        return;
+                      }
                       reviewTrigger.current = event.currentTarget;
                       reviewReturnExtensionId.current = null;
                       void run(async () => {
@@ -554,7 +577,9 @@ export default function ExtensionsSettings() {
                       });
                     }}
                   >
-                    Review &amp; install {listing.displayName}
+                    {exchangeInstallAvailable
+                      ? `Review & install ${listing.displayName}`
+                      : `Connect to install ${listing.displayName}`}
                   </Button>
                 </li>
               ))}
@@ -572,7 +597,7 @@ export default function ExtensionsSettings() {
           ) : null}
           {catalog && !exchangeInstallAvailable ? (
             <p role="status" className="text-sm text-muted-foreground">
-              Installation is unavailable: this desktop build has no pinned Exchange trust root.
+              Connect Exchange above to verify signed packages and enable installation.
             </p>
           ) : null}
           {preparedInstall ? (
@@ -782,7 +807,14 @@ export default function ExtensionsSettings() {
               </Button>
             </div>
           ) : null}
-        </SettingsSection>
+          <details className="text-xs text-muted-foreground">
+            <summary className="cursor-pointer">How installation is verified</summary>
+            <p className="mt-2 leading-relaxed">
+              Tabs checks signed registry metadata and the exact package digest. New installations
+              are disabled until you enable them for projects. Review is not a security guarantee.
+            </p>
+          </details>
+        </section>
       ) : tab === "installed" ? (
         <SettingsSection
           title="Installed"
@@ -806,7 +838,7 @@ export default function ExtensionsSettings() {
                 key={extension.id}
                 role="group"
                 aria-label={`${extension.manifest.displayName} installation and project settings`}
-                className="space-y-4 p-4 sm:p-5"
+                className="extension-installed-card space-y-4 p-4 sm:p-5"
               >
                 <div>
                   <div className="mb-3 flex items-center gap-3">
@@ -854,12 +886,11 @@ export default function ExtensionsSettings() {
                   {extension.source === "exchange" ? (
                     <div className="mt-2 space-y-2">
                       <label className="flex items-center gap-2 text-sm">
-                        <input
-                          type="checkbox"
+                        <ExtensionCheckbox
                           checked={Boolean(extension.updatesPinned)}
                           disabled={busy}
-                          onChange={(event) => {
-                            const pinned = event.target.checked;
+                          onCheckedChange={(checked) => {
+                            const pinned = checked;
                             void run(async () => {
                               await bridge.setExtensionUpdatesPinned(extension.id, pinned);
                               setCheckedUpdates((current) => {
@@ -939,13 +970,12 @@ export default function ExtensionsSettings() {
                   ) : null}
                 </div>
                 <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
+                  <ExtensionCheckbox
                     aria-label={`Enable ${extension.manifest.displayName}`}
                     checked={!extension.disabled}
                     disabled={busy || extension.revoked}
-                    onChange={(event) => {
-                      const disabled = !event.target.checked;
+                    onCheckedChange={(checked) => {
+                      const disabled = !checked;
                       void run(async () => {
                         await bridge.setExtensionDisabled(extension.id, disabled);
                         setStatus(
@@ -957,15 +987,14 @@ export default function ExtensionsSettings() {
                   Extension enabled
                 </label>
                 <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
+                  <ExtensionCheckbox
                     aria-label={`Show ${extension.manifest.displayName} in all projects`}
                     checked={extension.assignment.enabledGlobally}
                     disabled={busy || extension.revoked}
-                    onChange={(event) =>
+                    onCheckedChange={(checked) =>
                       assign(extension, {
                         ...extension.assignment,
-                        enabledGlobally: event.target.checked,
+                        enabledGlobally: checked,
                       })
                     }
                   />
@@ -984,14 +1013,13 @@ export default function ExtensionsSettings() {
                       : extension.assignment.enabledProjectIds.includes(project.id);
                     return (
                       <label key={project.id} className="flex items-center gap-2 text-sm">
-                        <input
-                          type="checkbox"
+                        <ExtensionCheckbox
                           aria-label={`Show ${extension.manifest.displayName} in ${project.name}`}
                           checked={selected}
                           disabled={busy || extension.revoked}
-                          onChange={(event) => {
+                          onCheckedChange={(checked) => {
                             const assignment = extension.assignment;
-                            const next = event.target.checked;
+                            const next = checked;
                             assign(
                               extension,
                               assignment.enabledGlobally
@@ -1191,18 +1219,18 @@ export default function ExtensionsSettings() {
           {extensions.length > 0 ? (
             <label className="flex flex-col gap-2 text-sm font-medium sm:flex-row sm:items-center sm:justify-between">
               Manage an extension
-              <select
+              <ExtensionChoice
                 aria-label="Extension to manage profiles and permissions"
                 className="min-w-0 rounded-lg border border-border bg-background px-3 py-2 text-sm font-normal sm:max-w-xs"
                 value={activeProfileExtensionId}
-                onChange={(event) => setProfileExtensionId(event.target.value)}
+                onValueChange={(value) => setProfileExtensionId(value)}
               >
                 {extensions.map((extension) => (
                   <option key={extension.id} value={extension.id}>
                     {extension.manifest.displayName}
                   </option>
                 ))}
-              </select>
+              </ExtensionChoice>
             </label>
           ) : null}
           {extensions
@@ -1223,15 +1251,15 @@ export default function ExtensionsSettings() {
                 </div>
                 <label className="block text-sm">
                   Default profile
-                  <select
+                  <ExtensionChoice
                     className="ml-2 rounded border border-border bg-background px-2 py-1"
                     aria-label={`Default profile for ${extension.manifest.displayName}`}
                     value={extension.assignment.defaultProfileId}
                     disabled={busy}
-                    onChange={(event) =>
+                    onValueChange={(value) =>
                       assign(extension, {
                         ...extension.assignment,
-                        defaultProfileId: event.target.value,
+                        defaultProfileId: value,
                       })
                     }
                   >
@@ -1241,7 +1269,7 @@ export default function ExtensionsSettings() {
                         {profile.scope === "project" ? "project-isolated" : "shared"})
                       </option>
                     ))}
-                  </select>
+                  </ExtensionChoice>
                 </label>
                 <div className="flex flex-wrap gap-2">
                   <Input
@@ -1255,21 +1283,21 @@ export default function ExtensionsSettings() {
                       }))
                     }
                   />
-                  <select
+                  <ExtensionChoice
                     className="rounded border border-border bg-background px-2 py-1 text-sm"
                     aria-label={`Storage scope for new ${extension.manifest.displayName} profile`}
                     value={profileScopes[extension.id] ?? "shared"}
                     disabled={busy}
-                    onChange={(event) =>
+                    onValueChange={(value) =>
                       setProfileScopes((current) => ({
                         ...current,
-                        [extension.id]: event.target.value as "shared" | "project",
+                        [extension.id]: value as "shared" | "project",
                       }))
                     }
                   >
                     <option value="shared">Shared across projects</option>
                     <option value="project">Isolated per project</option>
-                  </select>
+                  </ExtensionChoice>
                   <Button
                     type="button"
                     aria-label={`Add profile for ${extension.manifest.displayName}`}
@@ -1304,7 +1332,8 @@ export default function ExtensionsSettings() {
                     <div className="flex flex-wrap gap-2">
                       <label className="text-sm">
                         Account profile
-                        <select
+                        <ExtensionChoice
+                          aria-label="Account profile"
                           className="ml-2 rounded border border-border bg-background px-2 py-1"
                           value={
                             credentialProfileSelection[extension.id] ??
@@ -1312,10 +1341,10 @@ export default function ExtensionsSettings() {
                             ""
                           }
                           disabled={busy}
-                          onChange={(event) => {
+                          onValueChange={(value) => {
                             setCredentialProfileSelection((current) => ({
                               ...current,
-                              [extension.id]: event.target.value,
+                              [extension.id]: value,
                             }));
                             setCredentialValues({});
                           }}
@@ -1325,11 +1354,12 @@ export default function ExtensionsSettings() {
                               {profile.label}
                             </option>
                           ))}
-                        </select>
+                        </ExtensionChoice>
                       </label>
                       <label className="text-sm">
                         Service host
-                        <select
+                        <ExtensionChoice
+                          aria-label="Service host"
                           className="ml-2 rounded border border-border bg-background px-2 py-1"
                           value={
                             credentialHostSelection[extension.id] ??
@@ -1337,10 +1367,10 @@ export default function ExtensionsSettings() {
                             ""
                           }
                           disabled={busy}
-                          onChange={(event) => {
+                          onValueChange={(value) => {
                             setCredentialHostSelection((current) => ({
                               ...current,
-                              [extension.id]: event.target.value,
+                              [extension.id]: value,
                             }));
                             setCredentialValues({});
                           }}
@@ -1350,7 +1380,7 @@ export default function ExtensionsSettings() {
                               {host}
                             </option>
                           ))}
-                        </select>
+                        </ExtensionChoice>
                       </label>
                       {extension.profiles.find(
                         (profile) =>
@@ -1359,16 +1389,17 @@ export default function ExtensionsSettings() {
                       )?.scope === "project" ? (
                         <label className="text-sm">
                           Project
-                          <select
+                          <ExtensionChoice
+                            aria-label="Credential project"
                             className="ml-2 rounded border border-border bg-background px-2 py-1"
                             value={
                               credentialProjectSelection[extension.id] ?? projects[0]?.id ?? ""
                             }
                             disabled={busy}
-                            onChange={(event) => {
+                            onValueChange={(value) => {
                               setCredentialProjectSelection((current) => ({
                                 ...current,
-                                [extension.id]: event.target.value,
+                                [extension.id]: value,
                               }));
                               setCredentialValues({});
                             }}
@@ -1378,7 +1409,7 @@ export default function ExtensionsSettings() {
                                 {project.name}
                               </option>
                             ))}
-                          </select>
+                          </ExtensionChoice>
                         </label>
                       ) : null}
                     </div>
@@ -1556,14 +1587,14 @@ export default function ExtensionsSettings() {
                   >
                     <label className="flex items-center justify-between gap-2 text-sm">
                       {project.name}
-                      <select
+                      <ExtensionChoice
                         className="rounded border border-border bg-background px-2 py-1"
                         aria-label={`${extension.manifest.displayName} profile for ${project.name}`}
                         value={extension.assignment.profileIdByProjectId[project.id] ?? ""}
                         disabled={busy}
-                        onChange={(event) => {
+                        onValueChange={(value) => {
                           const next = { ...extension.assignment.profileIdByProjectId };
-                          if (event.target.value) next[project.id] = event.target.value;
+                          if (value) next[project.id] = value;
                           else delete next[project.id];
                           assign(extension, {
                             ...extension.assignment,
@@ -1578,23 +1609,22 @@ export default function ExtensionsSettings() {
                             {profile.scope === "project" ? "project-isolated" : "shared"})
                           </option>
                         ))}
-                      </select>
+                      </ExtensionChoice>
                     </label>
                     {extension.manifest.capabilities?.includes("profile-storage") ? (
                       <label className="flex items-center gap-2 text-sm">
-                        <input
-                          type="checkbox"
+                        <ExtensionCheckbox
                           aria-label={`Allow ${extension.manifest.displayName} profile storage in ${project.name}`}
                           checked={
                             extension.assignment.storageGrantedProjectIds?.includes(project.id) ??
                             false
                           }
                           disabled={busy}
-                          onChange={(event) => {
+                          onCheckedChange={(checked) => {
                             const ids = extension.assignment.storageGrantedProjectIds ?? [];
                             assign(extension, {
                               ...extension.assignment,
-                              storageGrantedProjectIds: event.target.checked
+                              storageGrantedProjectIds: checked
                                 ? [...ids, project.id]
                                 : ids.filter((id) => id !== project.id),
                             });
@@ -1605,8 +1635,7 @@ export default function ExtensionsSettings() {
                     ) : null}
                     {extension.manifest.capabilities?.includes("workspace-read") ? (
                       <label className="flex items-center gap-2 text-sm">
-                        <input
-                          type="checkbox"
+                        <ExtensionCheckbox
                           aria-label={`Allow ${extension.manifest.displayName} to read workspace files in ${project.name}`}
                           checked={
                             extension.assignment.workspaceReadGrantedProjectIds?.includes(
@@ -1614,11 +1643,11 @@ export default function ExtensionsSettings() {
                             ) ?? false
                           }
                           disabled={busy}
-                          onChange={(event) => {
+                          onCheckedChange={(checked) => {
                             const ids = extension.assignment.workspaceReadGrantedProjectIds ?? [];
                             assign(extension, {
                               ...extension.assignment,
-                              workspaceReadGrantedProjectIds: event.target.checked
+                              workspaceReadGrantedProjectIds: checked
                                 ? [...ids, project.id]
                                 : ids.filter((id) => id !== project.id),
                             });
@@ -1629,19 +1658,18 @@ export default function ExtensionsSettings() {
                     ) : null}
                     {extension.manifest.capabilities?.includes("git-status") ? (
                       <label className="flex items-center gap-2 text-sm">
-                        <input
-                          type="checkbox"
+                        <ExtensionCheckbox
                           aria-label={`Allow ${extension.manifest.displayName} to read Git status in ${project.name}`}
                           checked={
                             extension.assignment.gitStatusGrantedProjectIds?.includes(project.id) ??
                             false
                           }
                           disabled={busy}
-                          onChange={(event) => {
+                          onCheckedChange={(checked) => {
                             const ids = extension.assignment.gitStatusGrantedProjectIds ?? [];
                             assign(extension, {
                               ...extension.assignment,
-                              gitStatusGrantedProjectIds: event.target.checked
+                              gitStatusGrantedProjectIds: checked
                                 ? [...ids, project.id]
                                 : ids.filter((id) => id !== project.id),
                             });
@@ -1652,19 +1680,18 @@ export default function ExtensionsSettings() {
                     ) : null}
                     {extension.manifest.capabilities?.includes("network") ? (
                       <label className="flex items-center gap-2 text-sm">
-                        <input
-                          type="checkbox"
+                        <ExtensionCheckbox
                           aria-label={`Allow ${extension.manifest.displayName} network access in ${project.name}`}
                           checked={
                             extension.assignment.networkGrantedProjectIds?.includes(project.id) ??
                             false
                           }
                           disabled={busy}
-                          onChange={(event) => {
+                          onCheckedChange={(checked) => {
                             const ids = extension.assignment.networkGrantedProjectIds ?? [];
                             assign(extension, {
                               ...extension.assignment,
-                              networkGrantedProjectIds: event.target.checked
+                              networkGrantedProjectIds: checked
                                 ? [...ids, project.id]
                                 : ids.filter((id) => id !== project.id),
                             });
@@ -1676,8 +1703,7 @@ export default function ExtensionsSettings() {
                     ) : null}
                     {extension.manifest.capabilities?.includes("credentials") ? (
                       <label className="flex items-center gap-2 text-sm">
-                        <input
-                          type="checkbox"
+                        <ExtensionCheckbox
                           aria-label={`Allow ${extension.manifest.displayName} credential use in ${project.name}`}
                           checked={
                             extension.assignment.credentialGrantedProjectIds?.includes(
@@ -1685,11 +1711,11 @@ export default function ExtensionsSettings() {
                             ) ?? false
                           }
                           disabled={busy}
-                          onChange={(event) => {
+                          onCheckedChange={(checked) => {
                             const ids = extension.assignment.credentialGrantedProjectIds ?? [];
                             assign(extension, {
                               ...extension.assignment,
-                              credentialGrantedProjectIds: event.target.checked
+                              credentialGrantedProjectIds: checked
                                 ? [...ids, project.id]
                                 : ids.filter((id) => id !== project.id),
                             });
@@ -1700,19 +1726,18 @@ export default function ExtensionsSettings() {
                     ) : null}
                     {extension.manifest.capabilities?.includes("ai-tools") ? (
                       <label className="flex items-center gap-2 text-sm">
-                        <input
-                          type="checkbox"
+                        <ExtensionCheckbox
                           aria-label={`Allow agents to run ${extension.manifest.displayName} commands in ${project.name}`}
                           checked={
                             extension.assignment.aiToolGrantedProjectIds?.includes(project.id) ??
                             false
                           }
                           disabled={busy}
-                          onChange={(event) => {
+                          onCheckedChange={(checked) => {
                             const ids = extension.assignment.aiToolGrantedProjectIds ?? [];
                             assign(extension, {
                               ...extension.assignment,
-                              aiToolGrantedProjectIds: event.target.checked
+                              aiToolGrantedProjectIds: checked
                                 ? [...ids, project.id]
                                 : ids.filter((id) => id !== project.id),
                             });
