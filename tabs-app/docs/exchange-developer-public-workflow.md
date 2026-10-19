@@ -9,7 +9,10 @@ and development files outside the submitted package.
 ## Open submissions
 
 For the official hosted registry, set `EXCHANGE_PUBLISHING_ENABLED=true` in the
-existing Render service only after the operator approves finalized publisher terms and privacy notice and this change is deployed. The 19 October review drafts are not approval; retain the account-only pilot until then. Namespace management stays
+existing Render service only after the operator approves finalized publisher terms and privacy notice and this change is deployed. The operator authorised the consolidated 20 October policies and public launch.
+The canonical documents are exchange-publisher-terms.md and exchange-privacy-policy.md;
+the legal-drafts directory is historical review material. Enable public uploads
+only after the matching terms version and both policy pages are live. Namespace management stays
 enabled. This replaces the account-only pilot for authenticated publishers; it
 does not allow anonymous uploads, skip agreement acceptance, remove quotas,
 bypass scans, approve a submission, or sign a release. Keep this opt-in for

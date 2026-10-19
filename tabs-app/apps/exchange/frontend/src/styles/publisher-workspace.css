@@ -897,3 +897,28 @@
 .namespace-ready:focus-visible {
   outline: 3px solid #3259ed;
 }
+
+/* Policy documents use semantic Markdown headings and paragraphs. */
+.policy-reading-copy h1 {
+  font-size: clamp(30px, 4vw, 44px);
+  line-height: 1.15;
+  letter-spacing: -0.04em;
+  margin: 0 0 24px;
+}
+.policy-reading-copy h2 {
+  border-top: 1px solid #dce3ef;
+  padding-top: 28px;
+  margin-top: 32px;
+  scroll-margin-top: 110px;
+}
+.policy-reading-copy h3 {
+  font-size: 18px;
+  margin: 24px 0 12px;
+  scroll-margin-top: 110px;
+}
+.policy-reading-copy p + p {
+  margin-top: 16px;
+}
+.policy-reading-copy a {
+  overflow-wrap: anywhere;
+}

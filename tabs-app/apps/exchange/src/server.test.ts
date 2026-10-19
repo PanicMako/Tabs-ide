@@ -824,7 +824,7 @@ describe("Exchange HTTP boundaries", () => {
     const account = await fetch(`${ready.base}/v1/me`, {
       headers: { Cookie: "tabs_exchange_session=opaque" },
     });
-    expect((await account.json()).termsVersion).toBe("2026-09-24");
+    expect((await account.json()).termsVersion).toBe("2026-10-20");
     const headers = {
       Origin: config.origin,
       Cookie: "tabs_exchange_session=opaque",
@@ -862,7 +862,7 @@ describe("Exchange HTTP boundaries", () => {
     const accepted = await fetch(`${ready.base}/v1/publisher/invitations/7/accept`, {
       method: "POST",
       headers,
-      body: JSON.stringify({ acceptTermsVersion: "2026-09-24" }),
+      body: JSON.stringify({ acceptTermsVersion: "2026-10-20" }),
     });
     expect(accepted.status).toBe(200);
     expect(await accepted.json()).toEqual({ namespace: "example", role: "contributor" });
@@ -915,7 +915,7 @@ describe("Exchange HTTP boundaries", () => {
     const accepted = await fetch(`${wrongRecipient.base}/v1/publisher/invitations/7/accept`, {
       method: "POST",
       headers,
-      body: JSON.stringify({ acceptTermsVersion: "2026-09-24" }),
+      body: JSON.stringify({ acceptTermsVersion: "2026-10-20" }),
     });
     expect(accepted.status).toBe(409);
     expect(
@@ -937,7 +937,7 @@ describe("Exchange HTTP boundaries", () => {
     const expiredResponse = await fetch(`${expired.base}/v1/publisher/invitations/7/accept`, {
       method: "POST",
       headers,
-      body: JSON.stringify({ acceptTermsVersion: "2026-09-24" }),
+      body: JSON.stringify({ acceptTermsVersion: "2026-10-20" }),
     });
     expect(expiredResponse.status).toBe(409);
     expect(
@@ -1305,7 +1305,7 @@ describe("Exchange HTTP boundaries", () => {
     const stale = await fetch(`${ready.base}/v1/publisher/agreement`, {
       method: "POST",
       headers,
-      body: JSON.stringify({ acceptTermsVersion: "old-terms" }),
+      body: JSON.stringify({ acceptTermsVersion: "2026-09-24" }),
     });
     expect(stale.status).toBe(400);
     expect(
@@ -1316,11 +1316,11 @@ describe("Exchange HTTP boundaries", () => {
     const accepted = await fetch(`${ready.base}/v1/publisher/agreement`, {
       method: "POST",
       headers,
-      body: JSON.stringify({ acceptTermsVersion: "2026-09-24" }),
+      body: JSON.stringify({ acceptTermsVersion: "2026-10-20" }),
     });
     expect(accepted.status).toBe(200);
     expect(await accepted.json()).toEqual({
-      termsVersion: "2026-09-24",
+      termsVersion: "2026-10-20",
       acceptedAt: "2026-10-01T00:00:00Z",
     });
     expect(
@@ -1918,7 +1918,7 @@ it("allows publisher account setup without allowing package uploads", async () =
   const created = await fetch(`${ready.base}/v1/namespaces`, {
     method: "POST",
     headers,
-    body: JSON.stringify({ name: "my-studio", acceptTermsVersion: "2026-09-24" }),
+    body: JSON.stringify({ name: "my-studio", acceptTermsVersion: "2026-10-20" }),
   });
   expect(created.status).toBe(201);
   const invited = await fetch(`${ready.base}/v1/namespaces/example/members`, {
@@ -1930,7 +1930,7 @@ it("allows publisher account setup without allowing package uploads", async () =
   const accepted = await fetch(`${ready.base}/v1/publisher/invitations/7/accept`, {
     method: "POST",
     headers,
-    body: JSON.stringify({ acceptTermsVersion: "2026-09-24" }),
+    body: JSON.stringify({ acceptTermsVersion: "2026-10-20" }),
   });
   expect(accepted.status).toBe(200);
   const upload = await fetch(`${ready.base}/v1/publisher/upload`, {
