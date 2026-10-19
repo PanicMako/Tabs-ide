@@ -51,7 +51,14 @@ export function catalogCard(item: CatalogRelease): HTMLLIElement {
   meta.className = "catalog-meta";
   meta.append(text("span", `v${item.version}`));
   if (item.verified) {
-    publisher.append(publisherVerifiedBadge());
+    const badgeLink = document.createElement("a");
+    badgeLink.href = link.href;
+    badgeLink.className = "catalog-publisher-badge-link text-link";
+    badgeLink.setAttribute("aria-label", `Verified publisher: view ${item.manifest.displayName}`);
+    const badge = publisherVerifiedBadge();
+    badge.tabIndex = -1;
+    badgeLink.append(badge);
+    publisher.append(badgeLink);
   }
   const screenshots = item.manifest.listing?.screenshots;
   if (Array.isArray(screenshots) && screenshots.length > 0 && screenshots.length <= 6) {

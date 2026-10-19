@@ -7324,8 +7324,8 @@ main.dashboard-main {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: 28px;
+  height: 28px;
   margin-inline-start: 6px;
   color: #3158d9;
   vertical-align: middle;
@@ -7375,4 +7375,32 @@ main.dashboard-main {
 #agent-instructions:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 3px;
+}
+
+/* A real stretched link keeps card navigation keyboard- and browser-native. */
+.catalog-card {
+  position: relative;
+  isolation: isolate;
+}
+.catalog-card.card a.catalog-card-link::after,
+.catalog-card.card a.catalog-card-link:hover::after {
+  content: "";
+  display: block;
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: auto;
+  margin: 0;
+  float: none;
+  transform: none;
+  z-index: 1;
+  border-radius: var(--radius);
+}
+.catalog-card:has(.catalog-card-link:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+.catalog-card .catalog-publisher-badge-link {
+  position: relative;
+  z-index: 2;
 }

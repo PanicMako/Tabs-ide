@@ -1,37 +1,34 @@
+import { useId } from "react";
 import {
   publisherSealViewBox,
-  publisherSealPath,
-  publisherSealCheck,
+  publisherSealMarkup,
   publisherVerificationLabel,
   publisherVerificationExplanation,
 } from "@tabs/shared/publisherVerification";
 
 export function PublisherVerifiedBadge({ showLabel = false }: { showLabel?: boolean }) {
+  const id = useId();
   return (
     <span
-      className="publisher-identity-seal"
+      className="publisher-identity-seal publisher-verification"
       role="img"
+      tabIndex={0}
       aria-label={publisherVerificationLabel}
-      title={publisherVerificationExplanation}
+      aria-description={publisherVerificationExplanation}
     >
       <svg
+        className="vb"
         viewBox={publisherSealViewBox}
-        width="18"
-        height="18"
+        width="28"
+        height="28"
         aria-hidden="true"
         focusable="false"
-      >
-        <path d={publisherSealPath} fill="currentColor" />
-        <path
-          d={publisherSealCheck}
-          fill="none"
-          stroke="white"
-          strokeWidth="1.9"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
+        dangerouslySetInnerHTML={{ __html: publisherSealMarkup(id) }}
+      />
       {showLabel && <span aria-hidden="true">Verified publisher</span>}
+      <span className="vb-tooltip" aria-hidden="true">
+        Verified publisher
+      </span>
     </span>
   );
 }
