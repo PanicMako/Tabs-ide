@@ -7323,14 +7323,19 @@ main.dashboard-main {
 .publisher-verified-badge {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 4px 9px;
-  border: 1px solid var(--accent-border);
-  border-radius: var(--badge-radius);
-  color: var(--accent);
-  background: var(--accent-pale);
-  font-size: 12px;
-  font-weight: 650;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-inline-start: 6px;
+  color: #3158d9;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+.publisher-verified-badge svg {
+  display: block;
+}
+#extension-identity {
+  display: inline;
 }
 .publisher-verified-badge[hidden] {
   display: none;

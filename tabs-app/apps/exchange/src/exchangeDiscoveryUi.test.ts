@@ -35,6 +35,7 @@ it("renders registry text safely and keeps publisher verification distinct from 
   expect(card.querySelector("a")!.getAttribute("href")).toBe("/extensions/acme/review");
   expect(card.textContent).not.toContain("Publisher not verified");
   expect(card.textContent).not.toContain("Verified publisher");
+  expect(card.querySelector(".publisher-verified-badge")).toBeNull();
   expect(card.textContent).toContain("v1.0.0");
 });
 
@@ -134,4 +135,14 @@ it("shows real packaged screenshots and categories without trusting publisher as
   preview.dispatchEvent(new Event("error"));
   expect(card.querySelector(".catalog-preview")).toBeNull();
   expect(card.querySelector("h2")!.textContent).toBe("Review");
+});
+
+it("shows an accessible identity seal beside a publisher only when the registry marks it verified", () => {
+  const card = catalogCard({ ...release, verified: true });
+  const publisher = card.querySelector(".catalog-publisher")!;
+  expect(publisher.textContent).toContain("acme.review");
+  const badge = publisher.querySelector('[role="img"]')!;
+  expect(badge.getAttribute("aria-label")).toBe("Publisher identity checked by Tabs");
+  expect(badge.getAttribute("title")).toContain("not a security guarantee");
+  expect(badge.querySelector("svg")!.getAttribute("aria-hidden")).toBe("true");
 });

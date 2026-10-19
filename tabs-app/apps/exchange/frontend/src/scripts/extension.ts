@@ -109,7 +109,7 @@ function render(release: Release) {
     badge.hidden = !head?.verified;
     badge.setAttribute(
       "title",
-      "Publisher ownership checked by Tabs. This is not a security guarantee.",
+      "Publisher identity checked by Tabs. This is not a security guarantee.",
     );
   }
   const reportForm = document.getElementById("extension-report");
