@@ -3,11 +3,11 @@ import Dashboard from "./Dashboard.astro";
 import "../styles/review-studio.css";
 import "../styles/review-code-studio.css";
 import "../styles/review-service-panels.css";
-interface Props { title: string; accent: string; description: string; section: "review" | "people" | "security" | "releases" | "reports" }
+import "../styles/review-desk.css";
+interface Props { title: string; accent?: string; description: string; section: "review" | "people" | "security" | "releases" | "reports" }
 const { title, accent, description, section } = Astro.props;
-const links = [["review", "Package review", "/admin"], ["security", "Registry security", "/admin/security"], ["people", "Reviewer access", "/admin/reviewers"], ["releases", "Releases", "/admin/releases"], ["reports", "User reports", "/admin/reports"]];
 ---
-<Dashboard title={title} accent={accent} description={description} section={section}>
-  <nav class="operations-nav" aria-label="Review workspace">{links.map(([key, label, href]) => <a href={href} aria-current={section === key ? "page" : undefined}><span>{label}</span><span aria-hidden="true">{key === "review" ? "01" : key === "security" ? "02" : "03"}</span></a>)}</nav>
+<Dashboard title={title} accent={accent} description={description} section={section} operations>
+
   <div class="operations-workspace"><slot /></div>
 </Dashboard>

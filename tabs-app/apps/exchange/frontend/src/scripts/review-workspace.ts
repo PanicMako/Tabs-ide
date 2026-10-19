@@ -48,10 +48,11 @@ export function appendReviewWorkspace(
   index: number,
   onAccessLost?: () => void,
   onUseNotes?: (text: string) => void,
+  handoffParent?: HTMLElement,
 ) {
   const workspace = element("div", undefined, "evidence-workspace");
   const heading = element("div", undefined, "evidence-workspace-heading");
-  const copy = element("button", "Copy review brief", "button secondary");
+  const copy = element("button", "Copy for AI review", "button secondary");
   copy.type = "button";
   const openCode = element("button", "Open code review ↗", "button studio-launch");
   openCode.type = "button";
@@ -242,7 +243,12 @@ export function appendReviewWorkspace(
   let selectedPath: string | undefined;
   const fileButtons = new Map<string, HTMLButtonElement>();
   readSubmitted.addEventListener("click", async () => {
-    if (!selectedPath || !workspace.isConnected || workspace.closest("[hidden]")) return;
+    if (
+      !selectedPath ||
+      !workspace.isConnected ||
+      workspace.closest('[hidden], [data-panel-active="false"]')
+    )
+      return;
     const path = selectedPath;
     sourceRequest?.abort();
     const controller = new AbortController();
@@ -266,7 +272,7 @@ export function appendReviewWorkspace(
       if (
         controller.signal.aborted ||
         !workspace.isConnected ||
-        workspace.closest("[hidden]") ||
+        workspace.closest('[hidden], [data-panel-active="false"]') ||
         selectedPath !== path
       )
         return;
@@ -334,7 +340,11 @@ export function appendReviewWorkspace(
       renderPage();
       sourceStatus.textContent = `Submitted file · ${data.bytes.toLocaleString()} bytes · full text loaded from the verified archive, shown 200 lines at a time. This is source inspection, not proof of safety.`;
     } catch (error) {
-      if (controller.signal.aborted || !workspace.isConnected || workspace.closest("[hidden]"))
+      if (
+        controller.signal.aborted ||
+        !workspace.isConnected ||
+        workspace.closest('[hidden], [data-panel-active="false"]')
+      )
         return;
       sourceBody.replaceChildren();
       if (error instanceof RegistryRequestError && [401, 403].includes(error.status)) {
@@ -478,7 +488,7 @@ export function appendReviewWorkspace(
 
   const handoff = element("div", undefined, "evidence-handoff");
   handoff.append(
-    element("h5", "Take this to a fresh chat"),
+    element("h5", "Get a second opinion"),
     element(
       "p",
       "Copy a read-only review request with selected evidence for Codex or another assistant. Nothing is sent automatically.",
@@ -497,6 +507,7 @@ export function appendReviewWorkspace(
   preview.append(previewTitle, text);
   const status = element("p", undefined, "evidence-copy-status");
   status.setAttribute("role", "status");
+  let handoffOptions: HTMLDetailsElement | undefined;
   const generate = () => buildReviewBrief(entry, includeCode);
   const updatePreview = () => {
     try {
@@ -512,7 +523,7 @@ export function appendReviewWorkspace(
   });
   include.addEventListener("click", () => {
     includeCode = !includeCode;
-    copy.textContent = "Copy review brief";
+    copy.textContent = "Copy for AI review";
     include.textContent = `Include code previews: ${includeCode ? "On" : "Off"}`;
     include.setAttribute("aria-pressed", String(includeCode));
     status.textContent = includeCode
@@ -521,7 +532,8 @@ export function appendReviewWorkspace(
     if (preview.open) updatePreview();
   });
   copy.addEventListener("click", async () => {
-    if (!workspace.isConnected || workspace.closest("[hidden]")) return;
+    if (!workspace.isConnected || workspace.closest('[hidden], [data-panel-active="false"]'))
+      return;
     try {
       const brief = generate();
       try {
@@ -531,6 +543,7 @@ export function appendReviewWorkspace(
       } catch {
         text.value = brief;
         preview.open = true;
+        if (handoffOptions) handoffOptions.open = true;
         text.focus();
         text.select();
         status.textContent = "Clipboard unavailable. Copy the selected review brief manually.";
@@ -550,7 +563,21 @@ export function appendReviewWorkspace(
     preview,
     status,
   );
-  workspace.append(handoff);
+  if (handoffParent) {
+    const options = element("details", undefined, "review-ai-options");
+    handoffOptions = options;
+    options.append(
+      element("summary", "AI review options & preview"),
+      ...Array.from(handoff.childNodes).filter((node) => node !== status),
+    );
+    handoff.replaceChildren(
+      copy,
+      element("p", "Copies a summary by default. Add code previews in options."),
+      status,
+      options,
+    );
+    handoffParent.append(handoff);
+  } else workspace.append(handoff);
   parent.append(workspace);
   return openStudio;
 }
