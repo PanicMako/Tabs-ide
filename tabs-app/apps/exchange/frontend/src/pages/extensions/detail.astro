@@ -1,5 +1,4 @@
 ---
-import { publisherSealViewBox, publisherSealPath, publisherSealCheck, publisherVerificationLabel, publisherVerificationExplanation } from "@tabs/shared/publisherVerification";
 import Exchange from "../../layouts/Exchange.astro";
 import { extensionMarkPath, extensionMarkViewBox } from "../../lib/extensionMark";
 ---
@@ -28,7 +27,7 @@ import { extensionMarkPath, extensionMarkViewBox } from "../../lib/extensionMark
         <img id="extension-icon" width="80" height="80" alt="" hidden />
       </div>
       <div class="detail-hero-content">
-        <p id="extension-identity" class="eyebrow"></p><span id="extension-verified" class="publisher-verified-badge" role="img" aria-label={publisherVerificationLabel} title={publisherVerificationExplanation} hidden><svg viewBox={publisherSealViewBox} width="18" height="18" aria-hidden="true" focusable="false"><path d={publisherSealPath} fill="currentColor" /><path d={publisherSealCheck} fill="none" stroke="white" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" /></svg></span>
+        <p id="extension-identity" class="eyebrow"></p><span id="extension-verified" hidden></span>
         <h1 id="extension-title"></h1>
         <p id="extension-description" class="lead"></p>
       </div>

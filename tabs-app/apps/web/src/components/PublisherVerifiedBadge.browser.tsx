@@ -16,5 +16,9 @@ test("explains the publisher identity seal to assistive technology", async () =>
   await expect
     .element(page.getByRole("img", { name: "Publisher identity checked by Tabs" }))
     .toBeVisible();
-  await expect.element(page.getByText("Verified publisher", { exact: true })).toBeVisible();
+  await expect.element(page.getByText("Verified publisher", { exact: true }).first()).toBeVisible();
+  const tooltip = page.getByText("Verified publisher", { exact: true }).last();
+  await expect.element(tooltip).not.toBeVisible();
+  await page.getByRole("img", { name: "Publisher identity checked by Tabs" }).hover();
+  await expect.element(tooltip).toBeVisible();
 });

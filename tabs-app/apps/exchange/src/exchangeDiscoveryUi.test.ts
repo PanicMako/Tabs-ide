@@ -143,6 +143,6 @@ it("shows an accessible identity seal beside a publisher only when the registry 
   expect(publisher.textContent).toContain("acme.review");
   const badge = publisher.querySelector('[role="img"]')!;
   expect(badge.getAttribute("aria-label")).toBe("Publisher identity checked by Tabs");
-  expect(badge.getAttribute("title")).toContain("not a security guarantee");
+  expect(badge.getAttribute("aria-description")).toContain("not a security guarantee");
   expect(badge.querySelector("svg")!.getAttribute("aria-hidden")).toBe("true");
 });
