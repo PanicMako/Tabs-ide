@@ -1245,6 +1245,11 @@ export interface DesktopBridge {
   setExtensionUpdatesPinned: (extensionId: string, pinned: boolean) => Promise<void>;
   installDevelopmentExtension: (directory: string) => Promise<DesktopInstalledExtension>;
   reloadDevelopmentExtension?: (id: string) => Promise<DesktopInstalledExtension>;
+  getExchangeListingAsset?: (
+    listing: DesktopExchangeListing,
+    asset: "icon" | "readme" | "screenshot",
+    index?: number,
+  ) => Promise<{ type: string; data: string } | null>;
   getRegistryConnection?: () => Promise<{
     origin: string | null;
     connected: boolean;

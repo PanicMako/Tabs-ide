@@ -1,3 +1,4 @@
+import { fetchExchangeListingAsset } from "./exchangeListingAsset";
 import { RegistryTrustStore, DEFAULT_EXCHANGE_ORIGIN } from "./registryTrustStore";
 import { publishDesktopResources } from "./desktopResourceTelemetry";
 import { createBackendStartupErrorDecoder } from "@tabs/shared/backendStartup";
@@ -214,6 +215,7 @@ const EXTENSION_SET_DISABLED_CHANNEL = "desktop:extension:set-disabled";
 const EXTENSION_SET_UPDATES_PINNED_CHANNEL = "desktop:extension:set-updates-pinned";
 const EXTENSION_INSTALL_DEV_CHANNEL = "desktop:extension:install-dev";
 const EXTENSION_RELOAD_DEV_CHANNEL = "desktop:extension:reload-dev";
+const EXCHANGE_LISTING_ASSET_CHANNEL = "desktop:extension:listing-asset";
 const REGISTRY_CONNECTION_CHANNEL = "desktop:extension:registry-connection";
 const REGISTRY_CONFIGURE_CHANNEL = "desktop:extension:registry-configure";
 const REGISTRY_CREDENTIAL_CHANNEL = "desktop:extension:registry-credential";
@@ -2598,6 +2600,16 @@ function registerIpcHandlers(): void {
   });
   ipcMain.removeHandler(EXTENSION_INSTALL_DEV_CHANNEL);
   ipcMain.removeHandler(EXTENSION_RELOAD_DEV_CHANNEL);
+  ipcMain.removeHandler(EXCHANGE_LISTING_ASSET_CHANNEL);
+  ipcMain.handle(
+    EXCHANGE_LISTING_ASSET_CHANNEL,
+    (event, listing: unknown, asset: unknown, index: unknown) => {
+      requireMainRenderer(event);
+      const origin = currentExchangeOrigin();
+      if (!origin) throw new Error("No Exchange registry configured.");
+      return fetchExchangeListingAsset(origin, listing, asset, index, authenticatedRegistryFetch);
+    },
+  );
   ipcMain.removeHandler(REGISTRY_CONNECTION_CHANNEL);
   ipcMain.handle(REGISTRY_CONNECTION_CHANNEL, (event) => {
     requireMainRenderer(event);

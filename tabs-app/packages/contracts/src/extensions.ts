@@ -153,6 +153,11 @@ export interface DesktopPreparedExchangeInstall {
 
 /** Informational catalog data; it is not an installation authorization. */
 export interface DesktopExchangeListing {
+  readonly listingAssets?: {
+    readonly icon: boolean;
+    readonly readme: boolean;
+    readonly screenshots: number;
+  };
   readonly registryOrigin: string;
   readonly id: string;
   readonly namespace: string;

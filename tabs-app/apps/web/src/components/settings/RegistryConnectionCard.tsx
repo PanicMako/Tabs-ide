@@ -30,6 +30,7 @@ export function RegistryConnectionCard({
   onOpenChange,
   onConnected,
   busy: parentBusy,
+  compact = false,
 }: {
   bridge: DesktopBridge | undefined;
   connection: RegistryConnection | null;
@@ -37,6 +38,7 @@ export function RegistryConnectionCard({
   onOpenChange: (value: boolean) => void;
   onConnected: (value: RegistryConnection) => void;
   busy: boolean;
+  compact?: boolean;
 }) {
   const [origin, setOrigin] = useState(connection?.origin ?? "https://exchange.buildwithtabs.com");
   const [root, setRoot] = useState("");
@@ -127,37 +129,65 @@ export function RegistryConnectionCard({
   if (!bridge) return null;
   return (
     <>
-      <section
-        className={`extension-connection ${connection?.trusted ? "is-connected" : ""}`}
-        aria-labelledby="registry-connection-title"
-      >
-        <div className="extension-connection-mark" aria-hidden="true">
-          {connection?.trusted ? <ShieldCheckIcon /> : <KeyRoundIcon />}
+      {compact ? (
+        <div className="extension-connection-compact">
+          <Button
+            variant="ghost"
+            disabled={parentBusy}
+            aria-label={
+              connection?.trusted
+                ? "Connection settings, connected to Exchange"
+                : "Connect Exchange"
+            }
+            onClick={() => {
+              setOrigin(connection?.origin ?? "https://exchange.buildwithtabs.com");
+              onOpenChange(true);
+            }}
+          >
+            {connection?.trusted ? (
+              <ShieldCheckIcon className="size-4" />
+            ) : (
+              <KeyRoundIcon className="size-4" />
+            )}{" "}
+            Connection
+          </Button>
         </div>
-        <div className="min-w-0 flex-1">
-          <h3 id="registry-connection-title">
-            {connection?.trusted
-              ? "Connected to Exchange"
-              : "One connection. Your next workspace tool."}
-          </h3>
-          <p>
-            {connection?.trusted
-              ? connection.origin
-              : "Browse published extensions below. Connect your registry’s public trust file when you’re ready to install."}
-          </p>
-        </div>
-        <Button
-          variant={connection?.trusted ? "outline" : "default"}
-          disabled={parentBusy}
-          onClick={() => {
-            setOrigin(connection?.origin ?? "https://exchange.buildwithtabs.com");
-            setError(null);
-            onOpenChange(true);
-          }}
-        >
-          {connection?.trusted ? "Connection settings" : "Connect Exchange"}
-        </Button>
-      </section>
+      ) : (
+        <>
+          {" "}
+          <section
+            className={`extension-connection ${connection?.trusted ? "is-connected" : ""}`}
+            aria-labelledby="registry-connection-title"
+          >
+            <div className="extension-connection-mark" aria-hidden="true">
+              {connection?.trusted ? <ShieldCheckIcon /> : <KeyRoundIcon />}
+            </div>
+            <div className="min-w-0 flex-1">
+              <h3 id="registry-connection-title">
+                {connection?.trusted
+                  ? "Connected to Exchange"
+                  : "One connection. Your next workspace tool."}
+              </h3>
+              <p>
+                {connection?.trusted
+                  ? connection.origin
+                  : "Browse published extensions below. Connect your registry’s public trust file when you’re ready to install."}
+              </p>
+            </div>
+            <Button
+              variant={connection?.trusted ? "outline" : "default"}
+              disabled={parentBusy}
+              onClick={() => {
+                setOrigin(connection?.origin ?? "https://exchange.buildwithtabs.com");
+                setError(null);
+                onOpenChange(true);
+              }}
+            >
+              {connection?.trusted ? "Connection settings" : "Connect Exchange"}
+            </Button>
+          </section>
+        </>
+      )}
       {notice && (
         <p role="status" className="text-sm text-muted-foreground">
           {notice}

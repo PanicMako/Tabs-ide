@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { PuzzleIcon, SearchIcon, PackageIcon, UsersIcon } from "lucide-react";
+import { PuzzleIcon, SearchIcon, UsersIcon } from "lucide-react";
 import { useAtomValue } from "@effect/atom-react";
 import type {
   DesktopExchangeListing,
@@ -18,6 +18,7 @@ import { filterExchangeListings } from "~/lib/exchangeDiscovery";
 import { SettingsSection } from "./SettingsLayout";
 import { RegistryConnectionCard, type RegistryConnection } from "./RegistryConnectionCard";
 import { ExtensionChoice, ExtensionCheckbox } from "./ExtensionChoice";
+import { ExtensionMarketplace, ExtensionLogo } from "./ExtensionMarketplace";
 import "./extensions-settings.css";
 
 type Tab = "discover" | "installed" | "profiles";
@@ -25,11 +26,15 @@ type Tab = "discover" | "installed" | "profiles";
 export default function ExtensionsSettings() {
   const extensions = useInstalledExtensions();
   const [tab, setTab] = useState<Tab>(extensions.length ? "installed" : "discover");
+  const [managedExtensionId, setManagedExtensionId] = useState<string | null>(null);
   const [connectionOpen, setConnectionOpen] = useState(false);
   const [profileExtensionId, setProfileExtensionId] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [operationBusy, setBusy] = useState(false);
+  const [catalogBusy, setCatalogBusy] = useState(false);
+  const busy = operationBusy || catalogBusy;
+  const pendingInstall = useRef<DesktopExchangeListing | null>(null);
   const [registryConnection, setRegistryConnection] = useState<RegistryConnection | null>(null);
   const [profileNames, setProfileNames] = useState<Record<string, string>>({});
   const [profileScopes, setProfileScopes] = useState<Record<string, "shared" | "project">>({});
@@ -93,6 +98,13 @@ export default function ExtensionsSettings() {
       disposed = true;
     };
   }, [bridge]);
+  useEffect(() => {
+    if (managedExtensionId && !extensions.some((extension) => extension.id === managedExtensionId))
+      setManagedExtensionId(null);
+    if (tab === "installed" && managedExtensionId)
+      document.getElementById(`extension-manage-${managedExtensionId}`)?.focus();
+    if (tab === "profiles") document.getElementById("extension-accounts-back")?.focus();
+  }, [managedExtensionId, tab, extensions]);
   const availableUpdate = (extension: DesktopInstalledExtension) =>
     Object.hasOwn(checkedUpdates, extension.id)
       ? checkedUpdates[extension.id]
@@ -171,7 +183,7 @@ export default function ExtensionsSettings() {
     if (!bridge) return;
     const generation = ++catalogGeneration.current;
     const query = (override ?? searchQuery).trim();
-    setBusy(true);
+    setCatalogBusy(true);
     setError(null);
     setCatalog(undefined);
     setCatalogCursor(null);
@@ -192,13 +204,13 @@ export default function ExtensionsSettings() {
       if (generation === catalogGeneration.current)
         setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
-      if (generation === catalogGeneration.current) setBusy(false);
+      if (generation === catalogGeneration.current) setCatalogBusy(false);
     }
   };
   const loadMoreExchange = async () => {
     if (!bridge || !catalogCursor || !catalog) return;
     const generation = catalogGeneration.current;
-    setBusy(true);
+    setCatalogBusy(true);
     setError(null);
     const cursor = catalogCursor;
     try {
@@ -218,7 +230,7 @@ export default function ExtensionsSettings() {
       if (generation === catalogGeneration.current)
         setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
-      if (generation === catalogGeneration.current) setBusy(false);
+      if (generation === catalogGeneration.current) setCatalogBusy(false);
     }
   };
 
@@ -230,55 +242,22 @@ export default function ExtensionsSettings() {
   }, [tab, registryConnection?.origin, registryConnection?.trusted, bridge]);
 
   return (
-    <div className="extensions-settings space-y-6">
+    <div className="extensions-settings space-y-4">
       <header className="extension-page-header">
         <div>
-          <span className="extension-page-kicker">
-            <PuzzleIcon className="size-3.5" aria-hidden="true" /> Tabs Exchange
-          </span>
-          <h2 className="font-sans">Extensions</h2>
-          <p>
-            A little more possibility for your workspace. Find a tool, review its access, and make
-            it yours.
-          </p>
+          <h2>Extensions</h2>
+          <p>Find tools for your workspace.</p>
         </div>
-        <svg className="extension-drawing" viewBox="0 0 160 120" fill="none" aria-hidden="true">
-          <rect
-            x="26"
-            y="14"
-            width="108"
-            height="81"
-            rx="8"
-            fill="currentColor"
-            opacity=".08"
-            transform="rotate(7 26 14)"
-          />
-          <rect
-            x="14"
-            y="27"
-            width="124"
-            height="79"
-            rx="8"
-            fill="var(--background)"
-            stroke="currentColor"
-            strokeOpacity=".4"
-          />
-          <path d="M14 47h124" stroke="currentColor" strokeOpacity=".25" />
-          <circle cx="27" cy="37" r="2" fill="currentColor" />
-          <circle cx="36" cy="37" r="2" fill="currentColor" opacity=".5" />
-          <rect x="30" y="62" width="28" height="27" rx="6" stroke="currentColor" />
-          <path
-            d="M39 75h10m-5-5v10M73 66h45M73 76h34M73 86h21"
-            stroke="currentColor"
-            strokeLinecap="round"
-          />
-        </svg>
       </header>
       <RegistryConnectionCard
+        compact
         bridge={bridge}
         connection={registryConnection}
         open={connectionOpen}
-        onOpenChange={setConnectionOpen}
+        onOpenChange={(open) => {
+          setConnectionOpen(open);
+          if (!open) pendingInstall.current = null;
+        }}
         busy={busy}
         onConnected={(connection) => {
           setRegistryConnection(connection);
@@ -287,42 +266,41 @@ export default function ExtensionsSettings() {
           setCatalog(undefined);
           setCatalogCursor(null);
           setTab("discover");
+          const pending = pendingInstall.current;
+          pendingInstall.current = null;
+          if (
+            connection.trusted &&
+            pending &&
+            pending.registryOrigin === connection.origin &&
+            bridge
+          ) {
+            reviewReturnExtensionId.current = null;
+            void run(async () => {
+              setPreparedInstall(await bridge.prepareExchangeInstall(pending));
+            });
+          }
         }}
       />
       <div role="group" aria-label="Extension settings views" className="extension-view-tabs">
-        {(["discover", "installed", "profiles"] as const).map((item) => (
-          <Button
-            key={item}
-            ref={
-              item === "installed"
-                ? installedTabButton
-                : item === "discover"
-                  ? discoverTabButton
-                  : undefined
-            }
-            type="button"
-            aria-pressed={tab === item}
-            variant={tab === item ? "secondary" : "ghost"}
-            className={tab === item ? "shadow-sm" : "text-muted-foreground"}
-            onClick={() => setTab(item)}
-          >
-            {item === "discover" ? (
-              <SearchIcon aria-hidden="true" className="size-4" />
-            ) : item === "installed" ? (
-              <PackageIcon aria-hidden="true" className="size-4" />
-            ) : (
-              <UsersIcon aria-hidden="true" className="size-4" />
-            )}
-            {item === "profiles"
-              ? "Profiles & Permissions"
-              : item[0]!.toUpperCase() + item.slice(1)}
-            {item === "installed" ? (
-              <span className="ml-1 rounded-md bg-background/60 px-1.5 text-xs tabular-nums">
-                {extensions.length}
-              </span>
-            ) : null}
-          </Button>
-        ))}
+        <button
+          ref={discoverTabButton}
+          type="button"
+          aria-pressed={tab === "discover"}
+          onClick={() => setTab("discover")}
+        >
+          Browse
+        </button>
+        <button
+          ref={installedTabButton}
+          type="button"
+          aria-pressed={tab !== "discover"}
+          onClick={() => {
+            setTab("installed");
+            setManagedExtensionId(null);
+          }}
+        >
+          Installed <span>{extensions.length}</span>
+        </button>
       </div>
       {error ? (
         <div
@@ -356,16 +334,7 @@ export default function ExtensionsSettings() {
           </p>
         </SettingsSection>
       ) : tab === "discover" ? (
-        <section
-          className="extension-discover space-y-5"
-          aria-labelledby="extension-discover-title"
-        >
-          <div className="extension-discover-heading">
-            <div>
-              <h3 id="extension-discover-title">Find your next tool</h3>
-              <p>Published extensions, built for Tabs.</p>
-            </div>
-          </div>
+        <section className="extension-discover space-y-4" aria-label="Browse extensions">
           <form
             className="extension-search"
             onSubmit={(event) => {
@@ -373,120 +342,128 @@ export default function ExtensionsSettings() {
               void searchExchange();
             }}
           >
+            <SearchIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
             <Input
               aria-label="Search Tabs Exchange extensions"
-              placeholder="Search by name or publisher…"
+              placeholder="Search extensions"
               className="min-w-0 flex-1"
               value={searchQuery}
               maxLength={100}
               disabled={busy}
               onChange={(event) => setSearchQuery(event.target.value)}
             />
-            <Button type="submit" disabled={busy}>
-              {busy ? "Searching…" : "Search Exchange"}
+            <Button type="submit" variant="secondary" aria-label="Search Exchange" disabled={busy}>
+              {busy ? "Searching…" : "Search"}
             </Button>
           </form>
-          {catalog && (
-            <div
-              className="flex flex-wrap items-end gap-3"
-              aria-label="Filter loaded Exchange results"
-            >
-              <div className="min-w-40 space-y-1">
-                <span
-                  id="exchange-publisher-filter-label"
-                  className="text-xs text-muted-foreground"
-                >
-                  Publisher
-                </span>
-                <Select
-                  value={publisherFilter}
-                  onValueChange={(value) => {
-                    if (value === "all" || value === "verified") setPublisherFilter(value);
-                  }}
-                >
-                  <SelectTrigger aria-labelledby="exchange-publisher-filter-label">
-                    <SelectValue>
-                      {publisherFilter === "verified" ? "Verified publishers" : "All publishers"}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectPopup>
-                    <SelectItem value="all">All publishers</SelectItem>
-                    <SelectItem value="verified">Verified publishers</SelectItem>
-                  </SelectPopup>
-                </Select>
-              </div>
-              <div className="min-w-44 space-y-1">
-                <span id="exchange-access-filter-label" className="text-xs text-muted-foreground">
-                  Requested access
-                </span>
-                <Select
-                  value={accessFilter}
-                  onValueChange={(value) => {
-                    if (
-                      value === "all" ||
-                      value === "none" ||
-                      value === "network" ||
-                      value === "workspace-read"
-                    )
-                      setAccessFilter(value);
-                  }}
-                >
-                  <SelectTrigger aria-labelledby="exchange-access-filter-label">
-                    <SelectValue>
-                      {
+          <details className="market-filters">
+            <summary>Filters</summary>
+            {catalog && (
+              <div
+                className="flex flex-wrap items-end gap-3"
+                aria-label="Filter loaded Exchange results"
+              >
+                <div className="min-w-40 space-y-1">
+                  <span
+                    id="exchange-publisher-filter-label"
+                    className="text-xs text-muted-foreground"
+                  >
+                    Publisher
+                  </span>
+                  <Select
+                    value={publisherFilter}
+                    onValueChange={(value) => {
+                      if (value === "all" || value === "verified") setPublisherFilter(value);
+                    }}
+                  >
+                    <SelectTrigger aria-labelledby="exchange-publisher-filter-label">
+                      <SelectValue>
+                        {publisherFilter === "verified" ? "Verified publishers" : "All publishers"}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectPopup>
+                      <SelectItem value="all">All publishers</SelectItem>
+                      <SelectItem value="verified">Verified publishers</SelectItem>
+                    </SelectPopup>
+                  </Select>
+                </div>
+                <div className="min-w-44 space-y-1">
+                  <span id="exchange-access-filter-label" className="text-xs text-muted-foreground">
+                    Requested access
+                  </span>
+                  <Select
+                    value={accessFilter}
+                    onValueChange={(value) => {
+                      if (
+                        value === "all" ||
+                        value === "none" ||
+                        value === "network" ||
+                        value === "workspace-read"
+                      )
+                        setAccessFilter(value);
+                    }}
+                  >
+                    <SelectTrigger aria-labelledby="exchange-access-filter-label">
+                      <SelectValue>
                         {
-                          all: "Any access",
-                          none: "No permissions",
-                          network: "Network access",
-                          "workspace-read": "Workspace files",
-                        }[accessFilter]
-                      }
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectPopup>
-                    <SelectItem value="all">Any access</SelectItem>
-                    <SelectItem value="none">No permissions</SelectItem>
-                    <SelectItem value="network">Network access</SelectItem>
-                    <SelectItem value="workspace-read">Workspace files</SelectItem>
-                  </SelectPopup>
-                </Select>
+                          {
+                            all: "Any access",
+                            none: "No permissions",
+                            network: "Network access",
+                            "workspace-read": "Workspace files",
+                          }[accessFilter]
+                        }
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectPopup>
+                      <SelectItem value="all">Any access</SelectItem>
+                      <SelectItem value="none">No permissions</SelectItem>
+                      <SelectItem value="network">Network access</SelectItem>
+                      <SelectItem value="workspace-read">Workspace files</SelectItem>
+                    </SelectPopup>
+                  </Select>
+                </div>
+                {(publisherFilter !== "all" || accessFilter !== "all") && (
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setPublisherFilter("all");
+                      setAccessFilter("all");
+                    }}
+                  >
+                    Clear filters
+                  </Button>
+                )}
               </div>
-              {(publisherFilter !== "all" || accessFilter !== "all") && (
-                <Button
-                  variant="ghost"
-                  onClick={() => {
-                    setPublisherFilter("all");
-                    setAccessFilter("all");
-                  }}
-                >
-                  Clear filters
-                </Button>
-              )}
+            )}
+          </details>
+          <p role="status" className="sr-only">
+            {busy
+              ? "Loading extensions"
+              : catalog
+                ? `${filteredCatalog.length} matching extensions`
+                : "Browse extensions"}
+          </p>
+          {catalog === null && (
+            <div className="extension-empty">
+              <h3>Exchange is unavailable</h3>
+              <p>Check your connection and try again.</p>
+              <Button variant="outline" onClick={() => void searchExchange()}>
+                Try again
+              </Button>
             </div>
           )}
-          <p role="status" className="text-sm text-muted-foreground">
-            {catalog === null
-              ? "Exchange is not connected yet. Use Connect Exchange above to get started."
-              : catalog
-                ? `${filteredCatalog.length} of ${catalog.length} loaded compatible extensions shown.${catalogCursor ? " Load more to search additional results." : ""}`
-                : "Search to view compatible approved extensions."}
-          </p>
-          {catalog && catalog.length === 0 && (
+          {catalog && filteredCatalog.length === 0 && (
             <div className="extension-empty">
-              <PuzzleIcon
-                className="mx-auto mb-4 size-8 text-muted-foreground"
-                aria-hidden="true"
-              />
-              <h4>No matching tools yet</h4>
-              <p>
-                Try another name or publisher. Only releases compatible with this version of Tabs
-                appear here.
-              </p>
+              <h3>No matching extensions</h3>
+              <p>Try another name or clear the filters.</p>
               <Button
                 variant="outline"
                 disabled={busy}
                 onClick={() => {
                   setSearchQuery("");
+                  setPublisherFilter("all");
+                  setAccessFilter("all");
                   void searchExchange("");
                 }}
               >
@@ -494,111 +471,40 @@ export default function ExtensionsSettings() {
               </Button>
             </div>
           )}
-          {catalog && catalog.length > 0 && filteredCatalog.length === 0 && (
-            <p className="text-sm text-muted-foreground">
-              No loaded extensions match these filters. Clear filters
-              {catalogCursor ? " or load more results" : ""}.
-            </p>
-          )}
-          {catalog?.length ? (
-            <ul className="extension-results" aria-label="Exchange search results">
-              {filteredCatalog.map((listing) => (
-                <li
-                  key={`${listing.registryOrigin}:${listing.id}`}
-                  className="extension-result-card"
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-border bg-muted/40">
-                      <PuzzleIcon aria-hidden="true" className="size-5" />
-                    </span>
-                    <h3 className="font-semibold">{listing.displayName}</h3>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    By {listing.namespace} · {listing.version} · Approved release ·{" "}
-                    {listing.verifiedPublisher ? "Verified publisher" : "Unverified publisher"}
-                  </p>
-                  <details className="text-xs text-muted-foreground">
-                    <summary className="cursor-pointer">Technical identity</summary>
-                    <p className="mt-2 break-all">{listing.id}</p>
-                  </details>
-                  <p className="text-sm">{listing.description}</p>
-                  <p className="text-xs text-muted-foreground">
-                    Tabs {listing.tabsCompatibility} · Permissions:{" "}
-                    {listing.capabilities.length ? listing.capabilities.join(", ") : "None"}
-                  </p>
-                  {listing.releaseNotes ? (
-                    <details className="text-sm">
-                      <summary>Release notes</summary>
-                      <p className="whitespace-pre-wrap">{listing.releaseNotes}</p>
-                    </details>
-                  ) : null}
-                  <div className="flex flex-wrap gap-2">
-                    {(
-                      [
-                        ["Source", listing.sourceUrl],
-                        ["Support", listing.supportUrl],
-                        ["Privacy", listing.privacyUrl],
-                      ] as const
-                    ).map(([label, url]) =>
-                      url ? (
-                        <Button
-                          key={label}
-                          type="button"
-                          variant="link"
-                          className="h-auto p-0"
-                          onClick={() => void bridge.openExternal(url)}
-                        >
-                          {label}
-                        </Button>
-                      ) : null,
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Registry: {listing.registryOrigin}
-                  </p>
-                  <Button
-                    id={`extension-discover-review-${listing.id}`}
-                    type="button"
-                    variant="outline"
-                    disabled={busy}
-                    onClick={(event) => {
-                      if (!exchangeInstallAvailable) {
-                        setConnectionOpen(true);
-                        return;
-                      }
-                      reviewTrigger.current = event.currentTarget;
-                      reviewReturnExtensionId.current = null;
-                      void run(async () => {
-                        if (preparedInstall) {
-                          await bridge.cancelExchangeInstall(preparedInstall.token);
-                          setPreparedInstall(null);
-                        }
-                        setPreparedInstall(await bridge.prepareExchangeInstall(listing));
-                      });
-                    }}
-                  >
-                    {exchangeInstallAvailable
-                      ? `Review & install ${listing.displayName}`
-                      : `Connect to install ${listing.displayName}`}
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-          {catalog && (catalogCursor || catalogPaged) ? (
+          <ExtensionMarketplace
+            listings={filteredCatalog}
+            bridge={bridge}
+            installed={extensions}
+            busy={busy}
+            onManage={(id) => {
+              setManagedExtensionId(id);
+              setTab("installed");
+            }}
+            onInstall={(listing, trigger) => {
+              if (!exchangeInstallAvailable) {
+                pendingInstall.current = listing;
+                setConnectionOpen(true);
+                return;
+              }
+              reviewTrigger.current = trigger;
+              reviewReturnExtensionId.current = null;
+              void run(async () => {
+                if (preparedInstall) {
+                  await bridge.cancelExchangeInstall(preparedInstall.token);
+                  setPreparedInstall(null);
+                }
+                setPreparedInstall(await bridge.prepareExchangeInstall(listing));
+              });
+            }}
+          />
+          {catalogCursor || catalogPaged ? (
             <Button
-              type="button"
               variant="outline"
               disabled={busy || !catalogCursor}
               onClick={() => void loadMoreExchange()}
             >
-              {catalogCursor ? "Load more extensions" : "All results loaded"}
+              {catalogCursor ? "Load more extensions" : "All extensions loaded"}
             </Button>
-          ) : null}
-          {catalog && !exchangeInstallAvailable ? (
-            <p role="status" className="text-sm text-muted-foreground">
-              Connect Exchange above to verify signed packages and enable installation.
-            </p>
           ) : null}
           {preparedInstall ? (
             <section
@@ -696,9 +602,12 @@ export default function ExtensionsSettings() {
                   see or run them.
                 </p>
               ) : null}
-              <p className="text-xs text-muted-foreground">
-                Registry: {preparedInstall.registryOrigin} · SHA-256: {preparedInstall.digest}
-              </p>
+              <details className="text-xs text-muted-foreground">
+                <summary className="cursor-pointer">Package identity</summary>
+                <p className="text-xs text-muted-foreground">
+                  Registry: {preparedInstall.registryOrigin} · SHA-256: {preparedInstall.digest}
+                </p>
+              </details>
               <p className="text-sm text-muted-foreground">
                 {preparedInstall.willKeepEnabled
                   ? "Existing project enablement is retained because no capability, network host, or AI-callable command was added."
@@ -740,6 +649,7 @@ export default function ExtensionsSettings() {
                         return next;
                       });
                       setPreparedInstall(null);
+                      setManagedExtensionId(null);
                       setTab("installed");
                       requestAnimationFrame(() => installedTabButton.current?.focus());
                     })
@@ -832,362 +742,447 @@ export default function ExtensionsSettings() {
                 Explore extensions
               </Button>
             </div>
+          ) : !managedExtensionId ? (
+            <ul className="market-installed-list" aria-label="Installed extensions">
+              {extensions.map((extension) => (
+                <li key={extension.id}>
+                  <button
+                    type="button"
+                    className="market-listing"
+                    aria-label={`Manage ${extension.manifest.displayName}`}
+                    onClick={() => setManagedExtensionId(extension.id)}
+                  >
+                    {extension.source === "exchange" && extension.registryOrigin ? (
+                      <ExtensionLogo
+                        bridge={bridge}
+                        listing={{
+                          registryOrigin: extension.registryOrigin,
+                          id: extension.id,
+                          namespace: extension.manifest.publisher,
+                          name: extension.manifest.name,
+                          version: extension.manifest.version,
+                          digest: extension.digest ?? "",
+                          displayName: extension.manifest.displayName,
+                          description: extension.manifest.description,
+                          verifiedPublisher: false,
+                          tabsCompatibility: extension.manifest.engines.tabs,
+                          capabilities: extension.manifest.capabilities ?? [],
+                          listingAssets: {
+                            icon: Boolean(extension.manifest.listing?.icon),
+                            readme: false,
+                            screenshots: 0,
+                          },
+                        }}
+                      />
+                    ) : (
+                      <span className="market-logo" aria-hidden="true">
+                        {extension.manifest.displayName.slice(0, 2).toUpperCase()}
+                      </span>
+                    )}
+                    <span className="market-listing-copy">
+                      <strong>{extension.manifest.displayName}</strong>
+                      <span>{extension.manifest.description}</span>
+                      <small>{extension.manifest.publisher}</small>
+                    </span>
+                    <span className="market-installed-status">
+                      {extension.revoked
+                        ? "Revoked"
+                        : extension.disabled
+                          ? "Disabled"
+                          : "Installed"}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
           ) : (
-            extensions.map((extension) => (
-              <div
-                key={extension.id}
-                role="group"
-                aria-label={`${extension.manifest.displayName} installation and project settings`}
-                className="extension-installed-card space-y-4 p-4 sm:p-5"
-              >
-                <div>
-                  <div className="mb-3 flex items-center gap-3">
-                    <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-border bg-muted/40">
-                      <PuzzleIcon aria-hidden="true" className="size-5" />
-                    </span>
-                    <h3 className="min-w-0 flex-1 font-semibold">
-                      {extension.manifest.displayName}
-                    </h3>
-                    <span className="rounded-full border border-border px-2.5 py-1 text-[11px] text-muted-foreground">
-                      {extension.revoked ? "Revoked" : extension.disabled ? "Disabled" : "Enabled"}
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    {extension.id} · {extension.manifest.version} ·{" "}
-                    {extension.source === "exchange"
-                      ? `Exchange · ${extension.registryOrigin}`
-                      : extension.source === "local-package"
-                        ? "Local package"
-                        : "Development folder"}
-                  </p>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {extension.manifest.description}
-                  </p>
-                  {extension.manifest.contributes.commands?.length ? (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Pure commands:{" "}
-                      {extension.manifest.contributes.commands
-                        .map((command) => command.label)
-                        .join(", ")}
-                    </p>
-                  ) : null}
-                  {extension.revoked ? (
-                    <p role="alert" className="mt-2 text-sm text-destructive">
-                      This version was revoked by its registry. Its tools are disabled. Check
-                      Discover for a newer approved version; your profiles and data are retained.
-                    </p>
-                  ) : null}
-                  {extension.disabled ? (
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      Disabled. Its tools are hidden; profiles, permissions, and project choices are
-                      retained.
-                    </p>
-                  ) : null}
-                  {extension.source === "exchange" ? (
-                    <div className="mt-2 space-y-2">
-                      <label className="flex items-center gap-2 text-sm">
-                        <ExtensionCheckbox
-                          checked={Boolean(extension.updatesPinned)}
-                          disabled={busy}
-                          onCheckedChange={(checked) => {
-                            const pinned = checked;
-                            void run(async () => {
-                              await bridge.setExtensionUpdatesPinned(extension.id, pinned);
-                              setCheckedUpdates((current) => {
-                                const next = { ...current };
-                                delete next[extension.id];
-                                return next;
-                              });
-                              setStatus(
-                                pinned
-                                  ? `Background update checks are paused for ${extension.manifest.displayName}. Manual checks remain available.`
-                                  : `Background update checks are enabled for ${extension.manifest.displayName}.`,
-                              );
-                            });
-                          }}
-                        />
-                        Pin {extension.manifest.displayName} at version {extension.manifest.version}
-                      </label>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          aria-label={`Check ${extension.manifest.displayName} for updates`}
-                          disabled={busy}
-                          onClick={() =>
-                            void run(async () => {
-                              const update = await bridge.checkExtensionUpdate(extension.id);
-                              setCheckedUpdates((current) => ({
-                                ...current,
-                                [extension.id]: update,
-                              }));
-                              setStatus(
-                                update
-                                  ? `${extension.manifest.displayName} ${update.version} is available for review.`
-                                  : `No newer compatible approved version of ${extension.manifest.displayName} is available.`,
-                              );
-                            })
-                          }
+            <>
+              <Button variant="ghost" onClick={() => setManagedExtensionId(null)}>
+                ← Back to installed
+              </Button>
+              {extensions
+                .filter((extension) => extension.id === managedExtensionId)
+                .map((extension) => (
+                  <div
+                    key={extension.id}
+                    role="group"
+                    aria-label={`${extension.manifest.displayName} installation and project settings`}
+                    className="extension-installed-card space-y-4 p-4 sm:p-5"
+                  >
+                    <div>
+                      <div className="mb-3 flex items-center gap-3">
+                        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-border bg-muted/40">
+                          <PuzzleIcon aria-hidden="true" className="size-5" />
+                        </span>
+                        <h3
+                          id={`extension-manage-${extension.id}`}
+                          tabIndex={-1}
+                          className="min-w-0 flex-1 font-semibold"
                         >
-                          Check for updates
-                        </Button>
-                        {availableUpdate(extension) &&
-                        (!extension.updatesPinned ||
-                          Object.hasOwn(checkedUpdates, extension.id)) ? (
-                          <>
-                            <span
-                              role={
-                                Object.hasOwn(checkedUpdates, extension.id) ? undefined : "status"
-                              }
-                              className="text-sm text-muted-foreground"
-                            >
-                              Version {availableUpdate(extension)?.version} is available.
-                            </span>
-                            <Button
-                              id={`extension-update-${extension.id}`}
-                              type="button"
+                          {extension.manifest.displayName}
+                        </h3>
+                        <span className="rounded-full border border-border px-2.5 py-1 text-[11px] text-muted-foreground">
+                          {extension.revoked
+                            ? "Revoked"
+                            : extension.disabled
+                              ? "Disabled"
+                              : "Enabled"}
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {extension.id} · {extension.manifest.version} ·{" "}
+                        {extension.source === "exchange"
+                          ? `Exchange · ${extension.registryOrigin}`
+                          : extension.source === "local-package"
+                            ? "Local package"
+                            : "Development folder"}
+                      </p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {extension.manifest.description}
+                      </p>
+                      {extension.manifest.contributes.commands?.length ? (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Pure commands:{" "}
+                          {extension.manifest.contributes.commands
+                            .map((command) => command.label)
+                            .join(", ")}
+                        </p>
+                      ) : null}
+                      {extension.revoked ? (
+                        <p role="alert" className="mt-2 text-sm text-destructive">
+                          This version was revoked by its registry. Its tools are disabled. Check
+                          Browse for a newer approved version; your profiles and data are retained.
+                        </p>
+                      ) : null}
+                      {extension.disabled ? (
+                        <p className="mt-2 text-sm text-muted-foreground">
+                          Disabled. Its tools are hidden; profiles, permissions, and project choices
+                          are retained.
+                        </p>
+                      ) : null}
+                      {extension.source === "exchange" ? (
+                        <div className="mt-2 space-y-2">
+                          <label className="flex items-center gap-2 text-sm">
+                            <ExtensionCheckbox
+                              checked={Boolean(extension.updatesPinned)}
                               disabled={busy}
-                              onClick={(event) => {
-                                const update = availableUpdate(extension);
-                                if (!update) return;
-                                reviewTrigger.current = event.currentTarget;
-                                reviewReturnExtensionId.current = extension.id;
+                              onCheckedChange={(checked) => {
+                                const pinned = checked;
                                 void run(async () => {
-                                  if (preparedInstall) {
-                                    await bridge.cancelExchangeInstall(preparedInstall.token);
-                                  }
-                                  setPreparedInstall(await bridge.prepareExchangeInstall(update));
-                                  setTab("discover");
+                                  await bridge.setExtensionUpdatesPinned(extension.id, pinned);
+                                  setCheckedUpdates((current) => {
+                                    const next = { ...current };
+                                    delete next[extension.id];
+                                    return next;
+                                  });
+                                  setStatus(
+                                    pinned
+                                      ? `Background update checks are paused for ${extension.manifest.displayName}. Manual checks remain available.`
+                                      : `Background update checks are enabled for ${extension.manifest.displayName}.`,
+                                  );
                                 });
                               }}
+                            />
+                            Pin {extension.manifest.displayName} at version{" "}
+                            {extension.manifest.version}
+                          </label>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              aria-label={`Check ${extension.manifest.displayName} for updates`}
+                              disabled={busy}
+                              onClick={() =>
+                                void run(async () => {
+                                  const update = await bridge.checkExtensionUpdate(extension.id);
+                                  setCheckedUpdates((current) => ({
+                                    ...current,
+                                    [extension.id]: update,
+                                  }));
+                                  setStatus(
+                                    update
+                                      ? `${extension.manifest.displayName} ${update.version} is available for review.`
+                                      : `No newer compatible approved version of ${extension.manifest.displayName} is available.`,
+                                  );
+                                })
+                              }
                             >
-                              Review update to {availableUpdate(extension)?.version}
+                              Check for updates
                             </Button>
-                          </>
-                        ) : null}
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-                <label className="flex items-center gap-2 text-sm">
-                  <ExtensionCheckbox
-                    aria-label={`Enable ${extension.manifest.displayName}`}
-                    checked={!extension.disabled}
-                    disabled={busy || extension.revoked}
-                    onCheckedChange={(checked) => {
-                      const disabled = !checked;
-                      void run(async () => {
-                        await bridge.setExtensionDisabled(extension.id, disabled);
-                        setStatus(
-                          `${extension.manifest.displayName} ${disabled ? "disabled" : "enabled"}.`,
-                        );
-                      });
-                    }}
-                  />
-                  Extension enabled
-                </label>
-                <label className="flex items-center gap-2 text-sm">
-                  <ExtensionCheckbox
-                    aria-label={`Show ${extension.manifest.displayName} in all projects`}
-                    checked={extension.assignment.enabledGlobally}
-                    disabled={busy || extension.revoked}
-                    onCheckedChange={(checked) =>
-                      assign(extension, {
-                        ...extension.assignment,
-                        enabledGlobally: checked,
-                      })
-                    }
-                  />
-                  Show in all projects
-                </label>
-                <div className="space-y-3 rounded-xl border border-border bg-muted/20 p-4">
-                  <p className="text-xs font-medium text-muted-foreground">Project overrides</p>
-                  {projects.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">
-                      Add a project to choose where this tool appears.
-                    </p>
-                  ) : null}
-                  {projects.map((project) => {
-                    const selected = extension.assignment.enabledGlobally
-                      ? !extension.assignment.disabledProjectIds.includes(project.id)
-                      : extension.assignment.enabledProjectIds.includes(project.id);
-                    return (
-                      <label key={project.id} className="flex items-center gap-2 text-sm">
-                        <ExtensionCheckbox
-                          aria-label={`Show ${extension.manifest.displayName} in ${project.name}`}
-                          checked={selected}
-                          disabled={busy || extension.revoked}
-                          onCheckedChange={(checked) => {
-                            const assignment = extension.assignment;
-                            const next = checked;
-                            assign(
-                              extension,
-                              assignment.enabledGlobally
-                                ? {
-                                    ...assignment,
-                                    disabledProjectIds: next
-                                      ? assignment.disabledProjectIds.filter(
-                                          (id) => id !== project.id,
-                                        )
-                                      : [...assignment.disabledProjectIds, project.id],
+                            {availableUpdate(extension) &&
+                            (!extension.updatesPinned ||
+                              Object.hasOwn(checkedUpdates, extension.id)) ? (
+                              <>
+                                <span
+                                  role={
+                                    Object.hasOwn(checkedUpdates, extension.id)
+                                      ? undefined
+                                      : "status"
                                   }
-                                : {
-                                    ...assignment,
-                                    enabledProjectIds: next
-                                      ? [...assignment.enabledProjectIds, project.id]
-                                      : assignment.enabledProjectIds.filter(
-                                          (id) => id !== project.id,
-                                        ),
-                                  },
-                            );
-                          }}
-                        />
-                        {project.name}
-                      </label>
-                    );
-                  })}
-                </div>
-                {extension.source === "development" && bridge.reloadDevelopmentExtension && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={busy}
-                    onClick={() =>
-                      void run(async () => {
-                        await bridge.reloadDevelopmentExtension!(extension.id);
-                      })
-                    }
-                  >
-                    Reload development build
-                  </Button>
-                )}
-                {uninstallingId === extension.id ? (
-                  <section
-                    aria-labelledby={`uninstall-${extension.id}`}
-                    aria-describedby={`uninstall-description-${extension.id}`}
-                    className="space-y-2 rounded border border-destructive/50 p-3"
-                    onKeyDown={(event) => {
-                      if (event.key === "Escape" && !busy) {
-                        const extId = extension.id;
-                        setUninstallingId(null);
-                        requestAnimationFrame(() =>
-                          (
-                            document.getElementById(`extension-uninstall-${extId}`) ??
-                            (uninstallTrigger.current?.isConnected
-                              ? uninstallTrigger.current
-                              : null) ??
-                            installedTabButton.current
-                          )?.focus(),
-                        );
-                      }
-                    }}
-                  >
-                    <h4
-                      id={`uninstall-${extension.id}`}
-                      ref={uninstallHeading}
-                      tabIndex={-1}
-                      className="font-medium"
+                                  className="text-sm text-muted-foreground"
+                                >
+                                  Version {availableUpdate(extension)?.version} is available.
+                                </span>
+                                <Button
+                                  id={`extension-update-${extension.id}`}
+                                  type="button"
+                                  disabled={busy}
+                                  onClick={(event) => {
+                                    const update = availableUpdate(extension);
+                                    if (!update) return;
+                                    reviewTrigger.current = event.currentTarget;
+                                    reviewReturnExtensionId.current = extension.id;
+                                    void run(async () => {
+                                      if (preparedInstall) {
+                                        await bridge.cancelExchangeInstall(preparedInstall.token);
+                                      }
+                                      setPreparedInstall(
+                                        await bridge.prepareExchangeInstall(update),
+                                      );
+                                      setTab("discover");
+                                    });
+                                  }}
+                                >
+                                  Review update to {availableUpdate(extension)?.version}
+                                </Button>
+                              </>
+                            ) : null}
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setProfileExtensionId(extension.id);
+                        setTab("profiles");
+                      }}
                     >
-                      Uninstall {extension.manifest.displayName}?
-                    </h4>
-                    <p
-                      id={`uninstall-description-${extension.id}`}
-                      className="text-sm text-muted-foreground"
-                    >
-                      Its tools, packaged files, and project assignments will be removed. Choose
-                      whether to retain named profiles and local data for a future reinstall or
-                      remove them from Tabs. This is not a secure erase of backups or disk history.
-                      {!extension.dataDeletionAvailable
-                        ? " Data deletion is unavailable because its storage inventory is incomplete or contains legacy data."
-                        : ""}
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        disabled={busy}
-                        onClick={() =>
+                      Accounts & access
+                    </Button>
+                    <label className="flex items-center gap-2 text-sm">
+                      <ExtensionCheckbox
+                        aria-label={`Enable ${extension.manifest.displayName}`}
+                        checked={!extension.disabled}
+                        disabled={busy || extension.revoked}
+                        onCheckedChange={(checked) => {
+                          const disabled = !checked;
                           void run(async () => {
-                            await bridge.uninstallExtension(extension.id);
-                            workspaceShellActions.removeExtensionToolPreferences(extension.id);
-                            setCheckedUpdates((current) => {
-                              const next = { ...current };
-                              delete next[extension.id];
-                              return next;
-                            });
-                            setUninstallingId(null);
+                            await bridge.setExtensionDisabled(extension.id, disabled);
                             setStatus(
-                              `${extension.manifest.displayName} uninstalled. Profile data was retained.`,
+                              `${extension.manifest.displayName} ${disabled ? "disabled" : "enabled"}.`,
                             );
-                            requestAnimationFrame(() => installedTabButton.current?.focus());
+                          });
+                        }}
+                      />
+                      Extension enabled
+                    </label>
+                    <label className="flex items-center gap-2 text-sm">
+                      <ExtensionCheckbox
+                        aria-label={`Show ${extension.manifest.displayName} in all projects`}
+                        checked={extension.assignment.enabledGlobally}
+                        disabled={busy || extension.revoked}
+                        onCheckedChange={(checked) =>
+                          assign(extension, {
+                            ...extension.assignment,
+                            enabledGlobally: checked,
                           })
                         }
-                      >
-                        Uninstall and retain data
-                      </Button>
-                      {extension.dataDeletionAvailable ? (
-                        <Button
-                          type="button"
-                          variant="destructive"
-                          disabled={busy}
-                          onClick={() =>
-                            void run(async () => {
-                              await bridge.uninstallExtension(extension.id, true);
-                              workspaceShellActions.removeExtensionToolPreferences(extension.id);
-                              setCheckedUpdates((current) => {
-                                const next = { ...current };
-                                delete next[extension.id];
-                                return next;
-                              });
-                              setUninstallingId(null);
-                              setStatus(
-                                `${extension.manifest.displayName} uninstalled. Its inventoried local data and profiles were removed from Tabs.`,
-                              );
-                              requestAnimationFrame(() => installedTabButton.current?.focus());
-                            })
-                          }
-                        >
-                          Uninstall and delete local data
-                        </Button>
+                      />
+                      Show in all projects
+                    </label>
+                    <div className="space-y-3 rounded-xl border border-border bg-muted/20 p-4">
+                      <p className="text-xs font-medium text-muted-foreground">Project overrides</p>
+                      {projects.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">
+                          Add a project to choose where this tool appears.
+                        </p>
                       ) : null}
+                      {projects.map((project) => {
+                        const selected = extension.assignment.enabledGlobally
+                          ? !extension.assignment.disabledProjectIds.includes(project.id)
+                          : extension.assignment.enabledProjectIds.includes(project.id);
+                        return (
+                          <label key={project.id} className="flex items-center gap-2 text-sm">
+                            <ExtensionCheckbox
+                              aria-label={`Show ${extension.manifest.displayName} in ${project.name}`}
+                              checked={selected}
+                              disabled={busy || extension.revoked}
+                              onCheckedChange={(checked) => {
+                                const assignment = extension.assignment;
+                                const next = checked;
+                                assign(
+                                  extension,
+                                  assignment.enabledGlobally
+                                    ? {
+                                        ...assignment,
+                                        disabledProjectIds: next
+                                          ? assignment.disabledProjectIds.filter(
+                                              (id) => id !== project.id,
+                                            )
+                                          : [...assignment.disabledProjectIds, project.id],
+                                      }
+                                    : {
+                                        ...assignment,
+                                        enabledProjectIds: next
+                                          ? [...assignment.enabledProjectIds, project.id]
+                                          : assignment.enabledProjectIds.filter(
+                                              (id) => id !== project.id,
+                                            ),
+                                      },
+                                );
+                              }}
+                            />
+                            {project.name}
+                          </label>
+                        );
+                      })}
+                    </div>
+                    {extension.source === "development" && bridge.reloadDevelopmentExtension && (
                       <Button
                         type="button"
                         variant="outline"
                         disabled={busy}
-                        onClick={() => {
-                          const extId = extension.id;
-                          setUninstallingId(null);
-                          requestAnimationFrame(() =>
-                            (
-                              document.getElementById(`extension-uninstall-${extId}`) ??
-                              (uninstallTrigger.current?.isConnected
-                                ? uninstallTrigger.current
-                                : null) ??
-                              installedTabButton.current
-                            )?.focus(),
-                          );
+                        onClick={() =>
+                          void run(async () => {
+                            await bridge.reloadDevelopmentExtension!(extension.id);
+                          })
+                        }
+                      >
+                        Reload development build
+                      </Button>
+                    )}
+                    {uninstallingId === extension.id ? (
+                      <section
+                        aria-labelledby={`uninstall-${extension.id}`}
+                        aria-describedby={`uninstall-description-${extension.id}`}
+                        className="space-y-2 rounded border border-destructive/50 p-3"
+                        onKeyDown={(event) => {
+                          if (event.key === "Escape" && !busy) {
+                            const extId = extension.id;
+                            setUninstallingId(null);
+                            requestAnimationFrame(() =>
+                              (
+                                document.getElementById(`extension-uninstall-${extId}`) ??
+                                (uninstallTrigger.current?.isConnected
+                                  ? uninstallTrigger.current
+                                  : null) ??
+                                installedTabButton.current
+                              )?.focus(),
+                            );
+                          }
                         }}
                       >
-                        Cancel
+                        <h4
+                          id={`uninstall-${extension.id}`}
+                          ref={uninstallHeading}
+                          tabIndex={-1}
+                          className="font-medium"
+                        >
+                          Uninstall {extension.manifest.displayName}?
+                        </h4>
+                        <p
+                          id={`uninstall-description-${extension.id}`}
+                          className="text-sm text-muted-foreground"
+                        >
+                          Its tools, packaged files, and project assignments will be removed. Choose
+                          whether to retain named profiles and local data for a future reinstall or
+                          remove them from Tabs. This is not a secure erase of backups or disk
+                          history.
+                          {!extension.dataDeletionAvailable
+                            ? " Data deletion is unavailable because its storage inventory is incomplete or contains legacy data."
+                            : ""}
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            disabled={busy}
+                            onClick={() =>
+                              void run(async () => {
+                                await bridge.uninstallExtension(extension.id);
+                                workspaceShellActions.removeExtensionToolPreferences(extension.id);
+                                setCheckedUpdates((current) => {
+                                  const next = { ...current };
+                                  delete next[extension.id];
+                                  return next;
+                                });
+                                setUninstallingId(null);
+                                setStatus(
+                                  `${extension.manifest.displayName} uninstalled. Profile data was retained.`,
+                                );
+                                requestAnimationFrame(() => installedTabButton.current?.focus());
+                              })
+                            }
+                          >
+                            Uninstall and retain data
+                          </Button>
+                          {extension.dataDeletionAvailable ? (
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              disabled={busy}
+                              onClick={() =>
+                                void run(async () => {
+                                  await bridge.uninstallExtension(extension.id, true);
+                                  workspaceShellActions.removeExtensionToolPreferences(
+                                    extension.id,
+                                  );
+                                  setCheckedUpdates((current) => {
+                                    const next = { ...current };
+                                    delete next[extension.id];
+                                    return next;
+                                  });
+                                  setUninstallingId(null);
+                                  setStatus(
+                                    `${extension.manifest.displayName} uninstalled. Its inventoried local data and profiles were removed from Tabs.`,
+                                  );
+                                  requestAnimationFrame(() => installedTabButton.current?.focus());
+                                })
+                              }
+                            >
+                              Uninstall and delete local data
+                            </Button>
+                          ) : null}
+                          <Button
+                            type="button"
+                            variant="outline"
+                            disabled={busy}
+                            onClick={() => {
+                              const extId = extension.id;
+                              setUninstallingId(null);
+                              requestAnimationFrame(() =>
+                                (
+                                  document.getElementById(`extension-uninstall-${extId}`) ??
+                                  (uninstallTrigger.current?.isConnected
+                                    ? uninstallTrigger.current
+                                    : null) ??
+                                  installedTabButton.current
+                                )?.focus(),
+                              );
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </section>
+                    ) : (
+                      <Button
+                        id={`extension-uninstall-${extension.id}`}
+                        type="button"
+                        variant="outline"
+                        disabled={busy}
+                        onClick={(event) => {
+                          uninstallTrigger.current = event.currentTarget;
+                          setUninstallingId(extension.id);
+                        }}
+                      >
+                        Uninstall {extension.manifest.displayName}
                       </Button>
-                    </div>
-                  </section>
-                ) : (
-                  <Button
-                    id={`extension-uninstall-${extension.id}`}
-                    type="button"
-                    variant="outline"
-                    disabled={busy}
-                    onClick={(event) => {
-                      uninstallTrigger.current = event.currentTarget;
-                      setUninstallingId(extension.id);
-                    }}
-                  >
-                    Uninstall {extension.manifest.displayName}
-                  </Button>
-                )}
-              </div>
-            ))
+                    )}
+                  </div>
+                ))}
+            </>
           )}
         </SettingsSection>
       ) : (
@@ -1196,13 +1191,26 @@ export default function ExtensionsSettings() {
           description="Keep accounts separate. Stay in control of access."
           contentClassName="space-y-5 p-4 sm:p-5"
         >
-          <p className="text-sm text-muted-foreground">
-            A shared profile uses one storage space across projects. A project-isolated profile
-            keeps browser and non-secret storage separate for each project. Workspace access,
-            network and credential use, and AI-callable commands each require a separate project
-            grant. Saved credentials are encrypted by the operating system and never shown again in
-            Settings. Start a new agent session after granting AI tools so it discovers them.
-          </p>
+          <Button
+            id="extension-accounts-back"
+            variant="ghost"
+            onClick={() => {
+              setManagedExtensionId(activeProfileExtensionId ?? null);
+              setTab("installed");
+            }}
+          >
+            ← Back to extension
+          </Button>
+          <details className="market-filters">
+            <summary>About profiles and permissions</summary>{" "}
+            <p className="text-sm text-muted-foreground">
+              A shared profile uses one storage space across projects. A project-isolated profile
+              keeps browser and non-secret storage separate for each project. Workspace access,
+              network and credential use, and AI-callable commands each require a separate project
+              grant. Saved credentials are encrypted by the operating system and never shown again
+              in Settings. Start a new agent session after granting AI tools so it discovers them.
+            </p>
+          </details>
           {extensions.length === 0 ? (
             <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border px-5 py-8 text-center">
               <UsersIcon aria-hidden="true" className="size-7 text-muted-foreground" />

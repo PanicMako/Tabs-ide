@@ -159,6 +159,13 @@ export async function discoverExchangePage(
       verifiedPublisher: item.verified,
       tabsCompatibility: validated.manifest.engines.tabs,
       capabilities: validated.manifest.capabilities ?? [],
+      ...(validated.manifest.listing && {
+        listingAssets: {
+          icon: Boolean(validated.manifest.listing.icon),
+          readme: Boolean(validated.manifest.listing.readme),
+          screenshots: validated.manifest.listing.screenshots?.length ?? 0,
+        },
+      }),
       ...(validated.manifest.releaseNotes !== undefined && {
         releaseNotes: validated.manifest.releaseNotes,
       }),
@@ -270,6 +277,13 @@ export async function discoverExchangeVersions(
         verifiedPublisher: item.verified,
         tabsCompatibility: validated.manifest.engines.tabs,
         capabilities: validated.manifest.capabilities ?? [],
+        ...(validated.manifest.listing && {
+          listingAssets: {
+            icon: Boolean(validated.manifest.listing.icon),
+            readme: Boolean(validated.manifest.listing.readme),
+            screenshots: validated.manifest.listing.screenshots?.length ?? 0,
+          },
+        }),
         ...(validated.manifest.releaseNotes !== undefined && {
           releaseNotes: validated.manifest.releaseNotes,
         }),

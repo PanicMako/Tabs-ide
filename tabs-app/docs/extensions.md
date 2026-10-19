@@ -192,13 +192,13 @@ remains unavailable pending an explicit migration.
 
 In a packaged Tabs desktop build, open **Settings -> Labs -> Extensions**.
 The public Tabs Exchange catalog loads automatically; browsing does not grant
-installation trust. Choose **Connect Exchange**, import the desktop connection
+installation trust. Choose **Connection** (or **Install** on an extension), import the desktop connection
 settings and public `root.json` obtained from your registry operator's Release
 studio, then type the exact registry origin to confirm. Never import the private
 signing backup. Tabs validates the public root's signatures, expiry, and exact
 SHA-256 fingerprint before saving the connection locally. It survives restarts.
 
-Choose **Review & install** on an extension, review its requested access, then
+Choose **Install** on an extension, review its requested access, then
 confirm installation. Enable it for the projects where you want it to appear.
 Connecting alone does not install, run, or enable anything. Private registry
 read credentials are optional and kept separately in the OS-backed vault.
