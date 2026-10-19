@@ -73,6 +73,15 @@ describe("reviewer operational status", () => {
     expect(result.activity[1]).toContain("none recorded");
     expect(result.revocations[0]).toContain("acme.tool@1.0.0: SHA-256");
     expect(result.remaining).toBe(0);
+    expect(result.metrics.map((metric) => metric.value)).toEqual(["Recent", "3", "4", "1"]);
+    expect(result.metadataCards[1]).toMatchObject({
+      role: "timestamp",
+      label: "Expired",
+      state: "expired",
+    });
+    expect(result.activityRows[0]!.value).toBe("2026-10-01T00:00:00.000Z");
+    expect(result.activityRows[1]!.value).toBe("none recorded");
+    expect(result.alertCards).toHaveLength(3);
   });
   it("explains bounded or missing revocation identities without claiming an empty backlog", () => {
     const result = reviewOperationsDetail({

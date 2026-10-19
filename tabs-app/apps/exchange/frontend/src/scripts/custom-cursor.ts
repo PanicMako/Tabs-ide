@@ -114,7 +114,7 @@ if (cursor) {
         event.pointerType !== "mouse" ||
         !target ||
         target.closest(
-          "input,textarea,select,[contenteditable],iframe,[inert],button:disabled,[aria-disabled=true]",
+          "[data-native-cursor],input,textarea,select,[contenteditable],iframe,[inert],button:disabled,[aria-disabled=true]",
         )
       ) {
         hide();
@@ -188,7 +188,7 @@ if (cursor) {
           if (
             !target ||
             target.closest(
-              "input,textarea,select,[contenteditable],iframe,[inert],button:disabled,[aria-disabled=true]",
+              "[data-native-cursor],input,textarea,select,[contenteditable],iframe,[inert],button:disabled,[aria-disabled=true]",
             )
           ) {
             hide();

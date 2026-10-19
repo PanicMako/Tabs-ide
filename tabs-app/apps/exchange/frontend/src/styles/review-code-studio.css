@@ -595,3 +595,17 @@ body[data-page="operations"][data-dashboard="true"] .studio-note-card > button {
     text-align: left;
   }
 }
+/* The editor uses the system pointer even before the decorative cursor's next event. */
+.review-code-studio[data-native-cursor],
+.review-code-studio[data-native-cursor] * {
+  cursor: auto !important;
+}
+.review-code-studio[data-native-cursor] :is(.studio-code, .studio-code *, input, textarea) {
+  cursor: text !important;
+}
+.review-code-studio[data-native-cursor] button:not(:disabled) {
+  cursor: pointer !important;
+}
+.review-code-studio[data-native-cursor] button:disabled {
+  cursor: not-allowed !important;
+}

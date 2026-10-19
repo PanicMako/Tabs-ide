@@ -127,6 +127,69 @@ export function reviewOperationsDetail(value: unknown) {
   const remaining = (queue.pending_signed_revocations as number) - revocations.length;
   return {
     summary,
+    metrics: [
+      {
+        label: "Scanner signal",
+        value: queue.worker_recently_seen ? "Recent" : "Not recent",
+        detail: "Based on the worker heartbeat",
+        tone: queue.worker_recently_seen ? "neutral" : "attention",
+      },
+      {
+        label: "Waiting for review",
+        value: String(queue.awaiting_review),
+        detail: "Packages ready for a reviewer",
+        tone: "neutral",
+      },
+      {
+        label: "Awaiting signing",
+        value: String(queue.awaiting_signed_publication),
+        detail: "Approved, not yet published",
+        tone: Number(queue.awaiting_signed_publication) ? "attention" : "neutral",
+      },
+      {
+        label: "Pending revocations",
+        value: String(queue.pending_signed_revocations),
+        detail: "Still present in signed targets",
+        tone: Number(queue.pending_signed_revocations) ? "attention" : "neutral",
+      },
+    ],
+    pipeline: `Queue: ${queue.queued} · Scanning: ${queue.scanning} · Stale scans: ${queue.stale_scans}`,
+    activityRows: activity.map((line) => {
+      const separator = line.indexOf(": ");
+      return { label: line.slice(0, separator), value: line.slice(separator + 2, -1) };
+    }),
+    metadataCards: data.metadataFreshness.map((value) => {
+      const entry = object(value);
+      const titles: Record<string, string> = {
+        root: "Trust anchor",
+        timestamp: "Freshness check",
+        snapshot: "Metadata snapshot",
+        targets: "Published packages",
+      };
+      const statuses: Record<string, string> = {
+        missing: "Needs setup",
+        invalid: "Invalid metadata",
+        expired: "Expired",
+        expiring: "Refresh soon",
+        valid: "Current expiry",
+      };
+      return {
+        role: String(entry.role),
+        title: titles[String(entry.role)]!,
+        label: statuses[String(entry.status)]!,
+        state: String(entry.status),
+        expiresAt: entry.expiresAt === null ? null : date(entry.expiresAt),
+      };
+    }),
+    alertCards: readiness.alerts.map((value) => {
+      const alert = object(value);
+      return {
+        level: String(alert.level),
+        subsystem: String(alert.subsystem),
+        message: String(alert.message),
+      };
+    }),
+    ready: readiness.ready,
     activity,
     metadata: roles.map((role) => metadataByRole.get(role)!),
     advisory: readiness.ready
