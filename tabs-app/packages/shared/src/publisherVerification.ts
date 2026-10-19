@@ -23,31 +23,12 @@ const leaves = [1, -1].flatMap((side) =>
   }),
 );
 
-export const publisherSealCss = `
-.publisher-verification{position:relative;display:inline-flex;align-items:center;gap:6px;vertical-align:middle;flex:none}
-.publisher-verification:focus-visible{outline:2px solid #6d86ff;outline-offset:3px;border-radius:4px}
-.publisher-verification .vb{display:block;overflow:visible;flex:none}
-.publisher-verification .vb-tooltip{position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);padding:6px 9px;border-radius:7px;background:#20283e;color:#fff;font:500 12px/1.4 system-ui,sans-serif;white-space:nowrap;box-shadow:0 3px 12px #0002;opacity:0;visibility:hidden;pointer-events:none;z-index:10}
-.publisher-verification:hover .vb-tooltip,.publisher-verification:focus-visible .vb-tooltip,.catalog-publisher-badge-link:focus-visible .vb-tooltip{opacity:1;visibility:visible}
-.vb .vb-draw{stroke-dasharray:1;stroke-dashoffset:1;animation:tabs-vb-draw .7s .7s cubic-bezier(.6,0,.2,1) forwards}
-.vb .vb-stem{animation-delay:.1s}
-.vb .vb-leaf,.vb .vb-disc,.vb .vb-crown{transform-box:fill-box}
-.vb .vb-leaf{transform-origin:0 50%;animation:tabs-vb-grow .45s calc(var(--i)*60ms + .15s) cubic-bezier(.3,1.6,.5,1) both}
-.vb .vb-disc{transform-origin:center;animation:tabs-vb-grow .5s .5s cubic-bezier(.3,1.6,.5,1) both}
-.vb .vb-crown{animation:tabs-vb-drop .6s .75s cubic-bezier(.3,1.5,.5,1) both}
-.vb-off *{animation:none!important}.vb-off .vb-draw{stroke-dashoffset:0}
-@keyframes tabs-vb-draw{to{stroke-dashoffset:0}}
-@keyframes tabs-vb-grow{from{transform:scale(0);opacity:0}}
-@keyframes tabs-vb-drop{from{transform:translateY(-4px) scale(.8);opacity:0}60%{transform:translateY(.5px)}}
-@media(prefers-reduced-motion:reduce){.vb *{animation:none!important}.vb .vb-draw{stroke-dashoffset:0}}
-`;
-
 /** Only fixed SVG geometry and a sanitized internal ID are inserted as markup. Never accepts publisher content. */
 export function publisherSealMarkup(instanceId: string): string {
   const id = `tabs-vb-${instanceId.replace(/[^a-zA-Z0-9-]/g, "")}`;
   const gradient = `${id}-g`;
   const dark = `${id}-d`;
-  return `<style>${publisherSealCss}</style><defs>
+  return `<defs>
 <linearGradient id="${gradient}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8aa3ff"/><stop offset="1" stop-color="#3a4fe0"/></linearGradient>
 <linearGradient id="${dark}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6d86ff"/><stop offset="1" stop-color="#2b3dc4"/></linearGradient></defs>
 ${stems.map((d) => `<path class="vb-draw vb-stem" pathLength="1" d="${d}" fill="none" stroke="url(#${dark})" stroke-width="1.1" stroke-linecap="round"/>`).join("")}

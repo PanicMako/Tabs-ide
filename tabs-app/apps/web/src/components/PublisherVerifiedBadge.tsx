@@ -1,3 +1,4 @@
+import "@tabs/shared/publisherVerification.css";
 import { useId } from "react";
 import {
   publisherSealViewBox,
