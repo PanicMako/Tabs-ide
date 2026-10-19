@@ -1,4 +1,6 @@
 export function clearSubmissionView(document: Pick<Document, "getElementById">) {
+  const studio = document.getElementById("submission-release-studio");
+  if (studio) studio.hidden = true;
   const identity = document.getElementById("submission-identity");
   if (identity) identity.textContent = "Submission details are not currently available.";
   for (const id of [

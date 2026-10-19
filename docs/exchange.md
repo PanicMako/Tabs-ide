@@ -109,6 +109,51 @@ PostgreSQL at `/v1/tuf/metadata/:file` and approved package targets at
 route returns 404 immediately after revocation, even before a new signed
 targets role is published.
 
+### Guided publication in the browser
+
+Configured registry operators can open **Review desk → Releases** (`/admin/releases`).
+Reviewers and publisher tokens cannot use this workflow. Submission details link
+operators here when an approved package is awaiting signed publication.
+
+1. On first use, create a password-encrypted signing backup. Four separate Ed25519
+   keys are generated with Web Crypto on the operator’s device. The backup uses
+   AES-256-GCM with PBKDF2-SHA-256 (600,000 iterations). Save it, then reopen it
+   with its password so the wizard can verify all four private/public key pairs.
+2. Download the public `root.json`. Confirm the exact registry origin and root
+   SHA-256 to register the initial trust anchor. This is an explicit, audited
+   operator action, independent of any uploaded extension. A preconfigured
+   `EXCHANGE_TUF_BOOTSTRAP_ROOT_SHA256` must match. The wizard cannot replace
+   an existing trust root; rotation remains the offline procedure below.
+3. Load the release plan. It includes **every approved version**, preserves
+   approved published versions, and excludes revoked versions. The export checks
+   stored package bytes. Review all identities, lengths and digests before signing.
+4. Confirm and choose **Sign & publish release**. Private keys and passwords stay
+   in tab memory and are never sent to the API, storage, or browser persistence.
+   The device signs targets, snapshot and timestamp metadata. The API accepts
+   only public metadata and uses the existing TUF verifier, publication lock,
+   exact approved target checks and package-object verification. The public
+   catalog, publication history, and operator audit are committed atomically.
+   If approval state changes or another release wins the metadata version race,
+   load a fresh plan and sign again. An uncertain request is never auto-retried.
+5. Visit the published listing. Desktop installation still requires independently
+   provisioned public trust settings; download the connection settings and follow
+   [the desktop connection guide](extensions.md#manually-installing-from-a-trusted-exchange).
+   The website does not silently grant trust to installed desktops.
+
+Keep the encrypted backup and password separately and securely backed up. Losing
+all usable keys requires an explicit trust recovery process; creating a different
+backup does not replace an established identity. Lock the backup when finished;
+it also locks after ten minutes or when leaving the page. Browser signing assumes
+the operator trusts the delivered site code and device; private keys are not held
+by the API or worker. For stronger offline key isolation, use the staged workflow.
+
+The wizard issues one-day timestamps, seven-day snapshots, 30-day targets and a
+one-year initial root. Reopen the same backup and publish a fresh plan before
+expiry (including when only revocations change). Root expiry requires offline
+rotation. This is a manual operator workflow, not an automatic signing service.
+
+### Offline publication and root rotation
+
 An operator can produce TUF metadata with standard TUF tooling outside the API
 and worker, then transfer only the signed JSON files to a database-connected
 machine. The staged directory must contain `root.json`, `timestamp.json`,

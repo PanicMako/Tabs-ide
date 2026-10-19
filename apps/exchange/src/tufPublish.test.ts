@@ -176,6 +176,18 @@ async function fixture() {
           })),
         };
       }
+      if (
+        sql ===
+        "SELECT namespace, name, version, digest FROM exchange_versions WHERE status = 'approved' FOR SHARE"
+      )
+        return {
+          rows:
+            releaseStatus === "approved"
+              ? [{ namespace: "acme", name: "dashboard", version: "1.0.0", digest }]
+              : [],
+        };
+      if (sql.startsWith("SELECT sha256 FROM exchange_signing_setup"))
+        return { rows: [{ sha256: Crypto.createHash("sha256").update(rootBytes).digest("hex") }] };
       if (sql.startsWith("INSERT INTO exchange_tuf_metadata")) {
         stored.set(parameters![0] as string, parameters![1] as Buffer);
       }
@@ -397,4 +409,34 @@ describe("offline TUF publication gate", () => {
       subject.operations.filter((sql) => sql.includes("pg_notify('exchange_signed_metadata'")),
     ).toHaveLength(2);
   });
+});
+
+it("publishes device-signed metadata using the registered pin and records an operator event atomically", async () => {
+  const subject = await fixture();
+  await publishTufMetadata(
+    subject.pool,
+    subject.storage,
+    "quarantine",
+    subject.directory,
+    undefined,
+    { actorId: "1", registeredPin: true, allApproved: true },
+  );
+  expect(subject.published).toHaveLength(1);
+  expect(
+    subject.operations.some((sql) => sql.startsWith("INSERT INTO exchange_signing_events")),
+  ).toBe(true);
+  expect(subject.operations.at(-1)).toBe("COMMIT");
+});
+it("rejects a browser plan that drops an approved package before any publication writes", async () => {
+  const subject = await fixture();
+  await subject.publishStage(1, false);
+  await expect(
+    publishTufMetadata(subject.pool, subject.storage, "quarantine", subject.directory, undefined, {
+      actorId: "1",
+      registeredPin: true,
+      allApproved: true,
+    }),
+  ).rejects.toThrow("Approved packages changed");
+  expect(subject.stored.size).toBe(0);
+  expect(subject.operations.at(-1)).toBe("ROLLBACK");
 });

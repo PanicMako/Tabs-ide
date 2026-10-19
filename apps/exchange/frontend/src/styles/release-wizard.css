@@ -1,0 +1,137 @@
+body[data-page="operations"] .release-steps {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  list-style: none;
+  padding: 0;
+  gap: 12px;
+  margin: 24px 0;
+}
+body[data-page="operations"] .release-steps li {
+  padding: 16px;
+  background: #eef2ff;
+  border: 1px solid #dce3fa;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+body[data-page="operations"] .release-steps span {
+  margin-right: 12px;
+  color: #3455ee;
+}
+body[data-page="operations"] .release-step {
+  padding: 30px;
+  margin: 20px 0;
+  border: 1px solid #dce3f1;
+  border-radius: 16px;
+  background: #fff;
+}
+body[data-page="operations"] .release-step h2 {
+  font-size: 30px;
+  letter-spacing: -1px;
+  margin: 12px 0;
+}
+body[data-page="operations"] .release-step p {
+  max-width: 760px;
+  font-size: 14px;
+  color: #66738a;
+  line-height: 1.75;
+}
+body[data-page="operations"] .release-step details {
+  padding: 20px;
+  border: 1px solid #dce3f1;
+  background: #f7f8ff;
+  border-radius: 10px;
+  margin: 24px 0;
+}
+body[data-page="operations"] .release-step summary {
+  font-weight: 600;
+  cursor: pointer;
+}
+body[data-page="operations"] .release-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+body[data-page="operations"] .release-step .form-field {
+  max-width: 600px;
+  margin: 18px 0;
+}
+body[data-page="operations"] .release-unlock {
+  padding: 20px 0;
+}
+body[data-page="operations"] #release-root {
+  padding: 22px;
+  background: #f5f7ff;
+  border-radius: 12px;
+}
+body[data-page="operations"] #release-root-hash {
+  display: block;
+  overflow-wrap: anywhere;
+  margin: 12px 0 18px;
+  font-size: 12px;
+}
+body[data-page="operations"] #release-filename {
+  margin-left: 12px;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+body[data-page="operations"] #release-register {
+  border-top: 1px solid #dce3f1;
+  margin-top: 24px;
+  padding-top: 12px;
+}
+body[data-page="operations"] .release-targets {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+body[data-page="operations"] .release-targets li {
+  padding: 18px;
+  border: 1px solid #dce3f1;
+  border-radius: 10px;
+  overflow-wrap: anywhere;
+}
+body[data-page="operations"] .release-targets code {
+  display: block;
+  font-size: 11px;
+  color: #66738a;
+  margin-top: 8px;
+}
+body[data-page="operations"] .release-confirm {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin: 24px 0;
+  font-size: 14px;
+}
+body[data-page="operations"] #release-listings {
+  display: grid;
+  gap: 12px;
+  margin: 20px 0;
+}
+body[data-page="operations"] .release-step button + button {
+  margin-left: 8px;
+}
+@media (max-width: 700px) {
+  body[data-page="operations"] .release-form-grid,
+  body[data-page="operations"] .release-steps {
+    grid-template-columns: 1fr;
+  }
+  body[data-page="operations"] .release-step {
+    padding: 20px;
+  }
+}
+
+body[data-page="operations"] #release-status {
+  position: sticky;
+  top: 12px;
+  z-index: 20;
+  padding: 14px 18px;
+  border: 1px solid #dce3f1;
+  border-radius: 10px;
+  background: #f4f6ff;
+  color: #33426b;
+  font-size: 13px;
+  box-shadow: 0 4px 14px #26395b08;
+}

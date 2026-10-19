@@ -146,6 +146,10 @@ async function load() {
     if (card) card.dataset.state = presentation.group;
     const explanation = document.getElementById("submission-status-title");
     if (explanation) explanation.textContent = presentation.explanation;
+    const studio = document.getElementById("submission-release-studio");
+    if (studio)
+      studio.hidden =
+        !actor.operator || submission.status !== "approved" || submission.published === true;
     const next = document.getElementById("submission-next-step");
     if (next) next.textContent = presentation.next;
     const stages = document.getElementById("submission-stage-list");
