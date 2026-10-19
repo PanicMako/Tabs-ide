@@ -1,5 +1,8 @@
 import { buildReviewBrief, type ReviewBriefInput } from "../lib/reviewBrief";
 import { reviewEvidence } from "../lib/reviewEvidence";
+import { reviewCodeLines, reviewCodePreviews } from "../lib/reviewCode";
+import { reviewArchivePath } from "../lib/reviewDecision";
+import { request, RegistryRequestError } from "./api";
 
 const record = (value: unknown): Record<string, unknown> =>
   value !== null && typeof value === "object" && !Array.isArray(value)
@@ -38,7 +41,12 @@ function values(value: unknown) {
 }
 
 /** Text-only evidence reader. Never interprets markup, executes previews, or calls a review endpoint. */
-export function appendReviewWorkspace(parent: HTMLElement, entry: ReviewBriefInput, index: number) {
+export function appendReviewWorkspace(
+  parent: HTMLElement,
+  entry: ReviewBriefInput,
+  index: number,
+  onAccessLost?: () => void,
+) {
   const workspace = element("div", undefined, "evidence-workspace");
   const heading = element("div", undefined, "evidence-workspace-heading");
   const copy = element("button", "Copy review brief", "button secondary");
@@ -170,6 +178,15 @@ export function appendReviewWorkspace(parent: HTMLElement, entry: ReviewBriefInp
     }
     scanView.append(row);
   }
+  const coverage = element("div", undefined, "evidence-scan-row");
+  coverage.append(
+    element("strong", "Malware coverage: limited static checks"),
+    element(
+      "p",
+      "The current Tabs pipeline checks known-bad hashes, executable formats, selected secret patterns and dependency advisories. It does not run a general antivirus engine or observe extension behavior. No findings does not mean malware-free.",
+    ),
+  );
+  scanView.append(coverage);
   const fileView = panels[2]!;
   fileView.append(element("h5", "Recorded files"));
   const files = Object.entries(record(scan.files));
@@ -185,7 +202,180 @@ export function appendReviewWorkspace(parent: HTMLElement, entry: ReviewBriefInp
   if (Array.isArray(changes.removed))
     for (const path of changes.removed.slice(0, 5000))
       if (typeof path === "string" && !allFiles.has(path)) allFiles.set(path, null);
-  const loadedFiles = [...allFiles].slice(0, 100);
+  const previews = reviewCodePreviews(entry.scan_result, entry.digest);
+  const previewsByFile = new Map(previews.map((preview) => [preview.file, preview]));
+  for (const preview of previews) if (!allFiles.has(preview.file)) allFiles.set(preview.file, null);
+  const loadedFiles = [...allFiles];
+  const source = element("section", undefined, "evidence-source-reader");
+  source.setAttribute("aria-label", "Code change reader");
+  const sourceTitle = element("h5", "Choose a file to read its code");
+  sourceTitle.tabIndex = -1;
+  const sourceStatus = element("p");
+  sourceStatus.setAttribute("role", "status");
+  const sourceBody = element("div", undefined, "evidence-source-body");
+  const archiveLink = element("a", "Download exact archive for full inspection ↗");
+  archiveLink.href = reviewArchivePath(entry);
+  const sourceNotice = element(
+    "p",
+    "Read-only, untrusted source. Nothing here is executed. Direction controls are shown explicitly. Change previews mark added (+) and removed (−) lines; submitted files use source line numbers.",
+    "evidence-small-note",
+  );
+  const readSubmitted = element("button", "Read submitted file", "button secondary");
+  readSubmitted.type = "button";
+  const sourceActions = element("div", undefined, "evidence-source-actions");
+  sourceActions.append(readSubmitted, archiveLink);
+  source.append(sourceTitle, sourceStatus, sourceActions, sourceNotice, sourceBody);
+  let sourceRequest: AbortController | undefined;
+  let selectedPath: string | undefined;
+  const fileButtons = new Map<string, HTMLButtonElement>();
+  readSubmitted.addEventListener("click", async () => {
+    if (!selectedPath || !workspace.isConnected || workspace.closest("[hidden]")) return;
+    const path = selectedPath;
+    sourceRequest?.abort();
+    const controller = new AbortController();
+    sourceRequest = controller;
+    readSubmitted.disabled = true;
+    readSubmitted.textContent = "Reading verified archive…";
+    sourceStatus.textContent =
+      "Checking the exact archive and reading this file. Nothing is executed.";
+    try {
+      const url =
+        reviewArchivePath(entry).replace(/\/download$/, "/source") +
+        `?digest=${entry.digest}&file=${encodeURIComponent(path)}`;
+      const data = await request<{
+        digest: string;
+        file: string;
+        bytes: number;
+        sha256?: string;
+        text?: string;
+        omitted?: string;
+      }>(url, "GET", undefined, controller.signal);
+      if (
+        controller.signal.aborted ||
+        !workspace.isConnected ||
+        workspace.closest("[hidden]") ||
+        selectedPath !== path
+      )
+        return;
+      if (
+        data.digest !== entry.digest ||
+        data.file !== path ||
+        !Number.isSafeInteger(data.bytes) ||
+        data.bytes < 0
+      )
+        throw new Error("File evidence does not match this package. Refresh the review queue.");
+      sourceBody.replaceChildren();
+      if (typeof data.text !== "string" || data.text.length > 384 * 1024) {
+        sourceStatus.textContent =
+          data.omitted === "too-large"
+            ? "This file exceeds the 384 KiB reader limit. Download the exact archive for complete inspection."
+            : "This file is binary or is not valid plain text. Download the archive for independent inspection.";
+        return;
+      }
+      const expected = allFiles.get(path);
+      if (
+        typeof data.sha256 !== "string" ||
+        !/^[a-f0-9]{64}$/.test(data.sha256) ||
+        (typeof expected === "string" && expected !== data.sha256)
+      )
+        throw new Error(
+          "File fingerprint does not match the scan. Refresh and investigate before approval.",
+        );
+      const lines = data.text.split("\n");
+      let page = 0;
+      const navigation = element("div", undefined, "evidence-source-pager");
+      const previous = element("button", "Previous lines");
+      const next = element("button", "Next lines");
+      previous.type = next.type = "button";
+      const position = element("span");
+      position.setAttribute("role", "status");
+      const code = element("pre", undefined, "evidence-code-lines");
+      code.tabIndex = 0;
+      code.setAttribute("aria-label", `Submitted source for ${path}`);
+      const renderPage = () => {
+        const start = page * 200;
+        code.replaceChildren();
+        for (const [i, text] of lines.slice(start, start + 200).entries()) {
+          const row = element("span", undefined, "evidence-code-line submitted");
+          row.append(
+            element("span", String(start + i + 1), "evidence-line-number"),
+            element("code", text || " "),
+          );
+          code.append(row);
+        }
+        position.textContent = `Lines ${start + 1}–${Math.min(start + 200, lines.length)} of ${lines.length}`;
+        previous.disabled = page === 0;
+        next.disabled = start + 200 >= lines.length;
+        code.scrollTop = 0;
+      };
+      previous.addEventListener("click", () => {
+        page--;
+        renderPage();
+      });
+      next.addEventListener("click", () => {
+        page++;
+        renderPage();
+      });
+      navigation.append(previous, position, next);
+      sourceBody.append(navigation, code);
+      renderPage();
+      sourceStatus.textContent = `Submitted file · ${data.bytes.toLocaleString()} bytes · full text loaded from the verified archive, shown 200 lines at a time. This is source inspection, not proof of safety.`;
+    } catch (error) {
+      if (controller.signal.aborted || !workspace.isConnected || workspace.closest("[hidden]"))
+        return;
+      sourceBody.replaceChildren();
+      if (error instanceof RegistryRequestError && [401, 403].includes(error.status)) {
+        sourceStatus.textContent = "Reviewer access expired. Sign in again to read source.";
+        onAccessLost?.();
+      } else
+        sourceStatus.textContent =
+          error instanceof Error
+            ? error.message
+            : "Could not read the file. Retry or download the exact archive.";
+    } finally {
+      if (sourceRequest === controller) {
+        readSubmitted.disabled = false;
+        readSubmitted.textContent = "Read submitted file";
+      }
+    }
+  });
+  const showSource = (path: string, moveFocus = false) => {
+    sourceRequest?.abort();
+    selectedPath = path;
+    readSubmitted.disabled = false;
+    readSubmitted.textContent = "Read submitted file";
+    for (const [file, button] of fileButtons)
+      button.setAttribute("aria-pressed", String(file === path));
+    sourceTitle.textContent = path.replace(/[\u202a-\u202e\u2066-\u2069]/g, "[control removed]");
+    sourceBody.replaceChildren();
+    const preview = previewsByFile.get(path);
+    sourceStatus.textContent =
+      preview?.explanation ??
+      "No text preview is available for this file. It may be unchanged, outside preview limits, or absent from the scan. Download the exact archive to inspect it; this does not mean the file is safe.";
+    if (preview?.patch !== undefined) {
+      const code = element("pre", undefined, "evidence-code-lines");
+      code.tabIndex = 0;
+      code.setAttribute("aria-label", `Code changes for ${path}`);
+      for (const line of reviewCodeLines(preview.patch)) {
+        const row = element("span", undefined, `evidence-code-line ${line.kind}`);
+        const before = element(
+          "span",
+          line.before === null ? "" : String(line.before),
+          "evidence-line-number",
+        );
+        const after = element(
+          "span",
+          line.after === null ? "" : String(line.after),
+          "evidence-line-number",
+        );
+        const content = element("code", line.text || " ");
+        row.append(before, after, content);
+        code.append(row);
+      }
+      sourceBody.append(code);
+    }
+    if (moveFocus) sourceTitle.focus();
+  };
   const searchId = `evidence-file-search-${index}`;
   const searchLabel = element("label", "Find a recorded file");
   searchLabel.htmlFor = searchId;
@@ -197,10 +387,12 @@ export function appendReviewWorkspace(parent: HTMLElement, entry: ReviewBriefInp
   fileStatus.setAttribute("role", "status");
   const fileList = element("ul", undefined, "evidence-file-list");
   const renderFiles = () => {
-    const shown = loadedFiles.filter(([path]) =>
+    const matches = loadedFiles.filter(([path]) =>
       path.toLowerCase().includes(search.value.toLowerCase().trim()),
     );
+    const shown = matches.slice(0, 100);
     fileList.replaceChildren();
+    fileButtons.clear();
     for (const [path, digest] of shown) {
       const row = element("li");
       const head = element("div");
@@ -218,18 +410,45 @@ export function appendReviewWorkspace(parent: HTMLElement, entry: ReviewBriefInp
             : "No file fingerprint recorded here.",
         ),
       );
-      row.append(head, details);
+      const read = element(
+        "button",
+        previewsByFile.get(path)?.patch !== undefined ? "Read code changes" : "Preview details",
+        "evidence-read-code",
+      );
+      read.type = "button";
+      read.setAttribute("aria-label", `Read code changes for ${path}`);
+      read.setAttribute("aria-pressed", String(selectedPath === path));
+      read.addEventListener("click", () => showSource(path, true));
+      fileButtons.set(path, read);
+      row.append(head, read, details);
       fileList.append(row);
     }
     fileStatus.textContent = allFiles.size
-      ? `${shown.length} of ${allFiles.size} recorded file paths shown.${allFiles.size > 100 ? " Search covers the first 100; full JSON includes the rest." : ""}`
+      ? `${shown.length} of ${matches.length} matching files shown · ${allFiles.size} recorded paths.${matches.length > 100 ? " Refine your search to see other files." : ""}`
       : "No file fingerprint inventory was supplied. This does not establish an empty package.";
     if (allFiles.size && !shown.length)
       fileList.append(element("li", "No files match your search."));
   };
   search.addEventListener("input", renderFiles);
-  fileView.append(searchLabel, search, fileStatus, fileList);
+  fileView.append(
+    element(
+      "p",
+      "Select a file below to inspect the recorded code changes. Binary, large and unchanged files may not have a preview.",
+    ),
+    source,
+    searchLabel,
+    search,
+    fileStatus,
+    fileList,
+  );
   renderFiles();
+  const initialPreview =
+    previews.find(
+      (preview) => preview.patch !== undefined && /\.(?:js|ts|html|jsx|tsx)$/.test(preview.file),
+    ) ?? previews.find((preview) => preview.patch !== undefined);
+  if (initialPreview) showSource(initialPreview.file);
+  else if (loadedFiles[0]) showSource(loadedFiles[0][0]);
+  else readSubmitted.disabled = true;
   workspace.append(tabs, ...panels);
   activate(0);
 

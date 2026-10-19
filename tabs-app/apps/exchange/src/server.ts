@@ -25,6 +25,11 @@ import {
   type ExchangeConfig,
 } from "./config.ts";
 import { runScanWorker } from "./worker.ts";
+import {
+  readReviewSource,
+  ReviewSourceError,
+  validateReviewSourceRequest,
+} from "./reviewSource.ts";
 import { boundedObject, putImmutablePackageObject, verifiedPackageObject } from "./storage.ts";
 import { refreshPublishedHead } from "./publishedHeads.ts";
 import { decodeSearchCursor, encodeSearchCursor } from "./searchCursor.ts";
@@ -51,7 +56,7 @@ const APPEAL_ROUTE =
   /^\/v1\/publisher\/([a-z][a-z0-9-]{1,62})\/([a-z][a-z0-9-]{1,62})\/versions\/([^/]+)\/appeals$/;
 const APPEAL_RESPONSE_ROUTE = /^\/v1\/review\/appeals\/([1-9][0-9]*)\/response$/;
 const REVIEW_DOWNLOAD_ROUTE =
-  /^\/v1\/review\/([a-z][a-z0-9-]{1,62})\/([a-z][a-z0-9-]{1,62})\/([^/]+)\/download$/;
+  /^\/v1\/review\/([a-z][a-z0-9-]{1,62})\/([a-z][a-z0-9-]{1,62})\/([^/]+)\/(download|source)$/;
 const REVIEW_HISTORY_ROUTE =
   /^\/v1\/review\/([a-z][a-z0-9-]{1,62})\/([a-z][a-z0-9-]{1,62})\/history$/;
 const TUF_METADATA_ROUTE =
@@ -244,6 +249,7 @@ export function createExchangeServer(
   signedMetadataEvents = new SignedMetadataEvents(),
 ): Http.Server {
   let activeUploads = 0;
+  let activeSourceReads = 0;
   return Http.createServer(async (request, response) => {
     try {
       const url = new URL(request.url ?? "/", config.origin);
@@ -1689,6 +1695,50 @@ export function createExchangeServer(
         );
         const submission = found.rows[0];
         if (!submission) throw new HttpError(404, "Submission not found.");
+        if (reviewDownload[4] === "source") {
+          privateResponses.add(response);
+          const requestedDigest = url.searchParams.get("digest");
+          let file: string;
+          try {
+            file = validateReviewSourceRequest(url.searchParams.get("file"), requestedDigest);
+          } catch (error) {
+            if (error instanceof ReviewSourceError)
+              throw new HttpError(error.status, error.message);
+            throw error;
+          }
+          if (requestedDigest !== submission.digest)
+            throw new HttpError(409, "Package fingerprint changed. Refresh the review queue.");
+          if (activeSourceReads >= 2)
+            throw new HttpError(429, "Code readers are busy. Try again shortly.");
+          activeSourceReads++;
+          try {
+            const bytes = await verifiedPackageObject(
+              storage,
+              config.bucket,
+              submission.object_key,
+              submission.bytes,
+              submission.digest,
+            );
+            const source = await readReviewSource(
+              bytes,
+              {
+                digest: submission.digest,
+                namespace: reviewDownload[1]!,
+                name: reviewDownload[2]!,
+                version,
+              },
+              file,
+            );
+            json(response, 200, source);
+          } catch (error) {
+            if (error instanceof ReviewSourceError)
+              throw new HttpError(error.status, error.message);
+            throw error;
+          } finally {
+            activeSourceReads--;
+          }
+          return;
+        }
         const bytes = await verifiedPackageObject(
           storage,
           config.bucket,

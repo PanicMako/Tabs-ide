@@ -340,7 +340,8 @@ async function load(restoreFocus = false) {
       const technicalTitle = document.createElement("summary");
       technicalTitle.textContent = "Evidence workspace · manifest, scan & files";
       technical.append(technicalTitle);
-      if (entry.status !== "approved") appendReviewWorkspace(technical, entry, index);
+      if (entry.status !== "approved")
+        appendReviewWorkspace(technical, entry, index, reconnectReviewer);
       technical.append(fingerprintControl(entry.digest));
       const raw = document.createElement("details");
       raw.className = "review-raw-data";
