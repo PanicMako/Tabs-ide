@@ -15,6 +15,7 @@
 export type StartupStage =
   | "shell-first-paint"
   | "renderer-hydration"
+  | "workspace-interactive"
   | "backend-connection-ready"
   | "provider-inventory-available"
   | "code-host-session-ready"

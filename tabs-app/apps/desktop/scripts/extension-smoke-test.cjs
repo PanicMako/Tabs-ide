@@ -608,6 +608,93 @@ app.whenReady().then(async () => {
     );
 
     // -------------------------------------------------------------
+    // Exercise actual Chromium storage, not mocked clearData promises. These
+    // profiles and package paths are isolated under the smoke test temp directory.
+    const savedAssignment = manager.list().find((item) => item.id === installed.id).assignment;
+    manager.uninstall(installed.id);
+    await manager.installLocalPackage(archivePath);
+    manager.setAssignment(installed.id, savedAssignment);
+    const deletionActivation = {
+      projectId: "project-smoke-1",
+      extensionId: installed.id,
+      toolId: "hello",
+      profileId: "default",
+    };
+    await manager.activate(deletionActivation);
+    let deletionView = coordinator.attachedViews.at(-1);
+    assert.equal(
+      await deletionView.webContents.executeJavaScript(
+        'localStorage.getItem("smoke-partition-marker")',
+      ),
+      "first-project-profile",
+      "Retain-data uninstall must preserve browser data",
+    );
+    await deletionView.webContents.executeJavaScript(`new Promise((resolve, reject) => {
+      const request = indexedDB.open('uninstall-proof', 1);
+      request.onupgradeneeded = () => request.result.createObjectStore('notes');
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        const db = request.result;
+        const tx = db.transaction('notes', 'readwrite');
+        tx.objectStore('notes').put('private note', 'draft');
+        tx.oncomplete = () => { db.close(); resolve(); };
+        tx.onerror = () => reject(tx.error);
+      };
+    })`);
+    manager.setAssignment(foreignInstalled.id, {
+      ...foreignInstalled.assignment,
+      enabledGlobally: true,
+    });
+    const siblingActivation = { ...deletionActivation, extensionId: foreignInstalled.id };
+    await manager.activate(siblingActivation);
+    await coordinator.attachedViews
+      .at(-1)
+      .webContents.executeJavaScript("localStorage.setItem('sibling-proof', 'keep this')");
+    await manager.activate(deletionActivation);
+    await manager.uninstallAndDeleteData(installed.id);
+    const cleanInstall = await manager.installLocalPackage(archivePath);
+    assert.deepEqual(
+      cleanInstall.profiles.map((item) => item.id),
+      ["default"],
+    );
+    manager.setAssignment(installed.id, {
+      ...cleanInstall.assignment,
+      enabledProjectIds: ["project-smoke-1"],
+      storageGrantedProjectIds: ["project-smoke-1"],
+    });
+    await manager.activate(deletionActivation);
+    deletionView = coordinator.attachedViews.at(-1);
+    assert.equal(
+      await deletionView.webContents.executeJavaScript(
+        'localStorage.getItem("smoke-partition-marker")',
+      ),
+      null,
+      "Delete-data uninstall must remove browser localStorage before reinstall",
+    );
+    assert.equal(
+      await deletionView.webContents.executeJavaScript(
+        "indexedDB.databases().then(items => items.some(item => item.name === 'uninstall-proof'))",
+      ),
+      false,
+      "Delete-data uninstall must remove IndexedDB before reinstall",
+    );
+    assert.equal(
+      await deletionView.webContents.executeJavaScript(
+        "window.tabsExtension.storage.get('account-proof')",
+      ),
+      null,
+      "Delete-data uninstall must remove host-managed storage",
+    );
+    await manager.activate(siblingActivation);
+    assert.equal(
+      await coordinator.attachedViews
+        .at(-1)
+        .webContents.executeJavaScript("localStorage.getItem('sibling-proof')"),
+      "keep this",
+      "Deleting one extension must not clear another extension's data",
+    );
+    console.log("Retain/delete uninstall verified through real Chromium storage and reinstall.");
+
     // Optionally prove a CLI-generated React starter loads as real local assets.
     let standaloneStarterVerified = false;
     if (process.env.TABS_EXTENSION_SMOKE_STARTER) {
@@ -654,6 +741,7 @@ app.whenReady().then(async () => {
       status: "PASS",
       standaloneStarterVerified,
       documentedStorageExampleVerified: true,
+      retainAndDeleteDataReinstallVerified: true,
       timestamp: new Date().toISOString(),
       environment: {
         electron: process.versions.electron,
@@ -707,6 +795,9 @@ app.whenReady().then(async () => {
         "Stale activation hide and bounds requests cannot interfere with replacement view",
         "Renderer crash attempts one view-error IPC send without destroying the host window",
         "Manager activates a functional replacement view after renderer crash",
+        "Retain-data uninstall preserves localStorage across package reinstall",
+        "Delete-data uninstall clears custom-origin localStorage, IndexedDB, SDK storage and profiles",
+        "Deleting one extension preserves a different installed extension's browser data",
       ],
     };
 
