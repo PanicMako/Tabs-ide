@@ -47,6 +47,8 @@ export function createReviewCodeStudio(options: StudioOptions) {
   return function openStudio(trigger: HTMLElement) {
     if (closeCurrent || !options.owner.isConnected || options.owner.closest("[hidden]")) return;
     const root = node("div", undefined, "review-code-studio");
+    root.setAttribute("data-native-cursor", "");
+    document.documentElement.classList.remove("tabs-cursor-active");
     root.setAttribute("role", "dialog");
     root.setAttribute("aria-modal", "true");
     root.setAttribute("aria-label", `Code review · ${entry.namespace}.${entry.name}`);

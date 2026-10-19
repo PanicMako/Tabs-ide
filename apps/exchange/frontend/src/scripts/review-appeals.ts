@@ -24,8 +24,35 @@ export async function showReviewAppeals(signal: AbortSignal) {
       const item = document.createElement("li");
       const identity = document.createElement("h3");
       identity.textContent = `${entry.namespace}.${entry.name}@${entry.version} · Appeal ${entry.id}`;
-      const evidence = document.createElement("p");
-      evidence.textContent = `${entry.status}. SHA-256 ${entry.digest}. Original decision: ${entry.review_reason ?? "Not recorded"}. Publisher message: ${entry.message}`;
+      item.className = "appeal-card";
+      const badge = document.createElement("span");
+      badge.className = "review-status-badge";
+      badge.textContent = entry.status;
+      const conversation = document.createElement("div");
+      conversation.className = "appeal-conversation";
+      for (const [title, text] of [
+        ["Publisher’s message", entry.message],
+        ["Original review decision", entry.review_reason ?? "No reason recorded."],
+      ]) {
+        const section = document.createElement("section");
+        const heading = document.createElement("h4");
+        heading.textContent = title!;
+        const paragraph = document.createElement("p");
+        paragraph.textContent = text!;
+        section.append(heading, paragraph);
+        conversation.append(section);
+      }
+      const evidence = document.createElement("details");
+      evidence.className = "history-record-digest";
+      const evidenceTitle = document.createElement("summary");
+      evidenceTitle.textContent = "Package fingerprint";
+      const digest = document.createElement("code");
+      digest.textContent = `SHA-256 ${entry.digest}`;
+      evidence.append(evidenceTitle, digest);
+      const reply = document.createElement("button");
+      reply.type = "button";
+      reply.className = "button secondary";
+      reply.textContent = "Reply to publisher";
       const form = document.createElement("form");
       const fields = document.createElement("fieldset");
       const legend = document.createElement("legend");
@@ -43,7 +70,25 @@ export async function showReviewAppeals(signal: AbortSignal) {
       const result = document.createElement("p");
       result.setAttribute("role", "status");
       fields.append(legend, label, response, button);
+      const cancel = document.createElement("button");
+      cancel.type = "button";
+      cancel.className = "button secondary";
+      cancel.textContent = "Cancel";
+      fields.append(cancel);
       form.append(fields, result);
+      form.hidden = true;
+      reply.addEventListener("click", () => {
+        form.hidden = false;
+        reply.hidden = true;
+        response.focus();
+      });
+      cancel.addEventListener("click", () => {
+        form.hidden = true;
+        reply.hidden = false;
+        reply.focus();
+      });
+      button.className = "button";
+      form.noValidate = true;
       form.addEventListener("submit", async (event) => {
         event.preventDefault();
         if (responding || fields.disabled || current !== generation || signal.aborted) return;
@@ -71,8 +116,25 @@ export async function showReviewAppeals(signal: AbortSignal) {
           responding = false;
         }
       });
-      item.append(identity, evidence, form);
+      item.append(badge, identity, conversation, evidence, reply, form);
       list.append(item);
+    }
+    if (!entries.length) {
+      const empty = document.createElement("li");
+      empty.className = "service-welcome";
+      const symbol = document.createElement("span");
+      symbol.className = "welcome-symbol";
+      symbol.setAttribute("aria-hidden", "true");
+      symbol.textContent = "↗";
+      const copy = document.createElement("div");
+      const heading = document.createElement("h3");
+      heading.textContent = "You’re all caught up.";
+      const detail = document.createElement("p");
+      detail.textContent =
+        "There are no open appeals in this queue. When a publisher asks you to reconsider a decision, their message will appear here alongside the original review.";
+      copy.append(heading, detail);
+      empty.append(symbol, copy);
+      list.append(empty);
     }
     status.textContent = entries.length
       ? `${entries.length} open appeals shown, oldest first (maximum 100).`

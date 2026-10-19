@@ -32,7 +32,7 @@ it("preserves digest and exact time while separating readable decision evidence 
   const { showReviewHistory } = await import("../frontend/src/scripts/review-history");
   await showReviewHistory("maker", "tool");
   const record = document.querySelector("#review-history-decisions li")!;
-  expect(record.querySelector("strong")!.textContent).toBe("approve · 1.0.0");
+  expect(record.querySelector("strong")!.textContent).toBe("Approved for signing · 1.0.0");
   expect(record.querySelector("time")!.dateTime).toBe(row.created_at);
   expect(record.querySelector("time")!.textContent).toContain("10:00");
   expect(record.textContent).toContain(row.digest);
