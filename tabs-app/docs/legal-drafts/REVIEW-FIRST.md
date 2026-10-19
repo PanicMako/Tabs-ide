@@ -1,4 +1,9 @@
-# Tabs Exchange — policy review pack
+# Tabs Exchange — archived policy review pack
+
+**Archived:** the operator authorised publication on 20 October 2026. The final
+source documents are [publisher terms](../exchange-publisher-terms.md) and
+[privacy policy](../exchange-privacy-policy.md). The notes below preserve the
+drafting history; their old placeholders and launch holds are not current policy.
 
 Prepared 19 October 2026; revised 20 October 2026 for worldwide availability. These documents are proposals for proofreading, not
 published terms, a compliance certification, or a substitute for qualified legal
