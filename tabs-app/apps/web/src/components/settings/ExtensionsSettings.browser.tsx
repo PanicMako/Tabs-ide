@@ -208,6 +208,18 @@ test("ExtensionsSettings: navigates views, manages focus on dialogs, and support
   const searchButton = screen.getByRole("button", { name: "Search Exchange" });
   await searchButton.click();
 
+  // Filters update loaded results, remain visible as removable chips, and support Escape.
+  const filters = screen.getByRole("button", { name: "Filters", exact: true });
+  await filters.click();
+  await screen.getByRole("button", { name: "No permissions", exact: true }).click();
+  await expect
+    .element(screen.getByRole("button", { name: "View Analytics Tool" }))
+    .not.toBeInTheDocument();
+  await userEvent.keyboard("{Escape}");
+  await expect.element(filters).toHaveFocus();
+  await screen.getByRole("button", { name: "Remove requested access filter" }).click();
+  await expect.element(screen.getByRole("button", { name: "View Analytics Tool" })).toBeVisible();
+
   await screen.getByRole("button", { name: "View Analytics Tool" }).click();
   // Listing appears
   const reviewButton = screen.getByRole("button", { name: "Review & install Analytics Tool" });

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { PuzzleIcon, SearchIcon, UsersIcon } from "lucide-react";
+import { PuzzleIcon, SearchIcon, SlidersHorizontalIcon, XIcon, UsersIcon } from "lucide-react";
 import { useAtomValue } from "@effect/atom-react";
 import type {
   DesktopExchangeListing,
@@ -13,7 +13,7 @@ import { refreshExtensions, useInstalledExtensions } from "~/state/extensions";
 import { workspaceShellActions } from "~/state/workspaceShell";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
-import { Select, SelectPopup, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+import { Popover, PopoverTrigger, PopoverPopup, PopoverTitle } from "../ui/popover";
 import { filterExchangeListings } from "~/lib/exchangeDiscovery";
 import { SettingsSection } from "./SettingsLayout";
 import { RegistryConnectionCard, type RegistryConnection } from "./RegistryConnectionCard";
@@ -34,6 +34,7 @@ export default function ExtensionsSettings() {
   const [operationBusy, setBusy] = useState(false);
   const [catalogBusy, setCatalogBusy] = useState(false);
   const busy = operationBusy || catalogBusy;
+  const filterButton = useRef<HTMLButtonElement>(null);
   const pendingInstall = useRef<DesktopExchangeListing | null>(null);
   const [registryConnection, setRegistryConnection] = useState<RegistryConnection | null>(null);
   const [profileNames, setProfileNames] = useState<Record<string, string>>({});
@@ -342,7 +343,10 @@ export default function ExtensionsSettings() {
               void searchExchange();
             }}
           >
-            <SearchIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+            <SearchIcon
+              className="market-search-icon size-5 shrink-0 text-primary"
+              aria-hidden="true"
+            />
             <Input
               aria-label="Search Tabs Exchange extensions"
               placeholder="Search extensions"
@@ -356,87 +360,114 @@ export default function ExtensionsSettings() {
               {busy ? "Searching…" : "Search"}
             </Button>
           </form>
-          <details className="market-filters">
-            <summary>Filters</summary>
-            {catalog && (
-              <div
-                className="flex flex-wrap items-end gap-3"
-                aria-label="Filter loaded Exchange results"
+          <div className="market-filter-toolbar" aria-label="Filter loaded Exchange results">
+            <Popover>
+              <PopoverTrigger
+                ref={filterButton}
+                className="market-filter-trigger"
+                aria-label="Filters"
               >
-                <div className="min-w-40 space-y-1">
-                  <span
-                    id="exchange-publisher-filter-label"
-                    className="text-xs text-muted-foreground"
-                  >
-                    Publisher
-                  </span>
-                  <Select
-                    value={publisherFilter}
-                    onValueChange={(value) => {
-                      if (value === "all" || value === "verified") setPublisherFilter(value);
-                    }}
-                  >
-                    <SelectTrigger aria-labelledby="exchange-publisher-filter-label">
-                      <SelectValue>
-                        {publisherFilter === "verified" ? "Verified publishers" : "All publishers"}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectPopup>
-                      <SelectItem value="all">All publishers</SelectItem>
-                      <SelectItem value="verified">Verified publishers</SelectItem>
-                    </SelectPopup>
-                  </Select>
-                </div>
-                <div className="min-w-44 space-y-1">
-                  <span id="exchange-access-filter-label" className="text-xs text-muted-foreground">
-                    Requested access
-                  </span>
-                  <Select
-                    value={accessFilter}
-                    onValueChange={(value) => {
-                      if (
-                        value === "all" ||
-                        value === "none" ||
-                        value === "network" ||
-                        value === "workspace-read"
-                      )
-                        setAccessFilter(value);
-                    }}
-                  >
-                    <SelectTrigger aria-labelledby="exchange-access-filter-label">
-                      <SelectValue>
-                        {
-                          {
-                            all: "Any access",
-                            none: "No permissions",
-                            network: "Network access",
-                            "workspace-read": "Workspace files",
-                          }[accessFilter]
-                        }
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectPopup>
-                      <SelectItem value="all">Any access</SelectItem>
-                      <SelectItem value="none">No permissions</SelectItem>
-                      <SelectItem value="network">Network access</SelectItem>
-                      <SelectItem value="workspace-read">Workspace files</SelectItem>
-                    </SelectPopup>
-                  </Select>
-                </div>
+                <SlidersHorizontalIcon className="size-4" aria-hidden="true" />
+                Filters
                 {(publisherFilter !== "all" || accessFilter !== "all") && (
+                  <span className="market-filter-count">
+                    {Number(publisherFilter !== "all") + Number(accessFilter !== "all")}
+                  </span>
+                )}
+              </PopoverTrigger>
+              <PopoverPopup
+                align="start"
+                className="w-80 max-w-[calc(100vw-2rem)]"
+                aria-label="Extension filters"
+                finalFocus={filterButton}
+              >
+                <div className="market-filter-options">
+                  <PopoverTitle className="font-semibold">Find your kind of tool</PopoverTitle>
+                  <p className="text-xs text-muted-foreground">Filters apply to loaded results.</p>
+                  <div className="market-filter-group" role="group" aria-label="Publisher filter">
+                    <span>Publisher</span>
+                    {(
+                      [
+                        ["all", "All publishers"],
+                        ["verified", "Verified publishers"],
+                      ] as const
+                    ).map(([value, label]) => (
+                      <button
+                        key={value}
+                        type="button"
+                        aria-pressed={publisherFilter === value}
+                        onClick={() => setPublisherFilter(value)}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  <div
+                    className="market-filter-group"
+                    role="group"
+                    aria-label="Requested access filter"
+                  >
+                    <span>Requested access</span>
+                    {(
+                      [
+                        ["all", "Any access"],
+                        ["none", "No permissions"],
+                        ["network", "Network access"],
+                        ["workspace-read", "Workspace files"],
+                      ] as const
+                    ).map(([value, label]) => (
+                      <button
+                        key={value}
+                        type="button"
+                        aria-pressed={accessFilter === value}
+                        onClick={() => setAccessFilter(value)}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                   <Button
                     variant="ghost"
+                    size="sm"
+                    disabled={publisherFilter === "all" && accessFilter === "all"}
                     onClick={() => {
                       setPublisherFilter("all");
                       setAccessFilter("all");
                     }}
                   >
-                    Clear filters
+                    Reset filters
                   </Button>
-                )}
-              </div>
+                </div>
+              </PopoverPopup>
+            </Popover>
+            {publisherFilter !== "all" && (
+              <button
+                className="market-active-filter"
+                type="button"
+                aria-label="Remove verified publishers filter"
+                onClick={() => setPublisherFilter("all")}
+              >
+                Verified publishers <XIcon className="size-3" aria-hidden="true" />
+              </button>
             )}
-          </details>
+            {accessFilter !== "all" && (
+              <button
+                className="market-active-filter"
+                type="button"
+                aria-label="Remove requested access filter"
+                onClick={() => setAccessFilter("all")}
+              >
+                {
+                  {
+                    none: "No permissions",
+                    network: "Network access",
+                    "workspace-read": "Workspace files",
+                  }[accessFilter]
+                }{" "}
+                <XIcon className="size-3" aria-hidden="true" />
+              </button>
+            )}
+          </div>
           <p role="status" className="sr-only">
             {busy
               ? "Loading extensions"

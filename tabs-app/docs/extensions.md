@@ -191,17 +191,23 @@ remains unavailable pending an explicit migration.
 ## Installing from a trusted Exchange
 
 In a packaged Tabs desktop build, open **Settings -> Labs -> Extensions**.
-The public Tabs Exchange catalog loads automatically; browsing does not grant
-installation trust. Choose **Connection** (or **Install** on an extension), import the desktop connection
-settings and public `root.json` obtained from your registry operator's Release
-studio, then type the exact registry origin to confirm. Never import the private
-signing backup. Tabs validates the public root's signatures, expiry, and exact
-SHA-256 fingerprint before saving the connection locally. It survives restarts.
+The official Tabs Exchange is ready automatically: its public signing root is
+bundled with the desktop release and pinned to the operator's certificate.
+Choose **Install**, review requested access, and confirm installation. Enable the
+extension for the projects where you want it to appear. No connection files,
+account, or token are needed for the public marketplace.
 
-Choose **Install** on an extension, review its requested access, then
-confirm installation. Enable it for the projects where you want it to appear.
-Connecting alone does not install, run, or enable anything. Private registry
-read credentials are optional and kept separately in the OS-backed vault.
+The certificate bootstraps TUF verification; signed metadata, expiry, rollback,
+package digests, and permission review are still enforced. Later root rotations
+follow the existing verified TUF chain, keeping the same trust identity.
+
+For a custom registry, open the **Marketplace settings** menu at the top right.
+Import the desktop connection settings and public `root.json` obtained from your
+registry operator's Release studio, then confirm the exact origin. Never import
+the private signing backup. Existing saved connections and environment-managed
+registries take precedence over the bundled official configuration. Custom origins
+never inherit the official certificate. Private registry read credentials remain
+optional and are kept separately in the OS-backed vault.
 
 For environment-managed deployments, set `TABS_EXCHANGE_ORIGIN` to the HTTPS origin of an Exchange deployment and
 provision these desktop environment variables independently of its catalog:

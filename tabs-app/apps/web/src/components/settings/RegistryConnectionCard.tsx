@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowUpRightIcon,
+  EllipsisIcon,
   CheckIcon,
   KeyRoundIcon,
   ShieldCheckIcon,
@@ -134,22 +135,14 @@ export function RegistryConnectionCard({
           <Button
             variant="ghost"
             disabled={parentBusy}
-            aria-label={
-              connection?.trusted
-                ? "Connection settings, connected to Exchange"
-                : "Connect Exchange"
-            }
+            aria-label="Marketplace connection settings"
+            title="Marketplace settings"
             onClick={() => {
               setOrigin(connection?.origin ?? "https://exchange.buildwithtabs.com");
               onOpenChange(true);
             }}
           >
-            {connection?.trusted ? (
-              <ShieldCheckIcon className="size-4" />
-            ) : (
-              <KeyRoundIcon className="size-4" />
-            )}{" "}
-            Connection
+            <EllipsisIcon className="size-5" aria-hidden="true" />
           </Button>
         </div>
       ) : (

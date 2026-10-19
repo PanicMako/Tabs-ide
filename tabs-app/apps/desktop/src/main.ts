@@ -1,3 +1,4 @@
+import { officialExchangeTrust } from "./officialExchangeTrust";
 import { fetchExchangeListingAsset } from "./exchangeListingAsset";
 import { RegistryTrustStore, DEFAULT_EXCHANGE_ORIGIN } from "./registryTrustStore";
 import { publishDesktopResources } from "./desktopResourceTelemetry";
@@ -579,7 +580,9 @@ function currentExchangeTrust() {
     return environmentManaged
       ? configuredExchangeTrust(process.env, origin)
       : origin
-        ? registryTrustStore.configuration(origin)
+        ? registryTrustStore.read()
+          ? registryTrustStore.configuration(origin)
+          : officialExchangeTrust(origin)
         : null;
   } catch {
     return null;

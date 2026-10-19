@@ -137,9 +137,10 @@ operators here when an approved package is awaiting signed publication.
    catalog, publication history, and operator audit are committed atomically.
    If approval state changes or another release wins the metadata version race,
    load a fresh plan and sign again. An uncertain request is never auto-retried.
-5. Visit the published listing. Desktop installation still requires independently
-   provisioned public trust settings; download the connection settings and follow
-   [the desktop connection guide](extensions.md#manually-installing-from-a-trusted-exchange).
+5. Visit the published listing. Official Tabs desktop releases bundle the independently pinned public
+   certificate, so users can browse and install without setup. Custom registries
+   distribute connection settings through the
+   [desktop connection guide](extensions.md#installing-from-a-trusted-exchange).
    The website does not silently grant trust to installed desktops.
 
 Keep the encrypted backup and password separately and securely backed up. Losing
