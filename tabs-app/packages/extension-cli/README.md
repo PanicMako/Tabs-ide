@@ -5,9 +5,9 @@ Build with `bun run build`, then `npm pack` to create a standalone release tarba
 Install that tarball with npm. The bundle has no private workspace dependencies.
 `@tabs/extension-api` is packaged separately with `npm pack` in its directory.
 
-Until npm publication, download the developer bundle and use `tabsext init my-tool --sdk /absolute/tabs-extension-api-1.7.0.tgz --tabs-version 1.3.17`. Use the desktop testing version from the bundle's release.json if different. The project records this target in `.tabsext.json`; there is no hidden version default. Use `--json` for automation and `--help` for command usage.
+Until npm publication, download the developer bundle and use `tabsext init my-tool --sdk /absolute/tabs-extension-api-1.7.0.tgz --tabs-version 2.0.0`. Use the desktop testing version from the bundle's release.json if different. The project records this target in `.tabsext.json`; there is no hidden version default. Use `--json` for automation and `--help` for command usage.
 Then `cd my-tool`, `npm install`, `npm run build`, `tabsext validate`, `tabsext pack`.
-`tabsext init my-tool --template html --tabs-version 1.3.17` creates a static UI alternative; use `npm run build` to stage it. Substitute the desktop testing version from release.json if different.
+`tabsext init my-tool --template html --tabs-version 2.0.0` creates a static UI alternative; use `npm run build` to stage it. Substitute the desktop testing version from release.json if different.
 `dev` watches local packaged builds; reload the tool in Tabs development mode.
 Load `.tabs-extension` from Settings > Extensions > Discover > Load development folder.
 
@@ -21,3 +21,5 @@ Never put a token in a URL or commit it. CLI tokens cannot bypass manual review/
 Search results never authorize installation without independently trusted TUF metadata.
 Publishing requires a deployed registry with submissions enabled and a scoped token.
 See the website `/docs/extensions` for SDK, publishing, and self-hosting documentation.
+
+Each scaffold includes a local `AGENTS.md` with theme, permissions, testing, and handoff instructions. On the developer website, use **Copy agent instructions** to get started from your idea.

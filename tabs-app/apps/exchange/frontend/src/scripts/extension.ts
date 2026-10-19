@@ -103,8 +103,17 @@ function render(release: Release) {
     }
   node("extension-title").textContent = manifest.displayName;
   node("extension-description").textContent = manifest.description;
-  node("extension-identity").textContent =
-    `${namespace}.${name} · ${head?.verified ? "Verified publisher" : "Publisher not verified"}`;
+  node("extension-identity").textContent = `${namespace}.${name}`;
+  const badge = document.getElementById("extension-verified");
+  if (badge) {
+    badge.hidden = !head?.verified;
+    badge.setAttribute(
+      "title",
+      "Publisher ownership checked by Tabs. This is not a security guarantee.",
+    );
+  }
+  const reportForm = document.getElementById("extension-report");
+  if (reportForm) reportForm.dataset.version = release.version;
   const siteName =
     document.querySelector<HTMLMetaElement>('meta[name="exchange-site-name"]')?.content ??
     "Tabs Exchange";
@@ -146,7 +155,7 @@ function render(release: Release) {
   const resources = node("extension-links");
   resources.replaceChildren();
   for (const [label, href] of [
-    ["Support", manifest.supportUrl],
+    ["Contact publisher", manifest.supportUrl],
     ["Privacy", manifest.privacyUrl],
     ["Source", manifest.sourceUrl],
   ]) {
@@ -163,6 +172,8 @@ function render(release: Release) {
       /* Ignore malformed publisher links. */
     }
   }
+  if (!manifest.supportUrl)
+    resources.append(document.createTextNode("The publisher has not provided a support link."));
   const icon = node<HTMLImageElement>("extension-icon");
   icon.hidden = !manifest.listing?.icon;
   icon.removeAttribute("src");

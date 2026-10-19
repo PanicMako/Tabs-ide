@@ -27,7 +27,7 @@ import { extensionMarkPath, extensionMarkViewBox } from "../../lib/extensionMark
         <img id="extension-icon" width="80" height="80" alt="" hidden />
       </div>
       <div class="detail-hero-content">
-        <p id="extension-identity" class="eyebrow"></p>
+        <p id="extension-identity" class="eyebrow"></p><span id="extension-verified" class="publisher-verified-badge" hidden>✓ Verified publisher</span>
         <h1 id="extension-title"></h1>
         <p id="extension-description" class="lead"></p>
       </div>
@@ -77,10 +77,26 @@ import { extensionMarkPath, extensionMarkViewBox } from "../../lib/extensionMark
       <div class="detail-side-column">
         <section class="install-card">
           <h2>Install in Tabs</h2>
-          <p style="font-size:14px;color:var(--muted);line-height:1.6">Open Tabs → Settings → Extensions → Discover. Connect to this registry using its independently provisioned trust root, then search for this extension.</p>
+          <p style="font-size:14px;color:var(--muted);line-height:1.6">Open Tabs → Settings → Extensions → Discover. Search for this extension in the official Exchange. Custom registries require their own trusted configuration.</p>
           <div id="extension-install-identity"></div>
           <p class="muted" style="font-size:12px;margin:12px 0 20px">Project enablement and profiles are isolated. Browser downloads are for local inspection only.</p>
           <a id="extension-download" class="button" style="width:100%">Download package for inspection</a>
+        </section>
+
+        <section class="meta-card">
+          <h2>Help & concerns</h2>
+          <p>For help using this extension, use the publisher’s Support link below.</p>
+          <details><summary>Report a concern to Tabs</summary>
+            <p>Your report is private to the review team. Do not include passwords, tokens, or personal files. Reports do not automatically remove an extension.</p>
+            <form id="extension-report" class="extension-report-form"><fieldset>
+              <legend>Report this version</legend>
+              <label for="report-category">What is the concern?</label>
+              <select id="report-category" name="category"><option value="security">Malware or suspicious behaviour</option><option value="privacy">Privacy or unexpected data access</option><option value="impersonation">Impersonation</option><option value="policy">Misleading or prohibited content</option><option value="other">Another concern</option></select>
+              <label for="report-details">What happened?</label>
+              <textarea id="report-details" name="details" required minlength="10" maxlength="4000" rows="5" placeholder="Describe what you observed and how to reproduce it."></textarea>
+              <button type="submit" class="button secondary">Send private report</button>
+            </fieldset><p role="status" data-result></p><a data-signin hidden>Sign in to report</a></form>
+          </details>
         </section>
 
         <section class="meta-card">
@@ -99,4 +115,4 @@ import { extensionMarkPath, extensionMarkViewBox } from "../../lib/extensionMark
     <p class="notice" style="margin-top:48px">Every published version has been manually reviewed and entered signed metadata. Review is not a security guarantee.</p>
   </article>
 </Exchange>
-<script>import "../../scripts/extension";</script>
+<script>import "../../scripts/extension"; import "../../scripts/extension-report";</script>

@@ -48,10 +48,13 @@ export function catalogCard(item: CatalogRelease): HTMLLIElement {
   publisher.className = "catalog-publisher";
   const meta = document.createElement("div");
   meta.className = "catalog-meta";
-  meta.append(
-    text("span", `v${item.version}`),
-    text("span", item.verified ? "Verified publisher" : "Publisher not verified"),
-  );
+  meta.append(text("span", `v${item.version}`));
+  if (item.verified) {
+    const badge = text("span", "✓ Verified publisher");
+    badge.className = "publisher-verified-badge";
+    badge.title = "Publisher ownership checked by Tabs. This is not a security guarantee.";
+    meta.append(badge);
+  }
   const screenshots = item.manifest.listing?.screenshots;
   if (Array.isArray(screenshots) && screenshots.length > 0 && screenshots.length <= 6) {
     const first = screenshots[0];

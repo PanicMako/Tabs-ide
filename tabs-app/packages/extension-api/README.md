@@ -44,3 +44,13 @@ persistent background service or workspace write API.
 
 See `docs/extensions.md` in the Tabs repository for package and permission
 details. The API version is independent of the Tabs desktop version.
+
+## Follow the Tabs theme
+
+Installed extension views inherit the effective light/dark preference from Tabs.
+Use `color-scheme: light dark` and CSS `light-dark()` for surfaces and text. If
+JavaScript needs the current mode, read `matchMedia('(prefers-color-scheme: dark)')`
+and subscribe to its `change` event; remove that listener when the view unmounts.
+A standalone browser preview follows that browser's preference. There is no
+`tabs.theme` bridge method: do not invent one or request a capability for styling.
+The CLI starters include theme-aware colors and local agent instructions.

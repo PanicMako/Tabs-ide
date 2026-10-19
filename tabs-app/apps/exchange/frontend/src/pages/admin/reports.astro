@@ -1,0 +1,10 @@
+---
+import Operations from "../../layouts/Operations.astro";
+---
+<Operations title="User reports." accent="Listen. Investigate. Respond." description="Private concerns from extension users. Review the evidence before taking action." section="reports">
+  <p id="reports-status" role="status" aria-live="polite">Checking reviewer access…</p>
+  <a id="reports-signin" href="/auth/github/start?returnTo=%2Fadmin%2Freports" hidden>Sign in with a reviewer account</a>
+  <div class="operations-panel"><label for="reports-filter">Show reports</label><select id="reports-filter"><option value="open">Open</option><option value="resolved">Resolved</option><option value="all">All</option></select><button id="reports-refresh" class="button secondary" type="button">Refresh reports</button><p>Newest reports first, 25 per page. Report text is untrusted user content. Resolving a report does not revoke or publish a release; use Registry security for restrictions.</p></div>
+  <div id="reports-list" class="operations-workspace"></div><button id="reports-more" type="button" class="button secondary" hidden>Load more reports</button>
+</Operations>
+<script>import "../../scripts/reports";</script>

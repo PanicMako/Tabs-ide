@@ -27,6 +27,10 @@ it.each(["1.3.17", "2.0.0"])(
       template: "html",
       tabsVersion,
     });
+    expect(FS.readFileSync(Path.join(project, "AGENTS.md"), "utf8")).toContain(
+      "prefers-color-scheme",
+    );
+    expect(FS.readFileSync(Path.join(project, "ui/style.css"), "utf8")).toContain("light-dark(");
     FS.writeFileSync(Path.join(project, ".env"), "SECRET=not-packaged");
     execFileSync(process.execPath, ["scripts/stage.mjs"], { cwd: project });
     const stage = Path.join(project, ".tabs-extension");
