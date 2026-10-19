@@ -746,6 +746,15 @@ export function resolveActiveToolId(
   settings: ProjectWorkspaceSettingsType,
   requestedToolId: string | undefined,
 ): string {
+  // Runtime contributions may not have a saved toolbar preference yet. Retain
+  // the selection; resolveProjectTools still checks installation and assignment
+  // before anything can appear or launch.
+  if (
+    requestedToolId?.startsWith("ext:") &&
+    !settings.tools.some((tool) => tool.id === requestedToolId)
+  ) {
+    return requestedToolId;
+  }
   const visibleTools = resolveVisibleTools(settings);
   if (requestedToolId && visibleTools.some((tool) => tool.id === requestedToolId)) {
     return requestedToolId;
@@ -1113,13 +1122,17 @@ export const useWorkspaceShellStore = create<WorkspaceShellStore>()(
             const tools = settings.tools.filter(
               (tool) => tool.kind !== "extension" || tool.extensionId !== extensionId,
             );
-            if (tools.length === settings.tools.length) continue;
+            const selectedToolId = activeToolIdByProjectId[projectId as ProjectId];
+            const removedSelection =
+              selectedToolId?.startsWith("ext:") &&
+              selectedToolId.split(":").at(-2) === extensionId;
+            if (tools.length === settings.tools.length && !removedSelection) continue;
             changed = true;
             const nextSettings = { ...settings, tools };
             projectSettingsByProjectId[projectId as ProjectId] = nextSettings;
             activeToolIdByProjectId[projectId as ProjectId] = resolveActiveToolId(
               nextSettings,
-              activeToolIdByProjectId[projectId as ProjectId],
+              removedSelection ? undefined : activeToolIdByProjectId[projectId as ProjectId],
             );
           }
           return changed

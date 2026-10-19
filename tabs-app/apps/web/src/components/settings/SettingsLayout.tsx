@@ -183,10 +183,12 @@ export function SettingsSectionHeader({
   title,
   description,
   actions,
+  preTitle,
 }: {
   title: string;
   description: ReactNode;
   actions?: ReactNode;
+  preTitle?: ReactNode;
 }) {
   const editorial = useSettingsLabsStore((state) => state.editorialSettings);
   const { fontPreferences } = useTheme();
@@ -198,23 +200,26 @@ export function SettingsSectionHeader({
 
   return (
     <div data-slot="settings-page-header">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="min-w-0 flex-1 space-y-1.5">
-          <h2
-            data-slot="settings-page-title"
-            className={cn(
-              "text-[28px] leading-relaxed pb-1 text-foreground mb-2 font-bold",
-              pageHeading.className,
-            )}
-            style={{
-              fontFamily: pageHeading.fontFamily,
-              fontWeight: pageHeading.fontWeight,
-              letterSpacing: pageHeading.letterSpacing,
-              textTransform: pageHeading.textTransform,
-            }}
-          >
-            {title}
-          </h2>
+          <div className="flex items-center gap-3 flex-wrap">
+            {preTitle}
+            <h2
+              data-slot="settings-page-title"
+              className={cn(
+                "text-[28px] leading-relaxed pb-1 text-foreground font-bold",
+                pageHeading.className,
+              )}
+              style={{
+                fontFamily: pageHeading.fontFamily,
+                fontWeight: pageHeading.fontWeight,
+                letterSpacing: pageHeading.letterSpacing,
+                textTransform: pageHeading.textTransform,
+              }}
+            >
+              {title}
+            </h2>
+          </div>
         </div>
         {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
       </div>

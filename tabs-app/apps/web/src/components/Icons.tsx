@@ -818,3 +818,13 @@ export const VSCodium: Icon = (props) => {
     </svg>
   );
 };
+
+export const TabsExtensionIcon: Icon = (props) => (
+  <svg viewBox="0 0 128 128" fill="currentColor" {...props}>
+    <path
+      transform="translate(16 21) scale(.84)"
+      fillRule="evenodd"
+      d="M20 24H38C45 24 47 20 45 13C42 3 45 0 51 0C57 0 60 3 57 13C55 20 57 24 64 24H78Q88 24 88 34V53C88 60 92 62 99 60C109 57 112 60 112 66C112 72 109 75 99 72C92 70 88 72 88 79V90Q88 100 78 100H60C63 90 62 84 57 80C52 76 44 76 39 80C34 84 33 90 36 100H20Q10 100 10 90V76C20 79 26 78 30 73C34 68 34 60 30 55C26 50 20 49 10 52V34Q10 24 20 24Z M60 33C55 33 55 41 60 41H70Q73 41 73 44V53C73 59 81 59 81 53V44Q81 33 70 33Z"
+    />
+  </svg>
+);

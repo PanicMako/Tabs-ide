@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ArrowLeftIcon,
   CheckIcon,
   DicesIcon,
   LayoutGridIcon,
@@ -35,7 +36,7 @@ import { WallpaperGalleryModal } from "../onboarding/WallpaperGalleryModal";
 
 import { useSettingsStudyAppearance } from "./SettingsEditorialFrame";
 
-export default function WallpaperSettings() {
+export default function WallpaperSettings({ onBack }: { onBack?: () => void } = {}) {
   const { resolvedTheme: workspaceTheme } = useTheme();
   const studyAppearance = useSettingsStudyAppearance();
   const resolvedTheme = studyAppearance ?? workspaceTheme;
@@ -157,6 +158,19 @@ export default function WallpaperSettings() {
       <SettingsSectionHeader
         title="Workspace Wallpapers"
         description="Immersive aesthetic backdrops for the agent workspace with animated particles, dual light/dark mode blending, and per-thread customization."
+        preTitle={
+          onBack ? (
+            <Button
+              variant="outline"
+              size="icon-sm"
+              onClick={onBack}
+              aria-label="Back to Labs"
+              className="size-8 shrink-0 rounded-full border-border/80 bg-background/60 hover:bg-accent hover:border-foreground/30 text-muted-foreground hover:text-foreground shadow-xs transition-colors active:scale-95"
+            >
+              <ArrowLeftIcon className="size-4" aria-hidden="true" />
+            </Button>
+          ) : undefined
+        }
       />
 
       {/* ── Main Feature Toggle Section ───────────────────────────── */}
@@ -241,7 +255,7 @@ export default function WallpaperSettings() {
                 variant="outline"
                 size="sm"
                 onClick={handleShuffle}
-                className="gap-1.5 cursor-pointer rounded-lg hover:border-amber-500/40 hover:text-amber-500 transition-colors"
+                className="gap-1.5 cursor-pointer rounded-full hover:border-amber-500/40 hover:text-amber-500 transition-colors"
               >
                 <DicesIcon className="size-3.5 text-amber-500" />
                 <span>Surprise Me</span>
@@ -250,7 +264,7 @@ export default function WallpaperSettings() {
                 variant="secondary"
                 size="sm"
                 onClick={() => setIsGalleryOpen(true)}
-                className="gap-1.5 cursor-pointer rounded-lg shadow-xs"
+                className="gap-1.5 cursor-pointer rounded-full shadow-xs"
               >
                 <LayoutGridIcon className="size-3.5" />
                 <span>Full Gallery ({allWallpapers.length})</span>
@@ -470,7 +484,7 @@ export default function WallpaperSettings() {
                         <button
                           type="button"
                           onClick={() => handleDeleteCustom(wp.id)}
-                          className="absolute left-2 bottom-2 flex size-6.5 items-center justify-center rounded-md bg-black/70 text-red-400 hover:bg-red-600 hover:text-white transition-colors cursor-pointer shadow-xs"
+                          className="absolute left-2 bottom-2 flex size-6.5 items-center justify-center rounded-full bg-black/70 text-red-400 hover:bg-red-600 hover:text-white transition-colors cursor-pointer shadow-xs"
                           title="Delete custom wallpaper"
                           aria-label="Delete custom wallpaper"
                         >
