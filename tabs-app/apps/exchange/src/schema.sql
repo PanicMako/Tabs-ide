@@ -284,3 +284,19 @@ CREATE TABLE IF NOT EXISTS exchange_published_heads (
   FOREIGN KEY (namespace, name, version)
     REFERENCES exchange_published_targets(namespace, name, version) ON DELETE CASCADE
 );
+
+-- Public trust anchors only. Private signing keys never enter the registry.
+CREATE TABLE IF NOT EXISTS exchange_signing_setup (
+  singleton BOOLEAN PRIMARY KEY DEFAULT true CHECK (singleton),
+  sha256 TEXT NOT NULL CHECK (sha256 ~ '^[a-f0-9]{64}$'),
+  root_bytes BYTEA NOT NULL CHECK (octet_length(root_bytes) <= 32000),
+  created_by BIGINT NOT NULL REFERENCES exchange_users(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS exchange_signing_events (
+  id BIGSERIAL PRIMARY KEY,
+  actor_id BIGINT NOT NULL REFERENCES exchange_users(id),
+  action TEXT NOT NULL CHECK (action IN ('setup', 'publish')),
+  root_sha256 TEXT NOT NULL CHECK (root_sha256 ~ '^[a-f0-9]{64}$'),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);

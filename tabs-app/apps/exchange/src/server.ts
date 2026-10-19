@@ -1,3 +1,10 @@
+import {
+  releaseState,
+  releasePlan,
+  registerSigningRoot,
+  publishBrowserRelease,
+  ReleaseWizardError,
+} from "./releaseWizard.ts";
 import * as Crypto from "node:crypto";
 import * as FS from "node:fs/promises";
 import * as Http from "node:http";
@@ -134,8 +141,11 @@ async function readLimited(
   return Buffer.concat(chunks);
 }
 
-async function readJson(request: Http.IncomingMessage): Promise<Record<string, unknown>> {
-  const bytes = await readLimited(request, 64 * 1024);
+async function readJson(
+  request: Http.IncomingMessage,
+  limit = 64 * 1024,
+): Promise<Record<string, unknown>> {
+  const bytes = await readLimited(request, limit);
   try {
     const value: unknown = JSON.parse(bytes.toString("utf8"));
     if (value && typeof value === "object" && !Array.isArray(value)) {
@@ -567,6 +577,51 @@ export function createExchangeServer(
               }
             : null,
         );
+        return;
+      }
+      if (
+        [
+          "/v1/operator/releases",
+          "/v1/operator/releases/plan",
+          "/v1/operator/releases/setup",
+          "/v1/operator/releases/publish",
+        ].includes(path)
+      ) {
+        const actor =
+          request.method === "GET"
+            ? await actorFor(request, pool, config)
+            : requireMutation(request, await actorFor(request, pool, config), config);
+        if (!actor?.operator || actor.tokenScope)
+          throw new HttpError(403, "Operator session required.");
+        privateResponses.add(response);
+        try {
+          if (path === "/v1/operator/releases" && request.method === "GET")
+            json(response, 200, await releaseState(pool, config.origin));
+          else if (path === "/v1/operator/releases/plan" && request.method === "GET")
+            json(response, 200, await releasePlan(pool, storage, config.bucket, config.origin));
+          else if (path === "/v1/operator/releases/setup" && request.method === "POST")
+            json(
+              response,
+              200,
+              await registerSigningRoot(pool, actor.id, config.origin, await readJson(request)),
+            );
+          else if (path === "/v1/operator/releases/publish" && request.method === "POST")
+            json(
+              response,
+              200,
+              await publishBrowserRelease(
+                pool,
+                storage,
+                config.bucket,
+                actor.id,
+                await readJson(request, 1024 * 1024),
+              ),
+            );
+          else throw new HttpError(405, "Method not allowed.");
+        } catch (error) {
+          if (error instanceof ReleaseWizardError) throw new HttpError(400, error.message);
+          throw error;
+        }
         return;
       }
       if (path === "/v1/operator/reviewers" && request.method === "GET") {

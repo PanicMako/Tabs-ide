@@ -246,6 +246,7 @@ export async function publishTufMetadata(
   bucket: string,
   stageDirectory: string,
   bootstrapRootDigest?: string,
+  browser?: { actorId: string; registeredPin: boolean; allApproved: boolean },
 ): Promise<number> {
   if (!bucket) throw new Error("A package object bucket is required for signed publication.");
   if (!Path.isAbsolute(stageDirectory) || !(await FS.lstat(stageDirectory)).isDirectory()) {
@@ -255,7 +256,47 @@ export async function publishTufMetadata(
   try {
     await client.query("BEGIN");
     await client.query("SELECT pg_advisory_xact_lock(1261492744)");
+    if (browser?.registeredPin) {
+      const registered = await client.query<{ sha256: string }>(
+        "SELECT sha256 FROM exchange_signing_setup WHERE singleton = true",
+      );
+      if (
+        bootstrapRootDigest &&
+        registered.rows[0] &&
+        bootstrapRootDigest !== registered.rows[0].sha256
+      )
+        throw new Error("Configured and registered trust pins conflict.");
+      bootstrapRootDigest ||= registered.rows[0]?.sha256;
+    }
     const bundle = await verifiedBundle(client, stageDirectory, bootstrapRootDigest);
+    if (browser?.allApproved) {
+      const approved = await client.query<{
+        namespace: string;
+        name: string;
+        version: string;
+        digest: string;
+      }>(
+        "SELECT namespace, name, version, digest FROM exchange_versions WHERE status = 'approved' FOR SHARE",
+      );
+      const signed = new Set(
+        bundle.targets.map(
+          (target) => `${target.namespace}/${target.name}/${target.version}/${target.digest}`,
+        ),
+      );
+      if (
+        signed.size !== approved.rows.length ||
+        approved.rows.some(
+          (row) => !signed.has(`${row.namespace}/${row.name}/${row.version}/${row.digest}`),
+        )
+      )
+        throw new Error(
+          "Approved packages changed. Refresh the release plan and sign again; nothing was published.",
+        );
+      await client.query(
+        "INSERT INTO exchange_signing_events(actor_id, action, root_sha256) VALUES($1,'publish',$2)",
+        [browser.actorId, sha256(bundle.metadata.get("root.json")!)],
+      );
+    }
     for (const target of bundle.targets) {
       const identity = `${target.namespace}/${target.name}/${target.version}`;
       const key = bundle.objectKeys.get(identity);

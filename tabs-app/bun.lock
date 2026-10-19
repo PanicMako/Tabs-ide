@@ -55,6 +55,8 @@
         "@tabs/extension-api": "workspace:*",
         "@tabs/extension-package": "workspace:*",
         "@tabs/shared": "workspace:*",
+        "@tufjs/canonical-json": "2.0.0",
+        "@tufjs/models": "5.0.0",
         "astro": "^6.0.4",
         "diff": "8.0.3",
         "pg": "^8.23.0",
@@ -62,7 +64,6 @@
       },
       "devDependencies": {
         "@astrojs/check": "^0.9.7",
-        "@tufjs/models": "5.0.0",
         "@types/bun": "catalog:",
         "@types/node": "catalog:",
         "@types/pg": "^8.15.5",

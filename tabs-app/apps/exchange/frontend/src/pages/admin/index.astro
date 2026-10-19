@@ -17,7 +17,7 @@ import WorkspaceControls from "../../components/WorkspaceControls.astro";
 
     <section id="review-health-panel" data-workspace-panel class="operations-panel service-panel" aria-labelledby="review-operations-heading">
       <div class="service-heading"><div><p class="step-label">SERVICE HEALTH</p><h2 id="review-operations-heading">Keep things moving.</h2><p>See the scanner, signing status, and anything that needs your attention.</p></div><DashboardDrawing section="review-health-panel" compact /></div>
-      <div class="review-health-strip"><p id="review-health-indicator" role="status">Checking registry health…</p><a href="/docs/extensions/self-hosting">Operator &amp; signing guide ↗</a></div>
+      <div class="review-health-strip"><p id="review-health-indicator" role="status">Checking registry health…</p><a href="/admin/releases">Open release studio ↗</a></div>
       <details class="service-context"><summary>About this health snapshot</summary><p id="review-operations" role="status" aria-live="polite">Operational status has not been loaded.</p><p>This is server-reported status, not independent verification of signatures or confirmation that every installed client received a revocation.</p></details>
       <div id="review-operations-details" hidden>
         <div id="review-health-metrics" class="health-metrics" aria-label="Registry activity"></div><p id="review-health-pipeline" class="health-pipeline"></p>
