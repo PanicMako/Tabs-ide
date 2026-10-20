@@ -1,5 +1,6 @@
 import { extensionHostVersion } from "./extensionHostVersion";
 import { writeBackendBootstrap } from "./backendBootstrap";
+import { createStartupWindowReveal } from "./startupWindowReveal";
 import { officialExchangeTrust } from "./officialExchangeTrust";
 import { fetchExchangeListingAsset } from "./exchangeListingAsset";
 import { RegistryTrustStore, DEFAULT_EXCHANGE_ORIGIN } from "./registryTrustStore";
@@ -4631,12 +4632,44 @@ function createTabsWindow(): BrowserWindow {
     window.setTitle(APP_DISPLAY_NAME);
     emitUpdateState();
   });
-  window.once("ready-to-show", () => {
-    if (process.env.TABS_DEV_RESTART === "1") {
-      window.showInactive();
-    } else {
-      window.show();
-    }
+  const reveal = createStartupWindowReveal(() => {
+    if (process.env.TABS_DEV_RESTART === "1") window.showInactive();
+    else window.show();
+  });
+  window.once("ready-to-show", reveal.frameReady);
+  let splashPainted = false;
+  let startupRecovery: ReturnType<typeof setTimeout> | undefined;
+  const onStartupPaint = (event: Electron.IpcMainEvent) => {
+    if (!isTrustedTabsSender(event)) return;
+    splashPainted = true;
+    clearTimeout(startupRecovery);
+    reveal.contentReady();
+  };
+  window.webContents.once("did-finish-load", () => {
+    if (splashPainted) return;
+    // Recover visibly if even the small entry chunk failed. Successful startup
+    // never waits for this timeout; it reveals the actual animation immediately.
+    startupRecovery = setTimeout(() => {
+      if (window.isDestroyed() || window.isVisible()) return;
+      void window.webContents
+        .executeJavaScript(`(() => {
+        const root = document.getElementById('root');
+        if (root) {
+          root.textContent = 'Tabs could not start. Reload the window to try again.';
+          root.setAttribute('role', 'alert');
+        }
+      })()`)
+        .catch(() => {})
+        .finally(() => {
+          if (!window.isDestroyed()) reveal.contentReady();
+        });
+    }, 10_000);
+  });
+  const startupIpc = window.webContents.ipc;
+  startupIpc.on("desktop:startup-painted", onStartupPaint);
+  window.once("closed", () => {
+    startupIpc.removeListener("desktop:startup-painted", onStartupPaint);
+    clearTimeout(startupRecovery);
   });
 
   if (isDevelopment && process.env.VITE_DEV_SERVER_URL) {

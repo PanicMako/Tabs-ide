@@ -11,8 +11,10 @@ mark("entry");
 app.on("ready", () => mark("electron-ready"));
 app.on("browser-window-created", (_event, window) => {
   mark("window-created");
-  window.once("ready-to-show", () => mark("first-paint"));
+  window.once("ready-to-show", () => mark("paintable-frame"));
+  window.once("show", () => mark("window-visible"));
   window.webContents.on("console-message", (details) => {
+    if (details.message?.includes("[startup] splash-first-paint:")) mark("splash-first-paint");
     if (details.message?.includes("[startup] workspace-interactive:")) {
       mark("workspace-interactive");
       // Bypass the normal user quit-confirmation dialog in this disposable run.

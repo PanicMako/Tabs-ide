@@ -13,6 +13,7 @@ const count = Number(args.find((arg) => /^\d+$/.test(arg)) ?? 3);
 if (!Number.isInteger(count) || count < 1 || count > 20) throw new Error("Use 1-20 samples.");
 if (process.platform === "win32") throw new Error("This process-group probe supports macOS/Linux.");
 const desktopDir = fileURLToPath(new URL("..", import.meta.url));
+const electronPath = resolveElectronPath();
 const root = mkdtempSync(join(tmpdir(), "tabs-startup-measure-"));
 const results = [];
 
@@ -30,7 +31,7 @@ try {
     delete env.ELECTRON_RUN_AS_NODE;
     delete env.NODE_OPTIONS;
     const started = performance.now();
-    const child = spawn(resolveElectronPath(), [join(desktopDir, "scripts/startup-probe.cjs")], {
+    const child = spawn(electronPath, [join(desktopDir, "scripts/startup-probe.cjs")], {
       cwd: desktopDir,
       env,
       detached: true,

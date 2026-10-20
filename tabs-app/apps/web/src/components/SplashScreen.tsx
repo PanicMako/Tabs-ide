@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useId } from "react";
 import { useTheme } from "../hooks/useTheme";
-import { cn } from "~/lib/utils";
+import { cn } from "../lib/cn";
 import "./loaders.css";
 import { resolveAnimationFonts } from "../lib/animationTypography";
 

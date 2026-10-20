@@ -506,6 +506,7 @@ contextBridge.exposeInMainWorld("desktopBridge", {
       ipcRenderer.removeListener(APP_CLEANUP_DONE_CHANNEL, wrapped);
     };
   },
+  notifyStartupPaint: () => ipcRenderer.send("desktop:startup-painted"),
   notifyReadyToExit: () => {
     ipcRenderer.send(APP_READY_TO_EXIT_CHANNEL);
     return Promise.resolve();
