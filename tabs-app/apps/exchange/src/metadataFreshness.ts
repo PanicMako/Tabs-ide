@@ -39,10 +39,12 @@ export function metadataFreshness(
       }
       const expiry = Date.parse(signed.expires);
       if (!Number.isFinite(expiry)) throw new Error("Invalid signed metadata date.");
+      // A one-day timestamp must not be permanently "expiring" under the
+      // two-day warning window used for the longer-lived roles.
+      const warningWindowMs = role === "timestamp" ? 12 * 60 * 60 * 1_000 : WARNING_WINDOW_MS;
       return {
         role,
-        status:
-          expiry <= now ? "expired" : expiry <= now + WARNING_WINDOW_MS ? "expiring" : "valid",
+        status: expiry <= now ? "expired" : expiry <= now + warningWindowMs ? "expiring" : "valid",
         expiresAt: new Date(expiry).toISOString(),
       };
     } catch {

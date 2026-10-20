@@ -102,7 +102,7 @@ requests, and looks up signed package targets at
 target revocation, rollback, expiration, and tampering. Manual desktop
 installation now uses this adapter and verifies the signed target digest and
 length before presenting a permission review. Desktop checks installed versions
-at startup, every minute, after system resume, and before activation, persisting signed
+at startup, every minute, after system resume, and in the background when opening an installed tool, persisting signed
 revocations and closing an active view when its version is revoked. Experimental
 permission-neutral automatic updates require an explicit desktop opt-in and a
 pinned trust root. Exchange serves signed metadata from
@@ -147,13 +147,17 @@ Keep the encrypted backup and password separately and securely backed up. Losing
 all usable keys requires an explicit trust recovery process; creating a different
 backup does not replace an established identity. Lock the backup when finished;
 it also locks after ten minutes or when leaving the page. Browser signing assumes
-the operator trusts the delivered site code and device; private keys are not held
-by the API or worker. For stronger offline key isolation, use the staged workflow.
+the operator trusts the delivered site code and device. This browser workflow
+never uploads private keys. Optional automatic renewal uses separately provisioned
+non-root role keys; the root private key stays offline. For fully offline signing,
+use the staged workflow.
 
 The wizard issues one-day timestamps, seven-day snapshots, 30-day targets and a
-one-year initial root. Reopen the same backup and publish a fresh plan before
-expiry (including when only revocations change). Root expiry requires offline
-rotation. This is a manual operator workflow, not an automatic signing service.
+one-year initial root. Configure [automatic metadata renewal](exchange-automatic-renewal.md)
+once so existing published approvals stay available without daily signing. New
+versions still require manual review and signed publication. Without a configured
+renewal signer, the offline workflow still requires fresh signed metadata before
+expiry. Root expiry requires offline rotation in either workflow.
 
 ### Offline publication and root rotation
 
@@ -418,7 +422,8 @@ stale heartbeat warrants investigation; a recent heartbeat does not prove that
 all scans or external advisory services are healthy. Operators should alert on
 this signal and queue age rather than relying on the API's database-only
 `/healthz` check.
-The operations view also displays each stored TUF role's expiry with a 48-hour
+The operations view also displays each stored TUF role's expiry with a 12-hour
+warning window for timestamps and a 48-hour
 warning window. This is an advisory parse of the bytes already accepted by the
 publication verifier, not a fresh signature check. Missing, malformed, or
 expired metadata needs operator attention; monitor the timestamp role especially
@@ -537,7 +542,7 @@ coverage; neither suite proves a production recovery drill.
 ### 2. Key Expiry, Freshness & Mutable Catalog Drift
 
 - **Strict Expiration**: Client rejects metadata where `expires` is in the past. Expired `timestamp.json` halts updates immediately; expired `snapshot.json` or `targets.json` prevents discovery of new targets.
-- **TUF as Sole Authority**: Catalog JSON and search endpoints are treated strictly as discovery hints. If an unauthenticated catalog endpoint claims a version exists or is updated, but that version is omitted from signed TUF targets, the client refuses to download or activate it.
+- **TUF as Sole Authority**: Catalog JSON and search endpoints are treated strictly as discovery hints. New installs and updates require the exact target in current valid signed metadata. Already verified installed versions use their persisted approval for local activation; a failed background refresh does not erase that approval. Known signed revocations remain blocked and fresh signed revocations close active tools when observed.
 
 ### 3. Signed Revocation & Fallback
 
@@ -568,7 +573,7 @@ coverage; neither suite proves a production recovery drill.
   - The reviewer-only `/v1/review/operations` response evaluates readiness and returns alerts; the reviewer page displays them. This is advisory visibility, not an external paging/monitoring service.
     - Worker heartbeat: alert if no worker heartbeat observed within 15 seconds (`worker_recently_seen === false`).
     - Queue backlog: alert if queue depth exceeds 20 packages or oldest queued package exceeds 10 minutes.
-    - TUF metadata freshness: alert if any role (`root`, `timestamp`, `snapshot`, `targets`) is expired (`critical`) or expiring within 48 hours (`warning`).
+    - TUF metadata freshness: alert if any role (`root`, `timestamp`, `snapshot`, `targets`) is expired (`critical`) or expiring within 12 hours for timestamps / 48 hours for other roles (`warning`).
 
 ### 6. Multi-Registry Origin Isolation
 

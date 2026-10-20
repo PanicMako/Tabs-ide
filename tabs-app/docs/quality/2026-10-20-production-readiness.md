@@ -77,6 +77,27 @@ cover fresh and cached expired timestamps, exclusion from offline fallback, and
 successful retry after a higher-version signed renewal. All 635 desktop tests
 passed. Production metadata has not been renewed by this code change.
 
+The subsequent availability change separates saved installed approvals from
+registry freshness: activation no longer waits for a network check, while known
+revocations remain blocked and successful background checks close revoked tools.
+Public reads also try anonymously before using a saved private-registry token.
+Automatic renewal of previously published approvals is implemented behind one-time
+non-root signer provisioning, including renewal before serving a timestamp and an
+optional scheduled job. New versions still require manual approval and publication.
+See [the operator setup](../exchange-automatic-renewal.md). Production signer
+provisioning and deployment remain pending; local tests do not enable them.
+
+Availability validation: the full workspace run passed all 18 tasks, including
+7,561 server, 644 desktop and 1,681 web tests. After the final hosting-wrapper and
+health-warning changes, the complete Exchange suite passed 540 tests with 24
+existing skips. All 16 workspace type checks and the final Exchange type check
+passed; `vp check` reported zero errors and 661 existing warnings. The desktop
+and Exchange portal builds passed, as did actionlint, shell syntax validation,
+and a real Bun/TTY exporter run using a synthetic encrypted backup with hidden
+password input. Docker image execution was not verified because the configured
+Docker daemon was unavailable. The hosting secret wrapper was tested as an actual
+shell process with a read-only synthetic mount.
+
 ## Release limits
 
 The actual Electron extension acceptance test passed, including retain-data reinstall, delete-data removal of localStorage/IndexedDB/SDK storage/named profiles, and cross-extension isolation. Native browser workflow acceptance passed on retry, including profile isolation, viewports, screenshots and a real recorded click. The first recorder run failed to observe that click; no product change was made for that transient result. Release packaging smoke fixtures passed.

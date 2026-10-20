@@ -42,6 +42,8 @@ import { refreshPublishedHead } from "./publishedHeads.ts";
 import { decodeSearchCursor, encodeSearchCursor } from "./searchCursor.ts";
 import { decodeVersionCursor, encodeVersionCursor } from "./versionCursor.ts";
 import { SignedMetadataEvents } from "./signedMetadataEvents.ts";
+import { createMetadataRenewer } from "./metadataRenewer.ts";
+import { readOnlineSigningConfig, renewPublishedMetadata } from "./metadataRenewal.ts";
 import { metadataFreshness, type StoredMetadataRow } from "./metadataFreshness.ts";
 import { evaluateOperationalReadiness } from "./operationalAlerts.ts";
 import { issueAccessToken } from "./accessTokens.ts";
@@ -257,6 +259,7 @@ export function createExchangeServer(
   storage: S3Client,
   config: ExchangeConfig,
   signedMetadataEvents = new SignedMetadataEvents(),
+  ensureFreshMetadata?: () => Promise<void>,
 ): Http.Server {
   let activeUploads = 0;
   let activeSourceReads = 0;
@@ -532,6 +535,9 @@ export function createExchangeServer(
       const tufMetadata = request.method === "GET" ? TUF_METADATA_ROUTE.exec(path) : null;
       if (tufMetadata) {
         const name = `${tufMetadata[1]}.json`;
+        // A sleeping registry renews before returning the timestamp to a new
+        // installer. This must not depend on a browser login or a cron wakeup.
+        if (name === "timestamp.json") await ensureFreshMetadata?.();
         const found = await pool.query<{ bytes: Buffer; sha256: string }>(
           "SELECT bytes, sha256 FROM exchange_tuf_metadata WHERE name = $1",
           [name],
@@ -2136,6 +2142,11 @@ if (import.meta.main) {
   const signedMetadataEvents = new SignedMetadataEvents();
   const config = loadConfig();
   const storage = createStorage();
+  const signerFile = process.env.EXCHANGE_ONLINE_SIGNING_KEY_FILE;
+  const signer = signerFile ? await readOnlineSigningConfig(signerFile, config.origin) : null;
+  const ensureFreshMetadata = signer
+    ? createMetadataRenewer(() => renewPublishedMetadata(pool, storage, config.bucket, signer))
+    : undefined;
   const scannerController = new AbortController();
   const scanner = config.embeddedScannerEnabled
     ? runScanWorker(pool, storage, config, scannerController.signal)
@@ -2143,7 +2154,13 @@ if (import.meta.main) {
   void scanner.catch((error) => {
     process.stderr.write(`Exchange embedded scanner stopped: ${String(error)}\n`);
   });
-  const server = createExchangeServer(pool, storage, config, signedMetadataEvents);
+  const server = createExchangeServer(
+    pool,
+    storage,
+    config,
+    signedMetadataEvents,
+    ensureFreshMetadata,
+  );
   signedMetadataEvents.start(listenerPool);
   server.on("close", () => signedMetadataEvents.stop());
   let shuttingDown = false;
