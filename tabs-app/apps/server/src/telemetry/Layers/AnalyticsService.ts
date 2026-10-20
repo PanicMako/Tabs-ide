@@ -7,7 +7,12 @@
  * @module AnalyticsServiceLive
  */
 
-import { Config, DateTime, Effect, FileSystem, Layer, Ref } from "effect";
+import * as Config from "effect/Config";
+import * as DateTime from "effect/DateTime";
+import * as Effect from "effect/Effect";
+import * as FileSystem from "effect/FileSystem";
+import * as Layer from "effect/Layer";
+import * as Ref from "effect/Ref";
 import * as Semaphore from "effect/Semaphore";
 import { basicUsageEvent, dailyUsageEventUuid } from "../UsageEvents.ts";
 import { ServerSettingsService } from "../../serverSettings.ts";

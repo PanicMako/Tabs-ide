@@ -3,7 +3,8 @@ import {
   DesktopElectronProcessType,
   type HostPowerSnapshot,
 } from "@tabs/contracts";
-import { Option, Schema } from "effect";
+import * as Option from "effect/Option";
+import * as Schema from "effect/Schema";
 import type { ProcessMetric } from "electron";
 import type { Writable } from "node:stream";
 

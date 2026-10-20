@@ -27,7 +27,11 @@ import * as Schema from "effect/Schema";
 
 import * as ServerConfig from "./config.ts";
 import * as ServiceLauncherClient from "./cloud/serviceLauncherClient.ts";
-import { flushCompileCache } from "./compileCache.ts";
+import {
+  flushCompileCache,
+  flushCompileCacheForStartup,
+  persistCompileCacheOnShutdown,
+} from "./compileCache.ts";
 import * as Keybindings from "./keybindings.ts";
 import * as ExternalLauncher from "./process/externalLauncher.ts";
 import * as EffectWorker from "./orchestration-v2/EffectWorker.ts";
@@ -460,6 +464,11 @@ const make = (options?: StartupOptions) =>
       ),
     );
 
+    // Persist before the slower provider shutdown finalizer. Unix startup can
+    // skip serialization; Windows also flushes early because taskkill is forced.
+    yield* Effect.addFinalizer(() => flushCompileCache);
+    yield* persistCompileCacheOnShutdown;
+
     const startup = Effect.gen(function* () {
       yield* Effect.logDebug("startup phase: starting keybindings runtime");
       yield* runStartupPhase(
@@ -651,7 +660,7 @@ const make = (options?: StartupOptions) =>
         }),
       );
       yield* Effect.logDebug("startup phase: complete");
-      yield* flushCompileCache;
+      yield* flushCompileCacheForStartup();
     }).pipe(
       Effect.annotateSpans({
         "server.mode": serverConfig.mode,

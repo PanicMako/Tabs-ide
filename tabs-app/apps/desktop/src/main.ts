@@ -453,6 +453,10 @@ function getSshEnvironmentBridge(): Promise<SshEnvironmentBridge> {
 let currentDesktopIconTheme = loadDesktopIconThemePreference();
 let backendProcess: ChildProcess.ChildProcess | null = null;
 let backendPort = 0;
+let resolveBackendConfiguration!: () => void;
+const backendConfigurationReady = new Promise<void>((resolve) => {
+  resolveBackendConfiguration = resolve;
+});
 let backendAuthToken = "";
 let backendWsUrl = "";
 let backendHttpUrl = "";
@@ -2269,7 +2273,7 @@ function startBackend(): void {
   if (bootstrapStream && "write" in bootstrapStream) {
     void writeBackendBootstrap(
       bootstrapStream,
-      shellEnvironmentReady,
+      Promise.all([shellEnvironmentReady, backendConfigurationReady]),
       () => ({
         mode: "desktop",
         desktopTelemetryFd: 4,
@@ -2303,17 +2307,30 @@ function startBackend(): void {
     return;
   }
   const telemetryStream = child.stdio[4];
-  const stopTelemetry =
-    telemetryStream && "write" in telemetryStream
-      ? publishDesktopResources(
-          telemetryStream,
-          () => app.getAppMetrics(),
-          readHostPowerSnapshot,
-          process.pid,
-        )
-      : () => undefined;
-  child.once("exit", stopTelemetry);
-  child.once("error", stopTelemetry);
+  // Electron metrics/power APIs require readiness; loading the Node backend does not.
+  let stopTelemetry = () => {};
+  let telemetryStopped = false;
+  const stopResourceTelemetry = () => {
+    telemetryStopped = true;
+    stopTelemetry();
+  };
+  void app
+    .whenReady()
+    .then(() => {
+      if (telemetryStopped || child.exitCode !== null || child.signalCode !== null) return;
+      if (!telemetryStream || !("write" in telemetryStream) || telemetryStream.destroyed) return;
+      stopTelemetry = publishDesktopResources(
+        telemetryStream,
+        () => app.getAppMetrics(),
+        readHostPowerSnapshot,
+        process.pid,
+      );
+    })
+    .catch((error) => {
+      writeDesktopLogHeader(`backend telemetry could not start: ${formatErrorMessage(error)}`);
+    });
+  child.once("exit", stopResourceTelemetry);
+  child.once("error", stopResourceTelemetry);
   backendProcess = child;
   let backendSessionClosed = false;
   const closeBackendSession = (details: string) => {
@@ -4923,7 +4940,7 @@ async function bootstrap(): Promise<void> {
 
   // Start the loopback control channel and expose its URL to the embedded
   // Code-OSS extension host via env (inherited by the spawned REH server). Done
-  // before startBackend so the env is in place when the code session later
+  // before creating the window so the env is in place when the code session later
   // spawns its server. Non-fatal if it fails — the chrome simply can't drive
   // the workbench (clicks become no-ops) but the editor still works.
   try {
@@ -4953,11 +4970,12 @@ async function bootstrap(): Promise<void> {
 
   registerIpcHandlers();
   writeDesktopLogHeader("bootstrap ipc handlers registered");
-  // Paint the shell while the login-shell lookup runs. Provider processes still
-  // receive the resolved PATH and SSH agent through the bootstrap pipe before startup.
+  // Release configuration and paint the shell while the backend finishes loading.
+  // Provider processes still receive the resolved shell through the bootstrap pipe.
+  resolveBackendConfiguration();
   mainWindow = createWindow();
   startBackend();
-  writeDesktopLogHeader("bootstrap backend start requested");
+  writeDesktopLogHeader("bootstrap backend configuration released");
   void checkAllInstalledExchangeStatuses();
   restartExchangeHints();
   exchangeStatusTimer = setInterval(() => {
@@ -5194,6 +5212,9 @@ app.on("before-quit", (event) => {
 });
 
 if (clerkBridge.isPrimaryInstance) {
+  // Parse backend modules while Electron initializes. The bootstrap pipe stays
+  // closed until ports, broker configuration and the login shell are ready.
+  startBackend();
   app
     .whenReady()
     .then(() => {

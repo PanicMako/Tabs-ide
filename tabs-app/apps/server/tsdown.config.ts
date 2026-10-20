@@ -19,6 +19,17 @@ export default defineConfig({
     // of embedding its CommonJS-oriented Node host in our ESM server bundle.
     neverBundle: ["typescript"],
     alwaysBundle: (id) =>
+      // Avoid resolving/compiling hundreds of small Effect modules per launch.
+      // Keep its platform and OpenCode schema consumers in the same runtime.
+      id === "effect" ||
+      id.startsWith("effect/") ||
+      id.startsWith("@effect/") ||
+      id.startsWith("@opencode/") ||
+      id.startsWith("@opencode-ai/") ||
+      // Only the patch parser is used on the server. Its package exposes no
+      // require condition, so keep the parser in both ESM and CommonJS builds.
+      id === "@pierre/diffs" ||
+      id.startsWith("@pierre/diffs/") ||
       id.startsWith("@tabs/") ||
       id === "effect-acp" ||
       id.startsWith("effect-acp/") ||

@@ -3,7 +3,7 @@
  *
  * @module textGenerationUtils
  */
-import { Schema } from "effect";
+import * as Schema from "effect/Schema";
 
 import { TextGenerationError } from "./Errors.ts";
 

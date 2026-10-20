@@ -1,5 +1,6 @@
 import * as OS from "node:os";
-import { Effect, Path } from "effect";
+import * as Effect from "effect/Effect";
+import * as Path from "effect/Path";
 import { readPathFromLoginShell } from "@tabs/shared/shell";
 
 export function fixPath(): void {

@@ -11,7 +11,8 @@
  * @module audit/SandboxedProcessRunner
  */
 
-import { Data, Effect } from "effect";
+import * as Data from "effect/Data";
+import * as Effect from "effect/Effect";
 import { runProcess, type ProcessRunResult } from "../processRunner.ts";
 
 export interface SandboxExecutionOptions {

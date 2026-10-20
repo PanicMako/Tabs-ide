@@ -1,4 +1,4 @@
-import { Encoding } from "effect";
+import * as Encoding from "effect/Encoding";
 import { CheckpointRef, ProjectId, type ThreadId } from "@tabs/contracts";
 
 export const CHECKPOINT_REFS_PREFIX = "refs/tabs/checkpoints";

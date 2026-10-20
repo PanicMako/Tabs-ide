@@ -52,3 +52,43 @@ describe("writeBackendBootstrap", () => {
     await writing;
   });
 });
+
+describe("backend configuration barrier", () => {
+  it.each(["shell", "configuration"] as const)(
+    "waits for both prerequisites when %s finishes first",
+    async (first) => {
+      const stream = new PassThrough();
+      let shellReady!: () => void;
+      let configurationReady!: () => void;
+      const shell = new Promise<void>((resolve) => {
+        shellReady = resolve;
+      });
+      const configuration = new Promise<void>((resolve) => {
+        configurationReady = resolve;
+      });
+      let port = 0;
+      const payload = vi.fn(() => ({ mode: "desktop" as const, port }));
+      const chunks: string[] = [];
+      stream.on("data", (chunk) => chunks.push(String(chunk)));
+      const writing = writeBackendBootstrap(
+        stream,
+        Promise.all([shell, configuration]),
+        payload,
+        vi.fn(),
+      );
+      if (first === "shell") shellReady();
+      else {
+        port = 4888;
+        configurationReady();
+      }
+      await Promise.resolve();
+      expect(payload).not.toHaveBeenCalled();
+      expect(chunks).toEqual([]);
+      port = 4888;
+      shellReady();
+      configurationReady();
+      await writing;
+      expect(JSON.parse(chunks.join(""))).toEqual({ mode: "desktop", port: 4888 });
+    },
+  );
+});

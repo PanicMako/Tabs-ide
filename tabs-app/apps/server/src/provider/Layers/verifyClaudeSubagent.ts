@@ -1,5 +1,9 @@
-import { Effect, Fiber, Stream, Layer, Context } from "effect";
-import { FileSystem } from "effect";
+import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
+import * as Stream from "effect/Stream";
+import * as Layer from "effect/Layer";
+import * as Context from "effect/Context";
+import * as FileSystem from "effect/FileSystem";
 import { makeClaudeAdapter } from "./ClaudeAdapter.ts";
 import { ServerConfig } from "../../config.ts";
 import { ServerSettingsService } from "../../serverSettings.ts";

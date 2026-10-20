@@ -6,6 +6,8 @@ This pass prioritizes time to a usable workspace and fixes reproduced workflow r
 
 ## Startup findings
 
+The subsequent [cold-start follow-up](./2026-10-20-cold-start.md) records newer startup/build changes, cache persistence behavior and matched measurements.
+
 A disposable-profile Electron CPU trace showed backend module loading taking most of backend startup, while runtime initialization after imports took roughly 100 ms. Optional TypeScript parsing and the Cursor SDK were imported before any feature needed them. Both now load on their first operation and cache the loaded module. Type-only imports remain available to the compiler. Existing parser, credential, authentication, catalog and agent lifecycle tests cover their behavior; fresh-process tests prove the optional modules stay unloaded until requested.
 
 The trace also showed approximately 264 ms in a synchronous compile-cache flush after backend readiness. This is retained: Windows forcibly terminates the backend on shutdown, so removing the flush could discard the cache and slow future launches. Deferring it safely needs a separate lifecycle change and measurement.

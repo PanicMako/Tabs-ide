@@ -1,4 +1,7 @@
-import { Deferred, Duration, Effect, Option } from "effect";
+import * as Deferred from "effect/Deferred";
+import * as Duration from "effect/Duration";
+import * as Effect from "effect/Effect";
+import * as Option from "effect/Option";
 
 export interface ServerReadiness {
   readonly awaitServerReady: Effect.Effect<void>;

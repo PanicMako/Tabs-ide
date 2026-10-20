@@ -1,4 +1,4 @@
-import { Schema } from "effect";
+import * as Schema from "effect/Schema";
 import { ServerProviderModel, type ModelSourceKind } from "./server.ts";
 import type { ModelCapabilities } from "./model.ts";
 

@@ -8,7 +8,10 @@
  *
  * @module DrainableWorker
  */
-import { Deferred, Effect, Queue, Ref } from "effect";
+import * as Deferred from "effect/Deferred";
+import * as Effect from "effect/Effect";
+import * as Queue from "effect/Queue";
+import * as Ref from "effect/Ref";
 import type { Scope } from "effect";
 
 export interface DrainableWorker<A> {
