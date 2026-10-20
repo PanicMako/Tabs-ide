@@ -6,7 +6,9 @@ import type {
   TestingLocatorImportWarning,
   TestingLocatorStorageMode,
 } from "@tabs/contracts";
-import * as ts from "typescript";
+import type * as ts from "typescript";
+
+import { loadTypeScript } from "./typeScript.ts";
 
 import type { LocatorCandidate } from "./locatorLibrary.ts";
 import { LocatorLibraryStore } from "./locatorLibrary.ts";
@@ -50,6 +52,7 @@ async function sourceFiles(folderPath: string): Promise<ReadonlyArray<string>> {
 }
 
 function staticString(node: ts.Expression | undefined): string | null {
+  const ts = loadTypeScript();
   if (!node) return null;
   if (ts.isStringLiteralLike(node) || ts.isNoSubstitutionTemplateLiteral(node)) return node.text;
   if (ts.isRegularExpressionLiteral(node)) return node.text;
@@ -57,6 +60,7 @@ function staticString(node: ts.Expression | undefined): string | null {
 }
 
 function objectString(object: ts.Expression | undefined, propertyName: string): string | null {
+  const ts = loadTypeScript();
   if (!object || !ts.isObjectLiteralExpression(object)) return null;
   for (const property of object.properties) {
     if (!ts.isPropertyAssignment(property)) continue;
@@ -67,6 +71,7 @@ function objectString(object: ts.Expression | undefined, propertyName: string): 
 }
 
 function assignedName(node: ts.CallExpression, fallback: string): string {
+  const ts = loadTypeScript();
   const parent = node.parent;
   if (ts.isPropertyDeclaration(parent) && parent.name) return parent.name.getText();
   if (ts.isVariableDeclaration(parent) && ts.isIdentifier(parent.name)) return parent.name.text;
@@ -110,6 +115,7 @@ function parseLocatorCall(
   warning?: TestingLocatorImportWarning;
   unsupported?: boolean;
 } | null {
+  const ts = loadTypeScript();
   if (!ts.isPropertyAccessExpression(node.expression)) return null;
   const method = node.expression.name.text;
   if (!LOCATOR_METHODS.has(method)) return null;
@@ -219,6 +225,7 @@ export async function indexLocatorFolder(input: {
     let sourceFile: ts.SourceFile;
     try {
       const sourceText = await readFile(absoluteFile, "utf8");
+      const ts = loadTypeScript();
       sourceFile = ts.createSourceFile(
         file,
         sourceText,
@@ -249,6 +256,7 @@ export async function indexLocatorFolder(input: {
       continue;
     }
     const visit = (node: ts.Node): void => {
+      const ts = loadTypeScript();
       if (ts.isCallExpression(node)) {
         if (
           ts.isPropertyAccessExpression(node.expression) &&

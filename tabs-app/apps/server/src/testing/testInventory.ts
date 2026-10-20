@@ -2,13 +2,16 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, relative, resolve } from "node:path";
 
 import type { TestingTestInventoryNode, TestingTestInventoryResult } from "@tabs/contracts";
-import * as ts from "typescript";
+import type * as ts from "typescript";
+
+import { loadTypeScript } from "./typeScript.ts";
 
 const SUPPORTED_TEST_FILE = /(?:^|\.)((?:spec)|(?:test))\.[cm]?[jt]sx?$/i;
 const IGNORED_DIRECTORIES = new Set([".git", ".turbo", "build", "dist", "node_modules", "out"]);
 const MAX_FILES = 2_000;
 
 function testCallKind(expression: ts.Expression): "suite" | "test" | null {
+  const ts = loadTypeScript();
   if (ts.isIdentifier(expression)) {
     if (expression.text === "describe") return "suite";
     if (expression.text === "test" || expression.text === "it") return "test";
@@ -23,6 +26,7 @@ function testCallKind(expression: ts.Expression): "suite" | "test" | null {
 }
 
 function stringTitle(call: ts.CallExpression): string | null {
+  const ts = loadTypeScript();
   const first = call.arguments[0];
   return first && (ts.isStringLiteral(first) || ts.isNoSubstitutionTemplateLiteral(first))
     ? first.text.trim()
@@ -30,6 +34,7 @@ function stringTitle(call: ts.CallExpression): string | null {
 }
 
 function scanFile(projectRoot: string, filePath: string): TestingTestInventoryNode | null {
+  const ts = loadTypeScript();
   const source = ts.createSourceFile(
     filePath,
     readFileSync(filePath, "utf8"),

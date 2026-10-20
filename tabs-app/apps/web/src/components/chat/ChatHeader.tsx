@@ -2,6 +2,7 @@ import {
   type EditorId,
   type GitWatchedBranchStatus,
   type ProjectId,
+  type ProjectScript,
   type ResolvedKeybindingsConfig,
   type ThreadId,
 } from "@tabs/contracts";
@@ -22,6 +23,7 @@ import {
   ArrowUpIcon,
   GitMergeIcon,
   SearchIcon,
+  PlayIcon,
   DownloadIcon,
   Telescope,
   Loader2,
@@ -68,6 +70,8 @@ import { useScopedStateStore } from "~/state/scopedStateStore";
 import { workspaceShellActions } from "~/state/workspaceShell";
 
 interface ChatHeaderProps {
+  scripts?: ReadonlyArray<ProjectScript> | undefined;
+  onRunScript?: ((script: ProjectScript) => void) | undefined;
   projectId?: ProjectId | undefined;
   activeThreadId: ThreadId;
   activeThreadTitle: string;
@@ -705,6 +709,8 @@ function BranchSelectorControl({
 }
 
 export const ChatHeader = memo(function ChatHeader({
+  scripts,
+  onRunScript,
   projectId,
   activeThreadId,
   activeThreadTitle,
@@ -1041,6 +1047,27 @@ export const ChatHeader = memo(function ChatHeader({
 
             <div className="h-px bg-border/50" />
 
+            {!!scripts?.length && onRunScript && (
+              <div
+                role="group"
+                aria-label="Project scripts"
+                className="my-2 max-h-48 space-y-1 overflow-y-auto"
+              >
+                {scripts.map((script) => (
+                  <button
+                    type="button"
+                    key={script.id}
+                    title={`Run ${script.name}`}
+                    aria-label={`Run ${script.name}`}
+                    onClick={() => onRunScript(script)}
+                    className="surface-control flex h-8 w-full min-w-0 items-center gap-2 rounded-lg px-2 text-left text-xs focus-visible:outline-2 focus-visible:outline-ring"
+                  >
+                    <PlayIcon aria-hidden="true" className="size-3 shrink-0" />
+                    <span className="truncate">{script.name}</span>
+                  </button>
+                ))}
+              </div>
+            )}
             {/* Git section */}
             <div className="mt-2.5 space-y-1.5">
               {/* Branch selector + pull + divergence */}

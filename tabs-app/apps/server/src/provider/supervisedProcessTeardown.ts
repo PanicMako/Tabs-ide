@@ -4,7 +4,7 @@ import {
   type ProcessTreeKiller,
   type TerminalKillSignal,
 } from "../terminal/processTreeKiller.ts";
-import { Effect } from "effect";
+import * as Effect from "effect/Effect";
 
 const DEFAULT_TERM_GRACE_MS = 1_500;
 const DEFAULT_FORCE_EXIT_MS = 1_500;

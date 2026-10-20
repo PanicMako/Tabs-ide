@@ -1493,6 +1493,8 @@ export interface DesktopBridge {
   notifySettingsFlushDone: () => void;
   onAppCleanupDone: (listener: () => void) => () => void;
   notifyReadyToExit: () => Promise<void>;
+  /** First loading-animation frame committed, before workspace imports. */
+  notifyStartupPaint?: () => void;
   getConfirmBeforeQuit: () => Promise<boolean>;
   resetTabsUserData?: () => Promise<boolean>;
   getBackendStartupError?: () => Promise<string | null>;

@@ -10,6 +10,7 @@ import {
   type ServerProvider,
   ThreadId,
 } from "@tabs/contracts";
+import { createModelCapabilities } from "@tabs/shared/model";
 import { page } from "vitest/browser";
 import { useCallback } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -40,15 +41,21 @@ const TEST_PROVIDERS: ReadonlyArray<ServerProvider> = [
         slug: "gpt-5.4",
         name: "GPT-5.4",
         isCustom: false,
-        capabilities: {
-          reasoningEffortLevels: [
-            { value: "xhigh", label: "Extra High" },
-            { value: "high", label: "High", isDefault: true },
+        capabilities: createModelCapabilities({
+          optionDescriptors: [
+            {
+              id: "reasoningEffort",
+              label: "Effort",
+              type: "select",
+              options: [
+                { id: "xhigh", label: "Extra High" },
+                { id: "high", label: "High", isDefault: true },
+              ],
+              promptInjectedValues: [],
+            },
+            { id: "fastMode", label: "Fast Mode", type: "boolean", currentValue: false },
           ],
-          supportsFastMode: true,
-          supportsThinkingToggle: false,
-          promptInjectedEffortLevels: [],
-        },
+        }),
       },
     ],
   }),
@@ -61,45 +68,55 @@ const TEST_PROVIDERS: ReadonlyArray<ServerProvider> = [
         slug: "claude-opus-4-6",
         name: "Claude Opus 4.6",
         isCustom: false,
-        capabilities: {
-          reasoningEffortLevels: [
-            { value: "low", label: "Low" },
-            { value: "medium", label: "Medium" },
-            { value: "high", label: "High", isDefault: true },
-            { value: "max", label: "Max" },
-            { value: "ultrathink", label: "Ultrathink" },
+        capabilities: createModelCapabilities({
+          optionDescriptors: [
+            {
+              id: "effort",
+              label: "Effort",
+              type: "select",
+              options: [
+                { id: "low", label: "Low" },
+                { id: "medium", label: "Medium" },
+                { id: "high", label: "High", isDefault: true },
+                { id: "max", label: "Max" },
+                { id: "ultrathink", label: "Ultrathink" },
+              ],
+              promptInjectedValues: ["ultrathink"],
+            },
+            { id: "fastMode", label: "Fast Mode", type: "boolean", currentValue: false },
           ],
-          supportsFastMode: true,
-          supportsThinkingToggle: false,
-          promptInjectedEffortLevels: ["ultrathink"],
-        },
+        }),
       },
       {
         slug: "claude-sonnet-4-6",
         name: "Claude Sonnet 4.6",
         isCustom: false,
-        capabilities: {
-          reasoningEffortLevels: [
-            { value: "low", label: "Low" },
-            { value: "medium", label: "Medium" },
-            { value: "high", label: "High", isDefault: true },
-            { value: "ultrathink", label: "Ultrathink" },
+        capabilities: createModelCapabilities({
+          optionDescriptors: [
+            {
+              id: "effort",
+              label: "Effort",
+              type: "select",
+              options: [
+                { id: "low", label: "Low" },
+                { id: "medium", label: "Medium" },
+                { id: "high", label: "High", isDefault: true },
+                { id: "ultrathink", label: "Ultrathink" },
+              ],
+              promptInjectedValues: ["ultrathink"],
+            },
           ],
-          supportsFastMode: false,
-          supportsThinkingToggle: false,
-          promptInjectedEffortLevels: ["ultrathink"],
-        },
+        }),
       },
       {
         slug: "claude-haiku-4-5",
         name: "Claude Haiku 4.5",
         isCustom: false,
-        capabilities: {
-          reasoningEffortLevels: [],
-          supportsFastMode: false,
-          supportsThinkingToggle: true,
-          promptInjectedEffortLevels: [],
-        },
+        capabilities: createModelCapabilities({
+          optionDescriptors: [
+            { id: "thinking", label: "Thinking", type: "boolean", currentValue: true },
+          ],
+        }),
       },
     ],
   }),
@@ -236,8 +253,8 @@ describe("TraitsPicker (Claude)", () => {
     await vi.waitFor(() => {
       const text = document.body.textContent ?? "";
       expect(text).toContain("Fast Mode");
-      expect(text).toContain("off");
-      expect(text).toContain("on");
+      expect(text).toContain("Off");
+      expect(text).toContain("On");
     });
   });
 
@@ -268,7 +285,7 @@ describe("TraitsPicker (Claude)", () => {
     });
   });
 
-  it("shows a th  inking on/off dropdown for Haiku", async () => {
+  it("shows a thinking on/off dropdown for Haiku", async () => {
     await using _ = await mountClaudePicker({
       model: "claude-haiku-4-5",
       options: { thinking: true },
@@ -282,7 +299,7 @@ describe("TraitsPicker (Claude)", () => {
     await vi.waitFor(() => {
       const text = document.body.textContent ?? "";
       expect(text).toContain("Thinking");
-      expect(text).toContain("On (default)");
+      expect(text).toContain("On");
       expect(text).toContain("Off");
     });
   });
@@ -291,7 +308,7 @@ describe("TraitsPicker (Claude)", () => {
     await using _ = await mountClaudePicker({
       model: "claude-opus-4-6",
       options: { effort: "high" },
-      prompt: "Ultrathink:\nInvestigate this",
+      prompt: "Investigate this with Ultrathink",
     });
 
     await vi.waitFor(() => {
@@ -303,7 +320,7 @@ describe("TraitsPicker (Claude)", () => {
     await vi.waitFor(() => {
       const text = document.body.textContent ?? "";
       expect(text).toContain("Effort");
-      expect(text).toContain("Remove Ultrathink from the prompt to change effort.");
+      expect(text).toContain("Remove Ultrathink from the prompt to change this option.");
       expect(text).not.toContain("Fallback Effort");
     });
   });
@@ -320,10 +337,8 @@ describe("TraitsPicker (Claude)", () => {
     expect(
       useComposerDraftStore.getState().stickyModelSelectionByProvider.claudeAgent,
     ).toMatchObject({
-      provider: "claudeAgent",
-      options: {
-        effort: "max",
-      },
+      instanceId: "claudeAgent",
+      options: expect.arrayContaining([{ id: "effort", value: "max" }]),
     });
   });
 
@@ -434,8 +449,8 @@ describe("TraitsPicker (Codex)", () => {
     await vi.waitFor(() => {
       const text = document.body.textContent ?? "";
       expect(text).toContain("Fast Mode");
-      expect(text).toContain("off");
-      expect(text).toContain("on");
+      expect(text).toContain("Off");
+      expect(text).toContain("On");
     });
   });
 
@@ -471,11 +486,11 @@ describe("TraitsPicker (Codex)", () => {
     });
 
     await page.getByRole("button").click();
-    await page.getByRole("menuitemradio", { name: "on" }).click();
+    await page.getByRole("menuitemradio", { name: "On", exact: true }).click();
 
     expect(useComposerDraftStore.getState().stickyModelSelectionByProvider.codex).toMatchObject({
-      provider: "codex",
-      options: { fastMode: true },
+      instanceId: "codex",
+      options: expect.arrayContaining([{ id: "fastMode", value: true }]),
     });
   });
 
@@ -485,7 +500,7 @@ describe("TraitsPicker (Codex)", () => {
     });
 
     await page.getByRole("button").click();
-    await page.getByRole("menuitemradio", { name: "on" }).click();
+    await page.getByRole("menuitemradio", { name: "On", exact: true }).click();
 
     await vi.waitFor(() => {
       expect(document.body.textContent ?? "").not.toContain("Fast Mode");

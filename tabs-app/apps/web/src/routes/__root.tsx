@@ -26,13 +26,9 @@ import {
   getWsTransport,
 } from "../wsNativeApi";
 import { migrateLocalSettingsToServer, useSettings } from "../hooks/useSettings";
-import { useMinimumDuration } from "../hooks/useMinimumDuration";
-import {
-  SplashScreen,
-  STARTUP_ANIMATION_EXIT_MS,
-  STARTUP_ANIMATION_HOLD_MS,
-} from "../components/SplashScreen";
+import { SplashScreen, STARTUP_ANIMATION_EXIT_MS } from "../components/SplashScreen";
 import { markStartupStage } from "../lib/startupReadiness";
+import { hasEarlyStartupSplash, updateStartupSplash } from "../lib/startupSplashLifecycle";
 import { cn, isPopoutMode } from "../lib/utils";
 import { providerQueryKeys } from "../lib/providerReactQuery";
 import { projectQueryKeys } from "../lib/projectReactQuery";
@@ -122,7 +118,11 @@ function FullAppRootView() {
   const [startupDeadlineElapsed, setStartupDeadlineElapsed] = useState(false);
   const [backendStartupError, setBackendStartupError] = useState<string | null>(null);
   const bootstrapReady = isNativeApiReady && threadsHydrated;
-  const ready = useMinimumDuration(bootstrapReady, STARTUP_ANIMATION_HOLD_MS);
+  const ready = bootstrapReady;
+  const [earlySplash] = useState(hasEarlyStartupSplash);
+  useEffect(() => {
+    updateStartupSplash({ ready, error: backendStartupError, delayed: startupDeadlineElapsed });
+  }, [ready, backendStartupError, startupDeadlineElapsed]);
   const [mounted, setMounted] = useState(true);
 
   useEffect(() => {
@@ -172,7 +172,7 @@ function FullAppRootView() {
 
   return (
     <>
-      {mounted && (
+      {mounted && !earlySplash && (
         <div
           className={cn(
             "fixed inset-0 z-[9999] bg-background transition-transform duration-200 ease-out motion-reduce:duration-0",

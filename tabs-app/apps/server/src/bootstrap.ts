@@ -3,7 +3,12 @@ import * as Net from "node:net";
 import * as readline from "node:readline";
 import type { Readable } from "node:stream";
 
-import { Data, Effect, Option, Predicate, Result, Schema } from "effect";
+import * as Data from "effect/Data";
+import * as Effect from "effect/Effect";
+import * as Option from "effect/Option";
+import * as Predicate from "effect/Predicate";
+import * as Result from "effect/Result";
+import * as Schema from "effect/Schema";
 import { decodeJsonResult } from "@tabs/shared/schemaJson";
 
 class BootstrapError extends Data.TaggedError("BootstrapError")<{

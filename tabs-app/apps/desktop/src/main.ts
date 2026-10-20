@@ -1,4 +1,6 @@
 import { extensionHostVersion } from "./extensionHostVersion";
+import { writeBackendBootstrap } from "./backendBootstrap";
+import { createStartupWindowReveal } from "./startupWindowReveal";
 import { officialExchangeTrust } from "./officialExchangeTrust";
 import { fetchExchangeListingAsset } from "./exchangeListingAsset";
 import { RegistryTrustStore, DEFAULT_EXCHANGE_ORIGIN } from "./registryTrustStore";
@@ -451,6 +453,10 @@ function getSshEnvironmentBridge(): Promise<SshEnvironmentBridge> {
 let currentDesktopIconTheme = loadDesktopIconThemePreference();
 let backendProcess: ChildProcess.ChildProcess | null = null;
 let backendPort = 0;
+let resolveBackendConfiguration!: () => void;
+const backendConfigurationReady = new Promise<void>((resolve) => {
+  resolveBackendConfiguration = resolve;
+});
 let backendAuthToken = "";
 let backendWsUrl = "";
 let backendHttpUrl = "";
@@ -2265,8 +2271,10 @@ function startBackend(): void {
   });
   const bootstrapStream = child.stdio[3];
   if (bootstrapStream && "write" in bootstrapStream) {
-    bootstrapStream.write(
-      `${JSON.stringify({
+    void writeBackendBootstrap(
+      bootstrapStream,
+      Promise.all([shellEnvironmentReady, backendConfigurationReady]),
+      () => ({
         mode: "desktop",
         desktopTelemetryFd: 4,
         noBrowser: true,
@@ -2278,27 +2286,51 @@ function startBackend(): void {
         desktopBootstrapToken: backendAuthToken,
         tailscaleServeEnabled: false,
         tailscaleServePort: 443,
+        ...(shellEnvironmentHydrated && process.env.PATH
+          ? {
+              shellEnvironment: {
+                PATH: process.env.PATH,
+                ...(process.env.SSH_AUTH_SOCK ? { SSH_AUTH_SOCK: process.env.SSH_AUTH_SOCK } : {}),
+              },
+            }
+          : {}),
         ...(extensionAiBrokerConfig ? { desktopExtensionBroker: extensionAiBrokerConfig } : {}),
-      })}\n`,
+      }),
+      () => {
+        writeDesktopLogHeader("backend bootstrap pipe failed");
+        child.kill("SIGTERM");
+      },
     );
-    bootstrapStream.end();
   } else {
     child.kill("SIGTERM");
     scheduleBackendRestart("missing desktop bootstrap pipe");
     return;
   }
   const telemetryStream = child.stdio[4];
-  const stopTelemetry =
-    telemetryStream && "write" in telemetryStream
-      ? publishDesktopResources(
-          telemetryStream,
-          () => app.getAppMetrics(),
-          readHostPowerSnapshot,
-          process.pid,
-        )
-      : () => undefined;
-  child.once("exit", stopTelemetry);
-  child.once("error", stopTelemetry);
+  // Electron metrics/power APIs require readiness; loading the Node backend does not.
+  let stopTelemetry = () => {};
+  let telemetryStopped = false;
+  const stopResourceTelemetry = () => {
+    telemetryStopped = true;
+    stopTelemetry();
+  };
+  void app
+    .whenReady()
+    .then(() => {
+      if (telemetryStopped || child.exitCode !== null || child.signalCode !== null) return;
+      if (!telemetryStream || !("write" in telemetryStream) || telemetryStream.destroyed) return;
+      stopTelemetry = publishDesktopResources(
+        telemetryStream,
+        () => app.getAppMetrics(),
+        readHostPowerSnapshot,
+        process.pid,
+      );
+    })
+    .catch((error) => {
+      writeDesktopLogHeader(`backend telemetry could not start: ${formatErrorMessage(error)}`);
+    });
+  child.once("exit", stopResourceTelemetry);
+  child.once("error", stopResourceTelemetry);
   backendProcess = child;
   let backendSessionClosed = false;
   const closeBackendSession = (details: string) => {
@@ -4617,12 +4649,44 @@ function createTabsWindow(): BrowserWindow {
     window.setTitle(APP_DISPLAY_NAME);
     emitUpdateState();
   });
-  window.once("ready-to-show", () => {
-    if (process.env.TABS_DEV_RESTART === "1") {
-      window.showInactive();
-    } else {
-      window.show();
-    }
+  const reveal = createStartupWindowReveal(() => {
+    if (process.env.TABS_DEV_RESTART === "1") window.showInactive();
+    else window.show();
+  });
+  window.once("ready-to-show", reveal.frameReady);
+  let splashPainted = false;
+  let startupRecovery: ReturnType<typeof setTimeout> | undefined;
+  const onStartupPaint = (event: Electron.IpcMainEvent) => {
+    if (!isTrustedTabsSender(event)) return;
+    splashPainted = true;
+    clearTimeout(startupRecovery);
+    reveal.contentReady();
+  };
+  window.webContents.once("did-finish-load", () => {
+    if (splashPainted) return;
+    // Recover visibly if even the small entry chunk failed. Successful startup
+    // never waits for this timeout; it reveals the actual animation immediately.
+    startupRecovery = setTimeout(() => {
+      if (window.isDestroyed() || window.isVisible()) return;
+      void window.webContents
+        .executeJavaScript(`(() => {
+        const root = document.getElementById('root');
+        if (root) {
+          root.textContent = 'Tabs could not start. Reload the window to try again.';
+          root.setAttribute('role', 'alert');
+        }
+      })()`)
+        .catch(() => {})
+        .finally(() => {
+          if (!window.isDestroyed()) reveal.contentReady();
+        });
+    }, 10_000);
+  });
+  const startupIpc = window.webContents.ipc;
+  startupIpc.on("desktop:startup-painted", onStartupPaint);
+  window.once("closed", () => {
+    startupIpc.removeListener("desktop:startup-painted", onStartupPaint);
+    clearTimeout(startupRecovery);
   });
 
   if (isDevelopment && process.env.VITE_DEV_SERVER_URL) {
@@ -4876,7 +4940,7 @@ async function bootstrap(): Promise<void> {
 
   // Start the loopback control channel and expose its URL to the embedded
   // Code-OSS extension host via env (inherited by the spawned REH server). Done
-  // before startBackend so the env is in place when the code session later
+  // before creating the window so the env is in place when the code session later
   // spawns its server. Non-fatal if it fails — the chrome simply can't drive
   // the workbench (clicks become no-ops) but the editor still works.
   try {
@@ -4906,13 +4970,12 @@ async function bootstrap(): Promise<void> {
 
   registerIpcHandlers();
   writeDesktopLogHeader("bootstrap ipc handlers registered");
-  // Paint the shell while the login-shell lookup runs. Provider processes still
-  // receive the resolved PATH and SSH agent before the backend is spawned.
+  // Release configuration and paint the shell while the backend finishes loading.
+  // Provider processes still receive the resolved shell through the bootstrap pipe.
+  resolveBackendConfiguration();
   mainWindow = createWindow();
-  await shellEnvironmentReady;
-  if (isQuitting) return;
   startBackend();
-  writeDesktopLogHeader("bootstrap backend start requested");
+  writeDesktopLogHeader("bootstrap backend configuration released");
   void checkAllInstalledExchangeStatuses();
   restartExchangeHints();
   exchangeStatusTimer = setInterval(() => {
@@ -5149,6 +5212,9 @@ app.on("before-quit", (event) => {
 });
 
 if (clerkBridge.isPrimaryInstance) {
+  // Parse backend modules while Electron initializes. The bootstrap pipe stays
+  // closed until ports, broker configuration and the login shell are ready.
+  startBackend();
   app
     .whenReady()
     .then(() => {

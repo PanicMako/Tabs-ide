@@ -49,7 +49,7 @@ it("mixes locally loaded roles independently and keeps the description outside t
       .element();
     expect(getComputedStyle(paragraph).fontFamily).toContain("Absans");
     const heading = page.getByRole("heading", { name: "About", exact: true }).element();
-    expect(paragraph.parentElement).toBe(heading.parentElement!.parentElement!.parentElement);
+    expect(paragraph.parentElement).toBe(heading.closest('[data-slot="settings-page-header"]'));
     const stored = JSON.parse(localStorage.getItem("tabs:font-preferences")!);
     expect(stored).toMatchObject({
       uiFont: "'Syne', sans-serif",

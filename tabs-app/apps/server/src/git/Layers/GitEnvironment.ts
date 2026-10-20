@@ -1,4 +1,5 @@
-import { Effect, Layer } from "effect";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
 import type { GitEnvironmentResult } from "@tabs/contracts";
 
 import { runProcess } from "../../processRunner.ts";

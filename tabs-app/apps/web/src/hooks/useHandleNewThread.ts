@@ -7,7 +7,7 @@ import {
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { useCallback } from "react";
 import { type DraftThreadEnvMode, type DraftThreadState } from "../composerDraftStore";
-import { composerDraftActions, useDraftThread } from "../state/composerDrafts";
+import { createScopedComposerDraftActions, useDraftThread } from "../state/composerDrafts";
 import { projectsAtom, threadsAtom } from "../state/threads";
 import { useWorkspaceActiveProjectId, workspaceShellActions } from "../state/workspaceShell";
 import { useAtomValue } from "@effect/atom-react";
@@ -25,7 +25,7 @@ export function useHandleNewThread() {
     strict: false,
     select: (params) => (params.environmentId as EnvironmentId | undefined) ?? null,
   });
-  const activeDraftThread = useDraftThread(routeThreadId);
+  const activeDraftThread = useDraftThread(routeThreadId, routeEnvironmentId);
 
   const activeThread = routeThreadId
     ? threads.find(
@@ -48,6 +48,10 @@ export function useHandleNewThread() {
         skipNavigation?: boolean;
       },
     ): Promise<ThreadId | null> => {
+      const projectEnvironmentId =
+        options?.environmentId ??
+        projects.find((project) => project.id === projectId)?.environmentId;
+      if (!projectEnvironmentId) return Promise.resolve(null);
       const {
         clearProjectDraftThreadId,
         getDraftThread,
@@ -55,10 +59,7 @@ export function useHandleNewThread() {
         applyStickyState,
         setDraftThreadContext,
         setProjectDraftThreadId,
-      } = composerDraftActions;
-      const projectEnvironmentId =
-        options?.environmentId ??
-        projects.find((project) => project.id === projectId)?.environmentId;
+      } = createScopedComposerDraftActions(projectEnvironmentId);
       const hasBranchOption = options?.branch !== undefined;
       const hasWorktreePathOption = options?.worktreePath !== undefined;
       const hasEnvModeOption = options?.envMode !== undefined;

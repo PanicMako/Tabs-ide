@@ -1,7 +1,9 @@
 import { randomUUID } from "node:crypto";
 
 import type { ThreadId } from "@tabs/contracts";
-import { Duration, Effect, Option } from "effect";
+import * as Duration from "effect/Duration";
+import * as Effect from "effect/Effect";
+import * as Option from "effect/Option";
 import * as Semaphore from "effect/Semaphore";
 
 export interface ProviderLifecycleLease {

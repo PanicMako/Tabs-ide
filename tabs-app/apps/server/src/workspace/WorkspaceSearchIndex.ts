@@ -1,17 +1,15 @@
-import * as NodeModule from "node:module";
-
-import {
-  FileFinder,
-  type DirItem,
-  type DirSearchResult,
-  type FileItem,
-  type FileFinder as FileFinderType,
-  type GrepCursor,
-  type MixedItem,
-  type MixedSearchResult,
-  type Result,
-  type SearchResult,
+import type {
+  DirItem,
+  DirSearchResult,
+  FileItem,
+  FileFinder as FileFinderType,
+  GrepCursor,
+  MixedItem,
+  MixedSearchResult,
+  Result,
+  SearchResult,
 } from "@ff-labs/fff-node";
+import { lazyModule } from "../lazyModule.ts";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -27,6 +25,9 @@ import type {
   ProjectSearchEntriesResult,
 } from "@tabs/contracts";
 import { isWorkspaceImagePreviewPath } from "@tabs/shared/filePreview";
+
+// Keep the native binary and its disk-backed loader out of server startup.
+const loadFileFinder = lazyModule(() => import("@ff-labs/fff-node"));
 
 const WORKSPACE_INDEX_MAX_ENTRIES = 25_000;
 const WORKSPACE_INDEX_PAGE_SIZE = WORKSPACE_INDEX_MAX_ENTRIES + 2;
@@ -298,6 +299,15 @@ const createFinder = Effect.fn("WorkspaceSearchIndex.createFinder")(function* (
   cwd: string,
   variant: WorkspaceSearchIndexVariant,
 ) {
+  const { FileFinder } = yield* Effect.tryPromise({
+    try: loadFileFinder,
+    catch: (cause) =>
+      new WorkspaceSearchIndexCreateFailed({
+        cwd,
+        reason: "Could not load the native workspace search library.",
+        cause,
+      }),
+  });
   const result = yield* Effect.try({
     try: () =>
       FileFinder.create({

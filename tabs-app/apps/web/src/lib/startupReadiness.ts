@@ -13,6 +13,7 @@
  */
 
 export type StartupStage =
+  | "splash-first-paint"
   | "shell-first-paint"
   | "renderer-hydration"
   | "workspace-interactive"

@@ -13,7 +13,7 @@
  * @module audit/AuditOrchestrationService
  */
 
-import { Effect } from "effect";
+import * as Effect from "effect/Effect";
 import type {
   AuditFinding,
   AuditScanInput,

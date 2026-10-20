@@ -23,7 +23,9 @@ const safeStorage = typeof localStorage !== "undefined" ? localStorage : createM
 export const useRightPanelStore = create<RightPanelState>()(
   persist(
     (set) => ({
-      isOpen: true,
+      // On narrow windows this is a modal sheet. Do not cover a fresh workspace
+      // until the user asks for a surface; persisted choices are still restored.
+      isOpen: false,
       maximized: false,
       setMaximized: (maximized) => set({ maximized }),
       activeTab: "diff",

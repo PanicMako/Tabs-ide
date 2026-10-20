@@ -724,6 +724,7 @@ function mapThreadFromV2Shell(
       ...(shell.lastError ? { lastError: shell.lastError } : {}),
     },
     messages: existing?.messages ?? [],
+    visibleItemCount: shell.visibleItemCount,
     proposedPlans: existing?.proposedPlans ?? [],
     error: shell.lastError ?? null,
     createdAt: createdAtIso,
@@ -1057,6 +1058,7 @@ export function applyThreadProjection(
     interactionMode: projection.thread.interactionMode,
     session: existing?.session ?? null,
     messages: mappedMessages,
+    visibleItemCount: existing?.visibleItemCount,
     proposedPlans: projection.plans.map((p) => ({
       id: p.id as any,
       turnId: null,
@@ -1102,7 +1104,7 @@ export function applyThreadProjection(
   };
 
   const threads = existing
-    ? state.threads.map((t) => (t.id === projection.thread.id ? updatedThread : t))
+    ? state.threads.map((t) => (t === existing ? updatedThread : t))
     : [...state.threads, updatedThread];
   return { ...state, threads };
 }

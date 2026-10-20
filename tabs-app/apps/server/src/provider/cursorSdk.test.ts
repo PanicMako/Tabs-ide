@@ -30,9 +30,18 @@ registerHooks({
   },
 });
 
-const { isCursorShellSpawnFailure } = await import(${JSON.stringify(cursorSdkUrl)});
+const { isCursorShellSpawnFailure, loadCursorSdk } = await import(${JSON.stringify(cursorSdkUrl)});
 const mode = process.argv[1];
 const missingCwd = join(tmpdir(), "t3-missing-cwd-" + process.pid);
+
+if (mode === "lazy-load") {
+  const { createRequire } = await import("node:module");
+  const require = createRequire(import.meta.url);
+  const before = require.cache[stub];
+  const sdk = loadCursorSdk();
+  console.log(JSON.stringify({ unloaded: before === undefined, loaded: Boolean(require.cache[stub]), cached: sdk === loadCursorSdk() }));
+  process.exit(0);
+}
 
 if (mode === "predicate") {
   const cursorShell = Object.assign(new Error("spawn /bin/zsh ENOENT"), {
@@ -164,6 +173,11 @@ describe("isCursorShellSpawnFailure", () => {
 });
 
 describe("Cursor shell spawn guard", () => {
+  it("loads the SDK only on demand and reuses it", async () => {
+    const result = await runProbe("lazy-load");
+    expect(result.code).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual({ unloaded: true, loaded: true, cached: true });
+  });
   it("keeps the process alive when Cursor's shell spawn rejects", async () => {
     const result = await runProbe("cursor-shell");
     expect(result.code).toBe(0);

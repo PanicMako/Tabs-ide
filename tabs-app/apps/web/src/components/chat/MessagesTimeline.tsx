@@ -273,6 +273,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
   const scrollAnchorRef = useRef<{
     element: HTMLElement | null;
     offsetFromTop: number;
+    scrollTop: number;
   } | null>(null);
 
   useLayoutEffect(() => {
@@ -283,6 +284,11 @@ export const MessagesTimeline = memo(function MessagesTimeline({
       return;
     }
 
+    // A scroll since the previous render establishes a new reading position.
+    // Reusing the old offset would undo manual navigation on the next stream update.
+    if (scrollAnchorRef.current?.scrollTop !== scrollContainer.scrollTop) {
+      scrollAnchorRef.current = null;
+    }
     if (scrollAnchorRef.current?.element?.isConnected) {
       const currentRect = scrollAnchorRef.current.element.getBoundingClientRect();
       const containerRect = scrollContainer.getBoundingClientRect();
@@ -291,6 +297,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
       if (Math.abs(drift) > 0.5) {
         scrollContainer.scrollTop += drift;
       }
+      scrollAnchorRef.current.scrollTop = scrollContainer.scrollTop;
     } else {
       const containerRect = scrollContainer.getBoundingClientRect();
       const rowElements = scrollContainer.querySelectorAll<HTMLElement>("[data-timeline-row-kind]");
@@ -300,6 +307,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
           scrollAnchorRef.current = {
             element: row,
             offsetFromTop: rowRect.top - containerRect.top,
+            scrollTop: scrollContainer.scrollTop,
           };
           break;
         }

@@ -2,7 +2,7 @@ import * as Crypto from "node:crypto";
 import * as FS from "node:fs";
 import * as Path from "node:path";
 import { BaseFetcher, Updater, type UpdaterOptions } from "tuf-js";
-import { DownloadHTTPError } from "tuf-js/dist/error";
+import { DownloadHTTPError, ExpiredMetadataError, RuntimeError } from "tuf-js/dist/error";
 import { isSafeExtensionPackageVersion } from "@tabs/shared/extensions";
 
 const SEGMENT = /^[a-z][a-z0-9-]{1,62}$/;
@@ -152,7 +152,23 @@ export class TrustedExchange {
     this.refreshInFlight ??= (async () => {
       const updater = this.initialUpdater ?? new Updater(this.updaterOptions);
       this.initialUpdater = null;
-      await updater.refresh();
+      try {
+        await updater.refresh();
+      } catch (error) {
+        // tuf-js wraps timestamp/snapshot expiry in RuntimeError without a cause.
+        // Keep expiry a verification failure, rather than enabling offline fallback.
+        const role =
+          error instanceof ExpiredMetadataError || error instanceof RuntimeError
+            ? /\b(root|timestamp|snapshot|targets)\.json is expired\b/.exec(error.message)?.[1]
+            : undefined;
+        if (role) {
+          throw new ExpiredMetadataError(
+            `The Exchange registry's signed ${role}.json metadata has expired. Retry after the registry operator publishes fresh signed metadata at ${new URL("/admin/releases", this.updaterOptions.metadataBaseUrl)}.`,
+            { cause: error },
+          );
+        }
+        throw error;
+      }
       return updater;
     })().finally(() => {
       this.refreshInFlight = null;

@@ -12,7 +12,9 @@ import { accessSync, constants, readdirSync, statSync } from "node:fs";
 import { extname, join } from "node:path";
 
 import { EDITORS, type EditorId } from "@tabs/contracts";
-import { Schema, Effect, Layer } from "effect";
+import * as Schema from "effect/Schema";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
 
 // ==============================
 // Definitions

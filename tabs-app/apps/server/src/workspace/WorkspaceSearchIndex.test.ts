@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import {
   FileFinder,
   type FileItem,
@@ -414,3 +415,32 @@ it.effect("continues whole-word searches after a filtered grep page", () =>
     }),
   ),
 );
+
+it("keeps native search unloaded until requested and reports load failures", () => {
+  const child = spawnSync(
+    process.execPath,
+    [
+      "--input-type=module",
+      "--eval",
+      `
+import { registerHooks } from "node:module";
+import assert from "node:assert/strict";
+import * as Effect from ${JSON.stringify(import.meta.resolve("effect/Effect"))};
+let loads = 0;
+registerHooks({ resolve(specifier, context, next) {
+  if (specifier === "@ff-labs/fff-node") { loads++; throw new Error("native-loader-test-failure"); }
+  return next(specifier, context);
+}});
+const { make } = await import(${JSON.stringify(new URL("./WorkspaceSearchIndex.ts", import.meta.url).href)});
+assert.equal(loads, 0);
+const error = await Effect.runPromise(Effect.flip(Effect.scoped(make("/workspace/project"))));
+assert.equal(loads, 1);
+assert.equal(error._tag, "WorkspaceSearchIndexCreateFailed");
+assert.equal(error.cause.message, "native-loader-test-failure");
+`,
+    ],
+    { encoding: "utf8", timeout: 10_000 },
+  );
+  expect(child.error).toBeUndefined();
+  expect(child.status, child.stderr).toBe(0);
+}, 15_000);

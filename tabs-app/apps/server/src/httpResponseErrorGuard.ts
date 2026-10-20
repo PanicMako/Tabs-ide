@@ -24,18 +24,64 @@ import type * as NodeHttp from "node:http";
 export function guardHttpResponseWriteErrors<T extends NodeHttp.Server>(
   server: T,
   onError?: (error: unknown) => void,
+  options: { startupWaitMs?: number; maxPendingRequests?: number } = {},
 ): T {
-  server.on("request", (request, response) => {
-    response.on("error", (error) => {
-      onError?.(error);
+  const guardedResponses = new WeakSet<NodeHttp.ServerResponse>();
+  const pending = new Set<{
+    request: NodeHttp.IncomingMessage;
+    response: NodeHttp.ServerResponse;
+    cancel: () => void;
+  }>();
+  const unavailable = (request: NodeHttp.IncomingMessage, response: NodeHttp.ServerResponse) => {
+    request.resume();
+    if (response.destroyed || response.writableEnded) return;
+    response.writeHead(503, { "Retry-After": "1", "Cache-Control": "no-store" });
+    response.end();
+  };
+  // newListener fires before attachment. Forward on the next microtask, once
+  // the real handler can apply its normal routing, authentication and CORS.
+  server.on("newListener", (event) => {
+    if (event !== "request") return;
+    queueMicrotask(() => {
+      if (server.listenerCount("request") <= 1) return;
+      for (const item of pending) {
+        item.cancel();
+        if (!item.response.destroyed && !item.response.writableEnded) {
+          server.emit("request", item.request, item.response);
+        }
+      }
     });
-    // The platform opens its listener before building the application routes.
-    // Requests in that gap have nobody to answer them and otherwise hang until
-    // the client times out. Drain the body and ask the client to retry instead.
+  });
+  server.on("request", (request, response) => {
+    if (!guardedResponses.has(response)) {
+      guardedResponses.add(response);
+      response.on("error", (error) => onError?.(error));
+    }
+    // The platform opens its socket before attaching application routes.
+    // Retain a bounded number of requests briefly instead of returning a
+    // response without the application's CORS policy on every startup retry.
     if (server.listenerCount("request") === 1) {
-      request.resume();
-      response.writeHead(503, { "Retry-After": "1", "Cache-Control": "no-store" });
-      response.end();
+      if (pending.size >= (options.maxPendingRequests ?? 64)) {
+        unavailable(request, response);
+        return;
+      }
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const item = {
+        request,
+        response,
+        cancel: () => {
+          pending.delete(item);
+          clearTimeout(timer);
+          response.removeListener("close", item.cancel);
+        },
+      };
+      pending.add(item);
+      response.once("close", item.cancel);
+      timer = setTimeout(() => {
+        item.cancel();
+        unavailable(request, response);
+      }, options.startupWaitMs ?? 5_000);
+      timer.unref();
     }
   });
   server.on("upgrade", (_request, socket) => {

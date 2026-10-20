@@ -189,6 +189,39 @@ describe("wsNativeApi", () => {
     stopLate();
   });
 
+  it("preserves keybinding validation notifications without turning them into settings updates", async () => {
+    const { createWsNativeApi, onServerConfigUpdated } = await import("./wsNativeApi");
+    const { DEFAULT_SERVER_SETTINGS } = await import("@tabs/contracts");
+    const { createKeybindingsUpdateToastController } =
+      await import("./components/KeybindingsUpdateToast.logic");
+    createWsNativeApi();
+    const subscription = (subscribeRpcMock.mock.calls as unknown[][]).find(
+      (call) => call[0] === WS_METHODS.subscribeServerConfig,
+    )!;
+    const receive = subscription[3] as (event: unknown) => void;
+    const listener = vi.fn();
+    const stop = onServerConfigUpdated(listener);
+    receive({
+      version: 1,
+      type: "snapshot",
+      config: { issues: [], providers: [], settings: DEFAULT_SERVER_SETTINGS },
+    });
+    const issues = [{ kind: "keybindings.invalid-entry", message: "Invalid shortcut" }];
+    receive({ version: 1, type: "keybindingsUpdated", payload: { keybindings: [], issues } });
+    const notification = listener.mock.lastCall![0];
+    expect(createKeybindingsUpdateToastController({}).handle(notification)).toEqual({
+      _tag: "InvalidConfiguration",
+      message: "Invalid shortcut",
+    });
+    const late = vi.fn();
+    const stopLate = onServerConfigUpdated(late);
+    expect(late).toHaveBeenCalledWith(
+      expect.objectContaining({ settings: DEFAULT_SERVER_SETTINGS, issues }),
+    );
+    stop();
+    stopLate();
+  });
+
   it("keeps composer provider updates and late replay owned by their environment API", async () => {
     const { createWsNativeApi, onApiServerProvidersUpdated } = await import("./wsNativeApi");
     const apiA = createWsNativeApi({ singleton: false });
