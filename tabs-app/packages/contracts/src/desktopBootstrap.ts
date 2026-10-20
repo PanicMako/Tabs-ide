@@ -20,6 +20,13 @@ export const DesktopBackendBootstrap = Schema.Struct({
   desktopBootstrapSecret: Schema.optionalKey(Schema.String),
   desktopTelemetryFd: Schema.optionalKey(Schema.Int),
   desktopTelemetryControlFd: Schema.optionalKey(Schema.Int),
+  // Delivered over the bootstrap pipe after the parent login-shell lookup.
+  shellEnvironment: Schema.optionalKey(
+    Schema.Struct({
+      PATH: Schema.String.check(Schema.isMinLength(1)),
+      SSH_AUTH_SOCK: Schema.optionalKey(Schema.String),
+    }),
+  ),
   resourceMonitorPath: Schema.optionalKey(Schema.String),
   tailscaleServeEnabled: Schema.optionalKey(Schema.Boolean),
   tailscaleServePort: Schema.optionalKey(PortSchema),

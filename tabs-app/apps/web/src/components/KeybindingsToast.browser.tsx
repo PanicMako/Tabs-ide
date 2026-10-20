@@ -8,10 +8,10 @@ import {
   type ServerConfig,
   type ThreadId,
   type WsWelcomePayload,
-  WS_CHANNELS,
   WS_METHODS,
   DEFAULT_SERVER_SETTINGS,
 } from "@tabs/contracts";
+import { toastManager } from "./ui/toast";
 import { DEFAULT_CLIENT_SETTINGS } from "@tabs/contracts/settings";
 import { RouterProvider, createMemoryHistory } from "@tanstack/react-router";
 import { ws, http, HttpResponse } from "msw";
@@ -21,9 +21,13 @@ import { render } from "vitest-browser-react";
 
 import { useComposerDraftStore } from "../composerDraftStore";
 import { makeAppModelSelection } from "../modelSelection";
-import { makeTestServerProvider } from "../test/serverProviderFixture";
+import { initializeComposerDraftsState } from "../state/composerDrafts";
+import { initializeWorkspaceShellState } from "../state/workspaceShell";
+import { useRightPanelStore } from "../stores/rightPanelStore";
+import { useWorkspaceShellStore } from "../workspaceShellStore";
+import { attachBrowserRpcFixture, browserTestProviders } from "../test/browserRpcFixture";
 import { getRouter } from "../router";
-import { appAtomRegistry } from "../state/atomRegistry";
+import { appAtomRegistry, AppAtomRegistryProvider } from "../state/atomRegistry";
 import { readModelStateAtom } from "../state/readModel";
 
 const THREAD_ID = "thread-kb-toast-test" as ThreadId;
@@ -37,8 +41,7 @@ interface TestFixture {
 }
 
 let fixture: TestFixture;
-let wsClient: { send: (data: string) => void } | null = null;
-let pushSequence = 1;
+let fixtureRpc: ReturnType<typeof attachBrowserRpcFixture> | null = null;
 
 const wsLink = ws.link(/ws(s)?:\/\/.*/);
 
@@ -48,7 +51,7 @@ function createBaseServerConfig(): any {
     keybindingsConfigPath: "/repo/project/.tabs-keybindings.json",
     keybindings: [],
     issues: [],
-    providers: [makeTestServerProvider({ checkedAt: NOW_ISO })],
+    providers: browserTestProviders(NOW_ISO),
     availableEditors: [],
     settings: {
       ...DEFAULT_SERVER_SETTINGS,
@@ -168,52 +171,19 @@ function resolveWsRpc(tag: string): unknown {
 
 const worker = setupWorker(
   wsLink.addEventListener("connection", ({ client }) => {
-    wsClient = client;
-    pushSequence = 1;
-    client.send(
-      JSON.stringify({
-        type: "push",
-        sequence: pushSequence++,
-        channel: WS_CHANNELS.serverWelcome,
-        data: fixture.welcome,
-      }),
+    fixtureRpc = attachBrowserRpcFixture(
+      client,
+      () => fixture,
+      (body) => resolveWsRpc(body._tag),
     );
-    client.addEventListener("message", (event) => {
-      const rawData = event.data;
-      if (typeof rawData !== "string") return;
-      let request: { id: string; body: { _tag: string; [key: string]: unknown } };
-      try {
-        request = JSON.parse(rawData);
-      } catch {
-        return;
-      }
-      const method = request.body?._tag;
-      if (typeof method !== "string") return;
-      client.send(
-        JSON.stringify({
-          id: request.id,
-          result: resolveWsRpc(method),
-        }),
-      );
-    });
   }),
   http.get("*/attachments/:attachmentId", () => new HttpResponse(null, { status: 204 })),
   http.get("*/api/project-favicon", () => new HttpResponse(null, { status: 204 })),
 );
 
 function sendServerConfigUpdatedPush(issues: Array<{ kind: string; message: string }>) {
-  if (!wsClient) throw new Error("WebSocket client not connected");
-  wsClient.send(
-    JSON.stringify({
-      type: "push",
-      sequence: pushSequence++,
-      channel: WS_CHANNELS.serverConfigUpdated,
-      data: {
-        issues,
-        providers: fixture.serverConfig.providers,
-      },
-    }),
-  );
+  if (!fixtureRpc) throw new Error("WebSocket client not connected");
+  fixtureRpc.keybindingsUpdated(issues);
 }
 
 function queryToastTitles(): string[] {
@@ -275,8 +245,19 @@ async function mountApp(): Promise<{ cleanup: () => Promise<void> }> {
 
   const router = getRouter(createMemoryHistory({ initialEntries: [`/${THREAD_ID}`] }));
 
-  const screen = await render(<RouterProvider router={router} />, { container: host });
-  await waitForComposerEditor();
+  const screen = await render(
+    <AppAtomRegistryProvider>
+      <RouterProvider router={router} />
+    </AppAtomRegistryProvider>,
+    { container: host },
+  );
+  try {
+    await waitForComposerEditor();
+  } catch (error) {
+    await screen.unmount();
+    host.remove();
+    throw error;
+  }
 
   return {
     cleanup: async () => {
@@ -288,6 +269,8 @@ async function mountApp(): Promise<{ cleanup: () => Promise<void> }> {
 
 describe("Keybindings update toast", () => {
   beforeAll(async () => {
+    initializeComposerDraftsState();
+    initializeWorkspaceShellState();
     fixture = buildFixture();
     await worker.start({
       onUnhandledRequest: "bypass",
@@ -302,8 +285,9 @@ describe("Keybindings update toast", () => {
 
   beforeEach(() => {
     localStorage.clear();
+    useRightPanelStore.setState({ isOpen: false, maximized: false, choosingSurface: true });
+    useWorkspaceShellStore.setState(useWorkspaceShellStore.getInitialState());
     document.body.innerHTML = "";
-    pushSequence = 1;
     useComposerDraftStore.setState({
       draftsByThreadId: {},
       draftThreadsByThreadId: {},
@@ -320,17 +304,26 @@ describe("Keybindings update toast", () => {
     document.body.innerHTML = "";
   });
 
-  it("shows a toast for each consecutive keybinding update with no issues", async () => {
+  it("coalesces rapid keybinding reloads and reports later successful updates", async () => {
     const mounted = await mountApp();
+    const addToast = vi.spyOn(toastManager, "add");
 
     try {
       sendServerConfigUpdatedPush([]);
       await waitForToast("Keybindings updated", 1);
 
-      // Each server push represents a distinct file change, so it should produce its own toast.
       sendServerConfigUpdatedPush([]);
-      await waitForToast("Keybindings updated", 2);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      expect(queryToastTitles().filter((title) => title === "Keybindings updated")).toHaveLength(1);
+      await new Promise((resolve) => setTimeout(resolve, 2_000));
+      sendServerConfigUpdatedPush([]);
+      await vi.waitFor(() =>
+        expect(
+          addToast.mock.calls.filter(([toast]) => toast.title === "Keybindings updated"),
+        ).toHaveLength(2),
+      );
     } finally {
+      addToast.mockRestore();
       await mounted.cleanup();
     }
   });

@@ -6,6 +6,49 @@ import { render } from "vitest-browser-react";
 import type { RightPanelTab } from "~/stores/rightPanelStore";
 import { SurfaceChooser, SurfaceTabs } from "./SurfaceTabs";
 
+it.each([
+  ["b", "browser"],
+  ["f", "files"],
+  ["t", "terminal"],
+  ["d", "diff"],
+  ["p", "pr"],
+  ["s", "stash"],
+  ["q", "queue"],
+])("opens %s immediately after opening the chooser", async (key, surface) => {
+  const onSelect = vi.fn();
+  function Harness() {
+    const [choosing, setChoosing] = useState(false);
+    return (
+      <div style={{ width: 440 }}>
+        <SurfaceTabs
+          activeTab="browser"
+          choosing={choosing}
+          onSelect={onSelect}
+          onChooserChange={setChoosing}
+          onClosePanel={() => {}}
+          counts={{}}
+          dragRegion={false}
+        />
+        {choosing && <SurfaceChooser onSelect={onSelect} />}
+        <input aria-label="Message" />
+      </div>
+    );
+  }
+  const view = await render(<Harness />);
+  try {
+    await page.getByRole("button", { name: "Open a surface", exact: true }).click();
+    await userEvent.keyboard(key);
+    expect(onSelect).toHaveBeenLastCalledWith(surface);
+    onSelect.mockClear();
+    await page.getByRole("textbox", { name: "Message" }).click();
+    await userEvent.keyboard(key);
+    expect(onSelect).not.toHaveBeenCalled();
+    await expect.element(page.getByRole("textbox", { name: "Message" })).toHaveValue(key);
+  } finally {
+    await view.unmount();
+  }
+});
+
 it("opens, switches, closes and reopens surfaces with stable hover geometry", async () => {
   const onClosePanel = vi.fn();
   function Harness() {
@@ -57,8 +100,8 @@ it("opens, switches, closes and reopens surfaces with stable hover geometry", as
     await userEvent.keyboard("{Delete}");
     await expect.element(stash).toHaveFocus();
     await page.getByRole("button", { name: "Close Stash surface" }).click();
-    await expect.element(add).toHaveFocus();
-    await page.getByRole("button", { name: "Stash Keep prompts for later" }).click();
+    await expect.element(page.getByRole("region", { name: "Choose a surface" })).toHaveFocus();
+    await userEvent.keyboard("s");
     await expect.element(stash).toHaveAttribute("aria-selected", "true");
     await add.click();
     await page.getByRole("button", { name: "Queue Manage upcoming messages" }).click();

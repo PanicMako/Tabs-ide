@@ -10,6 +10,15 @@ const fixture = vi.hoisted(() => ({
   confirm: vi.fn(async () => false),
   send: vi.fn(),
   toast: vi.fn(),
+  sendNext: vi.fn(async () => {}),
+}));
+vi.mock("~/stores/messageQueueStore", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/stores/messageQueueStore")>()),
+  sendNextQueuedItem: fixture.sendNext,
+}));
+vi.mock("~/connection/environmentApiRegistry", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/connection/environmentApiRegistry")>()),
+  environmentApi: async () => ({}),
 }));
 vi.mock("~/lib/customConfirm", () => ({ showCustomConfirm: fixture.confirm }));
 vi.mock("../ui/toast", () => ({ toastManager: { add: fixture.toast } }));
@@ -25,6 +34,8 @@ const other = ThreadId.makeUnsafe("queue-other");
 beforeEach(() => {
   fixture.confirm.mockReset().mockResolvedValue(false);
   fixture.send.mockClear();
+  fixture.sendNext.mockReset().mockResolvedValue(undefined);
+  fixture.toast.mockClear();
   useMessageQueueStore.setState({
     queueByThread: {
       [thread]: [
@@ -97,7 +108,7 @@ it("reorders and deletes messages and confirms before clearing only the active t
     expect(useMessageQueueStore.getState().queueByThread[thread]).toHaveLength(1);
     fixture.confirm.mockResolvedValue(true);
     await page.getByRole("button", { name: "Clear queue", exact: true }).click();
-    expect(useMessageQueueStore.getState().queueByThread[thread]).toBeUndefined();
+    expect(useMessageQueueStore.getState().queueByThread[thread]).toEqual([]);
     expect(useMessageQueueStore.getState().queueByThread[other]).toHaveLength(1);
   } finally {
     await view.unmount();
@@ -113,9 +124,30 @@ it("changes and clears a schedule and passes Send next to the existing handler",
     );
     await page.getByRole("button", { name: "Clear time", exact: true }).first().click();
     expect(useMessageQueueStore.getState().queueByThread[thread]![0]!.scheduledFor).toBeNull();
-    await page.getByRole("button", { name: "Send next", exact: true }).first().click();
+    await page.getByRole("button", { name: "Send queued message 1 next", exact: true }).click();
     expect(fixture.send).toHaveBeenCalledWith(expect.objectContaining({ id: "first" }));
     expect(useMessageQueueStore.getState().queueByThread[thread]).toHaveLength(2);
+  } finally {
+    await view.unmount();
+  }
+});
+
+it("reports a failed Send next without invoking the success callback", async () => {
+  fixture.sendNext.mockRejectedValue(new Error("Upload unavailable"));
+  const view = await render(<MessageQueuePanel activeThreadId={thread} onSendNow={fixture.send} />);
+  try {
+    await page.getByRole("button", { name: "Send queued message 1 next", exact: true }).click();
+    await vi.waitFor(() =>
+      expect(fixture.toast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "error",
+          title: "Failed to send next",
+          description: "Upload unavailable",
+        }),
+      ),
+    );
+    expect(fixture.send).not.toHaveBeenCalled();
+    expect(fixture.toast).not.toHaveBeenCalledWith(expect.objectContaining({ type: "success" }));
   } finally {
     await view.unmount();
   }

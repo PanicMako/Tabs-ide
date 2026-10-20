@@ -1,4 +1,5 @@
 import { extensionHostVersion } from "./extensionHostVersion";
+import { writeBackendBootstrap } from "./backendBootstrap";
 import { officialExchangeTrust } from "./officialExchangeTrust";
 import { fetchExchangeListingAsset } from "./exchangeListingAsset";
 import { RegistryTrustStore, DEFAULT_EXCHANGE_ORIGIN } from "./registryTrustStore";
@@ -2265,8 +2266,10 @@ function startBackend(): void {
   });
   const bootstrapStream = child.stdio[3];
   if (bootstrapStream && "write" in bootstrapStream) {
-    bootstrapStream.write(
-      `${JSON.stringify({
+    void writeBackendBootstrap(
+      bootstrapStream,
+      shellEnvironmentReady,
+      () => ({
         mode: "desktop",
         desktopTelemetryFd: 4,
         noBrowser: true,
@@ -2278,10 +2281,21 @@ function startBackend(): void {
         desktopBootstrapToken: backendAuthToken,
         tailscaleServeEnabled: false,
         tailscaleServePort: 443,
+        ...(shellEnvironmentHydrated && process.env.PATH
+          ? {
+              shellEnvironment: {
+                PATH: process.env.PATH,
+                ...(process.env.SSH_AUTH_SOCK ? { SSH_AUTH_SOCK: process.env.SSH_AUTH_SOCK } : {}),
+              },
+            }
+          : {}),
         ...(extensionAiBrokerConfig ? { desktopExtensionBroker: extensionAiBrokerConfig } : {}),
-      })}\n`,
+      }),
+      () => {
+        writeDesktopLogHeader("backend bootstrap pipe failed");
+        child.kill("SIGTERM");
+      },
     );
-    bootstrapStream.end();
   } else {
     child.kill("SIGTERM");
     scheduleBackendRestart("missing desktop bootstrap pipe");
@@ -4907,10 +4921,8 @@ async function bootstrap(): Promise<void> {
   registerIpcHandlers();
   writeDesktopLogHeader("bootstrap ipc handlers registered");
   // Paint the shell while the login-shell lookup runs. Provider processes still
-  // receive the resolved PATH and SSH agent before the backend is spawned.
+  // receive the resolved PATH and SSH agent through the bootstrap pipe before startup.
   mainWindow = createWindow();
-  await shellEnvironmentReady;
-  if (isQuitting) return;
   startBackend();
   writeDesktopLogHeader("bootstrap backend start requested");
   void checkAllInstalledExchangeStatuses();

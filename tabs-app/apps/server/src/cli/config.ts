@@ -18,6 +18,7 @@ import { Argument, Flag } from "effect/unstable/cli";
 import * as CliError from "effect/unstable/cli/CliError";
 
 import { readBootstrapEnvelope } from "../bootstrap.ts";
+import { applyDesktopShellEnvironment } from "../desktopShellEnvironment.ts";
 import * as ServerConfig from "../config.ts";
 import { expandHomePath, resolveBaseDir } from "../os-jank.ts";
 import { isProcessAlive, readPersistedServerRuntimeState } from "../serverRuntimeState.ts";
@@ -288,6 +289,8 @@ export const resolveServerConfig = (
       ),
       () => "web",
     );
+
+    if (mode === "desktop") applyDesktopShellEnvironment(bootstrap?.shellEnvironment);
 
     const port = yield* Option.match(
       resolveOptionPrecedence(

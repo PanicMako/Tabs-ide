@@ -131,6 +131,8 @@ export interface Thread {
   interactionMode: ProviderInteractionMode;
   session: ThreadSession | null;
   messages: ChatMessage[];
+  /** Content known from the shell before the thread detail has loaded. */
+  visibleItemCount?: number | undefined;
   proposedPlans: ProposedPlan[];
   error: string | null;
   createdAt: string;

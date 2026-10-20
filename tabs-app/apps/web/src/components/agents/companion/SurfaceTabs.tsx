@@ -103,11 +103,27 @@ export const surfaces = [
 ] as const;
 
 export function SurfaceChooser({ onSelect }: { onSelect: (tab: RightPanelTab) => void }) {
+  const chooser = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    chooser.current?.focus({ preventScroll: true });
+  }, []);
   return (
     <div
+      ref={chooser}
+      role="region"
+      aria-label="Choose a surface"
+      tabIndex={-1}
       className="surface-chooser flex min-h-0 flex-1 overflow-y-auto px-7 py-8"
       onKeyDown={(event) => {
-        if (event.metaKey || event.ctrlKey || event.altKey) return;
+        if (
+          event.defaultPrevented ||
+          event.nativeEvent.isComposing ||
+          event.repeat ||
+          event.metaKey ||
+          event.ctrlKey ||
+          event.altKey
+        )
+          return;
         const surface = surfaces.find((item) => item.key === event.key.toLowerCase());
         if (surface) {
           event.preventDefault();
@@ -136,6 +152,7 @@ export function SurfaceChooser({ onSelect }: { onSelect: (tab: RightPanelTab) =>
                   type="button"
                   onClick={() => onSelect(id)}
                   aria-label={`${label} ${description}`}
+                  aria-keyshortcuts={key.toUpperCase()}
                   className="surface-launcher flex w-fit min-w-0 items-center rounded-full px-5 text-left focus-visible:outline-2 focus-visible:outline-ring"
                 >
                   <span className="surface-script">{label}</span>
@@ -321,7 +338,7 @@ export function SurfaceTabs({
                       const next = tablist.current?.querySelector<HTMLButtonElement>(
                         '[role="tab"][aria-selected="true"]',
                       );
-                      (next ?? addButton.current)?.focus({ preventScroll: true });
+                      next?.focus({ preventScroll: true });
                     });
                   }}
                 >
