@@ -2,7 +2,7 @@ import * as NodeOS from "node:os";
 import * as FileSystem from "effect/FileSystem";
 
 import type { AgentOptions, RunResult } from "@cursor/sdk";
-import { Agent } from "../provider/cursorSdk.ts";
+import { loadCursorSdk } from "../provider/cursorSdk.ts";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
@@ -110,20 +110,22 @@ export const makeCursorTextGeneration = Effect.fn("makeCursorTextGeneration")(fu
       } satisfies AgentOptions;
       const createCursorAgent = (sandboxEnabled: boolean) =>
         Effect.tryPromise((signal) =>
-          Agent.create(
-            sandboxEnabled
-              ? agentOptions
-              : {
-                  ...agentOptions,
-                  local: {
-                    ...agentOptions.local,
-                    sandboxOptions: { enabled: false },
+          loadCursorSdk()
+            .Agent.create(
+              sandboxEnabled
+                ? agentOptions
+                : {
+                    ...agentOptions,
+                    local: {
+                      ...agentOptions.local,
+                      sandboxOptions: { enabled: false },
+                    },
                   },
-                },
-          ).then((agent) => {
-            if (signal.aborted) agent.close();
-            return agent;
-          }),
+            )
+            .then((agent) => {
+              if (signal.aborted) agent.close();
+              return agent;
+            }),
         );
 
       const request = Effect.gen(function* () {
