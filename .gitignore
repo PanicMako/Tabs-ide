@@ -21,3 +21,5 @@ synara-main/
 /TODO.md
 /tabs-app/packages/contracts/src.backup/
 /tabs-app/apps/web/.git-redesign/
+# Exported online signer keys belong in the hosting secret store.
+**/exchange-online-signing.json

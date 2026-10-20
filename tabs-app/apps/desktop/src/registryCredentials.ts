@@ -55,26 +55,42 @@ export function registryFetch(
     const headers = new Headers(init.headers);
     if (headers.has("Authorization")) throw new Error("Registry credentials must be host-owned.");
     const token = url.protocol === "https:" ? credentials.get(url.origin) : null;
+    const method = init.method ?? (input instanceof Request ? input.method : "GET");
+    const publicRead =
+      method.toUpperCase() === "GET" &&
+      (/^\/v1\/extensions(?:\/|$)/.test(url.pathname) ||
+        /^\/v1\/tuf\/(?:metadata|targets)\//.test(url.pathname));
     if (token) {
       if (!url.pathname.startsWith("/v1/"))
         throw new Error("Registry credential cannot access this path.");
-      headers.set("Authorization", `Bearer ${token}`);
+      if (!publicRead) headers.set("Authorization", `Bearer ${token}`);
     }
-    const response = await fetcher(input, {
-      ...init,
-      headers,
-      redirect: "manual",
-      credentials: "omit",
-      cache: "no-store",
-    });
-    if (response.status >= 300 && response.status < 400)
-      throw new Error("Registry redirects are forbidden; credentials were not forwarded.");
+    const request = async () => {
+      const response = await fetcher(input, {
+        ...init,
+        headers,
+        redirect: "manual",
+        credentials: "omit",
+        cache: "no-store",
+      });
+      if (response.status >= 300 && response.status < 400)
+        throw new Error("Registry redirects are forbidden; credentials were not forwarded.");
+      if (response.url && new URL(response.url).origin !== url.origin)
+        throw new Error("Registry transport changed origin.");
+      return response;
+    };
+    // Public reads must not depend on a saved token still being valid. Private
+    // registries explicitly deny the anonymous attempt before receiving credentials.
+    let response = await request();
+    if (publicRead && token && (response.status === 401 || response.status === 403)) {
+      await response.body?.cancel();
+      headers.set("Authorization", `Bearer ${token}`);
+      response = await request();
+    }
     if (response.status === 401 || response.status === 403)
       throw new Error(
         "Registry access expired or was denied. Reconnect in Extensions settings. This is not a signed package revocation.",
       );
-    if (response.url && new URL(response.url).origin !== url.origin)
-      throw new Error("Registry transport changed origin.");
     return response;
   };
   // Preserve runtime-specific fetch properties (for example Bun's preconnect).

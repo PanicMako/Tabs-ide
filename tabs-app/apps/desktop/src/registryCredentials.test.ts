@@ -49,9 +49,7 @@ it("binds authorization to its origin and prohibits redirected credentials", asy
   );
   const request = registryFetch(vault, fetcher);
   await request(`${origin}/v1/extensions?q=notes`);
-  expect(new Headers(fetcher.mock.calls[0]?.[1]?.headers).get("Authorization")).toBe(
-    `Bearer ${token}`,
-  );
+  expect(new Headers(fetcher.mock.calls[0]?.[1]?.headers).has("Authorization")).toBe(false);
   expect(fetcher.mock.calls[0]?.[1]).toMatchObject({
     redirect: "manual",
     credentials: "omit",
@@ -61,6 +59,30 @@ it("binds authorization to its origin and prohibits redirected credentials", asy
   expect(new Headers(fetcher.mock.calls[1]?.[1]?.headers).has("Authorization")).toBe(false);
   await expect(request(`${origin}/auth/github/start`)).rejects.toThrow(/path/);
   expect(fetcher).toHaveBeenCalledTimes(2);
+});
+it("retries a private read once with the host-owned credential after anonymous denial", async () => {
+  const { vault } = fixture();
+  vault.set(origin, token);
+  const requests: Array<string | null> = [];
+  const request = registryFetch(vault, async (_input, init) => {
+    requests.push(new Headers(init?.headers).get("Authorization"));
+    return requests.length === 1
+      ? new Response(null, { status: 401 })
+      : Response.json({ ok: true });
+  });
+  expect((await request(`${origin}/v1/tuf/metadata/timestamp.json`)).ok).toBe(true);
+  expect(requests).toEqual([null, `Bearer ${token}`]);
+});
+it("does not require reconnecting an expired saved token to read a public registry", async () => {
+  const { vault } = fixture();
+  vault.set(origin, token);
+  const request = registryFetch(vault, async (_input, init) =>
+    new Headers(init?.headers).has("Authorization")
+      ? new Response(null, { status: 401 })
+      : Response.json({ ok: true }),
+  );
+  expect((await request(`${origin}/v1/extensions`)).ok).toBe(true);
+  expect(vault.has(origin)).toBe(true);
 });
 it("denied transport gives reconnect instructions without asserting signed revocation", async () => {
   const { vault } = fixture();

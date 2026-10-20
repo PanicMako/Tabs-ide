@@ -255,15 +255,20 @@ available. It does not bypass registry revocation checks.
 
 This is an experimental flow, not a production-ready release channel. Desktop checks
 installed Exchange versions against fresh signed metadata at startup, every
-minute, after system resume, and before activation. A version missing from signed targets, or
+minute, after system resume, and in the background when opening an installed tool. A version missing from signed targets, or
 whose signed digest changed, is persistently marked revoked: its active view
 closes, toolbar contributions disappear, and Settings explains the status.
 On HTTPS registries with a configured trust root, signed-publication events
 also prompt a fresh status and update check. These unsigned events only wake
 the client; pinned TUF metadata still determines trust, and minute polling
 continues when the event connection is unavailable.
-Transport outages retain the last known status; invalid or expired metadata
-does not qualify as offline. Revocation is checked every minute, including
+Opening an already verified installed version uses its saved approval and never
+waits for registry access. Known revoked versions remain blocked. Failed refreshes,
+including expired or invalid metadata, preserve the last known installed status
+and are logged for diagnosis. They cannot authorize a new install or update;
+those operations still require current valid signed metadata. A newly published
+revocation takes effect after a successful signed check, including while a tool
+is already open. Revocation is checked every minute, including
 while a view is active, rather than continuously. A newly installed Exchange or
 local-package update retains the previous package and assignment until its first view loads,
 including across an app restart. A failed first load restores that package

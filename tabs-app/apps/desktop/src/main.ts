@@ -4,6 +4,7 @@ import { createStartupWindowReveal } from "./startupWindowReveal";
 import { officialExchangeTrust } from "./officialExchangeTrust";
 import { fetchExchangeListingAsset } from "./exchangeListingAsset";
 import { RegistryTrustStore, DEFAULT_EXCHANGE_ORIGIN } from "./registryTrustStore";
+import { activateWithExchangeRefresh } from "./extensionActivation";
 import { publishDesktopResources } from "./desktopResourceTelemetry";
 import { createBackendStartupErrorDecoder } from "@tabs/shared/backendStartup";
 import desktopPackage from "../package.json" with { type: "json" };
@@ -2793,15 +2794,17 @@ function registerIpcHandlers(): void {
       throw new Error("Invalid activation attempt ID.");
     }
     const before = extensionViewManager.list().find((entry) => entry.id === value.extensionId);
-    if (before?.source === "exchange") {
-      if (before.revoked) throw new Error("This extension version has been revoked.");
-      await checkInstalledExchangeStatus(before.id);
-      const after = extensionViewManager.list().find((entry) => entry.id === value.extensionId);
-      if (!after || after.digest !== before.digest || after.revoked) {
-        throw new Error("Extension status changed; select the tool again.");
-      }
-    }
-    await extensionViewManager.activate(value);
+    await activateWithExchangeRefresh({
+      source: before?.source,
+      revoked: before?.revoked,
+      activate: () => extensionViewManager.activate(value),
+      refresh: () => checkInstalledExchangeStatus(value.extensionId),
+      reportRefreshError: (error) => {
+        writeDesktopLogHeader(
+          `Exchange background activation status check failed for ${value.extensionId}: ${formatErrorMessage(error)}`,
+        );
+      },
+    });
   });
   ipcMain.removeHandler(EXTENSION_SET_BOUNDS_CHANNEL);
   ipcMain.handle(EXTENSION_SET_BOUNDS_CHANNEL, async (event, input: unknown) => {

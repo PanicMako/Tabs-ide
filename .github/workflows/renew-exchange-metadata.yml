@@ -1,0 +1,48 @@
+name: Renew Exchange metadata
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: exchange-metadata-renewal
+  cancel-in-progress: false
+jobs:
+  renew:
+    if: vars.EXCHANGE_AUTO_RENEWAL_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
+        working-directory: tabs-app
+      - name: Renew previously published approvals
+        working-directory: tabs-app/apps/exchange
+        env:
+          SIGNER_KEYS_JSON: ${{ secrets.EXCHANGE_ONLINE_SIGNING_KEYS }}
+          EXCHANGE_ORIGIN: https://exchange.buildwithtabs.com
+          DATABASE_URL: ${{ secrets.EXCHANGE_DATABASE_URL }}
+          S3_BUCKET: tabs-exchange
+          S3_ENDPOINT: ${{ secrets.EXCHANGE_S3_ENDPOINT }}
+          S3_ACCESS_KEY_ID: ${{ secrets.EXCHANGE_S3_ACCESS_KEY_ID }}
+          S3_SECRET_ACCESS_KEY: ${{ secrets.EXCHANGE_S3_SECRET_ACCESS_KEY }}
+          S3_REGION: auto
+        run: |
+          set -euo pipefail
+          umask 077
+          key_file="$(mktemp "$RUNNER_TEMP/exchange-signer.XXXXXX")"
+          trap 'rm -f -- "$key_file"' EXIT
+          if [ -z "$SIGNER_KEYS_JSON" ]; then
+            echo "::error::Provision the dedicated non-root signer before enabling renewal."
+            exit 1
+          fi
+          printf '%s' "$SIGNER_KEYS_JSON" > "$key_file"
+          unset SIGNER_KEYS_JSON
+          export EXCHANGE_ONLINE_SIGNING_KEY_FILE="$key_file"
+          bun run tuf:renew
