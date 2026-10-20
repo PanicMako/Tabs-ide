@@ -57,3 +57,11 @@ These are local diagnostic samples, not a release benchmark or a universal speed
 Regression coverage includes asynchronous shell completion/failure, reuse of the hydrated environment, requests before/after handler registration, bounded initial retries, normal outage behavior, and 401 versus legacy-backend authentication responses. Existing startup command readiness and package trust checks are unchanged.
 
 Follow-up final validation: 627 desktop tests, 1,670 web tests, 1,185 shared tests and 7,536 backend tests passed after the optional-library follow-up (11,018 total; backend suite also has 35 existing skipped tests). All 16 workspace type checks passed. Production web and desktop builds and the backend bundle passed; `vp check` reported zero errors and 662 existing warnings. No startup measurement was taken while these checks ran.
+
+## Review of the existing fixes
+
+The subsequent review found both fixes already committed on `codex/extension-data-startup-fixes` and published in PR #36. Real Electron acceptance passed again, including delete-data reinstall and cross-extension isolation. The extension settings and tool surface browser suites passed (five tests). Existing uncommitted settings and toolbar changes were preserved.
+
+Additional browser checks reproduced five stale failures in the compact composer and provider model picker suites. Composer fixtures supplied legacy capability fields without the option descriptors consumed by the current traits UI. They now use `createModelCapabilities` with explicit descriptors. The disabled Ultrathink test now uses a mention inside the prompt body and asserts all five effort choices are disabled; a removable prefix has different behavior. The locked-provider test now checks actual menu choices rather than rejecting explanatory text that mentions other providers.
+
+All 16 browser tests across these four suites pass together. The complete workspace `vp run test` command passes (18 successful tasks), including all 7,536 backend tests with 35 existing skips. All 16 workspace type checks pass, and `vp check` still reports zero errors and 662 existing warnings. This is scoped browser coverage, not a completed full browser-suite audit. Earlier startup measurements above were not repeated during this review.
