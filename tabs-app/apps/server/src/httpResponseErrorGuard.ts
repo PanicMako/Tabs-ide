@@ -25,10 +25,18 @@ export function guardHttpResponseWriteErrors<T extends NodeHttp.Server>(
   server: T,
   onError?: (error: unknown) => void,
 ): T {
-  server.on("request", (_request, response) => {
+  server.on("request", (request, response) => {
     response.on("error", (error) => {
       onError?.(error);
     });
+    // The platform opens its listener before building the application routes.
+    // Requests in that gap have nobody to answer them and otherwise hang until
+    // the client times out. Drain the body and ask the client to retry instead.
+    if (server.listenerCount("request") === 1) {
+      request.resume();
+      response.writeHead(503, { "Retry-After": "1", "Cache-Control": "no-store" });
+      response.end();
+    }
   });
   server.on("upgrade", (_request, socket) => {
     socket.on("error", (error) => {

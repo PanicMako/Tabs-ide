@@ -6,7 +6,7 @@ import {
   useNavigate,
   useRouterState,
 } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { QueryClient, useQueryClient } from "@tanstack/react-query";
 import { useAtomValue } from "@effect/atom-react";
 
@@ -34,7 +34,6 @@ import {
 } from "../components/SplashScreen";
 import { markStartupStage } from "../lib/startupReadiness";
 import { cn, isPopoutMode } from "../lib/utils";
-import { DiagnosticsSettings } from "../components/settings/DiagnosticsSettings";
 import { providerQueryKeys } from "../lib/providerReactQuery";
 import { projectQueryKeys } from "../lib/projectReactQuery";
 import { collectActiveTerminalThreadIds } from "../lib/terminalStateCleanup";
@@ -70,6 +69,12 @@ import {
   onEnvironmentApiRegistryEvent,
 } from "../connection/environmentApiRegistry";
 
+const DiagnosticsSettings = lazy(() =>
+  import("../components/settings/DiagnosticsSettings").then((module) => ({
+    default: module.DiagnosticsSettings,
+  })),
+);
+
 export const Route = createRootRouteWithContext<{
   queryClient: QueryClient;
 }>()({
@@ -94,7 +99,9 @@ function PopoutRootView() {
       <AnchoredToastProvider>
         <CommandPalette>
           <div className="isolate flex h-screen min-h-0 min-w-0 flex-col overflow-y-auto overscroll-y-none bg-background text-foreground">
-            <DiagnosticsSettings />
+            <Suspense fallback={<div role="status">Loading diagnostics…</div>}>
+              <DiagnosticsSettings />
+            </Suspense>
           </div>
         </CommandPalette>
         <GlobalConfirmDialog />
@@ -155,6 +162,7 @@ function FullAppRootView() {
 
   useEffect(() => {
     if (ready) {
+      markStartupStage("workspace-interactive");
       const timer = setTimeout(() => setMounted(false), STARTUP_ANIMATION_EXIT_MS + 50);
       return () => clearTimeout(timer);
     } else {
@@ -167,8 +175,8 @@ function FullAppRootView() {
       {mounted && (
         <div
           className={cn(
-            "pointer-events-auto fixed inset-0 z-[9999] bg-background transition-transform duration-1000 ease-in-out motion-reduce:duration-0",
-            ready ? "-translate-y-full" : "translate-y-0",
+            "fixed inset-0 z-[9999] bg-background transition-transform duration-200 ease-out motion-reduce:duration-0",
+            ready ? "pointer-events-none -translate-y-full" : "pointer-events-auto translate-y-0",
           )}
         >
           <SplashScreen

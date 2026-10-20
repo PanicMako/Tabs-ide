@@ -154,6 +154,8 @@ export class WsTransport {
   private readonly openListeners = new Set<() => void>();
   private readonly outboundQueue: QueuedOutboundMessage[] = [];
   private reconnectAttempt = 0;
+  private readonly connectionStartedAt = Date.now();
+  private hasOpened = false;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private connectionTimeoutTimer: ReturnType<typeof setTimeout> | null = null;
   private disposed = false;
@@ -471,12 +473,15 @@ export class WsTransport {
         })
         .catch((error) => {
           this.refreshingRemoteTicket = false;
-          console.warn(
-            "Desktop authentication exchange failed; falling back to direct token upgrade",
-            { error },
-          );
-          this.url = desktopUrl;
-          this.openSocket(true);
+          // A backend that is still booting is not a legacy backend. Opening
+          // failed sockets here triggers Chromium's own connection throttling.
+          const status = error instanceof Error && "status" in error ? error.status : undefined;
+          if (status === 404 || status === 405) {
+            this.url = desktopUrl;
+            this.openSocket(true);
+          } else {
+            this.scheduleReconnect();
+          }
         });
       return;
     }
@@ -518,6 +523,7 @@ export class WsTransport {
       }
       this.ws = ws;
       this.state = "open";
+      this.hasOpened = true;
       this.reconnectAttempt = 0;
       this.flushQueue();
       for (const listener of this.openListeners) listener();
@@ -791,11 +797,26 @@ export class WsTransport {
       return;
     }
 
-    const delay =
-      RECONNECT_DELAYS_MS[Math.min(this.reconnectAttempt, RECONNECT_DELAYS_MS.length - 1)] ??
-      RECONNECT_DELAYS_MS[0]!;
+    // The desktop loopback server is still booting on the first connection.
+    // Remote-outage backoff here added seconds after the local server was ready.
+    // Keep the bounded fast path local and return to normal backoff after open.
+    let waitingForDesktopStartup = false;
+    try {
+      waitingForDesktopStartup =
+        !this.hasOpened &&
+        Date.now() - this.connectionStartedAt < 5_000 &&
+        typeof window !== "undefined" &&
+        Boolean(window.desktopBridge) &&
+        ["127.0.0.1", "localhost", "[::1]"].includes(new URL(this.url).hostname);
+    } catch {
+      // URL validation and connection errors retain normal retry behaviour.
+    }
+    const delay = waitingForDesktopStartup
+      ? 100
+      : (RECONNECT_DELAYS_MS[Math.min(this.reconnectAttempt, RECONNECT_DELAYS_MS.length - 1)] ??
+        RECONNECT_DELAYS_MS[0]!);
 
-    this.reconnectAttempt += 1;
+    if (!waitingForDesktopStartup) this.reconnectAttempt += 1;
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
       this.connect();

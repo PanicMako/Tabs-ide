@@ -8,6 +8,7 @@ import {
 } from "@tabs/contracts";
 import "../../index.css";
 
+import { createModelCapabilities } from "@tabs/shared/model";
 import { page } from "vitest/browser";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { render } from "vitest-browser-react";
@@ -60,45 +61,55 @@ async function mountMenu(props?: { modelSelection?: ModelSelection; prompt?: str
             slug: "claude-opus-4-6",
             name: "Claude Opus 4.6",
             isCustom: false,
-            capabilities: {
-              reasoningEffortLevels: [
-                { value: "low", label: "Low" },
-                { value: "medium", label: "Medium" },
-                { value: "high", label: "High", isDefault: true },
-                { value: "max", label: "Max" },
-                { value: "ultrathink", label: "Ultrathink" },
+            capabilities: createModelCapabilities({
+              optionDescriptors: [
+                {
+                  id: "effort",
+                  label: "Effort",
+                  type: "select",
+                  options: [
+                    { id: "low", label: "Low" },
+                    { id: "medium", label: "Medium" },
+                    { id: "high", label: "High", isDefault: true },
+                    { id: "max", label: "Max" },
+                    { id: "ultrathink", label: "Ultrathink" },
+                  ],
+                  promptInjectedValues: ["ultrathink"],
+                },
+                { id: "fastMode", label: "Fast Mode", type: "boolean", currentValue: false },
               ],
-              supportsFastMode: true,
-              supportsThinkingToggle: false,
-              promptInjectedEffortLevels: ["ultrathink"],
-            },
+            }),
           },
           {
             slug: "claude-haiku-4-5",
             name: "Claude Haiku 4.5",
             isCustom: false,
-            capabilities: {
-              reasoningEffortLevels: [],
-              supportsFastMode: false,
-              supportsThinkingToggle: true,
-              promptInjectedEffortLevels: [],
-            },
+            capabilities: createModelCapabilities({
+              optionDescriptors: [
+                { id: "thinking", label: "Thinking", type: "boolean", currentValue: true },
+              ],
+            }),
           },
           {
             slug: "claude-sonnet-4-6",
             name: "Claude Sonnet 4.6",
             isCustom: false,
-            capabilities: {
-              reasoningEffortLevels: [
-                { value: "low", label: "Low" },
-                { value: "medium", label: "Medium" },
-                { value: "high", label: "High", isDefault: true },
-                { value: "ultrathink", label: "Ultrathink" },
+            capabilities: createModelCapabilities({
+              optionDescriptors: [
+                {
+                  id: "effort",
+                  label: "Effort",
+                  type: "select",
+                  options: [
+                    { id: "low", label: "Low" },
+                    { id: "medium", label: "Medium" },
+                    { id: "high", label: "High", isDefault: true },
+                    { id: "ultrathink", label: "Ultrathink" },
+                  ],
+                  promptInjectedValues: ["ultrathink"],
+                },
               ],
-              supportsFastMode: false,
-              supportsThinkingToggle: false,
-              promptInjectedEffortLevels: ["ultrathink"],
-            },
+            }),
           },
         ]
       : [
@@ -106,15 +117,21 @@ async function mountMenu(props?: { modelSelection?: ModelSelection; prompt?: str
             slug: "gpt-5.4",
             name: "GPT-5.4",
             isCustom: false,
-            capabilities: {
-              reasoningEffortLevels: [
-                { value: "xhigh", label: "Extra High" },
-                { value: "high", label: "High", isDefault: true },
+            capabilities: createModelCapabilities({
+              optionDescriptors: [
+                {
+                  id: "reasoningEffort",
+                  label: "Effort",
+                  type: "select",
+                  options: [
+                    { id: "xhigh", label: "Extra High" },
+                    { id: "high", label: "High", isDefault: true },
+                  ],
+                  promptInjectedValues: [],
+                },
+                { id: "fastMode", label: "Fast Mode", type: "boolean", currentValue: false },
               ],
-              supportsFastMode: true,
-              supportsThinkingToggle: false,
-              promptInjectedEffortLevels: [],
-            },
+            }),
           },
         ];
   const screen = await render(
@@ -173,8 +190,8 @@ describe("CompactComposerControlsMenu", () => {
     await vi.waitFor(() => {
       const text = document.body.textContent ?? "";
       expect(text).toContain("Fast Mode");
-      expect(text).toContain("off");
-      expect(text).toContain("on");
+      expect(text).toContain("Off");
+      expect(text).toContain("On");
     });
   });
 
@@ -186,6 +203,7 @@ describe("CompactComposerControlsMenu", () => {
     await page.getByLabelText("More composer controls").click();
 
     await vi.waitFor(() => {
+      expect(document.body.textContent ?? "").toContain("Effort");
       expect(document.body.textContent ?? "").not.toContain("Fast Mode");
     });
   });
@@ -221,7 +239,7 @@ describe("CompactComposerControlsMenu", () => {
     await vi.waitFor(() => {
       const text = document.body.textContent ?? "";
       expect(text).toContain("Thinking");
-      expect(text).toContain("On (default)");
+      expect(text).toContain("On");
       expect(text).toContain("Off");
     });
   });
@@ -233,7 +251,7 @@ describe("CompactComposerControlsMenu", () => {
         "claude-opus-4-6",
         typedOptionsToSelections({ effort: "high" }),
       ),
-      prompt: "Ultrathink:\nInvestigate this",
+      prompt: "Investigate this with Ultrathink",
     });
 
     await page.getByLabelText("More composer controls").click();
@@ -241,8 +259,11 @@ describe("CompactComposerControlsMenu", () => {
     await vi.waitFor(() => {
       const text = document.body.textContent ?? "";
       expect(text).toContain("Effort");
-      expect(text).toContain("Remove Ultrathink from the prompt to change effort.");
+      expect(text).toContain("Remove Ultrathink from the prompt to change this option.");
       expect(text).not.toContain("Fallback Effort");
+      expect(
+        document.querySelectorAll('[role="menuitemradio"][aria-disabled="true"]'),
+      ).toHaveLength(5);
     });
   });
 });

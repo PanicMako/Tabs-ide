@@ -971,6 +971,9 @@ export class ExtensionViewManager {
         const extensionSession = session.fromPartition(partition);
         await extensionSession.closeAllConnections();
         await extensionSession.clearData();
+        // BrowsingDataRemover (clearData) does not reliably clear storage for
+        // tabs-extension:// origins. Clear the isolated StoragePartition too.
+        await extensionSession.clearStorageData();
         await extensionSession.clearAuthCache();
         await extensionSession.clearCodeCaches({ urls: [] });
         extensionSession.flushStorageData();

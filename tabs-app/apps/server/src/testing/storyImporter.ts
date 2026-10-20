@@ -3,10 +3,7 @@ import { readFile } from "node:fs/promises";
 
 import { createRequire } from "node:module";
 
-import mammoth from "mammoth";
-
 const require = createRequire(import.meta.url);
-const { getDocument } = require("pdfjs-dist/legacy/build/pdf.mjs");
 
 export interface ParsedUserStory {
   readonly sourceName: string;
@@ -15,6 +12,7 @@ export interface ParsedUserStory {
 }
 
 async function pdfText(filePath: string): Promise<string> {
+  const { getDocument } = require("pdfjs-dist/legacy/build/pdf.mjs");
   const bytes = new Uint8Array(await readFile(filePath));
   const document = await getDocument({ data: bytes, useWorkerFetch: false }).promise;
   const pages: string[] = [];
@@ -63,6 +61,7 @@ export async function parseUserStory(input: {
     };
   }
   if (extension === ".docx") {
+    const { default: mammoth } = await import("mammoth");
     const result = await mammoth.extractRawText({ path: input.filePath });
     const content = result.value.trim();
     if (!content) throw new Error("The Word document does not contain readable story text");

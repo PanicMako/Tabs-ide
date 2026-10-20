@@ -145,7 +145,10 @@ import {
 process.stdout.on("error", () => {});
 process.stderr.on("error", () => {});
 
-syncShellEnvironment();
+let shellEnvironmentHydrated = false;
+const shellEnvironmentReady = syncShellEnvironment().then((ready) => {
+  shellEnvironmentHydrated = ready;
+});
 
 const PICK_FOLDER_CHANNEL = "desktop:pick-folder";
 const CLONE_REPOSITORY_CHANNEL = "desktop:clone-repository";
@@ -762,6 +765,9 @@ function sanitizeLogValue(value: string): string {
 
 function backendChildEnv(): NodeJS.ProcessEnv {
   const env = { ...process.env };
+  if (shellEnvironmentHydrated) env.TABS_DESKTOP_SHELL_ENV_READY = "1";
+  else delete env.TABS_DESKTOP_SHELL_ENV_READY;
+  env.NODE_COMPILE_CACHE ??= Path.join(STATE_DIR, "node-compile-cache");
   delete env.TABS_PORT;
   delete env.TABS_AUTH_TOKEN;
   delete env.TABS_MODE;
@@ -4900,9 +4906,13 @@ async function bootstrap(): Promise<void> {
 
   registerIpcHandlers();
   writeDesktopLogHeader("bootstrap ipc handlers registered");
+  // Paint the shell while the login-shell lookup runs. Provider processes still
+  // receive the resolved PATH and SSH agent before the backend is spawned.
+  mainWindow = createWindow();
+  await shellEnvironmentReady;
+  if (isQuitting) return;
   startBackend();
   writeDesktopLogHeader("bootstrap backend start requested");
-  mainWindow = createWindow();
   void checkAllInstalledExchangeStatuses();
   restartExchangeHints();
   exchangeStatusTimer = setInterval(() => {

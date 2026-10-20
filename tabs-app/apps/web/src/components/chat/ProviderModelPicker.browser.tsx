@@ -222,7 +222,12 @@ describe("ProviderModelPicker", () => {
         const text = document.body.textContent ?? "";
         expect(text).toContain("Claude Sonnet 4.6");
         expect(text).toContain("Claude Haiku 4.5");
-        expect(text).not.toContain("Codex");
+        expect(
+          Array.from(document.querySelectorAll('[role="menuitemradio"]')).map(
+            (item) => item.textContent,
+          ),
+        ).toEqual(["Claude Opus 4.6", "Claude Sonnet 4.6", "Claude Haiku 4.5"]);
+        expect(document.querySelector('[role="menuitem"]')).toBeNull();
       });
     } finally {
       await mounted.cleanup();

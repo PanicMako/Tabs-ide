@@ -2,7 +2,11 @@
 const sessions = new Map<string, Promise<string>>();
 
 async function requireJson(response: Response): Promise<Record<string, unknown>> {
-  if (!response.ok) throw new Error(`Desktop authentication failed (HTTP ${response.status}).`);
+  if (!response.ok) {
+    throw Object.assign(new Error(`Desktop authentication failed (HTTP ${response.status}).`), {
+      status: response.status,
+    });
+  }
   return response.json();
 }
 

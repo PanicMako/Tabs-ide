@@ -19,7 +19,6 @@ import {
   TextRun,
   WidthType,
 } from "docx";
-import { chromium } from "playwright";
 
 import type { TestingGraphStore } from "./graphStore.ts";
 import { shortDigest } from "./security.ts";
@@ -287,6 +286,7 @@ export class TestingReporter {
       )
       .join("");
     const html = `<!doctype html><html><head><meta charset="utf-8"><style>@page{size:Letter}*{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#172033;font-size:11pt;line-height:1.4}h1{font-size:25pt;color:#0b2545;margin:0 0 4px}h2{font-size:16pt;color:#2e74b5;margin:24px 0 10px}h3{font-size:13pt;color:#2e74b5}.muted{color:#64748b}.summary{border-left:5px solid #2e74b5;background:#f4f6f9;padding:14px 16px;margin:18px 0}table{width:100%;border-collapse:collapse;table-layout:fixed}th,td{border:1px solid #d1d5db;padding:8px;vertical-align:top;overflow-wrap:anywhere}th{background:#f2f4f7;text-align:left}.passed{color:#166534;font-weight:700}.failed{color:#991b1b;font-weight:700}</style></head><body><h1>UAT Sign-off Report</h1><div class="muted">Run ${escapeHtml(run.id)} | ${escapeHtml(completedAt)}</div><div class="summary"><strong>${passed} passed</strong> | ${failed} failed | ${blocked} blocked | ${run.results.length} total<br>Overall: ${escapeHtml(run.status.toUpperCase())}</div><h2>Environment and verification</h2>${metadata.map(([label, value]) => `<div><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</div>`).join("")}<h2>Case results</h2><table><thead><tr><th style="width:18%">Case ID</th><th style="width:15%">Status</th><th style="width:13%">Duration</th><th>Evidence / notes</th></tr></thead><tbody>${rows}</tbody></table><h2>Round-over-round changes</h2><ul>${changes.map((change) => `<li>${escapeHtml(change)}</li>`).join("")}</ul><h2>Traceability</h2><p>Every result maps to its original case, generated artifact, execution evidence, and healing history in the local Testing database.</p></body></html>`;
+    const { chromium } = await import("playwright");
     const browser = await chromium.launch({ headless: true });
     try {
       const page = await browser.newPage();

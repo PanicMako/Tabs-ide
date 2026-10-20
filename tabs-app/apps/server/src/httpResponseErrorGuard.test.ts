@@ -34,6 +34,26 @@ afterEach(() => {
 });
 
 describe("guardHttpResponseWriteErrors", () => {
+  it("answers requests during route construction instead of leaving them hanging", async () => {
+    const server = guardHttpResponseWriteErrors(NodeHttp.createServer());
+    const port = await listen(server);
+    const response = await fetch(`http://127.0.0.1:${port}/oauth/token`, {
+      method: "POST",
+      body: "bootstrap=test",
+      signal: AbortSignal.timeout(2_000),
+    });
+    expect(response.status).toBe(503);
+    expect(response.headers.get("retry-after")).toBe("1");
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    await response.text();
+
+    server.on("request", (_request, response) => {
+      response.writeHead(200);
+      response.end("ready");
+    });
+    await expect(fetchStatus(port, "/")).resolves.toBe(200);
+  });
+
   it("contains an upgrade socket write failure instead of crashing the process", async () => {
     const writeErrors: unknown[] = [];
     const failureObserved = Promise.withResolvers<void>();
