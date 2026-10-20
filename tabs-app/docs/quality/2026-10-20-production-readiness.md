@@ -54,6 +54,29 @@ Final checks ran on frozen source in an isolated checkout, excluding unrelated u
 
 Earlier runs interrupted by source copying or a Chromium process exit are not counted as passing final runs. The user's working tree contains separate ongoing UI edits; these validation results describe the isolated release source, not a production certification of those uncommitted edits.
 
+## Exchange metadata freshness incident (21 October IST)
+
+The live official registry still served timestamp version 1 with expiry
+`2026-10-20T08:52:25.938Z` (20 October, 14:22 IST), approximately 12 hours before
+inspection. HTTP response time agreed with the machine clock and metadata was
+served with `Cache-Control: no-store`. The snapshot, targets and root were still
+within their expiry periods. This is expired server metadata, not a startup or
+Relay package regression.
+
+The release wizard has issued one-day timestamps since its 19 October addition.
+Extension activation has required the signed status check since 15 October.
+The current manual workflow requires the operator to unlock the existing signing
+backup at `/admin/releases`, load a fresh plan and sign/publish it. Normal users
+should not need signing keys. Reliable production operation requires a metadata
+renewal process and freshness monitoring; changing the error message alone does
+not restore the registry or solve that operational gap.
+
+The desktop now explains expiry and links to the registry's release workflow,
+while preserving verification failure and the original diagnostic cause. Tests
+cover fresh and cached expired timestamps, exclusion from offline fallback, and
+successful retry after a higher-version signed renewal. All 635 desktop tests
+passed. Production metadata has not been renewed by this code change.
+
 ## Release limits
 
 The actual Electron extension acceptance test passed, including retain-data reinstall, delete-data removal of localStorage/IndexedDB/SDK storage/named profiles, and cross-extension isolation. Native browser workflow acceptance passed on retry, including profile isolation, viewports, screenshots and a real recorded click. The first recorder run failed to observe that click; no product change was made for that transient result. Release packaging smoke fixtures passed.
