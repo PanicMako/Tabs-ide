@@ -52,7 +52,10 @@ export function StartupShell({ loadApplication }: { loadApplication: () => Promi
 
   useEffect(() => {
     if (!state.ready) return;
-    const timer = setTimeout(() => setVisible(false), STARTUP_ANIMATION_EXIT_MS);
+    const timer = setTimeout(() => {
+      setVisible(false);
+      updateStartupSplash({ dismissed: true });
+    }, STARTUP_ANIMATION_EXIT_MS);
     return () => clearTimeout(timer);
   }, [state.ready]);
 

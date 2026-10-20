@@ -4,6 +4,8 @@ const shared = {
   format: "cjs" as const,
   outDir: "dist-electron",
   sourcemap: true,
+  // Strip whitespace/comments without rewriting functions or their names.
+  minify: { compress: false, mangle: false, codegen: { removeWhitespace: true } },
   outExtensions: () => ({ js: ".js" }),
   dts: false,
 };
