@@ -31,7 +31,7 @@ it("shows workspace actions directly and allows the card to be tucked away", asy
     id: "lint",
     name: "Lint" + "long".repeat(100),
     command: "bun lint",
-    icon: "terminal" as const,
+    icon: "lint" as const,
     runOnWorktreeCreate: false,
   };
   const onToggleDiff = vi.fn();
