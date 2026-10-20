@@ -1,6 +1,6 @@
 import { basename, extname } from "node:path";
 
-import ExcelJS from "exceljs";
+import type ExcelJS from "exceljs";
 
 export interface ParsedWorkbookCase {
   readonly externalId: string;
@@ -116,6 +116,7 @@ export async function parseTestingWorkbook(workbookPath: string): Promise<Parsed
   if (extname(workbookPath).toLowerCase() !== ".xlsx") {
     throw new Error("Testing imports require an .xlsx workbook");
   }
+  const { default: ExcelJS } = await import("exceljs");
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.readFile(workbookPath);
   const parsedCases: ParsedWorkbookCase[] = [];

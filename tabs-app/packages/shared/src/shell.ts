@@ -304,6 +304,10 @@ export const readEnvironmentFromLoginShell: ShellEnvironmentReader = (
     timeout: 5000,
   });
 
+  return extractShellEnvironment(output, names);
+};
+
+function extractShellEnvironment(output: string, names: ReadonlyArray<string>) {
   const environment: Partial<Record<string, string>> = {};
   for (const name of names) {
     const value = extractEnvironmentValue(output, name);
@@ -313,6 +317,31 @@ export const readEnvironmentFromLoginShell: ShellEnvironmentReader = (
   }
 
   return environment;
+}
+
+export type AsyncShellEnvironmentReader = (
+  shell: string,
+  names: ReadonlyArray<string>,
+) => Promise<Partial<Record<string, string>>>;
+
+export const readEnvironmentFromLoginShellAsync: AsyncShellEnvironmentReader = async (
+  shell,
+  names,
+) => {
+  if (names.length === 0) return {};
+  const command = buildEnvironmentCaptureCommand(names);
+  const output = await new Promise<string>((resolve, reject) => {
+    NodeChildProcess.execFile(
+      shell,
+      ["-ilc", command],
+      { encoding: "utf8", timeout: 5000 },
+      (error, stdout) => {
+        if (error) reject(error);
+        else resolve(stdout);
+      },
+    );
+  });
+  return extractShellEnvironment(output, names);
 };
 
 export type WindowsShellEnvironmentReader = (

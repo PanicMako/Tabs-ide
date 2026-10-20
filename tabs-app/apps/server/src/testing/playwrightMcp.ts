@@ -2,7 +2,6 @@ import { existsSync, mkdirSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-import { createConnection } from "@playwright/mcp";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 
@@ -64,6 +63,7 @@ export async function createPlaywrightMcpSession(input: {
   mkdirSync(input.profilePath, { recursive: true });
   mkdirSync(input.outputPath, { recursive: true });
   const executablePath = resolveChromiumExecutable();
+  const { createConnection } = await import("@playwright/mcp");
   const server = await createConnection({
     browser: input.cdpEndpoint
       ? {
