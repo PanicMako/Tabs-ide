@@ -11,10 +11,22 @@ smoke_root="$(mktemp -d)"
 app_pid=""
 cleanup() {
   if [[ -n "$app_pid" ]]; then
-    kill -- "-$app_pid" 2>/dev/null || true
+    kill -TERM -- "-$app_pid" 2>/dev/null || true
+    # The xvfb wrapper may exit before Electron's backend finishes writing its
+    # compile cache. Wait for the owned process group, then stop any stragglers.
+    for ((attempt = 1; attempt <= 30; attempt++)); do
+      if ! kill -0 -- "-$app_pid" 2>/dev/null; then break; fi
+      sleep 0.1
+    done
+    kill -KILL -- "-$app_pid" 2>/dev/null || true
     wait "$app_pid" 2>/dev/null || true
   fi
-  rm -rf "$smoke_root"
+  for ((attempt = 1; attempt <= 10; attempt++)); do
+    if rm -rf "$smoke_root"; then return 0; fi
+    sleep 0.1
+  done
+  echo "Could not remove the disposable Linux smoke profile: $smoke_root" >&2
+  return 1
 }
 trap cleanup EXIT
 
