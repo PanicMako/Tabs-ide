@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, ok, strictEqual } from 'assert';
-import { createSandbox } from 'sinon';
+import { createSandbox, spy } from 'sinon';
 import { Dimension } from '../../../../../base/browser/dom.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { timeout } from '../../../../../base/common/async.js';
@@ -34,7 +34,7 @@ import { parseExitResult, TerminalInstance, TerminalLabelComputer } from '../../
 import { IEnvironmentVariableService } from '../../common/environmentVariable.js';
 import { EnvironmentVariableService } from '../../common/environmentVariableService.js';
 import { ITerminalProfileResolverService, ProcessState, DEFAULT_COMMANDS_TO_SKIP_SHELL } from '../../common/terminal.js';
-import { TestViewDescriptorService } from './xterm/xtermTerminal.test.js';
+import { TestViewDescriptorService } from './xterm/xtermTestUtils.js';
 import { fixPath } from '../../../../services/search/test/browser/queryBuilder.test.js';
 import { TestTerminalProfileResolverService, TestViewsService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
@@ -333,6 +333,27 @@ suite('Workbench - TerminalInstance', () => {
 			instance.dispose();
 		});
 
+		test('reuseTerminal requests workspace trust and does not relaunch when trust is denied', async () => {
+			const terminalInstanceService = store.add(new TestTerminalInstanceService());
+			const workspaceTrustRequestService = new TestTerminalWorkspaceTrustRequestService();
+			const instance = await createTerminalInstance(terminalInstanceService, undefined, {
+				executable: '/usr/bin/zsh',
+				cwd: URI.file('/home/test'),
+				isTransient: true
+			}, workspaceTrustRequestService);
+
+			await instance.reuseTerminal({ executable: '/usr/bin/zsh' }, true);
+
+			deepStrictEqual({
+				trustRequestCount: workspaceTrustRequestService.requestCount,
+				createProcessCount: terminalInstanceService.createProcessCount
+			}, {
+				trustRequestCount: 1,
+				createProcessCount: 0
+			});
+			instance.dispose();
+		});
+
 		test('should not create a process when workspace trust is denied', async () => {
 			const terminalInstanceService = store.add(new TestTerminalInstanceService());
 			let resolveTrust!: (trusted: boolean) => void;
@@ -381,6 +402,18 @@ suite('Workbench - TerminalInstance', () => {
 
 			// Verify that the task name is preserved
 			strictEqual(taskTerminal.title, 'Test Task Name', 'Task terminal should preserve API-set title');
+		});
+
+		test('should only load the line data event addon once when listeners are re-added', async () => {
+			const instance = await createTerminalInstance();
+			const lineDataEventAddon = instance['_lineDataEventAddon']!;
+			const activateSpy = spy(lineDataEventAddon, 'activate');
+
+			const firstListener = instance.onLineData(() => { });
+			firstListener.dispose();
+			store.add(instance.onLineData(() => { }));
+
+			strictEqual(activateSpy.callCount, 1);
 		});
 
 		for (const title of ['', undefined]) {

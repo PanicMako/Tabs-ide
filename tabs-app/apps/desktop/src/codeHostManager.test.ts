@@ -418,6 +418,43 @@ describe("resolveCodeHostConfig", () => {
     });
   });
 
+  it("prefers tabs-code-oss over vscode-main when both exist as siblings", () => {
+    const parentDir = makeTempDir("tabs-parent-");
+    const rootDir = Path.join(parentDir, "tabs-app");
+    const tabsCodeDir = Path.join(parentDir, "tabs-code-oss");
+    const vscodeMainDir = Path.join(parentDir, "vscode-main");
+    FS.mkdirSync(rootDir, { recursive: true });
+    writeVsCodeDesktopCheckout(tabsCodeDir);
+    writeVsCodeDesktopCheckout(vscodeMainDir);
+
+    const config = resolveCodeHostConfig({
+      rootDir,
+      env: {},
+    });
+
+    expect(config.state.available).toBe(true);
+    expect(config.runtime).toMatchObject({
+      kind: "desktop-renderer",
+      vscodeRoot: tabsCodeDir,
+    });
+  });
+
+  it("resolves the current worktree's tabs-code-oss and verifies version is 1.142.0", () => {
+    const rootDir = Path.resolve(__dirname, "../../..");
+    const config = resolveCodeHostConfig({
+      rootDir,
+      env: {},
+    });
+
+    expect(config.state.available).toBe(true);
+    expect(config.runtime).toBeDefined();
+    expect(config.runtime?.vscodeRoot).toBe(Path.resolve(rootDir, "../tabs-code-oss"));
+    const pkg = JSON.parse(
+      FS.readFileSync(Path.join(config.runtime!.vscodeRoot, "package.json"), "utf8"),
+    ) as { version: string };
+    expect(pkg.version).toBe("1.142.0");
+  });
+
   it("returns an actionable message when the desktop build is missing", () => {
     const parentDir = makeTempDir("tabs-parent-");
     const rootDir = Path.join(parentDir, "tabs-app");

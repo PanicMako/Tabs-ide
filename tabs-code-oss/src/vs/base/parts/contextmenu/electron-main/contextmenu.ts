@@ -32,6 +32,8 @@ export function registerContextMenuListener(resolvePopupContext?: (event: IpcMai
 					// and finish its event handling before notifying the renderer
 					setImmediate(() => {
 						if (!event.sender.isDestroyed()) {
+							// Complete the one-shot click listener even when no item was selected.
+							event.sender.send(onClickChannel, -1);
 							event.sender.send(CONTEXT_MENU_CLOSE_CHANNEL, contextMenuId);
 						}
 					});

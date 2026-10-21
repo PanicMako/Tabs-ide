@@ -35,8 +35,8 @@ customization.
 
 Updates are performed in an isolated clean worktree on a dedicated branch (`chore/sync-vscode-<version>`):
 
-1. **Pin exact upstream revision:** Verify the tag, full commit SHA, and release notes from `https://github.com/microsoft/vscode` (e.g. `1.140.0` at `07f806f999227108933c2e30515b26eecc1fda74`).
-2. **Export reviewed fork delta:** Re-derive all Tabs additions, modifications, file modes, and binary assets against the baseline upstream release (`1.138.0`), excluding generated outputs, build caches, and dependencies.
+1. **Pin exact upstream revision:** Verify the tag, full commit SHA, and release notes from `https://github.com/microsoft/vscode` (e.g. `1.142.0` at `d956e8a6ac5d904486557eea07e1d6bd62a4d36f`).
+2. **Export reviewed fork delta:** Re-derive all Tabs additions, modifications, file modes, and binary assets against the baseline upstream release (`1.140.0`), excluding generated outputs, build caches, and dependencies.
 3. **Refresh comparison snapshot:** Extract the pristine upstream source into `vscode-main/` for clean diffing.
 4. **Refresh patched runtime:** Unpack the pristine upstream source into `tabs-code-oss/`, purge files removed upstream (`git diff --no-renames --diff-filter=D`), and semantically replay the reviewed Tabs fork patches.
 5. **Toolchain boundary:** Use Node/npm (Node v24) strictly inside `tabs-code-oss/` and Bun/Vite+ strictly inside `tabs-app/`. Never run `npm` or `yarn` inside `tabs-app/`.

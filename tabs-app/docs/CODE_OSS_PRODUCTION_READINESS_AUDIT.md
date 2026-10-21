@@ -166,3 +166,69 @@ The real Agent Host starter/manager and configuration service are integrated. A 
 The user authorized preserving the coherent commits on main, creating a draft 1.3.29 release and starting installer builds. Public publication remains gated on the outstanding runtime/platform proof. See `code-oss-release-handoff.md` for the release continuation prompt and explicit completion gates.
 
 The pre-commit hygiene script now scopes staged paths and JavaScript allowlisting to the vendored checkout, retaining an explicitly selected Git index while rediscovering repository context. Its regression test verifies that parent JavaScript files are excluded and unexpected vendored JavaScript is rejected. The repaired hook checked 2,208 source files and caught a bootstrap multi-window document reference; that reference was corrected before committing.
+
+## VS Code 1.142.0 sync verification (2026-10-21)
+
+### Baseline and target
+
+- **Baseline:** Microsoft VS Code `1.140.0` (`07f806f999227108933c2e30515b26eecc1fda74`).
+- **Target:** Microsoft VS Code stable `1.142.0` (`d956e8a6ac5d904486557eea07e1d6bd62a4d36f`).
+- **Isolation:** Dedicated worktree at `/Users/rushil.dev/Desktop/tabs/.worktrees/sync-vscode-1.142.0` on branch `codex/sync-vscode-1.142.0`. Base checkout at `f9bf6cb43d2e33d31d3a1ef7bfa40f185e9565a2` preserved untouched.
+
+### Patch inventory and semantic adaptations
+
+- **Tabs-owned additions (6 files):** Verified and retained:
+  - `tabs-code-oss/TABS_ARCHITECTURE.md`
+  - `tabs-code-oss/build/gulpfile.compile.ts`
+  - `tabs-code-oss/src/vs/workbench/browser/parts/editor/media/tabs-logo.svg`
+  - `tabs-code-oss/src/vs/workbench/contrib/tabs/browser/media/tabs.css`
+  - `tabs-code-oss/src/vs/workbench/contrib/tabs/browser/tabs.contribution.ts`
+  - `tabs-code-oss/src/vs/workbench/contrib/tabs/test/browser/tabs.contribution.test.ts`
+- **Deliberate modifications (30 files):** Replayed and verified:
+  - Adapted `src/vs/workbench/contrib/webviewView/browser/webviewViewPane.ts` cancellation registration to `this._webviewDisposables.add(toDisposable(() => source.dispose(true)))` without directly adding `source` to the disposable store. In upstream 1.142.0, adding `source` directly caused `source.dispose(false)` to run prior to `source.cancel()`, nulling token listeners and hanging pending revival cancellation. Replaying the semantic single-owner `dispose(true)` pattern resolved the test timeout in `webviewViewPane.test.ts`.
+  - Replayed context menu coordinate offset routing with closure-retained `menu` in `src/vs/base/parts/contextmenu/electron-main/contextmenu.ts`.
+  - Replayed RequestStore cancellation and timeout rejection consumption in `src/vs/platform/terminal/common/requestStore.ts`.
+  - Replayed Copilot production dependency scoping and SDK packaging assertions in `extensions/copilot/package.json` and `build/lib/test/copilot.test.ts`.
+  - Replayed Chat stable container registration without AI-features teardown in `src/vs/workbench/contrib/chat/browser/chatParticipant.contribution.ts`.
+  - Replayed sandbox MessagePort diagnostic logging and utility process webContents fallback.
+  - Purged 64 files deleted upstream.
+- **Native-Host / IPC Contract (111 methods):**
+  - Audited `src/vs/platform/native/common/native.ts` `ICommonNativeHostService` against 1.140.0.
+  - Exactly 7 callable methods added (`isGPUCompositingEnabled`, `cancelZipFile`, `getAgentHostEditorState`, `updateAgentHostEditorState`, `claimAgentsWindowInvitation`, `markAgentsWindowInvitationShown`, `releaseAgentsWindowInvitation`) and 3 new events (`onDidChangeGPUCompositing`, `onDidChangeAgentHostEditorState`, `onDidProgressZipFile`).
+  - Implemented explicit policies for all 7 added methods in `tabs-app/apps/desktop/src/nativeCodeHostMain.ts`. No method falls through to undefined.
+  - `tabs-app/apps/desktop/src/nativeCodeHostContract.test.ts` updated and passing (111/111 methods verified).
+- **Runtime-Selection Precedence:**
+  - `tabs-app/apps/desktop/src/codeHostManager.ts` updated to prioritize `tabs-code-oss` before `vscode-main` in fallback roots for both packaged and dev environments, preventing stale snapshots from shadowing the active runtime. Covered by unit test in `codeHostManager.test.ts`.
+
+### Completed verification gates
+
+- **Code-OSS compile & typecheck:**
+  - `npm ci --ignore-scripts`: passed cleanly.
+  - `postinstall.ts`: passed cleanly.
+  - `npm run compile-client`: passed with 0 errors.
+  - `node build/next/index.ts bundle --nls`: passed cleanly (extracted 27,719 messages).
+  - `npm run typecheck-client`: passed with 0 errors.
+  - `npm run hygiene`: passed with 0 errors (13,194 files checked).
+  - `npm run compile-extensions-build`: passed with 0 errors (98 extensions bundled).
+  - `npm run gulp compile-copilot-extension-build`: passed with 0 errors.
+  - `npm rebuild @vscode/fs-copyfile @parcel/watcher @vscode/sqlite3 @vscode/spdlog native-keymap`: all native addons compiled against Electron 43.7.7 headers.
+- **Code-OSS focused unit tests:**
+  - `Tabs Contribution`: 4 passing (`tabs.contribution.test.ts`).
+  - `RequestStore`: 4 passing (`requestStore.test.ts`).
+  - `WebviewViewPane`: 2 passing (`webviewViewPane.test.ts`).
+  - `ChatAgents`: 7 passing (`chatAgents.test.ts`).
+  - `Copilot packaging`: 22 passing (`build/lib/test/copilot.test.ts`).
+  - `Hygiene`: 2 passing (`build/lib/test/hygiene.test.ts`).
+- **Tabs outer application:**
+  - `vp check`: 0 errors across 3,693 files.
+  - `vp run typecheck`: 16/16 packages passed with 0 errors.
+  - Desktop integration tests: 11 suites, 82/82 tests passing (including contract completeness and runtime resolver tests).
+  - Web integration tests: 3 suites, 6/6 tests passing.
+  - Real Electron extension smoke test: passed with 0 errors (`node scripts/extension-smoke-test.mjs` running real Electron 44.1.0 WebContentsView).
+- **Packaged runtime artifact:**
+  - `bun run dist:desktop:dmg:arm64`: generated `release/Tabs-2.0.0-arm64.dmg` and `release/Tabs-2.0.0-arm64.zip`.
+  - Packaged runtime inspection of mounted DMG (`/Volumes/Tabs/Tabs.app/Contents/Resources/tabs-code-oss`):
+    - `package.json` reports `1.142.0`.
+    - Required assets verified: `preload.js` (21,092 B), `workbench-dev.html` (1,487 B), `nls.messages.json` (1,425,191 B), `product.json` (8,032 B).
+    - Production extensions and dependencies verified: `extensions/copilot/dist/extension.js` (19.7 MB), `extensions/git/dist/main.js`.
+    - Self-contained outside ASAR, with license and third-party notices intact.

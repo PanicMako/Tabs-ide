@@ -478,6 +478,9 @@ export async function createNativeCodeHostMainBackend(
     "onDidFocusMainOrAuxiliaryWindow",
     "onDidBlurMainOrAuxiliaryWindow",
     "onDidChangeDisplay",
+    "onDidChangeGPUCompositing",
+    "onDidChangeAgentHostEditorState",
+    "onDidProgressZipFile",
     "onDidSuspendOS",
     "onDidResumeOS",
     "onDidChangeOnBatteryPower",
@@ -1610,6 +1613,47 @@ export async function createNativeCodeHostMainBackend(
           files as never[],
           args[3] as { maxSize?: number; maxEntries?: number } | undefined,
         );
+        return undefined;
+      }
+      if (command === "cancelZipFile") {
+        // Zip creation in the embedded Code host is synchronous or bounded;
+        // cancelling an in-flight operation without an active handle cleanly succeeds.
+        return undefined;
+      }
+      if (command === "isGPUCompositingEnabled") {
+        try {
+          return app.getGPUFeatureStatus().gpu_compositing === "enabled";
+        } catch {
+          return false;
+        }
+      }
+      if (command === "getAgentHostEditorState") {
+        // Upstream VS Code 1.142 uses this to coordinate multi-window agent sessions
+        // with the standalone Agents Window. In Tabs, agent sessions are embedded
+        // within the workspace shell. We return a clean initial editor state.
+        const editorSessionCount = typeof args[1] === "number" ? args[1] : 0;
+        return {
+          revision: 0,
+          sessions: [],
+          editorSessionCount,
+          lastShown: undefined,
+          lastCopilotHarnessIntroductionSessionCount: undefined,
+          invitation: undefined,
+        };
+      }
+      if (command === "updateAgentHostEditorState") {
+        // State updates from embedded sessions are acknowledged as a no-op because
+        // Tabs manages agent sessions and workspace tabs at the outer shell level.
+        return undefined;
+      }
+      if (command === "claimAgentsWindowInvitation") {
+        // No standalone Agents Window invitation is pending in Tabs.
+        return undefined;
+      }
+      if (command === "markAgentsWindowInvitationShown") {
+        return undefined;
+      }
+      if (command === "releaseAgentsWindowInvitation") {
         return undefined;
       }
       if (command === "lookupAuthorization" || command === "lookupKerberosAuthorization") {

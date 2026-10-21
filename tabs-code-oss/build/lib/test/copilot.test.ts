@@ -10,7 +10,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { suite, test } from 'node:test';
 import { create } from 'tar';
-import { copilotPlatforms, ensureCopilotPlatformPackage, getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, getCopilotRuntimeVersion, getMxcExcludeFilter, prepareBuiltInCopilotRipgrepShim } from '../copilot.ts';
+import { copilotPlatforms, ensureCopilotPlatformPackage, getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, getCopilotRuntimeVersion, prepareBuiltInCopilotRipgrepShim } from '../copilot.ts';
 
 /**
  * Builds a fake `@github/copilot-win32-x64@1.0.73` tarball on disk and returns
@@ -62,7 +62,6 @@ suite('copilot', () => {
 			'!node_modules/@github/copilot-sdk-linux-x64/builtin-skills/**',
 			'!node_modules/@github/copilot-sdk-linux-x64/clipboard/**',
 			'!node_modules/@github/copilot-sdk-linux-x64/foundry-local-sdk/**',
-			'!node_modules/@github/copilot-sdk-linux-x64/mxc-bin/**',
 			'!node_modules/@github/copilot-sdk-linux-x64/pvrecorder/**',
 			'!node_modules/@github/copilot-sdk-linux-x64/webview/**',
 			'!node_modules/@github/copilot-sdk-linux-x64/plugins/computer-use/**',
@@ -77,6 +76,7 @@ suite('copilot', () => {
 			'definitions/task.agent.yaml',
 			'ripgrep/bin/linux-x64/rg',
 			'tgrep/bin/linux-x64/tgrep',
+			'mxc-bin/x64/mxc-exec',
 		]);
 		assertOptionalCopilotNativeDependenciesExcluded(files, 'node_modules/@github/copilot-sdk-linux-x64');
 	});
@@ -90,7 +90,6 @@ suite('copilot', () => {
 			'!node_modules/@github/copilot-sdk-linuxmusl-x64/builtin-skills/**',
 			'!node_modules/@github/copilot-sdk-linuxmusl-x64/clipboard/**',
 			'!node_modules/@github/copilot-sdk-linuxmusl-x64/foundry-local-sdk/**',
-			'!node_modules/@github/copilot-sdk-linuxmusl-x64/mxc-bin/**',
 			'!node_modules/@github/copilot-sdk-linuxmusl-x64/pvrecorder/**',
 			'!node_modules/@github/copilot-sdk-linuxmusl-x64/webview/**',
 			'!node_modules/@github/copilot-sdk-linuxmusl-x64/plugins/computer-use/**',
@@ -113,7 +112,6 @@ suite('copilot', () => {
 			'!node_modules/@github/copilot-sdk-win32-x64/builtin-skills/**',
 			'!node_modules/@github/copilot-sdk-win32-x64/clipboard/**',
 			'!node_modules/@github/copilot-sdk-win32-x64/foundry-local-sdk/**',
-			'!node_modules/@github/copilot-sdk-win32-x64/mxc-bin/**',
 			'!node_modules/@github/copilot-sdk-win32-x64/pvrecorder/**',
 			'!node_modules/@github/copilot-sdk-win32-x64/webview/**',
 			'!node_modules/@github/copilot-sdk-win32-x64/plugins/computer-use/**',
@@ -395,34 +393,6 @@ suite('copilot', () => {
 			]
 		);
 	});
-
-	test('keeps only the target architecture of @microsoft/mxc-sdk', () => {
-		assert.deepStrictEqual(
-			getMxcExcludeFilter('x64'),
-			[
-				'**',
-				'!**/node_modules/@microsoft/mxc-sdk/bin/arm64/**',
-			]
-		);
-		assert.deepStrictEqual(
-			getMxcExcludeFilter('arm64'),
-			[
-				'**',
-				'!**/node_modules/@microsoft/mxc-sdk/bin/x64/**',
-			]
-		);
-	});
-
-	test('strips every @microsoft/mxc-sdk architecture for unsupported armhf builds', () => {
-		assert.deepStrictEqual(
-			getMxcExcludeFilter('armhf'),
-			[
-				'**',
-				'!**/node_modules/@microsoft/mxc-sdk/bin/x64/**',
-				'!**/node_modules/@microsoft/mxc-sdk/bin/arm64/**',
-			]
-		);
-	});
 });
 
 function assertCopilotPlatformPackageIncludes(patterns: string[], packageDir: string, relativeFiles: string[]): void {
@@ -433,7 +403,7 @@ function assertCopilotPlatformPackageIncludes(patterns: string[], packageDir: st
 }
 
 function assertOptionalCopilotNativeDependenciesExcluded(patterns: string[], packageDir: string): void {
-	for (const dir of ['clipboard', 'foundry-local-sdk', 'mxc-bin', 'pvrecorder', 'webview']) {
+	for (const dir of ['clipboard', 'foundry-local-sdk', 'pvrecorder', 'webview']) {
 		assert(patterns.includes(`!${packageDir}/${dir}/**`), dir);
 		assert(!matchesGlob(`${packageDir}/${dir}/index.js`, patterns), dir);
 	}

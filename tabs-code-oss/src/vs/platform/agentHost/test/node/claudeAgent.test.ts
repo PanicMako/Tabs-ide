@@ -48,12 +48,14 @@ import { INativeEnvironmentService } from '../../../environment/common/environme
 import { AgentChatMigrationDeferred, IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentMaterializeChatEvent, IAgentSpawnChatEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agent.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostClaudeMultiRootEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
+import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputResponseKind, SessionStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../common/state/sessionState.js';
 import { McpServerStatus as McpCustomizationServerStatus, type ChildCustomization, type CustomizationEnablement, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
+import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ChatOriginKind, CustomizationEnablementKind, ProtectedResourceMetadata, ChatInputAnswerState, ChatInputAnswerValueKind, ToolCallStatus, type SessionConfigState, type ChatInputRequest, type ToolDefinition } from '../../common/state/protocol/state.js';
@@ -311,6 +313,7 @@ async function startActiveTurn(disposables: Pick<DisposableStore, 'add'>, ctx: I
 class FakeAgentPluginManager implements IAgentPluginManager {
 	declare readonly _serviceBrand: undefined;
 	readonly basePath = URI.from({ scheme: 'inmemory', path: '/agentPlugins' });
+	readonly hostPluginsPath = URI.joinPath(this.basePath, '.host');
 
 	syncResult: readonly ISyncedCustomization[] | undefined;
 	syncCalls: { clientId: string; customizations: readonly ClientPluginCustomization[] }[] = [];
@@ -388,6 +391,8 @@ class FakeAgentHostAuthenticationService implements IAgentHostAuthenticationServ
 	getAuthToken(request: Parameters<IAgentHostAuthenticationService['getAuthToken']>[0]): string | undefined {
 		return this._tokens.get(request.resource);
 	}
+
+	getAuthAccount(): undefined { return undefined; }
 
 	dispose(): void {
 		this._onDidChangeAuthToken.dispose();
@@ -1069,6 +1074,7 @@ const ALL_MODELS: readonly CCAModel[] = [
  */
 class RecordingOTelService implements IAgentHostOTelService {
 	readonly _serviceBrand: undefined;
+	readonly enabled = false;
 	readonly diagnosticsEnabled = false;
 	emitTurnTiming(): void { }
 	emitFirstResponse(): void { }
@@ -1077,6 +1083,7 @@ class RecordingOTelService implements IAgentHostOTelService {
 	async getSdkTelemetryConfig(): Promise<undefined> { return undefined; }
 	async getNativeSdkTelemetryConfig(): Promise<undefined> { return undefined; }
 	getSessionTraceContext(): undefined { return undefined; }
+	setSessionComparisonMetadata(): void { }
 	releaseSessionTraceContext(): void { }
 	withTraceContext<T>(_context: undefined, fn: () => T): T { return fn(); }
 	getCurrentTraceContext(): undefined { return undefined; }
@@ -1346,6 +1353,71 @@ suite('ClaudeAgent', () => {
 			downloads: sdk.ensureAvailableCalls,
 			contexts: telemetry.events.filter(event => event.data?.name === 'providerContext').map(({ data }) => [data?.provider, data?.activationState, data?.sdkAvailability]),
 		}, { deferred: true, initialSdkLists: 0, downloads: 0, contexts: [['claude', 'notRequired', 'unavailable']] });
+	});
+
+	for (const count of [0, 2]) {
+		test(`startup telemetry records a processed Claude result with ${count} candidates after provider publication`, async () => {
+			const telemetry = new TestAgentHostStartupTelemetryService();
+			let now = 10;
+			const startupPerformance = disposables.add(new AgentHostStartupPerformance(AgentHostLaunchKind.Unknown, undefined, telemetry, new NullLogService(), () => now));
+			const { agent, sdk } = createTestContext(disposables, { startupPerformance });
+			sdk.sessionList = Array.from({ length: count }, (_, i) => ({ sessionId: `private-${i}`, cwd: '/private', summary: 'Private title', lastModified: 1 }));
+			disposables.add(agent.onDidDiscoverChats(() => { now = 30; }));
+			await agent.startChatDiscovery();
+			await agent.startChatDiscovery();
+			assert.deepStrictEqual({
+				scans: sdk.listSessionsCallCount,
+				markers: telemetry.events.filter(event => ['sessionDiscoveryScan', 'firstSessionDiscoveryResult'].includes(String(event.data?.name))).map(({ data }) => [
+					data?.name, data?.timestampMs, data?.since, data?.scannedSessionCount, data?.candidateSessionCount, data?.externalSessionCount, data?.filteredSessionCount, data?.failedSessionCount,
+				]),
+			}, {
+				scans: 1,
+				markers: [
+					['sessionDiscoveryScan', 10, 'sessionDiscoveryScanStart', count, undefined, undefined, undefined, undefined],
+					['firstSessionDiscoveryResult', 30, 'processStart', undefined, count, count, 0, undefined],
+				],
+			});
+		});
+	}
+
+	test('startup telemetry distinguishes deferred Claude discovery from its late empty result', async () => {
+		const telemetry = new TestAgentHostStartupTelemetryService();
+		const startupPerformance = disposables.add(new AgentHostStartupPerformance(AgentHostLaunchKind.Unknown, undefined, telemetry, new NullLogService(), () => 50));
+		const { agent, sdk } = createTestContext(disposables, { startupPerformance });
+		sdk.canLoadWithoutDownloadResult = false;
+		await agent.startChatDiscovery();
+		const before = telemetry.events.filter(event => event.data?.name === 'firstSessionDiscoveryResult').length;
+		sdk.canLoadWithoutDownloadResult = true;
+		(agent as unknown as { _restartChatDiscovery(): void })._restartChatDiscovery();
+		await agent.startChatDiscovery();
+		assert.deepStrictEqual({
+			before,
+			scans: sdk.listSessionsCallCount,
+			downloads: sdk.ensureAvailableCalls,
+			first: telemetry.events.filter(event => event.data?.name === 'firstSessionDiscoveryResult').map(({ data }) => [data?.durationMs, data?.candidateSessionCount]),
+		}, { before: 0, scans: 1, downloads: 0, first: [[50, 0]] });
+	});
+
+	test('startup telemetry records a late Claude result even after discovery scan sampling is exhausted', async () => {
+		const telemetry = new TestAgentHostStartupTelemetryService();
+		const startupPerformance = disposables.add(new AgentHostStartupPerformance(AgentHostLaunchKind.Unknown, undefined, telemetry, new NullLogService(), () => 50));
+		const { agent, sdk } = createTestContext(disposables, { startupPerformance });
+		const internal = agent as unknown as { _emitClaudeCodeChats(): Promise<boolean> };
+		sdk.listSessionsRejection = new Error('catalog unavailable');
+		const results: boolean[] = [];
+		for (let i = 0; i < 4; i++) {
+			results.push(await internal._emitClaudeCodeChats());
+		}
+		const before = telemetry.events.filter(event => event.data?.name === 'firstSessionDiscoveryResult').length;
+		sdk.listSessionsRejection = undefined;
+		results.push(await internal._emitClaudeCodeChats());
+		await internal._emitClaudeCodeChats();
+		assert.deepStrictEqual({
+			before,
+			results,
+			scans: telemetry.events.filter(event => event.data?.name === 'sessionDiscoveryScan').map(({ data }) => data?.outcome),
+			first: telemetry.events.filter(event => event.data?.name === 'firstSessionDiscoveryResult').map(({ data }) => [data?.durationMs, data?.candidateSessionCount]),
+		}, { before: 0, results: [false, false, false, false, true], scans: ['error', 'error', 'error'], first: [[50, 0]] });
 	});
 
 	test('getDescriptor advertises the Claude provider', () => {
@@ -2535,6 +2607,19 @@ suite('ClaudeAgent', () => {
 			session: expected.toString(),
 			provisional: true,
 		});
+	});
+
+	test('standard host sessions retain their address and an independent Claude backing ID', async () => {
+		const { agent } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const session = URI.parse('ahp-session:/new-claude');
+		const result = await createSession(agent, { session, workingDirectories: [URI.file('/work')] });
+		assert.deepStrictEqual({
+			session: result.session.toString(),
+			provisional: result.provisional,
+			backingProvider: result.chat?.backingSession?.scheme,
+			separateBacking: result.sdkSessionId !== AgentSession.id(session),
+		}, { session: session.toString(), provisional: true, backingProvider: 'claude', separateBacking: true });
 	});
 
 	test('createChat({ fork }) forks at the anchor uuid, then materializes lazily on first sendMessage', async () => {
@@ -5120,6 +5205,7 @@ suite('ClaudeAgent', () => {
 				_isKnownClaudeCodeChat(chat: IAgentChatMetadata): Promise<boolean>;
 				_onDidDiscoverChats: { fire(chats: readonly unknown[]): void };
 				_logService: { warn(message: string): void };
+				_recordFirstDiscoveryResult(discoveredCount: number, listedCount: number): void;
 			}): Promise<void>;
 		})._emitClaudeCodeChats;
 
@@ -5128,6 +5214,7 @@ suite('ClaudeAgent', () => {
 			_isKnownClaudeCodeChat: async chat => sessionIdOfChat(chat.chat) !== 'unknown-external',
 			_onDidDiscoverChats: { fire: chats => emitted.push(...chats) },
 			_logService: { warn: () => { } },
+			_recordFirstDiscoveryResult: () => { },
 		});
 
 		assert.deepStrictEqual(emitted, [{ ...chats[2], external: true }]);
@@ -5578,7 +5665,8 @@ suite('ClaudeAgent', () => {
 		// Tested keys: presence + ordering of enum + the five-value
 		// canonical set (matching SDK `PermissionMode` typedef at
 		// `sdk.d.ts:1560`, excluding `dontAsk`, ratified in Phase 6.1 Cycle A
-		// under I2) + default. Skipped keys (AutoApprove, Mode, Isolation,
+		// under I2) + default. Sensitive edit locations are platform-owned
+		// transient config and remain hidden from the picker. Skipped keys (AutoApprove, Mode, Isolation,
 		// Branch, BranchNameHint) MUST be absent — workbench
 		// `AgentHostModePicker` and friends key off these property names
 		// to decide what to render, and accidentally re-introducing
@@ -5602,7 +5690,7 @@ suite('ClaudeAgent', () => {
 			branchAbsent: properties['branch'] === undefined,
 		}, {
 			topLevelType: 'object',
-			propertyKeys: ['permissionMode', 'permissions'],
+			propertyKeys: ['permissionMode', 'permissions', SessionConfigKey.SensitiveEditLocations].sort(),
 			permissionModeType: 'string',
 			permissionModeEnum: ['default', 'acceptEdits', 'plan', 'auto', 'bypassPermissions'],
 			permissionModeDefault: 'default',
@@ -7142,10 +7230,10 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 		}, {
 			result: { behavior: 'allow', updatedInput: input },
 			confirmation: {
-				displayName: 'Set Workspace',
-				invocationMessage: 'Continue this session in /workspace/app with changes isolated from the existing folder?',
+				displayName: 'Change Workspace',
+				invocationMessage: 'Change this chat\'s workspace to a new worktree of /workspace/app? Other chats keep their workspaces.',
 				toolInput: undefined,
-				confirmationTitle: 'Continue in app?',
+				confirmationTitle: 'Change Workspace to app?',
 				permissionKind: 'mcp',
 			},
 		});
@@ -8493,6 +8581,46 @@ suite('ClaudeAgent (Phase 13 — transcript reconstruction)', () => {
 
 		assert.deepStrictEqual(turns, []);
 		assert.strictEqual(sdk.getSessionMessagesCalls.length, 0, 'provisional chat must not hit SDK');
+	});
+
+	test('getMessages restores retained Bash output from the chat database', async () => {
+		const database = new TestSessionDatabase();
+		await database.createTurn('u1');
+		await database.storeTerminalOutput('u1', 'toolu_bash', VSBuffer.fromString('full output').buffer);
+		const { agent, sdk } = createTestContext(disposables, { database });
+		const sessionId = 'phase13-retained-output';
+		sdk.sessionMessagesById.set(sessionId, [
+			makeUserSessionMessage('u1', 'run it'),
+			{
+				...makeAssistantMessage(sessionId, [
+					{ type: 'tool_use', id: 'toolu_bash', name: 'Bash', input: { command: 'build' } },
+				]),
+				parent_agent_id: null,
+			},
+			{
+				...makeUserToolResultMessage(sessionId, 'toolu_bash', 'Output too large'),
+				parent_agent_id: null,
+				session_id: sessionId,
+				uuid: 'bash-result',
+			},
+		]);
+		const sessionUri = AgentSession.uri(agent.id, sessionId);
+		const chat = defaultChatUri(sessionUri);
+		await bindDefaultChat(agent, sessionUri);
+
+		const turns = await agent.chats.getMessages(chat, chatContext(chat));
+
+		const toolCall = turns[0]?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall);
+		assert.deepStrictEqual(toolCall?.kind === ResponsePartKind.ToolCall && toolCall.toolCall.status === ToolCallStatus.Completed ? toolCall.toolCall.content : undefined, [
+			{ type: ToolResultContentType.Text, text: 'Output too large' },
+			{
+				type: ToolResultContentType.Terminal,
+				resource: buildNonPtyShellTerminalUri(sessionUri, sessionUri, chat, 'toolu_bash'),
+				title: 'Run shell command',
+				isPty: false,
+				result: { exitCode: 0, truncated: true },
+			},
+		]);
 	});
 
 	test('getMessages returns [] on SDK fetch failure (warn-logged)', async () => {

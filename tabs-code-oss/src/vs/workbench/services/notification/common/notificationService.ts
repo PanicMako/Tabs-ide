@@ -11,6 +11,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IAction, Action } from '../../../../base/common/actions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { NotificationActionTelemetryId, withNotificationActionTelemetry } from '../../../../platform/notification/common/notificationTelemetry.js';
 
 export class NotificationService extends Disposable implements INotificationService {
 
@@ -218,6 +219,7 @@ export class NotificationService extends Disposable implements INotificationServ
 			// If the user already picked to not show the notification
 			// again, we return with a no-op notification here
 			if (this.storageService.getBoolean(id, scope)) {
+				toDispose.dispose();
 				return new NoOpNotification();
 			}
 
@@ -232,6 +234,7 @@ export class NotificationService extends Disposable implements INotificationServ
 					// Remember choice
 					this.storageService.store(id, true, scope, StorageTarget.USER);
 				}));
+			withNotificationActionTelemetry(neverShowAgainAction, NotificationActionTelemetryId.NeverShowAgain);
 
 			// Insert as primary or secondary action
 			const actions = {
@@ -269,7 +272,7 @@ export class NotificationService extends Disposable implements INotificationServ
 		}
 	}
 
-	prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions): INotificationHandle {
+	prompt(severity: Severity, message: NotificationMessage, choices: IPromptChoice[], options?: IPromptOptions): INotificationHandle {
 
 		// Handle neverShowAgain option accordingly
 		if (options?.neverShowAgain) {
@@ -283,6 +286,7 @@ export class NotificationService extends Disposable implements INotificationServ
 			}
 
 			const neverShowAgainChoice = {
+				telemetryId: NotificationActionTelemetryId.NeverShowAgain,
 				label: localize('neverShowAgain', "Don't Show Again"),
 				run: () => this.storageService.store(id, true, scope, StorageTarget.USER),
 				isSecondary: options.neverShowAgain.isSecondary
@@ -326,7 +330,7 @@ export class NotificationService extends Disposable implements INotificationServ
 
 		// Show notification with actions
 		const actions: INotificationActions = { primary: primaryActions, secondary: secondaryActions };
-		const handle = this.notify({ severity, message, actions, sticky: options?.sticky, priority: options?.priority });
+		const handle = this.notify({ severity, message, actions, telemetry: options?.telemetry, sticky: options?.sticky, priority: options?.priority, legacyExtensionLinkParsing: options?.legacyExtensionLinkParsing });
 
 		Event.once(handle.onDidClose)(() => {
 

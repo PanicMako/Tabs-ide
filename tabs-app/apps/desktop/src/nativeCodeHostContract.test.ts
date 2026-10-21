@@ -50,7 +50,37 @@ describe("embedded Code native-host contract", () => {
     const handled = collectHandledCommands(implementation);
     const missing = [...methods].filter((method) => !handled.has(method));
 
-    expect(methods.size).toBe(104);
+    expect(methods.size).toBe(111);
     expect(missing).toEqual([]);
+  });
+
+  it("defines explicit policy behaviors for all methods added in VS Code 1.142.0", () => {
+    const v142AddedMethods = [
+      "isGPUCompositingEnabled",
+      "cancelZipFile",
+      "getAgentHostEditorState",
+      "updateAgentHostEditorState",
+      "claimAgentsWindowInvitation",
+      "markAgentsWindowInvitationShown",
+      "releaseAgentsWindowInvitation",
+    ];
+
+    const mainSource = readFileSync(
+      Path.join(import.meta.dirname, "nativeCodeHostMain.ts"),
+      "utf8",
+    );
+
+    for (const method of v142AddedMethods) {
+      expect(mainSource).toContain(`command === "${method}"`);
+    }
+
+    const v142AddedEvents = [
+      "onDidChangeGPUCompositing",
+      "onDidChangeAgentHostEditorState",
+      "onDidProgressZipFile",
+    ];
+    for (const evt of v142AddedEvents) {
+      expect(mainSource).toContain(`"${evt}"`);
+    }
   });
 });
