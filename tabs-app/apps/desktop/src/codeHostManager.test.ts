@@ -439,20 +439,16 @@ describe("resolveCodeHostConfig", () => {
     });
   });
 
-  it("resolves the current worktree's tabs-code-oss and verifies version is 1.142.0", () => {
-    const rootDir = Path.resolve(__dirname, "../../..");
-    const config = resolveCodeHostConfig({
-      rootDir,
-      env: {},
-    });
-
-    expect(config.state.available).toBe(true);
-    expect(config.runtime).toBeDefined();
-    expect(config.runtime?.vscodeRoot).toBe(Path.resolve(rootDir, "../tabs-code-oss"));
-    const pkg = JSON.parse(
-      FS.readFileSync(Path.join(config.runtime!.vscodeRoot, "package.json"), "utf8"),
-    ) as { version: string };
-    expect(pkg.version).toBe("1.142.0");
+  it("does not require generated assets from the developer checkout", () => {
+    const parentDir = makeTempDir("tabs-unbuilt-");
+    const rootDir = Path.join(parentDir, "tabs-app");
+    FS.mkdirSync(rootDir, { recursive: true });
+    const runtime = Path.join(parentDir, "tabs-code-oss");
+    FS.mkdirSync(runtime);
+    FS.writeFileSync(Path.join(runtime, "package.json"), JSON.stringify({ version: "1.142.0" }));
+    expect(resolveCodeHostConfig({ rootDir, env: {} }).state.available).toBe(false);
+    writeVsCodeDesktopCheckout(runtime);
+    expect(resolveCodeHostConfig({ rootDir, env: {} }).runtime?.vscodeRoot).toBe(runtime);
   });
 
   it("returns an actionable message when the desktop build is missing", () => {
