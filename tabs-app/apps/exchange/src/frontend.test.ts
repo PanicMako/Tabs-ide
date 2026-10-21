@@ -100,6 +100,7 @@ describe("Exchange frontend routes", () => {
       expect(page.headers.get("cache-control")).toBe("private, no-store");
       expect(page.headers.get("content-security-policy")).toContain("frame-ancestors 'none'");
       expect(page.headers.get("content-security-policy")).not.toContain("unsafe-inline");
+      expect(page.headers.get("content-security-policy")).toContain("font-src 'self'");
       expect(page.headers.get("x-content-type-options")).toBe("nosniff");
       const icon = await fetch(`${origin}/favicon.svg`);
       expect(icon.status).toBe(200);
@@ -137,7 +138,9 @@ describe("Exchange frontend routes", () => {
     );
     expect(frontendAsset("/_astro/@/secret.css")).toBeUndefined();
     expect(frontendAsset("/_astro/publish@%2fsecret.css")).toBeUndefined();
+    expect(frontendAsset("/_astro/instrument-serif.woff")).toBe("_astro/instrument-serif.woff");
     expect(frontendAsset("/_astro/../secret.woff2")).toBeUndefined();
+    expect(frontendAsset("/_astro/../secret.woff")).toBeUndefined();
     expect(frontendAsset("/admin/unknown")).toBeUndefined();
     expect(frontendAsset("/publish")).toBe("publish/index.html");
     expect(frontendAsset("/extensions")).toBe("extensions/index.html");

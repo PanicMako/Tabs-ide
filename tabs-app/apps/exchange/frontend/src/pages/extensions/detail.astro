@@ -12,9 +12,9 @@ import { extensionMarkPath, extensionMarkViewBox } from "../../lib/extensionMark
 
   <p id="extension-status" role="status" aria-live="polite" class="registry-status">Loading the published overview…</p>
 
-  <div id="extension-error" hidden class="notice" style="background:#fef2f2;border-color:#fecaca;margin-bottom:28px">
-    <p id="extension-error-message" style="color:#991b1b;font-weight:600"></p>
-    <div class="actions" style="margin-top:12px">
+  <div id="extension-error" hidden class="notice">
+    <p id="extension-error-message"></p>
+    <div class="actions">
       <button id="extension-retry" class="button secondary" type="button">Retry overview</button>
       <a id="extension-signin" class="button" href="/auth/github/start">Sign in to reconnect</a>
     </div>
@@ -42,7 +42,7 @@ import { extensionMarkPath, extensionMarkViewBox } from "../../lib/extensionMark
           <optgroup id="extension-prerelease" label="Prereleases"></optgroup>
         </select>
       </div>
-      <span class="muted" style="font-size:13px">Tabs resolves compatible releases against your desktop client version.</span>
+      <span class="muted">Tabs resolves compatible releases against your desktop client version.</span>
     </div>
 
     <div class="detail-grid">
@@ -56,19 +56,19 @@ import { extensionMarkPath, extensionMarkViewBox } from "../../lib/extensionMark
           <h2>Overview</h2>
           <p id="extension-readme-status" role="status" aria-live="polite"></p>
           <div id="extension-readme" class="prose"></div>
-          <button id="extension-readme-retry" class="button secondary" type="button" hidden style="margin-top:16px">Retry README</button>
+          <button id="extension-readme-retry" class="button secondary" type="button" hidden>Retry README</button>
         </section>
 
         <section class="card">
           <h2>Release notes</h2>
-          <p id="extension-release-notes" class="prose" style="font-size:15px;color:var(--muted);line-height:1.6"></p>
+          <p id="extension-release-notes" class="prose"></p>
         </section>
 
         <details id="extension-history">
           <summary>Published release history</summary>
-          <div style="padding: 24px 28px">
+          <div>
             <p id="extension-history-status" role="status" aria-live="polite" class="muted">Open to load releases independently of the overview.</p>
-            <ul id="extension-history-list" style="margin: 16px 0; padding-left: 20px"></ul>
+            <ul id="extension-history-list"></ul>
             <button id="extension-history-more" class="button secondary" type="button">Load releases</button>
           </div>
         </details>
@@ -77,10 +77,10 @@ import { extensionMarkPath, extensionMarkViewBox } from "../../lib/extensionMark
       <div class="detail-side-column">
         <section class="install-card">
           <h2>Install in Tabs</h2>
-          <p style="font-size:14px;color:var(--muted);line-height:1.6">Open Tabs → Settings → Extensions → Discover. Search for this extension in the official Exchange. Custom registries require their own trusted configuration.</p>
+          <p>Open Tabs → Settings → Extensions → Discover. Search for this extension in the official Exchange. Custom registries require their own trusted configuration.</p>
           <div id="extension-install-identity"></div>
-          <p class="muted" style="font-size:12px;margin:12px 0 20px">Project enablement and profiles are isolated. Browser downloads are for local inspection only.</p>
-          <a id="extension-download" class="button" style="width:100%">Download package for inspection</a>
+          <p class="muted">Project enablement and profiles are isolated. Browser downloads are for local inspection only.</p>
+          <a id="extension-download" class="button">Download package for inspection</a>
         </section>
 
         <section class="meta-card">
@@ -102,17 +102,17 @@ import { extensionMarkPath, extensionMarkViewBox } from "../../lib/extensionMark
         <section class="meta-card">
           <h2>Compatibility & Access</h2>
           <dl id="extension-metadata"></dl>
-          <h3 style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin:24px 0 10px">Requested capabilities</h3>
+          <h3>Requested capabilities</h3>
           <ul id="extension-permissions"></ul>
-          <h3 style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin:20px 0 8px">External services</h3>
-          <p id="extension-services" style="font-size:14px;color:var(--muted);line-height:1.6;margin:0 0 20px"></p>
-          <h3 style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin:20px 0 8px">Publisher resources</h3>
+          <h3>External services</h3>
+          <p id="extension-services"></p>
+          <h3>Publisher resources</h3>
           <nav id="extension-links" aria-label="Publisher resources"></nav>
         </section>
       </div>
     </div>
 
-    <p class="notice" style="margin-top:48px">Every published version has been manually reviewed and entered signed metadata. Review is not a security guarantee.</p>
+    <p class="notice">Every published version has been manually reviewed and entered signed metadata. Review is not a security guarantee.</p>
   </article>
 </Exchange>
 <script>import "../../scripts/extension"; import "../../scripts/extension-report";</script>

@@ -28,12 +28,12 @@ import Exchange from "../../layouts/Exchange.astro";
     <a class="text-link catalog-reset" href="/extensions">Reset filters</a>
   </form>
 
-  <p class="muted" style="font-size:14px;margin:12px 0 28px">Search uses relevance when you enter a query. Categories are supplied by publishers.</p>
+  <p class="muted catalog-help">Search uses relevance when you enter a query. Categories are supplied by publishers.</p>
   <p id="catalog-status" role="status" aria-live="polite" aria-atomic="true" class="registry-status">Loading published extensions…</p>
 
   <div id="catalog-error" hidden class="registry-empty"><span class="empty-mark" aria-hidden="true">↗</span><div><h2>Let’s reconnect the registry.</h2>
-    <p id="catalog-error-message" style="color:#991b1b;font-weight:600"></p>
-    <div class="actions" style="margin-top:12px">
+    <p id="catalog-error-message"></p>
+    <div class="actions">
       <button id="catalog-retry" class="button secondary" type="button">Retry search</button>
       <a id="catalog-signin" class="button" href="/auth/github/start">Sign in to reconnect</a>
     </div>
@@ -45,11 +45,11 @@ import Exchange from "../../layouts/Exchange.astro";
     <ul id="catalog-results" class="catalog-results"></ul>
   </section>
 
-  <div style="text-align:center;margin-top:36px">
+  <div class="catalog-pagination">
     <button id="catalog-more" class="button secondary" type="button" hidden>Load more extensions</button>
   </div>
 
-  <noscript><p class="notice" style="margin-top:32px">Enable JavaScript to search this registry. The <a href="/docs/extensions/registry-api">public API reference</a> describes alternative compatible clients.</p></noscript>
+  <noscript><p class="notice catalog-fallback">Enable JavaScript to search this registry. The <a href="/docs/extensions/registry-api">public API reference</a> describes alternative compatible clients.</p></noscript>
   <p class="instance-note">Manual review is not a security guarantee. Installation requires Tabs to verify signed metadata and request your permission. Browsing never grants access to your projects.</p>
 </Exchange>
 <script>import "../../scripts/catalog";</script>

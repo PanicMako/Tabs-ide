@@ -12,6 +12,7 @@ const types: Record<string, string> = {
   ".gz": "application/gzip",
   ".md": "text/plain; charset=utf-8",
   ".woff2": "font/woff2",
+  ".woff": "font/woff",
   ".svg": "image/svg+xml",
   ".png": "image/png",
 };
@@ -60,7 +61,8 @@ export function frontendAsset(pathname: string): string | undefined {
     return "docs/extensions/index.html";
   const documentation = /^\/docs\/extensions\/([a-z][a-z0-9-]{0,80})\/?$/.exec(pathname);
   if (documentation) return `docs/extensions/${documentation[1]}/index.html`;
-  if (/^\/_astro\/[A-Za-z0-9_@.-]+\.(?:css|js|woff2)$/.test(pathname)) return pathname.slice(1);
+  if (/^\/_astro\/[A-Za-z0-9_@.-]+\.(?:css|js|woff2|woff)$/.test(pathname))
+    return pathname.slice(1);
   return undefined;
 }
 
@@ -90,7 +92,7 @@ export async function serveFrontend(
     "Cache-Control": response.getHeader("Cache-Control") ?? "no-store",
     "X-Content-Type-Options": "nosniff",
     "Content-Security-Policy":
-      "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' https://github.com https://avatars.githubusercontent.com; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
+      "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' https://github.com https://avatars.githubusercontent.com; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
   });
   response.end(bytes);
   return true;
