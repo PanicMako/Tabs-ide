@@ -54,7 +54,7 @@ describe("embedded Code native-host contract", () => {
     expect(missing).toEqual([]);
   });
 
-  it("defines explicit policy behaviors for all methods added in VS Code 1.142.0", () => {
+  it("registers the command and event names added in VS Code 1.142.0", () => {
     const v142AddedMethods = [
       "isGPUCompositingEnabled",
       "cancelZipFile",

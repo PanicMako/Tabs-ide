@@ -56,15 +56,16 @@ export class AgentsWindowManager {
       if (existing.window.isDestroyed()) throw new Error("Agents window closed before handoff");
       if (!existing.content || existing.content.isDestroyed())
         throw new Error("Agents renderer closed before handoff");
-      existing.content.send(
-        "vscode:selectAgentsFolder",
-        payload.folderUri,
-        payload.sessionResource,
-        payload.source,
-        payload.folderUriIsDefault,
-        payload.draft,
-        payload.onboardingSessionResource,
-      );
+      if (payload.reveal !== undefined)
+        existing.content.send(
+          "vscode:selectAgentsFolder",
+          payload.folderUri,
+          payload.reveal,
+          payload.source,
+          payload.folderUriIsDefault,
+          payload.reveal === "new" || payload.source === "link" ? payload.draft : undefined,
+          payload.onboardingSessionResource,
+        );
       existing.content.focus();
       return;
     }
@@ -156,7 +157,7 @@ export class AgentsWindowManager {
       content = webContents;
       record.content = webContents;
       this.windows.set(webContents.id, record);
-      backend.registerWebContents(webContents, bounds, window, projectId);
+      backend.registerWebContents(webContents, bounds, window, projectId, true);
     });
     const projectId = `tabs-agents-${randomUUID()}`;
     const resize = () => {
@@ -174,10 +175,10 @@ export class AgentsWindowManager {
       content.send(
         "vscode:selectAgentsFolder",
         payload.folderUri,
-        payload.sessionResource,
+        payload.reveal,
         payload.source,
         payload.folderUriIsDefault,
-        payload.draft,
+        payload.reveal === "new" || payload.source === "link" ? payload.draft : undefined,
         payload.onboardingSessionResource,
       );
       window.show();

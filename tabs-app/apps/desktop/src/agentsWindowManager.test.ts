@@ -185,11 +185,11 @@ describe("AgentsWindowManager", () => {
 
     expect(mockBrowserWindows.length).toBe(1);
 
-    // Second open with sessionResource
+    // Second open with reveal
     await manager.open({
       source: "parallelWorkEmptyChatHandoff",
       folderUriIsDefault: false,
-      sessionResource: { scheme: "vscode-chat-session", path: "/session-42" },
+      reveal: { scheme: "vscode-chat-session", path: "/session-42" },
       onboardingSessionResource: { scheme: "agent-host", path: "/onboard-1" },
     });
 
@@ -205,6 +205,40 @@ describe("AgentsWindowManager", () => {
       undefined,
       { scheme: "agent-host", path: "/onboard-1" },
     );
+  });
+
+  it("forwards new-session drafts on cold open and reuse, while focus-only opens preserve the view", async () => {
+    const manager = new AgentsWindowManager(baseConfig, () => mockBackend);
+    const payload = {
+      reveal: "new" as const,
+      source: "commandPalette",
+      folderUriIsDefault: true,
+      draft: { inputText: "keep my draft", attachments: '[{"kind":"file"}]' },
+    };
+    const opening = manager.open(payload);
+    manager.notifyReady(mockWebContents as any);
+    await opening;
+    expect(mockWebContents.send).toHaveBeenLastCalledWith(
+      "vscode:selectAgentsFolder",
+      undefined,
+      "new",
+      "commandPalette",
+      true,
+      payload.draft,
+      undefined,
+    );
+    expect(mockBackend.registerWebContents).toHaveBeenCalledWith(
+      mockWebContents,
+      expect.anything(),
+      mockBrowserWindows[0],
+      "test-project",
+      true,
+    );
+    await manager.open(payload);
+    expect(mockWebContents.send).toHaveBeenCalledTimes(2);
+    await manager.open({ source: "commandPalette", folderUriIsDefault: false });
+    expect(mockWebContents.send).toHaveBeenCalledTimes(2);
+    await manager.shutdown();
   });
 
   it("awaits session flush on window close before destroying", async () => {

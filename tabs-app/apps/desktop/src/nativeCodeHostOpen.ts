@@ -62,7 +62,7 @@ export interface NativeAgentsUri {
 
 export interface NativeAgentsWindowPayload {
   readonly folderUri?: NativeAgentsUri | undefined;
-  readonly sessionResource?: NativeAgentsUri | undefined;
+  readonly reveal?: NativeAgentsUri | "new" | undefined;
   readonly onboardingSessionResource?: NativeAgentsUri | undefined;
   readonly folderUriIsDefault: boolean;
   readonly source: string;
@@ -101,7 +101,7 @@ export function parseNativeAgentsWindowOptions(options: unknown): NativeAgentsWi
     throw new Error("Invalid Agents draft: inputText and serialized attachments are required");
   return {
     folderUri: agentsUri(opts.folderUri),
-    sessionResource: agentsUri(opts.sessionResource),
+    reveal: opts.reveal === "new" ? "new" : agentsUri(opts.reveal),
     onboardingSessionResource: agentsUri(opts.onboardingSessionResource),
     folderUriIsDefault: opts.folderUriIsDefault === true,
     source: typeof opts.source === "string" ? opts.source : "unknown",
