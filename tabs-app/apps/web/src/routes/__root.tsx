@@ -26,7 +26,8 @@ import {
   getWsTransport,
 } from "../wsNativeApi";
 import { migrateLocalSettingsToServer, useSettings } from "../hooks/useSettings";
-import { SplashScreen, STARTUP_ANIMATION_EXIT_MS } from "../components/SplashScreen";
+import { SplashScreen } from "../components/SplashScreen";
+import { useStartupAnimation } from "../hooks/useStartupAnimation";
 import { markStartupStage } from "../lib/startupReadiness";
 import { hasEarlyStartupSplash, updateStartupSplash } from "../lib/startupSplashLifecycle";
 import { cn, isPopoutMode } from "../lib/utils";
@@ -118,11 +119,16 @@ function FullAppRootView() {
   const [startupDeadlineElapsed, setStartupDeadlineElapsed] = useState(false);
   const [backendStartupError, setBackendStartupError] = useState<string | null>(null);
   const bootstrapReady = isNativeApiReady && threadsHydrated;
-  const ready = bootstrapReady;
+  const transition = useStartupAnimation(bootstrapReady, settings.splashLoaderStyle);
+  const ready = transition.ready;
   const [earlySplash] = useState(hasEarlyStartupSplash);
   useEffect(() => {
-    updateStartupSplash({ ready, error: backendStartupError, delayed: startupDeadlineElapsed });
-  }, [ready, backendStartupError, startupDeadlineElapsed]);
+    updateStartupSplash({
+      ready: bootstrapReady,
+      error: backendStartupError,
+      delayed: startupDeadlineElapsed,
+    });
+  }, [bootstrapReady, backendStartupError, startupDeadlineElapsed]);
   const [mounted, setMounted] = useState(true);
 
   useEffect(() => {
@@ -161,21 +167,24 @@ function FullAppRootView() {
   }, [bootstrapReady]);
 
   useEffect(() => {
+    if (bootstrapReady) markStartupStage("workspace-interactive");
+  }, [bootstrapReady]);
+
+  useEffect(() => {
     if (ready) {
-      markStartupStage("workspace-interactive");
-      const timer = setTimeout(() => setMounted(false), STARTUP_ANIMATION_EXIT_MS + 50);
+      const timer = setTimeout(() => setMounted(false), transition.exitMs);
       return () => clearTimeout(timer);
     } else {
       setMounted(true);
     }
-  }, [ready]);
+  }, [ready, transition.exitMs]);
 
   return (
     <>
       {mounted && !earlySplash && (
         <div
           className={cn(
-            "fixed inset-0 z-[9999] bg-background transition-transform duration-200 ease-out motion-reduce:duration-0",
+            "fixed inset-0 z-[9999] bg-background transition-transform duration-500 ease-in-out motion-reduce:duration-0",
             ready ? "pointer-events-none -translate-y-full" : "pointer-events-auto translate-y-0",
           )}
         >

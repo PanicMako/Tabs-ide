@@ -1,12 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { STARTUP_ANIMATION_HOLD_MS, STARTUP_ANIMATION_EXIT_MS } from "../components/SplashScreen";
+import {
+  STARTUP_ANIMATION_HOLD_MS,
+  STARTUP_ANIMATION_EXIT_MS,
+  startupAnimationHoldMs,
+} from "../lib/startupAnimationTiming";
 
 describe("Startup splash timing constraints", () => {
-  it("does not hold an already-ready workspace behind a decorative splash", () => {
-    expect(STARTUP_ANIMATION_HOLD_MS).toBe(0);
+  it("allows the last airport tile and its highlight to finish", () => {
+    expect(STARTUP_ANIMATION_HOLD_MS).toBe(1_750);
+    expect(startupAnimationHoldMs("solari")).toBe(1_750);
   });
 
-  it("keeps the splash exit brief", () => {
-    expect(STARTUP_ANIMATION_EXIT_MS).toBeLessThanOrEqual(200);
+  it("allows one complete glass cycle when selected", () => {
+    expect(startupAnimationHoldMs("glass")).toBe(6_750);
+  });
+
+  it("uses a half-second upward exit", () => {
+    expect(STARTUP_ANIMATION_EXIT_MS).toBe(500);
   });
 });

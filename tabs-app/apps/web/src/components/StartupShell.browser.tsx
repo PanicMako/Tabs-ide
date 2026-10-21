@@ -21,8 +21,16 @@ it("paints the original airport loader before imports finish and preserves it th
     resolve(<button>Workspace loaded</button>);
     await expect.element(page.getByRole("button", { name: "Workspace loaded" })).toBeVisible();
     expect(document.querySelector(".grid-cols-4")).toBe(tiles);
+    const curtain = document.querySelector<HTMLElement>('[aria-label="Starting Tabs"]')!;
+    expect(getComputedStyle(curtain).transitionDuration).toBe("0.5s");
     updateStartupSplash({ ready: true });
-    await expect.element(splash).not.toBeInTheDocument();
+    // A fast backend must not cut off the airport tiles halfway through.
+    expect(curtain.classList.contains("-translate-y-full")).toBe(false);
+    await expect
+      .poll(() => curtain.classList.contains("-translate-y-full"), { timeout: 5_000 })
+      .toBe(true);
+    expect(tiles?.textContent?.replace(/\u00a0/g, " ")).toBe("TABS IDE");
+    await expect.poll(() => curtain.isConnected, { timeout: 5_000 }).toBe(false);
   } finally {
     await view.unmount();
     release();

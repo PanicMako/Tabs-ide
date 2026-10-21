@@ -104,8 +104,9 @@ renderer exceptions and zero console errors. A separate fresh development-server
 launch also recorded zero renderer exceptions and zero console errors, without a
 reload. Its development-only Electron policy warning remains visible.
 
-The original airport loading screen and its natural dismissal behavior are
-unchanged. No minimum animation duration or substitute screen was introduced.
+The performance pass preserved the original airport loading screen without a
+minimum duration. The later operator-requested animation completion and 500 ms
+exit are documented below; they intentionally change the presentation timing.
 
 ### Timing evidence
 
@@ -192,9 +193,9 @@ the upgraded bundled editor backend. The initial install took 355 seconds, upgra
 these are installation durations, not application launch timings. The macOS
 signature checks establish
 ad-hoc signature integrity; they do not establish Developer ID notarization.
-The desktop application sources are byte-identical to the candidate build commit;
-subsequent changes affect Exchange, documentation, marketing release snapshots and
-the external Linux smoke harness.
+Through commit b0ae9d06a the desktop application sources were byte-identical to
+the candidate build commit; later changes described below modify the web startup
+presentation and are not included in those previously tested installer binaries.
 
 The earlier candidate run was cancelled when the listener fix changed the source.
 A successful preflight is not a substitute for finished platform artifacts.
@@ -203,3 +204,27 @@ identity or Apple/Windows CI signing credentials were found in the checked Mac
 keychain or repository/environment secret names. Existing ad-hoc signing and
 updater signatures must not be described as Apple notarization or Windows
 publisher signing.
+
+## Requested animation handoff
+
+The operator subsequently requested that startup always finish the selected loader
+sequence before a slower upward reveal. The airport board now has a 1,750 ms
+minimum, derived from the last tile's 250 ms base, seven 160 ms stagger steps and
+380 ms settled highlight. The existing glass option gets one 6,750 ms cycle.
+Both paths use a 500 ms upward curtain exit once the backend is ready. Backend
+loading and module imports continue concurrently; a slow or failed backend keeps
+the loader and existing error/status presentation visible.
+
+Reduced-motion preferences bypass the decorative hold and slide, with settled
+airport letters. The early shell and fallback loader share the timing logic.
+Backend readiness telemetry remains independent of this deliberate visual wait.
+The airport design, fonts and palette are preserved. No new installer or release
+was published for this presentation change; the measurements above describe the
+previous candidate rather than a new performance result.
+
+Validation for this handoff: seven focused timing/lifecycle tests, both Chromium
+startup browser tests, all 1,693 web tests and all 16 workspace typecheck tasks
+pass. The browser verifies settled airport letters before the exit begins and a
+computed 500 ms transition. Formatter/linter checks report zero errors and the
+same 661 existing warnings. The complete workspace test command also passed all
+18 tasks (including 7,561 server tests, with 35 existing skips).
