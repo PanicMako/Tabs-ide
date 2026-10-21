@@ -48,3 +48,39 @@ export function saveNativeCodeHostStorage(
   writeFileSync(temporaryPath, JSON.stringify(value), "utf8");
   renameSync(temporaryPath, storagePath);
 }
+
+/** The common upstream coordinator uses IStorageService's typed application accessors. */
+export function createNativeCodeHostStorageService(
+  storage: Map<string, string>,
+  persist: () => void,
+) {
+  return {
+    get(key: string) {
+      return storage.get(key);
+    },
+    getNumber(key: string, _scope?: number, fallback?: number) {
+      const value = storage.get(key);
+      if (value === undefined) return fallback;
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : fallback;
+    },
+    getObject<T>(key: string, _scope?: number, fallback?: T): T | undefined {
+      const value = storage.get(key);
+      if (value === undefined) return fallback;
+      try {
+        return JSON.parse(value) as T;
+      } catch {
+        return fallback;
+      }
+    },
+    store(key: string, value: unknown, _scope?: number, _target?: number) {
+      if (value === undefined || value === null) storage.delete(key);
+      else storage.set(key, typeof value === "object" ? JSON.stringify(value) : String(value));
+      persist();
+    },
+    remove(key: string) {
+      storage.delete(key);
+      persist();
+    },
+  };
+}

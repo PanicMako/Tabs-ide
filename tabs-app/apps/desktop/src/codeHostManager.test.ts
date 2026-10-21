@@ -418,6 +418,39 @@ describe("resolveCodeHostConfig", () => {
     });
   });
 
+  it("prefers tabs-code-oss over vscode-main when both exist as siblings", () => {
+    const parentDir = makeTempDir("tabs-parent-");
+    const rootDir = Path.join(parentDir, "tabs-app");
+    const tabsCodeDir = Path.join(parentDir, "tabs-code-oss");
+    const vscodeMainDir = Path.join(parentDir, "vscode-main");
+    FS.mkdirSync(rootDir, { recursive: true });
+    writeVsCodeDesktopCheckout(tabsCodeDir);
+    writeVsCodeDesktopCheckout(vscodeMainDir);
+
+    const config = resolveCodeHostConfig({
+      rootDir,
+      env: {},
+    });
+
+    expect(config.state.available).toBe(true);
+    expect(config.runtime).toMatchObject({
+      kind: "desktop-renderer",
+      vscodeRoot: tabsCodeDir,
+    });
+  });
+
+  it("does not require generated assets from the developer checkout", () => {
+    const parentDir = makeTempDir("tabs-unbuilt-");
+    const rootDir = Path.join(parentDir, "tabs-app");
+    FS.mkdirSync(rootDir, { recursive: true });
+    const runtime = Path.join(parentDir, "tabs-code-oss");
+    FS.mkdirSync(runtime);
+    FS.writeFileSync(Path.join(runtime, "package.json"), JSON.stringify({ version: "1.142.0" }));
+    expect(resolveCodeHostConfig({ rootDir, env: {} }).state.available).toBe(false);
+    writeVsCodeDesktopCheckout(runtime);
+    expect(resolveCodeHostConfig({ rootDir, env: {} }).runtime?.vscodeRoot).toBe(runtime);
+  });
+
   it("returns an actionable message when the desktop build is missing", () => {
     const parentDir = makeTempDir("tabs-parent-");
     const rootDir = Path.join(parentDir, "tabs-app");

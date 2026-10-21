@@ -17,6 +17,7 @@
     "test:browser-workflows": "node scripts/browser-workflows-smoke.mjs",
     "measure:perf": "bun run scripts/measure-extension-performance.mjs",
     "measure:startup": "node scripts/measure-startup.mjs",
+    "test:code-oss-native": "node scripts/code-oss-native-contract-smoke.mjs",
     "test:extension-smoke": "node scripts/extension-smoke-test.mjs"
   },
   "dependencies": {

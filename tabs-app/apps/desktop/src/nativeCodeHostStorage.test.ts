@@ -3,7 +3,11 @@ import * as OS from "node:os";
 import * as Path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { loadNativeCodeHostStorage, saveNativeCodeHostStorage } from "./nativeCodeHostStorage";
+import {
+  createNativeCodeHostStorageService,
+  loadNativeCodeHostStorage,
+  saveNativeCodeHostStorage,
+} from "./nativeCodeHostStorage";
 
 const temporaryDirectories: string[] = [];
 
@@ -59,4 +63,20 @@ describe("native code host storage", () => {
     });
     expect(() => readFileSync(`${storagePath}.tmp`, "utf8")).toThrow();
   });
+});
+
+it("persists typed coordinator counters and impressions across restart", () => {
+  const path = createStoragePath();
+  const storage = new Map<string, string>();
+  const service = createNativeCodeHostStorageService(storage, () =>
+    saveNativeCodeHostStorage(path, storage),
+  );
+  service.store("count", 7, -1, 1);
+  service.store("impression", { timestamp: 123, editorSessionCount: 7 }, -1, 1);
+  const restarted = createNativeCodeHostStorageService(loadNativeCodeHostStorage(path), () => {});
+  expect(restarted.getNumber("count", -1)).toBe(7);
+  expect(restarted.getObject("impression", -1)).toEqual({ timestamp: 123, editorSessionCount: 7 });
+  expect(restarted.getNumber("absent", -1)).toBeUndefined();
+  service.store("count", undefined);
+  expect(service.getNumber("count", -1, 0)).toBe(0);
 });
