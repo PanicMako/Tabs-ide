@@ -2,28 +2,21 @@
   --extensions-tint: color-mix(in oklch, var(--primary) 7%, var(--background));
   position: relative;
   max-width: 1180px;
+  width: 100%;
   margin-inline: auto;
+  min-height: calc(100dvh - 140px);
+  display: flex;
+  flex-direction: column;
 }
-.extensions-settings .extension-page-header {
-  padding: 0 165px 0 0;
-}
-.extensions-settings .extension-page-header h2 {
-  margin: 0;
-  font-family: var(--font-sans);
-  font-size: 26px;
-  font-weight: 650;
-  letter-spacing: -0.8px;
-  line-height: 1.25;
-}
-.extensions-settings .extension-page-header p {
-  margin-top: 5px;
-  font-size: 13px;
-  color: var(--muted-foreground);
+.extensions-settings .extension-discover {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 .extensions-settings .extension-connection-compact {
-  position: absolute;
-  top: 0;
-  right: 0;
+  display: flex;
+  align-items: center;
   margin: 0;
 }
 .extensions-settings .extension-connection-compact button {
@@ -33,7 +26,7 @@
 }
 .extensions-settings .extension-view-tabs {
   display: flex;
-  gap: 24px;
+  gap: 8px;
   border-bottom: 1px solid var(--border);
 }
 .extensions-settings .extension-view-tabs > button,
@@ -41,11 +34,19 @@
   display: flex;
   align-items: center;
   gap: 7px;
-  padding: 12px 1px;
+  padding: 10px 14px;
+  margin-bottom: -1px;
   border-bottom: 2px solid transparent;
   color: var(--muted-foreground);
   font-size: 13px;
   cursor: pointer;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+.extensions-settings .extension-view-tabs > button:hover:not([aria-pressed="true"]),
+.market-detail-tabs > button:hover:not([aria-pressed="true"]) {
+  color: var(--foreground);
 }
 .extensions-settings .extension-view-tabs > button[aria-pressed="true"],
 .market-detail-tabs > button[aria-pressed="true"] {
@@ -67,23 +68,61 @@
 .extensions-settings .extension-search {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 8px 6px 14px;
+  gap: 10px;
+  padding: 4px 6px 4px 16px;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 9999px;
   background: var(--background);
+  transition:
+    border-color 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 0.15s ease;
+}
+.extensions-settings .extension-search:hover:not(:focus-within) {
+  border-color: color-mix(in srgb, var(--foreground) 20%, var(--border));
+}
+.extensions-settings .extension-search:focus-within {
+  border-color: color-mix(in srgb, var(--foreground) 30%, var(--border));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--foreground) 16%, transparent),
+    0 0 16px -2px color-mix(in srgb, var(--primary) 14%, transparent),
+    0 2px 8px -2px rgba(0, 0, 0, 0.25);
+}
+.extensions-settings .extension-search [data-slot="input-control"] {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+.extensions-settings .extension-search [data-slot="input-control"]:before {
+  display: none !important;
 }
 .extensions-settings .extension-search input {
   height: 34px;
-  border: 0;
-  background: transparent;
-  box-shadow: none;
+  border: 0 !important;
+  outline: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
   font-size: 13px;
+  padding: 0 !important;
+}
+.extensions-settings .extension-search input:focus,
+.extensions-settings .extension-search input:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+.extensions-settings .extension-search .market-search-icon {
+  color: var(--muted-foreground);
+  transition: color 0.18s ease;
+}
+.extensions-settings .extension-search:focus-within .market-search-icon {
+  color: var(--primary);
 }
 .extensions-settings .extension-search > button {
   height: 32px;
   font-size: 12px;
-  border-radius: 7px;
+  border-radius: 9999px;
   padding-inline: 16px;
 }
 .market-filters {
@@ -129,6 +168,19 @@
   list-style: none;
   padding: 0;
   margin: 0;
+}
+.extensions-settings .extension-installed-view {
+  display: block;
+  min-height: 0;
+}
+.extensions-settings .extension-installed-view [data-slot="settings-section"],
+.extensions-settings .extension-installed-view [data-slot="settings-section-panel"] {
+  flex: none;
+  min-height: 0;
+}
+.extensions-settings .extension-installed-view .market-installed-list {
+  flex: none;
+  overflow: hidden;
 }
 .market-listing {
   display: flex;
@@ -182,14 +234,17 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-family: var(--font-row, var(--font-sans));
   font-size: 13px;
-  font-weight: 600;
+  font-weight: var(--font-row-weight, 600);
 }
 .market-listing-copy > span {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   overflow: hidden;
+  font-family: var(--font-supporting, var(--font-sans));
+  font-style: var(--font-supporting-style, normal);
   font-size: 12px;
   line-height: 1.5;
   color: var(--muted-foreground);
@@ -212,12 +267,21 @@
   gap: 18px;
   padding: 24px 24px 18px;
 }
+.market-detail-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.market-detail-action {
+  flex-shrink: 0;
+}
 .market-detail-header h3 {
   margin: 0;
-  font-family: var(--font-sans);
+  font-family: var(--font-display, var(--font-sans));
   font-size: 25px;
-  font-weight: 650;
-  letter-spacing: -0.7px;
+  font-weight: var(--font-section-weight, 650);
+  letter-spacing: var(--font-section-tracking, -0.7px);
   line-height: 1.2;
   overflow-wrap: anywhere;
 }
@@ -238,16 +302,18 @@
   font-size: 11px;
 }
 .market-summary {
-  font-size: 12px;
+  font-family: var(--font-supporting, var(--font-sans));
+  font-style: var(--font-supporting-style, normal);
+  font-size: 13px;
   color: var(--muted-foreground);
   line-height: 1.65;
-  margin: 10px 0 14px;
+  margin: 10px 0 0;
 }
 .market-detail-header button {
   height: 30px;
   font-size: 12px;
   padding-inline: 16px;
-  border-radius: 6px;
+  border-radius: 9999px;
 }
 .market-detail-tabs {
   display: flex;
@@ -288,10 +354,11 @@
 .market-markdown h1,
 .market-markdown h2,
 .market-markdown h3 {
-  font-family: var(--font-sans);
-  font-weight: 600;
+  font-family: var(--font-display, var(--font-sans));
+  font-weight: var(--font-section-weight, 600);
+  font-style: var(--font-section-style, normal);
   line-height: 1.4;
-  letter-spacing: -0.4px;
+  letter-spacing: var(--font-section-tracking, -0.4px);
   margin: 22px 0 10px;
 }
 .market-markdown h1 {
@@ -424,10 +491,16 @@
   background: var(--background);
 }
 .extension-empty {
-  padding: 42px 20px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 280px;
+  padding: 48px 20px;
   text-align: center;
   border: 1px dashed var(--border);
-  border-radius: 10px;
+  border-radius: 16px;
 }
 .extension-empty h3 {
   font-size: 15px;
@@ -501,65 +574,780 @@
   flex-wrap: wrap;
   gap: 8px;
 }
-.market-filter-trigger,
+.market-filter-trigger {
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 9999px;
+  padding: 0 14px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+  background: color-mix(in srgb, var(--foreground) 5%, transparent);
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: all 150ms ease;
+}
+.market-filter-trigger:hover,
+.market-filter-trigger[aria-expanded="true"] {
+  color: var(--foreground);
+  border-color: color-mix(in srgb, var(--foreground) 22%, var(--border));
+  background: color-mix(in srgb, var(--foreground) 10%, transparent);
+}
 .market-active-filter {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 7px 11px;
+  gap: 6px;
+  border: 1px solid color-mix(in srgb, var(--primary) 40%, var(--border));
+  border-radius: 9999px;
+  padding: 4px 10px;
   font-size: 12px;
-  color: var(--muted-foreground);
-  background: var(--background);
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
   cursor: pointer;
+  transition: all 150ms ease;
 }
-.market-filter-trigger:hover,
-.market-filter-trigger[aria-expanded="true"],
-.market-active-filter {
-  color: var(--primary);
-  border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
-  background: color-mix(in srgb, var(--primary) 7%, var(--background));
+.market-active-filter:hover {
+  background: color-mix(in srgb, var(--primary) 20%, transparent);
+  border-color: var(--primary);
 }
 .market-filter-count {
   background: var(--primary);
   color: var(--primary-foreground);
   border-radius: 4px;
-  padding: 0 5px;
+  padding: 1px 5px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+}
+.market-filter-popover {
+  width: 360px;
+  max-width: calc(100vw - 32px);
+  border-radius: 12px;
+  padding: 9px 11px;
+  background: var(--popover);
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  box-shadow:
+    0 12px 28px -4px rgba(0, 0, 0, 0.45),
+    0 0 0 1px color-mix(in srgb, var(--foreground) 7%, transparent);
 }
 .market-filter-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.market-filter-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 6px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+.market-filter-columns {
   display: grid;
-  gap: 12px;
-  padding: 4px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.12fr);
+  gap: 10px;
 }
 .market-filter-group {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  flex-direction: column;
+  gap: 4px;
 }
-.market-filter-group > span {
-  flex-basis: 100%;
-  font-size: 11px;
+.market-filter-section-title {
+  display: block;
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
   color: var(--muted-foreground);
+  padding-inline: 4px;
   margin-bottom: 2px;
 }
-.market-filter-group > button {
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  padding: 7px 10px;
-  font-size: 12px;
-  cursor: pointer;
+.market-filter-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
-.market-filter-group > button[aria-pressed="true"] {
-  color: var(--primary);
-  background: color-mix(in srgb, var(--primary) 10%, transparent);
-  border-color: var(--primary);
+.market-filter-card {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  height: 28px;
+  padding: 0 7px;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: all 130ms cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+}
+.market-filter-card:hover {
+  background: color-mix(in srgb, var(--foreground) 5%, transparent);
+  border-color: color-mix(in srgb, var(--foreground) 8%, transparent);
+}
+.market-filter-card.is-selected {
+  background: color-mix(in srgb, var(--foreground) 9%, transparent);
+  border-color: color-mix(in srgb, var(--foreground) 14%, transparent);
+  color: var(--foreground);
 }
 .market-filter-trigger:focus-visible,
 .market-active-filter:focus-visible,
-.market-filter-group > button:focus-visible {
-  outline: 2px solid var(--primary);
-  outline-offset: 3px;
+.market-filter-card:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 1.5px color-mix(in srgb, var(--foreground) 40%, transparent),
+    0 0 10px -1px color-mix(in srgb, var(--primary) 20%, transparent);
+}
+.market-filter-card-icon {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+  color: var(--muted-foreground);
+  transition: all 130ms ease;
+}
+.market-filter-card.is-selected .market-filter-card-icon {
+  background: color-mix(in srgb, var(--foreground) 12%, transparent);
+  color: var(--foreground);
+}
+.market-filter-card-title {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--foreground);
+  line-height: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.market-filter-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  margin-top: 5px;
+  padding: 6px 7px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--foreground) 3.5%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  font-size: 10px;
+  line-height: 1.35;
+  color: var(--muted-foreground);
+}
+.market-filter-check {
+  margin-left: auto;
+  color: var(--foreground);
+}
+.market-filter-reset {
+  font-size: 11px;
+  color: var(--muted-foreground);
+  transition: all 150ms ease;
+}
+.market-filter-reset:disabled {
+  color: color-mix(in srgb, var(--foreground) 30%, transparent);
+}
+.market-filter-reset:not(:disabled):hover {
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+}
+@media (max-width: 480px) {
+  .market-filter-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Sideload Developer Panel (Anchored cleanly at bottom of screen) */
+.extensions-settings .extension-dev-footer {
+  margin-top: auto;
+  padding-top: 32px;
+  padding-bottom: 8px;
+}
+.extensions-settings .extension-dev-panel {
+  margin-top: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px 20px;
+  background: color-mix(in srgb, var(--card, var(--background)) 85%, var(--background));
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+.extensions-settings .extension-dev-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.extensions-settings .extension-dev-panel-title-group {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+/* High-contrast Developer badge across all themes */
+.extensions-settings .extension-dev-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5.5px;
+  padding: 4px 9px;
+  border-radius: 6px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  line-height: 1;
+  flex-shrink: 0;
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--foreground) 8%, var(--background));
+  border: 1px solid color-mix(in srgb, var(--foreground) 18%, transparent);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+:root:not([data-theme="tabs-light"]):not([data-theme="tabs-monotone"])
+  .extensions-settings
+  .extension-dev-badge {
+  color: #60a5fa;
+  background: rgba(37, 99, 235, 0.14);
+  border-color: rgba(96, 165, 250, 0.35);
+}
+[data-theme="tabs-light"] .extensions-settings .extension-dev-badge {
+  color: #1e40af;
+  background: rgba(30, 64, 175, 0.07);
+  border-color: rgba(30, 64, 175, 0.22);
+}
+.extensions-settings .extension-dev-heading {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--foreground);
+  line-height: 1.3;
+}
+.extensions-settings .extension-dev-subheading {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--muted-foreground);
+  line-height: 1.4;
+}
+.extensions-settings .extension-dev-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.extensions-settings .extension-dev-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  height: 32px;
+  padding-inline: 14px;
+  border-radius: 9999px;
+  background: var(--background);
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+.extensions-settings .extension-dev-btn:hover:not(:disabled) {
+  background: var(--muted);
+  border-color: color-mix(in srgb, var(--foreground) 20%, var(--border));
+}
+
+/* Verification details expandable */
+.extensions-settings .extension-verification-details {
+  margin-top: 14px;
+  padding-inline: 2px;
+}
+.extensions-settings .extension-verification-details summary {
+  list-style: none;
+}
+.extensions-settings .extension-verification-details summary::-webkit-details-marker {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .extensions-settings .extension-dev-panel-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .extensions-settings .extension-dev-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .extensions-settings .extension-dev-btn {
+    flex: 1;
+    justify-content: center;
+  }
+}
+
+/* Focus the two temporary surfaces without changing the marketplace layout. */
+.market-filter-backdrop[data-slot="popover-backdrop"] {
+  background: color-mix(in srgb, var(--background) 12%, transparent);
+  backdrop-filter: blur(3px);
+}
+.market-filter-popover {
+  border-radius: 16px;
+  padding: 12px;
+  background: color-mix(in srgb, var(--popover) 96%, transparent);
+}
+.market-filter-header {
+  padding-bottom: 10px;
+}
+.market-filter-columns {
+  gap: 16px;
+  padding-top: 4px;
+}
+.market-filter-section-title {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 11px;
+  font-weight: 500;
+}
+.market-filter-card {
+  height: 32px;
+  border-radius: 8px;
+}
+.market-filter-card.is-selected {
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+  border-color: color-mix(in srgb, var(--primary) 24%, transparent);
+}
+.market-filter-hint {
+  background: transparent;
+  border: 0;
+  padding: 6px 4px;
+  font-size: 10px;
+}
+.extension-install-dialog {
+  border-radius: 22px;
+  box-shadow: 0 24px 90px -24px rgb(0 0 0 / 50%);
+}
+.extension-install-heading {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.extension-install-heading .market-logo.is-large,
+.extension-install-symbol {
+  width: 52px;
+  height: 52px;
+  border-radius: 13px;
+  flex-shrink: 0;
+}
+.extension-install-symbol {
+  display: grid;
+  place-items: center;
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+}
+.extension-install-byline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 5px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.extension-install-access {
+  background: color-mix(in srgb, var(--primary) 4%, var(--popover));
+}
+.extension-install-details-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 9px 0;
+  font-size: 12px;
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+.extension-install-details-trigger:hover {
+  color: var(--foreground);
+}
+.extension-install-details-trigger:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 4px;
+  border-radius: 5px;
+}
+.extension-install-details {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 10px;
+  background: var(--muted);
+}
+.extension-install-details dt {
+  margin-bottom: 3px;
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.extension-install-details dd {
+  margin: 0;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.extension-install-details code {
+  font-size: 11px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .market-filter-backdrop {
+    transition: none;
+  }
+}
+
+/* Installed tools use content-sized rows and ordinary settings groups. */
+.extension-installed-content {
+  border: 0;
+  background: transparent;
+  min-height: 0;
+}
+.extension-installed-content > .installed-back-button {
+  width: fit-content;
+  margin: 0 0 14px;
+  justify-content: flex-start;
+}
+.market-installed-list {
+  background: var(--background);
+}
+.market-installed-list .market-listing {
+  align-items: center;
+  padding: 20px;
+  min-height: 112px;
+  border-left: 0;
+}
+.market-installed-list .market-listing:hover {
+  background: color-mix(in srgb, var(--primary) 4%, var(--background));
+}
+.market-installed-list .market-listing-copy {
+  min-width: 0;
+}
+.market-installed-list .market-listing-copy > span {
+  max-width: 65ch;
+}
+.market-installed-status {
+  border-radius: 999px;
+  padding: 4px 9px;
+  background: var(--muted);
+  font-size: 11px;
+}
+.installed-manage-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 12px;
+  color: var(--foreground);
+  font-size: 12px;
+}
+.extensions-settings .extension-installed-card {
+  border: 0;
+  background: transparent;
+  border-radius: 0;
+  display: grid;
+  gap: 16px;
+}
+.extension-installed-card > div:first-child {
+  padding: 8px 2px 6px;
+}
+.installed-manage-title {
+  font-size: 23px;
+}
+.installed-control-section {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 20px;
+  background: var(--background);
+  display: grid;
+  gap: 14px;
+}
+.installed-control-section h4 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+.installed-control-help {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+  margin-top: 3px;
+}
+.installed-account-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.installed-projects-section > label {
+  display: flex;
+  justify-content: space-between;
+  flex-direction: row-reverse;
+  padding-block: 8px;
+}
+.installed-project-list {
+  display: grid;
+  border-top: 1px solid var(--border);
+  padding-top: 6px;
+}
+.installed-project-row {
+  padding: 11px 0;
+  cursor: pointer;
+}
+.installed-project-row + .installed-project-row {
+  border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+}
+.installed-origin {
+  font-size: 11px;
+  color: var(--muted-foreground);
+  overflow-wrap: anywhere;
+}
+@media (max-width: 640px) {
+  .market-installed-list .market-listing {
+    flex-wrap: wrap;
+    padding: 16px;
+  }
+  .market-installed-list .market-listing-copy {
+    flex: 1;
+  }
+  .market-installed-status {
+    margin-left: 56px;
+  }
+  .installed-manage-label {
+    margin-left: auto;
+  }
+  .installed-account-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+/* Keep project setup primary; secondary maintenance has its own view. */
+.installed-settings-section.is-managing > div:first-child {
+  display: none;
+}
+.extensions-settings .extension-installed-card {
+  max-width: 940px;
+  margin-inline: auto;
+  gap: 22px;
+}
+.extension-installed-content > .installed-back-button {
+  margin-bottom: 18px;
+}
+.extensions-settings .extension-installed-card > .installed-manage-hero {
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: linear-gradient(
+    120deg,
+    color-mix(in srgb, var(--primary) 7%, var(--background)),
+    var(--background) 70%
+  );
+}
+.installed-manage-hero .market-logo {
+  width: 52px;
+  height: 52px;
+  border-radius: 13px;
+}
+.installed-manage-hero > p:nth-of-type(2) {
+  max-width: 66ch;
+  line-height: 1.6;
+}
+.installed-hero-enable {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-direction: row-reverse;
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+.installed-manage-nav {
+  display: flex;
+  gap: 24px;
+  border-bottom: 1px solid var(--border);
+}
+.installed-manage-nav > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  padding: 0 0 14px;
+  border-bottom: 2px solid transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+.installed-manage-nav > button[aria-pressed="true"] {
+  color: var(--foreground);
+  border-color: var(--primary);
+  font-weight: 600;
+}
+.installed-project-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 230px;
+  gap: 28px;
+  align-items: start;
+}
+.installed-project-workspace .installed-projects-section {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  gap: 16px;
+}
+.installed-projects-section h4 {
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+}
+.installed-project-scope {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.installed-project-scope button {
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+.installed-project-scope button span {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+}
+.installed-project-scope button small {
+  display: block;
+  margin-top: 5px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+.installed-project-scope button[aria-pressed="true"] {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 7%, transparent);
+}
+.installed-selection-hint {
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.installed-project-workspace .installed-project-list {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0 14px;
+}
+.installed-project-row {
+  min-height: 54px;
+  cursor: pointer;
+}
+.installed-project-row > [data-slot="switch"],
+.installed-project-row > [data-slot="checkbox"] {
+  order: 3;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.installed-project-avatar {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  background: color-mix(in srgb, var(--foreground) 5%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  overflow: hidden;
+}
+.installed-project-name {
+  min-width: 0;
+  font-size: 13.5px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.installed-project-guide {
+  padding: 22px 18px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--primary) 4%, var(--background));
+}
+.installed-guide-art {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 62px;
+  height: 62px;
+  margin: 0 0 20px 5px;
+  border: 1px solid color-mix(in srgb, var(--primary) 25%, var(--border));
+  border-radius: 15px;
+  color: var(--primary);
+  transform: rotate(-7deg);
+}
+.installed-guide-art > svg:last-child {
+  position: absolute;
+  right: -7px;
+  bottom: -5px;
+  padding: 3px;
+  width: 24px;
+  height: 24px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-radius: 50%;
+}
+.installed-project-guide h4 {
+  font-size: 15px;
+  font-weight: 600;
+}
+.installed-project-guide p {
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--muted-foreground);
+  margin-top: 8px;
+}
+.installed-project-guide > span {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 20px;
+  font-size: 10px;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+}
+.installed-advanced-workspace {
+  display: grid;
+  gap: 14px;
+}
+.installed-advanced-intro h4 {
+  font-size: 19px;
+  font-weight: 600;
+}
+.installed-advanced-intro p {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  margin-top: 5px;
+}
+.installed-project-scope button:focus-visible,
+.installed-manage-nav button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 4px;
+}
+@media (max-width: 700px) {
+  .installed-project-workspace {
+    grid-template-columns: 1fr;
+  }
+  .installed-project-guide {
+    display: none;
+  }
+  .installed-manage-nav {
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .installed-hero-enable span {
+    display: none;
+  }
+  .installed-project-scope {
+    gap: 7px;
+  }
 }
 
 .extensions-settings .publisher-identity-seal {

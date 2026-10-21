@@ -21,15 +21,40 @@ export interface ChangelogRelease {
   }[];
 }
 
-export const TOTAL_TAGS_COUNT = 177;
+export const TOTAL_TAGS_COUNT = 178;
 
 export const changelogData: ChangelogRelease[] = [
+  {
+    tag: "v2.0.1",
+    title: "Extension tools and workspace reliability",
+    date: "October 20, 2026",
+    shortDate: "Oct 20",
+    isLatest: true,
+    type: "patch",
+    summary:
+      "Installed extension management with package logos and detail previews, per-project toolbar visibility, Git staging reliability, and Linux AppImage startup fixes.",
+    highlights: [
+      "Manage installed extensions with package logos, detail previews, and installation review.",
+      "Configure extension toolbar tool visibility per project in Project Workspace Settings.",
+      "Retain selected extension across project switches and retry extension tool panels safely on error.",
+      "Stage and unstage files reliably with restored Git staging controls and acknowledged action progress.",
+      "Ensure reliable workspace backend startup on Linux AppImage installations.",
+    ],
+    categories: [
+      {
+        title: "Upgrade notes",
+        items: [
+          "macOS builds are ad-hoc signed and update via the built-in preview updater. When opening a fresh manual download on macOS for the first time, use System Settings → Privacy & Security → Open Anyway.",
+        ],
+      },
+    ],
+  },
   {
     tag: "v2.0.0",
     title: "A connected workspace for agents and tools",
     date: "October 16, 2026",
     shortDate: "Oct 16",
-    isLatest: true,
+    isLatest: false,
     type: "major",
     summary:
       "Conversations, queued work, project tools and source control come together, with the Exchange developer pilot and independent Settings appearance.",

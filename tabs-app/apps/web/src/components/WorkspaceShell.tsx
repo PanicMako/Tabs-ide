@@ -1,3 +1,4 @@
+import { InstalledExtensionToolIcon } from "./InstalledExtensionToolIcon";
 import { AgentBackground } from "./AgentBackground";
 import { resolveRouteThread } from "../resolveRouteThread";
 import { useDraftThread } from "../state/composerDrafts";
@@ -106,7 +107,6 @@ import {
   MonitorIcon,
   MousePointer2Icon,
   PlayIcon,
-  PuzzleIcon,
   PencilIcon,
   PlusIcon,
   RefreshCwIcon,
@@ -235,6 +235,7 @@ import {
   KiloIcon,
   CursorIcon,
   CopilotIcon,
+  TabsExtensionIcon,
   type Icon,
 } from "./Icons";
 import GitCommitComposer from "./GitCommitComposer";
@@ -595,7 +596,7 @@ function toolIcon(tool: ProjectToolKind) {
     case "custom_process":
       return <TerminalSquareIcon className="size-3.5" />;
     case "extension":
-      return <PuzzleIcon className="size-3.5" />;
+      return <TabsExtensionIcon className="size-3.5" />;
   }
 }
 
@@ -1258,6 +1259,7 @@ function ProjectToolBar(props: {
     id: string;
     kind: ProjectToolKind;
     label: string;
+    icon?: React.ReactNode;
   }>;
   threads?: ReadonlyArray<Thread>;
   activeProjectId?: ProjectId | null;
@@ -1350,7 +1352,7 @@ function ProjectToolBar(props: {
                   active ? "text-foreground font-semibold" : "text-muted-foreground",
                 )}
               >
-                {toolIcon(tool.kind)}
+                {tool.icon ?? toolIcon(tool.kind)}
               </span>
               <span>{tool.label}</span>
               {toolActivityIndicator && (
@@ -11505,6 +11507,12 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
     id: tool.id,
     kind: tool.kind,
     label: tool.label,
+    icon:
+      tool.kind === "extension" ? (
+        <InstalledExtensionToolIcon
+          extension={installedExtensions.find((extension) => extension.id === tool.extensionId)}
+        />
+      ) : undefined,
   }));
 
   useEffect(() => {

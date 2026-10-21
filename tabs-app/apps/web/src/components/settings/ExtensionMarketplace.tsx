@@ -65,6 +65,44 @@ export function ExtensionLogo({
     </span>
   );
 }
+export function InstalledExtensionLogo({
+  bridge,
+  extension,
+}: {
+  bridge: DesktopBridge;
+  extension: DesktopInstalledExtension;
+}) {
+  if (extension.source !== "exchange" || !extension.registryOrigin)
+    return (
+      <span className="market-logo" aria-hidden="true">
+        {extension.manifest.displayName.slice(0, 2).toUpperCase()}
+      </span>
+    );
+  return (
+    <ExtensionLogo
+      bridge={bridge}
+      listing={{
+        registryOrigin: extension.registryOrigin,
+        id: extension.id,
+        namespace: extension.manifest.publisher,
+        name: extension.manifest.name,
+        version: extension.manifest.version,
+        digest: extension.digest ?? "",
+        displayName: extension.manifest.displayName,
+        description: extension.manifest.description,
+        verifiedPublisher: false,
+        tabsCompatibility: extension.manifest.engines.tabs,
+        capabilities: extension.manifest.capabilities ?? [],
+        listingAssets: {
+          icon: Boolean(extension.manifest.listing?.icon),
+          readme: false,
+          screenshots: 0,
+        },
+      }}
+    />
+  );
+}
+
 function Screenshot({
   bridge,
   listing,
@@ -121,28 +159,34 @@ function ExtensionDetails({
       <header className="market-detail-header">
         <ExtensionLogo bridge={bridge} listing={listing} large />
         <div className="min-w-0 flex-1">
-          <h3 id="market-detail-title" tabIndex={-1}>
-            {listing.displayName}
-          </h3>
-          <p className="market-byline">
-            {listing.namespace} {listing.verifiedPublisher && <PublisherVerifiedBadge />}{" "}
-            <span>v{listing.version}</span>
-          </p>
+          <div className="market-detail-title-row">
+            <div className="min-w-0 flex-1">
+              <h3 id="market-detail-title" tabIndex={-1}>
+                {listing.displayName}
+              </h3>
+              <p className="market-byline">
+                {listing.namespace} {listing.verifiedPublisher && <PublisherVerifiedBadge />}{" "}
+                <span>v{listing.version}</span>
+              </p>
+            </div>
+            <div className="market-detail-action shrink-0">
+              {installed ? (
+                <Button onClick={() => onManage(installed.id)} variant="outline">
+                  <CheckIcon className="size-3.5" /> Manage extension
+                </Button>
+              ) : (
+                <Button
+                  id={`extension-discover-review-${listing.id}`}
+                  disabled={busy}
+                  aria-label={`Review & install ${listing.displayName}`}
+                  onClick={(event) => onInstall(listing, event.currentTarget)}
+                >
+                  Install
+                </Button>
+              )}
+            </div>
+          </div>
           <p className="market-summary">{listing.description}</p>
-          {installed ? (
-            <Button onClick={() => onManage(installed.id)} variant="outline">
-              <CheckIcon className="size-3.5" /> Manage extension
-            </Button>
-          ) : (
-            <Button
-              id={`extension-discover-review-${listing.id}`}
-              disabled={busy}
-              aria-label={`Review & install ${listing.displayName}`}
-              onClick={(event) => onInstall(listing, event.currentTarget)}
-            >
-              Install
-            </Button>
-          )}
         </div>
       </header>
       <div
