@@ -189,6 +189,39 @@ describe("wsNativeApi", () => {
     stopLate();
   });
 
+  it("preserves keybinding validation notifications without turning them into settings updates", async () => {
+    const { createWsNativeApi, onServerConfigUpdated } = await import("./wsNativeApi");
+    const { DEFAULT_SERVER_SETTINGS } = await import("@tabs/contracts");
+    const { createKeybindingsUpdateToastController } =
+      await import("./components/KeybindingsUpdateToast.logic");
+    createWsNativeApi();
+    const subscription = (subscribeRpcMock.mock.calls as unknown[][]).find(
+      (call) => call[0] === WS_METHODS.subscribeServerConfig,
+    )!;
+    const receive = subscription[3] as (event: unknown) => void;
+    const listener = vi.fn();
+    const stop = onServerConfigUpdated(listener);
+    receive({
+      version: 1,
+      type: "snapshot",
+      config: { issues: [], providers: [], settings: DEFAULT_SERVER_SETTINGS },
+    });
+    const issues = [{ kind: "keybindings.invalid-entry", message: "Invalid shortcut" }];
+    receive({ version: 1, type: "keybindingsUpdated", payload: { keybindings: [], issues } });
+    const notification = listener.mock.lastCall![0];
+    expect(createKeybindingsUpdateToastController({}).handle(notification)).toEqual({
+      _tag: "InvalidConfiguration",
+      message: "Invalid shortcut",
+    });
+    const late = vi.fn();
+    const stopLate = onServerConfigUpdated(late);
+    expect(late).toHaveBeenCalledWith(
+      expect.objectContaining({ settings: DEFAULT_SERVER_SETTINGS, issues }),
+    );
+    stop();
+    stopLate();
+  });
+
   it("keeps composer provider updates and late replay owned by their environment API", async () => {
     const { createWsNativeApi, onApiServerProvidersUpdated } = await import("./wsNativeApi");
     const apiA = createWsNativeApi({ singleton: false });
@@ -607,6 +640,26 @@ describe("wsNativeApi", () => {
         projectId: projectCommand.projectId,
         title: projectCommand.title,
         workspaceRoot: projectCommand.workspaceRoot,
+      }),
+    );
+
+    const projectMetaCommand = {
+      type: "project.meta.update",
+      commandId: CommandId.makeUnsafe("cmd-meta-1"),
+      projectId: ProjectId.makeUnsafe("project-1"),
+      projectIcon: { kind: "lucide", name: "folder", color: "orange" },
+      faviconPath: null,
+    } as const;
+    await api.orchestration.dispatchCommand(projectMetaCommand as any);
+
+    expect(requestMock).toHaveBeenCalledWith(
+      WS_METHODS.projectsMutate,
+      expect.objectContaining({
+        type: "project.update",
+        commandId: projectMetaCommand.commandId,
+        projectId: projectMetaCommand.projectId,
+        projectIcon: projectMetaCommand.projectIcon,
+        faviconPath: null,
       }),
     );
   });

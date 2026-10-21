@@ -239,7 +239,7 @@ async function verifiedBundle(
   }
 }
 
-/** Publish a pre-signed bundle; the API/worker never see private signing keys. */
+/** The publication gate accepts signed public metadata, never private keys. */
 export async function publishTufMetadata(
   pool: Pool,
   storage: S3Client,
@@ -247,6 +247,7 @@ export async function publishTufMetadata(
   stageDirectory: string,
   bootstrapRootDigest?: string,
   browser?: { actorId: string; registeredPin: boolean; allApproved: boolean },
+  prepareStage?: (client: PoolClient) => Promise<boolean>,
 ): Promise<number> {
   if (!bucket) throw new Error("A package object bucket is required for signed publication.");
   if (!Path.isAbsolute(stageDirectory) || !(await FS.lstat(stageDirectory)).isDirectory()) {
@@ -267,6 +268,12 @@ export async function publishTufMetadata(
       )
         throw new Error("Configured and registered trust pins conflict.");
       bootstrapRootDigest ||= registered.rows[0]?.sha256;
+    }
+    // Renewal reads and signs the current publication under this same lock.
+    // Returning false skips publication without rewriting any trusted state.
+    if (prepareStage && !(await prepareStage(client))) {
+      await client.query("COMMIT");
+      return 0;
     }
     const bundle = await verifiedBundle(client, stageDirectory, bootstrapRootDigest);
     if (browser?.allApproved) {

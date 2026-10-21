@@ -6,7 +6,7 @@
  * @module audit/StaticAnalyzerRegistry
  */
 
-import { Effect } from "effect";
+import * as Effect from "effect/Effect";
 import type { AuditFinding } from "@tabs/contracts";
 import { runGitleaksScan } from "./adapters/GitleaksAdapter.ts";
 import { runOpenGrepScan } from "./adapters/OpenGrepAdapter.ts";

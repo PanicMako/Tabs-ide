@@ -1,8 +1,14 @@
-import { EnvironmentId, ProjectId, ThreadId } from "@tabs/contracts";
+import {
+  type OrchestrationV2ThreadProjection,
+  EnvironmentId,
+  ProjectId,
+  ThreadId,
+} from "@tabs/contracts";
 import { describe, expect, it } from "vitest";
 
 import type { Project, Thread } from "../types";
 import {
+  applyThreadProjection,
   markThreadVisited,
   reorderProjects,
   setError,
@@ -45,6 +51,32 @@ function makeProject(environmentId: EnvironmentId, id: string, expanded = false)
 }
 
 describe("environment-scoped read model mutations", () => {
+  it("replaces a thread projection only in its owning environment", () => {
+    const state = makeState();
+    const timestamp = "2026-01-01T00:00:00.000Z";
+    const projection = {
+      thread: {
+        id: threadId,
+        projectId: ProjectId.make("project-1"),
+        title: "Remote conversation",
+        modelSelection: { instanceId: "codex", model: "gpt-5", options: [] },
+        runtimeMode: "full-access",
+        interactionMode: "default",
+        createdAt: timestamp,
+      },
+      updatedAt: timestamp,
+      messages: [],
+      runs: [],
+      plans: [],
+      checkpoints: [],
+    } as unknown as OrchestrationV2ThreadProjection;
+    const next = applyThreadProjection(state, projection, remoteEnvironment);
+    expect(next.threads[0]).toBe(state.threads[0]);
+    expect(next.threads[1]).toMatchObject({
+      environmentId: remoteEnvironment,
+      title: "Remote conversation",
+    });
+  });
   it("updates errors only in the requested environment", () => {
     const next = setError(makeState(), threadId, "remote failure", remoteEnvironment);
     expect(next.threads.map((thread) => thread.error)).toEqual([null, "remote failure"]);

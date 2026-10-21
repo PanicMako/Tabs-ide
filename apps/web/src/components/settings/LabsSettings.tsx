@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from "react";
-import { ArrowLeftIcon, ImageIcon, PuzzleIcon } from "lucide-react";
+import { ImageIcon } from "lucide-react";
+import { TabsExtensionIcon } from "../Icons";
 import { useSettingsLabsStore } from "../../stores/settingsLabsStore";
 import { Button } from "../ui/button";
 import { Switch } from "../ui/switch";
@@ -41,15 +42,13 @@ export default function LabsSettings() {
 
   if (experiment)
     return (
-      <div className="space-y-5">
-        <Button variant="ghost" size="sm" onClick={() => setExperiment(null)}>
-          <ArrowLeftIcon className="size-3.5 mr-2" />
-          Back to Labs
-        </Button>
-        <Suspense fallback={<SettingsLoadingState label={`Loading ${experiment}`} />}>
-          {experiment === "wallpapers" ? <WallpaperSettings /> : <ExtensionsSettings />}
-        </Suspense>
-      </div>
+      <Suspense fallback={<SettingsLoadingState label={`Loading ${experiment}`} />}>
+        {experiment === "wallpapers" ? (
+          <WallpaperSettings onBack={() => setExperiment(null)} />
+        ) : (
+          <ExtensionsSettings onBack={() => setExperiment(null)} />
+        )}
+      </Suspense>
     );
   return (
     <div className="space-y-8">
@@ -150,7 +149,7 @@ export default function LabsSettings() {
           description="Explore extensions, tool views, and profiles."
           control={
             <Button variant="outline" size="sm" onClick={() => setExperiment("extensions")}>
-              <PuzzleIcon className="size-3.5 mr-2" />
+              <TabsExtensionIcon className="size-3.5 mr-2" />
               Explore extensions
             </Button>
           }

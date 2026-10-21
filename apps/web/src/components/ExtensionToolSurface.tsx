@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { DesktopExtensionViewInput, DesktopInstalledExtension } from "@tabs/contracts";
 
 export function ExtensionToolSurface(props: {
@@ -13,11 +13,6 @@ export function ExtensionToolSurface(props: {
   const [retryCount, setRetryCount] = useState(0);
   const { input } = props;
 
-  const activationId = useMemo(
-    () => `act_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`,
-    [input.extensionId, input.toolId, input.projectId, input.profileId, retryCount],
-  );
-
   useEffect(() => {
     if (error && retryButtonRef.current) {
       retryButtonRef.current.focus();
@@ -25,6 +20,8 @@ export function ExtensionToolSurface(props: {
   }, [error]);
 
   useEffect(() => {
+    // Each effect owns its native view, including React Strict Mode replays.
+    const activationId = `act_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
     const bridge = window.desktopBridge;
     const host = hostRef.current;
     if (!bridge || !host) {
@@ -98,7 +95,7 @@ export function ExtensionToolSurface(props: {
       if (frame) window.cancelAnimationFrame(frame);
       void bridge.hideExtensionTool({ activationId }).catch(() => undefined);
     };
-  }, [input.extensionId, input.toolId, input.projectId, input.profileId, activationId, retryCount]);
+  }, [input.extensionId, input.toolId, input.projectId, input.profileId, retryCount]);
 
   const handleRetry = () => {
     setError(null);
@@ -107,25 +104,6 @@ export function ExtensionToolSurface(props: {
 
   return (
     <div className="relative flex h-full min-h-0 flex-1 flex-col">
-      <header
-        aria-label="Extension identity"
-        className="flex min-h-9 shrink-0 items-center gap-2 border-b border-border bg-muted/40 px-3 text-xs"
-      >
-        <span className="shrink-0 font-semibold uppercase tracking-wide text-muted-foreground">
-          Extension
-        </span>
-        <span className="min-w-0 truncate font-medium">{props.label}</span>
-        <span className="min-w-0 max-w-[30%] truncate font-mono text-muted-foreground">
-          {input.extensionId}
-        </span>
-        <span className="ml-auto min-w-0 max-w-[35%] truncate text-muted-foreground">
-          {props.source === "exchange"
-            ? (props.registryOrigin ?? "Exchange registry unknown")
-            : props.source === "development"
-              ? "Development package"
-              : "Local package"}
-        </span>
-      </header>
       <div
         ref={hostRef}
         role="region"

@@ -14,6 +14,8 @@
     "storage:ready": "bun src/storageReady.ts",
     "tuf:export-targets": "bun src/exportTargets.ts",
     "tuf:publish": "bun src/tufPublish.ts",
+    "tuf:renew": "bun src/metadataRenewal.ts",
+    "tuf:export-online-keys": "bun src/exportOnlineSigning.ts",
     "verify:objects": "bun src/verifyObjects.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

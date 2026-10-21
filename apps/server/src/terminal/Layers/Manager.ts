@@ -13,7 +13,10 @@ import {
   type TerminalEvent,
   type TerminalSessionSnapshot,
 } from "@tabs/contracts";
-import { Effect, Encoding, Layer, Schema } from "effect";
+import * as Effect from "effect/Effect";
+import * as Encoding from "effect/Encoding";
+import * as Layer from "effect/Layer";
+import * as Schema from "effect/Schema";
 
 import { createLogger } from "../../logger";
 import { PtyAdapter, PtyAdapterShape, type PtyExitEvent, type PtyProcess } from "../Services/PTY";

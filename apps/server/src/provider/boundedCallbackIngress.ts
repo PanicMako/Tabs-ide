@@ -6,7 +6,11 @@
  * This bridge admits synchronously into a fixed count/byte budget and runs one
  * serial Effect consumer. Reserved capacity protects terminal lifecycle events.
  */
-import { Cause, Effect, Fiber, Option, Scope } from "effect";
+import * as Cause from "effect/Cause";
+import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
+import * as Option from "effect/Option";
+import * as Scope from "effect/Scope";
 
 export type BoundedCallbackIngressOfferResult =
   | "accepted"

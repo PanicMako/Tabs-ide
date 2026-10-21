@@ -80,7 +80,7 @@ export function evaluateOperationalReadiness(
       alerts.push({
         level: "warning",
         subsystem: "tuf",
-        message: `TUF metadata role '${item.role}' expires within warning window (${item.expiresAt}). Publication required.`,
+        message: `TUF metadata role '${item.role}' expires within warning window (${item.expiresAt}). Check metadata renewal or root rotation.`,
       });
     } else if (item.status === "missing") {
       alerts.push({

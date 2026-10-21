@@ -1,9 +1,12 @@
 import * as OS from "node:os";
-import { Effect, Path } from "effect";
+import * as Effect from "effect/Effect";
+import * as Path from "effect/Path";
 import { readPathFromLoginShell } from "@tabs/shared/shell";
 
 export function fixPath(): void {
-  if (process.platform !== "darwin") return;
+  // The desktop parent already resolved PATH/SSH_AUTH_SOCK before spawning us.
+  // Re-running an interactive login shell here serializes another full shell boot.
+  if (process.platform !== "darwin" || process.env.TABS_DESKTOP_SHELL_ENV_READY === "1") return;
 
   try {
     const shell = process.env.SHELL ?? "/bin/zsh";

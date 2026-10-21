@@ -9,6 +9,7 @@ import { newCommandId, newProjectId, cn } from "../../lib/utils";
 import { readModelStateAtom } from "../../state/readModel";
 import { updateClientSettings } from "../../state/settings";
 import { isElectron } from "../../env";
+import { afterStartupPaint } from "../../lib/afterStartupPaint";
 import { APP_VERSION } from "../../branding";
 import { ClaudeAI, GoogleGemini, OpenAI, OpenCodeIcon } from "../Icons";
 import { Badge } from "../ui/badge";
@@ -615,6 +616,7 @@ export function WelcomeWizard({ onDone }: WelcomeWizardProps) {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const masterGainRef = useRef<GainNode | null>(null);
   const chordTimerRef = useRef<number | null>(null);
+  const musicGenerationRef = useRef(0);
 
   const stopMusic = useCallback(() => {
     if (chordTimerRef.current) {
@@ -651,13 +653,15 @@ export function WelcomeWizard({ onDone }: WelcomeWizardProps) {
   }, []);
 
   const startMusic = useCallback(async () => {
+    const generation = musicGenerationRef.current;
     try {
       const ctx = await ensureAudioContext();
-      if (!ctx) return;
+      if (!ctx || generation !== musicGenerationRef.current) return;
       if (ctx.state === "suspended") {
         await ctx.resume().catch(() => {});
       }
 
+      if (generation !== musicGenerationRef.current) return;
       if (!masterGainRef.current) {
         const master = ctx.createGain();
         master.gain.setValueAtTime(0.35, ctx.currentTime);
@@ -772,12 +776,12 @@ export function WelcomeWizard({ onDone }: WelcomeWizardProps) {
   }, [ensureAudioContext]);
 
   useEffect(() => {
-    if (isMusicPlaying) {
-      void startMusic();
-    } else {
-      stopMusic();
-    }
+    // Audio device initialization can block the renderer; let the workspace paint first.
+    const cancel = isMusicPlaying ? afterStartupPaint(() => void startMusic()) : () => {};
+    if (!isMusicPlaying) stopMusic();
     return () => {
+      musicGenerationRef.current += 1;
+      cancel();
       stopMusic();
     };
   }, [isMusicPlaying, startMusic, stopMusic]);

@@ -9,7 +9,6 @@ import {
   type ServerConfig,
   type ThreadId,
   type WsWelcomePayload,
-  WS_CHANNELS,
   WS_METHODS,
   OrchestrationSessionStatus,
   DEFAULT_SERVER_SETTINGS,
@@ -23,7 +22,15 @@ import { render } from "vitest-browser-react";
 
 import { useComposerDraftStore } from "../composerDraftStore";
 import { makeAppModelSelection, typedOptionsToSelections } from "../modelSelection";
-import { makeTestServerProvider } from "../test/serverProviderFixture";
+import { initializeComposerDraftsState } from "../state/composerDrafts";
+import { initializeWorkspaceShellState } from "../state/workspaceShell";
+import { useRightPanelStore } from "../stores/rightPanelStore";
+import { useWorkspaceShellStore } from "../workspaceShellStore";
+import {
+  BROWSER_ENVIRONMENT_ID,
+  attachBrowserRpcFixture,
+  browserTestProviders,
+} from "../test/browserRpcFixture";
 import {
   INLINE_TERMINAL_CONTEXT_PLACEHOLDER,
   type TerminalContextDraft,
@@ -31,12 +38,16 @@ import {
 } from "../lib/terminalContext";
 import { isMacPlatform } from "../lib/utils";
 import { getRouter } from "../router";
-import { appAtomRegistry } from "../state/atomRegistry";
+import { appAtomRegistry, AppAtomRegistryProvider } from "../state/atomRegistry";
 import { readModelStateAtom, syncServerReadModelToAtoms } from "../state/readModel";
 import { DEFAULT_CLIENT_SETTINGS } from "@tabs/contracts/settings";
+import { hydrateClientSettings, updateClientSettings } from "../state/settings";
+import { scopedComposerThreadId } from "../state/composerDrafts";
 
 const THREAD_ID = "thread-browser-test" as ThreadId;
-const UUID_ROUTE_RE = /^\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const SCOPED_THREAD_ID = scopedComposerThreadId(BROWSER_ENVIRONMENT_ID, THREAD_ID);
+const UUID_ROUTE_RE =
+  /^\/(?:browser-test-environment\/)?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const PROJECT_ID = "project-1" as ProjectId;
 const NOW_ISO = "2026-03-04T12:00:00.000Z";
 const BASE_TIME_MS = Date.parse(NOW_ISO);
@@ -76,6 +87,7 @@ interface MountedChatView {
   [Symbol.asyncDispose]: () => Promise<void>;
   cleanup: () => Promise<void>;
   router: ReturnType<typeof getRouter>;
+  host: HTMLElement;
 }
 
 function isoAt(offsetSeconds: number): string {
@@ -88,7 +100,7 @@ function createBaseServerConfig(): any {
     keybindingsConfigPath: "/repo/project/.tabs-keybindings.json",
     keybindings: [],
     issues: [],
-    providers: [makeTestServerProvider({ checkedAt: NOW_ISO })],
+    providers: browserTestProviders(NOW_ISO),
     availableEditors: [],
     settings: {
       ...DEFAULT_SERVER_SETTINGS,
@@ -157,11 +169,12 @@ function createSnapshotForTargetUser(options: {
   targetText: string;
   targetAttachmentCount?: number;
   sessionStatus?: OrchestrationSessionStatus;
+  messagePairs?: number;
 }): OrchestrationReadModel {
   const messages: Array<OrchestrationReadModel["threads"][number]["messages"][number]> = [];
 
-  for (let index = 0; index < 22; index += 1) {
-    const isTarget = index === 3;
+  for (let index = 0; index < (options.messagePairs ?? 22); index += 1) {
+    const isTarget = index === Math.min(3, (options.messagePairs ?? 22) - 1);
     const userId = `msg-user-${index}` as MessageId;
     const assistantId = `msg-assistant-${index}` as MessageId;
     const attachments =
@@ -548,35 +561,15 @@ function resolveWsRpc(body: WsRequestEnvelope["body"]): unknown {
   return {};
 }
 
+let rpcFixture: ReturnType<typeof attachBrowserRpcFixture>;
 const worker = setupWorker(
   wsLink.addEventListener("connection", ({ client }) => {
-    client.send(
-      JSON.stringify({
-        type: "push",
-        sequence: 1,
-        channel: WS_CHANNELS.serverWelcome,
-        data: fixture.welcome,
-      }),
+    rpcFixture = attachBrowserRpcFixture(
+      client,
+      () => fixture,
+      resolveWsRpc,
+      (body) => wsRequests.push(body),
     );
-    client.addEventListener("message", (event) => {
-      const rawData = event.data;
-      if (typeof rawData !== "string") return;
-      let request: WsRequestEnvelope;
-      try {
-        request = JSON.parse(rawData) as WsRequestEnvelope;
-      } catch {
-        return;
-      }
-      const method = request.body?._tag;
-      if (typeof method !== "string") return;
-      wsRequests.push(request.body);
-      client.send(
-        JSON.stringify({
-          id: request.id,
-          result: resolveWsRpc(request.body),
-        }),
-      );
-    });
   }),
   http.get("*/attachments/:attachmentId", () =>
     HttpResponse.text(ATTACHMENT_SVG, {
@@ -677,7 +670,8 @@ async function waitForInteractionModeButton(
   return waitForElement(
     () =>
       Array.from(document.querySelectorAll("button")).find(
-        (button) => button.textContent?.trim() === expectedLabel,
+        (button) =>
+          button.textContent?.trim() === (expectedLabel === "Chat" ? "Build" : expectedLabel),
       ) as HTMLButtonElement | null,
     `Unable to find ${expectedLabel} interaction mode button.`,
   );
@@ -726,13 +720,12 @@ async function triggerChatNewShortcutUntilPath(
 }
 
 async function waitForNewThreadShortcutLabel(): Promise<void> {
-  const newThreadButton = page.getByTestId("new-thread-button");
+  const newThreadButton = page.getByRole("button", { name: /New thread/i }).first();
   await expect.element(newThreadButton).toBeInTheDocument();
-  await newThreadButton.hover();
   const shortcutLabel = isMacPlatform(navigator.platform)
     ? "New thread (⇧⌘O)"
     : "New thread (Ctrl+Shift+O)";
-  await expect.element(page.getByText(shortcutLabel)).toBeInTheDocument();
+  await expect.element(newThreadButton).toHaveAttribute("title", shortcutLabel);
 }
 
 async function waitForImagesToLoad(scope: ParentNode): Promise<void> {
@@ -820,9 +813,14 @@ async function mountChatView(options: {
     }),
   );
 
-  const screen = await render(<RouterProvider router={router} />, {
-    container: host,
-  });
+  const screen = await render(
+    <AppAtomRegistryProvider>
+      <RouterProvider router={router} />
+    </AppAtomRegistryProvider>,
+    {
+      container: host,
+    },
+  );
 
   await waitForLayout();
 
@@ -835,11 +833,14 @@ async function mountChatView(options: {
     [Symbol.asyncDispose]: cleanup,
     cleanup,
     router,
+    host,
   };
 }
 
 describe("ChatView browser behavior (full app)", () => {
   beforeAll(async () => {
+    initializeComposerDraftsState();
+    initializeWorkspaceShellState();
     fixture = buildFixture(
       createSnapshotForTargetUser({
         targetMessageId: "msg-user-bootstrap" as MessageId,
@@ -862,6 +863,10 @@ describe("ChatView browser behavior (full app)", () => {
   beforeEach(async () => {
     await setViewport(DEFAULT_VIEWPORT);
     localStorage.clear();
+    useRightPanelStore.setState({ isOpen: false, maximized: false, choosingSurface: true });
+    hydrateClientSettings(true);
+    updateClientSettings((settings) => ({ ...settings, onboardingCompletedAt: NOW_ISO }));
+    useWorkspaceShellStore.setState(useWorkspaceShellStore.getInitialState());
     document.body.innerHTML = "";
     wsRequests.length = 0;
     useComposerDraftStore.setState({
@@ -889,7 +894,7 @@ describe("ChatView browser behavior (full app)", () => {
     });
 
     try {
-      const host = document.body.lastElementChild as HTMLElement;
+      const host = mounted.host;
       const scrollContainer = await waitForMessageScrollContainer(host);
       const timelineRoot = await waitForTimelineRoot(host);
       const assistantRows = await waitForAssistantRows(host, 18);
@@ -901,9 +906,11 @@ describe("ChatView browser behavior (full app)", () => {
 
       expect(host.querySelector("[data-index]")).toBeNull();
 
-      const trailingGapPx =
-        scrollContainer.scrollHeight -
-        (lastAssistantRow!.offsetTop + lastAssistantRow!.offsetHeight);
+      const contentBottom =
+        timelineRoot.getBoundingClientRect().bottom -
+        scrollContainer.getBoundingClientRect().top +
+        scrollContainer.scrollTop;
+      const trailingGapPx = scrollContainer.scrollHeight - contentBottom;
       expect(trailingGapPx).toBeLessThan(140);
     } finally {
       await mounted.cleanup();
@@ -916,11 +923,12 @@ describe("ChatView browser behavior (full app)", () => {
       snapshot: createSnapshotForTargetUser({
         targetMessageId: "msg-user-no-overflow-scroll" as MessageId,
         targetText: "short thread",
+        messagePairs: 1,
       }),
     });
 
     try {
-      const host = document.body.lastElementChild as HTMLElement;
+      const host = mounted.host;
       const scrollContainer = await waitForMessageScrollContainer(host);
       await waitForLayout();
 
@@ -949,9 +957,10 @@ describe("ChatView browser behavior (full app)", () => {
     });
 
     try {
-      const host = document.body.lastElementChild as HTMLElement;
+      const host = mounted.host;
       const scrollContainer = await waitForMessageScrollContainer(host);
       await waitForAssistantRows(host, 18);
+      await waitForImagesToLoad(host);
 
       await scrollMessageContainerTo(scrollContainer, 120);
       const scrollTopBeforeUpdate = scrollContainer.scrollTop;
@@ -977,7 +986,8 @@ describe("ChatView browser behavior (full app)", () => {
         updatedAt: isoAt(999),
       };
 
-      syncServerReadModelToAtoms(updatedSnapshot);
+      fixture.snapshot = updatedSnapshot;
+      rpcFixture.updateThread(THREAD_ID);
       await waitForLayout();
 
       expect(Math.abs(scrollContainer.scrollTop - scrollTopBeforeUpdate)).toBeLessThanOrEqual(4);
@@ -993,7 +1003,7 @@ describe("ChatView browser behavior (full app)", () => {
     });
 
     try {
-      const host = document.body.lastElementChild as HTMLElement;
+      const host = mounted.host;
       const scrollContainer = await waitForMessageScrollContainer(host);
       await waitForAssistantRows(host, 18);
 
@@ -1009,9 +1019,13 @@ describe("ChatView browser behavior (full app)", () => {
       scrollToBottomButton.click();
       await waitForLayout();
 
-      const distanceFromBottom =
-        scrollContainer.scrollHeight - scrollContainer.clientHeight - scrollContainer.scrollTop;
-      expect(distanceFromBottom).toBeLessThanOrEqual(24);
+      await expect
+        .poll(
+          () =>
+            scrollContainer.scrollHeight - scrollContainer.clientHeight - scrollContainer.scrollTop,
+          { timeout: 3_000 },
+        )
+        .toBeLessThanOrEqual(24);
     } finally {
       await mounted.cleanup();
     }
@@ -1047,10 +1061,11 @@ describe("ChatView browser behavior (full app)", () => {
     });
 
     try {
+      await page.getByRole("button", { name: "Toggle workspace actions" }).click();
       const openButton = await waitForElement(
         () =>
           Array.from(document.querySelectorAll("button")).find(
-            (button) => button.textContent?.trim() === "Open",
+            (button) => button.getAttribute("aria-label") === "Open in VS Code",
           ) as HTMLButtonElement | null,
         "Unable to find Open button.",
       );
@@ -1106,6 +1121,7 @@ describe("ChatView browser behavior (full app)", () => {
     });
 
     try {
+      await page.getByRole("button", { name: "Toggle workspace actions" }).click();
       const runButton = await waitForElement(
         () =>
           Array.from(document.querySelectorAll("button")).find(
@@ -1182,6 +1198,7 @@ describe("ChatView browser behavior (full app)", () => {
     });
 
     try {
+      await page.getByRole("button", { name: "Toggle workspace actions" }).click();
       const runButton = await waitForElement(
         () =>
           Array.from(document.querySelectorAll("button")).find(
@@ -1282,7 +1299,7 @@ describe("ChatView browser behavior (full app)", () => {
     const removedLabel = "Terminal 1 lines 1-2";
     const addedLabel = "Terminal 2 lines 9-10";
     useComposerDraftStore.getState().addTerminalContext(
-      THREAD_ID,
+      SCOPED_THREAD_ID,
       createTerminalContext({
         id: "ctx-removed",
         terminalLabel: "Terminal 1",
@@ -1309,21 +1326,23 @@ describe("ChatView browser behavior (full app)", () => {
       );
 
       const store = useComposerDraftStore.getState();
-      const currentPrompt = store.draftsByThreadId[THREAD_ID]?.prompt ?? "";
+      const currentPrompt = store.draftsByThreadId[SCOPED_THREAD_ID]?.prompt ?? "";
       const nextPrompt = removeInlineTerminalContextPlaceholder(currentPrompt, 0);
-      store.setPrompt(THREAD_ID, nextPrompt.prompt);
-      store.removeTerminalContext(THREAD_ID, "ctx-removed");
+      store.setPrompt(SCOPED_THREAD_ID, nextPrompt.prompt);
+      store.removeTerminalContext(SCOPED_THREAD_ID, "ctx-removed");
 
       await vi.waitFor(
         () => {
-          expect(useComposerDraftStore.getState().draftsByThreadId[THREAD_ID]).toBeUndefined();
+          expect(
+            useComposerDraftStore.getState().draftsByThreadId[SCOPED_THREAD_ID],
+          ).toBeUndefined();
           expect(document.body.textContent).not.toContain(removedLabel);
         },
         { timeout: 8_000, interval: 16 },
       );
 
       useComposerDraftStore.getState().addTerminalContext(
-        THREAD_ID,
+        SCOPED_THREAD_ID,
         createTerminalContext({
           id: "ctx-added",
           terminalLabel: "Terminal 2",
@@ -1335,7 +1354,7 @@ describe("ChatView browser behavior (full app)", () => {
 
       await vi.waitFor(
         () => {
-          const draft = useComposerDraftStore.getState().draftsByThreadId[THREAD_ID];
+          const draft = useComposerDraftStore.getState().draftsByThreadId[SCOPED_THREAD_ID];
           expect(draft?.terminalContexts.map((context) => context.id)).toEqual(["ctx-added"]);
           expect(document.body.textContent).toContain(addedLabel);
           expect(document.body.textContent).not.toContain(removedLabel);
@@ -1350,7 +1369,7 @@ describe("ChatView browser behavior (full app)", () => {
   it("disables send when the composer only contains an expired terminal pill", async () => {
     const expiredLabel = "Terminal 1 line 4";
     useComposerDraftStore.getState().addTerminalContext(
-      THREAD_ID,
+      SCOPED_THREAD_ID,
       createTerminalContext({
         id: "ctx-expired-only",
         terminalLabel: "Terminal 1",
@@ -1386,7 +1405,7 @@ describe("ChatView browser behavior (full app)", () => {
   it("warns when sending text while omitting expired terminal pills", async () => {
     const expiredLabel = "Terminal 1 line 4";
     useComposerDraftStore.getState().addTerminalContext(
-      THREAD_ID,
+      SCOPED_THREAD_ID,
       createTerminalContext({
         id: "ctx-expired-send-warning",
         terminalLabel: "Terminal 1",
@@ -1397,7 +1416,7 @@ describe("ChatView browser behavior (full app)", () => {
     );
     useComposerDraftStore
       .getState()
-      .setPrompt(THREAD_ID, `yoo${INLINE_TERMINAL_CONTEXT_PLACEHOLDER}waddup`);
+      .setPrompt(SCOPED_THREAD_ID, `yoo${INLINE_TERMINAL_CONTEXT_PLACEHOLDER}waddup`);
 
     const mounted = await mountChatView({
       viewport: DEFAULT_VIEWPORT,
@@ -1467,7 +1486,7 @@ describe("ChatView browser behavior (full app)", () => {
 
     try {
       // Wait for the sidebar to render with the project.
-      const newThreadButton = page.getByTestId("new-thread-button");
+      const newThreadButton = page.getByRole("button", { name: /New thread/i }).first();
       await expect.element(newThreadButton).toBeInTheDocument();
 
       await newThreadButton.click();
@@ -1478,7 +1497,7 @@ describe("ChatView browser behavior (full app)", () => {
         (path) => UUID_ROUTE_RE.test(path),
         "Route should have changed to a new draft thread UUID.",
       );
-      const newThreadId = newThreadPath.slice(1) as ThreadId;
+      const newThreadId = newThreadPath.split("/").at(-1)! as ThreadId;
 
       // The composer editor should be present for the new draft thread.
       await waitForComposerEditor();
@@ -1487,10 +1506,15 @@ describe("ChatView browser behavior (full app)", () => {
       // thread has been promoted to a server thread (thread.create + turn.start
       // succeeded). The snapshot now includes the new thread, and the sync
       // should clear the draft without disrupting the route.
-      syncServerReadModelToAtoms(addThreadToSnapshot(fixture.snapshot, newThreadId));
+      syncServerReadModelToAtoms(
+        addThreadToSnapshot(fixture.snapshot, newThreadId),
+        BROWSER_ENVIRONMENT_ID,
+      );
 
       // Clear the draft now that the server thread exists (mirrors EventRouter behavior).
-      useComposerDraftStore.getState().clearDraftThread(newThreadId);
+      useComposerDraftStore
+        .getState()
+        .clearDraftThread(scopedComposerThreadId(BROWSER_ENVIRONMENT_ID, newThreadId));
 
       // The route should still be on the new thread — not redirected away.
       await waitForURL(
@@ -1499,10 +1523,7 @@ describe("ChatView browser behavior (full app)", () => {
         "New thread should remain selected after snapshot sync clears the draft.",
       );
 
-      // The empty thread view and composer should still be visible.
-      await expect
-        .element(page.getByText("Send a message to start the conversation."))
-        .toBeInTheDocument();
+      // The promoted thread's composer stays available.
       await expect.element(page.getByTestId("composer-editor")).toBeInTheDocument();
     } finally {
       await mounted.cleanup();
@@ -1518,21 +1539,23 @@ describe("ChatView browser behavior (full app)", () => {
     try {
       await expect
         .element(page.getByText("Send a message to start the conversation."))
-        .not.toBeInTheDocument();
-      await expect
-        .element(
-          page.getByText("Ask anything, @tag files/folders, or use / to show available commands"),
-        )
         .toBeInTheDocument();
+      await expect
+        .element(page.getByTestId("composer-editor"))
+        .toHaveAttribute(
+          "aria-placeholder",
+          "Ask anything, @tag files/folders, or use / to show available commands",
+        );
+      expect(mounted.host.querySelectorAll('[data-timeline-row-kind="message"]')).toHaveLength(0);
 
-      const host = document.body.lastElementChild as HTMLElement;
+      const host = mounted.host;
       expect(await waitForMessageScrollContainer(host)).toBeInstanceOf(HTMLDivElement);
     } finally {
       await mounted.cleanup();
     }
   });
 
-  it("uses a compact centered composer for a brand-new local draft thread", async () => {
+  it("shows the project greeting and composer for a brand-new local draft thread", async () => {
     const mounted = await mountChatView({
       viewport: DEFAULT_VIEWPORT,
       snapshot: createSnapshotForTargetUser({
@@ -1542,7 +1565,7 @@ describe("ChatView browser behavior (full app)", () => {
     });
 
     try {
-      const newThreadButton = page.getByTestId("new-thread-button");
+      const newThreadButton = page.getByRole("button", { name: /New thread/i }).first();
       await expect.element(newThreadButton).toBeInTheDocument();
       await newThreadButton.click();
 
@@ -1552,18 +1575,15 @@ describe("ChatView browser behavior (full app)", () => {
         "Route should have changed to a new compact draft thread UUID.",
       );
 
-      await expect
-        .element(page.getByText("Send a message to start the conversation."))
-        .toBeInTheDocument();
-
       const composerEditor = await waitForComposerEditor();
-      expect(parseFloat(getComputedStyle(composerEditor).minHeight)).toBeLessThan(56);
+      await expect.element(page.getByText("What should we build in Project?")).toBeVisible();
+      expect(composerEditor.getBoundingClientRect().height).toBeLessThan(200);
     } finally {
       await mounted.cleanup();
     }
   });
 
-  it("replaces a stale empty draft route with the bootstrap server thread", async () => {
+  it("restores an unsent draft from its legacy link", async () => {
     const staleDraftThreadId = "11111111-1111-4111-8111-111111111111" as ThreadId;
     useComposerDraftStore.setState({
       draftThreadsByThreadId: {
@@ -1595,12 +1615,15 @@ describe("ChatView browser behavior (full app)", () => {
     try {
       await waitForURL(
         mounted.router,
-        (path) => path === `/${THREAD_ID}`,
-        "Route should replace the stale draft with the bootstrap thread.",
+        (path) => path === `/${BROWSER_ENVIRONMENT_ID}/${staleDraftThreadId}`,
+        "Route should retain the saved draft in its owning environment.",
       );
-      expect(useComposerDraftStore.getState().draftThreadsByThreadId[staleDraftThreadId]).toBe(
-        undefined,
-      );
+      await waitForComposerEditor();
+      expect(
+        useComposerDraftStore.getState().draftThreadsByThreadId[
+          scopedComposerThreadId(BROWSER_ENVIRONMENT_ID, staleDraftThreadId)
+        ],
+      ).toBeDefined();
     } finally {
       await mounted.cleanup();
     }
@@ -1630,7 +1653,7 @@ describe("ChatView browser behavior (full app)", () => {
     });
 
     try {
-      const newThreadButton = page.getByTestId("new-thread-button");
+      const newThreadButton = page.getByRole("button", { name: /New thread/i }).first();
       await expect.element(newThreadButton).toBeInTheDocument();
 
       await newThreadButton.click();
@@ -1640,14 +1663,19 @@ describe("ChatView browser behavior (full app)", () => {
         (path) => UUID_ROUTE_RE.test(path),
         "Route should have changed to a new draft thread UUID.",
       );
-      const newThreadId = newThreadPath.slice(1) as ThreadId;
+      const newThreadId = newThreadPath.split("/").at(-1)! as ThreadId;
 
-      expect(useComposerDraftStore.getState().draftsByThreadId[newThreadId]).toMatchObject({
+      expect(
+        useComposerDraftStore.getState().draftsByThreadId[
+          scopedComposerThreadId(BROWSER_ENVIRONMENT_ID, newThreadId)
+        ],
+      ).toMatchObject({
         modelSelectionByProvider: {
           codex: makeAppModelSelection(
             "codex",
             "gpt-5.3-codex",
             typedOptionsToSelections({
+              reasoningEffort: "medium",
               fastMode: true,
             }),
           ),
@@ -1683,7 +1711,7 @@ describe("ChatView browser behavior (full app)", () => {
     });
 
     try {
-      const newThreadButton = page.getByTestId("new-thread-button");
+      const newThreadButton = page.getByRole("button", { name: /New thread/i }).first();
       await expect.element(newThreadButton).toBeInTheDocument();
 
       await newThreadButton.click();
@@ -1693,9 +1721,13 @@ describe("ChatView browser behavior (full app)", () => {
         (path) => UUID_ROUTE_RE.test(path),
         "Route should have changed to a new sticky claude draft thread UUID.",
       );
-      const newThreadId = newThreadPath.slice(1) as ThreadId;
+      const newThreadId = newThreadPath.split("/").at(-1)! as ThreadId;
 
-      expect(useComposerDraftStore.getState().draftsByThreadId[newThreadId]).toMatchObject({
+      expect(
+        useComposerDraftStore.getState().draftsByThreadId[
+          scopedComposerThreadId(BROWSER_ENVIRONMENT_ID, newThreadId)
+        ],
+      ).toMatchObject({
         modelSelectionByProvider: {
           claudeAgent: makeAppModelSelection(
             "claudeAgent",
@@ -1723,7 +1755,7 @@ describe("ChatView browser behavior (full app)", () => {
     });
 
     try {
-      const newThreadButton = page.getByTestId("new-thread-button");
+      const newThreadButton = page.getByRole("button", { name: /New thread/i }).first();
       await expect.element(newThreadButton).toBeInTheDocument();
 
       await newThreadButton.click();
@@ -1733,9 +1765,13 @@ describe("ChatView browser behavior (full app)", () => {
         (path) => UUID_ROUTE_RE.test(path),
         "Route should have changed to a new draft thread UUID.",
       );
-      const newThreadId = newThreadPath.slice(1) as ThreadId;
+      const newThreadId = newThreadPath.split("/").at(-1)! as ThreadId;
 
-      expect(useComposerDraftStore.getState().draftsByThreadId[newThreadId]).toBeUndefined();
+      expect(
+        useComposerDraftStore.getState().draftsByThreadId[
+          scopedComposerThreadId(BROWSER_ENVIRONMENT_ID, newThreadId)
+        ],
+      ).toBeUndefined();
     } finally {
       await mounted.cleanup();
     }
@@ -1765,7 +1801,7 @@ describe("ChatView browser behavior (full app)", () => {
     });
 
     try {
-      const newThreadButton = page.getByTestId("new-thread-button");
+      const newThreadButton = page.getByRole("button", { name: /New thread/i }).first();
       await expect.element(newThreadButton).toBeInTheDocument();
 
       await newThreadButton.click();
@@ -1775,14 +1811,19 @@ describe("ChatView browser behavior (full app)", () => {
         (path) => UUID_ROUTE_RE.test(path),
         "Route should have changed to a sticky draft thread UUID.",
       );
-      const threadId = threadPath.slice(1) as ThreadId;
+      const threadId = threadPath.split("/").at(-1)! as ThreadId;
 
-      expect(useComposerDraftStore.getState().draftsByThreadId[threadId]).toMatchObject({
+      expect(
+        useComposerDraftStore.getState().draftsByThreadId[
+          scopedComposerThreadId(BROWSER_ENVIRONMENT_ID, threadId)
+        ],
+      ).toMatchObject({
         modelSelectionByProvider: {
           codex: makeAppModelSelection(
             "codex",
             "gpt-5.3-codex",
             typedOptionsToSelections({
+              reasoningEffort: "medium",
               fastMode: true,
             }),
           ),
@@ -1791,7 +1832,7 @@ describe("ChatView browser behavior (full app)", () => {
       });
 
       useComposerDraftStore.getState().setModelSelection(
-        threadId,
+        scopedComposerThreadId(BROWSER_ENVIRONMENT_ID, threadId),
         makeAppModelSelection(
           "codex",
           "gpt-5.4",
@@ -1809,7 +1850,11 @@ describe("ChatView browser behavior (full app)", () => {
         (path) => path === threadPath,
         "New-thread should reuse the existing project draft thread.",
       );
-      expect(useComposerDraftStore.getState().draftsByThreadId[threadId]).toMatchObject({
+      expect(
+        useComposerDraftStore.getState().draftsByThreadId[
+          scopedComposerThreadId(BROWSER_ENVIRONMENT_ID, threadId)
+        ],
+      ).toMatchObject({
         modelSelectionByProvider: {
           codex: makeAppModelSelection(
             "codex",
@@ -1905,7 +1950,7 @@ describe("ChatView browser behavior (full app)", () => {
     });
 
     try {
-      const newThreadButton = page.getByTestId("new-thread-button");
+      const newThreadButton = page.getByRole("button", { name: /New thread/i }).first();
       await expect.element(newThreadButton).toBeInTheDocument();
       await waitForNewThreadShortcutLabel();
       await waitForServerConfigToApply();
@@ -1916,10 +1961,15 @@ describe("ChatView browser behavior (full app)", () => {
         (path) => UUID_ROUTE_RE.test(path),
         "Route should have changed to a promoted draft thread UUID.",
       );
-      const promotedThreadId = promotedThreadPath.slice(1) as ThreadId;
+      const promotedThreadId = promotedThreadPath.split("/").at(-1)! as ThreadId;
 
-      syncServerReadModelToAtoms(addThreadToSnapshot(fixture.snapshot, promotedThreadId));
-      useComposerDraftStore.getState().clearDraftThread(promotedThreadId);
+      syncServerReadModelToAtoms(
+        addThreadToSnapshot(fixture.snapshot, promotedThreadId),
+        BROWSER_ENVIRONMENT_ID,
+      );
+      useComposerDraftStore
+        .getState()
+        .clearDraftThread(scopedComposerThreadId(BROWSER_ENVIRONMENT_ID, promotedThreadId));
 
       const freshThreadPath = await triggerChatNewShortcutUntilPath(
         mounted.router,

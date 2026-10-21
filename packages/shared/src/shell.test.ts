@@ -16,6 +16,7 @@ import {
   mergePathEntries,
   mergePathValues,
   readEnvironmentFromLoginShell,
+  readEnvironmentFromLoginShellAsync,
   readEnvironmentFromWindowsShell,
   readPathFromLaunchctl,
   readPathFromLoginShell,
@@ -168,6 +169,26 @@ describe("readEnvironmentFromLoginShell", () => {
     expect(readEnvironmentFromLoginShell("/bin/zsh", ["CUSTOM_VAR"], execFile)).toEqual({
       CUSTOM_VAR: "  padded value  ",
     });
+  });
+});
+
+describe("readEnvironmentFromLoginShellAsync", () => {
+  it.skipIf(process.platform === "win32")(
+    "captures values with the same framing as the synchronous reader",
+    async () => {
+      const result = await readEnvironmentFromLoginShellAsync("/bin/sh", ["PATH"]);
+      expect(result.PATH).toBeTruthy();
+    },
+  );
+
+  it("rejects a missing executable and invalid environment names", async () => {
+    await expect(
+      readEnvironmentFromLoginShellAsync("/missing/tabs-shell", ["PATH"]),
+    ).rejects.toThrow();
+    await expect(readEnvironmentFromLoginShellAsync("/bin/sh", ["PATH;exit"])).rejects.toThrow();
+    await expect(readEnvironmentFromLoginShellAsync("/missing/tabs-shell", [])).resolves.toEqual(
+      {},
+    );
   });
 });
 

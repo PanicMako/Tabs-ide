@@ -1,3 +1,4 @@
+import { loadClaudeAgentSdk } from "../../provider/claudeAgentSdk.ts";
 import * as NodeCrypto from "node:crypto";
 
 import { makeProviderTextDeltaCoalescer } from "./ProviderTextDeltaCoalescer.ts";
@@ -8,25 +9,22 @@ import {
 } from "@tabs/shared/toolActivity";
 import { isWorkspaceImagePreviewPath } from "@tabs/shared/filePreview";
 import { normalizeClaudeTurnTokenUsage } from "../../provider/ClaudeTurnTokenUsage.ts";
-import {
-  type CanUseTool,
-  forkSession as forkClaudeSession,
-  type ForkSessionOptions,
-  type ForkSessionResult,
-  getSubagentMessages,
-  query,
-  type Options as ClaudeQueryOptions,
-  type PermissionMode,
-  type PermissionResult,
-  type PermissionUpdate,
-  type Query as ClaudeQuery,
-  type Settings as ClaudeSdkSettings,
-  type SDKAssistantMessage,
-  type SDKAPIRetryMessage,
-  type SDKMessage,
-  type SDKRateLimitInfo,
-  type SDKResultMessage,
-  type SDKUserMessage,
+import type {
+  CanUseTool,
+  ForkSessionOptions,
+  ForkSessionResult,
+  Options as ClaudeQueryOptions,
+  PermissionMode,
+  PermissionResult,
+  PermissionUpdate,
+  Query as ClaudeQuery,
+  Settings as ClaudeSdkSettings,
+  SDKAssistantMessage,
+  SDKAPIRetryMessage,
+  SDKMessage,
+  SDKRateLimitInfo,
+  SDKResultMessage,
+  SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
 import type {
   AskUserQuestionInput,
@@ -624,6 +622,10 @@ export const layerQueryRunner: Layer.Layer<
           ),
           Stream.toAsyncIterable,
         );
+        const { query } = yield* Effect.tryPromise({
+          try: () => loadClaudeAgentSdk(),
+          catch: (cause) => queryRunnerError(cause, "query"),
+        });
         const queryRuntime = yield* Effect.try({
           try: () =>
             query({
@@ -746,8 +748,12 @@ export const layerQueryRunner: Layer.Layer<
             options: input.options,
           },
         });
+        const { forkSession } = yield* Effect.tryPromise({
+          try: () => loadClaudeAgentSdk(),
+          catch: (cause) => queryRunnerError(cause, "forkSession"),
+        });
         const result = yield* Effect.tryPromise({
-          try: () => forkClaudeSession(input.sessionId, input.options),
+          try: () => forkSession(input.sessionId, input.options),
           catch: (cause) => queryRunnerError(cause, "forkSession"),
         });
         yield* logProtocolEvent({
@@ -780,6 +786,10 @@ export const layerQueryRunner: Layer.Layer<
           });
           // The CLI stamps every message of a subagent's transcript with the
           // tool call that launched it; one message is enough.
+          const { getSubagentMessages } = yield* Effect.tryPromise({
+            try: () => loadClaudeAgentSdk(),
+            catch: (cause) => queryRunnerError(cause, "getSubagentMessages"),
+          });
           const messages = yield* Effect.tryPromise({
             try: () =>
               getSubagentMessages(input.sessionId, input.agentId, {

@@ -7,6 +7,14 @@ function row(name: string, role: string, expires: string) {
 }
 
 describe("stored TUF metadata expiry advisory", () => {
+  it("does not warn throughout the normal lifetime of a freshly renewed timestamp", () => {
+    expect(
+      metadataFreshness([row("timestamp.json", "timestamp", "2026-09-30T00:00:00Z")], now)[1],
+    ).toMatchObject({
+      role: "timestamp",
+      status: "valid",
+    });
+  });
   it("distinguishes missing, expiring, expired, and valid roles", () => {
     expect(
       metadataFreshness(

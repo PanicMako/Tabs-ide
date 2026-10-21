@@ -19,6 +19,10 @@ export default defineConfig(async (env) => {
       },
       test: {
         include: ["src/components/**/*.browser.tsx"],
+        maxWorkers: 4,
+        // Browser iframes share origin storage and the MSW service worker.
+        // Theme, persistence and full-app fixtures must not reset each other.
+        fileParallelism: false,
         browser: {
           enabled: true,
           provider: playwright(),

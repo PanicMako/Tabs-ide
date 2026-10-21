@@ -18,6 +18,7 @@ export interface FirstRunWorkspaceInput {
   readonly threads: ReadonlyArray<{
     readonly id: string;
     readonly messages?: ReadonlyArray<unknown>;
+    readonly visibleItemCount?: number | undefined;
     readonly activities?: ReadonlyArray<unknown>;
     readonly turnDiffSummaries?: ReadonlyArray<unknown>;
   }>;
@@ -57,7 +58,7 @@ export function isFreshFirstRunWorkspace(input: FirstRunWorkspaceInput): boolean
 
   if (input.threads.length === 1) {
     const thread = input.threads[0];
-    const hasMessages = (thread?.messages?.length ?? 0) > 0;
+    const hasMessages = (thread?.messages?.length ?? 0) > 0 || (thread?.visibleItemCount ?? 0) > 0;
     const hasActivities = (thread?.activities?.length ?? 0) > 0;
     const hasDiffs = (thread?.turnDiffSummaries?.length ?? 0) > 0;
     return !hasMessages && !hasActivities && !hasDiffs;

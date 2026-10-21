@@ -126,11 +126,9 @@ export const RightPanelTabs = memo(function RightPanelTabs({
     const selected = next?.tabs.find((item) => item.id === next.activeId);
     if (selected) setActiveTab(selected.kind);
     else setChoosing(true);
-    requestAnimationFrame(() =>
-      document
-        .getElementById(selected ? `surface-tab-${selected.id}` : "surface-add-button")
-        ?.focus(),
-    );
+    if (selected) {
+      requestAnimationFrame(() => document.getElementById(`surface-tab-${selected.id}`)?.focus());
+    }
   };
 
   return (

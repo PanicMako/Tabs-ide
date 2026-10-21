@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef, useId } from "react";
 import { useTheme } from "../hooks/useTheme";
-import { cn } from "~/lib/utils";
+import { cn } from "../lib/cn";
 import "./loaders.css";
 import { resolveAnimationFonts } from "../lib/animationTypography";
 
-// Give the loader enough time to resolve into the Tabs wordmark on a warm
-// launch, then reveal the workspace with a deliberate one-second upward wipe.
-export const STARTUP_ANIMATION_HOLD_MS = 1_800;
-export const STARTUP_ANIMATION_EXIT_MS = 1_000;
+// Show startup progress only while the workspace is loading; never hold an
+// already-ready workspace behind a decorative animation.
+export const STARTUP_ANIMATION_HOLD_MS = 0;
+export const STARTUP_ANIMATION_EXIT_MS = 200;
 
 const GLASS_MESSAGES = [
   "COMPILING VIBES",
