@@ -65,6 +65,24 @@ The checked-in release snapshots were refreshed from GitHub's published history;
 they include v2.0.1 and its verified installer/update asset links. No unpublished
 2.0.2 release is advertised by these files.
 
+## Exchange policy follow-up
+
+Real-browser checks exposed 25 static inline style attributes rejected by the
+portal's strict policy, plus blocked bundled fonts. The existing declarations
+moved to the shared stylesheet; fonts are permitted only from the same origin.
+The asset route also serves the existing WOFF fallback with the correct type.
+The design and controls were preserved.
+
+All 544 Exchange tests and frontend/backend type checks pass. A browser serving
+the actual built portal with production headers reports zero policy violations
+on developer, catalog, extension detail and account pages. The developer field
+initializes, remains editable and spans its intended width. Live checks confirm
+zero inline style attributes, the same-origin font policy and HTTP 200 with
+`font/woff2` for the bundled font.
+
+Production deployment: `dep-dbc31g9srm7s739frab0`, projection commit
+`1945ee266b2cb8fa4c2c3c5d88f2fcfee209ff69` from source `f861a0b2e`.
+
 ## Startup follow-up
 
 Optional legacy MCP SDK and browser-automation protocol imports now happen on
@@ -82,7 +100,9 @@ existing path because the new method is optional.
 The regression tests use real loopback sockets, including a delayed listener and
 a backend that never starts. Transport tests prove authentication does not begin
 until readiness resolves. The final live Relay Electron acceptance has zero
-renderer exceptions and zero console errors.
+renderer exceptions and zero console errors. A separate fresh development-server
+launch also recorded zero renderer exceptions and zero console errors, without a
+reload. Its development-only Electron policy warning remains visible.
 
 The original airport loading screen and its natural dismissal behavior are
 unchanged. No minimum animation duration or substitute screen was introduced.
@@ -100,7 +120,34 @@ comparison. After the listener fix, five fresh profiles reached interaction at 3
 the slower first launch. Local builds, typechecks and tests had finished before
 this run. Timings collected under test/build load are not used as benchmarks.
 
+Four subsequent launches reusing a disposable profile and its cache reached
+interaction at 2,032, 2,220, 2,183 and 2,191 ms (median 2,187 ms). The initial fresh
+launch in that sequence was 3,126 ms and is retained in the raw log. Warm and fresh
+results are close; no separate warm-launch speedup is claimed from this pass.
+An instrumented diagnostic trace still identifies module loading and Effect schema
+construction as substantial work; profiler timings are separate from benchmarks.
+
+A synthetic populated profile with 500 draft threads and a Git repository of
+10,000 tracked files reached interaction at 2,978, 2,125 and 2,319 ms (median
+2,319 ms). This used the actual built backend, fresh processes and separate
+compile caches. It did not start provider turns or copy private user data, and
+does not represent long active conversation histories or slower hardware.
+
+The actual arm64 candidate DMG from build run 39537093292 was mounted read-only
+and copied to a disposable installation. With the packaged runtime (no source
+runtime override), three fresh-profile launches reached interaction at 20,311,
+2,101 and 2,224 ms (median 2,224 ms). All samples are retained. The first launch
+after copying the app did not report the first splash paint until 19,349 ms;
+that paint was 531 ms into renderer timing, placing most of the delay before
+renderer startup. Later splash paints were at 1,067 and 983 ms from process
+spawn. The cause of that first-install delay is not established by this probe;
+OS validation and filesystem caching are possibilities, not verified diagnoses.
+Console timing output was enabled for observation. These are not reboot-cold
+measurements, nor proof of startup performance on other hardware. The disposable
+installation and test profiles were removed afterward.
+
 The requested approximately half-second startup has not been demonstrated. The
+20-second first packaged launch is an additional unresolved release concern. The
 existing probe also still reaches its two-second backend shutdown deadline while
 its renderer remains open; it then cleans up its disposable process group.
 
@@ -124,6 +171,30 @@ Current desktop candidate source: `641b9252b03c621689817e504343e0762de5a057`.
 Four-platform build and installer smoke checks, labelled 2.0.2 and using 2.0.1 for
 upgrade acceptance:
 https://github.com/PanicMako/Tabs-ide/actions/runs/39537093292
+
+Packaged Linux launch and stable-backend acceptance passed:
+https://github.com/PanicMako/Tabs-ide/actions/runs/39539726603
+
+The first Linux smoke attempt passed runtime checks but failed while deleting a
+profile that the terminating backend was still writing. The harness now waits for
+its owned process group, force-stops remaining test processes and bounds cleanup
+retries. The rerun passed without weakening the runtime assertions.
+
+Both macOS DMGs passed architecture and deep signature checks, launched their
+bundled editor services and returned stable backend descriptors:
+https://github.com/PanicMako/Tabs-ide/actions/runs/39540386589
+
+All four platform build jobs and their installer checks completed successfully.
+Windows acceptance passed the initial 2.0.1 installation, locked-process upgrade
+to the candidate, shortcut repair, unrelated-process preservation and launch of
+the upgraded bundled editor backend. The initial install took 355 seconds, upgrade
+486 seconds and shortcut-repair reinstall 481 seconds on the hosted runner;
+these are installation durations, not application launch timings. The macOS
+signature checks establish
+ad-hoc signature integrity; they do not establish Developer ID notarization.
+The desktop application sources are byte-identical to the candidate build commit;
+subsequent changes affect Exchange, documentation, marketing release snapshots and
+the external Linux smoke harness.
 
 The earlier candidate run was cancelled when the listener fix changed the source.
 A successful preflight is not a substitute for finished platform artifacts.
