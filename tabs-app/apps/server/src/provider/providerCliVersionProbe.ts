@@ -1,4 +1,6 @@
-import { Effect, Option, Result } from "effect";
+import * as Effect from "effect/Effect";
+import * as Option from "effect/Option";
+import * as Result from "effect/Result";
 
 import { isCommandMissingCause, type CommandResult } from "./providerCliOutput";
 

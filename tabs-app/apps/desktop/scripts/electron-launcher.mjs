@@ -22,7 +22,7 @@ const isDevelopment = Boolean(
 const APP_BASE_NAME = "Tabs";
 const APP_DISPLAY_NAME = isDevelopment ? `${APP_BASE_NAME} (Dev)` : APP_BASE_NAME;
 const APP_BUNDLE_ID = isDevelopment ? "com.tabs.app.dev" : "com.tabs.app";
-const LAUNCHER_VERSION = 2;
+const LAUNCHER_VERSION = 3;
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 export const desktopDir = resolve(__dirname, "..");
@@ -106,12 +106,13 @@ function buildMacLauncher(electronBinaryPath) {
   const targetAppBundlePath = join(runtimeDir, `${APP_DISPLAY_NAME}.app`);
   const targetBinaryPath = join(targetAppBundlePath, "Contents", "MacOS", "Electron");
   const iconPath = join(desktopDir, "resources", "icon.icns");
-  const metadataPath = join(runtimeDir, "metadata.json");
+  const metadataPath = join(runtimeDir, `${APP_DISPLAY_NAME}.metadata.json`);
 
   mkdirSync(runtimeDir, { recursive: true });
 
   const expectedMetadata = {
     launcherVersion: LAUNCHER_VERSION,
+    appDisplayName: APP_DISPLAY_NAME,
     sourceAppBundlePath,
     sourceAppMtimeMs: statSync(sourceAppBundlePath).mtimeMs,
     iconMtimeMs: statSync(iconPath).mtimeMs,
@@ -120,6 +121,15 @@ function buildMacLauncher(electronBinaryPath) {
   const currentMetadata = readJson(metadataPath);
   if (
     existsSync(targetBinaryPath) &&
+    existsSync(
+      join(
+        targetAppBundlePath,
+        "Contents",
+        "Frameworks",
+        "Electron Framework.framework",
+        "Electron Framework",
+      ),
+    ) &&
     currentMetadata &&
     JSON.stringify(currentMetadata) === JSON.stringify(expectedMetadata)
   ) {

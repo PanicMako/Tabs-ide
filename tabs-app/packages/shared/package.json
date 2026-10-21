@@ -447,7 +447,12 @@
     "./toolOutput": {
       "types": "./src/toolOutput.ts",
       "import": "./src/toolOutput.ts"
-    }
+    },
+    "./publisherVerification": {
+      "types": "./src/publisherVerification.ts",
+      "import": "./src/publisherVerification.ts"
+    },
+    "./publisherVerification.css": "./src/publisherVerification.css"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

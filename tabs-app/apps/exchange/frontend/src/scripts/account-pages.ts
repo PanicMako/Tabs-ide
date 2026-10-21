@@ -1,3 +1,4 @@
+import { publisherVerifiedBadge } from "../lib/publisherVerifiedBadge";
 import {
   canManageNamespaces,
   request,
@@ -120,10 +121,8 @@ async function namespaces(version: number, signal: AbortSignal) {
     const access = document.createElement("span");
     access.className = "namespace-record-access";
     access.textContent = ` · ${namespace.role}`;
-    const verification = document.createElement("span");
-    verification.className = "namespace-record-verification";
-    verification.textContent = namespace.verified ? " · ✓ Verified publisher" : "";
-    item.append(name, access, verification);
+    if (namespace.verified) name.append(publisherVerifiedBadge());
+    item.append(name, access);
     list.append(item);
   }
   for (const step of document.querySelectorAll<HTMLElement>(

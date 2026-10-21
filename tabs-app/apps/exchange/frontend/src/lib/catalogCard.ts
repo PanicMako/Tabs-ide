@@ -1,3 +1,4 @@
+import { publisherVerifiedBadge } from "./publisherVerifiedBadge";
 import { extensionMarkPath, extensionMarkViewBox } from "./extensionMark";
 import type { CatalogRelease } from "./catalogState";
 import { inlineArrow } from "./inlineArrow";
@@ -50,10 +51,14 @@ export function catalogCard(item: CatalogRelease): HTMLLIElement {
   meta.className = "catalog-meta";
   meta.append(text("span", `v${item.version}`));
   if (item.verified) {
-    const badge = text("span", "✓ Verified publisher");
-    badge.className = "publisher-verified-badge";
-    badge.title = "Publisher ownership checked by Tabs. This is not a security guarantee.";
-    meta.append(badge);
+    const badgeLink = document.createElement("a");
+    badgeLink.href = link.href;
+    badgeLink.className = "catalog-publisher-badge-link text-link";
+    badgeLink.setAttribute("aria-label", `Verified publisher: view ${item.manifest.displayName}`);
+    const badge = publisherVerifiedBadge();
+    badge.tabIndex = -1;
+    badgeLink.append(badge);
+    publisher.append(badgeLink);
   }
   const screenshots = item.manifest.listing?.screenshots;
   if (Array.isArray(screenshots) && screenshots.length > 0 && screenshots.length <= 6) {

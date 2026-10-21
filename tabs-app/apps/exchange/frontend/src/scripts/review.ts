@@ -20,6 +20,21 @@ interface Submission {
 const status = document.getElementById("review-status")!;
 const content = document.getElementById("review-content")!;
 const list = document.getElementById("review-items")!;
+const detailHost = document.getElementById("review-detail")!;
+const selectionEmpty = document.getElementById("review-selection-empty")!;
+let selectedRow: HTMLElement | undefined;
+let selectedDetail: HTMLElement | undefined;
+function clearSelection() {
+  selectedRow?.querySelector("button")?.setAttribute("aria-pressed", "false");
+  if (selectedDetail) selectedDetail.hidden = true;
+  selectedRow = undefined;
+  selectedDetail = undefined;
+  selectionEmpty.hidden = false;
+}
+function resetSelection() {
+  clearSelection();
+  detailHost.replaceChildren(selectionEmpty);
+}
 const refresh = document.getElementById("review-refresh") as HTMLButtonElement;
 const signin = document.getElementById("review-signin")!;
 const query = document.getElementById("review-query") as HTMLInputElement;
@@ -30,19 +45,23 @@ function filter() {
     query.value,
     scope.value,
   );
+  if (selectedRow?.hidden) clearSelection();
 }
 query.addEventListener("input", filter);
 scope.addEventListener("change", filter);
 let generation = 0;
 let pending: AbortController | undefined;
 let deciding = false;
+let canPublish = false;
 let operationsGeneration = 0;
 const operations = document.getElementById("review-operations")!;
 function reconnectReviewer() {
+  canPublish = false;
   const lostFocus = content.contains(document.activeElement);
   operationsGeneration++;
   content.hidden = true;
   list.replaceChildren();
+  resetSelection();
   clearReviewHistory();
   clearReviewAppeals();
   clearOperationsDetail();
@@ -131,6 +150,11 @@ function decisionForm(entry: Submission, index: number) {
   digest.placeholder = "Paste the SHA-256 fingerprint shown below";
   const result = document.createElement("p");
   result.setAttribute("role", "status");
+  const nextStep = document.createElement("a");
+  nextStep.className = "button review-next-step";
+  nextStep.href = "/admin/releases";
+  nextStep.textContent = "Next: publish the approved release →";
+  nextStep.hidden = true;
   const approve = document.createElement("button");
   approve.className = "button";
   approve.type = "submit";
@@ -163,10 +187,16 @@ function decisionForm(entry: Submission, index: number) {
   help.textContent =
     "Your reason is recorded for the publisher. Approval moves this version to signing; it does not publish it immediately.";
   fields.append(help, reasonField, fingerprintControl(entry.digest), digestField, actions);
-  form.append(fields, result);
+  form.append(fields, result, nextStep);
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    if (deciding) return;
+    if (
+      deciding ||
+      !form.isConnected ||
+      form.closest('[hidden], [data-panel-active="false"]') ||
+      content.hidden
+    )
+      return;
     let decision: ReturnType<typeof reviewDecision> | ReturnType<typeof reviewRescan>;
     const action = (event.submitter as HTMLButtonElement | null)?.value ?? "";
     try {
@@ -190,11 +220,37 @@ function decisionForm(entry: Submission, index: number) {
     result.textContent = "Recording decision…";
     try {
       await request(decision.path, "POST", decision.body);
+      nextStep.hidden = !canPublish || (action !== "approve" && action !== "revoke");
+      nextStep.textContent =
+        action === "revoke"
+          ? "Next: publish signed restrictions →"
+          : "Next: publish the approved release →";
+      const recorded =
+        action === "approve"
+          ? "Approved"
+          : action === "reject"
+            ? "Rejected"
+            : action === "revoke"
+              ? "Revoked"
+              : "Scan queued";
+      const card = form.closest(".review-package-detail");
+      const cardBadge = card?.querySelector(".review-package-badge");
+      if (cardBadge) cardBadge.textContent = recorded;
+      const guidance = card?.querySelector(".review-package-guidance");
+      if (guidance)
+        guidance.textContent =
+          "Decision recorded. Refresh the queue before taking another action on this package.";
+      const identity = `${entry.namespace}.${entry.name}@${entry.version} ${entry.digest}`;
+      const row = [...list.querySelectorAll<HTMLElement>("[data-review-identity]")].find(
+        (node) => node.dataset.reviewIdentity === identity,
+      );
+      const rowBadge = row?.querySelector(".review-package-badge");
+      if (rowBadge) rowBadge.textContent = recorded;
       result.textContent =
         action === "rescan"
           ? "Rescan queued. Existing scan evidence is no longer current. Refresh the queue before making another decision."
           : action === "approve"
-            ? "Approval recorded. This is not publication: a signed release is still required. Refresh the queue."
+            ? "Approval recorded for this exact package. Next, an operator must sign and publish the release."
             : action === "revoke"
               ? "Revocation recorded. Publish updated signed metadata promptly so installed clients can authenticate the revocation. Refresh the queue."
               : "Rejection recorded. Refresh the queue.";
@@ -208,7 +264,14 @@ function decisionForm(entry: Submission, index: number) {
     } finally {
       deciding = false;
       refresh.disabled = false;
-      (content.hidden ? (signin.hidden ? status : signin) : refresh).focus();
+      (content.hidden
+        ? signin.hidden
+          ? status
+          : signin
+        : !nextStep.hidden
+          ? nextStep
+          : refresh
+      ).focus();
       if (!content.hidden) {
         void showReviewHistory(entry.namespace, entry.name);
         void showOperations(generation, pending?.signal);
@@ -220,12 +283,14 @@ function decisionForm(entry: Submission, index: number) {
 
 async function load(restoreFocus = false) {
   if (deciding) return;
+  canPublish = false;
   clearReviewHistory();
   clearReviewAppeals();
   clearOperationsDetail();
   operations.textContent = "Operational status has not been loaded.";
   content.hidden = true;
   list.replaceChildren();
+  resetSelection();
   const current = ++generation;
   pending?.abort();
   const controller = new AbortController();
@@ -237,6 +302,7 @@ async function load(restoreFocus = false) {
     if (current !== generation) return;
     content.hidden = true;
     list.replaceChildren();
+    resetSelection();
     signin.hidden = actor !== null;
     if (!actor?.admin) {
       status.textContent = actor
@@ -244,6 +310,9 @@ async function load(restoreFocus = false) {
         : "Sign in with a reviewer account to continue.";
       return;
     }
+    canPublish = actor.operator === true;
+    const publicationLink = selectionEmpty.querySelector("a");
+    if (publicationLink) publicationLink.hidden = !canPublish;
     const data = await request<{ submissions: Submission[] }>(
       "/v1/review/queue",
       "GET",
@@ -270,130 +339,188 @@ async function load(restoreFocus = false) {
       item.dataset.reviewStatus = entry.status;
       const presentation = reviewPresentation(entry);
       item.dataset.reviewTone = presentation.tone;
-      const heading = document.createElement("h3");
-      heading.className = "review-package-title";
-      const manifest =
+      const row = item;
+      row.className = "review-queue-row";
+      const choose = document.createElement("button");
+      choose.type = "button";
+      choose.className = "review-package-choice";
+      choose.setAttribute("data-quiet-control", "");
+      choose.setAttribute("aria-pressed", "false");
+      const name = document.createElement("strong");
+      const manifestName =
         entry.manifest && typeof entry.manifest === "object"
-          ? (entry.manifest as { displayName?: unknown; description?: unknown })
-          : undefined;
-      heading.textContent =
-        typeof manifest?.displayName === "string"
-          ? manifest.displayName
-          : `${entry.namespace}.${entry.name}@${entry.version}`;
-      const badge = document.createElement("span");
-      badge.className = "review-package-badge";
-      badge.textContent = presentation.label;
-      const identity = document.createElement("p");
-      identity.className = "review-package-identity";
-      identity.textContent = `${entry.namespace}.${entry.name} · Version ${entry.version}`;
-      const guidance = document.createElement("p");
-      guidance.className = "review-package-guidance";
-      guidance.textContent = presentation.guidance;
-      item.append(badge, heading, identity, guidance);
-      const history = document.createElement("button");
-      history.type = "button";
-      history.textContent = "Release history";
-      history.setAttribute("aria-label", `View history for ${entry.namespace}.${entry.name}`);
-      history.addEventListener("click", () => {
-        void showReviewHistory(entry.namespace, entry.name);
-        document
-          .querySelector<HTMLAnchorElement>('[data-workspace-target="review-history-panel"]')
-          ?.click();
-        document.getElementById("review-history-namespace")!.focus();
-      });
-      const tools = document.createElement("div");
-      tools.className = "review-package-tools";
-      tools.append(history);
-      const archive = document.createElement("a");
-      archive.href = reviewArchivePath(entry);
-      archive.textContent = "Download package ↗";
-      archive.setAttribute(
-        "aria-label",
-        `Download ${entry.namespace}.${entry.name}@${entry.version} for independent inspection`,
-      );
-      tools.append(archive);
-      item.append(tools);
-      const inspection = document.createElement("details");
-      inspection.className = "package-inspection";
-      const inspectionHeading = document.createElement("summary");
-      inspectionHeading.textContent =
-        entry.status === "approved" ? "Manage this release" : "Review this package";
-      inspection.append(inspectionHeading);
-      const intro = document.createElement("div");
-      intro.className = "review-checklist";
-      intro.textContent =
-        entry.status === "approved"
-          ? "This review is complete. Record a reason and confirm the package fingerprint before revoking it."
-          : "01 Inspect requested access   →   02 Read scan findings & changes   →   03 Record your decision";
-      inspection.append(intro);
-      if (entry.status !== "approved")
-        appendReviewEvidence(inspection, entry.manifest, entry.scan_result, entry.digest);
-      const evidenceSections: Array<readonly [string, unknown]> =
-        entry.status === "approved"
-          ? []
-          : [
-              ["Raw manifest evidence", entry.manifest],
-              ["Raw scan and version-difference evidence", entry.scan_result],
-            ];
-      const technical = document.createElement("details");
-      technical.className = "review-technical";
-      const technicalTitle = document.createElement("summary");
-      technicalTitle.textContent = "Evidence workspace · manifest, scan & files";
-      technical.append(technicalTitle);
-      if (entry.status !== "approved") {
-        const openStudio = appendReviewWorkspace(
-          technical,
-          entry,
-          index,
-          reconnectReviewer,
-          (notes) => {
-            const reason = inspection.querySelector<HTMLTextAreaElement>(`#review-reason-${index}`);
-            if (!reason) throw new Error("A decision form is not available for this package.");
-            const value = reason.value.trim() ? reason.value.trim() + "\n\n" + notes : notes;
-            if (value.length > 2000)
-              throw new Error(
-                "Combined notes exceed the decision's 2,000-character limit. Shorten them first.",
-              );
-            reason.value = value;
-            reason.dispatchEvent(new Event("input", { bubbles: true }));
-            queueMicrotask(() => {
-              if (reason.isConnected) reason.focus();
-            });
-          },
-        );
-        const browse = document.createElement("button");
-        browse.type = "button";
-        browse.className = "button studio-launch";
-        browse.textContent = "Open code review ↗";
-        browse.addEventListener("click", () => {
-          inspection.open = true;
-          openStudio(browse);
+          ? (entry.manifest as { displayName?: unknown }).displayName
+          : null;
+      name.textContent =
+        typeof manifestName === "string" ? manifestName : `${entry.namespace}.${entry.name}`;
+      const version = document.createElement("span");
+      version.textContent = `${entry.namespace} · ${entry.version}`;
+      const state = document.createElement("span");
+      state.className = "review-package-badge";
+      state.textContent = presentation.label;
+      choose.append(name, version, state);
+      row.append(choose);
+      let detail: HTMLElement | undefined;
+      function buildDetail() {
+        const item = document.createElement("article");
+        item.className = "review-package-detail";
+        item.id = `review-selected-${index}`;
+        const heading = document.createElement("h3");
+        heading.className = "review-package-title";
+        const manifest =
+          entry.manifest && typeof entry.manifest === "object"
+            ? (entry.manifest as { displayName?: unknown; description?: unknown })
+            : undefined;
+        heading.textContent =
+          typeof manifest?.displayName === "string"
+            ? manifest.displayName
+            : `${entry.namespace}.${entry.name}@${entry.version}`;
+        const badge = document.createElement("span");
+        badge.className = "review-package-badge";
+        badge.textContent = presentation.label;
+        const identity = document.createElement("p");
+        identity.className = "review-package-identity";
+        identity.textContent = `${entry.namespace}.${entry.name} · Version ${entry.version}`;
+        const guidance = document.createElement("p");
+        guidance.className = "review-package-guidance";
+        guidance.textContent = presentation.guidance;
+        item.append(badge, heading, identity, guidance);
+        const history = document.createElement("button");
+        history.type = "button";
+        history.textContent = "Release history";
+        history.setAttribute("aria-label", `View history for ${entry.namespace}.${entry.name}`);
+        history.addEventListener("click", () => {
+          void showReviewHistory(entry.namespace, entry.name);
+          document
+            .querySelector<HTMLAnchorElement>('[data-workspace-target="review-history-panel"]')
+            ?.click();
+          document.getElementById("review-history-namespace")!.focus();
         });
-        tools.prepend(browse);
+        const tools = document.createElement("div");
+        tools.className = "review-package-tools";
+        tools.append(history);
+        const archive = document.createElement("a");
+        archive.href = reviewArchivePath(entry);
+        archive.textContent = "Download package ↗";
+        archive.setAttribute(
+          "aria-label",
+          `Download ${entry.namespace}.${entry.name}@${entry.version} for independent inspection`,
+        );
+        tools.append(archive);
+        item.append(tools);
+        const inspection = document.createElement("section");
+        inspection.className = "package-inspection";
+        const inspectionHeading = document.createElement("h4");
+        inspectionHeading.textContent =
+          entry.status === "approved" ? "Manage this release" : "Review this package";
+        inspection.append(inspectionHeading);
+        const intro = document.createElement("div");
+        intro.className = "review-checklist";
+        intro.textContent =
+          entry.status === "approved"
+            ? "This review is complete. Record a reason and confirm the package fingerprint before revoking it."
+            : "01 Inspect requested access   →   02 Read scan findings & changes   →   03 Record your decision";
+        inspection.append(intro);
+        if (entry.status !== "approved") {
+          const findings = document.createElement("details");
+          findings.className = "review-findings-fold";
+          const findingsTitle = document.createElement("summary");
+          findingsTitle.textContent = "Scan findings & requested access";
+          findings.append(findingsTitle);
+          appendReviewEvidence(findings, entry.manifest, entry.scan_result, entry.digest);
+          inspection.append(findings);
+        }
+        const evidenceSections: Array<readonly [string, unknown]> =
+          entry.status === "approved"
+            ? []
+            : [
+                ["Raw manifest evidence", entry.manifest],
+                ["Raw scan and version-difference evidence", entry.scan_result],
+              ];
+        const technical = document.createElement("details");
+        technical.className = "review-technical";
+        const technicalTitle = document.createElement("summary");
+        technicalTitle.textContent = "Evidence workspace · manifest, scan & files";
+        technical.append(technicalTitle);
+        if (entry.status !== "approved") {
+          const aiReview = document.createElement("div");
+          aiReview.className = "review-ai-actions";
+          tools.after(aiReview);
+          const openStudio = appendReviewWorkspace(
+            technical,
+            entry,
+            index,
+            reconnectReviewer,
+            (notes) => {
+              const reason = inspection.querySelector<HTMLTextAreaElement>(
+                `#review-reason-${index}`,
+              );
+              if (!reason) throw new Error("A decision form is not available for this package.");
+              const value = reason.value.trim() ? reason.value.trim() + "\n\n" + notes : notes;
+              if (value.length > 2000)
+                throw new Error(
+                  "Combined notes exceed the decision's 2,000-character limit. Shorten them first.",
+                );
+              reason.value = value;
+              reason.dispatchEvent(new Event("input", { bubbles: true }));
+              queueMicrotask(() => {
+                if (reason.isConnected) reason.focus();
+              });
+            },
+            aiReview,
+          );
+          const browse = document.createElement("button");
+          browse.type = "button";
+          browse.className = "button studio-launch";
+          browse.textContent = "Open code review ↗";
+          browse.addEventListener("click", () => {
+            openStudio(browse);
+          });
+          tools.prepend(browse);
+        }
+        technical.append(fingerprintControl(entry.digest));
+        const raw = document.createElement("details");
+        raw.className = "review-raw-data";
+        const rawTitle = document.createElement("summary");
+        rawTitle.textContent = "Full JSON records";
+        raw.append(rawTitle);
+        for (const [label, evidence] of evidenceSections) {
+          const details = document.createElement("details");
+          const summary = document.createElement("summary");
+          summary.textContent = label;
+          const text = document.createElement("pre");
+          text.textContent =
+            evidence === null
+              ? "Scan evidence is not available yet."
+              : JSON.stringify(evidence, null, 2);
+          details.append(summary, text);
+          raw.append(details);
+        }
+        if (evidenceSections.length) technical.append(raw);
+        inspection.append(technical);
+        if (entry.status === "review" || entry.status === "approved")
+          inspection.append(decisionForm(entry, index));
+        item.append(inspection);
+        heading.id = `review-selected-title-${index}`;
+        item.setAttribute("aria-labelledby", heading.id);
+        heading.tabIndex = -1;
+        return item;
       }
-      technical.append(fingerprintControl(entry.digest));
-      const raw = document.createElement("details");
-      raw.className = "review-raw-data";
-      const rawTitle = document.createElement("summary");
-      rawTitle.textContent = "Full JSON records";
-      raw.append(rawTitle);
-      for (const [label, evidence] of evidenceSections) {
-        const details = document.createElement("details");
-        const summary = document.createElement("summary");
-        summary.textContent = label;
-        const text = document.createElement("pre");
-        text.textContent =
-          evidence === null
-            ? "Scan evidence is not available yet."
-            : JSON.stringify(evidence, null, 2);
-        details.append(summary, text);
-        raw.append(details);
-      }
-      if (evidenceSections.length) technical.append(raw);
-      inspection.append(technical);
-      if (entry.status === "review" || entry.status === "approved")
-        inspection.append(decisionForm(entry, index));
-      item.append(inspection);
+      choose.addEventListener("click", () => {
+        if (deciding || !row.isConnected || row.hidden || content.hidden) return;
+        clearSelection();
+        if (!detail) {
+          detail = buildDetail();
+          detailHost.append(detail);
+          choose.setAttribute("aria-controls", detail.id);
+        }
+        selectedRow = row;
+        selectedDetail = detail;
+        detail.hidden = false;
+        selectionEmpty.hidden = true;
+        choose.setAttribute("aria-pressed", "true");
+        detail.querySelector<HTMLElement>("h3")?.focus({ preventScroll: true });
+      });
       fragment.append(item);
     }
     list.replaceChildren(fragment);
@@ -425,11 +552,12 @@ async function load(restoreFocus = false) {
     content.hidden = false;
     void showOperations(current, controller.signal);
     void showReviewAppeals(controller.signal);
-    status.textContent = `${data.submissions.length} pending submissions and ${approved.versions.length} approved releases loaded. Each list is limited to 100 entries.`;
+    status.textContent = "Queue updated.";
   } catch (error) {
     if (current === generation && !controller.signal.aborted) {
       content.hidden = true;
       list.replaceChildren();
+      resetSelection();
       if (error instanceof RegistryRequestError && (error.status === 401 || error.status === 403)) {
         reconnectReviewer();
       } else {

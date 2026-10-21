@@ -9,7 +9,11 @@ describe("rightPanelStore", () => {
     });
   });
 
-  it("defaults to open with diff tab", () => {
+  it("keeps fresh workspaces free of an automatically opened modal panel", () => {
+    expect(useRightPanelStore.getInitialState().isOpen).toBe(false);
+  });
+
+  it("can restore an open panel with the diff tab", () => {
     const state = useRightPanelStore.getState();
     expect(state.isOpen).toBe(true);
     expect(state.activeTab).toBe("diff");

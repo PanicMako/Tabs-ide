@@ -7,6 +7,14 @@ import {
 } from "./firstRun.logic";
 
 describe("isFreshFirstRunWorkspace", () => {
+  it("recognizes existing thread content before its detail subscription loads", () => {
+    expect(
+      isFreshFirstRunWorkspace({
+        projects: [{ id: "p1", cwd: "/test" }],
+        threads: [{ id: "t1", messages: [], visibleItemCount: 3 }],
+      }),
+    ).toBe(false);
+  });
   it("returns true for a completely empty workspace", () => {
     expect(isFreshFirstRunWorkspace({ projects: [], threads: [] })).toBe(true);
   });

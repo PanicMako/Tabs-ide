@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ThreadId } from "@tabs/contracts";
+import { EnvironmentId, ThreadId } from "@tabs/contracts";
 import { useMessageQueueStore, getThreadQueuedMessages } from "./messageQueueStore";
 
 const storage = vi.hoisted(() => {
@@ -1206,6 +1206,51 @@ describe("migrateLocalQueueToServer", () => {
     const interruptCmds = sentCommands.filter((c) => c.type === "run.interrupt");
     expect(interruptCmds).toHaveLength(1);
     expect(interruptCmds[0]?.runId).toBe("run:running:1");
+  });
+
+  it("Send next rejects failed local intake and preserves the selected message", async () => {
+    const threadId = ThreadId.makeUnsafe("thread-1");
+    const environmentId = EnvironmentId.makeUnsafe("send-next-environment");
+    useMessageQueueStore.getState().enqueueMessage({
+      id: "failed-send-next",
+      threadId,
+      environmentId,
+      text: "Keep this attachment",
+      createdAt: "2026-10-20T00:00:00Z",
+      attachments: [
+        {
+          id: "image",
+          name: "image.png",
+          mimeType: "image/png",
+          sizeBytes: 1,
+          dataUrl: "data:image/png;base64,AA==",
+        },
+      ],
+    });
+    const dispatchCommand = vi.fn();
+    const { sendNextQueuedItem } = await import("./messageQueueStore");
+    await expect(
+      sendNextQueuedItem(
+        threadId,
+        {
+          userMessageId: "failed-send-next",
+          isServerAuthoritative: false,
+          text: "Keep this attachment",
+          environmentId,
+        },
+        {
+          assets: {
+            persistChatAttachments: vi.fn().mockRejectedValue(new Error("Upload unavailable")),
+          },
+          orchestration: { dispatchCommand },
+        } as any,
+        [],
+      ),
+    ).rejects.toThrow("Upload unavailable");
+    expect(dispatchCommand).not.toHaveBeenCalled();
+    expect(useMessageQueueStore.getState().queueByThread[threadId]).toEqual([
+      expect.objectContaining({ id: "failed-send-next", dispatchError: "Upload unavailable" }),
+    ]);
   });
 
   it("Send next on server run reorders before clearing schedule deadline", async () => {

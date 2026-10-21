@@ -34,6 +34,97 @@ afterEach(() => {
 });
 
 describe("guardHttpResponseWriteErrors", () => {
+  it("bounds requests when application routes never attach", async () => {
+    const server = guardHttpResponseWriteErrors(NodeHttp.createServer(), undefined, {
+      startupWaitMs: 10,
+    });
+    const port = await listen(server);
+    const response = await fetch(`http://127.0.0.1:${port}/oauth/token`, {
+      method: "POST",
+      body: "bootstrap=test",
+      signal: AbortSignal.timeout(2_000),
+    });
+    expect(response.status).toBe(503);
+    expect(response.headers.get("retry-after")).toBe("1");
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    await response.text();
+
+    server.on("request", (_request, response) => {
+      response.writeHead(200);
+      response.end("ready");
+    });
+    await expect(fetchStatus(port, "/")).resolves.toBe(200);
+  });
+
+  it("delivers early requests to the eventual handler with their body and normal CORS policy", async () => {
+    const server = guardHttpResponseWriteErrors(NodeHttp.createServer());
+    const port = await listen(server);
+    const pending = fetch(`http://127.0.0.1:${port}/oauth/token`, {
+      method: "POST",
+      body: "bootstrap=test",
+      headers: { Origin: "http://localhost:5733" },
+      signal: AbortSignal.timeout(2_000),
+    });
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    server.on("request", (request, response) => {
+      let body = "";
+      request.on("data", (chunk) => {
+        body += chunk;
+      });
+      request.on("end", () => {
+        response.writeHead(200, { "Access-Control-Allow-Origin": "http://localhost:5733" });
+        response.end(body);
+      });
+    });
+    const response = await pending;
+    expect(response.status).toBe(200);
+    expect(response.headers.get("access-control-allow-origin")).toBe("http://localhost:5733");
+    expect(await response.text()).toBe("bootstrap=test");
+  });
+
+  it("bounds the startup queue and releases its requests as routes attach", async () => {
+    const server = guardHttpResponseWriteErrors(NodeHttp.createServer(), undefined, {
+      maxPendingRequests: 1,
+    });
+    const port = await listen(server);
+    const received = new Promise<void>((resolve) => {
+      server.once("connection", (socket) => socket.once("data", () => setImmediate(resolve)));
+    });
+    const first = fetchStatus(port, "/first");
+    await received;
+    await expect(fetchStatus(port, "/overflow")).resolves.toBe(503);
+    server.on("request", (_request, response) => {
+      response.writeHead(200);
+      response.end();
+    });
+    await expect(first).resolves.toBe(200);
+  });
+
+  it("removes a disconnected startup request without retaining its queue slot", async () => {
+    const server = guardHttpResponseWriteErrors(NodeHttp.createServer(), undefined, {
+      maxPendingRequests: 1,
+    });
+    const port = await listen(server);
+    let disconnect!: () => void;
+    const received = new Promise<void>((resolve) => {
+      server.once("connection", (socket) => {
+        disconnect = () => socket.destroy();
+        socket.once("data", () => setImmediate(resolve));
+      });
+    });
+    const first = fetchStatus(port, "/cancelled").catch(() => undefined);
+    await received;
+    disconnect();
+    await first;
+    const next = fetchStatus(port, "/next");
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    server.on("request", (_request, response) => {
+      response.writeHead(200);
+      response.end();
+    });
+    await expect(next).resolves.toBe(200);
+  });
+
   it("contains an upgrade socket write failure instead of crashing the process", async () => {
     const writeErrors: unknown[] = [];
     const failureObserved = Promise.withResolvers<void>();

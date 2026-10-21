@@ -4,7 +4,7 @@
 // Depends on: shared chat attachment contracts.
 
 import type { ChatAttachment, ChatImageAttachment, ProviderDriverKind } from "@tabs/contracts";
-import { Effect } from "effect";
+import * as Effect from "effect/Effect";
 
 import { resolveProviderAttachmentPath } from "./providerAttachmentPaths.ts";
 import { ProviderAdapterRequestError } from "./Errors.ts";

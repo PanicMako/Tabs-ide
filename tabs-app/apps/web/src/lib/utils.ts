@@ -1,12 +1,8 @@
 import { CommandId, MessageId, ProjectId, ThreadId } from "@tabs/contracts";
-import { type CxOptions, cx } from "class-variance-authority";
-import { twMerge } from "tailwind-merge";
 import * as Random from "effect/Random";
 import * as Effect from "effect/Effect";
 
-export function cn(...inputs: CxOptions) {
-  return twMerge(cx(inputs));
-}
+export { cn } from "./cn";
 
 export function isMacPlatform(platform: string): boolean {
   return /mac|iphone|ipad|ipod/i.test(platform);

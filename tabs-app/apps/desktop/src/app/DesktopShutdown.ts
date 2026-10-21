@@ -1,4 +1,8 @@
-import { Effect, Layer, Ref, Deferred, Context } from "effect";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+import * as Ref from "effect/Ref";
+import * as Deferred from "effect/Deferred";
+import * as Context from "effect/Context";
 
 export class DesktopShutdown extends Context.Service<
   DesktopShutdown,

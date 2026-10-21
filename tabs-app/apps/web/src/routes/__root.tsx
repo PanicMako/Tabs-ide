@@ -6,7 +6,7 @@ import {
   useNavigate,
   useRouterState,
 } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { QueryClient, useQueryClient } from "@tanstack/react-query";
 import { useAtomValue } from "@effect/atom-react";
 
@@ -26,15 +26,11 @@ import {
   getWsTransport,
 } from "../wsNativeApi";
 import { migrateLocalSettingsToServer, useSettings } from "../hooks/useSettings";
-import { useMinimumDuration } from "../hooks/useMinimumDuration";
-import {
-  SplashScreen,
-  STARTUP_ANIMATION_EXIT_MS,
-  STARTUP_ANIMATION_HOLD_MS,
-} from "../components/SplashScreen";
+import { SplashScreen } from "../components/SplashScreen";
+import { useStartupAnimation } from "../hooks/useStartupAnimation";
 import { markStartupStage } from "../lib/startupReadiness";
+import { hasEarlyStartupSplash, updateStartupSplash } from "../lib/startupSplashLifecycle";
 import { cn, isPopoutMode } from "../lib/utils";
-import { DiagnosticsSettings } from "../components/settings/DiagnosticsSettings";
 import { providerQueryKeys } from "../lib/providerReactQuery";
 import { projectQueryKeys } from "../lib/projectReactQuery";
 import { collectActiveTerminalThreadIds } from "../lib/terminalStateCleanup";
@@ -70,6 +66,12 @@ import {
   onEnvironmentApiRegistryEvent,
 } from "../connection/environmentApiRegistry";
 
+const DiagnosticsSettings = lazy(() =>
+  import("../components/settings/DiagnosticsSettings").then((module) => ({
+    default: module.DiagnosticsSettings,
+  })),
+);
+
 export const Route = createRootRouteWithContext<{
   queryClient: QueryClient;
 }>()({
@@ -94,7 +96,9 @@ function PopoutRootView() {
       <AnchoredToastProvider>
         <CommandPalette>
           <div className="isolate flex h-screen min-h-0 min-w-0 flex-col overflow-y-auto overscroll-y-none bg-background text-foreground">
-            <DiagnosticsSettings />
+            <Suspense fallback={<div role="status">Loading diagnostics…</div>}>
+              <DiagnosticsSettings />
+            </Suspense>
           </div>
         </CommandPalette>
         <GlobalConfirmDialog />
@@ -115,7 +119,16 @@ function FullAppRootView() {
   const [startupDeadlineElapsed, setStartupDeadlineElapsed] = useState(false);
   const [backendStartupError, setBackendStartupError] = useState<string | null>(null);
   const bootstrapReady = isNativeApiReady && threadsHydrated;
-  const ready = useMinimumDuration(bootstrapReady, STARTUP_ANIMATION_HOLD_MS);
+  const transition = useStartupAnimation(bootstrapReady, settings.splashLoaderStyle);
+  const ready = transition.ready;
+  const [earlySplash] = useState(hasEarlyStartupSplash);
+  useEffect(() => {
+    updateStartupSplash({
+      ready: bootstrapReady,
+      error: backendStartupError,
+      delayed: startupDeadlineElapsed,
+    });
+  }, [bootstrapReady, backendStartupError, startupDeadlineElapsed]);
   const [mounted, setMounted] = useState(true);
 
   useEffect(() => {
@@ -154,21 +167,25 @@ function FullAppRootView() {
   }, [bootstrapReady]);
 
   useEffect(() => {
+    if (bootstrapReady) markStartupStage("workspace-interactive");
+  }, [bootstrapReady]);
+
+  useEffect(() => {
     if (ready) {
-      const timer = setTimeout(() => setMounted(false), STARTUP_ANIMATION_EXIT_MS + 50);
+      const timer = setTimeout(() => setMounted(false), transition.exitMs);
       return () => clearTimeout(timer);
     } else {
       setMounted(true);
     }
-  }, [ready]);
+  }, [ready, transition.exitMs]);
 
   return (
     <>
-      {mounted && (
+      {mounted && !earlySplash && (
         <div
           className={cn(
-            "pointer-events-auto fixed inset-0 z-[9999] bg-background transition-transform duration-1000 ease-in-out motion-reduce:duration-0",
-            ready ? "-translate-y-full" : "translate-y-0",
+            "fixed inset-0 z-[9999] bg-background transition-transform duration-500 ease-in-out motion-reduce:duration-0",
+            ready ? "pointer-events-none -translate-y-full" : "pointer-events-auto translate-y-0",
           )}
         >
           <SplashScreen

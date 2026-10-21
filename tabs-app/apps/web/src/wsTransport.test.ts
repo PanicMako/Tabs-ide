@@ -2,6 +2,8 @@ import { WS_CHANNELS } from "@tabs/contracts";
 import * as Schema from "effect/Schema";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("./desktopWebSocketAuth", () => ({ authorizeDesktopWebSocket: vi.fn() }));
+import { authorizeDesktopWebSocket } from "./desktopWebSocketAuth";
 import { WsTransport } from "./wsTransport";
 
 type WsEventType = "open" | "message" | "close" | "error";
@@ -72,6 +74,7 @@ function getSocket(): MockWebSocket {
 
 beforeEach(() => {
   sockets.length = 0;
+  vi.mocked(authorizeDesktopWebSocket).mockReset();
 
   Object.defineProperty(globalThis, "window", {
     configurable: true,
@@ -104,6 +107,106 @@ describe("WsTransport", () => {
     vi.useRealTimers();
   });
 
+  it("retries a booting desktop loopback server promptly, then restores outage backoff", () => {
+    vi.useFakeTimers();
+    Object.assign(window, { desktopBridge: { getWsUrl: () => "ws://127.0.0.1:4050/ws" } });
+    const transport = new WsTransport("ws://127.0.0.1:4050/ws");
+    getSocket().close();
+    vi.advanceTimersByTime(99);
+    expect(sockets).toHaveLength(1);
+    vi.advanceTimersByTime(1);
+    expect(sockets).toHaveLength(2);
+    getSocket().open();
+    getSocket().close();
+    vi.advanceTimersByTime(499);
+    expect(sockets).toHaveLength(2);
+    vi.advanceTimersByTime(1);
+    expect(sockets).toHaveLength(3);
+    transport.dispose();
+    vi.useRealTimers();
+  });
+
+  it("bounds fast startup retries and keeps remote endpoints on normal backoff", () => {
+    vi.useFakeTimers();
+    Object.assign(window, { desktopBridge: { getWsUrl: () => "ws://127.0.0.1:4050/ws" } });
+    const local = new WsTransport("ws://127.0.0.1:4050/ws");
+    vi.setSystemTime(Date.now() + 5_000);
+    getSocket().close();
+    vi.advanceTimersByTime(499);
+    expect(sockets).toHaveLength(1);
+    vi.advanceTimersByTime(1);
+    expect(sockets).toHaveLength(2);
+    local.dispose();
+    const remote = new WsTransport("wss://remote.example.test/ws");
+    getSocket().close();
+    vi.advanceTimersByTime(499);
+    expect(sockets).toHaveLength(3);
+    vi.advanceTimersByTime(1);
+    expect(sockets).toHaveLength(4);
+    remote.dispose();
+    vi.useRealTimers();
+  });
+
+  it("holds authentication until the desktop backend starts listening", async () => {
+    let ready!: () => void;
+    const listening = new Promise<void>((resolve) => {
+      ready = resolve;
+    });
+    Object.assign(window, {
+      desktopBridge: {
+        getWsUrl: () => "ws://127.0.0.1:4050/ws?token=bootstrap",
+        waitForBackendReady: () => listening,
+      },
+    });
+    vi.mocked(authorizeDesktopWebSocket).mockResolvedValue("ws://127.0.0.1:4050/ws?wsTicket=ready");
+    const transport = new WsTransport();
+    await vi.dynamicImportSettled();
+    expect(authorizeDesktopWebSocket).not.toHaveBeenCalled();
+    expect(sockets).toHaveLength(0);
+    ready();
+    await vi.dynamicImportSettled();
+    expect(sockets).toHaveLength(1);
+    expect(getSocket().url).toContain("wsTicket=ready");
+    transport.dispose();
+  });
+
+  it("waits for desktop authentication instead of creating failed sockets during backend boot", async () => {
+    vi.useFakeTimers();
+    Object.assign(window, {
+      desktopBridge: { getWsUrl: () => "ws://127.0.0.1:4050/ws?token=bootstrap" },
+    });
+    vi.mocked(authorizeDesktopWebSocket)
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce("ws://127.0.0.1:4050/ws?wsTicket=once");
+    const transport = new WsTransport();
+    await vi.dynamicImportSettled();
+    expect(sockets).toHaveLength(0);
+    await vi.advanceTimersByTimeAsync(100);
+    await vi.dynamicImportSettled();
+    expect(sockets).toHaveLength(1);
+    expect(getSocket().url).toContain("wsTicket=once");
+    expect(getSocket().url).not.toContain("token=bootstrap");
+    transport.dispose();
+    vi.useRealTimers();
+  });
+
+  it.each([401, 404, 405])(
+    "uses legacy socket fallback only for unsupported auth endpoints (HTTP %s)",
+    async (status) => {
+      vi.useFakeTimers();
+      Object.assign(window, {
+        desktopBridge: { getWsUrl: () => "ws://127.0.0.1:4050/ws?token=bootstrap" },
+      });
+      vi.mocked(authorizeDesktopWebSocket).mockRejectedValue(
+        Object.assign(new Error("auth response"), { status }),
+      );
+      const transport = new WsTransport();
+      await vi.dynamicImportSettled();
+      expect(sockets).toHaveLength(status === 401 ? 0 : 1);
+      transport.dispose();
+      vi.useRealTimers();
+    },
+  );
   it("notifies connection listeners after every successful open", () => {
     vi.useFakeTimers();
     const listener = vi.fn();

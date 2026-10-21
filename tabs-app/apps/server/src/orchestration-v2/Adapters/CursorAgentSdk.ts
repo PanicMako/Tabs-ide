@@ -16,7 +16,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 
-import { Agent, createAgentPlatform } from "../../provider/cursorSdk.ts";
+import { loadCursorSdk } from "../../provider/cursorSdk.ts";
 import type { EventNdjsonLogger } from "../../provider/EventNdjsonLogger.ts";
 import * as ProviderEventLoggers from "../../provider/ProviderEventLoggers.ts";
 
@@ -315,7 +315,9 @@ let cursorSandboxSupportPrime: Promise<void> | undefined;
 function primeCursorSandboxSupport(options: AgentOptions): Promise<void> {
   cursorSandboxSupportPrime ??= (async () => {
     const cwd = typeof options.local?.cwd === "string" ? options.local.cwd : undefined;
-    const platform = await createAgentPlatform(cwd === undefined ? {} : { workspaceRef: cwd });
+    const platform = await loadCursorSdk().createAgentPlatform(
+      cwd === undefined ? {} : { workspaceRef: cwd },
+    );
     const release = await platform.prewarmLocalWorkspace({
       ...(options.apiKey === undefined ? {} : { apiKey: options.apiKey }),
       local: {
@@ -361,8 +363,8 @@ export function makeCursorAgentSdkRunner(
       const agent = yield* Effect.tryPromise({
         try: () =>
           input.operation === "create"
-            ? Agent.create(input.options)
-            : Agent.resume(input.agentId!, input.options),
+            ? loadCursorSdk().Agent.create(input.options)
+            : loadCursorSdk().Agent.resume(input.agentId!, input.options),
         catch: (cause) => runnerError(cause, `agent.${input.operation}`),
       });
 
@@ -451,7 +453,8 @@ export function makeCursorAgentSdkRunner(
                 Effect.gen(function* () {
                   abandonedRunRecoveryAvailable = false;
                   const latestRun = yield* Effect.tryPromise({
-                    try: () => Agent.listRuns(agent.agentId, { ...runOptions, limit: 1 }),
+                    try: () =>
+                      loadCursorSdk().Agent.listRuns(agent.agentId, { ...runOptions, limit: 1 }),
                     catch: (cause) => runnerError(cause, "agent.listRuns"),
                   });
                   const activeRun = latestRun.items.find(
@@ -466,7 +469,7 @@ export function makeCursorAgentSdkRunner(
                     payload: { type: "run.cancel", runId: activeRun.id },
                   });
                   yield* Effect.tryPromise({
-                    try: () => Agent.cancelRun(activeRun.id, runOptions),
+                    try: () => loadCursorSdk().Agent.cancelRun(activeRun.id, runOptions),
                     catch: (cause) => runnerError(cause, "agent.cancelRun"),
                   });
                   return yield* startRun();
@@ -553,7 +556,7 @@ export function makeCursorAgentSdkRunner(
           Effect.andThen(
             Effect.tryPromise({
               try: () =>
-                Agent.messages.list(agent.agentId, {
+                loadCursorSdk().Agent.messages.list(agent.agentId, {
                   runtime: "local",
                   ...(cwd === undefined ? {} : { cwd }),
                 }),

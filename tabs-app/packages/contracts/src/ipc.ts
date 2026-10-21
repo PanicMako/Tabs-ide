@@ -1324,6 +1324,7 @@ export interface DesktopBridge {
   getHostPowerSnapshot?: () => Promise<HostPowerSnapshot>;
   onHostPowerSnapshot?: (listener: (snapshot: HostPowerSnapshot) => void) => () => void;
   getWsUrl: () => string | null;
+  waitForBackendReady?: () => Promise<void>;
   cloneRepository: (input: DesktopCloneRepositoryInput) => Promise<DesktopCloneRepositoryResult>;
   getPersistedItem: (key: string) => Promise<string | null>;
   setPersistedItem: (key: string, value: string) => Promise<void>;
@@ -1493,6 +1494,8 @@ export interface DesktopBridge {
   notifySettingsFlushDone: () => void;
   onAppCleanupDone: (listener: () => void) => () => void;
   notifyReadyToExit: () => Promise<void>;
+  /** First loading-animation frame committed, before workspace imports. */
+  notifyStartupPaint?: () => void;
   getConfirmBeforeQuit: () => Promise<boolean>;
   resetTabsUserData?: () => Promise<boolean>;
   getBackendStartupError?: () => Promise<string | null>;

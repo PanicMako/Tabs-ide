@@ -299,7 +299,11 @@ export function createWsNativeApi(options?: {
       }
       if (!streamConfig) return;
       if (singleton) latestV2Config = streamConfig;
-      for (const listener of activeServerConfigUpdatedListeners) listener(streamConfig);
+      // Keybinding reloads are notifications, not settings changes. Keep the
+      // complete cached snapshot for replay without suppressing validation toasts.
+      const { settings: _settings, ...keybindingsUpdate } = streamConfig;
+      const notification = event.type === "keybindingsUpdated" ? keybindingsUpdate : streamConfig;
+      for (const listener of activeServerConfigUpdatedListeners) listener(notification);
       if (event.type === "snapshot" || event.type === "providerStatuses") {
         const payload = { providers: streamConfig.providers };
         if (singleton) latestV2Providers = payload;

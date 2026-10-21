@@ -1,4 +1,5 @@
-import { Effect, FileSystem } from "effect";
+import * as Effect from "effect/Effect";
+import * as FileSystem from "effect/FileSystem";
 import * as Crypto from "node:crypto";
 import { ServerConfig } from "../config.ts";
 

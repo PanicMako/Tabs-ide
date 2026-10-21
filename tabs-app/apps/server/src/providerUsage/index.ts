@@ -7,7 +7,7 @@ import type {
   ServerListProviderUsageResult,
   ServerProviderUsageSnapshot,
 } from "@tabs/contracts";
-import { Effect } from "effect";
+import * as Effect from "effect/Effect";
 
 import { ServerConfig } from "../config.ts";
 import { ServerSettingsService } from "../serverSettings.ts";

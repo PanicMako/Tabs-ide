@@ -16,6 +16,9 @@ async function updateAccount() {
   reviewerLink.hidden = true;
   if (signout) signout.hidden = true;
   if (operatorLink) operatorLink.hidden = true;
+  document.querySelectorAll<HTMLElement>("[data-operator-nav]").forEach((link) => {
+    link.hidden = true;
+  });
   accountLink.textContent = "Publisher account";
   accountLink.href = "/account";
   try {
@@ -60,6 +63,9 @@ async function updateAccount() {
     accountLink.href = navigation.href;
     reviewerLink.hidden = !navigation.reviewer;
     if (operatorLink) operatorLink.hidden = !navigation.operator;
+    document.querySelectorAll<HTMLElement>("[data-operator-nav]").forEach((link) => {
+      link.hidden = !navigation.operator;
+    });
     if (signout) signout.hidden = actor === null;
   } catch {
     // Keep the normal account link usable when background account lookup fails.
@@ -71,6 +77,9 @@ window.addEventListener("pagehide", () => {
   reviewerLink.hidden = true;
   if (signout) signout.hidden = true;
   if (operatorLink) operatorLink.hidden = true;
+  document.querySelectorAll<HTMLElement>("[data-operator-nav]").forEach((link) => {
+    link.hidden = true;
+  });
 });
 window.addEventListener("pageshow", (event) => {
   if (event.persisted) void updateAccount();
@@ -82,6 +91,9 @@ function finishSignout() {
   pending?.abort();
   reviewerLink.hidden = true;
   if (operatorLink) operatorLink.hidden = true;
+  document.querySelectorAll<HTMLElement>("[data-operator-nav]").forEach((link) => {
+    link.hidden = true;
+  });
   if (signout) signout.hidden = true;
   accountLink.textContent = "Sign in with GitHub";
   accountLink.href = "/auth/github/start";

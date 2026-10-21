@@ -8,7 +8,9 @@
  * @module providerRuntimeEventPump
  */
 import type { ProviderKind, ProviderRuntimeEvent } from "@tabs/contracts";
-import { Cause, Effect, Stream } from "effect";
+import * as Cause from "effect/Cause";
+import * as Effect from "effect/Effect";
+import * as Stream from "effect/Stream";
 
 export type ProviderRuntimeEventPumpStatus =
   | "healthy"

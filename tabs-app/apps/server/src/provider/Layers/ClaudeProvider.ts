@@ -1,3 +1,4 @@
+import { loadClaudeAgentSdk } from "../claudeAgentSdk.ts";
 import {
   type ClaudeSettings,
   type ModelCapabilities,
@@ -21,10 +22,9 @@ import {
   getProviderOptionDescriptors,
 } from "@tabs/shared/model";
 import { compareSemverVersions } from "@tabs/shared/semver";
-import {
-  query as claudeQuery,
-  type SlashCommand as ClaudeSlashCommand,
-  type SDKUserMessage,
+import type {
+  SlashCommand as ClaudeSlashCommand,
+  SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
 
 import {
@@ -639,7 +639,9 @@ const probeClaudeCapabilities = (
   return Effect.gen(function* () {
     const claudeEnvironment = yield* makeClaudeEnvironment(claudeSettings, environment);
     return yield* Effect.tryPromise(async () => {
-      const q = claudeQuery({
+      const { query } = await loadClaudeAgentSdk();
+      abort.signal.throwIfAborted();
+      const q = query({
         // Never yield — we only need initialization data, not a conversation.
         // This prevents any prompt from reaching the Anthropic API.
         // oxlint-disable-next-line require-yield

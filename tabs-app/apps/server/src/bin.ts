@@ -8,6 +8,7 @@
  * the real CLI in ./binCli.ts.
  */
 import { isEntrypoint } from "./entrypoint.ts";
+import { runServerEntrypoint } from "./serverEntrypoint.ts";
 
 if (
   isEntrypoint({
@@ -16,16 +17,7 @@ if (
     runtimeMain: import.meta.main,
   })
 ) {
-  void (async () => {
-    const command = process.argv[2];
-    if (command === "acp-mcp-bridge" || command === "acp-mcp-call") {
-      const { runAcpMcpCliFastPath } = await import("./mcp/AcpMcpStdioBridge.ts");
-      await runAcpMcpCliFastPath(command, process.argv.slice(3));
-    } else {
-      const { runCli } = await import("./binCli.ts");
-      runCli();
-    }
-  })().catch((cause) => {
+  void runServerEntrypoint(process.argv.slice(2)).catch((cause) => {
     console.error(cause);
     process.exitCode = 1;
   });

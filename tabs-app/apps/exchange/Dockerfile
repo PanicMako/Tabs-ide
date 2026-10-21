@@ -33,4 +33,4 @@ RUN bun run --cwd apps/exchange build:portal
 
 USER node
 EXPOSE 8787
-CMD ["sh", "-c", "bun run --cwd apps/exchange migrate && exec bun run --cwd apps/exchange start"]
+CMD ["sh", "apps/exchange/start.sh"]

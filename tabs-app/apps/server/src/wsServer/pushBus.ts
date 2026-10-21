@@ -4,7 +4,11 @@ import {
   type WsPushData,
   type WsPushEnvelopeBase,
 } from "@tabs/contracts";
-import { Deferred, Effect, Queue, Ref, Schema } from "effect";
+import * as Deferred from "effect/Deferred";
+import * as Effect from "effect/Effect";
+import * as Queue from "effect/Queue";
+import * as Ref from "effect/Ref";
+import * as Schema from "effect/Schema";
 import type { Scope } from "effect";
 import type { WebSocket } from "ws";
 

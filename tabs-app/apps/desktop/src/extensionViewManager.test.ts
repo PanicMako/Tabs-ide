@@ -1144,6 +1144,7 @@ describe("development extension installation", () => {
     const fakeSession = {
       closeAllConnections: vi.fn(async () => undefined),
       clearData,
+      clearStorageData: vi.fn(async () => undefined),
       clearAuthCache: vi.fn(async () => undefined),
       clearCodeCaches: vi.fn(async () => undefined),
       flushStorageData: vi.fn(),
@@ -1156,6 +1157,7 @@ describe("development extension installation", () => {
     expect(electronSession.fromPartition).toHaveBeenCalledWith(partition);
     expect(electronSession.fromPartition).toHaveBeenCalledWith(secondPartition);
     expect(clearData).toHaveBeenCalledTimes(2);
+    expect(fakeSession.clearStorageData).toHaveBeenCalledTimes(2);
     expect(storage.invoke(identity, { kind: "get", key: "value" })).toBeNull();
     expect(storage.invoke(secondIdentity, { kind: "get", key: "value" })).toBeNull();
     expect(manager.list()).toEqual([]);
@@ -1164,32 +1166,39 @@ describe("development extension installation", () => {
     ]);
   });
 
-  it("keeps an installation available for retry when browser data clearing fails", async () => {
-    const { directory, manager } = fixture();
-    const installed = manager.installDevelopment(directory);
-    manager.setAssignment(installed.id, {
-      ...installed.assignment,
-      enabledProjectIds: ["project-a"],
-    });
-    await expect(
-      manager.activate({
-        extensionId: installed.id,
-        toolId: "main",
-        projectId: "project-a",
-        profileId: "default",
-      }),
-    ).rejects.toThrow();
-    vi.mocked(electronSession.fromPartition).mockReturnValue({
-      closeAllConnections: vi.fn(async () => undefined),
-      clearData: vi.fn(async () => {
-        throw new Error("clear failed");
-      }),
-    } as never);
-    const deletion = manager.uninstallAndDeleteData(installed.id);
-    expect(() => manager.setAssignment(installed.id, installed.assignment)).toThrow(/in progress/);
-    await expect(deletion).rejects.toThrow(/clear failed/);
-    expect(manager.list()[0]?.id).toBe(installed.id);
-  });
+  it.each(["clearData", "clearStorageData"])(
+    "keeps an installation available for retry when %s fails",
+    async (method) => {
+      const { directory, manager } = fixture();
+      const installed = manager.installDevelopment(directory);
+      manager.setAssignment(installed.id, {
+        ...installed.assignment,
+        enabledProjectIds: ["project-a"],
+      });
+      await expect(
+        manager.activate({
+          extensionId: installed.id,
+          toolId: "main",
+          projectId: "project-a",
+          profileId: "default",
+        }),
+      ).rejects.toThrow();
+      vi.mocked(electronSession.fromPartition).mockReturnValue({
+        closeAllConnections: vi.fn(async () => undefined),
+        clearData: vi.fn(async () => undefined),
+        clearStorageData: vi.fn(async () => undefined),
+        [method]: vi.fn(async () => {
+          throw new Error("clear failed");
+        }),
+      } as never);
+      const deletion = manager.uninstallAndDeleteData(installed.id);
+      expect(() => manager.setAssignment(installed.id, installed.assignment)).toThrow(
+        /in progress/,
+      );
+      await expect(deletion).rejects.toThrow(/clear failed/);
+      expect(manager.list()[0]?.id).toBe(installed.id);
+    },
+  );
 
   it("refuses complete deletion of an older installation without an inventory", async () => {
     const { directory, manager } = fixture();

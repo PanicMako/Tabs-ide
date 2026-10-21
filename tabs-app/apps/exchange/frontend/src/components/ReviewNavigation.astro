@@ -1,0 +1,20 @@
+---
+interface Props { section: string }
+const { section } = Astro.props;
+const groups = [
+  { label: "Daily work", links: [
+    ["review", "Review packages", "Inspect code and record a decision", "/admin"],
+    ["releases", "Publish approved", "Sign releases and make them available", "/admin/releases"],
+    ["reports", "User reports", "Investigate concerns from users", "/admin/reports"],
+  ] },
+  { label: "Manage the registry", links: [
+    ["security", "Publishers & safety", "Verify identities or restrict packages", "/admin/security"],
+    ["people", "Review team", "Give or remove reviewer access", "/admin/reviewers"],
+  ] },
+];
+---
+<nav class="account-nav review-task-navigation" aria-label="Review workspace">
+  <a class="review-home-link" href="/account">← Publisher workspace</a>
+  {groups.map((group) => <div class="review-nav-group"><p class="step-label">{group.label}</p>{group.links.map(([key, title, description, href]) => <a class="account-nav-link" id={key === "review" ? "reviewer-link" : key === "people" ? "operator-link" : undefined} hidden={key === "review" || key === "people" || key === "releases"} data-operator-nav={key === "releases" ? "true" : undefined} href={href} aria-current={section === key ? "page" : undefined}><span>{title}</span><small>{description}</small></a>)}</div>)}
+  <div class="review-nav-help"><strong>Review → approve → publish</strong><p>Approval records your decision. Signed publication makes an approved package available.</p><a href="/admin#review-health-panel">Check service health ↗</a><a href="/admin#review-history-panel">Find review history ↗</a><a href="/admin#review-appeals-panel">Publisher appeals ↗</a></div>
+</nav>

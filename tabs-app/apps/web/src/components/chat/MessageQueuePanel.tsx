@@ -234,6 +234,7 @@ export const MessageQueuePanel = memo(function MessageQueuePanel({
           title: "Moved to front of queue",
           description: "Schedule cleared. Will send next when the agent is ready.",
         });
+        return true;
       } catch (err) {
         toastManager.add({
           type: "error",
@@ -265,6 +266,7 @@ export const MessageQueuePanel = memo(function MessageQueuePanel({
             type: "success",
             title: "Queued message retried",
           });
+          return true;
         }
       } catch (err) {
         toastManager.add({
@@ -623,12 +625,10 @@ export const MessageQueuePanel = memo(function MessageQueuePanel({
                       item.intakeStatus === "cancellation_requested"
                     }
                     onClick={async () => {
-                      if (item.dispatchError) {
-                        await handleRetry(item);
-                      } else {
-                        await handleSendNext(item);
-                      }
-                      if (onSendNow) {
+                      const succeeded = item.dispatchError
+                        ? await handleRetry(item)
+                        : await handleSendNext(item);
+                      if (succeeded && onSendNow) {
                         onSendNow({
                           id: item.userMessageId,
                           threadId: activeThreadId!,

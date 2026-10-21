@@ -14,18 +14,22 @@ export function filterReviewPackages(list: HTMLElement, query: string, scope: st
     item.hidden = !matchesScope || !terms.every((term) => identity.includes(term));
     if (!item.hidden) visible++;
   }
-  const previous = list.querySelector("[data-filter-empty]");
-  if (packages.length && !visible && !previous) {
-    const empty = document.createElement("li");
+  const previous = list.querySelector<HTMLElement>("[data-filter-empty]");
+  if (packages.length && !visible) {
+    const empty = previous ?? document.createElement("li");
     empty.className = "review-empty";
     empty.dataset.filterEmpty = "true";
     const title = document.createElement("h3");
-    title.textContent = "Nothing matches this view.";
+    const pendingOnly = scope === "pending" && !terms.length;
+    title.textContent = pendingOnly
+      ? "No pending packages in this view."
+      : "Nothing matches this view.";
     const message = document.createElement("p");
-    message.textContent =
-      "Try another namespace, version, or digest, or show all loaded packages. This filter does not search older releases.";
-    empty.append(title, message);
-    list.append(empty);
+    message.textContent = pendingOnly
+      ? "Refresh to check for new submissions, or choose Approved versions to inspect a reviewed package. Use Publish approved to make a signed release."
+      : "Try another namespace, version, or digest, or show all loaded packages. This filter does not search older releases.";
+    empty.replaceChildren(title, message);
+    if (!previous) list.append(empty);
   } else if (visible || !packages.length) previous?.remove();
   return `${visible} of ${packages.length} loaded package${packages.length === 1 ? "" : "s"} shown. Search applies to this queue only.`;
 }

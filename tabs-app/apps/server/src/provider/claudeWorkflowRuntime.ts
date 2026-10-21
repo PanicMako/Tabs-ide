@@ -7,7 +7,9 @@
 // boundaries) and best-effort: parse failures and fs errors degrade to "no
 // update", never to a thrown error.
 
-import { Effect, FileSystem, Option } from "effect";
+import * as Effect from "effect/Effect";
+import * as FileSystem from "effect/FileSystem";
+import * as Option from "effect/Option";
 type WorkflowAgentRuntimeSnapshot = any;
 
 import { WORKFLOW_PROMPT_PREVIEW_CHARS } from "./claudeWorkflowScript.ts";

@@ -1156,6 +1156,15 @@ export async function sendNextQueuedItem(
       store.reorderQueue(threadId, idx, 0);
     }
     await migrateLocalQueueToServer(item.environmentId, api as any);
+    const retained = (useMessageQueueStore.getState().queueByThread[threadId] ?? []).find(
+      (message) => message.id === item.userMessageId,
+    );
+    if (retained) {
+      throw new Error(
+        retained.dispatchError ??
+          "Message intake is still uncertain. Open Queue and retry this message to reconcile its delivery.",
+      );
+    }
   }
 }
 

@@ -21,7 +21,7 @@ The deployment startup migrates the schema before serving requests.
 
 ## Verify a publisher
 
-Open Review Desk > Registry security > Ownership. Enter the exact namespace,
+Open Review Desk > Publishers & safety > Verify publishers. Enter the exact namespace,
 select ownership verified, provide an HTTPS identity/ownership proof (such as a
 GitHub profile you independently checked), and record the evidence in the reason.
 Submit the decision. Uncheck verification and record another reason to remove it.

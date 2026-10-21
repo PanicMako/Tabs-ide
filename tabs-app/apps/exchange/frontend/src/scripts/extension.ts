@@ -1,3 +1,4 @@
+import { publisherVerifiedBadge } from "../lib/publisherVerifiedBadge";
 import { request } from "./api";
 import { extensionMarkdown } from "../../../../marketing/src/lib/extension-markdown";
 
@@ -107,10 +108,7 @@ function render(release: Release) {
   const badge = document.getElementById("extension-verified");
   if (badge) {
     badge.hidden = !head?.verified;
-    badge.setAttribute(
-      "title",
-      "Publisher ownership checked by Tabs. This is not a security guarantee.",
-    );
+    if (head?.verified && !badge.firstChild) badge.append(publisherVerifiedBadge());
   }
   const reportForm = document.getElementById("extension-report");
   if (reportForm) reportForm.dataset.version = release.version;

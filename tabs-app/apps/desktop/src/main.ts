@@ -1,7 +1,11 @@
 import { extensionHostVersion } from "./extensionHostVersion";
+import { writeBackendBootstrap } from "./backendBootstrap";
+import { waitForBackendListener } from "./backendReadiness";
+import { createStartupWindowReveal } from "./startupWindowReveal";
 import { officialExchangeTrust } from "./officialExchangeTrust";
 import { fetchExchangeListingAsset } from "./exchangeListingAsset";
 import { RegistryTrustStore, DEFAULT_EXCHANGE_ORIGIN } from "./registryTrustStore";
+import { activateWithExchangeRefresh } from "./extensionActivation";
 import { publishDesktopResources } from "./desktopResourceTelemetry";
 import { createBackendStartupErrorDecoder } from "@tabs/shared/backendStartup";
 import desktopPackage from "../package.json" with { type: "json" };
@@ -145,7 +149,10 @@ import {
 process.stdout.on("error", () => {});
 process.stderr.on("error", () => {});
 
-syncShellEnvironment();
+let shellEnvironmentHydrated = false;
+const shellEnvironmentReady = syncShellEnvironment().then((ready) => {
+  shellEnvironmentHydrated = ready;
+});
 
 const PICK_FOLDER_CHANNEL = "desktop:pick-folder";
 const CLONE_REPOSITORY_CHANNEL = "desktop:clone-repository";
@@ -174,6 +181,7 @@ const UPDATE_GET_STATE_CHANNEL = "desktop:update-get-state";
 const UPDATE_DOWNLOAD_CHANNEL = "desktop:update-download";
 const UPDATE_INSTALL_CHANNEL = "desktop:update-install";
 const GET_WS_URL_CHANNEL = "desktop:get-ws-url";
+const WAIT_FOR_BACKEND_READY_CHANNEL = "desktop:wait-for-backend-ready";
 const GET_LOCAL_ENVIRONMENT_BOOTSTRAPS_CHANNEL = "desktop:get-local-environment-bootstraps";
 const GET_CONNECTION_CATALOG_CHANNEL = "desktop:get-connection-catalog";
 const SET_CONNECTION_CATALOG_CHANNEL = "desktop:set-connection-catalog";
@@ -448,6 +456,10 @@ function getSshEnvironmentBridge(): Promise<SshEnvironmentBridge> {
 let currentDesktopIconTheme = loadDesktopIconThemePreference();
 let backendProcess: ChildProcess.ChildProcess | null = null;
 let backendPort = 0;
+let resolveBackendConfiguration!: () => void;
+const backendConfigurationReady = new Promise<void>((resolve) => {
+  resolveBackendConfiguration = resolve;
+});
 let backendAuthToken = "";
 let backendWsUrl = "";
 let backendHttpUrl = "";
@@ -762,6 +774,9 @@ function sanitizeLogValue(value: string): string {
 
 function backendChildEnv(): NodeJS.ProcessEnv {
   const env = { ...process.env };
+  if (shellEnvironmentHydrated) env.TABS_DESKTOP_SHELL_ENV_READY = "1";
+  else delete env.TABS_DESKTOP_SHELL_ENV_READY;
+  env.NODE_COMPILE_CACHE ??= Path.join(STATE_DIR, "node-compile-cache");
   delete env.TABS_PORT;
   delete env.TABS_AUTH_TOKEN;
   delete env.TABS_MODE;
@@ -2259,8 +2274,10 @@ function startBackend(): void {
   });
   const bootstrapStream = child.stdio[3];
   if (bootstrapStream && "write" in bootstrapStream) {
-    bootstrapStream.write(
-      `${JSON.stringify({
+    void writeBackendBootstrap(
+      bootstrapStream,
+      Promise.all([shellEnvironmentReady, backendConfigurationReady]),
+      () => ({
         mode: "desktop",
         desktopTelemetryFd: 4,
         noBrowser: true,
@@ -2272,27 +2289,51 @@ function startBackend(): void {
         desktopBootstrapToken: backendAuthToken,
         tailscaleServeEnabled: false,
         tailscaleServePort: 443,
+        ...(shellEnvironmentHydrated && process.env.PATH
+          ? {
+              shellEnvironment: {
+                PATH: process.env.PATH,
+                ...(process.env.SSH_AUTH_SOCK ? { SSH_AUTH_SOCK: process.env.SSH_AUTH_SOCK } : {}),
+              },
+            }
+          : {}),
         ...(extensionAiBrokerConfig ? { desktopExtensionBroker: extensionAiBrokerConfig } : {}),
-      })}\n`,
+      }),
+      () => {
+        writeDesktopLogHeader("backend bootstrap pipe failed");
+        child.kill("SIGTERM");
+      },
     );
-    bootstrapStream.end();
   } else {
     child.kill("SIGTERM");
     scheduleBackendRestart("missing desktop bootstrap pipe");
     return;
   }
   const telemetryStream = child.stdio[4];
-  const stopTelemetry =
-    telemetryStream && "write" in telemetryStream
-      ? publishDesktopResources(
-          telemetryStream,
-          () => app.getAppMetrics(),
-          readHostPowerSnapshot,
-          process.pid,
-        )
-      : () => undefined;
-  child.once("exit", stopTelemetry);
-  child.once("error", stopTelemetry);
+  // Electron metrics/power APIs require readiness; loading the Node backend does not.
+  let stopTelemetry = () => {};
+  let telemetryStopped = false;
+  const stopResourceTelemetry = () => {
+    telemetryStopped = true;
+    stopTelemetry();
+  };
+  void app
+    .whenReady()
+    .then(() => {
+      if (telemetryStopped || child.exitCode !== null || child.signalCode !== null) return;
+      if (!telemetryStream || !("write" in telemetryStream) || telemetryStream.destroyed) return;
+      stopTelemetry = publishDesktopResources(
+        telemetryStream,
+        () => app.getAppMetrics(),
+        readHostPowerSnapshot,
+        process.pid,
+      );
+    })
+    .catch((error) => {
+      writeDesktopLogHeader(`backend telemetry could not start: ${formatErrorMessage(error)}`);
+    });
+  child.once("exit", stopResourceTelemetry);
+  child.once("error", stopResourceTelemetry);
   backendProcess = child;
   let backendSessionClosed = false;
   const closeBackendSession = (details: string) => {
@@ -2755,15 +2796,17 @@ function registerIpcHandlers(): void {
       throw new Error("Invalid activation attempt ID.");
     }
     const before = extensionViewManager.list().find((entry) => entry.id === value.extensionId);
-    if (before?.source === "exchange") {
-      if (before.revoked) throw new Error("This extension version has been revoked.");
-      await checkInstalledExchangeStatus(before.id);
-      const after = extensionViewManager.list().find((entry) => entry.id === value.extensionId);
-      if (!after || after.digest !== before.digest || after.revoked) {
-        throw new Error("Extension status changed; select the tool again.");
-      }
-    }
-    await extensionViewManager.activate(value);
+    await activateWithExchangeRefresh({
+      source: before?.source,
+      revoked: before?.revoked,
+      activate: () => extensionViewManager.activate(value),
+      refresh: () => checkInstalledExchangeStatus(value.extensionId),
+      reportRefreshError: (error) => {
+        writeDesktopLogHeader(
+          `Exchange background activation status check failed for ${value.extensionId}: ${formatErrorMessage(error)}`,
+        );
+      },
+    });
   });
   ipcMain.removeHandler(EXTENSION_SET_BOUNDS_CHANNEL);
   ipcMain.handle(EXTENSION_SET_BOUNDS_CHANNEL, async (event, input: unknown) => {
@@ -2907,6 +2950,9 @@ function registerIpcHandlers(): void {
   });
   ipcMain.removeHandler(HOST_POWER_GET_CHANNEL);
   handleTabsIpc(HOST_POWER_GET_CHANNEL, () => readHostPowerSnapshot());
+
+  ipcMain.removeHandler(WAIT_FOR_BACKEND_READY_CHANNEL);
+  handleTabsIpc(WAIT_FOR_BACKEND_READY_CHANNEL, () => waitForBackendListener(backendPort));
 
   ipcMain.removeAllListeners(GET_WS_URL_CHANNEL);
   ipcMain.on(GET_WS_URL_CHANNEL, (event) => {
@@ -4611,12 +4657,44 @@ function createTabsWindow(): BrowserWindow {
     window.setTitle(APP_DISPLAY_NAME);
     emitUpdateState();
   });
-  window.once("ready-to-show", () => {
-    if (process.env.TABS_DEV_RESTART === "1") {
-      window.showInactive();
-    } else {
-      window.show();
-    }
+  const reveal = createStartupWindowReveal(() => {
+    if (process.env.TABS_DEV_RESTART === "1") window.showInactive();
+    else window.show();
+  });
+  window.once("ready-to-show", reveal.frameReady);
+  let splashPainted = false;
+  let startupRecovery: ReturnType<typeof setTimeout> | undefined;
+  const onStartupPaint = (event: Electron.IpcMainEvent) => {
+    if (!isTrustedTabsSender(event)) return;
+    splashPainted = true;
+    clearTimeout(startupRecovery);
+    reveal.contentReady();
+  };
+  window.webContents.once("did-finish-load", () => {
+    if (splashPainted) return;
+    // Recover visibly if even the small entry chunk failed. Successful startup
+    // never waits for this timeout; it reveals the actual animation immediately.
+    startupRecovery = setTimeout(() => {
+      if (window.isDestroyed() || window.isVisible()) return;
+      void window.webContents
+        .executeJavaScript(`(() => {
+        const root = document.getElementById('root');
+        if (root) {
+          root.textContent = 'Tabs could not start. Reload the window to try again.';
+          root.setAttribute('role', 'alert');
+        }
+      })()`)
+        .catch(() => {})
+        .finally(() => {
+          if (!window.isDestroyed()) reveal.contentReady();
+        });
+    }, 10_000);
+  });
+  const startupIpc = window.webContents.ipc;
+  startupIpc.on("desktop:startup-painted", onStartupPaint);
+  window.once("closed", () => {
+    startupIpc.removeListener("desktop:startup-painted", onStartupPaint);
+    clearTimeout(startupRecovery);
   });
 
   if (isDevelopment && process.env.VITE_DEV_SERVER_URL) {
@@ -4870,7 +4948,7 @@ async function bootstrap(): Promise<void> {
 
   // Start the loopback control channel and expose its URL to the embedded
   // Code-OSS extension host via env (inherited by the spawned REH server). Done
-  // before startBackend so the env is in place when the code session later
+  // before creating the window so the env is in place when the code session later
   // spawns its server. Non-fatal if it fails — the chrome simply can't drive
   // the workbench (clicks become no-ops) but the editor still works.
   try {
@@ -4900,9 +4978,12 @@ async function bootstrap(): Promise<void> {
 
   registerIpcHandlers();
   writeDesktopLogHeader("bootstrap ipc handlers registered");
-  startBackend();
-  writeDesktopLogHeader("bootstrap backend start requested");
+  // Release configuration and paint the shell while the backend finishes loading.
+  // Provider processes still receive the resolved shell through the bootstrap pipe.
+  resolveBackendConfiguration();
   mainWindow = createWindow();
+  startBackend();
+  writeDesktopLogHeader("bootstrap backend configuration released");
   void checkAllInstalledExchangeStatuses();
   restartExchangeHints();
   exchangeStatusTimer = setInterval(() => {
@@ -5139,6 +5220,9 @@ app.on("before-quit", (event) => {
 });
 
 if (clerkBridge.isPrimaryInstance) {
+  // Parse backend modules while Electron initializes. The bootstrap pipe stays
+  // closed until ports, broker configuration and the login shell are ready.
+  startBackend();
   app
     .whenReady()
     .then(() => {

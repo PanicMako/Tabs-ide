@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { ArrowLeftIcon, ArrowUpRightIcon, CheckIcon, ShieldCheckIcon } from "lucide-react";
+import { ArrowLeftIcon, ArrowUpRightIcon, CheckIcon } from "lucide-react";
 import type {
   DesktopBridge,
   DesktopExchangeListing,
   DesktopInstalledExtension,
 } from "@tabs/contracts";
 import { Button } from "../ui/button";
+import { PublisherVerifiedBadge } from "../PublisherVerifiedBadge";
 
 type Asset = { type: string; data: string } | null;
 function useListingAsset(
@@ -164,10 +165,7 @@ function ExtensionDetails({
                 {listing.displayName}
               </h3>
               <p className="market-byline">
-                {listing.namespace}{" "}
-                {listing.verifiedPublisher && (
-                  <ShieldCheckIcon className="size-3.5" aria-label="Verified publisher" />
-                )}{" "}
+                {listing.namespace} {listing.verifiedPublisher && <PublisherVerifiedBadge />}{" "}
                 <span>v{listing.version}</span>
               </p>
             </div>
@@ -346,8 +344,14 @@ function ExtensionDetails({
               <dd>{listing.tabsCompatibility}</dd>
               <dt>Registry</dt>
               <dd>{listing.registryOrigin}</dd>
-              <dt>Publisher</dt>
-              <dd>{listing.verifiedPublisher ? "Verified" : "Not verified"}</dd>
+              {listing.verifiedPublisher && (
+                <>
+                  <dt>Publisher identity</dt>
+                  <dd>
+                    <PublisherVerifiedBadge showLabel />
+                  </dd>
+                </>
+              )}
             </dl>
           </details>
         </footer>
@@ -427,6 +431,7 @@ export function ExtensionMarketplace({
                   <span>{listing.description}</span>
                   <small>
                     {listing.namespace}
+                    {listing.verifiedPublisher && <PublisherVerifiedBadge />}
                     {installed.some(
                       (item) =>
                         item.id === listing.id && item.registryOrigin === listing.registryOrigin,

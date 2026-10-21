@@ -19,7 +19,8 @@ import {
   TerminalWriteInput,
 } from "@tabs/contracts";
 import { PtyProcess } from "./PTY";
-import { Effect, Schema } from "effect";
+import * as Effect from "effect/Effect";
+import * as Schema from "effect/Schema";
 
 export class TerminalError extends Schema.TaggedError<TerminalError>()("TerminalError", {
   message: Schema.String,

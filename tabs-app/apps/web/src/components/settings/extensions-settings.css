@@ -1349,3 +1349,15 @@
     gap: 7px;
   }
 }
+
+.extensions-settings .publisher-identity-seal {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: light-dark(#3158d9, #91aaff);
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+.extensions-settings .publisher-identity-seal svg {
+  flex-shrink: 0;
+}

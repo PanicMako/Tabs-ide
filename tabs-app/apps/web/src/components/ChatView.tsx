@@ -1272,6 +1272,8 @@ export default function ChatView({
   const diffOpen = propDiffOpen !== undefined ? propDiffOpen : rawSearch.diff === "1";
   const activeThreadId = activeThread?.id ?? null;
   const projectionRef = useRef<OrchestrationV2ThreadProjection | null>(null);
+  const projectionKey = JSON.stringify([environmentId, activeThreadId]);
+  const [loadedProjectionKey, setLoadedProjectionKey] = useState<string | null>(null);
   useEffect(() => {
     if (!threadApi || !activeThreadId || !isServerThread) {
       projectionRef.current = null;
@@ -1282,6 +1284,7 @@ export default function ChatView({
       (item) => {
         if ("kind" in item && item.kind === "snapshot") {
           projectionRef.current = item.projection;
+          setLoadedProjectionKey(projectionKey);
           applyThreadProjectionToAtoms(item.projection, environmentId);
         } else if ("kind" in item && item.kind === "event") {
           const current = projectionRef.current;
@@ -1299,7 +1302,7 @@ export default function ChatView({
       unsubscribe();
       projectionRef.current = null;
     };
-  }, [activeThreadId, environmentId, threadApi, isServerThread]);
+  }, [activeThreadId, environmentId, threadApi, isServerThread, projectionKey]);
   const activeLatestTurn = activeThread?.latestTurn ?? null;
   const activeContextWindow = useMemo(
     () => deriveLatestContextWindowSnapshot(activeThread?.activities ?? []),
@@ -1845,6 +1848,7 @@ export default function ChatView({
   );
 
   const threadDetailLoading =
+    loadedProjectionKey !== projectionKey &&
     !isLocalDraftThread &&
     !activeThread?.error &&
     !localDraftError &&
@@ -6246,6 +6250,10 @@ export default function ChatView({
           )}
         >
           <ChatHeader
+            scripts={activeProject?.scripts}
+            onRunScript={(script) => {
+              void runProjectScript(script);
+            }}
             projectId={activeProject?.id}
             activeThreadId={activeThread.id}
             activeThreadTitle={activeThread.title}

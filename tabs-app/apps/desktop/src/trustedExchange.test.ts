@@ -14,6 +14,8 @@ import {
   Timestamp,
 } from "@tufjs/models";
 import { afterEach, describe, expect, it } from "vitest";
+import { ExpiredMetadataError, RuntimeError } from "tuf-js/dist/error";
+import { isOfflineExchangeError } from "./exchangeInstall";
 import {
   ExchangeMetadataFetcher,
   ExchangeTransportError,
@@ -258,16 +260,48 @@ describe("trusted Exchange metadata", () => {
     await expect(trusted.resolve("acme", "dashboard", "1.0.0")).rejects.toThrow();
   });
 
-  it("rejects an expired signed timestamp", async () => {
-    const source = fixture();
-    source.publish(1, true, "2020-01-01T00:00:00Z");
-    const trusted = new TrustedExchange({
-      origin,
-      trustId: "official-test",
-      initialRoot: source.rootBytes,
-      stateRoot: temporaryDirectory(),
-      fetcher: source.fetcher,
-    });
-    await expect(trusted.resolve("acme", "dashboard", "1.0.0")).rejects.toThrow();
-  });
+  it.each([false, true])(
+    "explains expiry and recovers after signed renewal (cached: %s)",
+    async (cached) => {
+      const source = fixture();
+      source.publish(1, true, "2020-01-01T00:00:00Z");
+      const stateRoot = temporaryDirectory();
+      const trusted = new TrustedExchange({
+        origin,
+        trustId: "official-test",
+        initialRoot: source.rootBytes,
+        stateRoot,
+        fetcher: source.fetcher,
+      });
+      if (cached) {
+        // Reproduce an installed client's expired on-disk timestamp. tuf-js wraps
+        // its expiry while loading snapshot metadata after seeing the same version.
+        const identity = Crypto.createHash("sha256")
+          .update(JSON.stringify([origin, "official-test"]))
+          .digest("hex");
+        FS.writeFileSync(
+          Path.join(stateRoot, identity, "timestamp.json"),
+          source.metadata["timestamp.json"]!,
+        );
+      }
+      const error = await trusted.resolve("acme", "dashboard", "1.0.0").catch((error) => error);
+      expect(error).toBeInstanceOf(ExpiredMetadataError);
+      expect(error.message).toContain("signed timestamp.json metadata has expired");
+      expect(error.message).toContain(`${origin}/admin/releases`);
+      expect(error.cause).toBeInstanceOf(cached ? RuntimeError : ExpiredMetadataError);
+      expect(isOfflineExchangeError(error)).toBe(false);
+
+      const retryError = await trusted
+        .resolve("acme", "dashboard", "1.0.0")
+        .catch((error) => error);
+      expect(retryError).toBeInstanceOf(ExpiredMetadataError);
+      expect(retryError.message).toBe(error.message);
+      expect(isOfflineExchangeError(retryError)).toBe(false);
+
+      source.publish(2, true);
+      expect(await trusted.resolve("acme", "dashboard", "1.0.0")).toMatchObject({
+        digest: source.digest,
+      });
+    },
+  );
 });

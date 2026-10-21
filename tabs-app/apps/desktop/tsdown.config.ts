@@ -4,6 +4,8 @@ const shared = {
   format: "cjs" as const,
   outDir: "dist-electron",
   sourcemap: true,
+  // Strip whitespace/comments without rewriting functions or their names.
+  minify: { compress: false, mangle: false, codegen: { removeWhitespace: true } },
   outExtensions: () => ({ js: ".js" }),
   dts: false,
 };
@@ -13,7 +15,12 @@ export default defineConfig([
     ...shared,
     entry: ["src/main.ts"],
     clean: true,
-    noExternal: (id) => id.startsWith("@tabs/"),
+    // One compiled runtime avoids loading Effect's dependency graph file by file.
+    noExternal: (id) =>
+      id.startsWith("@tabs/") ||
+      id === "effect" ||
+      id.startsWith("effect/") ||
+      id.startsWith("@effect/"),
   },
   {
     ...shared,

@@ -23,7 +23,9 @@ import type {
   TestingPageObjectArtifact,
   TestingPageObjectCodeUpdateInput,
 } from "@tabs/contracts";
-import * as ts from "typescript";
+import type * as ts from "typescript";
+
+import { loadTypeScript } from "./typeScript.ts";
 
 import {
   redactCredentialLikeText,
@@ -657,6 +659,7 @@ export class LocatorLibraryStore {
     if (pageObject.sourceHash !== input.expectedSourceHash) {
       throw new Error("The page object changed after editing started. Review the latest version.");
     }
+    const ts = loadTypeScript();
     const sourceFile = ts.createSourceFile(
       pageObject.fileName,
       code,

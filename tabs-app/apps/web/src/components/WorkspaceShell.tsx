@@ -1,5 +1,7 @@
 import { InstalledExtensionToolIcon } from "./InstalledExtensionToolIcon";
 import { AgentBackground } from "./AgentBackground";
+import { resolveRouteThread } from "../resolveRouteThread";
+import { useDraftThread } from "../state/composerDrafts";
 import { interfaceStudyAccent } from "../lib/interfaceStudy";
 import { useSettingsLabsStore } from "../stores/settingsLabsStore";
 import { InterfaceStudyTopBar } from "./InterfaceStudyTopBar";
@@ -350,7 +352,7 @@ import {
   DEFAULT_CODE_CHROME_STATE,
   type CodeChromeState,
 } from "@tabs/shared/codeChrome";
-import { resolveShortcutCommand } from "../keybindings";
+import { resolveShortcutCommand, shortcutLabelForCommand } from "../keybindings";
 import { useKeybindings } from "../state/settings";
 import { projectsAtom, threadsAtom, threadsHydratedAtom } from "../state/threads";
 import { isTerminalFocused } from "../lib/terminalFocus";
@@ -1480,6 +1482,7 @@ function AgentsThreadList(props: {
   onUnarchiveThread: (thread: Thread) => void | Promise<void>;
   children: ReactNode;
 }) {
+  const newThreadShortcutLabel = shortcutLabelForCommand(useKeybindings(), "chat.new");
   const [threadPendingDelete, setThreadPendingDelete] = useState<Thread | null>(null);
   const [lifecycleNow, setLifecycleNow] = useState(() => Date.now());
   const [showSettledView, setShowSettledView] = useState(false);
@@ -1819,7 +1822,7 @@ function AgentsThreadList(props: {
                 <PlusIcon className="size-4" />
               </TooltipTrigger>
               <TooltipPopup side="right" align="center">
-                New thread
+                {newThreadShortcutLabel ? `New thread (${newThreadShortcutLabel})` : "New thread"}
               </TooltipPopup>
             </Tooltip>
           </div>
@@ -1863,6 +1866,10 @@ function AgentsThreadList(props: {
             <button
               type="button"
               onClick={props.onCreateThread}
+              aria-label="New thread"
+              title={
+                newThreadShortcutLabel ? `New thread (${newThreadShortcutLabel})` : "New thread"
+              }
               className="group relative flex h-10 w-full items-center justify-center rounded-[14px] p-[1.5px] transition-all duration-200 active:scale-[0.985] active:translate-y-[0.5px] bg-gradient-to-b from-slate-300 via-slate-400/60 to-slate-500/70 shadow-[0_1px_3px_rgba(0,0,0,0.08),0_4px_12px_rgba(0,0,0,0.04)] hover:from-slate-200 hover:via-slate-300 hover:to-slate-400 dark:from-[#e2e8f0]/75 dark:via-[#94a3b8]/30 dark:to-[#475569]/35 dark:shadow-[0_2px_12px_-2px_rgba(0,0,0,0.5),0_1px_2px_rgba(0,0,0,0.3)] dark:hover:from-white/95 dark:hover:via-[#cbd5e1]/45 dark:hover:to-[#64748b]/45 dark:hover:shadow-[0_4px_18px_-2px_rgba(0,0,0,0.65),0_0_12px_rgba(226,232,240,0.12)]"
             >
               <div className="relative flex h-full w-full items-center justify-center gap-2 rounded-[12.5px] px-3 transition-colors duration-200 bg-gradient-to-b from-white via-slate-50 to-slate-100/90 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.95),inset_0_-1px_0_0_rgba(0,0,0,0.05)] group-hover:from-white group-hover:to-slate-50 dark:from-[#18191f] dark:via-[#131417] dark:to-[#0f1013] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.12),inset_0_-1px_0_0_rgba(0,0,0,0.6)] dark:group-hover:from-[#1e2027] dark:group-hover:via-[#16171c] dark:group-hover:to-[#111215]">
@@ -1870,13 +1877,15 @@ function AgentsThreadList(props: {
                 <div className="pointer-events-none absolute inset-0 rounded-[12.5px] bg-gradient-to-r from-transparent via-white/[0.04] to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100 dark:via-white/[0.07]" />
 
                 <PlusIcon className="size-3.5 stroke-[2.25] text-foreground/80 transition-all duration-200 group-hover:scale-110 group-hover:text-foreground" />
-                <span className="text-[13px] font-semibold tracking-tight text-foreground/90 transition-colors group-hover:text-foreground">
+                <span className="min-w-0 flex-1 truncate text-left text-[13px] font-semibold tracking-tight text-foreground/90 transition-colors group-hover:text-foreground">
                   New Thread
                 </span>
 
-                <kbd className="pointer-events-none absolute right-3 hidden items-center rounded-md border border-foreground/[0.08] bg-foreground/[0.03] px-1.5 py-0.5 text-[10px] font-mono font-medium text-muted-foreground/50 transition-colors group-hover:border-foreground/15 group-hover:text-muted-foreground/80 sm:inline-flex">
-                  ⌘N
-                </kbd>
+                {newThreadShortcutLabel && (
+                  <kbd className="pointer-events-none hidden shrink-0 items-center rounded-md border border-foreground/[0.08] bg-foreground/[0.03] px-1.5 py-0.5 text-[10px] font-mono font-medium text-muted-foreground/50 transition-colors group-hover:border-foreground/15 group-hover:text-muted-foreground/80 sm:inline-flex">
+                    {newThreadShortcutLabel}
+                  </kbd>
+                )}
               </div>
             </button>
 
@@ -11390,12 +11399,16 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
     workspaceState.session.activeProjectId,
   ]);
 
-  const activeThread = routeThreadId
-    ? (threads.find(
-        (thread) => thread.id === routeThreadId && thread.environmentId === routeEnvironmentId,
-      ) ?? null)
-    : null;
-  const routeProjectId = activeThread?.projectId ?? workspaceState.session.activeProjectId ?? null;
+  const activeThread = resolveRouteThread(threads, routeThreadId, routeEnvironmentId);
+  const routeDraft = useDraftThread(
+    routeThreadId,
+    routeEnvironmentId ? EnvironmentId.makeUnsafe(routeEnvironmentId) : null,
+  );
+  const routeProjectId =
+    activeThread?.projectId ??
+    routeDraft?.projectId ??
+    workspaceState.session.activeProjectId ??
+    null;
 
   const routerState = useRouterState({
     select: (s) => ({
@@ -12083,6 +12096,7 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
         event.stopPropagation();
         if (workspaceState.session.activeProjectId) {
           void handleNewThread(workspaceState.session.activeProjectId, {
+            environmentId: activeProject?.environmentId,
             envMode:
               command === "chat.newLocal" ? "local" : (settings.defaultThreadEnvMode ?? "local"),
           });
@@ -12114,6 +12128,7 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
     openPendingTab,
     navigate,
     handleNewThread,
+    activeProject?.environmentId,
     workspaceState.session.activeProjectId,
     settings.defaultThreadEnvMode,
     availableTools,
