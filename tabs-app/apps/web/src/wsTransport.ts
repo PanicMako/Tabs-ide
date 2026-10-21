@@ -464,7 +464,9 @@ export class WsTransport {
     if (this.protocol === "rpc" && desktopUrl && new URL(desktopUrl).searchParams.has("token")) {
       if (this.refreshingRemoteTicket) return;
       this.refreshingRemoteTicket = true;
-      void import("./desktopWebSocketAuth")
+      void Promise.resolve()
+        .then(() => window.desktopBridge?.waitForBackendReady?.())
+        .then(() => import("./desktopWebSocketAuth"))
         .then(({ authorizeDesktopWebSocket }) => authorizeDesktopWebSocket(desktopUrl))
         .then((url) => {
           this.refreshingRemoteTicket = false;

@@ -1324,6 +1324,7 @@ export interface DesktopBridge {
   getHostPowerSnapshot?: () => Promise<HostPowerSnapshot>;
   onHostPowerSnapshot?: (listener: (snapshot: HostPowerSnapshot) => void) => () => void;
   getWsUrl: () => string | null;
+  waitForBackendReady?: () => Promise<void>;
   cloneRepository: (input: DesktopCloneRepositoryInput) => Promise<DesktopCloneRepositoryResult>;
   getPersistedItem: (key: string) => Promise<string | null>;
   setPersistedItem: (key: string, value: string) => Promise<void>;
