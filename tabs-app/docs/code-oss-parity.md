@@ -97,3 +97,15 @@ Before merging an upstream update, verify:
 Settings > About > Code-OSS version reports the version from the selected embedded runtime's package.json, separately from the Tabs application version. A missing runtime is reported as Unavailable; missing or unreadable metadata is reported as Unknown. This row is available in builds containing the independent Codex review changes; previously generated installers do not acquire it automatically.
 
 Windows caption controls use the renderer background, update symbol contrast when the desktop theme changes, and reserve the native control-area width via Electron Window Controls Overlay geometry and visibility events; hidden fullscreen controls release the reserved space. The Windows project tab header is 52 logical pixels high to match its native controls. macOS traffic-light configuration is preserved. Verify light/dark/system/custom themes, windowed/maximized/fullscreen states, and 100/125/150/200 percent display scaling on Windows; macOS unit tests and web builds do not prove native Windows rendering.
+
+## Post-build native contract acceptance
+
+After compiling the runtime, run from `tabs-app`:
+
+```bash
+bun --cwd=apps/desktop run test:code-oss-native
+```
+
+This gate exercises the actual upstream agent coordinator and ZIP writer through Tabs adapters: persistent counters and impressions, events, editor/Agents ownership, invitations, cancellation and incomplete-archive cleanup. Unit tests use temporary runtime fixtures and need no generated output in a clean source checkout. This integration gate complements real desktop and packaged-workbench checks.
+
+For 1.142 and later, Agents handoffs use `reveal` (a session URI or `"new"`). Focus-only opens preserve the current view; draft transfer requires explicit new-session intent or a link handoff.

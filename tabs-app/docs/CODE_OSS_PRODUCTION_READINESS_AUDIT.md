@@ -232,3 +232,27 @@ The pre-commit hygiene script now scopes staged paths and JavaScript allowlistin
     - Required assets verified: `preload.js` (21,092 B), `workbench-dev.html` (1,487 B), `nls.messages.json` (1,425,191 B), `product.json` (8,032 B).
     - Production extensions and dependencies verified: `extensions/copilot/dist/extension.js` (19.7 MB), `extensions/git/dist/main.js`.
     - Self-contained outside ASAR, with license and third-party notices intact.
+
+## Independent Codex repairs following the 1.142.0 report (2026-10-21)
+
+The preceding checklist records the original upgrade report. Independent inspection found that ZIP cancellation, agent-state updates and the three new events were initially stubs despite stronger claims in that report. Registration-name tests alone did not establish behavior.
+
+Repairs replace those stubs with upstream `AgentsWindowInvitationState` and cancellation-aware ZIP writing, wired to Tabs storage, event emitters and renderer cleanup. GPU status updates after initialization, exit and recovery, with disposable listeners. Agents payloads carry upstream's `reveal` URI/`"new"` field, preserve draft attachments and leave focus-only existing-window opens undisturbed. Resolver tests use temporary fixtures so clean release preflight needs no compiled runtime.
+
+New regression tests cover sender-scoped cancellation, progress and partial-file cleanup; GPU events and listener removal; editor/Agents ownership; typed storage persistence; and cold/reused Agents handoffs. `bun --cwd=apps/desktop run test:code-oss-native` also uses the real compiled upstream coordinator and ZIP writer to check persistence, invitation ownership, state events, session updates, cancellation and cleanup.
+
+This repair does not establish Windows/Linux acceptance or real-provider authentication. Final commands and results are recorded in the independent repair handoff after validation.
+
+### Independent repair validation results
+
+- `vp check`: passed with zero errors (662 existing warnings).
+- `vp run typecheck`: all 16 tasks passed; desktop typecheck also passed after the final shutdown-join change.
+- `vp run test --concurrency=2`: all 18 workspace tasks succeeded (12,755 tests passed, 59 skipped; 2 task cache hits). Final ZIP/shutdown-focused regressions passed after the lifecycle adjustment.
+- Resolver regression tests passed with generated checkout assets hidden (52 tests), reproducing the previously failing clean-checkout condition.
+- `bun --cwd=apps/desktop run test:code-oss-native`: passed with the real upstream coordinator and streaming ZIP writer.
+- Upstream coordinator and invitation suites: 94 passing.
+- A real Electron 44.1.0 native-host probe exercised the registered channel's method dispatch, state/progress events, invitation ownership, persistent counters, ZIP cancellation and renderer destruction cleanup successfully.
+- Real desktop acceptance passed on an isolated rerun after packaging. An earlier run failed its queue-persistence assertion after restart; no assertion or queue behavior was changed to obtain the passing run.
+- Production extension and Copilot builds passed. A fresh full macOS arm64 DMG and updater ZIP were built after both completed. The final bundled main process includes the repair code; bundled Code-OSS is 1.142.0 and critical extension bundles match the completed production build.
+- The ad-hoc signed packaged app reached the Welcome screen with its native API initialized in isolated state. This was a cold-start gate, not a claim that real-provider authentication or every editor workflow was exercised.
+- No commit, push, merge, publication, installed-app replacement or Tabs dependency upgrade was performed. Windows/Linux and the eventual combined release still require their own acceptance checks.
