@@ -147,6 +147,29 @@ describe("WsTransport", () => {
     vi.useRealTimers();
   });
 
+  it("holds authentication until the desktop backend starts listening", async () => {
+    let ready!: () => void;
+    const listening = new Promise<void>((resolve) => {
+      ready = resolve;
+    });
+    Object.assign(window, {
+      desktopBridge: {
+        getWsUrl: () => "ws://127.0.0.1:4050/ws?token=bootstrap",
+        waitForBackendReady: () => listening,
+      },
+    });
+    vi.mocked(authorizeDesktopWebSocket).mockResolvedValue("ws://127.0.0.1:4050/ws?wsTicket=ready");
+    const transport = new WsTransport();
+    await vi.dynamicImportSettled();
+    expect(authorizeDesktopWebSocket).not.toHaveBeenCalled();
+    expect(sockets).toHaveLength(0);
+    ready();
+    await vi.dynamicImportSettled();
+    expect(sockets).toHaveLength(1);
+    expect(getSocket().url).toContain("wsTicket=ready");
+    transport.dispose();
+  });
+
   it("waits for desktop authentication instead of creating failed sockets during backend boot", async () => {
     vi.useFakeTimers();
     Object.assign(window, {

@@ -1,0 +1,134 @@
+# Tabs release follow-up — 2026-10-21
+
+## Scope and source
+
+The `codex/release-reconciliation` branch combines the prior startup and reliability
+fixes with the actual published v2.0.1 commit, b481ad4ab6a84d873990a74cd098aff46446385a.
+The release's extension management and per-project tool UI are preserved. The only
+merge conflict was the marketplace byline, where the released layout retains the
+shared verified-publisher badge. Configured shortcut labels remain dynamic.
+
+PR: https://github.com/PanicMako/Tabs-ide/pull/40
+
+The primary checkout's 42 modified web files and other untracked user work were
+not replaced or staged. Work happened in the existing managed validation worktree.
+
+## Exchange production repair
+
+The existing Render service `tabs-exchange-api` now uses a protected non-root
+signer file. Its targets, snapshot and timestamp keys were validated against the
+live pinned root before transfer. The encrypted backup, password and root private
+key were never uploaded. Other environment variables and the hosting plan were
+preserved.
+
+The first image built but startup rejected Render's symbolic-link secret mount.
+The startup wrapper now accepts a mount resolving to a regular file and copies it
+into a private runtime file before the existing key validation. The regression
+suite exercises both a read-only file and a symbolic-link mount.
+
+Successful production deployment: `dep-dbc2j43bc2fs73b2ebl0`, application projection
+commit `57d98762064d1b7761cdc255926fd87313cca793` from source `c83dd4845`.
+The deployment branch advanced without force and its history was preserved.
+
+A fresh trust store using the root shipped in Tabs verified the live metadata and
+an anonymous download of `panicmako.relay` 0.1.0 (196,283 bytes). Timestamp metadata
+advanced from expired version 1 to version 2, expiring 2026-10-22T02:57:31.813Z.
+Repeated reads retained version 2. The server renews before serving the timestamp
+when renewal is due; a sleeping server does not depend on a cron wakeup.
+
+A separate fresh Electron profile discovered, prepared, installed and opened Relay
+through the normal desktop bridge. Its isolated extension view loaded from
+`tabs-extension://panicmako.relay/dist/index.html`. No registry login was supplied.
+The final run had zero renderer exceptions and zero console errors. A macOS
+sandbox helper diagnostic was still emitted by the development Electron binary.
+
+The public registry reports anonymous reads, publishing enabled, namespace
+management enabled and review required. Each new version still needs manual
+approval; renewal only retains already published approved packages. This does not
+make metadata expiry or root rotation optional.
+
+## Website production repair
+
+The previous website workflow failed because its Vercel token was invalid. The
+local CLI login could refresh and deploy, but could not create a new automation
+token (HTTP 403). The operator replaced the GitHub `VERCEL_TOKEN` secret directly.
+No token was sent through chat.
+
+A local prebuilt deployment restored the published v2.0.1 site and matched all six
+built pages exactly. The subsequent official website workflow succeeded with the
+replacement secret, including its own production comparison:
+https://github.com/PanicMako/Tabs-ide/actions/runs/39536407247
+
+Production: https://buildwithtabs.com/ and https://buildwithtabs.com/changelog
+
+The checked-in release snapshots were refreshed from GitHub's published history;
+they include v2.0.1 and its verified installer/update asset links. No unpublished
+2.0.2 release is advertised by these files.
+
+## Startup follow-up
+
+Optional legacy MCP SDK and browser-automation protocol imports now happen on
+first use. Existing MCP protocol and extension AI compatibility tests pass.
+
+Fresh Electron acceptance exposed an intermittent startup race: renderer OAuth
+requests could begin before the backend bound its port, producing two Chromium
+connection-refused console errors and entering the reconnect schedule. A trusted
+async desktop bridge call now waits for the loopback listener before renderer
+authentication. Probes remain in the main process, use no credentials, and have a
+15-second deadline. The HTTP startup guard still holds early requests until
+normal authenticated routes are installed. Older desktop bridges retain the
+existing path because the new method is optional.
+
+The regression tests use real loopback sockets, including a delayed listener and
+a backend that never starts. Transport tests prove authentication does not begin
+until readiness resolves. The final live Relay Electron acceptance has zero
+renderer exceptions and zero console errors.
+
+The original airport loading screen and its natural dismissal behavior are
+unchanged. No minimum animation duration or substitute screen was introduced.
+
+### Timing evidence
+
+Before optional MCP deferral: three clean fresh profiles, median 2,262 ms
+(range 2,154–2,454 ms). After: median 2,209 ms (range 2,191–2,725 ms).
+This 53 ms difference is within run-to-run variation and is not a claimed large
+speedup. Separate profiles and compile caches were used, with the compiled
+embedded Code-OSS runtime explicitly enabled. An earlier baseline overlapped a
+typecheck, reached 5,568 ms and is retained separately rather than mixed into this
+comparison. After the listener fix, five fresh profiles reached interaction at 3,148, 2,116,
+2,139, 2,147 and 2,282 ms (median 2,147 ms). All five samples are retained, including
+the slower first launch. Local builds, typechecks and tests had finished before
+this run. Timings collected under test/build load are not used as benchmarks.
+
+The requested approximately half-second startup has not been demonstrated. The
+existing probe also still reaches its two-second backend shutdown deadline while
+its renderer remains open; it then cleans up its disposable process group.
+
+## Validation and candidate
+
+The integrated baseline passed all 18 workspace test tasks, all 16 typecheck tasks,
+the desktop build and all 168 browser tests. The optional MCP change passed 24
+focused protocol tests; mounted-secret renewal passed 17 focused tests. Updated
+marketing release snapshots passed all 39 marketing tests.
+
+After the listener fix, all 16 typecheck tasks, the desktop build, 9 focused
+desktop tests, 32 focused auth/transport tests and all 168 browser tests pass.
+The final full workspace regression run passed all 18 tasks, including 7,561
+server, 1,690 web, 648 desktop and 544 Exchange tests. `vp check` reports zero
+errors and 661 existing warnings. No Code-OSS source changed; the application uses
+its own formatter/linter. The isolated Code-OSS hook lacks a build dependency;
+the primary Code-OSS checkout's hygiene command was run separately and found no
+staged Code-OSS files applicable to that check.
+
+Current desktop candidate source: `641b9252b03c621689817e504343e0762de5a057`.
+Four-platform build and installer smoke checks, labelled 2.0.2 and using 2.0.1 for
+upgrade acceptance:
+https://github.com/PanicMako/Tabs-ide/actions/runs/39537093292
+
+The earlier candidate run was cancelled when the listener fix changed the source.
+A successful preflight is not a substitute for finished platform artifacts.
+No new tag or GitHub release has been published. No Apple Developer ID signing
+identity or Apple/Windows CI signing credentials were found in the checked Mac
+keychain or repository/environment secret names. Existing ad-hoc signing and
+updater signatures must not be described as Apple notarization or Windows
+publisher signing.

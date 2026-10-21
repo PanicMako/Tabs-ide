@@ -1,5 +1,6 @@
 import { extensionHostVersion } from "./extensionHostVersion";
 import { writeBackendBootstrap } from "./backendBootstrap";
+import { waitForBackendListener } from "./backendReadiness";
 import { createStartupWindowReveal } from "./startupWindowReveal";
 import { officialExchangeTrust } from "./officialExchangeTrust";
 import { fetchExchangeListingAsset } from "./exchangeListingAsset";
@@ -180,6 +181,7 @@ const UPDATE_GET_STATE_CHANNEL = "desktop:update-get-state";
 const UPDATE_DOWNLOAD_CHANNEL = "desktop:update-download";
 const UPDATE_INSTALL_CHANNEL = "desktop:update-install";
 const GET_WS_URL_CHANNEL = "desktop:get-ws-url";
+const WAIT_FOR_BACKEND_READY_CHANNEL = "desktop:wait-for-backend-ready";
 const GET_LOCAL_ENVIRONMENT_BOOTSTRAPS_CHANNEL = "desktop:get-local-environment-bootstraps";
 const GET_CONNECTION_CATALOG_CHANNEL = "desktop:get-connection-catalog";
 const SET_CONNECTION_CATALOG_CHANNEL = "desktop:set-connection-catalog";
@@ -2948,6 +2950,9 @@ function registerIpcHandlers(): void {
   });
   ipcMain.removeHandler(HOST_POWER_GET_CHANNEL);
   handleTabsIpc(HOST_POWER_GET_CHANNEL, () => readHostPowerSnapshot());
+
+  ipcMain.removeHandler(WAIT_FOR_BACKEND_READY_CHANNEL);
+  handleTabsIpc(WAIT_FOR_BACKEND_READY_CHANNEL, () => waitForBackendListener(backendPort));
 
   ipcMain.removeAllListeners(GET_WS_URL_CHANNEL);
   ipcMain.on(GET_WS_URL_CHANNEL, (event) => {
