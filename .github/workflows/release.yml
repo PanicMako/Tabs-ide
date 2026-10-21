@@ -365,6 +365,11 @@ jobs:
           # against modern Electron/V8 due to nan pointer tagging deprecation.
           rm -rf node_modules/cpu-features
 
+          # Ensure macOS native modules (such as @vscode/policy-watcher using std::variant)
+          # target macOS 11.0+ instead of node-addon-api's default 10.7 which causes
+          # Xcode 15/16 libc++ availability errors.
+          node --experimental-strip-types build/npm/patchNativeGyp.ts
+
           # Rebuild native modules against Electron headers (~5-10 min).
           # @electron/rebuild handles header downloading + cross-platform
           # compilation without triggering npm lifecycle scripts (unlike

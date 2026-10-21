@@ -11,6 +11,7 @@ import { dirs } from './dirs.ts';
 import { root, stateFile, stateContentsFile, computeState, computeContents, isUpToDate } from './installStateHash.ts';
 import { ensureElectronTypes } from './electronTypes.ts';
 import { finishCloudSandbox } from './cloudSandbox.ts';
+import { patchNativeGyp } from './patchNativeGyp.ts';
 
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const rootNpmrcConfigKeys = getNpmrcConfigKeys(path.join(root, '.npmrc'));
@@ -375,6 +376,8 @@ async function main() {
 		fs.writeFileSync(nativeLoaderFile, patched);
 		log(dir || '.', 'Patched foundry-local-sdk native loader (addons from libraryPath)');
 	}
+
+	patchNativeGyp();
 }
 
 main().catch(err => {

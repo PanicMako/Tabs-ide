@@ -213,6 +213,10 @@ jobs:
           # Remove cpu-features (optional dependency of ssh2) which fails to compile
           # against modern Electron/V8 due to nan pointer tagging deprecation.
           rm -rf node_modules/cpu-features
+          # Ensure macOS native modules (such as @vscode/policy-watcher using std::variant)
+          # target macOS 11.0+ instead of node-addon-api's default 10.7 which causes
+          # Xcode 15/16 libc++ availability errors.
+          node --experimental-strip-types build/npm/patchNativeGyp.ts
           # Target the Electron that RUNS these modules at runtime (from Tabs'
           # desktop package) — not tabs-code-oss's development Electron. The
           # Code-OSS server runs via ELECTRON_RUN_AS_NODE
