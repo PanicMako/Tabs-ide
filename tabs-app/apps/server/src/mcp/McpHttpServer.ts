@@ -16,9 +16,6 @@ import type * as Types from "effect/Types";
 import { AiError, McpSchema, McpServer, Tool } from "effect/unstable/ai";
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/unstable/http";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { Server as LegacyMcpServer } from "@modelcontextprotocol/sdk/server/index.js";
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import {
   OrchestratorMcpFailure,
   PreviewAutomationError,
@@ -1079,6 +1076,16 @@ export async function handleMcpHttpRequest(options: {
   readonly resolveProjectId?: () => Promise<string | undefined>;
   readonly runPromise: <A, E>(effect: Effect.Effect<A, E>) => Promise<A>;
 }): Promise<void> {
+  // Agent transports are optional until the first MCP request. In particular,
+  // the SDK's protocol schemas should not be constructed on every app launch.
+  const [{ Server: LegacyMcpServer }, { StreamableHTTPServerTransport }, schemas] =
+    await Promise.all([
+      import("@modelcontextprotocol/sdk/server/index.js"),
+      import("@modelcontextprotocol/sdk/server/streamableHttp.js"),
+      import("@modelcontextprotocol/sdk/types.js"),
+    ]);
+  if (options.response.destroyed) return;
+  const { CallToolRequestSchema, ListToolsRequestSchema } = schemas;
   const server = new LegacyMcpServer(
     { name: "Tabs", version: "1.0.0" },
     { capabilities: { tools: {} } },
