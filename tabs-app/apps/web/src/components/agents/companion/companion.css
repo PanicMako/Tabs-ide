@@ -3,6 +3,7 @@
   container-type: inline-size;
 }
 .companion-workspace {
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -25,7 +26,7 @@
   width: 34px;
   height: 34px;
   flex-shrink: 0;
-  border-radius: 12px;
+  border-radius: var(--radius-surface);
   color: var(--foreground);
   background: color-mix(in srgb, var(--companion-tint) 16%, var(--background));
   border: 1px solid color-mix(in srgb, var(--companion-tint) 25%, var(--border));
@@ -55,7 +56,7 @@
   align-items: center;
   width: 30px;
   height: 30px;
-  border-radius: 9px;
+  border-radius: var(--radius-surface);
   color: var(--muted-foreground);
   transition:
     background 140ms,
@@ -89,7 +90,7 @@
   place-items: center;
   width: 58px;
   height: 58px;
-  border-radius: 20px;
+  border-radius: var(--radius-surface);
   background: color-mix(in srgb, var(--companion-tint) 13%, var(--background));
   border: 1px solid color-mix(in srgb, var(--companion-tint) 20%, var(--border));
   color: var(--foreground);
@@ -119,7 +120,7 @@
 .companion-note {
   margin: 10px 12px;
   padding: 10px 12px;
-  border-radius: 10px;
+  border-radius: var(--radius-surface);
   border: 1px solid var(--border);
   background: var(--card);
   color: var(--muted-foreground);
@@ -129,12 +130,12 @@
 .companion-card {
   border: 1px solid var(--border);
   background: color-mix(in srgb, var(--card) 65%, var(--background));
-  border-radius: 14px;
+  border-radius: var(--radius-surface);
   padding: 14px;
 }
 .companion-workspace [data-testid="browser-toolbar"] {
   border: 1px solid var(--border);
-  border-radius: 13px;
+  border-radius: var(--radius-surface);
   padding: 6px;
   background: var(--card);
 }
@@ -145,7 +146,7 @@
   min-height: 30px;
   width: 100%;
   padding: 5px 10px;
-  border-radius: 7px;
+  border-radius: var(--radius-surface);
   font-size: 12px;
   text-align: left;
 }
@@ -195,7 +196,7 @@
   background: var(--success);
 }
 .companion-workspace .tabs-segmented {
-  border-radius: 9999px;
+  border-radius: var(--radius-control);
 }
 .companion-workspace .git-tool-v2 {
   padding: 12px;
@@ -246,7 +247,7 @@
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
-  border-radius: 8px;
+  border-radius: var(--radius-surface);
 }
 .companion-media audio {
   width: min(100%, 440px);
@@ -280,7 +281,7 @@
   white-space: nowrap;
 }
 .companion-segment {
-  border-radius: 9px;
+  border-radius: var(--radius-surface);
   padding: 6px 10px;
   font-size: 11px;
   color: var(--muted-foreground);
@@ -312,7 +313,7 @@
   font-size: 11px;
 }
 .companion-workspace .git-tool-v2 .tabs-card {
-  border-radius: 14px;
+  border-radius: var(--radius-surface);
   box-shadow: none;
 }
 @container (max-width:440px) {
@@ -359,7 +360,7 @@
 .companion-file-item {
   display: flex;
   align-items: center;
-  border-radius: 7px;
+  border-radius: var(--radius-surface);
 }
 .companion-file-item:hover,
 .companion-file-item:focus-within {
@@ -407,7 +408,7 @@
   margin-bottom: 8px;
   overflow: hidden;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-surface);
   background: var(--background);
 }
 .companion-diff-file-heading {
@@ -484,9 +485,9 @@
 }
 .companion-pr-summary {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: start;
-  gap: 8px 10px;
+  gap: 8px 12px;
 }
 .companion-pr-title {
   font-size: 13px;
@@ -495,16 +496,21 @@
   overflow-wrap: anywhere;
 }
 .companion-pr-actions {
-  grid-column: 1 / -1;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: 4px;
-  padding-top: 8px;
-  border-top: 1px solid var(--border);
 }
-.companion-pr-actions > [data-slot="popover-trigger"] {
-  margin-left: auto;
+@container (max-width: 480px) {
+  .companion-pr-summary {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .companion-pr-actions {
+    grid-column: 1 / -1;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+  }
 }
 
 .stash-toolbar {
@@ -536,7 +542,7 @@
 .queue-message {
   flex-shrink: 0;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-surface);
   background: var(--card);
   padding: 12px;
   position: relative;
@@ -556,7 +562,7 @@
 .stash-draft-heading:focus-visible,
 .queue-message-heading:focus-visible {
   outline: 2px solid var(--ring);
-  border-radius: 4px;
+  border-radius: var(--radius-surface);
 }
 .stash-draft-title,
 .queue-message-title {
@@ -599,7 +605,7 @@
   height: 54px;
   object-fit: cover;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-surface);
 }
 .stash-images figcaption {
   font-size: 9px;
@@ -622,7 +628,7 @@
   max-width: 100%;
   overflow-wrap: anywhere;
   background: var(--muted);
-  border-radius: 5px;
+  border-radius: var(--radius-surface);
   padding: 3px 6px;
   font-size: 10px;
 }
@@ -686,7 +692,7 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  border-radius: 999px;
+  border-radius: var(--radius-control);
   background: var(--muted);
   color: var(--foreground);
   padding: 5px 8px;
