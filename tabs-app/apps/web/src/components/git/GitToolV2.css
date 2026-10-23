@@ -77,7 +77,7 @@
 .git-tool-v2[data-redesigned="true"] [role="tab"] {
   min-height: 42px;
   margin-block: 2px;
-  border-radius: 10px;
+  border-radius: var(--radius-surface);
   font-size: 13px;
 }
 .git-tool-v2[data-redesigned="true"] [role="tab"][aria-selected="true"] {
@@ -96,14 +96,14 @@
   color: var(--foreground);
 }
 .git-page [data-slot="git-card"] {
-  border-radius: 16px;
+  border-radius: var(--radius-surface);
   border-color: color-mix(in srgb, var(--foreground) 10%, transparent);
   background-color: var(--card);
 }
 .git-page [data-slot="git-banner"] {
   align-items: flex-start;
   flex-wrap: wrap;
-  border-radius: 12px;
+  border-radius: var(--radius-surface);
   padding: 16px 20px;
 }
 .git-page [data-slot="git-banner"] > [data-collapsed="false"] {
@@ -142,7 +142,7 @@
   align-items: flex-start;
   gap: 10px;
   padding: 12px;
-  border-radius: 10px;
+  border-radius: var(--radius-surface);
   text-align: start;
   color: var(--muted-foreground);
   cursor: pointer;

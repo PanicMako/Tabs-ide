@@ -500,7 +500,7 @@ export function DivergencePanel({
         <div className="flex items-center gap-2 shrink-0">
           {/* View Switcher — three tabs: Spotlight | Active | Archived */}
           <OrbitGroup
-            className="tabs-segmented flex items-center h-8 rounded-full"
+            className="tabs-segmented inline-flex items-center h-8 rounded-full w-fit"
             role="group"
             aria-label="Branch view"
           >

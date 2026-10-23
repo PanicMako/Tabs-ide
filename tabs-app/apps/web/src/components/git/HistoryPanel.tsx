@@ -123,7 +123,7 @@ export function CommitRow({
                 onCherryPick(c);
                 setMenuOpen(false);
               }}
-              className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-[11px] text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+              className="w-full flex items-center gap-2 px-3 py-1.5 rounded-md text-left text-[11px] text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
             >
               <Copy size={11} /> Cherry-pick
             </button>
@@ -134,7 +134,7 @@ export function CommitRow({
                 onRevert(c);
                 setMenuOpen(false);
               }}
-              className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-[11px] text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+              className="w-full flex items-center gap-2 px-3 py-1.5 rounded-md text-left text-[11px] text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
             >
               <Undo2 size={11} /> Revert
             </button>
@@ -145,7 +145,7 @@ export function CommitRow({
                 onReset(c);
                 setMenuOpen(false);
               }}
-              className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-[11px] hover:bg-muted transition-colors cursor-pointer"
+              className="w-full flex items-center gap-2 px-3 py-1.5 rounded-md text-left text-[11px] hover:bg-muted transition-colors cursor-pointer"
               style={{ color: "var(--sem-red)" }}
             >
               <RotateCcw size={11} /> Reset to here
@@ -154,7 +154,7 @@ export function CommitRow({
             <button
               type="button"
               onClick={copySha}
-              className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-[11px] text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+              className="w-full flex items-center gap-2 px-3 py-1.5 rounded-md text-left text-[11px] text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
             >
               {copied ? <Check size={11} /> : <Copy size={11} />}
               {copied ? "Copied" : "Copy SHA"}

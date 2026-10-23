@@ -595,7 +595,7 @@ export function CreatePRModal({
                   PR Visibility
                 </label>
                 <OrbitGroup
-                  className="tabs-segmented grid grid-cols-2 text-xs rounded-full"
+                  className="tabs-segmented grid grid-cols-2 text-xs rounded-full w-full"
                   role="group"
                   aria-label="Pull request visibility"
                 >
@@ -844,13 +844,13 @@ export function DeviceAuthModal({
         <DialogPanel className="space-y-4">
           <p className="text-xs text-muted-foreground/80 leading-relaxed">{subtitle}</p>
           <div
-            className="border border-border rounded-lg p-3 flex flex-col gap-2"
+            className="border border-border rounded-lg p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
             style={{ backgroundColor: "var(--bg-base)" }}
           >
             <p className="text-[11px] text-muted-foreground">
               Click below to launch interactive sign in in your terminal:
             </p>
-            <Button type="button" size="sm" onClick={handleStartAuth}>
+            <Button type="button" size="sm" className="shrink-0" onClick={handleStartAuth}>
               <ExternalLink /> Start `gh auth login` in terminal
             </Button>
           </div>
@@ -1029,7 +1029,7 @@ function SearchableTagSelect({
                 setOpen(false);
                 setSearch("");
               }}
-              className="w-full flex items-center gap-2 px-3 py-2 text-xs text-foreground/90 font-mono hover:bg-accent hover:text-accent-foreground font-semibold border-b border-border/40 transition-colors text-left"
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-xs text-foreground/90 font-mono hover:bg-accent hover:text-accent-foreground font-semibold border-b border-border/40 transition-colors text-left"
             >
               + Create new tag…
             </button>
@@ -1048,7 +1048,7 @@ function SearchableTagSelect({
                     setOpen(false);
                     setSearch("");
                   }}
-                  className="w-full flex items-center justify-between px-3 py-1.5 text-xs text-foreground/80 hover:bg-accent hover:text-accent-foreground font-mono transition-colors text-left"
+                  className="w-full flex items-center justify-between px-3 py-1.5 rounded-md text-xs text-foreground/80 hover:bg-accent hover:text-accent-foreground font-mono transition-colors text-left"
                 >
                   <span className="truncate">{t.name}</span>
                   {value === t.name && (
@@ -1156,7 +1156,7 @@ export function DraftReleaseModal({
                   Release Type
                 </label>
                 <OrbitGroup
-                  className="tabs-segmented grid grid-cols-2 text-xs rounded-full"
+                  className="tabs-segmented grid grid-cols-2 text-xs rounded-full w-full"
                   role="group"
                   aria-label="Release type"
                 >
