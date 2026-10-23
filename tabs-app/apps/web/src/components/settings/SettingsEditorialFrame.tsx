@@ -2,6 +2,7 @@ import { ArrowLeftIcon } from "lucide-react";
 import { createContext, useContext, type ReactNode, useState } from "react";
 import { ScopedPortalContext } from "../../lib/scopedPortal";
 import { useSettingsLabsStore } from "../../stores/settingsLabsStore";
+import { useTheme } from "../../hooks/useTheme";
 import "./settings-editorial.css";
 
 const SettingsStudyAppearanceContext = createContext<"dark" | "light" | null>(null);
@@ -18,7 +19,9 @@ export function SettingsEditorialFrame({
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
   const enabled = useSettingsLabsStore((state) => state.editorialSettings);
   const settingsOnly = useSettingsLabsStore((state) => state.editorialSettingsOnly);
-  const appearance = useSettingsLabsStore((state) => state.editorialAppearance);
+  const storedAppearance = useSettingsLabsStore((state) => state.editorialAppearance);
+  const { resolvedTheme } = useTheme();
+  const appearance = settingsOnly ? resolvedTheme : storedAppearance;
   return (
     <SettingsStudyAppearanceContext.Provider value={enabled ? appearance : null}>
       <ScopedPortalContext.Provider value={enabled ? (container ?? undefined) : undefined}>

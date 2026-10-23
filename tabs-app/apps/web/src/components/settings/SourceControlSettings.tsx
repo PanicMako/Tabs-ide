@@ -15,9 +15,7 @@ import {
 } from "~/components/Icons";
 import { cn } from "~/lib/utils";
 import { RedactedSensitiveText } from "./RedactedSensitiveText";
-import { SettingsSection } from "./SettingsLayout";
-import { useTheme } from "~/hooks/useTheme";
-import { getActiveFontCombo, getFontComboPageHeading } from "~/lib/themes";
+import { SettingsSection, SettingsPageTitle } from "./SettingsLayout";
 
 const SOURCE_CONTROL_COMMANDS: Record<string, { name: string; install?: string; login?: string }> =
   {
@@ -83,8 +81,6 @@ export function SourceControlSettingsPanel({
   startProviderAction,
   providerActionBusy,
 }: SourceControlSettingsPanelProps) {
-  const { fontPreferences } = useTheme();
-  const activeFontCombo = getActiveFontCombo(fontPreferences);
   const { data, isLoading, error, refetch, isFetching } = useSourceControlDiscovery();
   const [isJjExpanded, setIsJjExpanded] = useState(false);
 
@@ -96,7 +92,7 @@ export function SourceControlSettingsPanel({
     <Button
       size="icon-xs"
       variant="ghost"
-      className="size-5 rounded-sm p-0 text-muted-foreground hover:text-foreground"
+      className="size-5 rounded-full p-0 text-muted-foreground hover:text-foreground"
       onClick={handleScan}
       disabled={isLoading || isFetching}
       aria-label="Rescan server environment"
@@ -109,19 +105,7 @@ export function SourceControlSettingsPanel({
     return (
       <div className="space-y-6">
         <div data-slot="settings-page-header" className="mb-2 space-y-1.5">
-          <h2
-            data-slot="settings-page-title"
-            className={cn(
-              "text-[28px] leading-relaxed pb-1 text-foreground mb-2 font-bold",
-              getFontComboPageHeading(activeFontCombo, fontPreferences).className,
-            )}
-            style={{
-              fontFamily: getFontComboPageHeading(activeFontCombo, fontPreferences).fontFamily,
-              textTransform: "capitalize",
-            }}
-          >
-            Source Control
-          </h2>
+          <SettingsPageTitle className="mb-2">Source Control</SettingsPageTitle>
           <p className="text-sm text-muted-foreground">
             Manage version control systems, code hosting providers, and authentication status.
           </p>
@@ -139,19 +123,7 @@ export function SourceControlSettingsPanel({
     return (
       <div className="space-y-6">
         <div data-slot="settings-page-header" className="mb-2 space-y-1.5">
-          <h2
-            data-slot="settings-page-title"
-            className={cn(
-              "text-[28px] leading-relaxed pb-1 text-foreground mb-2 font-bold",
-              getFontComboPageHeading(activeFontCombo, fontPreferences).className,
-            )}
-            style={{
-              fontFamily: getFontComboPageHeading(activeFontCombo, fontPreferences).fontFamily,
-              textTransform: "capitalize",
-            }}
-          >
-            Source Control
-          </h2>
+          <SettingsPageTitle className="mb-2">Source Control</SettingsPageTitle>
           <p className="text-sm text-muted-foreground">
             Manage version control systems, code hosting providers, and authentication status.
           </p>
@@ -183,19 +155,7 @@ export function SourceControlSettingsPanel({
     <div className="space-y-6">
       <div data-slot="settings-page-header">
         <div className="space-y-1.5">
-          <h2
-            data-slot="settings-page-title"
-            className={cn(
-              "text-[28px] leading-relaxed pb-1 text-foreground mb-2 font-bold",
-              getFontComboPageHeading(activeFontCombo, fontPreferences).className,
-            )}
-            style={{
-              fontFamily: getFontComboPageHeading(activeFontCombo, fontPreferences).fontFamily,
-              textTransform: "capitalize",
-            }}
-          >
-            Source Control
-          </h2>
+          <SettingsPageTitle className="mb-2">Source Control</SettingsPageTitle>
           <p className="text-sm text-muted-foreground">
             Manage version control systems, code hosting providers, and authentication status.
           </p>

@@ -1,7 +1,7 @@
 import "../../index.css";
 import "../../localFonts.css";
 import { expect, it } from "vitest";
-import { FONT_COMBOS } from "../../lib/themes";
+import { CURATED_FONT_COMBOS as FONT_COMBOS } from "../../lib/themes";
 
 it("loads every personality preset's actual interface and heading font from bundled assets", async () => {
   for (const combo of FONT_COMBOS.filter((item) => !item.isNeutral)) {

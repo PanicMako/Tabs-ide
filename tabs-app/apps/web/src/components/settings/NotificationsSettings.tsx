@@ -9,7 +9,7 @@ import {
   InfoIcon,
   LoaderCircleIcon,
   SendIcon,
-  SparklesIcon,
+  BotIcon,
   TrashIcon,
   TriangleAlertIcon,
 } from "lucide-react";
@@ -110,7 +110,7 @@ const CATEGORY_ITEMS: CategoryItem[] = [
     key: "agent-turn-complete",
     title: "Agent Turn Complete",
     description: "When an agent finishes working on a task while Tabs is in background",
-    icon: SparklesIcon,
+    icon: BotIcon,
   },
   {
     key: "info",

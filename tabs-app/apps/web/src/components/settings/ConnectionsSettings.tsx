@@ -4,11 +4,9 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "~/components/ui/tooltip";
-import { SettingsSection } from "./SettingsLayout";
+import { SettingsSection, SettingsPageTitle } from "./SettingsLayout";
 import { toastManager } from "~/components/ui/toast";
 import { useConfirm } from "~/hooks/useConfirm";
-import { useTheme } from "~/hooks/useTheme";
-import { getActiveFontCombo, getFontComboPageHeading } from "~/lib/themes";
 import {
   Link2Icon,
   MonitorIcon,
@@ -63,8 +61,6 @@ interface TailscaleStatus {
 export function ConnectionsSettings() {
   const isDesktop = typeof window !== "undefined" && !!window.desktopBridge;
   const { confirm, confirmDialog } = useConfirm();
-  const { fontPreferences } = useTheme();
-  const activeFontCombo = getActiveFontCombo(fontPreferences);
   const [tailscaleStatus, setTailscaleStatus] = useState<TailscaleStatus>({
     available: false,
     running: false,
@@ -309,18 +305,7 @@ export function ConnectionsSettings() {
 
       <div>
         <div className="space-y-1.5">
-          <h2
-            className={cn(
-              "text-[28px] leading-relaxed pb-1 text-foreground mb-2 font-bold",
-              getFontComboPageHeading(activeFontCombo).className,
-            )}
-            style={{
-              fontFamily: getFontComboPageHeading(activeFontCombo).fontFamily,
-              textTransform: "capitalize",
-            }}
-          >
-            Connections
-          </h2>
+          <SettingsPageTitle className="mb-2">Connections</SettingsPageTitle>
           <p className="text-sm text-muted-foreground">
             Configure network access, Tailscale HTTPS tunnels, and remote environment connections.
           </p>
@@ -832,7 +817,7 @@ export function ConnectionsSettings() {
                     <>
                       {/* Connection Type Toggle */}
                       <OrbitGroup
-                        className="tabs-segmented grid grid-cols-2 rounded-full"
+                        className="tabs-segmented grid grid-cols-2 rounded-full w-full"
                         role="group"
                         aria-label="Connection type"
                       >

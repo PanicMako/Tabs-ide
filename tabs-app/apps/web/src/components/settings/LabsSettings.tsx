@@ -1,6 +1,8 @@
 import { lazy, Suspense, useEffect, useState } from "react";
-import { ArrowLeftIcon, ImageIcon, PuzzleIcon } from "lucide-react";
+import { ImageIcon } from "lucide-react";
+import { TabsExtensionIcon } from "../Icons";
 import { useSettingsLabsStore } from "../../stores/settingsLabsStore";
+import { useTheme } from "../../hooks/useTheme";
 import { Button } from "../ui/button";
 import { Switch } from "../ui/switch";
 import { SegmentedControl } from "../ui/segmented-control";
@@ -21,7 +23,14 @@ export default function LabsSettings() {
   const setEditorial = useSettingsLabsStore((state) => state.setEditorialSettings);
   const appearance = useSettingsLabsStore((state) => state.editorialAppearance);
   const setAppearance = useSettingsLabsStore((state) => state.setEditorialAppearance);
+  const { resolvedTheme } = useTheme();
   const [experiment, setExperiment] = useState<"wallpapers" | "extensions" | null>(null);
+
+  useEffect(() => {
+    if (editorial && settingsOnly && appearance !== resolvedTheme) {
+      setAppearance(resolvedTheme);
+    }
+  }, [editorial, settingsOnly, appearance, resolvedTheme, setAppearance]);
 
   const [isWallpaperEnabled, setIsWallpaperEnabled] = useState(() => getIsAgentWallpaperEnabled());
   const [activeWallpaper, setActiveWallpaper] = useState(() => getInitialAgentWallpaper());
@@ -41,15 +50,13 @@ export default function LabsSettings() {
 
   if (experiment)
     return (
-      <div className="space-y-5">
-        <Button variant="ghost" size="sm" onClick={() => setExperiment(null)}>
-          <ArrowLeftIcon className="size-3.5 mr-2" />
-          Back to Labs
-        </Button>
-        <Suspense fallback={<SettingsLoadingState label={`Loading ${experiment}`} />}>
-          {experiment === "wallpapers" ? <WallpaperSettings /> : <ExtensionsSettings />}
-        </Suspense>
-      </div>
+      <Suspense fallback={<SettingsLoadingState label={`Loading ${experiment}`} />}>
+        {experiment === "wallpapers" ? (
+          <WallpaperSettings onBack={() => setExperiment(null)} />
+        ) : (
+          <ExtensionsSettings onBack={() => setExperiment(null)} />
+        )}
+      </Suspense>
     );
   return (
     <div className="space-y-8">
@@ -59,24 +66,32 @@ export default function LabsSettings() {
           title="Interface study"
           description={
             settingsOnly
-              ? "A separate appearance for Settings. Your workspace keeps its saved theme."
+              ? "A separate appearance for Settings. Matches your workspace theme automatically."
               : "Try a new look across Tabs. Switch off to return to your theme."
           }
           control={
             <div className="flex items-center gap-3">
-              {editorial && (
-                <SegmentedControl
-                  size="sm"
-                  itemRole="button"
-                  value={appearance}
-                  onValueChange={(val) => setAppearance(val as "dark" | "light")}
-                  options={[
-                    { value: "dark", label: "Dark" },
-                    { value: "light", label: "Light" },
-                  ]}
-                  aria-label="Study appearance"
-                />
-              )}
+              {editorial &&
+                (settingsOnly ? (
+                  <span
+                    data-slot="settings-study-theme-locked"
+                    className="inline-flex items-center text-xs font-medium text-muted-foreground bg-muted/60 border border-border/60 rounded-full px-3 py-1 capitalize"
+                  >
+                    Matches theme ({resolvedTheme})
+                  </span>
+                ) : (
+                  <SegmentedControl
+                    size="sm"
+                    itemRole="button"
+                    value={appearance}
+                    onValueChange={(val) => setAppearance(val as "dark" | "light")}
+                    options={[
+                      { value: "dark", label: "Dark" },
+                      { value: "light", label: "Light" },
+                    ]}
+                    aria-label="Study appearance"
+                  />
+                ))}
               <Switch
                 aria-label="Interface study"
                 checked={editorial}
@@ -97,7 +112,12 @@ export default function LabsSettings() {
                 <Switch
                   aria-label="Settings page only"
                   checked={settingsOnly}
-                  onCheckedChange={setSettingsOnly}
+                  onCheckedChange={(checked) => {
+                    setSettingsOnly(checked);
+                    if (checked && appearance !== resolvedTheme) {
+                      setAppearance(resolvedTheme);
+                    }
+                  }}
                 />
               }
             />
@@ -150,7 +170,7 @@ export default function LabsSettings() {
           description="Explore extensions, tool views, and profiles."
           control={
             <Button variant="outline" size="sm" onClick={() => setExperiment("extensions")}>
-              <PuzzleIcon className="size-3.5 mr-2" />
+              <TabsExtensionIcon className="size-3.5 mr-2" />
               Explore extensions
             </Button>
           }

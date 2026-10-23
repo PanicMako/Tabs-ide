@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ArrowLeftIcon,
   CheckIcon,
   DicesIcon,
   LayoutGridIcon,
@@ -12,6 +13,16 @@ import { SettingsSection, SettingsRow, SettingsSectionHeader } from "./SettingsL
 import { Button } from "../ui/button";
 import { Switch } from "../ui/switch";
 import { Input } from "../ui/input";
+import {
+  Dialog,
+  DialogPopup,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogPanel,
+  DialogFooter,
+  DialogClose,
+} from "../ui/dialog";
 import { cn } from "../../lib/utils";
 import { useTheme } from "../../hooks/useTheme";
 import {
@@ -35,7 +46,7 @@ import { WallpaperGalleryModal } from "../onboarding/WallpaperGalleryModal";
 
 import { useSettingsStudyAppearance } from "./SettingsEditorialFrame";
 
-export default function WallpaperSettings() {
+export default function WallpaperSettings({ onBack }: { onBack?: () => void } = {}) {
   const { resolvedTheme: workspaceTheme } = useTheme();
   const studyAppearance = useSettingsStudyAppearance();
   const resolvedTheme = studyAppearance ?? workspaceTheme;
@@ -58,6 +69,7 @@ export default function WallpaperSettings() {
   const [customLabelInput, setCustomLabelInput] = useState("");
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const importOpener = useRef<HTMLElement | null>(null);
 
   // Sync state on events
   const syncState = useCallback(() => {
@@ -157,6 +169,19 @@ export default function WallpaperSettings() {
       <SettingsSectionHeader
         title="Workspace Wallpapers"
         description="Immersive aesthetic backdrops for the agent workspace with animated particles, dual light/dark mode blending, and per-thread customization."
+        preTitle={
+          onBack ? (
+            <Button
+              variant="outline"
+              size="icon-sm"
+              onClick={onBack}
+              aria-label="Back to Labs"
+              className="size-8 shrink-0 rounded-full border-border/80 bg-background/60 hover:bg-accent hover:border-foreground/30 text-muted-foreground hover:text-foreground shadow-xs transition-colors active:scale-95"
+            >
+              <ArrowLeftIcon className="size-4" aria-hidden="true" />
+            </Button>
+          ) : undefined
+        }
       />
 
       {/* ── Main Feature Toggle Section ───────────────────────────── */}
@@ -217,7 +242,7 @@ export default function WallpaperSettings() {
                     {activeWallpaper.category}
                   </span>
                   {activeWallpaper.isCustom && (
-                    <span className="rounded-full bg-sky-500/15 text-sky-400 px-2.5 py-0.5 text-[11px] font-medium border border-sky-400/30">
+                    <span className="rounded-full bg-sky-500/15 text-sky-700 dark:text-sky-300 px-2.5 py-0.5 text-[11px] font-medium border border-sky-400/30">
                       Custom
                     </span>
                   )}
@@ -241,7 +266,7 @@ export default function WallpaperSettings() {
                 variant="outline"
                 size="sm"
                 onClick={handleShuffle}
-                className="gap-1.5 cursor-pointer rounded-lg hover:border-amber-500/40 hover:text-amber-500 transition-colors"
+                className="gap-1.5 cursor-pointer rounded-full hover:border-amber-500/40 hover:text-amber-500 transition-colors"
               >
                 <DicesIcon className="size-3.5 text-amber-500" />
                 <span>Surprise Me</span>
@@ -250,7 +275,7 @@ export default function WallpaperSettings() {
                 variant="secondary"
                 size="sm"
                 onClick={() => setIsGalleryOpen(true)}
-                className="gap-1.5 cursor-pointer rounded-lg shadow-xs"
+                className="gap-1.5 cursor-pointer rounded-full shadow-xs"
               >
                 <LayoutGridIcon className="size-3.5" />
                 <span>Full Gallery ({allWallpapers.length})</span>
@@ -308,6 +333,7 @@ export default function WallpaperSettings() {
               const isSelected = wp.url === activeWallpaper.url;
               return (
                 <button
+                  data-shape="preview"
                   key={wp.id}
                   type="button"
                   onClick={() => handleSelect(wp)}
@@ -365,67 +391,81 @@ export default function WallpaperSettings() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setShowAddCustom((prev) => !prev)}
+              onClick={(event) => {
+                importOpener.current = event.currentTarget;
+                setShowAddCustom(true);
+              }}
               className="gap-1.5 cursor-pointer self-start sm:self-auto"
             >
               <PlusIcon className="size-3.5" />
-              <span>{showAddCustom ? "Cancel" : "Add Custom Wallpaper"}</span>
+              <span>Add Custom Wallpaper</span>
             </Button>
           </div>
 
-          {/* Add Custom drawer / input form */}
-          {showAddCustom && (
-            <div className="flex flex-col gap-3 rounded-xl border border-sky-500/30 bg-sky-500/5 p-4 animate-in slide-in-from-top-2 duration-150">
-              <span className="text-xs font-semibold text-foreground">Import Anime Wallpaper</span>
-              <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="gap-2 cursor-pointer shrink-0"
-                >
-                  <UploadIcon className="size-3.5 text-sky-500" />
-                  <span>Upload Local File</span>
-                </Button>
-                <span className="text-xs text-muted-foreground text-center md:text-left">
-                  or URL:
-                </span>
-                <Input
-                  type="text"
-                  value={customLabelInput}
-                  onChange={(e) => setCustomLabelInput(e.target.value)}
-                  placeholder="Scene Name (optional)"
-                  className="h-8.5 text-xs md:w-48"
-                />
-                <Input
-                  type="url"
-                  value={customUrlInput}
-                  onChange={(e) => setCustomUrlInput(e.target.value)}
-                  placeholder="https://images.example.com/anime.jpg"
-                  className="h-8.5 text-xs flex-1"
-                />
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={handleAddUrl}
-                  disabled={!customUrlInput.trim()}
-                  className="cursor-pointer shrink-0"
-                >
-                  Add Image
-                </Button>
-              </div>
-            </div>
-          )}
+          <Dialog open={showAddCustom} onOpenChange={setShowAddCustom}>
+            <DialogPopup bottomStickOnMobile={false} finalFocus={importOpener}>
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  handleAddUrl();
+                }}
+              >
+                <DialogHeader>
+                  <DialogTitle>Add custom wallpaper</DialogTitle>
+                  <DialogDescription>
+                    Upload an image or import one from a web URL.
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogPanel className="space-y-4">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                    aria-label="Wallpaper image file"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full gap-2"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <UploadIcon className="size-4" aria-hidden />
+                    Upload Local File
+                  </Button>
+                  <label className="block space-y-2 text-sm">
+                    <span>Scene name (optional)</span>
+                    <Input
+                      value={customLabelInput}
+                      onChange={(event) => setCustomLabelInput(event.target.value)}
+                      placeholder="My favorite scene"
+                    />
+                  </label>
+                  <label className="block space-y-2 text-sm">
+                    <span>Image URL</span>
+                    <Input
+                      type="url"
+                      value={customUrlInput}
+                      onChange={(event) => setCustomUrlInput(event.target.value)}
+                      placeholder="https://images.example.com/anime.jpg"
+                    />
+                  </label>
+                </DialogPanel>
+                <DialogFooter>
+                  <DialogClose render={<Button type="button" variant="outline" />}>
+                    Cancel
+                  </DialogClose>
+                  <Button type="submit" disabled={!customUrlInput.trim()}>
+                    Add Image
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogPopup>
+          </Dialog>
 
           {/* Empty State vs Card Grid */}
-          {customWallpapers.length === 0 && !showAddCustom ? (
+          {customWallpapers.length === 0 ? (
             <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border/80 p-8 text-center bg-card/20">
               <div className="flex size-10 items-center justify-center rounded-full bg-muted/60 mb-2.5">
                 <UploadIcon className="size-5 text-muted-foreground" />
@@ -438,7 +478,10 @@ export default function WallpaperSettings() {
               <Button
                 variant="outline"
                 size="xs"
-                onClick={() => setShowAddCustom(true)}
+                onClick={(event) => {
+                  importOpener.current = event.currentTarget;
+                  setShowAddCustom(true);
+                }}
                 className="mt-3 gap-1.5 text-xs cursor-pointer"
               >
                 <PlusIcon className="size-3" />
@@ -470,7 +513,7 @@ export default function WallpaperSettings() {
                         <button
                           type="button"
                           onClick={() => handleDeleteCustom(wp.id)}
-                          className="absolute left-2 bottom-2 flex size-6.5 items-center justify-center rounded-md bg-black/70 text-red-400 hover:bg-red-600 hover:text-white transition-colors cursor-pointer shadow-xs"
+                          className="absolute left-2 bottom-2 flex size-6.5 items-center justify-center rounded-full bg-black/70 text-red-400 hover:bg-red-600 hover:text-white transition-colors cursor-pointer shadow-xs"
                           title="Delete custom wallpaper"
                           aria-label="Delete custom wallpaper"
                         >

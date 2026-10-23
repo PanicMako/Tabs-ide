@@ -13,7 +13,7 @@
   min-width: 0;
   padding: 10px;
   border: 1px solid var(--border);
-  border-radius: 24px;
+  border-radius: var(--radius-surface);
   background: color-mix(in srgb, var(--muted) 30%, var(--background));
 }
 .provider-search {
@@ -33,7 +33,7 @@
 }
 .provider-search:focus-within {
   outline: 2px solid var(--ring);
-  border-radius: 16px;
+  border-radius: var(--radius-surface);
 }
 .provider-directory .tabs-segmented {
   width: fit-content;
@@ -52,7 +52,7 @@
   gap: 9px;
   padding: 10px 8px;
   text-align: left;
-  border-radius: 16px;
+  border-radius: var(--radius-surface);
   cursor: pointer;
   border: 1px solid transparent;
   transition: background-color 150ms ease;
@@ -75,7 +75,7 @@
   flex-shrink: 0;
   width: 30px;
   height: 30px;
-  border-radius: 11px;
+  border-radius: var(--radius-surface);
   background: var(--muted);
   color: var(--foreground);
 }
@@ -113,7 +113,7 @@
 }
 .provider-detail {
   min-width: 0;
-  border-radius: 24px;
+  border-radius: var(--radius-surface);
   border: 1px solid var(--border);
   background: var(--card);
   overflow: hidden;
@@ -127,7 +127,7 @@
 }
 .providers-page .provider-pins {
   padding: 14px 18px;
-  border-radius: 22px;
+  border-radius: var(--radius-surface);
 }
 .providers-overview {
   display: flex;
@@ -215,7 +215,7 @@ html[data-reduced-motion="reduce"] .provider-directory-select {
 
 .provider-directory-count {
   background: var(--muted);
-  border-radius: 8px;
+  border-radius: var(--radius-surface);
   padding: 3px 5px;
 }
 .provider-identity {
@@ -228,7 +228,7 @@ html[data-reduced-motion="reduce"] .provider-directory-select {
   width: 38px;
   height: 38px;
   margin-right: 8px;
-  border-radius: 14px;
+  border-radius: var(--radius-surface);
   border: 1px solid var(--border);
   background: var(--background);
   box-shadow: 0 4px 10px color-mix(in srgb, var(--foreground) 5%, transparent);
@@ -335,7 +335,7 @@ html[data-reduced-motion="reduce"]
   transform: translateY(-50%);
   padding: 4px 6px;
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: var(--radius-control);
   background: var(--background);
   color: var(--foreground);
   font-size: 10px;

@@ -37,8 +37,6 @@ import {
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { useConfirm } from "../../hooks/useConfirm";
-import { useTheme } from "../../hooks/useTheme";
-import { getActiveFontCombo, getFontComboPageHeading } from "../../lib/themes";
 import { cn, getHashAwareSearchParams, isPopoutMode } from "../../lib/utils";
 import { ensureNativeApi } from "../../nativeApi";
 import { formatRelativeTime } from "../../timestampFormat";
@@ -46,7 +44,7 @@ import { Button } from "../ui/button";
 import { ScrollArea } from "../ui/scroll-area";
 import { SegmentedControl, type SegmentOption } from "../ui/segmented-control";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
-import { SettingsRow, SettingsSection } from "./SettingsLayout";
+import { SettingsRow, SettingsSection, SettingsPageTitle } from "./SettingsLayout";
 import { RendererResponsivenessDiagnostics } from "./RendererResponsivenessDiagnostics";
 import { ExpandableText } from "./ExpandableText";
 import {
@@ -197,7 +195,7 @@ function StatBlock({
                 <button
                   type="button"
                   tabIndex={0}
-                  className="cursor-help inline-flex size-3.5 shrink-0 items-center justify-center rounded-sm text-muted-foreground/60 hover:text-foreground"
+                  className="cursor-help inline-flex size-3.5 shrink-0 items-center justify-center rounded-full text-muted-foreground/60 hover:text-foreground"
                   aria-label={`${label} details`}
                 >
                   <InfoIcon className="size-3" />
@@ -802,8 +800,6 @@ export function DiagnosticsSettings() {
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
 
-  const { fontPreferences } = useTheme();
-  const activeFontCombo = useMemo(() => getActiveFontCombo(fontPreferences), [fontPreferences]);
   const isPopout = isPopoutMode();
 
   const isDarwin = useMemo(() => {
@@ -1148,20 +1144,7 @@ export function DiagnosticsSettings() {
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="space-y-1.5">
                 <div className="flex items-center gap-2.5">
-                  <h2
-                    data-slot="settings-page-title"
-                    className={cn(
-                      "text-[28px] leading-relaxed pb-1 text-foreground mb-2 font-bold",
-                      getFontComboPageHeading(activeFontCombo, fontPreferences).className,
-                    )}
-                    style={{
-                      fontFamily: getFontComboPageHeading(activeFontCombo, fontPreferences)
-                        .fontFamily,
-                      textTransform: "capitalize",
-                    }}
-                  >
-                    Diagnostics
-                  </h2>
+                  <SettingsPageTitle className="mb-2">Diagnostics</SettingsPageTitle>
                 </div>
                 <p className="text-sm text-muted-foreground">
                   Find resource-heavy processes and investigate errors.
@@ -1387,7 +1370,7 @@ export function DiagnosticsSettings() {
               headerAction={
                 <div className="flex items-center gap-1.5">
                   <OrbitGroup
-                    className="tabs-segmented flex items-center text-xs rounded-full"
+                    className="tabs-segmented inline-flex items-center text-xs rounded-full w-fit"
                     role="group"
                     aria-label="Resource timeline window"
                   >

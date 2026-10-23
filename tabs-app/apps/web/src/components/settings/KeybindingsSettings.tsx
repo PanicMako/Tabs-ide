@@ -44,7 +44,7 @@ import {
 import { parseKeybindingShortcut } from "@tabs/shared/keybindings";
 import { isElectron } from "../../env";
 import { useTheme } from "../../hooks/useTheme";
-import { getActiveFontCombo, getFontComboPageHeading } from "../../lib/themes";
+import { getActiveFontCombo } from "../../lib/themes";
 import { formatShortcutLabel } from "../../keybindings";
 import { cn, isMacPlatform } from "../../lib/utils";
 import { ensureNativeApi } from "../../nativeApi";
@@ -63,7 +63,7 @@ import { Toggle } from "../ui/toggle";
 import { toastManager } from "../ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { AddKeybindingDialog } from "./AddKeybindingDialog";
-import { SettingsHeaderPortal } from "./SettingsLayout";
+import { SettingsHeaderPortal, SettingsPageTitle } from "./SettingsLayout";
 import { useConfirm } from "~/hooks/useConfirm";
 
 import {
@@ -327,7 +327,7 @@ function UnknownWhenVariableWarning({
           <span
             tabIndex={focusable ? 0 : undefined}
             aria-label={label}
-            className="inline-flex size-4.5 shrink-0 items-center justify-center rounded-sm text-warning outline-none transition-colors hover:bg-warning/10 focus-visible:ring-[3px] focus-visible:ring-warning/25"
+            className="inline-flex size-4.5 shrink-0 items-center justify-center rounded-full text-warning outline-none transition-colors hover:bg-warning/10 focus-visible:ring-[3px] focus-visible:ring-warning/25"
           >
             <TriangleAlertIcon className="size-3.5" />
           </span>
@@ -355,7 +355,7 @@ function KeybindingConflictWarning({ labels }: { labels: ReadonlyArray<string> }
           <span
             tabIndex={0}
             aria-label={description}
-            className="inline-flex size-5 shrink-0 items-center justify-center rounded-sm text-warning outline-none transition-colors hover:bg-warning/10 focus-visible:ring-[3px] focus-visible:ring-warning/25"
+            className="inline-flex size-5 shrink-0 items-center justify-center rounded-full text-warning outline-none transition-colors hover:bg-warning/10 focus-visible:ring-[3px] focus-visible:ring-warning/25"
           >
             <TriangleAlertIcon className="size-3.5" />
           </span>
@@ -888,7 +888,7 @@ function KeybindingTableRow({
   };
 
   return (
-    <div className="grid grid-cols-[minmax(190px,1.1fr)_minmax(220px,0.85fr)_minmax(210px,1fr)_60px] items-center px-4 py-1.5 text-sm even:bg-muted/15 hover:bg-accent/40">
+    <div className="grid grid-cols-[minmax(190px,1.1fr)_minmax(220px,0.85fr)_minmax(210px,1fr)_60px] items-center px-4 py-1.5 rounded-lg text-sm even:bg-muted/15 hover:bg-accent/40">
       <div className="min-w-0 pr-4">
         <div className="flex min-w-0 items-center gap-1.5">
           <Tooltip>
@@ -1015,8 +1015,6 @@ export function KeybindingsSettings({
   availableEditors,
   platform = typeof navigator === "undefined" ? "" : navigator.platform,
 }: KeybindingsSettingsProps) {
-  const { fontPreferences } = useTheme();
-  const activeFontCombo = getActiveFontCombo(fontPreferences);
   const { confirm, confirmDialog } = useConfirm();
   const [query, setQuery] = useState("");
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -1217,18 +1215,7 @@ export function KeybindingsSettings({
           <div className="flex items-start justify-between">
             <div className="space-y-1.5">
               <div className="flex items-center gap-3">
-                <h2
-                  className={cn(
-                    "text-[28px] leading-relaxed pb-1 text-foreground mb-2 font-bold",
-                    getFontComboPageHeading(activeFontCombo).className,
-                  )}
-                  style={{
-                    fontFamily: getFontComboPageHeading(activeFontCombo).fontFamily,
-                    textTransform: "capitalize",
-                  }}
-                >
-                  Keybindings
-                </h2>
+                <SettingsPageTitle className="mb-2">Keybindings</SettingsPageTitle>
                 <span className="flex h-5 items-center justify-center rounded-full bg-primary/10 px-2 text-[11px] font-medium text-foreground">
                   {rows.length} {rows.length === 1 ? "binding" : "bindings"}
                 </span>

@@ -298,6 +298,7 @@ export function BrowserProfilesSettings() {
   });
 
   const [isAddingPortal, setIsAddingPortal] = useState(false);
+  const portalOpener = useRef<HTMLElement | null>(null);
   const [newPortalName, setNewPortalName] = useState("");
   const [newPortalUrl, setNewPortalUrl] = useState("");
 
@@ -811,7 +812,7 @@ export function BrowserProfilesSettings() {
                 </div>
 
                 <details className="group mt-3">
-                  <summary className="w-fit cursor-pointer rounded-sm text-xs text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-4">
+                  <summary className="w-fit cursor-pointer rounded-md text-xs text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-4">
                     Profile details<span className="sr-only"> for {profile.label}</span>
                   </summary>
                   <div className="mt-3 space-y-3">
@@ -1132,16 +1133,17 @@ export function BrowserProfilesSettings() {
           <div className="space-y-2">
             <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground uppercase tracking-wide">
               <span>Websites</span>
-              {!isAddingPortal && (
-                <button
-                  type="button"
-                  onClick={() => setIsAddingPortal(true)}
-                  className="text-xs text-foreground hover:underline font-normal normal-case flex items-center gap-1 cursor-pointer"
-                >
-                  <PlusIcon className="size-3" />
-                  Add website
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={(event) => {
+                  portalOpener.current = event.currentTarget;
+                  setIsAddingPortal(true);
+                }}
+                className="text-xs text-foreground hover:underline font-normal normal-case flex items-center gap-1 cursor-pointer"
+              >
+                <PlusIcon className="size-3" />
+                Add website
+              </button>
             </div>
 
             <div className="flex flex-wrap gap-2">
@@ -1162,34 +1164,60 @@ export function BrowserProfilesSettings() {
               ))}
             </div>
 
-            {isAddingPortal && (
-              <div className="flex items-center gap-2 p-2.5 bg-muted/40 border border-border/60 rounded-lg text-xs">
-                <Input
-                  value={newPortalName}
-                  onChange={(e) => setNewPortalName(e.target.value)}
-                  placeholder="Portal Name (e.g. Notion)"
-                  className="h-7 text-xs flex-1"
-                  autoFocus
-                />
-                <Input
-                  value={newPortalUrl}
-                  onChange={(e) => setNewPortalUrl(e.target.value)}
-                  placeholder="https://notion.so/login"
-                  className="h-7 text-xs flex-1"
-                />
-                <Button size="xs" onClick={handleAddCustomPortal} className="h-7 cursor-pointer">
-                  Save
-                </Button>
-                <Button
-                  size="xs"
-                  variant="ghost"
-                  onClick={() => setIsAddingPortal(false)}
-                  className="h-7 cursor-pointer"
+            <Dialog open={isAddingPortal} onOpenChange={setIsAddingPortal}>
+              <DialogContent
+                className="max-w-sm"
+                bottomStickOnMobile={false}
+                finalFocus={portalOpener}
+              >
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    handleAddCustomPortal();
+                  }}
                 >
-                  Cancel
-                </Button>
-              </div>
-            )}
+                  <DialogHeader>
+                    <DialogTitle>Add website</DialogTitle>
+                    <DialogDescription>
+                      Save a shortcut for signing in with this browser profile.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <DialogPanel className="space-y-4">
+                    <label className="block space-y-2 text-sm">
+                      <span>Website name</span>
+                      <Input
+                        value={newPortalName}
+                        onChange={(event) => setNewPortalName(event.target.value)}
+                        placeholder="Notion"
+                        autoFocus
+                        required
+                      />
+                    </label>
+                    <label className="block space-y-2 text-sm">
+                      <span>Website address</span>
+                      <Input
+                        value={newPortalUrl}
+                        onChange={(event) => setNewPortalUrl(event.target.value)}
+                        placeholder="notion.so/login"
+                        required
+                      />
+                    </label>
+                  </DialogPanel>
+                  <DialogFooter>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setIsAddingPortal(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button type="submit" disabled={!newPortalName.trim() || !newPortalUrl.trim()}>
+                      Save website
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
           </div>
 
           {/* Address Bar */}

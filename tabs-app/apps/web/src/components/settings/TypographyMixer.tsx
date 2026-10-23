@@ -11,10 +11,12 @@ export function TypographyMixer({
   fonts,
   onChange,
   onSave,
+  embedded = false,
 }: {
   fonts: FontPreferences;
   onChange: (fonts: FontPreferences) => void;
   onSave?: () => void;
+  embedded?: boolean;
 }) {
   const custom = prepareCustomFontPreferences(fonts);
   const roles = [
@@ -41,24 +43,36 @@ export function TypographyMixer({
     { key: "editorFont", label: "Editor font", description: "Code, terminals and diff views" },
   ] as const;
   return (
-    <div className="mx-4 my-2 rounded-xl border border-primary/40 bg-primary/5 p-4 space-y-3">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h4 className="text-xs font-semibold text-foreground">Your typography mix</h4>
-          <p className="mt-1 text-[11px] text-muted-foreground">
-            Keep the interface from one pairing, the headline from another, and choose your own
-            section voice.
-          </p>
+    <div
+      className={
+        embedded
+          ? "space-y-3"
+          : "mx-4 my-2 rounded-xl border border-primary/40 bg-primary/5 p-4 space-y-3"
+      }
+    >
+      {!embedded && (
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h4 className="text-xs font-semibold text-foreground">Your typography mix</h4>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Keep the interface from one pairing, the headline from another, and choose your own
+              section voice.
+            </p>
+          </div>
+          {onSave && (
+            <Button type="button" variant="outline" size="sm" onClick={onSave}>
+              Save this mix
+            </Button>
+          )}
         </div>
-        {onSave && (
-          <Button type="button" variant="outline" size="sm" onClick={onSave}>
-            Save this mix
-          </Button>
-        )}
-      </div>
+      )}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {roles.map(({ key, label, description }) => (
-          <div key={key} className="space-y-2 rounded-lg border border-border/60 bg-card/60 p-3">
+          <div
+            data-shape="preview"
+            key={key}
+            className="space-y-2 rounded-lg border border-border/60 bg-card/60 p-3"
+          >
             <label htmlFor={`typography-${key}`} className="block text-xs font-semibold">
               {label}
             </label>
@@ -66,6 +80,7 @@ export function TypographyMixer({
               {description}
             </p>
             <Select
+              items={key === "editorFont" ? EDITOR_FONT_OPTIONS : MIXER_FONT_OPTIONS}
               value={custom[key]}
               onValueChange={(value) => {
                 if (value) onChange({ ...custom, [key]: value });

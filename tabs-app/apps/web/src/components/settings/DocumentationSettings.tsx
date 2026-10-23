@@ -29,10 +29,8 @@ import { useMemo, useState, type ComponentType, type ReactNode } from "react";
 
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
-import { useTheme } from "~/hooks/useTheme";
-import { getActiveFontCombo, getFontComboPageHeading } from "~/lib/themes";
 import { cn } from "~/lib/utils";
-import { SettingsSection } from "./SettingsLayout";
+import { SettingsSection, SettingsPageTitle } from "./SettingsLayout";
 import { useSettingsViewState } from "~/state/scopedStateStore";
 
 export type DocCategory =
@@ -764,8 +762,6 @@ export function DocumentationSettings({
 }: {
   readonly onOpenSettingsSection?: (section: string) => void;
 }) {
-  const { fontPreferences } = useTheme();
-  const activeFontCombo = useMemo(() => getActiveFontCombo(fontPreferences), [fontPreferences]);
   const [, updateSettingsViewState] = useSettingsViewState();
 
   const [query, setQuery] = useState("");
@@ -817,18 +813,7 @@ export function DocumentationSettings({
       <div>
         <div className="space-y-1.5">
           <div className="flex items-center gap-2.5">
-            <h2
-              className={cn(
-                "text-[28px] leading-relaxed pb-1 text-foreground mb-2 font-bold",
-                getFontComboPageHeading(activeFontCombo).className,
-              )}
-              style={{
-                fontFamily: getFontComboPageHeading(activeFontCombo).fontFamily,
-                textTransform: "capitalize",
-              }}
-            >
-              Documentation
-            </h2>
+            <SettingsPageTitle className="mb-2">Documentation</SettingsPageTitle>
             <span className="rounded-full border border-border/60 bg-muted/60 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               Guides & Reference
             </span>

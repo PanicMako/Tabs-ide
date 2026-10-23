@@ -119,6 +119,7 @@ vi.mock("~/state/workspaceShell", () => ({
 import ExtensionsSettings from "./ExtensionsSettings";
 
 test("ExtensionsSettings: navigates views, manages focus on dialogs, and supports Escape cancellation in browser", async () => {
+  await page.viewport(1200, 1000);
   let cancelCount = 0;
   const confirmInstall = vi.fn(async () => sampleExtension);
   const mockBridge: Partial<DesktopBridge> = {
@@ -157,18 +158,70 @@ test("ExtensionsSettings: navigates views, manages focus on dialogs, and support
 
   await expect.element(installedTab).toBeVisible();
   await expect.element(discoverTab).toBeVisible();
+  // Extensions keep straight selection rails without changing the app's global shape tokens.
+  const browseStyle = getComputedStyle(discoverTab.element());
+  expect(browseStyle.borderRadius).toBe("0px");
+  expect(getComputedStyle(installedTab.element()).borderRadius).toBe("0px");
+  expect(getComputedStyle(installedTab.element()).borderBottomWidth).toBe("2px");
+  expect(
+    getComputedStyle(document.documentElement).getPropertyValue("--radius-surface").trim(),
+  ).toBe("36px");
   await expect
     .element(screen.getByRole("button", { name: "Profiles & Permissions" }))
     .not.toBeInTheDocument();
+  await expect
+    .poll(
+      () =>
+        screen.getByRole("list", { name: "Installed extensions" }).element().getBoundingClientRect()
+          .height,
+    )
+    .toBeLessThan(220);
   await screen.getByRole("button", { name: "Manage Dashboard" }).click();
+  await expect
+    .element(screen.getByRole("button", { name: "Selected projects", exact: false }))
+    .toHaveAttribute("aria-pressed", "true");
+  await expect
+    .element(screen.getByRole("button", { name: "Uninstall Dashboard" }))
+    .not.toBeInTheDocument();
+
+  for (const tab of screen.container.querySelectorAll<HTMLElement>(
+    ".installed-manage-nav > button",
+  )) {
+    expect(getComputedStyle(tab).borderRadius).toBe("0px");
+  }
+  const projectScope = screen.getByRole("button", { name: "Selected projects", exact: false });
+  expect(getComputedStyle(projectScope.element()).borderRadius).toBe("12px");
+  expect(
+    getComputedStyle(screen.container.querySelector(".installed-manage-hero")!).borderRadius,
+  ).toBe("12px");
+  await page.screenshot({
+    element: screen.container.querySelector(".extensions-settings")!,
+    path: "__screenshots__/extensions-shapes/installed.png",
+  });
 
   // Custom project controls preserve the native assignment contract.
   await screen
-    .getByRole("checkbox", { name: "Show Dashboard in Alpha Project", exact: true })
+    .getByRole("switch", { name: "Show Dashboard in Alpha Project", exact: true })
     .click();
   await expect
     .poll(() => mockBridge.setExtensionAssignment)
     .toHaveBeenCalledWith("acme.dashboard", expect.objectContaining({ enabledProjectIds: [] }));
+
+  await screen.getByRole("button", { name: "Advanced", exact: true }).click();
+  await expect
+    .element(screen.getByRole("switch", { name: "Show Dashboard in Alpha Project", exact: true }))
+    .not.toBeInTheDocument();
+
+  // Pin switch in Advanced tab toggles extension update pinning
+  const pinSwitch = screen.getByRole("switch", {
+    name: "Pin Dashboard at version 1.0.0",
+    exact: true,
+  });
+  await expect.element(pinSwitch).toBeVisible();
+  await pinSwitch.click();
+  await expect
+    .poll(() => mockBridge.setExtensionUpdatesPinned)
+    .toHaveBeenCalledWith("acme.dashboard", true);
 
   // Test uninstall flow with keyboard and focus restoration
   const uninstallButton = screen.getByRole("button", { name: "Uninstall Dashboard" });
@@ -181,6 +234,15 @@ test("ExtensionsSettings: navigates views, manages focus on dialogs, and support
   await expect.element(uninstallHeading).toBeVisible();
   expect(document.activeElement).toBe(uninstallHeading.element());
 
+  // Radio choices are rendered with "Retain" selected by default
+  const retainRadio = screen.getByRole("radio", { name: "Retain local data and profiles" });
+  await expect.element(retainRadio).toBeVisible();
+  await expect.element(retainRadio).toBeChecked();
+
+  const deleteRadio = screen.getByRole("radio", { name: "Delete local data and profiles" });
+  await expect.element(deleteRadio).toBeVisible();
+  await expect.element(deleteRadio).not.toBeChecked();
+
   // Cancel via Escape key
   await userEvent.keyboard("{Escape}");
 
@@ -189,9 +251,15 @@ test("ExtensionsSettings: navigates views, manages focus on dialogs, and support
   await expect.element(restoredUninstallButton).toBeVisible();
   await expect.poll(() => document.activeElement).toBe(restoredUninstallButton.element());
 
-  await screen.getByRole("button", { name: "Accounts & access", exact: true }).click();
+  const accountsTab = screen.getByRole("button", { name: "Accounts & access", exact: true });
+  await accountsTab.click();
+  await expect.element(accountsTab).toHaveAttribute("aria-pressed", "true");
+  await expect.element(screen.getByRole("button", { name: "Back to installed" })).toBeVisible();
   await expect
     .element(screen.getByRole("combobox", { name: "Default profile for Dashboard" }))
+    .toBeVisible();
+  await expect
+    .element(screen.getByRole("combobox", { name: "Dashboard profile for Alpha Project" }))
     .toBeVisible();
 
   const scope = screen.getByRole("combobox", { name: "Storage scope for new Dashboard profile" });
@@ -199,11 +267,27 @@ test("ExtensionsSettings: navigates views, manages focus on dialogs, and support
   await screen.getByRole("option", { name: "Isolated per project" }).click();
   await expect.element(scope).toHaveTextContent("Isolated per project");
 
+  await screen.getByRole("button", { name: "Projects", exact: true }).click();
+  await expect
+    .element(screen.getByRole("switch", { name: "Show Dashboard in Alpha Project", exact: true }))
+    .toBeVisible();
+
   await discoverTab.click();
   await expect.element(screen.getByRole("region", { name: "Browse extensions" })).toBeVisible();
 
   // Search Exchange
   const searchInput = screen.getByRole("textbox", { name: "Search Tabs Exchange extensions" });
+  expect(getComputedStyle(screen.container.querySelector(".extension-search")!).borderRadius).toBe(
+    "999px",
+  );
+  expect(
+    getComputedStyle(screen.container.querySelector(".extension-dev-panel")!).borderRadius,
+  ).toBe("24px");
+  for (const button of screen.container.querySelectorAll<HTMLElement>(
+    ".extension-dev-actions button",
+  )) {
+    expect(getComputedStyle(button).borderRadius).toBe("999px");
+  }
   await searchInput.fill("analytics");
   const searchButton = screen.getByRole("button", { name: "Search Exchange" });
   await searchButton.click();
@@ -224,27 +308,43 @@ test("ExtensionsSettings: navigates views, manages focus on dialogs, and support
   // Listing appears
   const reviewButton = screen.getByRole("button", { name: "Review & install Analytics Tool" });
   await expect.element(reviewButton).toBeVisible();
+  await page.screenshot({
+    element: screen.container.querySelector(".extensions-settings")!,
+    path: "__screenshots__/extensions-shapes/browse.png",
+  });
 
   // Click review
   await reviewButton.click();
 
-  // Review section heading receives focus
-  const reviewHeading = screen.getByRole("heading", { name: "Review Analytics Tool" });
+  // Confirmation opens in a focus-trapped dialog instead of below the marketplace.
+  const reviewHeading = screen.getByRole("heading", { name: "Install Analytics Tool?" });
   await expect.element(reviewHeading).toBeVisible();
+  await expect
+    .element(screen.getByRole("dialog", { name: "Install Analytics Tool?" }))
+    .toBeVisible();
   expect(document.activeElement).toBe(reviewHeading.element());
+
+  const technicalDetails = screen.getByRole("button", { name: "Technical details" });
+  await technicalDetails.click();
+  await expect.element(technicalDetails).toHaveAttribute("aria-expanded", "true");
+  await expect
+    .element(screen.getByText(samplePreparedInstall.digest, { exact: true }))
+    .toBeVisible();
+  await technicalDetails.click();
+  await expect.element(technicalDetails).toHaveAttribute("aria-expanded", "false");
 
   // Cancel via Escape key
   await userEvent.keyboard("{Escape}");
   expect(cancelCount).toBe(1);
   await expect
-    .element(screen.getByRole("heading", { name: "Review Analytics Tool" }))
+    .element(screen.getByRole("heading", { name: "Install Analytics Tool?" }))
     .not.toBeInTheDocument();
   await expect.poll(() => document.activeElement).toBe(reviewButton.element());
 
   // Escape must not cancel an install after confirmation has started.
   await reviewButton.click();
   confirmInstall.mockRejectedValueOnce(new Error("Verified installation could not be completed."));
-  await screen.getByRole("button", { name: "Install verified package" }).click();
+  await screen.getByRole("button", { name: "Install Analytics Tool", exact: true }).click();
   await expect
     .element(
       screen.getByText(
@@ -264,11 +364,11 @@ test("ExtensionsSettings: navigates views, manages focus on dialogs, and support
         finishConfirm = resolve;
       }),
   );
-  await screen.getByRole("button", { name: "Install verified package" }).click();
+  await screen.getByRole("button", { name: "Install Analytics Tool", exact: true }).click();
   await userEvent.keyboard("{Escape}");
   expect(cancelCount).toBe(1);
   await expect
-    .element(screen.getByRole("heading", { name: "Review Analytics Tool" }))
+    .element(screen.getByRole("heading", { name: "Install Analytics Tool?" }))
     .toBeVisible();
   finishConfirm(sampleExtension);
   await expect
@@ -321,10 +421,10 @@ test("Install resumes the verified review after first-time connection, without i
   await screen.getByLabelText("3. Confirm this registry").fill("https://exchange.example");
   await screen.getByRole("button", { name: "Trust & connect" }).click();
   await expect
-    .element(screen.getByRole("heading", { name: "Review Analytics Tool" }))
+    .element(screen.getByRole("heading", { name: "Install Analytics Tool?" }))
     .toBeVisible();
   expect(prepare).toHaveBeenCalledTimes(1);
   expect(confirm).not.toHaveBeenCalled();
-  await screen.getByRole("button", { name: "Cancel install" }).click();
+  await screen.getByRole("button", { name: "Cancel", exact: true }).click();
   delete (window as unknown as { desktopBridge?: unknown }).desktopBridge;
 });

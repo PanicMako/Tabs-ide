@@ -1,4 +1,5 @@
 import "../../index.css";
+import "./extensions-settings.css";
 import { expect, test, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 import { render } from "vitest-browser-react";
@@ -53,6 +54,18 @@ test("marketplace renders publisher descriptions safely, switches with keyboard,
   );
   const first = screen.getByRole("button", { name: "View Relay", exact: true });
   await first.click();
+  expect(getComputedStyle(first.element()).borderRadius).toBe("0px");
+  expect(getComputedStyle(first.element()).borderLeftWidth).toBe("2px");
+  const action = screen.container.querySelector<HTMLElement>(".market-detail-action button")!;
+  expect(getComputedStyle(action).borderRadius).toBe("999px");
+  for (const tab of screen.container.querySelectorAll<HTMLElement>(
+    ".market-detail-tabs > button",
+  )) {
+    expect(getComputedStyle(tab).borderRadius).toBe("0px");
+  }
+  expect(getComputedStyle(screen.container.querySelector(".market-browser")!).borderRadius).toBe(
+    "20px",
+  );
   await userEvent.keyboard("{ArrowDown}");
   await expect.element(screen.getByRole("heading", { name: "Focus overview" })).toBeVisible();
   finish({ type: "text/plain", data: "# Stale Relay content" });

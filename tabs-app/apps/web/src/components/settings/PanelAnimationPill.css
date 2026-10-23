@@ -10,7 +10,7 @@
   position: absolute;
   inset: 7px 0;
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: var(--radius-control);
   background: color-mix(in srgb, var(--muted) 65%, var(--background));
   pointer-events: none;
 }
@@ -45,7 +45,7 @@
   height: 38px;
   display: grid;
   place-items: center;
-  border-radius: 999px;
+  border-radius: var(--radius-control);
   background: var(--primary);
   color: var(--primary-foreground);
   font-family: var(--font-sans);
@@ -64,7 +64,7 @@
   appearance: none;
   background: transparent;
   cursor: ew-resize;
-  border-radius: 999px;
+  border-radius: var(--radius-control);
 }
 .panel-animation-pill input::-webkit-slider-runnable-track {
   height: 38px;

@@ -1,6 +1,7 @@
+import "./font-specimens.css";
 import { SegmentedControl } from "../ui/segmented-control";
 import { OrbitGroup } from "../ui/orbit-group";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { MonitorPlayIcon, RotateCcwIcon, SaveIcon, XIcon } from "lucide-react";
 import { DEFAULT_UNIFIED_SETTINGS } from "@tabs/contracts/settings";
@@ -15,7 +16,7 @@ import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../
 import { toastManager } from "../ui/toast";
 import { SplashScreen } from "../SplashScreen";
 import { CloseScreen } from "../CloseScreen";
-import { FONT_COMBOS, UI_FONT_OPTIONS } from "../../lib/themes";
+import { CURATED_FONT_COMBOS as FONT_COMBOS, UI_FONT_OPTIONS } from "../../lib/themes";
 import {
   SettingResetButton,
   SettingsHeaderPortal,
@@ -167,7 +168,7 @@ function ClosePreviewOverlay({ loader, palette, theme, fontComboId, customFont, 
 
 export function AnimationsSettings() {
   const { confirm } = useConfirm();
-  const { theme } = useTheme();
+  const { resolvedTheme } = useTheme();
   const settings = useSettings();
   const { updateSettings } = useUpdateSettings();
 
@@ -290,8 +291,21 @@ export function AnimationsSettings() {
   const [fullscreenClosePreview, setFullscreenClosePreview] = useState(false);
   const [fullscreenStartupPreview, setFullscreenStartupPreview] = useState(false);
 
-  const effectivePreviewTheme = previewTheme === "system" ? theme : previewTheme;
-  const effectiveClosePreviewTheme = closePreviewTheme === "system" ? theme : closePreviewTheme;
+  const effectivePreviewTheme = previewTheme === "system" ? resolvedTheme : previewTheme;
+  const effectiveClosePreviewTheme =
+    closePreviewTheme === "system" ? resolvedTheme : closePreviewTheme;
+  const previewViewport = useRef<HTMLDivElement>(null);
+  const [previewScale, setPreviewScale] = useState(0.5);
+  useLayoutEffect(() => {
+    const viewport = previewViewport.current;
+    if (!viewport) return;
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry) setPreviewScale(entry.contentRect.width / 1280);
+    });
+    observer.observe(viewport);
+    setPreviewScale(viewport.getBoundingClientRect().width / 1280);
+    return () => observer.disconnect();
+  }, []);
 
   const activeStyle = animationTab === "startup" ? previewStyle : closePreviewStyle;
   const setActiveStyle = animationTab === "startup" ? setPreviewStyle : setClosePreviewStyle;
@@ -396,7 +410,7 @@ export function AnimationsSettings() {
                 {animationTab === "startup" ? "Startup Animation" : "Close Animation"}
               </h3>
               <OrbitGroup
-                className="tabs-segmented flex rounded-full"
+                className="tabs-segmented inline-flex items-center rounded-full w-fit"
                 role="group"
                 aria-label="Animation preview"
               >
@@ -433,17 +447,20 @@ export function AnimationsSettings() {
             <div className="px-4 sm:px-5">
               <div className="relative mx-auto w-full max-w-2xl overflow-hidden rounded-xl border border-border shadow-sm">
                 <div
+                  ref={previewViewport}
+                  data-slot="animation-preview-viewport"
                   className={cn(
                     "aspect-video w-full relative overflow-hidden flex items-center justify-center transition-colors duration-300",
                     activeEffectiveTheme === "dark" ? "bg-[#09090b]" : "bg-white",
                   )}
                 >
                   <div
-                    className="absolute"
+                    data-slot="animation-preview-canvas"
+                    className="absolute left-0 top-0 origin-top-left"
                     style={{
                       width: "1280px",
                       height: "720px",
-                      transform: "scale(0.5)",
+                      transform: `scale(${previewScale})`,
                     }}
                   >
                     {animationTab === "startup" ? (
@@ -451,14 +468,18 @@ export function AnimationsSettings() {
                         key={startupReplayKey}
                         loader={activeStyle}
                         palette={activePalette}
-                        theme={activeTheme}
+                        theme={activeEffectiveTheme}
+                        fontComboId={activeFontComboId}
+                        customFont={activeCustomFont}
                       />
                     ) : (
                       <CloseScreen
                         key={closeReplayKey}
                         loader={activeStyle}
                         palette={activePalette}
-                        theme={activeTheme}
+                        theme={activeEffectiveTheme}
+                        fontComboId={activeFontComboId}
+                        customFont={activeCustomFont}
                         phase="closing"
                         onIntroEnd={() => {}}
                       />
@@ -504,7 +525,7 @@ export function AnimationsSettings() {
               description={`Choose the visual aesthetic for the ${animationTab} animation.`}
               control={
                 <OrbitGroup
-                  className="tabs-segmented flex rounded-full"
+                  className="tabs-segmented inline-flex items-center rounded-full w-fit"
                   role="group"
                   aria-label="Animation style"
                 >
@@ -536,7 +557,7 @@ export function AnimationsSettings() {
               description={`Choose the color palette for the ${animationTab} animation.`}
               control={
                 <OrbitGroup
-                  className="tabs-segmented flex rounded-full"
+                  className="tabs-segmented inline-flex items-center rounded-full w-fit"
                   role="group"
                   aria-label="Animation palette"
                 >
@@ -753,18 +774,21 @@ export function AnimationsSettings() {
                 </div>
               )}
 
-              <div className="p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 border-t border-border/40">
+              <div className="font-specimen-grid border-t border-border/40">
                 {FONT_COMBOS.filter((c) => !c.isNeutral).map((combo) => {
                   const isActive = activeFontComboId === combo.id;
                   return (
                     <button
+                      data-shape="preview"
                       key={combo.id}
                       type="button"
+                      aria-pressed={isActive}
+                      aria-label={`Select ${combo.name}: ${combo.desc}`}
                       onClick={() => {
                         setActiveFontComboId(combo.id);
                       }}
                       className={cn(
-                        "group relative flex flex-col items-start rounded-xl border p-3.5 text-left transition-all duration-200 cursor-pointer overflow-hidden",
+                        "font-specimen-card group relative flex flex-col items-start rounded-xl border p-3.5 text-left transition-all duration-200 cursor-pointer overflow-hidden",
                         isActive
                           ? "border-primary bg-primary/5 shadow-[0_0_0_1px_hsl(var(--primary)/0.3),0_4px_20px_hsl(var(--primary)/0.15)]"
                           : "border-border/70 bg-card hover:border-border hover:shadow-md hover:scale-[1.02]",
@@ -786,20 +810,29 @@ export function AnimationsSettings() {
                         </div>
                       )}
 
-                      <div className="mb-3 leading-none">
+                      <div data-slot="font-specimen" className="mb-3 w-full min-w-0 leading-none">
                         <span
                           className={cn("text-[26px] leading-none", combo.sansClass)}
                           style={{
-                            fontFamily: combo.uiFont !== "custom" ? combo.uiFont : undefined,
+                            fontFamily: combo.headingOnly
+                              ? combo.headingFont
+                              : combo.uiFont !== "custom"
+                                ? combo.uiFont
+                                : undefined,
+                            fontWeight: combo.typography?.headingWeight,
                           }}
                         >
                           {combo.sansText}
                         </span>
+                        <wbr />
                         <span
                           className={cn("text-[26px] leading-none", combo.serifClass)}
                           style={{
                             fontFamily:
-                              combo.headingFont !== "custom" ? combo.headingFont : undefined,
+                              combo.typography?.specimenFont ??
+                              (combo.headingFont !== "custom" ? combo.headingFont : undefined),
+                            fontWeight: combo.typography?.specimenWeight,
+                            fontStyle: combo.typography?.specimenStyle,
                           }}
                         >
                           {combo.serifText}
@@ -808,7 +841,12 @@ export function AnimationsSettings() {
                           <span
                             className={cn("text-[26px] leading-none block", combo.sansClass)}
                             style={{
-                              fontFamily: combo.uiFont !== "custom" ? combo.uiFont : undefined,
+                              fontFamily: combo.headingOnly
+                                ? combo.headingFont
+                                : combo.uiFont !== "custom"
+                                  ? combo.uiFont
+                                  : undefined,
+                              fontWeight: combo.typography?.headingWeight,
                             }}
                           >
                             {combo.sansText2}
@@ -816,7 +854,7 @@ export function AnimationsSettings() {
                         ) : null}
                       </div>
 
-                      <div className="mt-auto w-full pt-1 border-t border-border/30 flex items-center justify-between">
+                      <div className="font-specimen-meta mt-auto w-full pt-4 border-t border-border/30 flex items-center justify-between gap-3">
                         <div>
                           <div
                             className={cn(
@@ -826,7 +864,7 @@ export function AnimationsSettings() {
                           >
                             {combo.name}
                           </div>
-                          <div className="text-[10px] text-muted-foreground/70 leading-tight">
+                          <div className="text-xs text-muted-foreground leading-relaxed">
                             {combo.desc}
                           </div>
                         </div>

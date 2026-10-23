@@ -1,0 +1,51 @@
+/* Shared specimen spacing for application and animation typography pickers. */
+.font-specimen-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  padding: 16px;
+}
+
+.font-specimen-card {
+  min-width: 0;
+  min-height: 168px;
+  padding: 14px;
+}
+
+.font-specimen-card [data-slot="font-specimen"] {
+  min-width: 0;
+  min-height: 64px;
+  margin-bottom: 12px;
+  padding-right: 8px;
+  overflow-wrap: anywhere;
+}
+
+.font-specimen-card [data-slot="font-specimen"] div,
+.font-specimen-card [data-slot="font-specimen"] span {
+  font-size: 24px;
+  line-height: 1.1;
+}
+
+.font-specimen-meta {
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  .font-specimen-grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr));
+    gap: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .font-specimen-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    padding: 12px;
+  }
+}
+
+.font-specimen-card:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 4px;
+}

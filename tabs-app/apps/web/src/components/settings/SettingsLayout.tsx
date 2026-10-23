@@ -152,7 +152,7 @@ export function SettingResetButton({ label, onClick }: { label: string; onClick:
             size="icon-xs"
             variant="ghost"
             aria-label={`Reset ${label} to default`}
-            className="size-5 rounded-sm p-0 text-muted-foreground hover:text-foreground cursor-pointer"
+            className="size-5 rounded-full p-0 text-muted-foreground hover:text-foreground cursor-pointer"
             onClick={(event) => {
               event.stopPropagation();
               onClick();
@@ -179,42 +179,58 @@ export function SettingResetButton({ label, onClick }: { label: string; onClick:
   );
 }
 
+/** Shared page title so standalone settings pages use the same typography as section headers. */
+export function SettingsPageTitle({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  const { fontPreferences } = useTheme();
+  const pageHeading = getFontComboPageHeading(getActiveFontCombo(fontPreferences), fontPreferences);
+  return (
+    <h2
+      data-slot="settings-page-title"
+      className={cn(
+        "text-[28px] leading-relaxed pb-1 text-foreground font-bold",
+        pageHeading.className,
+        className,
+      )}
+      style={{
+        fontFamily: pageHeading.fontFamily,
+        fontSize: pageHeading.fontSize,
+        fontWeight: pageHeading.fontWeight,
+        letterSpacing: pageHeading.letterSpacing,
+        textTransform: pageHeading.textTransform,
+      }}
+    >
+      {children}
+    </h2>
+  );
+}
+
 export function SettingsSectionHeader({
   title,
   description,
   actions,
+  preTitle,
 }: {
   title: string;
   description: ReactNode;
   actions?: ReactNode;
+  preTitle?: ReactNode;
 }) {
   const editorial = useSettingsLabsStore((state) => state.editorialSettings);
-  const { fontPreferences } = useTheme();
-  const activeFontCombo = useMemo(() => getActiveFontCombo(fontPreferences), [fontPreferences]);
-  const pageHeading = useMemo(
-    () => getFontComboPageHeading(activeFontCombo, fontPreferences),
-    [activeFontCombo, fontPreferences],
-  );
 
   return (
     <div data-slot="settings-page-header">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="min-w-0 flex-1 space-y-1.5">
-          <h2
-            data-slot="settings-page-title"
-            className={cn(
-              "text-[28px] leading-relaxed pb-1 text-foreground mb-2 font-bold",
-              pageHeading.className,
-            )}
-            style={{
-              fontFamily: pageHeading.fontFamily,
-              fontWeight: pageHeading.fontWeight,
-              letterSpacing: pageHeading.letterSpacing,
-              textTransform: pageHeading.textTransform,
-            }}
-          >
-            {title}
-          </h2>
+          <div className="flex items-center gap-3 flex-wrap">
+            {preTitle}
+            <SettingsPageTitle>{title}</SettingsPageTitle>
+          </div>
         </div>
         {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
       </div>

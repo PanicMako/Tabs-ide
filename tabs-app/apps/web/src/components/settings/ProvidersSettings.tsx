@@ -1,3 +1,4 @@
+import { SettingsPageTitle } from "./SettingsLayout";
 import { providerNextAction, isProviderDetectionPending } from "./providerNextAction";
 import { ProviderFocusBar, type ProviderView } from "./ProviderFocusBar";
 import { AntigravityAccount } from "./AntigravityAccount";
@@ -75,11 +76,9 @@ import {
 import { RedactedSensitiveText } from "./RedactedSensitiveText";
 import { toastManager } from "~/components/ui/toast";
 import { useSettings, useUpdateSettings } from "~/hooks/useSettings";
-import { useTheme } from "~/hooks/useTheme";
 import { useServerConfig } from "~/state/settings";
 import { useSettingsViewState } from "~/state/scopedStateStore";
 import { useCopyToClipboard } from "~/hooks/useCopyToClipboard";
-import { getActiveFontCombo, getFontComboPageHeading } from "~/lib/themes";
 import { readNativeApi } from "~/nativeApi";
 import { cn } from "~/lib/utils";
 import { formatRelativeTime } from "~/timestampFormat";
@@ -680,8 +679,6 @@ export default function ProvidersSettings(props: ProvidersSettingsProps) {
   const serverConfig = useServerConfig();
   const serverProviders =
     props.serverProviders ?? serverConfig?.providers ?? EMPTY_SERVER_PROVIDERS;
-  const { fontPreferences } = useTheme();
-  const activeFontCombo = useMemo(() => getActiveFontCombo(fontPreferences), [fontPreferences]);
   const { copyToClipboard } = useCopyToClipboard<{ providerName: string }>();
 
   const [settingsViewState, updateSettingsViewState] = useSettingsViewState();
@@ -1001,19 +998,7 @@ export default function ProvidersSettings(props: ProvidersSettingsProps) {
       <div data-slot="settings-page-header">
         <div className="flex items-start justify-between">
           <div className="space-y-1.5">
-            <h2
-              data-slot="settings-page-title"
-              className={cn(
-                "text-[28px] leading-relaxed pb-1 text-foreground mb-2 font-bold",
-                getFontComboPageHeading(activeFontCombo, fontPreferences).className,
-              )}
-              style={{
-                fontFamily: getFontComboPageHeading(activeFontCombo, fontPreferences).fontFamily,
-                textTransform: "capitalize",
-              }}
-            >
-              Providers
-            </h2>
+            <SettingsPageTitle className="mb-2">Providers</SettingsPageTitle>
             <p className="text-sm text-muted-foreground">
               Connect your agents. Choose a provider to manage access and models.
             </p>
@@ -1229,7 +1214,7 @@ export default function ProvidersSettings(props: ProvidersSettingsProps) {
                 <Button
                   size="icon-xs"
                   variant="ghost"
-                  className="size-5 rounded-sm p-0 text-muted-foreground hover:text-foreground cursor-pointer"
+                  className="size-5 rounded-full p-0 text-muted-foreground hover:text-foreground cursor-pointer"
                   disabled={isRefreshingProviders}
                   onClick={() => void refreshProviders()}
                   aria-label="Refresh provider status"
