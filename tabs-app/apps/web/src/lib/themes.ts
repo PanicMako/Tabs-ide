@@ -653,6 +653,34 @@ export const UI_FONT_OPTIONS = [
 ] as const;
 
 export const HEADING_FONT_OPTIONS = [
+  { value: "'KS Bistra', sans-serif", label: "KS Bistra" },
+  { value: "'Pavot', sans-serif", label: "Pavot" },
+  { value: "'Exotica', sans-serif", label: "Exotica" },
+  { value: "'Northern', sans-serif", label: "Northern" },
+  { value: "'ZT Otez', serif", label: "ZT Otez" },
+  { value: "'Aicon', sans-serif", label: "Aicon" },
+  { value: "'Mirano', sans-serif", label: "Mirano" },
+  { value: "'Culont', sans-serif", label: "Culont" },
+  { value: "'Hebdomadal', sans-serif", label: "Hebdomadal" },
+  { value: "'Ductile Display', sans-serif", label: "Ductile Display" },
+  { value: "'Mantranaga 36DOT', sans-serif", label: "Mantranaga 36DOT" },
+  { value: "'Nafile', sans-serif", label: "Nafile" },
+  { value: "'Halo Grotesk', sans-serif", label: "Halo Grotesk" },
+  { value: "'Nauryz Redkeds', sans-serif", label: "Nauryz Redkeds" },
+  { value: "'Angst', sans-serif", label: "Angst" },
+  { value: "'Angst Serif', serif", label: "Angst Serif" },
+  { value: "'Equilla', serif", label: "Equilla" },
+  { value: "'Deserta', sans-serif", label: "Deserta" },
+  { value: "'Darker Grotesque', sans-serif", label: "Darker Grotesque" },
+  { value: "'Arck', serif", label: "Arck" },
+  { value: "'Moche', sans-serif", label: "Moche" },
+  { value: "'Urbanist', sans-serif", label: "Urbanist" },
+  { value: "'Sato Sans', sans-serif", label: "Sato Sans" },
+  { value: "'Rebel Type Dog', sans-serif", label: "Rebel Type Dog" },
+  { value: "'Hashira Mt', serif", label: "Hashira Mt" },
+  { value: "'Neutral Face', sans-serif", label: "Neutral Face" },
+  { value: "'Stigma', serif", label: "Stigma" },
+  { value: "'Sun Seed', sans-serif", label: "Sun Seed" },
   { value: "'Newsreader', serif", label: "Newsreader (Default)" },
   { value: "system-ui", label: "Match Interface Font" },
   { value: "'Instrument Serif', serif", label: "Instrument Serif" },
@@ -715,6 +743,54 @@ export interface FontCombo {
   /** If true, show as a small neutral pill rather than a big personality card */
   isNeutral?: boolean;
   typography?: FontComboTypography;
+  /** New collection presets affect heading roles only. */
+  headingOnly?: boolean;
+  fonts?: Pick<FontPreferences, "sectionFont" | "supportingFont" | "editorFont">;
+}
+
+function headingCombo(
+  id: string,
+  name: string,
+  headingFont: string,
+  headingWeight: number,
+  accentFont: string,
+  accentWeight: number,
+  accentStyle: "normal" | "italic",
+  sansText: string,
+  serifText: string,
+): FontCombo {
+  return {
+    id,
+    name,
+    headingFont,
+    desc: `${headingFont.split(",")[0]!.replaceAll("'", "")} + ${accentFont.split(",")[0]!.replaceAll("'", "")}`,
+    tag: "HEADINGS",
+    uiFont: "'Manrope', sans-serif",
+    sansText,
+    serifText,
+    sansClass: "normal-case",
+    serifClass: "normal-case",
+    headingOnly: true,
+    typography: {
+      headingWeight,
+      headingTracking: "0em",
+      headingTransform: "none",
+      sectionFont: accentFont,
+      sectionWeight: accentWeight,
+      sectionStyle: accentStyle,
+      sectionTransform: "none",
+      sectionTracking: "0em",
+      rowFont: "'Manrope', sans-serif",
+      rowWeight: 600,
+      controlsFont: "'Manrope', sans-serif",
+      metadataFont: "'Manrope', sans-serif",
+      specimenFont: accentFont,
+      specimenWeight: accentWeight,
+      specimenStyle: accentStyle,
+      supportingFont: "'Manrope', sans-serif",
+      supportingStyle: "normal",
+    },
+  };
 }
 
 export const FONT_COMBOS: FontCombo[] = [
@@ -1041,7 +1117,7 @@ export const FONT_COMBOS: FontCombo[] = [
   },
   {
     id: "syne-dropped",
-    name: "Syne Dropped",
+    name: "Abstract Forms",
     desc: "Syne + Newsreader",
     tag: "BRUTAL",
     uiFont: "'Syne', sans-serif",
@@ -1052,7 +1128,145 @@ export const FONT_COMBOS: FontCombo[] = [
     sansClass: "font-extrabold tracking-tighter lowercase",
     serifClass: "italic font-normal normal-case",
   },
+  {
+    ...headingCombo(
+      "studio-signal",
+      "Studio Signal",
+      "'Coconat', serif",
+      700,
+      "'Sun Seed', sans-serif",
+      300,
+      "normal",
+      "studio",
+      "signal",
+    ),
+    headingOnly: false,
+    uiFont: "'Syne', sans-serif",
+    desc: "Coconat + Sun Seed + Syne",
+    tag: "STUDIO",
+    typography: {
+      headingWeight: 700,
+      headingTracking: "-.04em",
+      headingTransform: "none",
+      sectionFont: "'Sun Seed', sans-serif",
+      sectionWeight: 300,
+      sectionStyle: "normal",
+      sectionTransform: "none",
+      sectionTracking: "-.015em",
+      rowFont: "'Syne', sans-serif",
+      rowWeight: 700,
+      controlsFont: "'Syne', sans-serif",
+      metadataFont: "'Syne', sans-serif",
+      specimenFont: "'Sun Seed', sans-serif",
+      specimenWeight: 300,
+      specimenStyle: "normal",
+      supportingFont: "'Syne', sans-serif",
+      supportingStyle: "normal",
+    },
+    fonts: {
+      sectionFont: "'Sun Seed', sans-serif",
+      supportingFont: "'Syne', sans-serif",
+      editorFont: "Menlo, Monaco, 'Courier New', monospace",
+    },
+  },
+  headingCombo(
+    "bistra-signal",
+    "Bistra Signal",
+    "'KS Bistra', sans-serif",
+    400,
+    "'Sato Sans', sans-serif",
+    500,
+    "normal",
+    "clear",
+    "signal",
+  ),
+  headingCombo(
+    "pavot-motion",
+    "Exotica Motion",
+    "'Exotica', sans-serif",
+    400,
+    "'Arck', serif",
+    400,
+    "normal",
+    "exotica",
+    "motion",
+  ),
+  headingCombo(
+    "otez-contrast",
+    "Moche Urbanist",
+    "'Moche', sans-serif",
+    400,
+    "'Urbanist', sans-serif",
+    700,
+    "normal",
+    "moche",
+    "urbanist",
+  ),
+  headingCombo(
+    "aicon-grid",
+    "Aicon Grid",
+    "'Aicon', sans-serif",
+    600,
+    "'Rebel Type Dog', sans-serif",
+    400,
+    "normal",
+    "digital",
+    "grid",
+  ),
+  headingCombo(
+    "mirano-flow",
+    "Mirano Flow",
+    "'Mirano', sans-serif",
+    300,
+    "'Nafile', sans-serif",
+    400,
+    "normal",
+    "mirano",
+    "flow",
+  ),
+  headingCombo(
+    "culont-curve",
+    "Culont Curve",
+    "'Culont', sans-serif",
+    400,
+    "'Equilla', serif",
+    400,
+    "normal",
+    "culont",
+    "curve",
+  ),
+  headingCombo(
+    "hebdomadal-shift",
+    "Hebdomadal Shift",
+    "'Hebdomadal', sans-serif",
+    400,
+    "'Neutral Face', sans-serif",
+    400,
+    "normal",
+    "hebdomadal",
+    "shift",
+  ),
+  headingCombo(
+    "ductile-motion",
+    "Hashira Modular",
+    "'Hashira Mt', serif",
+    400,
+    "'Halo Grotesk', sans-serif",
+    400,
+    "normal",
+    "hashira",
+    "beauty",
+  ),
 ];
+
+/** Visible collection; retired definitions remain above for saved-setting compatibility. */
+export const CURATED_FONT_COMBOS = FONT_COMBOS.filter(
+  (combo) =>
+    (combo.isNeutral && combo.id !== "custom") ||
+    combo.id === "syne-dropped" ||
+    combo.id === "studio-signal" ||
+    combo.headingOnly,
+);
 
 // Upgrade only exact retired preset pairs; preserve custom choices, sizes and editor font.
 const PREVIOUS_FONT_COMBOS = [
@@ -1086,6 +1300,19 @@ const PREVIOUS_FONT_COMBOS = [
 ] as const;
 export function upgradeFontPreferences(fonts: FontPreferences): FontPreferences {
   if (fonts.sectionFont || fonts.supportingFont) return fonts;
+  if (fonts.headingFont === "'Northern', sans-serif") {
+    return { ...fonts, headingFont: "'Exotica', sans-serif" };
+  }
+  if (fonts.headingFont === "'ZT Otez', serif") {
+    return { ...fonts, headingFont: "'Moche', sans-serif" };
+  }
+  if (
+    fonts.headingFont === "'Ductile Display', sans-serif" ||
+    fonts.headingFont === "'Mantranaga 36DOT', sans-serif" ||
+    fonts.headingFont === "'Darker Grotesque', sans-serif"
+  ) {
+    return { ...fonts, headingFont: "'Hashira Mt', serif" };
+  }
   const previous = PREVIOUS_FONT_COMBOS.find(
     ([ui, heading]) => ui === fonts.uiFont && heading === fonts.headingFont,
   );
@@ -1103,6 +1330,17 @@ export function getFontComboPageHeading(combo: FontCombo, fonts?: FontPreference
   return {
     className: keepInterfaceHeading ? combo.sansClass : combo.serifClass,
     fontFamily: keepInterfaceHeading ? "var(--font-sans)" : "var(--font-display)",
+    fontSize: [
+      "'Hebdomadal', sans-serif",
+      "'Culont', sans-serif",
+      "'KS Bistra', sans-serif",
+      "'Exotica', sans-serif",
+      "'Mirano', sans-serif",
+      "'Darker Grotesque', sans-serif",
+      "'Hashira Mt', serif",
+    ].includes(fonts?.headingFont ?? combo.headingFont)
+      ? "40px"
+      : undefined,
     ...(typography
       ? {
           fontWeight: typography.headingWeight,
@@ -1114,6 +1352,19 @@ export function getFontComboPageHeading(combo: FontCombo, fonts?: FontPreference
 }
 
 export function getActiveFontCombo(fonts: FontPreferences): FontCombo {
+  const fullPreset = FONT_COMBOS.find(
+    (combo) =>
+      combo.fonts &&
+      combo.uiFont === fonts.uiFont &&
+      combo.headingFont === fonts.headingFont &&
+      combo.fonts.sectionFont === fonts.sectionFont &&
+      combo.fonts.supportingFont === fonts.supportingFont,
+  );
+  if (fullPreset) return fullPreset;
+  const headingPreset =
+    !fonts.sectionFont &&
+    FONT_COMBOS.find((combo) => combo.headingOnly && combo.headingFont === fonts.headingFont);
+  if (headingPreset) return headingPreset;
   if (fonts.sectionFont || fonts.supportingFont) return FONT_COMBOS.find((c) => c.id === "custom")!;
   const match = FONT_COMBOS.find(
     (c) => c.uiFont === fonts.uiFont && c.headingFont === fonts.headingFont,
@@ -1131,7 +1382,9 @@ export function resolveFontTypography(fonts: FontPreferences) {
   const section = FONT_COMBOS.find((c) => c.typography?.sectionFont === sectionFont)?.typography;
   const isSerifSection =
     sectionFont.includes("Newsreader") || sectionFont.includes("Instrument Serif");
-  const supportingFont = fonts.supportingFont ?? preset?.supportingFont ?? fonts.uiFont;
+  const supportingFont =
+    fonts.supportingFont ??
+    (combo.headingOnly ? fonts.uiFont : (preset?.supportingFont ?? fonts.uiFont));
   return {
     headingWeight:
       display?.headingWeight ??
@@ -1151,10 +1404,12 @@ export function resolveFontTypography(fonts: FontPreferences) {
           : ("normal" as const),
     sectionTransform: preset && !fonts.sectionFont ? preset.sectionTransform : ("none" as const),
     sectionTracking: preset && !fonts.sectionFont ? preset.sectionTracking : "-.015em",
-    rowFont: preset?.rowFont ?? fonts.uiFont,
-    rowWeight: preset?.rowWeight ?? 700,
-    controlsFont: preset?.controlsFont ?? fonts.uiFont,
-    metadataFont: preset?.metadataFont ?? fonts.uiFont,
+    rowFont: combo.headingOnly || combo.fonts ? fonts.uiFont : (preset?.rowFont ?? fonts.uiFont),
+    rowWeight: combo.headingOnly || combo.fonts ? 700 : (preset?.rowWeight ?? 700),
+    controlsFont:
+      combo.headingOnly || combo.fonts ? fonts.uiFont : (preset?.controlsFont ?? fonts.uiFont),
+    metadataFont:
+      combo.headingOnly || combo.fonts ? fonts.uiFont : (preset?.metadataFont ?? fonts.uiFont),
     supportingFont,
     supportingStyle: fonts.supportingFont
       ? supportingFont.includes("Newsreader") || supportingFont.includes("Instrument Serif")
@@ -1174,14 +1429,17 @@ export function prepareCustomFontPreferences(fonts: FontPreferences): FontPrefer
   };
 }
 
-/** Selecting a preset clears independent overrides, preserving sizes and code font. */
+/** Heading presets preserve body/code preferences; full presets apply their explicit roles. */
 export function selectFontCombo(fonts: FontPreferences, combo: FontCombo): FontPreferences {
+  if (combo.headingOnly)
+    return { ...fonts, headingFont: combo.headingFont, sectionFont: undefined };
   return {
     ...fonts,
     uiFont: combo.uiFont,
     headingFont: combo.headingFont,
     sectionFont: undefined,
     supportingFont: undefined,
+    ...combo.fonts,
   };
 }
 
