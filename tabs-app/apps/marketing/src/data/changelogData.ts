@@ -21,15 +21,39 @@ export interface ChangelogRelease {
   }[];
 }
 
-export const TOTAL_TAGS_COUNT = 179;
+export const TOTAL_TAGS_COUNT = 180;
 
 export const changelogData: ChangelogRelease[] = [
+  {
+    tag: "v2.0.3",
+    title: "Curated workspace typography and upstream editor sync",
+    date: "October 23, 2026",
+    shortDate: "Oct 23",
+    isLatest: true,
+    type: "patch",
+    summary:
+      "Ten handcrafted typography presets across workspace themes and setup walkthrough, live optical sizing and licensing previews, and upstream Code-OSS editor engine sync.",
+    highlights: [
+      "Personalize workspace aesthetics with ten bespoke typography pairings featuring Halo Grotesk, Nauryz Redkeds, Exotica, Mantranaga 36dot, Angst, Equilla, Deserta, Arck, Darker Grotesque, Moche, Urbanist, Sato Sans, Rebel Type Dog, Neutral Face, Hashira Mt, Stigma, and Sun Seed.",
+      "Preview typography selections live in the setup walkthrough with accurate weights, optical sizes, and integrated open font licensing.",
+      "Upgrade the embedded Code-OSS editor engine with upstream improvements to editor rendering, platform services, and workbench contributions.",
+      "Improve Agent Sessions layout responsiveness and titlebar appearance during multi-pane navigation.",
+    ],
+    categories: [
+      {
+        title: "Upgrade notes",
+        items: [
+          "macOS builds are ad-hoc signed and update via the built-in preview updater. When opening a fresh manual download on macOS for the first time, use System Settings → Privacy & Security → Open Anyway.",
+        ],
+      },
+    ],
+  },
   {
     tag: "v2.0.2",
     title: "Code-OSS 1.142.0 runtime and startup polish",
     date: "October 21, 2026",
     shortDate: "Oct 21",
-    isLatest: true,
+    isLatest: false,
     type: "patch",
     summary:
       "Embedded Code-OSS runtime upgrade to VS Code 1.142.0 with native host coordination, completed startup tile sequence with upward reveal, backend listener authentication handshake, and automatic Exchange metadata renewal.",

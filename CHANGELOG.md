@@ -2,6 +2,56 @@
 
 All notable changes to Tabs IDE will be documented in this file.
 
+## [v2.0.3] - 2026-10-23
+
+Tabs 2.0.3 introduces ten distinctive, handcrafted typography presets across the setup experience and workspace, alongside upstream Code-OSS editor engine updates for enhanced performance and rendering stability.
+
+### What changed
+
+- Personalize workspace aesthetics with ten bespoke typography pairings featuring Halo Grotesk, Nauryz Redkeds, Exotica, Mantranaga 36dot, Angst, Equilla, Deserta, Arck, Darker Grotesque, Moche, Urbanist, Sato Sans, Rebel Type Dog, Neutral Face, Hashira Mt, Stigma, and Sun Seed.
+- Preview typography selections live in the setup walkthrough with accurate weights, optical sizes, and integrated open font licensing.
+- Upgrade the embedded Code-OSS editor engine with upstream improvements to editor rendering, platform services, and workbench contributions.
+- Improve Agent Sessions layout responsiveness and titlebar appearance during multi-pane navigation.
+
+### Upgrade notes
+
+macOS builds are ad-hoc signed and update via the built-in preview updater. When opening a fresh manual download on macOS for the first time, use System Settings → Privacy & Security → Open Anyway.
+
+## [v2.0.2] - 2026-10-21
+
+Tabs 2.0.2 upgrades the embedded Code-OSS editor runtime to VS Code 1.142.0 with complete native host coordination, refines the startup experience with a full tile sequence and smooth reveal, resolves cold-launch authentication timing, and ensures approved extensions remain available with automatic metadata renewal.
+
+### What changed
+
+- Upgrade the embedded Code-OSS runtime to VS Code 1.142.0, supporting active editor state coordination, cancellation-aware native ZIP archiving, and GPU compositing detection.
+- Preserve new-session composer drafts and reveal targets across Agents window handoffs while keeping focus-only window reuses undisturbed.
+- Allow the airport flip-board animation to complete its full tile settle and highlight sequence before smoothly sliding upward to reveal the ready workspace.
+- Synchronize startup loading concurrently behind the splash screen so elapsed animation time never fakes readiness, and respect reduced-motion preference changes.
+- Wait for the local backend listener before initiating desktop authentication, eliminating cold-start connection-refused errors and reconnect delays.
+- Keep approved extensions continuously available with automatic metadata renewal across sleeping and waking servers.
+- Display verified publisher seals and expanded click targets on marketplace extension cards.
+
+### Upgrade notes
+
+macOS builds are ad-hoc signed and update via the built-in preview updater. When opening a fresh manual download on macOS for the first time, use System Settings → Privacy & Security → Open Anyway.
+
+## [v2.0.1] - 2026-10-20
+
+Tabs 2.0.1 refines extension tools with package icons, per-project workspace tool visibility, restored Git staging actions, and verified Linux desktop backend startup.
+
+### What changed
+
+- Manage installed extensions with package logos, detail previews, and installation review in the Extensions settings view.
+- Choose which extension tools appear in the workspace toolbar for each project from Project Workspace Settings.
+- Remember the selected extension tool across project switches, and retry extension tool panels safely if an error occurs.
+- Stage and unstage files reliably with restored Git staging controls and acknowledged action progress in the Git workspace.
+- Start the bundled workspace backend reliably on Linux AppImage installations.
+- Package native dependencies accurately for each target desktop architecture.
+
+### Upgrade notes
+
+macOS builds are ad-hoc signed and update via the built-in preview updater. When opening a fresh manual download on macOS for the first time, use System Settings → Privacy & Security → Open Anyway.
+
 ## [v2.0.0] - 2026-10-16
 
 Tabs brings conversations, queued work, project tools and source control into a shared workspace. This release also introduces the Exchange developer ecosystem and more focused appearance controls.
