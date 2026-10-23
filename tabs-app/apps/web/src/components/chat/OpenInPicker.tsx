@@ -127,6 +127,7 @@ export const OpenInPicker = memo(function OpenInPicker({
 
   return (
     <div
+      data-slot="joined-control"
       ref={anchorRef}
       role="group"
       aria-label="Editor actions"
@@ -140,7 +141,7 @@ export const OpenInPicker = memo(function OpenInPicker({
               disabled={!preferredEditor || !openInCwd}
               onClick={() => openInEditor(preferredEditor)}
               aria-label={primaryOption ? `Open in ${primaryOption.label}` : "Open in editor"}
-              className="flex h-full flex-1 items-center justify-start gap-2 rounded-l-[10px] px-2.5 text-xs font-medium text-foreground hover:bg-accent/50 transition-colors disabled:opacity-40 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring min-w-0"
+              className="flex h-full flex-1 items-center justify-start gap-2 rounded-l-lg px-2.5 text-xs font-medium text-foreground hover:bg-accent/50 transition-colors disabled:opacity-40 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring min-w-0"
             />
           }
         >
@@ -166,7 +167,7 @@ export const OpenInPicker = memo(function OpenInPicker({
             <button
               type="button"
               aria-label="Choose editor"
-              className="flex h-full w-8 shrink-0 items-center justify-center rounded-r-[10px] text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring data-[popup-open]:bg-accent/50 data-[popup-open]:text-foreground"
+              className="flex h-full w-8 shrink-0 items-center justify-center rounded-r-lg text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring data-[popup-open]:bg-accent/50 data-[popup-open]:text-foreground"
             />
           }
         >

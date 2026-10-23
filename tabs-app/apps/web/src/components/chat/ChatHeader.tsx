@@ -938,7 +938,7 @@ export const ChatHeader = memo(function ChatHeader({
           <section
             id={`workspace-card-${activeThreadId}`}
             aria-label="Workspace actions"
-            className="workspace-card w-72 max-w-[calc(100vw-2rem)] rounded-[20px] border border-border/80 bg-background/95 backdrop-blur-md p-3 text-foreground shadow-xl [-webkit-app-region:no-drag] animate-in fade-in slide-in-from-top-1 duration-150"
+            className="workspace-card w-72 max-w-[calc(100vw-2rem)] rounded-lg border border-border/80 bg-background/95 backdrop-blur-md p-3 text-foreground shadow-xl [-webkit-app-region:no-drag] animate-in fade-in slide-in-from-top-1 duration-150"
           >
             {/* Project header — logo with rich tooltip + name/path + openInPicker + close */}
             <div className="flex items-center gap-2 pb-2.5">
@@ -949,7 +949,7 @@ export const ChatHeader = memo(function ChatHeader({
                       tabIndex={0}
                       role="button"
                       aria-label={`Project: ${activeProjectName ?? "Current project"}`}
-                      className="flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-[10px] border border-border/60 bg-muted/50 overflow-hidden shadow-2xs hover:bg-muted/80 transition-colors focus-visible:outline-2 focus-visible:outline-ring"
+                      className="flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-border/60 bg-muted/50 overflow-hidden shadow-2xs hover:bg-muted/80 transition-colors focus-visible:outline-2 focus-visible:outline-ring"
                     >
                       {activeProjectFavicon ? (
                         <ProjectFavicon project={activeProjectFavicon} className="size-4.5" />

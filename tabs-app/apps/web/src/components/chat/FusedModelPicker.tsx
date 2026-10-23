@@ -694,7 +694,7 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
       >
         <style>{COSMIC_KEYFRAMES}</style>
         <div
-          className="relative flex max-w-[calc(100vw-32px)] gap-6 rounded-[24px] overflow-hidden isolate border border-border bg-popover text-popover-foreground p-6 shadow-xl transition-all duration-300 select-none animate-in fade-in zoom-in-95 duration-150"
+          className="relative flex max-w-[calc(100vw-32px)] gap-6 rounded-lg overflow-hidden isolate border border-border bg-popover text-popover-foreground p-6 shadow-xl transition-all duration-300 select-none animate-in fade-in zoom-in-95 duration-150"
           style={panelStyle}
         >
           {/* Provider Sidebar navigation on Left */}

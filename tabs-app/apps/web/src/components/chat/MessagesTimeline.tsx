@@ -366,7 +366,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
                       type="button"
                       onClick={() => onToggleWorkGroup(groupId)}
                       aria-expanded={isExpanded}
-                      className="flex items-center gap-2 group/header rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+                      className="flex items-center gap-2 group/header rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
                     >
                       {onlyToolEntries ? (
                         <WrenchIcon className="size-3.5 text-muted-foreground/60 shrink-0" />
@@ -388,7 +388,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
                               ? `Hide details for ${groupLabel}`
                               : `View details for ${groupLabel}`
                           }
-                          className="flex items-center gap-1 rounded-sm text-[11px] font-mono text-muted-foreground/40 hover:text-foreground/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 motion-reduce:transition-none"
+                          className="flex items-center gap-1 rounded-md text-[11px] font-mono text-muted-foreground/40 hover:text-foreground/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 motion-reduce:transition-none"
                           onClick={() => onToggleWorkGroup(groupId)}
                         >
                           <span>{isExpanded ? "Hide details" : `View details`}</span>
