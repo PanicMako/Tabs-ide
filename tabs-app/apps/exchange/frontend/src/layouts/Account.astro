@@ -5,12 +5,12 @@ const { title, section, titleAccent } = Astro.props;
 ---
 <Dashboard title={title} accent={titleAccent} section={section} description={section === "namespaces" ? "Choose a publishing name. Add teammates whenever you need them." : section === "tokens" ? "Connect your CLI with scoped access." : section === "extensions" || section === "submission" ? "Follow each version through scanning, review, and signed publication." : section === "publish" ? "Prepare your package, then follow its journey into Tabs." : "A clear path from your first idea to your next release."}>
   <div class="publisher-main" data-publisher-section={section}>
-  <p id="account-status" role="status" aria-live="polite" class="notice" style="margin-bottom:24px">Loading your account…</p>
+  <p id="account-status" role="status" aria-live="polite" class="notice">Loading your account…</p>
 
   <section id="account-signin" hidden class="signin-panel">
     <div class="publisher-entry-art" aria-hidden="true"><span class="entry-identity">you /</span><span class="entry-package">.tabsext</span><span class="entry-arrow">↗</span><span class="entry-workspace">Tabs<br />workspace</span></div>
-    <h2 style="font-size:24px;margin:0 0 12px">Sign in to continue</h2>
-    <p class="lead" style="font-size:15px;margin-bottom:24px">Use your GitHub account to manage your publisher identity, packages, and review status.</p>
+    <h2>Sign in to continue</h2>
+    <p class="lead">Use your GitHub account to manage your publisher identity, packages, and review status.</p>
     <a class="button" id="account-signin-link" href="/auth/github/start">Sign in with GitHub</a>
   </section>
 
