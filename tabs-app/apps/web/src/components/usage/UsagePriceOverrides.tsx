@@ -4,7 +4,6 @@ import {
   ChevronDownIcon,
   PlusIcon,
   RotateCcwIcon,
-  SparklesIcon,
   Trash2Icon,
 } from "lucide-react";
 import { EnvironmentId } from "@tabs/contracts";
@@ -368,7 +367,7 @@ export function UsagePriceOverrides({
               {unpricedUsageModels.length > 0 && !locked ? (
                 <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-muted/30 border border-border/60 px-3.5 py-2.5">
                   <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground mr-1">
-                    <SparklesIcon className="size-3.5 text-amber-500" />
+                    <AlertCircleIcon className="size-3.5 text-amber-500" />
                     <span>Unpriced models detected:</span>
                   </div>
                   {unpricedUsageModels.slice(0, 3).map((modelName) => (

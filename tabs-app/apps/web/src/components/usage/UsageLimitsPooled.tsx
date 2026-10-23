@@ -276,7 +276,7 @@ function PoolSegment({
           <AccountName account={account} className="min-w-0 truncate font-medium text-foreground" />
           <span className="shrink-0 font-semibold text-foreground tabular-nums">{remaining}%</span>
           {/* Countdown and badge get their own plate: fill and hatching run under them otherwise. */}
-          <span className="ms-auto flex shrink-0 items-center gap-1.5 rounded-sm bg-background/85 px-1.5 py-0.5 text-[11px] text-foreground tabular-nums">
+          <span className="ms-auto flex shrink-0 items-center gap-1.5 rounded-full bg-background/85 px-2 py-0.5 text-[11px] text-foreground tabular-nums">
             {resetsIn?.replace("resets in ", "↻ ") ?? ""}
             {credits ? (
               <>
@@ -346,10 +346,10 @@ function LegendRow({
       style={{ gridColumn: "1 / -1", gridRow: index + 1 }}
       className="flex min-h-7 min-w-0 cursor-pointer items-center gap-2 rounded-md px-1 py-0.5 text-start text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring @2xl/pool:hidden"
     >
-      <span className="relative inline-flex size-4 shrink-0 items-center justify-center rounded-sm text-[10px] leading-none font-semibold text-foreground/80 tabular-nums">
+      <span className="relative inline-flex size-4 shrink-0 items-center justify-center rounded-full text-[10px] leading-none font-semibold text-foreground/80 tabular-nums">
         <span
           aria-hidden
-          className="absolute inset-0 rounded-sm opacity-35"
+          className="absolute inset-0 rounded-full opacity-35"
           style={{ backgroundColor: color }}
         />
         <span className="sr-only">Segment </span>
