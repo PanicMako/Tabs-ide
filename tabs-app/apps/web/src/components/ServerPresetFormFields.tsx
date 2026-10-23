@@ -404,7 +404,7 @@ export function ServerPresetFormFields(props: {
             <div className="flex items-center justify-between gap-4">
               <div className="text-sm font-medium text-foreground">Target Browser</div>
               <OrbitGroup
-                className="tabs-segmented flex rounded-full"
+                className="tabs-segmented inline-flex items-center rounded-full w-fit"
                 role="group"
                 aria-label="Target browser"
               >

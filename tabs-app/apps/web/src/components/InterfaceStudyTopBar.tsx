@@ -12,9 +12,9 @@ import {
   GlobeIcon,
   FlaskConicalIcon,
   TerminalSquareIcon,
-  PuzzleIcon,
   SearchIcon,
 } from "lucide-react";
+import { TabsExtensionIcon } from "./Icons";
 import type { Project, Thread } from "../types";
 import type { ProjectId } from "@tabs/contracts";
 import type { ProjectToolKind } from "@tabs/contracts/settings";
@@ -51,7 +51,7 @@ function resolveToolIcon(kind: ProjectToolKind) {
     case "custom_process":
       return <TerminalSquareIcon className="size-4" />;
     case "extension":
-      return <PuzzleIcon className="size-4" />;
+      return <TabsExtensionIcon className="size-4" />;
   }
 }
 
@@ -89,6 +89,7 @@ export interface InterfaceStudyTopBarProps {
     id: string;
     kind: ProjectToolKind;
     label: string;
+    icon?: React.ReactNode;
   }>;
   threads?: ReadonlyArray<Thread>;
   onActivateProject: (projectId: ProjectId) => void;
@@ -346,6 +347,7 @@ export const InterfaceStudyTopBar = memo(function InterfaceStudyTopBar(
           {isDeckOpen && (
             <div
               ref={deckRef}
+              data-slot="study-project-deck"
               role="menu"
               aria-label="Open projects"
               className="study-project-deck"
@@ -502,7 +504,7 @@ export const InterfaceStudyTopBar = memo(function InterfaceStudyTopBar(
                     : "text-muted-foreground group-hover:text-foreground",
                 )}
               >
-                {resolveToolIcon(tool.kind)}
+                {tool.icon ?? resolveToolIcon(tool.kind)}
               </span>
               <span>{tool.label}</span>
 

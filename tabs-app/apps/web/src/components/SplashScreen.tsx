@@ -4,10 +4,16 @@ import { cn } from "../lib/cn";
 import "./loaders.css";
 import { resolveAnimationFonts } from "../lib/animationTypography";
 
-// Show startup progress only while the workspace is loading; never hold an
-// already-ready workspace behind a decorative animation.
-export const STARTUP_ANIMATION_HOLD_MS = 0;
-export const STARTUP_ANIMATION_EXIT_MS = 200;
+import {
+  SOLARI_TILE_SETTLE_MS,
+  SOLARI_TILE_STAGGER_MS,
+  SOLARI_TILE_HIGHLIGHT_MS,
+} from "../lib/startupAnimationTiming";
+import { useReducedStartupMotion } from "../hooks/useStartupAnimation";
+export {
+  STARTUP_ANIMATION_HOLD_MS,
+  STARTUP_ANIMATION_EXIT_MS,
+} from "../lib/startupAnimationTiming";
 
 const GLASS_MESSAGES = [
   "COMPILING VIBES",
@@ -106,8 +112,10 @@ function MoltenGlass({
   const filterId = useId().replace(/:/g, "");
   const isBlock = palette === "block";
   const animateRef = useRef<SVGAnimationElement>(null);
+  const reducedMotion = useReducedStartupMotion();
 
   useEffect(() => {
+    if (reducedMotion) return;
     const triggerAnimation = () => {
       if (animateRef.current) {
         try {
@@ -123,7 +131,7 @@ function MoltenGlass({
       cancelAnimationFrame(frame);
       clearInterval(intervalId);
     };
-  }, []);
+  }, [reducedMotion]);
 
   const headingStyle = fonts?.headingFont
     ? {
@@ -223,10 +231,17 @@ function SolariTile({
   const [ch, setCh] = useState(target);
   const [justSettled, setJustSettled] = useState(false);
 
+  const reducedMotion = useReducedStartupMotion();
   useEffect(() => {
+    if (reducedMotion) {
+      setCh(target);
+      setJustSettled(false);
+      return;
+    }
+    let highlight: ReturnType<typeof setTimeout> | undefined;
     let cancelled = false;
     // Settle in a smooth cascade from top-left to bottom-right across the 8 tiles.
-    const settleAt = 250 + index * 160;
+    const settleAt = SOLARI_TILE_SETTLE_MS + index * SOLARI_TILE_STAGGER_MS;
     const iv = setInterval(() => {
       if (!cancelled) setCh(SOLARI_CHARS[Math.floor(Math.random() * SOLARI_CHARS.length)]!);
     }, 60);
@@ -235,20 +250,22 @@ function SolariTile({
       if (cancelled) return;
       setCh(target);
       setJustSettled(true);
-      setTimeout(() => !cancelled && setJustSettled(false), 380);
+      highlight = setTimeout(() => !cancelled && setJustSettled(false), SOLARI_TILE_HIGHLIGHT_MS);
     }, settleAt);
 
     return () => {
       cancelled = true;
       clearInterval(iv);
       clearTimeout(to);
+      clearTimeout(highlight);
     };
-  }, [target, index]);
+  }, [target, index, reducedMotion]);
 
   return (
     <div
+      data-shape="tile"
       className={cn(
-        "relative flex h-[64px] w-[52px] items-center justify-center rounded-[6px] border text-[26px] font-light transition-all duration-300 ease-out",
+        "relative flex h-[64px] w-[52px] items-center justify-center rounded-lg border text-[26px] font-light transition-all duration-300 ease-out",
         isBlock
           ? justSettled
             ? "border-white/90 bg-white/22 shadow-[0_0_0_1px_rgba(255,255,255,0.9)]"

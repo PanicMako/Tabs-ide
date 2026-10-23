@@ -2,6 +2,8 @@ import "../index.css";
 import "../localFonts.css";
 import "../interface-study.css";
 import { expect, it, vi } from "vitest";
+import { useState } from "react";
+import { useNativeSurfaceOverlaySuspension } from "../nativeSurfaceOverlay";
 import { page } from "vitest/browser";
 import { render } from "vitest-browser-react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -108,3 +110,67 @@ it("renders InterfaceStudyTopBar, toggles deck, and selects tools in browser", a
   await page.getByRole("button", { name: "New project" }).click();
   expect(onNewTab).toHaveBeenCalled();
 });
+
+it.each(["tool-code", "tool-browser"])(
+  "keeps the project dropdown above native content in %s",
+  async (initialTool) => {
+    const suspend = vi.fn();
+    const resume = vi.fn();
+    const activate = vi.fn();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+    function Workspace() {
+      const [tool, setTool] = useState(initialTool);
+      useNativeSurfaceOverlaySuspension({
+        enabled: true,
+        surfaceReady: true,
+        onSuspend: suspend,
+        onResume: resume,
+      });
+      return (
+        <InterfaceStudyTopBar
+          projects={mockProjects}
+          openProjects={mockProjects}
+          activeProject={mockProjects[0]!}
+          pendingTabIds={[]}
+          activePendingTabId={null}
+          activeToolId={tool}
+          availableTools={mockTools}
+          onActivateProject={activate}
+          onCloseProject={() => {}}
+          onNewTab={() => {}}
+          onActivatePendingTab={() => {}}
+          onClosePendingTab={() => {}}
+          onSelectTool={setTool}
+          onOpenSettings={() => {}}
+        />
+      );
+    }
+    const view = await render(
+      <QueryClientProvider client={client}>
+        <Workspace />
+      </QueryClientProvider>,
+    );
+    try {
+      const opener = page.getByRole("button", { name: /current project: tabs/i });
+      await opener.click();
+      await expect.element(page.getByRole("menu", { name: "Open projects" })).toBeVisible();
+      await expect.poll(() => suspend.mock.calls.length).toBe(1);
+      await page.getByRole("menuitem", { name: /Intern-batch-08/ }).click();
+      expect(activate).toHaveBeenCalledWith("proj-2");
+      await expect.poll(() => resume.mock.calls.length).toBe(1);
+      await page
+        .getByRole("tab", { name: initialTool === "tool-code" ? "Browser" : "Code", exact: true })
+        .click();
+      await opener.click();
+      await expect.poll(() => suspend.mock.calls.length).toBe(2);
+      await page.getByRole("tab", { name: "Agents", exact: true }).click();
+      await expect
+        .element(page.getByRole("menu", { name: "Open projects" }))
+        .not.toBeInTheDocument();
+      await expect.poll(() => resume.mock.calls.length).toBe(2);
+    } finally {
+      await view.unmount();
+      client.clear();
+    }
+  },
+);

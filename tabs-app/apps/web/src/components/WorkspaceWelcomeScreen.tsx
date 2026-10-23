@@ -5,7 +5,7 @@ import {
   SettingsIcon,
   FolderGit2Icon,
   ArrowRightIcon,
-  SparklesIcon,
+  FolderOpenIcon,
 } from "lucide-react";
 import { useSettingsLabsStore } from "../stores/settingsLabsStore";
 import { cn } from "../lib/utils";
@@ -285,7 +285,7 @@ export function WorkspaceWelcomeScreen<T extends { id: any; name: string; cwd: s
 
           {recentProjects.length === 0 ? (
             <div className="flex flex-col items-center justify-center flex-1 rounded-2xl border border-dashed border-border/60 bg-card/40 p-8 text-center my-4">
-              <SparklesIcon className="size-6 text-muted-foreground/30 mb-2.5" />
+              <FolderOpenIcon className="size-6 text-muted-foreground/30 mb-2.5" />
               <p className="text-sm font-medium text-foreground">No recent workspaces yet</p>
               <p className="text-xs text-muted-foreground/70 mt-1 max-w-xs leading-normal">
                 Open an existing folder or clone from Git to start building.

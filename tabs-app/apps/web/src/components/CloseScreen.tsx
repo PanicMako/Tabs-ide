@@ -315,8 +315,9 @@ function SolariGridClose({ phase, palette, isDark, onIntroEnd, fonts }: CloseAni
             {tiles.map((ch, i) => (
               <div
                 key={i}
+                data-shape="tile"
                 className={cn(
-                  "relative flex h-[64px] w-[52px] items-center justify-center rounded-[6px] border text-[26px] font-light transition-all duration-[280ms]",
+                  "relative flex h-[64px] w-[52px] items-center justify-center rounded-lg border text-[26px] font-light transition-all duration-[280ms]",
                   animating && (isDark ? "cq-tile-dim" : "cq-tile-dim-light"),
                   isBlock
                     ? "border-white/24 bg-white/12"

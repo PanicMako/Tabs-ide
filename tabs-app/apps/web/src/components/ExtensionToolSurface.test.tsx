@@ -12,29 +12,18 @@ const input = {
 };
 
 describe("ExtensionToolSurface", () => {
-  it("keeps the package and registry identity in host-owned chrome outside extension content", () => {
+  it("gives the extension the full content region without an identity strip", () => {
     const html = renderToStaticMarkup(
-      <ExtensionToolSurface
-        input={input}
-        label="Overview"
-        source="exchange"
-        registryOrigin="https://exchange.example"
-      />,
+      <ExtensionToolSurface input={input} label="Overview" source="exchange" />,
     );
-    expect(html).toContain('aria-label="Extension identity"');
-    expect(html).toContain("acme.dashboard");
-    expect(html).toContain("https://exchange.example");
-    expect(html).toContain('role="region"');
+    expect(html).not.toContain("<header");
     expect(html).toContain('aria-label="Overview extension content"');
-    expect(html.indexOf("acme.dashboard")).toBeLessThan(html.indexOf('role="region"'));
-    expect(html).not.toContain("Verified publisher");
   });
 
-  it("distinguishes development packages and escapes publisher-controlled labels", () => {
+  it("escapes publisher-controlled labels", () => {
     const html = renderToStaticMarkup(
       <ExtensionToolSurface input={input} label="<Tabs official>" source="development" />,
     );
-    expect(html).toContain("Development package");
     expect(html).toContain("&lt;Tabs official&gt;");
     expect(html).not.toContain("<Tabs official>");
   });

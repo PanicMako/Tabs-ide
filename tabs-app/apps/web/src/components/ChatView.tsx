@@ -2860,14 +2860,31 @@ export default function ChatView({
     const savedScrollTop = peekRememberedThreadScrollTop(displayedTimelineKey);
     if (savedScrollTop !== null) {
       scrollContainer.scrollTop = savedScrollTop;
-      lastKnownScrollTopRef.current = savedScrollTop;
-      shouldAutoScrollRef.current = false;
-      setShowScrollToBottom(true);
+      lastKnownScrollTopRef.current = scrollContainer.scrollTop;
+      const isNearBottom = isScrollContainerNearBottom(scrollContainer);
+      shouldAutoScrollRef.current = isNearBottom;
+      setShowScrollToBottom(!isNearBottom);
     }
   }, [displayedTimelineKey]);
+  useLayoutEffect(() => {
+    const scrollContainer = messagesScrollRef.current;
+    if (!scrollContainer || scrollContainer.clientHeight === 0) return;
+    // A cached timeline can be replaced by shorter content without a scroll event.
+    if (scrollContainer.scrollHeight <= scrollContainer.clientHeight) {
+      shouldAutoScrollRef.current = true;
+      pendingUserScrollUpIntentRef.current = false;
+      setShowScrollToBottom(false);
+    }
+  }, [displayedTimeline.entries, messagesScrollElement]);
   const onMessagesWheel = useCallback(
     (event: React.WheelEvent<HTMLDivElement>) => {
       const scrollContainer = messagesScrollRef.current;
+      if (scrollContainer && scrollContainer.scrollHeight <= scrollContainer.clientHeight) {
+        shouldAutoScrollRef.current = true;
+        pendingUserScrollUpIntentRef.current = false;
+        setShowScrollToBottom(false);
+        return;
+      }
       if (
         shouldPauseAutoScrollOnUserScrollIntent({
           shouldAutoScroll: shouldAutoScrollRef.current,
@@ -6029,7 +6046,7 @@ export default function ChatView({
                     )}
                     <div className="flex items-center gap-1.5">
                       {composerSendState.hasSendableContent && (
-                        <div className="flex items-center">
+                        <div data-slot="joined-control" className="flex items-center">
                           <Button
                             type="button"
                             size="sm"
@@ -6096,7 +6113,7 @@ export default function ChatView({
                         {isConnecting || isSendBusy ? "Sending..." : "Refine"}
                       </Button>
                     ) : (
-                      <div className="flex items-center">
+                      <div data-slot="joined-control" className="flex items-center">
                         <Button
                           type="submit"
                           size="sm"
@@ -6132,7 +6149,7 @@ export default function ChatView({
                     )
                   ) : (
                     // Idle composer: split send button with schedule clock always visible
-                    <div className="flex items-center">
+                    <div data-slot="joined-control" className="flex items-center">
                       <button
                         type="submit"
                         className="flex h-9 w-9 enabled:cursor-pointer items-center justify-center rounded-l-lg rounded-r-none bg-foreground text-background transition-all duration-150 hover:bg-foreground/90 hover:scale-105 disabled:pointer-events-none disabled:opacity-30 disabled:hover:scale-100 sm:h-8 sm:w-8"

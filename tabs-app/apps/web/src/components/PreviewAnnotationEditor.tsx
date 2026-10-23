@@ -111,7 +111,7 @@ export function PreviewAnnotationEditor(props: {
               </div>
               <div className="flex items-center gap-2" aria-label="Annotation tool">
                 <OrbitGroup
-                  className="tabs-segmented flex"
+                  className="tabs-segmented inline-flex items-center rounded-full w-fit"
                   role="group"
                   aria-label="Annotation tool"
                 >

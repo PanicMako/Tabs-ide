@@ -1,3 +1,4 @@
+import { InstalledExtensionToolIcon } from "./InstalledExtensionToolIcon";
 import { AgentBackground } from "./AgentBackground";
 import { resolveRouteThread } from "../resolveRouteThread";
 import { useDraftThread } from "../state/composerDrafts";
@@ -106,7 +107,6 @@ import {
   MonitorIcon,
   MousePointer2Icon,
   PlayIcon,
-  PuzzleIcon,
   PencilIcon,
   PlusIcon,
   RefreshCwIcon,
@@ -142,7 +142,7 @@ import {
   CpuIcon,
   DatabaseIcon,
   LayersIcon,
-  SparklesIcon,
+  CompassIcon,
   ZapIcon,
 } from "lucide-react";
 import {
@@ -235,6 +235,7 @@ import {
   KiloIcon,
   CursorIcon,
   CopilotIcon,
+  TabsExtensionIcon,
   type Icon,
 } from "./Icons";
 import GitCommitComposer from "./GitCommitComposer";
@@ -595,7 +596,7 @@ function toolIcon(tool: ProjectToolKind) {
     case "custom_process":
       return <TerminalSquareIcon className="size-3.5" />;
     case "extension":
-      return <PuzzleIcon className="size-3.5" />;
+      return <TabsExtensionIcon className="size-3.5" />;
   }
 }
 
@@ -1174,6 +1175,7 @@ function ProjectTabs(props: {
           return (
             <div
               key={pendingId}
+              data-slot="workspace-project-tab"
               data-active={active ? "true" : undefined}
               className={cn(
                 "drag-region group relative inline-flex min-w-[9.5rem] max-w-[15rem] items-center gap-2 rounded-t-xl border px-3.5 py-2 text-xs font-semibold transition-all duration-150 cursor-pointer select-none",
@@ -1258,6 +1260,7 @@ function ProjectToolBar(props: {
     id: string;
     kind: ProjectToolKind;
     label: string;
+    icon?: React.ReactNode;
   }>;
   threads?: ReadonlyArray<Thread>;
   activeProjectId?: ProjectId | null;
@@ -1350,7 +1353,7 @@ function ProjectToolBar(props: {
                   active ? "text-foreground font-semibold" : "text-muted-foreground",
                 )}
               >
-                {toolIcon(tool.kind)}
+                {tool.icon ?? toolIcon(tool.kind)}
               </span>
               <span>{tool.label}</span>
               {toolActivityIndicator && (
@@ -1868,19 +1871,19 @@ function AgentsThreadList(props: {
               title={
                 newThreadShortcutLabel ? `New thread (${newThreadShortcutLabel})` : "New thread"
               }
-              className="group relative flex h-10 w-full items-center justify-center rounded-[14px] p-[1.5px] transition-all duration-200 active:scale-[0.985] active:translate-y-[0.5px] bg-gradient-to-b from-slate-300 via-slate-400/60 to-slate-500/70 shadow-[0_1px_3px_rgba(0,0,0,0.08),0_4px_12px_rgba(0,0,0,0.04)] hover:from-slate-200 hover:via-slate-300 hover:to-slate-400 dark:from-[#e2e8f0]/75 dark:via-[#94a3b8]/30 dark:to-[#475569]/35 dark:shadow-[0_2px_12px_-2px_rgba(0,0,0,0.5),0_1px_2px_rgba(0,0,0,0.3)] dark:hover:from-white/95 dark:hover:via-[#cbd5e1]/45 dark:hover:to-[#64748b]/45 dark:hover:shadow-[0_4px_18px_-2px_rgba(0,0,0,0.65),0_0_12px_rgba(226,232,240,0.12)]"
+              className="group relative flex h-10 w-full items-center justify-center rounded-lg p-[1.5px] transition-all duration-200 active:scale-[0.985] active:translate-y-[0.5px] bg-gradient-to-b from-slate-300 via-slate-400/60 to-slate-500/70 shadow-[0_1px_3px_rgba(0,0,0,0.08),0_4px_12px_rgba(0,0,0,0.04)] hover:from-slate-200 hover:via-slate-300 hover:to-slate-400 dark:from-[#e2e8f0]/75 dark:via-[#94a3b8]/30 dark:to-[#475569]/35 dark:shadow-[0_2px_12px_-2px_rgba(0,0,0,0.5),0_1px_2px_rgba(0,0,0,0.3)] dark:hover:from-white/95 dark:hover:via-[#cbd5e1]/45 dark:hover:to-[#64748b]/45 dark:hover:shadow-[0_4px_18px_-2px_rgba(0,0,0,0.65),0_0_12px_rgba(226,232,240,0.12)]"
             >
-              <div className="relative flex h-full w-full items-center justify-center gap-2 rounded-[12.5px] px-3 transition-colors duration-200 bg-gradient-to-b from-white via-slate-50 to-slate-100/90 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.95),inset_0_-1px_0_0_rgba(0,0,0,0.05)] group-hover:from-white group-hover:to-slate-50 dark:from-[#18191f] dark:via-[#131417] dark:to-[#0f1013] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.12),inset_0_-1px_0_0_rgba(0,0,0,0.6)] dark:group-hover:from-[#1e2027] dark:group-hover:via-[#16171c] dark:group-hover:to-[#111215]">
+              <div className="relative flex h-full w-full items-center justify-center gap-2 rounded-lg px-3 transition-colors duration-200 bg-gradient-to-b from-white via-slate-50 to-slate-100/90 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.95),inset_0_-1px_0_0_rgba(0,0,0,0.05)] group-hover:from-white group-hover:to-slate-50 dark:from-[#18191f] dark:via-[#131417] dark:to-[#0f1013] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.12),inset_0_-1px_0_0_rgba(0,0,0,0.6)] dark:group-hover:from-[#1e2027] dark:group-hover:via-[#16171c] dark:group-hover:to-[#111215]">
                 {/* Brushed metallic reflection sheen */}
-                <div className="pointer-events-none absolute inset-0 rounded-[12.5px] bg-gradient-to-r from-transparent via-white/[0.04] to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100 dark:via-white/[0.07]" />
+                <div className="pointer-events-none absolute inset-0 rounded-lg bg-gradient-to-r from-transparent via-white/[0.04] to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100 dark:via-white/[0.07]" />
 
                 <PlusIcon className="size-3.5 stroke-[2.25] text-foreground/80 transition-all duration-200 group-hover:scale-110 group-hover:text-foreground" />
-                <span className="min-w-0 flex-1 truncate text-left text-[13px] font-semibold tracking-tight text-foreground/90 transition-colors group-hover:text-foreground">
+                <span className="text-[13px] font-semibold tracking-tight text-foreground/90 transition-colors group-hover:text-foreground">
                   New Thread
                 </span>
 
                 {newThreadShortcutLabel && (
-                  <kbd className="pointer-events-none hidden shrink-0 items-center rounded-md border border-foreground/[0.08] bg-foreground/[0.03] px-1.5 py-0.5 text-[10px] font-mono font-medium text-muted-foreground/50 transition-colors group-hover:border-foreground/15 group-hover:text-muted-foreground/80 sm:inline-flex">
+                  <kbd className="pointer-events-none absolute right-3 hidden items-center rounded-md border border-foreground/[0.08] bg-foreground/[0.03] px-1.5 py-0.5 text-[10px] font-mono font-medium text-muted-foreground/50 transition-colors group-hover:border-foreground/15 group-hover:text-muted-foreground/80 sm:inline-flex">
                     {newThreadShortcutLabel}
                   </kbd>
                 )}
@@ -1905,7 +1908,7 @@ function AgentsThreadList(props: {
                     setShowSnoozedView(false);
                   }}
                   className={cn(
-                    "group relative flex items-center pb-2 text-xs font-sans transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-xs",
+                    "group relative flex items-center pb-2 text-xs font-sans transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-md",
                     view === "current" && !showSettledView && !showSnoozedView
                       ? "font-semibold text-foreground"
                       : "font-medium text-muted-foreground/75 hover:text-foreground",
@@ -1932,7 +1935,7 @@ function AgentsThreadList(props: {
                     setShowSnoozedView(false);
                   }}
                   className={cn(
-                    "group relative flex items-center pb-2 text-xs font-sans transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-xs",
+                    "group relative flex items-center pb-2 text-xs font-sans transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-md",
                     view === "current" && showSettledView && !showSnoozedView
                       ? "font-semibold text-foreground"
                       : "font-medium text-muted-foreground/75 hover:text-foreground",
@@ -1969,7 +1972,7 @@ function AgentsThreadList(props: {
                           setShowSnoozedView(false);
                         }}
                         className={cn(
-                          "group relative flex items-center justify-center pb-2 text-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-xs",
+                          "group relative flex items-center justify-center pb-2 text-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-md",
                           view === "archived"
                             ? "text-foreground font-semibold"
                             : "text-muted-foreground/60 hover:text-foreground",
@@ -2560,7 +2563,7 @@ function AgentsThreadList(props: {
                         </Tooltip>
                         <div
                           className={cn(
-                            "absolute right-1.5 top-1/2 z-10 flex h-7 -translate-y-1/2 items-center gap-0.5 rounded-lg border border-border/80 bg-card/95 px-1 py-0.5 shadow-md shadow-black/15 backdrop-blur-md transition-all duration-150 dark:border-zinc-700/80 dark:bg-zinc-800/95 dark:shadow-black/50",
+                            "absolute right-1.5 top-1/2 z-10 flex h-7 -translate-y-1/2 items-stretch overflow-hidden rounded-full border border-border/80 bg-card/95 shadow-md shadow-black/15 backdrop-blur-md transition-all duration-150 dark:border-zinc-700/80 dark:bg-zinc-800/95 dark:shadow-black/50",
                             openThreadMenuId === thread.id
                               ? "pointer-events-auto opacity-100"
                               : "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100",
@@ -2578,9 +2581,9 @@ function AgentsThreadList(props: {
                                       }
                                       aria-pressed={lifecycleEntry.pinnedAt !== null}
                                       className={cn(
-                                        "flex size-6 items-center justify-center rounded-md text-foreground/80 hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring transition-colors",
+                                        "flex h-full w-7 items-center justify-center text-foreground/80 hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring transition-colors",
                                         lifecycleEntry.pinnedAt &&
-                                          "bg-primary/15 text-foreground hover:text-foreground",
+                                          "bg-primary/15 text-foreground hover:bg-primary/25 hover:text-foreground",
                                       )}
                                       onClick={() => void dispatchLifecycle(thread, "pin")}
                                     />
@@ -2602,7 +2605,7 @@ function AgentsThreadList(props: {
                                           ? "Return thread to active"
                                           : "Settle thread"
                                       }
-                                      className="flex h-6 items-center gap-1.5 rounded-md px-2 text-[11px] font-semibold text-foreground/90 hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring transition-colors"
+                                      className="flex h-full items-center gap-1.5 px-2 text-[11px] font-semibold text-foreground/90 hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring transition-colors"
                                       onClick={() => void dispatchLifecycle(thread, "settle")}
                                     />
                                   }
@@ -2622,7 +2625,7 @@ function AgentsThreadList(props: {
                                       aria-label={
                                         threadIsSnoozed ? "Wake thread now" : "Snooze thread"
                                       }
-                                      className="flex size-6 items-center justify-center rounded-md text-foreground/80 hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring transition-colors"
+                                      className="flex h-full w-7 items-center justify-center text-foreground/80 hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring transition-colors"
                                       onClick={() => void dispatchLifecycle(thread, "snooze")}
                                     />
                                   }
@@ -2633,7 +2636,7 @@ function AgentsThreadList(props: {
                                   {threadIsSnoozed ? "Wake now" : "Snooze for 1 hour"}
                                 </TooltipPopup>
                               </Tooltip>
-                              <div className="mx-0.5 h-3.5 w-px bg-border/60" />
+                              <div className="my-auto h-3.5 w-px bg-border/60 shrink-0" />
                             </>
                           )}
                           <Menu
@@ -2645,7 +2648,7 @@ function AgentsThreadList(props: {
                                 <button
                                   type="button"
                                   aria-label={`Thread actions for ${thread.title}`}
-                                  className="flex size-6 items-center justify-center rounded-md text-foreground/80 hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring transition-colors data-[popup-open]:bg-accent data-[popup-open]:text-foreground"
+                                  className="flex h-full w-7 items-center justify-center text-foreground/80 hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring transition-colors data-[popup-open]:bg-accent data-[popup-open]:text-foreground"
                                 />
                               }
                             >
@@ -2889,7 +2892,7 @@ function CodeHostUnavailableView(props: {
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-y-auto bg-background/50">
       <div className="flex min-h-full items-center justify-center p-6 md:p-10">
         <div
-          className="relative w-full max-w-2xl overflow-hidden rounded-[28px] border border-border/70 bg-card/85 p-8 shadow-2xl backdrop-blur-2xl md:p-10"
+          className="relative w-full max-w-2xl overflow-hidden rounded-lg border border-border/70 bg-card/85 p-8 shadow-2xl backdrop-blur-2xl md:p-10"
           style={{ fontFamily: "var(--font-sans)" }}
         >
           {/* Subtle background glow */}
@@ -2971,7 +2974,7 @@ function CodeHostUnavailableView(props: {
               onClick={() => openWelcomeWizard()}
               className="gap-2 rounded-full"
             >
-              <SparklesIcon className="size-3.5" />
+              <CompassIcon className="size-3.5" />
               Open Setup Wizard
             </Button>
           </div>
@@ -8267,7 +8270,7 @@ function DesktopBrowserChrome(props: {
               }
               status={
                 props.sessionState.assignedTaskId ||
-                (props.sessionState.controller && props.sessionState.controller !== "none") ||
+                props.sessionState.controller === "agent" ||
                 (props.sessionState.temporaryAgentTab && !props.sessionState.userRetained) ||
                 recordingBrowser ||
                 issueRecording ||
@@ -8288,16 +8291,14 @@ function DesktopBrowserChrome(props: {
                         Task: {props.sessionState.assignedTaskId.slice(0, 8)}
                       </Badge>
                     ) : null}
-                    {props.sessionState.controller && props.sessionState.controller !== "none" ? (
-                      <Badge
-                        variant={
-                          props.sessionState.controller === "agent" ? "default" : "secondary"
-                        }
-                        aria-live="polite"
-                      >
-                        {props.sessionState.controller === "agent"
-                          ? "Agent control"
-                          : "Human control"}
+                    {props.sessionState.controller === "agent" ? (
+                      <Badge variant="default" aria-live="polite">
+                        Agent control
+                      </Badge>
+                    ) : props.sessionState.controller === "human" &&
+                      props.sessionState.assignedTaskId ? (
+                      <Badge variant="secondary" aria-live="polite">
+                        Human control
                       </Badge>
                     ) : null}
                     {props.sessionState.controller === "agent" ? (
@@ -8356,15 +8357,6 @@ function DesktopBrowserChrome(props: {
                 title={`Assigned to task ${props.sessionState.assignedTaskId}`}
               >
                 Task: {props.sessionState.assignedTaskId.slice(0, 8)}
-              </Badge>
-            ) : null}
-            {props.sessionState.controller && props.sessionState.controller !== "none" ? (
-              <Badge
-                variant={props.sessionState.controller === "agent" ? "default" : "secondary"}
-                className="h-6"
-                aria-live="polite"
-              >
-                {props.sessionState.controller === "agent" ? "Agent" : "Human"}
               </Badge>
             ) : null}
             {props.sessionState.controller === "agent" ? (
@@ -11505,6 +11497,12 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
     id: tool.id,
     kind: tool.kind,
     label: tool.label,
+    icon:
+      tool.kind === "extension" ? (
+        <InstalledExtensionToolIcon
+          extension={installedExtensions.find((extension) => extension.id === tool.extensionId)}
+        />
+      ) : undefined,
   }));
 
   useEffect(() => {
@@ -13301,7 +13299,7 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
           "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
           isInterfaceStudy &&
             !isSettingsSurfaceActive &&
-            "study-workspace-card rounded-t-[28px] bg-card relative z-1",
+            "study-workspace-card rounded-t-lg bg-card relative z-1",
         )}
       >
         <ToolErrorBoundary

@@ -19,6 +19,7 @@ import {
   useState,
 } from "react";
 import { Popover, PopoverPopup, PopoverTrigger } from "~/components/ui/popover";
+import { cn } from "~/lib/utils";
 import {
   AlertDialog,
   AlertDialogClose,
@@ -708,9 +709,7 @@ function ConnectedTerminalViewport({
       observer.disconnect();
     };
   }, [api, terminalId, threadId]);
-  return (
-    <div ref={containerRef} className="relative h-full w-full overflow-hidden rounded-[4px]" />
-  );
+  return <div ref={containerRef} className="relative h-full w-full overflow-hidden rounded-xl" />;
 }
 
 interface ThreadTerminalDrawerProps {
@@ -753,7 +752,14 @@ function TerminalActionButton({ label, className, onClick, children }: TerminalA
     <Popover>
       <PopoverTrigger
         openOnHover
-        render={<button type="button" className={className} onClick={onClick} aria-label={label} />}
+        render={
+          <button
+            type="button"
+            className={cn("rounded-md", className)}
+            onClick={onClick}
+            aria-label={label}
+          />
+        }
       >
         {children}
       </PopoverTrigger>

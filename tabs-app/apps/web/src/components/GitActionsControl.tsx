@@ -771,6 +771,7 @@ export default function GitActionsControl({
         </button>
       ) : (
         <div
+          data-slot="joined-control"
           role="group"
           aria-label="Git actions"
           className="flex h-8 w-full items-center rounded-lg border border-border/80 bg-background hover:bg-accent/40 hover:border-border transition-colors shadow-2xs text-foreground"
@@ -784,7 +785,7 @@ export default function GitActionsControl({
                     type="button"
                     aria-disabled="true"
                     aria-label={`Git: ${quickAction.label}`}
-                    className="flex h-full flex-1 items-center justify-center gap-1.5 rounded-l-[8px] px-3 text-xs font-medium text-muted-foreground/60 cursor-not-allowed opacity-60 focus-visible:outline-none"
+                    className="flex h-full flex-1 items-center justify-center gap-1.5 rounded-l-lg px-3 text-xs font-medium text-muted-foreground/60 cursor-not-allowed opacity-60 focus-visible:outline-none"
                   />
                 }
               >
@@ -805,7 +806,7 @@ export default function GitActionsControl({
                     onClick={runQuickAction}
                     aria-label={`Git: ${quickAction.label}`}
                     title={`Git: ${quickAction.label}`}
-                    className="flex h-full flex-1 items-center justify-center gap-1.5 rounded-l-[8px] px-3 text-xs font-medium text-foreground hover:bg-accent/60 transition-colors disabled:opacity-40 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    className="flex h-full flex-1 items-center justify-center gap-1.5 rounded-l-lg px-3 text-xs font-medium text-foreground hover:bg-accent/60 transition-colors disabled:opacity-40 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   />
                 }
               >
@@ -827,7 +828,7 @@ export default function GitActionsControl({
                   type="button"
                   aria-label="Git action options"
                   disabled={isGitActionRunning}
-                  className="flex h-full w-5 items-center justify-center rounded-r-[7px] text-muted-foreground hover:bg-accent/40 hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring data-[popup-open]:bg-accent/40 data-[popup-open]:text-foreground disabled:opacity-40 disabled:pointer-events-none"
+                  className="flex h-full w-5 items-center justify-center rounded-r-lg text-muted-foreground hover:bg-accent/40 hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring data-[popup-open]:bg-accent/40 data-[popup-open]:text-foreground disabled:opacity-40 disabled:pointer-events-none"
                 />
               }
             >

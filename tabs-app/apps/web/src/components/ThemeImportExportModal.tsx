@@ -145,7 +145,7 @@ export const ThemeImportExportModal: React.FC<ThemeImportExportModalProps> = ({
 
           <div className="flex items-center gap-2">
             <OrbitGroup
-              className="tabs-segmented flex text-xs rounded-full"
+              className="tabs-segmented inline-flex items-center text-xs rounded-full w-fit"
               role="group"
               aria-label="Theme transfer mode"
             >
