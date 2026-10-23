@@ -1226,6 +1226,8 @@ export interface DesktopExtensionViewErrorEvent {
 }
 
 export interface DesktopBridge {
+  getInstallerCleanupCandidate?: () => Promise<{ name: string; size: number } | null>;
+  trashInstalledDmg?: () => Promise<void>;
   listExtensions: () => Promise<DesktopInstalledExtension[]>;
   onExtensionsChanged: (listener: () => void) => () => void;
   onExtensionViewError?: (listener: (event: DesktopExtensionViewErrorEvent) => void) => () => void;
@@ -1324,6 +1326,7 @@ export interface DesktopBridge {
   getHostPowerSnapshot?: () => Promise<HostPowerSnapshot>;
   onHostPowerSnapshot?: (listener: (snapshot: HostPowerSnapshot) => void) => () => void;
   getWsUrl: () => string | null;
+  waitForBackendReady?: () => Promise<void>;
   cloneRepository: (input: DesktopCloneRepositoryInput) => Promise<DesktopCloneRepositoryResult>;
   getPersistedItem: (key: string) => Promise<string | null>;
   setPersistedItem: (key: string, value: string) => Promise<void>;
