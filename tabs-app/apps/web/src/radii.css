@@ -1,0 +1,177 @@
+/* Compact controls become pills as CSS clamps the 36px radius to their height.
+   Capping the default also keeps large clickable cards from becoming ellipses. */
+:root {
+  --radius-surface: 36px;
+  --radius-control: var(--radius-surface);
+  --radius-preview: 28px;
+  --radius-thumbnail: 24px;
+  --radius-tile: 10px;
+  --radius-joined: 16px;
+}
+
+/* Roles cover custom controls as well as native elements. These rules also cover
+   hover/selected backgrounds when a component supplies its own radius utility.
+   Do not clip overflow here: focus rings, popovers and text must remain visible. */
+html
+  :where(
+    button,
+    select,
+    input:not([type="range"]):not([type="color"]):not([type="file"]),
+    [role="button"],
+    [role="checkbox"],
+    [role="radio"],
+    [role="switch"],
+    [role="combobox"],
+    [role="tab"],
+    [role="menuitem"],
+    [role="menuitemcheckbox"],
+    [role="menuitemradio"],
+    [role="option"],
+    [role="treeitem"],
+    [data-slot="badge"],
+    [data-slot="button"],
+    [data-slot="tabs-list"],
+    [data-slot="toggle-group"],
+    [data-slot="sidebar-menu-button"],
+    kbd,
+    mark
+  ) {
+  border-radius: var(--radius-surface) !important;
+}
+
+/* Explicit circles, counters and inline highlights retain their compact shape. */
+html :is(.rounded-full, [data-slot="badge"], kbd, mark) {
+  border-radius: var(--radius-control) !important;
+}
+
+/* Content-bearing controls need room for wrapped text. */
+html
+  :where(
+    textarea,
+    [data-slot="input-group"],
+    [data-slot="card"],
+    [data-slot="dialog-popup"],
+    [data-slot="alert-dialog-popup"],
+    [data-slot="popover-popup"],
+    [data-slot="menu-popup"],
+    [data-slot="tooltip-popup"]
+  ) {
+  border-radius: var(--radius-surface) !important;
+}
+
+/* Decorative layers must follow their control instead of painting square ends. */
+html :is(button, [role="button"], [data-slot="input-group"])::before,
+html :is(button, [role="button"], [data-slot="input-group"])::after {
+  border-radius: inherit;
+}
+
+mark {
+  box-decoration-break: clone;
+}
+
+/* Project tabs retain their browser silhouette and join the workspace below. */
+html [data-slot="workspace-project-tab"],
+html [data-slot="onboarding-project-tab"],
+html .study-tool-tab {
+  border-radius: var(--radius-joined) var(--radius-joined) 0 0 !important;
+}
+
+/* Tailwind's legacy bare utility does not read the named radius scale. */
+:where(.rounded) {
+  border-radius: var(--radius-surface);
+}
+
+/* Preview frames preserve a rectangular silhouette and leave text legible. */
+html [data-shape="preview"] {
+  --radius-surface: var(--radius-preview);
+  border-radius: var(--radius-surface) !important;
+}
+
+html [data-shape="thumbnail"] {
+  --radius-surface: var(--radius-thumbnail);
+  border-radius: var(--radius-surface) !important;
+}
+
+html [data-shape="tile"] {
+  border-radius: var(--radius-tile) !important;
+}
+
+/* Joined controls share straight seams. Their outer corners still follow the
+   control shape; each half must not turn into an independent circle. */
+html .rounded-l-none {
+  border-top-left-radius: 0 !important;
+  border-bottom-left-radius: 0 !important;
+}
+
+html .rounded-r-none {
+  border-top-right-radius: 0 !important;
+  border-bottom-right-radius: 0 !important;
+}
+
+html .rounded-s-none {
+  border-start-start-radius: 0 !important;
+  border-end-start-radius: 0 !important;
+}
+
+html .rounded-e-none {
+  border-start-end-radius: 0 !important;
+  border-end-end-radius: 0 !important;
+}
+
+html .rounded-t-none {
+  border-top-left-radius: 0 !important;
+  border-top-right-radius: 0 !important;
+}
+
+html .rounded-b-none {
+  border-bottom-left-radius: 0 !important;
+  border-bottom-right-radius: 0 !important;
+}
+
+html [data-slot="joined-control"] {
+  --radius-surface: var(--radius-joined);
+  --radius-control: var(--radius-joined);
+  border-radius: var(--radius-surface);
+}
+
+html [data-slot="joined-control"] > button:not(:last-child),
+html
+  :is([data-slot="group"], [data-slot="toggle-group"][data-variant="outline"]):not(
+    [data-orientation="vertical"]
+  )
+  > [data-slot]:has(~ [data-slot]:not([data-slot="separator"])) {
+  border-start-end-radius: 0 !important;
+  border-end-end-radius: 0 !important;
+}
+
+html [data-slot="joined-control"] > button:not(:first-child),
+html
+  :is([data-slot="group"], [data-slot="toggle-group"][data-variant="outline"]):not(
+    [data-orientation="vertical"]
+  )
+  > [data-slot]
+  ~ [data-slot]:not([data-slot="separator"]) {
+  border-start-start-radius: 0 !important;
+  border-end-start-radius: 0 !important;
+}
+
+html
+  :is(
+    [data-slot="group"],
+    [data-slot="toggle-group"][data-variant="outline"]
+  )[data-orientation="vertical"]
+  > [data-slot]:has(~ [data-slot]:not([data-slot="separator"])) {
+  border-bottom-left-radius: 0 !important;
+  border-bottom-right-radius: 0 !important;
+}
+
+html
+  :is(
+    [data-slot="group"],
+    [data-slot="toggle-group"][data-variant="outline"]
+  )[data-orientation="vertical"]
+  > [data-slot]
+  ~ [data-slot]:not([data-slot="separator"]) {
+  border-top-left-radius: 0 !important;
+  border-top-right-radius: 0 !important;
+}

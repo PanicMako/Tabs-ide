@@ -34,13 +34,13 @@ html[data-interface-study]
   background: var(--card);
   color: var(--card-foreground);
   border-color: var(--border);
-  border-radius: 14px;
+  border-radius: var(--radius-surface);
 }
 html[data-interface-study] :is([data-slot="sidebar-inner"], [data-slot="sidebar-inset"]) {
   background: var(--background);
 }
 html[data-interface-study] [data-slot="sidebar-menu-button"] {
-  border-radius: 999px;
+  border-radius: var(--radius-control);
 }
 html[data-interface-study] [data-slot="card"] {
   box-shadow: none;
@@ -65,9 +65,16 @@ html[data-interface-study] .tabs-segmented.orbit-group {
   height: auto !important;
   background: color-mix(in srgb, var(--foreground) 6%, var(--card));
   border: 1px solid var(--border);
-  border-radius: 9999px !important;
-  padding: 3px !important;
+  border-radius: var(--radius-control) !important;
+  padding: 2.5px !important;
   box-shadow: none;
+}
+html[data-interface-study] .tabs-segmented.orbit-group:not(.grid) {
+  width: fit-content;
+  max-width: 100%;
+}
+html[data-interface-study] .tabs-segmented.orbit-group.w-full {
+  width: 100%;
 }
 html[data-interface-study="light"] .tabs-segmented.orbit-group {
   background: #eceae3;
@@ -78,7 +85,7 @@ html[data-interface-study="dark"] .tabs-segmented.orbit-group {
   border-color: rgba(255, 255, 255, 0.12);
 }
 html[data-interface-study] .orbit-group > .orbit-orb {
-  border-radius: 9999px !important;
+  border-radius: var(--radius-control) !important;
   box-shadow:
     0 1px 3px rgba(0, 0, 0, 0.12),
     0 1px 2px rgba(0, 0, 0, 0.08);
@@ -106,7 +113,7 @@ html[data-interface-study="dark"] .orbit-group[data-orbit-kind="spotlight"] > .o
   color: #121212 !important;
 }
 html[data-interface-study] .tabs-segmented.orbit-group > button {
-  border-radius: 9999px !important;
+  border-radius: var(--radius-control) !important;
   font-size: 12px;
   font-weight: 500;
   color: var(--muted-foreground);
@@ -158,7 +165,7 @@ html[data-interface-study] [data-slot="workspace-tabbar"] > div:first-child {
 }
 html[data-interface-study] [data-slot="workspace-project-tab"] {
   border: 1px solid transparent;
-  border-radius: 999px;
+  border-radius: var(--radius-control);
   padding: 6px 14px;
   margin-bottom: 0;
   min-height: 32px;
@@ -201,7 +208,7 @@ html[data-interface-study] [data-slot="workspace-toolbar-shell"] {
 html[data-interface-study] [data-slot="workspace-toolbar"] {
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: var(--radius-control);
   padding: 3px;
   gap: 2px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
@@ -212,7 +219,7 @@ html[data-interface-study="light"] [data-slot="workspace-toolbar"] {
 }
 html[data-interface-study] [data-slot="workspace-toolbar"] .active-pill {
   display: block;
-  border-radius: 999px;
+  border-radius: var(--radius-control);
   background: var(--foreground);
   border: 0;
   box-shadow: 0 2px 8px -2px rgba(0, 0, 0, 0.25);
@@ -229,7 +236,7 @@ html[data-interface-study] [data-slot="workspace-toolbar"] .nav-tab {
   background: transparent;
   color: var(--muted-foreground);
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-control);
   padding: 6px 14px;
   font-size: 12.5px;
   font-weight: 500;
@@ -255,7 +262,7 @@ html[data-interface-study] [data-slot="workspace-toolbar"] .nav-tab.active svg {
   stroke-width: 2.25;
 }
 html[data-interface-study] [data-slot="workspace-toolbar-shell"] button {
-  border-radius: 999px;
+  border-radius: var(--radius-control);
   font-size: 12.5px;
   font-weight: 500;
   transition: all 150ms ease;
@@ -350,7 +357,7 @@ html[data-interface-study="light"] .study-topbar-header {
   background: transparent;
   border: 1px solid transparent;
   border-bottom: none;
-  border-radius: 12px 12px 0 0;
+  border-radius: var(--radius-surface) var(--radius-surface) 0 0;
   transition:
     color 150ms ease,
     background 150ms ease;
@@ -423,7 +430,7 @@ html[data-interface-study="dark"] .study-tab-fillet path[stroke] {
   min-height: 36px;
   padding: 4px 10px;
   border: 1px solid color-mix(in srgb, var(--foreground) 10%, transparent);
-  border-radius: 9px;
+  border-radius: var(--radius-surface);
   background: color-mix(in srgb, var(--card) 65%, transparent);
   transition: background 160ms ease;
   cursor: pointer;
@@ -444,7 +451,7 @@ html[data-interface-study="dark"] .study-tab-fillet path[stroke] {
   background: var(--card);
   color: var(--card-foreground);
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: var(--radius-surface);
   padding: 6px;
   box-shadow: 0 12px 32px color-mix(in srgb, var(--foreground) 14%, transparent);
   z-index: 50;
@@ -466,8 +473,7 @@ html[data-interface-study="dark"] .study-tab-fillet path[stroke] {
 /* Main workspace card below topbar in Interface Study */
 .study-workspace-card {
   background: var(--card) !important;
-  border-top-left-radius: 28px !important;
-  border-top-right-radius: 28px !important;
+  border-radius: var(--radius-surface) !important;
   border: none !important;
   overflow: hidden !important;
   box-shadow: none !important;

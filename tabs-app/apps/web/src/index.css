@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./radii.css";
 
 /* Orbit for meaningful symbols; Spotlight for text choices. */
 .tabs-segmented.orbit-group {
@@ -6,20 +7,28 @@
   isolation: isolate;
   align-items: center;
   gap: 2px;
-  padding: 4px !important;
+  padding: 2.5px !important;
   height: auto !important;
   border: 1px solid var(--border);
-  border-radius: 9999px !important;
+  border-radius: var(--radius-control) !important;
   background: color-mix(in srgb, var(--muted) 65%, var(--background));
   box-shadow: inset 0 1px 2px color-mix(in srgb, var(--foreground) 4%, transparent);
   max-width: 100%;
   min-width: 0;
 }
+.tabs-segmented.orbit-group:not(.grid),
+.tabs-segmented:not(.grid) {
+  width: fit-content;
+}
+.tabs-segmented.orbit-group.w-full,
+.tabs-segmented.w-full {
+  width: 100%;
+}
 .tabs-segmented.orbit-group > button {
   position: relative;
   z-index: 1;
   border: 1px solid transparent !important;
-  border-radius: 9999px !important;
+  border-radius: var(--radius-control) !important;
   background: transparent !important;
   color: var(--muted-foreground);
   box-shadow: none !important;
@@ -67,7 +76,7 @@
     opacity 120ms ease;
 }
 .orbit-group[data-orbit-kind="spotlight"] > .orbit-orb {
-  border-radius: 9999px;
+  border-radius: var(--radius-control);
   z-index: 0;
   background: var(--primary);
   color: var(--primary-foreground);
@@ -114,7 +123,7 @@
   height: 44px;
   background: color-mix(in srgb, var(--muted) 75%, var(--background));
   border: 1px solid var(--border);
-  border-radius: 9999px;
+  border-radius: var(--radius-control);
   background-repeat: no-repeat;
   background-origin: border-box;
   transition: background-color 200ms ease;
@@ -420,7 +429,7 @@ svg[class*="lucide-loader"].animate-spin {
   box-sizing: border-box;
   border: 2px solid currentColor;
   border-right-color: transparent;
-  border-radius: 9999px;
+  border-radius: var(--radius-control);
   stroke: transparent;
 }
 
@@ -512,13 +521,14 @@ svg[class*="lucide-loader"].animate-spin {
   --color-card: var(--card);
   --color-foreground: var(--foreground);
   --color-background: var(--background);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --radius-2xl: calc(var(--radius) + 8px);
-  --radius-3xl: calc(var(--radius) + 12px);
-  --radius-4xl: calc(var(--radius) + 16px);
+  --radius-xs: var(--radius-surface);
+  --radius-sm: var(--radius-surface);
+  --radius-md: var(--radius-surface);
+  --radius-lg: var(--radius-surface);
+  --radius-xl: var(--radius-surface);
+  --radius-2xl: var(--radius-surface);
+  --radius-3xl: var(--radius-surface);
+  --radius-4xl: var(--radius-surface);
   --animate-shooting-star: shooting-star 8.5s infinite linear;
   --animate-single-sweep: single-sweep 1.2s ease-out forwards;
   @keyframes skeleton {
@@ -763,7 +773,7 @@ svg[class*="lucide-loader"].animate-spin {
 
 :root {
   color-scheme: dark;
-  --radius: 0.625rem;
+  --radius: var(--radius-surface);
   --destructive: var(--color-red-500);
   --destructive-foreground: var(--color-red-400);
   --info: var(--color-blue-500);
@@ -1157,7 +1167,7 @@ input {
 
 ::-webkit-scrollbar-thumb {
   background: rgba(0, 0, 0, 0.15);
-  border-radius: 3px;
+  border-radius: var(--radius-control);
 }
 
 ::-webkit-scrollbar-thumb:hover {
@@ -1188,7 +1198,7 @@ input {
 }
 
 .thread-terminal-drawer .xterm .xterm-scrollable-element > .scrollbar > .slider {
-  border-radius: 3px;
+  border-radius: var(--radius-control);
 }
 
 .thread-terminal-drawer .xterm .xterm-scrollable-element > .scrollbar.vertical > .slider {
@@ -1358,7 +1368,7 @@ label:has(> select#reasoning-effort) select {
   min-width: 1rem;
   align-items: center;
   justify-content: center;
-  border-radius: 0.25rem;
+  border-radius: var(--radius-control);
   text-decoration: none;
   font-size: 0.6875rem;
   font-weight: 600;
@@ -1366,7 +1376,7 @@ label:has(> select#reasoning-effort) select {
 
 .chat-markdown :not(pre) > code {
   border: 1px solid var(--border);
-  border-radius: 0.375rem;
+  border-radius: var(--radius-surface);
   background: var(--muted);
   padding: 0.1rem 0.35rem;
   color: var(--foreground);
@@ -1392,7 +1402,7 @@ label:has(> select#reasoning-effort) select {
   max-width: 100%;
   overflow-x: auto;
   border: 1px solid var(--border);
-  border-radius: 0.75rem;
+  border-radius: var(--radius-surface);
   background: var(--muted);
   padding: 0.8rem 0.9rem;
   color: var(--foreground);
@@ -1420,7 +1430,7 @@ label:has(> select#reasoning-effort) select {
 }
 
 .chat-markdown pre::-webkit-scrollbar-thumb {
-  border-radius: 999px;
+  border-radius: var(--radius-control);
   background: color-mix(in srgb, var(--border) 78%, transparent);
 }
 
@@ -1438,7 +1448,7 @@ label:has(> select#reasoning-effort) select {
 }
 
 .markdown-file-link-tooltip-scroll::-webkit-scrollbar-thumb {
-  border-radius: 999px;
+  border-radius: var(--radius-control);
   background: color-mix(in srgb, var(--border) 78%, transparent);
 }
 
@@ -1446,7 +1456,7 @@ label:has(> select#reasoning-effort) select {
   margin: 0.65rem 0;
   overflow: hidden;
   border: 1px solid var(--border);
-  border-radius: 0.75rem;
+  border-radius: var(--radius-surface);
   background: color-mix(in srgb, var(--muted) 78%, var(--background));
   color: var(--foreground);
 }
@@ -1501,7 +1511,7 @@ label:has(> select#reasoning-effort) select {
   justify-content: center;
   height: 1.5rem;
   width: 1.5rem;
-  border-radius: 0.375rem;
+  border-radius: var(--radius-control);
   border: 1px solid var(--border);
   background: color-mix(in srgb, var(--background) 82%, transparent);
   color: var(--muted-foreground);
@@ -1660,7 +1670,7 @@ label:has(> select#reasoning-effort) select {
 .diff-render-file,
 .diff-render-surface > diffs-container {
   border: 1px solid var(--border);
-  border-radius: 0.5rem;
+  border-radius: var(--radius-surface);
   overflow: clip;
   background: color-mix(in srgb, var(--card) 92%, var(--background));
 }
@@ -1759,7 +1769,7 @@ label:has(> select#reasoning-effort) select {
 
 .model-picker-list::-webkit-scrollbar-thumb {
   background: rgba(0, 0, 0, 0.1);
-  border-radius: 2px;
+  border-radius: var(--radius-control);
 }
 
 .model-picker-list::-webkit-scrollbar-thumb:hover {
@@ -1804,7 +1814,7 @@ label:has(> select#reasoning-effort) select {
   background-color: var(--app-chrome-background, var(--background));
   border: 1px solid var(--border);
   padding: 4px;
-  border-radius: 9999px;
+  border-radius: var(--radius-control);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
@@ -1815,7 +1825,7 @@ label:has(> select#reasoning-effort) select {
   align-items: center;
   gap: 6px;
   padding: 6px 14px;
-  border-radius: 9999px;
+  border-radius: var(--radius-control);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
@@ -1857,7 +1867,7 @@ label:has(> select#reasoning-effort) select {
   top: 4px;
   bottom: 4px;
   left: 0;
-  border-radius: 9999px;
+  border-radius: var(--radius-control);
   pointer-events: none;
   transition:
     transform 0.4s cubic-bezier(0.25, 1.1, 0.4, 1.05),
@@ -1886,7 +1896,7 @@ label:has(> select#reasoning-effort) select {
   content: "";
   position: absolute;
   inset: 0;
-  border-radius: 9999px;
+  border-radius: var(--radius-control);
   padding: 2px;
   background: conic-gradient(from var(--angle), transparent 70%, var(--primary) 100%);
   -webkit-mask:
@@ -2098,7 +2108,7 @@ label:has(> select#reasoning-effort) select {
 }
 .design-material .active-pill {
   background-color: color-mix(in srgb, var(--primary) 15%, transparent);
-  border-radius: 9999px;
+  border-radius: var(--radius-control);
 }
 .design-material .nav-tab.active {
   color: var(--foreground);
@@ -2222,7 +2232,7 @@ label:has(> select#reasoning-effort) select {
   margin: 8px;
   height: calc(100% - 16px);
   border: 1px solid var(--border);
-  border-radius: 22px;
+  border-radius: var(--radius-surface);
   overflow: hidden;
   box-shadow: 0 12px 32px color-mix(in oklab, var(--foreground) 4%, transparent);
 }
@@ -2443,4 +2453,14 @@ button,
 select,
 [role="tab"] {
   font-family: var(--font-controls, inherit);
+}
+
+/* Rounded ends follow the shared control shape, including table highlights. */
+tr[class*="hover:bg"] td:first-child {
+  border-top-left-radius: var(--radius-control);
+  border-bottom-left-radius: var(--radius-control);
+}
+tr[class*="hover:bg"] td:last-child {
+  border-top-right-radius: var(--radius-control);
+  border-bottom-right-radius: var(--radius-control);
 }

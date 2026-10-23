@@ -33,6 +33,12 @@ const decodeThreadStreamItem = Schema.decodeUnknownSync(OrchestrationV2ThreadStr
 
 export function normalizeOrchestrationCommand(command: any): any {
   if (!command || typeof command !== "object") return command;
+  if (command.type === "project.meta.update") {
+    return {
+      ...command,
+      type: "project.update",
+    };
+  }
   if (command.type === "thread.create") {
     return {
       ...command,
@@ -750,10 +756,13 @@ export function createWsNativeApi(options?: {
           normalized &&
           (normalized.type === "project.create" ||
             normalized.type === "project.update" ||
+            normalized.type === "project.meta.update" ||
             normalized.type === "project.delete")
         ) {
+          const type =
+            normalized.type === "project.meta.update" ? "project.update" : normalized.type;
           return transport.request(WS_METHODS.projectsMutate, {
-            type: normalized.type,
+            type,
             commandId: normalized.commandId,
             projectId: normalized.projectId,
             ...(normalized.title !== undefined ? { title: normalized.title } : {}),

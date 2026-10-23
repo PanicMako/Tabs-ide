@@ -642,6 +642,26 @@ describe("wsNativeApi", () => {
         workspaceRoot: projectCommand.workspaceRoot,
       }),
     );
+
+    const projectMetaCommand = {
+      type: "project.meta.update",
+      commandId: CommandId.makeUnsafe("cmd-meta-1"),
+      projectId: ProjectId.makeUnsafe("project-1"),
+      projectIcon: { kind: "lucide", name: "folder", color: "orange" },
+      faviconPath: null,
+    } as const;
+    await api.orchestration.dispatchCommand(projectMetaCommand as any);
+
+    expect(requestMock).toHaveBeenCalledWith(
+      WS_METHODS.projectsMutate,
+      expect.objectContaining({
+        type: "project.update",
+        commandId: projectMetaCommand.commandId,
+        projectId: projectMetaCommand.projectId,
+        projectIcon: projectMetaCommand.projectIcon,
+        faviconPath: null,
+      }),
+    );
   });
 
   it("forwards workspace file writes to the websocket project method", async () => {

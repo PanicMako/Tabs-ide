@@ -1,11 +1,12 @@
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
-import { SplashScreen, STARTUP_ANIMATION_EXIT_MS } from "./components/SplashScreen";
+import { SplashScreen } from "./components/SplashScreen";
 import { readFirstPaintSplashSettings } from "./startupSplashSettings";
 import {
   getStartupSplashState,
   subscribeStartupSplash,
   updateStartupSplash,
 } from "./lib/startupSplashLifecycle";
+import { useStartupAnimation } from "./hooks/useStartupAnimation";
 import { markStartupStage } from "./lib/startupReadiness";
 
 /** Keep the original animation mounted while the workspace module graph loads. */
@@ -14,6 +15,7 @@ export function StartupShell({ loadApplication }: { loadApplication: () => Promi
   const [visible, setVisible] = useState(true);
   const [settings] = useState(() => readFirstPaintSplashSettings(window.localStorage));
   const state = useSyncExternalStore(subscribeStartupSplash, getStartupSplashState);
+  const transition = useStartupAnimation(state.ready, settings.loader);
 
   useEffect(() => {
     let cancelled = false;
@@ -51,13 +53,13 @@ export function StartupShell({ loadApplication }: { loadApplication: () => Promi
   }, [application]);
 
   useEffect(() => {
-    if (!state.ready) return;
+    if (!transition.ready) return;
     const timer = setTimeout(() => {
       setVisible(false);
       updateStartupSplash({ dismissed: true });
-    }, STARTUP_ANIMATION_EXIT_MS);
+    }, transition.exitMs);
     return () => clearTimeout(timer);
-  }, [state.ready]);
+  }, [transition.ready, transition.exitMs]);
 
   return (
     <>
@@ -65,8 +67,8 @@ export function StartupShell({ loadApplication }: { loadApplication: () => Promi
         <div
           role="status"
           aria-label="Starting Tabs"
-          aria-hidden={state.ready || undefined}
-          className={`fixed inset-0 z-[9999] bg-background transition-transform duration-200 ease-out motion-reduce:duration-0 ${state.ready ? "pointer-events-none -translate-y-full" : "pointer-events-auto translate-y-0"}`}
+          aria-hidden={transition.ready || undefined}
+          className={`fixed inset-0 z-[9999] bg-background transition-transform duration-500 ease-in-out motion-reduce:duration-0 ${transition.ready ? "pointer-events-none -translate-y-full" : "pointer-events-auto translate-y-0"}`}
         >
           <SplashScreen {...settings} />
           {state.error ? (
