@@ -1,0 +1,6 @@
+Pavot is a free font for all uses. It includes uppercase, lowercase, accented characters, numbers, ligatures, and punctuation marks. It is inspired by the Jardin des Plantes and botanical illustrations, while maintaining an elegant and modern look. 
+
+Like and follow:
+https://www.instagram.com/dbwwaa/
+https://www.behance.net/DBWA
+
