@@ -22,14 +22,15 @@ export const enum DetailPanelTarget {
 	Changes,
 	ChangesForced,
 	Files,
+	FilesHidden,
 	FilesForced,
 	Preserve
 }
 
 /**
- * Shared mechanics for selecting the single-pane detail content.
+ * Shared mechanics for selecting the desktop detail content.
  */
-export class SinglePaneDetailPanelCoordinator extends Disposable {
+export class DesktopDetailPanelCoordinator extends Disposable {
 
 	private readonly _hasDockedDetailsContext: IContextKey<boolean>;
 	private readonly _sequencer = new Sequencer();
@@ -64,7 +65,7 @@ export class SinglePaneDetailPanelCoordinator extends Disposable {
 	sync(target: DetailPanelTarget): void {
 		this._target = target;
 		this._hasDockedDetailsContext.set(target === DetailPanelTarget.Changes || target === DetailPanelTarget.ChangesForced
-			|| target === DetailPanelTarget.Files || target === DetailPanelTarget.FilesForced);
+			|| target === DetailPanelTarget.Files || target === DetailPanelTarget.FilesHidden || target === DetailPanelTarget.FilesForced);
 		this._queueTarget(target);
 	}
 
@@ -84,6 +85,7 @@ export class SinglePaneDetailPanelCoordinator extends Disposable {
 				await this._viewsService.openViewContainer(CHANGES_VIEW_CONTAINER_ID, false);
 				return;
 			case DetailPanelTarget.Files:
+			case DetailPanelTarget.FilesHidden:
 			case DetailPanelTarget.FilesForced:
 				await this._viewsService.openViewContainer(SESSIONS_FILES_CONTAINER_ID, false);
 				return;

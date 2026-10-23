@@ -4,65 +4,108 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from '../../../../base/common/event.js';
+import { IReader } from '../../../../base/common/observable.js';
 import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
 import { IEditorWorkingSet } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { LifecyclePhase } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
-import { SinglePaneChangesEditorTransitionContext } from '../../../common/contextkeys.js';
+import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { DesktopChangesEditorTransitionContext } from '../../../common/contextkeys.js';
+import { ISidePaneState } from '../../../browser/workbench.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { BaseLayoutController } from './baseSessionLayoutController.js';
-import { ISinglePaneLayoutContext } from './singlePane/singlePaneLayoutStrategy.js';
-import { SinglePaneDetailPanelCoordinator } from './singlePane/singlePaneDetailPanelCoordinator.js';
-import { SinglePaneDockedTabsCoordinator } from './singlePane/singlePaneDockedTabsCoordinator.js';
-import { SinglePaneDraftSessionStrategy } from './singlePane/singlePaneDraftSessionStrategy.js';
-import { SinglePaneExistingSessionStrategy } from './singlePane/singlePaneExistingSessionStrategy.js';
-import { SinglePaneVisibilityProfileStore } from './singlePane/singlePaneVisibilityProfileStore.js';
+import { IDesktopLayoutContext } from './desktop/desktopLayoutStrategy.js';
+import { DesktopDetailPanelCoordinator } from './desktop/desktopDetailPanelCoordinator.js';
+import { DesktopDockedTabsCoordinator } from './desktop/desktopDockedTabsCoordinator.js';
+import { DesktopDraftSessionStrategy } from './desktop/desktopDraftSessionStrategy.js';
+import { DesktopExistingSessionStrategy } from './desktop/desktopExistingSessionStrategy.js';
+import { DesktopOwnerCompositionStore } from './desktop/desktopOwnerCompositionStore.js';
+import { DesktopVisibilityProfileStore } from './desktop/desktopVisibilityProfileStore.js';
 
-export { TOGGLE_DETAILS_COMMAND_ID } from './singlePane/singlePaneExistingSessionStrategy.js';
+export { TOGGLE_DETAILS_COMMAND_ID } from './desktop/desktopExistingSessionStrategy.js';
 
-/** Fresh single-pane key for the per-session layout state (not shared with the classic desktop controller). */
-const SINGLE_PANE_LAYOUT_STATE_KEY = 'sessions.singlePane.layoutState';
+/** Storage key for per-session desktop layout state. */
+const DESKTOP_LAYOUT_STATE_KEY = 'sessions.singlePane.layoutState';
+const DESKTOP_CHAT_LAYOUT_STATE_KEY = 'sessions.singlePane.chatLayoutState';
+const DESKTOP_SHARED_CHAT_LAYOUT_STATE_KEY = 'sessions.singlePane.sharedChatLayoutState';
+const SHARED_EXISTING_VISIBILITY_KEY = URI.from({ scheme: 'vscode-chat-layout-visibility', path: '/existing' });
 
 type ChangesEditorTransitionPhase = 'idle' | 'awaitingWorkingSet' | 'restoringWorkingSet' | 'reconciling';
 
 /**
- * Layout controller for the single-pane detail-panel layout. A sibling of the
- * classic {@link import('./desktopSessionLayoutController.js').LayoutController}
- * (both extend {@link BaseLayoutController}), it owns its behaviour through exactly
- * two composed lifecycle strategies rather than desktop inheritance:
- *  - {@link SinglePaneDraftSessionStrategy} — workspace-backed and workspace-less drafts;
- *  - {@link SinglePaneExistingSessionStrategy} — a created, workspace-backed session
+ * Layout controller for the desktop detail-panel layout. It owns its behavior
+ * through exactly two composed lifecycle strategies:
+ *  - {@link DesktopDraftSessionStrategy} — workspace-backed and workspace-less drafts;
+ *  - {@link DesktopExistingSessionStrategy} — a created, workspace-backed session
  *    (also owns the Toggle Details command and the shared managed-tabs coordinator);
  *
  * Each owns the full vertical slice of behaviour for its stage: side-pane visibility, the
  * detail-panel (Changes/Files) mapping, and — for the two workspace stages — a supplementary
- * nuance on the shared managed-docked-tabs reconcile pipeline (`SinglePaneDockedTabsCoordinator`,
+ * nuance on the shared managed-docked-tabs reconcile pipeline (`DesktopDockedTabsCoordinator`,
  * which also performs the detail-only editor-area collapse). That coordinator, the detail
- * panel's sync mechanics (`SinglePaneDetailPanelCoordinator`), and the shared New/Existing
- * Editor-visibility-profile storage (`SinglePaneVisibilityProfileStore`) are non-strategy coordinator
- * objects — see `singlePane/singlePaneLayoutStrategy.ts`'s doc comment for why.
+ * panel's sync mechanics (`DesktopDetailPanelCoordinator`), and the shared New/Existing
+ * Editor-visibility-profile storage (`DesktopVisibilityProfileStore`) are non-strategy coordinator
+ * objects — see `desktop/desktopLayoutStrategy.ts`'s doc comment for why.
  *
- * Strategies coordinate through this controller (the {@link ISinglePaneLayoutContext}):
+ * Strategies coordinate through this controller (the {@link IDesktopLayoutContext}):
  * a session-switch restore is signalled by {@link _isRestoringSessionLayout}, so
  * a restore-driven editor change is never mistaken for a user action.
  */
-export class SinglePaneLayoutController extends BaseLayoutController {
+export class DesktopLayoutController extends BaseLayoutController {
 
-	private _context: ISinglePaneLayoutContext | undefined;
-	private _existingSession: SinglePaneExistingSessionStrategy | undefined;
-	private _managedTabs: SinglePaneDockedTabsCoordinator | undefined;
+	private _context: IDesktopLayoutContext | undefined;
+	private _existingSession: DesktopExistingSessionStrategy | undefined;
+	private _managedTabs: DesktopDockedTabsCoordinator | undefined;
+	protected _compositionStore: DesktopOwnerCompositionStore | undefined;
 	private _changesEditorTransitionPhase: ChangesEditorTransitionPhase = 'idle';
 	private _onDidChangeChangesEditorTransition: Emitter<void> | undefined;
-	private readonly _changesEditorTransitionContextKey = SinglePaneChangesEditorTransitionContext.bindTo(this._contextKeyService);
+	private readonly _changesEditorTransitionContextKey = DesktopChangesEditorTransitionContext.bindTo(this._contextKeyService);
 
 	protected override get _layoutStateStorageKey(): string {
-		return SINGLE_PANE_LAYOUT_STATE_KEY;
+		if (this._sharedChatLayout) {
+			return DESKTOP_SHARED_CHAT_LAYOUT_STATE_KEY;
+		}
+		return this._chatLayoutEnabled ? DESKTOP_CHAT_LAYOUT_STATE_KEY : DESKTOP_LAYOUT_STATE_KEY;
+	}
+
+	private get _sharedChatLayout(): boolean {
+		return this._chatLayoutEnabled && this._layoutService.chatLayoutPresentation.configured === 'chat-shared';
+	}
+
+	private _compositionKeyFor(session: IActiveSession, reader?: IReader): URI | undefined {
+		const ownerKey = this._ownerKeyFor(session, reader);
+		return ownerKey && this._sharedChatLayout && session.isCreated.read(reader)
+			&& !session.isQuickChat?.read(reader) && session.activeChat.read(reader).workspace.read(reader)
+			? SHARED_EXISTING_VISIBILITY_KEY : ownerKey;
+	}
+
+	protected override _panelVisibilityKeyFor(session: IActiveSession, reader?: IReader): URI | undefined {
+		return this._compositionKeyFor(session, reader);
+	}
+
+	protected override _isPanelVisibilitySharedAcrossChats(session: IActiveSession, reader?: IReader): boolean {
+		return this._compositionKeyFor(session, reader) === SHARED_EXISTING_VISIBILITY_KEY;
+	}
+
+	protected override _defaultPanelVisibility(key: URI): boolean {
+		const visible = this._layoutService.isVisible(Parts.PANEL_PART);
+		this._panelVisibilityBySession.set(key, visible);
+		return visible;
+	}
+
+	protected override get _isLayoutStateVersioned(): boolean {
+		return this._chatLayoutEnabled;
 	}
 
 	protected override get _legacyWorkingSetsStorageKey(): string | undefined {
 		return undefined;
 	}
 
-	private get _ctx(): ISinglePaneLayoutContext {
+	protected override get _legacyLayoutStateStorageKey(): string | undefined {
+		return this._chatLayoutEnabled ? DESKTOP_LAYOUT_STATE_KEY : undefined;
+	}
+
+	private get _ctx(): IDesktopLayoutContext {
 		if (!this._context) {
 			const that = this;
 			this._context = {
@@ -71,6 +114,7 @@ export class SinglePaneLayoutController extends BaseLayoutController {
 				onDidEndSessionLayoutRestore: that.onDidEndSessionLayoutRestore,
 				get togglingSidePane() { return that._togglingSidePane; },
 				get multipleSessionsVisibleObs() { return that.multipleSessionsVisibleObs; },
+				get multipleChatsVisibleObs() { return that.multipleChatsVisibleObs; },
 				get activeSessionResourceObs() { return that.activeSessionResourceObs; },
 				hasSavedWorkingSet: sessionResource => that._workingSets.has(sessionResource),
 				completeChangesEditorTransition: () => {
@@ -83,6 +127,12 @@ export class SinglePaneLayoutController extends BaseLayoutController {
 						that._setChangesEditorTransitionPhase('idle');
 					}
 				},
+				chatLayoutActive: reader => that._chatLayoutActive(reader),
+				chatLayoutSuspended: reader => that._chatLayoutSuspended(reader),
+				get sharedChatLayout() { return that._sharedChatLayout; },
+				ownerKeyFor: (session, reader) => that._ownerKeyFor(session, reader),
+				compositionKeyFor: (session, reader) => that._compositionKeyFor(session, reader),
+				get compositionStore() { return that._compositionStore!; },
 			};
 		}
 		return this._context;
@@ -92,11 +142,13 @@ export class SinglePaneLayoutController extends BaseLayoutController {
 
 	protected override _registerViewStateManagement(): void {
 		this._register(toDisposable(() => this._changesEditorTransitionContextKey.reset()));
-		const visibilityStore = this._instantiationService.createInstance(SinglePaneVisibilityProfileStore);
-		const detailPanel = this._register(this._instantiationService.createInstance(SinglePaneDetailPanelCoordinator));
+		this._compositionStore = this._instantiationService.createInstance(DesktopOwnerCompositionStore, this._sharedChatLayout);
+		this._registerPersistedOwnerKeys(this._compositionStore.ownerKeys);
+		const visibilityStore = this._instantiationService.createInstance(DesktopVisibilityProfileStore, this._sharedChatLayout);
+		const detailPanel = this._register(this._instantiationService.createInstance(DesktopDetailPanelCoordinator));
 
-		this._existingSession = this._register(this._instantiationService.createInstance(SinglePaneExistingSessionStrategy, this._ctx, visibilityStore, detailPanel));
-		this._register(this._instantiationService.createInstance(SinglePaneDraftSessionStrategy, this._ctx, detailPanel, visibilityStore));
+		this._existingSession = this._register(this._instantiationService.createInstance(DesktopExistingSessionStrategy, this._ctx, visibilityStore, detailPanel));
+		this._register(this._instantiationService.createInstance(DesktopDraftSessionStrategy, this._ctx, detailPanel, visibilityStore));
 	}
 
 	// --- Managed tabs + editor-area collapse (deferred to Restored so they reconcile on top of the restored group) ---
@@ -113,7 +165,7 @@ export class SinglePaneLayoutController extends BaseLayoutController {
 				}
 			}));
 			this._register(this._editorGroupsService.registerContextKeyProvider({
-				contextKey: SinglePaneChangesEditorTransitionContext,
+				contextKey: DesktopChangesEditorTransitionContext,
 				getGroupContextKeyValue: group => this._changesEditorTransitionPhase !== 'idle'
 					&& group.id === this._editorGroupsService.mainPart.activeGroup.id
 					&& (group.activeEditor === null
@@ -121,7 +173,7 @@ export class SinglePaneLayoutController extends BaseLayoutController {
 				onDidChange: onDidChangeChangesEditorTransition.event,
 			}));
 			this._register(this._editorGroupsService.mainPart.onDidAddGroup(() => onDidChangeChangesEditorTransition.fire()));
-			this._managedTabs = this._register(this._instantiationService.createInstance(SinglePaneDockedTabsCoordinator, this._ctx));
+			this._managedTabs = this._register(this._instantiationService.createInstance(DesktopDockedTabsCoordinator, this._ctx));
 			this._existingSession?.registerManagedTabs(this._managedTabs);
 		});
 	}
@@ -129,6 +181,10 @@ export class SinglePaneLayoutController extends BaseLayoutController {
 	/** Toggle the detail panel and return whether it is now visible. */
 	toggleDetails(): boolean {
 		return this._existingSession?.toggleDetails() ?? false;
+	}
+
+	protected preHideComposition(ownerKey: URI): ISidePaneState | undefined {
+		return this._compositionStore?.getPreHide(ownerKey);
 	}
 
 	// --- Base hooks ---
@@ -151,13 +207,16 @@ export class SinglePaneLayoutController extends BaseLayoutController {
 		return false;
 	}
 
-	/**
-	 * Governs the panel at the workbench level (like the side pane). Flipping this
-	 * single gate off makes the base remember the panel's *view* per session instead
-	 * (defaulting to the Terminal).
-	 */
 	protected override get _isPanelVisibilityPerSession(): boolean {
-		return false;
+		return this._chatLayoutEnabled;
+	}
+
+	protected override get _isPanelVisibilityPersisted(): boolean {
+		return this._chatLayoutEnabled;
+	}
+
+	protected override get _isPanelViewPerSession(): boolean {
+		return true;
 	}
 
 	protected override _shouldRevealEditorPartOnApply(_editorPartHidden: boolean, _isModal: boolean): boolean {
@@ -195,5 +254,15 @@ export class SinglePaneLayoutController extends BaseLayoutController {
 		if ((previousPhase === 'idle') !== (phase === 'idle')) {
 			this._onDidChangeChangesEditorTransition?.fire();
 		}
+	}
+
+	protected override _onOwnerKeyRemapped(oldKey: URI, newKey: URI): void {
+		this._compositionStore?.remap(oldKey, newKey);
+		this._managedTabs?.remapOwnerKey(oldKey, newKey);
+	}
+
+	protected override _onOwnerKeysForgotten(keys: readonly URI[]): void {
+		this._compositionStore?.forget(keys);
+		this._managedTabs?.forgetOwnerKeys(keys);
 	}
 }

@@ -20,7 +20,7 @@ export const enum SessionVisibilityProfile {
 	Existing,
 }
 
-const SINGLE_PANE_VISIBILITY_STATE_KEY = 'sessions.singlePane.sidePaneVisibility';
+const DESKTOP_VISIBILITY_STATE_KEY = 'sessions.singlePane.sidePaneVisibility';
 const DEFAULT_NEW_SESSION_VISIBILITY_STATE: ISidePaneVisibilityState = {
 	editorVisible: false,
 	auxiliaryBarVisible: true,
@@ -33,16 +33,22 @@ const DEFAULT_EXISTING_SESSION_VISIBILITY_STATE: ISidePaneVisibilityState = {
 /**
  * Persists the Existing Session Editor/Details visibility profile.
  */
-export class SinglePaneVisibilityProfileStore {
+export class DesktopVisibilityProfileStore {
 
 	private _profiles: ISidePaneVisibilityProfiles = {
 		newSession: DEFAULT_NEW_SESSION_VISIBILITY_STATE,
 		existingSession: DEFAULT_EXISTING_SESSION_VISIBILITY_STATE,
 	};
 
-	constructor(@IStorageService private readonly _storageService: IStorageService) {
+	constructor(
+		shared: boolean,
+		@IStorageService private readonly _storageService: IStorageService,
+	) {
+		this._storageKey = shared ? 'sessions.sharedChatLayout.sidePaneVisibility' : DESKTOP_VISIBILITY_STATE_KEY;
 		this._load();
 	}
+
+	private readonly _storageKey: string;
 
 	get(profile: SessionVisibilityProfile): ISidePaneVisibilityState {
 		return profile === SessionVisibilityProfile.New
@@ -54,11 +60,11 @@ export class SinglePaneVisibilityProfileStore {
 		this._profiles = profile === SessionVisibilityProfile.New
 			? { ...this._profiles, newSession: state }
 			: { ...this._profiles, existingSession: state };
-		this._storageService.store(SINGLE_PANE_VISIBILITY_STATE_KEY, JSON.stringify(this._profiles), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		this._storageService.store(this._storageKey, JSON.stringify(this._profiles), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	private _load(): void {
-		const raw = this._storageService.get(SINGLE_PANE_VISIBILITY_STATE_KEY, StorageScope.WORKSPACE);
+		const raw = this._storageService.get(this._storageKey, StorageScope.WORKSPACE);
 		if (!raw) {
 			return;
 		}
@@ -72,10 +78,10 @@ export class SinglePaneVisibilityProfileStore {
 			} else if (this._isVisibilityState(parsed)) {
 				this._profiles = { ...this._profiles, existingSession: parsed };
 			} else {
-				this._storageService.remove(SINGLE_PANE_VISIBILITY_STATE_KEY, StorageScope.WORKSPACE);
+				this._storageService.remove(this._storageKey, StorageScope.WORKSPACE);
 			}
 		} catch {
-			this._storageService.remove(SINGLE_PANE_VISIBILITY_STATE_KEY, StorageScope.WORKSPACE);
+			this._storageService.remove(this._storageKey, StorageScope.WORKSPACE);
 		}
 	}
 
