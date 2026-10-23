@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { schedulerDelay } from '../../common/githubScheduler.js';
+import { schedulerDelay } from '../../common/scheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { FakeGitHubScheduler } from './fakeGitHubScheduler.js';
+import { FakeScheduler } from './fakeScheduler.js';
 
-suite('FakeGitHubScheduler', () => {
+suite('FakeScheduler', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('runs due callbacks in time then insertion order', () => {
-		const scheduler = new FakeGitHubScheduler({ now: 100 });
+		const scheduler = new FakeScheduler({ now: 100 });
 		const events: string[] = [];
 
 		disposables.add(scheduler.schedule(() => events.push(`late@${scheduler.now()}`), 50));
@@ -36,7 +36,7 @@ suite('FakeGitHubScheduler', () => {
 	});
 
 	test('returns deterministic positive jitter', () => {
-		const scheduler = new FakeGitHubScheduler({ jitterValues: [7, 0, 99] });
+		const scheduler = new FakeScheduler({ jitterValues: [7, 0, 99] });
 
 		assert.deepStrictEqual([
 			scheduler.jitter(10),
@@ -48,8 +48,23 @@ suite('FakeGitHubScheduler', () => {
 		], [7, 1, 5, 1, 2, 0]);
 	});
 
+	test('wall-clock jumps do not advance timer deadlines', () => {
+		const scheduler = disposables.add(new FakeScheduler());
+		const calls: number[] = [];
+		disposables.add(scheduler.schedule(() => calls.push(scheduler.now()), 100));
+		scheduler.advanceBy(10);
+		scheduler.advanceWallClockBy(1_000);
+		const afterJump = { now: scheduler.now(), next: scheduler.nextDueTime, calls: [...calls] };
+		scheduler.advanceBy(89);
+		const beforeTimer = [...calls];
+		scheduler.advanceBy(1);
+		assert.deepStrictEqual({ afterJump, beforeTimer, calls, pending: scheduler.pendingCount }, {
+			afterJump: { now: 1_010, next: 1_100, calls: [] }, beforeTimer: [], calls: [1_100], pending: 0,
+		});
+	});
+
 	test('schedulerDelay resolves only after time advances and honors abort', async () => {
-		const scheduler = new FakeGitHubScheduler({ now: 1_000 });
+		const scheduler = new FakeScheduler({ now: 1_000 });
 		const controller = new AbortController();
 		let resolved = false;
 
