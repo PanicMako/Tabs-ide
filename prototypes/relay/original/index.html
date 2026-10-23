@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#f7f8f4"><title>Relay — Leave a little context.</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<svg class="svg-defs" xmlns="http://www.w3.org/2000/svg"><defs>
+<symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></symbol>
+<symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+<symbol id="i-branch" viewBox="0 0 24 24"><circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M6 7v10m0-4c0-5 12 1 12-6"/></symbol>
+<symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-5-5 5 5-5 5"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></symbol>
+<symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9zm0 0v6h6M8 14h8m-8 3h5"/></symbol>
+<symbol id="i-box" viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5zm-9 5v10l9 4 9-4V8m-9 5v9"/></symbol>
+<symbol id="i-mark" viewBox="0 0 24 24"><path d="M6 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16l-6-4z"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+</defs></svg>
+<div class="app-shell">
+<aside class="sidebar">
+<a class="brand" href="./" aria-label="Relay home"><span class="brand-symbol"><i></i><i></i></span>relay<span class="brand-period">.</span></a>
+<div class="workspace-label">YOUR WORKSPACE <span>PERSONAL</span></div>
+<nav class="primary-nav" aria-label="Workspace">
+<button data-view="overview" class="nav-item active"><svg><use href="#i-grid"/></svg>Overview</button>
+<button data-view="history" class="nav-item"><svg><use href="#i-clock"/></svg>All handoffs<span id="total-count">6</span></button>
+<button data-view="saved" class="nav-item"><svg><use href="#i-mark"/></svg>Bookmarked<span id="bookmark-count">2</span></button>
+</nav>
+<div class="sidebar-heading">PROJECTS<button id="add-project" class="icon-button" aria-label="Add project"><svg><use href="#i-plus"/></svg></button></div>
+<nav id="projects" class="project-nav" aria-label="Projects"></nav>
+<div class="sidebar-bottom"><div class="small-illustration"><span>↗</span><span>↘</span></div><h3>A note to your future self.</h3><p>Leave the why.<br>Pick up the thread.</p><button id="how-it-works">The idea behind Relay <span>↗</span></button></div>
+<div class="profile"><div class="avatar">Y</div><div>Your workspace<small>Local prototype</small></div><span class="online-dot"></span></div>
+</aside>
+<div class="main-shell">
+<header class="topbar"><div class="breadcrumb">Workspace <span>/</span> <strong id="breadcrumb">Overview</strong></div><div class="top-actions"><span class="demo-label"><span></span> CONCEPT PREVIEW</span><button id="new-card" class="button primary"><svg><use href="#i-plus"/></svg>Leave a handoff</button></div></header>
+<main>
+<section class="welcome"><div><div class="eyebrow">LESS RECONSTRUCTING. MORE CREATING.</div><h1>Your train of thought,<br>right where you left it<span>.</span></h1><p>A small handoff today. A smoother start tomorrow.</p></div><div class="thread-art" aria-hidden="true"><svg viewBox="0 0 270 160"><path d="M20 127C65 127 43 47 98 47s17 95 68 95 24-111 81-111" fill="none" stroke="#d9e3d3" stroke-width="26"/><path d="M20 127C65 127 43 47 98 47s17 95 68 95 24-111 81-111" fill="none" stroke="#638465" stroke-width="1.5" stroke-dasharray="4 5"/><circle cx="20" cy="127" r="7" fill="#365b3b"/><circle cx="247" cy="31" r="7" fill="#365b3b"/><path d="m239 13 8-8 8 8m-8-8v16" stroke="#638465" stroke-width="1.5" fill="none"/></svg><span>good ideas deserve a breadcrumb.</span></div></section>
+<div class="section-title"><h2 id="main-heading">Pick up the thread</h2><span id="section-hint">YOUR LATEST CONTEXT, READY WHEN YOU ARE</span></div>
+<div id="overview" class="overview-grid"><section id="featured" aria-label="Latest handoff"></section><aside class="right-column"><div class="ritual-card"><span class="tiny-label">THE 30-SECOND RITUAL</span><h2>Before you close<br>that laptop.</h2><p>You don’t need to remember everything. Just leave yourself a place to start.</p><div class="ritual-line"><span>01</span>What were you working on?</div><div class="ritual-line"><span>02</span>Where did you leave off?</div><div class="ritual-line"><span>03</span>What’s the very next step?</div><button id="ritual-new">Leave yourself a note <svg><use href="#i-arrow"/></svg></button><div class="ritual-flower" aria-hidden="true">✳</div></div><div class="privacy-note"><svg><use href="#i-box"/></svg><p><strong>A little space of your own.</strong><br>Your notes stay in this browser.<br>No account. No extra setup.</p></div></aside></div>
+<section class="history-section"><div class="history-heading"><div><h2 id="history-heading">A few open threads</h2><span id="history-subtitle">Different projects. One place to remember.</span></div><label class="search"><svg><use href="#i-search"/></svg><input id="search" placeholder="Find a handoff…" aria-label="Search handoffs"><kbd>/</kbd></label></div><div class="filter-row" role="group" aria-label="Filter handoffs"><button class="filter active" data-filter="all">All threads <span id="filter-count">6</span></button><button class="filter" data-filter="Feature">Features</button><button class="filter" data-filter="Bug">Bugs <span class="bug-dot"></span></button><button class="filter" data-filter="Exploration">Explorations</button><div class="history-order">LATEST FIRST <svg><use href="#i-clock"/></svg></div></div><div id="cards" class="cards-grid"></div></section>
+<footer><span class="footer-brand">relay.</span><span>Made for the space between “where was I?” and “oh, right.”</span><span>TAKE YOUR TIME. YOUR CONTEXT IS HERE.</span></footer>
+</main>
+</div>
+</div>
+<dialog id="editor"><form id="card-form"><div class="dialog-heading"><span class="eyebrow">A NOTE TO YOUR FUTURE SELF</span><button type="button" class="close-button" data-close aria-label="Close">×</button></div><h2 id="editor-title">Leave a little context.</h2><p class="dialog-intro">A few lines now. A clearer head next time.</p><label>Working on<input name="title" required maxlength="140" placeholder="Give this thread a clear name"></label><div class="form-columns"><label>Project<select name="project" id="project-select"></select></label><label>Type<select name="type"><option>Feature</option><option>Bug</option><option>Exploration</option></select></label></div><label>Last thing tried<textarea name="tried" rows="3" placeholder="What did you try? What did you learn?"></textarea></label><label>Next step<textarea name="next" rows="2" required placeholder="One concrete action to start with…"></textarea></label><label>Blocked by <span class="optional">optional</span><input name="blocked" placeholder="Anything standing in the way?"></label><div class="form-columns"><label>Branch <span class="optional">optional</span><input name="branch" placeholder="feature/your-branch"></label><label>File references <span class="optional">comma separated</span><input name="files" placeholder="src/app.ts:42, README.md"></label></div><div class="dialog-footer"><span>Stored in this browser</span><button type="submit" class="button primary">Save handoff <svg><use href="#i-arrow"/></svg></button></div></form></dialog>
+<dialog id="detail"><div id="detail-content"></div></dialog>
+<dialog id="project-dialog"><form id="project-form"><div class="dialog-heading"><span class="eyebrow">MAKE ROOM FOR ANOTHER IDEA</span><button type="button" class="close-button" data-close aria-label="Close">×</button></div><h2>A new project.</h2><label>Project name<input name="name" required maxlength="45" placeholder="Something you’re building"></label><div class="dialog-footer"><span>Keep related threads together.</span><button class="button primary">Create project</button></div></form></dialog>
+<div id="toast" role="status" aria-live="polite"></div>
+<script src="app.js"></script>
+</body></html>

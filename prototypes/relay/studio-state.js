@@ -1,0 +1,72 @@
+/* Design exploration only. No editor, network, or extension integration. */
+R.modes=[]; // Appearance names are supplied by appearances.js.
+const studioSeed=()=>({version:3,projects:['Tabs','Personal site','Small experiments'],projectDetails:{Tabs:{description:'The little things that make a workspace feel right.',color:'#bdd6a6'},'Personal site':{description:'An evolving corner of the internet.',color:'#deb597'},'Small experiments':{description:'No big plans. Just following a few interesting thoughts.',color:'#bcb1d5'}},folders:[{id:'f-interface',project:'Tabs',name:'The little details',description:'Interactions worth getting right.',parent:'',view:'list',template:'return'},{id:'f-keyboard',project:'Tabs',name:'Keyboard moments',description:'A little less reaching for the mouse.',parent:'f-interface',view:'list',template:'return'},{id:'f-notes',project:'Tabs',name:'From the notebook',description:'Half-formed thoughts are welcome here.',parent:'',view:'gallery',template:'blank'},{id:'f-later',project:'Tabs',name:'Worth coming back to',description:'Not now doesn’t mean never.',parent:'',view:'board',template:'return'},{id:'f-site',project:'Personal site',name:'The next chapter',description:'Making room for the next version.',parent:'',view:'gallery',template:'blank'},{id:'f-small',project:'Small experiments',name:'Small beginnings',description:'Something to play with.',parent:'',view:'gallery',template:'blank'}],cards:[
+{id:'s1',project:'Tabs',folder:'f-interface',title:'A softer landing when you come back',body:'I keep coming back to this: opening a project should feel like picking up a conversation.\n\nNot a dashboard of everything I haven’t finished. Just enough to remember what I was thinking.\n\nA single note, close to the code, might be all it takes.',tried:'Tried giving every note the same weight. It was harder to see where to start.',next:'Make the latest note feel like an invitation. Put the very next step within reach.',blocked:'',branch:'explore/a-place-to-return',files:['src/views/ProjectHome.tsx:48'],links:'',saved:true,status:'in-progress',template:'return',values:{},tags:['a small detail'],attachments:[],created:Date.now()-840000,updated:Date.now()-840000,history:[]},
+{id:'s2',project:'Tabs',folder:'f-notes',title:'Less setup. More getting somewhere.',body:'What if the first thing you see is a blank page, not a choice of templates?\n\nThe structure can arrive later. I want someone to be able to write a messy thought, close the laptop, and feel like that was enough.',tried:'',next:'',blocked:'',branch:'',files:[],links:'',saved:true,status:'ready',template:'blank',values:{},tags:['an open question'],attachments:[],created:Date.now()-4900000,updated:Date.now()-4900000,history:[]},
+{id:'s3',project:'Tabs',folder:'f-keyboard',title:'That little pause in the command menu',body:'The recent actions are useful, but there’s a beat of hesitation before I find the one I need.\n\nI think it’s the spacing. The groups look like separate lists instead of one conversation.',tried:'Grouped by intent rather than alphabetically. Better, but the section labels are still doing too much.',next:'Try dropping one label and giving recent actions a little more breathing room.',blocked:'',branch:'explore/a-quieter-menu',files:['src/components/CommandPalette.tsx:32'],links:'',saved:false,status:'in-progress',template:'return',values:{},tags:['feel & flow'],attachments:[],created:Date.now()-12000000,updated:Date.now()-12000000,history:[]},
+{id:'s4',project:'Tabs',folder:'f-later',title:'A reminder that knows when to be quiet',body:'I don’t want a notification every time I switch away. Sometimes I’m only gone for a second.\n\nMaybe the useful question is: did I leave myself a place to start? If the answer is yes, there’s nothing else to say.',tried:'A prompt on every close felt like being asked to fill in a timesheet.',next:'Come back to this after the basic note flow feels natural.',blocked:'Waiting to see how people use the simple version.',branch:'',files:[],links:'',saved:false,status:'blocked',template:'return',values:{},tags:[],attachments:[],created:Date.now()-90000000,updated:Date.now()-90000000,history:[]},
+{id:'s5',project:'Tabs',folder:'f-interface',title:'The sidebar should feel like a bookshelf',body:'A few well-named places. Nothing shouting for attention.\n\nFolders should be something you grow into, not something you have to design before writing your first note.',tried:'',next:'',blocked:'',branch:'',files:[],links:'',saved:false,status:'ready',template:'blank',values:{},tags:['a feeling'],attachments:[],created:Date.now()-170000000,updated:Date.now()-170000000,history:[]},
+{id:'s6',project:'Personal site',folder:'f-site',title:'Make room for the things I make on weekends',body:'Not everything needs a case study. Some things just need a little picture, a sentence, and somewhere to live.',tried:'',next:'Collect three small projects. Let the work decide the layout.',blocked:'',branch:'weekend-corner',files:['src/pages/index.astro'],links:'',saved:false,status:'ready',template:'return',values:{},tags:[],attachments:[],created:Date.now()-190000000,updated:Date.now()-190000000,history:[]},
+{id:'s7',project:'Small experiments',folder:'f-small',title:'A shelf for all those saved links',body:'Something between a pile of bookmarks and a little personal library.\n\nI want to remember why I saved something, not just that I saved it.',tried:'',next:'Start with ten actual links. See what they have in common.',blocked:'',branch:'',files:[],links:'',saved:false,status:'ready',template:'return',values:{},tags:['a someday thing'],attachments:[],created:Date.now()-230000000,updated:Date.now()-230000000,history:[]}
+]});
+const latestStudio=R.read('relay-studio-v3');
+/* Keep notes created in the previous exploration separately; sample-only workspaces get the new examples. */
+const earlier=R.read('relay-prototype-v2')||R.read('relay-prototype-v1');
+const originalExampleIds=new Set(['tabs-1','tabs-2','tabs-3','tabs-4','site-1','site-2','labs-1','lab-1']);
+R.data=latestStudio&&R.valid(latestStudio)?latestStudio:studioSeed();
+if(!latestStudio&&earlier&&R.valid(earlier)){
+ const written=earlier.cards.filter(c=>!originalExampleIds.has(c.id));
+ if(written.length){earlier.projects.forEach(p=>{if(!R.data.projects.includes(p))R.data.projects.push(p);});R.data.folders.push(...(earlier.folders||[]).filter(f=>!R.data.folders.some(x=>x.id===f.id)));R.data.cards.push(...written.map(c=>({...c,template:'return'})));}
+}
+R.data.columns ||= [{id:'ready',name:'To come back to',color:'#bcb4d6'},{id:'in-progress',name:'Taking shape',color:'#bbd49b'},{id:'blocked',name:'A little pause',color:'#d6b294'},{id:'done',name:'Tucked away',color:'#9ab9b2'}];
+R.data.templates ||= [{id:'blank',name:'Just a thought',description:'A blank page. Nothing to fill in.',fields:[]},{id:'return',name:'Pick up later',description:'A few gentle breadcrumbs for your next visit.',fields:[{id:'tried',label:'Where I got to',type:'long'},{id:'next',label:'A place to start next time',type:'long'},{id:'blocked',label:'Something still on my mind',type:'short'}]},{id:'question',name:'Working something out',description:'A little room to explore.',fields:[{id:'wonder',label:'What I’m wondering',type:'long'},{id:'noticed',label:'What I’ve noticed',type:'long'},{id:'try',label:'Something to try',type:'long'}]}];
+R.data.prefs ||= {template:'blank',previews:true,density:'comfortable',accent:'',includeNested:true};R.data.projectDetails ||= {};
+R.data.cards.forEach(c=>{c.body ||= '';c.template ||= 'blank';c.values ||= {};c.tags ||= [];c.attachments ||= [];c.history ||= [];c.updated ||= c.created;c.files ||= [];c.links ||= '';});
+R.data.folders.forEach(f=>{f.parent ||= '';f.description ||= '';f.view ||= '';f.template ||= '';});
+R.data.projects.forEach(p=>{R.data.projectDetails[p] ||= {description:'A place for whatever you’re making.',color:['#bcd3a7','#d2b194','#bdb0d1'][R.data.projects.indexOf(p)%3]};});
+R.ui={scope:'all',project:R.data.projects[0],folder:'',query:'',type:'all',selected:'',focusStarted:false,view:'',includeNested:R.data.prefs.includeNested!==false,collapsed:new Set(),sideOpen:false};
+R.mode=1; // One Studio direction; older prototype URLs open this workspace.
+R.refreshStatuses=()=>{R.statuses=Object.fromEntries(R.data.columns.map(c=>[c.id,c.name]));};R.refreshStatuses();
+R.save=()=>{R.data.version=3;return R.storage('relay-studio-v3',R.data);};
+R.folder=id=>R.data.folders.find(f=>f.id===id);
+R.descendants=id=>{const ids=new Set([id]);let changed=true;while(changed){changed=false;R.data.folders.forEach(f=>{if(f.parent&&ids.has(f.parent)&&!ids.has(f.id)){ids.add(f.id);changed=true;}});}return ids;};
+R.trail=id=>{const result=[],seen=new Set();let f=R.folder(id);while(f&&!seen.has(f.id)){result.unshift(f);seen.add(f.id);f=R.folder(f.parent);}return result;};
+R.folderLabel=id=>R.trail(id).map(f=>f.name).join(' / ');
+R.value=(c,key)=>Object.prototype.hasOwnProperty.call(c.values||{},key)?c.values[key]:['tried','next','blocked'].includes(key)?c[key]||'':'';
+R.template=id=>R.data.templates.find(t=>t.id===id)||R.data.templates[0];
+R.next=c=>c.next||c.values?.try||c.values?.next||'';
+R.cards=()=>{const ids=R.ui.folder&&R.ui.includeNested?R.descendants(R.ui.folder):null;return R.all().filter(c=>(R.ui.scope==='archive'?c.archived:!c.archived)&&(R.ui.scope!=='saved'||c.saved)&&(!R.ui.project||c.project===R.ui.project)&&(!R.ui.folder||(ids?ids.has(c.folder):c.folder===R.ui.folder))&&(!R.ui.query||[c.title,c.body,c.tried,c.next,c.blocked,c.branch,c.project,c.links,...c.files,...(c.tags||[]),...Object.values(c.values||{}),R.folderLabel(c.folder)].join(' ').toLowerCase().includes(R.ui.query.toLowerCase())));};
+R.childFolders=()=>R.data.folders.filter(f=>f.project===R.ui.project&&f.parent===(R.ui.folder||''));
+R.scopeTitle=()=>R.ui.scope==='saved'?'Pinned':R.ui.scope==='archive'?'Archive':R.folder(R.ui.folder)?.name||R.ui.project;
+R.current=()=>R.cards().find(c=>c.id===R.ui.selected)||R.cards()[0];
+R.view=()=>R.ui.view||R.folder(R.ui.folder)?.view||'list';
+R.snapshot=(c,reason='A new checkpoint')=>{c.history.unshift({at:c.updated,title:c.title,body:c.body||'',tried:c.tried||'',next:c.next||'',blocked:c.blocked||'',status:c.status,values:structuredClone(c.values||{}),reason});};
+R.markdown=c=>`# ${c.title}\n\n${c.body||''}\n\nProject: ${c.project}\nFolder: ${R.folderLabel(c.folder)||'Unfiled'}\nStage: ${R.statuses[c.status]||'—'}\n\n${R.template(c.template).fields.map(f=>`## ${f.label}\n${R.value(c,f.id)||'—'}`).join('\n\n')}\n\n## Code context\nBranch: ${c.branch||'—'}\n${c.files.map(f=>'- '+f).join('\n')}\n${c.links||''}\n\n## Earlier thoughts\n${c.history.map(h=>`### ${R.date(h.at,{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}\n${h.body||h.tried||''}\n\n${h.next||''}`).join('\n\n')||'—'}\n`;
+R.fileDatabase=null;
+R.openFiles=()=>new Promise(resolve=>{try{const request=indexedDB.open('relay-studio-attachments',1);request.onupgradeneeded=()=>request.result.createObjectStore('files',{keyPath:'id'});request.onsuccess=()=>{R.fileDatabase=request.result;resolve();};request.onerror=()=>resolve();}catch{resolve();}});
+R.putFile=file=>new Promise((resolve,reject)=>{if(!R.fileDatabase){reject(Error('Storage unavailable'));return;}const tx=R.fileDatabase.transaction('files','readwrite');tx.objectStore('files').put(file);tx.oncomplete=()=>resolve(file);tx.onerror=()=>reject(tx.error);});
+R.getFile=id=>new Promise(resolve=>{if(!R.fileDatabase){resolve(null);return;}const tx=R.fileDatabase.transaction('files','readonly'),req=tx.objectStore('files').get(id);req.onsuccess=()=>resolve(req.result);req.onerror=()=>resolve(null);});
+R.filesReady=R.openFiles();
+
+R.extraAnswers=c=>{const active=new Set(R.template(c.template).fields.map(f=>f.id)),values={};['tried','next','blocked'].forEach(k=>{if(c[k])values[k]=c[k];});Object.assign(values,c.values||{});return Object.entries(values).filter(([k,v])=>!active.has(k)&&v!==''&&v!==false&&v!==null).map(([key,value])=>({key,value,label:R.data.templates.flatMap(t=>t.fields).find(f=>f.id===key)?.label||R.data.retiredFields?.[key]?.label||({tried:'Where I got to',next:'A place to start next time',blocked:'Something still on my mind'}[key])||'An earlier answer'}));};
+R.markdown=c=>`# ${c.title}\n\n${c.body||''}\n\nProject: ${c.project}\nFolder: ${R.folderLabel(c.folder)||'Unfiled'}\nStage: ${R.statuses[c.status]||'—'}\n\n${R.template(c.template).fields.map(f=>`## ${f.label}\n${R.value(c,f.id)||'—'}`).join('\n\n')}\n\n${R.extraAnswers(c).map(a=>`## ${a.label} (kept from an earlier layout)\n${a.value===true?'Yes':a.value}`).join('\n\n')}\n\n## Code context\nBranch: ${c.branch||'—'}\n${c.files.map(f=>'- '+f).join('\n')}\n${c.links||''}\n\n## Earlier thoughts\n${c.history.map(h=>`### ${R.date(h.at,{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}\n${h.body||h.tried||''}\n\n${h.next||''}\n${Object.values(h.values||{}).filter(v=>v!==''&&v!==false).join('\n')}`).join('\n\n')||'—'}\n`;
+
+R.prose=text=>{
+ const inline=raw=>{
+  const tokens=[];
+  let value=R.e(raw).replace(/\x60([^\x60]+)\x60/g,(_,code)=>'RELAY_CODE_'+(tokens.push('<code>'+code+'</code>')-1)+'_END');
+  value=value.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*([^*]+)\*/g,'<em>$1</em>');
+  return value.replace(/RELAY_CODE_(\d+)_END/g,(match,index)=>tokens[Number(index)]||match);
+ };
+ const output=[],paragraph=[];let code=null,inList=false;
+ const flush=()=>{if(paragraph.length){output.push('<p>'+paragraph.map(inline).join('<br>')+'</p>');paragraph.length=0;}if(inList){output.push('</ul>');inList=false;}};
+ for(const line of String(text||'').split('\n')){
+  if(line.trim().startsWith(String.fromCharCode(96).repeat(3))){if(code){output.push('<pre><code>'+R.e(code.join('\n'))+'</code></pre>');code=null;}else{flush();code=[];}continue;}
+  if(code){code.push(line);continue;}
+  if(!line.trim()){flush();continue;}
+  const heading=line.match(/^#{1,3}\s+(.+)/);if(heading){flush();output.push('<h3>'+inline(heading[1])+'</h3>');continue;}
+  const bullet=line.match(/^\s*[-*]\s+(.+)/);if(bullet){if(paragraph.length)flush();if(!inList){output.push('<ul>');inList=true;}output.push('<li>'+inline(bullet[1])+'</li>');continue;}
+  if(inList){output.push('</ul>');inList=false;}paragraph.push(line);
+ }
+ flush();if(code)output.push('<pre><code>'+R.e(code.join('\n'))+'</code></pre>');return output.join('');
+};
