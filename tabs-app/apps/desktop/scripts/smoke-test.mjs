@@ -1767,7 +1767,7 @@ async function run() {
     console.log("[Delivery] Server activated scheduled intake while renderer was unloaded");
     await cdp.send("Page.navigate", { url: disconnectedDelivery.url });
     let reconnected = false;
-    for (let attempt = 0; attempt < 60; attempt++) {
+    for (let attempt = 0; attempt < 120; attempt++) {
       if (
         await cdp.evaluate(
           `Boolean(
