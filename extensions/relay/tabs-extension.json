@@ -1,0 +1,39 @@
+{
+  "manifestVersion": 1,
+  "publisher": "panicmako",
+  "name": "relay",
+  "version": "0.1.0",
+  "displayName": "Relay",
+  "description": "A quiet notebook for project context. Optional nested folders, boards, custom note templates, project logos, and reversible bulk deletion.",
+  "releaseNotes": "First release of Relay. Capture notes quickly, organize projects with optional nested folders, switch between list, cards and board views, and build reusable templates with thirteen optional field types. Includes local search, pins, archive, backups and a theme that follows Tabs.",
+  "engines": {
+    "tabs": ">=2.0.0 <3.0.0",
+    "api": "^1.6.0"
+  },
+  "capabilities": [],
+  "listing": {
+    "readme": "README.md",
+    "icon": "icon.png",
+    "categories": [
+      "productivity"
+    ],
+    "keywords": [
+      "notes",
+      "handoff",
+      "folders",
+      "kanban",
+      "context"
+    ],
+    "externalServices": "None. Notes, project logos, attachments, and Trash stay in local extension profile browser storage. No telemetry or cloud sync."
+  },
+  "contributes": {
+    "tools": [
+      {
+        "id": "notebook",
+        "label": "Relay",
+        "entry": "dist/index.html",
+        "icon": "tool.svg"
+      }
+    ]
+  }
+}
