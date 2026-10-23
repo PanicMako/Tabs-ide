@@ -1,0 +1,76 @@
+/* Fixed setup pairing, independent of the selected app theme. */
+@import "@fontsource/manrope/latin-400.css";
+@import "@fontsource/manrope/latin-500.css";
+@import "@fontsource/manrope/latin-600.css";
+
+@import "../../downloadedFonts.css";
+
+.setup-typography {
+  --font-setup: "Manrope", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-sans: var(--font-setup);
+  --font-display: "KS Bistra", var(--font-setup);
+  --font-setup-accent: "Pavot", var(--font-setup);
+  --font-heading: var(--font-display);
+  --font-section: var(--font-display);
+  --font-row: var(--font-setup);
+  --font-controls: var(--font-setup);
+  --font-ui-meta: var(--font-setup);
+  --font-supporting: var(--font-setup);
+  --font-mono: var(--font-setup);
+  font-family: var(--font-setup);
+  font-synthesis: none;
+}
+
+.setup-typography .setup-supporting-copy {
+  font-family: var(--font-supporting);
+  font-weight: 400;
+}
+
+/* All setup titles share the display face, including the top bar and portal. */
+.setup-typography :is(h1, h2, h3) {
+  font-family: var(--font-display);
+  font-weight: 400;
+}
+
+.setup-typography .setup-headline {
+  font-size: clamp(36px, 4.2vw, 56px);
+  font-style: normal;
+  line-height: 1.12;
+  letter-spacing: 0.01em;
+  text-wrap: balance;
+}
+
+.setup-surface {
+  background-image: linear-gradient(
+    135deg,
+    rgb(255 255 255 / 7%),
+    transparent 55%,
+    rgb(0 0 0 / 12%)
+  );
+}
+
+.setup-typography .setup-welcome-headline {
+  font-size: clamp(38px, 5vw, 58px);
+  line-height: 1.12;
+  letter-spacing: 0.015em;
+}
+
+.setup-typography .setup-heading-accent {
+  margin-top: 0.35em;
+  font-family: var(--font-setup-accent);
+  font-size: clamp(36px, 5vw, 60px);
+  font-weight: 700;
+  font-style: italic;
+  line-height: 1.18;
+  letter-spacing: 0.035em;
+  text-transform: none;
+}
+
+/* Brand lettering stays compact and distinct from the italic hero accent. */
+.setup-typography .setup-brand-title {
+  font-family: "Aicon", var(--font-setup);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}

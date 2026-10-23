@@ -33,7 +33,7 @@ function StepFooter({
         <ArrowRightIcon aria-hidden="true" className="size-3.5 rotate-180" />
         Back<span className="sr-only"> to previous setup step</span>
       </button>
-      <span className="hidden text-xs text-white/65 sm:block">{step}</span>
+      <span className="hidden text-xs text-white/90 sm:block">{step}</span>
       <button type="button" disabled={disabled} onClick={onNext} className={SETUP_ACTION_CLASS}>
         {nextLabel}
         <ArrowRightIcon aria-hidden="true" className="size-3.5" />
@@ -54,27 +54,29 @@ export function AppIconStep({
   readonly onNext: () => void;
 }) {
   return (
-    <SetupCard labelledBy="setup-icon-title">
-      <div className="grid items-center gap-10 py-3 md:grid-cols-[1fr_1.05fr] md:gap-12 md:py-6">
+    <SetupCard labelledBy="setup-icon-title" step={2}>
+      <div className="grid grid-cols-1 items-center gap-10 py-3 md:grid-cols-[1fr_1.05fr] md:gap-12 md:py-6">
         <div>
-          <p className="mb-5 text-[10px] font-medium uppercase tracking-[0.2em] text-white/65">
+          <p className="mb-5 text-[10px] font-medium uppercase tracking-[0.2em] text-white/90">
             A familiar face
           </p>
           <h2
             id="setup-icon-title"
             style={{ fontFamily: "var(--font-display, var(--font-sans))" }}
-            className="text-[38px] font-semibold leading-[1.08] tracking-[-0.05em] text-white sm:text-[46px]"
+            className="setup-headline text-white"
           >
             Choose your
             <br />
             app icon.
           </h2>
-          <p className="mt-6 max-w-xs text-sm leading-7 text-white/75">
+          <p className="setup-supporting-copy mt-6 max-w-xs text-base leading-7 text-white/90">
             The same Tabs, with a look that feels at home in your Dock and app switcher.
           </p>
-          <p className="mt-4 text-xs text-white/60">You can change it anytime in Settings.</p>
+          <p className="setup-supporting-copy mt-4 text-sm text-white/90">
+            You can change it anytime in Settings.
+          </p>
         </div>
-        <div className="rounded-[32px] border border-white/25 bg-white/90 p-4 text-neutral-800 shadow-xl shadow-black/15 sm:p-5">
+        <div className="rounded-lg border border-white/25 bg-white/90 p-4 text-neutral-800 shadow-xl shadow-black/15 sm:p-5">
           <div role="group" aria-label="App icon style" className="grid grid-cols-3 gap-2">
             {ICONS.map((item) => (
               <button
@@ -83,7 +85,7 @@ export function AppIconStep({
                 aria-pressed={selected === item.id}
                 aria-label={`${item.label} app icon`}
                 onClick={() => onSelect(item.id)}
-                className={`relative flex min-w-0 flex-col items-center gap-5 rounded-[24px] px-2 pb-6 pt-10 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-700 ${selected === item.id ? "bg-white shadow-sm ring-1 ring-black/10" : "hover:bg-white/60"}`}
+                className={`relative flex min-w-0 flex-col items-center gap-5 rounded-lg px-2 pb-6 pt-10 transition-[background-color,box-shadow,transform] motion-safe:hover:-translate-y-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-700 ${selected === item.id ? "bg-white shadow-lg shadow-black/10 ring-1 ring-black/15" : "hover:bg-white/60"}`}
               >
                 <span
                   aria-hidden="true"
@@ -94,7 +96,7 @@ export function AppIconStep({
                 <img
                   src={`/onboarding/app-icon-${item.id}.png`}
                   alt=""
-                  className="size-16 rounded-[20px] shadow-md sm:size-24"
+                  className="size-16 rounded-lg shadow-md sm:size-24"
                 />
                 <span className="text-xs font-semibold">{item.label}</span>
               </button>
@@ -128,25 +130,25 @@ export function AppearanceStep({
   readonly launching: boolean;
 }) {
   return (
-    <SetupCard labelledBy="setup-appearance-title">
-      <div className="grid items-center gap-10 py-3 md:grid-cols-[1fr_1.05fr] md:gap-12 md:py-6">
+    <SetupCard labelledBy="setup-appearance-title" step={3}>
+      <div className="grid grid-cols-1 items-center gap-10 py-3 md:grid-cols-[1fr_1.05fr] md:gap-12 md:py-6">
         <div>
-          <p className="mb-5 text-[10px] font-medium uppercase tracking-[0.2em] text-white/65">
+          <p className="mb-5 text-[10px] font-medium uppercase tracking-[0.2em] text-white/90">
             Set the mood
           </p>
           <h2
             id="setup-appearance-title"
             style={{ fontFamily: "var(--font-display, var(--font-sans))" }}
-            className="text-[38px] font-semibold leading-[1.08] tracking-[-0.05em] text-white sm:text-[46px]"
+            className="setup-headline text-white"
           >
             Choose your
             <br />
             appearance.
           </h2>
-          <p className="mt-6 max-w-xs text-sm leading-7 text-white/75">
+          <p className="setup-supporting-copy mt-6 max-w-xs text-base leading-7 text-white/90">
             Light, dark, or in step with your system. Find the space you like working in.
           </p>
-          <p className="mt-4 max-w-xs text-xs leading-6 text-white/60">
+          <p className="setup-supporting-copy mt-4 max-w-xs text-sm leading-6 text-white/90">
             More themes, fonts, and editor colors are waiting in Settings.
           </p>
         </div>
@@ -163,7 +165,7 @@ export function AppearanceStep({
                 aria-pressed={selected === id}
                 aria-label={`${label} appearance`}
                 onClick={() => onSelect(id)}
-                className={`inline-flex flex-1 items-center justify-center gap-2 rounded-full px-2 py-3 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white ${selected === id ? "bg-white text-neutral-800 shadow-sm" : "text-white/80 hover:bg-white/10"}`}
+                className={`inline-flex flex-1 items-center justify-center gap-2 rounded-full px-2 py-3 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white ${selected === id ? "bg-white text-neutral-800 shadow-sm" : "text-white/90 hover:bg-white/10"}`}
               >
                 <Icon aria-hidden="true" className="size-3.5" />
                 {label}
@@ -171,7 +173,7 @@ export function AppearanceStep({
             ))}
           </div>
           <WorkbenchPreview mode={resolvedMode} />
-          <p className="mt-4 text-center text-[10px] text-white/60">
+          <p className="mt-4 text-center text-[10px] text-white/90">
             Appearance preview · Frost surface
           </p>
         </div>

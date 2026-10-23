@@ -1,3 +1,4 @@
+import "./setup-typography.css";
 import {
   CheckIcon,
   DicesIcon,
@@ -23,6 +24,8 @@ import {
 
 export interface WallpaperGalleryModalProps {
   readonly isOpen: boolean;
+  /** Keep a wizard-owned portal on its fixed setup typeface. */
+  readonly setupTypography?: boolean;
   readonly activeWallpaperUrl: string;
   readonly threadId?: string | null;
   readonly isThreadSpecific?: boolean;
@@ -40,6 +43,7 @@ export interface WallpaperGalleryModalProps {
 
 export function WallpaperGalleryModal({
   isOpen,
+  setupTypography = false,
   activeWallpaperUrl,
   threadId = null,
   isThreadSpecific = false,
@@ -193,6 +197,7 @@ export function WallpaperGalleryModal({
       className={cn(
         "fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-6 backdrop-blur-md animate-in fade-in duration-200",
         isLight ? "bg-slate-900/40" : "bg-black/80",
+        setupTypography && "setup-typography",
       )}
       onClick={onClose}
     >
@@ -226,7 +231,9 @@ export function WallpaperGalleryModal({
                 <h2
                   id="wallpaper-gallery-title"
                   className={cn(
-                    "text-base font-bold tracking-tight",
+                    setupTypography
+                      ? "text-3xl font-normal tracking-normal"
+                      : "text-base font-bold tracking-tight",
                     isLight ? "text-slate-900" : "text-white",
                   )}
                 >
@@ -243,7 +250,7 @@ export function WallpaperGalleryModal({
                   {wallpapers.length} scenes
                 </span>
               </div>
-              <p className={cn("text-xs", isLight ? "text-slate-500" : "text-white/50")}>
+              <p className={cn("text-xs", isLight ? "text-slate-600" : "text-white/65")}>
                 Aesthetic anime landscapes for your workspace • Works in Light & Dark Mode
               </p>
             </div>
@@ -289,7 +296,7 @@ export function WallpaperGalleryModal({
               className={cn(
                 "flex size-8 items-center justify-center rounded-full border transition-colors cursor-pointer",
                 isLight
-                  ? "border-slate-200 bg-white text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                  ? "border-slate-200 bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900"
                   : "border-white/10 bg-white/5 text-white/60 hover:bg-white/10 hover:text-white",
               )}
               title="Close gallery (Esc)"
@@ -398,9 +405,9 @@ export function WallpaperGalleryModal({
               type="button"
               onClick={() => setShowAddCustom((prev) => !prev)}
               className={cn(
-                "flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium border transition-colors cursor-pointer shrink-0",
+                "flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium border transition-[border-color,box-shadow] cursor-pointer shrink-0",
                 showAddCustom
-                  ? "border-sky-500 bg-sky-500 text-white"
+                  ? "border-sky-700 bg-sky-700 text-white"
                   : isLight
                     ? "border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
                     : "border-white/15 bg-white/5 text-white/80 hover:bg-white/10 hover:text-white",
@@ -414,7 +421,7 @@ export function WallpaperGalleryModal({
               <SearchIcon
                 className={cn(
                   "absolute left-3 top-1/2 -translate-y-1/2 size-3.5 pointer-events-none",
-                  isLight ? "text-slate-400" : "text-white/40",
+                  isLight ? "text-slate-600" : "text-white/65",
                 )}
               />
               <input
@@ -426,8 +433,8 @@ export function WallpaperGalleryModal({
                 className={cn(
                   "w-full rounded-full border pl-8 pr-3 py-1 text-xs focus:outline-none focus:ring-1 transition-colors",
                   isLight
-                    ? "border-slate-200 bg-white text-slate-900 placeholder-slate-400 focus:border-sky-500 focus:ring-sky-500/30"
-                    : "border-white/15 bg-black/40 text-white placeholder-white/40 focus:border-sky-400 focus:ring-sky-400/50",
+                    ? "border-slate-200 bg-white text-slate-900 placeholder-slate-600 focus:border-sky-500 focus:ring-sky-500/30"
+                    : "border-white/15 bg-black/40 text-white placeholder-white/65 focus:border-sky-400 focus:ring-sky-400/50",
                 )}
               />
               {searchQuery && (
@@ -473,7 +480,7 @@ export function WallpaperGalleryModal({
                 <UploadIcon className="size-3.5" />
                 <span>Upload Image File</span>
               </button>
-              <span className={cn("text-xs", isLight ? "text-slate-400" : "text-white/40")}>
+              <span className={cn("text-xs", isLight ? "text-slate-600" : "text-white/65")}>
                 or
               </span>
             </div>
@@ -489,7 +496,7 @@ export function WallpaperGalleryModal({
                   "w-32 rounded-lg border px-2.5 py-1 text-xs focus:outline-none",
                   isLight
                     ? "border-slate-200 bg-white text-slate-800"
-                    : "border-white/15 bg-black/40 text-white",
+                    : "border-white/15 bg-black/40 text-white placeholder-white/65",
                 )}
               />
               <input
@@ -501,14 +508,14 @@ export function WallpaperGalleryModal({
                   "flex-1 rounded-lg border px-2.5 py-1 text-xs focus:outline-none",
                   isLight
                     ? "border-slate-200 bg-white text-slate-800"
-                    : "border-white/15 bg-black/40 text-white",
+                    : "border-white/15 bg-black/40 text-white placeholder-white/65",
                 )}
               />
               <button
                 type="button"
                 onClick={handleAddUrl}
                 disabled={!customUrlInput.trim()}
-                className="rounded-lg bg-sky-500 px-3 py-1 text-xs font-semibold text-white transition-opacity disabled:opacity-40 cursor-pointer hover:bg-sky-600"
+                className="rounded-lg bg-sky-700 px-3 py-1 text-xs font-semibold text-white transition-opacity disabled:opacity-40 cursor-pointer hover:bg-sky-800"
               >
                 Add
               </button>
@@ -529,12 +536,12 @@ export function WallpaperGalleryModal({
             <div
               className={cn(
                 "flex flex-col items-center justify-center py-16 text-center",
-                isLight ? "text-slate-500" : "text-white/50",
+                isLight ? "text-slate-600" : "text-white/65",
               )}
             >
               <span className="text-3xl mb-2">🔍</span>
               <p className="text-sm font-medium">No wallpapers found</p>
-              <p className={cn("text-xs mt-1", isLight ? "text-slate-400" : "text-white/40")}>
+              <p className={cn("text-xs mt-1", isLight ? "text-slate-600" : "text-white/65")}>
                 Try searching with different terms or upload your own custom wallpaper.
               </p>
               <button
@@ -559,6 +566,7 @@ export function WallpaperGalleryModal({
                 const isSelected = wp.url === activeWallpaperUrl;
                 return (
                   <button
+                    data-shape="preview"
                     key={wp.id}
                     type="button"
                     onClick={() => {
@@ -630,8 +638,8 @@ export function WallpaperGalleryModal({
                         className={cn(
                           "text-[11px] leading-tight line-clamp-1 transition-colors",
                           isLight
-                            ? "text-slate-500 group-hover:text-slate-800"
-                            : "text-white/50 group-hover:text-white/70",
+                            ? "text-slate-600 group-hover:text-slate-800"
+                            : "text-white/65 group-hover:text-white/70",
                         )}
                       >
                         {wp.description}
@@ -649,8 +657,8 @@ export function WallpaperGalleryModal({
           className={cn(
             "flex items-center justify-between border-t px-6 py-3 shrink-0 text-xs",
             isLight
-              ? "border-slate-200 bg-slate-50 text-slate-500"
-              : "border-white/10 bg-white/[0.02] text-white/50",
+              ? "border-slate-200 bg-slate-50 text-slate-600"
+              : "border-white/10 bg-white/[0.02] text-white/65",
           )}
         >
           <span>

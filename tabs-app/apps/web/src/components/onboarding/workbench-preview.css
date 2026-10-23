@@ -1,0 +1,14 @@
+/* The specimen's appearance can differ from the surrounding application. Keep
+   its text palette local and its slots separate from live workspace chrome. */
+[data-slot="onboarding-workbench-preview"] {
+  --preview-foreground: #404040;
+  --preview-muted: #626262;
+  color-scheme: light;
+  color: var(--preview-foreground);
+}
+
+[data-slot="onboarding-workbench-preview"][data-preview-mode="dark"] {
+  --preview-foreground: #e5e5e5;
+  --preview-muted: #b5b5b5;
+  color-scheme: dark;
+}

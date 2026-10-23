@@ -39,7 +39,7 @@ export function PreviewContent({
         aria-label="Example IDE with file explorer and code editor"
       >
         <aside className={`w-24 shrink-0 border-r p-3 ${line} ${muted}`}>
-          <p className="mb-4 text-[9px] font-medium uppercase tracking-wider opacity-60">
+          <p className="mb-4 text-[9px] font-medium uppercase tracking-wider text-[var(--preview-muted)]">
             Explorer
           </p>
           <div className="mb-2 flex items-center gap-1">
@@ -56,7 +56,7 @@ export function PreviewContent({
               {file}
             </p>
           ))}
-          <p className="mt-3 opacity-60">package.json</p>
+          <p className="mt-3 text-[var(--preview-muted)]">package.json</p>
         </aside>
         <div className="min-w-0 flex-1">
           <div className={`flex items-center gap-2 border-b px-3 py-2.5 ${line}`}>
@@ -66,7 +66,9 @@ export function PreviewContent({
           <div className="overflow-hidden py-3 font-mono text-[9px] leading-5">
             {code.map((text, i) => (
               <div key={i} className="flex whitespace-pre">
-                <span className="w-7 shrink-0 text-center opacity-35">{i + 1}</span>
+                <span className="w-7 shrink-0 text-center text-[var(--preview-muted)]">
+                  {i + 1}
+                </span>
                 <span
                   className={
                     i === 0 || i === 2 ? (light ? "text-[#66539d]" : "text-[#bdb0de]") : ""
@@ -87,12 +89,12 @@ export function PreviewContent({
         aria-label="Example agent workspace with threads and a conversation"
       >
         <aside className={`w-24 shrink-0 border-r p-3 ${line} ${muted}`}>
-          <div className="mb-4 flex items-center justify-between text-[9px] font-medium opacity-70">
+          <div className="mb-4 flex items-center justify-between text-[9px] font-medium text-[var(--preview-muted)]">
             <span>Threads</span>
             <PlusIcon aria-hidden="true" className="size-3" />
           </div>
           <div className={`rounded-lg p-2 font-medium ${selected}`}>Settings page</div>
-          <p className="mt-3 px-2 opacity-55">Fix navigation</p>
+          <p className="mt-3 px-2 text-[var(--preview-muted)]">Fix navigation</p>
         </aside>
         <div className="flex min-w-0 flex-1 flex-col p-3">
           <div className={`ml-auto max-w-[85%] rounded-xl px-3 py-2 ${selected}`}>
@@ -102,7 +104,7 @@ export function PreviewContent({
             <BotIcon aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
             <div>
               <p className="mb-1 font-semibold">Codex</p>
-              <p className="leading-4 opacity-75">
+              <p className="leading-4 text-[var(--preview-muted)]">
                 Added the page and wired up appearance preferences.
               </p>
               <p
@@ -116,7 +118,7 @@ export function PreviewContent({
           <div
             className={`mt-auto flex items-center justify-between rounded-xl border px-3 py-2 ${line} ${muted}`}
           >
-            <span className="opacity-50">Ask a follow-up...</span>
+            <span className="text-[var(--preview-muted)]">Ask a follow-up...</span>
             <ArrowUpIcon aria-hidden="true" className="size-3" />
           </div>
         </div>
@@ -136,7 +138,7 @@ export function PreviewContent({
           >
             <div>
               <p className="font-medium">{item.name}</p>
-              <p className="mt-1 font-mono opacity-60">{item.command}</p>
+              <p className="mt-1 font-mono text-[var(--preview-muted)]">{item.command}</p>
             </div>
             <PlayIcon aria-hidden="true" className="size-3.5" />
           </div>
@@ -151,14 +153,14 @@ export function PreviewContent({
       >
         <div className="mb-3 flex items-center justify-between">
           <span className="text-xs font-semibold">Changes</span>
-          <span className="flex items-center gap-1 opacity-60">
+          <span className="flex items-center gap-1 text-[var(--preview-muted)]">
             <GitBranchIcon aria-hidden="true" className="size-3" />
             main
           </span>
         </div>
         <div className={`flex items-center gap-2 rounded-lg px-2 py-2 ${selected}`}>
           <FileIcon aria-hidden="true" className="size-3" />
-          App.tsx<span className="ml-auto opacity-60">M</span>
+          App.tsx<span className="ml-auto text-[var(--preview-muted)]">M</span>
         </div>
         <div
           className={`mt-3 overflow-hidden rounded-xl border font-mono text-[9px] leading-6 ${line}`}
@@ -172,7 +174,7 @@ export function PreviewContent({
             + return &lt;Settings /&gt;;
           </p>
         </div>
-        <p className="mt-3 opacity-50">Review changes before you commit.</p>
+        <p className="mt-3 text-[var(--preview-muted)]">Review changes before you commit.</p>
       </div>
     );
   return (
@@ -184,7 +186,7 @@ export function PreviewContent({
       <div className="p-5">
         <div className={`flex items-center justify-between border-b pb-3 ${line}`}>
           <span className="text-xs font-semibold">{project}</span>
-          <span className="opacity-50">Home · Settings</span>
+          <span className="text-[var(--preview-muted)]">Home · Settings</span>
         </div>
         <p className="mt-5 text-lg font-semibold tracking-tight">A space for your ideas.</p>
         <div className="mt-4 flex gap-2">

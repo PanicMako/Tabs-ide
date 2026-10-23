@@ -1,6 +1,6 @@
+import "./setup-typography.css";
 import { useAtomValue } from "@effect/atom-react";
 import type { DesktopCodeHostState } from "@tabs/contracts";
-import { VolumeXIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useCompleteOnboarding } from "../../onboarding/firstRun";
@@ -12,8 +12,6 @@ import { isElectron } from "../../env";
 import { afterStartupPaint } from "../../lib/afterStartupPaint";
 import { APP_VERSION } from "../../branding";
 import { ClaudeAI, GoogleGemini, OpenAI, OpenCodeIcon } from "../Icons";
-import { Badge } from "../ui/badge";
-import { Button } from "../ui/button";
 import {
   BRIGHT_WALLPAPERS,
   WALLPAPERS,
@@ -22,7 +20,7 @@ import {
 } from "./wallpapers";
 import { AppIconStep, AppearanceStep } from "./PersonalizeSteps";
 import { WelcomeOverview } from "./WelcomeOverview";
-import { WallpaperTopBar } from "./WallpaperTopBar";
+import { SetupHeader } from "./SetupHeader";
 import { WallpaperGalleryModal } from "./WallpaperGalleryModal";
 
 export interface WelcomeWizardProps {
@@ -1182,12 +1180,13 @@ export function WelcomeWizard({ onDone }: WelcomeWizardProps) {
   const hasNativeWindowControls = isElectron && /darwin|mac|win/i.test(clientPlatform);
 
   return (
-    <div className="relative flex min-h-screen w-full flex-col justify-between overflow-x-hidden overflow-y-auto bg-black text-white select-none antialiased">
+    <div className="setup-typography relative flex min-h-screen w-full flex-col justify-between overflow-x-hidden overflow-y-auto bg-black text-white select-none antialiased">
       {/* Fullscreen Hyperspace Warp Speed Canvas Transition */}
       <HalftoneDissolveOverlay active={isLaunching} />
 
       {/* Full Visual Wallpaper Gallery Modal — bright/light scenes only for wizard */}
       <WallpaperGalleryModal
+        setupTypography
         isOpen={isGalleryOpen}
         activeWallpaperUrl={selectedWallpaper}
         wallpapers={BRIGHT_WALLPAPERS}
@@ -1244,100 +1243,18 @@ export function WelcomeWizard({ onDone }: WelcomeWizardProps) {
         />
       )}
 
-      {/* Top Header with Authentic App Icon & Ambient Music Controls */}
-      <header
+      <SetupHeader
+        logoSrc={currentLogoSrc}
+        musicPlaying={isMusicPlaying}
+        disabled={isLaunching || isSkipping}
+        onToggleMusic={toggleMusic}
+        onWallpaper={() => setIsGalleryOpen(true)}
+        onSkip={handleSkip}
         className={cn(
-          "relative z-40 mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-4 px-6 py-5 sm:px-8 transition-all duration-700 ease-in-out",
           isLaunching && "-translate-y-16 opacity-0 pointer-events-none",
           isSkipping && "-translate-y-10 opacity-0 pointer-events-none",
         )}
-      >
-        <div className="flex shrink-0 items-center gap-3.5">
-          {/* Authentic Tabs Desktop App Icon: Clean, prominent, natural squircle without any enclosing border ring */}
-          <img
-            src={currentLogoSrc}
-            alt="Tabs IDE"
-            className="size-11 select-none pointer-events-none object-contain drop-shadow-[0_8px_16px_rgba(0,0,0,0.6)] transition-all duration-300 hover:scale-105"
-          />
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-base font-bold tracking-tight text-white">Tabs IDE</h1>
-              <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-white/80 border border-white/10">
-                Setup
-              </span>
-            </div>
-            <p className="text-xs text-white/60">Make yourself at home.</p>
-          </div>
-        </div>
-
-        {/* Ambient Lo-Fi & Wallpaper Controls */}
-        <div className="flex min-w-0 flex-wrap items-center gap-2.5">
-          {/* Ambient Music Control */}
-          <button
-            type="button"
-            onClick={toggleMusic}
-            className={cn(
-              "group flex items-center gap-2.5 rounded-full border px-3.5 py-1.5 text-xs font-medium backdrop-blur-2xl transition-all duration-200 cursor-pointer select-none",
-              isMusicPlaying
-                ? "border-white/25 bg-white/10 text-white shadow-lg shadow-black/40 hover:bg-white/15 hover:border-white/35"
-                : "border-white/10 bg-black/40 text-white/50 hover:text-white/80 hover:bg-white/5",
-            )}
-            title={isMusicPlaying ? "Pause ambient lo-fi music" : "Play ambient lo-fi music"}
-          >
-            {isMusicPlaying ? (
-              <>
-                <span className="relative flex size-2">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative inline-flex size-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]" />
-                </span>
-                <span className="text-[11px] font-medium tracking-tight text-white/90">
-                  Lo-Fi Ambient
-                </span>
-                <span className="rounded-full bg-white/10 px-1.5 py-0.2 text-[9px] font-mono font-semibold text-white/70">
-                  PLAYING
-                </span>
-              </>
-            ) : (
-              <>
-                <VolumeXIcon className="size-3.5 text-white/40" />
-                <span className="text-[11px] font-medium tracking-tight text-white/50">
-                  Lo-Fi Ambient
-                </span>
-                <span className="rounded-full bg-white/5 px-1.5 py-0.2 text-[9px] font-mono text-white/40">
-                  PAUSED
-                </span>
-              </>
-            )}
-          </button>
-
-          {/* Top Wallpaper Controller — bright scenes only */}
-          <WallpaperTopBar
-            activeWallpaperUrl={selectedWallpaper}
-            wallpapers={BRIGHT_WALLPAPERS}
-            onSelectWallpaper={(wp) => {
-              setSelectedWallpaper(wp.url);
-              saveWallpaperPreference(wp.url);
-            }}
-            onOpenGallery={() => setIsGalleryOpen(true)}
-            onPlaySound={() => {
-              void playClick();
-            }}
-            showFilmstrip={true}
-            disabled={isLaunching || isSkipping}
-          />
-
-          {/* Skip Button */}
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={isLaunching || isSkipping}
-            onClick={handleSkip}
-            className="text-xs text-white/60 hover:text-white hover:bg-white/10 rounded-full px-3.5 border border-white/5 cursor-pointer disabled:opacity-50"
-          >
-            Skip setup
-          </Button>
-        </div>
-      </header>
+      />
 
       {/* Main: Card carousel — card 0 = welcome, card 1 = icon, card 2 = theme */}
       <main
@@ -1422,7 +1339,7 @@ export function WelcomeWizard({ onDone }: WelcomeWizardProps) {
       {/* Subtle Footer with Diagnostics */}
       <footer
         className={cn(
-          "relative z-10 mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-3 px-6 py-4 sm:px-8 text-xs text-white/40 transition-all duration-500 ease-in-out",
+          "relative z-10 mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-3 px-6 py-4 sm:px-8 text-xs text-white/90 transition-all duration-500 ease-in-out",
           isLaunching && "translate-y-8 opacity-0 pointer-events-none",
           isSkipping && "translate-y-6 opacity-0 pointer-events-none",
         )}
@@ -1433,7 +1350,7 @@ export function WelcomeWizard({ onDone }: WelcomeWizardProps) {
             <button
               type="button"
               onClick={() => setShowBuildGuide((b) => !b)}
-              className="text-white/60 hover:text-white underline text-[11px]"
+              className="text-white/90 hover:text-white underline text-[11px]"
             >
               Code-OSS build guide
             </button>
@@ -1447,7 +1364,7 @@ export function WelcomeWizard({ onDone }: WelcomeWizardProps) {
               <button
                 type="button"
                 onClick={() => setShowBuildGuide(false)}
-                className="text-white/60 hover:text-white"
+                className="text-white/90 hover:text-white"
               >
                 Close
               </button>
@@ -1465,7 +1382,7 @@ export function WelcomeWizard({ onDone }: WelcomeWizardProps) {
           </div>
         )}
 
-        <span className="text-[11px] font-mono text-white/50">
+        <span className="text-[11px] font-mono text-white/90">
           Tabs IDE Public Beta • v{APP_VERSION}
         </span>
       </footer>

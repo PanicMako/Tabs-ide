@@ -1,3 +1,4 @@
+import "./workbench-preview.css";
 import { useId, useState } from "react";
 import { PreviewContent } from "./PreviewContent";
 import {
@@ -32,7 +33,9 @@ export function WorkbenchPreview({ mode = "light" }: { readonly mode?: "light" |
   const light = mode === "light";
   return (
     <div
-      className={`overflow-hidden rounded-[28px] border shadow-xl shadow-black/10 ${light ? "border-black/10 bg-[#faf9f7] text-neutral-700" : "border-white/15 bg-[#202020] text-neutral-200"}`}
+      data-slot="onboarding-workbench-preview"
+      data-preview-mode={mode}
+      className={`overflow-hidden rounded-lg border shadow-xl shadow-black/10 ${light ? "border-black/10 bg-[#faf9f7] text-neutral-700" : "border-white/15 bg-[#202020] text-neutral-200"}`}
     >
       <div
         role="group"
@@ -42,11 +45,12 @@ export function WorkbenchPreview({ mode = "light" }: { readonly mode?: "light" |
         {PROJECTS.map((name) => (
           <button
             key={name}
+            data-slot="onboarding-project-tab"
             type="button"
             aria-pressed={project === name}
             aria-controls={panelId}
             onClick={() => setProject(name)}
-            className={`flex min-w-0 flex-1 items-center justify-between gap-3 rounded-t-[18px] border px-3 py-3 text-xs font-medium focus-visible:outline-2 focus-visible:outline-offset-[-3px] ${project === name ? (light ? "-mb-px border-black/10 border-b-white bg-white text-neutral-800 shadow-sm" : "-mb-px border-white/15 border-b-[#292929] bg-[#292929] text-white") : "border-transparent opacity-65 hover:opacity-100"}`}
+            className={`flex min-w-0 flex-1 items-center justify-between gap-3 rounded-t-lg border px-3 py-3 text-xs font-medium focus-visible:outline-2 focus-visible:outline-offset-[-3px] ${project === name ? (light ? "-mb-px border-black/10 border-b-white bg-white text-neutral-800 shadow-sm" : "-mb-px border-white/15 border-b-[#292929] bg-[#292929] text-white") : "border-transparent text-[var(--preview-muted)] hover:text-[var(--preview-foreground)]"}`}
           >
             <span>{name}</span>
             <XIcon aria-hidden="true" className="size-3 opacity-55" />
@@ -75,7 +79,7 @@ export function WorkbenchPreview({ mode = "light" }: { readonly mode?: "light" |
                 aria-pressed={toolIndex === index}
                 aria-controls={panelId}
                 onClick={() => setToolsByProject((current) => ({ ...current, [project]: index }))}
-                className={`inline-flex shrink-0 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-2 py-2 text-[11px] font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-[-2px] ${toolIndex === index ? (light ? "bg-white text-neutral-800 shadow-sm" : "bg-white/20 text-white shadow-sm") : "opacity-75 hover:opacity-100"}`}
+                className={`inline-flex shrink-0 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-2 py-2 text-[11px] font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-[-2px] ${toolIndex === index ? (light ? "bg-white text-neutral-800 shadow-sm" : "bg-white/20 text-white shadow-sm") : "text-[var(--preview-muted)] hover:text-[var(--preview-foreground)]"}`}
               >
                 <ToolIcon aria-hidden="true" className="size-3.5 stroke-[1.7]" />
                 {item.name}
@@ -93,7 +97,7 @@ export function WorkbenchPreview({ mode = "light" }: { readonly mode?: "light" |
         <PreviewContent tool={tool.name} light={light} project={project} />
       </div>
       <div
-        className={`flex justify-between border-t px-5 py-3 text-[10px] ${light ? "border-black/8 text-neutral-500" : "border-white/10 text-neutral-400"}`}
+        className={`flex justify-between border-t px-5 py-3 text-[10px] text-[var(--preview-muted)] ${light ? "border-black/8" : "border-white/10"}`}
       >
         <span>Interactive preview</span>
         <span>{light ? "Light" : "Dark"} · Frost</span>

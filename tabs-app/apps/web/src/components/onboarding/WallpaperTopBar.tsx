@@ -529,7 +529,9 @@ export function WallpaperTopBar({
             className={cn(
               "flex size-7 items-center justify-center rounded-full transition-all active:scale-95 disabled:opacity-40 cursor-pointer",
               isFilmstripOpen
-                ? "bg-sky-500/20 text-sky-300 ring-1 ring-sky-400/40"
+                ? isLight
+                  ? "bg-sky-100 text-sky-800 ring-1 ring-sky-700/40"
+                  : "bg-sky-500/20 text-sky-300 ring-1 ring-sky-400/40"
                 : isLight
                   ? "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
                   : "text-white/60 hover:bg-white/10 hover:text-white",
@@ -651,6 +653,7 @@ export function WallpaperTopBar({
                 const isSelected = wp.url === activeWallpaperUrl;
                 return (
                   <button
+                    data-shape="preview"
                     key={wp.id}
                     data-wallpaper-id={wp.id}
                     type="button"
