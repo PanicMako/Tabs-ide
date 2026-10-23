@@ -1,6 +1,6 @@
 import { OrbitGroup } from "./orbit-group";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ClockIcon, SparklesIcon } from "lucide-react";
+import { ClockIcon, ZapIcon } from "lucide-react";
 import { cn } from "~/lib/utils";
 import { Button } from "./button";
 
@@ -765,7 +765,7 @@ export const AppleTimePicker = memo(function AppleTimePicker({
 
       {/* Day Selector Chips */}
       <OrbitGroup
-        className="tabs-segmented mt-3 flex items-center justify-between rounded-full"
+        className="tabs-segmented mt-3 flex items-center justify-between rounded-full w-full"
         role="group"
         aria-label="Day preset"
       >
@@ -871,7 +871,7 @@ export const AppleTimePicker = memo(function AppleTimePicker({
       {/* Common Presets for AI Coding Workflows */}
       <div className="space-y-1.5 pb-2">
         <div className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
-          <SparklesIcon className="size-3 text-foreground" />
+          <ZapIcon className="size-3 text-foreground" />
           <span>Quick presets</span>
         </div>
         <div className="grid grid-cols-2 gap-1.5">

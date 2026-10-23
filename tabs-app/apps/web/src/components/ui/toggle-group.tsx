@@ -40,6 +40,7 @@ function ToggleGroup({
       data-size={size}
       data-slot="toggle-group"
       data-variant={variant}
+      data-orientation={orientation}
       orientation={orientation}
       {...props}
     >

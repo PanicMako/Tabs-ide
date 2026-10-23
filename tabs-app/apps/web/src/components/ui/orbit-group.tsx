@@ -49,7 +49,10 @@ export function OrbitGroup({
         return;
       }
       const full = group.dataset.orbitKind !== "spotlight";
-      const diameter = full ? 36 : selected.offsetWidth;
+      // CSS sizes retain fractional grid tracks and ignore ancestor animations.
+      // offsetWidth rounds them, leaving the selection pill wider than its button.
+      const selectedStyle = getComputedStyle(selected);
+      const diameter = full ? 36 : Number.parseFloat(selectedStyle.width);
       const index = buttons.indexOf(selected);
       const x = full
         ? 4 + (index / Math.max(1, buttons.length - 1)) * Math.max(0, group.clientWidth - 44)
@@ -57,7 +60,10 @@ export function OrbitGroup({
       group.style.setProperty("--orbit-x", `${x}px`);
       group.style.setProperty("--orbit-y", `${full ? 4 : selected.offsetTop}px`);
       group.style.setProperty("--orbit-width", `${diameter}px`);
-      group.style.setProperty("--orbit-height", `${full ? 36 : selected.offsetHeight}px`);
+      group.style.setProperty(
+        "--orbit-height",
+        `${full ? 36 : Number.parseFloat(selectedStyle.height)}px`,
+      );
       group.dataset.orbitValue =
         selected.dataset.value ?? selected.textContent?.trim().toLowerCase() ?? "";
       group.dataset.orbitReady = "true";
