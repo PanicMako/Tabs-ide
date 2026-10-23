@@ -53,7 +53,10 @@
     "release:smoke": "bun scripts/release-smoke.ts",
     "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules apps/*/dist apps/*/dist-electron packages/*/dist .turbo apps/*/.turbo packages/*/.turbo",
     "sync:vscode-icons": "node scripts/sync-vscode-icons.mjs",
-    "test:workspace-rpc": "bun run build:desktop && node scripts/workspace-rpc-acceptance.mjs"
+    "test:workspace-rpc": "bun run build:desktop && node scripts/workspace-rpc-acceptance.mjs",
+    "test:code-oss": "bun run build:desktop && bun --cwd=apps/desktop run test:code-oss-native && bun --cwd=apps/desktop run test:code-oss-workbench",
+    "storage:audit": "bun scripts/storage-maintenance.ts",
+    "storage:clean": "bun scripts/storage-maintenance.ts --apply"
   },
   "devDependencies": {
     "@types/node": "catalog:",

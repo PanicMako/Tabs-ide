@@ -26,3 +26,10 @@ __screenshots__/
 .claude/
 .claude.json
 scratch/
+
+
+# Setup font binaries are supplied locally with appropriate embedding licenses.
+/apps/web/public/fonts/setup/Casta-*.otf
+/apps/web/public/fonts/setup/Dirtyline-*.otf
+/apps/web/public/fonts/setup/Nohemi-*.otf
+
