@@ -28,6 +28,8 @@
       "window.commandCenter": false,
       "workbench.layoutControl.enabled": false,
       "breadcrumbs.enabled": false,
+      "workbench.experimental.modernUI": true,
+      "workbench.experimental.modernUIEditorTabStyle": "pill",
       "workbench.editorAssociations": {
         "*.svg": "default"
       }

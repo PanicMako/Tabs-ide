@@ -1565,7 +1565,7 @@ function renderShellHtml(_webview, state) {
           border: 1px solid transparent;
           background: transparent;
           color: var(--vscode-foreground);
-          border-radius: 999px;
+          border-radius: var(--vscode-cornerRadius-circle, 36px);
           padding: 6px 12px;
           cursor: pointer;
           font: inherit;
@@ -1612,7 +1612,7 @@ function renderShellHtml(_webview, state) {
         }
         .primary {
           border: 0;
-          border-radius: 8px;
+          border-radius: var(--vscode-cornerRadius-circle, 36px);
           padding: 8px 14px;
           cursor: pointer;
           font: inherit;
