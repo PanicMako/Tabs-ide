@@ -23,6 +23,8 @@ suite('hygiene', () => {
 			const env: NodeJS.ProcessEnv = { ...process.env, GIT_INDEX_FILE: path.join(root, 'index') };
 			delete env.GIT_DIR;
 			delete env.GIT_WORK_TREE;
+			delete env.GIT_PREFIX;
+			delete env.GIT_COMMON_DIR;
 			execFileSync('git', ['init', '-q', root], { env });
 			execFileSync('git', ['-C', root, 'add', '--', 'outer.js', 'code'], { env });
 			const previousIndex = process.env.GIT_INDEX_FILE;
