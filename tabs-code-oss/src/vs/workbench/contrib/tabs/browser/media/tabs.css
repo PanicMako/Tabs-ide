@@ -3,9 +3,170 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Assistant providers use the native auxiliary-bar composite as a compact tab strip. */
+/* Tabs shapes follow the shell hierarchy without applying a surface radius to
+	dense editor content. Keep upstream circle tokens for intentional circles. */
+:root,
+.monaco-workbench {
+	--vscode-cornerRadius-xSmall: 6px !important;
+	--vscode-cornerRadius-small: 10px !important;
+	--vscode-cornerRadius-medium: 16px !important;
+	--vscode-cornerRadius-large: 24px !important;
+	--vscode-cornerRadius-xLarge: 36px !important;
+}
+
+/* Compact controls clamp to pills. Icon buttons remain circular at their own size. */
+.monaco-workbench .monaco-button,
+.monaco-workbench .monaco-text-button,
+.monaco-workbench .monaco-inputbox:not(.multiline),
+.monaco-workbench .monaco-select-box,
+.monaco-workbench .monaco-count-badge,
+.monaco-workbench .monaco-action-bar .action-label,
+.monaco-workbench .monaco-action-bar .action-item,
+.monaco-workbench .part.statusbar .statusbar-item > a,
+.monaco-workbench .chat-input-picker-item,
+.monaco-workbench .chat-suggest-followups .monaco-button {
+	border-radius: var(--vscode-cornerRadius-xLarge) !important;
+}
+
+/* Joined buttons retain straight internal seams. */
+.monaco-workbench .monaco-button-dropdown {
+	border-radius: var(--vscode-cornerRadius-medium) !important;
+}
+
+.monaco-workbench .monaco-button-dropdown > .monaco-button.monaco-text-button {
+	border-radius: var(--vscode-cornerRadius-medium) 0 0 var(--vscode-cornerRadius-medium) !important;
+}
+
+.monaco-workbench .monaco-button-dropdown > .monaco-button.monaco-dropdown-button {
+	border-radius: 0 var(--vscode-cornerRadius-medium) var(--vscode-cornerRadius-medium) 0 !important;
+}
+
+/* Menus, suggestions and hovers are compact overlays, with smaller inset rows.
+	Preserve overflow: suggestions, focus indicators and submenu anchors need it. */
+.monaco-workbench .quick-input-widget,
+.monaco-workbench .monaco-menu .monaco-action-bar.vertical,
+.monaco-workbench .monaco-select-box-dropdown-container,
+.monaco-workbench .monaco-hover,
+.monaco-workbench .editor-widget.suggest-widget,
+.monaco-workbench .monaco-editor .parameter-hints-widget,
+.monaco-workbench .monaco-editor .suggest-details,
+.context-view .monaco-menu .monaco-action-bar.vertical,
+.context-view .monaco-select-box-dropdown-container {
+	border-radius: var(--vscode-cornerRadius-large) !important;
+}
+
+.monaco-workbench .monaco-dialog-box {
+	border-radius: var(--vscode-cornerRadius-xLarge) !important;
+}
+
+/* Selection backgrounds keep the existing virtualized row geometry. */
+.monaco-workbench .monaco-list .monaco-list-row:not(.separator),
+.monaco-workbench .monaco-menu .monaco-action-bar .action-item,
+.monaco-workbench .monaco-menu .action-menu-item,
+.monaco-workbench .pane-header,
+.monaco-workbench .monaco-breadcrumbs .monaco-breadcrumb-item,
+.monaco-workbench .chat-attachment,
+.context-view .monaco-menu .action-item,
+.context-view .monaco-menu .action-menu-item {
+	border-radius: var(--vscode-cornerRadius-small) !important;
+}
+
+/* Cards and multiline editors need room for content at their corners. */
+.monaco-workbench .settings-editor .setting-item-contents,
+.monaco-workbench .scm-editor,
+.monaco-workbench .chat-input-container,
+.monaco-workbench .chat-input-part,
+.monaco-workbench .interactive-input-part {
+	border-radius: 28px !important;
+}
+
+.monaco-workbench .monaco-inputbox.multiline,
+.monaco-workbench .monaco-description-button,
+.monaco-workbench .chat-codeblock,
+.monaco-workbench .monaco-editor .rename-box,
+.monaco-workbench .monaco-editor .peekview-widget,
+.monaco-workbench .monaco-editor .find-widget,
+.monaco-workbench .monaco-findInput,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab {
+	border-radius: var(--vscode-cornerRadius-medium) !important;
+}
+
+/* Notifications have one continuous rounded frame. Rounding every nested row
+	creates intersecting pills and clips message text, toolbars and action buttons. */
+.monaco-workbench .notifications-center,
+.monaco-workbench .notifications-toasts .notification-toast,
+.monaco-workbench .notifications-toasts .notifications-list-container,
+.monaco-workbench .notifications-toasts .notification-toast .monaco-scrollable-element {
+	border-radius: var(--vscode-cornerRadius-large) !important;
+}
+
+.monaco-workbench .notifications-center {
+	overflow: hidden;
+}
+
+.monaco-workbench .notifications-center > .notifications-center-header {
+	padding-inline: 16px;
+}
+
+.monaco-workbench :is(.notifications-center, .notifications-toasts) .monaco-list .monaco-list-row:not(.separator),
+.monaco-workbench :is(.notifications-center, .notifications-toasts) .notification-list-item {
+	border-radius: 0 !important;
+}
+
+.monaco-workbench .notifications-center .monaco-list .monaco-list-row:last-child {
+	border-radius: 0 0 var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) !important;
+}
+
+.monaco-workbench .notifications-toasts .notification-toast .monaco-list .monaco-list-row,
+.monaco-workbench .notifications-toasts .notification-toast .monaco-list:not(.element-focused):focus::before {
+	border-radius: var(--vscode-cornerRadius-large) !important;
+}
+
+/* Keyboard focus follows the inset row shape without turning it into a pill. */
+.monaco-workbench .notifications-center .monaco-list .monaco-list-row.focused:not(:last-child) {
+	border-radius: var(--vscode-cornerRadius-small) !important;
+}
+
+.monaco-workbench .notifications-center .monaco-list .monaco-list-row.focused:last-child {
+	border-radius: var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) !important;
+}
+
+/* Tiny glyph controls and text decorations should not use panel-sized curves. */
+.monaco-workbench .monaco-checkbox,
+.monaco-workbench .monaco-custom-toggle,
+.monaco-workbench .monaco-keybinding-key,
+.monaco-workbench .monaco-highlighted-label .highlight,
+.monaco-workbench .monaco-editor .view-overlays .current-line,
+.monaco-workbench .monaco-editor .findMatch,
+.monaco-workbench .monaco-editor .currentFindMatch,
+.monaco-workbench .monaco-editor .rangeHighlight,
+.monaco-workbench .monaco-editor .wordHighlight,
+.monaco-workbench .monaco-editor .wordHighlightStrong,
+.monaco-workbench .monaco-editor .wordHighlightText,
+.monaco-workbench .monaco-scrollable-element > .scrollbar > .slider {
+	border-radius: var(--vscode-cornerRadius-xSmall) !important;
+}
+
+/* Preserve Monaco's joined selection edges and high-contrast geometry. */
+.monaco-workbench .monaco-editor:not(.hc-black):not(.hc-light) .top-left-radius {
+	border-top-left-radius: var(--vscode-cornerRadius-xSmall);
+}
+
+.monaco-workbench .monaco-editor:not(.hc-black):not(.hc-light) .top-right-radius {
+	border-top-right-radius: var(--vscode-cornerRadius-xSmall);
+}
+
+.monaco-workbench .monaco-editor:not(.hc-black):not(.hc-light) .bottom-left-radius {
+	border-bottom-left-radius: var(--vscode-cornerRadius-xSmall);
+}
+
+.monaco-workbench .monaco-editor:not(.hc-black):not(.hc-light) .bottom-right-radius {
+	border-bottom-right-radius: var(--vscode-cornerRadius-xSmall);
+}
+
+/* Assistant providers share the compact control shape. */
 .monaco-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon) .action-label {
-	border-radius: 6px;
+	border-radius: var(--vscode-cornerRadius-xLarge) !important;
 	color: var(--vscode-sideBarTitle-foreground);
 	padding-left: 8px;
 	padding-right: 8px;
