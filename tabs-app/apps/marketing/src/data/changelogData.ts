@@ -21,15 +21,67 @@ export interface ChangelogRelease {
   }[];
 }
 
-export const TOTAL_TAGS_COUNT = 177;
+export const TOTAL_TAGS_COUNT = 179;
 
 export const changelogData: ChangelogRelease[] = [
+  {
+    tag: "v2.0.2",
+    title: "Code-OSS 1.142.0 runtime and startup polish",
+    date: "October 21, 2026",
+    shortDate: "Oct 21",
+    isLatest: true,
+    type: "patch",
+    summary:
+      "Embedded Code-OSS runtime upgrade to VS Code 1.142.0 with native host coordination, completed startup tile sequence with upward reveal, backend listener authentication handshake, and automatic Exchange metadata renewal.",
+    highlights: [
+      "Upgrade the embedded Code-OSS runtime to VS Code 1.142.0 with complete native host coordination and cancellation-aware ZIP archiving.",
+      "Preserve new-session composer drafts and reveal targets across Agents window handoffs while keeping focus-only window reuses undisturbed.",
+      "Allow the airport flip-board animation to complete its full tile settle and highlight sequence before smoothly sliding upward to reveal the ready workspace.",
+      "Synchronize startup loading concurrently behind the splash screen so elapsed animation time never fakes readiness, and respect reduced-motion preference changes.",
+      "Wait for the local backend listener before initiating desktop authentication, eliminating cold-start connection-refused errors and reconnect delays.",
+      "Keep approved extensions continuously available with automatic metadata renewal across sleeping and waking servers.",
+      "Display verified publisher seals and expanded click targets on marketplace extension cards.",
+    ],
+    categories: [
+      {
+        title: "Upgrade notes",
+        items: [
+          "macOS builds are ad-hoc signed and update via the built-in preview updater. When opening a fresh manual download on macOS for the first time, use System Settings → Privacy & Security → Open Anyway.",
+        ],
+      },
+    ],
+  },
+  {
+    tag: "v2.0.1",
+    title: "Extension tools and workspace reliability",
+    date: "October 20, 2026",
+    shortDate: "Oct 20",
+    isLatest: false,
+    type: "patch",
+    summary:
+      "Installed extension management with package logos and detail previews, per-project toolbar visibility, Git staging reliability, and Linux AppImage startup fixes.",
+    highlights: [
+      "Manage installed extensions with package logos, detail previews, and installation review.",
+      "Configure extension toolbar tool visibility per project in Project Workspace Settings.",
+      "Retain selected extension across project switches and retry extension tool panels safely on error.",
+      "Stage and unstage files reliably with restored Git staging controls and acknowledged action progress.",
+      "Ensure reliable workspace backend startup on Linux AppImage installations.",
+    ],
+    categories: [
+      {
+        title: "Upgrade notes",
+        items: [
+          "macOS builds are ad-hoc signed and update via the built-in preview updater. When opening a fresh manual download on macOS for the first time, use System Settings → Privacy & Security → Open Anyway.",
+        ],
+      },
+    ],
+  },
   {
     tag: "v2.0.0",
     title: "A connected workspace for agents and tools",
     date: "October 16, 2026",
     shortDate: "Oct 16",
-    isLatest: true,
+    isLatest: false,
     type: "major",
     summary:
       "Conversations, queued work, project tools and source control come together, with the Exchange developer pilot and independent Settings appearance.",
