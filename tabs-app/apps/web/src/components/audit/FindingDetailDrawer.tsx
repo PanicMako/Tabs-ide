@@ -120,12 +120,14 @@ export function FindingDetailDrawer({
 
         {/* Suggested Fix Summary */}
         {finding.suggestedFix && (
-          <div className="p-3 bg-primary/10 border border-primary/30 rounded-lg text-xs space-y-2">
-            <h4 className="font-semibold text-foreground">Suggested Safe Repair Plan</h4>
-            <p className="text-foreground">{finding.suggestedFix.description}</p>
+          <div className="p-3 bg-primary/10 border border-primary/30 rounded-lg text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="space-y-1 min-w-0">
+              <h4 className="font-semibold text-foreground">Suggested Safe Repair Plan</h4>
+              <p className="text-foreground leading-relaxed">{finding.suggestedFix.description}</p>
+            </div>
             <Button
               onClick={() => onOpenPatchModal(finding)}
-              className="w-full bg-primary text-primary-foreground hover:bg-primary/90 text-xs py-1.5 rounded-md"
+              className="shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 text-xs py-1.5 px-3 rounded-md"
             >
               Preview Unified Diff Patch
             </Button>
@@ -138,7 +140,7 @@ export function FindingDetailDrawer({
         <Button
           variant="outline"
           onClick={() => onOpenAskAIDrawer(finding.id)}
-          className="text-xs text-purple-500 border-purple-500/30 hover:bg-purple-500/10"
+          className="text-xs text-purple-500 border-purple-500/30 hover:bg-purple-500/10 rounded-lg"
         >
           Ask AI About Finding
         </Button>
@@ -147,7 +149,7 @@ export function FindingDetailDrawer({
             <Button
               variant="outline"
               onClick={() => onMarkFalsePositive(finding.id)}
-              className="text-xs text-amber-500 border-amber-500/30 hover:bg-amber-500/10"
+              className="text-xs text-amber-500 border-amber-500/30 hover:bg-amber-500/10 rounded-lg"
             >
               False Positive
             </Button>
@@ -156,7 +158,7 @@ export function FindingDetailDrawer({
             <Button
               variant="outline"
               onClick={() => onDismissFinding(finding.id)}
-              className="text-xs text-muted-foreground border-border hover:bg-muted"
+              className="text-xs text-muted-foreground border-border hover:bg-muted rounded-lg"
             >
               Dismiss
             </Button>

@@ -216,7 +216,7 @@ export function AuditPanel({
                 setPendingNewAudit(false);
                 updateAuditState(stateKey, { scanResult: null, status: "idle" });
               }}
-              className="bg-red-600 hover:bg-red-500 text-white text-xs font-semibold px-4 py-2 cursor-pointer"
+              className="bg-red-600 hover:bg-red-500 text-white text-xs font-semibold px-4 py-2 rounded-lg cursor-pointer"
             >
               Cancel Scan & Start New
             </Button>
