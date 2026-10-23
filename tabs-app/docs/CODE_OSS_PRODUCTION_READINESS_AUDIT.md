@@ -166,3 +166,32 @@ The real Agent Host starter/manager and configuration service are integrated. A 
 The user authorized preserving the coherent commits on main, creating a draft 1.3.29 release and starting installer builds. Public publication remains gated on the outstanding runtime/platform proof. See `code-oss-release-handoff.md` for the release continuation prompt and explicit completion gates.
 
 The pre-commit hygiene script now scopes staged paths and JavaScript allowlisting to the vendored checkout, retaining an explicitly selected Git index while rediscovering repository context. Its regression test verifies that parent JavaScript files are excluded and unexpected vendored JavaScript is rejected. The repaired hook checked 2,208 source files and caught a bootstrap multi-window document reference; that reference was corrected before committing.
+
+## VS Code 1.143.0 sync verification (2026-10-22)
+
+### Baseline and target
+
+- **Baseline:** Microsoft VS Code `1.142.0` (`d956e8a6ac5d904486557eea07e1d6bd62a4d36f`) and `1.140.0` (`07f806f999227108933c2e30515b26eecc1fda74`).
+- **Target:** Microsoft VS Code `1.143.0` (`2d0b7506a36c1d6db9a466440131a8e01eab2289`).
+- **Isolation:** Dedicated worktree at `.worktrees/sync-vscode-1.143.0` on branch `chore/sync-vscode-1.143.0`. Base checkout at `3915c864f131e8f7ed472cf06a9cbf5c9ac17835` preserved untouched.
+
+### Patch inventory and disposition
+
+- **Tabs-owned additions (6 files):** Retained and verified:
+  - `tabs-code-oss/TABS_ARCHITECTURE.md`
+  - `tabs-code-oss/build/gulpfile.compile.ts`
+  - `tabs-code-oss/src/vs/workbench/browser/parts/editor/media/tabs-logo.svg`
+  - `tabs-code-oss/src/vs/workbench/contrib/tabs/browser/media/tabs.css` (with hierarchical radii for compact details/rows, inset controls, overlays, cards and large dialogs; continuous notification frames; connected buttons and editor text-selection geometry)
+  - `tabs-code-oss/src/vs/workbench/contrib/tabs/browser/tabs.contribution.ts`
+  - `tabs-code-oss/src/vs/workbench/contrib/tabs/test/browser/tabs.contribution.test.ts`
+- **Deliberate modifications (31 files):** All 31 modifications replayed and adapted to 1.143.0.
+  - Purged 44 upstream-deleted files (97 total since 1.140.0).
+- **Native-Host / IPC Contract:**
+  - Audited `src/vs/platform/native/common/native.ts` `INativeHostService` / `ICommonNativeHostService` against 1.142.0.
+  - Exactly 0 methods added, 0 methods removed. The 111-method implementation policy remains 100% complete.
+
+### Independent repair of the 1.143 packaged startup failure
+
+Independent packaged testing found that the outer renderer could start while the Code-OSS backend was unavailable: upstream changed `WebviewMainService` to injected instantiation/window/log services, but Tabs still passed the old file/window constructor arguments. This was repaired through the upstream instantiation service with a child window-service override, preserving embedded-view routing and disposal ownership. No upstream files or dependency versions were changed by the repair.
+
+`bun run test:code-oss` now builds the shell and runs the upstream adapter gate plus a real native workbench gate. The rebuilt DMG passed backend startup, exact bundled-runtime selection, opening a real file, loading Tabs radius CSS, and executing a real integrated-terminal command. The matching ZIP application code and selected runtime assets were compared to the tested DMG. The full 18-task test runner, 662 desktop tests, typechecks and formatting/lint passed; an isolated six-stage Electron smoke passed reconnect, persistence and orphan-free shutdown. Heavy concurrent runs produced teardown/reconnect timing failures before the isolated successful runs; assertions and timeouts were not weakened. See `code-oss-1.143-repair.md` and its structured evidence for the final checks. These remain local ad-hoc test artifacts; real-account and other-platform acceptance still require their own evidence.

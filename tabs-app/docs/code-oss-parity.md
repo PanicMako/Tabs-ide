@@ -35,8 +35,8 @@ customization.
 
 Updates are performed in an isolated clean worktree on a dedicated branch (`chore/sync-vscode-<version>`):
 
-1. **Pin exact upstream revision:** Verify the tag, full commit SHA, and release notes from `https://github.com/microsoft/vscode` (e.g. `1.140.0` at `07f806f999227108933c2e30515b26eecc1fda74`).
-2. **Export reviewed fork delta:** Re-derive all Tabs additions, modifications, file modes, and binary assets against the baseline upstream release (`1.138.0`), excluding generated outputs, build caches, and dependencies.
+1. **Pin exact upstream revision:** Verify the tag, full commit SHA, and release notes from `https://github.com/microsoft/vscode` (e.g. `1.143.0` at `2d0b7506a36c1d6db9a466440131a8e01eab2289`).
+2. **Export reviewed fork delta:** Re-derive all Tabs additions, modifications, file modes, and binary assets against the baseline upstream release (`1.142.0`), excluding generated outputs, build caches, and dependencies.
 3. **Refresh comparison snapshot:** Extract the pristine upstream source into `vscode-main/` for clean diffing.
 4. **Refresh patched runtime:** Unpack the pristine upstream source into `tabs-code-oss/`, purge files removed upstream (`git diff --no-renames --diff-filter=D`), and semantically replay the reviewed Tabs fork patches.
 5. **Toolchain boundary:** Use Node/npm (Node v24) strictly inside `tabs-code-oss/` and Bun/Vite+ strictly inside `tabs-app/`. Never run `npm` or `yarn` inside `tabs-app/`.
@@ -71,6 +71,7 @@ bun install
 bun typecheck
 bun test
 bun run test:desktop-smoke
+bun run test:code-oss
 bun run dist:desktop:dmg:arm64
 ```
 
@@ -97,3 +98,16 @@ Before merging an upstream update, verify:
 Settings > About > Code-OSS version reports the version from the selected embedded runtime's package.json, separately from the Tabs application version. A missing runtime is reported as Unavailable; missing or unreadable metadata is reported as Unknown. This row is available in builds containing the independent Codex review changes; previously generated installers do not acquire it automatically.
 
 Windows caption controls use the renderer background, update symbol contrast when the desktop theme changes, and reserve the native control-area width via Electron Window Controls Overlay geometry and visibility events; hidden fullscreen controls release the reserved space. The Windows project tab header is 52 logical pixels high to match its native controls. macOS traffic-light configuration is preserved. Verify light/dark/system/custom themes, windowed/maximized/fullscreen states, and 100/125/150/200 percent display scaling on Windows; macOS unit tests and web builds do not prove native Windows rendering.
+
+## Embedded-workbench release gate
+
+`bun run test:code-oss` builds the desktop shell, runs the real upstream native-adapter checks, and launches an isolated Electron instance with a registered temporary project. It requires an available native backend, a visible Code workbench, real file contents, the Tabs radius stylesheet, and an integrated terminal opened through the bundled integration extension that executes a real shell command. Its profile/workspace are removed after shutdown. Opening the outer `tabs://app/` page alone is not sufficient.
+
+On macOS, also repeat the workbench check against the rebuilt application in the mounted DMG (or extracted ZIP):
+
+```bash
+EVIDENCE_DIR=/tmp/tabs-packaged-workbench-check \
+  bun --cwd=apps/desktop run test:code-oss-workbench --app=/Volumes/Tabs/Tabs.app
+```
+
+Use the actual mount path. Eject the test volume after the test exits. The test never installs or replaces `/Applications/Tabs.app`. It reports failure immediately if native services are unavailable, including upstream constructor incompatibilities that the callable-method inventory cannot detect. Keep the packaged test sequential with heavy test suites to avoid artificial browser shutdown contention.

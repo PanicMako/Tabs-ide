@@ -1,0 +1,27 @@
+{
+  "version": "1.143.0",
+  "backendAvailable": true,
+  "fileOpened": true,
+  "radius": "36px",
+  "terminalOpened": true,
+  "terminalCommandExecuted": true,
+  "zipMatchesDmgAssets": [
+    "app.asar",
+    "tabs-code-oss/package.json",
+    "tabs-code-oss/product.json",
+    "tabs-code-oss/out-build/nls.messages.json",
+    "tabs-code-oss/out/vs/base/parts/sandbox/electron-browser/preload.js",
+    "tabs-code-oss/out/vs/workbench/contrib/tabs/browser/media/tabs.css",
+    "tabs-code-oss/node_modules/node-pty/prebuilds/darwin-arm64/pty.node"
+  ],
+  "artifacts": {
+    "Tabs-2.0.0-arm64.dmg": 1818235786,
+    "Tabs-2.0.0-arm64.zip": 1393219875
+  },
+  "outerDesktopSmoke": "six stages passed, including reconnect, persistence and shutdown",
+  "fullTestTasksPassed": 18,
+  "desktopTestsPassed": 662,
+  "workspaceTypecheckTasksPassed": 16,
+  "lintErrors": 0,
+  "lintExistingWarnings": 661
+}
