@@ -293,7 +293,7 @@ export class EphemeralLoopbackOAuthServer {
     .card {
       background: #18181b;
       border: 1px solid #27272a;
-      border-radius: 12px;
+      border-radius: 36px;
       padding: 2.5rem;
       max-width: 420px;
       text-align: center;

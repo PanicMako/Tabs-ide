@@ -381,6 +381,8 @@ export const CODE_OSS_EMBED_DEFAULT_SETTINGS: Record<string, unknown> = {
   // workbench restoration is disabled so a stale editor-group snapshot cannot
   // reintroduce files from another Tabs project before that filtered restore.
   "workbench.editor.restoreEditors": false,
+  "workbench.experimental.modernUI": true,
+  "workbench.experimental.modernUIEditorTabStyle": "pill",
   // Code owns its complete stock workbench inside the Tabs Code tool. Keeping
   // these parts native avoids duplicating VS Code's layout and accessibility
   // behavior in the surrounding React shell.
@@ -499,6 +501,8 @@ export function resolveCodeOssAiProviderSettings(
     // native extension views such as Copilot Chat, Claude Code, or Codex.
     "chat.commandCenter.enabled": true,
     "workbench.secondarySideBar.defaultVisibility": "visible",
+    "workbench.experimental.modernUI": true,
+    "workbench.experimental.modernUIEditorTabStyle": "pill",
   };
 }
 
@@ -906,17 +910,17 @@ export function resolveCodeHostConfigWithFs(
   const fallbackRoots = process.resourcesPath
     ? [
         // First try Resources/tabs-code-oss (packaged app location)
-        Path.join(process.resourcesPath, "vscode-main"),
         Path.join(process.resourcesPath, "tabs-code-oss"),
+        Path.join(process.resourcesPath, "vscode-main"),
         // Then try sibling directories (development)
-        Path.join(input.rootDir, "..", "vscode-main"),
         Path.join(input.rootDir, "..", "tabs-code-oss"),
+        Path.join(input.rootDir, "..", "vscode-main"),
         Path.join(input.rootDir, "..", "vscode"),
       ]
     : [
         // Development mode fallbacks
-        Path.join(input.rootDir, "..", "vscode-main"),
         Path.join(input.rootDir, "..", "tabs-code-oss"),
+        Path.join(input.rootDir, "..", "vscode-main"),
         Path.join(input.rootDir, "..", "vscode"),
       ];
 
@@ -2524,7 +2528,23 @@ export class CodeHostManager {
         parsed.version = packageConfiguration.version;
       }
     }
-    const configuredProduct = addDefaultExtensionGallery(parsed);
+    const withGallery = addDefaultExtensionGallery(parsed);
+    const embedExtensionPath = getCodeOssEmbedExtensionPath(__dirname);
+    let defaults: Record<string, unknown> = {};
+    try {
+      const pkgPath = Path.join(embedExtensionPath, "package.json");
+      if (FS.existsSync(pkgPath)) {
+        const pkg = JSON.parse(FS.readFileSync(pkgPath, "utf8")) as {
+          contributes?: { configurationDefaults?: Record<string, unknown> };
+        };
+        if (pkg.contributes?.configurationDefaults) {
+          defaults = pkg.contributes.configurationDefaults;
+        }
+      }
+    } catch {
+      // ignore
+    }
+    const configuredProduct = mergeProductConfigurationDefaults(withGallery, defaults).product;
     productConfigurationCache.set(vscodeRoot, configuredProduct);
     return configuredProduct;
   }

@@ -39,6 +39,7 @@ const UPDATE_GET_STATE_CHANNEL = "desktop:update-get-state";
 const UPDATE_DOWNLOAD_CHANNEL = "desktop:update-download";
 const UPDATE_INSTALL_CHANNEL = "desktop:update-install";
 const GET_WS_URL_CHANNEL = "desktop:get-ws-url";
+const WAIT_FOR_BACKEND_READY_CHANNEL = "desktop:wait-for-backend-ready";
 const GET_LOCAL_ENVIRONMENT_BOOTSTRAPS_CHANNEL = "desktop:get-local-environment-bootstraps";
 const GET_CONNECTION_CATALOG_CHANNEL = "desktop:get-connection-catalog";
 const SET_CONNECTION_CATALOG_CHANNEL = "desktop:set-connection-catalog";
@@ -167,6 +168,8 @@ contextBridge.exposeInMainWorld("desktopBridge", {
     ipcRenderer.invoke(DESKTOP_CAPTURE_REQUEST_PERMISSION_CHANNEL),
   captureDesktopScreen: (options) => ipcRenderer.invoke(DESKTOP_CAPTURE_SCREEN_CHANNEL, options),
   getClientPlatform: () => process.platform,
+  getInstallerCleanupCandidate: () => ipcRenderer.invoke("desktop:installer-cleanup:candidate"),
+  trashInstalledDmg: () => ipcRenderer.invoke("desktop:installer-cleanup:trash"),
   getBuildInfo: () => ipcRenderer.invoke("desktop:build-info"),
   getLocalEnvironmentBootstraps: () => {
     const result = ipcRenderer.sendSync(GET_LOCAL_ENVIRONMENT_BOOTSTRAPS_CHANNEL);
@@ -234,6 +237,7 @@ contextBridge.exposeInMainWorld("desktopBridge", {
     ipcRenderer.on(HOST_POWER_CHANGED_CHANNEL, wrapped);
     return () => ipcRenderer.removeListener(HOST_POWER_CHANGED_CHANNEL, wrapped);
   },
+  waitForBackendReady: () => ipcRenderer.invoke(WAIT_FOR_BACKEND_READY_CHANNEL),
   getWsUrl: () => {
     const result = ipcRenderer.sendSync(GET_WS_URL_CHANNEL);
     return typeof result === "string" ? result : null;

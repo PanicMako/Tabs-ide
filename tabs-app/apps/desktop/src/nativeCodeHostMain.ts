@@ -25,7 +25,16 @@ import * as Path from "node:path";
 import * as OS from "node:os";
 
 import { resolveCodeHostIdentity } from "./codeHostIdentity";
-import { loadNativeCodeHostStorage, saveNativeCodeHostStorage } from "./nativeCodeHostStorage";
+import {
+  createNativeCodeHostStorageService,
+  loadNativeCodeHostStorage,
+  saveNativeCodeHostStorage,
+} from "./nativeCodeHostStorage";
+import {
+  createNativeCodeHostActivity,
+  type NativeAgentCoordinator,
+} from "./nativeCodeHostActivity";
+import { observeNativeCodeGpu } from "./nativeCodeHostGpu";
 import { handleNativeCodeHostCommand } from "./nativeCodeHostCommand";
 import {
   getNativeCodeOpenTargets,
@@ -34,7 +43,18 @@ import {
 } from "./nativeCodeHostOpen";
 import { parseElectronProxyResult, readProxyEnvironment } from "./nativeCodeHostProxy";
 import { uploadFileViaGitHubMobileApi } from "./nativeCodeHostUpload";
-import { createNativeCodeZip } from "./nativeCodeHostZip";
+import {
+  NativeCodeZipOperations,
+  type NativeZipCancellation,
+  type NativeZipInput,
+  type NativeZipWriter,
+} from "./nativeCodeHostZip";
+
+type NativeInstantiationService = {
+  createInstance<T>(ctor: new (...args: never[]) => T, ...args: unknown[]): T;
+  createChild(services: unknown): NativeInstantiationService;
+  dispose(): void;
+};
 
 type NativeCodeHostModules = {
   registerContextMenuListener(
@@ -78,7 +98,12 @@ type NativeCodeHostModules = {
     timeout: number,
     stride?: number,
   ): Promise<number>;
-  zip(zipPath: string, files: unknown[]): Promise<string>;
+  zip: NativeZipWriter;
+  CancellationTokenSource: new () => NativeZipCancellation;
+  AgentsWindowInvitationState: new (
+    now: () => number,
+    storage: ReturnType<typeof createNativeCodeHostStorageService>,
+  ) => NativeAgentCoordinator;
   NullLogService: new () => unknown;
   NullLoggerService: new () => unknown;
   NullTelemetryService: unknown;
@@ -102,7 +127,7 @@ type NativeCodeHostModules = {
     registerProvider(scheme: string, provider: unknown): { dispose(): void };
     dispose(): void;
   };
-  WebviewMainService: new (...args: unknown[]) => {
+  WebviewMainService: new (...args: never[]) => {
     dispose(): void;
   };
   UtilityProcessWorkerMainService: new (...args: unknown[]) => {
@@ -120,6 +145,7 @@ type NativeCodeHostModules = {
   URI: {
     file(path: string): unknown;
     parse(value: string): { toJSON(): unknown };
+    revive(value: unknown): unknown;
   };
   SharedProcess: new (...args: unknown[]) => {
     connect(payload?: unknown): Promise<unknown>;
@@ -134,10 +160,7 @@ type NativeCodeHostModules = {
   };
   EncryptionMainService: new (...args: unknown[]) => unknown;
   ServiceCollection: new () => { set(id: unknown, service: unknown): unknown };
-  InstantiationService: new (...args: unknown[]) => {
-    createInstance<T>(ctor: new (...args: never[]) => T, ...args: unknown[]): T;
-    dispose(): void;
-  };
+  InstantiationService: new (...args: unknown[]) => NativeInstantiationService;
   BrowserViewMainService: new (...args: never[]) => {
     tryGetBrowserView(id: string): { readonly hostWindowId: number } | undefined;
     layout(id: string, bounds: Electron.Rectangle): Promise<void>;
@@ -149,6 +172,7 @@ type NativeCodeHostModules = {
   ipcBrowserViewGroupChannelName: string;
   IEnvironmentMainService: unknown;
   IWindowsMainService: unknown;
+  IFileService: unknown;
   IAuxiliaryWindowsMainService: unknown;
   ITelemetryService: unknown;
   INativeHostMainService: unknown;
@@ -200,6 +224,7 @@ export interface NativeCodeHostMainBackend {
     getBounds?: () => Electron.Rectangle | null,
     ownerWindow?: BrowserWindow,
     projectId?: string,
+    isAgentsWindow?: boolean,
   ): void;
   unregisterWindow(windowId: number): void;
   handleURL(url: string): Promise<boolean>;
@@ -225,6 +250,7 @@ async function loadNativeCodeHostModules(vscodeRoot: string): Promise<NativeCode
     diskProviderChannel,
     diskProviderClient,
     fileService,
+    fileServiceContract,
     webviewMainService,
     utilityProcessWorker,
     utilityProcessWorkerContract,
@@ -259,6 +285,8 @@ async function loadNativeCodeHostModules(vscodeRoot: string): Promise<NativeCode
     agentHostService,
     configuration,
     policy,
+    cancellation,
+    agentsWindowInvitation,
   ] = await Promise.all([
     import(moduleUrl(vscodeRoot, "vs/base/parts/ipc/electron-main/ipc.electron.js")),
     import(moduleUrl(vscodeRoot, "vs/base/parts/contextmenu/electron-main/contextmenu.js")),
@@ -275,6 +303,7 @@ async function loadNativeCodeHostModules(vscodeRoot: string): Promise<NativeCode
     ),
     import(moduleUrl(vscodeRoot, "vs/platform/files/common/diskFileSystemProviderClient.js")),
     import(moduleUrl(vscodeRoot, "vs/platform/files/common/fileService.js")),
+    import(moduleUrl(vscodeRoot, "vs/platform/files/common/files.js")),
     import(moduleUrl(vscodeRoot, "vs/platform/webview/electron-main/webviewMainService.js")),
     import(
       moduleUrl(
@@ -324,6 +353,8 @@ async function loadNativeCodeHostModules(vscodeRoot: string): Promise<NativeCode
     import(moduleUrl(vscodeRoot, "vs/platform/agentHost/node/agentHostService.js")),
     import(moduleUrl(vscodeRoot, "vs/platform/configuration/common/configurationService.js")),
     import(moduleUrl(vscodeRoot, "vs/platform/policy/common/policy.js")),
+    import(moduleUrl(vscodeRoot, "vs/base/common/cancellation.js")),
+    import(moduleUrl(vscodeRoot, "vs/platform/chat/common/agentsWindowInvitation.js")),
   ]);
 
   return {
@@ -340,6 +371,7 @@ async function loadNativeCodeHostModules(vscodeRoot: string): Promise<NativeCode
     DiskFileSystemProvider: diskProvider.DiskFileSystemProvider,
     DiskFileSystemProviderChannel: diskProviderChannel.DiskFileSystemProviderChannel,
     FileService: fileService.FileService,
+    IFileService: fileServiceContract.IFileService,
     WebviewMainService: webviewMainService.WebviewMainService,
     UtilityProcessWorkerMainService: utilityProcessWorker.UtilityProcessWorkerMainService,
     extensionHostChannelName: extensionHostStarterContract.ipcExtensionHostStarterChannelName,
@@ -382,6 +414,8 @@ async function loadNativeCodeHostModules(vscodeRoot: string): Promise<NativeCode
     isPortFree: ports.isPortFree,
     findFreePort: ports.findFreePort,
     zip: zip.zip,
+    CancellationTokenSource: cancellation.CancellationTokenSource,
+    AgentsWindowInvitationState: agentsWindowInvitation.AgentsWindowInvitationState,
     ElectronAgentHostStarter: agentHostStarter.ElectronAgentHostStarter,
     AgentHostProcessManager: agentHostService.AgentHostProcessManager,
     ConfigurationService: configuration.ConfigurationService,
@@ -478,6 +512,9 @@ export async function createNativeCodeHostMainBackend(
     "onDidFocusMainOrAuxiliaryWindow",
     "onDidBlurMainOrAuxiliaryWindow",
     "onDidChangeDisplay",
+    "onDidChangeGPUCompositing",
+    "onDidChangeAgentHostEditorState",
+    "onDidProgressZipFile",
     "onDidSuspendOS",
     "onDidResumeOS",
     "onDidChangeOnBatteryPower",
@@ -493,6 +530,19 @@ export async function createNativeCodeHostMainBackend(
   );
   const fireNativeHostEvent = (name: (typeof nativeHostEventNames)[number], value?: unknown) =>
     nativeHostEvents.get(name)?.fire(value);
+
+  const gpu = observeNativeCodeGpu(app, (enabled) =>
+    fireNativeHostEvent("onDidChangeGPUCompositing", enabled),
+  );
+  disposables.add(gpu);
+  const zipOperations = disposables.add(
+    new NativeCodeZipOperations(
+      modules.zip,
+      () => new modules.CancellationTokenSource(),
+      (progress) => fireNativeHostEvent("onDidProgressZipFile", progress),
+    ),
+  );
+  const agentsWindowIds = new Set<number>();
 
   const nativeThemeUpdated = () =>
     fireNativeHostEvent("onDidChangeColorScheme", {
@@ -667,7 +717,6 @@ export async function createNativeCodeHostMainBackend(
   const externalTerminalService = new modules.ExternalTerminalService();
   const nativeMcpDiscoveryHelperService = new modules.NativeMcpDiscoveryHelperService();
   const encryptionService = new modules.EncryptionMainService(logService);
-  const webviewMainService = new modules.WebviewMainService(fileService, windowsService);
   const sharedProfile = createSharedProcessProfile(modules, stateDir);
   const storagePath = Path.join(
     stateDir,
@@ -702,19 +751,22 @@ export async function createNativeCodeHostMainBackend(
     return undefined;
   });
 
-  const applicationStorageService = {
-    get(key: string) {
-      return storage.get(key);
-    },
-    store(key: string, value: string) {
-      storage.set(key, value);
-      saveNativeCodeHostStorage(storagePath, storage);
-    },
-    remove(key: string) {
-      storage.delete(key);
-      saveNativeCodeHostStorage(storagePath, storage);
-    },
-  };
+  const applicationStorageService = createNativeCodeHostStorageService(storage, () =>
+    saveNativeCodeHostStorage(storagePath, storage),
+  );
+  const agentCoordinator = disposables.add(
+    new modules.AgentsWindowInvitationState(Date.now, applicationStorageService),
+  );
+  disposables.add(
+    agentCoordinator.onDidChange((state) =>
+      fireNativeHostEvent("onDidChangeAgentHostEditorState", state),
+    ),
+  );
+  const agentActivity = createNativeCodeHostActivity(
+    agentCoordinator,
+    (value) => modules.URI.revive(value),
+    (id) => (browserWindows.has(id) ? (agentsWindowIds.has(id) ? "agents" : "editor") : undefined),
+  );
   const browserServices = new modules.ServiceCollection();
   browserServices.set(modules.IEnvironmentMainService, {
     ...environmentService,
@@ -736,6 +788,7 @@ export async function createNativeCodeHostMainBackend(
   });
   browserServices.set(modules.IApplicationStorageMainService, applicationStorageService);
   browserServices.set(modules.ILogService, logService);
+  browserServices.set(modules.IFileService, fileService);
   browserServices.set(modules.IProductService, {
     nameShort: "Tabs",
     nameLong: "Tabs",
@@ -751,6 +804,14 @@ export async function createNativeCodeHostMainBackend(
     onDidChange: modules.EventNone as (...args: unknown[]) => { dispose(): void },
   });
   const browserInstantiationService = new modules.InstantiationService(browserServices, true);
+  // Upstream 1.143 injects an instantiation service and logger here. Resolve
+  // decorated dependencies instead of carrying positional constructor arguments.
+  // Webview window IDs refer to embedded renderers. Browser views use their
+  // owning BrowserWindow instead; preserve each service's existing routing.
+  const webviewServices = new modules.ServiceCollection();
+  webviewServices.set(modules.IWindowsMainService, windowsService);
+  const webviewInstantiationService = browserInstantiationService.createChild(webviewServices);
+  const webviewMainService = webviewInstantiationService.createInstance(modules.WebviewMainService);
   const browserViewMainService = browserInstantiationService.createInstance(
     modules.BrowserViewMainService,
   );
@@ -1603,13 +1664,38 @@ export async function createNativeCodeHostMainBackend(
         }
       }
       if (command === "createZipFile") {
-        const files = Array.isArray(args[2]) ? args[2] : [];
-        await createNativeCodeZip(
-          modules.zip,
+        if (windowId === undefined || !webContents)
+          throw new Error("ZIP requires a registered Code window");
+        await zipOperations.create(
+          windowId,
           args[1],
-          files as never[],
-          args[3] as { maxSize?: number; maxEntries?: number } | undefined,
+          (Array.isArray(args[2]) ? args[2] : []) as NativeZipInput[],
+          args[3] as { maxSize?: number; maxEntries?: number; operationId?: string } | undefined,
         );
+        return undefined;
+      }
+      if (command === "cancelZipFile") {
+        if (windowId !== undefined && typeof args[1] === "string")
+          zipOperations.cancel(windowId, args[1]);
+        return undefined;
+      }
+      if (command === "isGPUCompositingEnabled") return gpu.enabled;
+      if (command === "getAgentHostEditorState") return agentActivity.initialize(args[1]);
+      if (command === "updateAgentHostEditorState") {
+        agentActivity.update(windowId, args[1]);
+        return undefined;
+      }
+      if (command === "claimAgentsWindowInvitation") {
+        return agentActivity.claim(windowId, args[1], args[2]);
+      }
+      if (command === "markAgentsWindowInvitationShown") {
+        if (typeof args[1] !== "string") throw new Error("Invalid Agents invitation ID");
+        agentActivity.markShown(windowId, args[1]);
+        return undefined;
+      }
+      if (command === "releaseAgentsWindowInvitation") {
+        if (typeof args[1] !== "string") throw new Error("Invalid Agents invitation ID");
+        agentActivity.release(windowId, args[1]);
         return undefined;
       }
       if (command === "lookupAuthorization" || command === "lookupKerberosAuthorization") {
@@ -1653,7 +1739,7 @@ export async function createNativeCodeHostMainBackend(
         browserWindows.delete(windowId);
       });
     },
-    registerWebContents(webContents, getBounds, ownerWindow, projectId) {
+    registerWebContents(webContents, getBounds, ownerWindow, projectId, isAgentsWindow = false) {
       const window = ownerWindow ?? BrowserWindow.fromWebContents(webContents);
       if (!window) {
         throw new Error("An owning BrowserWindow is required for embedded Code browser views.");
@@ -1672,6 +1758,7 @@ export async function createNativeCodeHostMainBackend(
         onDidDestroy: onDidDestroy.event,
         isDestroyed: () => webContents.isDestroyed(),
       } satisfies NativeCodeWindow;
+      if (isAgentsWindow) agentsWindowIds.add(webContents.id);
       windows.set(webContents.id, extensionHostWindow);
       browserWindows.set(webContents.id, embeddedWindow);
       if (projectId) projectIdsByWindow.set(webContents.id, projectId);
@@ -1739,6 +1826,9 @@ export async function createNativeCodeHostMainBackend(
         onDidDestroy.fire(undefined);
         onDidClose.dispose();
         onDidDestroy.dispose();
+        agentCoordinator.resetWindow(webContents.id, false);
+        zipOperations.cancelWindow(webContents.id);
+        agentsWindowIds.delete(webContents.id);
         windows.delete(webContents.id);
         browserWindows.delete(webContents.id);
         projectIdsByWindow.delete(webContents.id);
@@ -1746,6 +1836,9 @@ export async function createNativeCodeHostMainBackend(
       });
     },
     unregisterWindow(windowId) {
+      agentCoordinator.resetWindow(windowId, false);
+      zipOperations.cancelWindow(windowId);
+      agentsWindowIds.delete(windowId);
       windows.delete(windowId);
       browserWindows.delete(windowId);
       projectIdsByWindow.delete(windowId);
@@ -1775,11 +1868,13 @@ export async function createNativeCodeHostMainBackend(
     dispose: createNativeCodeHostShutdown(
       (event) => {
         shuttingDown = true;
+        event.join("tabs.nativeZipOperations", zipOperations.shutdown());
         onWillShutdown.fire(event);
       },
       () => {
         windows.clear();
         browserWindows.clear();
+        agentsWindowIds.clear();
         projectIdsByWindow.clear();
         embeddedBounds.clear();
         agentHostProcessManager.dispose();
@@ -1789,8 +1884,9 @@ export async function createNativeCodeHostMainBackend(
         utilityProcessWorkerService.dispose();
         browserViewGroupMainService.dispose();
         browserViewMainService.dispose();
-        browserInstantiationService.dispose();
         webviewMainService.dispose();
+        webviewInstantiationService.dispose();
+        browserInstantiationService.dispose();
         fileProviderRegistration.dispose();
         fileService.dispose();
         diskFileSystemProviderChannel.dispose();

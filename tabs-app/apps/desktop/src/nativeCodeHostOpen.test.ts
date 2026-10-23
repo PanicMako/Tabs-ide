@@ -58,7 +58,7 @@ describe("native Code-OSS open targets", () => {
   it("preserves logical Agents resources and serialized draft attachments", () => {
     const options = {
       folderUri: { scheme: "vscode-remote", authority: "ssh-remote+host", path: "/workspace" },
-      sessionResource: {
+      reveal: {
         scheme: "vscode-chat-session",
         path: "/session-1",
         query: "provider=local",
@@ -75,6 +75,16 @@ describe("native Code-OSS open targets", () => {
     expect(parseNativeAgentsWindowOptions(options)).toEqual(options);
   });
 
+  it("preserves an explicit new composer and validates reveal URIs", () => {
+    expect(parseNativeAgentsWindowOptions({ reveal: "new" }).reveal).toBe("new");
+    expect(parseNativeAgentsWindowOptions({}).reveal).toBeUndefined();
+    for (const reveal of ["invalid", null, 1, { scheme: "file", path: 1 }]) {
+      expect(() => parseNativeAgentsWindowOptions({ reveal })).toThrow(
+        "Invalid Agents resource URI",
+      );
+    }
+  });
+
   it("rejects invalid drafts rather than silently dropping them", () => {
     for (const draft of [
       { text: "old invalid fixture" },
@@ -88,8 +98,8 @@ describe("native Code-OSS open targets", () => {
       source: "unknown",
       folderUriIsDefault: false,
     });
-    expect(() =>
-      parseNativeAgentsWindowOptions({ sessionResource: { scheme: "https", path: 1 } }),
-    ).toThrow("Invalid Agents resource URI");
+    expect(() => parseNativeAgentsWindowOptions({ reveal: { scheme: "https", path: 1 } })).toThrow(
+      "Invalid Agents resource URI",
+    );
   });
 });

@@ -25,6 +25,8 @@ export class NativeViewStackCoordinator {
   private readonly focusHandlers = new Map<WebContents, () => void>();
   private lastFocusedWebContents: WebContents | null = null;
   private trackedWindow: BrowserWindow | null = null;
+  private toolViewsSuspended = false;
+  private suspendedViews: WebContentsView[] = [];
 
   constructor(options: NativeViewStackCoordinatorOptions) {
     this.getWindow = options.getWindow;
@@ -41,6 +43,10 @@ export class NativeViewStackCoordinator {
     this.trackWindowFocus(window);
     this.trackViewFocus(view);
     this.toolViews.add(view);
+    if (this.toolViewsSuspended) {
+      if (!this.suspendedViews.includes(view)) this.suspendedViews.push(view);
+      return;
+    }
 
     const children = window.contentView.children;
     const overlay = this.notificationOverlayView;
@@ -63,6 +69,7 @@ export class NativeViewStackCoordinator {
    */
   public detachToolView(view: WebContentsView): void {
     this.toolViews.delete(view);
+    this.suspendedViews = this.suspendedViews.filter((candidate) => candidate !== view);
     this.untrackViewFocus(view);
     const window = this.getWindow();
     if (!window || window.isDestroyed()) return;
@@ -83,6 +90,10 @@ export class NativeViewStackCoordinator {
     this.trackWindowFocus(window);
     this.trackViewFocus(view);
     this.automationViews.add(view);
+    if (this.toolViewsSuspended) {
+      if (!this.suspendedViews.includes(view)) this.suspendedViews.splice(index, 0, view);
+      return;
+    }
     const children = window.contentView.children;
     const overlay = this.notificationOverlayView;
 
@@ -105,6 +116,7 @@ export class NativeViewStackCoordinator {
    */
   public detachAutomationView(view: WebContentsView): void {
     this.automationViews.delete(view);
+    this.suspendedViews = this.suspendedViews.filter((candidate) => candidate !== view);
     this.untrackViewFocus(view);
     const window = this.getWindow();
     if (!window || window.isDestroyed()) return;
@@ -112,6 +124,39 @@ export class NativeViewStackCoordinator {
     if (window.contentView.children.includes(view)) {
       window.contentView.removeChildView(view);
     }
+  }
+
+  /** Keep native tools behind renderer-owned quit dialogs and close animations.
+   * Detach rather than destroy so cancellation preserves loaded pages and editors.
+   */
+  public setToolViewsSuspended(suspended: boolean): void {
+    if (this.toolViewsSuspended === suspended) return;
+    this.toolViewsSuspended = suspended;
+    const window = this.getWindow();
+    if (!window || window.isDestroyed()) return;
+
+    if (suspended) {
+      this.suspendedViews = window.contentView.children.filter(
+        (view) =>
+          this.toolViews.has(view as WebContentsView) ||
+          this.automationViews.has(view as WebContentsView),
+      ) as WebContentsView[];
+      for (const view of this.suspendedViews) {
+        window.contentView.removeChildView(view);
+      }
+      window.webContents.focus();
+      return;
+    }
+
+    const views = this.suspendedViews;
+    this.suspendedViews = [];
+    for (const view of views) {
+      if (view.webContents.isDestroyed()) continue;
+      if (this.toolViews.has(view)) this.attachToolView(view);
+      else if (this.automationViews.has(view))
+        this.attachAutomationView(view, window.contentView.children.length);
+    }
+    this.ensureTopmost();
   }
 
   /**
@@ -221,6 +266,10 @@ export class NativeViewStackCoordinator {
   private trackWebContents(contents: WebContents): void {
     if (this.focusHandlers.has(contents)) return;
     const handler = () => {
+      if (this.toolViewsSuspended && contents !== this.trackedWindow?.webContents) {
+        this.trackedWindow?.webContents.focus();
+        return;
+      }
       this.lastFocusedWebContents = contents;
     };
     this.focusHandlers.set(contents, handler);
@@ -256,5 +305,7 @@ export class NativeViewStackCoordinator {
     this.trackedWindow = null;
     this.toolViews.clear();
     this.automationViews.clear();
+    this.suspendedViews = [];
+    this.toolViewsSuspended = false;
   }
 }

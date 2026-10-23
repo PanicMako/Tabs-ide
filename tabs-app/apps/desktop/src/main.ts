@@ -1,5 +1,11 @@
+import {
+  findDownloadedInstaller,
+  installedMacApplication,
+  trashVerifiedInstaller,
+} from "./installerCleanup";
 import { extensionHostVersion } from "./extensionHostVersion";
 import { writeBackendBootstrap } from "./backendBootstrap";
+import { waitForBackendListener } from "./backendReadiness";
 import { createStartupWindowReveal } from "./startupWindowReveal";
 import { officialExchangeTrust } from "./officialExchangeTrust";
 import { fetchExchangeListingAsset } from "./exchangeListingAsset";
@@ -180,6 +186,7 @@ const UPDATE_GET_STATE_CHANNEL = "desktop:update-get-state";
 const UPDATE_DOWNLOAD_CHANNEL = "desktop:update-download";
 const UPDATE_INSTALL_CHANNEL = "desktop:update-install";
 const GET_WS_URL_CHANNEL = "desktop:get-ws-url";
+const WAIT_FOR_BACKEND_READY_CHANNEL = "desktop:wait-for-backend-ready";
 const GET_LOCAL_ENVIRONMENT_BOOTSTRAPS_CHANNEL = "desktop:get-local-environment-bootstraps";
 const GET_CONNECTION_CATALOG_CHANNEL = "desktop:get-connection-catalog";
 const SET_CONNECTION_CATALOG_CHANNEL = "desktop:set-connection-catalog";
@@ -2510,6 +2517,47 @@ const shutdownPromise = Effect.runPromise(
 );
 
 function registerIpcHandlers(): void {
+  const canCleanInstaller = () =>
+    installedMacApplication(
+      process.platform,
+      app.isPackaged,
+      process.execPath,
+      app.getPath("home"),
+    );
+  ipcMain.removeHandler("desktop:installer-cleanup:candidate");
+  handleTabsIpc("desktop:installer-cleanup:candidate", async () => {
+    if (!canCleanInstaller()) return null;
+    const candidate = await findDownloadedInstaller(
+      app.getPath("downloads"),
+      app.getVersion(),
+      process.arch,
+    );
+    return candidate ? { name: candidate.name, size: candidate.size } : null;
+  });
+  ipcMain.removeHandler("desktop:installer-cleanup:trash");
+  handleTabsIpc("desktop:installer-cleanup:trash", async () => {
+    if (!canCleanInstaller())
+      throw new Error("Launch the installed Tabs app from Applications first.");
+    await trashVerifiedInstaller({
+      downloads: app.getPath("downloads"),
+      version: app.getVersion(),
+      arch: process.arch,
+      fetchRelease: async (version) => {
+        const response = await fetch(
+          `https://api.github.com/repos/PanicMako/Tabs-ide/releases/tags/v${version}`,
+          {
+            signal: AbortSignal.timeout(15_000),
+            headers: { Accept: "application/vnd.github+json" },
+          },
+        );
+        if (!response.ok)
+          throw new Error("Unable to verify the published installer. Try again later.");
+        return response.json();
+      },
+      trash: (file) => shell.trashItem(file),
+    });
+  });
+
   ipcMain.removeHandler("desktop:build-info");
   handleTabsIpc("desktop:build-info", () => ({
     version: app.getVersion(),
@@ -2949,6 +2997,9 @@ function registerIpcHandlers(): void {
   ipcMain.removeHandler(HOST_POWER_GET_CHANNEL);
   handleTabsIpc(HOST_POWER_GET_CHANNEL, () => readHostPowerSnapshot());
 
+  ipcMain.removeHandler(WAIT_FOR_BACKEND_READY_CHANNEL);
+  handleTabsIpc(WAIT_FOR_BACKEND_READY_CHANNEL, () => waitForBackendListener(backendPort));
+
   ipcMain.removeAllListeners(GET_WS_URL_CHANNEL);
   ipcMain.on(GET_WS_URL_CHANNEL, (event) => {
     if (!isTrustedTabsSender(event)) {
@@ -3123,6 +3174,7 @@ function registerIpcHandlers(): void {
     if (!isQuitConfirmationOpen) return;
     if (choice === "cancel") {
       isQuitConfirmationOpen = false;
+      nativeViewCoordinator.setToolViewsSuspended(false);
       return;
     }
     if (choice !== "save-and-quit") return;
@@ -5004,6 +5056,7 @@ function requestQuitConfirmation(): void {
   if (isQuitConfirmationOpen || isQuittingConfirmed) return;
   if (!mainWindow || mainWindow.isDestroyed()) return;
   isQuitConfirmationOpen = true;
+  nativeViewCoordinator.setToolViewsSuspended(true);
   const sendRequest = () => {
     if (isQuitConfirmationOpen && mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send(QUIT_CONFIRMATION_REQUEST_CHANNEL);
@@ -5040,6 +5093,7 @@ app.on("before-quit", (event) => {
   isCleaningUp = true;
   event.preventDefault(); // Hold the quit to perform async cleanup
   isQuitting = true;
+  nativeViewCoordinator.setToolViewsSuspended(true);
   writeDesktopLogHeader("before-quit received, performing async cleanup");
 
   const rendererSettingsFlush =
