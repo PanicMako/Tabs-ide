@@ -48,6 +48,17 @@ describe("themeDerivation shared module", () => {
     expect(tokens["app.primaryForeground"]).toBe("#0f172a");
   });
 
+  it("keeps the status bar on the same surface when the window loses focus", () => {
+    for (const card of ["#eee8d5", "#181818"]) {
+      const tokens = evaluateThemeTokens({
+        ...baseConfig,
+        colors: { ...baseConfig.colors, card },
+      });
+      expect(tokens["statusBar.background"]).toBe(card);
+      expect(tokens["statusBar.inactiveBackground"]).toBe(card);
+    }
+  });
+
   it("applies tokenOverrides over default derived values", () => {
     const overrideConfig: CustomThemeConfig = {
       ...baseConfig,

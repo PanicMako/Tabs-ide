@@ -223,3 +223,26 @@ describe("parseCodeControlClientMessage / coerceChromeState", () => {
     expect(parseCodeControlClientMessage("{")).toBeNull();
   });
 });
+
+it("preserves the active resource independently of workspace file tabs", () => {
+  expect(
+    coerceChromeState({ activeFilePath: "/profile/settings.json", openTabs: [] }).activeFilePath,
+  ).toBe("/profile/settings.json");
+  expect(coerceChromeState({ activeFilePath: null }).activeFilePath).toBeNull();
+  expect(coerceChromeState({ activeFilePath: 42 }).activeFilePath).toBeNull();
+  expect(coerceChromeState({}).activeFilePath).toBeUndefined();
+});
+
+it("preserves native modal state across the control-channel parser", () => {
+  for (const modalOpen of [true, false]) {
+    const parsed = parseCodeControlClientMessage(
+      JSON.stringify({
+        type: "chromeState",
+        projectId: "modal-project",
+        state: { modalOpen },
+      }),
+    );
+    expect(parsed?.type === "chromeState" && parsed.state.modalOpen).toBe(modalOpen);
+  }
+  expect(coerceChromeState({ modalOpen: "true" }).modalOpen).toBeUndefined();
+});

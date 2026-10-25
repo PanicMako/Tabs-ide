@@ -709,7 +709,7 @@ function ConnectedTerminalViewport({
       observer.disconnect();
     };
   }, [api, terminalId, threadId]);
-  return <div ref={containerRef} className="relative h-full w-full overflow-hidden rounded-xl" />;
+  return <div ref={containerRef} className="relative h-full w-full overflow-hidden rounded-none" />;
 }
 
 interface ThreadTerminalDrawerProps {

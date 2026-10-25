@@ -86,31 +86,14 @@ html[data-interface-study="dark"] .tabs-segmented.orbit-group {
 }
 html[data-interface-study] .orbit-group > .orbit-orb {
   border-radius: var(--radius-control) !important;
-  box-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.12),
-    0 1px 2px rgba(0, 0, 0, 0.08);
   z-index: 0;
-}
-html[data-interface-study="light"] .orbit-group > .orbit-orb {
-  background: #ffffff !important;
-  color: #18181b !important;
+  border: 1px solid var(--seg-lit-border) !important;
+  background-color: var(--seg-lit-bg-tint) !important;
+  background-image: var(--seg-lit-bg-gradient) !important;
+  color: var(--seg-lit-label) !important;
   box-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.08),
-    0 1px 2px rgba(0, 0, 0, 0.04);
-}
-html[data-interface-study="dark"] .orbit-group > .orbit-orb {
-  background: #f4f4f0 !important;
-  color: #121212 !important;
-  box-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.4),
-    0 1px 2px rgba(0, 0, 0, 0.2);
-}
-html[data-interface-study] .orbit-group[data-orbit-kind="spotlight"] > .orbit-orb {
-  background: inherit;
-}
-html[data-interface-study="dark"] .orbit-group[data-orbit-kind="spotlight"] > .orbit-orb {
-  background: #f4f4f0 !important;
-  color: #121212 !important;
+    inset 0 1px 0 var(--seg-lit-rim),
+    0 6px 14px -6px var(--seg-lit-shadow) !important;
 }
 html[data-interface-study] .tabs-segmented.orbit-group > button {
   border-radius: var(--radius-control) !important;
@@ -132,16 +115,10 @@ html[data-interface-study="light"] .tabs-segmented.orbit-group > button {
 html[data-interface-study="light"] .tabs-segmented.orbit-group > button:hover {
   color: #18181b !important;
 }
-html[data-interface-study="dark"]
+html[data-interface-study]
   .tabs-segmented.orbit-group
   > :is(button[aria-pressed="true"], button[aria-checked="true"], button[aria-selected="true"]) {
-  color: #121212 !important;
-  font-weight: 600 !important;
-}
-html[data-interface-study="light"]
-  .tabs-segmented.orbit-group
-  > :is(button[aria-pressed="true"], button[aria-checked="true"], button[aria-selected="true"]) {
-  color: #18181b !important;
+  color: var(--seg-lit-label) !important;
   font-weight: 600 !important;
 }
 html[data-interface-study] .orbit-group[data-orbit-kind="spotlight"]::before {

@@ -1322,8 +1322,8 @@ export function ProjectWorkspaceSettingsSection() {
             <CardTitle>Browser Default URL</CardTitle>
             <CardDescription>
               The Browser tool loads this URL by default for the active project. Note: If you run a
-              Launchpad Preset that has a Preview URL configured, it will automatically override
-              this default and navigate to the preset's preview.
+              Dock Preset that has a Preview URL configured, it will automatically override this
+              default and navigate to the preset's preview.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -1363,8 +1363,8 @@ export function ProjectWorkspaceSettingsSection() {
                   <Alert variant="default" className="bg-muted/50 py-3">
                     <InfoIcon className="size-4 mt-0" />
                     <AlertDescription className="text-muted-foreground ml-2">
-                      A Launchpad Preset is configured to open a preview in the Internal Browser.
-                      When you run that preset, its preview URL will override this default.
+                      A Dock Preset is configured to open a preview in the Internal Browser. When
+                      you run that preset, its preview URL will override this default.
                     </AlertDescription>
                   </Alert>
                 )}
@@ -1489,7 +1489,7 @@ export function ProjectWorkspaceSettingsSection() {
           <CardHeader>
             <CardTitle>Project Tools</CardTitle>
             <CardDescription>
-              Manage your project-specific browser tabs, background terminals, or launchpad presets.
+              Manage your project-specific browser tabs, background terminals, or Dock presets.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -1497,7 +1497,7 @@ export function ProjectWorkspaceSettingsSection() {
               <TabsList className="mb-4">
                 <TabsTrigger value="browser">Browser Tabs</TabsTrigger>
                 <TabsTrigger value="terminal">Terminal Tabs</TabsTrigger>
-                <TabsTrigger value="preset">Launchpad Presets</TabsTrigger>
+                <TabsTrigger value="preset">Dock Presets</TabsTrigger>
               </TabsList>
 
               <TabsContent value="browser" className="mt-0">

@@ -415,6 +415,14 @@ const VSCODE_TOKEN_REGISTRY_ENTRIES = [
     deriveDefault: (c) => c.card,
   },
   {
+    id: "statusBar.inactiveBackground",
+    label: "Inactive Status Bar Background",
+    description: "Status bar background when the window loses focus",
+    category: "surfaces",
+    isBg: true,
+    deriveDefault: (c) => c.card,
+  },
+  {
     id: "statusBar.noFolderBackground",
     label: "Status Bar No-Folder Bg",
     description: "Status bar background when no folder is open",

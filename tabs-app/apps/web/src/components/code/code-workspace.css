@@ -1,0 +1,266 @@
+/* The Code tool is a compact instrument within the larger Tabs shell. Keep its
+   geometry local, including the menu portals that sit above the native editor. */
+.code-workspace {
+  position: relative;
+  --code-control-radius: 9px;
+  --code-rail-width: 48px;
+  --code-picker-center-offset: calc(
+    (var(--code-rail-width) + 4px - var(--code-sidechat-width, 0px)) / 2
+  );
+  --code-search-width: clamp(160px, calc(100% - 420px), 560px);
+  /* Native StatusbarPart reserves 22px plus 6px floating bottom padding. */
+  --code-statusbar-height: 28px;
+}
+
+.code-command-strip {
+  display: grid;
+  grid-template-columns:
+    minmax(0, calc((100% - var(--code-search-width)) / 2 + var(--code-picker-center-offset)))
+    var(--code-search-width) minmax(0, 1fr);
+  align-items: center;
+  flex-shrink: 0;
+  height: 46px;
+  padding: 2px 6px;
+  color: var(--muted-foreground);
+  background: var(--background);
+}
+
+html .code-workspace .code-quick-open {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+  border-radius: 999px !important;
+  background: color-mix(in srgb, var(--card) 65%, var(--background));
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+
+.code-quick-open kbd {
+  background: transparent;
+  color: var(--muted-foreground);
+  font-family: inherit;
+  font-size: 10px;
+}
+
+.code-command-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  min-width: 0;
+  justify-self: end;
+  padding: 2px 4px;
+  border: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--card) 65%, var(--background));
+}
+
+.code-current-file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  justify-self: start;
+  max-width: 100%;
+  height: 32px;
+  padding-inline: 10px;
+  border: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+  border-radius: 999px !important;
+  background: color-mix(in srgb, var(--card) 65%, var(--background));
+  font-size: 11px;
+}
+
+.code-current-project,
+.code-current-filename {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.code-current-project {
+  max-width: 45%;
+}
+.code-current-filename {
+  color: var(--foreground);
+  font-weight: 500;
+}
+.code-path-separator {
+  flex-shrink: 0;
+  opacity: 0.5;
+}
+
+html .code-workspace .code-chrome-action,
+html .code-workspace .code-rail-action {
+  display: flex;
+  position: relative;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--code-control-radius) !important;
+  color: var(--muted-foreground);
+  outline: none;
+  transition:
+    background-color 100ms,
+    color 100ms;
+}
+
+.code-activity-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+  position: relative;
+  gap: 8px;
+  width: var(--code-rail-width);
+  align-self: stretch;
+  margin: 4px 0 calc(var(--code-statusbar-height) + 4px) 4px;
+  padding: 4px 0;
+  border: 1px solid var(--border);
+  border-radius: 16px 0 0 16px;
+  background: var(--card);
+}
+
+.code-activity-rail[data-sidebar-open="false"] {
+  border-radius: 16px;
+}
+
+html .code-workspace .code-rail-action {
+  width: 34px;
+  height: 34px;
+}
+
+.code-workspace .code-rail-action.is-active {
+  background: color-mix(in srgb, var(--primary) 16%, var(--background));
+  color: var(--foreground);
+}
+
+.code-workspace .code-chrome-action.is-active,
+.code-workspace :is(.code-chrome-action, .code-rail-action)[data-popup-open],
+.code-workspace :is(.code-quick-open, .code-chrome-action, .code-rail-action):hover {
+  background: var(--accent);
+  color: var(--foreground);
+}
+
+.code-workspace :is(.code-quick-open, .code-chrome-action, .code-rail-action):focus-visible {
+  outline: 1px solid var(--ring);
+  outline-offset: 1px;
+}
+
+html .code-actions-menu {
+  border-radius: 12px !important;
+}
+
+html .code-actions-menu::before {
+  border-radius: inherit;
+}
+
+html .code-actions-menu [role^="menuitem"] {
+  border-radius: 7px !important;
+  font-size: 12px;
+}
+
+@media (width < 700px) {
+  .code-current-file {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html .code-workspace :is(.code-chrome-action, .code-rail-action) {
+    transition: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .code-workspace .code-rail-action.is-active {
+    outline: 1px solid Highlight;
+  }
+}
+
+/* Selected controls use a quiet baseline rather than a second set of tiles. */
+.code-workspace .code-chrome-action.is-active {
+  background: transparent;
+  color: var(--foreground);
+}
+.code-workspace .code-chrome-action.is-active::after {
+  content: "";
+  position: absolute;
+  inset: auto 8px 1px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--primary);
+}
+.code-command-actions svg,
+.code-activity-rail svg {
+  stroke-width: 1.65;
+}
+
+/* The gutter must match the workspace, not expose a square card behind the
+   rounded rail. Only the rail itself owns the raised sidebar surface. */
+.code-workspace-body {
+  background: var(--background);
+}
+
+/* One footer surface spans the rail slot and the native status bar. */
+.code-workspace::before {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: var(--code-statusbar-height);
+  background: var(--vscode-statusBar-background, var(--card));
+  pointer-events: none;
+}
+
+/* Settings is a plain action on the shared footer, not a separate tile. */
+.code-rail-settings {
+  position: absolute;
+  bottom: -32px;
+  left: 0;
+  right: 0;
+  height: var(--code-statusbar-height);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+}
+html .code-workspace .code-rail-settings .code-rail-action {
+  height: 26px;
+}
+
+.code-current-file {
+  grid-column: 1;
+}
+.code-quick-open {
+  grid-column: 2;
+}
+.code-command-actions {
+  grid-column: 3;
+}
+html .code-workspace .code-chrome-action {
+  width: 34px;
+  height: 34px;
+}
+
+/* One compositor backdrop covers the entire Tabs-owned workspace, including
+   gutters. Blurring individual controls fades their edges into bright seams.
+   The native WebContentsView draws its matching backdrop above this surface. */
+.code-workspace[data-modal-open="true"] {
+  position: relative;
+}
+.code-workspace[data-modal-open="true"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  background: rgb(0 0 0 / 50%);
+  backdrop-filter: blur(4px);
+}
+.code-workspace[data-modal-open="true"] :is(.code-command-strip, .code-activity-rail, aside) {
+  pointer-events: none;
+}

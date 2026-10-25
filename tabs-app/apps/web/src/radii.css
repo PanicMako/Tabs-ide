@@ -71,7 +71,6 @@ mark {
 
 /* Project tabs retain their browser silhouette and join the workspace below. */
 html [data-slot="workspace-project-tab"],
-html [data-slot="onboarding-project-tab"],
 html .study-tool-tab {
   border-radius: var(--radius-joined) var(--radius-joined) 0 0 !important;
 }

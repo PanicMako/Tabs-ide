@@ -1134,47 +1134,47 @@ export function ThemesSettings() {
                   </div>
                 )}
 
-                <div data-slot="font-specimen" className="mb-4 leading-none w-full">
+                <div data-slot="font-specimen" className="mb-3 w-full">
                   {combo.typography ? (
-                    <div className="text-[28px] leading-[1.05] tracking-tight min-h-[62px]">
+                    <div className="flex flex-col justify-center min-h-[66px] gap-1 overflow-hidden">
                       <span
+                        className="truncate text-[22px] sm:text-[23px] leading-[1.25]"
                         style={{
                           fontFamily: combo.headingFont,
                           fontWeight: combo.typography.headingWeight,
                           letterSpacing: combo.typography.headingTracking,
-                          display: "block",
                         }}
                       >
                         {combo.sansText}
                       </span>
                       <span
+                        className="truncate text-[20px] sm:text-[21px] leading-[1.25]"
                         style={{
                           fontFamily: combo.typography.specimenFont,
                           fontWeight: combo.typography.specimenWeight,
                           fontStyle: combo.typography.specimenStyle,
-                          display: "block",
                         }}
                       >
                         {combo.serifText}
                       </span>
                     </div>
                   ) : (
-                    <div>
+                    <div className="flex items-baseline flex-wrap gap-1 min-h-[66px] overflow-hidden py-1">
                       <span
-                        className={cn("text-[28px] leading-none", combo.sansClass)}
+                        className={cn("text-[22px] leading-tight", combo.sansClass)}
                         style={{ fontFamily: combo.uiFont }}
                       >
                         {combo.sansText}
                       </span>
                       <span
-                        className={cn("text-[28px] leading-none", combo.serifClass)}
+                        className={cn("text-[22px] leading-tight", combo.serifClass)}
                         style={{ fontFamily: combo.headingFont }}
                       >
                         {combo.serifText}
                       </span>
                       {combo.sansText2 && (
                         <span
-                          className={cn("text-[28px] leading-none", combo.sansClass)}
+                          className={cn("text-[22px] leading-tight", combo.sansClass)}
                           style={{ fontFamily: combo.uiFont }}
                         >
                           {combo.sansText2}

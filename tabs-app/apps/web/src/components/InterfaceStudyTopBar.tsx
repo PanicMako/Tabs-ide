@@ -5,15 +5,18 @@ import {
   PlusIcon,
   SettingsIcon,
   XIcon,
-  WorkflowIcon,
-  BotIcon,
-  RocketIcon,
-  GithubIcon,
-  GlobeIcon,
   FlaskConicalIcon,
-  TerminalSquareIcon,
   SearchIcon,
 } from "lucide-react";
+import {
+  GitCompanionIcon,
+  WorkspaceBrowserIcon,
+  WorkspaceTerminalIcon,
+} from "./WorkspaceToolMarks";
+import { CodeGlyphIcon } from "./CodeGlyphIcon";
+import { DockUfoIcon } from "./DockUfoIcon";
+import { BrowserPlanetIcon } from "./BrowserPlanetIcon";
+import { AssistantBubbleIcon } from "./AssistantBubbleIcon";
 import { TabsExtensionIcon } from "./Icons";
 import type { Project, Thread } from "../types";
 import type { ProjectId } from "@tabs/contracts";
@@ -36,20 +39,21 @@ const isMac =
 function resolveToolIcon(kind: ProjectToolKind) {
   switch (kind) {
     case "code":
-      return <WorkflowIcon className="size-4" />;
+      return <CodeGlyphIcon className="size-[18px]" />;
     case "agents":
-      return <BotIcon className="size-4" />;
+      return <AssistantBubbleIcon className="size-4" />;
     case "server":
-      return <RocketIcon className="size-4" />;
+      return <DockUfoIcon className="size-[18px]" />;
     case "git":
-      return <GithubIcon className="size-4" />;
+      return <GitCompanionIcon className="size-4" />;
     case "browser":
+      return <BrowserPlanetIcon className="size-4" />;
     case "custom_embed":
-      return <GlobeIcon className="size-4" />;
+      return <WorkspaceBrowserIcon className="size-4" />;
     case "testing":
       return <FlaskConicalIcon className="size-4" />;
     case "custom_process":
-      return <TerminalSquareIcon className="size-4" />;
+      return <WorkspaceTerminalIcon className="size-4" />;
     case "extension":
       return <TabsExtensionIcon className="size-4" />;
   }
@@ -490,6 +494,7 @@ export const InterfaceStudyTopBar = memo(function InterfaceStudyTopBar(
               }}
               type="button"
               role="tab"
+              data-tool-kind={tool.kind}
               aria-selected={active}
               tabIndex={active ? 0 : -1}
               onClick={() => props.onSelectTool(tool.id)}
@@ -504,7 +509,11 @@ export const InterfaceStudyTopBar = memo(function InterfaceStudyTopBar(
                     : "text-muted-foreground group-hover:text-foreground",
                 )}
               >
-                {tool.icon ?? resolveToolIcon(tool.kind)}
+                {isAgents ? (
+                  <AssistantBubbleIcon className="size-4" />
+                ) : (
+                  (tool.icon ?? resolveToolIcon(tool.kind))
+                )}
               </span>
               <span>{tool.label}</span>
 

@@ -242,6 +242,36 @@ describe("workspaceShellStore", () => {
     }
   });
 
+  it.each(["Launchpad", "Server", "Dock", "My Services"])(
+    "migrates the %s server label without changing its saved tool ID or selection",
+    async (label) => {
+      const { createDefaultProjectWorkspaceSettings } = await import("./workspaceShellStore");
+      const project = makeProject("dock-migration");
+      const base = createDefaultWorkspaceShellPersistedState();
+      const settings = createDefaultProjectWorkspaceSettings();
+      const next = syncWorkspaceShellState(
+        {
+          ...base,
+          session: { ...base.session, activeToolIdByProjectId: { [project.id]: "server" } },
+          projectSettingsByProjectId: {
+            [project.id]: {
+              ...settings,
+              tools: settings.tools.map((tool) =>
+                tool.kind === "server" ? { ...tool, label } : tool,
+              ),
+            },
+          },
+        },
+        [project],
+        [],
+      );
+      expect(
+        next.projectSettingsByProjectId[project.id]?.tools.find((tool) => tool.kind === "server"),
+      ).toMatchObject({ id: "server", label: label === "My Services" ? label : "Dock" });
+      expect(next.session.activeToolIdByProjectId[project.id]).toBe("server");
+    },
+  );
+
   it("merges newly registered built-in tools into persisted project tool lists", () => {
     const project = makeProject("project-before-testing-tool");
     const baseState = createDefaultWorkspaceShellPersistedState();

@@ -706,9 +706,9 @@ function SettingsRouteView() {
                     aria-current={active ? "page" : undefined}
                     onClick={() => setActiveSettingsSection(item.id)}
                     className={cn(
-                      "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-xs font-medium transition-colors cursor-pointer",
+                      "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-xs font-normal transition-colors cursor-pointer tracking-[0.025em]",
                       active
-                        ? "bg-accent font-semibold text-foreground shadow-2xs"
+                        ? "bg-accent font-medium text-foreground shadow-2xs"
                         : "text-muted-foreground hover:bg-accent/40 hover:text-foreground",
                     )}
                   >
@@ -821,7 +821,7 @@ function SettingsRouteView() {
                         ? `Logging out of ${providerActionSession.providerName}`
                         : `Signing in to ${providerActionSession.providerName}`}
                 </DialogTitle>
-                <code className="min-w-0 truncate rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                <code className="min-w-0 truncate rounded-md bg-muted px-2.5 py-0.5 text-[11px] font-mono text-muted-foreground">
                   {providerActionSession.command}
                 </code>
                 <Button

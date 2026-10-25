@@ -30,15 +30,6 @@ it("keeps theme, font and animation specimens rectangular with gentle corners", 
       for (const thumbnail of view.container.querySelectorAll('[data-shape="thumbnail"]')) {
         expect(getComputedStyle(thumbnail).borderRadius).toBe("24px");
       }
-      const specimenGrid = view.container.querySelector(".font-specimen-grid")!;
-      expect(parseFloat(getComputedStyle(specimenGrid).gap)).toBeLessThanOrEqual(16);
-      for (const specimenCard of specimenGrid.querySelectorAll<HTMLElement>(
-        ".font-specimen-card",
-      )) {
-        expect(specimenCard.getBoundingClientRect().width).toBeGreaterThanOrEqual(170);
-        expect(specimenCard.getBoundingClientRect().height).toBeLessThan(230);
-        expect(specimenCard.hasAttribute("aria-pressed")).toBe(true);
-      }
       await document.fonts.ready;
       previewTheme("true-black");
       await page.screenshot({

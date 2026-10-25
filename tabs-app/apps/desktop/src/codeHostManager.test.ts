@@ -94,6 +94,16 @@ describe("addDefaultExtensionGallery", () => {
 });
 
 describe("CODE_OSS_EMBED_DEFAULT_SETTINGS", () => {
+  it("leaves tab style, breadcrumbs, and editor density to contributed defaults and user settings", () => {
+    for (const key of [
+      "workbench.experimental.modernUIEditorTabStyle",
+      "breadcrumbs.enabled",
+      "window.density.editorTabHeight",
+    ]) {
+      expect(CODE_OSS_EMBED_DEFAULT_SETTINGS).not.toHaveProperty(key);
+    }
+  });
+
   it("allows gallery-managed extensions to discover and install updates", () => {
     expect(CODE_OSS_EMBED_DEFAULT_SETTINGS).toMatchObject({
       "extensions.autoCheckUpdates": true,
@@ -110,15 +120,21 @@ describe("resolveCodeOssAiProviderSettings", () => {
     },
   );
 
-  it("keeps native assistant chrome visible between providers", () => {
+  it("keeps native assistant commands enabled without forcing tab style or opening a sidebar", () => {
     expect(resolveCodeOssAiProviderSettings("tabs")).toMatchObject({
       "chat.commandCenter.enabled": true,
-      "workbench.secondarySideBar.defaultVisibility": "visible",
     });
     expect(resolveCodeOssAiProviderSettings("copilot")).toMatchObject({
       "chat.commandCenter.enabled": true,
-      "workbench.secondarySideBar.defaultVisibility": "visible",
     });
+    for (const provider of ["tabs", "copilot"] as const) {
+      expect(resolveCodeOssAiProviderSettings(provider)).not.toHaveProperty(
+        "workbench.secondarySideBar.defaultVisibility",
+      );
+      expect(resolveCodeOssAiProviderSettings(provider)).not.toHaveProperty(
+        "workbench.experimental.modernUIEditorTabStyle",
+      );
+    }
   });
 });
 
@@ -137,6 +153,7 @@ describe("removeLegacyForcedEditorSettings", () => {
   it("removes only cosmetic values that an older Tabs build forced", () => {
     expect(
       removeLegacyForcedEditorSettings({
+        "workbench.experimental.modernUIEditorTabStyle": "pill",
         "breadcrumbs.enabled": false,
         "editor.fontSize": 13,
         "files.autoSave": "afterDelay",
@@ -147,10 +164,12 @@ describe("removeLegacyForcedEditorSettings", () => {
   it("preserves user values that differ from the former forced defaults", () => {
     expect(
       removeLegacyForcedEditorSettings({
+        "workbench.experimental.modernUIEditorTabStyle": "connected",
         "breadcrumbs.enabled": true,
         "editor.fontSize": 16,
       }),
     ).toEqual({
+      "workbench.experimental.modernUIEditorTabStyle": "connected",
       "breadcrumbs.enabled": true,
       "editor.fontSize": 16,
     });

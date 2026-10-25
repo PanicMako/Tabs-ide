@@ -229,6 +229,18 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 			bottom: partBounds.top + part.clientTop + part.clientHeight,
 		} : undefined;
 
+		// Webviews are portaled outside the part. Mirror only the body corners
+		// their anchor actually touches, including when panes split or move.
+		const bodyBounds = part?.classList.contains('auxiliarybar')
+			? Array.from(part.children).find(child => child.classList.contains('content'))?.getBoundingClientRect()
+			: undefined;
+		for (const edge of ['left', 'right'] as const) {
+			const touchesCorner = !!anchorBounds && !!bodyBounds
+				&& Math.abs(anchorBounds.top - bodyBounds.top) <= 1
+				&& Math.abs(anchorBounds[edge] - bodyBounds[edge]) <= 1;
+			this.overlayLayout.content.classList.toggle(`webview-overlay-auxiliarybar-top-${edge}`, touchesCorner);
+		}
+
 		for (const edge of ['left', 'right', 'top', 'bottom'] as const) {
 			const isOuterEdge = !!anchorBounds && !!contentBounds
 				&& Math.abs(anchorBounds[edge] - contentBounds[edge]) <= 1

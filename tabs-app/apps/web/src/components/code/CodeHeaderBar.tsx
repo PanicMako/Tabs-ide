@@ -1,29 +1,31 @@
-import {
-  ChevronsDownUpIcon,
-  ChevronsUpDownIcon,
-  GitBranchIcon,
-  MessageSquareIcon,
-  PanelBottomIcon,
-  PanelLeftIcon,
-  PlayIcon,
-  SearchIcon,
-  SettingsIcon,
-  SlidersHorizontalIcon,
-} from "lucide-react";
+import { SearchIcon, EllipsisIcon, TerminalSquareIcon, PanelLeftCloseIcon } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { CODE_CHROME_COMMANDS, deriveActiveFileName } from "@tabs/shared/codeChrome";
 
-import { cn } from "../../lib/utils";
+import { AssistantBubbleIcon } from "../AssistantBubbleIcon";
+import { cn, isMacPlatform } from "../../lib/utils";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "../ui/menu";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
+import "./code-workspace.css";
 
 interface CodeHeaderBarProps {
+  modalOpen?: boolean;
   workspaceName: string;
   activeFilePath: string | null;
   branch: string | null;
+  panelOpen: boolean;
   panelMaximized: boolean;
   sideChatOpen: boolean | undefined;
   sideChatLabel: string;
   onToggleSideChat: () => void;
   onRunCommand: (commandId: string) => void;
+  onMenuOpenChange: (open: boolean) => Promise<void>;
 }
 
 function HeaderAction(props: {
@@ -41,10 +43,7 @@ function HeaderAction(props: {
             aria-label={props.label}
             aria-pressed={props.pressed}
             onClick={props.onClick}
-            className={cn(
-              "flex size-7 items-center justify-center rounded-lg text-muted-foreground outline-none transition-colors hover:bg-accent/80 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
-              props.pressed && "bg-accent text-foreground shadow-sm",
-            )}
+            className={cn("code-chrome-action", props.pressed && "is-active")}
           >
             {props.children}
           </button>
@@ -57,20 +56,51 @@ function HeaderAction(props: {
 
 /** Tabs-owned chrome above the native Code-OSS workbench. */
 export function CodeHeaderBar(props: CodeHeaderBarProps) {
-  const fileName = deriveActiveFileName(props.activeFilePath);
+  const headerRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      // Native editor key events stay in Code-OSS. Forward the same shortcuts
+      // when focus is on Tabs chrome, before the app-wide palette handles them.
+      if (event.defaultPrevented || headerRef.current?.closest("[inert]")) return;
+      const primaryModifier = isMacPlatform(navigator.platform)
+        ? event.metaKey && !event.ctrlKey
+        : event.ctrlKey && !event.metaKey;
+      if (!primaryModifier || event.altKey || event.key.toLowerCase() !== "p") return;
+      event.preventDefault();
+      event.stopPropagation();
+      props.onRunCommand(
+        event.shiftKey ? CODE_CHROME_COMMANDS.commandPalette : CODE_CHROME_COMMANDS.quickOpen,
+      );
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [props.onRunCommand]);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuOpening, setMenuOpening] = useState(false);
+  const menuTriggerRef = useRef<HTMLButtonElement>(null);
+  const shortcut = isMacPlatform(navigator.platform) ? "⌘P" : "Ctrl+P";
   return (
     <header
+      ref={headerRef}
+      inert={props.modalOpen}
       aria-label="Code workspace toolbar"
-      className="flex h-9 shrink-0 items-center gap-2 border-b border-border/70 bg-background/95 px-2.5"
+      className="code-command-strip"
     >
-      <div className="flex min-w-0 flex-1 items-center gap-2">
-        <span className="truncate text-xs font-medium text-foreground">{props.workspaceName}</span>
-        {fileName ? (
+      <div
+        className="code-current-file"
+        role="group"
+        aria-label="Current file"
+        title={props.activeFilePath ?? props.workspaceName}
+      >
+        <span className="code-current-project">{props.workspaceName}</span>
+        {props.activeFilePath ? (
           <>
-            <span aria-hidden="true" className="text-muted-foreground/50">
+            <span aria-hidden="true" className="code-path-separator">
               /
             </span>
-            <span className="truncate text-xs text-muted-foreground">{fileName}</span>
+            <span className="code-current-filename">
+              {deriveActiveFileName(props.activeFilePath)}
+            </span>
           </>
         ) : null}
       </div>
@@ -82,78 +112,97 @@ export function CodeHeaderBar(props: CodeHeaderBarProps) {
               type="button"
               aria-label="Quick open file search"
               onClick={() => props.onRunCommand(CODE_CHROME_COMMANDS.quickOpen)}
-              className="flex h-7 w-[34rem] max-w-[55%] items-center gap-2 rounded-lg border border-border/70 bg-card/70 px-3 text-xs text-muted-foreground outline-none transition-colors hover:bg-accent/80 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+              className="code-quick-open"
             >
-              <SearchIcon aria-hidden="true" className="size-3.5" />
-              <span className="truncate">Go to file...</span>
+              <SearchIcon aria-hidden="true" className="size-3.5 shrink-0" />
+              <span className="min-w-0 flex-1 truncate text-left">Search files…</span>
+              <kbd aria-hidden="true">{shortcut}</kbd>
             </button>
           }
         />
-        <TooltipPopup side="bottom">Quick open file search</TooltipPopup>
+        <TooltipPopup side="bottom">Go to file ({shortcut})</TooltipPopup>
       </Tooltip>
 
-      <div
-        role="toolbar"
-        aria-label="Code layout and actions"
-        className="flex flex-1 items-center justify-end gap-1"
-      >
-        {props.branch ? (
-          <HeaderAction
-            label={`Source Control, branch ${props.branch}`}
-            onClick={() => props.onRunCommand("workbench.view.scm")}
-          >
-            <GitBranchIcon aria-hidden="true" className="size-4" />
-          </HeaderAction>
-        ) : null}
-        <HeaderAction
-          label="Run task"
-          onClick={() => props.onRunCommand(CODE_CHROME_COMMANDS.runTask)}
-        >
-          <PlayIcon aria-hidden="true" className="size-4" />
-        </HeaderAction>
-        <HeaderAction
-          label="Open settings"
-          onClick={() => props.onRunCommand(CODE_CHROME_COMMANDS.settings)}
-        >
-          <SettingsIcon aria-hidden="true" className="size-4" />
-        </HeaderAction>
-        <span aria-hidden="true" className="mx-1 h-4 w-px bg-border/70" />
+      <div role="toolbar" aria-label="Code layout and actions" className="code-command-actions">
         <HeaderAction
           label="Toggle primary side bar"
           onClick={() => props.onRunCommand(CODE_CHROME_COMMANDS.toggleSidebar)}
         >
-          <PanelLeftIcon aria-hidden="true" className="size-4" />
+          <PanelLeftCloseIcon aria-hidden="true" className="size-[18px]" />
         </HeaderAction>
         <HeaderAction
           label="Toggle panel"
+          pressed={props.panelOpen}
           onClick={() => props.onRunCommand(CODE_CHROME_COMMANDS.togglePanel)}
         >
-          <PanelBottomIcon aria-hidden="true" className="size-4" />
-        </HeaderAction>
-        <HeaderAction
-          label={props.panelMaximized ? "Restore panel" : "Maximize panel"}
-          pressed={props.panelMaximized}
-          onClick={() => props.onRunCommand(CODE_CHROME_COMMANDS.toggleMaximizedPanel)}
-        >
-          {props.panelMaximized ? (
-            <ChevronsDownUpIcon aria-hidden="true" className="size-4" />
-          ) : (
-            <ChevronsUpDownIcon aria-hidden="true" className="size-4" />
-          )}
-        </HeaderAction>
-        <HeaderAction
-          label="Customize layout"
-          onClick={() => props.onRunCommand(CODE_CHROME_COMMANDS.customizeLayout)}
-        >
-          <SlidersHorizontalIcon aria-hidden="true" className="size-4" />
+          <TerminalSquareIcon aria-hidden="true" className="size-[18px]" />
         </HeaderAction>
         <HeaderAction
           label={props.sideChatLabel}
           pressed={props.sideChatOpen}
           onClick={props.onToggleSideChat}
         >
-          <MessageSquareIcon aria-hidden="true" className="size-4" />
+          <AssistantBubbleIcon aria-hidden="true" className="size-[18px]" />
         </HeaderAction>
+        <DropdownMenu
+          open={menuOpen}
+          onOpenChange={(open, details) => {
+            if (!open) {
+              setMenuOpen(false);
+              // Reattaching the native workbench can restore its previous
+              // focus. Return Escape to this control after that completes.
+              void props.onMenuOpenChange(false).then(() => {
+                if (details.reason === "escape-key") {
+                  window.focus();
+                  menuTriggerRef.current?.focus();
+                }
+              });
+            } else if (!menuOpening) {
+              setMenuOpening(true);
+              void props.onMenuOpenChange(true).finally(() => {
+                setMenuOpening(false);
+                setMenuOpen(true);
+              });
+            }
+          }}
+        >
+          <DropdownMenuTrigger
+            ref={menuTriggerRef}
+            aria-label="More Code actions"
+            className="code-chrome-action"
+          >
+            <EllipsisIcon aria-hidden="true" className="size-[18px]" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" sideOffset={6} className="code-actions-menu w-56">
+            <DropdownMenuItem
+              onClick={() => props.onRunCommand(CODE_CHROME_COMMANDS.commandPalette)}
+            >
+              Command Palette
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => props.onRunCommand(CODE_CHROME_COMMANDS.runTask)}>
+              Run Task
+            </DropdownMenuItem>
+            {props.branch ? (
+              <DropdownMenuItem onClick={() => props.onRunCommand("workbench.view.scm")}>
+                <span className="truncate">Source Control · {props.branch}</span>
+              </DropdownMenuItem>
+            ) : null}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => props.onRunCommand(CODE_CHROME_COMMANDS.toggleMaximizedPanel)}
+            >
+              {props.panelMaximized ? "Restore Panel" : "Maximize Panel"}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => props.onRunCommand(CODE_CHROME_COMMANDS.customizeLayout)}
+            >
+              Customize Layout
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => props.onRunCommand(CODE_CHROME_COMMANDS.settings)}>
+              Editor Settings
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </header>
   );

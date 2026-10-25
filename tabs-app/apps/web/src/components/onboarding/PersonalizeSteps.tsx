@@ -85,7 +85,7 @@ export function AppIconStep({
                 aria-pressed={selected === item.id}
                 aria-label={`${item.label} app icon`}
                 onClick={() => onSelect(item.id)}
-                className={`relative flex min-w-0 flex-col items-center gap-5 rounded-lg px-2 pb-6 pt-10 transition-[background-color,box-shadow,transform] motion-safe:hover:-translate-y-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-700 ${selected === item.id ? "bg-white shadow-lg shadow-black/10 ring-1 ring-black/15" : "hover:bg-white/60"}`}
+                className={`relative flex min-w-0 flex-col items-center gap-5 rounded-lg px-2 pb-6 pt-10 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-700 ${selected === item.id ? "bg-white shadow-sm ring-1 ring-black/10" : "hover:bg-white/60"}`}
               >
                 <span
                   aria-hidden="true"

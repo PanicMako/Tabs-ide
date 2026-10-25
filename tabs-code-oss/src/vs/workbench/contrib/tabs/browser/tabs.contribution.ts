@@ -4,11 +4,50 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/tabs.css';
+import './media/embeddedWorkbench.css';
+import { mainWindow } from '../../../../base/browser/window.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
-import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
+
+let modalDepth = 0;
+
+export class TabsModalBridge extends Disposable {
+
+	constructor(
+		@IDialogService dialogs: IDialogService,
+		@ICommandService commands: ICommandService,
+		@ILogService logService: ILogService
+	) {
+		super();
+		if (!mainWindow.document.documentElement.classList.contains('tabs-embedded-workbench')) {
+			return;
+		}
+		const publish = () => {
+			const open = modalDepth > 0;
+			mainWindow.document.documentElement.classList.toggle('tabs-modal-open', open);
+			void commands.executeCommand('tabs.setModalOpen', open).catch(error => logService.warn('Tabs dialog bridge', error));
+		};
+		this._register(dialogs.onWillShowDialog(() => { modalDepth++; publish(); }));
+		this._register(dialogs.onDidShowDialog(() => { modalDepth = Math.max(0, modalDepth - 1); publish(); }));
+		this._register({
+			dispose: () => {
+				modalDepth = 0;
+				mainWindow.document.documentElement.classList.remove('tabs-modal-open');
+			}
+		});
+	}
+}
+
+registerWorkbenchContribution2('tabs.modalBridge', TabsModalBridge, WorkbenchPhase.BlockRestore);
+CommandsRegistry.registerCommand('_tabs.getModalOpen', () => modalDepth > 0);
 
 const extensionViewContainerId = (id: string) => `workbench.view.extension.${id}`;
 
@@ -74,4 +113,25 @@ CommandsRegistry.registerCommand('_tabs.getViewContainers', accessor => {
 CommandsRegistry.registerCommand('_tabs.getActiveViewContainer', accessor => {
 	const viewsService = accessor.get(IViewsService);
 	return viewsService.getVisibleViewContainer(ViewContainerLocation.Sidebar)?.id ?? null;
+});
+
+// Tabs owns appearance persistence. Apply it to this embedded session without
+// writing the user's settings file, which may be open with unsaved edits.
+CommandsRegistry.registerCommand('_tabs.applyAppearance', async (accessor, settings: Record<string, unknown>) => {
+	if (!mainWindow.document.documentElement.classList.contains('tabs-embedded-workbench')) {
+		return;
+	}
+	const configurationService = accessor.get(IConfigurationService);
+	for (const key of [
+		'workbench.colorTheme',
+		'workbench.colorCustomizations',
+		'editor.tokenColorCustomizations',
+		'editor.semanticTokenColorCustomizations',
+		'editor.fontFamily',
+		'editor.fontSize'
+	]) {
+		if (Object.hasOwn(settings, key)) {
+			await configurationService.updateValue(key, settings[key], ConfigurationTarget.MEMORY);
+		}
+	}
 });

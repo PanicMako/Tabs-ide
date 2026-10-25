@@ -27,9 +27,11 @@
       "workbench.editor.empty.hint": "hidden",
       "window.commandCenter": false,
       "workbench.layoutControl.enabled": false,
-      "breadcrumbs.enabled": false,
+      "breadcrumbs.enabled": true,
       "workbench.experimental.modernUI": true,
-      "workbench.experimental.modernUIEditorTabStyle": "pill",
+      "workbench.experimental.modernUIEditorTabStyle": "connected",
+      "window.density.editorTabHeight": "compact",
+      "workbench.secondarySideBar.defaultVisibility": "hidden",
       "workbench.editorAssociations": {
         "*.svg": "default"
       }

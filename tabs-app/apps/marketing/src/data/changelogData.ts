@@ -21,15 +21,32 @@ export interface ChangelogRelease {
   }[];
 }
 
-export const TOTAL_TAGS_COUNT = 180;
+export const TOTAL_TAGS_COUNT = 181;
 
 export const changelogData: ChangelogRelease[] = [
+  {
+    tag: "v2.0.4",
+    title: "A more cohesive Code workspace",
+    date: "October 25, 2026",
+    shortDate: "Oct 25",
+    isLatest: true,
+    type: "patch",
+    summary:
+      "Connected assistant tabs, consistent editor surfaces, expanded typography controls, and mutually exclusive Code toolbar chat providers.",
+    highlights: [
+      "Switch between Tabs Agent and GitHub Copilot without leaving both chat panels open.",
+      "Use rounded built-in editor controls, full workspace dialog blur, and a status bar that follows your theme.",
+      "Explore expanded local font choices, heading presets, and expressive workspace tool animations.",
+      "Follow a clearer drag-to-Applications guide in the Mac installer.",
+    ],
+    categories: [],
+  },
   {
     tag: "v2.0.3",
     title: "Curated workspace typography and upstream editor sync",
     date: "October 23, 2026",
     shortDate: "Oct 23",
-    isLatest: true,
+    isLatest: false,
     type: "patch",
     summary:
       "Ten handcrafted typography presets across workspace themes and setup walkthrough, live optical sizing and licensing previews, and upstream Code-OSS editor engine sync.",

@@ -584,9 +584,12 @@ function decodeProjectWorkspaceSettings(input: unknown): ProjectWorkspaceSetting
       if (
         tool &&
         tool.kind === "server" &&
-        (tool.label === "Server" || tool.label === "Run" || tool.label === "Terminal")
+        (tool.label === "Server" ||
+          tool.label === "Run" ||
+          tool.label === "Terminal" ||
+          tool.label === "Launchpad")
       ) {
-        return { ...tool, label: "Launchpad" };
+        return { ...tool, label: "Dock" };
       }
       return tool;
     });

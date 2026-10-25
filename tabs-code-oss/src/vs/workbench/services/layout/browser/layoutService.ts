@@ -286,6 +286,12 @@ export function getFloatingPaneCompositeHorizontalMargins(layoutService: IWorkbe
 	const outerGutter = getFloatingOuterGutterEdges(layoutService, partId);
 	const margin = getFloatingPanelMargin(layoutService);
 	const outerMargin = getFloatingPanelOuterMargin(layoutService);
+	// Tabs supplies the activity rail outside the native view. Its facing side
+	// bar must meet that rail just as it meets the built-in activity bar.
+	const meetsTabsRail = partId === Parts.SIDEBAR_PART
+		&& layoutService.getSideBarPosition() === Position.LEFT
+		&& !layoutService.isVisible(Parts.ACTIVITYBAR_PART)
+		&& mainWindow.document.documentElement.classList.contains('tabs-embedded-workbench');
 
 	// The primary side bar meets the activity bar rail flush so the two read as one connected
 	// surface. Only a left-positioned side bar needs this explicitly; on the right the seam is
@@ -304,7 +310,7 @@ export function getFloatingPaneCompositeHorizontalMargins(layoutService: IWorkbe
 	const trailing = panelMeetsRightActivityBar ? margin : FLOATING_PANEL_INNER_MARGIN;
 
 	return {
-		left: outerGutter.left ? outerMargin : leading,
+		left: meetsTabsRail ? 0 : outerGutter.left ? outerMargin : leading,
 		right: outerGutter.right ? outerMargin : trailing,
 	};
 }

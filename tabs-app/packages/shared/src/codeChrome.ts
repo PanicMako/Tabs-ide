@@ -654,11 +654,20 @@ export function coerceChromeState(value: unknown): CodeChromeState {
   if (typeof record.autoSaveEnabled === "boolean") {
     state.autoSaveEnabled = record.autoSaveEnabled;
   }
+  if (typeof record.modalOpen === "boolean") {
+    state.modalOpen = record.modalOpen;
+  }
   state.languageId =
     typeof record.languageId === "string" && record.languageId.length > 0
       ? record.languageId
       : null;
   state.cursor = coerceCursorPosition(record.cursor);
+  if (record.activeFilePath !== undefined) {
+    state.activeFilePath =
+      typeof record.activeFilePath === "string" && record.activeFilePath.length > 0
+        ? record.activeFilePath
+        : null;
+  }
 
   // Coerce openTabs: only preserve if it's an actual array of objects with a filePath string
   if (Array.isArray(record.openTabs)) {

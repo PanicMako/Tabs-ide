@@ -1954,6 +1954,10 @@ export interface CodeTestItem {
 }
 
 export interface CodeChromeState {
+  /** Native modal dialogs cover both the embedded workbench and Tabs chrome. */
+  modalOpen?: boolean;
+  /** Active editor resource, including settings and editors outside the workspace. */
+  activeFilePath?: string | null;
   activeViewId: string | null;
   panelOpen: boolean;
   panelMaximized: boolean;

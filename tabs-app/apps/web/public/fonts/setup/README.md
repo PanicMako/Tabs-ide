@@ -184,8 +184,59 @@ Sun Seed by Burak Mescioğlu:
 - Download: https://fontesk.com/download/65774/
 - `SunSeed-License.txt` confirms free use for both personal and commercial projects.
 
+Balbes by Authentype:
+
+- https://fontesk.com/balbes-font/
+- Download: https://fontesk.com/download/83352/
+- `Balbes-Readme.txt` confirms desktop promotional and commercial use.
+
+OTR Type by Bastien Tessanne:
+
+- https://fontesk.com/otr-type-font/
+- Download: https://fontesk.com/download/63287/
+- `OTRtype-License.txt` confirms free commercial use.
+
+Sirius by Laurent Müller:
+
+- https://fontesk.com/sirius-font/
+- Download: https://fontesk.com/download/67782/
+- `Sirius-OFL.txt` grants SIL Open Font License 1.1 permissions.
+
+Gerbil by Yukita Creative:
+
+- https://fontesk.com/gerbil-font/
+- `Gerbil-License.txt` confirms free commercial use on Fontesk and DafontFree.
+
+Gella Display by Slava Antipov:
+
+- https://fontesk.com/gella-display-font/
+- Download: https://fontesk.com/download/104613/
+- `GellaDisplay-License.pdf` confirms free commercial use for Light and Expanded Medium.
+
+World Tour by Death of Typography:
+
+- https://fontesk.com/world-tour-font/
+- Download: https://fontesk.com/download/79613/
+- `WorldTour-OFL.txt` grants SIL Open Font License 1.1 permissions.
+
+Kunika by Leo Kuroshita:
+
+- https://fontesk.com/kunika-font/
+- Download: https://fontesk.com/download/90446/
+- `Kunika-OFL.txt` grants SIL Open Font License 1.1 permissions.
+
+Taruno Wide by Locomotype:
+
+- https://fontesk.com/taruno-wide-font/
+- Download: https://fontesk.com/download/98902/
+- `TarunoWide-Readme.txt` grants free commercial use for Medium and Medium Italic.
+
+Novoposelensky by Sasha Pavljenko:
+
+- https://fontesk.com/novoposelensky-font/
+- Download: https://fontesk.com/download/82477/
+- `Novoposelensky-OFL.txt` grants SIL Open Font License 1.1 permissions.
+
 Preparation validates all bundled font headers without a download or substitution.
 Manrope comes from the existing `@fontsource/manrope` dependency under SIL OFL
 1.1; see `Manrope-OFL.txt`. Application startup uses local assets offline.
-
-

@@ -2481,7 +2481,7 @@ export const ProjectWorkspaceSettings = Schema.Struct({
               : kind === "agents"
                 ? "Agents"
                 : kind === "server"
-                  ? "Launchpad"
+                  ? "Dock"
                   : kind === "git"
                     ? "Git"
                     : kind === "browser"

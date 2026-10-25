@@ -71,8 +71,12 @@ export function SettingsSection({
           )}
           {description ? (
             <div
-              className="mt-1 text-xs text-muted-foreground leading-normal"
-              style={{ fontFamily: "var(--font-supporting, var(--font-sans))" }}
+              className="mt-1 text-xs text-muted-foreground/80 leading-normal font-normal"
+              style={{
+                fontFamily: "var(--font-supporting, var(--font-sans))",
+                fontWeight:
+                  "var(--font-supporting-weight, 400)" as React.CSSProperties["fontWeight"],
+              }}
             >
               {description}
             </div>
@@ -117,10 +121,11 @@ export function SettingsRow({
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex min-h-5 items-center gap-1.5">
             <h3
-              className="text-[14.5px] font-bold text-foreground flex items-center gap-2"
+              className="text-[14.5px] font-medium text-foreground flex items-center gap-2 tracking-[0.035em]"
               style={{
                 fontFamily: "var(--font-row, var(--font-sans))",
-                fontWeight: "var(--font-row-weight)" as React.CSSProperties["fontWeight"],
+                fontWeight: "var(--font-row-weight, 500)" as React.CSSProperties["fontWeight"],
+                letterSpacing: "var(--font-row-tracking, 0.035em)",
               }}
             >
               {title}
@@ -129,8 +134,27 @@ export function SettingsRow({
               {resetAction}
             </span>
           </div>
-          <p className="text-xs text-muted-foreground">{description}</p>
-          {status ? <div className="pt-1 text-[11px] text-muted-foreground">{status}</div> : null}
+          <p
+            className="text-xs text-muted-foreground/80 leading-relaxed font-normal"
+            style={{
+              fontFamily: "var(--font-supporting, var(--font-sans))",
+              fontWeight: "var(--font-supporting-weight, 400)" as React.CSSProperties["fontWeight"],
+            }}
+          >
+            {description}
+          </p>
+          {status ? (
+            <div
+              className="pt-1 text-[11px] text-muted-foreground/80 font-normal"
+              style={{
+                fontFamily: "var(--font-supporting, var(--font-sans))",
+                fontWeight:
+                  "var(--font-supporting-weight, 400)" as React.CSSProperties["fontWeight"],
+              }}
+            >
+              {status}
+            </div>
+          ) : null}
         </div>
         {control ? (
           <div className="flex w-full shrink-0 items-center gap-2 sm:w-auto sm:justify-end">

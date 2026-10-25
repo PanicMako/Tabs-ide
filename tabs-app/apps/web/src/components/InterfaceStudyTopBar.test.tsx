@@ -53,7 +53,7 @@ const mockProjects: Project[] = [
 const mockTools = [
   { id: "tool-code", kind: "code" as const, label: "Code" },
   { id: "tool-agents", kind: "agents" as const, label: "Agents" },
-  { id: "tool-launchpad", kind: "server" as const, label: "Launchpad" },
+  { id: "tool-launchpad", kind: "server" as const, label: "Dock" },
   { id: "tool-git", kind: "git" as const, label: "Git" },
   { id: "tool-browser", kind: "browser" as const, label: "Browser" },
 ];
@@ -99,7 +99,7 @@ describe("InterfaceStudyTopBar", () => {
     // Tool labels
     expect(markup).toContain("Code");
     expect(markup).toContain("Agents");
-    expect(markup).toContain("Launchpad");
+    expect(markup).toContain("Dock");
     expect(markup).toContain("Git");
     expect(markup).toContain("Browser");
 

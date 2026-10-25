@@ -279,6 +279,7 @@
   overflow: hidden;
   font-family: var(--font-supporting, var(--font-sans));
   font-style: var(--font-supporting-style, normal);
+  font-weight: var(--font-supporting-weight, 400);
   font-size: 12px;
   line-height: 1.5;
   color: var(--muted-foreground);

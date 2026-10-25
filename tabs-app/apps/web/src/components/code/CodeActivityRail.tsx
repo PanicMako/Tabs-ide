@@ -62,17 +62,8 @@ function RailButton(props: {
             aria-label={props.label}
             aria-pressed={props.active}
             onClick={props.onClick}
-            className={cn(
-              "group relative flex size-9 items-center justify-center rounded-lg text-muted-foreground outline-none transition-colors hover:bg-accent/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
-              props.active && "text-foreground",
-            )}
+            className={cn("code-rail-action", props.active && "is-active")}
           >
-            {props.active ? (
-              <span
-                aria-hidden="true"
-                className="absolute -left-1.5 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-r-full bg-primary"
-              />
-            ) : null}
             {props.children}
           </button>
         }
@@ -90,7 +81,7 @@ function CustomActivityIcon({ item }: { item: CustomActivityBarItem }) {
     return (
       <span
         aria-hidden="true"
-        className="size-[18px] bg-current"
+        className="size-5 bg-current"
         style={{
           WebkitMaskImage: `url(${JSON.stringify(item.icon.value)})`,
           WebkitMaskPosition: "center",
@@ -110,11 +101,11 @@ function CustomActivityIcon({ item }: { item: CustomActivityBarItem }) {
         {item.icon.dark ? (
           <source media="(prefers-color-scheme: dark)" srcSet={item.icon.dark} />
         ) : null}
-        <img alt="" className="size-[18px]" src={item.icon.light ?? item.icon.dark} />
+        <img alt="" className="size-5" src={item.icon.light ?? item.icon.dark} />
       </picture>
     );
   }
-  return <BlocksIcon aria-hidden="true" className="size-[18px]" />;
+  return <BlocksIcon aria-hidden="true" className="size-5" />;
 }
 
 function ApplicationMenu(props: CodeActivityRailProps) {
@@ -138,23 +129,20 @@ function ApplicationMenu(props: CodeActivityRailProps) {
         });
       }}
     >
-      <DropdownMenuTrigger
-        aria-label="Code application menu"
-        className="flex size-9 items-center justify-center rounded-lg text-muted-foreground outline-none transition-colors hover:bg-accent/80 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring data-popup-open:bg-accent data-popup-open:text-foreground"
-      >
-        <MenuIcon aria-hidden="true" className="size-[18px]" />
+      <DropdownMenuTrigger aria-label="Code application menu" className="code-rail-action">
+        <MenuIcon aria-hidden="true" className="size-5" />
       </DropdownMenuTrigger>
       <DropdownMenuContent
         aria-label="Code application menu"
         align="start"
-        className="w-56 rounded-xl"
+        className="code-actions-menu w-56"
         side="right"
         sideOffset={6}
       >
         {CODE_MENU_BAR.map((menu) => (
           <DropdownMenuSub key={menu.id}>
             <DropdownMenuSubTrigger>{menu.label}</DropdownMenuSubTrigger>
-            <DropdownMenuSubContent className="w-72 rounded-xl">
+            <DropdownMenuSubContent className="code-actions-menu w-72">
               {menu.groups.map((group, groupIndex) => (
                 <Fragment key={`${menu.id}-${group.items.map((item) => item.commandId).join("-")}`}>
                   {groupIndex > 0 ? <DropdownMenuSeparator /> : null}
@@ -194,7 +182,9 @@ export function CodeActivityRail(props: CodeActivityRailProps) {
   return (
     <nav
       aria-label="Code views"
-      className="flex h-full w-12 shrink-0 flex-col items-center gap-1 border-r border-border/70 bg-background py-2"
+      inert={props.chromeState.modalOpen}
+      className="code-activity-rail"
+      data-sidebar-open={props.chromeState.activeViewId !== null}
     >
       <ApplicationMenu {...props} />
       {CODE_ACTIVITY_ITEMS.map((item) => {
@@ -202,16 +192,13 @@ export function CodeActivityRail(props: CodeActivityRailProps) {
         const active = props.chromeState.activeViewId === item.id;
         return (
           <Fragment key={item.id}>
-            {item.id === "debug" ? (
-              <span aria-hidden="true" className="my-1 h-px w-5 bg-border/70" />
-            ) : null}
             <RailButton
               label={item.label}
               active={active}
               onClick={() => props.onRunCommand(item.commandId)}
             >
               <span aria-hidden="true">
-                <Icon className="size-[18px]" />
+                <Icon className="size-5" />
               </span>
             </RailButton>
           </Fragment>
@@ -227,12 +214,12 @@ export function CodeActivityRail(props: CodeActivityRailProps) {
           <CustomActivityIcon item={item} />
         </RailButton>
       ))}
-      <div className="mt-auto">
+      <div className="code-rail-settings">
         <RailButton
           label="Open settings"
           onClick={() => props.onRunCommand(CODE_CHROME_COMMANDS.settings)}
         >
-          <SettingsIcon aria-hidden="true" className="size-[18px]" />
+          <SettingsIcon aria-hidden="true" className="size-5" />
         </RailButton>
       </div>
     </nav>

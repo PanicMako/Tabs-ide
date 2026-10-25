@@ -17,11 +17,9 @@
 .panel-animation-pill-fill {
   position: absolute;
   inset: 0 auto 0 0;
-  width: calc(
-    var(--duration-thumb) / 2 + (100% - var(--duration-thumb)) * var(--duration-progress)
-  );
-  border-radius: inherit;
-  background: color-mix(in srgb, var(--primary) 28%, var(--muted));
+  width: calc((100% - var(--duration-thumb)) * var(--duration-progress));
+  border-radius: var(--radius-control) 0 0 var(--radius-control);
+  background: color-mix(in srgb, var(--primary) 12%, var(--muted));
 }
 .panel-animation-pill-detents {
   position: absolute;
@@ -46,14 +44,33 @@
   display: grid;
   place-items: center;
   border-radius: var(--radius-control);
-  background: var(--primary);
-  color: var(--primary-foreground);
+  border: 1px solid var(--seg-lit-border);
+  background-color: color-mix(in srgb, var(--card) 60%, var(--seg-lit-bg-tint));
+  background-image: var(--seg-lit-bg-gradient);
+  color: var(--seg-lit-label);
   font-family: var(--font-sans);
   font-size: 11px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--primary) 25%, transparent);
-  transition: box-shadow 150ms ease;
+  box-shadow:
+    inset 0 1px 0 var(--seg-lit-rim),
+    0 6px 14px -6px var(--seg-lit-shadow);
+  transition:
+    box-shadow 150ms ease,
+    border-color 150ms ease;
+}
+.panel-animation-pill-value::after {
+  content: "";
+  position: absolute;
+  left: 20%;
+  right: 20%;
+  bottom: -1px;
+  height: 1.5px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, var(--seg-lit-glow), transparent);
+  opacity: 0.7;
+  filter: blur(0.5px);
+  pointer-events: none;
 }
 .panel-animation-pill input {
   position: absolute;
@@ -93,7 +110,9 @@
 }
 .panel-animation-pill:hover .panel-animation-pill-value,
 .panel-animation-pill:has(input:active) .panel-animation-pill-value {
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 14%, transparent);
+  box-shadow:
+    inset 0 1px 0 var(--seg-lit-rim),
+    0 6px 14px -6px var(--seg-lit-shadow);
 }
 html[data-reduced-motion="reduce"] .panel-animation-pill-value {
   transition: none;

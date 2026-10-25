@@ -96,7 +96,11 @@ export function OrbitGroup({
     });
     resize.observe(group);
     measure();
+    const onResize = () => schedule();
+    window.addEventListener("resize", onResize);
+    void document.fonts?.ready?.then(() => schedule());
     return () => {
+      window.removeEventListener("resize", onResize);
       cancelAnimationFrame(frame);
       resize.disconnect();
       changes.disconnect();

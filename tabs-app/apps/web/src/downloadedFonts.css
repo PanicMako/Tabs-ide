@@ -498,7 +498,7 @@
 @font-face {
   font-family: "Sun Seed";
   src: url(/fonts/setup/SunSeed-Light.otf) format("opentype");
-  font-weight: 300;
+  font-weight: 100 300;
   font-style: normal;
   font-display: swap;
 }
@@ -506,7 +506,7 @@
 @font-face {
   font-family: "Sun Seed";
   src: url(/fonts/setup/SunSeed-Regular.otf) format("opentype");
-  font-weight: 400;
+  font-weight: 400 600;
   font-style: normal;
   font-display: swap;
 }
@@ -514,7 +514,7 @@
 @font-face {
   font-family: "Sun Seed";
   src: url(/fonts/setup/SunSeed-Bold.otf) format("opentype");
-  font-weight: 700;
+  font-weight: 700 900;
   font-style: normal;
   font-display: swap;
 }
@@ -522,7 +522,7 @@
 @font-face {
   font-family: "Sun Seed";
   src: url(/fonts/setup/SunSeed-Light.otf) format("opentype");
-  font-weight: 300;
+  font-weight: 100 300;
   font-style: italic;
   font-display: swap;
 }
@@ -530,8 +530,330 @@
 @font-face {
   font-family: "Sun Seed";
   src: url(/fonts/setup/SunSeed-Regular.otf) format("opentype");
-  font-weight: 400;
+  font-weight: 400 900;
   font-style: italic;
   font-display: swap;
 }
 
+@font-face {
+  font-family: "Balbes";
+  src:
+    url(/fonts/setup/Balbes-Regular.woff2) format("woff2"),
+    url(/fonts/setup/Balbes-Regular.ttf) format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Balbes";
+  src:
+    url(/fonts/setup/Balbes-Regular.woff2) format("woff2"),
+    url(/fonts/setup/Balbes-Regular.ttf) format("truetype");
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "OTR Type";
+  src:
+    url(/fonts/setup/OTRtype-Regular.woff2) format("woff2"),
+    url(/fonts/setup/OTRtype-Regular.ttf) format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Sirius";
+  src:
+    url(/fonts/setup/Sirius-Book.woff2) format("woff2"),
+    url(/fonts/setup/Sirius-Book.otf) format("opentype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Gerbil";
+  src:
+    url(/fonts/setup/Gerbil-Regular.woff2) format("woff2"),
+    url(/fonts/setup/Gerbil-Regular.otf) format("opentype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Gella Display";
+  src:
+    url(/fonts/setup/GellaDisplay-Light.woff2) format("woff2"),
+    url(/fonts/setup/GellaDisplay-Light.otf) format("opentype");
+  font-weight: 300 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Gella Display";
+  src:
+    url(/fonts/setup/GellaDisplay-ExpandedMedium.woff2) format("woff2"),
+    url(/fonts/setup/GellaDisplay-ExpandedMedium.otf) format("opentype");
+  font-weight: 500 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "World Tour";
+  src:
+    url(/fonts/setup/WorldTour-Regular.woff2) format("woff2"),
+    url(/fonts/setup/WorldTour-Regular.otf) format("opentype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Kunika";
+  src:
+    url(/fonts/setup/Kunika-Regular.woff2) format("woff2"),
+    url(/fonts/setup/Kunika-Regular.otf) format("opentype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Taruno Wide";
+  src:
+    url(/fonts/setup/TarunoWide-Medium.woff2) format("woff2"),
+    url(/fonts/setup/TarunoWide-Medium.otf) format("opentype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Taruno Wide";
+  src:
+    url(/fonts/setup/TarunoWide-MediumItalic.woff2) format("woff2"),
+    url(/fonts/setup/TarunoWide-MediumItalic.otf) format("opentype");
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Novoposelensky";
+  src:
+    url(/fonts/setup/Novoposelensky-Regular.woff2) format("woff2"),
+    url(/fonts/setup/Novoposelensky-Regular.otf) format("opentype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "ZT Gatha";
+  src:
+    url(/fonts/setup/ZTGatha-SemiBold.woff2) format("woff2"),
+    url(/fonts/setup/ZTGatha-SemiBold.otf) format("opentype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Racama";
+  src:
+    url(/fonts/setup/Racama.woff2) format("woff2"),
+    url(/fonts/setup/Racama.otf) format("opentype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Oddval";
+  src:
+    url(/fonts/setup/Oddval-SemiBold.woff2) format("woff2"),
+    url(/fonts/setup/Oddval-SemiBold.otf) format("opentype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Oddval";
+  src:
+    url(/fonts/setup/Oddval-SemiBoldItalic.woff2) format("woff2"),
+    url(/fonts/setup/Oddval-SemiBoldItalic.otf) format("opentype");
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Quanta Grotesk Pro";
+  src:
+    url(/fonts/setup/QuantaGroteskPro-Light.woff2) format("woff2"),
+    url(/fonts/setup/QuantaGroteskPro-Light.otf) format("opentype");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Quanta Grotesk Pro";
+  src:
+    url(/fonts/setup/QuantaGroteskPro-Regular.woff2) format("woff2"),
+    url(/fonts/setup/QuantaGroteskPro-Regular.otf) format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Quanta Grotesk Pro";
+  src:
+    url(/fonts/setup/QuantaGroteskPro-Medium.woff2) format("woff2"),
+    url(/fonts/setup/QuantaGroteskPro-Medium.otf) format("opentype");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Quanta Grotesk Pro";
+  src:
+    url(/fonts/setup/QuantaGroteskPro-SemiBold.woff2) format("woff2"),
+    url(/fonts/setup/QuantaGroteskPro-SemiBold.otf) format("opentype");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Quanta Grotesk Pro";
+  src:
+    url(/fonts/setup/QuantaGroteskPro-Bold.woff2) format("woff2"),
+    url(/fonts/setup/QuantaGroteskPro-Bold.otf) format("opentype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "ZT Floogn";
+  src:
+    url(/fonts/setup/ZTFloogn-ExtraLight.woff2) format("woff2"),
+    url(/fonts/setup/ZTFloogn-ExtraLight.otf) format("opentype");
+  font-weight: 100 250;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "ZT Floogn";
+  src:
+    url(/fonts/setup/ZTFloogn-Light.woff2) format("woff2"),
+    url(/fonts/setup/ZTFloogn-Light.otf) format("opentype");
+  font-weight: 251 550;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "ZT Floogn";
+  src:
+    url(/fonts/setup/ZTFloogn-Regular.woff2) format("woff2"),
+    url(/fonts/setup/ZTFloogn-Regular.otf) format("opentype");
+  font-weight: 551 650;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "ZT Floogn";
+  src:
+    url(/fonts/setup/ZTFloogn-ExtraBold.woff2) format("woff2"),
+    url(/fonts/setup/ZTFloogn-ExtraBold.otf) format("opentype");
+  font-weight: 700 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Gnocchi";
+  src:
+    url(/fonts/setup/Gnocchi-Regular.woff2) format("woff2"),
+    url(/fonts/setup/Gnocchi-Regular.ttf) format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Horovod";
+  src:
+    url(/fonts/setup/Horovod-Regular.woff2) format("woff2"),
+    url(/fonts/setup/Horovod-Regular.otf) format("opentype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Seenonim";
+  src:
+    url(/fonts/setup/Seenonim-Regular.woff2) format("woff2"),
+    url(/fonts/setup/Seenonim-Regular.otf) format("opentype"),
+    url(/fonts/setup/Seenonim-Regular.ttf) format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Overused Grotesk";
+  src: url(/fonts/setup/OverusedGrotesk-Light.woff2) format("woff2");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Overused Grotesk";
+  src:
+    url(/fonts/setup/OverusedGrotesk-Roman.woff2) format("woff2"),
+    url(/fonts/setup/OverusedGrotesk-Roman.otf) format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Overused Grotesk";
+  src: url(/fonts/setup/OverusedGrotesk-Medium.woff2) format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Overused Grotesk";
+  src: url(/fonts/setup/OverusedGrotesk-SemiBold.woff2) format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Overused Grotesk";
+  src: url(/fonts/setup/OverusedGrotesk-Bold.woff2) format("woff2");
+  font-weight: 700 900;
+  font-style: normal;
+  font-display: swap;
+}

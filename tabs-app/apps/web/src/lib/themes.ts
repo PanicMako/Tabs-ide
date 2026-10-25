@@ -650,6 +650,23 @@ export const UI_FONT_OPTIONS = [
   { value: "'Necto Mono', monospace", label: "Necto Mono" },
   { value: "'Hanken Grotesk', sans-serif", label: "Hanken Grotesk" },
   { value: "'Funnel Sans', sans-serif", label: "Funnel Sans" },
+  { value: "'Sirius', sans-serif", label: "Sirius" },
+  { value: "'Gerbil', sans-serif", label: "Gerbil" },
+  { value: "'OTR Type', sans-serif", label: "OTR Type" },
+  { value: "'Sun Seed', sans-serif", label: "Sun Seed" },
+  { value: "'World Tour', sans-serif", label: "World Tour" },
+  { value: "'Kunika', sans-serif", label: "Kunika" },
+  { value: "'Taruno Wide', sans-serif", label: "Taruno Wide" },
+  { value: "'Novoposelensky', sans-serif", label: "Novoposelensky" },
+  { value: "'ZT Gatha', sans-serif", label: "ZT Gatha" },
+  { value: "'Racama', sans-serif", label: "Racama" },
+  { value: "'Oddval', sans-serif", label: "Oddval" },
+  { value: "'Quanta Grotesk Pro', sans-serif", label: "Quanta Grotesk Pro" },
+  { value: "'ZT Floogn', sans-serif", label: "ZT Floogn" },
+  { value: "'Gnocchi', sans-serif", label: "Gnocchi" },
+  { value: "'Horovod', sans-serif", label: "Horovod" },
+  { value: "'Seenonim', sans-serif", label: "Seenonim" },
+  { value: "'Overused Grotesk', sans-serif", label: "Overused Grotesk" },
 ] as const;
 
 export const HEADING_FONT_OPTIONS = [
@@ -681,6 +698,24 @@ export const HEADING_FONT_OPTIONS = [
   { value: "'Neutral Face', sans-serif", label: "Neutral Face" },
   { value: "'Stigma', serif", label: "Stigma" },
   { value: "'Sun Seed', sans-serif", label: "Sun Seed" },
+  { value: "'Balbes', serif", label: "Balbes" },
+  { value: "'Sirius', sans-serif", label: "Sirius" },
+  { value: "'Gerbil', sans-serif", label: "Gerbil" },
+  { value: "'OTR Type', sans-serif", label: "OTR Type" },
+  { value: "'Gella Display', sans-serif", label: "Gella Display" },
+  { value: "'World Tour', sans-serif", label: "World Tour" },
+  { value: "'Kunika', sans-serif", label: "Kunika" },
+  { value: "'Taruno Wide', sans-serif", label: "Taruno Wide" },
+  { value: "'Novoposelensky', sans-serif", label: "Novoposelensky" },
+  { value: "'ZT Gatha', sans-serif", label: "ZT Gatha" },
+  { value: "'Racama', sans-serif", label: "Racama" },
+  { value: "'Oddval', sans-serif", label: "Oddval" },
+  { value: "'Quanta Grotesk Pro', sans-serif", label: "Quanta Grotesk Pro" },
+  { value: "'ZT Floogn', sans-serif", label: "ZT Floogn" },
+  { value: "'Gnocchi', sans-serif", label: "Gnocchi" },
+  { value: "'Horovod', sans-serif", label: "Horovod" },
+  { value: "'Seenonim', sans-serif", label: "Seenonim" },
+  { value: "'Overused Grotesk', sans-serif", label: "Overused Grotesk" },
   { value: "'Newsreader', serif", label: "Newsreader (Default)" },
   { value: "system-ui", label: "Match Interface Font" },
   { value: "'Instrument Serif', serif", label: "Instrument Serif" },
@@ -714,6 +749,7 @@ export interface FontComboTypography {
   sectionTracking: string;
   rowFont: string;
   rowWeight: number;
+  rowTracking?: string;
   controlsFont: string;
   metadataFont: string;
   specimenFont: string;
@@ -721,6 +757,7 @@ export interface FontComboTypography {
   specimenStyle: "normal" | "italic";
   supportingFont: string;
   supportingStyle: "normal" | "italic";
+  supportingWeight?: number;
 }
 
 export interface FontCombo {
@@ -758,19 +795,35 @@ function headingCombo(
   accentStyle: "normal" | "italic",
   sansText: string,
   serifText: string,
+  uiFont: string = "'Manrope', sans-serif",
+  editorFont: string = "Menlo, Monaco, 'Courier New', monospace",
+  tag: string = "THEME",
+  supportingFont?: string,
+  rowWeight: number = 500,
+  sectionTracking: string = "-.01em",
+  supportingWeight: number = 400,
 ): FontCombo {
+  const hClean = headingFont.split(",")[0]!.replaceAll("'", "");
+  const aClean = accentFont.split(",")[0]!.replaceAll("'", "");
+  const uiClean = uiFont.split(",")[0]!.replaceAll("'", "");
+  const effectiveSupportingFont = supportingFont ?? uiFont;
   return {
     id,
     name,
     headingFont,
-    desc: `${headingFont.split(",")[0]!.replaceAll("'", "")} + ${accentFont.split(",")[0]!.replaceAll("'", "")}`,
-    tag: "HEADINGS",
-    uiFont: "'Manrope', sans-serif",
+    desc: `${hClean} + ${aClean} · ${uiClean}`,
+    tag,
+    uiFont,
     sansText,
     serifText,
     sansClass: "normal-case",
     serifClass: "normal-case",
-    headingOnly: true,
+    headingOnly: false,
+    fonts: {
+      sectionFont: accentFont,
+      supportingFont: effectiveSupportingFont,
+      editorFont,
+    },
     typography: {
       headingWeight,
       headingTracking: "0em",
@@ -779,16 +832,18 @@ function headingCombo(
       sectionWeight: accentWeight,
       sectionStyle: accentStyle,
       sectionTransform: "none",
-      sectionTracking: "0em",
-      rowFont: "'Manrope', sans-serif",
-      rowWeight: 600,
-      controlsFont: "'Manrope', sans-serif",
-      metadataFont: "'Manrope', sans-serif",
+      sectionTracking,
+      rowFont: uiFont,
+      rowWeight,
+      rowTracking: "0.035em",
+      controlsFont: uiFont,
+      metadataFont: editorFont,
       specimenFont: accentFont,
       specimenWeight: accentWeight,
       specimenStyle: accentStyle,
-      supportingFont: "'Manrope', sans-serif",
+      supportingFont: effectiveSupportingFont,
       supportingStyle: "normal",
+      supportingWeight,
     },
   };
 }
@@ -1118,57 +1173,58 @@ export const FONT_COMBOS: FontCombo[] = [
   {
     id: "syne-dropped",
     name: "Abstract Forms",
-    desc: "Syne + Newsreader",
+    desc: "Syne + Newsreader · Syne UI",
     tag: "BRUTAL",
     uiFont: "'Syne', sans-serif",
     headingFont: "'Newsreader', serif",
     sansText: "ab",
     serifText: "stract ",
     sansText2: "forms",
-    sansClass: "font-extrabold tracking-tighter lowercase",
+    sansClass: "font-extrabold tracking-tight lowercase",
     serifClass: "italic font-normal normal-case",
-  },
-  {
-    ...headingCombo(
-      "studio-signal",
-      "Studio Signal",
-      "'Coconat', serif",
-      700,
-      "'Sun Seed', sans-serif",
-      300,
-      "normal",
-      "studio",
-      "signal",
-    ),
     headingOnly: false,
-    uiFont: "'Syne', sans-serif",
-    desc: "Coconat + Sun Seed + Syne",
-    tag: "STUDIO",
+    fonts: {
+      sectionFont: "'Newsreader', serif",
+      supportingFont: "'Syne', sans-serif",
+      editorFont: "'Geist Mono', monospace",
+    },
     typography: {
-      headingWeight: 700,
-      headingTracking: "-.04em",
+      headingWeight: 800,
+      headingTracking: "-.03em",
       headingTransform: "none",
-      sectionFont: "'Sun Seed', sans-serif",
-      sectionWeight: 300,
-      sectionStyle: "normal",
+      sectionFont: "'Newsreader', serif",
+      sectionWeight: 400,
+      sectionStyle: "italic",
       sectionTransform: "none",
-      sectionTracking: "-.015em",
+      sectionTracking: "normal",
       rowFont: "'Syne', sans-serif",
       rowWeight: 700,
       controlsFont: "'Syne', sans-serif",
-      metadataFont: "'Syne', sans-serif",
-      specimenFont: "'Sun Seed', sans-serif",
-      specimenWeight: 300,
-      specimenStyle: "normal",
+      metadataFont: "'Geist Mono', monospace",
+      specimenFont: "'Newsreader', serif",
+      specimenWeight: 400,
+      specimenStyle: "italic",
       supportingFont: "'Syne', sans-serif",
       supportingStyle: "normal",
     },
-    fonts: {
-      sectionFont: "'Sun Seed', sans-serif",
-      supportingFont: "'Syne', sans-serif",
-      editorFont: "Menlo, Monaco, 'Courier New', monospace",
-    },
   },
+  headingCombo(
+    "studio-signal",
+    "Studio Signal",
+    "'Coconat', serif",
+    700,
+    "'Sun Seed', sans-serif",
+    300,
+    "normal",
+    "studio",
+    "signal",
+    "'Gnocchi', sans-serif",
+    "'Fragment Mono', monospace",
+    "STUDIO",
+    undefined,
+    500,
+    "0.06em",
+  ),
   headingCombo(
     "bistra-signal",
     "Bistra Signal",
@@ -1179,6 +1235,9 @@ export const FONT_COMBOS: FontCombo[] = [
     "normal",
     "clear",
     "signal",
+    "'Sirius', sans-serif",
+    "'Necto Mono', monospace",
+    "SIGNAL",
   ),
   headingCombo(
     "pavot-motion",
@@ -1190,6 +1249,9 @@ export const FONT_COMBOS: FontCombo[] = [
     "normal",
     "exotica",
     "motion",
+    "'Seenonim', sans-serif",
+    "'Geist Mono', monospace",
+    "KINETIC",
   ),
   headingCombo(
     "otez-contrast",
@@ -1201,6 +1263,11 @@ export const FONT_COMBOS: FontCombo[] = [
     "normal",
     "moche",
     "urbanist",
+    "'ZT Floogn', sans-serif",
+    "'Fragment Mono', monospace",
+    "MODERN",
+    undefined,
+    300,
   ),
   headingCombo(
     "aicon-grid",
@@ -1212,17 +1279,23 @@ export const FONT_COMBOS: FontCombo[] = [
     "normal",
     "digital",
     "grid",
+    "'Quanta Grotesk Pro', sans-serif",
+    "'Necto Mono', monospace",
+    "DIGITAL",
   ),
   headingCombo(
     "mirano-flow",
     "Mirano Flow",
     "'Mirano', sans-serif",
     300,
-    "'Nafile', sans-serif",
-    400,
+    "'Gella Display', sans-serif",
+    500,
     "normal",
     "mirano",
     "flow",
+    "'Racama', sans-serif",
+    "'Fragment Mono', monospace",
+    "LUXURY",
   ),
   headingCombo(
     "culont-curve",
@@ -1234,17 +1307,27 @@ export const FONT_COMBOS: FontCombo[] = [
     "normal",
     "culont",
     "curve",
+    "'Horovod', sans-serif",
+    "'Geist Mono', monospace",
+    "ORGANIC",
   ),
   headingCombo(
     "hebdomadal-shift",
     "Hebdomadal Shift",
     "'Hebdomadal', sans-serif",
     400,
-    "'Neutral Face', sans-serif",
+    "'Balbes', serif",
     400,
     "normal",
     "hebdomadal",
     "shift",
+    "'Overused Grotesk', sans-serif",
+    "'Geist Mono', monospace",
+    "FASHION",
+    "'Overused Grotesk', sans-serif",
+    400,
+    "-.01em",
+    300,
   ),
   headingCombo(
     "ductile-motion",
@@ -1256,6 +1339,9 @@ export const FONT_COMBOS: FontCombo[] = [
     "normal",
     "hashira",
     "beauty",
+    "'Hanken Grotesk', sans-serif",
+    "'Fragment Mono', monospace",
+    "BEAUTY",
   ),
 ];
 
@@ -1265,7 +1351,14 @@ export const CURATED_FONT_COMBOS = FONT_COMBOS.filter(
     (combo.isNeutral && combo.id !== "custom") ||
     combo.id === "syne-dropped" ||
     combo.id === "studio-signal" ||
-    combo.headingOnly,
+    combo.id === "bistra-signal" ||
+    combo.id === "pavot-motion" ||
+    combo.id === "otez-contrast" ||
+    combo.id === "aicon-grid" ||
+    combo.id === "mirano-flow" ||
+    combo.id === "culont-curve" ||
+    combo.id === "hebdomadal-shift" ||
+    combo.id === "ductile-motion",
 );
 
 // Upgrade only exact retired preset pairs; preserve custom choices, sizes and editor font.
@@ -1299,7 +1392,117 @@ const PREVIOUS_FONT_COMBOS = [
   ["'Unbounded', sans-serif", "'Newsreader', serif", "funnel-weights"],
 ] as const;
 export function upgradeFontPreferences(fonts: FontPreferences): FontPreferences {
-  if (fonts.sectionFont || fonts.supportingFont) return fonts;
+  if (fonts.sectionFont || fonts.supportingFont) {
+    if (
+      fonts.headingFont === "'Hebdomadal', sans-serif" &&
+      fonts.sectionFont === "'Balbes', serif"
+    ) {
+      return {
+        ...fonts,
+        uiFont: "'Overused Grotesk', sans-serif",
+        supportingFont: "'Overused Grotesk', sans-serif",
+      };
+    }
+    if (
+      fonts.headingFont === "'Mirano', sans-serif" &&
+      fonts.sectionFont === "'Gella Display', sans-serif" &&
+      fonts.uiFont === "'Kunika', sans-serif"
+    ) {
+      return {
+        ...fonts,
+        uiFont: "'Racama', sans-serif",
+        supportingFont:
+          fonts.supportingFont === "'Kunika', sans-serif"
+            ? "'Racama', sans-serif"
+            : fonts.supportingFont,
+      };
+    }
+    if (
+      fonts.headingFont === "'Aicon', sans-serif" &&
+      fonts.sectionFont === "'Rebel Type Dog', sans-serif" &&
+      fonts.uiFont === "'OTR Type', sans-serif"
+    ) {
+      return {
+        ...fonts,
+        uiFont: "'Quanta Grotesk Pro', sans-serif",
+        supportingFont:
+          fonts.supportingFont === "'OTR Type', sans-serif"
+            ? "'Quanta Grotesk Pro', sans-serif"
+            : fonts.supportingFont,
+      };
+    }
+    if (
+      fonts.headingFont === "'Moche', sans-serif" &&
+      fonts.sectionFont === "'Urbanist', sans-serif" &&
+      fonts.uiFont === "'Taruno Wide', sans-serif"
+    ) {
+      return {
+        ...fonts,
+        uiFont: "'ZT Floogn', sans-serif",
+        supportingFont:
+          fonts.supportingFont === "'Taruno Wide', sans-serif"
+            ? "'ZT Floogn', sans-serif"
+            : fonts.supportingFont,
+      };
+    }
+    if (
+      fonts.headingFont === "'Coconat', serif" &&
+      fonts.sectionFont === "'Sun Seed', sans-serif" &&
+      fonts.uiFont === "'Sun Seed', sans-serif"
+    ) {
+      return {
+        ...fonts,
+        uiFont: "'Gnocchi', sans-serif",
+        supportingFont:
+          fonts.supportingFont === "'Sun Seed', sans-serif"
+            ? "'Gnocchi', sans-serif"
+            : fonts.supportingFont,
+      };
+    }
+    if (
+      fonts.headingFont === "'Culont', sans-serif" &&
+      fonts.sectionFont === "'Equilla', serif" &&
+      fonts.uiFont === "'Novoposelensky', sans-serif"
+    ) {
+      return {
+        ...fonts,
+        uiFont: "'Horovod', sans-serif",
+        supportingFont:
+          fonts.supportingFont === "'Novoposelensky', sans-serif"
+            ? "'Horovod', sans-serif"
+            : fonts.supportingFont,
+      };
+    }
+    if (
+      fonts.headingFont === "'Exotica', sans-serif" &&
+      fonts.sectionFont === "'Arck', serif" &&
+      fonts.uiFont === "'Gerbil', sans-serif"
+    ) {
+      return {
+        ...fonts,
+        uiFont: "'Seenonim', sans-serif",
+        supportingFont:
+          fonts.supportingFont === "'Gerbil', sans-serif"
+            ? "'Seenonim', sans-serif"
+            : fonts.supportingFont,
+      };
+    }
+    if (
+      fonts.headingFont === "'Hashira Mt', serif" &&
+      fonts.sectionFont === "'Halo Grotesk', sans-serif" &&
+      fonts.uiFont === "'Overused Grotesk', sans-serif"
+    ) {
+      return {
+        ...fonts,
+        uiFont: "'Hanken Grotesk', sans-serif",
+        supportingFont:
+          fonts.supportingFont === "'Overused Grotesk', sans-serif"
+            ? "'Hanken Grotesk', sans-serif"
+            : fonts.supportingFont,
+      };
+    }
+    return fonts;
+  }
   if (fonts.headingFont === "'Northern', sans-serif") {
     return { ...fonts, headingFont: "'Exotica', sans-serif" };
   }
@@ -1361,6 +1564,14 @@ export function getActiveFontCombo(fonts: FontPreferences): FontCombo {
       combo.fonts.supportingFont === fonts.supportingFont,
   );
   if (fullPreset) return fullPreset;
+  const legacyFullPreset = FONT_COMBOS.find(
+    (combo) =>
+      combo.fonts &&
+      combo.uiFont === fonts.uiFont &&
+      combo.headingFont === fonts.headingFont &&
+      combo.fonts.sectionFont === fonts.sectionFont,
+  );
+  if (legacyFullPreset) return legacyFullPreset;
   const headingPreset =
     !fonts.sectionFont &&
     FONT_COMBOS.find((combo) => combo.headingOnly && combo.headingFont === fonts.headingFont);
@@ -1403,9 +1614,15 @@ export function resolveFontTypography(fonts: FontPreferences) {
           ? ("italic" as const)
           : ("normal" as const),
     sectionTransform: preset && !fonts.sectionFont ? preset.sectionTransform : ("none" as const),
-    sectionTracking: preset && !fonts.sectionFont ? preset.sectionTracking : "-.015em",
+    sectionTracking:
+      sectionFont === "'Sun Seed', sans-serif"
+        ? "0.06em"
+        : preset && !fonts.sectionFont
+          ? preset.sectionTracking
+          : "-.015em",
     rowFont: combo.headingOnly || combo.fonts ? fonts.uiFont : (preset?.rowFont ?? fonts.uiFont),
-    rowWeight: combo.headingOnly || combo.fonts ? 700 : (preset?.rowWeight ?? 700),
+    rowWeight: preset?.rowWeight ?? 500,
+    rowTracking: preset?.rowTracking ?? "0.035em",
     controlsFont:
       combo.headingOnly || combo.fonts ? fonts.uiFont : (preset?.controlsFont ?? fonts.uiFont),
     metadataFont:
@@ -1416,6 +1633,7 @@ export function resolveFontTypography(fonts: FontPreferences) {
         ? ("italic" as const)
         : ("normal" as const)
       : (preset?.supportingStyle ?? ("normal" as const)),
+    supportingWeight: preset?.supportingWeight ?? 400,
   };
 }
 
@@ -1429,7 +1647,6 @@ export function prepareCustomFontPreferences(fonts: FontPreferences): FontPrefer
   };
 }
 
-/** Heading presets preserve body/code preferences; full presets apply their explicit roles. */
 export function selectFontCombo(fonts: FontPreferences, combo: FontCombo): FontPreferences {
   if (combo.headingOnly)
     return { ...fonts, headingFont: combo.headingFont, sectionFont: undefined };
@@ -1437,9 +1654,9 @@ export function selectFontCombo(fonts: FontPreferences, combo: FontCombo): FontP
     ...fonts,
     uiFont: combo.uiFont,
     headingFont: combo.headingFont,
-    sectionFont: undefined,
-    supportingFont: undefined,
-    ...combo.fonts,
+    sectionFont: combo.fonts?.sectionFont,
+    supportingFont: combo.fonts?.supportingFont,
+    editorFont: combo.fonts?.editorFont ?? fonts.editorFont,
   };
 }
 

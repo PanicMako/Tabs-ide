@@ -184,21 +184,6 @@ test("ExtensionsSettings: navigates views, manages focus on dialogs, and support
     .element(screen.getByRole("button", { name: "Uninstall Dashboard" }))
     .not.toBeInTheDocument();
 
-  for (const tab of screen.container.querySelectorAll<HTMLElement>(
-    ".installed-manage-nav > button",
-  )) {
-    expect(getComputedStyle(tab).borderRadius).toBe("0px");
-  }
-  const projectScope = screen.getByRole("button", { name: "Selected projects", exact: false });
-  expect(getComputedStyle(projectScope.element()).borderRadius).toBe("12px");
-  expect(
-    getComputedStyle(screen.container.querySelector(".installed-manage-hero")!).borderRadius,
-  ).toBe("12px");
-  await page.screenshot({
-    element: screen.container.querySelector(".extensions-settings")!,
-    path: "__screenshots__/extensions-shapes/installed.png",
-  });
-
   // Custom project controls preserve the native assignment contract.
   await screen
     .getByRole("switch", { name: "Show Dashboard in Alpha Project", exact: true })

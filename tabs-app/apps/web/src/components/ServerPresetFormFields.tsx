@@ -352,7 +352,7 @@ export function ServerPresetFormFields(props: {
         <div>
           <div className="text-sm font-medium text-foreground">Auto-start</div>
           <div className="text-xs text-muted-foreground">
-            Launch this preset automatically when the Launchpad tab opens.
+            Launch this preset automatically when the Dock tab opens.
           </div>
         </div>
         <Switch

@@ -15,6 +15,93 @@
   box-shadow: inset 0 1px 2px color-mix(in srgb, var(--foreground) 4%, transparent);
   max-width: 100%;
   min-width: 0;
+
+  /* Lit edge tokens (Dark theme default) */
+  --seg-lit-label: color-mix(in srgb, var(--primary) 55%, #ffffff);
+  --seg-lit-border: color-mix(in srgb, var(--primary) 32%, transparent);
+  --seg-lit-bg-tint: color-mix(in srgb, var(--primary) 8%, transparent);
+  --seg-lit-bg-gradient: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--primary) 10%, transparent),
+    color-mix(in srgb, var(--primary) 0%, transparent) 80%
+  );
+  --seg-lit-rim: color-mix(in srgb, var(--primary) 35%, rgba(255, 255, 255, 0.45));
+  --seg-lit-shadow: color-mix(in srgb, var(--primary) 40%, transparent);
+  --seg-lit-glow: color-mix(in srgb, var(--primary) 45%, rgba(255, 255, 255, 0.65));
+}
+
+:root,
+.panel-animation-pill {
+  --seg-lit-label: color-mix(in srgb, var(--primary) 55%, #ffffff);
+  --seg-lit-border: color-mix(in srgb, var(--primary) 32%, transparent);
+  --seg-lit-bg-tint: color-mix(in srgb, var(--primary) 8%, transparent);
+  --seg-lit-bg-gradient: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--primary) 10%, transparent),
+    color-mix(in srgb, var(--primary) 0%, transparent) 80%
+  );
+  --seg-lit-rim: color-mix(in srgb, var(--primary) 35%, rgba(255, 255, 255, 0.45));
+  --seg-lit-shadow: color-mix(in srgb, var(--primary) 40%, transparent);
+  --seg-lit-glow: color-mix(in srgb, var(--primary) 45%, rgba(255, 255, 255, 0.65));
+}
+
+/* Light mode tokens: WCAG AA contrast by tinting toward dark/black instead of white */
+:root:not(.dark),
+[data-theme="tabs-light"],
+[data-theme="solarized-light"],
+[data-settings-appearance="light"],
+html[data-interface-study="light"],
+:root:not(.dark) .tabs-segmented.orbit-group,
+[data-theme="tabs-light"] .tabs-segmented.orbit-group,
+[data-theme="solarized-light"] .tabs-segmented.orbit-group,
+[data-settings-appearance="light"] .tabs-segmented.orbit-group,
+html[data-interface-study="light"] .tabs-segmented.orbit-group,
+:root:not(.dark) .panel-animation-pill,
+[data-theme="tabs-light"] .panel-animation-pill,
+[data-theme="solarized-light"] .panel-animation-pill,
+[data-settings-appearance="light"] .panel-animation-pill,
+html[data-interface-study="light"] .panel-animation-pill {
+  --seg-lit-label: color-mix(in srgb, var(--primary) 72%, #000000);
+  --seg-lit-border: color-mix(in srgb, var(--primary) 38%, transparent);
+  --seg-lit-bg-tint: color-mix(in srgb, var(--primary) 6%, transparent);
+  --seg-lit-bg-gradient: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--primary) 8%, transparent),
+    color-mix(in srgb, var(--primary) 0%, transparent) 80%
+  );
+  --seg-lit-rim: rgba(255, 255, 255, 0.65);
+  --seg-lit-shadow: color-mix(in srgb, var(--primary) 22%, transparent);
+  --seg-lit-glow: color-mix(in srgb, var(--primary) 65%, var(--foreground));
+}
+
+.dark,
+[data-settings-appearance="dark"],
+html[data-interface-study="dark"],
+.dark .tabs-segmented.orbit-group,
+[data-settings-appearance="dark"] .tabs-segmented.orbit-group,
+html[data-interface-study="dark"] .tabs-segmented.orbit-group,
+.dark .panel-animation-pill,
+[data-settings-appearance="dark"] .panel-animation-pill,
+html[data-interface-study="dark"] .panel-animation-pill {
+  --seg-lit-label: color-mix(in srgb, var(--primary) 55%, #ffffff);
+  --seg-lit-border: color-mix(in srgb, var(--primary) 32%, transparent);
+  --seg-lit-bg-tint: color-mix(in srgb, var(--primary) 8%, transparent);
+  --seg-lit-bg-gradient: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--primary) 10%, transparent),
+    color-mix(in srgb, var(--primary) 0%, transparent) 80%
+  );
+  --seg-lit-rim: color-mix(in srgb, var(--primary) 35%, rgba(255, 255, 255, 0.45));
+  --seg-lit-shadow: color-mix(in srgb, var(--primary) 40%, transparent);
+  --seg-lit-glow: color-mix(in srgb, var(--primary) 45%, rgba(255, 255, 255, 0.65));
+}
+.tabs-segmented.orbit-group:not(.grid),
+.tabs-segmented:not(.grid) {
+  width: fit-content;
+}
+.tabs-segmented.orbit-group.w-full,
+.tabs-segmented.w-full {
+  width: 100%;
 }
 .tabs-segmented.orbit-group:not(.grid),
 .tabs-segmented:not(.grid) {
@@ -39,12 +126,21 @@
 }
 .tabs-segmented.orbit-group
   > :is(button[aria-pressed="true"], button[aria-checked="true"], button[aria-selected="true"]) {
-  color: var(--foreground);
+  color: var(--seg-lit-label) !important;
   font-weight: 600;
 }
 .tabs-segmented.orbit-group > button:not(:disabled):hover {
   color: var(--foreground);
-  background: color-mix(in srgb, var(--foreground) 5%, transparent) !important;
+  background: color-mix(in srgb, var(--foreground) 4%, transparent) !important;
+}
+.tabs-segmented.orbit-group
+  > :is(
+    button[aria-pressed="true"],
+    button[aria-checked="true"],
+    button[aria-selected="true"]
+  ):hover {
+  color: var(--seg-lit-label) !important;
+  background: transparent !important;
 }
 .tabs-segmented.orbit-group > button:focus-visible {
   outline: 2px solid var(--ring);
@@ -75,18 +171,35 @@
     transform 380ms cubic-bezier(0.22, 1.25, 0.4, 1),
     opacity 120ms ease;
 }
+.tabs-segmented.orbit-group > .orbit-orb,
 .orbit-group[data-orbit-kind="spotlight"] > .orbit-orb {
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-control) !important;
   z-index: 0;
-  background: var(--primary);
-  color: var(--primary-foreground);
+  border: 1px solid var(--seg-lit-border);
+  background-color: var(--seg-lit-bg-tint);
+  background-image: var(--seg-lit-bg-gradient);
+  color: var(--seg-lit-label);
   box-shadow:
-    0 2px 8px color-mix(in srgb, var(--primary) 30%, transparent),
-    0 0 1px color-mix(in srgb, var(--primary) 50%, transparent);
+    inset 0 1px 0 var(--seg-lit-rim),
+    0 6px 14px -6px var(--seg-lit-shadow);
+}
+.tabs-segmented.orbit-group > .orbit-orb::after,
+.orbit-group[data-orbit-kind="spotlight"] > .orbit-orb::after {
+  content: "";
+  position: absolute;
+  left: 22%;
+  right: 22%;
+  bottom: -1px;
+  height: 1.5px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, var(--seg-lit-glow), transparent);
+  opacity: 0.7;
+  filter: blur(0.5px);
+  pointer-events: none;
 }
 .tabs-segmented.orbit-group[data-orbit-kind="spotlight"]
   > :is(button[aria-pressed="true"], button[aria-checked="true"], button[aria-selected="true"]) {
-  color: var(--primary-foreground);
+  color: var(--seg-lit-label) !important;
   font-weight: 600;
 }
 .orbit-group[data-orbit-kind="spotlight"]::before {
@@ -96,12 +209,13 @@
   border-radius: inherit;
   pointer-events: none;
   background: radial-gradient(
-    100px circle at var(--spotlight-x, 50%) var(--spotlight-y, 50%),
-    color-mix(in srgb, var(--primary) 22%, transparent),
+    90px circle at var(--spotlight-x, 50%) var(--spotlight-y, 50%),
+    color-mix(in srgb, var(--primary) 12%, transparent),
     transparent
   );
   opacity: 0;
   transition: opacity 160ms ease;
+  z-index: 0;
 }
 .orbit-group[data-orbit-kind="spotlight"]:hover::before {
   opacity: 1;
@@ -2073,10 +2187,10 @@ label:has(> select#reasoning-effort) select {
   color: #ffffff !important;
 }
 
-.dark [data-slot="workspace-toolbar-shell"] button {
+.dark [data-slot="workspace-toolbar-shell"] button:not([aria-selected="true"]) {
   color: rgba(255, 255, 255, 0.65);
 }
-.dark [data-slot="workspace-toolbar-shell"] button:hover {
+.dark [data-slot="workspace-toolbar-shell"] button:not([aria-selected="true"]):hover {
   color: #ffffff;
 }
 
@@ -2463,4 +2577,182 @@ tr[class*="hover:bg"] td:first-child {
 tr[class*="hover:bg"] td:last-child {
   border-top-right-radius: var(--radius-control);
   border-bottom-right-radius: var(--radius-control);
+}
+
+/* Brand marks carry their own optical stroke weights. A shadow muddies small
+   code brackets and closes the negative-space details in Dock's silhouette. */
+.nav-tab svg[data-tool-mark],
+.study-tool-tab svg[data-tool-mark] {
+  filter: none !important;
+}
+
+/* Active tools express themselves through details inside the mark. The outer
+   silhouette, label and hit target stay still. Long pauses keep this playful
+   without turning the toolbar into a row of loading indicators. */
+:is(.nav-tab, .study-tool-tab).active .tool-assistant-gaze {
+  animation: tool-assistant-look 8s ease-in-out infinite;
+}
+:is(.nav-tab, .study-tool-tab).active .tool-assistant-eye {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: tool-assistant-blink 6s ease-in-out infinite;
+}
+:is(.nav-tab, .study-tool-tab).active .tool-code-eye {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: tool-code-squint 7s ease-in-out infinite;
+}
+:is(.nav-tab, .study-tool-tab).active .tool-code-eye-right {
+  animation-delay: 160ms;
+}
+:is(.nav-tab, .study-tool-tab).active .tool-ufo-beam {
+  transform-box: fill-box;
+  transform-origin: top;
+  animation: tool-ufo-scan 5s ease-in-out infinite;
+}
+:is(.nav-tab, .study-tool-tab).active .tool-planet-ring {
+  animation: tool-planet-shimmer 6s ease-in-out infinite;
+}
+
+@keyframes tool-assistant-look {
+  0%,
+  35%,
+  70%,
+  100% {
+    transform: none;
+  }
+  42%,
+  52% {
+    transform: translateX(1px);
+  }
+  58%,
+  64% {
+    transform: translateX(-0.8px);
+  }
+}
+@keyframes tool-assistant-blink {
+  0%,
+  38%,
+  44%,
+  76%,
+  82%,
+  100% {
+    transform: scaleY(1);
+  }
+  41%,
+  79% {
+    transform: scaleY(0.12);
+  }
+}
+@keyframes tool-code-squint {
+  0%,
+  50%,
+  64%,
+  100% {
+    transform: scaleY(1);
+  }
+  55%,
+  59% {
+    transform: scaleY(0.45);
+  }
+}
+@keyframes tool-ufo-scan {
+  0%,
+  25%,
+  75%,
+  100% {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+  45%,
+  55% {
+    opacity: 0.35;
+    transform: scaleX(0.7);
+  }
+}
+@keyframes tool-planet-shimmer {
+  0%,
+  35%,
+  75%,
+  100% {
+    opacity: 1;
+  }
+  55% {
+    opacity: 0.45;
+  }
+}
+
+html[data-reduced-motion="reduce"]
+  :is(.nav-tab, .study-tool-tab).active
+  :is(
+    .tool-assistant-gaze,
+    .tool-assistant-eye,
+    .tool-code-eye,
+    .tool-ufo-beam,
+    .tool-planet-ring,
+    .tool-globe-meridian,
+    .tool-terminal-cursor
+  ) {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  html:not([data-reduced-motion="no-preference"])
+    :is(.nav-tab, .study-tool-tab).active
+    :is(
+      .tool-assistant-gaze,
+      .tool-assistant-eye,
+      .tool-code-eye,
+      .tool-ufo-beam,
+      .tool-planet-ring,
+      .tool-globe-meridian,
+      .tool-terminal-cursor
+    ) {
+    animation: none;
+  }
+}
+
+:is(.nav-tab, .study-tool-tab).active .tool-globe-meridian {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: tool-globe-turn 7s ease-in-out infinite;
+}
+:is(.nav-tab, .study-tool-tab).active .tool-terminal-cursor {
+  animation: tool-terminal-type 4s steps(1, end) infinite;
+}
+@keyframes tool-globe-turn {
+  0%,
+  25%,
+  80%,
+  100% {
+    transform: scaleX(1);
+  }
+  50% {
+    transform: scaleX(0.2);
+  }
+}
+@keyframes tool-terminal-type {
+  0%,
+  20%,
+  40%,
+  60%,
+  100% {
+    opacity: 1;
+  }
+  10%,
+  30%,
+  50% {
+    opacity: 0;
+  }
+}
+html[data-reduced-motion="reduce"]
+  :is(.nav-tab, .study-tool-tab).active
+  :is(.tool-globe-meridian, .tool-terminal-cursor) {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  html:not([data-reduced-motion="no-preference"])
+    :is(.nav-tab, .study-tool-tab).active
+    :is(.tool-globe-meridian, .tool-terminal-cursor) {
+    animation: none;
+  }
 }

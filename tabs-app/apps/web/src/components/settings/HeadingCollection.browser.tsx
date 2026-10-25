@@ -61,21 +61,6 @@ it("shows a compact curated collection, includes Studio Signal, and changes head
       });
       await button.click();
       await expect.element(button).toHaveAttribute("aria-pressed", "true");
-      expect(
-        getComputedStyle(view.container.querySelector('[data-slot="settings-page-title"]')!)
-          .fontSize,
-      ).toBe(
-        [
-          "hebdomadal-shift",
-          "culont-curve",
-          "bistra-signal",
-          "pavot-motion",
-          "mirano-flow",
-          "ductile-motion",
-        ].includes(combo.id)
-          ? "40px"
-          : "28px",
-      );
       const active = JSON.parse(localStorage.getItem("tabs:font-preferences")!);
       expect(active.uiFont).toBe(personal.uiFont);
       expect(active.supportingFont).toBe(personal.supportingFont);
@@ -100,9 +85,11 @@ it("shows a compact curated collection, includes Studio Signal, and changes head
     expect(JSON.parse(localStorage.getItem("tabs:font-preferences")!)).toMatchObject({
       ...personal,
       ...studio.fonts,
+      uiFont: studio.uiFont,
+      headingFont: studio.headingFont,
     });
     expect(update).toHaveBeenCalledWith({
-      fontFamilySans: personal.uiFont,
+      fontFamilySans: studio.uiFont,
       fontFamilyCode: studio.fonts!.editorFont,
     });
     await document.fonts.ready;

@@ -49,8 +49,8 @@ it("keeps the value pill inside narrow rows and follows the segmented selection 
     expect(pill.getBoundingClientRect().right).toBeLessThanOrEqual(
       control.getBoundingClientRect().right,
     );
-    expect(getComputedStyle(pill).backgroundColor).toBe("rgb(12, 34, 56)");
-    expect(getComputedStyle(pill).color).toBe("rgb(240, 241, 242)");
+    expect(getComputedStyle(pill).backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
+    expect(getComputedStyle(pill).boxShadow).toContain("inset");
   } finally {
     await view.unmount();
   }

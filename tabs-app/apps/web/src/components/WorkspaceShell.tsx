@@ -96,7 +96,6 @@ import {
   FlaskConicalIcon,
   FolderSearchIcon,
   GitBranchIcon,
-  GithubIcon,
   GlobeIcon,
   HelpCircleIcon,
   HistoryIcon,
@@ -124,7 +123,6 @@ import {
   PanelTopOpenIcon,
   MessageSquareIcon,
   TerminalSquareIcon,
-  WorkflowIcon,
   XIcon,
   PanelLeftIcon,
   PanelLeftCloseIcon,
@@ -345,7 +343,17 @@ import {
 } from "./codeHost.logic";
 import { openWelcomeWizard } from "../onboarding/firstRun";
 import { CodeActivityRail } from "./code/CodeActivityRail";
+import {
+  GitCompanionIcon,
+  WorkspaceBrowserIcon,
+  WorkspaceTerminalIcon,
+} from "./WorkspaceToolMarks";
+import { CodeGlyphIcon } from "./CodeGlyphIcon";
+import { DockUfoIcon } from "./DockUfoIcon";
+import { BrowserPlanetIcon } from "./BrowserPlanetIcon";
+import { AssistantBubbleIcon } from "./AssistantBubbleIcon";
 import { CodeHeaderBar } from "./code/CodeHeaderBar";
+import { useCodeAssistantPanels } from "./code/useCodeAssistantPanels";
 import {
   CODE_ACTIVITY_ITEMS,
   CODE_CHROME_COMMANDS,
@@ -581,20 +589,21 @@ function resolveEmbeddedWorkspaceMode(): EmbeddedWorkspaceMode {
 function toolIcon(tool: ProjectToolKind) {
   switch (tool) {
     case "code":
-      return <WorkflowIcon className="size-3.5" />;
+      return <CodeGlyphIcon className="size-[18px]" />;
     case "agents":
-      return <BotIcon className="size-3.5" />;
+      return <AssistantBubbleIcon className="size-4" />;
     case "server":
-      return <RocketIcon className="size-3.5" />;
+      return <DockUfoIcon className="size-[18px]" />;
     case "git":
-      return <GithubIcon className="size-3.5" />;
+      return <GitCompanionIcon className="size-4" />;
     case "browser":
+      return <BrowserPlanetIcon className="size-4" />;
     case "custom_embed":
-      return <GlobeIcon className="size-3.5" />;
+      return <WorkspaceBrowserIcon className="size-4" />;
     case "testing":
       return <FlaskConicalIcon aria-hidden="true" className="size-3.5" />;
     case "custom_process":
-      return <TerminalSquareIcon className="size-3.5" />;
+      return <WorkspaceTerminalIcon className="size-4" />;
     case "extension":
       return <TabsExtensionIcon className="size-3.5" />;
   }
@@ -1353,7 +1362,11 @@ function ProjectToolBar(props: {
                   active ? "text-foreground font-semibold" : "text-muted-foreground",
                 )}
               >
-                {tool.icon ?? toolIcon(tool.kind)}
+                {isAgentsTool ? (
+                  <AssistantBubbleIcon className="size-4" />
+                ) : (
+                  (tool.icon ?? toolIcon(tool.kind))
+                )}
               </span>
               <span>{tool.label}</span>
               {toolActivityIndicator && (
@@ -3299,7 +3312,7 @@ function FallbackCodeTool(props: { project: Project }) {
           {previewUnavailable ? (
             <div className="flex h-full min-h-0 flex-col items-start justify-center gap-4 px-8 py-10">
               <Badge variant="outline" className="gap-1.5">
-                <WorkflowIcon className="size-3.5" />
+                <CodeGlyphIcon className="size-3.5" />
                 Code Host
               </Badge>
               <div className="space-y-2">
@@ -3558,11 +3571,14 @@ function DesktopCodeTool(props: { project: Project }) {
     },
     [projectId, chromeState.activityBarItems],
   );
-  useEffect(() => {
-    if (aiProvider === "copilot") {
-      setSideChatOpen(false);
-    }
-  }, [aiProvider, projectId, setSideChatOpen]);
+
+  const toggleCodeAssistant = useCodeAssistantPanels({
+    provider: aiProvider,
+    hostReady,
+    sideChatOpen,
+    setSideChatOpen,
+    runCommand: runCodeCommand,
+  });
   useEffect(() => {
     const bridge = window.desktopBridge;
     if (!bridge?.getCodeChromeState) {
@@ -3809,43 +3825,53 @@ function DesktopCodeTool(props: { project: Project }) {
     );
   }
 
+  const handleCodeMenuOpenChange = async (open: boolean) => {
+    const bridge = window.desktopBridge;
+    if (!bridge) return;
+    if (open) {
+      const snapshot = await bridge.captureCodeSession({ projectId }).catch(() => null);
+      setMenuBackdrop(snapshot);
+      await bridge.hideCodeSession().catch(() => undefined);
+      return;
+    }
+    await bridge.activateCodeSession({ projectId }).catch(() => undefined);
+    setMenuBackdrop(null);
+  };
+
   return (
-    <div className="flex h-full min-h-0 min-w-0 flex-col bg-background">
+    <div
+      className="code-workspace flex h-full min-h-0 min-w-0 flex-col bg-background"
+      data-modal-open={chromeState.modalOpen === true ? "true" : undefined}
+      style={
+        {
+          "--code-sidechat-width": `${sideChatOpen && aiProvider === "tabs" ? sideChatWidth : 0}px`,
+        } as React.CSSProperties
+      }
+    >
       <CodeHeaderBar
+        modalOpen={chromeState.modalOpen === true}
         workspaceName={props.project.name}
         activeFilePath={
-          chromeState.openTabs?.find((tab) => tab.active)?.filePath ?? codeState.lastFocusedPath
+          chromeState.activeFilePath !== undefined
+            ? chromeState.activeFilePath
+            : (chromeState.openTabs?.find((tab) => tab.active)?.filePath ??
+              codeState.lastFocusedPath)
         }
         branch={chromeState.branch}
+        panelOpen={chromeState.panelOpen}
         panelMaximized={chromeState.panelMaximized}
         sideChatOpen={aiProvider === "tabs" ? sideChatOpen : undefined}
         sideChatLabel={
           aiProvider === "copilot" ? "Toggle GitHub Copilot chat" : "Toggle Tabs AI chat"
         }
-        onToggleSideChat={() => {
-          if (aiProvider === "copilot") {
-            runCodeCommand(CODE_CHROME_COMMANDS.toggleAuxiliaryBar);
-          } else {
-            setSideChatOpen(!sideChatOpen);
-          }
-        }}
+        onToggleSideChat={toggleCodeAssistant}
         onRunCommand={runCodeCommand}
+        onMenuOpenChange={handleCodeMenuOpenChange}
       />
-      <div className="flex min-h-0 min-w-0 flex-1">
+      <div className="code-workspace-body flex min-h-0 min-w-0 flex-1">
         <CodeActivityRail
           chromeState={chromeState}
-          onApplicationMenuOpenChange={async (open) => {
-            const bridge = window.desktopBridge;
-            if (!bridge) return;
-            if (open) {
-              const snapshot = await bridge.captureCodeSession({ projectId }).catch(() => null);
-              setMenuBackdrop(snapshot);
-              await bridge.hideCodeSession().catch(() => undefined);
-              return;
-            }
-            await bridge.activateCodeSession({ projectId }).catch(() => undefined);
-            setMenuBackdrop(null);
-          }}
+          onApplicationMenuOpenChange={handleCodeMenuOpenChange}
           onRunCommand={runCodeCommand}
         />
         {/* Code-OSS owns the editor workbench inside this host region while Tabs
@@ -3867,13 +3893,14 @@ function DesktopCodeTool(props: { project: Project }) {
               className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center bg-background/64 text-sm text-muted-foreground"
             >
               <div className="rounded-2xl border border-border/70 bg-background/86 px-5 py-4 shadow-lg backdrop-blur-sm">
-                {hostError ?? "Attaching stock Code-OSS for this project…"}
+                {hostError ?? "Opening Code workspace…"}
               </div>
             </div>
           ) : null}
         </div>
         {sideChatOpen && aiProvider === "tabs" ? (
           <aside
+            inert={chromeState.modalOpen === true}
             style={{ width: sideChatWidth }}
             className="relative flex min-h-0 shrink-0 flex-col overflow-hidden border-l border-border/70 bg-background text-foreground"
           >
@@ -9026,8 +9053,8 @@ function DesktopBrowserTool(props: {
                 onClick={() => workspaceShellActions.setActiveTool(props.project.id, "server")}
                 className="gap-2 cursor-pointer font-medium"
               >
-                <RocketIcon className="size-3.5" />
-                Open Launchpad Tab
+                <DockUfoIcon className="size-3.5" />
+                Open Dock Tab
               </Button>
             </div>
           </div>
@@ -9380,7 +9407,7 @@ function UniversalDevServerOfflineNotice(props: {
         {/* Header section with clean unboxed icon and subtle monotone pill */}
         <div className="flex items-center justify-between border-b border-border/60 pb-3.5">
           <div className="flex items-center gap-2.5">
-            <RocketIcon className="size-4 text-muted-foreground shrink-0" />
+            <DockUfoIcon className="size-4 text-muted-foreground shrink-0" />
             <div>
               <h2 className="text-xs font-semibold text-foreground tracking-tight">
                 Server Offline
@@ -9395,7 +9422,7 @@ function UniversalDevServerOfflineNotice(props: {
         </div>
 
         <p className="text-xs text-muted-foreground leading-relaxed">
-          The local development server is not running. Switch to the Launchpad tab to start server
+          The local development server is not running. Switch to the Dock tab to start server
           presets and view live terminal logs.
         </p>
 
@@ -9409,8 +9436,8 @@ function UniversalDevServerOfflineNotice(props: {
               className="gap-2 cursor-pointer font-medium"
               onClick={props.onOpenServerTab}
             >
-              <RocketIcon className="size-4" />
-              Open Launchpad Tab
+              <DockUfoIcon className="size-4" />
+              Open Dock Tab
             </Button>
           ) : (
             <div />
@@ -10607,13 +10634,11 @@ function ServerTool(props: {
       <div className="border-b border-border/60 px-5 py-3.5 flex flex-col gap-3 bg-card/30">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="flex size-9 items-center justify-center rounded-xl bg-primary/10 border border-primary/20 text-foreground shrink-0 shadow-2xs">
-              <RocketIcon className="size-4.5" />
-            </div>
+            <DockUfoIcon className="size-8 text-foreground shrink-0" />
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <h2 className="text-base font-bold text-foreground leading-tight tracking-tight">
-                  Launchpad
+                  Dock
                 </h2>
                 {props.runningProcessIds.length > 0 && (
                   <Badge
@@ -10823,11 +10848,11 @@ function ServerTool(props: {
         ) : (
           <div className="flex h-full items-center justify-center p-8">
             <div className="w-full max-w-md flex flex-col items-center text-center gap-5">
-              <div className="flex size-14 items-center justify-center rounded-2xl bg-muted/60 border border-border/60">
-                <RocketIcon className="size-6 text-muted-foreground" />
+              <div className="flex size-24 items-center justify-center rounded-2xl bg-muted/60 border border-border/60">
+                <DockUfoIcon className="size-16 text-muted-foreground" />
               </div>
               <div className="space-y-1.5">
-                <h3 className="text-base font-semibold text-foreground">Launchpad</h3>
+                <h3 className="text-base font-semibold text-foreground">Dock</h3>
                 <p className="text-sm text-muted-foreground leading-relaxed max-w-xs mx-auto">
                   Open a terminal for manual work, or save presets like{" "}
                   <span className="font-medium text-foreground/80">Frontend</span> and{" "}
@@ -10871,9 +10896,7 @@ function ServerTool(props: {
           {/* Global Header */}
           <DialogHeader className="p-5 border-b border-border/60 shrink-0 relative flex flex-row items-start justify-between bg-muted/20">
             <div className="text-left">
-              <DialogTitle className="text-lg font-bold text-foreground">
-                Launchpad Presets
-              </DialogTitle>
+              <DialogTitle className="text-lg font-bold text-foreground">Dock Presets</DialogTitle>
               <DialogDescription className="text-xs text-muted-foreground mt-1">
                 Save a set of commands to run together.
               </DialogDescription>
@@ -11115,9 +11138,7 @@ function ServerTool(props: {
                 ) : (
                   <div className="h-full flex flex-col items-center justify-center text-muted-foreground gap-2 py-16">
                     <TerminalSquareIcon className="size-8 stroke-1 text-muted-foreground/60" />
-                    <span className="text-sm">
-                      Select or create a launchpad preset to get started
-                    </span>
+                    <span className="text-sm">Select or create a Dock preset to get started</span>
                   </div>
                 )}
               </DialogPanel>

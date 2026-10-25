@@ -837,25 +837,16 @@ const createMacDmgFromZip = Effect.fn("createMacDmgFromZip")(function* (input: {
     .remove(`${updaterZipPath}.blockmap`, { force: true })
     .pipe(Effect.ignore({ log: true }));
 
-  // Add the familiar drag-to-install layout: a symlink to /Applications next to
-  // the app, so the mounted DMG shows "Tabs.app  ->  Applications" and the user
-  // can drag the app into place. (A custom background/icon positioning needs a
-  // writable DMG + .DS_Store, which is fragile on headless CI — the alias alone
-  // gives the standard drag target reliably.)
-  const applicationsAlias = path.join(dmgRoot, "Applications");
-  if (!(yield* fs.exists(applicationsAlias))) {
-    yield* Effect.log("[desktop-artifact] Adding /Applications drag target to DMG...");
-    yield* Effect.sync(() => {
-      spawnSync("ln", ["-s", "/Applications", applicationsAlias]);
-    });
-  }
+  // Write Finder's background and icon positions directly, without UI automation.
+  // dmgbuild uses ditto, preserving the framework symlinks validated above.
+  const installerLayoutScript = path.join(yield* RepoRoot, "scripts", "create-themed-dmg.sh");
 
   yield* fs.remove(dmgPath, { force: true }).pipe(Effect.ignore({ log: true }));
   yield* runCommandWithRetry(
     ChildProcess.make({
       ...commandOutputOptions(input.verbose),
-    })`hdiutil create -volname ${input.productName} -srcfolder ${dmgRoot} -ov -format UDZO ${dmgPath}`,
-    { attempts: 3, baseDelaySeconds: 10, label: "hdiutil create (DMG)" },
+    })`bash ${installerLayoutScript} ${dmgRoot} ${dmgPath} ${input.productName}`,
+    { attempts: 3, baseDelaySeconds: 10, label: "themed DMG layout" },
   );
   // The smoke test runs the bundled server; thin builds don't bundle it.
   if (!input.thin) {

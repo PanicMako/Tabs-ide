@@ -124,10 +124,10 @@ export function PreviewContent({
         </div>
       </div>
     );
-  if (tool === "Launchpad")
+  if (tool === "Dock")
     return (
-      <div className="h-52 p-4 text-[10px]" aria-label="Example Launchpad with project commands">
-        <p className="mb-4 text-xs font-semibold">Launchpad</p>
+      <div className="h-52 p-4 text-[10px]" aria-label="Example Dock with project commands">
+        <p className="mb-4 text-xs font-semibold">Dock</p>
         {[
           { name: "Dev server", command: "bun run dev" },
           { name: "Tests", command: "bun run test" },

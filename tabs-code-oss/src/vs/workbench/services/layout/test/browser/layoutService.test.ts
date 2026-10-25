@@ -180,6 +180,19 @@ suite('LayoutService - getFloatingPaneCompositeHorizontalMargins', () => {
 		return getFloatingPaneCompositeHorizontalMargins(service, partId);
 	}
 
+	test('Tabs side bar joins its external rail without changing other workbench insets', () => {
+		const root = mainWindow.document.documentElement;
+		root.classList.add('tabs-embedded-workbench');
+		try {
+			assert.deepStrictEqual(margins(Parts.SIDEBAR_PART, [Parts.SIDEBAR_PART, Parts.EDITOR_PART]), { left: 0, right: 0 });
+			assert.deepStrictEqual(margins(Parts.SIDEBAR_PART, [Parts.SIDEBAR_PART, Parts.EDITOR_PART], Position.RIGHT), { left: 4, right: 4 });
+			assert.deepStrictEqual(margins(Parts.AUXILIARYBAR_PART, [Parts.SIDEBAR_PART, Parts.EDITOR_PART, Parts.AUXILIARYBAR_PART]), { left: 4, right: 4 });
+		} finally {
+			root.classList.remove('tabs-embedded-workbench');
+		}
+		assert.deepStrictEqual(margins(Parts.SIDEBAR_PART, [Parts.SIDEBAR_PART, Parts.EDITOR_PART]), { left: 4, right: 0 });
+	});
+
 	test('horizontal margins across densities and side bar positions', () => {
 		assert.deepStrictEqual({
 			activityBarLeft: margins(Parts.AUXILIARYBAR_PART, [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.EDITOR_PART, Parts.AUXILIARYBAR_PART]),

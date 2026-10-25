@@ -111,6 +111,37 @@ suite('OverlayWebview', () => {
 		});
 	});
 
+	test('tracks assistant body corners across pane splits and reanchoring', () => {
+		const root = document.body.appendChild(document.createElement('div'));
+		const part = root.appendChild(document.createElement('div'));
+		part.className = 'part auxiliarybar';
+		part.style.cssText = 'position:relative;width:400px;height:300px;';
+		const body = part.appendChild(document.createElement('div'));
+		body.className = 'content';
+		body.style.cssText = 'position:absolute;top:32px;width:400px;height:268px;';
+		const anchor = body.appendChild(document.createElement('div'));
+		anchor.style.cssText = 'position:absolute;inset:0;';
+		const overlay = createOverlay(root);
+		const corners = () => ['left', 'right'].map(edge => overlay.container.classList.contains(`webview-overlay-auxiliarybar-top-${edge}`));
+		try {
+			overlay.setAnchorElement(anchor);
+			assert.deepStrictEqual(corners(), [true, true]);
+			anchor.style.left = '200px';
+			overlay.setAnchorElement(anchor);
+			assert.deepStrictEqual(corners(), [false, true]);
+			anchor.style.top = '100px';
+			overlay.setAnchorElement(anchor);
+			assert.deepStrictEqual(corners(), [false, false]);
+			part.classList.remove('auxiliarybar');
+			anchor.style.cssText = 'position:absolute;inset:0;';
+			overlay.setAnchorElement(anchor);
+			assert.deepStrictEqual(corners(), [false, false]);
+		} finally {
+			overlay.dispose();
+			root.remove();
+		}
+	});
+
 	test('rounds only webview anchors that reach a native corner across editor splits and moves', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui floating-panels mac macos-tahoe nostatusbar';
