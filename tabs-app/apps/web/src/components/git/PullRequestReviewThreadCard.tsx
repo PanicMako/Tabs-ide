@@ -4,7 +4,6 @@ import {
   ChevronRight,
   Circle,
   CornerDownRight,
-  MessageSquare,
   Smile,
   Undo2,
   Wrench,

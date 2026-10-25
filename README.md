@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="https://buildwithtabs.com/downloads">
-    <img src="https://img.shields.io/badge/Download_Tabs-v1.3.33-6366f1?style=for-the-badge&logo=electron&logoColor=white" alt="Download Tabs" />
+    <img src="https://img.shields.io/badge/Download_Tabs-v2.1.0-0E2AF3?style=for-the-badge&logo=electron&logoColor=white" alt="Download Tabs" />
   </a>
   <a href="https://buildwithtabs.com">
     <img src="https://img.shields.io/badge/Website-buildwithtabs.com-0ea5e9?style=for-the-badge" alt="Website" />

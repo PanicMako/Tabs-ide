@@ -5,8 +5,8 @@ import { WorkbenchPreview } from "./WorkbenchPreview";
 type Appearance = "system" | "dark" | "light";
 const ICONS = [
   { id: "system", label: "System", description: "Follows your appearance" },
-  { id: "dark", label: "Dark", description: "A darker outline" },
-  { id: "light", label: "Light", description: "A lighter outline" },
+  { id: "dark", label: "Dark", description: "Ivory on ink" },
+  { id: "light", label: "Light", description: "Cobalt on white" },
 ] as const;
 const MODES = [
   { id: "system", label: "System", icon: MonitorIcon },

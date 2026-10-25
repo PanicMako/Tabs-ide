@@ -2,6 +2,7 @@ import { Buffer } from "node:buffer";
 
 import { Data, Effect, FileSystem, Path } from "effect";
 import sharp from "sharp";
+import { renderDesktopIcon, type DesktopIconPlatform } from "./desktop-icon.ts";
 
 import { BRAND_LOGO_SVG_PATHS, PUBLIC_BRAND_ICON_FILENAMES } from "./brand-assets.ts";
 
@@ -10,7 +11,7 @@ class IconAssetError extends Data.TaggedError("IconAssetError")<{
   readonly cause?: unknown;
 }> {}
 
-const ICO_SIZES = [16, 32, 48, 64, 128, 256] as const;
+const ICO_SIZES = [16, 20, 24, 32, 40, 48, 64, 128, 256] as const;
 const LEGACY_BROWSER_ICON_FILENAMES = ["icon.svg"] as const;
 
 function createIcoBuffer(
@@ -44,7 +45,12 @@ function createIcoBuffer(
   return Buffer.concat([header, directory, ...payloads]);
 }
 
-async function renderSvgToPngBuffer(svgPath: string, size: number): Promise<Buffer> {
+async function renderSvgToPngBuffer(
+  svgPath: string,
+  size: number,
+  platform?: DesktopIconPlatform,
+): Promise<Buffer> {
+  if (platform) return renderDesktopIcon(svgPath, size, platform);
   return sharp(svgPath)
     .resize(size, size, {
       fit: "contain",
@@ -54,9 +60,15 @@ async function renderSvgToPngBuffer(svgPath: string, size: number): Promise<Buff
     .toBuffer();
 }
 
-async function renderSvgToIcoBuffer(svgPath: string): Promise<Buffer> {
+async function renderSvgToIcoBuffer(
+  svgPath: string,
+  platform?: DesktopIconPlatform,
+): Promise<Buffer> {
   const icons = await Promise.all(
-    ICO_SIZES.map(async (size) => ({ size, png: await renderSvgToPngBuffer(svgPath, size) })),
+    ICO_SIZES.map(async (size) => ({
+      size,
+      png: await renderSvgToPngBuffer(svgPath, size, platform),
+    })),
   );
   return createIcoBuffer(icons);
 }
@@ -68,10 +80,15 @@ function writeBufferFile(targetPath: string, buffer: Buffer) {
   });
 }
 
-export function renderSvgToPngFile(svgPath: string, targetPath: string, size: number) {
+export function renderSvgToPngFile(
+  svgPath: string,
+  targetPath: string,
+  size: number,
+  platform?: DesktopIconPlatform,
+) {
   return Effect.gen(function* () {
     const buffer = yield* Effect.tryPromise({
-      try: () => renderSvgToPngBuffer(svgPath, size),
+      try: () => renderSvgToPngBuffer(svgPath, size, platform),
       catch: (cause) =>
         new IconAssetError({
           message: `Failed to render ${svgPath} to ${targetPath}`,
@@ -82,10 +99,14 @@ export function renderSvgToPngFile(svgPath: string, targetPath: string, size: nu
   });
 }
 
-export function renderSvgToIcoFile(svgPath: string, targetPath: string) {
+export function renderSvgToIcoFile(
+  svgPath: string,
+  targetPath: string,
+  platform?: DesktopIconPlatform,
+) {
   return Effect.gen(function* () {
     const buffer = yield* Effect.tryPromise({
-      try: () => renderSvgToIcoBuffer(svgPath),
+      try: () => renderSvgToIcoBuffer(svgPath, platform),
       catch: (cause) =>
         new IconAssetError({
           message: `Failed to render ${svgPath} to ${targetPath}`,
@@ -101,9 +122,15 @@ export function prepareBrowserBrandAssets(clientDir: string, repoRoot: string) {
     const fs = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
 
+    const signatureSvgPath = path.join(repoRoot, BRAND_LOGO_SVG_PATHS.signature);
     const lightSvgPath = path.join(repoRoot, BRAND_LOGO_SVG_PATHS.light);
     const darkSvgPath = path.join(repoRoot, BRAND_LOGO_SVG_PATHS.dark);
 
+    if (!(yield* fs.exists(signatureSvgPath))) {
+      return yield* new IconAssetError({
+        message: `Missing signature brand SVG: ${signatureSvgPath}`,
+      });
+    }
     if (!(yield* fs.exists(lightSvgPath))) {
       return yield* new IconAssetError({ message: `Missing light brand SVG: ${lightSvgPath}` });
     }
@@ -123,21 +150,21 @@ export function prepareBrowserBrandAssets(clientDir: string, repoRoot: string) {
     );
     yield* fs.copyFile(darkSvgPath, path.join(clientDir, PUBLIC_BRAND_ICON_FILENAMES.iconDarkSvg));
     yield* renderSvgToIcoFile(
-      lightSvgPath,
+      signatureSvgPath,
       path.join(clientDir, PUBLIC_BRAND_ICON_FILENAMES.faviconIco),
     );
     yield* renderSvgToPngFile(
-      lightSvgPath,
+      signatureSvgPath,
       path.join(clientDir, PUBLIC_BRAND_ICON_FILENAMES.favicon16Png),
       16,
     );
     yield* renderSvgToPngFile(
-      lightSvgPath,
+      signatureSvgPath,
       path.join(clientDir, PUBLIC_BRAND_ICON_FILENAMES.favicon32Png),
       32,
     );
     yield* renderSvgToPngFile(
-      lightSvgPath,
+      signatureSvgPath,
       path.join(clientDir, PUBLIC_BRAND_ICON_FILENAMES.appleTouchIconPng),
       180,
     );

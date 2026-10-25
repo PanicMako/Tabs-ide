@@ -2,6 +2,25 @@
 
 All notable changes to Tabs IDE will be documented in this file.
 
+## [v2.1.0] - 2026-10-25
+
+### A new identity for Tabs
+
+Tabs has a new app icon and five distinctive treatments, with desktop sizing that fits more comfortably beside other applications. This release also refreshes typography controls, the Mac installation guide, and the website introduction.
+
+### What changed
+
+- Choose Blueprint, Daybreak, Carbon Copy, Moonstone, or Afterglow in Themes, or follow your system appearance from General settings.
+- Use corrected icon spacing on macOS, with transparent margins in Windows and Linux exports too.
+- Explore saved typography mixes, separate interface and editor font choices, and updated appearance controls.
+- Follow the refreshed drag-to-Applications guide in the Mac installer.
+- Meet the new mascot in the website introduction: its eyes look around and follow a loose piece into place.
+- Find consistent new branding across the desktop app, website, Exchange header, browser icons, and shared-link previews.
+
+### Upgrade notes
+
+macOS builds are not Apple Developer ID signed or notarized. After attempting to open a downloaded build, use System Settings → Privacy & Security → Open Anyway.
+
 ## [v2.0.4] - 2026-10-25
 
 ### A more cohesive Code workspace

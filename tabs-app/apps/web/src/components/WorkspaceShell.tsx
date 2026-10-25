@@ -121,7 +121,6 @@ import {
   Trash2Icon,
   PanelTopCloseIcon,
   PanelTopOpenIcon,
-  MessageSquareIcon,
   TerminalSquareIcon,
   XIcon,
   PanelLeftIcon,
@@ -2424,7 +2423,7 @@ function AgentsThreadList(props: {
                                 />
                               )}
                               {(section === "settled" || section === "snoozed") && (
-                                <MessageSquareIcon className="size-3.5 shrink-0 text-muted-foreground/50" />
+                                <AssistantBubbleIcon className="size-3.5 shrink-0 text-muted-foreground/50" />
                               )}
                               {/* Status dot or spinner for active attention */}
                               {(() => {
@@ -2480,7 +2479,7 @@ function AgentsThreadList(props: {
                                 ) : thread.branch ? (
                                   <GitBranchIcon className="size-3 shrink-0 text-muted-foreground/60 group-hover:text-foreground/75" />
                                 ) : (
-                                  <MessageSquareIcon className="size-3 shrink-0 text-muted-foreground/60 group-hover:text-foreground/75" />
+                                  <AssistantBubbleIcon className="size-3 shrink-0 text-muted-foreground/60 group-hover:text-foreground/75" />
                                 )}
                                 <span className="truncate">
                                   {section === "snoozed"
@@ -3916,7 +3915,7 @@ function DesktopCodeTool(props: { project: Project }) {
                 in-panel thread list), and new thread. Threads are shared with the
                 Agents tab (same store), so anything started here shows there too. */}
             <header className="flex h-9 shrink-0 items-center gap-1 border-b border-border/70 pl-3 pr-1.5">
-              <MessageSquareIcon className="size-3.5 shrink-0 text-muted-foreground" />
+              <AssistantBubbleIcon className="size-3.5 shrink-0 text-muted-foreground" />
               <span className="min-w-0 flex-1 truncate text-xs font-medium text-foreground">
                 {showSideChatHistory ? "History" : sideChatThreadTitle}
               </span>
@@ -3968,7 +3967,7 @@ function DesktopCodeTool(props: { project: Project }) {
                             : "text-muted-foreground",
                         )}
                       >
-                        <MessageSquareIcon className="size-3.5 shrink-0" />
+                        <AssistantBubbleIcon className="size-3.5 shrink-0" />
                         <span className="min-w-0 flex-1 truncate">
                           {thread.title || "Untitled"}
                         </span>
@@ -3996,7 +3995,7 @@ function DesktopCodeTool(props: { project: Project }) {
                 </Suspense>
               ) : (
                 <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
-                  <MessageSquareIcon className="size-6 text-muted-foreground" />
+                  <AssistantBubbleIcon className="size-6 text-muted-foreground" />
                   <div className="text-sm font-medium text-foreground">No chat yet</div>
                   <div className="text-xs text-muted-foreground">
                     Hit + to start a thread, or open one from history.

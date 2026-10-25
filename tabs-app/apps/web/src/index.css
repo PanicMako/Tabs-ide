@@ -103,14 +103,6 @@ html[data-interface-study="dark"] .panel-animation-pill {
 .tabs-segmented.w-full {
   width: 100%;
 }
-.tabs-segmented.orbit-group:not(.grid),
-.tabs-segmented:not(.grid) {
-  width: fit-content;
-}
-.tabs-segmented.orbit-group.w-full,
-.tabs-segmented.w-full {
-  width: 100%;
-}
 .tabs-segmented.orbit-group > button {
   position: relative;
   z-index: 1;

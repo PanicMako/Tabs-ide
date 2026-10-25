@@ -21,15 +21,32 @@ export interface ChangelogRelease {
   }[];
 }
 
-export const TOTAL_TAGS_COUNT = 181;
+export const TOTAL_TAGS_COUNT = 182;
 
 export const changelogData: ChangelogRelease[] = [
+  {
+    tag: "v2.1.0",
+    title: "A new identity for Tabs",
+    date: "October 25, 2026",
+    shortDate: "Oct 25",
+    isLatest: true,
+    type: "feature",
+    summary:
+      "A new app identity, five icon treatments, balanced desktop icon sizing, and a playful website introduction.",
+    highlights: [
+      "Choose Blueprint, Daybreak, Carbon Copy, Moonstone, or Afterglow in Themes.",
+      "Use desktop icons with spacing that fits comfortably beside other applications.",
+      "Explore saved typography mixes and updated font controls.",
+      "Follow a refreshed Mac installer guide and meet the new mascot on the website.",
+    ],
+    categories: [],
+  },
   {
     tag: "v2.0.4",
     title: "A more cohesive Code workspace",
     date: "October 25, 2026",
     shortDate: "Oct 25",
-    isLatest: true,
+    isLatest: false,
     type: "patch",
     summary:
       "Connected assistant tabs, consistent editor surfaces, expanded typography controls, and mutually exclusive Code toolbar chat providers.",

@@ -452,7 +452,11 @@
       "types": "./src/publisherVerification.ts",
       "import": "./src/publisherVerification.ts"
     },
-    "./publisherVerification.css": "./src/publisherVerification.css"
+    "./publisherVerification.css": "./src/publisherVerification.css",
+    "./tabsBrand": {
+      "types": "./src/tabsBrand.ts",
+      "import": "./src/tabsBrand.ts"
+    }
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

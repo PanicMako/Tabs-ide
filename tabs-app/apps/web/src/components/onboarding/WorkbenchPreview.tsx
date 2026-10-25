@@ -1,20 +1,13 @@
 import "./workbench-preview.css";
 import { useId, useState } from "react";
 import { PreviewContent } from "./PreviewContent";
-import {
-  BotIcon,
-  GithubIcon,
-  GlobeIcon,
-  PlusIcon,
-  RocketIcon,
-  WorkflowIcon,
-  XIcon,
-} from "lucide-react";
+import { GithubIcon, GlobeIcon, PlusIcon, RocketIcon, WorkflowIcon, XIcon } from "lucide-react";
+import { AssistantBubbleIcon } from "../AssistantBubbleIcon";
 
 const PROJECTS = ["Project 1", "Project 2", "Project 3"] as const;
 const TOOLS = [
   { name: "Code", icon: WorkflowIcon },
-  { name: "Agents", icon: BotIcon },
+  { name: "Agents", icon: AssistantBubbleIcon },
   { name: "Dock", icon: RocketIcon },
   { name: "Git", icon: GithubIcon },
   { name: "Browser", icon: GlobeIcon },

@@ -1,3 +1,4 @@
+import { isTabsLogoVariant, resolveTabsLogoVariant } from "@tabs/shared/tabsBrand";
 import {
   findDownloadedInstaller,
   installedMacApplication,
@@ -1659,7 +1660,12 @@ function resolveResourcePath(fileName: string): string | null {
 }
 
 function getSafeIconTheme(rawTheme: unknown): DesktopIconTheme | null {
-  return rawTheme === "light" || rawTheme === "dark" || rawTheme === "system" ? rawTheme : null;
+  return rawTheme === "light" ||
+    rawTheme === "dark" ||
+    rawTheme === "system" ||
+    isTabsLogoVariant(rawTheme)
+    ? rawTheme
+    : null;
 }
 
 function readDesktopPreferences(): DesktopPreferences {
@@ -1678,7 +1684,7 @@ function writeDesktopPreferences(preferences: DesktopPreferences): void {
 }
 
 function loadDesktopIconThemePreference(): DesktopIconTheme {
-  return readDesktopPreferences().iconTheme ?? DEFAULT_DESKTOP_ICON_THEME;
+  return getSafeIconTheme(readDesktopPreferences().iconTheme) ?? DEFAULT_DESKTOP_ICON_THEME;
 }
 
 function shouldConfirmBeforeQuit(): boolean {
@@ -1693,17 +1699,18 @@ function resolveIconPath(
   ext: "ico" | "icns" | "png",
   theme: DesktopIconTheme = currentDesktopIconTheme,
 ): string | null {
-  const resolved =
-    theme === "system" ? (nativeTheme.shouldUseDarkColors ? "dark" : "light") : theme;
-  return resolveResourcePath(`icon-${resolved}.${ext}`) ?? resolveResourcePath(`icon.${ext}`);
+  const resolved = resolveTabsLogoVariant(theme, nativeTheme.shouldUseDarkColors);
+  const folder = process.platform === "darwin" && ext === "png" ? "brand/macos" : "brand";
+  return (
+    resolveResourcePath(`${folder}/icon-${resolved}.${ext}`) ?? resolveResourcePath(`icon.${ext}`)
+  );
 }
 
 function applyDesktopIconTheme(theme: DesktopIconTheme): void {
   currentDesktopIconTheme = theme;
   writeDesktopPreferences({ ...readDesktopPreferences(), iconTheme: theme });
 
-  const effectiveTheme: "dark" | "light" =
-    theme === "system" ? (nativeTheme.shouldUseDarkColors ? "dark" : "light") : theme;
+  const effectiveTheme = resolveTabsLogoVariant(theme, nativeTheme.shouldUseDarkColors);
 
   if (process.platform === "darwin" && app.dock) {
     const iconPath = resolveIconPath("png", effectiveTheme);

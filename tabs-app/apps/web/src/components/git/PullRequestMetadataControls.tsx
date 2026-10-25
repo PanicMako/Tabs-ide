@@ -5,7 +5,8 @@ import type {
   GitPullRequestComment,
   GitPullRequestAction,
 } from "@tabs/contracts";
-import { User, Tag, Check, X, MessageSquare, AlertCircle } from "lucide-react";
+import { User, Tag, Check, X, AlertCircle } from "lucide-react";
+import { AssistantBubbleIcon } from "../AssistantBubbleIcon";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import ChatMarkdown from "../ChatMarkdown";
@@ -87,7 +88,7 @@ export function PullRequestReviewersSection({
                   className="inline-flex items-center text-muted-foreground text-[10px]"
                   title="Commented"
                 >
-                  <MessageSquare className="size-3" />
+                  <AssistantBubbleIcon className="size-3" />
                 </span>
               );
             }

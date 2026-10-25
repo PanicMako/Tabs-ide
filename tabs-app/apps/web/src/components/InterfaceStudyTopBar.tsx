@@ -1,3 +1,4 @@
+import { TabsBrandMark } from "./TabsBrandMark";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -280,6 +281,7 @@ export const InterfaceStudyTopBar = memo(function InterfaceStudyTopBar(
       <div className="flex items-center gap-3 min-w-0 self-center">
         {/* Brand logo */}
         <div className="no-drag flex items-baseline gap-1.5 font-display text-[16px] font-extrabold tracking-tight text-foreground/90 shrink-0 select-none">
+          <TabsBrandMark className="size-6 self-center" />
           <span>Tabs</span>
           <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 px-1.5 py-0.5 rounded bg-foreground/5 border border-foreground/10">
             IDE

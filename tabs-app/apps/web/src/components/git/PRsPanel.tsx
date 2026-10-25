@@ -12,12 +12,12 @@ import {
   GitMerge,
   GitPullRequest,
   Layers,
-  MessageSquare,
   MoreHorizontal,
   Pencil,
   Plus,
   Search,
 } from "lucide-react";
+import { AssistantBubbleIcon } from "../AssistantBubbleIcon";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useMemo, useState } from "react";
 import type { KeyboardEvent } from "react";
@@ -925,7 +925,7 @@ export function PRsPanel({
                             ["code", "Code", FileDiff],
                             ["checks", "Checks", CheckCircle2],
                             ["commits", "Commits", GitCommit],
-                            ["activity", "Activity", MessageSquare],
+                            ["activity", "Activity", AssistantBubbleIcon],
                           ] as const
                         )
                           .filter(
@@ -1290,7 +1290,7 @@ export function PRsPanel({
                                                     }`}
                                                     title={`${fileThreads.length} discussion${fileThreads.length === 1 ? "" : "s"} (${unresolvedThreads.length} unresolved)`}
                                                   >
-                                                    <MessageSquare className="size-2.5" />
+                                                    <AssistantBubbleIcon className="size-2.5" />
                                                     {fileThreads.length}
                                                   </span>
                                                 ) : null}
@@ -1594,7 +1594,7 @@ export function PRsPanel({
                                         className="space-y-2 border-t border-border/60 bg-muted/10 p-3"
                                       >
                                         <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                                          <MessageSquare className="size-3.5" />
+                                          <AssistantBubbleIcon className="size-3.5" />
                                           <span>
                                             Outdated or File Discussions ({unmappedThreads.length})
                                           </span>

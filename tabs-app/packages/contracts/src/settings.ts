@@ -43,9 +43,18 @@ import { PullRequestMergeMethod } from "./pullRequest.ts";
 
 // ── Client Settings (local-only) ───────────────────────────────
 
-export const DesktopIconTheme = Schema.Literals(["dark", "light", "system"]);
+export const DesktopIconTheme = Schema.Literals([
+  "dark",
+  "light",
+  "system",
+  "signature",
+  "blue-white",
+  "mono",
+  "ivory-ink",
+  "blue-ink",
+]);
 export type DesktopIconTheme = typeof DesktopIconTheme.Type;
-export const DEFAULT_DESKTOP_ICON_THEME: DesktopIconTheme = "dark";
+export const DEFAULT_DESKTOP_ICON_THEME: DesktopIconTheme = "system";
 
 export const TimestampFormat = Schema.Literals(["locale", "12-hour", "24-hour"]);
 export type TimestampFormat = typeof TimestampFormat.Type;

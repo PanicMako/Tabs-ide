@@ -585,12 +585,16 @@ export function WelcomeWizard({ onDone }: WelcomeWizardProps) {
       const stored = localStorage.getItem("tabs:settings");
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (parsed.desktopIconTheme === "light" || parsed.desktopIconTheme === "system") {
+        if (
+          parsed.desktopIconTheme === "dark" ||
+          parsed.desktopIconTheme === "light" ||
+          parsed.desktopIconTheme === "system"
+        ) {
           return parsed.desktopIconTheme;
         }
       }
     } catch {}
-    return "dark";
+    return "system";
   });
   const [selectedAppearance, setSelectedAppearance] = useState<"system" | "dark" | "light">(() => {
     try {

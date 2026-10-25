@@ -39,8 +39,10 @@ const BuildArch = Schema.Literals(["arm64", "x64", "universal"]);
 const RepoRoot = Effect.service(Path.Path).pipe(
   Effect.flatMap((path) => path.fromFileUrl(new URL("..", import.meta.url))),
 );
-const LightBrandLogoSource = Effect.zipWith(RepoRoot, Effect.service(Path.Path), (repoRoot, path) =>
-  path.join(repoRoot, BRAND_LOGO_SVG_PATHS.light),
+const ProductionBrandLogoSource = Effect.zipWith(
+  RepoRoot,
+  Effect.service(Path.Path),
+  (repoRoot, path) => path.join(repoRoot, BRAND_LOGO_SVG_PATHS.signature),
 );
 const encodeJsonString = Schema.encodeEffect(Schema.fromJsonString(Schema.Unknown));
 
@@ -361,7 +363,7 @@ function stageMacIcons(stageResourcesDir: string, verbose: boolean) {
   return Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
-    const iconSource = yield* LightBrandLogoSource;
+    const iconSource = yield* ProductionBrandLogoSource;
     if (!(yield* fs.exists(iconSource))) {
       return yield* new BuildScriptError({
         message: `Production icon source is missing at ${iconSource}`,
@@ -374,7 +376,7 @@ function stageMacIcons(stageResourcesDir: string, verbose: boolean) {
 
     const iconPngPath = path.join(stageResourcesDir, "icon.png");
     const iconIcnsPath = path.join(stageResourcesDir, "icon.icns");
-    yield* renderSvgToPngFile(iconSource, iconPngPath, 1024);
+    yield* renderSvgToPngFile(iconSource, iconPngPath, 1024, "mac");
     yield* generateMacIconSet(iconPngPath, iconIcnsPath, tmpRoot, path, verbose);
   });
 }
@@ -382,18 +384,18 @@ function stageMacIcons(stageResourcesDir: string, verbose: boolean) {
 function stageLinuxIcons(stageResourcesDir: string) {
   return Effect.gen(function* () {
     const path = yield* Path.Path;
-    const iconSource = yield* LightBrandLogoSource;
+    const iconSource = yield* ProductionBrandLogoSource;
     const iconPath = path.join(stageResourcesDir, "icon.png");
-    yield* renderSvgToPngFile(iconSource, iconPath, 1024);
+    yield* renderSvgToPngFile(iconSource, iconPath, 1024, "linux");
   });
 }
 
 function stageWindowsIcons(stageResourcesDir: string) {
   return Effect.gen(function* () {
     const path = yield* Path.Path;
-    const iconSource = yield* LightBrandLogoSource;
+    const iconSource = yield* ProductionBrandLogoSource;
     const iconPath = path.join(stageResourcesDir, "icon.ico");
-    yield* renderSvgToIcoFile(iconSource, iconPath);
+    yield* renderSvgToIcoFile(iconSource, iconPath, "win");
   });
 }
 

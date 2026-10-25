@@ -6,7 +6,7 @@ import "../styles/exchange.css";
 import CustomCursor from "../components/CustomCursor.astro";
 
 import { exchangeSiteConfiguration } from "../lib/siteConfiguration";
-import { extensionMarkPath, extensionMarkViewBox } from "../lib/extensionMark";
+import { TABS_MARK } from "@tabs/shared/tabsBrand";
 const site = exchangeSiteConfiguration(process.env);
 interface Props { title: string; description?: string; active?: string; dashboard?: boolean; utility?: boolean }
 const { title, description = "An open extension ecosystem for Tabs. Discover, build, and publish workspace tools.", active, dashboard = false, utility = false } = Astro.props;
@@ -39,7 +39,7 @@ const navigation = [
     <CustomCursor />
     <a class="skip-link" href="#main">Skip to content</a>
     <header class:list={["site-header", dashboard && "dashboard-header"]}>
-      <a class="brand" href={dashboard ? "/account" : "/"} aria-label={dashboard ? "Exchange dashboard" : `${site.name} home`}><svg aria-hidden="true" focusable="false" width="26" height="26" viewBox={extensionMarkViewBox} fill="currentColor"><path d={extensionMarkPath} fill-rule="evenodd" /></svg>{site.name === "Tabs Exchange" ? <span>Tabs <span class="muted">Exchange</span></span> : <span>{site.name}</span>}</a>
+      <a class="brand" href={dashboard ? "/account" : "/"} aria-label={dashboard ? "Exchange dashboard" : `${site.name} home`}><svg aria-hidden="true" focusable="false" width="26" height="26" viewBox="0 0 390 390" fill="currentColor"><path d={TABS_MARK.main} fill-rule="evenodd" /><path d={TABS_MARK.detached} /></svg>{site.name === "Tabs Exchange" ? <span>Tabs <span class="muted">Exchange</span></span> : <span>{site.name}</span>}</a>
       {!dashboard && <button class="dashboard-menu-toggle" id="dashboard-menu-toggle" type="button" aria-controls="dashboard-sidebar" aria-expanded="false" hidden><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16" /></svg><span class="sr-only">Open site navigation</span></button>}
       {!dashboard && <nav id="dashboard-sidebar" class="mobile-site-menu" aria-label="Main navigation"><div class="dashboard-mobile-heading"><strong>Tabs Exchange</strong><button id="dashboard-menu-close" type="button" data-quiet-control aria-label="Close site navigation">×</button></div>{navigation.map(([label, href, key]) => <a href={href} aria-current={active === key ? "page" : undefined}>{label}</a>)}<a href="/account" class="mobile-dashboard-link">Your dashboard ↗</a></nav>}
       {dashboard && <><span class="header-workspace-label">/ Workspace</span><button class="dashboard-menu-toggle" id="dashboard-menu-toggle" type="button" aria-controls="dashboard-sidebar" aria-expanded="false" hidden><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16" /></svg><span class="sr-only">Open workspace navigation</span></button></>}

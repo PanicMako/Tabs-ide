@@ -9,7 +9,6 @@ import {
   InfoIcon,
   KeyboardIcon,
   LoaderCircleIcon,
-  MessageSquareIcon,
   MinusIcon,
   PlusIcon,
   RotateCcwIcon,
@@ -22,6 +21,7 @@ import {
   XIcon,
   DownloadIcon,
 } from "lucide-react";
+import { AssistantBubbleIcon } from "../AssistantBubbleIcon";
 import {
   type KeyboardEvent,
   type ReactNode,
@@ -1417,7 +1417,7 @@ export function KeybindingsSettings({
 
             const categoryIcons: Record<string, React.ReactNode> = {
               General: <KeyboardIcon className="size-5" />,
-              Chat: <MessageSquareIcon className="size-5" />,
+              Chat: <AssistantBubbleIcon className="size-5" />,
               Diff: <SplitIcon className="size-5" />,
               Editor: <CodeIcon className="size-5" />,
               Project: <TabletSmartphoneIcon className="size-5" />,

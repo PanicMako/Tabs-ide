@@ -20,7 +20,7 @@ vi.mock("../../state/settings", async (importOriginal) => ({
   useServerConfig: () => null,
 }));
 
-it("shows a compact curated collection, includes Studio Signal, and changes heading roles only", async () => {
+it("keeps curated heading presets alongside saved typography and preserves heading-only changes", async () => {
   const viewport = { width: window.innerWidth, height: window.innerHeight };
   const theme = snapshotThemeState();
   const keys = [SAVED_FONT_MIXES_KEY, "tabs:font-preferences", "tabs:client-settings:v1"];
@@ -44,8 +44,10 @@ it("shows a compact curated collection, includes Studio Signal, and changes head
   await page.viewport(1280, 1000);
   const view = await render(<ThemesSettings />);
   try {
-    expect(view.container.textContent).not.toContain("Your collection");
-    expect(view.container.textContent).not.toContain("Custom Pick");
+    expect(view.container.textContent).toContain("Your collection");
+    await expect
+      .element(page.getByRole("button", { name: "Custom Pick CUSTOM", exact: true }))
+      .toBeVisible();
     await expect.element(page.getByRole("button", { name: /Select Studio Signal:/ })).toBeVisible();
     expect(view.container.querySelectorAll(".font-specimen-card").length).toBe(10);
     expect(view.container.textContent).not.toContain("Paper Trail");

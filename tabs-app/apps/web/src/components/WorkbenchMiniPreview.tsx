@@ -12,7 +12,6 @@ import {
   GitBranch,
   Layers,
   LayoutGrid,
-  MessageSquare,
   MoreHorizontal,
   Search,
   Send,
@@ -21,6 +20,7 @@ import {
   Wrench,
   X,
 } from "lucide-react";
+import { AssistantBubbleIcon } from "./AssistantBubbleIcon";
 import {
   evaluateThemeTokens,
   runThemeWcagCheck,
@@ -115,7 +115,7 @@ export const WorkbenchMiniPreview: React.FC<WorkbenchMiniPreviewProps> = ({ conf
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            <MessageSquare className="size-3.5" />
+            <AssistantBubbleIcon className="size-3.5" />
             <span>Chat & App Shell</span>
           </button>
 
