@@ -45,7 +45,7 @@ jobs:
           node-version: 22
       - name: Install marketing dependencies
         working-directory: tabs-app
-        run: bun install --frozen-lockfile
+        run: bun install --frozen-lockfile --ignore-scripts
       - name: Refresh and verify live release assets
         working-directory: tabs-app/apps/marketing
         env:
