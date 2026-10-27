@@ -1,21 +1,31 @@
-import type { ProjectScript, ResolvedKeybindingsConfig } from "@tabs/contracts";
+import type {
+  ProjectScript,
+  ResolvedKeybindingsConfig,
+  T3ProjectFileScript,
+} from "@tabs/contracts";
 import type { Project } from "../../types";
 import { environmentApi } from "../../connection/environmentApiRegistry";
 import { newCommandId } from "../../lib/utils";
 import { commandForProjectScript, nextProjectScriptId } from "../../projectScripts";
 import { keybindingValueForCommand } from "../../lib/projectScriptKeybindings";
 import ProjectScriptsControl, { type NewProjectScriptInput } from "../ProjectScriptsControl";
+import { useT3ProjectFileScripts } from "../../hooks/useT3ProjectFileScripts";
 
 /** Keeps panel actions on the project's owning machine and existing project configuration. */
 export function WorkspaceProjectScripts({
   project,
   keybindings,
+  fileScripts,
   onRunScript,
 }: {
   project: Project;
   keybindings: ResolvedKeybindingsConfig;
+  fileScripts?: ReadonlyArray<T3ProjectFileScript>;
   onRunScript: (script: ProjectScript) => void;
 }) {
+  const autoFileScripts = useT3ProjectFileScripts(project.environmentId, project.cwd);
+  const effectiveFileScripts = fileScripts ?? autoFileScripts;
+
   const save = async (scripts: ProjectScript[], id: string, input?: NewProjectScriptInput) => {
     const api = await environmentApi(project.environmentId);
     const command = commandForProjectScript(id);
@@ -40,6 +50,7 @@ export function WorkspaceProjectScripts({
     <ProjectScriptsControl
       displayMode="panel"
       scripts={[...project.scripts]}
+      fileScripts={effectiveFileScripts}
       keybindings={keybindings}
       onRunScript={onRunScript}
       onAddScript={async (input) => {
