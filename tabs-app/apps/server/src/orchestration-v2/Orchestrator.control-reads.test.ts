@@ -684,3 +684,63 @@ it.effect(
       assert.deepEqual(child.thread.modelSelection, run.modelSelection);
     }).pipe(Effect.provide(layerTest)),
 );
+
+it.effect(
+  "rejects delegated task targeting an unsupported provider adapter at the server boundary",
+  () =>
+    Effect.gen(function* () {
+      const orchestrator = yield* Orchestrator.OrchestratorV2;
+      const projections = yield* ProjectionStore.ProjectionStoreV2;
+      const threadId = ThreadId.make("thread:unsupported-delegate-target");
+      yield* orchestrator.dispatch({
+        type: "thread.create",
+        commandId: CommandId.make("parent-create"),
+        threadId,
+        projectId: ProjectId.make("project:unsupported-delegate"),
+        title: "Parent with unsupported child target",
+        modelSelection,
+        runtimeMode: "approval-required",
+        interactionMode: "default",
+        branch: "feature/delegate-target",
+        worktreePath: null,
+        createdBy: "user",
+        creationSource: "web",
+      });
+      yield* orchestrator.dispatch({
+        type: "message.dispatch",
+        commandId: CommandId.make("parent-run-start"),
+        threadId,
+        messageId: MessageId.make("parent-msg"),
+        text: "Start parent work",
+        attachments: [],
+        dispatchMode: { type: "start_immediately" },
+        createdBy: "user",
+        creationSource: "web",
+      });
+      const parent = yield* projections.getThreadProjection(threadId);
+      const run = parent.runs[0]!;
+      const result = yield* Effect.exit(
+        orchestrator.dispatch({
+          type: "delegated_task.request",
+          commandId: CommandId.make("invalid-target-delegate"),
+          parentThreadId: threadId,
+          parentRunId: run.id,
+          parentNodeId: run.rootNodeId!,
+          task: "Task on unknown provider",
+          modelSelection: {
+            instanceId: ProviderInstanceId.make("unknown-nonexistent-provider"),
+            model: "nonexistent-model",
+          },
+          runtimeMode: parent.thread.runtimeMode,
+          interactionMode: parent.thread.interactionMode,
+          completionWake: "always",
+          createdBy: "user",
+          creationSource: "web",
+        }),
+      );
+      assert.equal(result._tag, "Failure");
+      if (result._tag === "Failure") {
+        assert.ok(String(result.cause).includes("OrchestratorProviderAdapterError"));
+      }
+    }).pipe(Effect.provide(layerTest)),
+);

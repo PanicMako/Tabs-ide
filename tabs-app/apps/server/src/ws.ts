@@ -1984,6 +1984,36 @@ const layerWsRpc = (
               getOrchestrationV2ArchivedShellSnapshot,
               { "rpc.aggregate": "orchestration" },
             ),
+          [ORCHESTRATION_V2_WS_METHODS.getThreadFamily]: (input) =>
+            observeRpcEffect(
+              ORCHESTRATION_V2_WS_METHODS.getThreadFamily,
+              sql
+                .withTransaction(
+                  Effect.gen(function* () {
+                    const threads = yield* threadManagement.getShellSnapshot({
+                      location: "active",
+                      familyOf: input.threadId,
+                    });
+                    return {
+                      snapshotSequence: yield* applicationEvents.latestApplicationSequence,
+                      threads: threads.threads,
+                    };
+                  }),
+                )
+                .pipe(
+                  Effect.mapError(
+                    (cause) =>
+                      new OrchestrationV2GetShellSnapshotError({
+                        message: "Failed to load the thread family",
+                        cause,
+                      }),
+                  ),
+                ),
+              {
+                "rpc.aggregate": "orchestration",
+                "orchestration_v2.thread_id": input.threadId,
+              },
+            ),
           [ORCHESTRATION_V2_WS_METHODS.getThreadProjection]: (input) =>
             observeRpcEffect(
               ORCHESTRATION_V2_WS_METHODS.getThreadProjection,

@@ -111,6 +111,10 @@
       "types": "./src/state/orchestrationV2Projection.ts",
       "default": "./src/state/orchestrationV2Projection.ts"
     },
+    "./state/threadRelationships": {
+      "types": "./src/state/threadRelationships.ts",
+      "default": "./src/state/threadRelationships.ts"
+    },
     "./state/presentation": {
       "types": "./src/state/presentation.ts",
       "default": "./src/state/presentation.ts"

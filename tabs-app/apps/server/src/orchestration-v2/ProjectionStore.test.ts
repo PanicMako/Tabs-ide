@@ -4685,3 +4685,130 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
     }),
   );
 });
+
+it.effect("filters shell snapshots by thread family", () =>
+  Effect.gen(function* () {
+    const store = yield* ProjectionStore.ProjectionStoreV2;
+    const now = yield* DateTime.now;
+    const rootId = ThreadId.make("thread:family:root");
+    const childId = ThreadId.make("thread:family:child");
+    const otherId = ThreadId.make("thread:family:unrelated");
+
+    yield* store.apply({
+      id: EventId.make("event:family:root-created"),
+      type: "thread.created",
+      threadId: rootId,
+      occurredAt: now,
+      payload: {
+        createdBy: "user",
+        creationSource: "web",
+        id: rootId,
+        projectId: ProjectId.make("project:family"),
+        title: "Family Root",
+        providerInstanceId,
+        modelSelection,
+        runtimeMode: "full-access",
+        interactionMode: "default",
+        branch: null,
+        worktreePath: null,
+        activeProviderThreadId: null,
+        lineage: {
+          parentThreadId: null,
+          rootThreadId: rootId,
+          relationshipToParent: null,
+        },
+        forkedFrom: null,
+        autoSettleDisabledAt: null,
+        settledOverride: null,
+        settledAt: null,
+        archivedAt: null,
+        deletedAt: null,
+        lastVisitedAt: null,
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
+
+    yield* store.apply({
+      id: EventId.make("event:family:child-created"),
+      type: "thread.created",
+      threadId: childId,
+      occurredAt: now,
+      payload: {
+        createdBy: "user",
+        creationSource: "web",
+        id: childId,
+        projectId: ProjectId.make("project:family"),
+        title: "Family Child",
+        providerInstanceId,
+        modelSelection,
+        runtimeMode: "full-access",
+        interactionMode: "default",
+        branch: null,
+        worktreePath: null,
+        activeProviderThreadId: null,
+        lineage: {
+          parentThreadId: rootId,
+          rootThreadId: rootId,
+          relationshipToParent: "subagent",
+        },
+        forkedFrom: null,
+        autoSettleDisabledAt: null,
+        settledOverride: null,
+        settledAt: null,
+        archivedAt: null,
+        deletedAt: null,
+        lastVisitedAt: null,
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
+
+    yield* store.apply({
+      id: EventId.make("event:family:unrelated-created"),
+      type: "thread.created",
+      threadId: otherId,
+      occurredAt: now,
+      payload: {
+        createdBy: "user",
+        creationSource: "web",
+        id: otherId,
+        projectId: ProjectId.make("project:family"),
+        title: "Unrelated Thread",
+        providerInstanceId,
+        modelSelection,
+        runtimeMode: "full-access",
+        interactionMode: "default",
+        branch: null,
+        worktreePath: null,
+        activeProviderThreadId: null,
+        lineage: {
+          parentThreadId: null,
+          rootThreadId: otherId,
+          relationshipToParent: null,
+        },
+        forkedFrom: null,
+        autoSettleDisabledAt: null,
+        settledOverride: null,
+        settledAt: null,
+        archivedAt: null,
+        deletedAt: null,
+        lastVisitedAt: null,
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
+
+    const rootFamily = yield* store.getShellSnapshot({ location: "active", familyOf: rootId });
+    assert.deepEqual(rootFamily.threads.map((t) => t.id).sort(), [childId, rootId].sort());
+
+    const childFamily = yield* store.getShellSnapshot({ location: "active", familyOf: childId });
+    assert.deepEqual(childFamily.threads.map((t) => t.id).sort(), [childId, rootId].sort());
+
+    const otherFamily = yield* store.getShellSnapshot({ location: "active", familyOf: otherId });
+    assert.deepEqual(
+      otherFamily.threads.map((t) => t.id),
+      [otherId],
+    );
+  }).pipe(Effect.provide(layerTest)),
+);

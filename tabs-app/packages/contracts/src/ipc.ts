@@ -256,12 +256,14 @@ import type {
 } from "./orchestration.ts";
 import type {
   OrchestrationV2Command,
+  OrchestrationV2GetThreadFamilyInput,
   OrchestrationV2GetThreadProjectionInput,
   OrchestrationV2ReconcileIntakeInput,
   OrchestrationV2ReconcileIntakeResult,
   OrchestrationV2RecordCancellationIntentInput,
   OrchestrationV2RecordCancellationIntentResult,
   OrchestrationV2ShellStreamItem,
+  OrchestrationV2ThreadFamily,
   OrchestrationV2ThreadProjection,
   OrchestrationV2ThreadStreamItem,
 } from "./orchestrationV2.ts";
@@ -1796,6 +1798,9 @@ export interface EnvironmentApi {
       input: OrchestrationGetFullThreadDiffInput,
     ) => Promise<OrchestrationGetFullThreadDiffResult>;
     getArchivedShellSnapshot: () => Promise<OrchestrationShellSnapshot>;
+    getThreadFamily: (
+      input: OrchestrationV2GetThreadFamilyInput,
+    ) => Promise<OrchestrationV2ThreadFamily>;
     getThreadProjection: (
       input: OrchestrationV2GetThreadProjectionInput,
     ) => Promise<OrchestrationV2ThreadProjection>;

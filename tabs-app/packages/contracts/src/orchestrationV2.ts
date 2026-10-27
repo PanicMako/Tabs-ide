@@ -3163,6 +3163,7 @@ export const ORCHESTRATION_V2_WS_METHODS = {
   getFullThreadDiff: "orchestration.getFullThreadDiff",
   searchThreads: "orchestration.searchThreads",
   getArchivedShellSnapshot: "orchestration.getArchivedShellSnapshot",
+  getThreadFamily: "orchestration.getThreadFamily",
   getThreadProjection: "orchestration.getThreadProjection",
   getWorkflowScript: "orchestration.getWorkflowScript",
   getTurnItem: "orchestration.getTurnItem",
@@ -3243,6 +3244,17 @@ export const OrchestrationV2GetThreadProjectionInput = Schema.Struct({
 });
 export type OrchestrationV2GetThreadProjectionInput =
   typeof OrchestrationV2GetThreadProjectionInput.Type;
+
+export const OrchestrationV2GetThreadFamilyInput = Schema.Struct({
+  threadId: ThreadId,
+});
+export type OrchestrationV2GetThreadFamilyInput = typeof OrchestrationV2GetThreadFamilyInput.Type;
+
+export const OrchestrationV2ThreadFamily = Schema.Struct({
+  snapshotSequence: NonNegativeInt,
+  threads: Schema.Array(OrchestrationV2ThreadShell),
+});
+export type OrchestrationV2ThreadFamily = typeof OrchestrationV2ThreadFamily.Type;
 
 export const OrchestrationV2SubscribeShellInput = Schema.Struct({
   /**
@@ -3628,6 +3640,10 @@ export interface OrchestrationV2RpcSchemasShape {
     Schema.Struct<{}>,
     typeof OrchestrationV2ArchivedShellSnapshot
   >;
+  readonly getThreadFamily: OrchestrationV2RpcSchemaDefinition<
+    typeof OrchestrationV2GetThreadFamilyInput,
+    typeof OrchestrationV2ThreadFamily
+  >;
   readonly getThreadProjection: OrchestrationV2RpcSchemaDefinition<
     typeof OrchestrationV2GetThreadProjectionInput,
     typeof OrchestrationV2ThreadProjection
@@ -3682,6 +3698,10 @@ export const OrchestrationV2RpcSchemas: OrchestrationV2RpcSchemasShape = {
   getArchivedShellSnapshot: {
     input: Schema.Struct({}),
     output: OrchestrationV2ArchivedShellSnapshot,
+  },
+  getThreadFamily: {
+    input: OrchestrationV2GetThreadFamilyInput,
+    output: OrchestrationV2ThreadFamily,
   },
   getThreadProjection: {
     input: OrchestrationV2GetThreadProjectionInput,

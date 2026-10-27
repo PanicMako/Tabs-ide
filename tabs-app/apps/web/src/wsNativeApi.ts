@@ -856,6 +856,8 @@ export function createWsNativeApi(options?: {
         ),
       getArchivedShellSnapshot: () =>
         transport.request(ORCHESTRATION_WS_METHODS.getArchivedShellSnapshot, {}),
+      getThreadFamily: (input) =>
+        transport.request(ORCHESTRATION_V2_WS_METHODS.getThreadFamily, input),
       getThreadProjection: (input) =>
         transport
           .request<OrchestrationV2ThreadProjection>(

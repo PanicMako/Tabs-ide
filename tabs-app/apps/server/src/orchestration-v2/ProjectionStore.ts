@@ -340,6 +340,7 @@ export interface ProjectionStoreV2Shape {
   readonly getShellSnapshot: (options?: {
     readonly location?: "active" | "archive";
     readonly unsettledOnly?: boolean;
+    readonly familyOf?: ThreadId;
   }) => Effect.Effect<OrchestrationV2ThreadShellSnapshot, ProjectionStoreV2Error>;
   readonly getThreadShell: (
     threadId: ThreadId,
@@ -4910,6 +4911,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
       threadId?: ThreadId,
       location?: "active" | "archive",
       unsettledOnly = false,
+      familyOf?: ThreadId,
     ) =>
       sql<ShellThreadRow>`
             SELECT
@@ -5092,6 +5094,14 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
               unsettledOnly
                 ? sql` AND json_extract(t.payload_json, '$.settledAt') IS NULL AND json_extract(t.payload_json, '$.settledOverride') IS NOT 'settled'`
                 : sql``
+            }${
+              familyOf === undefined
+                ? sql``
+                : sql` AND json_extract(t.payload_json, '$.lineage.rootThreadId') = (
+                    SELECT json_extract(member.payload_json, '$.lineage.rootThreadId')
+                    FROM orchestration_v2_projection_threads member
+                    WHERE member.thread_id = ${familyOf}
+                  )`
             }
             ORDER BY t.updated_at ASC, t.thread_id ASC
           `;
@@ -5511,6 +5521,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
               undefined,
               options?.location,
               options?.unsettledOnly ?? false,
+              options?.familyOf,
             );
             const targetThreadIds = new Set(
               targetThreadRows.map((row) => ThreadId.make(row.thread_id)),
@@ -5748,6 +5759,15 @@ export const layerMemory: Layer.Layer<ProjectionStoreV2> = Layer.effect(
                   projection.thread.settledOverride === "settled")
               ) {
                 return false;
+              }
+              if (options?.familyOf !== undefined) {
+                const member = existing.get(options.familyOf)?.thread;
+                if (
+                  member === undefined ||
+                  projection.thread.lineage.rootThreadId !== member.lineage.rootThreadId
+                ) {
+                  return false;
+                }
               }
               if (options?.location === "active") return projection.thread.archivedAt === null;
               if (options?.location === "archive") return projection.thread.archivedAt !== null;
