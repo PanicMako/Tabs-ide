@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getTabsEmbeddedRowHeight } from '../../../browser/tabsEmbeddedLayout.js';
 import * as dom from '../../../../base/browser/dom.js';
 import { IKeyboardEvent, StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
@@ -591,7 +592,7 @@ class BreakpointsDelegate implements IListVirtualDelegate<BreakpointTreeElement>
 	}
 
 	getHeight(_element: BreakpointTreeElement): number {
-		return 22;
+		return getTabsEmbeddedRowHeight(22);
 	}
 
 	getTemplateId(element: BreakpointTreeElement): string {

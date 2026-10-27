@@ -1,141 +1,168 @@
 ---
 import TabsLogo from "./TabsLogo.astro";
+import { TABS_MARK } from "@tabs/shared/tabsBrand";
+
+// Keep the approved silhouette; animate the eye cutouts independently.
+const silhouette = `${TABS_MARK.main.split(" Z M")[0]} Z`;
 ---
 <div id="tabs-page-loader" class="page-loader" hidden>
-  <div class="loader-wordmark">
-    <div class="hs-brand-lockup">
-      <div class="hs-brand">
-        <TabsLogo size={26} />
-        <span>Tabs<span class="hs-brand-suffix">IDE</span></span>
-      </div>
-      <span class="hs-brand-divider" aria-hidden="true"></span>
-      <div class="hs-access-tag" aria-label="Public Beta">
-        <span>PUBLIC</span>
-        <span>BETA</span>
-      </div>
-    </div>
+  <div class="loader-wordmark"><TabsLogo size={32} /><span>Tabs</span></div>
+  <div class="loader-composition">
+    <button class="loader-mascot" id="loader-mascot" type="button" aria-label="Play with the Tabs mascot">
+      <svg class="loader-drawing" viewBox="-155 -35 640 490" aria-hidden="true">
+        <defs>
+          <mask id="loader-eye-mask" maskUnits="userSpaceOnUse" x="0" y="0" width="390" height="390">
+            <path fill="white" d={silhouette} />
+            <g class="mascot-eyes"><g class="mascot-eye-follow">
+              <rect class="mascot-eye" fill="black" x="65" y="108" width="23" height="56" rx="11.5"/>
+              <rect class="mascot-eye" fill="black" x="126" y="108" width="23" height="56" rx="11.5"/>
+            </g></g>
+          </mask>
+        </defs>
+        <g class="mascot-performance">
+          <g class="mascot-body"><path d={silhouette} mask="url(#loader-eye-mask)" /></g>
+          <g class="mascot-piece-reaction"><path class="mascot-detached" d={TABS_MARK.detached} /></g>
+        </g>
+      </svg>
+    </button>
+    <div class="loader-caption" aria-hidden="true"><span>Many moving parts.</span><span>One place.</span></div>
+    <span class="sr-only" role="status">Opening Tabs</span>
   </div>
-  <div class="loader-composition" aria-hidden="true">
-    <svg class="loader-drawing" viewBox="0 0 360 280" fill="none">
-      <g class="sheet sheet-back"><path pathLength="100" d="M86 78V62a10 10 0 0 1 10-10h57l19 19h94a10 10 0 0 1 10 10v117a10 10 0 0 1-10 10H96a10 10 0 0 1-10-10V78Z" /></g>
-      <g class="sheet sheet-middle"><path pathLength="100" d="M86 78V62a10 10 0 0 1 10-10h57l19 19h94a10 10 0 0 1 10 10v117a10 10 0 0 1-10 10H96a10 10 0 0 1-10-10V78Z" /></g>
-      <g class="sheet sheet-front"><path pathLength="100" d="M86 78V62a10 10 0 0 1 10-10h57l19 19h94a10 10 0 0 1 10 10v117a10 10 0 0 1-10 10H96a10 10 0 0 1-10-10V78Z" /><path class="loader-prompt" pathLength="100" d="m126 115 20 18-20 18m40 0h35" /></g>
-      <circle class="loader-point" cx="285" cy="62" r="3" />
-    </svg>
-    <div class="loader-caption"><span>Many moving parts.</span><span>One place.</span></div>
-  </div>
-  <div class="loader-meter">
-    <div class="loader-meter-top"><span>MAKING ROOM</span><span class="loader-count"><b id="loader-num">00</b><small>/ 100</small></span></div>
-    <div class="loader-track" aria-hidden="true"><div id="loader-fill"></div></div>
-    <div class="loader-meter-bottom"><span role="status">Bigger than an IDE.</span><button id="loader-skip" type="button">Skip intro <span aria-hidden="true">↗</span></button></div>
-  </div>
+  <div class="loader-footer"><span>A little room for everything.</span><button id="loader-skip" type="button">Skip intro <span aria-hidden="true">↗</span></button></div>
 </div>
 <style>
-  .page-loader { position:fixed; inset:0; z-index:99999; background:#fbfcfe; color:#263149; overflow:hidden; clip-path:inset(0 0 0 0); transition:clip-path .95s cubic-bezier(.76,0,.24,1),visibility 0s .95s; }
-  .page-loader[hidden] { display:none; }
-  .page-loader.loader-dismissed { clip-path:inset(0 0 100% 0); visibility:hidden; pointer-events:none; }
-  .loader-wordmark { position:absolute; top:6.5%; left:7%; display:flex; align-items:center; }
-  .loader-wordmark .hs-brand-lockup { display:flex; align-items:center; min-width:max-content; }
-  .loader-wordmark .hs-brand { display:flex; align-items:center; gap:9px; color:#3259ed; text-decoration:none; }
-  .loader-wordmark .hs-brand svg { height:26px; width:auto; flex-shrink:0; }
-  .loader-wordmark .hs-brand > span { font-family:"DM Sans", sans-serif; font-size:24px; letter-spacing:-0.03em; font-weight:700; display:inline-flex; align-items:baseline; line-height:1; color:#3259ed; }
-  .loader-wordmark .hs-brand-suffix { font-size:24px; font-weight:350; letter-spacing:-0.01em; color:#93a7fd; margin-left:8px; line-height:1; border:none; background:transparent; padding:0; vertical-align:baseline; }
-  .loader-wordmark .hs-brand-divider { display:inline-block; width:1.5px; height:23px; background:#e2e8f0; margin:0 15px; flex-shrink:0; }
-  .loader-wordmark .hs-access-tag { display:inline-flex; flex-direction:column; justify-content:center; font-family:"DM Sans", sans-serif; font-size:7.5px; font-weight:500; letter-spacing:0.16em; line-height:1.2; color:#64748b; text-transform:uppercase; user-select:none; white-space:nowrap; }
-  @media(max-width:760px) {
-    .loader-wordmark .hs-brand svg { height:22px; }
-    .loader-wordmark .hs-brand > span, .loader-wordmark .hs-brand-suffix { font-size:20px; }
-    .loader-wordmark .hs-brand-divider { height:19px; margin:0 12px; }
-    .loader-wordmark .hs-access-tag { font-size:6.5px; letter-spacing:0.14em; font-weight:500; color:#64748b; }
+  .page-loader {
+    --intro-ink: #0e2af3;
+    --intro-ground: #f3efe9;
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    background: var(--intro-ground);
+    color: var(--intro-ink);
+    overflow: hidden;
+    clip-path: inset(0);
+    transition: clip-path .7s cubic-bezier(.76,0,.24,1), visibility 0s .7s;
   }
-  @media(max-width:480px) {
-    .loader-wordmark .hs-brand svg { height:19px; }
-    .loader-wordmark .hs-brand > span, .loader-wordmark .hs-brand-suffix { font-size:17px; }
-    .loader-wordmark .hs-brand-divider { height:16px; margin:0 8px; }
-    .loader-wordmark .hs-access-tag { font-size:6px; letter-spacing:0.12em; font-weight:500; color:#64748b; }
+  .page-loader[hidden] { display: none; }
+  .page-loader.loader-dismissed { clip-path: inset(0 0 100% 0); visibility: hidden; pointer-events: none; }
+  .loader-wordmark { position: absolute; top: 6%; left: 6%; display: flex; align-items: center; gap: 11px; }
+  .loader-wordmark > span { font: 600 25px/1 "DM Sans",sans-serif; letter-spacing: -.055em; }
+  .loader-composition { position: absolute; left: 50%; top: 47%; transform: translate(-50%,-50%); width: min(490px,88vw); }
+  .loader-mascot { display: block; width: 100%; padding: 0; border: 0; background: transparent; cursor: pointer; color: inherit; border-radius: 28px; touch-action: manipulation; }
+  .loader-drawing { display: block; width: 100%; overflow: visible; fill: currentColor; }
+  .mascot-body { transform-origin: 205px 378px; animation: body-performance 4.2s both; }
+  .mascot-eyes { animation: eyes-search 4.2s both; }
+  .mascot-eye-follow { transform: translate(var(--look-x,0px),var(--look-y,0px)); transition: transform .18s ease-out; }
+  .mascot-eye { transform-box: fill-box; transform-origin: center; animation: eyes-blink 4.2s both; }
+  .mascot-detached { transform-origin: 94px 315px; animation: piece-find-home 4.2s both; }
+  .mascot-piece-reaction { transform-origin: 94px 315px; }
+  .loader-caption { position: relative; height: 36px; margin-top: 8px; text-align: center; font: 500 clamp(21px,3vw,29px)/1.25 "DM Sans",sans-serif; letter-spacing: -.045em; }
+  .loader-caption span { position: absolute; inset: 0; }
+  .loader-caption span:first-child { animation: caption-search 4.2s both; }
+  .loader-caption span:last-child { animation: caption-home 4.2s both; }
+  .loader-footer { position: absolute; bottom: 5%; left: 6%; right: 6%; display: flex; align-items: center; justify-content: space-between; gap: 20px; color: #111318; font: 400 14px/1.5 "DM Sans",sans-serif; }
+  .loader-footer button { border: 0; background: none; color: inherit; padding: 12px 0 12px 16px; cursor: pointer; font: inherit; }
+  .loader-footer button span { display: inline-block; margin-left: 8px; transition: transform .2s; }
+  .loader-footer button:hover span { transform: translate(2px,-2px); }
+  button:focus-visible { outline: 2px solid var(--intro-ink); outline-offset: 5px; }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
+  /* Hold each glance long enough to read as a decision, then catch the loose piece. */
+  @keyframes eyes-search {
+    0%,8% { transform: translate(0,0); animation-timing-function: cubic-bezier(.2,.8,.2,1); }
+    14%,25% { transform: translate(-15px,-2px); animation-timing-function: cubic-bezier(.2,.8,.2,1); }
+    31%,40% { transform: translate(17px,0); animation-timing-function: cubic-bezier(.2,.8,.2,1); }
+    46%,52% { transform: translate(-12px,12px); animation-timing-function: cubic-bezier(.2,.8,.2,1); }
+    60%,66% { transform: translate(-3px,9px); animation-timing-function: cubic-bezier(.2,.8,.2,1); }
+    72%,100% { transform: translate(0,0); }
   }
-  .loader-composition { position:absolute; top:45%; left:50%; transform:translate(-50%,-50%); width:min(360px,85vw); }
-  .loader-drawing { display:block; width:100%; overflow:visible; }
-  .sheet { transform-origin:180px 140px; }
-  .sheet path { stroke-width:1.35; stroke-linecap:round; stroke-linejoin:round; stroke-dasharray:100; stroke-dashoffset:100; fill:#fbfcfe; }
-  .sheet-back path { stroke:#7d9d90; }
-  .sheet-middle path { stroke:#d1a078; }
-  .sheet-front path { stroke:#3458f5; }
-  .sheet .loader-prompt { fill:none; stroke-width:1.8; }
-  .loader-point { fill:#3458f5; opacity:0; }
-  .page-loader:not([hidden]) .sheet-back { animation:fold-back 3.6s cubic-bezier(.65,0,.25,1) both; }
-  .page-loader:not([hidden]) .sheet-middle { animation:fold-middle 3.6s cubic-bezier(.65,0,.25,1) both; }
-  .page-loader:not([hidden]) .sheet-front { animation:fold-front 3.6s cubic-bezier(.65,0,.25,1) both; }
-  .page-loader:not([hidden]) .sheet path { animation:draw-outline 3.6s cubic-bezier(.45,0,.25,1) both; }
-  .page-loader:not([hidden]) .sheet .loader-prompt { animation:draw-prompt 3.6s ease both; }
-  .page-loader:not([hidden]) .loader-point { animation:travel-point 3.6s cubic-bezier(.65,0,.25,1) both; }
-  .loader-caption { display:grid; text-align:center; gap:5px; margin-top:8px; font-size:16px; letter-spacing:-.3px; }
-  .loader-caption span:first-child { color:#7a8191; }
-  .loader-caption span:last-child { color:#3458f5; }
-  .page-loader:not([hidden]) .loader-caption span { animation:caption-in 1s .65s both; }
-  .page-loader:not([hidden]) .loader-caption span:last-child { animation-delay:1.8s; }
-  .loader-meter { position:absolute; bottom:7%; left:50%; transform:translateX(-50%); width:min(440px,86vw); }
-  .loader-meter-top,.loader-meter-bottom { display:flex; align-items:center; justify-content:space-between; gap:16px; }
-  .loader-meter-top > span:first-child { font:11px monospace; letter-spacing:.13em; color:#7a8191; }
-  .loader-count { display:flex; align-items:baseline; gap:9px; }
-  .loader-count b { color:#3458f5; font-size:42px; font-weight:400; letter-spacing:-2px; font-variant-numeric:tabular-nums; }
-  .loader-count small { font:11px monospace; color:#7a8191; }
-  .loader-track { margin-top:14px; height:1px; background:#dfe4ef; }
-  #loader-fill { height:100%; background:#3458f5; transform:scaleX(0); transform-origin:left; }
-  .loader-meter-bottom { margin-top:16px; font-size:12px; color:#7a8191; }
-  .loader-meter-bottom button { border:0; background:none; color:#5b6680; padding:8px 0 8px 16px; cursor:pointer; font:inherit; }
-  .loader-meter-bottom button span { display:inline-block; margin-left:8px; transition:transform .25s; }
-  .loader-meter-bottom button:hover span { transform:translate(2px,-2px); }
-  button:focus-visible { outline:2px solid #3458f5; outline-offset:5px; }
-  @keyframes draw-outline { 0% { stroke-dashoffset:100; } 38%,100% { stroke-dashoffset:0; } }
-  @keyframes draw-prompt { 0%,65% { stroke-dashoffset:100; opacity:0; } 88%,100% { stroke-dashoffset:0; opacity:1; } }
-  @keyframes fold-back { 0% { transform:translate(-48px,16px) rotate(-18deg) scale(.86); } 35%,50% { transform:translate(-36px,-8px) rotate(-14deg); } 82%,100% { transform:translate(12px,-12px) rotate(0deg); } }
-  @keyframes fold-middle { 0% { transform:translate(42px,-12px) rotate(16deg) scale(.86); } 35%,50% { transform:translate(32px,-2px) rotate(12deg); } 82%,100% { transform:translate(0,0) rotate(0deg); } }
-  @keyframes fold-front { 0% { transform:translate(0,40px) scale(.86); } 35%,50% { transform:translate(0,25px); } 82%,100% { transform:translate(-12px,12px); } }
-  @keyframes travel-point { 0%,12% { opacity:0; transform:translate(-140px,150px); } 32%,50% { opacity:1; transform:translate(18px,-10px); } 78%,100% { opacity:0; transform:translate(-70px,82px); } }
-  @keyframes caption-in { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
-  @media(max-height:600px) { .loader-composition { width:230px; top:40%; } .loader-caption { font-size:14px; } .loader-count b { font-size:30px; } }
-  @media(prefers-reduced-motion:reduce) { .page-loader { display:none; } }
+  @keyframes eyes-blink {
+    0%,69%,76%,100% { transform: scaleY(1); }
+    72%,73% { transform: scaleY(.09); }
+  }
+  @keyframes body-performance {
+    0%,9% { transform: rotate(0); animation-timing-function: cubic-bezier(.2,.8,.2,1); }
+    16%,25% { transform: rotate(-3deg); animation-timing-function: cubic-bezier(.2,.8,.2,1); }
+    32%,39% { transform: rotate(2deg); animation-timing-function: cubic-bezier(.2,.8,.2,1); }
+    47%,53% { transform: rotate(-4deg); animation-timing-function: cubic-bezier(.3,0,.2,1); }
+    60% { transform: translateY(4px) scale(1.025,.975); animation-timing-function: cubic-bezier(.2,.8,.2,1); }
+    67% { transform: translateY(-3px) scale(.99,1.01); }
+    75%,100% { transform: none; }
+  }
+  @keyframes piece-find-home {
+    0%,35% { opacity: 0; transform: translate(-145px,45px) rotate(-18deg); animation-timing-function: cubic-bezier(.16,1,.3,1); }
+    43% { opacity: 1; transform: translate(-100px,28px) rotate(-18deg); animation-timing-function: cubic-bezier(.3,0,.25,1); }
+    51% { opacity: 1; transform: translate(-62px,-45px) rotate(8deg); animation-timing-function: cubic-bezier(.4,0,.75,1); }
+    60% { opacity: 1; transform: translate(6px,3px) rotate(-2deg); animation-timing-function: cubic-bezier(.2,.8,.2,1); }
+    67% { opacity: 1; transform: translate(-2px,-2px) rotate(1deg); }
+    75%,100% { opacity: 1; transform: none; }
+  }
+  @keyframes caption-search { 0%,58% { opacity: 1; transform: none; } 65%,100% { opacity: 0; transform: translateY(-12px); } }
+  @keyframes caption-home { 0%,64% { opacity: 0; transform: translateY(12px); } 76%,100% { opacity: 1; transform: none; } }
+  @media(max-height:600px) {
+    .loader-composition { width: min(290px,58vw); top: 46%; }
+    .loader-caption { font-size: 20px; margin-top: 0; }
+    .loader-wordmark { top: 5%; }
+    .loader-footer { bottom: 3%; }
+  }
+  @media(max-width:420px) { .loader-footer { font-size: 12px; gap: 10px; } }
+  @media(prefers-reduced-motion:reduce) { .page-loader { display: none; } .mascot-eye-follow { transition: none; } }
 </style>
 <script>
   const loader = document.getElementById("tabs-page-loader");
-  const num = document.getElementById("loader-num");
-  const fill = document.getElementById("loader-fill");
   const skip = document.getElementById("loader-skip");
   const main = document.getElementById("main");
-  if (loader && num && fill && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    // This counter follows the brand introduction, not a simulated download.
+  const mascot = document.getElementById("loader-mascot");
+  const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+  if (loader && mascot && !reducedMotion.matches) {
     loader.hidden = false;
     if (main) main.inert = true;
-    let frame = 0;
     let finished = false;
+    let reaction: Animation | undefined;
+    const resetGaze = () => {
+      mascot.style.setProperty("--look-x", "0px");
+      mascot.style.setProperty("--look-y", "0px");
+    };
+    const look = (event: PointerEvent) => {
+      const rect = mascot.getBoundingClientRect();
+      const scale = 640 / rect.width;
+      mascot.style.setProperty("--look-x", `${Math.max(-5, Math.min(5, (event.clientX - rect.left - rect.width / 2) * scale * .025))}px`);
+      mascot.style.setProperty("--look-y", `${Math.max(-4, Math.min(4, (event.clientY - rect.top - rect.height / 2) * scale * .025))}px`);
+    };
+    const play = () => {
+      reaction?.cancel();
+      reaction = mascot.querySelector(".mascot-piece-reaction")?.animate([
+        { transform: "translateY(0) rotate(0)" },
+        { transform: "translateY(-24px) rotate(-7deg)", offset: .42 },
+        { transform: "translateY(0) rotate(0)" },
+      ], { duration: 620, easing: "cubic-bezier(.2,.8,.2,1)" });
+    };
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") dismiss(); };
+    const onMotionChange = () => { if (reducedMotion.matches) dismiss(); };
     const dismiss = () => {
       if (finished) return;
       finished = true;
-      cancelAnimationFrame(frame);
-      clearTimeout(failsafe);
+      clearTimeout(timer);
+      reaction?.cancel();
       document.removeEventListener("keydown", onKey);
+      reducedMotion.removeEventListener("change", onMotionChange);
+      mascot.removeEventListener("pointermove", look);
+      mascot.removeEventListener("pointerleave", resetGaze);
+      mascot.removeEventListener("click", play);
+      skip?.removeEventListener("click", dismiss);
       if (main) main.inert = false;
-      if (loader.contains(document.activeElement)) {
-        main?.querySelector<HTMLAnchorElement>("a")?.focus({ preventScroll: true });
-      }
+      if (loader.contains(document.activeElement)) main?.querySelector<HTMLAnchorElement>("a")?.focus({ preventScroll: true });
       loader.classList.add("loader-dismissed");
       document.dispatchEvent(new Event("tabs:intro-complete"));
-      window.setTimeout(() => { loader.hidden = true; }, 960);
+      window.setTimeout(() => { loader.hidden = true; }, 750);
     };
-    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") dismiss(); };
     document.addEventListener("keydown", onKey);
-    skip?.addEventListener("click", dismiss, { once: true });
-    const failsafe = window.setTimeout(dismiss, 5500);
-    const start = performance.now();
-    const tick = (now: number) => {
-      const progress = Math.min(1, (now - start) / 3600);
-      const eased = progress < .5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2;
-      num.textContent = String(Math.floor(eased * 100)).padStart(2, "0");
-      fill.style.transform = `scaleX(${eased})`;
-      if (progress < 1) frame = requestAnimationFrame(tick);
-      else window.setTimeout(dismiss, 300);
-    };
-    frame = requestAnimationFrame(tick);
+    reducedMotion.addEventListener("change", onMotionChange);
+    mascot.addEventListener("pointermove", look);
+    mascot.addEventListener("pointerleave", resetGaze);
+    mascot.addEventListener("click", play);
+    skip?.addEventListener("click", dismiss);
+    // A short brand performance, never tied to network or download progress.
+    const timer = window.setTimeout(dismiss, 4450);
   }
 </script>

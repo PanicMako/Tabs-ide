@@ -12,6 +12,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@tabs/shared": "workspace:*",
     "astro": "^6.0.4",
     "lucide-react": "^0.564.0",
     "micromark": "^4.0.2",

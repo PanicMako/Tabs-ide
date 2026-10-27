@@ -1,3 +1,4 @@
+import { refreshTheme } from "../../hooks/useTheme";
 import { useAtomValue } from "@effect/atom-react";
 import type { DesktopCodeHostState } from "@tabs/contracts";
 import { VolumeXIcon } from "lucide-react";
@@ -587,18 +588,28 @@ export function WelcomeWizard({ onDone }: WelcomeWizardProps) {
       const stored = localStorage.getItem("tabs:settings");
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (parsed.desktopIconTheme === "light" || parsed.desktopIconTheme === "system") {
+        if (
+          parsed.desktopIconTheme === "dark" ||
+          parsed.desktopIconTheme === "light" ||
+          parsed.desktopIconTheme === "system"
+        ) {
           return parsed.desktopIconTheme;
         }
       }
     } catch {}
-    return "dark";
+    return "system";
   });
   const [selectedAppearance, setSelectedAppearance] = useState<"system" | "dark" | "light">(() => {
     try {
       const storedTheme = localStorage.getItem("tabs:theme");
-      if (storedTheme === "tabs-light" || storedTheme === "light") return "light";
-      if (storedTheme === "tabs-dark" || storedTheme === "dark") return "dark";
+      if (
+        storedTheme === "tabs-monotone-light" ||
+        storedTheme === "tabs-light" ||
+        storedTheme === "light"
+      )
+        return "light";
+      if (storedTheme === "tabs-monotone" || storedTheme === "tabs-dark" || storedTheme === "dark")
+        return "dark";
       if (storedTheme === "system") return "system";
     } catch {}
     return "system";
@@ -864,13 +875,16 @@ export function WelcomeWizard({ onDone }: WelcomeWizardProps) {
   const handleAppearanceSelect = useCallback(
     (mode: "system" | "dark" | "light") => {
       setSelectedAppearance(mode);
-      const themePref = mode === "light" ? "tabs-light" : mode === "dark" ? "tabs-dark" : "system";
+      const themePref =
+        mode === "light" ? "tabs-monotone-light" : mode === "dark" ? "tabs-monotone" : "system";
       try {
         localStorage.setItem("tabs:theme", themePref);
+        refreshTheme();
         if (typeof document !== "undefined") {
           const isDark = mode === "dark" || (mode === "system" && systemPrefersDark);
           document.documentElement.classList.toggle("dark", isDark);
-          document.documentElement.dataset.theme = themePref;
+          document.documentElement.dataset.theme =
+            mode === "system" ? (isDark ? "tabs-monotone" : "tabs-monotone-light") : themePref;
         }
       } catch {}
 
@@ -1106,12 +1120,13 @@ export function WelcomeWizard({ onDone }: WelcomeWizardProps) {
 
     const themePref =
       selectedAppearance === "light"
-        ? "tabs-light"
+        ? "tabs-monotone-light"
         : selectedAppearance === "dark"
-          ? "tabs-dark"
+          ? "tabs-monotone"
           : "system";
     try {
       localStorage.setItem("tabs:theme", themePref);
+      refreshTheme();
     } catch {}
 
     updateClientSettings((current) => ({

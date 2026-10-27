@@ -832,7 +832,7 @@ export function ConnectionsSettings() {
                     <>
                       {/* Connection Type Toggle */}
                       <OrbitGroup
-                        className="tabs-segmented grid grid-cols-2 rounded-full"
+                        className="tabs-segmented grid grid-cols-2 rounded-full w-full"
                         role="group"
                         aria-label="Connection type"
                       >

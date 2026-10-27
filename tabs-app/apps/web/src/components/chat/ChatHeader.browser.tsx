@@ -67,6 +67,13 @@ it("shows workspace actions directly and allows the card to be tucked away", asy
       .element(page.getByRole("button", { name: "Toggle diff panel" }))
       .not.toBeInTheDocument();
     await expect.element(page.getByRole("button", { name: "Commit & push" })).toBeVisible();
+    const card = document.querySelector<HTMLElement>('[aria-label="Workspace actions"]')!;
+    const lastAction = page.getByRole("button", { name: "Divergence space Compare all →" });
+    await expect.element(lastAction).toBeVisible();
+    const cardRect = card.getBoundingClientRect();
+    const lastRect = [...card.querySelectorAll("button")].at(-1)!.getBoundingClientRect();
+    expect(lastRect.bottom).toBeLessThanOrEqual(cardRect.bottom + 1);
+    expect(card.scrollWidth).toBeLessThanOrEqual(card.clientWidth + 1);
     await page.getByRole("button", { name: "Changes +12 −3" }).click();
     expect(onToggleDiff).toHaveBeenCalledOnce();
     const scriptButton = page.getByRole("button", { name: `Run ${script.name}`, exact: true });

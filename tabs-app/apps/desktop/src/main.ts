@@ -1,3 +1,10 @@
+import { isTabsLogoVariant, resolveTabsLogoVariant } from "@tabs/shared/tabsBrand";
+import {
+  findDownloadedInstaller,
+  installedMacApplication,
+  trashVerifiedInstaller,
+} from "./installerCleanup";
+import { generateCommitDraft } from "./commitDraftClient";
 import { extensionHostVersion } from "./extensionHostVersion";
 import { writeBackendBootstrap } from "./backendBootstrap";
 import { createStartupWindowReveal } from "./startupWindowReveal";
@@ -132,7 +139,11 @@ import { DesktopCaptureCoordinator } from "./capture/DesktopCaptureCoordinator";
 import type { DesktopCaptureOptions } from "@tabs/contracts";
 import { CodeControlChannel } from "./codeControlChannel";
 import { getTailscaleStatus } from "./tailscale";
-import { DEFAULT_CODE_CHROME_STATE, type CodeChromeState } from "@tabs/shared/codeChrome";
+import {
+  CODE_CHROME_COMMANDS,
+  DEFAULT_CODE_CHROME_STATE,
+  type CodeChromeState,
+} from "@tabs/shared/codeChrome";
 import {
   createNativeCodeHostMainBackend,
   type NativeCodeHostMainBackend,
@@ -1652,7 +1663,12 @@ function resolveResourcePath(fileName: string): string | null {
 }
 
 function getSafeIconTheme(rawTheme: unknown): DesktopIconTheme | null {
-  return rawTheme === "light" || rawTheme === "dark" || rawTheme === "system" ? rawTheme : null;
+  return rawTheme === "light" ||
+    rawTheme === "dark" ||
+    rawTheme === "system" ||
+    isTabsLogoVariant(rawTheme)
+    ? rawTheme
+    : null;
 }
 
 function readDesktopPreferences(): DesktopPreferences {
@@ -1671,7 +1687,7 @@ function writeDesktopPreferences(preferences: DesktopPreferences): void {
 }
 
 function loadDesktopIconThemePreference(): DesktopIconTheme {
-  return readDesktopPreferences().iconTheme ?? DEFAULT_DESKTOP_ICON_THEME;
+  return getSafeIconTheme(readDesktopPreferences().iconTheme) ?? DEFAULT_DESKTOP_ICON_THEME;
 }
 
 function shouldConfirmBeforeQuit(): boolean {
@@ -1686,17 +1702,18 @@ function resolveIconPath(
   ext: "ico" | "icns" | "png",
   theme: DesktopIconTheme = currentDesktopIconTheme,
 ): string | null {
-  const resolved =
-    theme === "system" ? (nativeTheme.shouldUseDarkColors ? "dark" : "light") : theme;
-  return resolveResourcePath(`icon-${resolved}.${ext}`) ?? resolveResourcePath(`icon.${ext}`);
+  const resolved = resolveTabsLogoVariant(theme, nativeTheme.shouldUseDarkColors);
+  const folder = process.platform === "darwin" && ext === "png" ? "brand/macos" : "brand";
+  return (
+    resolveResourcePath(`${folder}/icon-${resolved}.${ext}`) ?? resolveResourcePath(`icon.${ext}`)
+  );
 }
 
 function applyDesktopIconTheme(theme: DesktopIconTheme): void {
   currentDesktopIconTheme = theme;
   writeDesktopPreferences({ ...readDesktopPreferences(), iconTheme: theme });
 
-  const effectiveTheme: "dark" | "light" =
-    theme === "system" ? (nativeTheme.shouldUseDarkColors ? "dark" : "light") : theme;
+  const effectiveTheme = resolveTabsLogoVariant(theme, nativeTheme.shouldUseDarkColors);
 
   if (process.platform === "darwin" && app.dock) {
     const iconPath = resolveIconPath("png", effectiveTheme);
@@ -2510,6 +2527,47 @@ const shutdownPromise = Effect.runPromise(
 );
 
 function registerIpcHandlers(): void {
+  const canCleanInstaller = () =>
+    installedMacApplication(
+      process.platform,
+      app.isPackaged,
+      process.execPath,
+      app.getPath("home"),
+    );
+  ipcMain.removeHandler("desktop:installer-cleanup:candidate");
+  handleTabsIpc("desktop:installer-cleanup:candidate", async () => {
+    if (!canCleanInstaller()) return null;
+    const candidate = await findDownloadedInstaller(
+      app.getPath("downloads"),
+      app.getVersion(),
+      process.arch,
+    );
+    return candidate ? { name: candidate.name, size: candidate.size } : null;
+  });
+  ipcMain.removeHandler("desktop:installer-cleanup:trash");
+  handleTabsIpc("desktop:installer-cleanup:trash", async () => {
+    if (!canCleanInstaller())
+      throw new Error("Launch the installed Tabs app from Applications first.");
+    await trashVerifiedInstaller({
+      downloads: app.getPath("downloads"),
+      version: app.getVersion(),
+      arch: process.arch,
+      fetchRelease: async (version) => {
+        const response = await fetch(
+          `https://api.github.com/repos/PanicMako/Tabs-ide/releases/tags/v${version}`,
+          {
+            signal: AbortSignal.timeout(15_000),
+            headers: { Accept: "application/vnd.github+json" },
+          },
+        );
+        if (!response.ok)
+          throw new Error("Unable to verify the published installer. Try again later.");
+        return response.json();
+      },
+      trash: (file) => shell.trashItem(file),
+    });
+  });
+
   ipcMain.removeHandler("desktop:build-info");
   handleTabsIpc("desktop:build-info", () => ({
     version: app.getVersion(),
@@ -3123,6 +3181,7 @@ function registerIpcHandlers(): void {
     if (!isQuitConfirmationOpen) return;
     if (choice === "cancel") {
       isQuitConfirmationOpen = false;
+      nativeViewCoordinator.setToolViewsSuspended(false);
       return;
     }
     if (choice !== "save-and-quit") return;
@@ -3585,8 +3644,15 @@ function registerIpcHandlers(): void {
     }
     const projectId = (input as { projectId: string }).projectId;
     const commandId = (input as { commandId: string }).commandId;
-    codeHostManager.focusSession(projectId);
-    return codeControlChannel.runCommand(projectId, commandId);
+    const presentation = (input as { presentation?: unknown }).presentation;
+    if (
+      commandId !== CODE_CHROME_COMMANDS.railPresentation &&
+      commandId !== CODE_CHROME_COMMANDS.railSpotlightOn &&
+      commandId !== CODE_CHROME_COMMANDS.railSpotlightOff
+    ) {
+      codeHostManager.focusSession(projectId);
+    }
+    return codeControlChannel.runCommand(projectId, commandId, presentation);
   });
 
   ipcMain.removeHandler(CODE_HOST_GET_CHROME_STATE_CHANNEL);
@@ -4961,6 +5027,20 @@ async function bootstrap(): Promise<void> {
         });
       }
     });
+    codeControlChannel.onGenerateCommitDraft(async (projectId, cwd, signal) => {
+      const root = codeHostManager.getWorkspaceRoot(projectId);
+      if (!root || !backendWsUrl)
+        throw new Error("Open a project before generating a commit message.");
+      const [realRoot, realCwd] = await Promise.all([
+        FS.promises.realpath(root),
+        FS.promises.realpath(cwd),
+      ]);
+      const relative = Path.relative(realRoot, realCwd);
+      if (relative === ".." || relative.startsWith(`..${Path.sep}`) || Path.isAbsolute(relative)) {
+        throw new Error("The repository must belong to this project.");
+      }
+      return generateCommitDraft(backendWsUrl, realCwd, signal);
+    });
     codeControlChannel.onOpenTabsProjectTab(() => {
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send(MENU_ACTION_CHANNEL, "tab-new");
@@ -5004,6 +5084,7 @@ function requestQuitConfirmation(): void {
   if (isQuitConfirmationOpen || isQuittingConfirmed) return;
   if (!mainWindow || mainWindow.isDestroyed()) return;
   isQuitConfirmationOpen = true;
+  nativeViewCoordinator.setToolViewsSuspended(true);
   const sendRequest = () => {
     if (isQuitConfirmationOpen && mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send(QUIT_CONFIRMATION_REQUEST_CHANNEL);
@@ -5040,6 +5121,7 @@ app.on("before-quit", (event) => {
   isCleaningUp = true;
   event.preventDefault(); // Hold the quit to perform async cleanup
   isQuitting = true;
+  nativeViewCoordinator.setToolViewsSuspended(true);
   writeDesktopLogHeader("before-quit received, performing async cleanup");
 
   const rendererSettingsFlush =

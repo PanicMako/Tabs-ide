@@ -237,7 +237,7 @@ function getStoredPreference(): ThemePreference {
 
 export function resolveActiveThemeId(preference: ThemePreference): ThemePreference {
   if (preference === "system") {
-    return getSystemDark() ? "tabs-dark" : "tabs-light";
+    return getSystemDark() ? "tabs-monotone" : "tabs-monotone-light";
   }
   if (preference === "custom" || preference in THEME_DEFINITIONS) {
     return preference;
@@ -385,7 +385,9 @@ function applyTheme(
   const diffColorScheme = getStoredDiffColorScheme();
   const evaluatedTokens = evaluateThemeTokens(config, diffColorScheme);
 
-  const background = evaluatedTokens["editor.background"] || config.colors.background;
+  // The app ground stays recessed when the editor uses the raised card surface.
+  // Preserve an explicit background override, but do not use the editor's default.
+  const background = config.tokenOverrides?.["editor.background"] || config.colors.background;
   const cardBg = evaluatedTokens["app.cardBackground"] || config.colors.card;
   const cardFg = evaluatedTokens["app.cardForeground"] || config.colors.foreground;
   const foreground = evaluatedTokens["foreground"] || config.colors.foreground;
@@ -482,10 +484,9 @@ function applyTheme(
     style.setProperty("--code-oss-accent", primary);
   }
 
-  const desktopConfig =
-    activeThemeId === "custom" || activeThemeId.startsWith("environment:")
-      ? originalConfig
-      : undefined;
+  // Send the resolved palette for built-ins too. The embedded workbench must
+  // share the shell's surface colors rather than a separate fallback palette.
+  const desktopConfig = originalConfig;
   if (options.deferDesktopSync) {
     schedulePreviewDesktopThemeSync(activeThemeId, preference, desktopConfig, fonts);
   } else {
@@ -520,11 +521,13 @@ function applyFontPreferencesToDom(fonts: FontPreferences): void {
   style.setProperty("--font-section-transform", typography?.sectionTransform ?? "none");
   style.setProperty("--font-section-tracking", typography?.sectionTracking ?? "normal");
   style.setProperty("--font-row", typography?.rowFont ?? fonts.uiFont);
-  style.setProperty("--font-row-weight", String(typography?.rowWeight ?? 700));
+  style.setProperty("--font-row-weight", String(typography?.rowWeight ?? 500));
+  style.setProperty("--font-row-tracking", typography?.rowTracking ?? "0.035em");
   style.setProperty("--font-controls", typography?.controlsFont ?? fonts.uiFont);
   style.setProperty("--font-ui-meta", typography.metadataFont);
   style.setProperty("--font-supporting", typography.supportingFont);
   style.setProperty("--font-supporting-style", typography.supportingStyle);
+  style.setProperty("--font-supporting-weight", String(typography.supportingWeight ?? 400));
   if (typeof fonts.fontSizeInterface === "number") {
     applyInterfaceFontSize(style, fonts.fontSizeInterface);
   }
@@ -610,9 +613,7 @@ function syncDesktopTheme(
     preference,
     diffColorScheme,
     fontPreferences: fonts,
-    ...((themeId === "custom" || themeId.startsWith("environment:")) && enhancedConfig
-      ? { customConfig: enhancedConfig }
-      : {}),
+    ...(enhancedConfig ? { customConfig: enhancedConfig } : {}),
   };
   lastDesktopTheme = themeId;
   void bridge.setTheme(payload as any).catch(() => {

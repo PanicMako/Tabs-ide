@@ -1,3 +1,8 @@
+import { dedupeSnapshotBodies } from "@tabs/shared/orchestrationV2DedupedBodies";
+import {
+  omitProviderWorkspaceSnapshots,
+  scopedProviderWorkspaceSnapshots,
+} from "@tabs/shared/providerWorkspaceSnapshots";
 import { makeWorkspaceCompatibilityHandlers } from "./workspaceCompatibilityHandlers.ts";
 import { makeGitCore } from "./git/Layers/GitCore.ts";
 import { GitEnvironment } from "./git/Services/GitEnvironment.ts";
@@ -763,6 +768,7 @@ export const subscribeOrchestrationV2Thread = Effect.fn("ws.orchestrationV2.subs
     readonly afterSequence?: number;
     readonly requestCompletionMarker?: boolean;
     readonly acceptBoundedSnapshot?: boolean;
+    readonly acceptDedupedBodies?: boolean;
   }) {
     const threadManagement = yield* ThreadManagementService.ThreadManagementService;
     const applicationEvents = yield* OrchestrationEventStore.OrchestrationEventStore;
@@ -863,7 +869,14 @@ export const subscribeOrchestrationV2Thread = Effect.fn("ws.orchestrationV2.subs
             projection: projectThreadProjectionForWire(snapshot.projection),
           };
       return Stream.concat(
-        Stream.concat(rpcInitialItems([snapshotItem]), completionMarker),
+        Stream.concat(
+          rpcInitialItems([
+            input.acceptDedupedBodies
+              ? { ...snapshotItem, projection: dedupeSnapshotBodies(snapshotItem.projection) }
+              : snapshotItem,
+          ]),
+          completionMarker,
+        ),
         eventStreamFrom(snapshotSequence),
       );
     });
@@ -1694,13 +1707,19 @@ const layerWsRpc = (
             ),
           );
 
-        const loadServerConfig = (options: { readonly usageLimitsCommand: boolean }) =>
+        const loadServerConfig = (options: {
+          readonly usageLimitsCommand: boolean;
+          readonly workspaceSnapshotsOnDemand?: boolean;
+        }) =>
           Effect.gen(function* () {
             const keybindingsConfig = yield* keybindings.loadConfigState;
             const currentProviders = yield* providerRegistry.getProviders;
-            const providers = options.usageLimitsCommand
+            const fullProviders = options.usageLimitsCommand
               ? withUsageLimitsCommands(currentProviders, yield* usageLimitSources.current)
               : currentProviders;
+            const providers = options.workspaceSnapshotsOnDemand
+              ? omitProviderWorkspaceSnapshots(fullProviders)
+              : fullProviders;
             const settings = ServerSettings.redactServerSettingsForClient(
               yield* serverSettings.getSettings,
             );
@@ -1722,6 +1741,7 @@ const layerWsRpc = (
               keybindings: keybindingsConfig.keybindings,
               issues: keybindingsConfig.issues,
               providers,
+              ...(options.workspaceSnapshotsOnDemand ? { workspaceSnapshotsOmitted: true } : {}),
               ...editorConfig,
               // Same discovery-with-timeout treatment as editors: a slow probe
               // must not stall server.getConfig, so it degrades to no targets.
@@ -1982,6 +2002,9 @@ const layerWsRpc = (
                       }).projection,
                     ),
                   ),
+                  Effect.map((projection) =>
+                    input.acceptDedupedBodies ? dedupeSnapshotBodies(projection) : projection,
+                  ),
                   Effect.mapError(
                     (cause) =>
                       new OrchestrationV2GetThreadProjectionError({
@@ -2210,10 +2233,13 @@ const layerWsRpc = (
             observeRpcEffect(WS_METHODS.serverProbe, Effect.succeed({}), {
               "rpc.aggregate": "server",
             }),
-          [WS_METHODS.serverGetConfig]: (_input) =>
+          [WS_METHODS.serverGetConfig]: (input) =>
             observeRpcEffect(
               WS_METHODS.serverGetConfig,
-              loadServerConfig({ usageLimitsCommand: false }),
+              loadServerConfig({
+                usageLimitsCommand: false,
+                ...(input.workspaceSnapshotsOnDemand ? { workspaceSnapshotsOnDemand: true } : {}),
+              }),
               {
                 "rpc.aggregate": "server",
               },
@@ -2433,7 +2459,13 @@ const layerWsRpc = (
                     providers = yield* providerRegistry.refreshInstance(instance.instanceId);
                   }
                 }
-                return { providers };
+                return input.workspaceSnapshotsOnDemand && input.instanceId && input.cwd
+                  ? scopedProviderWorkspaceSnapshots(providers, {
+                      instanceId: input.instanceId,
+                      cwd: input.cwd,
+                      fresh: input.fresh === true,
+                    })
+                  : { providers };
               }),
               { "rpc.aggregate": "server" },
             ),
@@ -3527,6 +3559,20 @@ const layerWsRpc = (
                 .pipe(Effect.tap(() => refreshGitStatus(input.cwd))),
               { "rpc.aggregate": "git" },
             ),
+          [WS_METHODS.gitGeneratePullRequestDraft]: (input) =>
+            observeRpcEffect(
+              WS_METHODS.gitGeneratePullRequestDraft,
+              gitWorkflow.generatePullRequestDraft(input),
+              { "rpc.aggregate": "git" },
+            ),
+          [WS_METHODS.gitGenerateCommitDraft]: (input) =>
+            observeRpcEffect(
+              WS_METHODS.gitGenerateCommitDraft,
+              gitWorkflow.generateCommitDraft(input),
+              {
+                "rpc.aggregate": "git",
+              },
+            ),
           [WS_METHODS.gitGenerateDiffSummary]: (input) =>
             observeRpcEffect(
               WS_METHODS.gitGenerateDiffSummary,
@@ -3786,7 +3832,10 @@ const layerWsRpc = (
               WS_METHODS.subscribeServerConfig,
               Effect.gen(function* () {
                 const usageLimitsCommand = input.usageLimitsCommand === true;
-                const config = yield* loadServerConfig({ usageLimitsCommand });
+                const config = yield* loadServerConfig({
+                  usageLimitsCommand,
+                  ...(input.workspaceSnapshotsOnDemand ? { workspaceSnapshotsOnDemand: true } : {}),
+                });
                 const keybindingsUpdates = keybindings.streamChanges.pipe(
                   Stream.map((event) => ({
                     version: 1 as const,
@@ -3819,6 +3868,11 @@ const layerWsRpc = (
                   // repeats the snapshot the client already holds. Compare against that
                   // snapshot rather than dropping blindly: a refresh that landed between
                   // the snapshot and the subscription still goes out.
+                  Stream.map((providers) =>
+                    input.workspaceSnapshotsOnDemand
+                      ? omitProviderWorkspaceSnapshots(providers)
+                      : providers,
+                  ),
                   (updates) => Stream.concat(rpcInitialItems([config.providers]), updates),
                   Stream.changesWith(
                     (previous, next) => JSON.stringify(previous) === JSON.stringify(next),
@@ -3827,7 +3881,12 @@ const layerWsRpc = (
                   Stream.map((providers) => ({
                     version: 1 as const,
                     type: "providerStatuses" as const,
-                    payload: { providers },
+                    payload: {
+                      providers,
+                      ...(input.workspaceSnapshotsOnDemand
+                        ? { workspaceSnapshotsOmitted: true }
+                        : {}),
+                    },
                   })),
                   Stream.debounce(Duration.millis(PROVIDER_STATUS_DEBOUNCE_MS)),
                 );

@@ -26,6 +26,10 @@ import {
   type VcsStatusLocalResult,
   type VcsStatusRemoteResult,
   type VcsStatusResult,
+  type GitGenerateCommitDraftInput,
+  type GitGeneratePullRequestDraftInput,
+  type GitGeneratePullRequestDraftResult,
+  type GitGenerateCommitDraftResult,
   type GitGenerateDiffSummaryInput,
   type GitGenerateDiffSummaryResult,
   type GitGenerateReviewInput,
@@ -73,6 +77,12 @@ export class GitWorkflowService extends Context.Service<
     readonly preparePullRequestThread: (
       input: GitPreparePullRequestThreadInput,
     ) => Effect.Effect<GitPreparePullRequestThreadResult, GitManagerServiceError>;
+    readonly generatePullRequestDraft: (
+      input: GitGeneratePullRequestDraftInput,
+    ) => Effect.Effect<GitGeneratePullRequestDraftResult, GitManagerServiceError>;
+    readonly generateCommitDraft: (
+      input: GitGenerateCommitDraftInput,
+    ) => Effect.Effect<GitGenerateCommitDraftResult, GitManagerServiceError>;
     readonly generateDiffSummary: (
       input: GitGenerateDiffSummaryInput,
     ) => Effect.Effect<GitGenerateDiffSummaryResult, GitManagerServiceError>;
@@ -363,6 +373,14 @@ export const make = Effect.gen(function* () {
     preparePullRequestThread: routeGitManager(
       "GitWorkflowService.preparePullRequestThread",
       gitManager.preparePullRequestThread,
+    ),
+    generatePullRequestDraft: routeGitManager(
+      "GitWorkflowService.generatePullRequestDraft",
+      gitManager.generatePullRequestDraft,
+    ),
+    generateCommitDraft: routeGitManager(
+      "GitWorkflowService.generateCommitDraft",
+      gitManager.generateCommitDraft,
     ),
     generateDiffSummary: routeGitManager(
       "GitWorkflowService.generateDiffSummary",

@@ -1,3 +1,4 @@
+import { BrandIdentitySettings } from "./BrandIdentitySettings";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CheckIcon,
@@ -44,10 +45,10 @@ import { ThemeImportExportModal } from "../ThemeImportExportModal";
 import {
   DEFAULT_FONT_PREFERENCES,
   getActiveFontCombo,
-  prepareCustomFontPreferences,
   selectFontCombo,
   EDITOR_FONT_OPTIONS,
   UI_FONT_OPTIONS,
+  CURATED_FONT_COMBOS,
   FONT_COMBOS,
   THEME_DEFINITIONS,
   calculateContrastRatio,
@@ -477,6 +478,7 @@ function ThemePickerGrid({
           const isSelected = activeTheme === t.id;
           return (
             <button
+              data-shape="preview"
               key={t.id}
               type="button"
               data-theme-id={t.id}
@@ -490,8 +492,12 @@ function ThemePickerGrid({
               )}
             >
               <div
+                data-shape="thumbnail"
                 className="relative h-24 w-full overflow-hidden rounded-xl border border-black/10 dark:border-white/10 shadow-xs transition-transform duration-300 group-hover:scale-[1.02]"
-                style={{ background: t.bg }}
+                style={{
+                  background: t.id === "system" ? t.card : t.bg,
+                  backgroundClip: "padding-box",
+                }}
               >
                 <div
                   className="flex items-center justify-between px-2.5 py-1.5 border-b border-black/10 dark:border-white/10"
@@ -511,14 +517,17 @@ function ThemePickerGrid({
                   <div className="h-1.5 w-10 rounded-full opacity-50 bg-foreground" />
                 </div>
 
-                <div className="flex h-full">
+                <div
+                  className="flex h-full"
+                  style={t.id === "system" ? { background: t.bg } : undefined}
+                >
                   <div
                     className="w-7 border-r border-black/10 dark:border-white/10 p-1 flex flex-col gap-1"
                     style={{ backgroundColor: t.card }}
                   >
-                    <div className="h-1 w-full rounded-sm opacity-40 bg-foreground" />
-                    <div className="h-1 w-3/4 rounded-sm opacity-20 bg-foreground" />
-                    <div className="h-1 w-1/2 rounded-sm opacity-20 bg-foreground" />
+                    <div className="h-1 w-full rounded-full opacity-40 bg-foreground" />
+                    <div className="h-1 w-3/4 rounded-full opacity-20 bg-foreground" />
+                    <div className="h-1 w-1/2 rounded-full opacity-20 bg-foreground" />
                   </div>
 
                   <div className="flex-1 p-2 flex flex-col gap-1.5">
@@ -577,6 +586,7 @@ function ThemePickerGrid({
 
           return (
             <div
+              data-shape="preview"
               key={preset.id}
               className={cn(
                 "group relative flex flex-col justify-between overflow-hidden rounded-2xl border p-3.5 text-left transition-all duration-300 select-none",
@@ -630,8 +640,12 @@ function ThemePickerGrid({
                 className="w-full text-left flex flex-col justify-between h-full cursor-pointer"
               >
                 <div
+                  data-shape="thumbnail"
                   className="relative h-24 w-full overflow-hidden rounded-xl border border-black/10 dark:border-white/10 shadow-xs transition-transform duration-300 group-hover:scale-[1.02]"
-                  style={{ background: preset.config.colors.background }}
+                  style={{
+                    background: preset.config.colors.background,
+                    backgroundClip: "padding-box",
+                  }}
                 >
                   <div
                     className="flex items-center justify-between px-2.5 py-1.5 border-b border-black/10 dark:border-white/10"
@@ -714,11 +728,15 @@ function ThemePickerGrid({
 
         {/* Studio Launcher Card */}
         <button
+          data-shape="preview"
           type="button"
           onClick={onOpenStudio}
           className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-dashed border-border/70 bg-card/20 p-3.5 text-left transition-all duration-300 hover:border-foreground/40 hover:bg-card/40 cursor-pointer select-none"
         >
-          <div className="relative flex h-24 w-full flex-col items-center justify-center rounded-xl border border-border/40 bg-muted/20 gap-2 group-hover:bg-muted/40 transition-colors">
+          <div
+            data-shape="thumbnail"
+            className="relative flex h-24 w-full flex-col items-center justify-center rounded-xl border border-border/40 bg-muted/20 gap-2 group-hover:bg-muted/40 transition-colors"
+          >
             <PaletteIcon className="size-5 text-foreground transition-transform group-hover:scale-110" />
             <span className="text-xs font-medium text-muted-foreground group-hover:text-foreground">
               Launch Studio Drawer
@@ -743,11 +761,15 @@ function ThemePickerGrid({
         {/* Import Theme Card */}
         {onOpenImport && (
           <button
+            data-shape="preview"
             type="button"
             onClick={onOpenImport}
             className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-dashed border-border/70 bg-card/20 p-3.5 text-left transition-all duration-300 hover:border-foreground/40 hover:bg-card/40 cursor-pointer select-none"
           >
-            <div className="relative flex h-24 w-full flex-col items-center justify-center rounded-xl border border-border/40 bg-muted/20 gap-2 group-hover:bg-muted/40 transition-colors">
+            <div
+              data-shape="thumbnail"
+              className="relative flex h-24 w-full flex-col items-center justify-center rounded-xl border border-border/40 bg-muted/20 gap-2 group-hover:bg-muted/40 transition-colors"
+            >
               <DownloadIcon className="size-5 text-foreground transition-transform group-hover:scale-110" />
               <span className="text-xs font-medium text-muted-foreground group-hover:text-foreground">
                 Import Theme JSON
@@ -956,6 +978,8 @@ export function ThemesSettings() {
         }
       />
 
+      <BrandIdentitySettings />
+
       <SettingsSection title="App Themes & Styling">
         <ThemePickerGrid
           activeTheme={theme}
@@ -1037,7 +1061,6 @@ export function ThemesSettings() {
                 onClick={() => {
                   if (isCustomCombo) {
                     setIsCustomFontMode(true);
-                    setFontPreferences((prev) => prepareCustomFontPreferences(prev));
                   } else {
                     setIsCustomFontMode(false);
                     setFontPreferences((prev) => selectFontCombo(prev, combo));
@@ -1085,24 +1108,32 @@ export function ThemesSettings() {
 
         <div className="mx-4 border-t border-border/40 mb-0" />
 
-        <div className="p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
-          {FONT_COMBOS.filter((c) => !c.isNeutral).map((combo) => {
+        <div className="font-specimen-grid p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+          {CURATED_FONT_COMBOS.filter((c) => !c.isNeutral).map((combo) => {
             const isActive =
               !showCustomMixer && getActiveFontCombo(fontPreferences).id === combo.id;
 
             return (
               <button
+                data-shape="preview"
                 key={combo.id}
                 type="button"
                 onClick={() => {
                   setIsCustomFontMode(false);
-                  setFontPreferences((prev) => selectFontCombo(prev, combo));
-                  updateSettings({ fontFamilySans: combo.uiFont });
+                  const updated = selectFontCombo(fontPreferences, combo);
+                  setFontPreferences(updated);
+                  if (!combo.headingOnly) {
+                    updateSettings({
+                      fontFamilySans: combo.uiFont,
+                      fontFamilyCode:
+                        combo.fonts?.editorFont ?? DEFAULT_UNIFIED_SETTINGS.fontFamilyCode,
+                    });
+                  }
                 }}
                 aria-pressed={isActive}
                 aria-label={`Select ${combo.name}: ${combo.desc}`}
                 className={cn(
-                  "group relative flex flex-col items-start rounded-xl border p-3.5 text-left transition-all duration-200 cursor-pointer overflow-hidden",
+                  "font-specimen-card group relative flex flex-col items-start rounded-xl border p-3.5 text-left transition-all duration-200 cursor-pointer overflow-hidden",
                   isActive
                     ? "border-primary bg-primary/5 shadow-[0_0_0_1px_hsl(var(--primary)/0.3),0_4px_20px_hsl(var(--primary)/0.15)]"
                     : "border-border/70 bg-card hover:border-border hover:shadow-md hover:scale-[1.02]",
@@ -1124,47 +1155,47 @@ export function ThemesSettings() {
                   </div>
                 )}
 
-                <div className="mb-4 leading-none w-full">
+                <div data-slot="font-specimen" className="mb-3 w-full">
                   {combo.typography ? (
-                    <div className="text-[28px] leading-[1.05] tracking-tight min-h-[62px]">
+                    <div className="flex flex-col justify-center min-h-[66px] gap-1 overflow-hidden">
                       <span
+                        className="truncate text-[22px] sm:text-[23px] leading-[1.25]"
                         style={{
                           fontFamily: combo.headingFont,
                           fontWeight: combo.typography.headingWeight,
                           letterSpacing: combo.typography.headingTracking,
-                          display: "block",
                         }}
                       >
                         {combo.sansText}
                       </span>
                       <span
+                        className="truncate text-[20px] sm:text-[21px] leading-[1.25]"
                         style={{
                           fontFamily: combo.typography.specimenFont,
                           fontWeight: combo.typography.specimenWeight,
                           fontStyle: combo.typography.specimenStyle,
-                          display: "block",
                         }}
                       >
                         {combo.serifText}
                       </span>
                     </div>
                   ) : (
-                    <div>
+                    <div className="flex items-baseline flex-wrap gap-1 min-h-[66px] overflow-hidden py-1">
                       <span
-                        className={cn("text-[28px] leading-none", combo.sansClass)}
+                        className={cn("text-[22px] leading-tight", combo.sansClass)}
                         style={{ fontFamily: combo.uiFont }}
                       >
                         {combo.sansText}
                       </span>
                       <span
-                        className={cn("text-[28px] leading-none", combo.serifClass)}
+                        className={cn("text-[22px] leading-tight", combo.serifClass)}
                         style={{ fontFamily: combo.headingFont }}
                       >
                         {combo.serifText}
                       </span>
                       {combo.sansText2 && (
                         <span
-                          className={cn("text-[28px] leading-none", combo.sansClass)}
+                          className={cn("text-[22px] leading-tight", combo.sansClass)}
                           style={{ fontFamily: combo.uiFont }}
                         >
                           {combo.sansText2}
@@ -1174,19 +1205,13 @@ export function ThemesSettings() {
                   )}
                 </div>
 
-                <div className="mt-auto w-full">
-                  <div
-                    className={cn(
-                      "text-[11px] font-semibold leading-tight truncate",
-                      isActive ? "text-foreground" : "text-foreground",
-                    )}
-                    style={{ fontFamily: combo.uiFont }}
-                  >
-                    {combo.name}
-                  </div>
-                  <div className="flex items-center justify-between mt-1 gap-1">
-                    <span className="text-[9.5px] text-muted-foreground/60 leading-none truncate">
-                      {combo.desc}
+                <div className="mt-auto w-full pt-1.5 border-t border-border/30">
+                  <div className="flex items-center justify-between gap-1 mb-1">
+                    <span
+                      className="text-[11.5px] font-semibold leading-tight truncate text-foreground"
+                      style={{ fontFamily: combo.uiFont }}
+                    >
+                      {combo.name}
                     </span>
                     <span
                       className={cn(
@@ -1198,6 +1223,9 @@ export function ThemesSettings() {
                     >
                       {combo.tag}
                     </span>
+                  </div>
+                  <div className="text-[9.5px] text-muted-foreground/75 leading-tight truncate">
+                    {combo.desc}
                   </div>
                 </div>
               </button>
@@ -1219,8 +1247,38 @@ export function ThemesSettings() {
         />
 
         {!showCustomMixer && (
-          <div className="border-t border-border/60 px-4 py-4">
+          <div className="border-t border-border/60 px-4 py-4 space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <h4 className="text-sm font-medium text-foreground">Interface Font</h4>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Font for UI tabs, sidebar, dialogs, cards, and controls.
+                </p>
+              </div>
+              <div className="shrink-0 w-full sm:w-52">
+                <Select
+                  value={fontPreferences.uiFont}
+                  onValueChange={(val) => {
+                    if (!val) return;
+                    setFontPreferences((prev) => ({ ...prev, uiFont: val }));
+                    updateSettings({ fontFamilySans: val });
+                  }}
+                >
+                  <SelectTrigger className="w-full text-xs rounded-xl bg-background border-border/80">
+                    <SelectValue placeholder="Select Interface Font" />
+                  </SelectTrigger>
+                  <SelectPopup align="end">
+                    {UI_FONT_OPTIONS.map((f) => (
+                      <SelectItem key={f.value} value={f.value} className="text-xs">
+                        <span style={{ fontFamily: f.value }}>{f.label}</span>
+                      </SelectItem>
+                    ))}
+                  </SelectPopup>
+                </Select>
+              </div>
+            </div>
+
+            <div className="border-t border-border/40 pt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div className="min-w-0 flex-1">
                 <h4 className="text-sm font-medium text-foreground">Editor Font</h4>
                 <p className="text-xs text-muted-foreground mt-0.5">
@@ -1496,6 +1554,7 @@ export function ThemesSettings() {
               const isSelected = settings.toolbarStyle === style.id;
               return (
                 <button
+                  data-shape="preview"
                   key={style.id}
                   type="button"
                   onClick={() => updateSettings({ toolbarStyle: style.id })}

@@ -51,8 +51,8 @@ it("switches shared settings surfaces together, preserves fonts, and restores th
     const frame = heading.closest("[data-settings-design]")!;
     expect(getComputedStyle(frame).backgroundColor).toBe("rgb(32, 32, 32)");
     const workspaceCard = page.getByTestId("workspace-study-card").element();
-    expect(getComputedStyle(workspaceCard).borderTopLeftRadius).toBe("28px");
-    expect(getComputedStyle(workspaceCard).borderBottomLeftRadius).toBe("0px");
+    expect(getComputedStyle(workspaceCard).borderTopLeftRadius).toBe("36px");
+    expect(getComputedStyle(workspaceCard).borderBottomLeftRadius).toBe("36px");
     expect(getComputedStyle(workspaceCard).marginLeft).toBe("0px");
     await expect.element(page.getByText("Make Tabs work your way.")).toBeVisible();
     await page.getByRole("button", { name: "Light", exact: true }).click();
@@ -73,7 +73,7 @@ it("switches shared settings surfaces together, preserves fonts, and restores th
       .element()
       .closest("section")!
       .querySelector('[data-slot="settings-section-panel"]')!;
-    expect(getComputedStyle(panel).borderRadius).toBe("14px");
+    expect(getComputedStyle(panel).borderRadius).toBe("36px");
     const section = panel.closest("section")!;
     expect(getComputedStyle(section).display).toBe("grid");
     expect(getComputedStyle(section).gridTemplateColumns.split(" ")).toHaveLength(2);
@@ -100,6 +100,9 @@ it("switches shared settings surfaces together, preserves fonts, and restores th
 });
 
 it("limits the study to Settings while preserving the workspace appearance", async () => {
+  const savedTheme = localStorage.getItem("tabs:theme");
+  localStorage.setItem("tabs:theme", "tabs-dark");
+  window.dispatchEvent(new StorageEvent("storage", { key: "tabs:theme" }));
   const store = useSettingsLabsStore.getState();
   store.setEditorialSettings(false);
   store.setEditorialSettingsOnly(false);
@@ -121,7 +124,6 @@ it("limits the study to Settings while preserving the workspace appearance", asy
   );
   const background = document.documentElement.style.getPropertyValue("--background");
   const originalDark = document.documentElement.classList.contains("dark");
-  const savedTheme = localStorage.getItem("tabs:theme");
   try {
     await page.getByRole("switch", { name: "Interface study", exact: true }).click();
     await page.getByRole("switch", { name: "Settings page only", exact: true }).click();
@@ -130,15 +132,17 @@ it("limits the study to Settings while preserving the workspace appearance", asy
     expect(document.documentElement.classList.contains("dark")).toBe(originalDark);
     await expect.element(page.getByTestId("appearance-probe")).not.toBeVisible();
     await expect.element(page.getByTestId("nested-study-appearance")).toHaveTextContent("dark");
-    await page.getByRole("button", { name: "Light", exact: true }).click();
-    await expect.element(page.getByTestId("nested-study-appearance")).toHaveTextContent("light");
-    await expect.element(page.getByTestId("appearance-probe")).toBeVisible();
+    await expect.element(page.getByText(/Matches theme/i)).toBeVisible();
+    await expect
+      .element(page.getByRole("button", { name: "Light", exact: true }))
+      .not.toBeInTheDocument();
     const frame = page.getByTestId("appearance-probe").element().closest("[data-settings-design]")!;
-    expect(getComputedStyle(frame).backgroundColor).toBe("rgb(245, 244, 240)");
+    expect(getComputedStyle(frame).backgroundColor).toBe("rgb(32, 32, 32)");
     expect(frame.getAttribute("data-settings-scope")).toBe("settings");
-    expect(getComputedStyle(frame).borderRadius).toBe("14px");
+    expect(frame.getAttribute("data-settings-appearance")).toBe("dark");
+    expect(getComputedStyle(frame).borderRadius).toBe("36px");
     const option = frame.querySelector('[data-slot="settings-study-scope"]')!;
-    expect(getComputedStyle(option).borderRadius).toBe("12px");
+    expect(getComputedStyle(option).borderRadius).toBe("36px");
     expect(option.classList.contains("border-l")).toBe(false);
     await page.getByRole("button", { name: "Open settings overlay", exact: true }).click();
     await expect.element(page.getByTestId("settings-overlay")).toBeVisible();
@@ -149,18 +153,31 @@ it("limits the study to Settings while preserving the workspace appearance", asy
       getComputedStyle(page.getByTestId("settings-overlay").element())
         .getPropertyValue("--background")
         .trim(),
-    ).toBe("#f5f4f0");
+    ).toBe("#202020");
     await userEvent.keyboard("{Escape}");
     expect(document.documentElement.classList.contains("dark")).toBe(originalDark);
     expect(document.documentElement.style.getPropertyValue("--background")).toBe(background);
-    expect(localStorage.getItem("tabs:theme")).toBe(savedTheme);
+    expect(localStorage.getItem("tabs:theme")).toBe("tabs-dark");
     expect(localStorage.getItem("tabs_settings_labs_v1")).toContain('"editorialSettingsOnly":true');
+
+    // Toggle Settings page only OFF -> manual Dark/Light segmented control returns
+    await page.getByRole("switch", { name: "Settings page only", exact: true }).click();
+    await expect.element(page.getByRole("button", { name: "Light", exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Light", exact: true }).click();
+    await expect.element(page.getByTestId("nested-study-appearance")).toHaveTextContent("light");
+
     await page.getByRole("switch", { name: "Interface study", exact: true }).click();
     await expect
       .element(page.getByRole("switch", { name: "Settings page only", exact: true }))
       .not.toBeInTheDocument();
     expect(frame.getAttribute("data-settings-design")).toBe("classic");
   } finally {
+    if (savedTheme !== null) {
+      localStorage.setItem("tabs:theme", savedTheme);
+    } else {
+      localStorage.removeItem("tabs:theme");
+    }
+    window.dispatchEvent(new StorageEvent("storage", { key: "tabs:theme" }));
     store.setEditorialSettings(false);
     store.setEditorialSettingsOnly(false);
     store.setEditorialAppearance("dark");

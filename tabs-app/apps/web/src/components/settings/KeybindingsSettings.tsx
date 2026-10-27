@@ -9,7 +9,6 @@ import {
   InfoIcon,
   KeyboardIcon,
   LoaderCircleIcon,
-  MessageSquareIcon,
   MinusIcon,
   PlusIcon,
   RotateCcwIcon,
@@ -22,6 +21,7 @@ import {
   XIcon,
   DownloadIcon,
 } from "lucide-react";
+import { AssistantBubbleIcon } from "../AssistantBubbleIcon";
 import {
   type KeyboardEvent,
   type ReactNode,
@@ -327,7 +327,7 @@ function UnknownWhenVariableWarning({
           <span
             tabIndex={focusable ? 0 : undefined}
             aria-label={label}
-            className="inline-flex size-4.5 shrink-0 items-center justify-center rounded-sm text-warning outline-none transition-colors hover:bg-warning/10 focus-visible:ring-[3px] focus-visible:ring-warning/25"
+            className="inline-flex size-4.5 shrink-0 items-center justify-center rounded-full text-warning outline-none transition-colors hover:bg-warning/10 focus-visible:ring-[3px] focus-visible:ring-warning/25"
           >
             <TriangleAlertIcon className="size-3.5" />
           </span>
@@ -355,7 +355,7 @@ function KeybindingConflictWarning({ labels }: { labels: ReadonlyArray<string> }
           <span
             tabIndex={0}
             aria-label={description}
-            className="inline-flex size-5 shrink-0 items-center justify-center rounded-sm text-warning outline-none transition-colors hover:bg-warning/10 focus-visible:ring-[3px] focus-visible:ring-warning/25"
+            className="inline-flex size-5 shrink-0 items-center justify-center rounded-full text-warning outline-none transition-colors hover:bg-warning/10 focus-visible:ring-[3px] focus-visible:ring-warning/25"
           >
             <TriangleAlertIcon className="size-3.5" />
           </span>
@@ -888,7 +888,7 @@ function KeybindingTableRow({
   };
 
   return (
-    <div className="grid grid-cols-[minmax(190px,1.1fr)_minmax(220px,0.85fr)_minmax(210px,1fr)_60px] items-center px-4 py-1.5 text-sm even:bg-muted/15 hover:bg-accent/40">
+    <div className="grid grid-cols-[minmax(190px,1.1fr)_minmax(220px,0.85fr)_minmax(210px,1fr)_60px] items-center px-4 py-1.5 rounded-lg text-sm even:bg-muted/15 hover:bg-accent/40">
       <div className="min-w-0 pr-4">
         <div className="flex min-w-0 items-center gap-1.5">
           <Tooltip>
@@ -1430,7 +1430,7 @@ export function KeybindingsSettings({
 
             const categoryIcons: Record<string, React.ReactNode> = {
               General: <KeyboardIcon className="size-5" />,
-              Chat: <MessageSquareIcon className="size-5" />,
+              Chat: <AssistantBubbleIcon className="size-5" />,
               Diff: <SplitIcon className="size-5" />,
               Editor: <CodeIcon className="size-5" />,
               Project: <TabletSmartphoneIcon className="size-5" />,

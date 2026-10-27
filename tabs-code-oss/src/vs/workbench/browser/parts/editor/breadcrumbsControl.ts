@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getTabsEmbeddedRowHeight } from '../../tabsEmbeddedLayout.js';
 import * as dom from '../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { PixelRatio } from '../../../../base/browser/pixelRatio.js';
@@ -234,7 +235,7 @@ const separatorIcon = registerIcon('breadcrumb-separator', Codicon.chevronRight,
 
 export class BreadcrumbsControl {
 
-	static readonly HEIGHT = 22;
+	static get HEIGHT(): number { return getTabsEmbeddedRowHeight(22, 32); }
 
 	private static readonly SCROLLBAR_SIZES = {
 		default: 3,
@@ -269,7 +270,7 @@ export class BreadcrumbsControl {
 
 	readonly domNode: HTMLDivElement;
 	private readonly _widget: BreadcrumbsWidget;
-	private _editorTypeNode: HTMLDivElement | undefined;
+	private _editorTypeNode: HTMLButtonElement | undefined;
 	private _editorTypeLabel: HTMLSpanElement | undefined;
 	private _editorTypeHover: IManagedHover | undefined;
 	private _lastLayoutDimension: dom.Dimension | undefined;
@@ -378,6 +379,9 @@ export class BreadcrumbsControl {
 	layout(dim: dom.Dimension | undefined): void {
 		if (dim) {
 			this._lastLayoutDimension = dim;
+			if (this._options.showEditorTypePicker) {
+				this.domNode.style.height = `${dim.height}px`;
+			}
 		}
 		// When the editor type dropdown is visible it occupies space on the right, so shrink the
 		// breadcrumbs widget accordingly to avoid it rendering behind the dropdown.
@@ -533,6 +537,7 @@ export class BreadcrumbsControl {
 			const label = current ? editorTypeDisplayLabel(current, available.isDiffEditor) : available.currentId;
 			editorTypeLabel.textContent = label;
 			editorTypeHover.update(localize('editorType.hover', "Editor: {0}", label));
+			this._editorTypeNode?.setAttribute('aria-label', localize('editorType.ariaLabel', "Choose editor type, current editor: {0}", label));
 		}
 
 		// The dropdown width may have changed (different editor label or visibility toggled). Since the
@@ -557,9 +562,11 @@ export class BreadcrumbsControl {
 			return { label: this._editorTypeLabel, hover: this._editorTypeHover };
 		}
 
-		this._editorTypeNode = document.createElement('div');
+		this._editorTypeNode = document.createElement('button');
+		this._editorTypeNode.type = 'button';
 		this._editorTypeNode.classList.add('breadcrumbs-editor-type');
-		this._editorTypeNode.setAttribute('role', 'button');
+		this._editorTypeNode.setAttribute('aria-haspopup', 'menu');
+		this._editorTypeNode.setAttribute('aria-expanded', 'false');
 		this._editorTypeLabel = document.createElement('span');
 		this._editorTypeLabel.classList.add('label');
 		this._editorTypeNode.appendChild(this._editorTypeLabel);
@@ -593,9 +600,18 @@ export class BreadcrumbsControl {
 			return;
 		}
 		const actions = createEditorTypeActions(available, this._editorResolverService, this._commandService, this._editorService);
+		editorTypeNode.setAttribute('aria-expanded', 'true');
 		this._contextMenuService.showContextMenu({
 			getAnchor: () => editorTypeNode,
-			getActions: () => actions
+			getActions: () => actions,
+			onHide: () => {
+				editorTypeNode.setAttribute('aria-expanded', 'false');
+				// Native menus report didCancel=false for dismissal too. Restore before
+				// the selected action runs; opening an editor can then take focus normally.
+				if (editorTypeNode.isConnected) {
+					editorTypeNode.focus();
+				}
+			}
 		});
 	}
 

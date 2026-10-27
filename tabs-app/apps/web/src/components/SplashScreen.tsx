@@ -247,8 +247,9 @@ function SolariTile({
 
   return (
     <div
+      data-shape="tile"
       className={cn(
-        "relative flex h-[64px] w-[52px] items-center justify-center rounded-[6px] border text-[26px] font-light transition-all duration-300 ease-out",
+        "relative flex h-[64px] w-[52px] items-center justify-center rounded-lg border text-[26px] font-light transition-all duration-300 ease-out",
         isBlock
           ? justSettled
             ? "border-white/90 bg-white/22 shadow-[0_0_0_1px_rgba(255,255,255,0.9)]"

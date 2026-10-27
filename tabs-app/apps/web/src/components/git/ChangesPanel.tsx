@@ -8,18 +8,18 @@ import type {
 } from "@tabs/contracts";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  Check,
   GitCommit,
   Loader2,
   Minus,
   Plus,
   RotateCcw,
+  Search,
   Trash2,
-  Undo2,
   Upload,
   Wand2,
+  X,
 } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 import { deriveRepoState } from "../../lib/deriveRepoState";
 import { toGitUserFacingErrorMessage } from "../../lib/gitErrorMessages";
@@ -27,7 +27,6 @@ import { invalidateGitQueries } from "../../lib/gitReactQuery";
 import { useGitApi, useGitScopeKey } from "./gitApiContext";
 import { toastManager } from "../ui/toast";
 import { Button } from "../ui/button";
-import { Checkbox } from "../ui/checkbox";
 import { Switch } from "~/components/ui/switch";
 import {
   AutoTextarea,
@@ -47,7 +46,7 @@ const STRATEGY_LABEL: Record<string, string> = {
 };
 
 import { DiffLines } from "./DiffPage";
-import { ChevronDown, ChevronRight, Eye } from "lucide-react";
+import { ChevronDown, ChevronRight, ExternalLink, Eye } from "lucide-react";
 
 export function FileRow({
   cwd,
@@ -105,8 +104,11 @@ export function FileRow({
   const isRowLoading = Boolean(rowLoadingAction);
 
   return (
-    <div className="w-full border-b border-border/50 last:border-0">
-      <div className="group w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-muted/50 transition-colors">
+    <div
+      data-slot="git-file-row"
+      className="git-file-row w-full border-b border-border/20 last:border-0"
+    >
+      <div className="group w-full flex items-center gap-2 px-2.5 py-1.5 min-h-[34px] rounded-md hover:bg-muted/50 transition-colors">
         <button
           type="button"
           onClick={toggleInlineDiff}
@@ -117,16 +119,22 @@ export function FileRow({
           }
           aria-expanded={expanded}
           title={expanded ? "Collapse inline diff" : "Preview inline diff"}
-          className="shrink-0 text-muted-foreground/70 hover:text-foreground cursor-pointer"
+          className="shrink-0 text-muted-foreground/70 hover:text-foreground cursor-pointer p-0.5"
         >
-          {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+          {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
         </button>
 
         <button
           type="button"
-          onClick={() => onOpenDiff(f)}
-          aria-label={`Open full diff for ${f.path}`}
-          className="flex items-center gap-2.5 flex-1 min-w-0 text-left cursor-pointer"
+          onClick={toggleInlineDiff}
+          aria-label={
+            expanded
+              ? `Collapse inline diff for ${f.path}`
+              : `Toggle inline diff preview for ${f.path}`
+          }
+          aria-expanded={expanded}
+          title={expanded ? "Collapse inline diff" : "Preview inline diff"}
+          className="flex items-center gap-1.5 flex-1 min-w-0 text-left cursor-pointer py-0.5"
         >
           <span
             className="w-1.5 h-1.5 rounded-full shrink-0"
@@ -140,11 +148,11 @@ export function FileRow({
           />
           <FilePathLabel path={f.path} size="text-xs" />
         </button>
-        <span className="text-[11px] font-mono shrink-0" style={{ color: "var(--sem-emerald)" }}>
+        <span className="text-[10px] font-mono shrink-0" style={{ color: "var(--sem-emerald)" }}>
           +{f.insertions}
         </span>
         <span
-          className="text-[11px] font-mono shrink-0"
+          className="text-[10px] font-mono shrink-0"
           style={{ color: "var(--sem-red)", opacity: 0.85 }}
         >
           -{f.deletions}
@@ -157,9 +165,21 @@ export function FileRow({
           }
           aria-expanded={expanded}
           title="Toggle inline diff preview"
-          className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity shrink-0 flex items-center justify-center w-5 h-5 rounded bg-muted/50 border border-border text-muted-foreground hover:text-foreground cursor-pointer"
+          className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity shrink-0 flex items-center justify-center w-5 h-5 rounded bg-muted/50 border border-border/60 text-muted-foreground hover:text-foreground cursor-pointer"
         >
           <Eye size={10} />
+        </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenDiff(f);
+          }}
+          aria-label={`Open full diff for ${f.path}`}
+          title="Open full diff page"
+          className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity shrink-0 flex items-center justify-center w-5 h-5 rounded bg-muted/50 border border-border/60 text-muted-foreground hover:text-foreground cursor-pointer"
+        >
+          <ExternalLink size={10} />
         </button>
         {onDiscard && (
           <button
@@ -202,7 +222,7 @@ export function FileRow({
       </div>
 
       {expanded && (
-        <div className="my-2 ml-6 p-2 rounded border border-border/50 bg-muted/40 max-h-72 overflow-auto custom-scrollbar">
+        <div className="my-1.5 ml-6 p-2 rounded border border-border/50 bg-muted/40 max-h-72 overflow-auto custom-scrollbar">
           {loadingDiff ? (
             <div className="text-[11px] text-muted-foreground/70 py-2">Loading diff preview…</div>
           ) : !diffLines || diffLines.length === 0 ? (
@@ -403,7 +423,7 @@ export function ConflictResolver({
                       value={manualText}
                       onChange={(e) => setManualText(e.target.value)}
                       minRows={4}
-                      className="w-full border border-border rounded-lg text-foreground/90 bg-background font-mono text-[11px] p-3 outline-none focus:border-border transition-colors"
+                      className="w-full border border-border/60 rounded-lg text-foreground/90 bg-background font-mono text-[11px] p-3 outline-none focus-blur-glow"
                     />
                     <div className="flex items-center gap-2 mt-2">
                       <Button
@@ -566,6 +586,19 @@ export function ChangesPanel({
   const hasConflict = conflictedFiles.length > 0;
   const totalChanged = stagedFiles.length + unstagedFiles.length;
   const isDetached = !branchList?.branches.some((b) => b.current);
+
+  const [fileFilter, setFileFilter] = useState("");
+  const normalizedFilter = fileFilter.trim().toLowerCase();
+
+  const filteredStagedFiles = useMemo(() => {
+    if (!normalizedFilter) return stagedFiles;
+    return stagedFiles.filter((f) => f.path.toLowerCase().includes(normalizedFilter));
+  }, [stagedFiles, normalizedFilter]);
+
+  const filteredUnstagedFiles = useMemo(() => {
+    if (!normalizedFilter) return unstagedFiles;
+    return unstagedFiles.filter((f) => f.path.toLowerCase().includes(normalizedFilter));
+  }, [unstagedFiles, normalizedFilter]);
   const remoteName = branchList?.remoteName ?? "origin";
   const pushAccess = branchList?.pushAccess ?? "unknown";
 
@@ -686,18 +719,21 @@ export function ChangesPanel({
     }
   };
 
+  const latestMessage = useRef(msg);
+  latestMessage.current = msg;
   const handleGenerate = async () => {
     if (!api || !stagedFiles.length) return;
+    const original = msg;
     setGenerating(true);
     try {
-      const result = await api.git.generateDiffSummary({
-        cwd,
-        target: { kind: "working_tree" },
-        ...(selectedModel ? { modelSelection: selectedModel } : {}),
-        userHint:
-          "Prioritize the staged changes and return a concise imperative commit subject as the first line.",
-      });
-      setMsg(result.summary.split("\n", 1)[0]?.trim() ?? "");
+      const result = await api.git.generateCommitDraft({ cwd });
+      if (latestMessage.current === original) setMsg(result.message);
+      else
+        toastManager.add({
+          type: "info",
+          title: "Your edits were kept",
+          description: "The message changed during generation. Generate again when ready.",
+        });
     } catch (error) {
       toastManager.add({
         type: "error",
@@ -838,6 +874,34 @@ export function ChangesPanel({
         </Card>
       )}
 
+      {/* Search / filter changed files if there are any */}
+      {totalChanged > 0 && (
+        <div className="relative mb-3">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground/50 pointer-events-none" />
+          <input
+            type="text"
+            value={fileFilter}
+            onChange={(e) => setFileFilter(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") setFileFilter("");
+            }}
+            placeholder="Search changed files… (press Esc to clear)"
+            className="w-full h-8 pl-8 pr-8 text-xs bg-muted/20 hover:bg-muted/30 focus:bg-background/80 border border-border/50 rounded-md text-foreground placeholder:text-muted-foreground/50 outline-none focus-blur-glow font-mono"
+          />
+          {fileFilter && (
+            <button
+              type="button"
+              onClick={() => setFileFilter("")}
+              aria-label="Clear search"
+              title="Clear search (Esc)"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground/50 hover:text-foreground p-0.5 rounded cursor-pointer transition-colors"
+            >
+              <X size={13} />
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Staged files card */}
       <SectionLabel
         action={
@@ -854,15 +918,20 @@ export function ChangesPanel({
           ) : undefined
         }
       >
-        Staged changes ({stagedFiles.length})
+        Staged changes ({filteredStagedFiles.length}
+        {normalizedFilter ? ` of ${stagedFiles.length}` : ""})
       </SectionLabel>
-      <Card className="p-2 mb-4">
+      <Card className="p-1 mb-4 max-h-[420px] overflow-y-auto custom-scrollbar">
         {stagedFiles.length === 0 ? (
           <div className="text-center text-[11px] text-muted-foreground/50 py-6">
             No staged changes
           </div>
+        ) : filteredStagedFiles.length === 0 ? (
+          <div className="text-center text-[11px] text-muted-foreground/50 py-4 italic">
+            No staged changes matching "{fileFilter}"
+          </div>
         ) : (
-          stagedFiles.map((f) => (
+          filteredStagedFiles.map((f) => (
             <FileRow
               key={f.path}
               cwd={cwd}
@@ -900,15 +969,20 @@ export function ChangesPanel({
           </div>
         }
       >
-        Changes ({unstagedFiles.length})
+        Changes ({filteredUnstagedFiles.length}
+        {normalizedFilter ? ` of ${unstagedFiles.length}` : ""})
       </SectionLabel>
-      <Card className="p-2 mb-4">
+      <Card className="p-1 mb-4 max-h-[420px] overflow-y-auto custom-scrollbar">
         {unstagedFiles.length === 0 ? (
           <div className="text-center text-[11px] text-muted-foreground/50 py-6">
             Working tree clean
           </div>
+        ) : filteredUnstagedFiles.length === 0 ? (
+          <div className="text-center text-[11px] text-muted-foreground/50 py-4 italic">
+            No changes matching "{fileFilter}"
+          </div>
         ) : (
-          unstagedFiles.map((f) => (
+          filteredUnstagedFiles.map((f) => (
             <FileRow
               key={f.path}
               cwd={cwd}
@@ -938,7 +1012,7 @@ export function ChangesPanel({
             amend ? "Leave blank to keep the previous message…" : "Summarize your change…"
           }
           minRows={3}
-          className="w-full border border-border/80 rounded-lg bg-background text-foreground text-xs placeholder:text-muted-foreground/50 p-3 outline-none focus:border-border transition-colors leading-relaxed"
+          className="w-full border border-border/60 rounded-lg bg-background text-foreground text-xs placeholder:text-muted-foreground/50 p-3 outline-none focus-blur-glow leading-relaxed"
         />
 
         {/* Amend Option Bar with Switch */}

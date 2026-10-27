@@ -1,3 +1,11 @@
+import type {
+  ScheduledTaskListResult,
+  ScheduledTaskUpsertInput,
+  ScheduledTaskSetEnabledInput,
+  ScheduledTaskRunNowInput,
+  ScheduledTaskRunNowResult,
+  ScheduledTaskMutationResult,
+} from "./scheduledTask.ts";
 import type { BrowserReadinessResult } from "./browserReadiness.ts";
 import type { BrowserComparisonInput } from "./browserComparison.ts";
 import type { NotificationToastPayload } from "./notificationOverlay.ts";
@@ -122,6 +130,10 @@ import type {
   GitWatchedBranchStatusesInput,
   GitWatchedBranchStatusesResult,
   GitGenerateDiffSummaryInput,
+  GitGenerateCommitDraftInput,
+  GitGenerateCommitDraftResult,
+  GitGeneratePullRequestDraftInput,
+  GitGeneratePullRequestDraftResult,
   GitGenerateDiffSummaryResult,
   GitGenerateReviewInput,
   GitGenerateReviewResult,
@@ -1226,6 +1238,8 @@ export interface DesktopExtensionViewErrorEvent {
 }
 
 export interface DesktopBridge {
+  getInstallerCleanupCandidate?: () => Promise<{ name: string; size: number } | null>;
+  trashInstalledDmg?: () => Promise<void>;
   listExtensions: () => Promise<DesktopInstalledExtension[]>;
   onExtensionsChanged: (listener: () => void) => () => void;
   onExtensionViewError?: (listener: (event: DesktopExtensionViewErrorEvent) => void) => () => void;
@@ -1362,7 +1376,11 @@ export interface DesktopBridge {
   syncCodeSessions: (projectIds: readonly string[]) => Promise<void>;
   recreateCodeSession: (input: { projectId: string }) => Promise<void>;
   /** Forward an allowlisted workbench command to a project's embedded editor. Resolves true when delivered. */
-  runCodeCommand: (projectId: string, commandId: string) => Promise<boolean>;
+  runCodeCommand: (
+    projectId: string,
+    commandId: string,
+    presentation?: CodeRailPresentation,
+  ) => Promise<boolean>;
   /** Get the latest known chrome state for a project. */
   getCodeChromeState: (input: { projectId: string }) => Promise<CodeChromeState>;
   /** Subscribe to chrome-state pushes from the embedded workbench (tagged by project). Returns an unsubscribe fn. */
@@ -1662,6 +1680,16 @@ export interface LocalApi {
  * `environmentId` rather than reaching through the local desktop bridge.
  */
 export interface EnvironmentApi {
+  scheduledTasks: {
+    list: () => Promise<ScheduledTaskListResult>;
+    subscribe: (
+      callback: (value: ScheduledTaskListResult) => void,
+      onError: (error: Error) => void,
+    ) => () => void;
+    upsert: (input: ScheduledTaskUpsertInput) => Promise<ScheduledTaskMutationResult>;
+    setEnabled: (input: ScheduledTaskSetEnabledInput) => Promise<ScheduledTaskMutationResult>;
+    runNow: (input: ScheduledTaskRunNowInput) => Promise<ScheduledTaskRunNowResult>;
+  };
   terminal: {
     open: (input: typeof TerminalOpenInput.Encoded) => Promise<TerminalSessionSnapshot>;
     attach: (
@@ -1740,6 +1768,12 @@ export interface EnvironmentApi {
       input: GitPreparePullRequestThreadInput,
     ) => Promise<GitPreparePullRequestThreadResult>;
     listWorkflowRuns: (input: GitListWorkflowRunsInput) => Promise<GitListWorkflowRunsResult>;
+    generateCommitDraft: (
+      input: GitGenerateCommitDraftInput,
+    ) => Promise<GitGenerateCommitDraftResult>;
+    generatePullRequestDraft: (
+      input: GitGeneratePullRequestDraftInput,
+    ) => Promise<GitGeneratePullRequestDraftResult>;
     generateDiffSummary: (
       input: GitGenerateDiffSummaryInput,
     ) => Promise<GitGenerateDiffSummaryResult>;
@@ -1951,6 +1985,10 @@ export interface CodeTestItem {
 }
 
 export interface CodeChromeState {
+  /** Native modal dialogs cover both the embedded workbench and Tabs chrome. */
+  modalOpen?: boolean;
+  /** Active editor resource, including settings and editors outside the workspace. */
+  activeFilePath?: string | null;
   activeViewId: string | null;
   panelOpen: boolean;
   panelMaximized: boolean;
@@ -2101,4 +2139,11 @@ export interface DesktopBrowserSessionState {
   transientError: string | null;
   securityContext?: DesktopBrowserSecurityContext | undefined;
   pendingPermission?: BrowserPermissionRequest | null | undefined;
+}
+
+/** Transient rail decoration. Positions are fractions of the native host height. */
+export interface CodeRailPresentation {
+  selectionY: number | null;
+  spotlight: boolean;
+  label: { text: string; y: number } | null;
 }

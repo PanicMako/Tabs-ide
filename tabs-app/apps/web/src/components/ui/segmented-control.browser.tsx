@@ -84,7 +84,7 @@ test("keeps rounded themed tracks and skips disabled choices with keyboard navig
     system.element().parentElement!.setAttribute("data-theme", "dracula");
     const orb = system.element().parentElement!.querySelector<HTMLElement>("[data-orbit-orb]")!;
     const draculaBackground = getComputedStyle(orb).backgroundColor;
-    expect(getComputedStyle(system.element().parentElement!).borderRadius).toBe("9999px");
+    expect(getComputedStyle(system.element().parentElement!).borderRadius).toBe("36px");
     system.element().parentElement!.setAttribute("data-theme", "tabs-dark");
     await expect.poll(() => getComputedStyle(orb).backgroundColor).not.toBe(draculaBackground);
     system.element().focus();
@@ -95,6 +95,52 @@ test("keeps rounded themed tracks and skips disabled choices with keyboard navig
     expect(document.activeElement).toBe(light.element());
     light.element().dispatchEvent(new KeyboardEvent("keydown", { key: "Home", bubbles: true }));
     await expect.element(system).toHaveAttribute("aria-checked", "true");
+  } finally {
+    await view.unmount();
+  }
+});
+
+test("hugs content inside flex-col containers without stretching across full width", async () => {
+  function FlexColContainer() {
+    const [mode, setMode] = useState("icons");
+    return (
+      <div className="flex flex-col w-[500px]">
+        <SegmentedControl
+          value={mode}
+          onValueChange={setMode}
+          options={[
+            { value: "icons", label: "Icons" },
+            { value: "emoji", label: "Emoji" },
+          ]}
+          aria-label="Icon mode"
+        />
+        <SegmentedControl
+          value={mode}
+          onValueChange={setMode}
+          options={[
+            { value: "icons", label: "Icons" },
+            { value: "emoji", label: "Emoji" },
+          ]}
+          className="w-full flex"
+          itemClassName="flex-1"
+          aria-label="Full width mode"
+        />
+      </div>
+    );
+  }
+
+  const view = await render(<FlexColContainer />);
+  try {
+    const defaultCtrl = page.getByRole("radiogroup", { name: "Icon mode" });
+    const fullWidthCtrl = page.getByRole("radiogroup", { name: "Full width mode" });
+
+    const defaultEl = defaultCtrl.element();
+    const fullEl = fullWidthCtrl.element();
+
+    // Default segmented control inside flex-col should hug its content (< 250px), not stretch to 500px
+    expect(defaultEl.clientWidth).toBeLessThan(250);
+    // Explicit full-width segmented control should span approximately 500px
+    expect(fullEl.clientWidth).toBeGreaterThanOrEqual(480);
   } finally {
     await view.unmount();
   }

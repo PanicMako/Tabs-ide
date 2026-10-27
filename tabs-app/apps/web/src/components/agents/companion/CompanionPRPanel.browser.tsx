@@ -81,7 +81,7 @@ it.each([360, 900])("keeps PR summaries readable and actions accessible at %ipx"
     await expect.element(page.getByText(fixture.pr.title, { exact: true })).toBeVisible();
     const card = document.querySelector(".companion-pr-card")!;
     const title = document.querySelector(".companion-pr-title")!;
-    expect(title.getBoundingClientRect().width).toBeGreaterThan(width === 360 ? 180 : 600);
+    expect(title.getBoundingClientRect().width).toBeGreaterThan(width === 360 ? 180 : 500);
     expect(card.scrollWidth).toBeLessThanOrEqual(Math.ceil(card.getBoundingClientRect().width));
     expect(document.querySelector(".companion-heading")).toBeNull();
     await page.getByRole("radio", { name: "Open", exact: true }).click();

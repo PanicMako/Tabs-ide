@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getTabsEmbeddedRowHeight } from '../../../browser/tabsEmbeddedLayout.js';
 import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
 import { TreeFindMode } from '../../../../base/browser/ui/tree/abstractTree.js';
@@ -650,7 +651,7 @@ export class LoadedScriptsView extends ViewPane {
 class LoadedScriptsDelegate implements IListVirtualDelegate<LoadedScriptsItem> {
 
 	getHeight(element: LoadedScriptsItem): number {
-		return 22;
+		return getTabsEmbeddedRowHeight(22);
 	}
 
 	getTemplateId(element: LoadedScriptsItem): string {

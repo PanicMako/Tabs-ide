@@ -667,7 +667,11 @@ export const OrchestrationV2ExecutionNode = Schema.Struct({
 });
 export type OrchestrationV2ExecutionNode = typeof OrchestrationV2ExecutionNode.Type;
 
+const DedupedBodyMarker = Schema.optionalKey(Schema.Literal(true));
+
 export const OrchestrationV2Subagent = Schema.Struct({
+  promptOmitted: DedupedBodyMarker,
+  resultOmitted: DedupedBodyMarker,
   id: NodeId,
   threadId: ThreadId,
   runId: Schema.NullOr(RunId),
@@ -1383,6 +1387,7 @@ export const OrchestrationV2TurnItem = Schema.Union([
     ...OrchestrationV2TurnItemBaseFields,
     ...OrchestrationV2CreationFields,
     type: Schema.Literal("user_message"),
+    textOmitted: DedupedBodyMarker,
     messageId: MessageId,
     scheduledTaskId: Schema.optional(ScheduledTaskId),
     senderThreadId: Schema.optional(ThreadId),
@@ -1394,6 +1399,7 @@ export const OrchestrationV2TurnItem = Schema.Union([
   Schema.Struct({
     ...OrchestrationV2TurnItemBaseFields,
     type: Schema.Literal("assistant_message"),
+    textOmitted: DedupedBodyMarker,
     messageId: MessageId,
     text: Schema.String,
     attachments: Schema.optional(Schema.Array(ChatAttachment)),
@@ -1474,6 +1480,7 @@ export const OrchestrationV2TurnItem = Schema.Union([
   Schema.Struct({
     ...OrchestrationV2TurnItemBaseFields,
     type: Schema.Literal("checkpoint"),
+    filesOmitted: DedupedBodyMarker,
     checkpointId: CheckpointId,
     scopeId: CheckpointScopeId,
     files: Schema.Array(OrchestrationV2CheckpointFileSummary),
@@ -1559,6 +1566,8 @@ export const OrchestrationV2TurnItem = Schema.Union([
   Schema.Struct({
     ...OrchestrationV2TurnItemBaseFields,
     type: Schema.Literal("subagent"),
+    promptOmitted: DedupedBodyMarker,
+    resultOmitted: DedupedBodyMarker,
     subagentId: NodeId,
     origin: Schema.Literals(["provider_native", "app_owned"]),
     driver: ProviderDriverKind,
@@ -2162,6 +2171,7 @@ export const OrchestrationV2TurnItemJson = Schema.Union([
     ...OrchestrationV2TurnItemJsonBaseFields,
     ...OrchestrationV2CreationFields,
     type: Schema.Literal("user_message"),
+    textOmitted: DedupedBodyMarker,
     messageId: MessageId,
     scheduledTaskId: Schema.optional(ScheduledTaskId),
     senderThreadId: Schema.optional(ThreadId),
@@ -2173,6 +2183,7 @@ export const OrchestrationV2TurnItemJson = Schema.Union([
   Schema.Struct({
     ...OrchestrationV2TurnItemJsonBaseFields,
     type: Schema.Literal("assistant_message"),
+    textOmitted: DedupedBodyMarker,
     messageId: MessageId,
     text: Schema.String,
     attachments: Schema.optional(Schema.Array(ChatAttachment)),
@@ -2253,6 +2264,7 @@ export const OrchestrationV2TurnItemJson = Schema.Union([
   Schema.Struct({
     ...OrchestrationV2TurnItemJsonBaseFields,
     type: Schema.Literal("checkpoint"),
+    filesOmitted: DedupedBodyMarker,
     checkpointId: CheckpointId,
     scopeId: CheckpointScopeId,
     files: Schema.Array(OrchestrationV2CheckpointFileSummary),
@@ -2335,6 +2347,8 @@ export const OrchestrationV2TurnItemJson = Schema.Union([
   Schema.Struct({
     ...OrchestrationV2TurnItemJsonBaseFields,
     type: Schema.Literal("subagent"),
+    promptOmitted: DedupedBodyMarker,
+    resultOmitted: DedupedBodyMarker,
     subagentId: NodeId,
     origin: Schema.Literals(["provider_native", "app_owned"]),
     driver: ProviderDriverKind,
@@ -3224,6 +3238,7 @@ export const OrchestrationV2DispatchCommandResult = Schema.Struct({
 export type OrchestrationV2DispatchCommandResult = typeof OrchestrationV2DispatchCommandResult.Type;
 
 export const OrchestrationV2GetThreadProjectionInput = Schema.Struct({
+  acceptDedupedBodies: Schema.optionalKey(Schema.Boolean),
   threadId: ThreadId,
 });
 export type OrchestrationV2GetThreadProjectionInput =
@@ -3245,6 +3260,7 @@ export const OrchestrationV2SubscribeShellInput = Schema.Struct({
 export type OrchestrationV2SubscribeShellInput = typeof OrchestrationV2SubscribeShellInput.Type;
 
 export const OrchestrationV2SubscribeThreadInput = Schema.Struct({
+  acceptDedupedBodies: Schema.optionalKey(Schema.Boolean),
   threadId: ThreadId,
   /**
    * When provided, the server skips the initial snapshot frame and instead

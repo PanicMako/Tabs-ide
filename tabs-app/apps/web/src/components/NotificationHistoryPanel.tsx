@@ -177,6 +177,7 @@ export function NotificationHistoryPanel({
       {open && (
         <div
           ref={panelRef}
+          data-slot="notification-history-panel"
           role="dialog"
           aria-label="Notification history"
           className={cn(

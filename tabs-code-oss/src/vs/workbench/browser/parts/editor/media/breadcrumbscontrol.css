@@ -23,6 +23,9 @@
 }
 
 .monaco-workbench .breadcrumbs-control.with-editor-type > .breadcrumbs-editor-type {
+	appearance: none;
+	border: none;
+	font-family: inherit;
 	flex: 0 0 auto;
 	display: flex;
 	align-items: center;

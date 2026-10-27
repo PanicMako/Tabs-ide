@@ -33,6 +33,16 @@ const extension = {
 } as unknown as DesktopInstalledExtension;
 
 describe("extension toolbar tools", () => {
+  it("lists unassigned extensions in Workspace without adding them to the actual toolbar", () => {
+    const tools = mergeExtensionToolbarTools([builtin], [extension], "project-b", true);
+    expect(tools).toEqual([builtin, { ...extensionTool, label: "Notes", visible: false }]);
+    expect(mergeExtensionToolbarTools([builtin], [extension], "project-b")).toEqual([builtin]);
+    expect(
+      mergeExtensionToolbarTools([builtin], [{ ...extension, revoked: true }], "project-a", true)[1]
+        ?.visible,
+    ).toBe(false);
+  });
+
   it("preserves saved order and visibility while using verified package labels", () => {
     expect(mergeExtensionToolbarTools([extensionTool, builtin], [extension], "project-a")).toEqual([
       { ...extensionTool, label: "Notes" },

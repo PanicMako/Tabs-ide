@@ -313,7 +313,70 @@ describe("wsNativeApi", () => {
 
     await api.server.refreshProviders(input);
 
-    expect(requestMock).toHaveBeenCalledWith(WS_METHODS.serverRefreshProviders, input);
+    expect(requestMock).toHaveBeenCalledWith(WS_METHODS.serverRefreshProviders, {
+      ...input,
+      workspaceSnapshotsOnDemand: true,
+    });
+  });
+
+  it("merges scoped workspace responses across folders and omitted catalog updates", async () => {
+    const { createWsNativeApi } = await import("./wsNativeApi");
+    const api = createWsNativeApi();
+    const a = makeTestServerProvider({
+      instanceId: "a",
+      workspaceSnapshots: [{ cwd: "/one" } as never],
+    });
+    const b = makeTestServerProvider({
+      instanceId: "b",
+      workspaceSnapshots: [{ cwd: "/other" } as never],
+    });
+    requestMock.mockResolvedValueOnce({ providers: [a, b] });
+    await api.server.refreshProviders();
+    requestMock.mockResolvedValueOnce({
+      providers: [{ ...a, workspaceSnapshots: [{ cwd: "/two" }] }],
+      workspaceSnapshotScope: { instanceId: a.instanceId, cwd: "/two", fresh: false },
+    });
+    const refreshed = await api.server.refreshProviders({ instanceId: a.instanceId, cwd: "/two" });
+    expect(refreshed.providers).toHaveLength(2);
+    expect(refreshed.providers[0]!.workspaceSnapshots?.map((snapshot) => snapshot.cwd)).toEqual([
+      "/one",
+      "/two",
+    ]);
+    expect(refreshed.providers[1]).toEqual(b);
+    requestMock.mockResolvedValueOnce({
+      providers: [
+        { ...a, workspaceSnapshots: undefined },
+        { ...b, workspaceSnapshots: undefined },
+      ],
+      workspaceSnapshotsOmitted: true,
+    });
+    const reconnected = await api.server.getConfig();
+    expect(reconnected.providers[0]!.workspaceSnapshots?.map((snapshot) => snapshot.cwd)).toEqual([
+      "/one",
+      "/two",
+    ]);
+  });
+
+  it("restores duplicate message bodies before returning a thread projection", async () => {
+    const { createWsNativeApi } = await import("./wsNativeApi");
+    const api = createWsNativeApi();
+    requestMock.mockResolvedValueOnce({
+      thread: { id: "thread" },
+      messages: [{ id: "message", text: "complete response" }],
+      checkpoints: [],
+      subagents: [],
+      turnItems: [{ type: "assistant_message", messageId: "message", text: "", textOmitted: true }],
+      visibleTurnItems: [],
+    });
+    const projection = await api.orchestration.getThreadProjection({
+      threadId: ThreadId.make("thread"),
+    });
+    expect(projection.turnItems[0]).toMatchObject({ text: "complete response" });
+    expect(projection.turnItems[0]).not.toHaveProperty("textOmitted");
+    expect(requestMock).toHaveBeenLastCalledWith(ORCHESTRATION_V2_WS_METHODS.getThreadProjection, {
+      threadId: "thread",
+      acceptDedupedBodies: true,
+    });
   });
 
   it("isolates progress listeners between non-singleton environment transports", async () => {
@@ -640,6 +703,26 @@ describe("wsNativeApi", () => {
         projectId: projectCommand.projectId,
         title: projectCommand.title,
         workspaceRoot: projectCommand.workspaceRoot,
+      }),
+    );
+
+    const projectMetaCommand = {
+      type: "project.meta.update",
+      commandId: CommandId.makeUnsafe("cmd-meta-1"),
+      projectId: ProjectId.makeUnsafe("project-1"),
+      projectIcon: { kind: "lucide", name: "folder", color: "orange" },
+      faviconPath: null,
+    } as const;
+    await api.orchestration.dispatchCommand(projectMetaCommand as any);
+
+    expect(requestMock).toHaveBeenCalledWith(
+      WS_METHODS.projectsMutate,
+      expect.objectContaining({
+        type: "project.update",
+        commandId: projectMetaCommand.commandId,
+        projectId: projectMetaCommand.projectId,
+        projectIcon: projectMetaCommand.projectIcon,
+        faviconPath: null,
       }),
     );
   });
@@ -1381,4 +1464,31 @@ it("does not report success when a Git stream closes without its final result", 
   await expect(
     api.git.runStackedAction({ actionId: "a", cwd: "/repo", action: "commit" }),
   ).rejects.toThrow("without a completion result");
+});
+
+it("keeps automation operations on the selected environment transport", async () => {
+  const { createWsNativeApi } = await import("./wsNativeApi");
+  const api = createWsNativeApi({ singleton: false });
+  requestMock.mockResolvedValue({ tasks: [] });
+  await api.scheduledTasks.list();
+  expect(requestMock).toHaveBeenLastCalledWith(WS_METHODS.scheduledTasksList, {});
+  const id = "schedule:test" as import("@tabs/contracts").ScheduledTaskId;
+  await api.scheduledTasks.setEnabled({ id, enabled: false });
+  expect(requestMock).toHaveBeenLastCalledWith(WS_METHODS.scheduledTasksSetEnabled, {
+    id,
+    enabled: false,
+  });
+  await api.scheduledTasks.runNow({ id });
+  expect(requestMock).toHaveBeenLastCalledWith(WS_METHODS.scheduledTasksRunNow, { id });
+  const callback = vi.fn();
+  const onError = vi.fn();
+  const unsubscribe = api.scheduledTasks.subscribe(callback, onError);
+  expect(subscribeRpcMock).toHaveBeenLastCalledWith(
+    WS_METHODS.scheduledTasksSubscribe,
+    expect.any(Function),
+    expect.any(Function),
+    callback,
+    onError,
+  );
+  unsubscribe();
 });

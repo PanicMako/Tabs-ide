@@ -43,9 +43,18 @@ import { PullRequestMergeMethod } from "./pullRequest.ts";
 
 // ── Client Settings (local-only) ───────────────────────────────
 
-export const DesktopIconTheme = Schema.Literals(["dark", "light", "system"]);
+export const DesktopIconTheme = Schema.Literals([
+  "dark",
+  "light",
+  "system",
+  "signature",
+  "blue-white",
+  "mono",
+  "ivory-ink",
+  "blue-ink",
+]);
 export type DesktopIconTheme = typeof DesktopIconTheme.Type;
-export const DEFAULT_DESKTOP_ICON_THEME: DesktopIconTheme = "dark";
+export const DEFAULT_DESKTOP_ICON_THEME: DesktopIconTheme = "system";
 
 export const TimestampFormat = Schema.Literals(["locale", "12-hour", "24-hour"]);
 export type TimestampFormat = typeof TimestampFormat.Type;
@@ -1243,11 +1252,35 @@ export type DroidSettings = typeof DroidSettings.Type;
 
 export const OpenRouterSettings = makeProviderSettingsSchema(
   {
+    harness: Schema.Literals(["deepseek", "opencode"]).pipe(
+      Schema.withDecodingDefault(Effect.succeed("deepseek" as const)),
+      Schema.annotateKey({
+        title: "Agent harness",
+        description:
+          "Runs agent sessions with your OpenRouter models. Git writing uses the local model independently.",
+        providerSettingsForm: {
+          control: "select",
+          options: [
+            { value: "deepseek", label: "DeepSeek Harness" },
+            { value: "opencode", label: "OpenCode 1.x" },
+          ],
+        },
+      }),
+    ),
+    deepseekBinaryPath: TrimmedString.pipe(
+      Schema.withDecodingDefault(Effect.succeed("dsh")),
+      Schema.annotateKey({
+        title: "DeepSeek executable",
+        description:
+          "Install @deepseek-ai/dsh@0.2.1-rc.2 with Node.js 24.9 or newer. Uses the upstream ACP profile without modifying the harness.",
+        providerSettingsForm: { placeholder: "dsh" },
+      }),
+    ),
     binaryPath: TrimmedString.pipe(
       Schema.withDecodingDefault(Effect.succeed("opencode")),
       Schema.annotateKey({
-        title: "Agent engine path",
-        description: "OpenCode 1.x CLI used for agent sessions. Code Review uses the API directly.",
+        title: "OpenCode executable",
+        description: "Used only when the OpenCode harness is selected.",
         providerSettingsForm: { placeholder: "opencode" },
       }),
     ),
@@ -1282,7 +1315,7 @@ export const OpenRouterSettings = makeProviderSettingsSchema(
       Schema.annotateKey({ providerSettingsForm: { hidden: true } }),
     ),
   },
-  { order: ["apiKey", "baseUrl", "binaryPath"] },
+  { order: ["apiKey", "baseUrl", "harness", "deepseekBinaryPath", "binaryPath"] },
 );
 export type OpenRouterSettings = typeof OpenRouterSettings.Type;
 
@@ -1755,6 +1788,13 @@ export const ServerSettings = Schema.Struct({
   branchNamePrefix: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed("t3"))),
   branchNameInstructions: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
   removeAgentCreditsOnMerge: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
+  /** Legacy source preference retained for settings compatibility; Git writing now always runs locally. */
+  commitDraftSource: Schema.Literals(["auto", "local", "openrouter"]).pipe(
+    Schema.withDecodingDefault(Effect.succeed("local" as const)),
+  ),
+  commitDraftLocalModel: TrimmedNonEmptyString.pipe(
+    Schema.withDecodingDefault(Effect.succeed("qwen3:1.7b")),
+  ),
   sourceControlWritingStyle: SourceControlWritingStyleSettings.pipe(
     Schema.withDecodingDefault(Effect.succeed({})),
   ),
@@ -2053,6 +2093,8 @@ const KiloSettingsPatch = Schema.Struct({
 });
 
 const OpenRouterSettingsPatch = Schema.Struct({
+  harness: Schema.optionalKey(Schema.Literals(["deepseek", "opencode"])),
+  deepseekBinaryPath: Schema.optionalKey(TrimmedString),
   binaryPath: Schema.optionalKey(TrimmedString),
   enabled: Schema.optionalKey(Schema.Boolean),
   apiKey: Schema.optionalKey(TrimmedString),
@@ -2156,6 +2198,8 @@ export const ServerSettingsPatch = Schema.Struct({
   branchNamePrefix: Schema.optionalKey(TrimmedString),
   branchNameInstructions: Schema.optionalKey(TrimmedString),
   removeAgentCreditsOnMerge: Schema.optionalKey(Schema.Boolean),
+  commitDraftSource: Schema.optionalKey(Schema.Literals(["auto", "local", "openrouter"])),
+  commitDraftLocalModel: Schema.optionalKey(TrimmedNonEmptyString),
   sourceControlWritingStyle: Schema.optionalKey(
     Schema.Struct({
       mode: Schema.optionalKey(SourceControlWritingStyleMode),
@@ -2481,7 +2525,7 @@ export const ProjectWorkspaceSettings = Schema.Struct({
               : kind === "agents"
                 ? "Agents"
                 : kind === "server"
-                  ? "Launchpad"
+                  ? "Dock"
                   : kind === "git"
                     ? "Git"
                     : kind === "browser"

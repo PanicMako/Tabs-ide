@@ -708,7 +708,10 @@ function makeManager(input?: {
     prefix: "t3-git-manager-test-",
   });
 
-  const layerServerSettings = ServerSettings.ServerSettingsService.layerTest(input?.serverSettings);
+  const layerServerSettings = ServerSettings.ServerSettingsService.layerTest({
+    commitDraftSource: "openrouter",
+    ...input?.serverSettings,
+  });
 
   const layerVcsDriver = input?.gitConfigReads
     ? Layer.effect(
@@ -2921,6 +2924,138 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
     }),
   );
 
+  it.effect(
+    "drafts PR content from the selected branches without changing files or publishing",
+    () =>
+      Effect.gen(function* () {
+        const cwd = yield* makeTempDir("tabs-pr-draft-");
+        yield* initRepo(cwd);
+        yield* runGit(cwd, ["checkout", "-b", "feature/local-pr"]);
+        NodeFS.writeFileSync(NodePath.join(cwd, "README.md"), "local PR draft generation\n");
+        yield* runGit(cwd, ["add", "README.md"]);
+        yield* runGit(cwd, ["commit", "-m", "feat(scm): generate PR drafts"]);
+        const before = (yield* runGit(cwd, ["status", "--porcelain"])).stdout;
+        let generation: TextGeneration.PrContentGenerationInput | undefined;
+        const { manager } = yield* makeManager({
+          textGeneration: {
+            generatePrContent: (input) => {
+              generation = input;
+              return Effect.succeed({
+                title: "feat(scm): generate PR drafts",
+                body: "## Summary\nDraft PRs locally.\n\n## Testing\nNot run",
+              });
+            },
+          },
+        });
+        const result = yield* manager.generatePullRequestDraft({
+          cwd,
+          baseBranch: "main",
+          headBranch: "feature/local-pr",
+        });
+        expect(result.title).toBe("feat(scm): generate PR drafts");
+        expect(generation?.diffPatch).toContain("local PR draft generation");
+        expect(generation?.modelSelection).toEqual({ instanceId: "local", model: "qwen3:1.7b" });
+        expect((yield* runGit(cwd, ["status", "--porcelain"])).stdout).toBe(before);
+      }),
+  );
+
+  it.effect("drafts from tracked edits without staging or committing", () =>
+    Effect.gen(function* () {
+      const cwd = yield* makeTempDir("tabs-commit-draft-");
+      yield* initRepo(cwd);
+      NodeFS.writeFileSync(NodePath.join(cwd, "README.md"), "tracked edit\n");
+      NodeFS.writeFileSync(NodePath.join(cwd, "new.txt"), "untracked content\n");
+      const before = (yield* runGit(cwd, ["status", "--porcelain"])).stdout;
+      let generatedInput: TextGeneration.CommitMessageGenerationInput | undefined;
+      const { manager } = yield* makeManager({
+        textGeneration: {
+          generateCommitMessage: (input) => {
+            generatedInput = input;
+            return Effect.succeed({
+              subject: "Improve documentation",
+              body: "Explain the workflow",
+            });
+          },
+        },
+      });
+      const result = yield* manager.generateCommitDraft({ cwd });
+      expect(result).toEqual({
+        message: "Improve documentation\n\nExplain the workflow",
+        targetScope: "working_tree",
+      });
+      expect(generatedInput?.modelSelection).toEqual({
+        instanceId: "local",
+        model: "qwen3:1.7b",
+      });
+      expect(generatedInput?.policy?.kind).toBe("conventional_commits");
+      expect(generatedInput?.stagedPatch).toContain("tracked edit");
+      expect(generatedInput?.stagedPatch).not.toContain("untracked content");
+      expect((yield* runGit(cwd, ["status", "--porcelain"])).stdout).toBe(before);
+      expect((yield* runGit(cwd, ["rev-list", "--count", "HEAD"])).stdout.trim()).toBe("1");
+    }),
+  );
+
+  it.effect("drafts only staged changes when the index is populated", () =>
+    Effect.gen(function* () {
+      const cwd = yield* makeTempDir("tabs-commit-draft-");
+      yield* initRepo(cwd);
+      NodeFS.writeFileSync(NodePath.join(cwd, "README.md"), "staged edit\n");
+      yield* runGit(cwd, ["add", "README.md"]);
+      NodeFS.writeFileSync(NodePath.join(cwd, "README.md"), "later unstaged edit\n");
+      const before = (yield* runGit(cwd, ["diff", "--cached"])).stdout;
+      let patch = "";
+      const { manager } = yield* makeManager({
+        textGeneration: {
+          generateCommitMessage: (input) => {
+            patch = input.stagedPatch;
+            return Effect.succeed({ subject: "Update documentation", body: "" });
+          },
+        },
+      });
+      expect((yield* manager.generateCommitDraft({ cwd })).targetScope).toBe("staged");
+      expect(patch).toContain("+staged edit");
+      expect(patch).not.toContain("later unstaged edit");
+      expect((yield* runGit(cwd, ["diff", "--cached"])).stdout).toBe(before);
+    }),
+  );
+
+  it.effect("bounds large patches without failing or changing the index", () =>
+    Effect.gen(function* () {
+      const cwd = yield* makeTempDir("tabs-commit-draft-");
+      yield* initRepo(cwd);
+      NodeFS.writeFileSync(
+        NodePath.join(cwd, "README.md"),
+        "large tracked change\n".repeat(80_000),
+      );
+      let patch = "";
+      const { manager } = yield* makeManager({
+        textGeneration: {
+          generateCommitMessage: (input) => {
+            patch = input.stagedPatch;
+            return Effect.succeed({ subject: "Expand documentation", body: "" });
+          },
+        },
+      });
+      expect((yield* manager.generateCommitDraft({ cwd })).message).toBe("Expand documentation");
+      expect(patch.length).toBeLessThan(60_000);
+      expect(patch).toContain("[truncated]");
+      expect(patch).toContain("large tracked change");
+      expect((yield* runGit(cwd, ["diff", "--cached", "--name-only"])).stdout).toBe("");
+    }),
+  );
+
+  it.effect("rejects empty commit drafts before calling a provider", () =>
+    Effect.gen(function* () {
+      const cwd = yield* makeTempDir("tabs-commit-draft-");
+      yield* initRepo(cwd);
+      const { manager } = yield* makeManager({
+        textGeneration: { generateCommitMessage: () => Effect.die("Must not generate") },
+      });
+      const result = yield* manager.generateCommitDraft({ cwd }).pipe(Effect.result);
+      expect(result._tag).toBe("Failure");
+    }),
+  );
+
   it.effect("creates a commit when working tree is dirty", () =>
     Effect.gen(function* () {
       const repoDir = yield* makeTempDir("t3code-git-manager-");
@@ -3004,7 +3139,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
     }),
   );
 
-  it.effect("falls back when the dedicated source control writer is unavailable", () =>
+  it.effect("uses the local Git model even when the remote writer is unavailable", () =>
     Effect.gen(function* () {
       const repoDir = yield* makeTempDir("t3code-git-manager-");
       yield* initRepo(repoDir);
@@ -3040,11 +3175,11 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         action: "commit",
       });
 
-      expect(generatedModelSelection).toEqual(DEFAULT_SERVER_SETTINGS.textGenerationModelSelection);
+      expect(generatedModelSelection).toEqual({ instanceId: "local", model: "qwen3:1.7b" });
     }),
   );
 
-  it.effect("applies a V2-native thread's project settings to generated commit text", () =>
+  it.effect("keeps Git generation local for a V2-native thread with a remote project writer", () =>
     Effect.gen(function* () {
       const repoDir = yield* makeTempDir("t3code-git-manager-");
       yield* initRepo(repoDir);
@@ -3135,7 +3270,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         threadId,
       });
 
-      expect(generatedModelSelection).toEqual(projectModel);
+      expect(generatedModelSelection).toEqual({ instanceId: "local", model: "qwen3:1.7b" });
     }),
   );
 
@@ -3177,8 +3312,8 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
 
       expect(generatedPolicy).toEqual({
         kind: "repo_conventions",
-        commitInstructions: `Follow the repository's established commit message style when examples are available.\n\nLocal AGENTS.md:\n${agentInstructions}\n\nLocal CLAUDE.md:\n${claudeInstructions}`,
-        changeRequestInstructions: `Follow the repository's established change request title and body style when examples are available.\n\nLocal AGENTS.md:\n${agentInstructions}\n\nLocal CLAUDE.md:\n${claudeInstructions}`,
+        commitInstructions: `Follow the repository's established commit message style when examples are available.\n\nLocal AGENTS.md:\n${agentInstructions}`,
+        changeRequestInstructions: `Follow the repository's established change request title and body style when examples are available.\n\nLocal AGENTS.md:\n${agentInstructions}`,
         inferRepositoryConventions: true,
       });
     }),
@@ -4618,6 +4753,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
             baseRefName: "main",
             headRefName: "feature/resolve-pr",
             state: "open",
+            isDraft: true,
           },
         },
       });
@@ -4634,6 +4770,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         baseBranch: "main",
         headBranch: "feature/resolve-pr",
         state: "open",
+        isDraft: true,
       });
       expect(ghCalls.some((call) => call.startsWith("pr view 42 "))).toBe(true);
     }),

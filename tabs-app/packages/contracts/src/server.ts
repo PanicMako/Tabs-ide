@@ -639,6 +639,7 @@ export const ServerDirectEndpoint = Schema.Struct({
 export type ServerDirectEndpoint = typeof ServerDirectEndpoint.Type;
 
 export const ServerConfig = Schema.Struct({
+  workspaceSnapshotsOmitted: Schema.optional(Schema.Boolean),
   environment: ExecutionEnvironmentDescriptor,
   auth: ServerAuthDescriptor,
   cwd: TrimmedNonEmptyString,
@@ -746,6 +747,7 @@ export type ServerConfigKeybindingsUpdatedPayload =
   typeof ServerConfigKeybindingsUpdatedPayload.Type;
 
 export const ServerConfigProviderStatusesPayload = Schema.Struct({
+  workspaceSnapshotsOmitted: Schema.optional(Schema.Boolean),
   providers: ServerProviders,
 });
 export type ServerConfigProviderStatusesPayload = typeof ServerConfigProviderStatusesPayload.Type;
@@ -896,6 +898,13 @@ export const ServerLifecycleStreamEvent = Schema.Union([
 export type ServerLifecycleStreamEvent = typeof ServerLifecycleStreamEvent.Type;
 
 export const ServerProviderUpdatedPayload = Schema.Struct({
+  workspaceSnapshotScope: Schema.optional(
+    Schema.Struct({
+      instanceId: ProviderInstanceId,
+      cwd: TrimmedNonEmptyString,
+      fresh: Schema.Boolean,
+    }),
+  ),
   providers: ServerProviders,
 });
 export type ServerProviderUpdatedPayload = typeof ServerProviderUpdatedPayload.Type;

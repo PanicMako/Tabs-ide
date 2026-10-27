@@ -15,7 +15,7 @@
 .zoom-ruler-value {
   padding: 3px 9px;
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: var(--radius-control);
   background: var(--muted);
   color: var(--foreground);
   font-family: var(--font-sans);
@@ -57,7 +57,7 @@
   height: 66px;
   overflow: hidden;
   border: 1px solid var(--border);
-  border-radius: 20px;
+  border-radius: var(--radius-surface);
   background: color-mix(in srgb, var(--muted) 45%, var(--background));
 }
 .zoom-ruler-window::after {
@@ -123,7 +123,7 @@
   pointer-events: none;
   width: 2px;
   height: 23px;
-  border-radius: 2px;
+  border-radius: var(--radius-control);
   background: color-mix(in srgb, var(--muted-foreground) 65%, transparent);
 }
 .zoom-ruler-mark[aria-pressed="true"] {
@@ -139,7 +139,7 @@
   top: 7px;
   height: 30px;
   width: 3px;
-  border-radius: 3px;
+  border-radius: var(--radius-control);
   background: var(--primary);
   box-shadow: 0 0 8px color-mix(in srgb, var(--primary) 30%, transparent);
   z-index: 4;

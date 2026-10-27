@@ -132,6 +132,48 @@ describe("NativeViewStackCoordinator", () => {
     expect(mockWindow.contentView.children).toEqual([browserView, overlayView]);
   });
 
+  it("reveals quit confirmation above Relay and restores the native view on cancel", () => {
+    const window = createMockWindow();
+    const coordinator = new NativeViewStackCoordinator({ getWindow: () => window });
+    const relay = createMockView("relay");
+    const overlay = createMockView("notifications");
+    coordinator.attachToolView(relay);
+    coordinator.setNotificationOverlayView(overlay);
+
+    coordinator.setToolViewsSuspended(true);
+    expect(window.contentView.children).toEqual([overlay]);
+    expect(window.webContents.focus).toHaveBeenCalledOnce();
+    expect(relay.webContents.isDestroyed()).toBe(false);
+    // Bounds publication or a native focus event must not cover the quit dialog again.
+    coordinator.attachToolView(relay);
+    (relay.webContents as unknown as { emit: (event: string) => void }).emit("focus");
+    expect(window.contentView.children).toEqual([overlay]);
+    expect(window.webContents.focus).toHaveBeenCalledTimes(2);
+
+    coordinator.setToolViewsSuspended(false);
+    expect(window.contentView.children).toEqual([relay, overlay]);
+    coordinator.setToolViewsSuspended(false);
+    expect(window.contentView.children).toEqual([relay, overlay]);
+  });
+
+  it("blocks new tool and automation views during quit and does not revive closed sessions", () => {
+    const window = createMockWindow();
+    const coordinator = new NativeViewStackCoordinator({ getWindow: () => window });
+    const code = createMockView("code");
+    const relay = createMockView("relay");
+    const automation = createMockView("automation");
+    coordinator.attachToolView(code);
+    coordinator.setToolViewsSuspended(true);
+    coordinator.attachToolView(relay);
+    coordinator.attachAutomationView(automation);
+    coordinator.detachToolView(code);
+    expect(window.contentView.children).toEqual([]);
+
+    coordinator.setToolViewsSuspended(false);
+    expect(window.contentView.children).toEqual([automation, relay]);
+    expect(window.contentView.children).not.toContain(code);
+  });
+
   it("handles null or destroyed window safely", () => {
     const destroyedWindow = {
       isDestroyed: vi.fn(() => true),

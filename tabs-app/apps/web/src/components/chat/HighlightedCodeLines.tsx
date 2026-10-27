@@ -1,7 +1,7 @@
-import type { DiffsHighlighter } from "@pierre/diffs";
+import type { highlightCodeToHast } from "../../lib/incrementalHighlighting";
 import React, { cloneElement, memo, type CSSProperties } from "react";
 
-export type HighlightedRoot = ReturnType<DiffsHighlighter["codeToHast"]>;
+export type HighlightedRoot = ReturnType<typeof highlightCodeToHast>;
 export type HighlightedNode = HighlightedRoot["children"][number];
 
 function parseStyle(style: unknown): CSSProperties | undefined {

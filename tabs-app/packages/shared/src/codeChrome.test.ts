@@ -223,3 +223,56 @@ describe("parseCodeControlClientMessage / coerceChromeState", () => {
     expect(parseCodeControlClientMessage("{")).toBeNull();
   });
 });
+
+it("preserves the active resource independently of workspace file tabs", () => {
+  expect(
+    coerceChromeState({ activeFilePath: "/profile/settings.json", openTabs: [] }).activeFilePath,
+  ).toBe("/profile/settings.json");
+  expect(coerceChromeState({ activeFilePath: null }).activeFilePath).toBeNull();
+  expect(coerceChromeState({ activeFilePath: 42 }).activeFilePath).toBeNull();
+  expect(coerceChromeState({}).activeFilePath).toBeUndefined();
+});
+
+it("preserves native modal state across the control-channel parser", () => {
+  for (const modalOpen of [true, false]) {
+    const parsed = parseCodeControlClientMessage(
+      JSON.stringify({
+        type: "chromeState",
+        projectId: "modal-project",
+        state: { modalOpen },
+      }),
+    );
+    expect(parsed?.type === "chromeState" && parsed.state.modalOpen).toBe(modalOpen);
+  }
+  expect(coerceChromeState({ modalOpen: "true" }).modalOpen).toBeUndefined();
+});
+
+describe("rail presentation command", () => {
+  const presentation = {
+    selectionY: 0.125,
+    spotlight: true,
+    label: { text: "Source Control", y: 0.25 },
+  };
+  const message = (value: unknown, commandId = "_tabs.setRailPresentation") =>
+    JSON.stringify({ type: "runCommand", commandId, presentation: value });
+  it("preserves bounded geometry and plain-text labels", () => {
+    expect(parseCodeControlServerMessage(message(presentation))).toEqual({
+      type: "runCommand",
+      commandId: "_tabs.setRailPresentation",
+      presentation,
+    });
+  });
+  it.each([
+    { ...presentation, selectionY: -0.01 },
+    { ...presentation, selectionY: 2 },
+    { ...presentation, spotlight: "true" },
+    { ...presentation, label: { text: "x".repeat(101), y: 0.5 } },
+    { ...presentation, label: { text: { value: "Source Control" }, y: 0.5 } },
+    { ...presentation, label: { text: "Source Control", y: -1 } },
+  ])("rejects malformed presentation %#", (value) => {
+    expect(parseCodeControlServerMessage(message(value))).toBeNull();
+  });
+  it("does not add arguments to navigation commands", () => {
+    expect(parseCodeControlServerMessage(message(presentation, "workbench.view.scm"))).toBeNull();
+  });
+});

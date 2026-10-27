@@ -1,3 +1,4 @@
+import { InstalledExtensionToolIcon } from "./InstalledExtensionToolIcon";
 import { AgentBackground } from "./AgentBackground";
 import { resolveRouteThread } from "../resolveRouteThread";
 import { useDraftThread } from "../state/composerDrafts";
@@ -95,7 +96,6 @@ import {
   FlaskConicalIcon,
   FolderSearchIcon,
   GitBranchIcon,
-  GithubIcon,
   GlobeIcon,
   HelpCircleIcon,
   HistoryIcon,
@@ -106,7 +106,6 @@ import {
   MonitorIcon,
   MousePointer2Icon,
   PlayIcon,
-  PuzzleIcon,
   PencilIcon,
   PlusIcon,
   RefreshCwIcon,
@@ -122,9 +121,7 @@ import {
   Trash2Icon,
   PanelTopCloseIcon,
   PanelTopOpenIcon,
-  MessageSquareIcon,
   TerminalSquareIcon,
-  WorkflowIcon,
   XIcon,
   PanelLeftIcon,
   PanelLeftCloseIcon,
@@ -142,7 +139,7 @@ import {
   CpuIcon,
   DatabaseIcon,
   LayersIcon,
-  SparklesIcon,
+  CompassIcon,
   ZapIcon,
 } from "lucide-react";
 import {
@@ -235,6 +232,7 @@ import {
   KiloIcon,
   CursorIcon,
   CopilotIcon,
+  TabsExtensionIcon,
   type Icon,
 } from "./Icons";
 import GitCommitComposer from "./GitCommitComposer";
@@ -344,12 +342,23 @@ import {
 } from "./codeHost.logic";
 import { openWelcomeWizard } from "../onboarding/firstRun";
 import { CodeActivityRail } from "./code/CodeActivityRail";
+import {
+  GitCompanionIcon,
+  WorkspaceBrowserIcon,
+  WorkspaceTerminalIcon,
+} from "./WorkspaceToolMarks";
+import { CodeGlyphIcon } from "./CodeGlyphIcon";
+import { DockUfoIcon } from "./DockUfoIcon";
+import { BrowserPlanetIcon } from "./BrowserPlanetIcon";
+import { AssistantBubbleIcon } from "./AssistantBubbleIcon";
 import { CodeHeaderBar } from "./code/CodeHeaderBar";
+import { useCodeAssistantPanels } from "./code/useCodeAssistantPanels";
 import {
   CODE_ACTIVITY_ITEMS,
   CODE_CHROME_COMMANDS,
   DEFAULT_CODE_CHROME_STATE,
   type CodeChromeState,
+  type CodeRailPresentation,
 } from "@tabs/shared/codeChrome";
 import { resolveShortcutCommand, shortcutLabelForCommand } from "../keybindings";
 import { useKeybindings } from "../state/settings";
@@ -580,22 +589,23 @@ function resolveEmbeddedWorkspaceMode(): EmbeddedWorkspaceMode {
 function toolIcon(tool: ProjectToolKind) {
   switch (tool) {
     case "code":
-      return <WorkflowIcon className="size-3.5" />;
+      return <CodeGlyphIcon className="size-[18px]" />;
     case "agents":
-      return <BotIcon className="size-3.5" />;
+      return <AssistantBubbleIcon className="size-4" />;
     case "server":
-      return <RocketIcon className="size-3.5" />;
+      return <DockUfoIcon className="size-[18px]" />;
     case "git":
-      return <GithubIcon className="size-3.5" />;
+      return <GitCompanionIcon className="size-4" />;
     case "browser":
+      return <BrowserPlanetIcon className="size-4" />;
     case "custom_embed":
-      return <GlobeIcon className="size-3.5" />;
+      return <WorkspaceBrowserIcon className="size-4" />;
     case "testing":
       return <FlaskConicalIcon aria-hidden="true" className="size-3.5" />;
     case "custom_process":
-      return <TerminalSquareIcon className="size-3.5" />;
+      return <WorkspaceTerminalIcon className="size-4" />;
     case "extension":
-      return <PuzzleIcon className="size-3.5" />;
+      return <TabsExtensionIcon className="size-3.5" />;
   }
 }
 
@@ -911,8 +921,14 @@ function isSameWebUrl(urlA: string | null | undefined, urlB: string | null | und
 function resolveProjectById(
   projects: ReadonlyArray<Project>,
   projectId: ProjectId | null,
+  environmentId?: string | null,
 ): Project | null {
-  return projectId ? (projects.find((project) => project.id === projectId) ?? null) : null;
+  return projectId
+    ? (projects.find(
+        (project) =>
+          project.id === projectId && (!environmentId || project.environmentId === environmentId),
+      ) ?? null)
+    : null;
 }
 
 function resolveMostRecentThreadForProject(
@@ -1174,6 +1190,7 @@ function ProjectTabs(props: {
           return (
             <div
               key={pendingId}
+              data-slot="workspace-project-tab"
               data-active={active ? "true" : undefined}
               className={cn(
                 "drag-region group relative inline-flex min-w-[9.5rem] max-w-[15rem] items-center gap-2 rounded-t-xl border px-3.5 py-2 text-xs font-semibold transition-all duration-150 cursor-pointer select-none",
@@ -1258,6 +1275,7 @@ function ProjectToolBar(props: {
     id: string;
     kind: ProjectToolKind;
     label: string;
+    icon?: React.ReactNode;
   }>;
   threads?: ReadonlyArray<Thread>;
   activeProjectId?: ProjectId | null;
@@ -1350,7 +1368,11 @@ function ProjectToolBar(props: {
                   active ? "text-foreground font-semibold" : "text-muted-foreground",
                 )}
               >
-                {toolIcon(tool.kind)}
+                {isAgentsTool ? (
+                  <AssistantBubbleIcon className="size-4" />
+                ) : (
+                  (tool.icon ?? toolIcon(tool.kind))
+                )}
               </span>
               <span>{tool.label}</span>
               {toolActivityIndicator && (
@@ -1868,19 +1890,19 @@ function AgentsThreadList(props: {
               title={
                 newThreadShortcutLabel ? `New thread (${newThreadShortcutLabel})` : "New thread"
               }
-              className="group relative flex h-10 w-full items-center justify-center rounded-[14px] p-[1.5px] transition-all duration-200 active:scale-[0.985] active:translate-y-[0.5px] bg-gradient-to-b from-slate-300 via-slate-400/60 to-slate-500/70 shadow-[0_1px_3px_rgba(0,0,0,0.08),0_4px_12px_rgba(0,0,0,0.04)] hover:from-slate-200 hover:via-slate-300 hover:to-slate-400 dark:from-[#e2e8f0]/75 dark:via-[#94a3b8]/30 dark:to-[#475569]/35 dark:shadow-[0_2px_12px_-2px_rgba(0,0,0,0.5),0_1px_2px_rgba(0,0,0,0.3)] dark:hover:from-white/95 dark:hover:via-[#cbd5e1]/45 dark:hover:to-[#64748b]/45 dark:hover:shadow-[0_4px_18px_-2px_rgba(0,0,0,0.65),0_0_12px_rgba(226,232,240,0.12)]"
+              className="group relative flex h-10 w-full items-center justify-center rounded-lg p-[1.5px] transition-all duration-200 active:scale-[0.985] active:translate-y-[0.5px] bg-gradient-to-b from-slate-300 via-slate-400/60 to-slate-500/70 shadow-[0_1px_3px_rgba(0,0,0,0.08),0_4px_12px_rgba(0,0,0,0.04)] hover:from-slate-200 hover:via-slate-300 hover:to-slate-400 dark:from-[#e2e8f0]/75 dark:via-[#94a3b8]/30 dark:to-[#475569]/35 dark:shadow-[0_2px_12px_-2px_rgba(0,0,0,0.5),0_1px_2px_rgba(0,0,0,0.3)] dark:hover:from-white/95 dark:hover:via-[#cbd5e1]/45 dark:hover:to-[#64748b]/45 dark:hover:shadow-[0_4px_18px_-2px_rgba(0,0,0,0.65),0_0_12px_rgba(226,232,240,0.12)]"
             >
-              <div className="relative flex h-full w-full items-center justify-center gap-2 rounded-[12.5px] px-3 transition-colors duration-200 bg-gradient-to-b from-white via-slate-50 to-slate-100/90 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.95),inset_0_-1px_0_0_rgba(0,0,0,0.05)] group-hover:from-white group-hover:to-slate-50 dark:from-[#18191f] dark:via-[#131417] dark:to-[#0f1013] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.12),inset_0_-1px_0_0_rgba(0,0,0,0.6)] dark:group-hover:from-[#1e2027] dark:group-hover:via-[#16171c] dark:group-hover:to-[#111215]">
+              <div className="relative flex h-full w-full items-center justify-center gap-2 rounded-lg px-3 transition-colors duration-200 bg-gradient-to-b from-white via-slate-50 to-slate-100/90 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.95),inset_0_-1px_0_0_rgba(0,0,0,0.05)] group-hover:from-white group-hover:to-slate-50 dark:from-[#18191f] dark:via-[#131417] dark:to-[#0f1013] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.12),inset_0_-1px_0_0_rgba(0,0,0,0.6)] dark:group-hover:from-[#1e2027] dark:group-hover:via-[#16171c] dark:group-hover:to-[#111215]">
                 {/* Brushed metallic reflection sheen */}
-                <div className="pointer-events-none absolute inset-0 rounded-[12.5px] bg-gradient-to-r from-transparent via-white/[0.04] to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100 dark:via-white/[0.07]" />
+                <div className="pointer-events-none absolute inset-0 rounded-lg bg-gradient-to-r from-transparent via-white/[0.04] to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100 dark:via-white/[0.07]" />
 
                 <PlusIcon className="size-3.5 stroke-[2.25] text-foreground/80 transition-all duration-200 group-hover:scale-110 group-hover:text-foreground" />
-                <span className="min-w-0 flex-1 truncate text-left text-[13px] font-semibold tracking-tight text-foreground/90 transition-colors group-hover:text-foreground">
+                <span className="text-[13px] font-semibold tracking-tight text-foreground/90 transition-colors group-hover:text-foreground">
                   New Thread
                 </span>
 
                 {newThreadShortcutLabel && (
-                  <kbd className="pointer-events-none hidden shrink-0 items-center rounded-md border border-foreground/[0.08] bg-foreground/[0.03] px-1.5 py-0.5 text-[10px] font-mono font-medium text-muted-foreground/50 transition-colors group-hover:border-foreground/15 group-hover:text-muted-foreground/80 sm:inline-flex">
+                  <kbd className="pointer-events-none absolute right-3 hidden items-center rounded-md border border-foreground/[0.08] bg-foreground/[0.03] px-1.5 py-0.5 text-[10px] font-mono font-medium text-muted-foreground/50 transition-colors group-hover:border-foreground/15 group-hover:text-muted-foreground/80 sm:inline-flex">
                     {newThreadShortcutLabel}
                   </kbd>
                 )}
@@ -1905,7 +1927,7 @@ function AgentsThreadList(props: {
                     setShowSnoozedView(false);
                   }}
                   className={cn(
-                    "group relative flex items-center pb-2 text-xs font-sans transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-xs",
+                    "group relative flex items-center pb-2 text-xs font-sans transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-md",
                     view === "current" && !showSettledView && !showSnoozedView
                       ? "font-semibold text-foreground"
                       : "font-medium text-muted-foreground/75 hover:text-foreground",
@@ -1932,7 +1954,7 @@ function AgentsThreadList(props: {
                     setShowSnoozedView(false);
                   }}
                   className={cn(
-                    "group relative flex items-center pb-2 text-xs font-sans transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-xs",
+                    "group relative flex items-center pb-2 text-xs font-sans transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-md",
                     view === "current" && showSettledView && !showSnoozedView
                       ? "font-semibold text-foreground"
                       : "font-medium text-muted-foreground/75 hover:text-foreground",
@@ -1969,7 +1991,7 @@ function AgentsThreadList(props: {
                           setShowSnoozedView(false);
                         }}
                         className={cn(
-                          "group relative flex items-center justify-center pb-2 text-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-xs",
+                          "group relative flex items-center justify-center pb-2 text-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-md",
                           view === "archived"
                             ? "text-foreground font-semibold"
                             : "text-muted-foreground/60 hover:text-foreground",
@@ -2408,7 +2430,7 @@ function AgentsThreadList(props: {
                                 />
                               )}
                               {(section === "settled" || section === "snoozed") && (
-                                <MessageSquareIcon className="size-3.5 shrink-0 text-muted-foreground/50" />
+                                <AssistantBubbleIcon className="size-3.5 shrink-0 text-muted-foreground/50" />
                               )}
                               {/* Status dot or spinner for active attention */}
                               {(() => {
@@ -2464,7 +2486,7 @@ function AgentsThreadList(props: {
                                 ) : thread.branch ? (
                                   <GitBranchIcon className="size-3 shrink-0 text-muted-foreground/60 group-hover:text-foreground/75" />
                                 ) : (
-                                  <MessageSquareIcon className="size-3 shrink-0 text-muted-foreground/60 group-hover:text-foreground/75" />
+                                  <AssistantBubbleIcon className="size-3 shrink-0 text-muted-foreground/60 group-hover:text-foreground/75" />
                                 )}
                                 <span className="truncate">
                                   {section === "snoozed"
@@ -2560,7 +2582,7 @@ function AgentsThreadList(props: {
                         </Tooltip>
                         <div
                           className={cn(
-                            "absolute right-1.5 top-1/2 z-10 flex h-7 -translate-y-1/2 items-center gap-0.5 rounded-lg border border-border/80 bg-card/95 px-1 py-0.5 shadow-md shadow-black/15 backdrop-blur-md transition-all duration-150 dark:border-zinc-700/80 dark:bg-zinc-800/95 dark:shadow-black/50",
+                            "absolute right-1.5 top-1/2 z-10 flex h-7 -translate-y-1/2 items-stretch overflow-hidden rounded-full border border-border/80 bg-card/95 shadow-md shadow-black/15 backdrop-blur-md transition-all duration-150 dark:border-zinc-700/80 dark:bg-zinc-800/95 dark:shadow-black/50",
                             openThreadMenuId === thread.id
                               ? "pointer-events-auto opacity-100"
                               : "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100",
@@ -2578,9 +2600,9 @@ function AgentsThreadList(props: {
                                       }
                                       aria-pressed={lifecycleEntry.pinnedAt !== null}
                                       className={cn(
-                                        "flex size-6 items-center justify-center rounded-md text-foreground/80 hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring transition-colors",
+                                        "flex h-full w-7 items-center justify-center text-foreground/80 hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring transition-colors",
                                         lifecycleEntry.pinnedAt &&
-                                          "bg-primary/15 text-foreground hover:text-foreground",
+                                          "bg-primary/15 text-foreground hover:bg-primary/25 hover:text-foreground",
                                       )}
                                       onClick={() => void dispatchLifecycle(thread, "pin")}
                                     />
@@ -2602,7 +2624,7 @@ function AgentsThreadList(props: {
                                           ? "Return thread to active"
                                           : "Settle thread"
                                       }
-                                      className="flex h-6 items-center gap-1.5 rounded-md px-2 text-[11px] font-semibold text-foreground/90 hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring transition-colors"
+                                      className="flex h-full items-center gap-1.5 px-2 text-[11px] font-semibold text-foreground/90 hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring transition-colors"
                                       onClick={() => void dispatchLifecycle(thread, "settle")}
                                     />
                                   }
@@ -2622,7 +2644,7 @@ function AgentsThreadList(props: {
                                       aria-label={
                                         threadIsSnoozed ? "Wake thread now" : "Snooze thread"
                                       }
-                                      className="flex size-6 items-center justify-center rounded-md text-foreground/80 hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring transition-colors"
+                                      className="flex h-full w-7 items-center justify-center text-foreground/80 hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring transition-colors"
                                       onClick={() => void dispatchLifecycle(thread, "snooze")}
                                     />
                                   }
@@ -2633,7 +2655,7 @@ function AgentsThreadList(props: {
                                   {threadIsSnoozed ? "Wake now" : "Snooze for 1 hour"}
                                 </TooltipPopup>
                               </Tooltip>
-                              <div className="mx-0.5 h-3.5 w-px bg-border/60" />
+                              <div className="my-auto h-3.5 w-px bg-border/60 shrink-0" />
                             </>
                           )}
                           <Menu
@@ -2645,7 +2667,7 @@ function AgentsThreadList(props: {
                                 <button
                                   type="button"
                                   aria-label={`Thread actions for ${thread.title}`}
-                                  className="flex size-6 items-center justify-center rounded-md text-foreground/80 hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring transition-colors data-[popup-open]:bg-accent data-[popup-open]:text-foreground"
+                                  className="flex h-full w-7 items-center justify-center text-foreground/80 hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring transition-colors data-[popup-open]:bg-accent data-[popup-open]:text-foreground"
                                 />
                               }
                             >
@@ -2889,7 +2911,7 @@ function CodeHostUnavailableView(props: {
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-y-auto bg-background/50">
       <div className="flex min-h-full items-center justify-center p-6 md:p-10">
         <div
-          className="relative w-full max-w-2xl overflow-hidden rounded-[28px] border border-border/70 bg-card/85 p-8 shadow-2xl backdrop-blur-2xl md:p-10"
+          className="relative w-full max-w-2xl overflow-hidden rounded-lg border border-border/70 bg-card/85 p-8 shadow-2xl backdrop-blur-2xl md:p-10"
           style={{ fontFamily: "var(--font-sans)" }}
         >
           {/* Subtle background glow */}
@@ -2971,7 +2993,7 @@ function CodeHostUnavailableView(props: {
               onClick={() => openWelcomeWizard()}
               className="gap-2 rounded-full"
             >
-              <SparklesIcon className="size-3.5" />
+              <CompassIcon className="size-3.5" />
               Open Setup Wizard
             </Button>
           </div>
@@ -3296,7 +3318,7 @@ function FallbackCodeTool(props: { project: Project }) {
           {previewUnavailable ? (
             <div className="flex h-full min-h-0 flex-col items-start justify-center gap-4 px-8 py-10">
               <Badge variant="outline" className="gap-1.5">
-                <WorkflowIcon className="size-3.5" />
+                <CodeGlyphIcon className="size-3.5" />
                 Code Host
               </Badge>
               <div className="space-y-2">
@@ -3555,11 +3577,24 @@ function DesktopCodeTool(props: { project: Project }) {
     },
     [projectId, chromeState.activityBarItems],
   );
-  useEffect(() => {
-    if (aiProvider === "copilot") {
-      setSideChatOpen(false);
-    }
-  }, [aiProvider, projectId, setSideChatOpen]);
+
+  const updateCodeRailPresentation = useCallback(
+    (presentation: CodeRailPresentation) => {
+      if (!hostReady) return;
+      void window.desktopBridge
+        ?.runCodeCommand(projectId, CODE_CHROME_COMMANDS.railPresentation, presentation)
+        .catch(() => undefined);
+    },
+    [hostReady, projectId],
+  );
+
+  const toggleCodeAssistant = useCodeAssistantPanels({
+    provider: aiProvider,
+    hostReady,
+    sideChatOpen,
+    setSideChatOpen,
+    runCommand: runCodeCommand,
+  });
   useEffect(() => {
     const bridge = window.desktopBridge;
     if (!bridge?.getCodeChromeState) {
@@ -3806,43 +3841,55 @@ function DesktopCodeTool(props: { project: Project }) {
     );
   }
 
+  const handleCodeMenuOpenChange = async (open: boolean) => {
+    const bridge = window.desktopBridge;
+    if (!bridge) return;
+    if (open) {
+      const snapshot = await bridge.captureCodeSession({ projectId }).catch(() => null);
+      setMenuBackdrop(snapshot);
+      await bridge.hideCodeSession().catch(() => undefined);
+      return;
+    }
+    await bridge.activateCodeSession({ projectId }).catch(() => undefined);
+    setMenuBackdrop(null);
+  };
+
   return (
-    <div className="flex h-full min-h-0 min-w-0 flex-col bg-background">
+    <div
+      className="code-workspace flex h-full min-h-0 min-w-0 flex-col bg-background"
+      data-modal-open={chromeState.modalOpen === true ? "true" : undefined}
+      style={
+        {
+          "--code-sidechat-width": `${sideChatOpen && aiProvider === "tabs" ? sideChatWidth : 0}px`,
+        } as React.CSSProperties
+      }
+    >
       <CodeHeaderBar
+        modalOpen={chromeState.modalOpen === true}
         workspaceName={props.project.name}
         activeFilePath={
-          chromeState.openTabs?.find((tab) => tab.active)?.filePath ?? codeState.lastFocusedPath
+          chromeState.activeFilePath !== undefined
+            ? chromeState.activeFilePath
+            : (chromeState.openTabs?.find((tab) => tab.active)?.filePath ??
+              codeState.lastFocusedPath)
         }
         branch={chromeState.branch}
+        panelOpen={chromeState.panelOpen}
         panelMaximized={chromeState.panelMaximized}
         sideChatOpen={aiProvider === "tabs" ? sideChatOpen : undefined}
         sideChatLabel={
           aiProvider === "copilot" ? "Toggle GitHub Copilot chat" : "Toggle Tabs AI chat"
         }
-        onToggleSideChat={() => {
-          if (aiProvider === "copilot") {
-            runCodeCommand(CODE_CHROME_COMMANDS.toggleAuxiliaryBar);
-          } else {
-            setSideChatOpen(!sideChatOpen);
-          }
-        }}
+        onToggleSideChat={toggleCodeAssistant}
         onRunCommand={runCodeCommand}
+        onMenuOpenChange={handleCodeMenuOpenChange}
       />
-      <div className="flex min-h-0 min-w-0 flex-1">
+      <div className="code-workspace-body flex min-h-0 min-w-0 flex-1">
         <CodeActivityRail
+          workspaceId={projectId}
+          onPresentationChange={updateCodeRailPresentation}
           chromeState={chromeState}
-          onApplicationMenuOpenChange={async (open) => {
-            const bridge = window.desktopBridge;
-            if (!bridge) return;
-            if (open) {
-              const snapshot = await bridge.captureCodeSession({ projectId }).catch(() => null);
-              setMenuBackdrop(snapshot);
-              await bridge.hideCodeSession().catch(() => undefined);
-              return;
-            }
-            await bridge.activateCodeSession({ projectId }).catch(() => undefined);
-            setMenuBackdrop(null);
-          }}
+          onApplicationMenuOpenChange={handleCodeMenuOpenChange}
           onRunCommand={runCodeCommand}
         />
         {/* Code-OSS owns the editor workbench inside this host region while Tabs
@@ -3864,13 +3911,14 @@ function DesktopCodeTool(props: { project: Project }) {
               className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center bg-background/64 text-sm text-muted-foreground"
             >
               <div className="rounded-2xl border border-border/70 bg-background/86 px-5 py-4 shadow-lg backdrop-blur-sm">
-                {hostError ?? "Attaching stock Code-OSS for this project…"}
+                {hostError ?? "Opening Code workspace…"}
               </div>
             </div>
           ) : null}
         </div>
         {sideChatOpen && aiProvider === "tabs" ? (
           <aside
+            inert={chromeState.modalOpen === true}
             style={{ width: sideChatWidth }}
             className="relative flex min-h-0 shrink-0 flex-col overflow-hidden border-l border-border/70 bg-background text-foreground"
           >
@@ -3886,7 +3934,7 @@ function DesktopCodeTool(props: { project: Project }) {
                 in-panel thread list), and new thread. Threads are shared with the
                 Agents tab (same store), so anything started here shows there too. */}
             <header className="flex h-9 shrink-0 items-center gap-1 border-b border-border/70 pl-3 pr-1.5">
-              <MessageSquareIcon className="size-3.5 shrink-0 text-muted-foreground" />
+              <AssistantBubbleIcon className="size-3.5 shrink-0 text-muted-foreground" />
               <span className="min-w-0 flex-1 truncate text-xs font-medium text-foreground">
                 {showSideChatHistory ? "History" : sideChatThreadTitle}
               </span>
@@ -3938,7 +3986,7 @@ function DesktopCodeTool(props: { project: Project }) {
                             : "text-muted-foreground",
                         )}
                       >
-                        <MessageSquareIcon className="size-3.5 shrink-0" />
+                        <AssistantBubbleIcon className="size-3.5 shrink-0" />
                         <span className="min-w-0 flex-1 truncate">
                           {thread.title || "Untitled"}
                         </span>
@@ -3966,7 +4014,7 @@ function DesktopCodeTool(props: { project: Project }) {
                 </Suspense>
               ) : (
                 <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
-                  <MessageSquareIcon className="size-6 text-muted-foreground" />
+                  <AssistantBubbleIcon className="size-6 text-muted-foreground" />
                   <div className="text-sm font-medium text-foreground">No chat yet</div>
                   <div className="text-xs text-muted-foreground">
                     Hit + to start a thread, or open one from history.
@@ -8267,7 +8315,7 @@ function DesktopBrowserChrome(props: {
               }
               status={
                 props.sessionState.assignedTaskId ||
-                (props.sessionState.controller && props.sessionState.controller !== "none") ||
+                props.sessionState.controller === "agent" ||
                 (props.sessionState.temporaryAgentTab && !props.sessionState.userRetained) ||
                 recordingBrowser ||
                 issueRecording ||
@@ -8288,16 +8336,14 @@ function DesktopBrowserChrome(props: {
                         Task: {props.sessionState.assignedTaskId.slice(0, 8)}
                       </Badge>
                     ) : null}
-                    {props.sessionState.controller && props.sessionState.controller !== "none" ? (
-                      <Badge
-                        variant={
-                          props.sessionState.controller === "agent" ? "default" : "secondary"
-                        }
-                        aria-live="polite"
-                      >
-                        {props.sessionState.controller === "agent"
-                          ? "Agent control"
-                          : "Human control"}
+                    {props.sessionState.controller === "agent" ? (
+                      <Badge variant="default" aria-live="polite">
+                        Agent control
+                      </Badge>
+                    ) : props.sessionState.controller === "human" &&
+                      props.sessionState.assignedTaskId ? (
+                      <Badge variant="secondary" aria-live="polite">
+                        Human control
                       </Badge>
                     ) : null}
                     {props.sessionState.controller === "agent" ? (
@@ -8356,15 +8402,6 @@ function DesktopBrowserChrome(props: {
                 title={`Assigned to task ${props.sessionState.assignedTaskId}`}
               >
                 Task: {props.sessionState.assignedTaskId.slice(0, 8)}
-              </Badge>
-            ) : null}
-            {props.sessionState.controller && props.sessionState.controller !== "none" ? (
-              <Badge
-                variant={props.sessionState.controller === "agent" ? "default" : "secondary"}
-                className="h-6"
-                aria-live="polite"
-              >
-                {props.sessionState.controller === "agent" ? "Agent" : "Human"}
               </Badge>
             ) : null}
             {props.sessionState.controller === "agent" ? (
@@ -9034,8 +9071,8 @@ function DesktopBrowserTool(props: {
                 onClick={() => workspaceShellActions.setActiveTool(props.project.id, "server")}
                 className="gap-2 cursor-pointer font-medium"
               >
-                <RocketIcon className="size-3.5" />
-                Open Launchpad Tab
+                <DockUfoIcon className="size-3.5" />
+                Open Dock Tab
               </Button>
             </div>
           </div>
@@ -9388,7 +9425,7 @@ function UniversalDevServerOfflineNotice(props: {
         {/* Header section with clean unboxed icon and subtle monotone pill */}
         <div className="flex items-center justify-between border-b border-border/60 pb-3.5">
           <div className="flex items-center gap-2.5">
-            <RocketIcon className="size-4 text-muted-foreground shrink-0" />
+            <DockUfoIcon className="size-4 text-muted-foreground shrink-0" />
             <div>
               <h2 className="text-xs font-semibold text-foreground tracking-tight">
                 Server Offline
@@ -9403,7 +9440,7 @@ function UniversalDevServerOfflineNotice(props: {
         </div>
 
         <p className="text-xs text-muted-foreground leading-relaxed">
-          The local development server is not running. Switch to the Launchpad tab to start server
+          The local development server is not running. Switch to the Dock tab to start server
           presets and view live terminal logs.
         </p>
 
@@ -9417,8 +9454,8 @@ function UniversalDevServerOfflineNotice(props: {
               className="gap-2 cursor-pointer font-medium"
               onClick={props.onOpenServerTab}
             >
-              <RocketIcon className="size-4" />
-              Open Launchpad Tab
+              <DockUfoIcon className="size-4" />
+              Open Dock Tab
             </Button>
           ) : (
             <div />
@@ -10615,13 +10652,11 @@ function ServerTool(props: {
       <div className="border-b border-border/60 px-5 py-3.5 flex flex-col gap-3 bg-card/30">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="flex size-9 items-center justify-center rounded-xl bg-primary/10 border border-primary/20 text-foreground shrink-0 shadow-2xs">
-              <RocketIcon className="size-4.5" />
-            </div>
+            <DockUfoIcon className="size-8 text-foreground shrink-0" />
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <h2 className="text-base font-bold text-foreground leading-tight tracking-tight">
-                  Launchpad
+                  Dock
                 </h2>
                 {props.runningProcessIds.length > 0 && (
                   <Badge
@@ -10831,11 +10866,11 @@ function ServerTool(props: {
         ) : (
           <div className="flex h-full items-center justify-center p-8">
             <div className="w-full max-w-md flex flex-col items-center text-center gap-5">
-              <div className="flex size-14 items-center justify-center rounded-2xl bg-muted/60 border border-border/60">
-                <RocketIcon className="size-6 text-muted-foreground" />
+              <div className="flex size-24 items-center justify-center rounded-2xl bg-muted/60 border border-border/60">
+                <DockUfoIcon className="size-16 text-muted-foreground" />
               </div>
               <div className="space-y-1.5">
-                <h3 className="text-base font-semibold text-foreground">Launchpad</h3>
+                <h3 className="text-base font-semibold text-foreground">Dock</h3>
                 <p className="text-sm text-muted-foreground leading-relaxed max-w-xs mx-auto">
                   Open a terminal for manual work, or save presets like{" "}
                   <span className="font-medium text-foreground/80">Frontend</span> and{" "}
@@ -10879,9 +10914,7 @@ function ServerTool(props: {
           {/* Global Header */}
           <DialogHeader className="p-5 border-b border-border/60 shrink-0 relative flex flex-row items-start justify-between bg-muted/20">
             <div className="text-left">
-              <DialogTitle className="text-lg font-bold text-foreground">
-                Launchpad Presets
-              </DialogTitle>
+              <DialogTitle className="text-lg font-bold text-foreground">Dock Presets</DialogTitle>
               <DialogDescription className="text-xs text-muted-foreground mt-1">
                 Save a set of commands to run together.
               </DialogDescription>
@@ -11123,9 +11156,7 @@ function ServerTool(props: {
                 ) : (
                   <div className="h-full flex flex-col items-center justify-center text-muted-foreground gap-2 py-16">
                     <TerminalSquareIcon className="size-8 stroke-1 text-muted-foreground/60" />
-                    <span className="text-sm">
-                      Select or create a launchpad preset to get started
-                    </span>
+                    <span className="text-sm">Select or create a Dock preset to get started</span>
                   </div>
                 )}
               </DialogPanel>
@@ -11463,7 +11494,11 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
     workspaceState.session.activeProjectId,
   ]);
 
-  const activeProject = resolveProjectById(projects, workspaceState.session.activeProjectId);
+  const activeProject = resolveProjectById(
+    projects,
+    workspaceState.session.activeProjectId,
+    routeProjectId === workspaceState.session.activeProjectId ? routeEnvironmentId : null,
+  );
   const [activeProjectApi, setActiveProjectApi] = useState<Awaited<
     ReturnType<typeof environmentApi>
   > | null>(null);
@@ -11505,6 +11540,12 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
     id: tool.id,
     kind: tool.kind,
     label: tool.label,
+    icon:
+      tool.kind === "extension" ? (
+        <InstalledExtensionToolIcon
+          extension={installedExtensions.find((extension) => extension.id === tool.extensionId)}
+        />
+      ) : undefined,
   }));
 
   useEffect(() => {
@@ -13301,7 +13342,7 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
           "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
           isInterfaceStudy &&
             !isSettingsSurfaceActive &&
-            "study-workspace-card rounded-t-[28px] bg-card relative z-1",
+            "study-workspace-card rounded-t-lg bg-card relative z-1",
         )}
       >
         <ToolErrorBoundary

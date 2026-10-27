@@ -19,7 +19,11 @@ export interface CompanionWorkspace {
 export const EMPTY_COMPANION_WORKSPACE: CompanionWorkspace = { tabs: [], activeId: null };
 interface CompanionSurfaceState {
   workspaces: Record<string, CompanionWorkspace>;
-  open: (scope: string, kind: RightPanelTab) => string;
+  open: (
+    scope: string,
+    kind: RightPanelTab,
+    initial?: Partial<Omit<CompanionSurface, "id" | "kind">>,
+  ) => string;
   activate: (scope: string, id: string) => void;
   close: (scope: string, id: string) => void;
   update: (
@@ -32,7 +36,7 @@ export const useCompanionSurfaceStore = create<CompanionSurfaceState>()(
   persist(
     (set, get) => ({
       workspaces: {},
-      open: (scope, kind) => {
+      open: (scope, kind, initial) => {
         const workspace = get().workspaces[scope] ?? EMPTY_COMPANION_WORKSPACE;
         const existing =
           kind === "browser" ? null : workspace.tabs.find((tab) => tab.kind === kind);
@@ -41,7 +45,9 @@ export const useCompanionSurfaceStore = create<CompanionSurfaceState>()(
           workspaces: {
             ...state.workspaces,
             [scope]: {
-              tabs: existing ? workspace.tabs : [...workspace.tabs, { id, kind }],
+              tabs: existing
+                ? workspace.tabs.map((tab) => (tab.id === id ? { ...tab, ...initial } : tab))
+                : [...workspace.tabs, { id, kind, ...initial }],
               activeId: id,
             },
           },

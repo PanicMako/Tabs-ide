@@ -42,10 +42,21 @@ describe("themeDerivation shared module", () => {
 
   it("evaluates default derived tokens cleanly when no overrides exist", () => {
     const tokens = evaluateThemeTokens(baseConfig);
-    expect(tokens["editor.background"]).toBe("#0f172a");
+    expect(tokens["editor.background"]).toBe("#1e293b");
     expect(tokens["sideBar.background"]).toBe("#1e293b");
     expect(tokens["app.primaryBackground"]).toBe("#38bdf8");
     expect(tokens["app.primaryForeground"]).toBe("#0f172a");
+  });
+
+  it("keeps the status bar on the same surface when the window loses focus", () => {
+    for (const card of ["#eee8d5", "#181818"]) {
+      const tokens = evaluateThemeTokens({
+        ...baseConfig,
+        colors: { ...baseConfig.colors, card },
+      });
+      expect(tokens["statusBar.background"]).toBe(card);
+      expect(tokens["statusBar.inactiveBackground"]).toBe(card);
+    }
   });
 
   it("applies tokenOverrides over default derived values", () => {
@@ -118,7 +129,7 @@ describe("themeDerivation shared module", () => {
 
   it("systematically guarantees valid hex & WCAG AA contrast (>= 4.5:1) for button.background & button.foreground across all built-in themes and custom themes", () => {
     const builtinThemeIds = Object.keys(BUILTIN_THEME_CONFIGS);
-    expect(builtinThemeIds.length).toBe(8);
+    expect(builtinThemeIds.length).toBe(9);
 
     for (const themeId of builtinThemeIds) {
       const config = BUILTIN_THEME_CONFIGS[themeId]!;

@@ -6,7 +6,7 @@ import {
   type ResolvedKeybindingsConfig,
   type ThreadId,
 } from "@tabs/contracts";
-import { memo, useState, useCallback, useMemo, useRef, useEffect } from "react";
+import { type ReactNode, memo, useState, useCallback, useMemo, useRef, useEffect } from "react";
 import {
   SquareMenuIcon,
   GitBranchIcon,
@@ -17,6 +17,7 @@ import {
   PanelBottomIcon,
   XIcon,
   FolderGit2Icon,
+  FolderOpenIcon,
   CheckIcon,
   ChevronDownIcon,
   ArrowDownIcon,
@@ -29,6 +30,8 @@ import {
   Loader2,
   Pin,
 } from "lucide-react";
+import { useCheckoutPullRequest } from "../../hooks/useCheckoutPullRequest";
+import { WorkspacePullRequest } from "./WorkspacePullRequest";
 import GitActionsControl from "../GitActionsControl";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { Toggle } from "../ui/toggle";
@@ -70,6 +73,9 @@ import { useScopedStateStore } from "~/state/scopedStateStore";
 import { workspaceShellActions } from "~/state/workspaceShell";
 
 interface ChatHeaderProps {
+  workspaceControls?: ReactNode;
+  agentWorkflow?: ReactNode;
+  scriptManagement?: ReactNode;
   scripts?: ReadonlyArray<ProjectScript> | undefined;
   onRunScript?: ((script: ProjectScript) => void) | undefined;
   projectId?: ProjectId | undefined;
@@ -592,7 +598,7 @@ function BranchSelectorControl({
                 behind > 0
                   ? "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400"
                   : ahead > 0
-                    ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                    ? "border-border/70 bg-muted/40 text-foreground/80"
                     : isCurrent
                       ? "border-sky-500/20 bg-sky-500/5 text-sky-600 dark:text-sky-400"
                       : "border-border/70 bg-muted/20 text-muted-foreground",
@@ -612,10 +618,10 @@ function BranchSelectorControl({
                         <span className="text-amber-500 font-semibold ml-1">+{behind} behind</span>
                       )}
                       {ahead > 0 && (
-                        <span className="text-emerald-500 font-normal ml-1">+{ahead} ahead</span>
+                        <span className="text-foreground/80 font-normal ml-1">+{ahead} ahead</span>
                       )}
                       {behind === 0 && ahead === 0 && (
-                        <span className="text-emerald-500 font-medium ml-1">✓ Synced</span>
+                        <span className="text-muted-foreground font-medium ml-1">✓ Synced</span>
                       )}
                     </>
                   )}
@@ -709,6 +715,9 @@ function BranchSelectorControl({
 }
 
 export const ChatHeader = memo(function ChatHeader({
+  workspaceControls,
+  agentWorkflow,
+  scriptManagement,
   scripts,
   onRunScript,
   projectId,
@@ -737,7 +746,9 @@ export const ChatHeader = memo(function ChatHeader({
   onToggleMaximize,
   onClosePane,
 }: ChatHeaderProps) {
-  const [workspaceOpen, setWorkspaceOpen] = useState(false);
+  const [workspaceOpen, setWorkspaceOpen] = useState(
+    () => typeof window !== "undefined" && window.innerWidth >= 1440,
+  );
   const workspaceCardRef = useRef<HTMLDivElement | null>(null);
   const workspaceTriggerRef = useRef<HTMLButtonElement | null>(null);
 
@@ -746,6 +757,7 @@ export const ChatHeader = memo(function ChatHeader({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         setWorkspaceOpen(false);
+        workspaceTriggerRef.current?.focus();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -755,6 +767,12 @@ export const ChatHeader = memo(function ChatHeader({
   }, [workspaceOpen]);
 
   const vcs = useVcs(gitCwd, environmentId);
+  const pullRequest = useCheckoutPullRequest(
+    isGitRepo ? gitCwd : null,
+    vcs.status?.branch ?? null,
+    environmentId,
+  );
+  const checkoutPr = pullRequest.data?.pullRequest ?? vcs.status?.pr;
   const storeIsOpen = useRightPanelStore((s) => s.isOpen);
   const storeToggle = useRightPanelStore((s) => s.toggleOpen);
   const effectiveRightPanelOpen = rightPanelOpen ?? storeIsOpen;
@@ -938,18 +956,18 @@ export const ChatHeader = memo(function ChatHeader({
           <section
             id={`workspace-card-${activeThreadId}`}
             aria-label="Workspace actions"
-            className="workspace-card w-72 max-w-[calc(100vw-2rem)] rounded-[20px] border border-border/80 bg-background/95 backdrop-blur-md p-3 text-foreground shadow-xl [-webkit-app-region:no-drag] animate-in fade-in slide-in-from-top-1 duration-150"
+            className="workspace-card w-[304px] max-w-[calc(100vw-1.5rem)] rounded-2xl border border-border/70 bg-card p-3 text-foreground [-webkit-app-region:no-drag] animate-in fade-in slide-in-from-top-1 duration-150"
           >
-            {/* Project header — logo with rich tooltip + name/path + openInPicker + close */}
-            <div className="flex items-center gap-2 pb-2.5">
+            {/* Project identity, with workspace controls grouped below */}
+            <div className="workspace-identity flex items-center gap-2.5 px-1 pb-3">
               <Tooltip>
                 <TooltipTrigger
                   render={
-                    <div
+                    <span
                       tabIndex={0}
-                      role="button"
+                      role="img"
                       aria-label={`Project: ${activeProjectName ?? "Current project"}`}
-                      className="flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-[10px] border border-border/60 bg-muted/50 overflow-hidden shadow-2xs hover:bg-muted/80 transition-colors focus-visible:outline-2 focus-visible:outline-ring"
+                      className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-border/60 bg-muted/50 overflow-hidden shadow-2xs hover:bg-muted/80 transition-colors focus-visible:outline-2 focus-visible:outline-ring"
                     >
                       {activeProjectFavicon ? (
                         <ProjectFavicon project={activeProjectFavicon} className="size-4.5" />
@@ -959,7 +977,7 @@ export const ChatHeader = memo(function ChatHeader({
                           className="size-3.5 text-muted-foreground"
                         />
                       )}
-                    </div>
+                    </span>
                   }
                 />
                 <TooltipPopup
@@ -1008,24 +1026,38 @@ export const ChatHeader = memo(function ChatHeader({
               </Tooltip>
 
               <div className="min-w-0 flex-1">
-                <p className="workspace-project truncate text-xs font-semibold leading-tight">
+                <p className="workspace-project truncate text-[13px] font-semibold leading-tight">
                   {activeProjectName}
                 </p>
                 <p
                   title={openInCwd ?? undefined}
-                  className="truncate font-mono text-[9px] leading-tight text-muted-foreground/70 mt-0.5"
+                  className="mt-1 truncate text-[11px] leading-tight text-muted-foreground"
                 >
                   {openInCwd ?? "Path unavailable"}
                 </p>
               </div>
 
-              {/* Open-in-editor as icon-only button in header */}
-              <OpenInPicker
-                keybindings={keybindings}
-                availableEditors={availableEditors}
-                openInCwd={openInCwd}
-                showEditorName={false}
-              />
+              {openInCwd && availableEditors.includes("file-manager") && (
+                <button
+                  type="button"
+                  aria-label="Open project folder"
+                  title="Open project folder"
+                  className="flex size-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
+                  onClick={() => {
+                    void environmentApi(environmentId)
+                      .then((api) => api.shell.openInEditor(openInCwd, "file-manager"))
+                      .catch((error) => {
+                        toastManager.add({
+                          type: "error",
+                          title: "Could not open project folder",
+                          description: String(error),
+                        });
+                      });
+                  }}
+                >
+                  <FolderOpenIcon aria-hidden="true" className="size-3.5" />
+                </button>
+              )}
 
               {/* Close card button */}
               <Tooltip>
@@ -1034,7 +1066,10 @@ export const ChatHeader = memo(function ChatHeader({
                     <button
                       type="button"
                       aria-label="Close workspace card"
-                      onClick={() => setWorkspaceOpen(false)}
+                      onClick={() => {
+                        setWorkspaceOpen(false);
+                        workspaceTriggerRef.current?.focus();
+                      }}
                       className="flex size-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors ml-0.5"
                     />
                   }
@@ -1045,8 +1080,25 @@ export const ChatHeader = memo(function ChatHeader({
               </Tooltip>
             </div>
 
-            <div className="h-px bg-border/50" />
-
+            <div
+              role="group"
+              aria-label="Workspace context"
+              className="workspace-context space-y-1 pb-3"
+            >
+              {workspaceControls}
+              <OpenInPicker
+                keybindings={keybindings}
+                availableEditors={availableEditors}
+                openInCwd={openInCwd}
+                showEditorName
+                displayMode="panel"
+              />
+            </div>
+            {scriptManagement && (
+              <div className="pb-3" aria-label="Manage project scripts">
+                {scriptManagement}
+              </div>
+            )}
             {!!scripts?.length && onRunScript && (
               <div
                 role="group"
@@ -1069,7 +1121,11 @@ export const ChatHeader = memo(function ChatHeader({
               </div>
             )}
             {/* Git section */}
-            <div className="mt-2.5 space-y-1.5">
+            <div
+              role="group"
+              aria-label="Version control"
+              className="workspace-git space-y-1 border-t border-border/60 pt-3"
+            >
               {/* Branch selector + pull + divergence */}
               <BranchSelectorControl
                 projectId={projectId}
@@ -1082,6 +1138,15 @@ export const ChatHeader = memo(function ChatHeader({
                 hasUpstream={vcs.status?.hasUpstream}
                 onOpenDivergence={handleOpenGitDivergence}
               />
+
+              {checkoutPr && (
+                <WorkspacePullRequest
+                  summary={checkoutPr}
+                  details={pullRequest.data?.pullRequest}
+                  unavailable={pullRequest.isError}
+                  environmentId={environmentId}
+                />
+              )}
 
               {/* Commit & Push */}
               <div className="flex w-full">
@@ -1132,6 +1197,8 @@ export const ChatHeader = memo(function ChatHeader({
                 </button>
               )}
             </div>
+
+            {agentWorkflow}
 
             {vcs.error && (
               <p role="status" className="mt-2 text-[10px] text-muted-foreground">

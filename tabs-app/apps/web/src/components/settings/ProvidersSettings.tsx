@@ -1,3 +1,4 @@
+import { SegmentedControl } from "../ui/segmented-control";
 import { providerNextAction, isProviderDetectionPending } from "./providerNextAction";
 import { ProviderFocusBar, type ProviderView } from "./ProviderFocusBar";
 import { AntigravityAccount } from "./AntigravityAccount";
@@ -225,7 +226,8 @@ export const PROVIDER_SETTINGS: readonly InstallProviderSettings[] = [
     title: "OpenRouter",
     icon: OpenRouterIcon,
     binaryPlaceholder: "",
-    binaryDescription: "OpenRouter uses HTTPS and does not require a CLI.",
+    binaryDescription:
+      "OpenRouter supplies models; the selected harness runs agent sessions. Git writing runs locally.",
     hasBinaryPath: false,
     hasApiKey: true,
   },
@@ -1229,7 +1231,7 @@ export default function ProvidersSettings(props: ProvidersSettingsProps) {
                 <Button
                   size="icon-xs"
                   variant="ghost"
-                  className="size-5 rounded-sm p-0 text-muted-foreground hover:text-foreground cursor-pointer"
+                  className="size-5 rounded-full p-0 text-muted-foreground hover:text-foreground cursor-pointer"
                   disabled={isRefreshingProviders}
                   onClick={() => void refreshProviders()}
                   aria-label="Refresh provider status"
@@ -1570,8 +1572,53 @@ export default function ProvidersSettings(props: ProvidersSettingsProps) {
                         hidden={detailView !== "connection"}
                         aria-label={`${providerDisplayName} connection settings`}
                       >
+                        {providerCard.provider === "openrouter" ? (
+                          <div className="border-t border-border/60 px-4 py-3 sm:px-5 space-y-3">
+                            <div className="text-xs font-medium">Agent harness</div>
+                            <SegmentedControl
+                              aria-label="OpenRouter agent harness"
+                              value={settings.providers.openrouter.harness}
+                              options={[
+                                { value: "deepseek", label: "DeepSeek Harness" },
+                                { value: "opencode", label: "OpenCode" },
+                              ]}
+                              onValueChange={(harness) =>
+                                updateSettings({ providers: { openrouter: { harness } } })
+                              }
+                            />
+                            {settings.providers.openrouter.harness === "deepseek" ? (
+                              <label className="block text-xs">
+                                DeepSeek executable
+                                <DebouncedSettingsInput
+                                  aria-label="DeepSeek Harness executable"
+                                  className="mt-1.5"
+                                  value={settings.providers.openrouter.deepseekBinaryPath}
+                                  onPersist={(deepseekBinaryPath) =>
+                                    updateSettings({
+                                      providers: {
+                                        openrouter: {
+                                          deepseekBinaryPath: deepseekBinaryPath.trim() || "dsh",
+                                        },
+                                      },
+                                    })
+                                  }
+                                  placeholder="dsh"
+                                  spellCheck={false}
+                                />
+                                <span className="mt-1 block text-muted-foreground">
+                                  Uses the upstream ACP profile with your saved OpenRouter key.
+                                  Requires Node.js 24.9 or newer. Install with{" "}
+                                  <code>npm install -g @deepseek-ai/dsh@0.2.1-rc.2</code>. DeepSeek
+                                  Harness is currently a developer preview.
+                                </span>
+                              </label>
+                            ) : null}
+                          </div>
+                        ) : null}
                         {/* Binary path */}
-                        {providerCard.hasBinaryPath ? (
+                        {providerCard.hasBinaryPath &&
+                        (providerCard.provider !== "openrouter" ||
+                          settings.providers.openrouter.harness === "opencode") ? (
                           <div className="border-t border-border/60 px-4 py-3 sm:px-5">
                             <label
                               htmlFor={`provider-install-${providerCard.provider}-binary-path`}

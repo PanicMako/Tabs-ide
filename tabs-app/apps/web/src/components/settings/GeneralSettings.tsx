@@ -64,6 +64,11 @@ const DESKTOP_ICON_OPTIONS = [
     label: "Light",
     description: "Uses the white icon variant.",
   },
+  {
+    value: "signature",
+    label: "Custom",
+    description: "Choose from all logo treatments in Themes.",
+  },
 ] as const;
 
 const TIMESTAMP_FORMAT_LABELS = {
@@ -260,7 +265,7 @@ export function GeneralSettings() {
         {isElectron ? (
           <SettingsRow
             title="Desktop icon"
-            description="Choose which icon variant Tabs uses in the desktop shell and dock."
+            description="Choose a quick appearance. Find all five custom treatments in Themes."
             resetAction={
               settings.desktopIconTheme !== DEFAULT_DESKTOP_ICON_THEME ? (
                 <SettingResetButton
@@ -276,9 +281,14 @@ export function GeneralSettings() {
             control={
               <SegmentedControl
                 orbitKind="spotlight"
-                value={settings.desktopIconTheme}
+                value={
+                  ["system", "dark", "light"].includes(settings.desktopIconTheme)
+                    ? settings.desktopIconTheme
+                    : "signature"
+                }
                 onValueChange={(val) => {
-                  if (val !== "dark" && val !== "light" && val !== "system") return;
+                  if (val !== "dark" && val !== "light" && val !== "system" && val !== "signature")
+                    return;
                   updateSettings({
                     desktopIconTheme: val,
                   });

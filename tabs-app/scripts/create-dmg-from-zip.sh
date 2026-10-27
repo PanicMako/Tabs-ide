@@ -68,11 +68,9 @@ echo "Creating DMG: $DMG_FILE..."
 # Remove old DMG if it exists
 rm -f "$DMG_FILE"
 
-# Create DMG using hdiutil (built-in macOS tool)
-hdiutil create -volname "$APP_NAME" \
-    -srcfolder "$TMP_DIR" \
-    -ov -format UDZO \
-    "$DMG_FILE"
+# Share the same drag-to-Applications presentation as the release builder.
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+bash "$SCRIPT_DIR/create-themed-dmg.sh" "$TMP_DIR" "$DMG_FILE" "$APP_NAME"
 
 echo "Validating DMG contents..."
 ATTACH_OUTPUT=$(hdiutil attach -readonly -nobrowse -noverify "$DMG_FILE")

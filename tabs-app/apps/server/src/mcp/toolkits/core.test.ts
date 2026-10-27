@@ -1,3 +1,5 @@
+import { writeFileSync } from "node:fs";
+import { advertisedJsonSchema } from "../advertisedJsonSchema.ts";
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { expect, it } from "@effect/vitest";
@@ -527,3 +529,35 @@ it.effect(
       ),
     ) as any,
 );
+
+it("keeps the complete built-in tool catalog compact without changing tool names", () => {
+  const tools = [
+    OrchestratorToolkit,
+    PreviewToolkit,
+    WorktreeToolkit,
+    ThreadToolkit,
+    AttachmentToolkit,
+    ProjectToolkit,
+    EnvironmentToolkit,
+    PreviewControlsToolkit,
+    DeviceToolkit,
+    PullRequestsToolkit,
+    HtmlToolkit,
+  ].flatMap((toolkit) => Object.values(toolkit.tools));
+  const describe = (compact: boolean) =>
+    tools.map((tool) => ({
+      name: tool.name,
+      description: Tool.getDescription(tool),
+      inputSchema: compact ? advertisedJsonSchema(tool) : Tool.getJsonSchema(tool),
+    }));
+  const fullBytes = Buffer.byteLength(JSON.stringify(describe(false)), "utf8");
+  const advertisedBytes = Buffer.byteLength(JSON.stringify(describe(true)), "utf8");
+  if (process.env.TABS_MCP_BUDGET_OUTPUT)
+    writeFileSync(
+      process.env.TABS_MCP_BUDGET_OUTPUT,
+      JSON.stringify({ tools: tools.length, fullBytes, advertisedBytes }, null, 2),
+    );
+  expect(advertisedBytes).toBeLessThan(fullBytes * 0.9);
+  expect(advertisedBytes).toBeLessThanOrEqual(120000);
+  expect(describe(true).map((tool) => tool.name)).toEqual(describe(false).map((tool) => tool.name));
+});

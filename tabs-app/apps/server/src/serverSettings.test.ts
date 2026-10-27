@@ -60,6 +60,22 @@ it.layer(NodeServices.layer)("server settings", (it) => {
     }).pipe(Effect.provide(makeServerSettingsLayer())),
   );
 
+  it.effect("persists personal commit generation preferences across service reloads", () =>
+    Effect.gen(function* () {
+      const settings = yield* ServerSettingsService;
+      yield* settings.updateSettings({
+        commitDraftSource: "local",
+        commitDraftLocalModel: "qwen3:0.6b",
+      });
+      const reloaded = yield* Layer.build(ServerSettingsLive);
+      const saved = yield* ServerSettingsService.use((service) => service.getSettings).pipe(
+        Effect.provideContext(reloaded),
+      );
+      assert.strictEqual(saved.commitDraftSource, "local");
+      assert.strictEqual(saved.commitDraftLocalModel, "qwen3:0.6b");
+    }).pipe(Effect.provide(makeServerSettingsLayer())),
+  );
+
   it.effect("deep merges nested settings updates without dropping siblings", () =>
     Effect.gen(function* () {
       const serverSettings = yield* ServerSettingsService;

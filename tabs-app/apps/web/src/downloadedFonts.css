@@ -1,0 +1,859 @@
+/* Original free commercial-use fonts; see public/fonts/setup/README.md. */
+@font-face {
+  font-family: "KS Bistra";
+  src: url(/fonts/setup/KS-Bistra.otf) format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Aicon";
+  src: url(/fonts/setup/AICON-SemiBold.otf) format("opentype");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Pavot";
+  src: url(/fonts/setup/Pavot-BoldItalic.otf) format("opentype");
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "ZT Otez";
+  src: url(/fonts/setup/ZTOtez-Regular.otf) format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Pavot";
+  src: url(/fonts/setup/Pavot-Bold.otf) format("opentype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "ZT Otez";
+  src: url(/fonts/setup/ZTOtez-Italic.otf) format("opentype");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Mirano";
+  src: url(/fonts/setup/Mirano-Light.ttf) format("truetype");
+  font-weight: 300 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Mirano";
+  src: url(/fonts/setup/Mirano-LightItalic.ttf) format("truetype");
+  font-weight: 300 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Culont";
+  src: url(/fonts/setup/Culont-Regular.otf) format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Culont";
+  src: url(/fonts/setup/Culont-Regular.otf) format("opentype");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Hebdomadal";
+  src:
+    url(/fonts/setup/Hebdomadal-Regular.woff2) format("woff2"),
+    url(/fonts/setup/Hebdomadal-Regular.otf) format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Hebdomadal";
+  src:
+    url(/fonts/setup/Hebdomadal-Regular.woff2) format("woff2"),
+    url(/fonts/setup/Hebdomadal-Regular.otf) format("opentype");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Ductile Display";
+  src: url(/fonts/setup/DuctileDisplay-Regular.otf) format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Ductile Display";
+  src: url(/fonts/setup/DuctileDisplay-Regular.otf) format("opentype");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Northern";
+  src: url(/fonts/setup/Northern-Regular.ttf) format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Northern";
+  src: url(/fonts/setup/Northern-Regular.ttf) format("truetype");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Nafile";
+  src:
+    url(/fonts/setup/Nafile-Regular.woff2) format("woff2"),
+    url(/fonts/setup/Nafile-Regular.otf) format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Nafile";
+  src:
+    url(/fonts/setup/Nafile-Regular.woff2) format("woff2"),
+    url(/fonts/setup/Nafile-Regular.otf) format("opentype");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Nafile";
+  src: url(/fonts/setup/Nafile-Bold.woff2) format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Halo Grotesk";
+  src: url(/fonts/setup/HaloGrotesk-Regular.otf) format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Halo Grotesk";
+  src: url(/fonts/setup/HaloGrotesk-Regular.otf) format("opentype");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Nauryz Redkeds";
+  src: url(/fonts/setup/NauryzRedKeds.ttf) format("truetype");
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Nauryz Redkeds";
+  src: url(/fonts/setup/NauryzRedKeds.ttf) format("truetype");
+  font-weight: 400 700;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Exotica";
+  src: url(/fonts/setup/Exotica-Regular.otf) format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Exotica";
+  src: url(/fonts/setup/Exotica-Regular.otf) format("opentype");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Mantranaga 36DOT";
+  src: url(/fonts/setup/Mantranaga36DOT-Regular.otf) format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Mantranaga 36DOT";
+  src: url(/fonts/setup/Mantranaga36DOT-Regular.otf) format("opentype");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Angst";
+  src: url(/fonts/setup/Angst-Regular.otf) format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Angst";
+  src: url(/fonts/setup/Angst-Regular.otf) format("opentype");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Angst Serif";
+  src: url(/fonts/setup/Angst-Serif.otf) format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Angst Serif";
+  src: url(/fonts/setup/Angst-Serif.otf) format("opentype");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Equilla";
+  src: url(/fonts/setup/Equilla-Regular.otf) format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Equilla";
+  src: url(/fonts/setup/Equilla-Regular.otf) format("opentype");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Deserta";
+  src: url(/fonts/setup/Deserta-Regular.otf) format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Deserta";
+  src: url(/fonts/setup/Deserta-Regular.otf) format("opentype");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Darker Grotesque";
+  src: url(/fonts/setup/DarkerGrotesque-Regular.otf) format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Darker Grotesque";
+  src: url(/fonts/setup/DarkerGrotesque-Bold.otf) format("opentype");
+  font-weight: 700 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Darker Grotesque";
+  src: url(/fonts/setup/DarkerGrotesque-Regular.otf) format("opentype");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Darker Grotesque";
+  src: url(/fonts/setup/DarkerGrotesque-Bold.otf) format("opentype");
+  font-weight: 700 800;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Arck";
+  src: url(/fonts/setup/Arck-Regular.otf) format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Arck";
+  src: url(/fonts/setup/Arck-Regular.otf) format("opentype");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Moche";
+  src: url(/fonts/setup/Moche-Regular.otf) format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Moche";
+  src: url(/fonts/setup/Moche-Bold.otf) format("opentype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Moche";
+  src: url(/fonts/setup/Moche-Regular.otf) format("opentype");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Moche";
+  src: url(/fonts/setup/Moche-Bold.otf) format("opentype");
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Urbanist";
+  src: url(/fonts/setup/Urbanist-Regular.otf) format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Urbanist";
+  src: url(/fonts/setup/Urbanist-Bold.otf) format("opentype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Urbanist";
+  src: url(/fonts/setup/Urbanist-Regular.otf) format("opentype");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Urbanist";
+  src: url(/fonts/setup/Urbanist-Bold.otf) format("opentype");
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Sato Sans";
+  src: url(/fonts/setup/SatoSans-Medium.ttf) format("truetype");
+  font-weight: 400 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Sato Sans";
+  src: url(/fonts/setup/SatoSans-Medium.ttf) format("truetype");
+  font-weight: 400 500;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Rebel Type Dog";
+  src: url(/fonts/setup/RebelTypeDog-Regular.otf) format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Rebel Type Dog";
+  src: url(/fonts/setup/RebelTypeDog-Regular.otf) format("opentype");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Hashira Mt";
+  src: url(/fonts/setup/HashiraMt-Regular.otf) format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Hashira Mt";
+  src: url(/fonts/setup/HashiraMt-Regular.otf) format("opentype");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Neutral Face";
+  src: url(/fonts/setup/NeutralFace-Regular.otf) format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Neutral Face";
+  src: url(/fonts/setup/NeutralFace-Bold.otf) format("opentype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Neutral Face";
+  src: url(/fonts/setup/NeutralFace-Regular.otf) format("opentype");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Neutral Face";
+  src: url(/fonts/setup/NeutralFace-Bold.otf) format("opentype");
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Stigma";
+  src: url(/fonts/setup/Stigma-Regular.otf) format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Stigma";
+  src: url(/fonts/setup/Stigma-Regular.otf) format("opentype");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Sun Seed";
+  src: url(/fonts/setup/SunSeed-Light.otf) format("opentype");
+  font-weight: 100 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Sun Seed";
+  src: url(/fonts/setup/SunSeed-Regular.otf) format("opentype");
+  font-weight: 400 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Sun Seed";
+  src: url(/fonts/setup/SunSeed-Bold.otf) format("opentype");
+  font-weight: 700 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Sun Seed";
+  src: url(/fonts/setup/SunSeed-Light.otf) format("opentype");
+  font-weight: 100 300;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Sun Seed";
+  src: url(/fonts/setup/SunSeed-Regular.otf) format("opentype");
+  font-weight: 400 900;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Balbes";
+  src:
+    url(/fonts/setup/Balbes-Regular.woff2) format("woff2"),
+    url(/fonts/setup/Balbes-Regular.ttf) format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Balbes";
+  src:
+    url(/fonts/setup/Balbes-Regular.woff2) format("woff2"),
+    url(/fonts/setup/Balbes-Regular.ttf) format("truetype");
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "OTR Type";
+  src:
+    url(/fonts/setup/OTRtype-Regular.woff2) format("woff2"),
+    url(/fonts/setup/OTRtype-Regular.ttf) format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Sirius";
+  src:
+    url(/fonts/setup/Sirius-Book.woff2) format("woff2"),
+    url(/fonts/setup/Sirius-Book.otf) format("opentype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Gerbil";
+  src:
+    url(/fonts/setup/Gerbil-Regular.woff2) format("woff2"),
+    url(/fonts/setup/Gerbil-Regular.otf) format("opentype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Gella Display";
+  src:
+    url(/fonts/setup/GellaDisplay-Light.woff2) format("woff2"),
+    url(/fonts/setup/GellaDisplay-Light.otf) format("opentype");
+  font-weight: 300 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Gella Display";
+  src:
+    url(/fonts/setup/GellaDisplay-ExpandedMedium.woff2) format("woff2"),
+    url(/fonts/setup/GellaDisplay-ExpandedMedium.otf) format("opentype");
+  font-weight: 500 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "World Tour";
+  src:
+    url(/fonts/setup/WorldTour-Regular.woff2) format("woff2"),
+    url(/fonts/setup/WorldTour-Regular.otf) format("opentype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Kunika";
+  src:
+    url(/fonts/setup/Kunika-Regular.woff2) format("woff2"),
+    url(/fonts/setup/Kunika-Regular.otf) format("opentype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Taruno Wide";
+  src:
+    url(/fonts/setup/TarunoWide-Medium.woff2) format("woff2"),
+    url(/fonts/setup/TarunoWide-Medium.otf) format("opentype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Taruno Wide";
+  src:
+    url(/fonts/setup/TarunoWide-MediumItalic.woff2) format("woff2"),
+    url(/fonts/setup/TarunoWide-MediumItalic.otf) format("opentype");
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Novoposelensky";
+  src:
+    url(/fonts/setup/Novoposelensky-Regular.woff2) format("woff2"),
+    url(/fonts/setup/Novoposelensky-Regular.otf) format("opentype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "ZT Gatha";
+  src:
+    url(/fonts/setup/ZTGatha-SemiBold.woff2) format("woff2"),
+    url(/fonts/setup/ZTGatha-SemiBold.otf) format("opentype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Racama";
+  src:
+    url(/fonts/setup/Racama.woff2) format("woff2"),
+    url(/fonts/setup/Racama.otf) format("opentype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Oddval";
+  src:
+    url(/fonts/setup/Oddval-SemiBold.woff2) format("woff2"),
+    url(/fonts/setup/Oddval-SemiBold.otf) format("opentype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Oddval";
+  src:
+    url(/fonts/setup/Oddval-SemiBoldItalic.woff2) format("woff2"),
+    url(/fonts/setup/Oddval-SemiBoldItalic.otf) format("opentype");
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Quanta Grotesk Pro";
+  src:
+    url(/fonts/setup/QuantaGroteskPro-Light.woff2) format("woff2"),
+    url(/fonts/setup/QuantaGroteskPro-Light.otf) format("opentype");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Quanta Grotesk Pro";
+  src:
+    url(/fonts/setup/QuantaGroteskPro-Regular.woff2) format("woff2"),
+    url(/fonts/setup/QuantaGroteskPro-Regular.otf) format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Quanta Grotesk Pro";
+  src:
+    url(/fonts/setup/QuantaGroteskPro-Medium.woff2) format("woff2"),
+    url(/fonts/setup/QuantaGroteskPro-Medium.otf) format("opentype");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Quanta Grotesk Pro";
+  src:
+    url(/fonts/setup/QuantaGroteskPro-SemiBold.woff2) format("woff2"),
+    url(/fonts/setup/QuantaGroteskPro-SemiBold.otf) format("opentype");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Quanta Grotesk Pro";
+  src:
+    url(/fonts/setup/QuantaGroteskPro-Bold.woff2) format("woff2"),
+    url(/fonts/setup/QuantaGroteskPro-Bold.otf) format("opentype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "ZT Floogn";
+  src:
+    url(/fonts/setup/ZTFloogn-ExtraLight.woff2) format("woff2"),
+    url(/fonts/setup/ZTFloogn-ExtraLight.otf) format("opentype");
+  font-weight: 100 250;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "ZT Floogn";
+  src:
+    url(/fonts/setup/ZTFloogn-Light.woff2) format("woff2"),
+    url(/fonts/setup/ZTFloogn-Light.otf) format("opentype");
+  font-weight: 251 550;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "ZT Floogn";
+  src:
+    url(/fonts/setup/ZTFloogn-Regular.woff2) format("woff2"),
+    url(/fonts/setup/ZTFloogn-Regular.otf) format("opentype");
+  font-weight: 551 650;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "ZT Floogn";
+  src:
+    url(/fonts/setup/ZTFloogn-ExtraBold.woff2) format("woff2"),
+    url(/fonts/setup/ZTFloogn-ExtraBold.otf) format("opentype");
+  font-weight: 700 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Gnocchi";
+  src:
+    url(/fonts/setup/Gnocchi-Regular.woff2) format("woff2"),
+    url(/fonts/setup/Gnocchi-Regular.ttf) format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Horovod";
+  src:
+    url(/fonts/setup/Horovod-Regular.woff2) format("woff2"),
+    url(/fonts/setup/Horovod-Regular.otf) format("opentype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Seenonim";
+  src:
+    url(/fonts/setup/Seenonim-Regular.woff2) format("woff2"),
+    url(/fonts/setup/Seenonim-Regular.otf) format("opentype"),
+    url(/fonts/setup/Seenonim-Regular.ttf) format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Overused Grotesk";
+  src: url(/fonts/setup/OverusedGrotesk-Light.woff2) format("woff2");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Overused Grotesk";
+  src:
+    url(/fonts/setup/OverusedGrotesk-Roman.woff2) format("woff2"),
+    url(/fonts/setup/OverusedGrotesk-Roman.otf) format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Overused Grotesk";
+  src: url(/fonts/setup/OverusedGrotesk-Medium.woff2) format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Overused Grotesk";
+  src: url(/fonts/setup/OverusedGrotesk-SemiBold.woff2) format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Overused Grotesk";
+  src: url(/fonts/setup/OverusedGrotesk-Bold.woff2) format("woff2");
+  font-weight: 700 900;
+  font-style: normal;
+  font-display: swap;
+}

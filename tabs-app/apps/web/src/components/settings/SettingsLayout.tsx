@@ -71,8 +71,12 @@ export function SettingsSection({
           )}
           {description ? (
             <div
-              className="mt-1 text-xs text-muted-foreground leading-normal"
-              style={{ fontFamily: "var(--font-supporting, var(--font-sans))" }}
+              className="mt-1 text-xs text-muted-foreground/80 leading-normal font-normal"
+              style={{
+                fontFamily: "var(--font-supporting, var(--font-sans))",
+                fontWeight:
+                  "var(--font-supporting-weight, 400)" as React.CSSProperties["fontWeight"],
+              }}
             >
               {description}
             </div>
@@ -117,10 +121,11 @@ export function SettingsRow({
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex min-h-5 items-center gap-1.5">
             <h3
-              className="text-[14.5px] font-bold text-foreground flex items-center gap-2"
+              className="text-[14.5px] font-medium text-foreground flex items-center gap-2 tracking-[0.035em]"
               style={{
                 fontFamily: "var(--font-row, var(--font-sans))",
-                fontWeight: "var(--font-row-weight)" as React.CSSProperties["fontWeight"],
+                fontWeight: "var(--font-row-weight, 500)" as React.CSSProperties["fontWeight"],
+                letterSpacing: "var(--font-row-tracking, 0.035em)",
               }}
             >
               {title}
@@ -129,8 +134,27 @@ export function SettingsRow({
               {resetAction}
             </span>
           </div>
-          <p className="text-xs text-muted-foreground">{description}</p>
-          {status ? <div className="pt-1 text-[11px] text-muted-foreground">{status}</div> : null}
+          <p
+            className="text-xs text-muted-foreground/80 leading-relaxed font-normal"
+            style={{
+              fontFamily: "var(--font-supporting, var(--font-sans))",
+              fontWeight: "var(--font-supporting-weight, 400)" as React.CSSProperties["fontWeight"],
+            }}
+          >
+            {description}
+          </p>
+          {status ? (
+            <div
+              className="pt-1 text-[11px] text-muted-foreground/80 font-normal"
+              style={{
+                fontFamily: "var(--font-supporting, var(--font-sans))",
+                fontWeight:
+                  "var(--font-supporting-weight, 400)" as React.CSSProperties["fontWeight"],
+              }}
+            >
+              {status}
+            </div>
+          ) : null}
         </div>
         {control ? (
           <div className="flex w-full shrink-0 items-center gap-2 sm:w-auto sm:justify-end">
@@ -152,7 +176,7 @@ export function SettingResetButton({ label, onClick }: { label: string; onClick:
             size="icon-xs"
             variant="ghost"
             aria-label={`Reset ${label} to default`}
-            className="size-5 rounded-sm p-0 text-muted-foreground hover:text-foreground cursor-pointer"
+            className="size-5 rounded-full p-0 text-muted-foreground hover:text-foreground cursor-pointer"
             onClick={(event) => {
               event.stopPropagation();
               onClick();
@@ -179,42 +203,58 @@ export function SettingResetButton({ label, onClick }: { label: string; onClick:
   );
 }
 
+/** Shared page title so standalone settings pages use the same typography as section headers. */
+export function SettingsPageTitle({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  const { fontPreferences } = useTheme();
+  const pageHeading = getFontComboPageHeading(getActiveFontCombo(fontPreferences), fontPreferences);
+  return (
+    <h2
+      data-slot="settings-page-title"
+      className={cn(
+        "text-[28px] leading-relaxed pb-1 text-foreground font-bold",
+        pageHeading.className,
+        className,
+      )}
+      style={{
+        fontFamily: pageHeading.fontFamily,
+        fontSize: pageHeading.fontSize,
+        fontWeight: pageHeading.fontWeight,
+        letterSpacing: pageHeading.letterSpacing,
+        textTransform: pageHeading.textTransform,
+      }}
+    >
+      {children}
+    </h2>
+  );
+}
+
 export function SettingsSectionHeader({
   title,
   description,
   actions,
+  preTitle,
 }: {
   title: string;
   description: ReactNode;
   actions?: ReactNode;
+  preTitle?: ReactNode;
 }) {
   const editorial = useSettingsLabsStore((state) => state.editorialSettings);
-  const { fontPreferences } = useTheme();
-  const activeFontCombo = useMemo(() => getActiveFontCombo(fontPreferences), [fontPreferences]);
-  const pageHeading = useMemo(
-    () => getFontComboPageHeading(activeFontCombo, fontPreferences),
-    [activeFontCombo, fontPreferences],
-  );
 
   return (
     <div data-slot="settings-page-header">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="min-w-0 flex-1 space-y-1.5">
-          <h2
-            data-slot="settings-page-title"
-            className={cn(
-              "text-[28px] leading-relaxed pb-1 text-foreground mb-2 font-bold",
-              pageHeading.className,
-            )}
-            style={{
-              fontFamily: pageHeading.fontFamily,
-              fontWeight: pageHeading.fontWeight,
-              letterSpacing: pageHeading.letterSpacing,
-              textTransform: pageHeading.textTransform,
-            }}
-          >
-            {title}
-          </h2>
+          <div className="flex items-center gap-3 flex-wrap">
+            {preTitle}
+            <SettingsPageTitle>{title}</SettingsPageTitle>
+          </div>
         </div>
         {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
       </div>

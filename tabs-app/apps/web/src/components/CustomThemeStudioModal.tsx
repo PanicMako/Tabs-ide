@@ -408,7 +408,7 @@ export const CustomThemeStudioModal: React.FC<CustomThemeStudioModalProps> = ({
                 </span>
               </div>
               <OrbitGroup
-                className="tabs-segmented flex rounded-full"
+                className="tabs-segmented inline-flex items-center rounded-full w-fit"
                 role="group"
                 aria-label="Base window variant"
               >

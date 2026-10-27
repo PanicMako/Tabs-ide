@@ -1,5 +1,7 @@
 // Production CSS is part of the behavior under test because row height depends on it.
 import "../index.css";
+import { scopedThreadKey, scopeThreadRef } from "@tabs/client-runtime/environment";
+import { rememberThreadScrollTop } from "./ChatView.logic";
 
 import {
   ORCHESTRATION_WS_METHODS,
@@ -917,7 +919,8 @@ describe("ChatView browser behavior (full app)", () => {
     }
   });
 
-  it("does not show scroll-to-bottom when upward wheel input happens without scrollable overflow", async () => {
+  it("does not show scroll-to-bottom after restoring a short thread or upward wheel input without overflow", async () => {
+    rememberThreadScrollTop(scopedThreadKey(scopeThreadRef(BROWSER_ENVIRONMENT_ID, THREAD_ID)), 0);
     const mounted = await mountChatView({
       viewport: DEFAULT_VIEWPORT,
       snapshot: createSnapshotForTargetUser({
@@ -1578,6 +1581,18 @@ describe("ChatView browser behavior (full app)", () => {
       const composerEditor = await waitForComposerEditor();
       await expect.element(page.getByText("What should we build in Project?")).toBeVisible();
       expect(composerEditor.getBoundingClientRect().height).toBeLessThan(200);
+      const card = composerEditor.closest('[data-chat-composer-card="true"]')!;
+      const tray = card
+        .closest("form")!
+        .querySelector('[data-chat-composer-workspace-tray="true"]')!;
+      expect(tray).toBeTruthy();
+      expect(tray.querySelector('[data-chat-workspace-controls="true"]')).toBeTruthy();
+      expect(tray.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+        composerEditor.getBoundingClientRect().bottom,
+      );
+      expect(tray.getBoundingClientRect().width).toBeLessThan(card.getBoundingClientRect().width);
+      expect(tray.getBoundingClientRect().top).toBeLessThan(card.getBoundingClientRect().bottom);
+      expect(tray.getBoundingClientRect().left).toBeGreaterThan(card.getBoundingClientRect().left);
     } finally {
       await mounted.cleanup();
     }

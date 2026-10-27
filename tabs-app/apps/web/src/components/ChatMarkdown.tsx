@@ -33,7 +33,10 @@ import { cn } from "~/lib/utils";
 import { openInPreferredEditor } from "../editorPreferences";
 import { resolveDiffThemeName, type DiffThemeName } from "../lib/diffRendering";
 import { fnv1a32 } from "../lib/diffRendering";
-import { createIncrementalHighlightedDocument } from "../lib/incrementalHighlighting";
+import {
+  createIncrementalHighlightedDocument,
+  highlightCodeToHast,
+} from "../lib/incrementalHighlighting";
 import { LRUCache } from "../lib/lruCache";
 import { useTheme } from "../hooks/useTheme";
 import { remarkGithubAlerts } from "../markdown-github-alerts";
@@ -380,11 +383,12 @@ function UncachedShikiCodeBlock({
       preserveLines ? createIncrementalHighlightedDocument(highlighter, language, themeName) : null,
     [highlighter, preserveLines, language, themeName],
   );
+  useEffect(() => () => incrementalHighlight?.dispose(), [incrementalHighlight]);
   const highlighted = useMemo(() => {
     try {
       if (incrementalHighlight) return incrementalHighlight(code);
       return preserveLines
-        ? highlighter.codeToHast(code, { lang: language, theme: themeName })
+        ? highlightCodeToHast(highlighter, code, language, themeName)
         : highlighter.codeToHtml(code, { lang: language, theme: themeName });
     } catch (error) {
       // Log highlighting failures for debugging while falling back to plain text
@@ -394,7 +398,7 @@ function UncachedShikiCodeBlock({
       );
       // If highlighting fails for this language, render as plain text
       return preserveLines
-        ? highlighter.codeToHast(code, { lang: "text", theme: themeName })
+        ? highlightCodeToHast(highlighter, code, "text", themeName)
         : highlighter.codeToHtml(code, { lang: "text", theme: themeName });
     }
   }, [code, highlighter, incrementalHighlight, language, preserveLines, themeName]);

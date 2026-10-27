@@ -1,4 +1,5 @@
 export const BRAND_LOGO_SVG_PATHS = {
+  signature: "assets/prod/tabs-signature.svg",
   light: "assets/prod/tabs-light.svg",
   dark: "assets/prod/tabs-dark.svg",
 } as const;

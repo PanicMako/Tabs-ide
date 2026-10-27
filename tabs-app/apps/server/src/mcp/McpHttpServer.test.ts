@@ -17,6 +17,8 @@ import { HttpBody, HttpClient, HttpRouter, HttpServerResponse } from "effect/uns
 
 import * as ProjectService from "../project/ProjectService.ts";
 import * as ServerConfig from "../config.ts";
+import { advertisedJsonSchema } from "./advertisedJsonSchema.ts";
+import { PreviewStandardToolkit, PreviewSnapshotTool } from "./toolkits/preview/tools.ts";
 import * as McpHttpServer from "./McpHttpServer.ts";
 import * as McpInvocationContext from "./McpInvocationContext.ts";
 import * as PreviewAutomationBroker from "./PreviewAutomationBroker.ts";
@@ -908,4 +910,22 @@ it.effect(
         }
       }),
     ).pipe(Effect.provide(layerTest)) as any,
+);
+
+it.effect(
+  "advertises compact schemas for toolkit and manually registered tools",
+  () =>
+    Effect.gen(function* () {
+      const server = yield* McpServer.McpServer;
+      const tools = {
+        ...PreviewStandardToolkit.tools,
+        [PreviewSnapshotTool.name]: PreviewSnapshotTool,
+      };
+      expect(server.tools.length).toBe(Object.keys(tools).length);
+      for (const { tool } of server.tools) {
+        expect(tool.inputSchema, tool.name).toEqual(
+          advertisedJsonSchema(tools[tool.name as keyof typeof tools]!),
+        );
+      }
+    }).pipe(Effect.provide(layerTest)) as any,
 );

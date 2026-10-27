@@ -90,7 +90,7 @@ export function BrowserToolbar(props: {
 }) {
   return (
     <div className="@container/browser-toolbar" data-testid="browser-toolbar">
-      <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 @min-[700px]/browser-toolbar:grid-cols-[auto_minmax(0,1fr)_auto_auto]">
+      <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 @min-[520px]/browser-toolbar:grid-cols-[auto_minmax(0,1fr)_auto_auto]">
         <div
           className="col-start-1 row-start-1 flex items-center gap-0.5"
           role="group"
@@ -128,7 +128,7 @@ export function BrowserToolbar(props: {
         </div>
         <div className="col-start-2 row-start-1 min-w-0">{props.address}</div>
         <div
-          className="col-span-3 row-start-2 flex flex-wrap items-center justify-end gap-1 border-t border-border/50 pt-1.5 @min-[700px]/browser-toolbar:col-span-1 @min-[700px]/browser-toolbar:col-start-3 @min-[700px]/browser-toolbar:row-start-1 @min-[700px]/browser-toolbar:border-0 @min-[700px]/browser-toolbar:pt-0"
+          className="col-span-3 row-start-2 flex items-center justify-end gap-1 border-t border-border/50 pt-1.5 @min-[520px]/browser-toolbar:col-span-1 @min-[520px]/browser-toolbar:col-start-3 @min-[520px]/browser-toolbar:row-start-1 @min-[520px]/browser-toolbar:border-0 @min-[520px]/browser-toolbar:pt-0"
           role="group"
           aria-label="Browser tools"
         >
@@ -183,7 +183,7 @@ export function BrowserToolbar(props: {
           <Button
             size="icon-sm"
             variant="ghost"
-            className="col-start-3 row-start-1 text-muted-foreground @min-[700px]/browser-toolbar:col-start-4"
+            className="col-start-3 row-start-1 text-muted-foreground @min-[520px]/browser-toolbar:col-start-4"
             onClick={props.onCollapse}
             aria-label={`Collapse ${props.title} controls`}
             title="Hide address bar"

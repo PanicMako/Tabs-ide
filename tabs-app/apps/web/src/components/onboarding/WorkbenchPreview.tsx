@@ -1,20 +1,13 @@
 import { useId, useState } from "react";
 import { PreviewContent } from "./PreviewContent";
-import {
-  BotIcon,
-  GithubIcon,
-  GlobeIcon,
-  PlusIcon,
-  RocketIcon,
-  WorkflowIcon,
-  XIcon,
-} from "lucide-react";
+import { GithubIcon, GlobeIcon, PlusIcon, RocketIcon, WorkflowIcon, XIcon } from "lucide-react";
+import { AssistantBubbleIcon } from "../AssistantBubbleIcon";
 
 const PROJECTS = ["Project 1", "Project 2", "Project 3"] as const;
 const TOOLS = [
   { name: "Code", icon: WorkflowIcon },
-  { name: "Agents", icon: BotIcon },
-  { name: "Launchpad", icon: RocketIcon },
+  { name: "Agents", icon: AssistantBubbleIcon },
+  { name: "Dock", icon: RocketIcon },
   { name: "Git", icon: GithubIcon },
   { name: "Browser", icon: GlobeIcon },
 ] as const;
@@ -32,7 +25,7 @@ export function WorkbenchPreview({ mode = "light" }: { readonly mode?: "light" |
   const light = mode === "light";
   return (
     <div
-      className={`overflow-hidden rounded-[28px] border shadow-xl shadow-black/10 ${light ? "border-black/10 bg-[#faf9f7] text-neutral-700" : "border-white/15 bg-[#202020] text-neutral-200"}`}
+      className={`overflow-hidden rounded-lg border shadow-xl shadow-black/10 ${light ? "border-black/10 bg-[#faf9f7] text-neutral-700" : "border-white/15 bg-[#202020] text-neutral-200"}`}
     >
       <div
         role="group"
@@ -42,11 +35,12 @@ export function WorkbenchPreview({ mode = "light" }: { readonly mode?: "light" |
         {PROJECTS.map((name) => (
           <button
             key={name}
+            data-slot="workspace-project-tab"
             type="button"
             aria-pressed={project === name}
             aria-controls={panelId}
             onClick={() => setProject(name)}
-            className={`flex min-w-0 flex-1 items-center justify-between gap-3 rounded-t-[18px] border px-3 py-3 text-xs font-medium focus-visible:outline-2 focus-visible:outline-offset-[-3px] ${project === name ? (light ? "-mb-px border-black/10 border-b-white bg-white text-neutral-800 shadow-sm" : "-mb-px border-white/15 border-b-[#292929] bg-[#292929] text-white") : "border-transparent opacity-65 hover:opacity-100"}`}
+            className={`flex min-w-0 flex-1 items-center justify-between gap-3 rounded-t-lg border px-3 py-3 text-xs font-medium focus-visible:outline-2 focus-visible:outline-offset-[-3px] ${project === name ? (light ? "-mb-px border-black/10 border-b-white bg-white text-neutral-800 shadow-sm" : "-mb-px border-white/15 border-b-[#292929] bg-[#292929] text-white") : "border-transparent opacity-65 hover:opacity-100"}`}
           >
             <span>{name}</span>
             <XIcon aria-hidden="true" className="size-3 opacity-55" />
@@ -96,7 +90,7 @@ export function WorkbenchPreview({ mode = "light" }: { readonly mode?: "light" |
         className={`flex justify-between border-t px-5 py-3 text-[10px] ${light ? "border-black/8 text-neutral-500" : "border-white/10 text-neutral-400"}`}
       >
         <span>Interactive preview</span>
-        <span>{light ? "Light" : "Dark"} · Frost</span>
+        <span>{light ? "Light" : "Dark"} · Monotone</span>
       </div>
     </div>
   );

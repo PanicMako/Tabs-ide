@@ -1,0 +1,15 @@
+{
+  "id": "panicmako.relay",
+  "version": "0.1.0",
+  "digest": "fe2064d9b5bc8bd6d615fd6d66aa40ccf4c23cd712b3d6204644e7b3ec792db2",
+  "bytes": 196283,
+  "status": "review",
+  "scanPassed": true,
+  "scanIssues": [],
+  "signed": false,
+  "submittedAt": "2026-10-18T11:47:42Z",
+  "archive": "/Users/rushil.dev/Desktop/panicmako-relay-0.1.0.tabsext",
+  "submissionUrl": "https://exchange.buildwithtabs.com/account/submissions/fe2064d9b5bc8bd6d615fd6d66aa40ccf4c23cd712b3d6204644e7b3ec792db2",
+  "deploymentCommit": "a7150d20ff2a168680f139352226dfcda6206e56",
+  "sourceCommit": "fbfcf656f233ea77c6e7006927e792c5a8972d0b"
+}

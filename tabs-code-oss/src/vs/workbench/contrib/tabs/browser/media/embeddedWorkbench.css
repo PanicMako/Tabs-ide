@@ -1,0 +1,722 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* This marker is installed before the workbench loads, only for Tabs' embedded
+ * Code tool. Keep native grid insets, splitter sizes and virtualized row heights:
+ * changing those with CSS alone leaves hit targets and webviews out of alignment. */
+html.tabs-embedded-workbench,
+html.tabs-embedded-workbench .monaco-workbench {
+	--vscode-fontSize-body1: 12px;
+	--vscode-fontSize-label1: 11px;
+	--vscode-cornerRadius-xSmall: 5px !important;
+	--vscode-cornerRadius-small: 8px !important;
+	--vscode-cornerRadius-medium: 12px !important;
+	--vscode-cornerRadius-large: 20px !important;
+	--vscode-cornerRadius-xLarge: 28px !important;
+}
+
+/* The floating-panel gutter separates the Explorer and editor with generous rounded corners. */
+html.tabs-embedded-workbench .monaco-workbench .part:is(.sidebar, .auxiliarybar, .panel),
+html.tabs-embedded-workbench .monaco-workbench .part.editor:not(.modal-editor-part),
+html.tabs-embedded-workbench .monaco-workbench.floating-panels .part:is(.sidebar, .auxiliarybar, .panel),
+html.tabs-embedded-workbench .monaco-workbench.modern-ui .part.editor:not(.modal-editor-part) {
+	border-radius: 20px !important;
+	box-shadow: none;
+}
+
+html.tabs-embedded-workbench .monaco-workbench .part.sidebar > .title > .title-label h2 {
+	font-size: 13px;
+	font-weight: 600;
+}
+
+html.tabs-embedded-workbench .monaco-workbench .pane-header {
+	border-radius: 8px !important;
+}
+
+html.tabs-embedded-workbench .monaco-workbench .monaco-pane-view .pane:not(:first-child) > .pane-header {
+	border-top: 1px solid var(--vscode-sideBarSectionHeader-border, var(--vscode-panel-border));
+}
+
+/* Tabs are part of the editor frame rather than independent floating pills. */
+html.tabs-embedded-workbench .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab {
+	border-radius: 10px 10px 0 0 !important;
+}
+
+html.tabs-embedded-workbench .monaco-workbench .monaco-breadcrumbs .monaco-breadcrumb-item {
+	border-radius: 5px !important;
+}
+
+/* Compact actions and input fields use the same geometry as the outer rail and
+ * command strip. Preserve intentional circles and joined-button inner seams. */
+html.tabs-embedded-workbench .monaco-workbench .monaco-button:not(.monaco-dropdown-button),
+html.tabs-embedded-workbench .monaco-workbench .monaco-inputbox,
+html.tabs-embedded-workbench .monaco-workbench .monaco-select-box,
+html.tabs-embedded-workbench .monaco-workbench .monaco-action-bar .action-label,
+html.tabs-embedded-workbench .monaco-workbench .monaco-action-bar .action-item,
+html.tabs-embedded-workbench .monaco-workbench .part.statusbar .statusbar-item > a {
+	border-radius: 9px !important;
+}
+
+html.tabs-embedded-workbench .monaco-workbench .monaco-button-dropdown > .monaco-button.monaco-text-button {
+	border-radius: 9px 0 0 9px !important;
+}
+
+html.tabs-embedded-workbench .monaco-workbench .monaco-button-dropdown > .monaco-button.monaco-dropdown-button {
+	border-radius: 0 9px 9px 0 !important;
+}
+
+html.tabs-embedded-workbench .monaco-workbench .monaco-list .monaco-list-row:not(.separator) {
+	border-radius: 8px !important;
+}
+
+/* A native status bar remains fully interactive and sits flush below the frame. */
+html.tabs-embedded-workbench .monaco-workbench .part.statusbar {
+	font-size: 11px;
+}
+
+/* The React activity rail owns the left perimeter and the internal divider.
+ * Match the zero leading inset reserved in getFloatingPaneCompositeHorizontalMargins. */
+html.tabs-embedded-workbench .monaco-workbench.floating-panels.noactivitybar .part.sidebar.left {
+	margin-left: 0;
+	border-left-color: transparent !important;
+	border-top-left-radius: 0;
+	border-bottom-left-radius: 0;
+}
+
+/* Highlight the entire connected tab even when focus moves into Explorer. */
+html.tabs-embedded-workbench .monaco-workbench:not(.hc-black):not(.hc-light) .editor-group-container > .title.tabs {
+	--modern-ui-editor-tab-custom-active-background: var(--vscode-editor-background);
+	--modern-ui-editor-tab-custom-unfocused-active-background: var(--modern-ui-editor-tab-custom-active-background);
+	--modern-ui-editor-tab-custom-active-hover-background: var(--vscode-editor-background);
+	--modern-ui-editor-tab-custom-unfocused-active-hover-background: var(--modern-ui-editor-tab-custom-active-hover-background);
+	--modern-ui-editor-tab-custom-inactive-background: var(--modern-ui-connected-tab-strip-background);
+	--modern-ui-editor-tab-custom-unfocused-inactive-background: var(--modern-ui-connected-tab-strip-background);
+}
+
+html.tabs-embedded-workbench .monaco-workbench:not(.hc-black):not(.hc-light) .editor-group-container > .title .tabs-container > .tab.active {
+	color: var(--vscode-foreground);
+}
+
+html.tabs-embedded-workbench .monaco-workbench:not(.hc-black):not(.hc-light) .editor-group-container > .title .tabs-container > .tab.active > .tab-fill {
+	box-shadow: none;
+}
+
+/* Keep selection legible after the tree loses focus to the editor. */
+html.tabs-embedded-workbench .monaco-workbench:not(.hc-black):not(.hc-light) .part.sidebar .monaco-list .monaco-list-row.selected {
+	background-color: color-mix(in srgb, var(--vscode-focusBorder) 24%, var(--vscode-sideBar-background)) !important;
+	color: var(--vscode-list-activeSelectionForeground);
+}
+
+/* The selected tab, breadcrumbs and code canvas share a continuous surface. */
+html.tabs-embedded-workbench .monaco-workbench:not(.hc-black):not(.hc-light) .editor-group-container {
+	--modern-ui-connected-tab-surface: var(--vscode-editor-background);
+	--modern-ui-connected-tab-border: color-mix(in srgb, var(--vscode-foreground) 9%, transparent);
+	--modern-ui-connected-tab-strip-background: color-mix(in srgb, var(--vscode-editor-background) 45%, var(--vscode-titleBar-activeBackground));
+}
+
+html.tabs-embedded-workbench .monaco-workbench .editor-group-container :is(.breadcrumbs-control, .monaco-breadcrumbs) {
+	background-color: var(--vscode-editor-background);
+}
+
+/* A simple underline marks the active panel instead of another filled pill. */
+html.tabs-embedded-workbench .monaco-workbench.modern-ui-tabs .part.panel > .title .composite-bar .action-item:not(.icon) > .active-item-indicator {
+	top: auto;
+	bottom: 0;
+	left: 8px;
+	right: 8px;
+	height: 2px;
+	transform: none;
+	border-radius: 2px;
+	background: transparent !important;
+}
+
+html.tabs-embedded-workbench .monaco-workbench.modern-ui-tabs .part.panel > .title .composite-bar .action-item:not(.icon).checked > .active-item-indicator {
+	background: var(--vscode-panelTitle-activeBorder, var(--vscode-focusBorder)) !important;
+}
+
+html.tabs-embedded-workbench .monaco-workbench.modern-ui-tabs .part.panel > .title .composite-bar .action-item:not(.icon).checked > .action-label {
+	color: var(--vscode-panelTitle-activeForeground) !important;
+}
+
+html.tabs-embedded-workbench .monaco-workbench.modern-ui-tabs .part.panel > .title .composite-bar .action-item > .active-item-indicator::before {
+	display: none;
+}
+
+/* Muted labels still need readable contrast in both light and dark themes. */
+html.tabs-embedded-workbench .monaco-workbench:not(.hc-black):not(.hc-light) .part.panel > .title .composite-bar .action-item:not(.checked) > .action-label,
+html.tabs-embedded-workbench .monaco-workbench:not(.hc-black):not(.hc-light) .tabs-container > .tab:not(.active) {
+	color: color-mix(in srgb, var(--vscode-foreground) 72%, var(--vscode-editor-background)) !important;
+}
+
+html.tabs-embedded-workbench .monaco-workbench .quick-input-widget {
+	border-radius: 16px;
+}
+
+html.tabs-embedded-workbench .monaco-workbench.vs {
+	--vscode-gitDecoration-ignoredResourceForeground: color-mix(in srgb, var(--vscode-foreground) 72%, var(--vscode-sideBar-background));
+	--vscode-list-deemphasizedForeground: color-mix(in srgb, var(--vscode-foreground) 72%, var(--vscode-sideBar-background));
+}
+
+/* Unselected files are labels on the strip, never independent white tiles. */
+html.tabs-embedded-workbench .monaco-workbench .editor-group-container > .title .tabs-container > .tab:not(.active) > .tab-fill {
+	background: transparent !important;
+	border-color: transparent !important;
+	box-shadow: none !important;
+}
+
+/* Additional compact inputs share the shell's control radius. */
+html.tabs-embedded-workbench .monaco-workbench :is(.monaco-findInput, .suggest-input-container) {
+	border-radius: 9px !important;
+}
+
+html.tabs-embedded-workbench .monaco-workbench :is(.monaco-dialog-box, .monaco-menu-container, .monaco-hover) {
+	border-radius: 16px !important;
+}
+
+/* Blur the compositor backdrop too: extension webviews are separate overlay
+ * frames and are not descendants of the workbench part they visually occupy. */
+html.tabs-embedded-workbench.tabs-modal-open .monaco-dialog-modal-block.dimmed {
+	backdrop-filter: blur(4px);
+}
+
+/* Assistant providers invert the editor tabs: a light strip surrounds the tab
+ * that connects to the darker existing sidebar surface.
+ * Only the shell-owned switcher is styled; provider webviews keep their own UI. */
+/* The body is a rounded surface within the lighter provider strip. Overlay
+ * frames use the same corners without changing an extension document's CSS. */
+html.tabs-embedded-workbench .monaco-workbench .part.auxiliarybar {
+	background-color: var(--vscode-editor-background) !important;
+}
+html.tabs-embedded-workbench .monaco-workbench .part.auxiliarybar > .content {
+	background-color: var(--vscode-sideBar-background);
+	border-radius: 12px 12px 0 0;
+	overflow: hidden;
+}
+/* The leading selected tab already owns this corner. A second curve below it
+ * cuts a notch into the connected surface instead of joining it. */
+html.tabs-embedded-workbench .monaco-workbench .part.auxiliarybar:has(> .title .composite-bar .action-item:first-child.checked) > .content {
+	border-top-left-radius: 0;
+}
+html.tabs-embedded-workbench .webview-overlay-content.webview-overlay-auxiliarybar-top-left {
+	border-top-left-radius: 12px;
+}
+html.tabs-embedded-workbench .webview-overlay-content.webview-overlay-auxiliarybar-top-right {
+	border-top-right-radius: 12px;
+}
+
+html.tabs-embedded-workbench .monaco-workbench .part.auxiliarybar > .title {
+	background-color: var(--vscode-editor-background) !important;
+	border-bottom: 0;
+	border-radius: 16px 16px 0 0;
+}
+html.tabs-embedded-workbench .monaco-workbench .part.auxiliarybar > .title > .composite-bar-container,
+html.tabs-embedded-workbench .monaco-workbench .part.auxiliarybar > .title > .composite-bar-container :is(.composite-bar, .monaco-action-bar, .actions-container) {
+	height: 100%;
+	align-items: stretch;
+}
+html.tabs-embedded-workbench .monaco-workbench .part.auxiliarybar > .title .composite-bar .monaco-action-bar .action-item:not(.icon) {
+	height: 100%;
+	align-self: stretch;
+	border-block: 0 !important;
+}
+html.tabs-embedded-workbench .monaco-workbench .part.auxiliarybar > .title .composite-bar .monaco-action-bar .action-item:not(.icon) > .active-item-indicator {
+	position: absolute;
+	overflow: visible;
+	top: 3px;
+	bottom: 0;
+	left: 0;
+	right: 0;
+	height: auto;
+	transform: none;
+	border-radius: 10px 10px 0 0;
+	background: transparent !important;
+}
+html.tabs-embedded-workbench .monaco-workbench .part.auxiliarybar > .title .composite-bar .monaco-action-bar .action-item:not(.icon).checked > .active-item-indicator {
+	background: var(--vscode-sideBar-background) !important;
+}
+/* The lower shoulders use the same outward curve as connected editor tabs. */
+html.tabs-embedded-workbench .monaco-workbench .part.auxiliarybar > .title .composite-bar .monaco-action-bar .action-item.checked > .active-item-indicator::before,
+html.tabs-embedded-workbench .monaco-workbench .part.auxiliarybar > .title .composite-bar .monaco-action-bar .action-item.checked > .active-item-indicator::after {
+	content: '';
+	display: block;
+	position: absolute;
+	top: auto;
+	bottom: 0;
+	width: 8px;
+	height: 8px;
+	border: 0;
+	background: transparent !important;
+	clip-path: inset(0);
+	pointer-events: none;
+}
+html.tabs-embedded-workbench .monaco-workbench .part.auxiliarybar > .title .composite-bar .monaco-action-bar .action-item.checked > .active-item-indicator::before {
+	left: auto;
+	right: 100%;
+	border-radius: 0 0 8px 0;
+	box-shadow: 4px 4px 0 4px var(--vscode-sideBar-background);
+}
+html.tabs-embedded-workbench .monaco-workbench .part.auxiliarybar > .title .composite-bar .monaco-action-bar .action-item.checked > .active-item-indicator::after {
+	left: 100%;
+	right: auto;
+	border-radius: 0 0 0 8px;
+	box-shadow: -4px 4px 0 4px var(--vscode-sideBar-background);
+}
+/* At the leading frame edge, the cap meets the frame instead of a clipped shoulder. */
+html.tabs-embedded-workbench .monaco-workbench .part.auxiliarybar > .title .composite-bar .monaco-action-bar .action-item.checked:first-child > .active-item-indicator::before {
+	content: none;
+}
+/* Header actions stay vertically centered, independently of the stretched tabs. */
+html.tabs-embedded-workbench .monaco-workbench .part.auxiliarybar > .title :is(.global-actions, .title-actions) {
+	display: flex;
+	align-items: center;
+	align-self: stretch;
+}
+html.tabs-embedded-workbench .monaco-workbench .part.auxiliarybar > .title .global-actions {
+	padding-inline-end: 4px;
+}
+html.tabs-embedded-workbench .monaco-workbench .part.auxiliarybar > .title :is(.global-actions, .title-actions) :is(.monaco-action-bar, .actions-container) {
+	align-items: center;
+}
+html.tabs-embedded-workbench .monaco-workbench .part.auxiliarybar > .title .composite-bar .monaco-action-bar .action-item:not(.icon) > .action-label {
+	background: transparent !important;
+	border-radius: 10px 10px 0 0 !important;
+}
+html.tabs-embedded-workbench .monaco-workbench .part.auxiliarybar > .title .composite-bar .monaco-action-bar .action-item:not(.icon).checked > .action-label {
+	color: var(--vscode-sideBar-foreground, var(--vscode-foreground)) !important;
+}
+html.tabs-embedded-workbench .monaco-workbench .part.auxiliarybar > .title .composite-bar .monaco-action-bar .action-item:not(.icon):not(.checked) > .action-label {
+	color: var(--vscode-foreground) !important;
+}
+
+/* Built-in controls: settings, Search/Replace, SCM messages and inline renames.
+ * DOM styles stop at webview/iframe boundaries; installed extensions own their UI. */
+html.tabs-embedded-workbench .monaco-workbench :is(button, select, textarea),
+html.tabs-embedded-workbench .monaco-workbench input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+html.tabs-embedded-workbench .monaco-workbench :is(.scm-editor, .scm-editor-container, .search-widget, .suggest-input-container) {
+	border-radius: 9px !important;
+}
+
+html.tabs-embedded-workbench .monaco-workbench .scm-editor {
+	overflow: hidden !important;
+	/* Monaco measures this box's client width; extra CSS padding clips its canvas. */
+	padding-left: 0 !important;
+	padding-right: 0 !important;
+}
+
+html.tabs-embedded-workbench .monaco-workbench .scm-editor-container {
+	overflow: hidden !important;
+}
+
+html.tabs-embedded-workbench .monaco-workbench .scm-view .scm-editor-container .monaco-editor,
+html.tabs-embedded-workbench .monaco-workbench .scm-view .scm-editor-container .monaco-editor .overflow-guard {
+	border-radius: 9px !important;
+	outline: none !important;
+}
+
+/* Suppress harsh outer focus borders/outlines on inputs when clicked or focused */
+html.tabs-embedded-workbench .monaco-workbench .monaco-inputbox.synthetic-focus,
+html.tabs-embedded-workbench .monaco-workbench .monaco-inputbox:focus,
+html.tabs-embedded-workbench .monaco-workbench .monaco-inputbox:focus-within,
+html.tabs-embedded-workbench .monaco-workbench .monaco-inputbox input:focus,
+html.tabs-embedded-workbench .monaco-workbench .monaco-inputbox textarea:focus,
+html.tabs-embedded-workbench .monaco-workbench .monaco-findInput.synthetic-focus,
+html.tabs-embedded-workbench .monaco-workbench .monaco-findInput:focus,
+html.tabs-embedded-workbench .monaco-workbench .monaco-findInput:focus-within,
+html.tabs-embedded-workbench .monaco-workbench .scm-editor.synthetic-focus,
+html.tabs-embedded-workbench .monaco-workbench .scm-editor:focus,
+html.tabs-embedded-workbench .monaco-workbench .scm-editor:focus-within,
+html.tabs-embedded-workbench .monaco-workbench .scm-editor-container:focus-within,
+html.tabs-embedded-workbench .monaco-workbench .quick-input-filter .monaco-inputbox.synthetic-focus,
+html.tabs-embedded-workbench .monaco-workbench .quick-input-filter .monaco-inputbox:focus,
+html.tabs-embedded-workbench .monaco-workbench .search-widget .monaco-inputbox.synthetic-focus,
+html.tabs-embedded-workbench .monaco-workbench .search-widget .monaco-inputbox:focus,
+html.tabs-embedded-workbench .monaco-workbench input[type="text"]:focus,
+html.tabs-embedded-workbench .monaco-workbench input[type="search"]:focus,
+html.tabs-embedded-workbench .monaco-workbench textarea:focus,
+html.tabs-embedded-workbench .monaco-workbench select:focus,
+html.tabs-embedded-workbench .monaco-workbench .synthetic-focus {
+	outline: none !important;
+	outline-width: 0 !important;
+	outline-style: none !important;
+	box-shadow: none !important;
+}
+
+/* Small toggles and keycaps keep their shape at dense editor sizes. */
+html.tabs-embedded-workbench :is(.monaco-custom-toggle, .monaco-keybinding-key, .checkbox-action-item) {
+	border-radius: 5px !important;
+}
+
+/* Split actions remain joined: no rounded notch at the internal seam. */
+html.tabs-embedded-workbench .monaco-action-bar .action-item.action-dropdown-item > .action-label {
+	border-radius: 9px 0 0 9px !important;
+}
+html.tabs-embedded-workbench .monaco-action-bar .action-item.action-dropdown-item > .monaco-dropdown .action-label {
+	border-radius: 0 9px 9px 0 !important;
+}
+html.tabs-embedded-workbench .monaco-action-bar .action-item.action-dropdown-item.empty > .action-label {
+	border-radius: 9px !important;
+}
+
+/* Context menus and custom selects can be portaled outside .monaco-workbench.
+ * Target their actual painted surfaces, not the unpainted context-view host. */
+html.tabs-embedded-workbench :is(.monaco-menu-container, .monaco-menu, .monaco-select-box-dropdown-container, .monaco-hover, .context-view.monaco-component .monaco-dialog-box) {
+	border-radius: 16px !important;
+}
+html.tabs-embedded-workbench .monaco-menu .action-menu-item,
+html.tabs-embedded-workbench .monaco-select-box-dropdown-container .monaco-list-row:not(.option-separator) {
+	border-radius: 8px !important;
+}
+
+/* Editor overlays, notifications and tooltips form the floating-surface tier. */
+html.tabs-embedded-workbench .monaco-workbench :is(.quick-input-widget, .suggest-widget, .suggest-details, .parameter-hints-widget, .find-widget, .rename-box, .colorpicker-widget, .debug-hover-widget, .debug-toolbar, .notifications-center, .notification-toast, .notifications-list-container) {
+	border-radius: 16px !important;
+}
+html.tabs-embedded-workbench .quick-input-titlebar {
+	border-top-left-radius: 16px;
+	border-top-right-radius: 16px;
+}
+html.tabs-embedded-workbench .monaco-workbench :is(.settings-editor .setting-item-contents, .chat-input-container, .chat-input-part, .interactive-input-part) {
+	border-radius: 12px !important;
+}
+
+/* Scroll handles are visible controls, not the editor's text/decorations. */
+html.tabs-embedded-workbench .monaco-scrollable-element > .scrollbar > .slider,
+html.tabs-embedded-workbench .xterm .xterm-scrollable-element > .xterm-scrollbar > .xterm-slider {
+	border-radius: 9px;
+}
+
+/* Extra vertical breathing room for the built-in sidebar Chat. Keep horizontal
+ * editor gutters unchanged: ChatInputPart measures those for Monaco layout. */
+html.tabs-embedded-workbench .part.auxiliarybar .interactive-session .interactive-input-part:not(.compact) .chat-input-container {
+	padding-top: 8px;
+	padding-bottom: 10px;
+}
+html.tabs-embedded-workbench .part.auxiliarybar .interactive-session .interactive-input-part:not(.compact) .chat-input-toolbars {
+	margin-top: 8px;
+}
+html.tabs-embedded-workbench .part.auxiliarybar .chat-welcome-view {
+	padding: 20px 16px;
+}
+html.tabs-embedded-workbench .part.auxiliarybar .chat-welcome-view > .chat-welcome-view-message {
+	margin-top: 12px;
+	line-height: 1.5;
+}
+
+/* ============================================================================
+ * Search View: Compact, Highly Organized, Crisp IDE Geometry
+ * ============================================================================ */
+html.tabs-embedded-workbench .monaco-workbench .search-view .search-widgets-container {
+	padding: 8px 12px;
+	margin: 0;
+}
+
+/* Crisp 6px rounded rectangles on all search input boxes - never clumsy pills */
+html.tabs-embedded-workbench .monaco-workbench .search-view :is(
+	.monaco-findInput,
+	.monaco-inputbox,
+	.search-widget .replace-input,
+	.query-details .file-types > .monaco-inputbox
+) {
+	border-radius: 6px !important;
+}
+
+/* Align Search, Replace and Include/Exclude fields cleanly */
+html.tabs-embedded-workbench .monaco-workbench .search-view .search-widget .search-container,
+html.tabs-embedded-workbench .monaco-workbench .search-view .search-widget .replace-container {
+	margin-left: 20px !important;
+}
+
+html.tabs-embedded-workbench .monaco-workbench .search-view .search-widget .replace-container {
+	margin-top: 6px !important;
+}
+
+html.tabs-embedded-workbench .monaco-workbench .search-view .search-widget .toggle-replace-button {
+	border-radius: 4px !important;
+	width: 16px;
+	height: 26px;
+	top: 0;
+	left: 0;
+}
+
+html.tabs-embedded-workbench .monaco-workbench .search-view .query-details {
+	margin: 8px 0 0 20px !important;
+}
+
+html.tabs-embedded-workbench .monaco-workbench .search-view .query-details.more h4 {
+	font-size: 11px;
+	font-weight: 500;
+	padding: 6px 0 3px;
+	opacity: 0.85;
+}
+
+html.tabs-embedded-workbench .monaco-workbench .search-view .query-details .file-types > .monaco-inputbox {
+	height: 26px;
+	margin-bottom: 6px;
+}
+
+html.tabs-embedded-workbench .monaco-workbench .search-view .monaco-findInput .monaco-inputbox > .ibwrapper > textarea.input,
+html.tabs-embedded-workbench .monaco-workbench .search-view .replace-input .monaco-inputbox > .ibwrapper > textarea.input,
+html.tabs-embedded-workbench .monaco-workbench .search-view .query-details .file-types > .monaco-inputbox input {
+	height: 26px;
+	line-height: 20px;
+	padding: 3px 6px;
+	font-size: 12px;
+}
+
+html.tabs-embedded-workbench .monaco-workbench .search-view .search-widget .replace-container .monaco-action-bar {
+	height: 26px;
+	margin-left: 6px;
+}
+
+/* ============================================================================
+ * Settings Editor: Modern, Clean, Cohesive IDE Aesthetics
+ * ============================================================================ */
+html.tabs-embedded-workbench .monaco-workbench .settings-editor > .settings-header {
+	padding: 12px 24px 8px;
+}
+
+html.tabs-embedded-workbench .monaco-workbench .settings-editor .suggest-input-container {
+	border-radius: 8px !important;
+	border: 1px solid color-mix(in srgb, var(--vscode-sideBar-border, #444) 60%, transparent);
+	padding: 2px 4px;
+}
+
+html.tabs-embedded-workbench .monaco-workbench .settings-editor .suggest-input-container .monaco-inputbox {
+	border-radius: 6px !important;
+}
+
+html.tabs-embedded-workbench .monaco-workbench .settings-editor .settings-tabs-widget .action-label {
+	border-radius: 6px !important;
+	padding: 4px 10px !important;
+	font-size: 12px !important;
+}
+
+html.tabs-embedded-workbench .monaco-workbench .settings-editor .setting-item-contents {
+	border-radius: 12px !important;
+	border: 1px solid color-mix(in srgb, var(--vscode-settings-rowHoverBackground, var(--vscode-sideBar-border, transparent)) 60%, transparent);
+	padding: 10px 14px !important;
+	margin-block: 2px;
+	transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+html.tabs-embedded-workbench .monaco-workbench .settings-editor .setting-item-contents:hover {
+	background-color: color-mix(in srgb, var(--vscode-settings-rowHoverBackground, #ffffff) 15%, transparent);
+}
+
+html.tabs-embedded-workbench .monaco-workbench .settings-editor :is(.monaco-inputbox, .monaco-select-box, .monaco-button) {
+	border-radius: 6px !important;
+}
+
+
+/* Layered cards: the rail is in a separate native surface. The leading backing
+ * strip continues it under the rounded Explorer card without moving the grid. */
+html.tabs-embedded-workbench.tabs-sidebar-left .monaco-workbench:not(.nosidebar):not(.hc-black):not(.hc-light) {
+	background:
+		radial-gradient(90px 130px at -30px var(--tabs-rail-y, 68px), color-mix(in srgb, var(--vscode-focusBorder) var(--tabs-rail-light), transparent), color-mix(in srgb, var(--vscode-focusBorder) var(--tabs-rail-shoulder), transparent) 55%, transparent 85%) 0 4px / 20px calc(100% - 36px) no-repeat,
+		linear-gradient(var(--vscode-widget-border, transparent), var(--vscode-widget-border, transparent)) 0 4px / 20px 1px no-repeat,
+		linear-gradient(var(--vscode-widget-border, transparent), var(--vscode-widget-border, transparent)) 0 calc(100% - 32px) / 20px 1px no-repeat,
+		linear-gradient(to right, color-mix(in srgb, var(--vscode-foreground) 3%, var(--vscode-sideBar-background)) 20px, transparent 20px) 0 4px / 100% calc(100% - 36px) no-repeat,
+		var(--vscode-titleBar-activeBackground);
+}
+
+/* floatingPanels.css also paints the grid above the workbench background. The
+ * grid must expose this backing through the sidebar's rounded cutouts. */
+html.tabs-embedded-workbench.tabs-sidebar-left .monaco-workbench.floating-panels:not(.nosidebar):not(.hc-black):not(.hc-light) > .monaco-grid-view {
+	background-color: transparent;
+}
+
+html.tabs-embedded-workbench .monaco-workbench.floating-panels.noactivitybar .part.sidebar.left {
+	border-top-left-radius: 20px !important;
+	border-bottom-left-radius: 20px !important;
+}
+
+/* Keep the measured border width but give the connected edge no extra stroke.
+ * The sidebar fill itself forms the curve above the continuous rail backing. */
+html.tabs-embedded-workbench .monaco-workbench.floating-panels.noactivitybar:not(.hc-black):not(.hc-light) .part.sidebar.left {
+	border-left-color: transparent !important;
+	box-shadow: none;
+}
+
+/* Heights come from native delegates. Only align the row contents here. */
+html.tabs-embedded-workbench .monaco-workbench .part.sidebar .explorer-item,
+html.tabs-embedded-workbench .monaco-workbench .part.sidebar .open-editor {
+	height: 100%;
+	line-height: 24px;
+}
+
+html.tabs-embedded-workbench .monaco-workbench .part.sidebar .monaco-list-row {
+	font-size: 12px;
+}
+
+html.tabs-embedded-workbench .monaco-workbench .part.sidebar .monaco-list-row .monaco-tl-contents {
+	display: flex;
+	align-items: center;
+}
+
+html.tabs-embedded-workbench .monaco-workbench .part.sidebar .monaco-list-row .monaco-tl-contents > .monaco-icon-label {
+	flex: 1;
+	min-width: 0;
+}
+
+html.tabs-embedded-workbench .monaco-workbench .part.sidebar > .content {
+	transition: opacity 350ms;
+}
+
+html.tabs-embedded-workbench.tabs-rail-spotlight:not(.tabs-modal-open) .monaco-workbench:not(.hc-black):not(.hc-light) .part.sidebar > .content {
+	opacity: 0.7;
+}
+
+/* The connected-tab fill is decoration; upstream still owns sizes, pinning,
+ * overflow, drag/drop, close actions and each group's active tab. */
+html.tabs-embedded-workbench .monaco-workbench:not(.hc-black):not(.hc-light) .editor-group-container > .title .tabs-container > .tab.active > .tab-fill {
+	background-image: linear-gradient(180deg, color-mix(in srgb, var(--vscode-focusBorder) 12%, transparent), transparent 80%);
+	box-shadow: inset 0 1px 0 color-mix(in srgb, var(--vscode-foreground) 12%, transparent);
+}
+
+html.tabs-embedded-workbench .monaco-workbench .breadcrumbs-control.with-editor-type > .breadcrumbs-editor-type {
+	align-self: center;
+	margin: 2px 10px 2px 6px;
+	padding: 3px 10px;
+	border-radius: 8px;
+	font-size: 12px;
+	line-height: 20px;
+	background: color-mix(in srgb, var(--vscode-foreground) 5%, var(--vscode-editor-background));
+}
+
+html.tabs-embedded-workbench .monaco-workbench .breadcrumbs-control.with-editor-type > .breadcrumbs-editor-type:hover,
+html.tabs-embedded-workbench .monaco-workbench .breadcrumbs-control.with-editor-type > .breadcrumbs-editor-type[aria-expanded="true"] {
+	background: color-mix(in srgb, var(--vscode-foreground) 9%, var(--vscode-editor-background));
+}
+
+html.tabs-embedded-workbench .monaco-workbench .breadcrumbs-editor-type:focus-visible,
+html.tabs-embedded-workbench .monaco-workbench .part.sidebar .monaco-inputbox:focus-within {
+	outline: none !important;
+}
+
+html.tabs-embedded-workbench .monaco-workbench .part.sidebar .monaco-inputbox {
+	border-radius: 12px !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	html.tabs-embedded-workbench .monaco-workbench .part.sidebar > .content {
+		transition: none;
+	}
+}
+
+/* Inset the paint rather than shrinking Monaco's measured scrollbar hit area. */
+html.tabs-embedded-workbench .monaco-workbench:not(.hc-black):not(.hc-light) .part.sidebar .monaco-scrollable-element > .scrollbar.vertical > .slider {
+	box-sizing: border-box;
+	border: 1px solid transparent;
+	background-clip: padding-box;
+	border-radius: 999px;
+}
+
+@property --tabs-rail-light {
+	syntax: '<percentage>';
+	inherits: true;
+	initial-value: 0%;
+}
+@property --tabs-rail-shoulder {
+	syntax: '<percentage>';
+	inherits: true;
+	initial-value: 0%;
+}
+@property --tabs-rail-y {
+	syntax: '<length>';
+	inherits: true;
+	initial-value: 68px;
+}
+html.tabs-embedded-workbench .monaco-workbench {
+	--tabs-rail-light: 0%;
+	--tabs-rail-shoulder: 0%;
+	transition: --tabs-rail-light 300ms, --tabs-rail-shoulder 300ms, --tabs-rail-y 500ms cubic-bezier(0.3, 1.45, 0.5, 1);
+}
+html.tabs-embedded-workbench.tabs-rail-lit .monaco-workbench.vs-dark {
+	--tabs-rail-light: 26%;
+	--tabs-rail-shoulder: 8%;
+}
+html.tabs-embedded-workbench.tabs-rail-lit.tabs-rail-spotlight .monaco-workbench.vs-dark {
+	--tabs-rail-light: 40%;
+	--tabs-rail-shoulder: 14%;
+}
+html.tabs-embedded-workbench.tabs-rail-lit .monaco-workbench.vs {
+	--tabs-rail-light: 14%;
+	--tabs-rail-shoulder: 5%;
+}
+html.tabs-embedded-workbench.tabs-rail-lit.tabs-rail-spotlight .monaco-workbench.vs {
+	--tabs-rail-light: 22%;
+	--tabs-rail-shoulder: 8%;
+}
+
+/* The virtualized action row owns its height; let the action fill its width. */
+html.tabs-embedded-workbench .monaco-workbench .part.sidebar .scm-view :is(.button-container, .scm-input) {
+	flex: 1;
+	min-width: 0;
+	width: 100%;
+	box-sizing: border-box;
+}
+
+/* One workbench-wide rule covers real and synthetic focus, including virtualized
+ * list rows, extension cards, view containers and focus decorations on pseudo-elements. */
+html.tabs-embedded-workbench .monaco-workbench *,
+html.tabs-embedded-workbench .monaco-workbench *::before,
+html.tabs-embedded-workbench .monaco-workbench *::after {
+	outline: none !important;
+}
+
+html.tabs-embedded-workbench .monaco-workbench .monaco-list:focus-visible .monaco-list-row.focused:not(.selected) {
+	background-color: var(--vscode-list-focusBackground, var(--vscode-list-hoverBackground)) !important;
+}
+
+html.tabs-embedded-workbench .monaco-workbench .monaco-button:focus-visible {
+	background-color: var(--vscode-button-hoverBackground) !important;
+}
+
+html.tabs-embedded-workbench .monaco-workbench .monaco-button.secondary:focus-visible {
+	background-color: var(--vscode-button-secondaryHoverBackground) !important;
+}
+
+html.tabs-embedded-workbench .monaco-workbench :is(.action-label, .breadcrumbs-editor-type):focus-visible,
+html.tabs-embedded-workbench .monaco-workbench .action-item:focus-visible .action-label {
+	background-color: var(--vscode-toolbar-hoverBackground) !important;
+}
+html.tabs-embedded-workbench .monaco-workbench .part.sidebar .scm-view .button-container > :is(.monaco-button-dropdown, .monaco-button) {
+	flex: 1;
+	width: 100%;
+	min-width: 0;
+}
+html.tabs-embedded-workbench .monaco-workbench .part.sidebar .scm-view .button-container > .monaco-button-dropdown > .monaco-text-button {
+	flex: 1;
+	min-width: 0;
+}
+html.tabs-embedded-workbench .monaco-workbench .part.sidebar .scm-view .button-container > .monaco-button-dropdown > .monaco-dropdown-button {
+	flex: 0 0 28px;
+}
+
+/* Native hover widgets can cross the sidebar seam without a clipped React portal. */
+html.tabs-embedded-workbench .monaco-hover.tabs-rail-label {
+	border-radius: 10px !important;
+	border-color: color-mix(in srgb, var(--vscode-focusBorder) 25%, var(--vscode-editorHoverWidget-border));
+	box-shadow: 0 6px 20px rgba(0, 0, 0, 0.16);
+	pointer-events: none;
+}
+html.tabs-embedded-workbench .monaco-hover.tabs-rail-label .hover-contents {
+	padding: 7px 11px;
+	font-size: 12px;
+	line-height: 18px;
+	max-width: 240px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+@media (prefers-reduced-motion: reduce) {
+	html.tabs-embedded-workbench .monaco-workbench {
+		transition: none;
+	}
+}
+
+html.tabs-embedded-workbench .monaco-workbench .pane-body:focus-visible {
+	background-color: color-mix(in srgb, var(--vscode-list-focusBackground, var(--vscode-list-hoverBackground)) 20%, var(--vscode-sideBar-background));
+}

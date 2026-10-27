@@ -187,7 +187,7 @@ function DialogDetails({
       className={cn("group rounded-xl border border-border/60 bg-muted/15 px-3 py-2.5", className)}
       data-slot="dialog-details"
     >
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded-sm text-xs font-medium text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
         {title}
         <ChevronDownIcon
           aria-hidden="true"
