@@ -76,6 +76,7 @@ import {
   OrchestrationV2RecordCancellationIntentError,
   type OrchestrationProjectShell,
   type OrchestrationV2ShellSnapshot,
+  type OrchestrationV2ThreadStreamItem,
   type ApplicationStoredEvent,
   type ProjectEntriesFailure,
   type ProjectFileFailure,
@@ -174,6 +175,7 @@ import {
   THREAD_HISTORY_SNAPSHOT_ROW_LIMIT,
 } from "./orchestration-v2/threadHistoryPaging.ts";
 import {
+  makeLiveBodyDeduper,
   projectDomainEventForWire,
   projectThreadProjectionForWire,
 } from "./orchestration-v2/WireProjection.ts";
@@ -775,6 +777,10 @@ export const subscribeOrchestrationV2Thread = Effect.fn("ws.orchestrationV2.subs
     readonly acceptDedupedBodies?: boolean;
   }) {
     const threadManagement = yield* ThreadManagementService.ThreadManagementService;
+    const dedupeBodies = input.acceptDedupedBodies === true;
+    // Replay, snapshot, and live tail share one deduper: it must see every delivered record.
+    const withLiveDedupe = <E, R>(stream: Stream.Stream<OrchestrationV2ThreadStreamItem, E, R>) =>
+      dedupeBodies ? Stream.suspend(() => Stream.map(stream, makeLiveBodyDeduper())) : stream;
     const applicationEvents = yield* OrchestrationEventStore.OrchestrationEventStore;
 
     yield* Effect.annotateCurrentSpan({
@@ -872,16 +878,18 @@ export const subscribeOrchestrationV2Thread = Effect.fn("ws.orchestrationV2.subs
             snapshotSequence,
             projection: projectThreadProjectionForWire(snapshot.projection),
           };
-      return Stream.concat(
+      return withLiveDedupe(
         Stream.concat(
-          rpcInitialItems([
-            input.acceptDedupedBodies
-              ? { ...snapshotItem, projection: dedupeSnapshotBodies(snapshotItem.projection) }
-              : snapshotItem,
-          ]),
-          completionMarker,
+          Stream.concat(
+            rpcInitialItems([
+              input.acceptDedupedBodies
+                ? { ...snapshotItem, projection: dedupeSnapshotBodies(snapshotItem.projection) }
+                : snapshotItem,
+            ]),
+            completionMarker,
+          ),
+          eventStreamFrom(snapshotSequence),
         ),
-        eventStreamFrom(snapshotSequence),
       );
     });
 
@@ -956,9 +964,11 @@ export const subscribeOrchestrationV2Thread = Effect.fn("ws.orchestrationV2.subs
       if (plan.mode === "snapshot") {
         return yield* snapshotThenLive();
       }
-      return Stream.concat(
-        Stream.concat(rpcInitialItems(replay), completionMarker),
-        eventStreamFrom(highWater),
+      return withLiveDedupe(
+        Stream.concat(
+          Stream.concat(rpcInitialItems(replay), completionMarker),
+          eventStreamFrom(highWater),
+        ),
       );
     }
 

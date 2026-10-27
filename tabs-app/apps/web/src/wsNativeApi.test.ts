@@ -1531,3 +1531,181 @@ it("supports getOlderSettledThreads and subscribeShell options", async () => {
   });
   unsubscribe();
 });
+
+it("subscribeThread opts into deduped bodies and restores snapshots and live events before callback", async () => {
+  const { createWsNativeApi } = await import("./wsNativeApi");
+  const api = createWsNativeApi();
+  const threadId = "thread-live-dedup" as any;
+  const callback = vi.fn();
+
+  const unsubscribe = api.orchestration.subscribeThread({ threadId }, callback);
+
+  expect(subscribeRpcMock).toHaveBeenLastCalledWith(
+    ORCHESTRATION_V2_WS_METHODS.subscribeThread,
+    expect.any(Function),
+    expect.any(Function),
+    expect.any(Function),
+    expect.any(Function),
+  );
+
+  const calls = subscribeRpcMock.mock.calls as unknown[][];
+  const lastCall = calls[calls.length - 1];
+  const paramsFactory = lastCall?.[1] as (() => unknown) | undefined;
+  const onReceive = lastCall?.[3] as ((item: unknown) => void) | undefined;
+
+  expect(paramsFactory?.()).toEqual({
+    threadId,
+    acceptDedupedBodies: true,
+    acceptBoundedSnapshot: true,
+  });
+
+  // 1. Snapshot with deduped body is restored
+  const now = "2026-10-27T00:00:00.000Z";
+  const messageRecord = {
+    id: "msg-1",
+    threadId,
+    runId: null,
+    nodeId: null,
+    role: "assistant",
+    text: " authoritative text ",
+    attachments: [],
+    streaming: false,
+    createdBy: "agent",
+    creationSource: "provider",
+    createdAt: now,
+    updatedAt: now,
+  };
+  const turnItemDeduped = {
+    id: "turn-1",
+    threadId,
+    runId: null,
+    nodeId: null,
+    providerThreadId: null,
+    providerTurnId: null,
+    nativeItemRef: null,
+    parentItemId: null,
+    ordinal: 1,
+    status: "completed",
+    title: null,
+    startedAt: now,
+    completedAt: now,
+    updatedAt: now,
+    type: "assistant_message",
+    messageId: "msg-1",
+    text: "",
+    textOmitted: true,
+    streaming: false,
+  };
+  const snapshotProjection = {
+    thread: { id: threadId },
+    messages: [messageRecord],
+    checkpoints: [],
+    subagents: [],
+    turnItems: [turnItemDeduped],
+    visibleTurnItems: [
+      {
+        position: 0,
+        visibility: "local",
+        sourceThreadId: threadId,
+        sourceItemId: "turn-1",
+        item: turnItemDeduped,
+      },
+    ],
+  };
+
+  onReceive?.({
+    kind: "snapshot",
+    snapshotSequence: 10,
+    projection: snapshotProjection,
+  });
+
+  expect(callback).toHaveBeenCalledWith(
+    expect.objectContaining({
+      kind: "snapshot",
+      projection: expect.objectContaining({
+        turnItems: [
+          expect.objectContaining({
+            id: "turn-1",
+            text: " authoritative text ",
+          }),
+        ],
+      }),
+    }),
+  );
+
+  // 2. Live message.updated event arrives, followed by live turn-item.updated with deduped text
+  const liveMessage = {
+    id: "msg-2",
+    threadId,
+    runId: null,
+    nodeId: null,
+    role: "assistant",
+    text: "live streamed answer",
+    attachments: [],
+    streaming: true,
+    createdBy: "agent",
+    creationSource: "provider",
+    createdAt: now,
+    updatedAt: now,
+  };
+  onReceive?.({
+    kind: "event",
+    sequence: 11,
+    event: {
+      id: "ev-1",
+      type: "message.updated",
+      threadId,
+      occurredAt: now,
+      payload: liveMessage,
+    },
+  });
+
+  const liveTurnItem = {
+    id: "turn-2",
+    threadId,
+    runId: null,
+    nodeId: null,
+    providerThreadId: null,
+    providerTurnId: null,
+    nativeItemRef: null,
+    parentItemId: null,
+    ordinal: 2,
+    status: "running",
+    title: null,
+    startedAt: now,
+    completedAt: null,
+    updatedAt: now,
+    type: "assistant_message",
+    messageId: "msg-2",
+    text: "",
+    textOmitted: true,
+    streaming: true,
+  };
+
+  onReceive?.({
+    kind: "event",
+    sequence: 12,
+    event: {
+      id: "ev-2",
+      type: "turn-item.updated",
+      threadId,
+      occurredAt: now,
+      payload: liveTurnItem,
+    },
+  });
+
+  expect(callback).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      kind: "event",
+      event: expect.objectContaining({
+        type: "turn-item.updated",
+        payload: expect.objectContaining({
+          id: "turn-2",
+          text: "live streamed answer",
+        }),
+      }),
+    }),
+  );
+
+  unsubscribe();
+});

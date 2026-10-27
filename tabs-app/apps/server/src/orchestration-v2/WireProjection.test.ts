@@ -10,6 +10,8 @@ import {
   ThreadId,
   TurnItemId,
   type OrchestrationV2ThreadProjection,
+  type OrchestrationV2ThreadStreamItem,
+  type OrchestrationV2DomainEvent,
   OrchestrationV2TurnItem,
   OrchestrationV2TurnItemJson,
 } from "@tabs/contracts";
@@ -21,7 +23,9 @@ import {
   projectTurnItemForWire,
   projectTurnItemForDetail,
   projectDomainEventForWire,
+  makeLiveBodyDeduper,
 } from "./WireProjection.ts";
+import { coalesceLiveUpdatedEvents } from "./ThreadLiveEventCoalescer.ts";
 import { threadShellFromProjection } from "./ProjectionStore.ts";
 import { MAX_TOOL_OUTPUT_IMAGES, toolOutputImages } from "@tabs/shared/toolOutput";
 
@@ -398,5 +402,76 @@ describe("orchestration V2 wire projection", () => {
       },
     };
     expect(projectTurnItemForWire({ ...base, output })).not.toHaveProperty("output");
+  });
+});
+
+describe("live body deduper", () => {
+  const at = base.updatedAt;
+  const messageId = MessageId.make("message-live");
+  const event = (
+    sequence: number,
+    rest: Pick<OrchestrationV2DomainEvent, "type" | "payload">,
+  ): Extract<OrchestrationV2ThreadStreamItem, { kind: "event" }> => ({
+    kind: "event",
+    sequence,
+    event: {
+      id: EventId.make(`event-${sequence}`),
+      threadId: base.threadId,
+      occurredAt: at,
+      ...rest,
+    } as OrchestrationV2DomainEvent,
+  });
+  const message = (sequence: number, text: string) =>
+    event(sequence, {
+      type: "message.updated",
+      payload: {
+        id: messageId,
+        threadId: base.threadId,
+        runId: null,
+        nodeId: null,
+        role: "assistant",
+        text,
+        attachments: [],
+        streaming: true,
+        createdBy: "agent",
+        creationSource: "provider",
+        createdAt: at,
+        updatedAt: at,
+      },
+    });
+  const reply = (sequence: number, text: string) =>
+    event(sequence, {
+      type: "turn-item.updated",
+      payload: {
+        ...base,
+        status: "running",
+        type: "assistant_message",
+        messageId,
+        text,
+        streaming: true,
+      },
+    });
+  const payloadOf = (item: OrchestrationV2ThreadStreamItem) =>
+    item.kind === "event" ? item.event.payload : undefined;
+
+  it("blanks a reply that repeats the message delivered before it, after coalescing", () => {
+    const delivered = coalesceLiveUpdatedEvents([
+      message(1, "a"),
+      reply(2, "a"),
+      message(3, "ab"),
+      reply(4, "ab"),
+    ]).map(makeLiveBodyDeduper());
+
+    expect(
+      delivered.map((item) => [item.kind === "event" && item.sequence, payloadOf(item)]),
+    ).toEqual([
+      [3, message(3, "ab").event.payload],
+      [4, { ...reply(4, "ab").event.payload, text: "", textOmitted: true }],
+    ]);
+  });
+
+  it("ships a reply whole when its message arrives after it", () => {
+    const first = reply(1, "a");
+    expect([first, message(2, "a")].map(makeLiveBodyDeduper())[0]).toBe(first);
   });
 });

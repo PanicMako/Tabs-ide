@@ -1,5 +1,8 @@
-import { ScheduledTaskListResult } from "@tabs/contracts";
-import { restoreSnapshotBodies } from "@tabs/shared/orchestrationV2DedupedBodies";
+import {
+  restoreSnapshotBodies,
+  restoreSubagentBodies,
+  restoreTurnItemBodies,
+} from "@tabs/shared/orchestrationV2DedupedBodies";
 import { mergeProviderWorkspaceSnapshots } from "@tabs/shared/providerWorkspaceSnapshots";
 import {
   GitActionProgressEvent,
@@ -10,6 +13,11 @@ import {
   ORCHESTRATION_V2_WS_METHODS,
   OrchestrationV2ShellStreamItem,
   OrchestrationV2ThreadStreamItem,
+  type CheckpointId,
+  type MessageId,
+  type NodeId,
+  type OrchestrationV2Checkpoint,
+  type OrchestrationV2Subagent,
   type ContextMenuItem,
   type NativeApi,
   type ServerConfig,
@@ -25,6 +33,7 @@ import {
   TerminalEvent as TerminalEventSchema,
   ResourceTelemetrySnapshot,
   type OrchestrationReadModel,
+  ScheduledTaskListResult,
 } from "@tabs/contracts";
 import { providerUsageSnapshots } from "./providerUsageSnapshots";
 import * as Schema from "effect/Schema";
@@ -927,6 +936,21 @@ export function createWsNativeApi(options?: {
         let isFirst = true;
         const threadId = "threadId" in input ? input.threadId : undefined;
         if (!threadId) return () => {};
+        const messageText = new Map<MessageId, string>();
+        const checkpointFiles = new Map<CheckpointId, OrchestrationV2Checkpoint["files"]>();
+        const subagents = new Map<NodeId, Pick<OrchestrationV2Subagent, "prompt" | "result">>();
+        const source = {
+          messageText: (id: MessageId) => messageText.get(id),
+          checkpointFiles: (id: CheckpointId) => checkpointFiles.get(id),
+          subagent: (id: NodeId) => subagents.get(id),
+        };
+        const rememberSubagent = (record: {
+          readonly id: NodeId;
+          readonly prompt: string;
+          readonly result: string | null;
+        }) => {
+          subagents.set(record.id, { prompt: record.prompt, result: record.result });
+        };
         return transport.subscribeRpc(
           ORCHESTRATION_V2_WS_METHODS.subscribeThread,
           () => {
@@ -959,11 +983,41 @@ export function createWsNativeApi(options?: {
             ) {
               lastSeenSequence = (item as any).snapshotSequence;
             }
-            callback(
-              "kind" in item && item.kind === "snapshot"
-                ? { ...item, projection: restoreSnapshotBodies(item.projection) }
-                : item,
-            );
+            if ("kind" in item && item.kind === "snapshot") {
+              const restoredProjection = restoreSnapshotBodies(item.projection);
+              for (const msg of restoredProjection.messages) {
+                messageText.set(msg.id, msg.text);
+              }
+              for (const cp of restoredProjection.checkpoints) {
+                checkpointFiles.set(cp.id, cp.files);
+              }
+              for (const sa of restoredProjection.subagents) {
+                rememberSubagent(sa);
+              }
+              callback({ ...item, projection: restoredProjection });
+              return;
+            }
+            if ("kind" in item && item.kind === "event") {
+              const { event } = item;
+              if (event.type === "message.updated") {
+                messageText.set(event.payload.id, event.payload.text);
+              } else if (event.type === "checkpoint.captured") {
+                checkpointFiles.set(event.payload.id, event.payload.files);
+              } else if (event.type === "subagent.updated") {
+                const payload = restoreSubagentBodies(
+                  event.payload,
+                  subagents.get(event.payload.id),
+                );
+                rememberSubagent(payload);
+                callback({ ...item, event: { ...event, payload } });
+                return;
+              } else if (event.type === "turn-item.updated") {
+                const payload = restoreTurnItemBodies(event.payload, source);
+                callback({ ...item, event: { ...event, payload } });
+                return;
+              }
+            }
+            callback(item);
           },
           (error) => {
             console.error(`Thread subscription error for ${threadId}:`, error);
