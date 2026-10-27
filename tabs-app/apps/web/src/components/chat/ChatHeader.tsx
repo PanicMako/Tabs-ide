@@ -31,6 +31,7 @@ import {
   Pin,
 } from "lucide-react";
 import { useCheckoutPullRequest } from "../../hooks/useCheckoutPullRequest";
+import { resolveWorkspaceCardDensity, type WorkspaceCardDensity } from "./workspaceCardDensity";
 import { WorkspacePullRequest } from "./WorkspacePullRequest";
 import GitActionsControl from "../GitActionsControl";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
@@ -749,13 +750,44 @@ export const ChatHeader = memo(function ChatHeader({
   const [workspaceOpen, setWorkspaceOpen] = useState(
     () => typeof window !== "undefined" && window.innerWidth >= 1440,
   );
+  const [moreActionsOpen, setMoreActionsOpen] = useState(false);
   const workspaceCardRef = useRef<HTMLDivElement | null>(null);
   const workspaceTriggerRef = useRef<HTMLButtonElement | null>(null);
+
+  const [windowDimensions, setWindowDimensions] = useState(() => ({
+    width: typeof window !== "undefined" ? window.innerWidth : 1280,
+    height: typeof window !== "undefined" ? window.innerHeight : 800,
+  }));
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleResize = () => {
+      setWindowDimensions({
+        width: window.innerWidth,
+        height: window.innerHeight,
+      });
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  const density: WorkspaceCardDensity = useMemo(
+    () =>
+      resolveWorkspaceCardDensity({
+        windowHeight: windowDimensions.height,
+        windowWidth: windowDimensions.width,
+        isSplitActive,
+      }),
+    [windowDimensions.height, windowDimensions.width, isSplitActive],
+  );
 
   useEffect(() => {
     if (!workspaceOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        if (document.querySelector('[role="dialog"], [data-state="open"][role="menu"]')) {
+          return;
+        }
         setWorkspaceOpen(false);
         workspaceTriggerRef.current?.focus();
       }
@@ -951,15 +983,33 @@ export const ChatHeader = memo(function ChatHeader({
       {activeProjectName && workspaceOpen && (
         <div
           ref={workspaceCardRef}
-          className="absolute right-3 top-full z-40 mt-1 pointer-events-auto"
+          className="absolute right-0 sm:right-3 top-full z-40 mt-1 pointer-events-auto"
         >
           <section
             id={`workspace-card-${activeThreadId}`}
             aria-label="Workspace actions"
-            className="workspace-card w-[304px] max-w-[calc(100vw-1.5rem)] rounded-2xl border border-border/70 bg-card p-3 text-foreground [-webkit-app-region:no-drag] animate-in fade-in slide-in-from-top-1 duration-150"
+            data-density={density}
+            style={{
+              maxHeight:
+                density === "essential"
+                  ? "min(calc(100dvh - 4.5rem), 420px)"
+                  : "min(calc(100dvh - 5.5rem), calc(var(--available-height, 100dvh) - 1.5rem), 640px)",
+            }}
+            className={cn(
+              "workspace-card w-[304px] max-w-[calc(100vw-1.5rem)] rounded-2xl border border-border/70 bg-card p-3 text-foreground",
+              "[-webkit-app-region:no-drag] overflow-y-auto overflow-x-hidden isolate overscroll-contain shadow-xl",
+              "animate-in fade-in slide-in-from-top-1 duration-150 motion-reduce:animate-none",
+              density === "compact" && "workspace-card--compact p-2.5",
+              density === "essential" && "workspace-card--essential p-2",
+            )}
           >
             {/* Project identity, with workspace controls grouped below */}
-            <div className="workspace-identity flex items-center gap-2.5 px-1 pb-3">
+            <div
+              className={cn(
+                "workspace-identity flex items-center gap-2.5 px-1 pb-3",
+                density === "essential" && "pb-2",
+              )}
+            >
               <Tooltip>
                 <TooltipTrigger
                   render={
@@ -1083,19 +1133,53 @@ export const ChatHeader = memo(function ChatHeader({
             <div
               role="group"
               aria-label="Workspace context"
-              className="workspace-context space-y-1 pb-3"
+              className={cn("workspace-context space-y-1 pb-3", density === "essential" && "pb-2")}
             >
               {workspaceControls}
-              <OpenInPicker
-                keybindings={keybindings}
-                availableEditors={availableEditors}
-                openInCwd={openInCwd}
-                showEditorName
-                displayMode="panel"
-              />
+              {density === "essential" ? (
+                <div className="pt-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setMoreActionsOpen((o) => !o)}
+                    aria-expanded={moreActionsOpen}
+                    className="surface-control flex h-7 w-full items-center justify-between rounded-lg px-2 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <span>More tools</span>
+                    <ChevronDownIcon
+                      className={cn(
+                        "size-3 transition-transform duration-150",
+                        moreActionsOpen && "rotate-180",
+                      )}
+                    />
+                  </button>
+                  {moreActionsOpen && (
+                    <div className="pt-1.5 space-y-1">
+                      <OpenInPicker
+                        keybindings={keybindings}
+                        availableEditors={availableEditors}
+                        openInCwd={openInCwd}
+                        showEditorName
+                        displayMode="panel"
+                      />
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <OpenInPicker
+                  keybindings={keybindings}
+                  availableEditors={availableEditors}
+                  openInCwd={openInCwd}
+                  showEditorName
+                  displayMode="panel"
+                />
+              )}
             </div>
+
             {scriptManagement && (
-              <div className="pb-3" aria-label="Manage project scripts">
+              <div
+                className={cn("pb-3", density === "essential" && "pb-2")}
+                aria-label="Manage project scripts"
+              >
                 {scriptManagement}
               </div>
             )}
@@ -1103,7 +1187,10 @@ export const ChatHeader = memo(function ChatHeader({
               <div
                 role="group"
                 aria-label="Project scripts"
-                className="my-2 max-h-48 space-y-1 overflow-y-auto"
+                className={cn(
+                  "my-2 space-y-1 overflow-y-auto",
+                  density === "essential" ? "max-h-28" : "max-h-48",
+                )}
               >
                 {scripts.map((script) => (
                   <button
@@ -1124,7 +1211,10 @@ export const ChatHeader = memo(function ChatHeader({
             <div
               role="group"
               aria-label="Version control"
-              className="workspace-git space-y-1 border-t border-border/60 pt-3"
+              className={cn(
+                "workspace-git space-y-1 border-t border-border/60 pt-3",
+                density === "essential" && "pt-2",
+              )}
             >
               {/* Branch selector + pull + divergence */}
               <BranchSelectorControl
@@ -1181,7 +1271,7 @@ export const ChatHeader = memo(function ChatHeader({
               </button>
 
               {/* Divergence Space shortcut link */}
-              {isGitRepo && (
+              {isGitRepo && (density !== "essential" || moreActionsOpen) && (
                 <button
                   type="button"
                   onClick={handleOpenGitDivergence}
