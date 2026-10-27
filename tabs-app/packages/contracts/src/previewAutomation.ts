@@ -309,6 +309,16 @@ export const PreviewAutomationClickInput = Schema.Struct({
       description: "Viewport-relative Y coordinate in CSS pixels. Must be paired with x.",
     }),
   ),
+  button: Schema.optional(
+    Schema.Literals(["left", "right", "middle"]).annotate({
+      description: "Button. Default left. Right opens the menu.",
+    }),
+  ),
+  clickCount: Schema.optional(
+    Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 3 })).annotate({
+      description: "1 click, 2 double, 3 triple. Default 1.",
+    }),
+  ),
   timeoutMs: OptionalTimeoutMs,
 })
   .check(
@@ -327,6 +337,75 @@ export const PreviewAutomationClickInput = Schema.Struct({
       "Clicks one target. Provide exactly one of locator, selector, or the x/y coordinate pair.",
   });
 export type PreviewAutomationClickInput = typeof PreviewAutomationClickInput.Type;
+
+export const PreviewAutomationHoverInput = Schema.Struct({
+  ...PreviewAutomationTabTargetFields,
+  selector: Schema.optional(LegacySelector),
+  locator: Schema.optional(Locator),
+  x: Schema.optional(Schema.Finite),
+  y: Schema.optional(Schema.Finite),
+  timeoutMs: OptionalTimeoutMs,
+}).check(
+  Schema.makeFilter((input) => {
+    const selectorModes =
+      Number(input.selector !== undefined) + Number(input.locator !== undefined);
+    const hasX = input.x !== undefined;
+    const hasY = input.y !== undefined;
+    if (hasX !== hasY) return "Coordinates require both x and y.";
+    const coordinateModes = hasX && hasY ? 1 : 0;
+    return selectorModes + coordinateModes === 1 || "Provide exactly one target.";
+  }),
+);
+export type PreviewAutomationHoverInput = typeof PreviewAutomationHoverInput.Type;
+
+export const PreviewAutomationSelectInput = Schema.Struct({
+  ...PreviewAutomationTabTargetFields,
+  selector: Schema.optional(LegacySelector),
+  locator: Schema.optional(Locator),
+  values: Schema.Array(Schema.String).check(Schema.isMaxLength(100)).annotate({
+    description: "Empty clears it.",
+  }),
+  timeoutMs: OptionalTimeoutMs,
+}).check(
+  Schema.makeFilter(
+    (input) =>
+      Number(input.selector !== undefined) + Number(input.locator !== undefined) === 1 ||
+      "Provide exactly one of selector or locator.",
+  ),
+);
+export type PreviewAutomationSelectInput = typeof PreviewAutomationSelectInput.Type;
+
+export const PreviewAutomationSelectResult = Schema.Struct({
+  selected: Schema.Array(Schema.String).annotate({
+    description: "The values of the options now selected.",
+  }),
+});
+export type PreviewAutomationSelectResult = typeof PreviewAutomationSelectResult.Type;
+
+export const PreviewAutomationDragInput = Schema.Struct({
+  ...PreviewAutomationTabTargetFields,
+  source: Locator,
+  target: Locator,
+  timeoutMs: OptionalTimeoutMs,
+});
+export type PreviewAutomationDragInput = typeof PreviewAutomationDragInput.Type;
+
+export const PreviewAutomationUploadInput = Schema.Struct({
+  ...PreviewAutomationTabTargetFields,
+  paths: Schema.Array(TrimmedNonEmptyString).check(Schema.isMaxLength(20)),
+  selector: Schema.optional(LegacySelector),
+  locator: Schema.optional(Locator).annotate({
+    description: "Set files on this <input type=file> instead of the open picker.",
+  }),
+  timeoutMs: OptionalTimeoutMs,
+}).check(
+  Schema.makeFilter(
+    (input) =>
+      !(input.selector !== undefined && input.locator !== undefined) ||
+      "Provide at most one of selector or locator.",
+  ),
+);
+export type PreviewAutomationUploadInput = typeof PreviewAutomationUploadInput.Type;
 
 export const PreviewAutomationTypeInput = Schema.Struct({
   ...PreviewAutomationTabTargetFields,
@@ -413,6 +492,84 @@ export const PreviewAutomationScrollInput = Schema.Struct({
       "Scrolls the viewport, or a locator/selector container. Provide deltaX, deltaY, or both.",
   });
 export type PreviewAutomationScrollInput = typeof PreviewAutomationScrollInput.Type;
+
+/** Strict input for each `preview_act` action. */
+export const PreviewAutomationActInputs = {
+  click: PreviewAutomationClickInput,
+  type: PreviewAutomationTypeInput,
+  hover: PreviewAutomationHoverInput,
+  select: PreviewAutomationSelectInput,
+  drag: PreviewAutomationDragInput,
+  upload: PreviewAutomationUploadInput,
+  press: PreviewAutomationPressInput,
+  scroll: PreviewAutomationScrollInput,
+} as const;
+export type PreviewAutomationAction = keyof typeof PreviewAutomationActInputs;
+
+/** One flat shape for every page action. The server decodes it with the action's strict input. */
+export const PreviewAutomationActInput = Schema.Struct({
+  action: Schema.Literals([
+    "click",
+    "type",
+    "hover",
+    "select",
+    "drag",
+    "upload",
+    "press",
+    "scroll",
+  ]).annotate({
+    description: "Action to perform: click, type, hover, select, drag, upload, press, or scroll.",
+  }),
+  ...PreviewAutomationTabTargetFields,
+  locator: Schema.optional(Locator).annotate({
+    description: "Playwright-compatible locator for the target element.",
+  }),
+  selector: Schema.optional(LegacySelector).annotate({
+    description: "Legacy CSS selector for the target element.",
+  }),
+  x: Schema.optional(Schema.Finite).annotate({
+    description: "X coordinate in viewport CSS pixels.",
+  }),
+  y: Schema.optional(Schema.Finite).annotate({
+    description: "Y coordinate in viewport CSS pixels.",
+  }),
+  button: Schema.optional(Schema.Literals(["left", "right", "middle"])).annotate({
+    description: "Mouse button for click action.",
+  }),
+  clickCount: Schema.optional(Schema.Int).annotate({
+    description: "Number of clicks: 1 (single), 2 (double), or 3 (triple).",
+  }),
+  text: Schema.optional(Schema.String).annotate({
+    description: "Text to insert for type action.",
+  }),
+  clear: Schema.optional(Schema.Boolean).annotate({
+    description: "Whether to clear existing text before typing.",
+  }),
+  values: Schema.optional(Schema.Array(Schema.String)).annotate({
+    description: "Option values to select.",
+  }),
+  source: Schema.optional(Locator).annotate({
+    description: "Source element locator for drag action.",
+  }),
+  target: Schema.optional(Locator).annotate({
+    description: "Target element locator for drag action.",
+  }),
+  paths: Schema.optional(Schema.Array(Schema.String)).annotate({
+    description: "Absolute file paths to upload.",
+  }),
+  key: Schema.optional(Schema.String).annotate({
+    description: "Key name to press, such as Enter or Escape.",
+  }),
+  modifiers: PreviewAutomationPressInput.fields.modifiers,
+  deltaX: Schema.optional(Schema.Finite).annotate({
+    description: "Horizontal scroll delta in CSS pixels.",
+  }),
+  deltaY: Schema.optional(Schema.Finite).annotate({
+    description: "Vertical scroll delta in CSS pixels.",
+  }),
+  timeoutMs: OptionalTimeoutMs,
+});
+export type PreviewAutomationActInput = typeof PreviewAutomationActInput.Type;
 
 export const PreviewAutomationEvaluateInput = Schema.Struct({
   ...PreviewAutomationTabTargetFields,

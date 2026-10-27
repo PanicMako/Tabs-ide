@@ -795,11 +795,16 @@ const registerToolkit = /*#__PURE__*/ Effect.fnUntraced(function* (toolkit: any)
             Effect.matchCauseEffect({
               onFailure: (cause: Cause.Cause<any>) => {
                 const error = Cause.squash(cause);
-                const text =
-                  typeof error === "object" &&
-                  error !== null &&
-                  "message" in error &&
-                  typeof (error as any).message === "string"
+                const isOrchestratorFailure = (error as any)?._tag === "OrchestratorMcpFailure";
+                const errorPayload = isOrchestratorFailure
+                  ? { code: (error as any).code, message: (error as any).message }
+                  : undefined;
+                const text = errorPayload
+                  ? JSON.stringify(errorPayload)
+                  : typeof error === "object" &&
+                      error !== null &&
+                      "message" in error &&
+                      typeof (error as any).message === "string"
                     ? (error as any).message
                     : Cause.pretty(cause);
                 if (
@@ -811,6 +816,7 @@ const registerToolkit = /*#__PURE__*/ Effect.fnUntraced(function* (toolkit: any)
                 return Effect.succeed(
                   new McpSchema.CallToolResult({
                     isError: true,
+                    structuredContent: errorPayload,
                     content: [{ type: "text", text }],
                   }),
                 );
@@ -908,6 +914,78 @@ export const layerDeviceToolkit = Layer.mergeAll(
   layerDeviceScreenshotRegistration,
 );
 
+export const LEGACY_TOOL_ALIASES: Record<string, (args: any) => { name: string; arguments: any }> =
+  {
+    preview_click: (args) => ({ name: "preview_act", arguments: { action: "click", ...args } }),
+    preview_type: (args) => ({ name: "preview_act", arguments: { action: "type", ...args } }),
+    preview_press: (args) => ({ name: "preview_act", arguments: { action: "press", ...args } }),
+    preview_scroll: (args) => ({ name: "preview_act", arguments: { action: "scroll", ...args } }),
+    preview_hover: (args) => ({ name: "preview_act", arguments: { action: "hover", ...args } }),
+    preview_select: (args) => ({ name: "preview_act", arguments: { action: "select", ...args } }),
+    preview_drag: (args) => ({ name: "preview_act", arguments: { action: "drag", ...args } }),
+    preview_upload: (args) => ({ name: "preview_act", arguments: { action: "upload", ...args } }),
+
+    t3_queue_list: (args) => ({ name: "t3_queue", arguments: { action: "list", ...args } }),
+    t3_queue_read: (args) => ({ name: "t3_queue", arguments: { action: "read", ...args } }),
+    t3_queue_edit: (args) => ({ name: "t3_queue", arguments: { action: "edit", ...args } }),
+    t3_queue_cancel: (args) => ({ name: "t3_queue", arguments: { action: "cancel", ...args } }),
+    t3_queue_reorder: (args) => ({ name: "t3_queue", arguments: { action: "reorder", ...args } }),
+    t3_queue_promote_to_steer: (args) => ({
+      name: "t3_queue",
+      arguments: { action: "promote_to_steer", ...args },
+    }),
+
+    t3_pending_request_list: (args) => ({
+      name: "t3_pending_request",
+      arguments: { action: "list", ...args },
+    }),
+    t3_pending_request_read: (args) => ({
+      name: "t3_pending_request",
+      arguments: { action: "read", ...args },
+    }),
+    t3_pending_request_respond: (args) => ({
+      name: "t3_pending_request",
+      arguments: { action: "respond", ...args },
+    }),
+
+    t3_thread_configuration: (args) => ({
+      name: "t3_thread_configure",
+      arguments: { ...args },
+    }),
+    t3_thread_transfers: (args) => ({
+      name: "t3_thread_transfer",
+      arguments: { action: "status", ...args },
+    }),
+    t3_thread_fork: (args) => ({
+      name: "t3_thread_transfer",
+      arguments: { action: "fork", ...args },
+    }),
+    t3_thread_merge_back: (args) => ({
+      name: "t3_thread_transfer",
+      arguments: { action: "merge_back", ...args },
+    }),
+
+    update_scheduled_task: (args) => ({
+      name: "schedule_task",
+      arguments: { ...args },
+    }),
+  };
+
+export const layerMcpServer = Layer.effect(
+  McpServer.McpServer,
+  Effect.gen(function* () {
+    const server = yield* McpServer.McpServer;
+    return McpServer.McpServer.of({
+      ...server,
+      callTool: (request: any) => {
+        const alias = LEGACY_TOOL_ALIASES[request.name];
+        const translated = alias ? alias(request.arguments ?? {}) : request;
+        return server.callTool(translated);
+      },
+    });
+  }),
+).pipe(Layer.provide(McpServer.McpServer.layer));
+
 const layerMcpTransport = McpServer.layerHttp({
   protocols: [McpProtocol.v2025_06_18],
   name: "Tabs",
@@ -915,7 +993,8 @@ const layerMcpTransport = McpServer.layerHttp({
   path: "/mcp",
 }).pipe(Layer.provide(layerMcpAuthMiddleware));
 
-export const layer = Layer.mergeAll(
+/** Every tool the Tabs MCP server advertises. AgentContextBudget.test.ts measures this set. */
+export const layerTools = Layer.mergeAll(
   layerPreviewToolkit,
   layerOrchestratorToolkit,
   layerThreadToolkit,
@@ -927,8 +1006,11 @@ export const layer = Layer.mergeAll(
   layerPullRequestsToolkit,
   layerDeviceToolkit,
   layerHtmlToolkit,
-).pipe(
+);
+
+export const layer = layerTools.pipe(
   Layer.provideMerge(layerMcpTransport),
+  Layer.provideMerge(layerMcpServer),
   Layer.tapCause((cause) =>
     Effect.logError("MCP route assembly failed", { cause: Cause.pretty(cause) }),
   ),

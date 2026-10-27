@@ -53,7 +53,7 @@ const client = McpSchema.McpServerClient.of({
   getClient: Effect.die("unused"),
 });
 const layerTest = McpHttpServer.layerPreviewToolkit.pipe(
-  Layer.provideMerge(McpServer.McpServer.layer),
+  Layer.provideMerge(McpHttpServer.layerMcpServer),
   Layer.provideMerge(PreviewAutomationBroker.layer),
   Layer.provideMerge(ServerConfig.layerTest(process.cwd(), { prefix: "t3-mcp-http-server-test-" })),
   Layer.provideMerge(NodeServices.layer),
@@ -820,15 +820,10 @@ it.effect(
         expect(snapshotTool?.tool.annotations?.idempotentHint).toBe(true);
         expect(snapshotTool?.tool.annotations?.openWorldHint).toBe(true);
 
-        const clickTool = server.tools.find(({ tool }) => tool.name === "preview_click");
-        expect(clickTool?.tool.annotations?.readOnlyHint).toBe(false);
-        expect(clickTool?.tool.annotations?.destructiveHint).toBe(true);
-        expect(clickTool?.tool.annotations?.openWorldHint).toBe(true);
-        expect((clickTool?.tool as any).outputSchema).toMatchObject({
-          type: "object",
-          additionalProperties: true,
-          description: "The preview action completed successfully.",
-        });
+        const actTool = server.tools.find(({ tool }) => tool.name === "preview_act");
+        expect(actTool?.tool.annotations?.readOnlyHint).toBe(false);
+        expect(actTool?.tool.annotations?.destructiveHint).toBe(true);
+        expect(actTool?.tool.annotations?.openWorldHint).toBe(true);
 
         const navigateTool = server.tools.find(({ tool }) => tool.name === "preview_navigate");
         expect(navigateTool?.tool.annotations?.destructiveHint).toBe(false);
