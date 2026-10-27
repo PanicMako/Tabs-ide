@@ -780,9 +780,27 @@ export function syncV2ShellSnapshot(
 
   const existingThreadById = new Map(previousThreads.map((thread) => [thread.id, thread] as const));
   const allShellThreads = [...snapshot.threads, ...(snapshot.archivedThreads ?? [])];
-  const environmentThreads = allShellThreads.map((shell) =>
-    mapThreadFromV2Shell(shell, existingThreadById.get(shell.id), environmentId),
-  );
+  const snapshotThreadIds = new Set(allShellThreads.map((shell) => shell.id));
+
+  // If snapshot carries olderSettled cut, preserve previously loaded older settled threads
+  const preservedOlderThreads = snapshot.olderSettled
+    ? previousThreads.filter((t) => {
+        if (snapshotThreadIds.has(t.id)) return false;
+        return (
+          t.settledAt !== null &&
+          t.settledAt !== undefined &&
+          snapshot.olderSettled !== undefined &&
+          t.settledAt < snapshot.olderSettled.before
+        );
+      })
+    : [];
+
+  const environmentThreads = [
+    ...allShellThreads.map((shell) =>
+      mapThreadFromV2Shell(shell, existingThreadById.get(shell.id), environmentId),
+    ),
+    ...preservedOlderThreads,
+  ];
 
   const projects = environmentId
     ? [
@@ -813,6 +831,36 @@ export function syncV2ShellSnapshot(
     threads,
     threadsHydrated: true,
     environmentSnapshots,
+  };
+}
+
+export function appendOlderSettledThreads(
+  state: AppState,
+  olderThreads: ReadonlyArray<OrchestrationV2ThreadShell>,
+  environmentId?: EnvironmentId,
+): AppState {
+  const previousThreads = environmentId
+    ? state.threads.filter((thread) => thread.environmentId === environmentId)
+    : state.threads;
+  const existingThreadById = new Map(previousThreads.map((thread) => [thread.id, thread] as const));
+  const newThreads = olderThreads.map((shell) =>
+    mapThreadFromV2Shell(shell, existingThreadById.get(shell.id), environmentId),
+  );
+  const newThreadIds = new Set(newThreads.map((t) => t.id));
+  const mergedEnvironmentThreads = [
+    ...previousThreads.filter((t) => !newThreadIds.has(t.id)),
+    ...newThreads,
+  ];
+  const threads = environmentId
+    ? [
+        ...state.threads.filter((thread) => thread.environmentId !== environmentId),
+        ...mergedEnvironmentThreads,
+      ]
+    : mergedEnvironmentThreads;
+
+  return {
+    ...state,
+    threads,
   };
 }
 

@@ -263,8 +263,10 @@ import type {
 } from "./orchestration.ts";
 import type {
   OrchestrationV2Command,
+  OrchestrationV2GetOlderSettledThreadsInput,
   OrchestrationV2GetThreadFamilyInput,
   OrchestrationV2GetThreadProjectionInput,
+  OrchestrationV2OlderSettledThreadsPage,
   OrchestrationV2ReconcileIntakeInput,
   OrchestrationV2ReconcileIntakeResult,
   OrchestrationV2RecordCancellationIntentInput,
@@ -1818,6 +1820,9 @@ export interface EnvironmentApi {
     getThreadFamily: (
       input: OrchestrationV2GetThreadFamilyInput,
     ) => Promise<OrchestrationV2ThreadFamily>;
+    getOlderSettledThreads: (
+      input: OrchestrationV2GetOlderSettledThreadsInput,
+    ) => Promise<OrchestrationV2OlderSettledThreadsPage>;
     getThreadProjection: (
       input: OrchestrationV2GetThreadProjectionInput,
     ) => Promise<OrchestrationV2ThreadProjection>;
@@ -1831,6 +1836,8 @@ export interface EnvironmentApi {
       callback: (event: OrchestrationV2ShellStreamItem) => void,
       options?: {
         onResubscribe?: () => void;
+        omitIdleSubagents?: boolean;
+        omitOlderSettled?: boolean;
       },
     ) => () => void;
     subscribeThread: (

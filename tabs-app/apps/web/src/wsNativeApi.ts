@@ -865,6 +865,8 @@ export function createWsNativeApi(options?: {
         transport.request(ORCHESTRATION_WS_METHODS.getArchivedShellSnapshot, {}),
       getThreadFamily: (input) =>
         transport.request(ORCHESTRATION_V2_WS_METHODS.getThreadFamily, input),
+      getOlderSettledThreads: (input) =>
+        transport.request(ORCHESTRATION_V2_WS_METHODS.getOlderSettledThreads, input),
       getThreadProjection: (input) =>
         transport
           .request<OrchestrationV2ThreadProjection>(
@@ -886,7 +888,11 @@ export function createWsNativeApi(options?: {
               options?.onResubscribe?.();
             }
             isFirst = false;
-            return lastSeenSequence !== undefined ? { afterSequence: lastSeenSequence } : {};
+            return {
+              ...(lastSeenSequence !== undefined ? { afterSequence: lastSeenSequence } : {}),
+              ...(options?.omitIdleSubagents ? { omitIdleSubagents: true } : {}),
+              ...(options?.omitOlderSettled ? { omitOlderSettled: true } : {}),
+            };
           },
           (value) => {
             try {

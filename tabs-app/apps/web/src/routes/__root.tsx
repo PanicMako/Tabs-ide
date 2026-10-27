@@ -424,6 +424,10 @@ function EventRouter() {
           terminalActions.removeOrphans(activeThreadIds);
         }
       },
+      {
+        omitOlderSettled: true,
+        omitIdleSubagents: true,
+      },
     );
 
     const unsubTerminalEvent = api.terminal.onEvent((event) => {
@@ -614,12 +618,18 @@ function RemoteEnvironmentEventRouter() {
       }
       if (event.primary || cleanups.has(event.environmentId)) return;
 
-      const unsubscribeShell = event.api.orchestration.subscribeShell((item) => {
-        applyShellStreamItemToAtoms(item, event.environmentId);
-        void import("../stores/messageQueueStore").then(({ reconcileAllPendingCancellations }) =>
-          reconcileAllPendingCancellations(event.api, undefined, event.environmentId),
-        );
-      });
+      const unsubscribeShell = event.api.orchestration.subscribeShell(
+        (item) => {
+          applyShellStreamItemToAtoms(item, event.environmentId);
+          void import("../stores/messageQueueStore").then(({ reconcileAllPendingCancellations }) =>
+            reconcileAllPendingCancellations(event.api, undefined, event.environmentId),
+          );
+        },
+        {
+          omitOlderSettled: true,
+          omitIdleSubagents: true,
+        },
+      );
       cleanups.set(event.environmentId, () => {
         unsubscribeShell();
       });

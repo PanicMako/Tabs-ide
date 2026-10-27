@@ -4812,3 +4812,94 @@ it.effect("filters shell snapshots by thread family", () =>
     );
   }).pipe(Effect.provide(layerTest)),
 );
+
+it.effect("lists older settled threads with cursor pagination and counts", () =>
+  Effect.gen(function* () {
+    const store = yield* ProjectionStore.ProjectionStoreV2;
+    const DAY = 24 * 60 * 60 * 1000;
+    const now = yield* DateTime.now;
+    const nowMs = DateTime.toEpochMillis(now);
+    const at = (daysAgo: number) => DateTime.makeUnsafe(nowMs - daysAgo * DAY);
+    const id = (name: string) => ThreadId.make(`thread:older:${name}`);
+
+    const createThread = (input: {
+      readonly name: string;
+      readonly settledDaysAgo: number | null;
+      readonly project?: string;
+      readonly snoozedUntilDaysAgo?: number;
+      readonly archived?: boolean;
+      readonly subagent?: boolean;
+    }) =>
+      store.apply({
+        id: EventId.make(`event:older:${input.name}`),
+        type: "thread.created",
+        threadId: id(input.name),
+        occurredAt: now,
+        payload: {
+          createdBy: "user",
+          creationSource: "web",
+          id: id(input.name),
+          projectId: ProjectId.make(input.project ?? "project:a"),
+          title: input.name,
+          providerInstanceId,
+          modelSelection,
+          runtimeMode: "full-access",
+          interactionMode: "default",
+          branch: null,
+          worktreePath: null,
+          activeProviderThreadId: null,
+          lineage: {
+            parentThreadId: input.subagent === true ? id("b") : null,
+            relationshipToParent: input.subagent === true ? "subagent" : null,
+            rootThreadId: input.subagent === true ? id("b") : id(input.name),
+          },
+          forkedFrom: null,
+          autoSettleDisabledAt: null,
+          settledOverride: input.settledDaysAgo === null ? null : "settled",
+          settledAt: input.settledDaysAgo === null ? null : at(input.settledDaysAgo),
+          snoozedUntil:
+            input.snoozedUntilDaysAgo === undefined ? null : at(input.snoozedUntilDaysAgo),
+          archivedAt: input.archived === true ? now : null,
+          deletedAt: null,
+          lastVisitedAt: null,
+          createdAt: now,
+          updatedAt: now,
+        },
+      });
+
+    yield* createThread({ name: "a", settledDaysAgo: 5 });
+    yield* createThread({ name: "b", settledDaysAgo: 4 });
+    yield* createThread({ name: "c", settledDaysAgo: 4 });
+    yield* createThread({ name: "d", settledDaysAgo: 3, project: "project:b" });
+    yield* createThread({ name: "snoozed", settledDaysAgo: 2, snoozedUntilDaysAgo: -30 });
+    yield* createThread({ name: "recent", settledDaysAgo: 20 });
+    yield* createThread({ name: "unsettled", settledDaysAgo: null });
+    yield* createThread({ name: "child", settledDaysAgo: 1, subagent: true });
+    yield* createThread({ name: "archived", settledDaysAgo: 1, archived: true });
+
+    const list = (
+      before: { readonly settledAt: string; readonly threadId?: ThreadId },
+      limit: number,
+      projectIds?: ReadonlyArray<ProjectId>,
+    ) => store.listOlderSettledThreads({ before, projectIds, limit });
+
+    const before = { settledAt: DateTime.formatIso(at(2)) };
+    const page = yield* list(before, 2);
+    assert.deepEqual(page.threadIds, [id("d"), id("b")]);
+
+    // Continued page with tie-breaking
+    const nextPage = yield* list({ settledAt: DateTime.formatIso(at(4)), threadId: id("b") }, 2);
+    assert.deepEqual(nextPage.threadIds, [id("c"), id("a")]);
+
+    // Count query with limit 0
+    const counts = yield* list(before, 0);
+    assert.deepEqual(counts.threadIds, []);
+    assert.sameDeepMembers(
+      [...counts.counts],
+      [
+        { projectId: ProjectId.make("project:a"), count: 4 },
+        { projectId: ProjectId.make("project:b"), count: 1 },
+      ],
+    );
+  }).pipe(Effect.provide(layerTest)),
+);

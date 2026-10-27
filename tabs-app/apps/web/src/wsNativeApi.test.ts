@@ -1492,3 +1492,42 @@ it("keeps automation operations on the selected environment transport", async ()
   );
   unsubscribe();
 });
+
+it("supports getOlderSettledThreads and subscribeShell options", async () => {
+  const { createWsNativeApi } = await import("./wsNativeApi");
+  const api = createWsNativeApi({ singleton: false });
+  const mockPage = { threads: [], counts: [], snapshotSequence: 10 };
+  requestMock.mockResolvedValue(mockPage);
+
+  const res = await api.orchestration.getOlderSettledThreads({
+    before: { settledAt: "2026-10-27T00:00:00.000Z" },
+    limit: 25,
+  });
+  expect(res).toEqual(mockPage);
+  expect(requestMock).toHaveBeenLastCalledWith(ORCHESTRATION_V2_WS_METHODS.getOlderSettledThreads, {
+    before: { settledAt: "2026-10-27T00:00:00.000Z" },
+    limit: 25,
+  });
+
+  const callback = vi.fn();
+  const unsubscribe = api.orchestration.subscribeShell(callback, {
+    omitOlderSettled: true,
+    omitIdleSubagents: true,
+  });
+  expect(subscribeRpcMock).toHaveBeenLastCalledWith(
+    ORCHESTRATION_V2_WS_METHODS.subscribeShell,
+    expect.any(Function),
+    expect.any(Function),
+    expect.any(Function),
+    expect.any(Function),
+  );
+  // Verify params factory passes options
+  const calls = subscribeRpcMock.mock.calls as unknown[][];
+  const lastCall = calls[calls.length - 1];
+  const paramsFactory = lastCall?.[1] as (() => unknown) | undefined;
+  expect(paramsFactory?.()).toEqual({
+    omitOlderSettled: true,
+    omitIdleSubagents: true,
+  });
+  unsubscribe();
+});
