@@ -38,6 +38,13 @@ export const ChangeRequest = Schema.Struct({
   isCrossRepository: Schema.optional(Schema.Boolean),
   headRepositoryNameWithOwner: Schema.optional(Schema.NullOr(TrimmedNonEmptyString)),
   headRepositoryOwnerLogin: Schema.optional(Schema.NullOr(TrimmedNonEmptyString)),
+  reviewDecision: Schema.optional(
+    Schema.NullOr(Schema.Literals(["approved", "changes_requested", "review_required"])),
+  ),
+  checksState: Schema.optional(Schema.NullOr(Schema.Literals(["passing", "failing", "pending"]))),
+  mergeability: Schema.optional(
+    Schema.NullOr(Schema.Literals(["mergeable", "conflicting", "unknown"])),
+  ),
 });
 export type ChangeRequest = typeof ChangeRequest.Type;
 

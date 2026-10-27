@@ -251,6 +251,8 @@ export const GitResolvedPullRequest = Schema.Struct({
   autoMergeMethod: Schema.optional(Schema.Literals(["merge", "squash", "rebase"])),
   stack: Schema.optional(GitPullRequestStack),
   stackMembership: Schema.optional(GitPullRequestStackMembership),
+  headRepositoryNameWithOwner: Schema.optional(Schema.NullOr(TrimmedNonEmptyStringSchema)),
+  isCrossRepository: Schema.optional(Schema.Boolean),
 });
 export type GitResolvedPullRequest = typeof GitResolvedPullRequest.Type;
 

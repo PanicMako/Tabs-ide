@@ -265,9 +265,12 @@ export interface GitHubPullRequestSummary {
   readonly closedAt?: string | null;
   readonly mergedAt?: string | null;
   readonly updatedAt?: string;
-  readonly isCrossRepository?: boolean;
-  readonly headRepositoryNameWithOwner?: string | null;
-  readonly headRepositoryOwnerLogin?: string | null;
+  readonly isCrossRepository?: boolean | undefined;
+  readonly headRepositoryNameWithOwner?: string | null | undefined;
+  readonly headRepositoryOwnerLogin?: string | null | undefined;
+  readonly reviewDecision?: "approved" | "changes_requested" | "review_required" | null | undefined;
+  readonly checksState?: "passing" | "failing" | "pending" | null | undefined;
+  readonly mergeability?: "mergeable" | "conflicting" | "unknown" | null | undefined;
 }
 
 function pullRequestSummary(input: NormalizedGitHubPullRequestRecord): GitHubPullRequestSummary {

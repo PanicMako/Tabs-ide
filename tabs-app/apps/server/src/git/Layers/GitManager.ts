@@ -79,9 +79,9 @@ interface PullRequestInfo extends OpenPrInfo {
 type ResolvedPullRequest = GitResolvedPullRequest;
 
 interface PullRequestHeadRemoteInfo {
-  isCrossRepository?: boolean;
-  headRepositoryNameWithOwner?: string | null;
-  headRepositoryOwnerLogin?: string | null;
+  isCrossRepository?: boolean | undefined;
+  headRepositoryNameWithOwner?: string | null | undefined;
+  headRepositoryOwnerLogin?: string | null | undefined;
 }
 
 interface BranchHeadContext {
@@ -505,9 +505,9 @@ function shouldPreferSshRemote(url: string | null): boolean {
 }
 
 function toPullRequestHeadRemoteInfo(pr: {
-  isCrossRepository?: boolean;
-  headRepositoryNameWithOwner?: string | null;
-  headRepositoryOwnerLogin?: string | null;
+  isCrossRepository?: boolean | undefined;
+  headRepositoryNameWithOwner?: string | null | undefined;
+  headRepositoryOwnerLogin?: string | null | undefined;
 }): PullRequestHeadRemoteInfo {
   return {
     ...(pr.isCrossRepository !== undefined ? { isCrossRepository: pr.isCrossRepository } : {}),
