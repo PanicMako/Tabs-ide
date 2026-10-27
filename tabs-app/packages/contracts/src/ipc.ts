@@ -2,9 +2,16 @@ import type {
   ScheduledTaskListResult,
   ScheduledTaskUpsertInput,
   ScheduledTaskSetEnabledInput,
+  ScheduledTaskDeleteInput,
+  ScheduledTaskDeleteResult,
   ScheduledTaskRunNowInput,
   ScheduledTaskRunNowResult,
   ScheduledTaskMutationResult,
+  ScheduledTaskRotateWebhookTokenInput,
+  ScheduledTaskListWebhookDeliveriesInput,
+  ScheduledTaskListWebhookDeliveriesResult,
+  ScheduledTaskGetWebhookDeliveryInput,
+  ScheduledTaskGetWebhookDeliveryResult,
 } from "./scheduledTask.ts";
 import type { BrowserReadinessResult } from "./browserReadiness.ts";
 import type { BrowserComparisonInput } from "./browserComparison.ts";
@@ -1690,7 +1697,17 @@ export interface EnvironmentApi {
     ) => () => void;
     upsert: (input: ScheduledTaskUpsertInput) => Promise<ScheduledTaskMutationResult>;
     setEnabled: (input: ScheduledTaskSetEnabledInput) => Promise<ScheduledTaskMutationResult>;
+    delete: (input: ScheduledTaskDeleteInput) => Promise<ScheduledTaskDeleteResult>;
     runNow: (input: ScheduledTaskRunNowInput) => Promise<ScheduledTaskRunNowResult>;
+    rotateWebhookToken: (
+      input: ScheduledTaskRotateWebhookTokenInput,
+    ) => Promise<ScheduledTaskMutationResult>;
+    listWebhookDeliveries: (
+      input: ScheduledTaskListWebhookDeliveriesInput,
+    ) => Promise<ScheduledTaskListWebhookDeliveriesResult>;
+    getWebhookDelivery: (
+      input: ScheduledTaskGetWebhookDeliveryInput,
+    ) => Promise<ScheduledTaskGetWebhookDeliveryResult>;
   };
   terminal: {
     open: (input: typeof TerminalOpenInput.Encoded) => Promise<TerminalSessionSnapshot>;

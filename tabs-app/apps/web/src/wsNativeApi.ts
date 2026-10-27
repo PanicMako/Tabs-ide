@@ -760,7 +760,14 @@ export function createWsNativeApi(options?: {
         ),
       upsert: (input) => transport.request(WS_METHODS.scheduledTasksUpsert, input),
       setEnabled: (input) => transport.request(WS_METHODS.scheduledTasksSetEnabled, input),
+      delete: (input) => transport.request(WS_METHODS.scheduledTasksDelete, input),
       runNow: (input) => transport.request(WS_METHODS.scheduledTasksRunNow, input),
+      rotateWebhookToken: (input) =>
+        transport.request(WS_METHODS.scheduledTasksRotateWebhookToken, input),
+      listWebhookDeliveries: (input) =>
+        transport.request(WS_METHODS.scheduledTasksListWebhookDeliveries, input),
+      getWebhookDelivery: (input) =>
+        transport.request(WS_METHODS.scheduledTasksGetWebhookDelivery, input),
     },
     orchestration: {
       getSnapshot: async (environmentId?: string) => {
