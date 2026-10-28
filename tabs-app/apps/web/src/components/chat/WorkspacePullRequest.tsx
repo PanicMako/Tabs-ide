@@ -47,13 +47,15 @@ export function WorkspacePullRequest({
   details,
   pullRequests,
   unavailable,
+  pending = false,
   readonly = false,
   environmentId,
 }: {
   summary: NonNullable<GitStatusResult["pr"]>;
   details?: GitResolvedPullRequest | undefined;
   pullRequests?: ReadonlyArray<GitResolvedPullRequest> | undefined;
-  unavailable?: boolean;
+  unavailable?: boolean | undefined;
+  pending?: boolean;
   readonly?: boolean;
   environmentId?: string | undefined;
 }) {
@@ -88,7 +90,9 @@ export function WorkspacePullRequest({
           <span className="block text-xs leading-relaxed">{summary.title}</span>
           <span className="mt-1 flex justify-between gap-2 text-[11px] text-muted-foreground">
             <span>#{summary.number}</span>
-            <span className="capitalize">{summary.state}</span>
+            <span className="capitalize">
+              {pending ? "Loading" : unavailable ? "Status unavailable" : summary.state}
+            </span>
           </span>
           {unavailable && (
             <span className="mt-1 block text-[10px] text-muted-foreground">
@@ -103,10 +107,11 @@ export function WorkspacePullRequest({
   return (
     <div className="space-y-1" role="group" aria-label="Pull requests">
       {prs.map((pr) => {
-        const readiness = pullRequestReadiness(pr);
-        const checks = effectiveChecksState(pr);
+        const readiness = unavailable ? "Status unavailable" : pullRequestReadiness(pr);
+        const checks = unavailable ? null : effectiveChecksState(pr);
         const isFork = Boolean(
-          pr.headRepositoryNameWithOwner && !summary.url.includes(pr.headRepositoryNameWithOwner),
+          pr.headRepositoryNameWithOwner &&
+          !pr.url.toLowerCase().includes(`/${pr.headRepositoryNameWithOwner.toLowerCase()}/`),
         );
 
         return (

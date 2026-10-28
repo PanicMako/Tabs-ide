@@ -6394,6 +6394,7 @@ export default function ChatView({
           )}
         >
           <ChatHeader
+            pullRequestLinks={activeThread.pullRequests}
             agentWorkflow={
               loadedProjectionKey === projectionKey &&
               workspaceAgentContext?.thread.id === activeThread.id ? (

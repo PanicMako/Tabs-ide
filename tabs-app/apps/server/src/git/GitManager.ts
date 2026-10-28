@@ -715,7 +715,9 @@ function toResolvedPullRequest(pr: {
   headBranch?: string;
   state?: "open" | "closed" | "merged";
   isDraft?: boolean | undefined;
+  headRepositoryNameWithOwner?: string | null | undefined;
   provider?: GitResolvedPullRequest["provider"];
+  isCrossRepository?: boolean | undefined;
   author?: GitResolvedPullRequest["author"];
   labels?: GitResolvedPullRequest["labels"];
   reviewDecision?: GitResolvedPullRequest["reviewDecision"] | null | undefined;
@@ -751,6 +753,10 @@ function toResolvedPullRequest(pr: {
     headBranch: pr.headRefName ?? pr.headBranch ?? "",
     state: pr.state ?? "open",
     ...(typeof pr.isDraft === "boolean" ? { isDraft: pr.isDraft } : {}),
+    ...(pr.headRepositoryNameWithOwner
+      ? { headRepositoryNameWithOwner: pr.headRepositoryNameWithOwner }
+      : {}),
+    ...(pr.isCrossRepository === undefined ? {} : { isCrossRepository: pr.isCrossRepository }),
     ...(pr.author !== undefined ? { author: pr.author } : {}),
     ...(pr.labels ? { labels: pr.labels } : {}),
     ...(pr.reviewDecision ? { reviewDecision: pr.reviewDecision } : {}),

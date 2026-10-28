@@ -5,6 +5,7 @@ import {
   type ProjectScript,
   type ResolvedKeybindingsConfig,
   type ThreadId,
+  type ThreadPullRequestLink,
 } from "@tabs/contracts";
 import { type ReactNode, memo, useState, useCallback, useMemo, useRef, useEffect } from "react";
 import {
@@ -32,7 +33,7 @@ import {
 } from "lucide-react";
 import { useCheckoutPullRequest } from "../../hooks/useCheckoutPullRequest";
 import { resolveWorkspaceCardDensity, type WorkspaceCardDensity } from "./workspaceCardDensity";
-import { WorkspacePullRequest } from "./WorkspacePullRequest";
+import { WorkspacePullRequests } from "./WorkspacePullRequests";
 import GitActionsControl from "../GitActionsControl";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { Toggle } from "../ui/toggle";
@@ -81,6 +82,7 @@ interface ChatHeaderProps {
   onRunScript?: ((script: ProjectScript) => void) | undefined;
   projectId?: ProjectId | undefined;
   activeThreadId: ThreadId;
+  pullRequestLinks?: ReadonlyArray<ThreadPullRequestLink> | undefined;
   activeThreadTitle: string;
   activeProjectName: string | undefined;
   activeProjectFavicon?: ProjectFaviconProject | null | undefined;
@@ -723,6 +725,7 @@ export const ChatHeader = memo(function ChatHeader({
   onRunScript,
   projectId,
   activeThreadId,
+  pullRequestLinks = [],
   activeThreadTitle,
   activeProjectName,
   activeProjectFavicon,
@@ -1229,11 +1232,13 @@ export const ChatHeader = memo(function ChatHeader({
                 onOpenDivergence={handleOpenGitDivergence}
               />
 
-              {checkoutPr && (
-                <WorkspacePullRequest
-                  summary={checkoutPr}
+              {(checkoutPr || pullRequestLinks.length > 0) && (
+                <WorkspacePullRequests
+                  links={pullRequestLinks}
+                  cwd={isGitRepo ? gitCwd : null}
+                  summary={checkoutPr ?? undefined}
                   details={pullRequest.data?.pullRequest}
-                  unavailable={pullRequest.isError}
+                  unavailable={pullRequest.isError || pullRequest.isPlaceholderData}
                   environmentId={environmentId}
                 />
               )}

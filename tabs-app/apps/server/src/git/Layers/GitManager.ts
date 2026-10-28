@@ -472,6 +472,10 @@ function toResolvedPullRequest(pr: GitHubPullRequestSummary): ResolvedPullReques
     headBranch: pr.headRefName,
     state: pr.state ?? "open",
     ...(typeof pr.isDraft === "boolean" ? { isDraft: pr.isDraft } : {}),
+    ...(pr.headRepositoryNameWithOwner
+      ? { headRepositoryNameWithOwner: pr.headRepositoryNameWithOwner }
+      : {}),
+    ...(pr.isCrossRepository === undefined ? {} : { isCrossRepository: pr.isCrossRepository }),
     ...(pr.author !== undefined ? { author: pr.author } : {}),
     ...(pr.labels ? { labels: [...pr.labels] } : {}),
     ...(pr.reviewDecision ? { reviewDecision: pr.reviewDecision } : {}),

@@ -19,20 +19,21 @@ export function useT3ProjectFileState(
   environmentId: string | undefined,
   cwd: string | null,
 ): T3ProjectFileState {
-  const [state, setState] = useState<T3ProjectFileState>({
-    status: "missing",
-    file: null,
-    scripts: NO_SCRIPTS,
+  const [entry, setEntry] = useState<{ key: string; state: T3ProjectFileState }>({
+    key: "",
+    state: { status: "missing", file: null, scripts: NO_SCRIPTS },
   });
+  const key = JSON.stringify([environmentId, cwd]);
 
   useEffect(() => {
+    const setState = (state: T3ProjectFileState) => setEntry({ key, state });
     if (!cwd) {
       setState({ status: "missing", file: null, scripts: NO_SCRIPTS });
       return;
     }
 
     let cancelled = false;
-    setState((prev) => ({ ...prev, status: "loading" }));
+    setState({ status: "loading", file: null, scripts: NO_SCRIPTS });
 
     environmentApi(environmentId)
       .then((api) => api.projects.readFile({ cwd, relativePath: T3_PROJECT_FILE_NAME }))
@@ -62,9 +63,9 @@ export function useT3ProjectFileState(
     return () => {
       cancelled = true;
     };
-  }, [environmentId, cwd]);
+  }, [environmentId, cwd, key]);
 
-  return state;
+  return entry.key === key ? entry.state : { status: "loading", file: null, scripts: NO_SCRIPTS };
 }
 
 export function useT3ProjectFileScripts(

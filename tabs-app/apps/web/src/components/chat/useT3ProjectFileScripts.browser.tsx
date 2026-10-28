@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render } from "vitest-browser-react";
+import { useState } from "react";
+import { page } from "vitest/browser";
 import {
   useT3ProjectFileScripts,
   useT3ProjectFileState,
@@ -46,6 +48,34 @@ function ScriptsProbe({
 describe("useT3ProjectFileState and useT3ProjectFileScripts", () => {
   beforeEach(() => {
     mockReadFile.mockReset();
+  });
+
+  it("clears scripts synchronously on a machine switch while the next read is pending", async () => {
+    mockReadFile.mockResolvedValueOnce({
+      contents: JSON.stringify({ scripts: [{ name: "Old machine", command: "old-command" }] }),
+      truncated: false,
+    });
+    mockReadFile.mockImplementationOnce(() => new Promise(() => {}));
+    const observations: Array<{ environment: string; scripts: ReadonlyArray<unknown> }> = [];
+    function SwitchingProbe() {
+      const [environment, setEnvironment] = useState("first");
+      const scripts = useT3ProjectFileScripts(environment, "/same-path");
+      observations.push({ environment, scripts });
+      return <button onClick={() => setEnvironment("second")}>Switch machine</button>;
+    }
+    const view = await render(<SwitchingProbe />);
+    try {
+      await expect.poll(() => observations.at(-1)?.scripts.length).toBe(1);
+      await page.getByRole("button", { name: "Switch machine" }).click();
+      await expect.poll(() => observations.at(-1)?.environment).toBe("second");
+      expect(
+        observations
+          .filter((entry) => entry.environment === "second")
+          .every((entry) => entry.scripts.length === 0),
+      ).toBe(true);
+    } finally {
+      await view.unmount();
+    }
   });
 
   it("returns missing status and empty scripts when cwd is null", async () => {
