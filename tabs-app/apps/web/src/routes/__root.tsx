@@ -425,7 +425,8 @@ function EventRouter() {
         }
       },
       {
-        omitOlderSettled: true,
+        // Keep complete history until the settled shelf consumes the paging API.
+        omitOlderSettled: false,
         omitIdleSubagents: true,
       },
     );
@@ -626,7 +627,7 @@ function RemoteEnvironmentEventRouter() {
           );
         },
         {
-          omitOlderSettled: true,
+          omitOlderSettled: false,
           omitIdleSubagents: true,
         },
       );
