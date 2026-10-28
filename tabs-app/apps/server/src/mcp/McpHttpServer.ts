@@ -46,12 +46,15 @@ import * as ProjectHandlers from "./toolkits/project/handlers.ts";
 import { AttachmentToolkit } from "./toolkits/attachment/tools.ts";
 import * as AttachmentHandlers from "./toolkits/attachment/handlers.ts";
 import { ThreadToolkit } from "./toolkits/thread/tools.ts";
+import * as ThreadTools from "./toolkits/thread/tools.ts";
 import * as ThreadHandlers from "./toolkits/thread/handlers.ts";
 import * as ThreadMetadataMcpService from "./ThreadMetadataMcpService.ts";
 import * as McpSessionRegistry from "./McpSessionRegistry.ts";
 import * as PreviewAutomationBroker from "./PreviewAutomationBroker.ts";
 import * as OrchestratorHandlers from "./toolkits/orchestrator/handlers.ts";
 import { OrchestratorToolkit } from "./toolkits/orchestrator/tools.ts";
+import { UpdateScheduledTaskTool } from "./toolkits/orchestrator/tools.ts";
+import * as PreviewTools from "./toolkits/preview/tools.ts";
 import * as PreviewHandlers from "./toolkits/preview/handlers.ts";
 import {
   PreviewSnapshotTool,
@@ -840,6 +843,31 @@ const registerToolkit = /*#__PURE__*/ Effect.fnUntraced(function* (toolkit: any)
         );
       },
     });
+    // Register legacy operations in the actual registry, including the HTTP transport's
+    // catalog. Overriding callTool alone does not cover the transport's internal router.
+    for (const legacy of LEGACY_TOOLS) {
+      const translate = LEGACY_TOOL_ALIASES[legacy.name]!;
+      if (translate({}).name !== tool.name) continue;
+      yield* registry.addTool({
+        tool: new McpSchema.Tool({
+          name: legacy.name,
+          description: Tool.getDescription(legacy),
+          inputSchema: advertisedJsonSchema(legacy),
+          annotations: {
+            readOnlyHint: Context.get(legacy.annotations, Tool.Readonly),
+            destructiveHint: Context.get(legacy.annotations, Tool.Destructive),
+            idempotentHint: Context.get(legacy.annotations, Tool.Idempotent),
+            openWorldHint: Context.get(legacy.annotations, Tool.OpenWorld),
+          },
+        }),
+        annotations: legacy.annotations,
+        handle: (payload) =>
+          Schema.decodeUnknownEffect(legacy.parametersSchema)(payload).pipe(
+            Effect.mapError((error) => new McpSchema.InvalidParams({ message: error.message })),
+            Effect.flatMap((args) => registry.callTool(translate(args))),
+          ),
+      });
+    }
   }
 });
 
@@ -916,53 +944,35 @@ export const layerDeviceToolkit = Layer.mergeAll(
 
 export const LEGACY_TOOL_ALIASES: Record<string, (args: any) => { name: string; arguments: any }> =
   {
-    preview_click: (args) => ({ name: "preview_act", arguments: { action: "click", ...args } }),
-    preview_type: (args) => ({ name: "preview_act", arguments: { action: "type", ...args } }),
-    preview_press: (args) => ({ name: "preview_act", arguments: { action: "press", ...args } }),
-    preview_scroll: (args) => ({ name: "preview_act", arguments: { action: "scroll", ...args } }),
-    preview_hover: (args) => ({ name: "preview_act", arguments: { action: "hover", ...args } }),
-    preview_select: (args) => ({ name: "preview_act", arguments: { action: "select", ...args } }),
-    preview_drag: (args) => ({ name: "preview_act", arguments: { action: "drag", ...args } }),
-    preview_upload: (args) => ({ name: "preview_act", arguments: { action: "upload", ...args } }),
+    preview_click: (args) => ({ name: "preview_act", arguments: { ...args, action: "click" } }),
+    preview_type: (args) => ({ name: "preview_act", arguments: { ...args, action: "type" } }),
+    preview_press: (args) => ({ name: "preview_act", arguments: { ...args, action: "press" } }),
+    preview_scroll: (args) => ({ name: "preview_act", arguments: { ...args, action: "scroll" } }),
+    preview_hover: (args) => ({ name: "preview_act", arguments: { ...args, action: "hover" } }),
+    preview_select: (args) => ({ name: "preview_act", arguments: { ...args, action: "select" } }),
+    preview_drag: (args) => ({ name: "preview_act", arguments: { ...args, action: "drag" } }),
+    preview_upload: (args) => ({ name: "preview_act", arguments: { ...args, action: "upload" } }),
 
-    t3_queue_list: (args) => ({ name: "t3_queue", arguments: { action: "list", ...args } }),
-    t3_queue_read: (args) => ({ name: "t3_queue", arguments: { action: "read", ...args } }),
-    t3_queue_edit: (args) => ({ name: "t3_queue", arguments: { action: "edit", ...args } }),
-    t3_queue_cancel: (args) => ({ name: "t3_queue", arguments: { action: "cancel", ...args } }),
-    t3_queue_reorder: (args) => ({ name: "t3_queue", arguments: { action: "reorder", ...args } }),
+    t3_queue_edit: (args) => ({ name: "t3_queue", arguments: { ...args, action: "edit" } }),
+    t3_queue_cancel: (args) => ({ name: "t3_queue", arguments: { ...args, action: "cancel" } }),
+    t3_queue_reorder: (args) => ({ name: "t3_queue", arguments: { ...args, action: "reorder" } }),
     t3_queue_promote_to_steer: (args) => ({
       name: "t3_queue",
-      arguments: { action: "promote_to_steer", ...args },
+      arguments: { ...args, action: "promote_to_steer" },
     }),
 
-    t3_pending_request_list: (args) => ({
-      name: "t3_pending_request",
-      arguments: { action: "list", ...args },
-    }),
-    t3_pending_request_read: (args) => ({
-      name: "t3_pending_request",
-      arguments: { action: "read", ...args },
-    }),
     t3_pending_request_respond: (args) => ({
       name: "t3_pending_request",
-      arguments: { action: "respond", ...args },
+      arguments: { ...args, action: "respond" },
     }),
 
-    t3_thread_configuration: (args) => ({
-      name: "t3_thread_configure",
-      arguments: { ...args },
-    }),
-    t3_thread_transfers: (args) => ({
-      name: "t3_thread_transfer",
-      arguments: { action: "status", ...args },
-    }),
     t3_thread_fork: (args) => ({
       name: "t3_thread_transfer",
-      arguments: { action: "fork", ...args },
+      arguments: { ...args, action: "fork" },
     }),
     t3_thread_merge_back: (args) => ({
       name: "t3_thread_transfer",
-      arguments: { action: "merge_back", ...args },
+      arguments: { ...args, threadId: args.sourceThreadId, action: "merge_back" },
     }),
 
     update_scheduled_task: (args) => ({
@@ -971,20 +981,26 @@ export const LEGACY_TOOL_ALIASES: Record<string, (args: any) => { name: string; 
     }),
   };
 
-export const layerMcpServer = Layer.effect(
-  McpServer.McpServer,
-  Effect.gen(function* () {
-    const server = yield* McpServer.McpServer;
-    return McpServer.McpServer.of({
-      ...server,
-      callTool: (request: any) => {
-        const alias = LEGACY_TOOL_ALIASES[request.name];
-        const translated = alias ? alias(request.arguments ?? {}) : request;
-        return server.callTool(translated);
-      },
-    });
-  }),
-).pipe(Layer.provide(McpServer.McpServer.layer));
+export const LEGACY_TOOLS = [
+  PreviewTools.PreviewClickTool,
+  PreviewTools.PreviewTypeTool,
+  PreviewTools.PreviewPressTool,
+  PreviewTools.PreviewScrollTool,
+  PreviewTools.PreviewHoverTool,
+  PreviewTools.PreviewSelectTool,
+  PreviewTools.PreviewDragTool,
+  PreviewTools.PreviewUploadTool,
+  ThreadTools.QueueEditTool,
+  ThreadTools.QueueCancelTool,
+  ThreadTools.QueueReorderTool,
+  ThreadTools.QueuePromoteTool,
+  ThreadTools.PendingRequestRespondTool,
+  ThreadTools.ThreadForkTool,
+  ThreadTools.ThreadMergeBackTool,
+  UpdateScheduledTaskTool,
+] as const satisfies ReadonlyArray<Tool.Any>;
+
+export const layerMcpServer = McpServer.McpServer.layer;
 
 const layerMcpTransport = McpServer.layerHttp({
   protocols: [McpProtocol.v2025_06_18],

@@ -352,6 +352,12 @@ export const ScheduledTaskRunTool = Tool.make("run_scheduled_task_now", {
   .annotate(Tool.OpenWorld, true);
 
 export const ThreadToolkit = Toolkit.make(
+  QueueListTool,
+  QueueReadTool,
+  PendingRequestListTool,
+  PendingRequestReadTool,
+  ThreadConfigurationTool,
+  ThreadTransfersTool,
   ScheduledTaskRunTool,
   ThreadSearchTool,
   ThreadConfigureTool,

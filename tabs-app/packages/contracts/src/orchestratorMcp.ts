@@ -60,12 +60,14 @@ const OrchestratorMcpScheduleFromJsonString = Schema.fromJsonString(
     "Compatibility-only JSON encoding of the schedule object. Prefer a structured object.",
 });
 
+const scheduleDescription =
+  "Trigger object: {type:'interval', everyMs}, {type:'fixed_time', timeOfDay, weekdays?}, or {type:'webhook'} to run on each request to a generated URL. Never stringify it unless the provider requires the compatibility form.";
+
 const OrchestratorMcpSchedule = Schema.Union([
   ScheduledTaskUpsertSchedule,
   OrchestratorMcpScheduleFromJsonString,
 ]).annotate({
-  description:
-    "Trigger object: {type:'interval', everyMs}, {type:'fixed_time', timeOfDay, weekdays?}, or {type:'webhook'} to run on each request to a generated URL. Never stringify it unless the provider requires the compatibility form.",
+  description: scheduleDescription,
 });
 
 /**
@@ -547,7 +549,7 @@ export const OrchestratorMcpSaveScheduledTaskInput = Schema.Struct({
   ...OrchestratorMcpScheduleTaskInput.fields,
   scheduledTaskId: Schema.optional(ScheduledTaskId),
   prompt: Schema.optional(OrchestratorMcpPrompt),
-  schedule: Schema.optional(OrchestratorMcpSchedule),
+  schedule: Schema.optional(OrchestratorMcpSchedule).annotate({ description: scheduleDescription }),
 });
 export type OrchestratorMcpSaveScheduledTaskInput =
   typeof OrchestratorMcpSaveScheduledTaskInput.Type;

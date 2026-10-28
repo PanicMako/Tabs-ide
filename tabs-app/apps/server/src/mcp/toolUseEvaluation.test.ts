@@ -1,5 +1,7 @@
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
+import { NodeHttpServer } from "@effect/platform-node";
+import * as McpProtocol from "effect/unstable/ai/McpProtocol";
 import { expect, it } from "@effect/vitest";
 import {
   EnvironmentId,
@@ -13,7 +15,7 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import { McpSchema, McpServer } from "effect/unstable/ai";
-import { FetchHttpClient } from "effect/unstable/http";
+import { FetchHttpClient, HttpBody, HttpClient, HttpRouter } from "effect/unstable/http";
 
 import * as ServerConfig from "../config.ts";
 import { DeviceService } from "../device/DeviceService.ts";
@@ -183,6 +185,155 @@ const services = (onUpsert?: (input: any) => void) =>
   ).pipe(Layer.provideMerge(NodeServices.layer.pipe(Layer.provideMerge(NodeCrypto.layer))));
 
 it.effect(
+  "legacy updates work over HTTP and cannot create a task by omitting its id",
+  () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const writes: Array<unknown> = [];
+        const auth = HttpRouter.middleware<{
+          provides: McpInvocationContext.McpInvocationContext;
+        }>()((effect) =>
+          effect.pipe(Effect.provideService(McpInvocationContext.McpInvocationContext, scope)),
+        ).layer;
+        const routes = McpHttpServer.layerTools.pipe(
+          Layer.provideMerge(
+            McpServer.layerHttp({
+              protocols: [McpProtocol.v2025_06_18],
+              name: "Legacy tools test",
+              version: "test",
+              path: "/mcp",
+            }).pipe(Layer.provide(auth)),
+          ),
+          Layer.provide(services((input) => writes.push(input))),
+        );
+        yield* HttpRouter.serve(routes, { disableListenLog: true, disableLogger: true }).pipe(
+          Layer.build,
+        );
+        const http = yield* HttpClient.HttpClient;
+        const send = (body: unknown, sessionId?: string) =>
+          http.post("/mcp", {
+            headers: {
+              accept: "application/json, text/event-stream",
+              ...(sessionId
+                ? { "mcp-session-id": sessionId, "mcp-protocol-version": "2025-06-18" }
+                : {}),
+            },
+            body: HttpBody.text(JSON.stringify(body), "application/json"),
+          });
+        const initialized = yield* send({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "initialize",
+          params: {
+            protocolVersion: "2025-06-18",
+            capabilities: {},
+            clientInfo: { name: "legacy-client", version: "1" },
+          },
+        });
+        expect(initialized.status).toBe(200);
+        yield* initialized.text;
+        const sessionId = initialized.headers["mcp-session-id"]!;
+        const response = yield* send(
+          {
+            jsonrpc: "2.0",
+            id: 2,
+            method: "tools/call",
+            params: {
+              name: "update_scheduled_task",
+              arguments: { scheduledTaskId: "task-auto", enabled: false },
+            },
+          },
+          sessionId,
+        );
+        expect(response.status).toBe(200);
+        expect(yield* response.text).toContain('"isError":false');
+        expect(writes).toHaveLength(1);
+        const invalid = yield* send(
+          {
+            jsonrpc: "2.0",
+            id: 3,
+            method: "tools/call",
+            params: {
+              name: "update_scheduled_task",
+              arguments: {
+                prompt: "must not create",
+                schedule: { type: "interval", everyMs: 3600000 },
+              },
+            },
+          },
+          sessionId,
+        );
+        expect(yield* invalid.text).toContain('"code":-32602');
+        expect(writes).toHaveLength(1);
+      }),
+    ).pipe(Effect.provide(NodeHttpServer.layerTest)) as any,
+);
+
+it.effect(
+  "legacy merge-back dispatches from the explicitly requested source thread",
+  () =>
+    Effect.gen(function* () {
+      const server = yield* McpServer.McpServer;
+      const result = yield* server
+        .callTool({
+          name: "t3_thread_merge_back",
+          arguments: {
+            sourceThreadId: "explicit-source",
+            targetThreadId: "merge-target",
+            sourcePoint: { type: "latest_stable" },
+            action: "fork",
+          },
+        })
+        .pipe(
+          Effect.provideService(McpInvocationContext.McpInvocationContext, scope),
+          Effect.provideService(McpSchema.McpServerClient, client),
+        );
+      expect(result.isError).toBe(false);
+    }).pipe(
+      Effect.provide(
+        McpHttpServer.layerTools.pipe(
+          Layer.provideMerge(McpHttpServer.layerMcpServer),
+          Layer.provide(
+            Layer.mock(ThreadManagementService)({
+              getThreadShell: (id) =>
+                Effect.succeed({
+                  id,
+                  projectId: "p-1",
+                  runtimeMode: "full-access",
+                  interactionMode: "default",
+                  archivedAt: null,
+                  activeRunId: "active-run",
+                  providerInstanceId: ProviderInstanceId.make("codex"),
+                  deletedAt: null,
+                } as any),
+              getProjectThreadRecords: ({ threadId: id }) =>
+                Effect.succeed({
+                  thread: {
+                    id,
+                    projectId: "p-1",
+                    runtimeMode: "full-access",
+                    interactionMode: "default",
+                    deletedAt: null,
+                  },
+                } as any),
+              dispatch: (command) =>
+                Effect.sync(() => {
+                  expect(command).toMatchObject({
+                    type: "thread.merge_back",
+                    sourceThreadId: "explicit-source",
+                    targetThreadId: "merge-target",
+                  });
+                  return { sequence: 1 } as any;
+                }),
+            }),
+          ),
+          Layer.provide(services()),
+        ),
+      ),
+    ) as any,
+);
+
+it.effect(
   "legacy tool aliases resolve and execute against consolidated tools",
   () =>
     Effect.gen(function* () {
@@ -213,21 +364,17 @@ it.effect(
         name: "preview_act",
         arguments: { action: "type", elementId: 10, text: "hello" },
       });
-      expect(legacyAliases.t3_queue_list!({ threadId: "t-1" })).toEqual({
-        name: "t3_queue",
-        arguments: { action: "list", threadId: "t-1" },
-      });
-      expect(legacyAliases.t3_pending_request_list!({ threadId: "t-1" })).toEqual({
-        name: "t3_pending_request",
-        arguments: { action: "list", threadId: "t-1" },
-      });
+      expect(server.tools.map(({ tool }) => tool.name)).toContain("t3_queue_list");
+      expect(server.tools.map(({ tool }) => tool.name)).toContain("t3_pending_request_list");
       expect(legacyAliases.t3_thread_fork!({ sourceThreadId: "t-1" })).toEqual({
         name: "t3_thread_transfer",
         arguments: { action: "fork", sourceThreadId: "t-1" },
       });
-      expect(legacyAliases.t3_thread_configuration!({ threadId: "t-1" })).toEqual({
-        name: "t3_thread_configure",
-        arguments: { threadId: "t-1" },
+      expect(
+        legacyAliases.t3_thread_merge_back!({ sourceThreadId: "source", action: "fork" }),
+      ).toEqual({
+        name: "t3_thread_transfer",
+        arguments: { sourceThreadId: "source", threadId: "source", action: "merge_back" },
       });
     }).pipe(
       Effect.provide(

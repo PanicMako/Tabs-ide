@@ -915,6 +915,11 @@ it.effect(
       const tools = {
         ...PreviewStandardToolkit.tools,
         [PreviewSnapshotTool.name]: PreviewSnapshotTool,
+        ...Object.fromEntries(
+          McpHttpServer.LEGACY_TOOLS.filter((tool) => tool.name.startsWith("preview_")).map(
+            (tool) => [tool.name, tool],
+          ),
+        ),
       };
       expect(server.tools.length).toBe(Object.keys(tools).length);
       for (const { tool } of server.tools) {

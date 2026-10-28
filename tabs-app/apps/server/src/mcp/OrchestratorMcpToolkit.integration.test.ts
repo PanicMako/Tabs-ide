@@ -681,7 +681,7 @@ describe("orchestrator MCP toolkit", () => {
             McpHttpServer.layerOrchestratorToolkit,
             McpHttpServer.layerThreadToolkit,
           ).pipe(
-            Layer.provideMerge(McpServer.McpServer.layer),
+            Layer.provideMerge(McpHttpServer.layerMcpServer),
             Layer.provideMerge(layerOrchestration),
             Layer.provide(layerRegistry),
             Layer.provide(layerProviderRegistry),
@@ -3717,7 +3717,7 @@ describe("orchestrator MCP toolkit", () => {
             }),
           ]);
           const layerTest = McpHttpServer.layerOrchestratorToolkit.pipe(
-            Layer.provideMerge(McpServer.McpServer.layer),
+            Layer.provideMerge(McpHttpServer.layerMcpServer),
             Layer.provideMerge(layerOrchestration),
             Layer.provide(
               CodexOrchestratorReplayHarness.makeProviderAdapterRegistryLayer(transcript),
