@@ -630,6 +630,25 @@ const validateMacDmgContents = Effect.fn("validateMacDmgContents")(function* (
 
   try {
     yield* assertRequiredPaths(mountPoint, requiredPaths, "Generated DMG");
+
+    const appPathInDmg = join(mountPoint, `${productName}.app`);
+    const verifyResult = spawnSync(
+      "codesign",
+      ["--verify", "--deep", "--strict", appPathInDmg],
+      {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+    if (verifyResult.error || verifyResult.status !== 0) {
+      return yield* new BuildScriptError({
+        message:
+          `Generated DMG app code signature verification failed: ` +
+          (verifyResult.stderr.trim() ||
+            verifyResult.error?.message ||
+            `exit ${verifyResult.status}`),
+      });
+    }
   } finally {
     const detachResult = spawnSync("hdiutil", ["detach", mountPoint], {
       encoding: "utf8",
@@ -1183,6 +1202,33 @@ const stageVsCodeRuntime = Effect.fn("stageVsCodeRuntime")(function* (
   );
   if (yield* fs.exists(terminalSuggestFixtures)) {
     yield* fs.remove(terminalSuggestFixtures, { recursive: true });
+  }
+
+  // Remove test fixtures from compiled output. In particular, search test fixtures
+  // contain non-ASCII unicode filenames (e.g. üm laut汉语) that undergo NFD decomposition
+  // when copied to HFS+ disk images by dmgbuild, which invalidates macOS codesign
+  // seals on mounted DMGs.
+  const testFixtureSubpaths = [
+    "vs/workbench/services/search/test/node/fixtures",
+    "vs/workbench/services/search/test/node/fixtures2",
+    "vs/platform/agentHost/test/node/fixtures",
+    "vs/platform/files/test/node/fixtures",
+    "vs/platform/checksum/test/node/fixtures",
+    "vs/workbench/contrib/onboarding/test/browser/fixtures",
+    "vs/workbench/services/textfile/test/common/fixtures",
+    "vs/workbench/services/textfile/test/node/encoding/fixtures",
+    "vs/base/test/node/processes/fixtures",
+    "vs/base/test/node/pfs/fixtures",
+    "vs/base/test/node/zip/fixtures",
+    "vs/editor/test/node/diffing/fixtures",
+  ];
+  for (const outDir of ["out", "out-build"]) {
+    for (const fixtureSubpath of testFixtureSubpaths) {
+      const fixtureDir = path.join(vsCodeDestDir, outDir, fixtureSubpath);
+      if (yield* fs.exists(fixtureDir)) {
+        yield* fs.remove(fixtureDir, { recursive: true });
+      }
+    }
   }
 
   // Remove development-only directories that are not needed at runtime.
