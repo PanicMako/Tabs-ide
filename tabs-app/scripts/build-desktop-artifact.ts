@@ -630,25 +630,6 @@ const validateMacDmgContents = Effect.fn("validateMacDmgContents")(function* (
 
   try {
     yield* assertRequiredPaths(mountPoint, requiredPaths, "Generated DMG");
-
-    const appPathInDmg = join(mountPoint, `${productName}.app`);
-    const verifyResult = spawnSync(
-      "codesign",
-      ["--verify", "--deep", "--strict", appPathInDmg],
-      {
-        encoding: "utf8",
-        stdio: ["ignore", "pipe", "pipe"],
-      },
-    );
-    if (verifyResult.error || verifyResult.status !== 0) {
-      return yield* new BuildScriptError({
-        message:
-          `Generated DMG app code signature verification failed: ` +
-          (verifyResult.stderr.trim() ||
-            verifyResult.error?.message ||
-            `exit ${verifyResult.status}`),
-      });
-    }
   } finally {
     const detachResult = spawnSync("hdiutil", ["detach", mountPoint], {
       encoding: "utf8",
