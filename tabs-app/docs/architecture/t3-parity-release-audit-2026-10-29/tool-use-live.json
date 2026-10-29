@@ -1,0 +1,194 @@
+{
+  "generatedAt": "2026-10-29T14:40:43.198Z",
+  "provider": {
+    "driver": "codex",
+    "model": "gpt-6-luna"
+  },
+  "setup": "isolated temporary TABS_HOME, Electron profile, and empty disposable Git project; existing Codex CLI configured through normal provider settings API",
+  "promptDataRecorded": false,
+  "schemaMeasurement": {
+    "source": "the exact advertisedJsonSchema output for orchestrator_capabilities and t3_project_list from their registered tool definitions",
+    "scope": "these two exercised tools only; the provider received the complete MCP registry, whose full serialized schema catalog is not available in the turn projection",
+    "bytes": 370,
+    "estimatedTokens": 106,
+    "estimateMethod": "Math.round(UTF8 JSON schema bytes / 3.5); estimate only, not provider-reported usage"
+  },
+  "comparison": {
+    "runs": [
+      {
+        "label": "evaluation-a",
+        "elapsedMs": 13971,
+        "outcome": "completed",
+        "registeredToolCalls": [
+          {
+            "status": "completed",
+            "toolName": "t3-code.orchestrator_capabilities",
+            "argumentKeys": [],
+            "arguments": {},
+            "outputPresent": false,
+            "outputOmitted": true,
+            "isError": false
+          },
+          {
+            "status": "failed",
+            "toolName": "t3-code.t3_project_list",
+            "argumentKeys": ["limit"],
+            "arguments": {
+              "limit": 0
+            },
+            "outputPresent": true,
+            "outputOmitted": true,
+            "isError": true,
+            "resultKeys": ["isError"],
+            "resultLengths": {},
+            "error": "{\"isError\":true}"
+          },
+          {
+            "status": "completed",
+            "toolName": "t3-code.t3_project_list",
+            "argumentKeys": ["limit"],
+            "arguments": {
+              "limit": 5
+            },
+            "outputPresent": false,
+            "outputOmitted": true,
+            "isError": false
+          }
+        ],
+        "discoverySuccess": null,
+        "discoveryResultStatus": "omitted_from_projection",
+        "invalidArgumentObserved": true,
+        "providerErrors": [],
+        "actualUsage": [
+          {
+            "status": "completed",
+            "tokenUsage": {
+              "usedTokens": 26881,
+              "maxTokens": 258400,
+              "inputTokens": 26876,
+              "cachedInputTokens": 26624,
+              "outputTokens": 5,
+              "reasoningOutputTokens": 0,
+              "updatedAt": "2026-10-29T14:41:01.034Z"
+            },
+            "turnTokenUsage": {
+              "usageScope": "main_agent",
+              "cachedInputTokens": 101120,
+              "cacheCreationTokens": 0,
+              "reasoningTokens": 0,
+              "hasSubagents": false,
+              "usageStatus": "complete",
+              "inputTokens": 118291,
+              "outputTokens": 190
+            }
+          }
+        ],
+        "assistantReports": [
+          {
+            "reportsProjectCount": null,
+            "mentionsInvalidInput": false,
+            "length": 110
+          },
+          {
+            "reportsProjectCount": null,
+            "mentionsInvalidInput": false,
+            "length": 1
+          }
+        ],
+        "acceptedApprovalCount": 0,
+        "invalidArgumentRecoveryCallIssued": true,
+        "invalidArgumentRecoveryResultStatus": "output_omitted_from_projection"
+      },
+      {
+        "label": "evaluation-b",
+        "elapsedMs": 13979,
+        "outcome": "completed",
+        "registeredToolCalls": [
+          {
+            "status": "completed",
+            "toolName": "t3-code.orchestrator_capabilities",
+            "argumentKeys": [],
+            "arguments": {},
+            "outputPresent": false,
+            "outputOmitted": true,
+            "isError": false
+          },
+          {
+            "status": "failed",
+            "toolName": "t3-code.t3_project_list",
+            "argumentKeys": ["limit"],
+            "arguments": {
+              "limit": 0
+            },
+            "outputPresent": true,
+            "outputOmitted": true,
+            "isError": true,
+            "resultKeys": ["isError"],
+            "resultLengths": {},
+            "error": "{\"isError\":true}"
+          },
+          {
+            "status": "completed",
+            "toolName": "t3-code.t3_project_list",
+            "argumentKeys": ["limit"],
+            "arguments": {
+              "limit": 5
+            },
+            "outputPresent": false,
+            "outputOmitted": true,
+            "isError": false
+          }
+        ],
+        "discoverySuccess": null,
+        "discoveryResultStatus": "omitted_from_projection",
+        "invalidArgumentObserved": true,
+        "providerErrors": [],
+        "actualUsage": [
+          {
+            "status": "completed",
+            "tokenUsage": {
+              "usedTokens": 26924,
+              "maxTokens": 258400,
+              "inputTokens": 26917,
+              "cachedInputTokens": 26624,
+              "outputTokens": 7,
+              "reasoningOutputTokens": 0,
+              "updatedAt": "2026-10-29T14:40:58.431Z"
+            },
+            "turnTokenUsage": {
+              "usageScope": "main_agent",
+              "cachedInputTokens": 98816,
+              "cacheCreationTokens": 0,
+              "reasoningTokens": 0,
+              "hasSubagents": false,
+              "usageStatus": "complete",
+              "inputTokens": 118349,
+              "outputTokens": 227
+            }
+          }
+        ],
+        "assistantReports": [
+          {
+            "reportsProjectCount": null,
+            "mentionsInvalidInput": true,
+            "length": 109
+          },
+          {
+            "reportsProjectCount": 1,
+            "mentionsInvalidInput": false,
+            "length": 10
+          }
+        ],
+        "acceptedApprovalCount": 0,
+        "invalidArgumentRecoveryCallIssued": true,
+        "invalidArgumentRecoveryResultStatus": "output_omitted_from_projection"
+      }
+    ],
+    "legacyReadOnlyAlias": "none: the registered legacy alias table contains only mutating preview actions, queue operations, thread fork/merge, and scheduled-task updates",
+    "note": "Two identical settings/prompt runs are used for repeatability. No state-changing legacy alias is invoked in this read-only evaluation.",
+    "evidenceLimitations": "Turn projection marks successful tool outputs as omitted and the exposed NativeApi has no getTurnItem method. Tool invocation/status and the invalid call isError marker are observed, but discovery result and valid recovery result are not independently inspectable. Assistant reports are recorded as claims only."
+  },
+  "environmentReady": true,
+  "completedAt": "2026-10-29T14:41:01.436Z",
+  "durationMs": 18279
+}

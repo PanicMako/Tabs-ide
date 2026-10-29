@@ -2,6 +2,8 @@
 
 29 October 2026. Repair branch: `codex/t3-parity-audit-repairs`.
 
+Historical checkpoint. The [later release audit](t3-parity-release-audit-2026-10-29/README.md) supersedes the remaining acceptance limits below, including the temporary transport/paging mitigations and native build prerequisites.
+
 ## Provenance and scope
 
 Antigravity's implementation is `54cf362ec..3b1ac6746`. The first SHA is the captured source-worktree baseline, not an implementation contribution. Repairs start at `3b1ac6746` in `/Users/rushil.dev/.codex/worktrees/t3-parity-repairs/tabs`. Neither the dirty source checkout nor Antigravity's branch was modified. No integration or deployment was performed.

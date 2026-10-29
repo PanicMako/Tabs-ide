@@ -1,0 +1,85 @@
+{
+  "sourceCommit": "9310e25be",
+  "recordedAt": "2026-10-29T16:15:14.612210+00:00",
+  "liveProvider": {
+    "verifiedAt": "2026-10-29T14:32:23.658Z",
+    "parentThreadId": "acceptance-parent-8bad26a2-5c0a-4427-a7b7-4d87c8c6a0fe",
+    "childThreadId": "thread:delegated-task:3e4227d4-ada6-4cda-b705-c7086454c50e",
+    "childStatus": "completed",
+    "parentRuns": ["completed"],
+    "childRuns": ["completed"],
+    "inheritedRuntimeMode": "approval-required",
+    "completionDelivery": "delivered",
+    "greetingVerified": true,
+    "childDirectLinkReloadVerified": true
+  },
+  "nativeIde": {
+    "verifiedAt": "2026-10-29T14:30:57.280Z",
+    "available": true,
+    "mode": "embedded",
+    "version": "1.140.0",
+    "workbenchLoaded": true,
+    "localFileOpened": true,
+    "gitExtensionActivationErrorVisible": false,
+    "screenshot": "native-editor.png",
+    "shutdown": "closed-window"
+  },
+  "desktopSmoke": {
+    "passed": true,
+    "finalArtifact": true,
+    "restartPersistenceVerified": true,
+    "zeroOrphansVerified": true
+  },
+  "verificationLogs": {
+    "final-full-tests": {
+      "path": ".logs/t3-parity-release-audit-2026-10-29/verification/final-full-tests.log",
+      "sha256": "58abbcc5856535add6b4328df7186fb93769a864a8d9b6749e7746085426dcbd"
+    },
+    "final-typecheck": {
+      "path": ".logs/t3-parity-release-audit-2026-10-29/verification/final-typecheck.log",
+      "sha256": "c43d1ddc88d6e42165417cb173f2724a2fd82667fe483613239a8a35011d9fb8"
+    },
+    "final-check": {
+      "path": ".logs/t3-parity-release-audit-2026-10-29/verification/final-check.log",
+      "sha256": "d5d7d36db10147aeadfb348c32884aa1d96e03ad80c878a685aa3e75a06edb19"
+    },
+    "final-browser": {
+      "path": ".logs/t3-parity-release-audit-2026-10-29/verification/final-browser.log",
+      "sha256": "22e4ae5dc28d848bf24783532f6a73c3a20d3eb6195c7b95187bd9e0f0da6164"
+    },
+    "final-extra-browser": {
+      "path": ".logs/t3-parity-release-audit-2026-10-29/verification/final-extra-browser.log",
+      "sha256": "d4d0a163e15bb6da566d4bf4375a8b7c8c38ae0acb1a152b80396d5dc9e91e37"
+    },
+    "final-desktop-build": {
+      "path": ".logs/t3-parity-release-audit-2026-10-29/verification/final-desktop-build.log",
+      "sha256": "41c5ad2815bfe8c02da6958a3bc45fee0cff2c83e278e74cb751d5685bebad6a"
+    },
+    "final-live-provider": {
+      "path": ".logs/t3-parity-release-audit-2026-10-29/verification/final-live-provider.log",
+      "sha256": "e41417e0ff58fd8f0bfe6370f1ce46fb7a41af8dc59eecd84d1a3c20b60460af"
+    },
+    "final-desktop-smoke": {
+      "path": ".logs/t3-parity-release-audit-2026-10-29/verification/final-desktop-smoke.log",
+      "sha256": "2b1f87fd9217bc632b5c66e13f8146ba0395db737dd9865fb4a62af1134e2c07"
+    },
+    "final-native-hygiene": {
+      "path": ".logs/t3-parity-release-audit-2026-10-29/verification/final-native-hygiene.log",
+      "sha256": "26d2b02a02c51ec69e5bbc11408beb40488f2dec1350323e7f8e4a71d89ae9e7"
+    },
+    "full-registry-budget": {
+      "path": ".logs/t3-parity-release-audit-2026-10-29/verification/full-registry-budget.log",
+      "sha256": "6a7ec6d7e20c5b255e505cdd793717415ec7795160ae73e25214e673d3e79c77"
+    },
+    "final-visual-recheck": {
+      "path": ".logs/t3-parity-release-audit-2026-10-29/verification/final-visual-recheck.log",
+      "sha256": "d62bbfb17720d6796df3245709b581aa8773fa2d8ad8f2e92a3421feb6ae2cc5"
+    }
+  },
+  "limitations": [
+    "Local desktop acceptance is macOS arm64.",
+    "Screenshots and full logs are local ignored artifacts; source scripts are committed.",
+    "Provider acceptance covers one configured Codex model and disposable test state."
+  ],
+  "verificationCommit": "13127be98"
+}
