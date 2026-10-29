@@ -671,6 +671,7 @@ export type OrchestrationV2ExecutionNode = typeof OrchestrationV2ExecutionNode.T
 const DedupedBodyMarker = Schema.optionalKey(Schema.Literal(true));
 
 export const OrchestrationV2Subagent = Schema.Struct({
+  bodySourceSequence: Schema.optionalKey(NonNegativeInt),
   promptOmitted: DedupedBodyMarker,
   resultOmitted: DedupedBodyMarker,
   id: NodeId,
@@ -1388,6 +1389,7 @@ export const OrchestrationV2TurnItem = Schema.Union([
     ...OrchestrationV2TurnItemBaseFields,
     ...OrchestrationV2CreationFields,
     type: Schema.Literal("user_message"),
+    bodySourceSequence: Schema.optionalKey(NonNegativeInt),
     textOmitted: DedupedBodyMarker,
     messageId: MessageId,
     scheduledTaskId: Schema.optional(ScheduledTaskId),
@@ -1400,6 +1402,7 @@ export const OrchestrationV2TurnItem = Schema.Union([
   Schema.Struct({
     ...OrchestrationV2TurnItemBaseFields,
     type: Schema.Literal("assistant_message"),
+    bodySourceSequence: Schema.optionalKey(NonNegativeInt),
     textOmitted: DedupedBodyMarker,
     messageId: MessageId,
     text: Schema.String,
@@ -1481,6 +1484,7 @@ export const OrchestrationV2TurnItem = Schema.Union([
   Schema.Struct({
     ...OrchestrationV2TurnItemBaseFields,
     type: Schema.Literal("checkpoint"),
+    bodySourceSequence: Schema.optionalKey(NonNegativeInt),
     filesOmitted: DedupedBodyMarker,
     checkpointId: CheckpointId,
     scopeId: CheckpointScopeId,
@@ -1567,6 +1571,7 @@ export const OrchestrationV2TurnItem = Schema.Union([
   Schema.Struct({
     ...OrchestrationV2TurnItemBaseFields,
     type: Schema.Literal("subagent"),
+    bodySourceSequence: Schema.optionalKey(NonNegativeInt),
     promptOmitted: DedupedBodyMarker,
     resultOmitted: DedupedBodyMarker,
     subagentId: NodeId,
@@ -2234,6 +2239,7 @@ export const OrchestrationV2TurnItemJson = Schema.Union([
     ...OrchestrationV2TurnItemJsonBaseFields,
     ...OrchestrationV2CreationFields,
     type: Schema.Literal("user_message"),
+    bodySourceSequence: Schema.optionalKey(NonNegativeInt),
     textOmitted: DedupedBodyMarker,
     messageId: MessageId,
     scheduledTaskId: Schema.optional(ScheduledTaskId),
@@ -2246,6 +2252,7 @@ export const OrchestrationV2TurnItemJson = Schema.Union([
   Schema.Struct({
     ...OrchestrationV2TurnItemJsonBaseFields,
     type: Schema.Literal("assistant_message"),
+    bodySourceSequence: Schema.optionalKey(NonNegativeInt),
     textOmitted: DedupedBodyMarker,
     messageId: MessageId,
     text: Schema.String,
@@ -2327,6 +2334,7 @@ export const OrchestrationV2TurnItemJson = Schema.Union([
   Schema.Struct({
     ...OrchestrationV2TurnItemJsonBaseFields,
     type: Schema.Literal("checkpoint"),
+    bodySourceSequence: Schema.optionalKey(NonNegativeInt),
     filesOmitted: DedupedBodyMarker,
     checkpointId: CheckpointId,
     scopeId: CheckpointScopeId,
@@ -2410,6 +2418,7 @@ export const OrchestrationV2TurnItemJson = Schema.Union([
   Schema.Struct({
     ...OrchestrationV2TurnItemJsonBaseFields,
     type: Schema.Literal("subagent"),
+    bodySourceSequence: Schema.optionalKey(NonNegativeInt),
     promptOmitted: DedupedBodyMarker,
     resultOmitted: DedupedBodyMarker,
     subagentId: NodeId,
@@ -3136,6 +3145,17 @@ export const OrchestrationV2Command = Schema.Union([
     threadId: ThreadId,
     modelSelection: ModelSelection,
   }),
+  /**
+   * Stop for one thread, whatever it is doing: interrupts its running turn, holds its queue,
+   * ends its pull request watches, and drops pending delegated-task wakes. Nothing to stop is
+   * an accepted no-op. Delegated tasks under the thread get their own `thread.stop`.
+   */
+  Schema.Struct({
+    type: Schema.Literal("thread.stop"),
+    commandId: CommandId,
+    threadId: ThreadId,
+    reason: Schema.optional(Schema.String),
+  }),
 ]);
 export type OrchestrationV2Command = typeof OrchestrationV2Command.Type;
 
@@ -3186,17 +3206,6 @@ const OrchestrationV2InternalCommand = Schema.Union([
     threadId: ThreadId,
     providerThreadId: ProviderThreadId,
     providerTurnId: ProviderTurnId,
-  }),
-  /**
-   * Stop for one thread, whatever it is doing: interrupts its running turn, holds its queue,
-   * ends its pull request watches, and drops pending delegated-task wakes. Nothing to stop is
-   * an accepted no-op. Delegated tasks under the thread get their own `thread.stop`.
-   */
-  Schema.Struct({
-    type: Schema.Literal("thread.stop"),
-    commandId: CommandId,
-    threadId: ThreadId,
-    reason: Schema.optional(Schema.String),
   }),
   /**
    * Records or updates a secret an agent asked the user for. Internal so no
@@ -3311,11 +3320,15 @@ export type OrchestrationV2GetThreadProjectionInput =
 
 export const OrchestrationV2GetThreadFamilyInput = Schema.Struct({
   threadId: ThreadId,
+  afterThreadId: Schema.optionalKey(ThreadId),
+  limit: Schema.optionalKey(Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 100 }))),
 });
 export type OrchestrationV2GetThreadFamilyInput = typeof OrchestrationV2GetThreadFamilyInput.Type;
 
 export const OrchestrationV2ThreadFamily = Schema.Struct({
   snapshotSequence: NonNegativeInt,
+  totalCount: Schema.optionalKey(NonNegativeInt),
+  nextCursor: Schema.optionalKey(Schema.NullOr(ThreadId)),
   threads: Schema.Array(OrchestrationV2ThreadShell),
 });
 export type OrchestrationV2ThreadFamily = typeof OrchestrationV2ThreadFamily.Type;
@@ -3373,6 +3386,8 @@ export const OrchestrationV2SubscribeShellInput = Schema.Struct({
 export type OrchestrationV2SubscribeShellInput = typeof OrchestrationV2SubscribeShellInput.Type;
 
 export const OrchestrationV2SubscribeThreadInput = Schema.Struct({
+  /** Supports version-checked live body restoration and full-snapshot recovery. */
+  acceptVersionedLiveBodies: Schema.optionalKey(Schema.Boolean),
   acceptDedupedBodies: Schema.optionalKey(Schema.Boolean),
   threadId: ThreadId,
   /**

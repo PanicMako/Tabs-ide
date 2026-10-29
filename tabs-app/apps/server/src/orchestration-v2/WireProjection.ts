@@ -11,6 +11,8 @@ import type {
   OrchestrationV2TurnItem,
 } from "@tabs/contracts";
 import {
+  hasOmittedBodies,
+  turnItemBodySourceKey,
   dedupeSubagentBodies,
   dedupeTurnItemBodies,
 } from "@tabs/shared/orchestrationV2DedupedBodies";
@@ -279,9 +281,15 @@ function remember<K, V>(memory: Map<K, V>, key: K, value: V): void {
  * subagent record) ships blank and marked. The other order, or a forgotten record, only costs
  * bytes: the repeat ships whole.
  */
-export function makeLiveBodyDeduper(): (
-  item: OrchestrationV2ThreadStreamItem,
-) => OrchestrationV2ThreadStreamItem {
+export function makeLiveBodyDeduper(
+  versioned = false,
+): (item: OrchestrationV2ThreadStreamItem) => OrchestrationV2ThreadStreamItem {
+  const versions = new Map<string, number>();
+  const withVersion = <T extends object>(payload: T, key: string | null, original: T): T => {
+    const sequence = key === null ? undefined : versions.get(key);
+    if (!versioned || !hasOmittedBodies(payload)) return payload;
+    return sequence === undefined ? original : { ...payload, bodySourceSequence: sequence };
+  };
   const messageText = new Map<MessageId, string>();
   const checkpointFiles = new Map<CheckpointId, OrchestrationV2Checkpoint["files"]>();
   const subagents = new Map<NodeId, Pick<OrchestrationV2Subagent, "prompt" | "result">>();
@@ -294,12 +302,24 @@ export function makeLiveBodyDeduper(): (
     remember(subagents, id, { prompt, result });
   return (item) => {
     if (item.kind === "snapshot") {
+      messageText.clear();
+      checkpointFiles.clear();
+      subagents.clear();
+      versions.clear();
       // The client now holds exactly these records; their bodies are never blanked.
       const { messages, checkpoints, subagents: records } = item.projection;
-      for (const message of messages) remember(messageText, message.id, message.text);
-      for (const checkpoint of checkpoints)
+      for (const message of messages) {
+        remember(messageText, message.id, message.text);
+        remember(versions, `message:${message.id}`, item.snapshotSequence);
+      }
+      for (const checkpoint of checkpoints) {
         remember(checkpointFiles, checkpoint.id, checkpoint.files);
-      for (const subagent of records) rememberSubagent(subagent);
+        remember(versions, `checkpoint:${checkpoint.id}`, item.snapshotSequence);
+      }
+      for (const subagent of records) {
+        rememberSubagent(subagent);
+        remember(versions, `subagent:${subagent.id}`, item.snapshotSequence);
+      }
       return item;
     }
     if (item.kind !== "event") return item;
@@ -307,17 +327,28 @@ export function makeLiveBodyDeduper(): (
     switch (event.type) {
       case "message.updated":
         remember(messageText, event.payload.id, event.payload.text);
+        remember(versions, `message:${event.payload.id}`, item.sequence);
         return item;
       case "checkpoint.captured":
         remember(checkpointFiles, event.payload.id, event.payload.files);
+        remember(versions, `checkpoint:${event.payload.id}`, item.sequence);
         return item;
       case "subagent.updated": {
-        const payload = dedupeSubagentBodies(event.payload, subagents.get(event.payload.id));
+        const payload = withVersion(
+          dedupeSubagentBodies(event.payload, subagents.get(event.payload.id)),
+          `subagent:${event.payload.id}`,
+          event.payload,
+        );
         rememberSubagent(event.payload);
+        remember(versions, `subagent:${event.payload.id}`, item.sequence);
         return payload === event.payload ? item : { ...item, event: { ...event, payload } };
       }
       case "turn-item.updated": {
-        const payload = dedupeTurnItemBodies(event.payload, source);
+        const payload = withVersion(
+          dedupeTurnItemBodies(event.payload, source),
+          turnItemBodySourceKey(event.payload),
+          event.payload,
+        );
         return payload === event.payload ? item : { ...item, event: { ...event, payload } };
       }
       default:

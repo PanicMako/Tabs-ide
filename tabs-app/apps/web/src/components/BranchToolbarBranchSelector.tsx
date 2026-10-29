@@ -1,3 +1,4 @@
+import { selectWorkspaceBranch } from "./workspaceBranchSelection";
 import type { GitBranch } from "@tabs/contracts";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -37,7 +38,6 @@ import {
   dedupeRemoteBranchesWithLocalMatches,
   deriveLocalBranchNameFromRemoteRef,
   EnvMode,
-  resolveBranchSelectionTarget,
   resolveBranchToolbarValue,
 } from "./BranchToolbar.logic";
 import { Button } from "./ui/button";
@@ -198,56 +198,18 @@ export function BranchToolbarBranchSelector({
       return;
     }
 
-    const selectionTarget = resolveBranchSelectionTarget({
-      activeProjectCwd,
-      activeWorktreePath,
-      branch,
-    });
-
-    // If the branch already lives in a worktree, point the thread there.
-    if (selectionTarget.reuseExistingWorktree) {
-      runBranchAction(async () => {
-        if (await onPrepareBranchChange())
-          await onSetThreadBranch(branch.name, selectionTarget.nextWorktreePath);
-      });
-      setIsBranchMenuOpen(false);
-      onComposerFocusRequest?.();
-      return;
-    }
-
-    const selectedBranchName = branch.isRemote
-      ? deriveLocalBranchNameFromRemoteRef(branch.name, branch.remoteName)
-      : branch.name;
-
     setIsBranchMenuOpen(false);
     onComposerFocusRequest?.();
-
     runBranchAction(async () => {
-      if (!(await onPrepareBranchChange())) return;
-      const api = await environmentApi(environmentId);
-      setOptimisticBranch(selectedBranchName);
-      try {
-        await api.git.checkout({ cwd: selectionTarget.checkoutCwd, branch: branch.name });
-        await invalidateGitQueries(queryClient);
-      } catch (error) {
-        toastManager.add({
-          type: "error",
-          title: "Failed to checkout branch.",
-          description: toBranchActionErrorMessage(error),
-        });
-        return;
-      }
-
-      let nextBranchName = selectedBranchName;
-      if (branch.isRemote) {
-        const status = await api.git.status({ cwd: selectionTarget.checkoutCwd }).catch(() => null);
-        if (status?.branch) {
-          nextBranchName = status.branch;
-        }
-      }
-
-      setOptimisticBranch(nextBranchName);
-      await onSetThreadBranch(nextBranchName, selectionTarget.nextWorktreePath);
+      const next = await selectWorkspaceBranch({
+        branch,
+        projectCwd: activeProjectCwd,
+        activeWorktreePath,
+        environmentId,
+        prepare: onPrepareBranchChange,
+        setThreadBranch: onSetThreadBranch,
+      });
+      if (next) setOptimisticBranch(next);
     });
   };
 

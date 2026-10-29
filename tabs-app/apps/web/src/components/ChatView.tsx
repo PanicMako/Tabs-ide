@@ -1306,6 +1306,7 @@ export default function ChatView({
             thread: item.projection.thread,
             runs: item.projection.runs,
             subagents: item.projection.subagents,
+            contextTransfers: item.projection.contextTransfers,
           });
           setLoadedProjectionKey(projectionKey);
           applyThreadProjectionToAtoms(item.projection, environmentId);
@@ -1318,12 +1319,14 @@ export default function ChatView({
               if (
                 next.subagents !== current.subagents ||
                 next.runs !== current.runs ||
-                next.thread !== current.thread
+                next.thread !== current.thread ||
+                next.contextTransfers !== current.contextTransfers
               )
                 setWorkspaceAgentContext({
                   thread: next.thread,
                   runs: next.runs,
                   subagents: next.subagents,
+                  contextTransfers: next.contextTransfers,
                 });
               applyThreadProjectionToAtoms(next, environmentId);
             }
@@ -6380,6 +6383,7 @@ export default function ChatView({
     <div
       onPointerDownCapture={onActivatePane}
       onFocusCapture={onActivatePane}
+      data-chat-pane="true"
       className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background"
     >
       {/* Top bar — hidden in the compact side-chat embed (the Code tab provides
@@ -6425,6 +6429,7 @@ export default function ChatView({
               activeProject ? (
                 <WorkspaceProjectScripts
                   project={activeProject}
+                  cwd={gitCwd ?? activeProject.cwd}
                   keybindings={keybindings}
                   onRunScript={(script) => {
                     void runProjectScript(script);

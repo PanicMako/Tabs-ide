@@ -1,3 +1,5 @@
+import { readThreadFamilyPage } from "./orchestration-v2/ThreadFamilyQuery.ts";
+import type { OrchestrationV2ThreadStreamItem } from "@tabs/contracts";
 import { dedupeSnapshotBodies } from "@tabs/shared/orchestrationV2DedupedBodies";
 import {
   omitProviderWorkspaceSnapshots,
@@ -176,6 +178,7 @@ import {
 import {
   projectDomainEventForWire,
   projectThreadProjectionForWire,
+  makeLiveBodyDeduper,
 } from "./orchestration-v2/WireProjection.ts";
 import * as ProjectStore from "./orchestration-v2/ProjectStore.ts";
 import * as ThreadSearch from "./orchestration-v2/ThreadSearch.ts";
@@ -773,10 +776,12 @@ export const subscribeOrchestrationV2Thread = Effect.fn("ws.orchestrationV2.subs
     readonly requestCompletionMarker?: boolean;
     readonly acceptBoundedSnapshot?: boolean;
     readonly acceptDedupedBodies?: boolean;
+    readonly acceptVersionedLiveBodies?: boolean;
   }) {
+    const deduper = makeLiveBodyDeduper(true);
+    const projectLiveItem = (item: OrchestrationV2ThreadStreamItem) =>
+      input.acceptDedupedBodies && input.acceptVersionedLiveBodies ? deduper(item) : item;
     const threadManagement = yield* ThreadManagementService.ThreadManagementService;
-    // Live deduplication is disabled until missing or stale client sources can be recovered
-    // without delivering an incomplete event. Snapshot deduplication remains opt-in.
     const applicationEvents = yield* OrchestrationEventStore.OrchestrationEventStore;
 
     yield* Effect.annotateCurrentSpan({
@@ -884,7 +889,7 @@ export const subscribeOrchestrationV2Thread = Effect.fn("ws.orchestrationV2.subs
           completionMarker,
         ),
         eventStreamFrom(snapshotSequence),
-      );
+      ).pipe(Stream.map(projectLiveItem));
     });
 
     // When the client already holds the projection (cached, or loaded over
@@ -961,7 +966,7 @@ export const subscribeOrchestrationV2Thread = Effect.fn("ws.orchestrationV2.subs
       return Stream.concat(
         Stream.concat(rpcInitialItems(replay), completionMarker),
         eventStreamFrom(highWater),
-      );
+      ).pipe(Stream.map(projectLiveItem));
     }
 
     return yield* snapshotThenLive();
@@ -2010,28 +2015,7 @@ const layerWsRpc = (
           [ORCHESTRATION_V2_WS_METHODS.getThreadFamily]: (input) =>
             observeRpcEffect(
               ORCHESTRATION_V2_WS_METHODS.getThreadFamily,
-              sql
-                .withTransaction(
-                  Effect.gen(function* () {
-                    const threads = yield* threadManagement.getShellSnapshot({
-                      location: "active",
-                      familyOf: input.threadId,
-                    });
-                    return {
-                      snapshotSequence: yield* applicationEvents.latestApplicationSequence,
-                      threads: threads.threads,
-                    };
-                  }),
-                )
-                .pipe(
-                  Effect.mapError(
-                    (cause) =>
-                      new OrchestrationV2GetShellSnapshotError({
-                        message: "Failed to load the thread family",
-                        cause,
-                      }),
-                  ),
-                ),
+              readThreadFamilyPage(input),
               {
                 "rpc.aggregate": "orchestration",
                 "orchestration_v2.thread_id": input.threadId,

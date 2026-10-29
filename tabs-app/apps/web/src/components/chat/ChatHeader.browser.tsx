@@ -199,3 +199,45 @@ it("adapts density to essential on constrained viewport and toggles more tools d
     await view.unmount();
   }
 });
+
+it("bounds the workspace card to the actual chat pane", async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const view = await render(
+    <QueryClientProvider client={client}>
+      <div data-chat-pane="true" style={{ position: "relative", width: 420, height: 300 }}>
+        <header style={{ position: "relative" }}>
+          <ChatHeader
+            activeThreadId={ThreadId.make("measured-pane")}
+            activeThreadTitle="Measured pane"
+            activeProjectName="tabs"
+            isGitRepo
+            openInCwd="/repo"
+            keybindings={[]}
+            availableEditors={[]}
+            terminalAvailable
+            terminalOpen={false}
+            terminalToggleShortcutLabel={null}
+            diffToggleShortcutLabel={null}
+            gitCwd="/repo"
+            diffOpen={false}
+            onToggleTerminal={vi.fn()}
+            onToggleDiff={vi.fn()}
+          />
+        </header>
+      </div>
+    </QueryClientProvider>,
+  );
+  try {
+    await page.getByRole("button", { name: "Toggle workspace actions" }).click();
+    const card = document.querySelector<HTMLElement>('[aria-label="Workspace actions"]')!;
+    await expect.poll(() => card.dataset.density).toBe("essential");
+    const pane = document.querySelector<HTMLElement>("[data-chat-pane]")!;
+    expect(card.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+      pane.getBoundingClientRect().bottom,
+    );
+    expect(card.scrollWidth).toBeLessThanOrEqual(card.clientWidth + 1);
+  } finally {
+    await view.unmount();
+    client.clear();
+  }
+});

@@ -6,6 +6,7 @@ import {
   type OrchestrationV2ThreadProjection,
   type OrchestrationV2ThreadShell,
   type ServerConfig,
+  type RunId,
   ProviderInstanceId,
 } from "@tabs/contracts";
 import { useState, useId, useEffect, useRef } from "react";
@@ -43,7 +44,8 @@ import {
 export type WorkspaceAgentContext = Pick<
   OrchestrationV2ThreadProjection,
   "thread" | "runs" | "subagents"
->;
+> &
+  Partial<Pick<OrchestrationV2ThreadProjection, "contextTransfers">>;
 
 const INITIAL_VISIBLE_COUNT = 6;
 const VISIBLE_INCREMENT = 12;
@@ -88,6 +90,11 @@ function ScopedWorkspaceAgents({
 
   const [expanded, setExpanded] = useState(false);
   const [delegateOpen, setDelegateOpen] = useState(false);
+  const [delegationParentId, setDelegationParentId] = useState<RunId | null>(null);
+  const delegationRetry = useRef<{
+    fingerprint: string;
+    commandId: ReturnType<typeof newCommandId>;
+  } | null>(null);
   const [task, setTask] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -107,6 +114,13 @@ function ScopedWorkspaceAgents({
   const [selectedInstanceId, setSelectedInstanceId] = useState<string>(defaultInstanceId);
   const [selectedModel, setSelectedModel] = useState<string>(defaultModel);
   const [familyLoaded, setFamilyLoaded] = useState(false);
+  const [familyCursor, setFamilyCursor] = useState<ThreadId | null>(null);
+  const [familyTotal, setFamilyTotal] = useState<number | null>(null);
+  const [familyError, setFamilyError] = useState<string | null>(null);
+  const [familyRefresh, setFamilyRefresh] = useState(0);
+  const childMembership = context.subagents
+    .map((agent) => `${agent.id}:${agent.childThreadId}`)
+    .join("|");
 
   // Clear transient state and fetch family on thread / environment change
   useEffect(() => {
@@ -114,27 +128,28 @@ function ScopedWorkspaceAgents({
     setError(null);
     setVisibleLimit(INITIAL_VISIBLE_COUNT);
     setFamilyLoaded(false);
+    setFamilyError(null);
+    if (!expanded) return;
     let cancelled = false;
 
     environmentApi(environmentId)
-      .then((api) => api.orchestration.getThreadFamily({ threadId: context.thread.id }))
+      .then((api) => api.orchestration.getThreadFamily({ threadId: context.thread.id, limit: 50 }))
       .then((family) => {
         if (!cancelled) {
           setFamilyThreads(family.threads);
+          setFamilyCursor(family.nextCursor ?? null);
+          setFamilyTotal(family.totalCount ?? null);
           setFamilyLoaded(true);
         }
       })
-      .catch(() => {
-        if (!cancelled) {
-          setFamilyThreads([]);
-          setFamilyLoaded(true);
-        }
+      .catch((cause) => {
+        if (!cancelled) setFamilyError(cause instanceof Error ? cause.message : String(cause));
       });
 
     return () => {
       cancelled = true;
     };
-  }, [context.thread.id, environmentId]);
+  }, [context.thread.id, environmentId, expanded, childMembership, familyRefresh]);
 
   // Load server config for provider/model selector
   useEffect(() => {
@@ -149,15 +164,6 @@ function ScopedWorkspaceAgents({
       cancelled = true;
     };
   }, [environmentId]);
-
-  // Sync default selection when dialog opens
-  useEffect(() => {
-    if (delegateOpen) {
-      setSelectedInstanceId(defaultInstanceId);
-      setSelectedModel(defaultModel);
-      setError(null);
-    }
-  }, [delegateOpen, defaultInstanceId, defaultModel]);
 
   const dispatch = async (command: OrchestrationV2Command) => {
     const api = await environmentApi(environmentId);
@@ -213,25 +219,89 @@ function ScopedWorkspaceAgents({
     mergeTargetThreadId,
   });
 
-  const familyRows = orderedRows.filter(
+  const knownRows = new Set(orderedRows.map((row) => row.threadId));
+  const disconnectedRows = familyThreads
+    .filter((thread) => thread.id !== context.thread.id && !knownRows.has(thread.id))
+    .map((thread) => ({
+      threadId: thread.id,
+      fromThreadId: context.thread.id,
+      depth: 1,
+      edge: {
+        sourceThreadId: context.thread.id,
+        targetThreadId: thread.id,
+        kind: "family" as const,
+        status: thread.activityRunStatus ?? thread.status,
+      },
+    }));
+  const familyRows = [...orderedRows, ...disconnectedRows].filter(
     (row) => row.threadId !== context.thread.lineage.parentThreadId,
   );
-  const { visibleRows, hiddenCount } = resolveThreadLineageWindow(familyRows, visibleLimit);
-
-  const activeSubagentCount = context.subagents.filter((agent) =>
-    ["pending", "running", "waiting"].includes(agent.status),
-  ).length;
+  const unlinkedAgents = context.subagents.filter((agent) => agent.childThreadId === null);
+  const { visibleRows, hiddenCount: loadedHiddenCount } = resolveThreadLineageWindow(
+    familyRows,
+    visibleLimit,
+  );
+  const unloadedCount =
+    familyCursor === null
+      ? 0
+      : Math.max(
+          1,
+          (familyTotal ?? familyThreads.length + 1) -
+            new Set(familyThreads.map((thread) => thread.id)).size,
+        );
+  const hiddenCount = loadedHiddenCount + unloadedCount;
+  const showMore = () =>
+    void perform("family", async () => {
+      if (familyCursor !== null && loadedHiddenCount < VISIBLE_INCREMENT) {
+        const api = await environmentApi(environmentId);
+        const page = await api.orchestration.getThreadFamily({
+          threadId: context.thread.id,
+          afterThreadId: familyCursor,
+          limit: 50,
+        });
+        if (!mounted.current) return;
+        setFamilyThreads((previous) => [
+          ...new Map([...previous, ...page.threads].map((thread) => [thread.id, thread])).values(),
+        ]);
+        setFamilyCursor(page.nextCursor ?? null);
+        setFamilyTotal(page.totalCount ?? null);
+      }
+      setVisibleLimit((previous) => previous + VISIBLE_INCREMENT);
+    });
 
   const activeFamilyCount = familyRows.filter((row) => {
-    const status = threadRelationshipRowStatus(graph, row);
-    return ["pending", "running", "waiting", "starting", "preparing"].includes(status ?? "");
+    const agent = context.subagents.find((candidate) => candidate.childThreadId === row.threadId);
+    const status = agent?.status ?? threadRelationshipRowStatus(graph, row);
+    return ["pending", "running", "waiting", "starting", "preparing", "queued"].includes(
+      status ?? "",
+    );
   }).length;
-
-  const activeCount = Math.max(activeSubagentCount, activeFamilyCount);
-  const totalDisplayCount = Math.max(
-    context.subagents.length,
-    familyRows.length + (context.thread.lineage.parentThreadId ? 1 : 0),
-  );
+  const activeCount =
+    activeFamilyCount +
+    unlinkedAgents.filter((agent) => ["pending", "running", "waiting"].includes(agent.status))
+      .length;
+  const totalDisplayCount =
+    Math.max(
+      familyRows.length + (context.thread.lineage.parentThreadId ? 1 : 0),
+      (familyTotal ?? 1) - 1,
+    ) + unlinkedAgents.length;
+  const stopChild = async (
+    agent: WorkspaceAgentContext["subagents"][number],
+    childThreadId: ThreadId,
+  ) => {
+    await dispatch({
+      type: "delegated_task.completion-delivery.dispose",
+      commandId: newCommandId(),
+      parentThreadId: context.thread.id,
+      taskId: agent.id,
+    });
+    await dispatch({
+      type: "thread.stop",
+      commandId: newCommandId(),
+      threadId: childThreadId,
+      reason: "Stopped from workspace actions",
+    });
+  };
 
   const availableProviders = serverConfig?.providers ?? [];
   const selectedProviderEntry = availableProviders.find((p) => p.instanceId === selectedInstanceId);
@@ -304,6 +374,7 @@ function ScopedWorkspaceAgents({
                   const node = graph.nodes.get(lineageRow.threadId);
                   const isParent = isParentThreadRelationship(lineageRow.edge, context.thread.id);
                   const isFork = lineageRow.edge.kind === "fork";
+                  const isRelated = lineageRow.edge.kind === "family";
                   const agent = context.subagents.find(
                     (a) => a.childThreadId === lineageRow.threadId,
                   );
@@ -367,14 +438,17 @@ function ScopedWorkspaceAgents({
                                 ? "Parent"
                                 : isFork
                                   ? "Fork"
-                                  : isNative
-                                    ? "Provider agent"
-                                    : "Delegated task"}
+                                  : isRelated
+                                    ? "Related conversation"
+                                    : isNative
+                                      ? "Provider agent"
+                                      : "Delegated task"}
                               {agent?.model
                                 ? ` · ${agent.model}`
                                 : node?.thread?.modelSelection
                                   ? ` · ${node.thread.modelSelection.model}`
                                   : ""}
+                              {node?.thread?.archivedAt != null ? " · Archived" : ""}
                             </span>
                           </button>
                         </div>
@@ -413,29 +487,9 @@ function ScopedWorkspaceAgents({
                           disabled={busy !== null}
                           className="mt-1 flex min-h-7 items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
                           onClick={() =>
-                            void perform(lineageRow.threadId, async () => {
-                              const api = await environmentApi(environmentId);
-                              const child = await api.orchestration.getThreadProjection({
-                                threadId: lineageRow.threadId,
-                              });
-                              const run = child.runs
-                                .filter((r) =>
-                                  ["preparing", "starting", "running", "waiting"].includes(
-                                    r.status,
-                                  ),
-                                )
-                                .toSorted((a, b) => b.ordinal - a.ordinal)[0];
-                              if (!run)
-                                throw new Error("This sub-agent has no active run to stop.");
-                              await api.orchestration.dispatchCommand({
-                                type: "run.interrupt",
-                                commandId: newCommandId(),
-                                threadId: lineageRow.threadId,
-                                runId: run.id,
-                                holdQueue: true,
-                                reason: "Stopped from workspace actions",
-                              });
-                            })
+                            void perform(lineageRow.threadId, () =>
+                              stopChild(agent!, lineageRow.threadId),
+                            )
                           }
                         >
                           <SquareIcon aria-hidden="true" className="size-3" />
@@ -450,86 +504,49 @@ function ScopedWorkspaceAgents({
                   <button
                     type="button"
                     className="mt-1 flex min-h-7 w-full items-center justify-center rounded-md border border-border/40 py-1 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground"
-                    onClick={() => setVisibleLimit((prev) => prev + VISIBLE_INCREMENT)}
+                    disabled={busy !== null}
+                    onClick={showMore}
                   >
                     Show {Math.min(VISIBLE_INCREMENT, hiddenCount)} more ({hiddenCount} remaining)
                   </button>
                 )}
               </div>
-            ) : (
-              /* Fallback: render subagents directly if no graph walk rows */
-              <div className="max-h-64 space-y-1 overflow-y-auto">
-                {context.subagents.map((agent) => (
-                  <div key={agent.id} className="rounded-lg border border-border/50 p-2">
-                    <div className="flex items-start gap-2">
-                      <button
-                        type="button"
-                        disabled={!agent.childThreadId}
-                        onClick={() => agent.childThreadId && openThread(agent.childThreadId)}
-                        className="min-w-0 flex-1 text-left text-xs disabled:cursor-default"
-                        title={agent.title ?? agent.prompt}
-                      >
-                        <span className="line-clamp-2 font-medium">
-                          {agent.title ?? (agent.prompt.slice(0, 100) || "Sub-agent")}
-                        </span>
-                        <span className="mt-1 block text-[10px] text-muted-foreground">
-                          {agent.origin === "provider_native" ? "Provider agent" : "Delegated task"}
-                          {agent.model ? ` · ${agent.model}` : ""}
-                        </span>
-                      </button>
-                      <span className="text-[10px] capitalize text-muted-foreground" role="status">
-                        {agent.status}
-                      </span>
-                    </div>
-                    {(agent.progress || agent.result) && (
-                      <details className="mt-2 text-[11px] text-muted-foreground">
-                        <summary className="cursor-pointer">
-                          {agent.result ? "Result" : "Progress"}
-                        </summary>
-                        <p className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words">
-                          {agent.result ?? agent.progress}
-                        </p>
-                      </details>
-                    )}
-                    {agent.childThreadId &&
-                      agent.origin === "app_owned" &&
-                      ["pending", "running", "waiting"].includes(agent.status) && (
-                        <button
-                          type="button"
-                          disabled={busy !== null}
-                          className="mt-1 flex min-h-7 items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
-                          onClick={() =>
-                            void perform(agent.id, async () => {
-                              const api = await environmentApi(environmentId);
-                              const child = await api.orchestration.getThreadProjection({
-                                threadId: agent.childThreadId!,
-                              });
-                              const run = child.runs
-                                .filter((r) =>
-                                  ["preparing", "starting", "running", "waiting"].includes(
-                                    r.status,
-                                  ),
-                                )
-                                .toSorted((a, b) => b.ordinal - a.ordinal)[0];
-                              if (!run)
-                                throw new Error("This sub-agent has no active run to stop.");
-                              await api.orchestration.dispatchCommand({
-                                type: "run.interrupt",
-                                commandId: newCommandId(),
-                                threadId: agent.childThreadId!,
-                                runId: run.id,
-                                holdQueue: true,
-                                reason: "Stopped from workspace actions",
-                              });
-                            })
-                          }
-                        >
-                          <SquareIcon aria-hidden="true" className="size-3" />
-                          {busy === agent.id ? "Stopping…" : "Stop"}
-                        </button>
-                      )}
-                  </div>
-                ))}
+            ) : null}
+            {unlinkedAgents.map((agent) => (
+              <div key={agent.id} className="rounded-lg border border-border/50 p-2 text-xs">
+                <p className="font-medium">
+                  {agent.title ?? (agent.prompt.slice(0, 100) || "Sub-agent")}
+                </p>
+                <p className="mt-1 text-[10px] text-muted-foreground">
+                  {agent.origin === "provider_native"
+                    ? "Provider agent · controls stay with the provider"
+                    : "Delegated task · child conversation not available yet"}
+                </p>
+                <span role="status" className="text-[10px] capitalize text-muted-foreground">
+                  {agent.status}
+                </span>
+                {(agent.progress || agent.result) && (
+                  <details className="mt-2 text-[11px] text-muted-foreground">
+                    <summary>{agent.result ? "Result" : "Progress"}</summary>
+                    <p className="max-h-40 overflow-auto whitespace-pre-wrap break-words">
+                      {agent.result ?? agent.progress}
+                    </p>
+                  </details>
+                )}
+              </div>
+            ))}
+
+            {familyRows.length === 0 && familyCursor !== null && (
+              <button type="button" className={row} disabled={busy !== null} onClick={showMore}>
+                Load more relatives ({unloadedCount} remaining)
+              </button>
+            )}
+            {familyError && (
+              <div role="alert" className="px-2 text-xs text-destructive">
+                Could not load relatives.{" "}
+                <button type="button" onClick={() => setFamilyRefresh((value) => value + 1)}>
+                  Retry
+                </button>
               </div>
             )}
 
@@ -543,7 +560,14 @@ function ScopedWorkspaceAgents({
                   ? "Delegate using selected model and inherited permissions"
                   : "Start a run in this conversation to delegate a task"
               }
-              onClick={() => setDelegateOpen(true)}
+              onClick={() => {
+                setDelegationParentId(parentRun?.id ?? null);
+                setSelectedInstanceId(defaultInstanceId);
+                setSelectedModel(defaultModel);
+                setError(null);
+                delegationRetry.current = null;
+                setDelegateOpen(true);
+              }}
             >
               <PlusIcon aria-hidden="true" className="size-3.5" />
               Delegate task
@@ -570,6 +594,7 @@ function ScopedWorkspaceAgents({
                   busy !== null ||
                   !familyLoaded ||
                   graph.nodes.get(mergeTargetThreadId)?.missing !== false ||
+                  graph.nodes.get(mergeTargetThreadId)?.thread?.archivedAt != null ||
                   !context.runs.some((run) => run.status === "completed")
                 }
                 onClick={() =>
@@ -596,7 +621,7 @@ function ScopedWorkspaceAgents({
             <button
               type="button"
               className={row}
-              disabled={busy !== null}
+              disabled={nativeChild || busy !== null}
               onClick={() =>
                 void perform("fork", async () => {
                   const targetThreadId = ThreadId.make(crypto.randomUUID());
@@ -724,7 +749,12 @@ function ScopedWorkspaceAgents({
                   disabled={nativeChild || !task.trim() || !parentRun || busy !== null}
                   onClick={() =>
                     void perform("delegate", async () => {
-                      if (!parentRun?.rootNodeId) {
+                      const selectedParent = context.runs.find(
+                        (run) =>
+                          run.id === delegationParentId &&
+                          ["starting", "running", "waiting"].includes(run.status),
+                      );
+                      if (!selectedParent?.rootNodeId) {
                         throw new Error("The parent run has ended. Start another run to delegate.");
                       }
 
@@ -746,20 +776,31 @@ function ScopedWorkspaceAgents({
                         );
                       }
 
+                      const fingerprint = JSON.stringify([
+                        selectedParent.id,
+                        task.trim(),
+                        selectedInstanceId,
+                        selectedModel,
+                        selectedParent.modelSelection.options,
+                        context.thread.runtimeMode,
+                        context.thread.interactionMode,
+                      ]);
+                      if (delegationRetry.current?.fingerprint !== fingerprint)
+                        delegationRetry.current = { fingerprint, commandId: newCommandId() };
                       await dispatch({
                         type: "delegated_task.request",
-                        commandId: newCommandId(),
+                        commandId: delegationRetry.current.commandId,
                         parentThreadId: context.thread.id,
-                        parentRunId: parentRun.id,
-                        parentNodeId: parentRun.rootNodeId,
+                        parentRunId: selectedParent.id,
+                        parentNodeId: selectedParent.rootNodeId,
                         task: task.trim(),
                         title: task.trim().split("\n")[0]!.slice(0, 100),
                         modelSelection: {
                           instanceId: ProviderInstanceId.make(selectedInstanceId),
                           model: selectedModel,
-                          ...(selectedInstanceId === parentRun.modelSelection.instanceId &&
-                          parentRun.modelSelection.options
-                            ? { options: parentRun.modelSelection.options }
+                          ...(selectedInstanceId === selectedParent.modelSelection.instanceId &&
+                          selectedParent.modelSelection.options
+                            ? { options: selectedParent.modelSelection.options }
                             : {}),
                         },
                         runtimeMode: context.thread.runtimeMode,

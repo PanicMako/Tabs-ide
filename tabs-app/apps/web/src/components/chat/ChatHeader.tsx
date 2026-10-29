@@ -1,3 +1,6 @@
+import { useThreadWorkspaceContext } from "../../hooks/useThreadWorkspaceContext";
+import { selectWorkspaceBranch } from "../workspaceBranchSelection";
+import { EnvironmentId } from "@tabs/contracts";
 import {
   type EditorId,
   type GitWatchedBranchStatus,
@@ -7,7 +10,16 @@ import {
   type ThreadId,
   type ThreadPullRequestLink,
 } from "@tabs/contracts";
-import { type ReactNode, memo, useState, useCallback, useMemo, useRef, useEffect } from "react";
+import {
+  type ReactNode,
+  memo,
+  useState,
+  useCallback,
+  useMemo,
+  useRef,
+  useEffect,
+  useLayoutEffect,
+} from "react";
 import {
   SquareMenuIcon,
   GitBranchIcon,
@@ -46,9 +58,7 @@ import { ProjectFavicon, type ProjectFaviconProject } from "../ProjectFavicon";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "../ui/menu";
 import {
   gitBranchesQueryOptions,
-  gitCheckoutMutationOptions,
   gitCreateWorktreeMutationOptions,
-  gitPullMutationOptions,
   gitWatchedBranchesQueryOptions,
   invalidateGitQueries,
 } from "~/lib/gitReactQuery";
@@ -112,6 +122,7 @@ interface ChatHeaderProps {
 /** Branch picker + checkout + worktree-creation with search, ahead/behind, pull, merge, and divergence */
 function BranchSelectorControl({
   projectId,
+  threadId,
   gitCwd,
   environmentId,
   currentBranch,
@@ -122,6 +133,7 @@ function BranchSelectorControl({
   onOpenDivergence,
 }: {
   projectId?: ProjectId | undefined;
+  threadId: ThreadId;
   gitCwd: string | null;
   environmentId?: string | undefined;
   currentBranch: string | null;
@@ -131,6 +143,10 @@ function BranchSelectorControl({
   hasUpstream?: boolean | undefined;
   onOpenDivergence?: (() => void) | undefined;
 }) {
+  const workspaceContext = useThreadWorkspaceContext(
+    threadId,
+    environmentId === undefined ? undefined : EnvironmentId.make(environmentId),
+  );
   const queryClient = useQueryClient();
   const [newWorktreeOpen, setNewWorktreeOpen] = useState(false);
   const [newBranchName, setNewBranchName] = useState("");
@@ -198,16 +214,16 @@ function BranchSelectorControl({
   const watchedBranchesMap = useMemo(() => {
     const map = new Map<string, GitWatchedBranchStatus>();
     for (const b of watchedBranches) {
-      map.set(b.name.toLowerCase(), b);
+      map.set(b.name, b);
     }
     return map;
   }, [watchedBranches]);
 
   const pinnedBranchStatuses = useMemo(() => {
     return pinnedBranches.map((bName) => {
-      const norm = bName.trim().toLowerCase();
-      const stat = watchedBranches.find((w) => w.name.toLowerCase() === norm);
-      const isCurrent = Boolean(currentBranch && currentBranch.toLowerCase() === norm);
+      const norm = bName.trim();
+      const stat = watchedBranches.find((w) => w.name === norm);
+      const isCurrent = Boolean(currentBranch && currentBranch === norm);
       const behind = stat?.behindCount ?? 0;
       const ahead = stat?.aheadCount ?? 0;
       return { branchName: bName, status: stat, isCurrent, behind, ahead };
@@ -222,13 +238,44 @@ function BranchSelectorControl({
     return q ? branches.filter((b) => b.name.toLowerCase().includes(q)) : branches;
   }, [branches, search]);
 
-  const checkoutMutation = useMutation(
-    gitCheckoutMutationOptions({ cwd: gitCwd, queryClient, environmentId }),
-  );
+  const checkoutMutation = useMutation({
+    mutationFn: async (branchName: string) => {
+      const branch = branches.find((candidate) => candidate.name === branchName);
+      if (!branch || !workspaceContext.activeProject)
+        throw new Error("This workspace branch is no longer available.");
+      if (
+        !workspaceContext.hasServerThread &&
+        workspaceContext.effectiveEnvMode === "worktree" &&
+        !workspaceContext.activeWorktreePath
+      ) {
+        const base =
+          workspaceContext.activeThreadBranch?.startsWith("refs/remotes/") && branch.isRemote
+            ? `refs/remotes/${branch.name}`
+            : branch.name;
+        return (await workspaceContext.setThreadBranch(base, null)) ? branch.name : null;
+      }
+      return selectWorkspaceBranch({
+        branch,
+        projectCwd: workspaceContext.activeProject.cwd,
+        activeWorktreePath: workspaceContext.activeWorktreePath,
+        environmentId,
+        prepare: workspaceContext.prepareBranchChange,
+        setThreadBranch: workspaceContext.setThreadBranch,
+      });
+    },
+    onSettled: () => invalidateGitQueries(queryClient),
+  });
 
-  const pullMutation = useMutation(
-    gitPullMutationOptions({ cwd: gitCwd, queryClient, environmentId }),
-  );
+  const pullMutation = useMutation({
+    mutationFn: async () => {
+      if (!gitCwd) throw new Error("Git pull is unavailable.");
+      if (!(await workspaceContext.prepareBranchChange()))
+        throw new Error("The active run could not be stopped.");
+      const api = await environmentApi(environmentId);
+      return api.git.pull({ cwd: gitCwd });
+    },
+    onSettled: () => invalidateGitQueries(queryClient),
+  });
 
   const worktreeMutation = useMutation(
     gitCreateWorktreeMutationOptions({ queryClient, environmentId }),
@@ -237,8 +284,9 @@ function BranchSelectorControl({
   const handleCheckout = useCallback(
     (branch: string) => {
       checkoutMutation.mutate(branch, {
-        onSuccess: () => {
-          toastManager.add({ type: "success", title: `Switched to branch '${branch}'` });
+        onSuccess: (selectedBranch) => {
+          if (selectedBranch)
+            toastManager.add({ type: "success", title: `Switched to branch '${selectedBranch}'` });
         },
         onError: (err) => {
           toastManager.add({
@@ -269,10 +317,11 @@ function BranchSelectorControl({
 
   const handleMergeBranch = useCallback(
     async (targetName: string) => {
-      if (!gitCwd) return;
+      if (!gitCwd || isMerging) return;
       setIsMerging(true);
       setMergingBranch(targetName);
       try {
+        if (!(await workspaceContext.prepareBranchChange())) return;
         const api = await environmentApi(environmentId);
         await api.git.merge({ cwd: gitCwd, branch: targetName });
         await invalidateGitQueries(queryClient);
@@ -291,7 +340,14 @@ function BranchSelectorControl({
         setMergingBranch(null);
       }
     },
-    [gitCwd, environmentId, currentBranch, queryClient],
+    [
+      gitCwd,
+      environmentId,
+      currentBranch,
+      queryClient,
+      workspaceContext.prepareBranchChange,
+      isMerging,
+    ],
   );
 
   const handleCreateWorktree = useCallback(() => {
@@ -419,10 +475,8 @@ function BranchSelectorControl({
                 <p className="py-4 text-center text-xs text-muted-foreground">No branches found</p>
               ) : (
                 filteredBranches.map((b) => {
-                  const wbStat = watchedBranchesMap.get(b.name.toLowerCase());
-                  const isThisPinned = pinnedBranches.some(
-                    (p) => p.toLowerCase() === b.name.toLowerCase(),
-                  );
+                  const wbStat = watchedBranchesMap.get(b.name);
+                  const isThisPinned = pinnedBranches.some((p) => p === b.name);
                   return (
                     <div
                       key={b.name}
@@ -754,6 +808,8 @@ export const ChatHeader = memo(function ChatHeader({
     () => typeof window !== "undefined" && window.innerWidth >= 1440,
   );
   const [moreActionsOpen, setMoreActionsOpen] = useState(false);
+  const headerRef = useRef<HTMLDivElement | null>(null);
+  const [availableCardHeight, setAvailableCardHeight] = useState<number | null>(null);
   const workspaceCardRef = useRef<HTMLDivElement | null>(null);
   const workspaceTriggerRef = useRef<HTMLButtonElement | null>(null);
 
@@ -762,17 +818,33 @@ export const ChatHeader = memo(function ChatHeader({
     height: typeof window !== "undefined" ? window.innerHeight : 800,
   }));
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const handleResize = () => {
+  useLayoutEffect(() => {
+    const header = headerRef.current;
+    if (!header) return;
+    const pane = header.closest<HTMLElement>("[data-chat-pane]");
+    const measure = () => {
+      const bounds = pane?.getBoundingClientRect();
       setWindowDimensions({
-        width: window.innerWidth,
-        height: window.innerHeight,
+        width: bounds?.width ?? window.innerWidth,
+        height: bounds?.height ?? window.innerHeight,
       });
+      const top =
+        workspaceCardRef.current?.getBoundingClientRect().top ??
+        header.getBoundingClientRect().bottom + 4;
+      setAvailableCardHeight(
+        Math.max(0, Math.min(bounds?.bottom ?? window.innerHeight, window.innerHeight) - top - 12),
+      );
     };
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(header);
+    if (pane) observer.observe(pane);
+    window.addEventListener("resize", measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [workspaceOpen, isSplitActive]);
 
   const density: WorkspaceCardDensity = useMemo(
     () =>
@@ -780,8 +852,9 @@ export const ChatHeader = memo(function ChatHeader({
         windowHeight: windowDimensions.height,
         windowWidth: windowDimensions.width,
         isSplitActive,
+        cardHeight: availableCardHeight ?? undefined,
       }),
-    [windowDimensions.height, windowDimensions.width, isSplitActive],
+    [windowDimensions.height, windowDimensions.width, isSplitActive, availableCardHeight],
   );
 
   useEffect(() => {
@@ -830,7 +903,7 @@ export const ChatHeader = memo(function ChatHeader({
     : null;
 
   return (
-    <div className="flex min-w-0 flex-1 flex-col">
+    <div ref={headerRef} className="flex min-w-0 flex-1 flex-col">
       <div className="flex min-w-0 items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2 overflow-hidden">
           <SidebarTrigger className="size-7 shrink-0 md:hidden" />
@@ -994,9 +1067,10 @@ export const ChatHeader = memo(function ChatHeader({
             data-density={density}
             style={{
               maxHeight:
-                density === "essential"
-                  ? "min(calc(100dvh - 4.5rem), 420px)"
-                  : "min(calc(100dvh - 5.5rem), calc(var(--available-height, 100dvh) - 1.5rem), 640px)",
+                availableCardHeight === null
+                  ? undefined
+                  : Math.min(availableCardHeight, density === "essential" ? 420 : 640),
+              maxWidth: Math.max(0, windowDimensions.width - 24),
             }}
             className={cn(
               "workspace-card w-[304px] max-w-[calc(100vw-1.5rem)] rounded-2xl border border-border/70 bg-card p-3 text-foreground",
@@ -1221,6 +1295,8 @@ export const ChatHeader = memo(function ChatHeader({
             >
               {/* Branch selector + pull + divergence */}
               <BranchSelectorControl
+                key={JSON.stringify([environmentId, activeThreadId, gitCwd])}
+                threadId={activeThreadId}
                 projectId={projectId}
                 gitCwd={gitCwd}
                 environmentId={environmentId}

@@ -123,6 +123,7 @@ export interface Project {
 }
 
 export interface Thread {
+  isSubagent?: boolean;
   id: ThreadId;
   environmentId?: EnvironmentId | undefined;
   codexThreadId: string | null;

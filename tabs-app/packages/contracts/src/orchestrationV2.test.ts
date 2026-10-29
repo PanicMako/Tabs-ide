@@ -614,6 +614,22 @@ describe("orchestration V2 contracts", () => {
     ).toThrow();
   });
 
+  it("accepts the user Stop command while rejecting server-only state records", () => {
+    const command = decodeOrchestrationV2Command({
+      type: "thread.stop",
+      commandId: "stop-child",
+      threadId: "child",
+    });
+    expect(command.type).toBe("thread.stop");
+    expect(() =>
+      decodeOrchestrationV2Command({
+        type: "secret_request.record",
+        commandId: "secret-record",
+        threadId: "child",
+      }),
+    ).toThrow();
+  });
+
   it("decodes durable created-thread timeline records", () => {
     const command = decodeOrchestrationV2Command({
       type: "thread.created.record",

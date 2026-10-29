@@ -1191,6 +1191,11 @@ describe("wsNativeApi", () => {
                 runtimeMode: "full-access",
                 interactionMode: "default",
                 providerInstanceId: "codex" as any,
+                lineage: {
+                  parentThreadId: null,
+                  relationshipToParent: null,
+                  rootThreadId: "thread-1" as any,
+                },
                 createdAt: "2026-10-13T00:00:00.000Z" as any,
                 updatedAt: "2026-10-13T00:00:00.000Z" as any,
               } as any,
@@ -1556,6 +1561,7 @@ it("subscribeThread opts into deduped bodies and restores snapshots and live eve
   expect(paramsFactory?.()).toEqual({
     threadId,
     acceptDedupedBodies: true,
+    acceptVersionedLiveBodies: true,
     acceptBoundedSnapshot: true,
   });
 
@@ -1679,6 +1685,7 @@ it("subscribeThread opts into deduped bodies and restores snapshots and live eve
     messageId: "msg-2",
     text: "",
     textOmitted: true,
+    bodySourceSequence: 11,
     streaming: true,
   };
 
@@ -1709,3 +1716,135 @@ it("subscribeThread opts into deduped bodies and restores snapshots and live eve
 
   unsubscribe();
 });
+
+it.each(["checkpoint", "subagent"] as const)(
+  "restores versioned live %s bodies from their matching source update",
+  async (kind) => {
+    const { createWsNativeApi } = await import("./wsNativeApi");
+    const api = createWsNativeApi({ singleton: false });
+    const threadId = ThreadId.make(`versioned-${kind}`);
+    const callback = vi.fn();
+    const unsubscribe = api.orchestration.subscribeThread({ threadId }, callback);
+    const receive = (subscribeRpcMock.mock.calls.at(-1) as unknown[])[3] as (item: unknown) => void;
+    const event = (sequence: number, type: string, payload: object) => ({
+      kind: "event",
+      sequence,
+      event: { type, threadId, payload },
+    });
+    const body = "Repeated source body 🌍\n".repeat(50);
+    if (kind === "checkpoint") {
+      receive(
+        event(7, "checkpoint.captured", {
+          id: "checkpoint-1",
+          files: [{ path: "a", status: "modified" }],
+        }),
+      );
+      receive(
+        event(8, "turn-item.updated", {
+          type: "checkpoint",
+          checkpointId: "checkpoint-1",
+          files: [],
+          filesOmitted: true,
+          bodySourceSequence: 7,
+        }),
+      );
+      expect(callback).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          event: expect.objectContaining({
+            payload: expect.objectContaining({
+              files: [{ path: "a", status: "modified" }],
+            }),
+          }),
+        }),
+      );
+    } else {
+      receive(event(7, "subagent.updated", { id: "agent-1", prompt: body, result: "done" }));
+      receive(
+        event(8, "turn-item.updated", {
+          type: "subagent",
+          subagentId: "agent-1",
+          prompt: "",
+          result: null,
+          promptOmitted: true,
+          resultOmitted: true,
+          bodySourceSequence: 7,
+        }),
+      );
+      expect(callback).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          event: expect.objectContaining({
+            payload: expect.objectContaining({ prompt: body, result: "done" }),
+          }),
+        }),
+      );
+    }
+    expect(callback).toHaveBeenCalledTimes(2);
+    unsubscribe();
+  },
+);
+
+it.each(["missing", "stale", "unversioned", "evicted"] as const)(
+  "recovers %s live body sources before publishing incomplete content",
+  async (mode) => {
+    const { createWsNativeApi } = await import("./wsNativeApi");
+    const api = createWsNativeApi({ singleton: false });
+    const callback = vi.fn();
+    const threadId = ThreadId.make("recovery-test");
+    const close = api.orchestration.subscribeThread({ threadId }, callback);
+    const initial = (subscribeRpcMock.mock.calls as unknown[][]).at(-1)!;
+    const receive = initial[3] as (item: unknown) => void;
+    const event = (sequence: number, type: string, payload: object) => ({
+      kind: "event",
+      sequence,
+      event: { type, threadId, payload },
+    });
+    if (mode !== "missing")
+      receive(event(1, "message.updated", { id: "source", text: "Long answer 🌍\n".repeat(1000) }));
+    if (mode === "evicted")
+      for (let index = 0; index < 33; index++)
+        receive(event(index + 2, "message.updated", { id: `other-${index}`, text: "Other" }));
+    callback.mockClear();
+    receive(
+      event(40, "turn-item.updated", {
+        type: "assistant_message",
+        messageId: "source",
+        text: "",
+        textOmitted: true,
+        ...(mode === "unversioned" ? {} : { bodySourceSequence: mode === "stale" ? 0 : 1 }),
+      }),
+    );
+    expect(callback).not.toHaveBeenCalled();
+    // A late event from the old subscription cannot advance the recovery cursor.
+    receive(event(41, "message.updated", { id: "source", text: "Late stale data" }));
+    await Promise.resolve();
+    const recovery = (subscribeRpcMock.mock.calls as unknown[][]).at(-1)!;
+    expect(recovery).not.toBe(initial);
+    expect((recovery[1] as () => unknown)()).toEqual({
+      threadId,
+      acceptDedupedBodies: false,
+      acceptVersionedLiveBodies: false,
+      acceptBoundedSnapshot: false,
+    });
+    const restored = {
+      thread: { id: threadId },
+      messages: [{ id: "source", text: "Full authoritative answer" }],
+      checkpoints: [],
+      subagents: [],
+      turnItems: [],
+      visibleTurnItems: [],
+    };
+    (recovery[3] as (item: unknown) => void)({
+      kind: "snapshot",
+      snapshotSequence: 42,
+      projection: restored,
+    });
+    expect(callback).toHaveBeenCalledOnce();
+    expect(callback).toHaveBeenLastCalledWith({
+      kind: "snapshot",
+      snapshotSequence: 42,
+      projection: restored,
+    });
+    expect((recovery[1] as () => unknown)()).toMatchObject({ afterSequence: 42 });
+    close();
+  },
+);

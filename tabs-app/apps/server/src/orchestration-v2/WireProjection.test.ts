@@ -470,6 +470,55 @@ describe("live body deduper", () => {
     ]);
   });
 
+  it("versions omitted bodies against the exact source event and clears sources on snapshot", () => {
+    const dedupe = makeLiveBodyDeduper(true);
+    dedupe(message(1, "Unicode 🌍\n".repeat(1000)));
+    const compact = dedupe(reply(2, "Unicode 🌍\n".repeat(1000)));
+    expect(payloadOf(compact)).toMatchObject({
+      text: "",
+      textOmitted: true,
+      bodySourceSequence: 1,
+    });
+    const snapshot = {
+      kind: "snapshot",
+      snapshotSequence: 3,
+      projection: { messages: [], checkpoints: [], subagents: [] },
+    } as unknown as OrchestrationV2ThreadStreamItem;
+    dedupe(snapshot);
+    const whole = reply(4, "Unicode 🌍\n".repeat(1000));
+    expect(dedupe(whole)).toBe(whole);
+    expect(dedupe(reply(5, ""))).toEqual(reply(5, ""));
+  });
+
+  it("tracks each subagent update as the source version for the next omitted update", () => {
+    const dedupe = makeLiveBodyDeduper(true);
+    const subagent = (sequence: number, prompt: string, result: string | null) =>
+      event(sequence, {
+        type: "subagent.updated",
+        payload: {
+          id: NodeId.make("child"),
+          prompt,
+          result,
+        } as OrchestrationV2DomainEvent["payload"],
+      });
+
+    dedupe(subagent(10, "Inspect the repository", null));
+    const omitted = dedupe(subagent(11, "Inspect the repository", null));
+    expect(payloadOf(omitted)).toMatchObject({
+      prompt: "",
+      promptOmitted: true,
+      bodySourceSequence: 10,
+    });
+
+    dedupe(subagent(12, "Inspect the repository", "Finished"));
+    const omittedAgain = dedupe(subagent(13, "Inspect the repository", "Finished"));
+    expect(payloadOf(omittedAgain)).toMatchObject({
+      promptOmitted: true,
+      resultOmitted: true,
+      bodySourceSequence: 12,
+    });
+  });
+
   it("ships a reply whole when its message arrives after it", () => {
     const first = reply(1, "a");
     expect([first, message(2, "a")].map(makeLiveBodyDeduper())[0]).toBe(first);

@@ -74,6 +74,16 @@ describe("pinnedBranches", () => {
     expect(loadPinnedBranches(scope)).toEqual([]);
   });
 
+  it("keeps Git refs that differ only by case distinct", () => {
+    expect(togglePinnedBranch(scope, ["Feature"], "feature").branches).toEqual([
+      "Feature",
+      "feature",
+    ]);
+    expect(togglePinnedBranch(scope, ["Feature", "feature"], "Feature").branches).toEqual([
+      "feature",
+    ]);
+  });
+
   it("enforces MAX_PINNED_BRANCHES (limit_reached)", () => {
     const initial = ["b1", "b2", "b3", "b4"];
     const res = togglePinnedBranch(scope, initial, "b5");

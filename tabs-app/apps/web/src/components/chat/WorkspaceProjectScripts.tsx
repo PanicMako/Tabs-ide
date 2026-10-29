@@ -14,16 +14,18 @@ import { useT3ProjectFileScripts } from "../../hooks/useT3ProjectFileScripts";
 /** Keeps panel actions on the project's owning machine and existing project configuration. */
 export function WorkspaceProjectScripts({
   project,
+  cwd,
   keybindings,
   fileScripts,
   onRunScript,
 }: {
   project: Project;
+  cwd?: string | undefined;
   keybindings: ResolvedKeybindingsConfig;
   fileScripts?: ReadonlyArray<T3ProjectFileScript>;
   onRunScript: (script: ProjectScript) => void;
 }) {
-  const autoFileScripts = useT3ProjectFileScripts(project.environmentId, project.cwd);
+  const autoFileScripts = useT3ProjectFileScripts(project.environmentId, cwd ?? project.cwd);
   const effectiveFileScripts = fileScripts ?? autoFileScripts;
 
   const save = async (scripts: ProjectScript[], id: string, input?: NewProjectScriptInput) => {

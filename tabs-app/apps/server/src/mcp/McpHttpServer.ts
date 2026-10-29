@@ -848,18 +848,23 @@ const registerToolkit = /*#__PURE__*/ Effect.fnUntraced(function* (toolkit: any)
     for (const legacy of LEGACY_TOOLS) {
       const translate = LEGACY_TOOL_ALIASES[legacy.name]!;
       if (translate({}).name !== tool.name) continue;
+      const legacyMcpTool = new McpSchema.Tool({
+        name: legacy.name,
+        description: Tool.getDescription(legacy),
+        inputSchema: advertisedJsonSchema(legacy),
+        annotations: {
+          readOnlyHint: Context.get(legacy.annotations, Tool.Readonly),
+          destructiveHint: Context.get(legacy.annotations, Tool.Destructive),
+          idempotentHint: Context.get(legacy.annotations, Tool.Idempotent),
+          openWorldHint: Context.get(legacy.annotations, Tool.OpenWorld),
+        },
+      });
+      const legacyOutput = Tool.getJsonSchemaFromSchema(legacy.successSchema);
+      if (legacyOutput.type === "object") {
+        (legacyMcpTool as any).outputSchema = { ...legacyOutput, additionalProperties: true };
+      }
       yield* registry.addTool({
-        tool: new McpSchema.Tool({
-          name: legacy.name,
-          description: Tool.getDescription(legacy),
-          inputSchema: advertisedJsonSchema(legacy),
-          annotations: {
-            readOnlyHint: Context.get(legacy.annotations, Tool.Readonly),
-            destructiveHint: Context.get(legacy.annotations, Tool.Destructive),
-            idempotentHint: Context.get(legacy.annotations, Tool.Idempotent),
-            openWorldHint: Context.get(legacy.annotations, Tool.OpenWorld),
-          },
-        }),
+        tool: legacyMcpTool,
         annotations: legacy.annotations,
         handle: (payload) =>
           Schema.decodeUnknownEffect(legacy.parametersSchema)(payload).pipe(

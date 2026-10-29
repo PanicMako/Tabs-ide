@@ -2,7 +2,17 @@ import "../../index.css";
 import { EnvironmentId, ProjectId } from "@tabs/contracts";
 import { beforeEach, expect, it, vi } from "vitest";
 import { page } from "vitest/browser";
-import { render } from "vitest-browser-react";
+import { render as renderComponent } from "vitest-browser-react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactElement } from "react";
+const render = (element: ReactElement) =>
+  renderComponent(
+    <QueryClientProvider
+      client={new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })}
+    >
+      {element}
+    </QueryClientProvider>,
+  );
 import { WorkspaceProjectScripts } from "./WorkspaceProjectScripts";
 
 const calls = vi.hoisted(() => ({
@@ -196,6 +206,33 @@ it("executes a script only on deliberate user click", async () => {
     expect(onRun).not.toHaveBeenCalled();
     await page.getByRole("button", { name: "Dev" }).click();
     expect(onRun).toHaveBeenCalledWith(script);
+  } finally {
+    await view.unmount();
+  }
+});
+
+it("reads repository actions from the active worktree on its owning machine", async () => {
+  calls.readFile.mockResolvedValue({ contents: '{"scripts":[]}', truncated: false });
+  const view = await render(
+    <WorkspaceProjectScripts
+      project={{
+        id: ProjectId.make("project"),
+        environmentId: EnvironmentId.make("remote"),
+        name: "Project",
+        cwd: "/root",
+        defaultModelSelection: null,
+        expanded: true,
+        scripts: [],
+      }}
+      cwd="/worktree"
+      keybindings={[]}
+      onRunScript={vi.fn()}
+    />,
+  );
+  try {
+    await expect.poll(() => calls.readFile.mock.calls.length).toBe(1);
+    expect(calls.readFile).toHaveBeenCalledWith({ cwd: "/worktree", relativePath: "t3.json" });
+    expect(calls.environment).toHaveBeenCalledWith("remote");
   } finally {
     await view.unmount();
   }

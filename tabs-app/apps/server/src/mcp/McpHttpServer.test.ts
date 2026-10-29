@@ -825,6 +825,17 @@ it.effect(
         expect(actTool?.tool.annotations?.destructiveHint).toBe(true);
         expect(actTool?.tool.annotations?.openWorldHint).toBe(true);
 
+        // Keep the legacy action's presentation contract while it remains advertised.
+        const clickTool = server.tools.find(({ tool }) => tool.name === "preview_click");
+        expect(clickTool?.tool.annotations?.readOnlyHint).toBe(false);
+        expect(clickTool?.tool.annotations?.destructiveHint).toBe(true);
+        expect(clickTool?.tool.annotations?.openWorldHint).toBe(true);
+        expect((clickTool?.tool as any).outputSchema).toMatchObject({
+          type: "object",
+          additionalProperties: true,
+          description: "The preview action completed successfully.",
+        });
+
         const navigateTool = server.tools.find(({ tool }) => tool.name === "preview_navigate");
         expect(navigateTool?.tool.annotations?.destructiveHint).toBe(false);
         expect(navigateTool?.tool.annotations?.openWorldHint).toBe(true);
@@ -905,6 +916,47 @@ it.effect(
         }
       }),
     ).pipe(Effect.provide(layerTest)) as any,
+);
+
+it.effect(
+  "denies every consolidated preview action without preview capability or a thread caller",
+  () =>
+    Effect.gen(function* () {
+      const server = yield* McpServer.McpServer;
+      const actions = [
+        { action: "click", x: 10, y: 10 },
+        { action: "type", text: "hello" },
+        { action: "press", key: "Enter" },
+        { action: "scroll", deltaY: 100 },
+        { action: "hover", x: 10, y: 10 },
+        { action: "select", selector: "select", values: ["option"] },
+        { action: "drag", source: "#source", target: "#target" },
+        { action: "upload", paths: [] },
+      ];
+      const callers = [
+        {
+          ...invocation,
+          capabilities: new Set<McpInvocationContext.McpCapability>(),
+        },
+        { ...invocation, thread: undefined },
+      ];
+
+      for (const caller of callers) {
+        for (const arguments_ of actions) {
+          const result = yield* server
+            .callTool({ name: "preview_act", arguments: arguments_ })
+            .pipe(
+              Effect.provideService(McpInvocationContext.McpInvocationContext, caller),
+              Effect.provideService(McpSchema.McpServerClient, client),
+            );
+          expect(result.isError, JSON.stringify(arguments_)).toBe(true);
+          const text = result.content[0];
+          expect(text?.type === "text" ? text.text : "", JSON.stringify(arguments_)).toContain(
+            "preview capability",
+          );
+        }
+      }
+    }).pipe(Effect.provide(layerTest)) as any,
 );
 
 it.effect(

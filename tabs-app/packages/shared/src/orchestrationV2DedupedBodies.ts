@@ -183,3 +183,29 @@ export function restoreSnapshotBodies(
   const source = snapshotBodySource(projection);
   return mapLocalTurnItems(projection, (item) => restoreTurnItemBodies(item, source));
 }
+
+/** Omission markers are transport-only; no incomplete body may reach storage or the UI. */
+export function hasOmittedBodies(value: object): boolean {
+  return ["textOmitted", "filesOmitted", "promptOmitted", "resultOmitted"].some(
+    (key) => key in value && Reflect.get(value, key) === true,
+  );
+}
+
+export function turnItemBodySourceKey(item: OrchestrationV2TurnItem): string | null {
+  switch (item.type) {
+    case "assistant_message":
+    case "user_message":
+      return `message:${item.messageId}`;
+    case "checkpoint":
+      return `checkpoint:${item.checkpointId}`;
+    case "subagent":
+      return `subagent:${item.subagentId}`;
+    default:
+      return null;
+  }
+}
+
+export function stripBodySourceSequence<T extends object>(value: T): T {
+  const { bodySourceSequence: _, ...rest } = value as T & { bodySourceSequence?: number };
+  return rest as T;
+}

@@ -144,12 +144,15 @@ it("delegates with provider and model chooser, preserving permissions and stoppi
     });
 
     await page.getByRole("button", { name: "Stop", exact: true }).click();
-    await expect.poll(() => fixture.dispatch.mock.calls.length).toBe(2);
+    await expect.poll(() => fixture.dispatch.mock.calls.length).toBe(3);
     expect(fixture.dispatch.mock.calls[1]![0]).toMatchObject({
-      type: "run.interrupt",
+      type: "delegated_task.completion-delivery.dispose",
+      parentThreadId: parent,
+      taskId: "task",
+    });
+    expect(fixture.dispatch.mock.calls[2]![0]).toMatchObject({
+      type: "thread.stop",
       threadId: child,
-      runId: "child-run",
-      holdQueue: true,
     });
   } finally {
     await view.unmount();
@@ -319,6 +322,119 @@ it("merges a completed fork into its parent even though the parent is outside fa
       }),
     );
     expect(open).toHaveBeenCalledWith(target);
+  } finally {
+    await view.unmount();
+  }
+});
+
+it("keeps disconnected relatives and unlinked provider records visible together", async () => {
+  const related = {
+    id: ThreadId.make("disconnected"),
+    title: "Recovered relative",
+    status: "idle",
+    activityRunStatus: null,
+    lineage: {
+      parentThreadId: ThreadId.make("deleted-ancestor"),
+      rootThreadId: parent,
+      relationshipToParent: "subagent",
+    },
+    forkedFrom: null,
+    archivedAt: null,
+    modelSelection: null,
+  } as unknown as OrchestrationV2ThreadShell;
+  fixture.family.mockResolvedValueOnce({ snapshotSequence: 1, threads: [related] });
+  const base = context(false);
+  const nativeRecord = {
+    ...base.subagents[0]!,
+    id: NodeId.make("native-unlinked"),
+    childThreadId: null,
+    origin: "provider_native" as const,
+    title: "Provider background check",
+  };
+  const open = vi.fn();
+  const view = await render(
+    <WorkspaceAgents
+      context={{ ...base, subagents: [...base.subagents, nativeRecord] }}
+      onOpenThread={open}
+    />,
+  );
+  try {
+    await page.getByRole("button", { name: /Sub-agents/ }).click();
+    await expect
+      .element(page.getByText("Provider background check", { exact: true }))
+      .toBeInTheDocument();
+    await expect
+      .element(page.getByText("Related conversation", { exact: true }))
+      .toBeInTheDocument();
+    await page.getByRole("button", { name: "Recovered relative" }).click();
+    expect(open).toHaveBeenCalledWith(related.id);
+  } finally {
+    await view.unmount();
+  }
+});
+
+it("stops a pending child and disposes its completion wake without reading a run", async () => {
+  fixture.dispatch.mockClear();
+  fixture.projection.mockClear();
+  fixture.family.mockResolvedValueOnce({ snapshotSequence: 1, threads: [] });
+  const base = context(false);
+  const view = await render(
+    <WorkspaceAgents
+      context={{ ...base, subagents: [{ ...base.subagents[0]!, status: "pending" }] }}
+      onOpenThread={() => {}}
+    />,
+  );
+  try {
+    await page.getByRole("button", { name: /Sub-agents/ }).click();
+    await page.getByRole("button", { name: "Stop", exact: true }).click();
+    await expect.poll(() => fixture.dispatch.mock.calls.length).toBe(2);
+    expect(fixture.dispatch.mock.calls.map(([command]) => command)).toMatchObject([
+      {
+        type: "delegated_task.completion-delivery.dispose",
+        parentThreadId: parent,
+        taskId: "task",
+      },
+      { type: "thread.stop", threadId: child },
+    ]);
+    expect(fixture.projection).not.toHaveBeenCalled();
+  } finally {
+    await view.unmount();
+  }
+});
+
+it("keeps the delegation dialog bound to the run that opened it", async () => {
+  fixture.dispatch.mockClear();
+  fixture.family.mockResolvedValueOnce({ snapshotSequence: 1, threads: [] });
+  const base = context(true);
+  const view = await render(<WorkspaceAgents context={base} onOpenThread={() => {}} />);
+  try {
+    await page.getByRole("button", { name: /Sub-agents/ }).click();
+    await page.getByRole("button", { name: "Delegate task", exact: true }).click();
+    await page.getByRole("textbox", { name: "Task", exact: true }).fill("Review the original run");
+    const next = { ...base, runs: [{ ...base.runs[0]!, id: RunId.make("newer-run"), ordinal: 2 }] };
+    await view.rerender(<WorkspaceAgents context={next} onOpenThread={() => {}} />);
+    await page.getByRole("button", { name: "Delegate", exact: true }).click();
+    await expect.element(page.getByRole("alert")).toHaveTextContent("The parent run has ended");
+    expect(fixture.dispatch).not.toHaveBeenCalled();
+  } finally {
+    await view.unmount();
+  }
+});
+
+it("retries an unchanged delegation with the same command id after a transport failure", async () => {
+  fixture.dispatch.mockClear();
+  fixture.dispatch.mockRejectedValueOnce(new Error("Connection interrupted"));
+  fixture.family.mockResolvedValueOnce({ snapshotSequence: 1, threads: [] });
+  const view = await render(<WorkspaceAgents context={context(true)} onOpenThread={() => {}} />);
+  try {
+    await page.getByRole("button", { name: /Sub-agents/ }).click();
+    await page.getByRole("button", { name: "Delegate task", exact: true }).click();
+    await page.getByRole("textbox", { name: "Task", exact: true }).fill("Review once");
+    await page.getByRole("button", { name: "Delegate", exact: true }).click();
+    await expect.element(page.getByRole("alert")).toHaveTextContent("Connection interrupted");
+    await page.getByRole("button", { name: "Delegate", exact: true }).click();
+    await expect.poll(() => fixture.dispatch.mock.calls.length).toBe(2);
+    expect(fixture.dispatch.mock.calls[1]![0]).toEqual(fixture.dispatch.mock.calls[0]![0]);
   } finally {
     await view.unmount();
   }

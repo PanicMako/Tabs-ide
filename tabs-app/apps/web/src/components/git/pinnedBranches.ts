@@ -82,10 +82,10 @@ export function togglePinnedBranch(
 ): { branches: string[]; action: "pinned" | "unpinned" | "limit_reached" } {
   const trimmed = branchName.trim();
   if (!trimmed) return { branches: current, action: "unpinned" };
-  const norm = trimmed.toLowerCase();
-  const exists = current.some((b) => b.toLowerCase() === norm);
+  const norm = trimmed;
+  const exists = current.some((b) => b === norm);
   if (exists) {
-    const next = current.filter((b) => b.toLowerCase() !== norm);
+    const next = current.filter((b) => b !== norm);
     savePinnedBranches(gitScopeKey, next);
     return { branches: next, action: "unpinned" };
   }

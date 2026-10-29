@@ -6,7 +6,7 @@ import {
 } from "@tabs/contracts";
 import * as DateTime from "effect/DateTime";
 
-export type ThreadRelationshipKind = "parent" | "fork" | "subagent" | "transfer";
+export type ThreadRelationshipKind = "parent" | "fork" | "subagent" | "transfer" | "family";
 
 export interface ThreadRelationshipNode {
   readonly threadId: ThreadId;
@@ -201,7 +201,9 @@ export function isParentThreadRelationship(
   edge: ThreadRelationshipEdge,
   currentThreadId: ThreadId,
 ): boolean {
-  return edge.kind !== "transfer" && edge.targetThreadId === currentThreadId;
+  return (
+    edge.kind !== "transfer" && edge.kind !== "family" && edge.targetThreadId === currentThreadId
+  );
 }
 
 export function threadRelationshipRowStatus(

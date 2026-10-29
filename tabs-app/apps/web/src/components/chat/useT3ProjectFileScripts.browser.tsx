@@ -1,5 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render } from "vitest-browser-react";
+import { render as renderComponent } from "vitest-browser-react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactElement } from "react";
+const render = (element: ReactElement) =>
+  renderComponent(
+    <QueryClientProvider
+      client={new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })}
+    >
+      {element}
+    </QueryClientProvider>,
+  );
 import { useState } from "react";
 import { page } from "vitest/browser";
 import {
