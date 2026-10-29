@@ -57,21 +57,17 @@ it("exports provider-compatible object schemas with described parameters", () =>
 });
 
 it("exports exact object result schemas for preview actions", () => {
-  const actionNames = [
-    "preview_click",
-    "preview_type",
-    "preview_press",
-    "preview_scroll",
-    "preview_wait_for",
-  ] as const;
-  for (const name of actionNames) {
-    // Effect's tool schemas follow the decoder default since rc.113 and leave
-    // unmodeled result keys open.
-    expect(Tool.getJsonSchemaFromSchema(PreviewToolkit.tools[name].successSchema)).toEqual({
+  expect(Tool.getJsonSchemaFromSchema(PreviewToolkit.tools.preview_wait_for.successSchema)).toEqual(
+    {
       type: "object",
       properties: { toolIcon: expect.any(Object) },
       additionalProperties: false,
       description: "The preview action completed successfully.",
-    });
-  }
+    },
+  );
+  const actSchema = Tool.getJsonSchemaFromSchema(
+    PreviewToolkit.tools.preview_act.successSchema,
+  ) as any;
+  expect(actSchema.anyOf).toBeDefined();
+  expect(actSchema.anyOf).toHaveLength(2);
 });

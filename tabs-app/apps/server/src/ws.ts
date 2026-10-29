@@ -1,3 +1,10 @@
+import { readThreadFamilyPage } from "./orchestration-v2/ThreadFamilyQuery.ts";
+import type { OrchestrationV2ThreadStreamItem } from "@tabs/contracts";
+import { dedupeSnapshotBodies } from "@tabs/shared/orchestrationV2DedupedBodies";
+import {
+  omitProviderWorkspaceSnapshots,
+  scopedProviderWorkspaceSnapshots,
+} from "@tabs/shared/providerWorkspaceSnapshots";
 import { makeWorkspaceCompatibilityHandlers } from "./workspaceCompatibilityHandlers.ts";
 import { makeGitCore } from "./git/Layers/GitCore.ts";
 import { GitEnvironment } from "./git/Services/GitEnvironment.ts";
@@ -71,6 +78,7 @@ import {
   OrchestrationV2RecordCancellationIntentError,
   type OrchestrationProjectShell,
   type OrchestrationV2ShellSnapshot,
+  type ApplicationStoredEvent,
   type ProjectEntriesFailure,
   type ProjectFileFailure,
   type ProjectFileOperation,
@@ -141,10 +149,13 @@ import {
   coalesceStoredThreadEvents,
   composeShellStreamWithEnrichment,
   dedupeShellEnrichment,
+  loadOlderSettledThreadsPage,
+  shellSnapshotForSubscriber,
   shellStreamItemFromEnrichmentRefresh,
   shellStreamItemFromThreadShell,
   shellStreamItemsFromInitialSnapshot,
   shellStreamItemsFromResumeSnapshot,
+  shouldPublishShellApplicationEvent,
   skipUnchangedThreadShells,
   toShellApplicationEvent,
   type ShellApplicationEvent,
@@ -167,6 +178,7 @@ import {
 import {
   projectDomainEventForWire,
   projectThreadProjectionForWire,
+  makeLiveBodyDeduper,
 } from "./orchestration-v2/WireProjection.ts";
 import * as ProjectStore from "./orchestration-v2/ProjectStore.ts";
 import * as ThreadSearch from "./orchestration-v2/ThreadSearch.ts";
@@ -763,7 +775,12 @@ export const subscribeOrchestrationV2Thread = Effect.fn("ws.orchestrationV2.subs
     readonly afterSequence?: number;
     readonly requestCompletionMarker?: boolean;
     readonly acceptBoundedSnapshot?: boolean;
+    readonly acceptDedupedBodies?: boolean;
+    readonly acceptVersionedLiveBodies?: boolean;
   }) {
+    const deduper = makeLiveBodyDeduper(true);
+    const projectLiveItem = (item: OrchestrationV2ThreadStreamItem) =>
+      input.acceptDedupedBodies && input.acceptVersionedLiveBodies ? deduper(item) : item;
     const threadManagement = yield* ThreadManagementService.ThreadManagementService;
     const applicationEvents = yield* OrchestrationEventStore.OrchestrationEventStore;
 
@@ -865,7 +882,7 @@ export const subscribeOrchestrationV2Thread = Effect.fn("ws.orchestrationV2.subs
       return Stream.concat(
         Stream.concat(rpcInitialItems([snapshotItem]), completionMarker),
         eventStreamFrom(snapshotSequence),
-      );
+      ).pipe(Stream.map(projectLiveItem));
     });
 
     // When the client already holds the projection (cached, or loaded over
@@ -942,7 +959,7 @@ export const subscribeOrchestrationV2Thread = Effect.fn("ws.orchestrationV2.subs
       return Stream.concat(
         Stream.concat(rpcInitialItems(replay), completionMarker),
         eventStreamFrom(highWater),
-      );
+      ).pipe(Stream.map(projectLiveItem));
     }
 
     return yield* snapshotThenLive();
@@ -953,6 +970,8 @@ export const subscribeOrchestrationV2Shell = Effect.fn("ws.orchestrationV2.subsc
   function* (input: {
     readonly afterSequence?: number;
     readonly requestCompletionMarker?: boolean;
+    readonly omitIdleSubagents?: boolean;
+    readonly omitOlderSettled?: boolean;
   }) {
     const sql = yield* SqlClient.SqlClient;
     const threadManagement = yield* ThreadManagementService.ThreadManagementService;
@@ -960,6 +979,9 @@ export const subscribeOrchestrationV2Shell = Effect.fn("ws.orchestrationV2.subsc
     const projects = yield* ProjectStore.ProjectStoreV2;
     const projectService = yield* ProjectService.ProjectService;
     const projectEnrichment = yield* ProjectEnrichmentService.ProjectEnrichmentService;
+    let subagentThreadIds = new Set<string>();
+    const filterSubagentTranscript = (stored: ApplicationStoredEvent) =>
+      shouldPublishShellApplicationEvent(stored, subagentThreadIds);
 
     const enrichmentChanges = yield* projectEnrichment.subscribeChanges;
     const loadProjectMetadataSnapshot = Effect.fn("ws.orchestrationV2.loadProjectMetadataSnapshot")(
@@ -988,9 +1010,18 @@ export const subscribeOrchestrationV2Shell = Effect.fn("ws.orchestrationV2.subsc
           });
         }),
       );
+      const forSubscriber = shellSnapshotForSubscriber(base, {
+        omitIdleSubagents: input.omitIdleSubagents === true,
+        omitOlderSettled: input.omitOlderSettled === true,
+        now: yield* DateTime.now,
+      });
+      subagentThreadIds = forSubscriber.subagentThreadIds;
       const enriched = yield* enrichProjectShells(base.projects);
       return {
-        snapshot: { ...base, projects: enriched.projects } as OrchestrationV2ShellSnapshot,
+        snapshot: {
+          ...forSubscriber.snapshot,
+          projects: enriched.projects,
+        } as OrchestrationV2ShellSnapshot,
         resolvedRepositoryIdentityRoots: enriched.resolvedRepositoryIdentityRoots,
       };
     });
@@ -1054,6 +1085,7 @@ export const subscribeOrchestrationV2Shell = Effect.fn("ws.orchestrationV2.subsc
           applicationEvents.streamProjectedApplicationEvents({
             afterSequence,
             project: toShellApplicationEvent,
+            filter: filterSubagentTranscript,
           }),
         ),
       );
@@ -1745,6 +1777,8 @@ const layerWsRpc = (
               },
               settings,
               shellResumeCompletionMarker: true,
+              shellThreadFamilies: true,
+              shellOlderSettled: true,
               threadResumeCompletionMarker: true,
               threadSnapshotPagination: true,
               ...Option.match(scratchWorkspaceRoot, {
@@ -1962,6 +1996,34 @@ const layerWsRpc = (
             observeRpcEffect(
               ORCHESTRATION_V2_WS_METHODS.getArchivedShellSnapshot,
               getOrchestrationV2ArchivedShellSnapshot,
+              { "rpc.aggregate": "orchestration" },
+            ),
+          [ORCHESTRATION_V2_WS_METHODS.getThreadFamily]: (input) =>
+            observeRpcEffect(
+              ORCHESTRATION_V2_WS_METHODS.getThreadFamily,
+              readThreadFamilyPage(input),
+              {
+                "rpc.aggregate": "orchestration",
+                "orchestration_v2.thread_id": input.threadId,
+              },
+            ),
+          [ORCHESTRATION_V2_WS_METHODS.getOlderSettledThreads]: (input) =>
+            observeRpcEffect(
+              ORCHESTRATION_V2_WS_METHODS.getOlderSettledThreads,
+              loadOlderSettledThreadsPage({
+                sql,
+                listThreads: threadManagement.listOlderSettledThreads(input),
+                getShellSnapshot: (options) => threadManagement.getShellSnapshot(options),
+                latestSequence: applicationEvents.latestApplicationSequence,
+              }).pipe(
+                Effect.mapError(
+                  (cause) =>
+                    new OrchestrationV2GetShellSnapshotError({
+                      message: "Failed to load older settled threads",
+                      cause,
+                    }),
+                ),
+              ),
               { "rpc.aggregate": "orchestration" },
             ),
           [ORCHESTRATION_V2_WS_METHODS.getThreadProjection]: (input) =>

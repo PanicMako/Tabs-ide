@@ -1,7 +1,13 @@
-import type { ProjectScript, ProjectScriptIcon, ResolvedKeybindingsConfig } from "@tabs/contracts";
+import type {
+  ProjectScript,
+  ProjectScriptIcon,
+  ResolvedKeybindingsConfig,
+  T3ProjectFileScript,
+} from "@tabs/contracts";
 import {
   BugIcon,
   ChevronDownIcon,
+  DownloadIcon,
   FlaskConicalIcon,
   HammerIcon,
   ListChecksIcon,
@@ -45,7 +51,16 @@ import {
 import { Group, GroupSeparator } from "./ui/group";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
-import { Menu, MenuItem, MenuPopup, MenuShortcut, MenuTrigger } from "./ui/menu";
+import {
+  Menu,
+  MenuGroup,
+  MenuGroupLabel,
+  MenuItem,
+  MenuPopup,
+  MenuSeparator,
+  MenuShortcut,
+  MenuTrigger,
+} from "./ui/menu";
 import { Popover, PopoverPopup, PopoverTrigger } from "./ui/popover";
 import { Switch } from "./ui/switch";
 import { Textarea } from "./ui/textarea";
@@ -83,7 +98,9 @@ export interface NewProjectScriptInput {
 }
 
 interface ProjectScriptsControlProps {
+  displayMode?: "toolbar" | "panel";
   scripts: ProjectScript[];
+  fileScripts?: ReadonlyArray<T3ProjectFileScript>;
   keybindings: ResolvedKeybindingsConfig;
   preferredScriptId?: string | null;
   onRunScript: (script: ProjectScript) => void;
@@ -144,7 +161,9 @@ function keybindingFromEvent(event: KeyboardEvent<HTMLInputElement>): string | n
 }
 
 export default function ProjectScriptsControl({
+  displayMode = "toolbar",
   scripts,
+  fileScripts = [],
   keybindings,
   preferredScriptId = null,
   onRunScript,
@@ -163,6 +182,19 @@ export default function ProjectScriptsControl({
   const [keybinding, setKeybinding] = useState("");
   const [validationError, setValidationError] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+
+  const importableScripts = useMemo(
+    () =>
+      (fileScripts ?? []).filter(
+        (fileScript) =>
+          !scripts.some(
+            (script) =>
+              script.command === fileScript.command ||
+              script.name.toLowerCase() === fileScript.name.toLowerCase(),
+          ),
+      ),
+    [fileScripts, scripts],
+  );
 
   const primaryScript = useMemo(() => {
     if (preferredScriptId) {
@@ -328,6 +360,105 @@ export default function ProjectScriptsControl({
                   </MenuItem>
                 );
               })}
+              {importableScripts.length > 0 && (
+                <>
+                  {scripts.length > 0 && <MenuSeparator />}
+                  <MenuGroup>
+                    <MenuGroupLabel className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+                      From t3.json
+                    </MenuGroupLabel>
+                    {importableScripts.map((fileScript) => (
+                      <MenuItem
+                        key={`${fileScript.name} ${fileScript.command}`}
+                        className={`group ${dropdownItemClassName}`}
+                        onClick={async () => {
+                          try {
+                            await onAddScript({
+                              name: fileScript.name,
+                              command: fileScript.command,
+                              icon: fileScript.icon ?? "play",
+                              runOnWorktreeCreate: fileScript.runOnWorktreeCreate ?? false,
+                              keybinding: null,
+                            });
+                          } catch (error) {
+                            setValidationError(
+                              error instanceof Error ? error.message : "Failed to import action.",
+                            );
+                            setDialogOpen(true);
+                          }
+                        }}
+                      >
+                        <ScriptIcon icon={fileScript.icon ?? "play"} className="size-4" />
+                        <span className="truncate">{fileScript.name}</span>
+                        <MenuShortcut className="ms-auto">
+                          <DownloadIcon className="size-3.5" aria-label="Import" />
+                        </MenuShortcut>
+                      </MenuItem>
+                    ))}
+                  </MenuGroup>
+                </>
+              )}
+              <MenuItem className={dropdownItemClassName} onClick={openAddDialog}>
+                <PlusIcon className="size-4" />
+                Add project script
+              </MenuItem>
+            </MenuPopup>
+          </Menu>
+        </Group>
+      ) : importableScripts.length > 0 ? (
+        <Group aria-label="Project scripts" className={displayMode === "panel" ? "w-full" : ""}>
+          <Menu highlightItemOnHover={false}>
+            <MenuTrigger
+              render={
+                <Button
+                  size="xs"
+                  variant="outline"
+                  className={displayMode === "panel" ? "w-full justify-between" : undefined}
+                  aria-label="Script actions"
+                />
+              }
+            >
+              <span className="flex items-center gap-1.5 truncate">
+                <PlayIcon className="size-3.5" />
+                <span>Project scripts</span>
+              </span>
+              <ChevronDownIcon className="size-4 ml-1 shrink-0" />
+            </MenuTrigger>
+            <MenuPopup align={displayMode === "panel" ? "start" : "end"}>
+              <MenuGroup>
+                <MenuGroupLabel className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+                  From t3.json
+                </MenuGroupLabel>
+                {importableScripts.map((fileScript) => (
+                  <MenuItem
+                    key={`${fileScript.name} ${fileScript.command}`}
+                    className={`group ${dropdownItemClassName}`}
+                    onClick={async () => {
+                      try {
+                        await onAddScript({
+                          name: fileScript.name,
+                          command: fileScript.command,
+                          icon: fileScript.icon ?? "play",
+                          runOnWorktreeCreate: fileScript.runOnWorktreeCreate ?? false,
+                          keybinding: null,
+                        });
+                      } catch (error) {
+                        setValidationError(
+                          error instanceof Error ? error.message : "Failed to import action.",
+                        );
+                        setDialogOpen(true);
+                      }
+                    }}
+                  >
+                    <ScriptIcon icon={fileScript.icon ?? "play"} className="size-4" />
+                    <span className="truncate">{fileScript.name}</span>
+                    <MenuShortcut className="ms-auto">
+                      <DownloadIcon className="size-3.5" aria-label="Import" />
+                    </MenuShortcut>
+                  </MenuItem>
+                ))}
+              </MenuGroup>
+              <MenuSeparator />
               <MenuItem className={dropdownItemClassName} onClick={openAddDialog}>
                 <PlusIcon className="size-4" />
                 Add action

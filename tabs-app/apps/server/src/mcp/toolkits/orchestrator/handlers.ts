@@ -1,3 +1,4 @@
+import { OrchestratorMcpFailure } from "@tabs/contracts";
 import { OrchestratorToolkit } from "./tools.ts";
 import * as Effect from "effect/Effect";
 
@@ -6,11 +7,11 @@ import * as OrchestratorMcpService from "../../OrchestratorMcpService.ts";
 import * as ThreadMetadataMcpService from "../../ThreadMetadataMcpService.ts";
 
 const handlers = {
-  orchestrator_capabilities: () =>
+  orchestrator_capabilities: (input) =>
     Effect.gen(function* () {
       const scope = yield* McpInvocationContext.McpInvocationContext;
       const service = yield* OrchestratorMcpService.OrchestratorMcpService;
-      return yield* service.capabilities(scope);
+      return yield* service.capabilities(scope, input);
     }),
   delegate_task: (input) =>
     Effect.gen(function* () {
@@ -34,19 +35,36 @@ const handlers = {
     Effect.gen(function* () {
       const scope = yield* McpInvocationContext.McpInvocationContext;
       const service = yield* OrchestratorMcpService.OrchestratorMcpService;
-      return yield* service.scheduleTask(scope, input);
+      if (input.scheduledTaskId !== undefined) {
+        return yield* service.updateScheduledTask(scope, {
+          scheduledTaskId: input.scheduledTaskId,
+          prompt: input.prompt,
+          title: input.title,
+          schedule: input.schedule,
+          enabled: input.enabled,
+          bindToCurrentThread: input.bindToCurrentThread,
+        });
+      }
+      if (input.prompt === undefined || input.schedule === undefined) {
+        return yield* new OrchestratorMcpFailure({
+          code: "invalid_request",
+          message: "A new scheduled task needs `prompt` and `schedule`.",
+        });
+      }
+      return yield* service.scheduleTask(scope, {
+        prompt: input.prompt,
+        schedule: input.schedule,
+        title: input.title,
+        enabled: input.enabled,
+        bindToCurrentThread: input.bindToCurrentThread,
+        projectId: input.projectId,
+      });
     }),
   list_scheduled_tasks: (input) =>
     Effect.gen(function* () {
       const scope = yield* McpInvocationContext.McpInvocationContext;
       const service = yield* OrchestratorMcpService.OrchestratorMcpService;
       return yield* service.listScheduledTasks(scope, input);
-    }),
-  update_scheduled_task: (input) =>
-    Effect.gen(function* () {
-      const scope = yield* McpInvocationContext.McpInvocationContext;
-      const service = yield* OrchestratorMcpService.OrchestratorMcpService;
-      return yield* service.updateScheduledTask(scope, input);
     }),
   delete_scheduled_task: (input) =>
     Effect.gen(function* () {

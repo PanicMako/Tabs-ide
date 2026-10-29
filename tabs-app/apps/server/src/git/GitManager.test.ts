@@ -4618,6 +4618,8 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
             baseRefName: "main",
             headRefName: "feature/resolve-pr",
             state: "open",
+            isDraft: true,
+            headRepositoryNameWithOwner: "contributor/fork",
           },
         },
       });
@@ -4628,12 +4630,15 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       });
 
       expect(result.pullRequest).toEqual({
+        provider: "github",
         number: 42,
         title: "Resolve PR",
         url: "https://github.com/pingdotgg/codething-mvp/pull/42",
         baseBranch: "main",
         headBranch: "feature/resolve-pr",
         state: "open",
+        isDraft: true,
+        headRepositoryNameWithOwner: "contributor/fork",
       });
       expect(ghCalls.some((call) => call.startsWith("pr view 42 "))).toBe(true);
     }),

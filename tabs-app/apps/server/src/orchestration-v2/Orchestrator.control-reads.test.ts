@@ -624,3 +624,122 @@ it.effect("keeps delegated child pull-request links independent of the parent", 
     assert.deepEqual(parentAfterChildLink.thread.pullRequests, parent.thread.pullRequests);
   }).pipe(Effect.provide(layerTest)),
 );
+it.effect(
+  "accepts user delegation from workspace controls and preserves inherited safety policy",
+  () =>
+    Effect.gen(function* () {
+      const orchestrator = yield* Orchestrator.OrchestratorV2;
+      const projections = yield* ProjectionStore.ProjectionStoreV2;
+      const threadId = ThreadId.make("thread:workspace-delegate");
+      yield* orchestrator.dispatch({
+        type: "thread.create",
+        commandId: CommandId.make("workspace-parent"),
+        threadId,
+        projectId: ProjectId.make("project:workspace-delegate"),
+        title: "Workspace task",
+        modelSelection,
+        runtimeMode: "approval-required",
+        interactionMode: "default",
+        branch: "feature/workspace",
+        worktreePath: null,
+        createdBy: "user",
+        creationSource: "web",
+      });
+      yield* orchestrator.dispatch({
+        type: "message.dispatch",
+        commandId: CommandId.make("workspace-start"),
+        threadId,
+        messageId: MessageId.make("workspace-message"),
+        text: "Work on the task",
+        attachments: [],
+        dispatchMode: { type: "start_immediately" },
+        createdBy: "user",
+        creationSource: "web",
+      });
+      const parent = yield* projections.getThreadProjection(threadId);
+      const run = parent.runs[0]!;
+      yield* orchestrator.dispatch({
+        type: "delegated_task.request",
+        commandId: CommandId.make("workspace-delegate"),
+        parentThreadId: threadId,
+        parentRunId: run.id,
+        parentNodeId: run.rootNodeId!,
+        task: "Review the API contract",
+        modelSelection: run.modelSelection,
+        runtimeMode: parent.thread.runtimeMode,
+        interactionMode: parent.thread.interactionMode,
+        completionWake: "always",
+        createdBy: "user",
+        creationSource: "web",
+      });
+      const updated = yield* projections.getThreadProjection(threadId);
+      const task = updated.subagents[0]!;
+      assert.equal(task.origin, "app_owned");
+      assert.equal(task.completionWake, "always");
+      const child = yield* projections.getThreadProjection(task.childThreadId!);
+      assert.equal(child.thread.lineage.parentThreadId, threadId);
+      assert.equal(child.thread.runtimeMode, "approval-required");
+      assert.equal(child.thread.creationSource, "web");
+      assert.deepEqual(child.thread.modelSelection, run.modelSelection);
+    }).pipe(Effect.provide(layerTest)),
+);
+
+it.effect(
+  "rejects delegated task targeting an unsupported provider adapter at the server boundary",
+  () =>
+    Effect.gen(function* () {
+      const orchestrator = yield* Orchestrator.OrchestratorV2;
+      const projections = yield* ProjectionStore.ProjectionStoreV2;
+      const threadId = ThreadId.make("thread:unsupported-delegate-target");
+      yield* orchestrator.dispatch({
+        type: "thread.create",
+        commandId: CommandId.make("parent-create"),
+        threadId,
+        projectId: ProjectId.make("project:unsupported-delegate"),
+        title: "Parent with unsupported child target",
+        modelSelection,
+        runtimeMode: "approval-required",
+        interactionMode: "default",
+        branch: "feature/delegate-target",
+        worktreePath: null,
+        createdBy: "user",
+        creationSource: "web",
+      });
+      yield* orchestrator.dispatch({
+        type: "message.dispatch",
+        commandId: CommandId.make("parent-run-start"),
+        threadId,
+        messageId: MessageId.make("parent-msg"),
+        text: "Start parent work",
+        attachments: [],
+        dispatchMode: { type: "start_immediately" },
+        createdBy: "user",
+        creationSource: "web",
+      });
+      const parent = yield* projections.getThreadProjection(threadId);
+      const run = parent.runs[0]!;
+      const result = yield* Effect.exit(
+        orchestrator.dispatch({
+          type: "delegated_task.request",
+          commandId: CommandId.make("invalid-target-delegate"),
+          parentThreadId: threadId,
+          parentRunId: run.id,
+          parentNodeId: run.rootNodeId!,
+          task: "Task on unknown provider",
+          modelSelection: {
+            instanceId: ProviderInstanceId.make("unknown-nonexistent-provider"),
+            model: "nonexistent-model",
+          },
+          runtimeMode: parent.thread.runtimeMode,
+          interactionMode: parent.thread.interactionMode,
+          completionWake: "always",
+          createdBy: "user",
+          creationSource: "web",
+        }),
+      );
+      assert.equal(result._tag, "Failure");
+      if (result._tag === "Failure") {
+        assert.ok(String(result.cause).includes("OrchestratorProviderAdapterError"));
+      }
+    }).pipe(Effect.provide(layerTest)),
+);

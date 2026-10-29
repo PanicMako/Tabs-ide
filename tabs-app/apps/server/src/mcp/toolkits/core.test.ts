@@ -333,8 +333,8 @@ it.effect(
       });
 
       const forked = yield* call(
-        "t3_thread_fork",
-        { sourcePoint: { type: "latest_stable" } },
+        "t3_thread_transfer",
+        { action: "fork", sourcePoint: { type: "latest_stable" } },
         clientScope("auto"),
       );
       expect(declaredFailure(forked)).toMatchObject({ code: "target_required" });
@@ -415,18 +415,20 @@ it.effect(
             Effect.provideService(McpInvocationContext.McpInvocationContext, clientScope("auto")),
             Effect.provideService(McpSchema.McpServerClient, client),
           );
-      const update = yield* call("update_scheduled_task", {
+      const update = yield* call("schedule_task", {
         scheduledTaskId: "task-full-access",
         prompt: "Run something else",
       });
       expect(declaredFailure(update)).toMatchObject({ code: "runtime_mode_escalation_denied" });
       const remove = yield* call("delete_scheduled_task", { scheduledTaskId: "task-full-access" });
       expect(declaredFailure(remove)).toMatchObject({ code: "runtime_mode_escalation_denied" });
-      const allowed = yield* call("update_scheduled_task", {
+      const allowed = yield* call("schedule_task", {
         scheduledTaskId: "task-auto",
         enabled: false,
       });
       expect(allowed.isError).toBe(false);
+      const incomplete = yield* call("schedule_task", { prompt: "Run nightly" });
+      expect(declaredFailure(incomplete)).toMatchObject({ code: "invalid_request" });
     }).pipe(
       Effect.provide(
         McpHttpServer.layerOrchestratorToolkit.pipe(

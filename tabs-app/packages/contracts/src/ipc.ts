@@ -1,3 +1,18 @@
+import type {
+  ScheduledTaskListResult,
+  ScheduledTaskUpsertInput,
+  ScheduledTaskSetEnabledInput,
+  ScheduledTaskDeleteInput,
+  ScheduledTaskDeleteResult,
+  ScheduledTaskRunNowInput,
+  ScheduledTaskRunNowResult,
+  ScheduledTaskMutationResult,
+  ScheduledTaskRotateWebhookTokenInput,
+  ScheduledTaskListWebhookDeliveriesInput,
+  ScheduledTaskListWebhookDeliveriesResult,
+  ScheduledTaskGetWebhookDeliveryInput,
+  ScheduledTaskGetWebhookDeliveryResult,
+} from "./scheduledTask.ts";
 import type { BrowserReadinessResult } from "./browserReadiness.ts";
 import type { BrowserComparisonInput } from "./browserComparison.ts";
 import type { NotificationToastPayload } from "./notificationOverlay.ts";
@@ -244,12 +259,16 @@ import type {
 } from "./orchestration.ts";
 import type {
   OrchestrationV2Command,
+  OrchestrationV2GetOlderSettledThreadsInput,
+  OrchestrationV2GetThreadFamilyInput,
   OrchestrationV2GetThreadProjectionInput,
+  OrchestrationV2OlderSettledThreadsPage,
   OrchestrationV2ReconcileIntakeInput,
   OrchestrationV2ReconcileIntakeResult,
   OrchestrationV2RecordCancellationIntentInput,
   OrchestrationV2RecordCancellationIntentResult,
   OrchestrationV2ShellStreamItem,
+  OrchestrationV2ThreadFamily,
   OrchestrationV2ThreadProjection,
   OrchestrationV2ThreadStreamItem,
 } from "./orchestrationV2.ts";
@@ -1665,6 +1684,26 @@ export interface LocalApi {
  * `environmentId` rather than reaching through the local desktop bridge.
  */
 export interface EnvironmentApi {
+  scheduledTasks: {
+    list: () => Promise<ScheduledTaskListResult>;
+    subscribe: (
+      callback: (value: ScheduledTaskListResult) => void,
+      onError: (error: Error) => void,
+    ) => () => void;
+    upsert: (input: ScheduledTaskUpsertInput) => Promise<ScheduledTaskMutationResult>;
+    setEnabled: (input: ScheduledTaskSetEnabledInput) => Promise<ScheduledTaskMutationResult>;
+    delete: (input: ScheduledTaskDeleteInput) => Promise<ScheduledTaskDeleteResult>;
+    runNow: (input: ScheduledTaskRunNowInput) => Promise<ScheduledTaskRunNowResult>;
+    rotateWebhookToken: (
+      input: ScheduledTaskRotateWebhookTokenInput,
+    ) => Promise<ScheduledTaskMutationResult>;
+    listWebhookDeliveries: (
+      input: ScheduledTaskListWebhookDeliveriesInput,
+    ) => Promise<ScheduledTaskListWebhookDeliveriesResult>;
+    getWebhookDelivery: (
+      input: ScheduledTaskGetWebhookDeliveryInput,
+    ) => Promise<ScheduledTaskGetWebhookDeliveryResult>;
+  };
   terminal: {
     open: (input: typeof TerminalOpenInput.Encoded) => Promise<TerminalSessionSnapshot>;
     attach: (
@@ -1765,6 +1804,12 @@ export interface EnvironmentApi {
       input: OrchestrationGetFullThreadDiffInput,
     ) => Promise<OrchestrationGetFullThreadDiffResult>;
     getArchivedShellSnapshot: () => Promise<OrchestrationShellSnapshot>;
+    getThreadFamily: (
+      input: OrchestrationV2GetThreadFamilyInput,
+    ) => Promise<OrchestrationV2ThreadFamily>;
+    getOlderSettledThreads: (
+      input: OrchestrationV2GetOlderSettledThreadsInput,
+    ) => Promise<OrchestrationV2OlderSettledThreadsPage>;
     getThreadProjection: (
       input: OrchestrationV2GetThreadProjectionInput,
     ) => Promise<OrchestrationV2ThreadProjection>;
@@ -1778,6 +1823,8 @@ export interface EnvironmentApi {
       callback: (event: OrchestrationV2ShellStreamItem) => void,
       options?: {
         onResubscribe?: () => void;
+        omitIdleSubagents?: boolean;
+        omitOlderSettled?: boolean;
       },
     ) => () => void;
     subscribeThread: (

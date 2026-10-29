@@ -46,6 +46,9 @@ function toChangeRequest(summary: GitHubCli.GitHubPullRequestSummary): ChangeReq
     ...(summary.headRepositoryOwnerLogin !== undefined
       ? { headRepositoryOwnerLogin: summary.headRepositoryOwnerLogin }
       : {}),
+    ...(summary.reviewDecision ? { reviewDecision: summary.reviewDecision } : {}),
+    ...(summary.checksState ? { checksState: summary.checksState } : {}),
+    ...(summary.mergeability ? { mergeability: summary.mergeability } : {}),
   };
 }
 

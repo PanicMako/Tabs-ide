@@ -508,6 +508,7 @@ describe("OrchestratorMcpService provider resolution", () => {
     readonly instanceId: ProviderInstanceId;
     readonly driver: ProviderDriverKind;
     readonly model?: string;
+    readonly models?: ServerProvider["models"];
     readonly enabled?: boolean;
   }): ServerProvider => ({
     instanceId: input.instanceId,
@@ -519,9 +520,10 @@ describe("OrchestratorMcpService provider resolution", () => {
     auth: { status: "authenticated" },
     checkedAt: "2026-09-13T00:00:00.000Z",
     models:
-      input.model === undefined
+      input.models ??
+      (input.model === undefined
         ? []
-        : [{ slug: input.model, name: input.model, isCustom: false, capabilities: null }],
+        : [{ slug: input.model, name: input.model, isCustom: false, capabilities: null }]),
     slashCommands: [],
     skills: [],
   });
@@ -606,7 +608,35 @@ describe("OrchestratorMcpService provider resolution", () => {
           providerSnapshot({
             instanceId: codexInstanceId,
             driver: ProviderDriverKind.make("codex"),
-            model: "gpt-5.4",
+            models: [
+              {
+                slug: "gpt-5.4",
+                name: "GPT-5.4",
+                isCustom: false,
+                isDefault: false,
+                capabilities: null,
+              },
+              {
+                slug: "gpt-5.6",
+                name: "GPT-5.6",
+                isCustom: false,
+                isDefault: true,
+                capabilities: null,
+              },
+              {
+                slug: "codex/custom-alpha",
+                name: "Custom Alpha",
+                aliases: ["SpecialAlias"],
+                isCustom: true,
+                capabilities: null,
+              },
+              {
+                slug: "gpt-5.3",
+                name: "GPT-5.3",
+                isCustom: false,
+                capabilities: null,
+              },
+            ],
           }),
           providerSnapshot({
             instanceId: ProviderInstanceId.make("claudeAgent"),
@@ -674,6 +704,38 @@ describe("OrchestratorMcpService provider resolution", () => {
               provider.models.map((model) => model.slug),
             );
           }
+
+          const codexCapabilities = byId.get(codexInstanceId)!;
+          assert.deepEqual(
+            codexCapabilities.models.map((model) => model.id),
+            ["gpt-5.4", "gpt-5.6", "codex/custom-alpha", "gpt-5.3"],
+            "a no-argument call must preserve the complete current catalog",
+          );
+          assert.equal(codexCapabilities.totalModels, 4);
+          assert.isFalse(codexCapabilities.hasMoreModels);
+
+          const page = yield* service.capabilities(scope, { includeAll: false, limit: 2 });
+          const codexPage = page.providers.find(
+            (provider) => provider.providerInstanceId === codexInstanceId,
+          );
+          assert.deepEqual(
+            codexPage?.models.map((model) => model.id),
+            ["gpt-5.4", "gpt-5.6"],
+          );
+          assert.equal(codexPage?.totalModels, 4);
+          assert.isTrue(codexPage?.hasMoreModels);
+          assert.equal(codexPage?.nextOffset, 2);
+
+          const search = yield* service.capabilities(scope, { search: "specialalias", limit: 1 });
+          const codexSearch = search.providers.find(
+            (provider) => provider.providerInstanceId === codexInstanceId,
+          );
+          assert.deepEqual(
+            codexSearch?.models.map((model) => model.id),
+            ["codex/custom-alpha"],
+          );
+          assert.equal(codexSearch?.totalModels, 4);
+          assert.isFalse(codexSearch?.hasMoreModels);
 
           providers = providers.map((provider) => ({
             ...provider,

@@ -133,6 +133,10 @@ import { basenameOfPath } from "../vscode-icons";
 import { useTheme } from "../hooks/useTheme";
 import { useTurnDiffSummaries } from "../hooks/useTurnDiffSummaries";
 import { useConfirm } from "~/hooks/useConfirm";
+import { WorkspaceAgents, type WorkspaceAgentContext } from "./chat/WorkspaceAgents";
+import { WorkspaceProjectScripts } from "./chat/WorkspaceProjectScripts";
+import type { Project } from "../types";
+import { workspaceShellActions } from "../state/workspaceShell";
 import BranchToolbar from "./BranchToolbar";
 import { resolveShortcutCommand, shortcutLabelForCommand } from "../keybindings";
 import PlanSidebar from "./PlanSidebar";
@@ -1272,18 +1276,29 @@ export default function ChatView({
   const diffOpen = propDiffOpen !== undefined ? propDiffOpen : rawSearch.diff === "1";
   const activeThreadId = activeThread?.id ?? null;
   const projectionRef = useRef<OrchestrationV2ThreadProjection | null>(null);
+  const [workspaceAgentContext, setWorkspaceAgentContext] = useState<WorkspaceAgentContext | null>(
+    null,
+  );
   const projectionKey = JSON.stringify([environmentId, activeThreadId]);
   const [loadedProjectionKey, setLoadedProjectionKey] = useState<string | null>(null);
   useEffect(() => {
     if (!threadApi || !activeThreadId || !isServerThread) {
       projectionRef.current = null;
+      setWorkspaceAgentContext(null);
       return;
     }
+    let disposed = false;
     const unsubscribe = threadApi.orchestration.subscribeThread(
       { threadId: activeThreadId, acceptBoundedSnapshot: true },
       (item) => {
         if ("kind" in item && item.kind === "snapshot") {
           projectionRef.current = item.projection;
+          setWorkspaceAgentContext({
+            thread: item.projection.thread,
+            runs: item.projection.runs,
+            subagents: item.projection.subagents,
+            contextTransfers: item.projection.contextTransfers,
+          });
           setLoadedProjectionKey(projectionKey);
           applyThreadProjectionToAtoms(item.projection, environmentId);
         } else if ("kind" in item && item.kind === "event") {
@@ -1292,6 +1307,18 @@ export default function ChatView({
             const next = applyOrchestrationV2ProjectionEvent(current, item.event);
             projectionRef.current = next;
             if (next) {
+              if (
+                next.subagents !== current.subagents ||
+                next.runs !== current.runs ||
+                next.thread !== current.thread ||
+                next.contextTransfers !== current.contextTransfers
+              )
+                setWorkspaceAgentContext({
+                  thread: next.thread,
+                  runs: next.runs,
+                  subagents: next.subagents,
+                  contextTransfers: next.contextTransfers,
+                });
               applyThreadProjectionToAtoms(next, environmentId);
             }
           }
@@ -1299,6 +1326,7 @@ export default function ChatView({
       },
     );
     return () => {
+      disposed = true;
       unsubscribe();
       projectionRef.current = null;
     };
@@ -4905,6 +4933,88 @@ export default function ChatView({
     [isLocalDraftThread, scheduleComposerFocus, setDraftThreadContext, threadId],
   );
 
+  const onMachineChange = useCallback(
+    async (target: Project) => {
+      if (
+        !isLocalDraftThread ||
+        envLocked ||
+        !activeProject ||
+        !target.environmentId ||
+        target.environmentId === environmentId
+      )
+        return;
+      if (
+        composerImages.length ||
+        composerFiles.length ||
+        composerTerminalContexts.length ||
+        composerPreviewAnnotations.length ||
+        composerReviewComments.length
+      ) {
+        toastManager.add({
+          type: "info",
+          title: "Keep attached context on its machine",
+          description:
+            "Remove attachments and workspace context before changing machines. Your draft was kept.",
+        });
+        return;
+      }
+      const actions = createScopedComposerDraftActions(target.environmentId);
+      const existing = actions.getDraftThreadByProjectId(target.id);
+      if (existing) {
+        toastManager.add({
+          type: "info",
+          title: "A draft already exists on that machine",
+          description: "Finish or clear that draft first. Your current message was kept.",
+        });
+        return;
+      }
+      try {
+        const nextId = newThreadId();
+        actions.setProjectDraftThreadId(target.id, nextId, {
+          createdAt: new Date().toISOString(),
+          runtimeMode,
+          interactionMode,
+          envMode: draftThread?.envMode ?? "local",
+          branch: null,
+          worktreePath: null,
+        });
+        actions.setPrompt(nextId, prompt);
+        actions.setModelSelection(nextId, selectedModelSelection);
+        await navigate({
+          to: "/$environmentId/$threadId",
+          params: { environmentId: target.environmentId, threadId: nextId },
+        });
+        workspaceShellActions.setActiveProject(target.id);
+        workspaceShellActions.rememberThread(target.id, nextId);
+        clearProjectDraftThreadId(activeProject.id);
+      } catch (error) {
+        toastManager.add({
+          type: "error",
+          title: "Could not change machines",
+          description: error instanceof Error ? error.message : String(error),
+        });
+      }
+    },
+    [
+      isLocalDraftThread,
+      envLocked,
+      activeProject,
+      environmentId,
+      composerImages.length,
+      composerFiles.length,
+      composerTerminalContexts.length,
+      composerPreviewAnnotations.length,
+      composerReviewComments.length,
+      runtimeMode,
+      interactionMode,
+      draftThread?.envMode,
+      prompt,
+      selectedModelSelection,
+      navigate,
+      clearProjectDraftThreadId,
+    ],
+  );
+
   const extendReplacementRangeForTrailingSpace = (
     text: string,
     rangeEnd: number,
@@ -6253,6 +6363,7 @@ export default function ChatView({
     <div
       onPointerDownCapture={onActivatePane}
       onFocusCapture={onActivatePane}
+      data-chat-pane="true"
       className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background"
     >
       {/* Top bar — hidden in the compact side-chat embed (the Code tab provides
@@ -6267,6 +6378,45 @@ export default function ChatView({
           )}
         >
           <ChatHeader
+            pullRequestLinks={activeThread.pullRequests}
+            agentWorkflow={
+              loadedProjectionKey === projectionKey &&
+              workspaceAgentContext?.thread.id === activeThread.id ? (
+                <WorkspaceAgents
+                  key={`${resolvedEnvironmentId}:${activeThread.id}`}
+                  context={workspaceAgentContext}
+                  environmentId={environmentId}
+                  onOpenThread={(childId) => {
+                    void navigate({
+                      to: "/$environmentId/$threadId",
+                      params: { environmentId: resolvedEnvironmentId, threadId: childId },
+                    });
+                  }}
+                />
+              ) : null
+            }
+            workspaceControls={
+              <BranchToolbar
+                threadId={activeThread.id}
+                {...(environmentId ? { environmentId } : {})}
+                onEnvModeChange={onEnvModeChange}
+                envLocked={envLocked}
+                showGitControls={false}
+                onMachineChange={onMachineChange}
+              />
+            }
+            scriptManagement={
+              activeProject ? (
+                <WorkspaceProjectScripts
+                  project={activeProject}
+                  cwd={gitCwd ?? activeProject.cwd}
+                  keybindings={keybindings}
+                  onRunScript={(script) => {
+                    void runProjectScript(script);
+                  }}
+                />
+              ) : null
+            }
             scripts={activeProject?.scripts}
             onRunScript={(script) => {
               void runProjectScript(script);

@@ -1,9 +1,21 @@
 import type {
+  CheckpointId,
+  MessageId,
+  NodeId,
+  OrchestrationV2Checkpoint,
   OrchestrationV2DomainEvent,
   OrchestrationV2ContextHandoff,
+  OrchestrationV2Subagent,
   OrchestrationV2ThreadProjection,
+  OrchestrationV2ThreadStreamItem,
   OrchestrationV2TurnItem,
 } from "@tabs/contracts";
+import {
+  hasOmittedBodies,
+  turnItemBodySourceKey,
+  dedupeSubagentBodies,
+  dedupeTurnItemBodies,
+} from "@tabs/shared/orchestrationV2DedupedBodies";
 import {
   compactDynamicToolOutput,
   omitToolOutputImageData,
@@ -32,6 +44,21 @@ function truncateDetail(
     .toString("utf8")
     .replace(/\uFFFD$/u, "");
   return `${prefix}\n… output truncated for transport`;
+}
+
+/** Bound stored diffs to the client wire limit to avoid retaining invisible data in SQLite and heap. */
+export function boundFileChangeForStorage(item: OrchestrationV2TurnItem): OrchestrationV2TurnItem {
+  if (item.type !== "file_change") return item;
+  const { diffStr, oldStr, newStr } = item;
+  const bounded = {
+    ...item,
+    ...(diffStr === undefined ? {} : { diffStr: truncateDetail(diffStr) }),
+    ...(oldStr === undefined ? {} : { oldStr: truncateDetail(oldStr) }),
+    ...(newStr === undefined ? {} : { newStr: truncateDetail(newStr) }),
+  };
+  return bounded.diffStr === diffStr && bounded.oldStr === oldStr && bounded.newStr === newStr
+    ? item
+    : bounded;
 }
 
 function summarizeDynamicValue(value: unknown): unknown {
@@ -238,4 +265,94 @@ export function projectDomainEventForWire(
     : event.type === "context-handoff.updated"
       ? { ...event, payload: projectContextHandoffForWire(event.payload) }
       : event;
+}
+
+const LIVE_DEDUPE_MEMORY = 32;
+
+function remember<K, V>(memory: Map<K, V>, key: K, value: V): void {
+  memory.delete(key);
+  memory.set(key, value);
+  if (memory.size > LIVE_DEDUPE_MEMORY) memory.delete(memory.keys().next().value as K);
+}
+
+/**
+ * One per subscription, after coalescing, so it remembers only records the client received. A
+ * record event comes before the turn item that repeats its body, so the item (or a repeated
+ * subagent record) ships blank and marked. The other order, or a forgotten record, only costs
+ * bytes: the repeat ships whole.
+ */
+export function makeLiveBodyDeduper(
+  versioned = false,
+): (item: OrchestrationV2ThreadStreamItem) => OrchestrationV2ThreadStreamItem {
+  const versions = new Map<string, number>();
+  const withVersion = <T extends object>(payload: T, key: string | null, original: T): T => {
+    const sequence = key === null ? undefined : versions.get(key);
+    if (!versioned || !hasOmittedBodies(payload)) return payload;
+    return sequence === undefined ? original : { ...payload, bodySourceSequence: sequence };
+  };
+  const messageText = new Map<MessageId, string>();
+  const checkpointFiles = new Map<CheckpointId, OrchestrationV2Checkpoint["files"]>();
+  const subagents = new Map<NodeId, Pick<OrchestrationV2Subagent, "prompt" | "result">>();
+  const source = {
+    messageText: (id: MessageId) => messageText.get(id),
+    checkpointFiles: (id: CheckpointId) => checkpointFiles.get(id),
+    subagent: (id: NodeId) => subagents.get(id),
+  };
+  const rememberSubagent = ({ id, prompt, result }: OrchestrationV2Subagent) =>
+    remember(subagents, id, { prompt, result });
+  return (item) => {
+    if (item.kind === "snapshot") {
+      messageText.clear();
+      checkpointFiles.clear();
+      subagents.clear();
+      versions.clear();
+      // The client now holds exactly these records; their bodies are never blanked.
+      const { messages, checkpoints, subagents: records } = item.projection;
+      for (const message of messages) {
+        remember(messageText, message.id, message.text);
+        remember(versions, `message:${message.id}`, item.snapshotSequence);
+      }
+      for (const checkpoint of checkpoints) {
+        remember(checkpointFiles, checkpoint.id, checkpoint.files);
+        remember(versions, `checkpoint:${checkpoint.id}`, item.snapshotSequence);
+      }
+      for (const subagent of records) {
+        rememberSubagent(subagent);
+        remember(versions, `subagent:${subagent.id}`, item.snapshotSequence);
+      }
+      return item;
+    }
+    if (item.kind !== "event") return item;
+    const { event } = item;
+    switch (event.type) {
+      case "message.updated":
+        remember(messageText, event.payload.id, event.payload.text);
+        remember(versions, `message:${event.payload.id}`, item.sequence);
+        return item;
+      case "checkpoint.captured":
+        remember(checkpointFiles, event.payload.id, event.payload.files);
+        remember(versions, `checkpoint:${event.payload.id}`, item.sequence);
+        return item;
+      case "subagent.updated": {
+        const payload = withVersion(
+          dedupeSubagentBodies(event.payload, subagents.get(event.payload.id)),
+          `subagent:${event.payload.id}`,
+          event.payload,
+        );
+        rememberSubagent(event.payload);
+        remember(versions, `subagent:${event.payload.id}`, item.sequence);
+        return payload === event.payload ? item : { ...item, event: { ...event, payload } };
+      }
+      case "turn-item.updated": {
+        const payload = withVersion(
+          dedupeTurnItemBodies(event.payload, source),
+          turnItemBodySourceKey(event.payload),
+          event.payload,
+        );
+        return payload === event.payload ? item : { ...item, event: { ...event, payload } };
+      }
+      default:
+        return item;
+    }
+  };
 }

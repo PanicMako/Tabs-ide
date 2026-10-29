@@ -80,11 +80,13 @@ export const OpenInPicker = memo(function OpenInPicker({
   availableEditors,
   openInCwd,
   showEditorName = false,
+  displayMode = "toolbar",
 }: {
   keybindings: ResolvedKeybindingsConfig;
   availableEditors: ReadonlyArray<EditorId>;
   openInCwd: string | null;
   showEditorName?: boolean;
+  displayMode?: "toolbar" | "panel";
 }) {
   const anchorRef = useRef<HTMLDivElement | null>(null);
   const [preferredEditor, setPreferredEditor] = usePreferredEditor(availableEditors);
@@ -131,7 +133,11 @@ export const OpenInPicker = memo(function OpenInPicker({
       ref={anchorRef}
       role="group"
       aria-label="Editor actions"
-      className="flex h-9 w-full items-center rounded-xl border border-border/80 bg-muted/20 hover:bg-accent/30 hover:border-border transition-colors shadow-2xs text-foreground"
+      className={
+        displayMode === "panel"
+          ? "workspace-editor-row flex h-9 w-full min-w-0 items-center rounded-lg text-foreground hover:bg-muted/60 transition-colors"
+          : "flex h-9 w-full items-center rounded-xl border border-border/80 bg-muted/20 hover:bg-accent/30 hover:border-border transition-colors shadow-2xs text-foreground"
+      }
     >
       <Tooltip>
         <TooltipTrigger

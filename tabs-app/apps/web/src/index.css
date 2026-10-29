@@ -2474,8 +2474,25 @@ label:has(> select#reasoning-effort) select {
   width: 32px;
 }
 .workspace-card {
-  max-height: min(340px, 38vh);
+  max-height: min(calc(100dvh - 5.5rem), calc(var(--available-height, 100dvh) - 1.5rem), 640px);
   overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+}
+.workspace-card[data-density="compact"],
+.workspace-card--compact {
+  padding: 0.625rem;
+}
+.workspace-card[data-density="essential"],
+.workspace-card--essential {
+  padding: 0.5rem;
+  max-height: min(calc(100dvh - 4.5rem), 420px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .workspace-card {
+    animation: none !important;
+    transition: none !important;
+  }
 }
 .surface-tab {
   background: linear-gradient(

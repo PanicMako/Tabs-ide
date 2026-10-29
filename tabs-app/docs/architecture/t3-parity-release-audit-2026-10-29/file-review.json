@@ -1,0 +1,864 @@
+{
+  "base": "54cf362ec",
+  "antigravityHead": "3b1ac6746",
+  "repairBase": "fb0eeb9d7",
+  "files": [
+    {
+      "path": "tabs-app/apps/server/src/auth/RpcAuthorization.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "8a871b2c6465f17c5d0df3bf8c33ceb0efdcd938843ac91486f65aaa81dc7b58",
+      "batch": 1,
+      "disposition": "Read scope/metadata/optional-field changes inspected; metadata forwarding repaired; Final verification gates recorded in README.md.",
+      "currentSha256": "8a871b2c6465f17c5d0df3bf8c33ceb0efdcd938843ac91486f65aaa81dc7b58"
+    },
+    {
+      "path": "tabs-app/apps/server/src/git/GitManager.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "21f568b2fefcd7375c5d491d400615edd95eec4d379c0d5ec2962d4afea7f9f2",
+      "batch": 1,
+      "disposition": "Read scope/metadata/optional-field changes inspected; metadata forwarding repaired; Final verification gates recorded in README.md.",
+      "currentSha256": "21f568b2fefcd7375c5d491d400615edd95eec4d379c0d5ec2962d4afea7f9f2"
+    },
+    {
+      "path": "tabs-app/apps/server/src/git/Layers/GitManager.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "a69ddd01e543c2564e3c7659bb1c8989d3d9cf889b0a844e2fe69c526d42aad2",
+      "batch": 1,
+      "disposition": "Read scope/metadata/optional-field changes inspected; metadata forwarding repaired; Final verification gates recorded in README.md.",
+      "currentSha256": "a69ddd01e543c2564e3c7659bb1c8989d3d9cf889b0a844e2fe69c526d42aad2"
+    },
+    {
+      "path": "tabs-app/apps/server/src/git/Services/GitHubCli.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "c9f03a6d002027d7bcaed430f1a6e8926ea53aa2e8452d496a3635f00e5d60b2",
+      "batch": 1,
+      "disposition": "Read scope/metadata/optional-field changes inspected; metadata forwarding repaired; Final verification gates recorded in README.md.",
+      "currentSha256": "c9f03a6d002027d7bcaed430f1a6e8926ea53aa2e8452d496a3635f00e5d60b2"
+    },
+    {
+      "path": "tabs-app/apps/server/src/mcp/McpHttpServer.test.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "88a012c9e3d2fe07ec994b5b0e69bf74f48db448b134afbd7b4a8077a570a92c",
+      "batch": 1,
+      "disposition": "MCP compatibility/permission/schema repairs covered by prior repair commits; fork title forwarding additionally identified in batch 3; final regression pending.",
+      "currentSha256": "d5b632f72d96edaa1be9c374415df8ec78f6d1a82ab2a9aff9376b6058041c90"
+    },
+    {
+      "path": "tabs-app/apps/server/src/mcp/McpHttpServer.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "7907de048ff60c41706868042c9ddad076c831c153f904bfb66e9dab00e3cb83",
+      "batch": 1,
+      "disposition": "MCP compatibility/permission/schema repairs covered by prior repair commits; fork title forwarding additionally identified in batch 3; final regression pending.",
+      "currentSha256": "da3acc2a16a8d05772f8daf1d875230e324a19943dea630e9725ca82c7a90949"
+    },
+    {
+      "path": "tabs-app/apps/server/src/mcp/toolUseEvaluation.test.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "37986bef0c828fb4833db0b60d2dac043750375e339b9e1417e502f07dfc8501",
+      "batch": 2,
+      "disposition": "MCP compatibility/permission/schema repairs covered by prior repair commits; fork title forwarding additionally identified in batch 3; final regression pending.",
+      "currentSha256": "f7b60ab286976169eaf80d2865525c454066a851662961ff4cf398a6482bfb10"
+    },
+    {
+      "path": "tabs-app/apps/server/src/mcp/toolkits/core.test.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "81d27b38139df2f78dab5f7cd655be521bfcad5fa094661d19492627d667c2ca",
+      "batch": 2,
+      "disposition": "MCP compatibility/permission/schema repairs covered by prior repair commits; fork title forwarding additionally identified in batch 3; final regression pending.",
+      "currentSha256": "81d27b38139df2f78dab5f7cd655be521bfcad5fa094661d19492627d667c2ca"
+    },
+    {
+      "path": "tabs-app/apps/server/src/mcp/toolkits/orchestrator/handlers.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "40b98b66ef3d9b8b9b6a5765bac26a8661be72320aaf32103c3f4cfa326dd8bf",
+      "batch": 2,
+      "disposition": "MCP compatibility/permission/schema repairs covered by prior repair commits; fork title forwarding additionally identified in batch 3; final regression pending.",
+      "currentSha256": "40b98b66ef3d9b8b9b6a5765bac26a8661be72320aaf32103c3f4cfa326dd8bf"
+    },
+    {
+      "path": "tabs-app/apps/server/src/mcp/toolkits/orchestrator/tools.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "3cefef6e2b505a991e451a455c76ef53340b8e65943d41986d57e36c083ee323",
+      "batch": 2,
+      "disposition": "MCP compatibility/permission/schema repairs covered by prior repair commits; fork title forwarding additionally identified in batch 3; final regression pending.",
+      "currentSha256": "3cefef6e2b505a991e451a455c76ef53340b8e65943d41986d57e36c083ee323"
+    },
+    {
+      "path": "tabs-app/apps/server/src/mcp/toolkits/preview/handlers.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "fae6d8beabe731a1c51dba772f95edd06cb0fc4eb01385c60f017822d21cc51b",
+      "batch": 2,
+      "disposition": "MCP compatibility/permission/schema repairs covered by prior repair commits; fork title forwarding additionally identified in batch 3; final regression pending.",
+      "currentSha256": "fae6d8beabe731a1c51dba772f95edd06cb0fc4eb01385c60f017822d21cc51b"
+    },
+    {
+      "path": "tabs-app/apps/server/src/mcp/toolkits/preview/tools.test.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "6d0fb50def742110e1112a331ea3e79fb6bb5ec23db8981905a52daa58ca6929",
+      "batch": 3,
+      "disposition": "MCP compatibility/permission/schema repairs covered by prior repair commits; fork title forwarding additionally identified in batch 3; final regression pending.",
+      "currentSha256": "6d0fb50def742110e1112a331ea3e79fb6bb5ec23db8981905a52daa58ca6929"
+    },
+    {
+      "path": "tabs-app/apps/server/src/mcp/toolkits/preview/tools.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "5bf4774561d02bcac25a0876b49f8bf11de38635bdc4452af1fefe79dedaccdb",
+      "batch": 3,
+      "disposition": "MCP compatibility/permission/schema repairs covered by prior repair commits; fork title forwarding additionally identified in batch 3; final regression pending.",
+      "currentSha256": "5bf4774561d02bcac25a0876b49f8bf11de38635bdc4452af1fefe79dedaccdb"
+    },
+    {
+      "path": "tabs-app/apps/server/src/mcp/toolkits/thread/handlers.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "4efe6c0ec24ec0706f9735e15c68e73b68b40066148443b72cb228fc14969bbe",
+      "batch": 3,
+      "disposition": "MCP compatibility/permission/schema repairs covered by prior repair commits; fork title forwarding additionally identified in batch 3; final regression pending.",
+      "currentSha256": "1cb2dbfe9c3d60da062a662a923371b396649de30c3c6575143124adf8e90ba0"
+    },
+    {
+      "path": "tabs-app/apps/server/src/mcp/toolkits/thread/tools.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "dfad095a4ab45b539c0975bae075306047ad0a7e2436376877273935e0313609",
+      "batch": 4,
+      "disposition": "Consolidated tool contracts and stream coalescer lifecycle/order inspected; versioned live body recovery and expanded boundary tests pending.",
+      "currentSha256": "dfad095a4ab45b539c0975bae075306047ad0a7e2436376877273935e0313609"
+    },
+    {
+      "path": "tabs-app/apps/server/src/orchestration-v2/Orchestrator.control-reads.test.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "03c4789a7e8675bea13c7e6c3e23946d168cc47859103df32d065c6aaf51e373",
+      "batch": 4,
+      "disposition": "Consolidated tool contracts and stream coalescer lifecycle/order inspected; versioned live body recovery and expanded boundary tests pending.",
+      "currentSha256": "03c4789a7e8675bea13c7e6c3e23946d168cc47859103df32d065c6aaf51e373"
+    },
+    {
+      "path": "tabs-app/apps/server/src/orchestration-v2/Orchestrator.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "2c44a4280f767625b023bc6ae57ca834978506934e74d51e37f73f8e4c0ef795",
+      "batch": 4,
+      "disposition": "Consolidated tool contracts and stream coalescer lifecycle/order inspected; versioned live body recovery and expanded boundary tests pending.",
+      "currentSha256": "2c44a4280f767625b023bc6ae57ca834978506934e74d51e37f73f8e4c0ef795"
+    },
+    {
+      "path": "tabs-app/apps/server/src/orchestration-v2/ProjectionStore.test.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "43552d78f07d722e2beb19350ce07d9fb8c00212d07f5383052f1ee14487d2ac",
+      "batch": 5,
+      "disposition": "Paging/family SQL, memory implementation and tests inspected; client page loading and family query bounds remain to implement.",
+      "currentSha256": "43552d78f07d722e2beb19350ce07d9fb8c00212d07f5383052f1ee14487d2ac"
+    },
+    {
+      "path": "tabs-app/apps/server/src/orchestration-v2/ProjectionStore.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "aff93cdabe7dd704c9ac880393505db7f75e4cb861fbe941558453311e7d7b2d",
+      "batch": 5,
+      "disposition": "Paging/family SQL, memory implementation and tests inspected; client page loading and family query bounds remain to implement.",
+      "currentSha256": "aff93cdabe7dd704c9ac880393505db7f75e4cb861fbe941558453311e7d7b2d"
+    },
+    {
+      "path": "tabs-app/apps/server/src/orchestration-v2/ProviderTurnControlService.test.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "06f77de12417677b9e39763ff1201e49669a489c764f7d5fc502f5a5429f1709",
+      "batch": 5,
+      "disposition": "Consolidated tool contracts and stream coalescer lifecycle/order inspected; versioned live body recovery and expanded boundary tests pending.",
+      "currentSha256": "06f77de12417677b9e39763ff1201e49669a489c764f7d5fc502f5a5429f1709"
+    },
+    {
+      "path": "tabs-app/apps/server/src/orchestration-v2/ShellStream.test.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "f6cca5eab3542b2536a5c951eb63f911d65da24585b08c74f5e0f718efd18343",
+      "batch": 5,
+      "disposition": "Paging/family SQL, memory implementation and tests inspected; client page loading and family query bounds remain to implement.",
+      "currentSha256": "f6cca5eab3542b2536a5c951eb63f911d65da24585b08c74f5e0f718efd18343"
+    },
+    {
+      "path": "tabs-app/apps/server/src/orchestration-v2/ShellStream.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "62306a444b538ff895568ac385761ee1da5dd2d9423db0f0f7dc0dcbdbdd63ec",
+      "batch": 6,
+      "disposition": "Paging/family SQL, memory implementation and tests inspected; client page loading and family query bounds remain to implement.",
+      "currentSha256": "62306a444b538ff895568ac385761ee1da5dd2d9423db0f0f7dc0dcbdbdd63ec"
+    },
+    {
+      "path": "tabs-app/apps/server/src/orchestration-v2/ThreadLiveEventCoalescer.test.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "47921ae9635aa6ee1427f497907a84d380c3b9e0351e6017d095b6d2d2b1fa3e",
+      "batch": 6,
+      "disposition": "Consolidated tool contracts and stream coalescer lifecycle/order inspected; versioned live body recovery and expanded boundary tests pending.",
+      "currentSha256": "47921ae9635aa6ee1427f497907a84d380c3b9e0351e6017d095b6d2d2b1fa3e"
+    },
+    {
+      "path": "tabs-app/apps/server/src/orchestration-v2/ThreadLiveEventCoalescer.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "f0150115e96ef4707f3a3e7e5265525c9f17ea32203f93318e5c8d0909095330",
+      "batch": 7,
+      "disposition": "Consolidated tool contracts and stream coalescer lifecycle/order inspected; versioned live body recovery and expanded boundary tests pending.",
+      "currentSha256": "f0150115e96ef4707f3a3e7e5265525c9f17ea32203f93318e5c8d0909095330"
+    },
+    {
+      "path": "tabs-app/apps/server/src/orchestration-v2/ThreadManagementService.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "042720e442138f2bcda4e690c80c2d01243a75ecd9dcc58616bd3532af9822b8",
+      "batch": 7,
+      "disposition": "Consolidated tool contracts and stream coalescer lifecycle/order inspected; versioned live body recovery and expanded boundary tests pending.",
+      "currentSha256": "042720e442138f2bcda4e690c80c2d01243a75ecd9dcc58616bd3532af9822b8"
+    },
+    {
+      "path": "tabs-app/apps/server/src/orchestration-v2/WireProjection.test.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "a02fd6333f1277257d8ddff82bb88b26776a76b4a4a573b87cb9f637f5f61f30",
+      "batch": 7,
+      "disposition": "Consolidated tool contracts and stream coalescer lifecycle/order inspected; versioned live body recovery and expanded boundary tests pending.",
+      "currentSha256": "73d277ac6e6e091e9a2eaae4fe6b6b082bcf3bc1bde0d2d7fa58fb5591b51c8d"
+    },
+    {
+      "path": "tabs-app/apps/server/src/orchestration-v2/WireProjection.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "128f19b6faee89c66ca0022caaf95bcd4143df4050584c4b39323f07b2335d3f",
+      "batch": 7,
+      "disposition": "Consolidated tool contracts and stream coalescer lifecycle/order inspected; versioned live body recovery and expanded boundary tests pending.",
+      "currentSha256": "9683041b7934a6b24884977d327d5596c12a5f2bf51ef94d1345392c62355756"
+    },
+    {
+      "path": "tabs-app/apps/server/src/persistence/OrchestrationEventStore.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "8ddffffc5e586f6a5809bf2bf7bdf40a5f66ac65be0f2bdb59cea6bd725a5974",
+      "batch": 7,
+      "disposition": "Consolidated tool contracts and stream coalescer lifecycle/order inspected; versioned live body recovery and expanded boundary tests pending.",
+      "currentSha256": "8ddffffc5e586f6a5809bf2bf7bdf40a5f66ac65be0f2bdb59cea6bd725a5974"
+    },
+    {
+      "path": "tabs-app/apps/server/src/provider/AgentContextBudget.test.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "abb2f43b1787c2400ed3017864c63471b0f8f7a909e8a11cc492754a2c61dc20",
+      "batch": 8,
+      "disposition": "Complete original diff inspected. Follow-up defects and validation tracked in work-plan.md; Final verification gates recorded in README.md.",
+      "currentSha256": "52e4c624b3ca1eb55f8144ea30c6066a381c7635a9551b4ede1580ad0d6ca035"
+    },
+    {
+      "path": "tabs-app/apps/server/src/provider/agentContextBudget.json",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "a978e56b59dfad8e225bbb9221a3e7e4424ce6dba4bca9c1cd69989e041ed29d",
+      "batch": 8,
+      "disposition": "Complete original diff inspected. Follow-up defects and validation tracked in work-plan.md; Final verification gates recorded in README.md.",
+      "currentSha256": "8a929ec35649c2437108af1d2ed6528fe7bf2f0774e7afa7434e92456e10febf"
+    },
+    {
+      "path": "tabs-app/apps/server/src/relay/AgentAwarenessRelay.test.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "47ef95035211168673035d6933fa958ca6473d367677b2930c0799eb472af27e",
+      "batch": 8,
+      "disposition": "Complete original diff inspected. Follow-up defects and validation tracked in work-plan.md; Final verification gates recorded in README.md.",
+      "currentSha256": "47ef95035211168673035d6933fa958ca6473d367677b2930c0799eb472af27e"
+    },
+    {
+      "path": "tabs-app/apps/server/src/sourceControl/GitHubCli.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "975198b926f6a0619dd60d13681a7876fac87b10a9df1a4e2e2ca978c918dfa1",
+      "batch": 8,
+      "disposition": "Complete original diff inspected. Follow-up defects and validation tracked in work-plan.md; Final verification gates recorded in README.md.",
+      "currentSha256": "c33cb4d8b5a584023abc7fb0f3ed3690b3cd8e8ff3cf32d7086897519aa2f392"
+    },
+    {
+      "path": "tabs-app/apps/server/src/sourceControl/GitHubSourceControlProvider.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "12c94f2b2289ec5c0295b93e95a07d3cc169e37235cf8f1f39b6d9802ac5c71e",
+      "batch": 8,
+      "disposition": "Complete original diff inspected. Follow-up defects and validation tracked in work-plan.md; Final verification gates recorded in README.md.",
+      "currentSha256": "12c94f2b2289ec5c0295b93e95a07d3cc169e37235cf8f1f39b6d9802ac5c71e"
+    },
+    {
+      "path": "tabs-app/apps/server/src/ws.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "d8573c6c30e3da5a3698cedb915a9e10882d22526efa9d1f95c4f20700de8ab5",
+      "batch": 8,
+      "disposition": "Complete original diff inspected. Follow-up defects and validation tracked in work-plan.md; Final verification gates recorded in README.md.",
+      "currentSha256": "f0b31c34af8131168d49b5778dafabca3949f931fb93b1cfff8232c63f21a151"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/ProjectScriptsControl.tsx",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "9290f8cd254ff7ddbfb76096144261cc42c95ce17511fcc446aeb5eca9b24db2",
+      "batch": 8,
+      "disposition": "Complete original diff inspected. Follow-up defects and validation tracked in work-plan.md; Final verification gates recorded in README.md.",
+      "currentSha256": "9290f8cd254ff7ddbfb76096144261cc42c95ce17511fcc446aeb5eca9b24db2"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/chat/ChatHeader.browser.tsx",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "eac0eed2b4a2a4e5ff0e17920360dd2a1ec2be95069c26df5d009314d9fbb921",
+      "batch": 9,
+      "disposition": "Complete original diff inspected. Follow-up defects and validation tracked in work-plan.md; Final verification gates recorded in README.md.",
+      "currentSha256": "6f8dba7202063771efa137cc32db53193bf97ad1b4c99e1aac97ba72222a53ae"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/chat/ChatHeader.tsx",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "44bfd4282e5f2e3993a9445b4323b3c595d068ff10e694425d10e10762620536",
+      "batch": 9,
+      "disposition": "Complete original diff inspected. Follow-up defects and validation tracked in work-plan.md; Final verification gates recorded in README.md.",
+      "currentSha256": "0fbe36540c00b8c69a40a3e7f170c9f1bd574d6197a63e6a2aa81cf161ea312b"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/chat/WorkspaceAgents.browser.tsx",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "831455cf8b7c86441170753470787fc64946106fe0449769edc2a82c1d7634da",
+      "batch": 9,
+      "disposition": "Complete original diff inspected. Follow-up defects and validation tracked in work-plan.md; Final verification gates recorded in README.md.",
+      "currentSha256": "60ddc5ef9ee0f8b4bf511d6d9ac63d9bb459d7cd9e99aa38cd18658be767f392"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/chat/WorkspaceAgents.tsx",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "d61513132c3496ef889a6677d65f497fab26a1770db4076a465686b77481d1de",
+      "batch": 10,
+      "disposition": "Complete original diff inspected. Follow-up defects and validation tracked in work-plan.md; Final verification gates recorded in README.md.",
+      "currentSha256": "bc3c4eed1ad4ae71f850436c89d409a481e907af77b8823b459a0ebd864e1bc2"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/chat/WorkspaceAutomations.browser.tsx",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "6021bfa321b20cea35f5951c7ab636ba486249ea1579f95993444ac228dbb542",
+      "batch": 11,
+      "disposition": "Complete original diff inspected. Follow-up defects and validation tracked in work-plan.md; Final verification gates recorded in README.md.",
+      "currentSha256": "e43ccaf01c5aaa554edcfbe71672beca309e598c70c8454483c98483249ab007"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/chat/WorkspaceAutomations.tsx",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "1f88547df2014cff88a08688a0b473323b80d885110952a05453d3e327285377",
+      "batch": 12,
+      "disposition": "Complete original diff inspected. Follow-up defects and validation tracked in work-plan.md; Final verification gates recorded in README.md.",
+      "currentSha256": "261eb6e284a38975e5eaf2ba3416e72bf03de8f94dfa606585f701ae314aeb6a"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/chat/WorkspaceProjectScripts.browser.tsx",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "52e1c8cdad17d8742ac8182070da7464a0183413a454ad93d387ac9a86de7a2f",
+      "batch": 13,
+      "disposition": "Complete original diff inspected. Follow-up defects and validation tracked in work-plan.md; Final verification gates recorded in README.md.",
+      "currentSha256": "c6a84db907d30e482fe38f78a629530089a616db818de06ca01f69e13bfcc75c"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/chat/WorkspaceProjectScripts.tsx",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "6817a30a014dd454fc7280a21cbe7bcf02a11239d6de798c3d7cd157599fc211",
+      "batch": 13,
+      "disposition": "Complete original diff inspected. Follow-up defects and validation tracked in work-plan.md; Final verification gates recorded in README.md.",
+      "currentSha256": "c16ce3a714c23fdd2d7c4e62a31286f72d09572c2d4853ba40cea7ff0abd9597"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/chat/WorkspacePullRequest.browser.tsx",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "fdccdfe4debcd9b82b72d34990140e05d942f2e67fd541ba760dbe51ed2b32bf",
+      "batch": 13,
+      "disposition": "Complete original diff inspected. Follow-up defects and validation tracked in work-plan.md; Final verification gates recorded in README.md.",
+      "currentSha256": "fdccdfe4debcd9b82b72d34990140e05d942f2e67fd541ba760dbe51ed2b32bf"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/chat/WorkspacePullRequest.test.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "c7db0ec545df60d7128ff186d711278e9742ea53d0ee9d6210c2f940879387ba",
+      "batch": 13,
+      "disposition": "Complete original diff inspected. Follow-up defects and validation tracked in work-plan.md; Final verification gates recorded in README.md.",
+      "currentSha256": "c7db0ec545df60d7128ff186d711278e9742ea53d0ee9d6210c2f940879387ba"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/chat/WorkspacePullRequest.tsx",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "9981dd9c45af823a232d5cfc343e4f55ee5eba1a46132230664dc7ec2d2d83ab",
+      "batch": 14,
+      "disposition": "Complete original diff inspected. Follow-up defects and validation tracked in work-plan.md; Final verification gates recorded in README.md.",
+      "currentSha256": "9981dd9c45af823a232d5cfc343e4f55ee5eba1a46132230664dc7ec2d2d83ab"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/chat/useT3ProjectFileScripts.browser.tsx",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "a0c89b8a471f3c7559eae8d7c20c99b812949e493fc1e9f3a90bd5de61cc4c14",
+      "batch": 14,
+      "disposition": "Complete original diff inspected. Follow-up defects and validation tracked in work-plan.md; Final verification gates recorded in README.md.",
+      "currentSha256": "36c8f9444cceee7db3b144bac6637dc26b2de0bb29db52126af2a8af53e1d721"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/chat/workspaceCardDensity.test.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "4c3b7a52db2c8f5514edf21c53af6fa24c44f36e0d8b3c08c43ab8a907c0ea5e",
+      "batch": 14,
+      "disposition": "Complete original diff inspected. Follow-up defects and validation tracked in work-plan.md; Final verification gates recorded in README.md.",
+      "currentSha256": "4c3b7a52db2c8f5514edf21c53af6fa24c44f36e0d8b3c08c43ab8a907c0ea5e"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/chat/workspaceCardDensity.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "0ec0e6231c87a4697e10d5a8ecb13608443199b09229a45a35b2c19650ac67eb",
+      "batch": 14,
+      "disposition": "Complete original diff inspected. Follow-up defects and validation tracked in work-plan.md; Final verification gates recorded in README.md.",
+      "currentSha256": "0ec0e6231c87a4697e10d5a8ecb13608443199b09229a45a35b2c19650ac67eb"
+    },
+    {
+      "path": "tabs-app/apps/web/src/hooks/useT3ProjectFileScripts.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "15f0d9f93b8c4b019da49f3eb4b3969636ba9e61dea9a450ec0cc7c4ce6c3495",
+      "batch": 14,
+      "disposition": "Complete original diff inspected. Follow-up defects and validation tracked in work-plan.md; Final verification gates recorded in README.md.",
+      "currentSha256": "9311b3d3fda23467b705c42b30f55c298ca46f1d1c1aa8598afa3f0ecd666591"
+    },
+    {
+      "path": "tabs-app/apps/web/src/index.css",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "e8ece34e8adfa7d352dbd2a378e5b1a6467198f88060b09bf5f20e3f9a43e479",
+      "batch": 14,
+      "disposition": "Complete original diff inspected. Follow-up defects and validation tracked in work-plan.md; Final verification gates recorded in README.md.",
+      "currentSha256": "e8ece34e8adfa7d352dbd2a378e5b1a6467198f88060b09bf5f20e3f9a43e479"
+    },
+    {
+      "path": "tabs-app/apps/web/src/routes/__root.tsx",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "d7bae5018f90ff6f7bae21de921f133bab907993e1a03ff0aab6b8e83d822b9f",
+      "batch": 14,
+      "disposition": "Complete original diff inspected. Follow-up defects and validation tracked in work-plan.md; Final verification gates recorded in README.md.",
+      "currentSha256": "9aef80287e4da5ae42fe0aa154ab62bcdefc691a326a42b6ea5d900461dcd92c"
+    },
+    {
+      "path": "tabs-app/apps/web/src/state/readModel.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "321687b21bfd2912294f5be776c57bcadb8cdd7dd846caac8714e13adb186845",
+      "batch": 14,
+      "disposition": "Complete original diff inspected. Follow-up defects and validation tracked in work-plan.md; Final verification gates recorded in README.md.",
+      "currentSha256": "321687b21bfd2912294f5be776c57bcadb8cdd7dd846caac8714e13adb186845"
+    },
+    {
+      "path": "tabs-app/apps/web/src/state/readModelTransitions.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "eb46cf1e7761eaf09ce2e1f0a214d033379934f7878193626dab1d1c561ac245",
+      "batch": 14,
+      "disposition": "Complete original diff inspected. Follow-up defects and validation tracked in work-plan.md; Final verification gates recorded in README.md.",
+      "currentSha256": "28cdfe8218be7d8e085b9790433e56aa11443277240b8cd00672a969ddf42a7e"
+    },
+    {
+      "path": "tabs-app/apps/web/src/state/threads.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "89ba22a2a04aa2501befb899d68a2b82e4850df5208f5bbed1bb5d102dd66ae1",
+      "batch": 15,
+      "disposition": "Complete original diff inspected. Follow-up defects and validation tracked in work-plan.md; Final verification gates recorded in README.md.",
+      "currentSha256": "89ba22a2a04aa2501befb899d68a2b82e4850df5208f5bbed1bb5d102dd66ae1"
+    },
+    {
+      "path": "tabs-app/apps/web/src/wsNativeApi.test.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "f50ec8760c9622c37411498f741563d23b1d5fa4961d5ebf64543368f7e485cf",
+      "batch": 15,
+      "disposition": "Complete original diff inspected. Follow-up defects and validation tracked in work-plan.md; Final verification gates recorded in README.md.",
+      "currentSha256": "94276538e69f183c211193208b85f8f4ca1fd5758040c40aa1b83d79f5cadab8"
+    },
+    {
+      "path": "tabs-app/apps/web/src/wsNativeApi.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "100807532ef7ce8c9e9e2fd91cb978584b8e55f8ee255dc01bb395a80a8a71f8",
+      "batch": 15,
+      "disposition": "Complete original diff inspected. Follow-up defects and validation tracked in work-plan.md; Final verification gates recorded in README.md.",
+      "currentSha256": "38f395daf417c78a66040c988bb1c250e0478a9e3f82f739a548228dacb8d042"
+    },
+    {
+      "path": "tabs-app/docs/architecture/t3-tabs-comparison-2026-10-27.md",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "8bc34cbb63fa1ffa402b84781b04f8b37d05613791203f02481050f30ac72d48",
+      "batch": 16,
+      "disposition": "Complete original diff inspected. Follow-up defects and validation tracked in work-plan.md; Final verification gates recorded in README.md.",
+      "currentSha256": "8bc34cbb63fa1ffa402b84781b04f8b37d05613791203f02481050f30ac72d48"
+    },
+    {
+      "path": "tabs-app/packages/client-runtime/package.json",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "ad46e86bc648ac1ab9aeb736e7d0c5849380995c2a5acef0db4a38fc63cec59c",
+      "batch": 16,
+      "disposition": "Complete original diff inspected. Follow-up defects and validation tracked in work-plan.md; Final verification gates recorded in README.md.",
+      "currentSha256": "ad46e86bc648ac1ab9aeb736e7d0c5849380995c2a5acef0db4a38fc63cec59c"
+    },
+    {
+      "path": "tabs-app/packages/client-runtime/src/state/olderSettledThreads.test.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "5c4f227bc005697715a435f69d00f29bcbdc4556f8919e9d19f4f087a98643ad",
+      "batch": 16,
+      "disposition": "Complete original diff inspected. Follow-up defects and validation tracked in work-plan.md; Final verification gates recorded in README.md.",
+      "currentSha256": "5c4f227bc005697715a435f69d00f29bcbdc4556f8919e9d19f4f087a98643ad"
+    },
+    {
+      "path": "tabs-app/packages/client-runtime/src/state/olderSettledThreads.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "42c77fee054a82417cf5a798b1c42ecbc68e9f620da7fca793eec34538fc94b8",
+      "batch": 17,
+      "disposition": "Complete original diff inspected. Follow-up defects and validation tracked in work-plan.md; Final verification gates recorded in README.md.",
+      "currentSha256": "42c77fee054a82417cf5a798b1c42ecbc68e9f620da7fca793eec34538fc94b8"
+    },
+    {
+      "path": "tabs-app/packages/client-runtime/src/state/orchestrationV2Projection.test.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "31e836da9aba6e47828d29dcaad90582849ef87288075bda1739580d88368a0c",
+      "batch": 17,
+      "disposition": "Complete original diff inspected. Follow-up defects and validation tracked in work-plan.md; Final verification gates recorded in README.md.",
+      "currentSha256": "31e836da9aba6e47828d29dcaad90582849ef87288075bda1739580d88368a0c"
+    },
+    {
+      "path": "tabs-app/packages/client-runtime/src/state/orchestrationV2Projection.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "7cd8c724eac495e39090fe1d4ccb0bf505d63fbf397a0e89ba10ae6051495528",
+      "batch": 17,
+      "disposition": "Complete original diff inspected. Follow-up defects and validation tracked in work-plan.md; Final verification gates recorded in README.md.",
+      "currentSha256": "7cd8c724eac495e39090fe1d4ccb0bf505d63fbf397a0e89ba10ae6051495528"
+    },
+    {
+      "path": "tabs-app/packages/client-runtime/src/state/threadRelationships.test.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "05117c150f6caf1875b717724adfbc1a9c87bc940ad884380a3dd51f55b94684",
+      "batch": 17,
+      "disposition": "Complete original diff inspected. Follow-up defects and validation tracked in work-plan.md; Final verification gates recorded in README.md.",
+      "currentSha256": "05117c150f6caf1875b717724adfbc1a9c87bc940ad884380a3dd51f55b94684"
+    },
+    {
+      "path": "tabs-app/packages/client-runtime/src/state/threadRelationships.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "ca122380d63a9b1b6e09aaaeca34a7bf4cc9bf968c14c76c053fca34e768078a",
+      "batch": 18,
+      "disposition": "Complete original diff inspected. Follow-up defects and validation tracked in work-plan.md; Final verification gates recorded in README.md.",
+      "currentSha256": "07d8c521f46fd252e6b279a8114d2ea5daaf1b343309e4b796f973a02d08c890"
+    },
+    {
+      "path": "tabs-app/packages/contracts/src/git.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "c128601175787de06a77d83b285572cf7a20733b4de8fcc54dbc3245941000d2",
+      "batch": 18,
+      "disposition": "Complete original diff inspected. Follow-up defects and validation tracked in work-plan.md; Final verification gates recorded in README.md.",
+      "currentSha256": "c128601175787de06a77d83b285572cf7a20733b4de8fcc54dbc3245941000d2"
+    },
+    {
+      "path": "tabs-app/packages/contracts/src/ipc.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "436bfb457c5d90155c6fbed5a97bba88ba7f6cd45b5f96a1c06c1a5f05fe822b",
+      "batch": 18,
+      "disposition": "Complete original diff inspected. Follow-up defects and validation tracked in work-plan.md; Final verification gates recorded in README.md.",
+      "currentSha256": "436bfb457c5d90155c6fbed5a97bba88ba7f6cd45b5f96a1c06c1a5f05fe822b"
+    },
+    {
+      "path": "tabs-app/packages/contracts/src/orchestrationV2.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "b4fd20a8f3fcf4d15cf5121c103d4e31b013e731a8d8b301c0f30b58ec081fe8",
+      "batch": 18,
+      "disposition": "Complete original diff inspected. Follow-up defects and validation tracked in work-plan.md; Final verification gates recorded in README.md.",
+      "currentSha256": "2953b202dd95f95b62af6e492d266ae3b5a20eee66589ba4897b932b8522cbee"
+    },
+    {
+      "path": "tabs-app/packages/contracts/src/orchestratorMcp.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "28341e46a0f775576384eb9db17d56e51fdc7e16efdc2019c8b4c957f8712efd",
+      "batch": 18,
+      "disposition": "Complete original diff inspected. Follow-up defects and validation tracked in work-plan.md; Final verification gates recorded in README.md.",
+      "currentSha256": "28341e46a0f775576384eb9db17d56e51fdc7e16efdc2019c8b4c957f8712efd"
+    },
+    {
+      "path": "tabs-app/packages/contracts/src/previewAutomation.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "4d5c1f4aa80769db55f4a0a333750782a38f16dac6362b6b44554aa053109bec",
+      "batch": 19,
+      "disposition": "Complete original diff inspected. Follow-up defects and validation tracked in work-plan.md; Final verification gates recorded in README.md.",
+      "currentSha256": "4d5c1f4aa80769db55f4a0a333750782a38f16dac6362b6b44554aa053109bec"
+    },
+    {
+      "path": "tabs-app/packages/contracts/src/rpc.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "3c3d1583c66a083c670e709090cda217586eb2095d14349bdb5c55f33dd11e3c",
+      "batch": 19,
+      "disposition": "Complete original diff inspected. Follow-up defects and validation tracked in work-plan.md; Final verification gates recorded in README.md.",
+      "currentSha256": "3c3d1583c66a083c670e709090cda217586eb2095d14349bdb5c55f33dd11e3c"
+    },
+    {
+      "path": "tabs-app/packages/contracts/src/server.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "52c9d37d0fe36b688e45e0ffd1571471227400f6eceabf219fc01aac05b671eb",
+      "batch": 19,
+      "disposition": "Complete original diff inspected. Follow-up defects and validation tracked in work-plan.md; Final verification gates recorded in README.md.",
+      "currentSha256": "52c9d37d0fe36b688e45e0ffd1571471227400f6eceabf219fc01aac05b671eb"
+    },
+    {
+      "path": "tabs-app/packages/contracts/src/sourceControl.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "586a68a4570e86f744c9750d02d688e73c16d45aff28bc18c27169b2d842fefa",
+      "batch": 19,
+      "disposition": "Complete original diff inspected. Follow-up defects and validation tracked in work-plan.md; Final verification gates recorded in README.md.",
+      "currentSha256": "586a68a4570e86f744c9750d02d688e73c16d45aff28bc18c27169b2d842fefa"
+    },
+    {
+      "path": "tabs-app/packages/shared/src/t3McpToolPresentation.test.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "bbb3ce54d7a1781bcfec51f6cbd5a6d7575d0b89c137e22e3cf10c10d1deb963",
+      "batch": 19,
+      "disposition": "Complete original diff inspected. Follow-up defects and validation tracked in work-plan.md; Final verification gates recorded in README.md.",
+      "currentSha256": "bbb3ce54d7a1781bcfec51f6cbd5a6d7575d0b89c137e22e3cf10c10d1deb963"
+    },
+    {
+      "path": "tabs-app/packages/shared/src/t3McpToolPresentation.ts",
+      "review": "baseline-diff-reviewed; follow-up-source-reviewed",
+      "sha256": "6d1be46a8a2ee4a08a8bf34fcb126ae5dd2cc6ca31c8736ec609adbf5e5db362",
+      "batch": 20,
+      "disposition": "Complete original diff inspected. Follow-up defects and validation tracked in work-plan.md; Final verification gates recorded in README.md.",
+      "currentSha256": "6d1be46a8a2ee4a08a8bf34fcb126ae5dd2cc6ca31c8736ec609adbf5e5db362"
+    }
+  ],
+  "batches": 20,
+  "baselineDiffReviewComplete": true,
+  "finalSourceCommit": "9310e25bebeec18f0fd3634d6b97a206b40b2ec9",
+  "verification": "See README.md for full and focused test gates; this ledger records inspection and file identity, not path-by-path coverage.",
+  "followupFiles": [
+    {
+      "path": "tabs-app/apps/server/src/mcp/McpHttpServer.test.ts",
+      "sha256": "d5b632f72d96edaa1be9c374415df8ec78f6d1a82ab2a9aff9376b6058041c90",
+      "review": "follow-up diff inspected; applicable verification in README.md"
+    },
+    {
+      "path": "tabs-app/apps/server/src/mcp/McpHttpServer.ts",
+      "sha256": "da3acc2a16a8d05772f8daf1d875230e324a19943dea630e9725ca82c7a90949",
+      "review": "follow-up diff inspected; applicable verification in README.md"
+    },
+    {
+      "path": "tabs-app/apps/server/src/mcp/toolUseEvaluation.test.ts",
+      "sha256": "f7b60ab286976169eaf80d2865525c454066a851662961ff4cf398a6482bfb10",
+      "review": "follow-up diff inspected; applicable verification in README.md"
+    },
+    {
+      "path": "tabs-app/apps/server/src/mcp/toolkits/thread/handlers.ts",
+      "sha256": "1cb2dbfe9c3d60da062a662a923371b396649de30c3c6575143124adf8e90ba0",
+      "review": "follow-up diff inspected; applicable verification in README.md"
+    },
+    {
+      "path": "tabs-app/apps/server/src/orchestration-v2/ThreadFamilyQuery.test.ts",
+      "sha256": "ba1c32001b860ba70f6efcfbbad45f66b2810d238bb6bbd1d7540e7a1c05c787",
+      "review": "follow-up diff inspected; applicable verification in README.md"
+    },
+    {
+      "path": "tabs-app/apps/server/src/orchestration-v2/ThreadFamilyQuery.ts",
+      "sha256": "5ea93dd1b2562c9f11992480103c1e8f93e8de4c04a68e892b08c6cdea0f4369",
+      "review": "follow-up diff inspected; applicable verification in README.md"
+    },
+    {
+      "path": "tabs-app/apps/server/src/orchestration-v2/WireProjection.test.ts",
+      "sha256": "73d277ac6e6e091e9a2eaae4fe6b6b082bcf3bc1bde0d2d7fa58fb5591b51c8d",
+      "review": "follow-up diff inspected; applicable verification in README.md"
+    },
+    {
+      "path": "tabs-app/apps/server/src/orchestration-v2/WireProjection.ts",
+      "sha256": "9683041b7934a6b24884977d327d5596c12a5f2bf51ef94d1345392c62355756",
+      "review": "follow-up diff inspected; applicable verification in README.md"
+    },
+    {
+      "path": "tabs-app/apps/server/src/orchestration-v2/testkit/OrchestratorScenario.ts",
+      "sha256": "5f0e38599bbe47e94058b0f331c81a1322cad5b921e4a28154a34882784b9aad",
+      "review": "follow-up diff inspected; applicable verification in README.md"
+    },
+    {
+      "path": "tabs-app/apps/server/src/provider/AgentContextBudget.test.ts",
+      "sha256": "52e4c624b3ca1eb55f8144ea30c6066a381c7635a9551b4ede1580ad0d6ca035",
+      "review": "follow-up diff inspected; applicable verification in README.md"
+    },
+    {
+      "path": "tabs-app/apps/server/src/provider/agentContextBudget.json",
+      "sha256": "8a929ec35649c2437108af1d2ed6528fe7bf2f0774e7afa7434e92456e10febf",
+      "review": "follow-up diff inspected; applicable verification in README.md"
+    },
+    {
+      "path": "tabs-app/apps/server/src/pullRequest/gitHubPullRequestJson.ts",
+      "sha256": "3a5743939146ea3db3e10d90789af1ce484ae2b83c7c731a1f168bee25c41154",
+      "review": "follow-up diff inspected; applicable verification in README.md"
+    },
+    {
+      "path": "tabs-app/apps/server/src/sourceControl/GitHubCli.test.ts",
+      "sha256": "efa7cd7f899ef094e63a62f866375340417cc529316905b38d3381b05dfb4b4b",
+      "review": "follow-up diff inspected; applicable verification in README.md"
+    },
+    {
+      "path": "tabs-app/apps/server/src/sourceControl/GitHubCli.ts",
+      "sha256": "c33cb4d8b5a584023abc7fb0f3ed3690b3cd8e8ff3cf32d7086897519aa2f392",
+      "review": "follow-up diff inspected; applicable verification in README.md"
+    },
+    {
+      "path": "tabs-app/apps/server/src/ws.test.ts",
+      "sha256": "6fa496300445f1b860edd0ba011e6d021e92b3a282e0ae9d72e674717a2460f5",
+      "review": "follow-up diff inspected; applicable verification in README.md"
+    },
+    {
+      "path": "tabs-app/apps/server/src/ws.ts",
+      "sha256": "f0b31c34af8131168d49b5778dafabca3949f931fb93b1cfff8232c63f21a151",
+      "review": "follow-up diff inspected; applicable verification in README.md"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/BranchToolbar.tsx",
+      "sha256": "5d22b9807a03808c6983d6428ec1c005b7baf974aa986da5170d3a651fac158e",
+      "review": "follow-up diff inspected; applicable verification in README.md"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/BranchToolbarBranchSelector.tsx",
+      "sha256": "821419e611fe1981907f787cdba88a82505d7b558d78e836d6c7c31ffc796cf1",
+      "review": "follow-up diff inspected; applicable verification in README.md"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/ChatView.tsx",
+      "sha256": "6ab471440c41c42680e2bd78c8a9150f3f939a40fb0c47cd0fd06812af49a6a0",
+      "review": "follow-up diff inspected; applicable verification in README.md"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/Sidebar.tsx",
+      "sha256": "e496b5318db8713bb196c036884439977d979dd9a980402a35cab9e9f1b5858c",
+      "review": "follow-up diff inspected; applicable verification in README.md"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/WorkspaceShell.tsx",
+      "sha256": "3e825f9bcbcb3fd541b738b6e813f6c01c03840630066624e0546e3a87c4f947",
+      "review": "follow-up diff inspected; applicable verification in README.md"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/chat/ChatHeader.browser.tsx",
+      "sha256": "6f8dba7202063771efa137cc32db53193bf97ad1b4c99e1aac97ba72222a53ae",
+      "review": "follow-up diff inspected; applicable verification in README.md"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/chat/ChatHeader.tsx",
+      "sha256": "0fbe36540c00b8c69a40a3e7f170c9f1bd574d6197a63e6a2aa81cf161ea312b",
+      "review": "follow-up diff inspected; applicable verification in README.md"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/chat/OlderSettledPaging.browser.tsx",
+      "sha256": "7b0605938f88a07cfa63121cf860770ad4b595559c2bd167a42085d00e413117",
+      "review": "follow-up diff inspected; applicable verification in README.md"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/chat/WorkspaceAgents.browser.tsx",
+      "sha256": "60ddc5ef9ee0f8b4bf511d6d9ac63d9bb459d7cd9e99aa38cd18658be767f392",
+      "review": "follow-up diff inspected; applicable verification in README.md"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/chat/WorkspaceAgents.tsx",
+      "sha256": "bc3c4eed1ad4ae71f850436c89d409a481e907af77b8823b459a0ebd864e1bc2",
+      "review": "follow-up diff inspected; applicable verification in README.md"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/chat/WorkspaceAutomations.browser.tsx",
+      "sha256": "e43ccaf01c5aaa554edcfbe71672beca309e598c70c8454483c98483249ab007",
+      "review": "follow-up diff inspected; applicable verification in README.md"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/chat/WorkspaceAutomations.tsx",
+      "sha256": "261eb6e284a38975e5eaf2ba3416e72bf03de8f94dfa606585f701ae314aeb6a",
+      "review": "follow-up diff inspected; applicable verification in README.md"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/chat/WorkspaceCardAcceptance.browser.tsx",
+      "sha256": "3f15bc9d0f63bc28b0625b5b324230a5311016814529a01da7d7a10511edd980",
+      "review": "follow-up diff inspected; applicable verification in README.md"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/chat/WorkspaceProjectScripts.browser.tsx",
+      "sha256": "c6a84db907d30e482fe38f78a629530089a616db818de06ca01f69e13bfcc75c",
+      "review": "follow-up diff inspected; applicable verification in README.md"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/chat/WorkspaceProjectScripts.tsx",
+      "sha256": "c16ce3a714c23fdd2d7c4e62a31286f72d09572c2d4853ba40cea7ff0abd9597",
+      "review": "follow-up diff inspected; applicable verification in README.md"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/chat/useT3ProjectFileScripts.browser.tsx",
+      "sha256": "36c8f9444cceee7db3b144bac6637dc26b2de0bb29db52126af2a8af53e1d721",
+      "review": "follow-up diff inspected; applicable verification in README.md"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/git/pinnedBranches.test.ts",
+      "sha256": "4cb0231e5ebb1b8a9729df4a62bff78f91be6303167f65f2496abd7a9d248953",
+      "review": "follow-up diff inspected; applicable verification in README.md"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/git/pinnedBranches.ts",
+      "sha256": "c2610a6cd32003e5022938bbee57e8561e45e785b87a9178327dff8bbb87ebf0",
+      "review": "follow-up diff inspected; applicable verification in README.md"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/workspaceBranchSelection.test.ts",
+      "sha256": "3256449c4ed98d0742ab2e069496459d6bc00553d20f6ae7bf1dccf7bcf34405",
+      "review": "follow-up diff inspected; applicable verification in README.md"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/workspaceBranchSelection.ts",
+      "sha256": "23625c6e4cef3d7d64b88e5b7e3c918a84bd3b87ed56576d52a425939ab50142",
+      "review": "follow-up diff inspected; applicable verification in README.md"
+    },
+    {
+      "path": "tabs-app/apps/web/src/hooks/useOlderSettledThreads.ts",
+      "sha256": "9ef482dc2fd5629d3ec30b2e40866c2531de734abe292463b44ef804ad45b632",
+      "review": "follow-up diff inspected; applicable verification in README.md"
+    },
+    {
+      "path": "tabs-app/apps/web/src/hooks/useT3ProjectFileScripts.ts",
+      "sha256": "9311b3d3fda23467b705c42b30f55c298ca46f1d1c1aa8598afa3f0ecd666591",
+      "review": "follow-up diff inspected; applicable verification in README.md"
+    },
+    {
+      "path": "tabs-app/apps/web/src/hooks/useThreadWorkspaceContext.ts",
+      "sha256": "5c95e8cd30e68dfcee2addb77ee40d70ee21384d89c11cd00b80a6f5d11a03ca",
+      "review": "follow-up diff inspected; applicable verification in README.md"
+    },
+    {
+      "path": "tabs-app/apps/web/src/routes/__root.tsx",
+      "sha256": "9aef80287e4da5ae42fe0aa154ab62bcdefc691a326a42b6ea5d900461dcd92c",
+      "review": "follow-up diff inspected; applicable verification in README.md"
+    },
+    {
+      "path": "tabs-app/apps/web/src/routes/_chat.$environmentId.$threadId.tsx",
+      "sha256": "248afc33505d6e2b861769fb108fc8112258d2ace469c6ce883a5ea273628f88",
+      "review": "follow-up diff inspected; applicable verification in README.md"
+    },
+    {
+      "path": "tabs-app/apps/web/src/state/olderSettledPaging.test.ts",
+      "sha256": "51defa451743d689aef37cd2612c80179d946708d95ef0eede0b36d574398405",
+      "review": "follow-up diff inspected; applicable verification in README.md"
+    },
+    {
+      "path": "tabs-app/apps/web/src/state/readModelTransitions.ts",
+      "sha256": "28cdfe8218be7d8e085b9790433e56aa11443277240b8cd00672a969ddf42a7e",
+      "review": "follow-up diff inspected; applicable verification in README.md"
+    },
+    {
+      "path": "tabs-app/apps/web/src/types.ts",
+      "sha256": "6363125a7e54cdfbd921c393dea46ed8b2021ee9dd7d5fa2f81d24398478840b",
+      "review": "follow-up diff inspected; applicable verification in README.md"
+    },
+    {
+      "path": "tabs-app/apps/web/src/wsNativeApi.test.ts",
+      "sha256": "94276538e69f183c211193208b85f8f4ca1fd5758040c40aa1b83d79f5cadab8",
+      "review": "follow-up diff inspected; applicable verification in README.md"
+    },
+    {
+      "path": "tabs-app/apps/web/src/wsNativeApi.ts",
+      "sha256": "38f395daf417c78a66040c988bb1c250e0478a9e3f82f739a548228dacb8d042",
+      "review": "follow-up diff inspected; applicable verification in README.md"
+    },
+    {
+      "path": "tabs-app/packages/client-runtime/src/state/threadRelationships.ts",
+      "sha256": "07d8c521f46fd252e6b279a8114d2ea5daaf1b343309e4b796f973a02d08c890",
+      "review": "follow-up diff inspected; applicable verification in README.md"
+    },
+    {
+      "path": "tabs-app/packages/contracts/src/orchestrationV2.test.ts",
+      "sha256": "50df519ccac81b3c6acfee8c50331c32c51794fd4157b4b558fbba2b683adb98",
+      "review": "follow-up diff inspected; applicable verification in README.md"
+    },
+    {
+      "path": "tabs-app/packages/contracts/src/orchestrationV2.ts",
+      "sha256": "2953b202dd95f95b62af6e492d266ae3b5a20eee66589ba4897b932b8522cbee",
+      "review": "follow-up diff inspected; applicable verification in README.md"
+    },
+    {
+      "path": "tabs-app/packages/shared/src/orchestrationV2DedupedBodies.ts",
+      "sha256": "ed38b4c5f31dc544c13b679e2875f65796a10cf4eba452146c71e558fe824509",
+      "review": "follow-up diff inspected; applicable verification in README.md"
+    }
+  ],
+  "finalVerificationCommit": "13127be98b8bb85a42908f0442efcd87dede2987"
+}

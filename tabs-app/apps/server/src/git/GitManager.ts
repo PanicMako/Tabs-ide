@@ -21,6 +21,7 @@ import {
   GitPreparePullRequestThreadInput,
   GitPreparePullRequestThreadResult,
   GitPullRequestRefInput,
+  type GitResolvedPullRequest,
   GitResolvePullRequestResult,
   GitRunStackedActionInput,
   GitRunStackedActionResult,
@@ -244,14 +245,7 @@ const pullRequestUpdatedAtDescOrder: Order.Order<PullRequestInfo> = Order.mapInp
   (pullRequest) => pullRequest.updatedAt,
 );
 
-interface ResolvedPullRequest {
-  number: number;
-  title: string;
-  url: string;
-  baseBranch: string;
-  headBranch: string;
-  state: "open" | "closed" | "merged";
-}
+type ResolvedPullRequest = GitResolvedPullRequest;
 
 interface PullRequestHeadRemoteInfo {
   isCrossRepository?: boolean | undefined;
@@ -702,17 +696,67 @@ function toResolvedPullRequest(pr: {
   number: number;
   title: string;
   url: string;
-  baseRefName: string;
-  headRefName: string;
+  baseRefName?: string;
+  headRefName?: string;
+  baseBranch?: string;
+  headBranch?: string;
   state?: "open" | "closed" | "merged";
+  isDraft?: boolean | undefined;
+  headRepositoryNameWithOwner?: string | null | undefined;
+  provider?: GitResolvedPullRequest["provider"];
+  isCrossRepository?: boolean | undefined;
+  author?: GitResolvedPullRequest["author"];
+  labels?: GitResolvedPullRequest["labels"];
+  reviewDecision?: GitResolvedPullRequest["reviewDecision"] | null | undefined;
+  mergeability?: GitResolvedPullRequest["mergeability"] | null | undefined;
+  checksState?: GitResolvedPullRequest["checksState"] | null | undefined;
+  additions?: number;
+  deletions?: number;
+  changedFiles?: number;
+  createdAt?: string;
+  updatedAt?: string | Option.Option<DateTime.Utc>;
+  body?: string;
+  reviewers?: GitResolvedPullRequest["reviewers"];
+  checks?: GitResolvedPullRequest["checks"];
+  comments?: GitResolvedPullRequest["comments"];
+  reviews?: GitResolvedPullRequest["reviews"];
+  commits?: GitResolvedPullRequest["commits"];
 }): ResolvedPullRequest {
+  const updatedAtStr =
+    typeof pr.updatedAt === "string"
+      ? pr.updatedAt
+      : pr.updatedAt && typeof pr.updatedAt === "object" && Option.isSome(pr.updatedAt)
+        ? DateTime.formatIso(pr.updatedAt.value)
+        : undefined;
   return {
+    ...(pr.provider ? { provider: pr.provider } : {}),
     number: pr.number,
     title: pr.title,
     url: pr.url,
-    baseBranch: pr.baseRefName,
-    headBranch: pr.headRefName,
+    baseBranch: pr.baseRefName ?? pr.baseBranch ?? "",
+    headBranch: pr.headRefName ?? pr.headBranch ?? "",
     state: pr.state ?? "open",
+    ...(typeof pr.isDraft === "boolean" ? { isDraft: pr.isDraft } : {}),
+    ...(pr.headRepositoryNameWithOwner
+      ? { headRepositoryNameWithOwner: pr.headRepositoryNameWithOwner }
+      : {}),
+    ...(pr.isCrossRepository === undefined ? {} : { isCrossRepository: pr.isCrossRepository }),
+    ...(pr.author !== undefined ? { author: pr.author } : {}),
+    ...(pr.labels ? { labels: pr.labels } : {}),
+    ...(pr.reviewDecision ? { reviewDecision: pr.reviewDecision } : {}),
+    ...(pr.mergeability ? { mergeability: pr.mergeability } : {}),
+    ...(pr.checksState ? { checksState: pr.checksState } : {}),
+    ...(typeof pr.additions === "number" ? { additions: pr.additions } : {}),
+    ...(typeof pr.deletions === "number" ? { deletions: pr.deletions } : {}),
+    ...(typeof pr.changedFiles === "number" ? { changedFiles: pr.changedFiles } : {}),
+    ...(pr.createdAt ? { createdAt: pr.createdAt } : {}),
+    ...(updatedAtStr ? { updatedAt: updatedAtStr } : {}),
+    ...(pr.body !== undefined ? { body: pr.body } : {}),
+    ...(pr.reviewers ? { reviewers: pr.reviewers } : {}),
+    ...(pr.checks ? { checks: pr.checks } : {}),
+    ...(pr.comments ? { comments: pr.comments } : {}),
+    ...(pr.reviews ? { reviews: pr.reviews } : {}),
+    ...(pr.commits ? { commits: pr.commits } : {}),
   };
 }
 

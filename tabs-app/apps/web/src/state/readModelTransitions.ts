@@ -1,6 +1,10 @@
 import * as DateTime from "effect/DateTime";
 import {
   type EnvironmentId,
+  type ProjectId,
+  type OrchestrationV2OlderSettledThreadsPage,
+  type OrchestrationV2OlderSettledCursor,
+  type OrchestrationV2OlderSettledCount,
   type ProviderKind,
   ThreadId,
   TurnId,
@@ -27,7 +31,23 @@ function toIsoDate(val: unknown): string {
 
 // ── State ────────────────────────────────────────────────────────────
 
+export interface OlderSettledPagingState {
+  generation: number;
+  before: string;
+  counts: ReadonlyArray<OrchestrationV2OlderSettledCount>;
+  countRevision: number;
+  countsRevision: number;
+  changes: Readonly<Record<string, number>>;
+  pages: Readonly<
+    Record<
+      string,
+      { cursor: OrchestrationV2OlderSettledCursor | null; loading: boolean; error: string | null }
+    >
+  >;
+}
+
 export interface EnvironmentSnapshotMeta {
+  olderSettled?: OlderSettledPagingState | undefined;
   snapshotSequence: number;
   updatedAt: string;
   initialized: boolean;
@@ -183,6 +203,10 @@ function mapProjectsFromReadModel(
       defaultThreadEnvMode: project.defaultThreadEnvMode ?? existing?.defaultThreadEnvMode ?? null,
       faviconPath: project.faviconPath ?? existing?.faviconPath ?? null,
       projectIcon: project.projectIcon ?? existing?.projectIcon ?? null,
+      repositoryIdentity:
+        project.repositoryIdentity === undefined
+          ? existing?.repositoryIdentity
+          : project.repositoryIdentity,
       expanded:
         existing?.expanded ??
         (persistedExpandedProjectKeys.size > 0
@@ -657,6 +681,10 @@ function mapProjectsFromV2Shells(
       defaultThreadEnvMode: project.defaultThreadEnvMode ?? existing?.defaultThreadEnvMode ?? null,
       faviconPath: project.faviconPath ?? existing?.faviconPath ?? null,
       projectIcon: project.projectIcon ?? existing?.projectIcon ?? null,
+      repositoryIdentity:
+        project.repositoryIdentity === undefined
+          ? existing?.repositoryIdentity
+          : project.repositoryIdentity,
       expanded:
         existing?.expanded ??
         (persistedExpandedProjectKeys.size > 0
@@ -701,6 +729,7 @@ function mapThreadFromV2Shell(
   const updatedAtIso = toIsoDate(shell.updatedAt);
   return {
     id: shell.id,
+    isSubagent: shell.lineage.relationshipToParent === "subagent",
     environmentId: environmentId ?? existing?.environmentId,
     codexThreadId: null,
     projectId: shell.projectId,
@@ -747,7 +776,7 @@ function mapThreadFromV2Shell(
     turnDiffSummaries: existing?.turnDiffSummaries ?? [],
     activities: existing?.activities ?? [],
     queuedRuns: existing?.queuedRuns ?? [],
-    activeRunId: existing?.activeRunId ?? null,
+    activeRunId: shell.activeRunId,
     activeRunUserMessageId: existing?.activeRunUserMessageId ?? null,
   };
 }
@@ -772,6 +801,8 @@ export function syncV2ShellSnapshot(
 
   const existingThreadById = new Map(previousThreads.map((thread) => [thread.id, thread] as const));
   const allShellThreads = [...snapshot.threads, ...(snapshot.archivedThreads ?? [])];
+  // A new snapshot starts a fresh paging generation. Retaining omitted rows here
+  // can resurrect conversations deleted while the client was disconnected.
   const environmentThreads = allShellThreads.map((shell) =>
     mapThreadFromV2Shell(shell, existingThreadById.get(shell.id), environmentId),
   );
@@ -796,6 +827,18 @@ export function syncV2ShellSnapshot(
       snapshotSequence: snapshot.snapshotSequence,
       updatedAt: new Date().toISOString(),
       initialized: true,
+      olderSettled:
+        snapshot.olderSettled === undefined
+          ? undefined
+          : {
+              generation: snapshot.snapshotSequence,
+              before: snapshot.olderSettled.before,
+              counts: snapshot.olderSettled.counts,
+              countRevision: 0,
+              countsRevision: 0,
+              changes: {},
+              pages: {},
+            },
     },
   };
 
@@ -805,6 +848,36 @@ export function syncV2ShellSnapshot(
     threads,
     threadsHydrated: true,
     environmentSnapshots,
+  };
+}
+
+export function appendOlderSettledThreads(
+  state: AppState,
+  olderThreads: ReadonlyArray<OrchestrationV2ThreadShell>,
+  environmentId?: EnvironmentId,
+): AppState {
+  const previousThreads = environmentId
+    ? state.threads.filter((thread) => thread.environmentId === environmentId)
+    : state.threads;
+  const existingThreadById = new Map(previousThreads.map((thread) => [thread.id, thread] as const));
+  const newThreads = olderThreads.map((shell) =>
+    mapThreadFromV2Shell(shell, existingThreadById.get(shell.id), environmentId),
+  );
+  const newThreadIds = new Set(newThreads.map((t) => t.id));
+  const mergedEnvironmentThreads = [
+    ...previousThreads.filter((t) => !newThreadIds.has(t.id)),
+    ...newThreads,
+  ];
+  const threads = environmentId
+    ? [
+        ...state.threads.filter((thread) => thread.environmentId !== environmentId),
+        ...mergedEnvironmentThreads,
+      ]
+    : mergedEnvironmentThreads;
+
+  return {
+    ...state,
+    threads,
   };
 }
 
@@ -849,6 +922,7 @@ export function mergeV2ProjectEnrichment(
   const environmentSnapshots = {
     ...state.environmentSnapshots,
     [envKey]: {
+      ...prevMeta,
       snapshotSequence: Math.max(snapshot.snapshotSequence, prevMeta?.snapshotSequence ?? 0),
       updatedAt: new Date().toISOString(),
       initialized: true,
@@ -867,18 +941,67 @@ export function applyShellStreamItem(
   item: OrchestrationV2ShellStreamItem,
   environmentId?: EnvironmentId,
 ): AppState {
+  const previousMeta = state.environmentSnapshots?.[(environmentId ?? "primary") as string];
+  if ("sequence" in item && previousMeta && item.sequence <= previousMeta.snapshotSequence)
+    return state;
   const envKey = (environmentId ?? "primary") as string;
   const updateSequence = (
     sequence: number,
   ): Record<string, EnvironmentSnapshotMeta> | undefined => {
     const prev = state.environmentSnapshots?.[envKey];
     if (!prev) return state.environmentSnapshots;
+    let countMayChange = false;
+    if (prev.olderSettled) {
+      const before = prev.olderSettled.before;
+      if (item.kind === "thread.updated") {
+        const existing = state.threads.find(
+          (thread) =>
+            thread.id === item.thread.id &&
+            (environmentId === undefined || thread.environmentId === environmentId),
+        );
+        const incomingOlder =
+          item.thread.lineage.relationshipToParent !== "subagent" &&
+          item.thread.archivedAt === null &&
+          item.thread.settledOverride === "settled" &&
+          item.thread.settledAt !== null &&
+          toIsoDate(item.thread.settledAt) < before;
+        countMayChange = existing
+          ? incomingOlder !== isOlderSettledClientThread(existing, before)
+          : item.thread.lineage.relationshipToParent !== "subagent" &&
+            toIsoDate(item.thread.createdAt) < before;
+      } else if (item.kind === "thread.removed") {
+        const existing = state.threads.find(
+          (thread) =>
+            thread.id === item.threadId &&
+            (environmentId === undefined || thread.environmentId === environmentId),
+        );
+        countMayChange = !existing || isOlderSettledClientThread(existing, before);
+      } else countMayChange = item.kind === "project.removed";
+    }
     return {
       ...state.environmentSnapshots,
       [envKey]: {
         ...prev,
-        snapshotSequence: sequence,
+        snapshotSequence: Math.max(prev.snapshotSequence, sequence),
         updatedAt: new Date().toISOString(),
+        ...(prev.olderSettled === undefined
+          ? {}
+          : {
+              olderSettled: {
+                ...prev.olderSettled,
+                countRevision: prev.olderSettled.countRevision + (countMayChange ? 1 : 0),
+                changes:
+                  item.kind === "thread.updated" || item.kind === "thread.removed"
+                    ? {
+                        ...prev.olderSettled.changes,
+                        [`thread:${item.kind === "thread.updated" ? item.thread.id : item.threadId}`]:
+                          sequence,
+                      }
+                    : item.kind === "project.removed"
+                      ? { ...prev.olderSettled.changes, [`project:${item.projectId}`]: sequence }
+                      : prev.olderSettled.changes,
+              },
+            }),
       },
     };
   };
@@ -924,6 +1047,13 @@ export function applyShellStreamItem(
       return {
         ...state,
         projects,
+        threads: state.threads.filter(
+          (thread) =>
+            !(
+              thread.projectId === item.projectId &&
+              (environmentId === undefined || thread.environmentId === environmentId)
+            ),
+        ),
         ...getSnapshotUpdate(item.sequence),
       };
     }
@@ -935,7 +1065,12 @@ export function applyShellStreamItem(
       );
       const mapped = mapThreadFromV2Shell(item.thread, existing, environmentId);
       const threads = existing
-        ? state.threads.map((t) => (t.id === item.thread.id ? mapped : t))
+        ? state.threads.map((t) =>
+            t.id === item.thread.id &&
+            (environmentId === undefined || t.environmentId === environmentId)
+              ? mapped
+              : t,
+          )
         : [...state.threads, mapped];
       return { ...state, threads, ...getSnapshotUpdate(item.sequence) };
     }
@@ -1074,6 +1209,7 @@ export function applyThreadProjection(
     latestTurn: existing?.latestTurn ?? null,
     lastVisitedAt: existing?.lastVisitedAt ?? updatedAtIso,
     archivedAt: projection.thread.archivedAt ? toIsoDate(projection.thread.archivedAt) : null,
+    isSubagent: projection.thread.lineage?.relationshipToParent === "subagent",
     settledOverride: projection.thread.settledOverride ?? null,
     settledAt: projection.thread.settledAt ? toIsoDate(projection.thread.settledAt) : null,
     unsettledAt: projection.thread.unsettledAt ? toIsoDate(projection.thread.unsettledAt) : null,
@@ -1107,4 +1243,144 @@ export function applyThreadProjection(
     ? state.threads.map((t) => (t === existing ? updatedThread : t))
     : [...state.threads, updatedThread];
   return { ...state, threads };
+}
+
+export function olderSettledPageState(
+  state: AppState,
+  environmentId: EnvironmentId,
+  projectId: ProjectId,
+) {
+  const history = state.environmentSnapshots?.[environmentId]?.olderSettled;
+  if (!history) return null;
+  return (
+    history.pages[projectId] ?? {
+      cursor: { settledAt: history.before },
+      loading: false,
+      error: null,
+    }
+  );
+}
+
+export function updateOlderSettledPageState(
+  state: AppState,
+  environmentId: EnvironmentId,
+  projectId: ProjectId,
+  generation: number,
+  update: { loading: boolean; error: string | null },
+): AppState {
+  const meta = state.environmentSnapshots?.[environmentId];
+  const history = meta?.olderSettled;
+  const page = olderSettledPageState(state, environmentId, projectId);
+  if (!meta || !history || history.generation !== generation || !page) return state;
+  return {
+    ...state,
+    environmentSnapshots: {
+      ...state.environmentSnapshots,
+      [environmentId]: {
+        ...meta,
+        olderSettled: {
+          ...history,
+          pages: { ...history.pages, [projectId]: { ...page, ...update } },
+        },
+      },
+    },
+  };
+}
+
+export function applyOlderSettledPage(
+  state: AppState,
+  input: {
+    environmentId: EnvironmentId;
+    projectId: ProjectId;
+    generation: number;
+    cursor: OrchestrationV2OlderSettledCursor;
+    page: OrchestrationV2OlderSettledThreadsPage;
+    limit: number;
+  },
+): AppState {
+  const { environmentId, projectId, generation, cursor, page, limit } = input;
+  const meta = state.environmentSnapshots?.[environmentId];
+  const history = meta?.olderSettled;
+  const current = olderSettledPageState(state, environmentId, projectId);
+  if (
+    !meta ||
+    !history ||
+    history.generation !== generation ||
+    !current ||
+    JSON.stringify(current.cursor) !== JSON.stringify(cursor)
+  )
+    return state;
+  if (page.snapshotSequence < generation)
+    return updateOlderSettledPageState(state, environmentId, projectId, generation, {
+      loading: false,
+      error: "History changed while loading. Retry older tasks.",
+    });
+  const next = appendOlderSettledThreads(
+    state,
+    page.threads.filter(
+      (thread) =>
+        !(
+          history.changes[`project:${thread.projectId}`] !== undefined &&
+          !state.projects.some(
+            (project) => project.id === thread.projectId && project.environmentId === environmentId,
+          )
+        ) &&
+        Math.max(
+          history.changes[`thread:${thread.id}`] ?? 0,
+          history.changes[`project:${thread.projectId}`] ?? 0,
+        ) <= page.snapshotSequence,
+    ),
+    environmentId,
+  );
+  const last = page.threads.at(-1);
+  const nextCursor =
+    page.threads.length >= limit && last?.settledAt != null
+      ? { settledAt: toIsoDate(last.settledAt), threadId: last.id }
+      : null;
+  return {
+    ...next,
+    environmentSnapshots: {
+      ...next.environmentSnapshots,
+      [environmentId]: {
+        ...meta,
+        olderSettled: {
+          ...history,
+          pages: {
+            ...history.pages,
+            [projectId]: { cursor: nextCursor, loading: false, error: null },
+          },
+        },
+      },
+    },
+  };
+}
+
+export function applyOlderSettledCounts(
+  state: AppState,
+  environmentId: EnvironmentId,
+  generation: number,
+  revision: number,
+  counts: ReadonlyArray<OrchestrationV2OlderSettledCount>,
+): AppState {
+  const meta = state.environmentSnapshots?.[environmentId];
+  const history = meta?.olderSettled;
+  if (!meta || !history || history.generation !== generation || history.countRevision !== revision)
+    return state;
+  return {
+    ...state,
+    environmentSnapshots: {
+      ...state.environmentSnapshots,
+      [environmentId]: { ...meta, olderSettled: { ...history, counts, countsRevision: revision } },
+    },
+  };
+}
+
+export function isOlderSettledClientThread(thread: Thread, before: string): boolean {
+  return (
+    thread.isSubagent !== true &&
+    thread.archivedAt === null &&
+    thread.settledOverride === "settled" &&
+    thread.settledAt != null &&
+    thread.settledAt < before
+  );
 }

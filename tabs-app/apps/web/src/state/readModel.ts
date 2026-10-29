@@ -3,11 +3,13 @@ import type {
   OrchestrationReadModel,
   OrchestrationV2ShellStreamItem,
   OrchestrationV2ThreadProjection,
+  OrchestrationV2ThreadShell,
 } from "@tabs/contracts";
 import { Atom } from "@tabs/client-runtime/state";
 
 import {
   type AppState,
+  appendOlderSettledThreads,
   applyShellStreamItem,
   applyThreadProjection,
   markThreadUnread,
@@ -158,4 +160,15 @@ export function reorderProjectsInAtoms(
       targetEnvironmentId,
     ),
   );
+}
+
+export function appendOlderSettledThreadsToAtoms(
+  olderThreads: ReadonlyArray<OrchestrationV2ThreadShell>,
+  environmentId?: EnvironmentId,
+) {
+  appAtomRegistry.update(readModelStateAtom, (state) => {
+    const next = appendOlderSettledThreads(state, olderThreads, environmentId);
+    persistAppState(next);
+    return next;
+  });
 }

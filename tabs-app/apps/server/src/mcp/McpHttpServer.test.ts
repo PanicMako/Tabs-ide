@@ -17,6 +17,8 @@ import { HttpBody, HttpClient, HttpRouter, HttpServerResponse } from "effect/uns
 
 import * as ProjectService from "../project/ProjectService.ts";
 import * as ServerConfig from "../config.ts";
+import { advertisedJsonSchema } from "./advertisedJsonSchema.ts";
+import { PreviewStandardToolkit, PreviewSnapshotTool } from "./toolkits/preview/tools.ts";
 import * as McpHttpServer from "./McpHttpServer.ts";
 import * as McpInvocationContext from "./McpInvocationContext.ts";
 import * as PreviewAutomationBroker from "./PreviewAutomationBroker.ts";
@@ -51,7 +53,7 @@ const client = McpSchema.McpServerClient.of({
   getClient: Effect.die("unused"),
 });
 const layerTest = McpHttpServer.layerPreviewToolkit.pipe(
-  Layer.provideMerge(McpServer.McpServer.layer),
+  Layer.provideMerge(McpHttpServer.layerMcpServer),
   Layer.provideMerge(PreviewAutomationBroker.layer),
   Layer.provideMerge(ServerConfig.layerTest(process.cwd(), { prefix: "t3-mcp-http-server-test-" })),
   Layer.provideMerge(NodeServices.layer),
@@ -818,6 +820,12 @@ it.effect(
         expect(snapshotTool?.tool.annotations?.idempotentHint).toBe(true);
         expect(snapshotTool?.tool.annotations?.openWorldHint).toBe(true);
 
+        const actTool = server.tools.find(({ tool }) => tool.name === "preview_act");
+        expect(actTool?.tool.annotations?.readOnlyHint).toBe(false);
+        expect(actTool?.tool.annotations?.destructiveHint).toBe(true);
+        expect(actTool?.tool.annotations?.openWorldHint).toBe(true);
+
+        // Keep the legacy action's presentation contract while it remains advertised.
         const clickTool = server.tools.find(({ tool }) => tool.name === "preview_click");
         expect(clickTool?.tool.annotations?.readOnlyHint).toBe(false);
         expect(clickTool?.tool.annotations?.destructiveHint).toBe(true);
@@ -908,4 +916,67 @@ it.effect(
         }
       }),
     ).pipe(Effect.provide(layerTest)) as any,
+);
+it.effect(
+  "denies every consolidated preview action without preview capability or a thread caller",
+  () =>
+    Effect.gen(function* () {
+      const server = yield* McpServer.McpServer;
+      const actions = [
+        { action: "click", x: 10, y: 10 },
+        { action: "type", text: "hello" },
+        { action: "press", key: "Enter" },
+        { action: "scroll", deltaY: 100 },
+        { action: "hover", x: 10, y: 10 },
+        { action: "select", selector: "select", values: ["option"] },
+        { action: "drag", source: "#source", target: "#target" },
+        { action: "upload", paths: [] },
+      ];
+      const callers = [
+        {
+          ...invocation,
+          capabilities: new Set<McpInvocationContext.McpCapability>(),
+        },
+        { ...invocation, thread: undefined },
+      ];
+
+      for (const caller of callers) {
+        for (const arguments_ of actions) {
+          const result = yield* server
+            .callTool({ name: "preview_act", arguments: arguments_ })
+            .pipe(
+              Effect.provideService(McpInvocationContext.McpInvocationContext, caller),
+              Effect.provideService(McpSchema.McpServerClient, client),
+            );
+          expect(result.isError, JSON.stringify(arguments_)).toBe(true);
+          const text = result.content[0];
+          expect(text?.type === "text" ? text.text : "", JSON.stringify(arguments_)).toContain(
+            "preview capability",
+          );
+        }
+      }
+    }).pipe(Effect.provide(layerTest)) as any,
+);
+
+it.effect(
+  "advertises compact schemas for toolkit and manually registered tools",
+  () =>
+    Effect.gen(function* () {
+      const server = yield* McpServer.McpServer;
+      const tools = {
+        ...PreviewStandardToolkit.tools,
+        [PreviewSnapshotTool.name]: PreviewSnapshotTool,
+        ...Object.fromEntries(
+          McpHttpServer.LEGACY_TOOLS.filter((tool) => tool.name.startsWith("preview_")).map(
+            (tool) => [tool.name, tool],
+          ),
+        ),
+      };
+      expect(server.tools.length).toBe(Object.keys(tools).length);
+      for (const { tool } of server.tools) {
+        expect(tool.inputSchema, tool.name).toEqual(
+          advertisedJsonSchema(tools[tool.name as keyof typeof tools]!),
+        );
+      }
+    }).pipe(Effect.provide(layerTest)) as any,
 );

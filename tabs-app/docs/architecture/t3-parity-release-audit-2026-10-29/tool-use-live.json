@@ -1,0 +1,164 @@
+{
+  "generatedAt": "2026-10-29T16:38:31.680Z",
+  "provider": {
+    "driver": "codex",
+    "model": "gpt-6-luna"
+  },
+  "setup": "isolated temporary TABS_HOME, Electron profile, and empty disposable Git project; existing Codex CLI configured through normal provider settings API",
+  "promptDataRecorded": false,
+  "schemaMeasurement": {
+    "source": "the exact advertisedJsonSchema output for orchestrator_capabilities and t3_project_list from their registered tool definitions",
+    "scope": "these two exercised tools only; the provider received the complete MCP registry, whose full serialized schema catalog is not available in the turn projection",
+    "bytes": 370,
+    "estimatedTokens": 106,
+    "estimateMethod": "Math.round(UTF8 JSON schema bytes / 3.5); estimate only, not provider-reported usage",
+    "candidateApplicability": "historical_pre_optional_capability_schema_restoration"
+  },
+  "candidateContextBudgetReference": {
+    "source": "AgentContextBudget.test.ts on the final candidate after optional capability search and pagination were restored",
+    "measuredSeparatelyFromLiveRun": true,
+    "bytes": {
+      "claudeSystemAppendBytes": 8000,
+      "codexAdditionalContextBytes": 10071,
+      "mcpToolListJsonBytes": 73547,
+      "mcpFullRegistryJsonBytes": 171228
+    }
+  },
+  "comparison": {
+    "runs": [
+      {
+        "label": "evaluation",
+        "elapsedMs": 11061,
+        "outcome": "completed",
+        "registeredToolCalls": [
+          {
+            "status": "completed",
+            "toolName": "t3-code.orchestrator_capabilities",
+            "argumentKeys": [],
+            "arguments": {},
+            "outputPresent": true,
+            "outputOmitted": false,
+            "isError": false,
+            "resultKeys": [
+              "features",
+              "inheritedModel",
+              "inheritedProviderInstanceId",
+              "interactionMode",
+              "parentThreadId",
+              "providers",
+              "runtimeMode"
+            ],
+            "resultLengths": {
+              "providers": 11
+            },
+            "capabilityResult": {
+              "providerCount": 11,
+              "codexProviderReturned": true,
+              "gpt6LunaAvailable": true
+            }
+          },
+          {
+            "status": "failed",
+            "toolName": "t3-code.t3_project_list",
+            "argumentKeys": ["limit"],
+            "arguments": {
+              "limit": 0
+            },
+            "outputPresent": true,
+            "outputOmitted": false,
+            "isError": true,
+            "resultKeys": ["error"],
+            "resultLengths": {},
+            "error": "tool call error: tool call failed for `t3-code/t3_project_list`\n\nCaused by:\n    Mcp error: -32602: Toolkit.t3_project_list.handle: Invalid parameters for tool 't3_project_list': Expected a value between 1 and 100\n      at [\"limit\"]([{\"_tag\":\"Fail\",\"error\":{\"code\":-32602,\"message\":\"Toolkit.t3_project_list.handle: Invalid parameters for tool 't3_project_list': Expected a value between 1 and 100\\n  a"
+          },
+          {
+            "status": "completed",
+            "toolName": "t3-code.t3_project_list",
+            "argumentKeys": ["limit"],
+            "arguments": {
+              "limit": 5
+            },
+            "outputPresent": true,
+            "outputOmitted": false,
+            "isError": false,
+            "resultKeys": ["nextCursor", "projects"],
+            "resultLengths": {
+              "projects": 1
+            },
+            "projectListResult": {
+              "projectCount": 1,
+              "containsDisposableProject": true
+            }
+          }
+        ],
+        "toolPayloadSource": "isolated_profile_projection_database",
+        "discoverySuccess": true,
+        "discoveryResultStatus": "observed",
+        "discoverySummary": {
+          "providerCount": 11,
+          "codexProviderReturned": true,
+          "gpt6LunaAvailable": true
+        },
+        "invalidArgumentObserved": true,
+        "invalidArgumentRecoveryCallIssued": true,
+        "invalidArgumentRecoveryResultStatus": "verified_project_list_contains_disposable_project",
+        "recoverySummary": {
+          "projectCount": 1,
+          "containsDisposableProject": true
+        },
+        "providerErrors": [],
+        "actualUsage": [
+          {
+            "status": "completed",
+            "tokenUsage": {
+              "usedTokens": 23904,
+              "maxTokens": 258400,
+              "inputTokens": 23896,
+              "cachedInputTokens": 23680,
+              "outputTokens": 8,
+              "reasoningOutputTokens": 0,
+              "updatedAt": "2026-10-29T16:38:52.919Z"
+            },
+            "turnTokenUsage": {
+              "usageScope": "main_agent",
+              "cachedInputTokens": 85376,
+              "cacheCreationTokens": 0,
+              "reasoningTokens": 0,
+              "hasSubagents": false,
+              "usageStatus": "complete",
+              "inputTokens": 109861,
+              "outputTokens": 239
+            }
+          }
+        ],
+        "assistantReports": [
+          {
+            "reportsProjectCount": null,
+            "mentionsInvalidInput": false,
+            "length": 80
+          },
+          {
+            "reportsProjectCount": null,
+            "mentionsInvalidInput": true,
+            "length": 147
+          },
+          {
+            "reportsProjectCount": 1,
+            "mentionsInvalidInput": false,
+            "length": 19
+          }
+        ],
+        "acceptedApprovalCount": 0,
+        "databaseReadError": null,
+        "note": "One live provider run, before optional capability search and pagination were restored, verified no-argument discovery plus invalid-argument recovery for t3_project_list. Result bodies were read from the isolated profile. It does not exercise the restored capability query controls. Current candidate context and MCP registry byte counts are recorded separately in candidateContextBudgetReference.",
+        "evidenceSource": "The harness queried only the generated thread's dynamic_tool payloads from the isolated profile's orchestration_v2_projection_turn_items table in statev2.sqlite using sqlite3 -readonly. No other table or user database was accessed."
+      }
+    ],
+    "legacyReadOnlyAlias": "none: the registered legacy alias table contains only mutating preview actions, queue operations, thread fork/merge, and scheduled-task updates",
+    "note": "One live provider run observed the safe tool-call sequence. Results are verified only when the isolated read-only database query succeeds. No state-changing legacy alias is invoked.",
+    "evidenceSource": "The harness is configured to query only generated-thread dynamic_tool payloads from the isolated profile's orchestration_v2_projection_turn_items table using sqlite3 -readonly. The recorded run used a mistaken state.sqlite path, so no database rows were read and its result bodies remain unverified; the correct database filename is statev2.sqlite. No other table or user database was accessed."
+  },
+  "environmentReady": true,
+  "completedAt": "2026-10-29T16:38:53.161Z",
+  "durationMs": 21950
+}

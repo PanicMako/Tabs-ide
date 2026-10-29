@@ -33,6 +33,7 @@ import * as HtmlRender from "../htmlRender/HtmlRender.ts";
 import * as PreviewBrowser from "../htmlRender/PreviewBrowser.ts";
 import * as McpInvocationContext from "./McpInvocationContext.ts";
 import * as OrchestratorMcpService from "./OrchestratorMcpService.ts";
+import { advertisedJsonSchema } from "./advertisedJsonSchema.ts";
 import { PreviewControlsToolkit } from "./toolkits/previewControls/tools.ts";
 import * as PreviewControlsHandlers from "./toolkits/previewControls/handlers.ts";
 import { EnvironmentToolkit } from "./toolkits/environment/tools.ts";
@@ -42,12 +43,15 @@ import * as ProjectHandlers from "./toolkits/project/handlers.ts";
 import { AttachmentToolkit } from "./toolkits/attachment/tools.ts";
 import * as AttachmentHandlers from "./toolkits/attachment/handlers.ts";
 import { ThreadToolkit } from "./toolkits/thread/tools.ts";
+import * as ThreadTools from "./toolkits/thread/tools.ts";
 import * as ThreadHandlers from "./toolkits/thread/handlers.ts";
 import * as ThreadMetadataMcpService from "./ThreadMetadataMcpService.ts";
 import * as McpSessionRegistry from "./McpSessionRegistry.ts";
 import * as PreviewAutomationBroker from "./PreviewAutomationBroker.ts";
 import * as OrchestratorHandlers from "./toolkits/orchestrator/handlers.ts";
 import { OrchestratorToolkit } from "./toolkits/orchestrator/tools.ts";
+import { UpdateScheduledTaskTool } from "./toolkits/orchestrator/tools.ts";
+import * as PreviewTools from "./toolkits/preview/tools.ts";
 import * as PreviewHandlers from "./toolkits/preview/handlers.ts";
 import {
   PreviewSnapshotTool,
@@ -460,7 +464,7 @@ const registerPreviewSnapshot = Effect.fn("McpHttpServer.registerPreviewSnapshot
     tool: new McpSchema.Tool({
       name: tool.name,
       description: Tool.getDescription(tool),
-      inputSchema: Tool.getJsonSchema(tool),
+      inputSchema: advertisedJsonSchema(tool),
       annotations: {
         ...Context.getOption(tool.annotations, Tool.Title).pipe(
           Option.map((title) => ({ title })),
@@ -646,7 +650,7 @@ const registerImageTool = <T extends Tool.Any, E, R>(
       tool: new McpSchema.Tool({
         name: tool.name,
         description: Tool.getDescription(tool),
-        inputSchema: Tool.getJsonSchema(tool),
+        inputSchema: advertisedJsonSchema(tool),
         annotations: {
           ...Context.getOption(tool.annotations, Tool.Title).pipe(
             Option.map((title) => ({ title })),
@@ -753,7 +757,7 @@ const registerToolkit = /*#__PURE__*/ Effect.fnUntraced(function* (toolkit: any)
     const mcpTool = new McpSchema.Tool({
       name: tool.name,
       description: Tool.getDescription(tool),
-      inputSchema: Tool.getJsonSchema(tool),
+      inputSchema: advertisedJsonSchema(tool),
       annotations: {
         ...Context.getOption(tool.annotations, Tool.Title).pipe(
           Option.map((title) => ({ title })),
@@ -791,11 +795,16 @@ const registerToolkit = /*#__PURE__*/ Effect.fnUntraced(function* (toolkit: any)
             Effect.matchCauseEffect({
               onFailure: (cause: Cause.Cause<any>) => {
                 const error = Cause.squash(cause);
-                const text =
-                  typeof error === "object" &&
-                  error !== null &&
-                  "message" in error &&
-                  typeof (error as any).message === "string"
+                const isOrchestratorFailure = (error as any)?._tag === "OrchestratorMcpFailure";
+                const errorPayload = isOrchestratorFailure
+                  ? { code: (error as any).code, message: (error as any).message }
+                  : undefined;
+                const text = errorPayload
+                  ? JSON.stringify(errorPayload)
+                  : typeof error === "object" &&
+                      error !== null &&
+                      "message" in error &&
+                      typeof (error as any).message === "string"
                     ? (error as any).message
                     : Cause.pretty(cause);
                 if (
@@ -807,6 +816,7 @@ const registerToolkit = /*#__PURE__*/ Effect.fnUntraced(function* (toolkit: any)
                 return Effect.succeed(
                   new McpSchema.CallToolResult({
                     isError: true,
+                    structuredContent: errorPayload,
                     content: [{ type: "text", text }],
                   }),
                 );
@@ -830,6 +840,36 @@ const registerToolkit = /*#__PURE__*/ Effect.fnUntraced(function* (toolkit: any)
         );
       },
     });
+    // Register legacy operations in the actual registry, including the HTTP transport's
+    // catalog. Overriding callTool alone does not cover the transport's internal router.
+    for (const legacy of LEGACY_TOOLS) {
+      const translate = LEGACY_TOOL_ALIASES[legacy.name]!;
+      if (translate({}).name !== tool.name) continue;
+      const legacyMcpTool = new McpSchema.Tool({
+        name: legacy.name,
+        description: Tool.getDescription(legacy),
+        inputSchema: advertisedJsonSchema(legacy),
+        annotations: {
+          readOnlyHint: Context.get(legacy.annotations, Tool.Readonly),
+          destructiveHint: Context.get(legacy.annotations, Tool.Destructive),
+          idempotentHint: Context.get(legacy.annotations, Tool.Idempotent),
+          openWorldHint: Context.get(legacy.annotations, Tool.OpenWorld),
+        },
+      });
+      const legacyOutput = Tool.getJsonSchemaFromSchema(legacy.successSchema);
+      if (legacyOutput.type === "object") {
+        (legacyMcpTool as any).outputSchema = { ...legacyOutput, additionalProperties: true };
+      }
+      yield* registry.addTool({
+        tool: legacyMcpTool,
+        annotations: legacy.annotations,
+        handle: (payload) =>
+          Schema.decodeUnknownEffect(legacy.parametersSchema)(payload).pipe(
+            Effect.mapError((error) => new McpSchema.InvalidParams({ message: error.message })),
+            Effect.flatMap((args) => registry.callTool(translate(args))),
+          ),
+      });
+    }
   }
 });
 
@@ -904,6 +944,66 @@ export const layerDeviceToolkit = Layer.mergeAll(
   layerDeviceScreenshotRegistration,
 );
 
+export const LEGACY_TOOL_ALIASES: Record<string, (args: any) => { name: string; arguments: any }> =
+  {
+    preview_click: (args) => ({ name: "preview_act", arguments: { ...args, action: "click" } }),
+    preview_type: (args) => ({ name: "preview_act", arguments: { ...args, action: "type" } }),
+    preview_press: (args) => ({ name: "preview_act", arguments: { ...args, action: "press" } }),
+    preview_scroll: (args) => ({ name: "preview_act", arguments: { ...args, action: "scroll" } }),
+    preview_hover: (args) => ({ name: "preview_act", arguments: { ...args, action: "hover" } }),
+    preview_select: (args) => ({ name: "preview_act", arguments: { ...args, action: "select" } }),
+    preview_drag: (args) => ({ name: "preview_act", arguments: { ...args, action: "drag" } }),
+    preview_upload: (args) => ({ name: "preview_act", arguments: { ...args, action: "upload" } }),
+
+    t3_queue_edit: (args) => ({ name: "t3_queue", arguments: { ...args, action: "edit" } }),
+    t3_queue_cancel: (args) => ({ name: "t3_queue", arguments: { ...args, action: "cancel" } }),
+    t3_queue_reorder: (args) => ({ name: "t3_queue", arguments: { ...args, action: "reorder" } }),
+    t3_queue_promote_to_steer: (args) => ({
+      name: "t3_queue",
+      arguments: { ...args, action: "promote_to_steer" },
+    }),
+
+    t3_pending_request_respond: (args) => ({
+      name: "t3_pending_request",
+      arguments: { ...args, action: "respond" },
+    }),
+
+    t3_thread_fork: (args) => ({
+      name: "t3_thread_transfer",
+      arguments: { ...args, action: "fork" },
+    }),
+    t3_thread_merge_back: (args) => ({
+      name: "t3_thread_transfer",
+      arguments: { ...args, threadId: args.sourceThreadId, action: "merge_back" },
+    }),
+
+    update_scheduled_task: (args) => ({
+      name: "schedule_task",
+      arguments: { ...args },
+    }),
+  };
+
+export const LEGACY_TOOLS = [
+  PreviewTools.PreviewClickTool,
+  PreviewTools.PreviewTypeTool,
+  PreviewTools.PreviewPressTool,
+  PreviewTools.PreviewScrollTool,
+  PreviewTools.PreviewHoverTool,
+  PreviewTools.PreviewSelectTool,
+  PreviewTools.PreviewDragTool,
+  PreviewTools.PreviewUploadTool,
+  ThreadTools.QueueEditTool,
+  ThreadTools.QueueCancelTool,
+  ThreadTools.QueueReorderTool,
+  ThreadTools.QueuePromoteTool,
+  ThreadTools.PendingRequestRespondTool,
+  ThreadTools.ThreadForkTool,
+  ThreadTools.ThreadMergeBackTool,
+  UpdateScheduledTaskTool,
+] as const satisfies ReadonlyArray<Tool.Any>;
+
+export const layerMcpServer = McpServer.McpServer.layer;
+
 const layerMcpTransport = McpServer.layerHttp({
   protocols: [McpProtocol.v2025_06_18],
   name: "Tabs",
@@ -911,7 +1011,8 @@ const layerMcpTransport = McpServer.layerHttp({
   path: "/mcp",
 }).pipe(Layer.provide(layerMcpAuthMiddleware));
 
-export const layer = Layer.mergeAll(
+/** Every tool the Tabs MCP server advertises. AgentContextBudget.test.ts measures this set. */
+export const layerTools = Layer.mergeAll(
   layerPreviewToolkit,
   layerOrchestratorToolkit,
   layerThreadToolkit,
@@ -923,8 +1024,11 @@ export const layer = Layer.mergeAll(
   layerPullRequestsToolkit,
   layerDeviceToolkit,
   layerHtmlToolkit,
-).pipe(
+);
+
+export const layer = layerTools.pipe(
   Layer.provideMerge(layerMcpTransport),
+  Layer.provideMerge(layerMcpServer),
   Layer.tapCause((cause) =>
     Effect.logError("MCP route assembly failed", { cause: Cause.pretty(cause) }),
   ),

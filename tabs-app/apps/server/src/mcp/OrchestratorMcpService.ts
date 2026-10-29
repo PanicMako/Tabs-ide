@@ -13,6 +13,7 @@ import {
   type OrchestrationV2TurnItem,
   OrchestratorMcpFailure,
   type OrchestratorMcpCapabilitiesResult,
+  type OrchestratorMcpCapabilitiesInput,
   type OrchestratorMcpCreateThreadsInput,
   type OrchestratorMcpCreateThreadsResult,
   type OrchestratorMcpCreatedThread,
@@ -85,6 +86,7 @@ import {
 } from "./McpInvocationContext.ts";
 import * as Metrics from "../observability/Metrics.ts";
 import * as SecretRequests from "../secrets/SecretRequests.ts";
+import { selectCapabilityModels } from "./capabilityModels.ts";
 
 const DEFAULT_WAIT_TIMEOUT_MS = 10 * 60 * 1_000;
 const MAX_WAIT_TIMEOUT_MS = 60 * 60 * 1_000;
@@ -115,6 +117,7 @@ type TerminalTaskStatus = Extract<
 export interface OrchestratorMcpServiceShape {
   readonly capabilities: (
     scope: McpInvocationScope,
+    input?: OrchestratorMcpCapabilitiesInput,
   ) => Effect.Effect<OrchestratorMcpCapabilitiesResult, OrchestratorMcpFailure>;
   readonly delegateTask: (
     scope: McpInvocationScope,
@@ -1671,7 +1674,7 @@ const make = Effect.gen(function* () {
         return { status, secretRef: secretRef.value };
       }).pipe(Effect.withSpan("OrchestratorMcpService.requestSecret")),
 
-    capabilities: (scope) =>
+    capabilities: (scope, input = {}) =>
       Effect.gen(function* () {
         const { parent, limits } = yield* loadCaller(scope);
         const providers = yield* loadProviders;
@@ -1683,6 +1686,13 @@ const make = Effect.gen(function* () {
           runtimeMode: limits.runtimeMode,
           interactionMode: limits.interactionMode,
           providers: providers.map((provider) => {
+            const selection = selectCapabilityModels(
+              provider.models,
+              input,
+              provider.instanceId === parent?.thread.modelSelection.instanceId
+                ? parent.thread.modelSelection.model
+                : null,
+            );
             const constraints = providerConstraints(
               provider,
               orchestrationCapableInstanceIds.has(provider.instanceId),
@@ -1691,14 +1701,16 @@ const make = Effect.gen(function* () {
               providerInstanceId: provider.instanceId,
               driverKind: provider.driver,
               displayName: provider?.displayName ?? null,
-              models:
-                provider?.models.map((model) => ({
-                  id: model.slug,
-                  label: model.name ?? null,
-                  ...(model.capabilities?.optionDescriptors === undefined
-                    ? {}
-                    : { options: model.capabilities.optionDescriptors }),
-                })) ?? [],
+              totalModels: selection.totalModels,
+              hasMoreModels: selection.hasMoreModels,
+              ...("nextOffset" in selection ? { nextOffset: selection.nextOffset } : {}),
+              models: selection.models.map((model) => ({
+                id: model.slug,
+                label: model.name ?? null,
+                ...(model.capabilities?.optionDescriptors === undefined
+                  ? {}
+                  : { options: model.capabilities.optionDescriptors }),
+              })),
               canRunChildTask: constraints.length === 0,
               canRunCrossProviderChildTask: constraints.length === 0,
               constraints: [...constraints],

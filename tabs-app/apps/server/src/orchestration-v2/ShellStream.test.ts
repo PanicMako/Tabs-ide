@@ -14,12 +14,15 @@ import * as Stream from "effect/Stream";
 import * as TestClock from "effect/testing/TestClock";
 
 import {
+  activeShellRowsForSubscriber,
+  shouldPublishShellApplicationEvent,
   archivedShellStreamItemFromThreadShell,
   buildActiveShellSnapshot,
   coalesceShellApplicationEvents,
   coalesceStoredThreadEvents,
   composeShellStreamWithEnrichment,
   dedupeShellEnrichment,
+  omitOlderSettledShells,
   shellStreamItemFromEnrichmentRefresh,
   shellStreamItemFromThreadShell,
   shellStreamItemsFromInitialSnapshot,
@@ -213,6 +216,93 @@ describe("archivedShellStreamItemFromThreadShell", () => {
         shell: null,
       }),
     ).toEqual({ kind: "thread.removed", sequence: 4, threadId: "thread-a" });
+  });
+});
+
+describe("omitOlderSettledShells", () => {
+  const DAY = 24 * 60 * 60 * 1000;
+  const now = DateTime.makeUnsafe(100 * DAY);
+  const row = (
+    id: string,
+    settledDaysAgo: number | null,
+    overrides: Partial<OrchestrationV2ThreadShell> = {},
+  ) =>
+    shellFixture({
+      id: ThreadId.make(id),
+      projectId: ProjectId.make(id.startsWith("b-") ? "project-b" : "project-a"),
+      lineage: {
+        parentThreadId: null,
+        relationshipToParent: null,
+        rootThreadId: ThreadId.make(id),
+      },
+      status: "completed",
+      activityRunStatus: null,
+      pendingRuntimeRequest: null,
+      pendingBackgroundTasks: [],
+      settledOverride: settledDaysAgo === null ? null : "settled",
+      settledAt:
+        settledDaysAgo === null ? null : DateTime.makeUnsafe(100 * DAY - settledDaysAgo * DAY),
+      ...overrides,
+    });
+  const newest = Array.from({ length: 25 }, (_, index) => row(`new-${index}`, index / 10));
+  const omit = (threads: ReadonlyArray<OrchestrationV2ThreadShell>) =>
+    omitOlderSettledShells({ threads, snapshotSequence: 7, now });
+
+  it("keeps the 25 newest settled threads and counts the rest per project", () => {
+    const result = omit([...newest, row("old", 30), row("b-old", 40), row("unsettled", null)]);
+    expect(result.threads.map((thread) => thread.id)).toEqual([
+      ...newest.map((thread) => thread.id),
+      "unsettled",
+    ]);
+    expect(result.olderSettled).toEqual({
+      before: DateTime.formatIso(DateTime.makeUnsafe(100 * DAY - 2.4 * DAY)),
+      asOfSequence: 7,
+      counts: [
+        { projectId: "project-a", count: 1 },
+        { projectId: "project-b", count: 1 },
+      ],
+    });
+  });
+
+  it("keeps threads tied with the 25th newest", () => {
+    const result = omit([...newest, row("tie", 2.4), row("older", 2.5)]);
+    expect(result.threads.map((thread) => thread.id).slice(25)).toEqual(["tie"]);
+  });
+
+  it("omits nothing with fewer than 25 settled threads, however old", () => {
+    const old = Array.from({ length: 5 }, (_, index) => row(`old-${index}`, 300 + index));
+    const result = omit(old);
+    expect(result.threads).toEqual(old);
+    expect(result.olderSettled.counts).toEqual([]);
+  });
+
+  it("keeps older rows that are snoozed, live, or above a kept subagent, and still counts them", () => {
+    const threads = [
+      ...newest,
+      row("snoozed", 30, { snoozedUntil: DateTime.makeUnsafe(101 * DAY) }),
+      row("woke", 30, { snoozedUntil: DateTime.makeUnsafe(99 * DAY) }),
+      row("running", 30, { activityRunStatus: "running" }),
+      row("parent", 30),
+      shellFixture({
+        id: ThreadId.make("child"),
+        projectId: ProjectId.make("project-a"),
+        lineage: {
+          parentThreadId: ThreadId.make("parent"),
+          relationshipToParent: "subagent",
+          rootThreadId: ThreadId.make("parent"),
+        },
+        settledOverride: null,
+        settledAt: null,
+      }),
+    ];
+    const result = omit(threads);
+    expect(result.threads.map((thread) => thread.id).slice(25)).toEqual([
+      "snoozed",
+      "running",
+      "parent",
+      "child",
+    ]);
+    expect(result.olderSettled.counts).toEqual([{ projectId: "project-a", count: 4 }]);
   });
 });
 
@@ -585,4 +675,57 @@ describe("skipUnchangedThreadShells", () => {
       expect(sent).toEqual([1, 2, 3]);
     }),
   );
+});
+
+describe("idle subagent snapshot omission", () => {
+  it("omits idle snapshot rows without hiding live lifecycle changes", () => {
+    const child = shellFixture({
+      id: ThreadId.make("idle-child"),
+      lineage: {
+        parentThreadId: ThreadId.make("parent"),
+        rootThreadId: ThreadId.make("parent"),
+        relationshipToParent: "subagent",
+      },
+      status: "idle",
+      activityRunStatus: null,
+      pendingRuntimeRequest: null,
+      pendingBackgroundTasks: [],
+    });
+    const snapshot = activeShellRowsForSubscriber([child], true);
+    expect(snapshot.threads).toEqual([]);
+    const ids = snapshot.subagentThreadIds;
+    expect(
+      shouldPublishShellApplicationEvent(
+        storedThreadEvent(2, child.id, {
+          type: "thread.created",
+          payload: { lineage: child.lineage },
+        }),
+        ids,
+      ),
+    ).toBe(true);
+    expect(
+      shouldPublishShellApplicationEvent(
+        storedThreadEvent(3, child.id, {
+          type: "run.updated",
+        }),
+        ids,
+      ),
+    ).toBe(true);
+    expect(
+      shouldPublishShellApplicationEvent(
+        storedThreadEvent(4, child.id, {
+          type: "message.updated",
+        }),
+        ids,
+      ),
+    ).toBe(false);
+    expect(
+      shouldPublishShellApplicationEvent(
+        storedThreadEvent(5, child.id, {
+          type: "thread.deleted",
+        }),
+        ids,
+      ),
+    ).toBe(true);
+  });
 });

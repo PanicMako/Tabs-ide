@@ -660,6 +660,10 @@ export const ServerConfig = Schema.Struct({
   settings: ServerSettings,
   /** Whether shell subscriptions can emit an opt-in catch-up completion marker. */
   shellResumeCompletionMarker: Schema.optionalKey(Schema.Boolean),
+  /** Whether the server supports thread families and omitted subagent shells. */
+  shellThreadFamilies: Schema.optionalKey(Schema.Boolean),
+  /** Whether the server supports older-settled shell paging and exact counts. */
+  shellOlderSettled: Schema.optionalKey(Schema.Boolean),
   /** Whether shell.openInEditor honors `LaunchEditorInput.reveal` for the file-manager editor. */
   shellRevealInFileManager: Schema.optionalKey(Schema.Boolean),
   /** File-manager wording clients should use for reveal actions. */
@@ -896,6 +900,13 @@ export const ServerLifecycleStreamEvent = Schema.Union([
 export type ServerLifecycleStreamEvent = typeof ServerLifecycleStreamEvent.Type;
 
 export const ServerProviderUpdatedPayload = Schema.Struct({
+  workspaceSnapshotScope: Schema.optionalKey(
+    Schema.Struct({
+      instanceId: ProviderInstanceId,
+      cwd: TrimmedNonEmptyString,
+      fresh: Schema.Boolean,
+    }),
+  ),
   providers: ServerProviders,
 });
 export type ServerProviderUpdatedPayload = typeof ServerProviderUpdatedPayload.Type;

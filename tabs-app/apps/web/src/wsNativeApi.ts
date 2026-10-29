@@ -1,4 +1,13 @@
 import {
+  hasOmittedBodies,
+  stripBodySourceSequence,
+  turnItemBodySourceKey,
+  restoreSnapshotBodies,
+  restoreSubagentBodies,
+  restoreTurnItemBodies,
+} from "@tabs/shared/orchestrationV2DedupedBodies";
+import { mergeProviderWorkspaceSnapshots } from "@tabs/shared/providerWorkspaceSnapshots";
+import {
   GitActionProgressEvent,
   type GitRunStackedActionResult,
   type ReviewProgressEvent,
@@ -7,6 +16,12 @@ import {
   ORCHESTRATION_V2_WS_METHODS,
   OrchestrationV2ShellStreamItem,
   OrchestrationV2ThreadStreamItem,
+  type OrchestrationV2ThreadProjection,
+  type CheckpointId,
+  type MessageId,
+  type NodeId,
+  type OrchestrationV2Checkpoint,
+  type OrchestrationV2Subagent,
   type ContextMenuItem,
   type NativeApi,
   type AssetCreateUrlResult,
@@ -20,6 +35,7 @@ import {
   TerminalEvent as TerminalEventSchema,
   ResourceTelemetrySnapshot,
   type OrchestrationReadModel,
+  ScheduledTaskListResult,
 } from "@tabs/contracts";
 import { providerUsageSnapshots } from "./providerUsageSnapshots";
 import * as Schema from "effect/Schema";
@@ -708,6 +724,27 @@ export function createWsNativeApi(options?: {
       consumeResetCredit: (input) =>
         transport.request(WS_METHODS.providerConsumeResetCredit, input),
     },
+    scheduledTasks: {
+      list: () => transport.request(WS_METHODS.scheduledTasksList, {}),
+      subscribe: (callback, onError) =>
+        transport.subscribeRpc(
+          WS_METHODS.scheduledTasksSubscribe,
+          () => ({}),
+          Schema.decodeUnknownSync(ScheduledTaskListResult),
+          callback,
+          onError,
+        ),
+      upsert: (input) => transport.request(WS_METHODS.scheduledTasksUpsert, input),
+      setEnabled: (input) => transport.request(WS_METHODS.scheduledTasksSetEnabled, input),
+      delete: (input) => transport.request(WS_METHODS.scheduledTasksDelete, input),
+      runNow: (input) => transport.request(WS_METHODS.scheduledTasksRunNow, input),
+      rotateWebhookToken: (input) =>
+        transport.request(WS_METHODS.scheduledTasksRotateWebhookToken, input),
+      listWebhookDeliveries: (input) =>
+        transport.request(WS_METHODS.scheduledTasksListWebhookDeliveries, input),
+      getWebhookDelivery: (input) =>
+        transport.request(WS_METHODS.scheduledTasksGetWebhookDelivery, input),
+    },
     orchestration: {
       getSnapshot: async (environmentId?: string) => {
         const { appAtomRegistry } = await import("./state/atomRegistry");
@@ -802,8 +839,30 @@ export function createWsNativeApi(options?: {
         ),
       getArchivedShellSnapshot: () =>
         transport.request(ORCHESTRATION_WS_METHODS.getArchivedShellSnapshot, {}),
-      getThreadProjection: (input) =>
-        transport.request(ORCHESTRATION_V2_WS_METHODS.getThreadProjection, input),
+      getThreadFamily: (input) =>
+        transport.request(ORCHESTRATION_V2_WS_METHODS.getThreadFamily, input),
+      getOlderSettledThreads: (input) =>
+        transport.request(ORCHESTRATION_V2_WS_METHODS.getOlderSettledThreads, input),
+      getThreadProjection: async (input) => {
+        const complete = (projection: OrchestrationV2ThreadProjection) =>
+          !(projection.turnItems ?? []).some(hasOmittedBodies) &&
+          !(projection.visibleTurnItems ?? []).some((row) => hasOmittedBodies(row.item)) &&
+          !(projection.subagents ?? []).some(hasOmittedBodies);
+        const projection = restoreSnapshotBodies(
+          await transport.request<OrchestrationV2ThreadProjection>(
+            ORCHESTRATION_V2_WS_METHODS.getThreadProjection,
+            { ...input, acceptDedupedBodies: true },
+          ),
+        );
+        if (complete(projection)) return projection;
+        const full = await transport.request<OrchestrationV2ThreadProjection>(
+          ORCHESTRATION_V2_WS_METHODS.getThreadProjection,
+          { ...input, acceptDedupedBodies: false },
+        );
+        if (!complete(full))
+          throw new Error("The server returned an incomplete conversation. Reconnect and retry.");
+        return full;
+      },
       reconcileIntake: (input) =>
         transport.request(ORCHESTRATION_V2_WS_METHODS.reconcileIntake, input),
       recordCancellationIntent: (input) =>
@@ -818,7 +877,11 @@ export function createWsNativeApi(options?: {
               options?.onResubscribe?.();
             }
             isFirst = false;
-            return lastSeenSequence !== undefined ? { afterSequence: lastSeenSequence } : {};
+            return {
+              ...(lastSeenSequence !== undefined ? { afterSequence: lastSeenSequence } : {}),
+              ...(options?.omitIdleSubagents ? { omitIdleSubagents: true } : {}),
+              ...(options?.omitOlderSettled ? { omitOlderSettled: true } : {}),
+            };
           },
           (value) => {
             try {
@@ -850,46 +913,171 @@ export function createWsNativeApi(options?: {
           "afterSequence" in input && typeof input.afterSequence === "number"
             ? input.afterSequence
             : undefined;
-        let isFirst = true;
         const threadId = "threadId" in input ? input.threadId : undefined;
         if (!threadId) return () => {};
-        return transport.subscribeRpc(
-          ORCHESTRATION_V2_WS_METHODS.subscribeThread,
-          () => {
-            if (!isFirst) {
-              options?.onResubscribe?.();
-            }
-            isFirst = false;
-            return {
-              threadId,
-              ...(lastSeenSequence !== undefined ? { afterSequence: lastSeenSequence } : {}),
-              acceptBoundedSnapshot:
-                "acceptBoundedSnapshot" in input ? input.acceptBoundedSnapshot : true,
-            };
-          },
-          (value) => {
-            try {
-              return decodeThreadStreamItem(value);
-            } catch {
-              return value as any;
-            }
-          },
-          (item) => {
-            if ("sequence" in item && typeof item.sequence === "number") {
-              lastSeenSequence = item.sequence;
-            } else if (
-              "kind" in item &&
-              item.kind === "snapshot" &&
-              typeof (item as any)?.snapshotSequence === "number"
-            ) {
-              lastSeenSequence = (item as any).snapshotSequence;
-            }
-            callback(item);
-          },
-          (error) => {
-            console.error(`Thread subscription error for ${threadId}:`, error);
-          },
-        );
+        let isFirst = true;
+        let stopped = false;
+        let recovering = false;
+        let generation = 0;
+        let unsubscribe: (() => void) | undefined;
+        const messageText = new Map<MessageId, string>();
+        const checkpointFiles = new Map<CheckpointId, OrchestrationV2Checkpoint["files"]>();
+        const subagents = new Map<NodeId, Pick<OrchestrationV2Subagent, "prompt" | "result">>();
+        const versions = new Map<string, number>();
+        const remember = <K, V>(cache: Map<K, V>, key: K, value: V) => {
+          cache.delete(key);
+          cache.set(key, value);
+          if (cache.size > 32) cache.delete(cache.keys().next().value!);
+        };
+        const clear = () => {
+          messageText.clear();
+          checkpointFiles.clear();
+          subagents.clear();
+          versions.clear();
+        };
+        const source = {
+          messageText: (id: MessageId) => messageText.get(id),
+          checkpointFiles: (id: CheckpointId) => checkpointFiles.get(id),
+          subagent: (id: NodeId) => subagents.get(id),
+        };
+        const rememberSubagent = (
+          record: Pick<OrchestrationV2Subagent, "id" | "prompt" | "result">,
+          sequence: number,
+        ) => {
+          remember(subagents, record.id, { prompt: record.prompt, result: record.result });
+          remember(versions, `subagent:${record.id}`, sequence);
+        };
+        const sourceMatches = (payload: object, key: string | null) =>
+          !hasOmittedBodies(payload) ||
+          (key !== null &&
+            "bodySourceSequence" in payload &&
+            typeof payload.bodySourceSequence === "number" &&
+            versions.get(key) === payload.bodySourceSequence);
+        const recover = () => {
+          // Suppress the incomplete event and all late callbacks from this subscription.
+          generation++;
+          recovering = true;
+          lastSeenSequence = undefined;
+          clear();
+          const cancel = unsubscribe;
+          cancel?.();
+          queueMicrotask(() => {
+            if (!cancel) unsubscribe?.();
+            if (!stopped) start();
+          });
+        };
+        const start = () => {
+          const currentGeneration = ++generation;
+          unsubscribe = transport.subscribeRpc(
+            ORCHESTRATION_V2_WS_METHODS.subscribeThread,
+            () => {
+              if (!isFirst) options?.onResubscribe?.();
+              isFirst = false;
+              return {
+                threadId,
+                ...(lastSeenSequence !== undefined ? { afterSequence: lastSeenSequence } : {}),
+                acceptDedupedBodies: !recovering,
+                acceptVersionedLiveBodies: !recovering,
+                acceptBoundedSnapshot: recovering
+                  ? false
+                  : "acceptBoundedSnapshot" in input
+                    ? input.acceptBoundedSnapshot
+                    : true,
+              };
+            },
+            (value) => {
+              try {
+                return decodeThreadStreamItem(value);
+              } catch {
+                return value as OrchestrationV2ThreadStreamItem;
+              }
+            },
+            (item) => {
+              if (stopped || currentGeneration !== generation) return;
+              if (item.kind === "snapshot") {
+                const projection = restoreSnapshotBodies(item.projection);
+                if (
+                  projection.turnItems.some(hasOmittedBodies) ||
+                  projection.visibleTurnItems.some((row) => hasOmittedBodies(row.item)) ||
+                  projection.subagents.some(hasOmittedBodies)
+                ) {
+                  if (!recovering) recover();
+                  else console.error(`Thread snapshot contains unresolved bodies for ${threadId}`);
+                  return;
+                }
+                clear();
+                for (const message of projection.messages) {
+                  remember(messageText, message.id, message.text);
+                  remember(versions, `message:${message.id}`, item.snapshotSequence);
+                }
+                for (const checkpoint of projection.checkpoints) {
+                  remember(checkpointFiles, checkpoint.id, checkpoint.files);
+                  remember(versions, `checkpoint:${checkpoint.id}`, item.snapshotSequence);
+                }
+                for (const record of projection.subagents)
+                  rememberSubagent(record, item.snapshotSequence);
+                lastSeenSequence = item.snapshotSequence;
+                callback({ ...item, projection });
+                return;
+              }
+              if (item.kind === "event") {
+                if (lastSeenSequence !== undefined && item.sequence <= lastSeenSequence) return;
+                const { event } = item;
+                if (event.type === "subagent.updated" || event.type === "turn-item.updated") {
+                  const key =
+                    event.type === "subagent.updated"
+                      ? `subagent:${event.payload.id}`
+                      : turnItemBodySourceKey(event.payload);
+                  if (!sourceMatches(event.payload, key)) {
+                    recover();
+                    return;
+                  }
+                  const payload = stripBodySourceSequence(
+                    event.type === "subagent.updated"
+                      ? restoreSubagentBodies(event.payload, subagents.get(event.payload.id))
+                      : restoreTurnItemBodies(event.payload, source),
+                  );
+                  if (hasOmittedBodies(payload)) {
+                    recover();
+                    return;
+                  }
+                  lastSeenSequence = item.sequence;
+                  if (event.type === "subagent.updated") {
+                    const restored = payload as OrchestrationV2Subagent;
+                    rememberSubagent(restored, item.sequence);
+                    callback({ ...item, event: { ...event, payload: restored } });
+                  } else
+                    callback({
+                      ...item,
+                      event: { ...event, payload: payload as typeof event.payload },
+                    });
+                  return;
+                }
+                if (event.type === "message.updated") {
+                  remember(messageText, event.payload.id, event.payload.text);
+                  remember(versions, `message:${event.payload.id}`, item.sequence);
+                } else if (event.type === "checkpoint.captured") {
+                  remember(checkpointFiles, event.payload.id, event.payload.files);
+                  remember(versions, `checkpoint:${event.payload.id}`, item.sequence);
+                }
+              }
+              if ("sequence" in item)
+                lastSeenSequence = Math.max(lastSeenSequence ?? 0, item.sequence);
+              callback(item);
+            },
+            (error) => {
+              if (!stopped && currentGeneration === generation)
+                console.error(`Thread subscription error for ${threadId}:`, error);
+            },
+          );
+        };
+        start();
+        return () => {
+          stopped = true;
+          generation++;
+          clear();
+          unsubscribe?.();
+        };
       },
     },
     persistence: {

@@ -103,6 +103,10 @@
       "types": "./src/state/models.ts",
       "default": "./src/state/models.ts"
     },
+    "./state/olderSettledThreads": {
+      "types": "./src/state/olderSettledThreads.ts",
+      "default": "./src/state/olderSettledThreads.ts"
+    },
     "./state/orchestration": {
       "types": "./src/state/orchestration.ts",
       "default": "./src/state/orchestration.ts"
@@ -110,6 +114,10 @@
     "./state/orchestrationV2Projection": {
       "types": "./src/state/orchestrationV2Projection.ts",
       "default": "./src/state/orchestrationV2Projection.ts"
+    },
+    "./state/threadRelationships": {
+      "types": "./src/state/threadRelationships.ts",
+      "default": "./src/state/threadRelationships.ts"
     },
     "./state/presentation": {
       "types": "./src/state/presentation.ts",

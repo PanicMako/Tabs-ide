@@ -20,3 +20,15 @@ export const threadByIdAtom = (threadId: string) =>
   Atom.make(
     (get): Thread | null => get(threadsAtom).find((thread) => thread.id === threadId) ?? null,
   ).pipe(Atom.withLabel(`tabs-thread-${threadId}`));
+
+export {
+  isListedSettledThread,
+  settledShelfFrontier,
+  unloadedOlderSettledCount,
+  wantedOlderSettledPages,
+  olderSettledCountKey,
+  type OlderSettled,
+  type OlderSettledScope,
+  type OlderSettledPages,
+  type OlderSettledShelfEnvironment,
+} from "@tabs/client-runtime/state/olderSettledThreads";

@@ -4685,3 +4685,221 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
     }),
   );
 });
+
+it.effect("filters shell snapshots by thread family", () =>
+  Effect.gen(function* () {
+    const store = yield* ProjectionStore.ProjectionStoreV2;
+    const now = yield* DateTime.now;
+    const rootId = ThreadId.make("thread:family:root");
+    const childId = ThreadId.make("thread:family:child");
+    const otherId = ThreadId.make("thread:family:unrelated");
+
+    yield* store.apply({
+      id: EventId.make("event:family:root-created"),
+      type: "thread.created",
+      threadId: rootId,
+      occurredAt: now,
+      payload: {
+        createdBy: "user",
+        creationSource: "web",
+        id: rootId,
+        projectId: ProjectId.make("project:family"),
+        title: "Family Root",
+        providerInstanceId,
+        modelSelection,
+        runtimeMode: "full-access",
+        interactionMode: "default",
+        branch: null,
+        worktreePath: null,
+        activeProviderThreadId: null,
+        lineage: {
+          parentThreadId: null,
+          rootThreadId: rootId,
+          relationshipToParent: null,
+        },
+        forkedFrom: null,
+        autoSettleDisabledAt: null,
+        settledOverride: null,
+        settledAt: null,
+        archivedAt: null,
+        deletedAt: null,
+        lastVisitedAt: null,
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
+
+    yield* store.apply({
+      id: EventId.make("event:family:child-created"),
+      type: "thread.created",
+      threadId: childId,
+      occurredAt: now,
+      payload: {
+        createdBy: "user",
+        creationSource: "web",
+        id: childId,
+        projectId: ProjectId.make("project:family"),
+        title: "Family Child",
+        providerInstanceId,
+        modelSelection,
+        runtimeMode: "full-access",
+        interactionMode: "default",
+        branch: null,
+        worktreePath: null,
+        activeProviderThreadId: null,
+        lineage: {
+          parentThreadId: rootId,
+          rootThreadId: rootId,
+          relationshipToParent: "subagent",
+        },
+        forkedFrom: null,
+        autoSettleDisabledAt: null,
+        settledOverride: null,
+        settledAt: null,
+        archivedAt: null,
+        deletedAt: null,
+        lastVisitedAt: null,
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
+
+    yield* store.apply({
+      id: EventId.make("event:family:unrelated-created"),
+      type: "thread.created",
+      threadId: otherId,
+      occurredAt: now,
+      payload: {
+        createdBy: "user",
+        creationSource: "web",
+        id: otherId,
+        projectId: ProjectId.make("project:family"),
+        title: "Unrelated Thread",
+        providerInstanceId,
+        modelSelection,
+        runtimeMode: "full-access",
+        interactionMode: "default",
+        branch: null,
+        worktreePath: null,
+        activeProviderThreadId: null,
+        lineage: {
+          parentThreadId: null,
+          rootThreadId: otherId,
+          relationshipToParent: null,
+        },
+        forkedFrom: null,
+        autoSettleDisabledAt: null,
+        settledOverride: null,
+        settledAt: null,
+        archivedAt: null,
+        deletedAt: null,
+        lastVisitedAt: null,
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
+
+    const rootFamily = yield* store.getShellSnapshot({ location: "active", familyOf: rootId });
+    assert.deepEqual(rootFamily.threads.map((t) => t.id).sort(), [childId, rootId].sort());
+
+    const childFamily = yield* store.getShellSnapshot({ location: "active", familyOf: childId });
+    assert.deepEqual(childFamily.threads.map((t) => t.id).sort(), [childId, rootId].sort());
+
+    const otherFamily = yield* store.getShellSnapshot({ location: "active", familyOf: otherId });
+    assert.deepEqual(
+      otherFamily.threads.map((t) => t.id),
+      [otherId],
+    );
+  }).pipe(Effect.provide(layerTest)),
+);
+
+it.effect("lists older settled threads with cursor pagination and counts", () =>
+  Effect.gen(function* () {
+    const store = yield* ProjectionStore.ProjectionStoreV2;
+    const DAY = 24 * 60 * 60 * 1000;
+    const now = yield* DateTime.now;
+    const nowMs = DateTime.toEpochMillis(now);
+    const at = (daysAgo: number) => DateTime.makeUnsafe(nowMs - daysAgo * DAY);
+    const id = (name: string) => ThreadId.make(`thread:older:${name}`);
+
+    const createThread = (input: {
+      readonly name: string;
+      readonly settledDaysAgo: number | null;
+      readonly project?: string;
+      readonly snoozedUntilDaysAgo?: number;
+      readonly archived?: boolean;
+      readonly subagent?: boolean;
+    }) =>
+      store.apply({
+        id: EventId.make(`event:older:${input.name}`),
+        type: "thread.created",
+        threadId: id(input.name),
+        occurredAt: now,
+        payload: {
+          createdBy: "user",
+          creationSource: "web",
+          id: id(input.name),
+          projectId: ProjectId.make(input.project ?? "project:a"),
+          title: input.name,
+          providerInstanceId,
+          modelSelection,
+          runtimeMode: "full-access",
+          interactionMode: "default",
+          branch: null,
+          worktreePath: null,
+          activeProviderThreadId: null,
+          lineage: {
+            parentThreadId: input.subagent === true ? id("b") : null,
+            relationshipToParent: input.subagent === true ? "subagent" : null,
+            rootThreadId: input.subagent === true ? id("b") : id(input.name),
+          },
+          forkedFrom: null,
+          autoSettleDisabledAt: null,
+          settledOverride: input.settledDaysAgo === null ? null : "settled",
+          settledAt: input.settledDaysAgo === null ? null : at(input.settledDaysAgo),
+          snoozedUntil:
+            input.snoozedUntilDaysAgo === undefined ? null : at(input.snoozedUntilDaysAgo),
+          archivedAt: input.archived === true ? now : null,
+          deletedAt: null,
+          lastVisitedAt: null,
+          createdAt: now,
+          updatedAt: now,
+        },
+      });
+
+    yield* createThread({ name: "a", settledDaysAgo: 5 });
+    yield* createThread({ name: "b", settledDaysAgo: 4 });
+    yield* createThread({ name: "c", settledDaysAgo: 4 });
+    yield* createThread({ name: "d", settledDaysAgo: 3, project: "project:b" });
+    yield* createThread({ name: "snoozed", settledDaysAgo: 2, snoozedUntilDaysAgo: -30 });
+    yield* createThread({ name: "recent", settledDaysAgo: 20 });
+    yield* createThread({ name: "unsettled", settledDaysAgo: null });
+    yield* createThread({ name: "child", settledDaysAgo: 1, subagent: true });
+    yield* createThread({ name: "archived", settledDaysAgo: 1, archived: true });
+
+    const list = (
+      before: { readonly settledAt: string; readonly threadId?: ThreadId },
+      limit: number,
+      projectIds?: ReadonlyArray<ProjectId>,
+    ) => store.listOlderSettledThreads({ before, projectIds, limit });
+
+    const before = { settledAt: DateTime.formatIso(at(2)) };
+    const page = yield* list(before, 2);
+    assert.deepEqual(page.threadIds, [id("d"), id("b")]);
+
+    // Continued page with tie-breaking
+    const nextPage = yield* list({ settledAt: DateTime.formatIso(at(4)), threadId: id("b") }, 2);
+    assert.deepEqual(nextPage.threadIds, [id("c"), id("a")]);
+
+    // Count query with limit 0
+    const counts = yield* list(before, 0);
+    assert.deepEqual(counts.threadIds, []);
+    assert.sameDeepMembers(
+      [...counts.counts],
+      [
+        { projectId: ProjectId.make("project:a"), count: 4 },
+        { projectId: ProjectId.make("project:b"), count: 1 },
+      ],
+    );
+  }).pipe(Effect.provide(layerTest)),
+);

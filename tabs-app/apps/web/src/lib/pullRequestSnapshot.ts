@@ -12,13 +12,14 @@ export interface PullRequestSnapshotRef {
   readonly host?: string | null | undefined;
 }
 
-const SNAPSHOT_KEY_PREFIX = "tabs.pr.snapshot:";
+// v2 invalidates cache entries whose case-folded paths or branch names could collide.
+const SNAPSHOT_KEY_PREFIX = "tabs.pr.snapshot:v2:";
 const MAX_SNAPSHOTS = 50;
 
 export function pullRequestSnapshotKey(ref: PullRequestSnapshotRef): string {
   const env = ref.environmentId ?? "local";
-  const cwd = (ref.cwd ?? "").trim().toLowerCase();
-  const reference = (ref.reference ?? "").trim().toLowerCase().replace(/^#/, "");
+  const cwd = (ref.cwd ?? "").trim();
+  const reference = (ref.reference ?? "").trim().replace(/^#/, "");
   const host = (ref.host ?? "").trim().toLowerCase();
   return `${SNAPSHOT_KEY_PREFIX}${JSON.stringify([env, cwd, reference, host])}`;
 }
@@ -91,11 +92,11 @@ export function resolveDisplayedPullRequestResult(input: {
   if (!input.cached || !input.cached.pullRequest) return null;
 
   const pr = input.cached.pullRequest;
-  const targetRef = (input.ref.reference ?? "").toLowerCase().replace(/^#/, "");
+  const targetRef = (input.ref.reference ?? "").trim().replace(/^#/, "");
   const targetNum = Number(targetRef);
 
   const matchesNumber = !Number.isNaN(targetNum) && pr.number === targetNum;
-  const matchesBranch = pr.headBranch.toLowerCase() === targetRef;
+  const matchesBranch = pr.headBranch === targetRef;
   const matchesRef = matchesNumber || matchesBranch || String(pr.number) === targetRef;
 
   if (matchesRef) {

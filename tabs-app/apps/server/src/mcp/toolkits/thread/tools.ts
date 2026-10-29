@@ -74,7 +74,29 @@ const queueEntry = Schema.Struct({
   text: Schema.String,
   truncated: Schema.Boolean,
 });
-const QueueListTool = Tool.make("t3_queue_list", {
+
+export const QueueTool = Tool.make("t3_queue", {
+  ...commandTool,
+  description:
+    "Manage a thread's queued messages. Omit `threadId` for this thread. list: send order, paged by `cursor` and `limit`. read: up to 16,000 chars of one. edit: replace its `text`; attachments stay. cancel. reorder: before `beforeRunId`, or to the end with null. promote_to_steer: send it now as steering to active `targetRunId`. Writes fail once the run is no longer queued.",
+  parameters: Schema.Struct({
+    action: Schema.Literals(["list", "read", "edit", "cancel", "reorder", "promote_to_steer"]),
+    threadId: Schema.optional(ThreadId),
+    queuedRunId: Schema.optional(RunId),
+    text: Schema.optional(Schema.String.check(Schema.isMaxLength(100000))),
+    beforeRunId: Schema.optional(Schema.NullOr(RunId)),
+    targetRunId: Schema.optional(RunId),
+    cursor: Schema.optional(NonNegativeInt),
+    limit: Schema.optional(Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 100 }))),
+  }),
+  success: Schema.Union([
+    Schema.Struct({ items: Schema.Array(queueEntry), nextCursor: Schema.NullOr(NonNegativeInt) }),
+    queueEntry,
+    OrchestrationV2DispatchCommandResult,
+  ]),
+}).annotate(Tool.Destructive, true);
+
+export const QueueListTool = Tool.make("t3_queue_list", {
   ...commandTool,
   description:
     "List queued messages in delivery order. Results are a live offset page; use t3_thread_read for full thread history.",
@@ -90,7 +112,8 @@ const QueueListTool = Tool.make("t3_queue_list", {
 })
   .annotate(Tool.Readonly, true)
   .annotate(Tool.Destructive, false);
-const QueueReadTool = Tool.make("t3_queue_read", {
+
+export const QueueReadTool = Tool.make("t3_queue_read", {
   ...commandTool,
   description: "Read up to 16,000 characters of a queued message. Omit threadId for this thread.",
   parameters: Schema.Struct(queueTarget),
@@ -98,7 +121,8 @@ const QueueReadTool = Tool.make("t3_queue_read", {
 })
   .annotate(Tool.Readonly, true)
   .annotate(Tool.Destructive, false);
-const QueueEditTool = Tool.make("t3_queue_edit", {
+
+export const QueueEditTool = Tool.make("t3_queue_edit", {
   ...commandTool,
   description:
     "Replace a queued message's text, preserving its attachments. The service rejects runs that are no longer queued.",
@@ -107,17 +131,20 @@ const QueueEditTool = Tool.make("t3_queue_edit", {
     text: Schema.String.check(Schema.isMaxLength(100000)),
   }),
 }).annotate(Tool.Destructive, true);
-const QueueCancelTool = Tool.make("t3_queue_cancel", {
+
+export const QueueCancelTool = Tool.make("t3_queue_cancel", {
   ...commandTool,
   description: "Cancel a queued run using the existing queue command.",
   parameters: Schema.Struct(queueTarget),
 }).annotate(Tool.Destructive, true);
-const QueueReorderTool = Tool.make("t3_queue_reorder", {
+
+export const QueueReorderTool = Tool.make("t3_queue_reorder", {
   ...commandTool,
   description: "Move a queued run before another queued run, or to the end with beforeRunId=null.",
   parameters: Schema.Struct({ ...queueTarget, beforeRunId: Schema.NullOr(RunId) }),
 }).annotate(Tool.Destructive, true);
-const QueuePromoteTool = Tool.make("t3_queue_promote_to_steer", {
+
+export const QueuePromoteTool = Tool.make("t3_queue_promote_to_steer", {
   ...commandTool,
   description:
     "Deliver a queued message as steering to the specified active run. Existing provider and run-state rules apply.",
@@ -138,13 +165,35 @@ const question = Schema.Struct({
   ),
   multiSelect: Schema.optional(Schema.Boolean),
   allowCustomAnswer: Schema.optional(Schema.Boolean),
+  initialAnswer: Schema.optional(Schema.String),
   required: Schema.optional(Schema.Boolean),
 });
+
+export const PendingRequestTool = Tool.make("t3_pending_request", {
+  ...commandTool,
+  description:
+    "Pending user questions in a thread. Omit `threadId` for this thread. list: their ids; approvals are not listed. read: one by `requestId`. respond: answer one with `answers`; this cannot approve a permission request.",
+  parameters: Schema.Struct({
+    action: Schema.Literals(["list", "read", "respond"]),
+    threadId: Schema.optional(ThreadId),
+    requestId: Schema.optional(RuntimeRequestId),
+    answers: Schema.optional(ProviderUserInputAnswers),
+  }),
+  success: Schema.Union([
+    Schema.Struct({ requestIds: Schema.Array(RuntimeRequestId) }),
+    Schema.Struct({ requestId: RuntimeRequestId, questions: Schema.Array(question) }),
+    OrchestrationV2DispatchCommandResult,
+  ]),
+})
+  .annotate(Tool.Destructive, true)
+  .annotate(Tool.OpenWorld, true);
+
 const pendingRequest = Schema.Struct({
   requestId: RuntimeRequestId,
   questions: Schema.Array(question),
 });
-const PendingRequestListTool = Tool.make("t3_pending_request_list", {
+
+export const PendingRequestListTool = Tool.make("t3_pending_request_list", {
   ...commandTool,
   description:
     "List pending user questions in a thread. Omit threadId for this thread. Approval requests are not included.",
@@ -153,7 +202,8 @@ const PendingRequestListTool = Tool.make("t3_pending_request_list", {
 })
   .annotate(Tool.Readonly, true)
   .annotate(Tool.Destructive, false);
-const PendingRequestReadTool = Tool.make("t3_pending_request_read", {
+
+export const PendingRequestReadTool = Tool.make("t3_pending_request_read", {
   ...commandTool,
   description:
     "Read a pending user question. Answer with t3_pending_request_respond; existing live or message response handling is used.",
@@ -162,7 +212,8 @@ const PendingRequestReadTool = Tool.make("t3_pending_request_read", {
 })
   .annotate(Tool.Readonly, true)
   .annotate(Tool.Destructive, false);
-const PendingRequestRespondTool = Tool.make("t3_pending_request_respond", {
+
+export const PendingRequestRespondTool = Tool.make("t3_pending_request_respond", {
   ...commandTool,
   description:
     "Answer a pending user-input request using the existing runtime response command. This cannot approve a permission request.",
@@ -171,32 +222,63 @@ const PendingRequestRespondTool = Tool.make("t3_pending_request_respond", {
   .annotate(Tool.Destructive, true)
   .annotate(Tool.OpenWorld, true);
 
-const ThreadConfigurationTool = Tool.make("t3_thread_configuration", {
+const threadConfiguration = Schema.Struct({
+  threadId: ThreadId,
+  modelSelection: ModelSelection,
+  runtimeMode: RuntimeMode,
+  interactionMode: ProviderInteractionMode,
+});
+
+export const ThreadConfigurationTool = Tool.make("t3_thread_configuration", {
   ...commandTool,
   description:
     "Read a thread's provider/model selection and modes. Omit threadId for this thread. orchestrator_capabilities lists available providers and models.",
   parameters: Schema.Struct({ threadId: Schema.optional(ThreadId) }),
-  success: Schema.Struct({
-    threadId: ThreadId,
-    modelSelection: ModelSelection,
-    runtimeMode: RuntimeMode,
-    interactionMode: ProviderInteractionMode,
-  }),
+  success: threadConfiguration,
 })
   .annotate(Tool.Readonly, true)
   .annotate(Tool.Destructive, false);
-const ThreadConfigureTool = Tool.make("t3_thread_configure", {
+
+export const ThreadConfigureTool = Tool.make("t3_thread_configure", {
   ...commandTool,
   description:
-    "Set a thread's provider, model and options with the existing selection command. Omit threadId for this thread. This does not change permission modes. Use orchestrator_capabilities to choose a selection.",
+    "Read a thread's provider, model, and modes, or set its provider, model, and options with `modelSelection`. Omit `threadId` for this thread. Permission modes stay. Values from `orchestrator_capabilities`.",
   parameters: Schema.Struct({
     threadId: Schema.optional(ThreadId),
-    modelSelection: ModelSelection,
+    modelSelection: Schema.optional(ModelSelection),
   }),
+  success: Schema.Union([threadConfiguration, OrchestrationV2DispatchCommandResult]),
 }).annotate(Tool.Destructive, true);
 
 const transferResult = Schema.Struct({ sequence: NonNegativeInt, targetThreadId: ThreadId });
-const ThreadForkTool = Tool.make("t3_thread_fork", {
+
+export const ThreadTransferTool = Tool.make("t3_thread_transfer", {
+  ...commandTool,
+  description:
+    "Move context between threads. Omit `threadId` for this thread. fork: copy it from `sourcePoint` (default latest stable run) into a new thread with the same setup; no turn runs yet. merge_back: merge it from `sourcePoint` into a related `targetThreadId` in the same project. status: its context transfers.",
+  parameters: Schema.Struct({
+    action: Schema.Literals(["fork", "merge_back", "status"]),
+    threadId: Schema.optional(ThreadId),
+    sourcePoint: Schema.optional(OrchestrationV2ThreadForkSourcePoint),
+    targetThreadId: Schema.optional(ThreadId),
+    title: Schema.optional(TrimmedNonEmptyString),
+  }),
+  success: Schema.Union([
+    transferResult,
+    Schema.Struct({
+      transfers: Schema.Array(
+        Schema.Struct({
+          id: OrchestrationV2ContextTransfer.fields.id,
+          sourceThreadId: OrchestrationV2ContextTransfer.fields.sourceThreadId,
+          targetThreadId: OrchestrationV2ContextTransfer.fields.targetThreadId,
+          status: OrchestrationV2ContextTransfer.fields.status,
+        }),
+      ),
+    }),
+  ]),
+}).annotate(Tool.Destructive, true);
+
+export const ThreadForkTool = Tool.make("t3_thread_fork", {
   ...commandTool,
   description:
     "Fork a thread from a stable run or checkpoint using the existing fork command. Omit threadId to fork this thread. The fork inherits the source configuration. Acceptance does not mean a provider turn has completed.",
@@ -207,7 +289,8 @@ const ThreadForkTool = Tool.make("t3_thread_fork", {
   }),
   success: transferResult,
 }).annotate(Tool.Destructive, true);
-const ThreadMergeBackTool = Tool.make("t3_thread_merge_back", {
+
+export const ThreadMergeBackTool = Tool.make("t3_thread_merge_back", {
   ...commandTool,
   description:
     "Merge context from a thread back to a related thread in the same project. Omit sourceThreadId to merge from this thread. Existing lineage and transfer rules apply.",
@@ -218,7 +301,8 @@ const ThreadMergeBackTool = Tool.make("t3_thread_merge_back", {
   }),
   success: transferResult,
 }).annotate(Tool.Destructive, true);
-const ThreadTransfersTool = Tool.make("t3_thread_transfers", {
+
+export const ThreadTransfersTool = Tool.make("t3_thread_transfers", {
   ...commandTool,
   description: "Read context transfer status for a thread. Omit threadId for this thread.",
   parameters: Schema.Struct({ threadId: Schema.optional(ThreadId) }),
@@ -236,7 +320,7 @@ const ThreadTransfersTool = Tool.make("t3_thread_transfers", {
   .annotate(Tool.Readonly, true)
   .annotate(Tool.Destructive, false);
 
-const ThreadSearchTool = Tool.make("t3_thread_search", {
+export const ThreadSearchTool = Tool.make("t3_thread_search", {
   ...commandTool,
   description:
     "Search active thread titles and content with the app's existing bounded search. Matches are limited to one project (projectId, else the calling thread's project) out of the global top matches, so this may return fewer than limit. A caller outside a T3 thread that omits projectId searches every project. No pagination or exhaustive-result guarantee.",
@@ -250,7 +334,7 @@ const ThreadSearchTool = Tool.make("t3_thread_search", {
   .annotate(Tool.Readonly, true)
   .annotate(Tool.Destructive, false);
 
-const ScheduledTaskRunTool = Tool.make("run_scheduled_task_now", {
+export const ScheduledTaskRunTool = Tool.make("run_scheduled_task_now", {
   ...commandTool,
   description:
     "Run a scheduled task now through the existing scheduler. Requires a full-access/default caller. Each call is a new manual run; completion means dispatch/bookkeeping completed, not that the provider turn finished.",
@@ -268,21 +352,17 @@ const ScheduledTaskRunTool = Tool.make("run_scheduled_task_now", {
   .annotate(Tool.OpenWorld, true);
 
 export const ThreadToolkit = Toolkit.make(
-  ScheduledTaskRunTool,
-  ThreadSearchTool,
-  ThreadForkTool,
-  ThreadMergeBackTool,
-  ThreadTransfersTool,
-  ThreadConfigurationTool,
-  ThreadConfigureTool,
-  PendingRequestListTool,
-  PendingRequestReadTool,
-  PendingRequestRespondTool,
-  ThreadOrganizeTool,
   QueueListTool,
   QueueReadTool,
-  QueueEditTool,
-  QueueCancelTool,
-  QueueReorderTool,
-  QueuePromoteTool,
+  PendingRequestListTool,
+  PendingRequestReadTool,
+  ThreadConfigurationTool,
+  ThreadTransfersTool,
+  ScheduledTaskRunTool,
+  ThreadSearchTool,
+  ThreadConfigureTool,
+  ThreadTransferTool,
+  ThreadOrganizeTool,
+  PendingRequestTool,
+  QueueTool,
 );

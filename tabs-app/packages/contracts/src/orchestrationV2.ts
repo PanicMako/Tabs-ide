@@ -1,4 +1,5 @@
 import { OrchestrationMessageContext } from "./composerContext.ts";
+import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import * as SchemaAST from "effect/SchemaAST";
@@ -667,7 +668,12 @@ export const OrchestrationV2ExecutionNode = Schema.Struct({
 });
 export type OrchestrationV2ExecutionNode = typeof OrchestrationV2ExecutionNode.Type;
 
+const DedupedBodyMarker = Schema.optionalKey(Schema.Literal(true));
+
 export const OrchestrationV2Subagent = Schema.Struct({
+  bodySourceSequence: Schema.optionalKey(NonNegativeInt),
+  promptOmitted: DedupedBodyMarker,
+  resultOmitted: DedupedBodyMarker,
   id: NodeId,
   threadId: ThreadId,
   runId: Schema.NullOr(RunId),
@@ -1383,6 +1389,8 @@ export const OrchestrationV2TurnItem = Schema.Union([
     ...OrchestrationV2TurnItemBaseFields,
     ...OrchestrationV2CreationFields,
     type: Schema.Literal("user_message"),
+    bodySourceSequence: Schema.optionalKey(NonNegativeInt),
+    textOmitted: DedupedBodyMarker,
     messageId: MessageId,
     scheduledTaskId: Schema.optional(ScheduledTaskId),
     senderThreadId: Schema.optional(ThreadId),
@@ -1394,6 +1402,8 @@ export const OrchestrationV2TurnItem = Schema.Union([
   Schema.Struct({
     ...OrchestrationV2TurnItemBaseFields,
     type: Schema.Literal("assistant_message"),
+    bodySourceSequence: Schema.optionalKey(NonNegativeInt),
+    textOmitted: DedupedBodyMarker,
     messageId: MessageId,
     text: Schema.String,
     attachments: Schema.optional(Schema.Array(ChatAttachment)),
@@ -1474,6 +1484,8 @@ export const OrchestrationV2TurnItem = Schema.Union([
   Schema.Struct({
     ...OrchestrationV2TurnItemBaseFields,
     type: Schema.Literal("checkpoint"),
+    bodySourceSequence: Schema.optionalKey(NonNegativeInt),
+    filesOmitted: DedupedBodyMarker,
     checkpointId: CheckpointId,
     scopeId: CheckpointScopeId,
     files: Schema.Array(OrchestrationV2CheckpointFileSummary),
@@ -1559,6 +1571,9 @@ export const OrchestrationV2TurnItem = Schema.Union([
   Schema.Struct({
     ...OrchestrationV2TurnItemBaseFields,
     type: Schema.Literal("subagent"),
+    bodySourceSequence: Schema.optionalKey(NonNegativeInt),
+    promptOmitted: DedupedBodyMarker,
+    resultOmitted: DedupedBodyMarker,
     subagentId: NodeId,
     origin: Schema.Literals(["provider_native", "app_owned"]),
     driver: ProviderDriverKind,
@@ -1932,6 +1947,67 @@ export const OrchestrationV2ThreadShell = Schema.Struct({
 });
 export type OrchestrationV2ThreadShell = typeof OrchestrationV2ThreadShell.Type;
 
+const LIVE_SHELL_STATUSES: ReadonlySet<OrchestrationV2ShellThreadStatus> = new Set([
+  "queued",
+  "preparing",
+  "starting",
+  "running",
+  "waiting",
+]);
+
+/**
+ * A subagent child that can still need the user or hold its parent. Shells that omit idle children
+ * keep these, so every reader of live child rows (pending requests, working parents, background
+ * work) still finds them.
+ */
+export function isLiveSubagentShell(
+  thread: Pick<
+    OrchestrationV2ThreadShell,
+    "activityRunStatus" | "status" | "pendingRuntimeRequest" | "pendingBackgroundTasks"
+  >,
+): boolean {
+  return (
+    (thread.activityRunStatus ?? null) !== null ||
+    LIVE_SHELL_STATUSES.has(thread.status) ||
+    thread.pendingRuntimeRequest !== null ||
+    (thread.pendingBackgroundTasks?.length ?? 0) > 0
+  );
+}
+
+/**
+ * A settled top-level thread settled before `beforeMs`. Shells that omit older settled threads
+ * count every such thread, so the server and clients share this one rule.
+ */
+export function isOlderSettledThreadShell(
+  thread: Pick<OrchestrationV2ThreadShell, "lineage" | "settledOverride" | "settledAt">,
+  beforeMs: number,
+): boolean {
+  return (
+    thread.lineage.relationshipToParent !== "subagent" &&
+    thread.settledOverride === "settled" &&
+    thread.settledAt !== null &&
+    DateTime.toEpochMillis(thread.settledAt) < beforeMs
+  );
+}
+
+export const OrchestrationV2OlderSettledCount = Schema.Struct({
+  projectId: ProjectId,
+  count: NonNegativeInt,
+});
+export type OrchestrationV2OlderSettledCount = typeof OrchestrationV2OlderSettledCount.Type;
+
+/**
+ * Snapshots that leave out older settled threads (`omitOlderSettled`) name the cut and count, per
+ * project, every thread `isOlderSettledThreadShell` matches, sent or not. `asOfSequence` is the
+ * snapshot's own sequence: the counts are exact until a later change.
+ */
+export const OrchestrationV2OlderSettledThreads = Schema.Struct({
+  before: IsoDateTime,
+  asOfSequence: NonNegativeInt,
+  counts: Schema.Array(OrchestrationV2OlderSettledCount),
+});
+export type OrchestrationV2OlderSettledThreads = typeof OrchestrationV2OlderSettledThreads.Type;
+
 export const OrchestrationV2ThreadShellSnapshot = Schema.Struct({
   schemaVersion: PositiveInt,
   snapshotSequence: NonNegativeInt,
@@ -1943,6 +2019,7 @@ export type OrchestrationV2ThreadShellSnapshot = typeof OrchestrationV2ThreadShe
 export const OrchestrationV2ShellSnapshot = Schema.Struct({
   ...OrchestrationV2ThreadShellSnapshot.fields,
   projects: Schema.Array(OrchestrationProjectShell),
+  olderSettled: Schema.optionalKey(OrchestrationV2OlderSettledThreads),
 });
 export type OrchestrationV2ShellSnapshot = typeof OrchestrationV2ShellSnapshot.Type;
 
@@ -2162,6 +2239,8 @@ export const OrchestrationV2TurnItemJson = Schema.Union([
     ...OrchestrationV2TurnItemJsonBaseFields,
     ...OrchestrationV2CreationFields,
     type: Schema.Literal("user_message"),
+    bodySourceSequence: Schema.optionalKey(NonNegativeInt),
+    textOmitted: DedupedBodyMarker,
     messageId: MessageId,
     scheduledTaskId: Schema.optional(ScheduledTaskId),
     senderThreadId: Schema.optional(ThreadId),
@@ -2173,6 +2252,8 @@ export const OrchestrationV2TurnItemJson = Schema.Union([
   Schema.Struct({
     ...OrchestrationV2TurnItemJsonBaseFields,
     type: Schema.Literal("assistant_message"),
+    bodySourceSequence: Schema.optionalKey(NonNegativeInt),
+    textOmitted: DedupedBodyMarker,
     messageId: MessageId,
     text: Schema.String,
     attachments: Schema.optional(Schema.Array(ChatAttachment)),
@@ -2253,6 +2334,8 @@ export const OrchestrationV2TurnItemJson = Schema.Union([
   Schema.Struct({
     ...OrchestrationV2TurnItemJsonBaseFields,
     type: Schema.Literal("checkpoint"),
+    bodySourceSequence: Schema.optionalKey(NonNegativeInt),
+    filesOmitted: DedupedBodyMarker,
     checkpointId: CheckpointId,
     scopeId: CheckpointScopeId,
     files: Schema.Array(OrchestrationV2CheckpointFileSummary),
@@ -2335,6 +2418,9 @@ export const OrchestrationV2TurnItemJson = Schema.Union([
   Schema.Struct({
     ...OrchestrationV2TurnItemJsonBaseFields,
     type: Schema.Literal("subagent"),
+    bodySourceSequence: Schema.optionalKey(NonNegativeInt),
+    promptOmitted: DedupedBodyMarker,
+    resultOmitted: DedupedBodyMarker,
     subagentId: NodeId,
     origin: Schema.Literals(["provider_native", "app_owned"]),
     driver: ProviderDriverKind,
@@ -3059,6 +3145,17 @@ export const OrchestrationV2Command = Schema.Union([
     threadId: ThreadId,
     modelSelection: ModelSelection,
   }),
+  /**
+   * Stop for one thread, whatever it is doing: interrupts its running turn, holds its queue,
+   * ends its pull request watches, and drops pending delegated-task wakes. Nothing to stop is
+   * an accepted no-op. Delegated tasks under the thread get their own `thread.stop`.
+   */
+  Schema.Struct({
+    type: Schema.Literal("thread.stop"),
+    commandId: CommandId,
+    threadId: ThreadId,
+    reason: Schema.optional(Schema.String),
+  }),
 ]);
 export type OrchestrationV2Command = typeof OrchestrationV2Command.Type;
 
@@ -3111,17 +3208,6 @@ const OrchestrationV2InternalCommand = Schema.Union([
     providerTurnId: ProviderTurnId,
   }),
   /**
-   * Stop for one thread, whatever it is doing: interrupts its running turn, holds its queue,
-   * ends its pull request watches, and drops pending delegated-task wakes. Nothing to stop is
-   * an accepted no-op. Delegated tasks under the thread get their own `thread.stop`.
-   */
-  Schema.Struct({
-    type: Schema.Literal("thread.stop"),
-    commandId: CommandId,
-    threadId: ThreadId,
-    reason: Schema.optional(Schema.String),
-  }),
-  /**
    * Records or updates a secret an agent asked the user for. Internal so no
    * client can mark a request saved without the value being stored.
    */
@@ -3149,6 +3235,8 @@ export const ORCHESTRATION_V2_WS_METHODS = {
   getFullThreadDiff: "orchestration.getFullThreadDiff",
   searchThreads: "orchestration.searchThreads",
   getArchivedShellSnapshot: "orchestration.getArchivedShellSnapshot",
+  getThreadFamily: "orchestration.getThreadFamily",
+  getOlderSettledThreads: "orchestration.getOlderSettledThreads",
   getThreadProjection: "orchestration.getThreadProjection",
   getWorkflowScript: "orchestration.getWorkflowScript",
   getTurnItem: "orchestration.getTurnItem",
@@ -3229,6 +3317,51 @@ export const OrchestrationV2GetThreadProjectionInput = Schema.Struct({
 export type OrchestrationV2GetThreadProjectionInput =
   typeof OrchestrationV2GetThreadProjectionInput.Type;
 
+export const OrchestrationV2GetThreadFamilyInput = Schema.Struct({
+  threadId: ThreadId,
+  afterThreadId: Schema.optionalKey(ThreadId),
+  limit: Schema.optionalKey(Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 100 }))),
+});
+export type OrchestrationV2GetThreadFamilyInput = typeof OrchestrationV2GetThreadFamilyInput.Type;
+
+export const OrchestrationV2ThreadFamily = Schema.Struct({
+  snapshotSequence: NonNegativeInt,
+  totalCount: Schema.optionalKey(NonNegativeInt),
+  nextCursor: Schema.optionalKey(Schema.NullOr(ThreadId)),
+  threads: Schema.Array(OrchestrationV2ThreadShell),
+});
+export type OrchestrationV2ThreadFamily = typeof OrchestrationV2ThreadFamily.Type;
+
+/** Where a page of older settled threads starts: below this settle time, then after this id. */
+export const OrchestrationV2OlderSettledCursor = Schema.Struct({
+  settledAt: IsoDateTime,
+  threadId: Schema.optionalKey(ThreadId),
+});
+export type OrchestrationV2OlderSettledCursor = typeof OrchestrationV2OlderSettledCursor.Type;
+
+export const OrchestrationV2GetOlderSettledThreadsInput = Schema.Struct({
+  before: OrchestrationV2OlderSettledCursor,
+  /** Every project when absent. */
+  projectIds: Schema.optionalKey(Schema.Array(ProjectId)),
+  /** 0 reads only the counts. */
+  limit: Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 50 })),
+});
+export type OrchestrationV2GetOlderSettledThreadsInput =
+  typeof OrchestrationV2GetOlderSettledThreadsInput.Type;
+
+/**
+ * Older settled threads below the cursor, newest settle first (`settledAt` desc, then id asc). A
+ * `limit: 0` read fills `counts` instead: the older settled threads below the cursor per project,
+ * as `OrchestrationV2OlderSettledThreads.counts` count them. A cursor without an id is strict.
+ */
+export const OrchestrationV2OlderSettledThreadsPage = Schema.Struct({
+  snapshotSequence: NonNegativeInt,
+  threads: Schema.Array(OrchestrationV2ThreadShell),
+  counts: Schema.Array(OrchestrationV2OlderSettledCount),
+});
+export type OrchestrationV2OlderSettledThreadsPage =
+  typeof OrchestrationV2OlderSettledThreadsPage.Type;
+
 export const OrchestrationV2SubscribeShellInput = Schema.Struct({
   /**
    * When provided, the server skips the initial full shell snapshot and instead
@@ -3241,10 +3374,20 @@ export const OrchestrationV2SubscribeShellInput = Schema.Struct({
   afterSequence: Schema.optionalKey(NonNegativeInt),
   /** Requests a marker between initial catch-up and live delivery. */
   requestCompletionMarker: Schema.optionalKey(Schema.Boolean),
+  /** Initial snapshots omit idle subagent children; live lifecycle updates still keep clients current. */
+  omitIdleSubagents: Schema.optionalKey(Schema.Boolean),
+  /**
+   * Snapshots leave out older settled threads and count them in `olderSettled`; read them with
+   * `getOlderSettledThreads`. Send only to servers that advertise `shellOlderSettled`.
+   */
+  omitOlderSettled: Schema.optionalKey(Schema.Boolean),
 });
 export type OrchestrationV2SubscribeShellInput = typeof OrchestrationV2SubscribeShellInput.Type;
 
 export const OrchestrationV2SubscribeThreadInput = Schema.Struct({
+  /** Supports version-checked live body restoration and full-snapshot recovery. */
+  acceptVersionedLiveBodies: Schema.optionalKey(Schema.Boolean),
+  acceptDedupedBodies: Schema.optionalKey(Schema.Boolean),
   threadId: ThreadId,
   /**
    * When provided, the server skips the initial snapshot frame and instead
@@ -3612,6 +3755,14 @@ export interface OrchestrationV2RpcSchemasShape {
     Schema.Struct<{}>,
     typeof OrchestrationV2ArchivedShellSnapshot
   >;
+  readonly getThreadFamily: OrchestrationV2RpcSchemaDefinition<
+    typeof OrchestrationV2GetThreadFamilyInput,
+    typeof OrchestrationV2ThreadFamily
+  >;
+  readonly getOlderSettledThreads: OrchestrationV2RpcSchemaDefinition<
+    typeof OrchestrationV2GetOlderSettledThreadsInput,
+    typeof OrchestrationV2OlderSettledThreadsPage
+  >;
   readonly getThreadProjection: OrchestrationV2RpcSchemaDefinition<
     typeof OrchestrationV2GetThreadProjectionInput,
     typeof OrchestrationV2ThreadProjection
@@ -3666,6 +3817,14 @@ export const OrchestrationV2RpcSchemas: OrchestrationV2RpcSchemasShape = {
   getArchivedShellSnapshot: {
     input: Schema.Struct({}),
     output: OrchestrationV2ArchivedShellSnapshot,
+  },
+  getThreadFamily: {
+    input: OrchestrationV2GetThreadFamilyInput,
+    output: OrchestrationV2ThreadFamily,
+  },
+  getOlderSettledThreads: {
+    input: OrchestrationV2GetOlderSettledThreadsInput,
+    output: OrchestrationV2OlderSettledThreadsPage,
   },
   getThreadProjection: {
     input: OrchestrationV2GetThreadProjectionInput,

@@ -23,6 +23,7 @@ import {
   hasCompatibleOrchestrationProtocol,
   resolveAvailableEditorsForConfig,
   shouldUseBoundedThreadSnapshot,
+  subscribeOrchestrationV2Thread,
   withLateEditorConfig,
 } from "./ws.ts";
 
@@ -233,4 +234,63 @@ it.effect("recovers a reveal kind whose real probe outlasts the config timeout",
       assert.equal(late.config.shellRevealInFileManagerKind, "file-explorer");
     }
   }).pipe(Effect.scoped),
+);
+
+it.effect("only deduplicates live RPC bodies for clients that support versioned recovery", () =>
+  Effect.gen(function* () {
+    const Threads = yield* Effect.promise(
+      () => import("./orchestration-v2/ThreadManagementService.ts"),
+    );
+    const Events = yield* Effect.promise(() => import("./persistence/OrchestrationEventStore.ts"));
+    const body = "Unicode 🌍\n".repeat(1000);
+    const base = { id: "item", threadId: "thread", updatedAt: "2026-10-29T00:00:00.000Z" };
+    const records = [
+      {
+        sequence: 1,
+        event: { ...base, type: "message.updated", payload: { id: "message", text: body } },
+      },
+      {
+        sequence: 2,
+        event: {
+          ...base,
+          type: "turn-item.updated",
+          payload: { ...base, type: "assistant_message", messageId: "message", text: body },
+        },
+      },
+    ];
+    const dependencies = Layer.mergeAll(
+      Layer.mock(Threads.ThreadManagementService)({
+        ensureLegacyTranscript: () => Effect.void,
+        streamStoredEventsFrom: () => Stream.fromIterable(records as never),
+      }),
+      Layer.mock(Events.OrchestrationEventStore)({
+        latestAgentSequence: () => Effect.succeed(0),
+        getAgentReplayStats: () =>
+          Effect.succeed({ eventCount: 0, rawPayloadBytes: 0, hasCreateEvent: false }),
+        readAgentEvents: () => Stream.empty,
+      }),
+    );
+    for (const flags of [
+      {},
+      { acceptDedupedBodies: true },
+      { acceptDedupedBodies: true, acceptVersionedLiveBodies: true },
+    ]) {
+      const stream = yield* subscribeOrchestrationV2Thread({
+        threadId: "thread" as never,
+        afterSequence: 0,
+        ...flags,
+      }).pipe(Effect.provide(dependencies));
+      const items = yield* Stream.runCollect(stream);
+      const last = Array.from(items).at(-1)!;
+      assert.strictEqual(last.kind, "event");
+      if (last.kind !== "event" || last.event.type !== "turn-item.updated")
+        throw new Error("Missing reply event");
+      assert.deepEqual<unknown>(last.event.payload, {
+        ...records[1]!.event.payload,
+        ...("acceptVersionedLiveBodies" in flags
+          ? { text: "", textOmitted: true, bodySourceSequence: 1 }
+          : {}),
+      });
+    }
+  }),
 );

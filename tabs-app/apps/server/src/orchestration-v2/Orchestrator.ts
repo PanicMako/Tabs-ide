@@ -91,6 +91,8 @@ import {
   emptyProjection,
   threadShellFromProjection,
   ProjectionStoreV2,
+  type OlderSettledThreadsListing,
+  type OlderSettledThreadsQuery,
   type ProjectionRecordField,
   type ProjectionTimelinePage,
   type ProjectionTimelinePageOptions,
@@ -306,7 +308,12 @@ export interface OrchestratorV2Shape {
     readonly location?: "active" | "archive";
     /** Background sweeps only: skips settled threads. */
     readonly unsettledOnly?: boolean;
+    readonly familyOf?: ThreadId;
+    readonly threadIds?: ReadonlyArray<ThreadId>;
   }) => Effect.Effect<OrchestrationV2ThreadShellSnapshot, OrchestratorV2Error>;
+  readonly listOlderSettledThreads: (
+    query: OlderSettledThreadsQuery,
+  ) => Effect.Effect<OlderSettledThreadsListing, OrchestratorV2Error>;
   readonly getThreadShell: (
     threadId: ThreadId,
   ) => Effect.Effect<OrchestrationV2ThreadShell | null, OrchestratorV2Error>;
@@ -10580,6 +10587,16 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
             }),
         ),
       ),
+    listOlderSettledThreads: (query) =>
+      projectionStore.listOlderSettledThreads(query).pipe(
+        Effect.mapError(
+          (cause) =>
+            new OrchestratorProjectionError({
+              threadId: ThreadId.make("thread:older-settled"),
+              cause,
+            }),
+        ),
+      ),
     getThreadShell: (threadId) =>
       projectionStore
         .getThreadShell(threadId)
@@ -10705,6 +10722,13 @@ const layerUnavailable: Layer.Layer<OrchestratorV2> = Layer.succeed(
       Effect.fail(
         new OrchestratorProjectionError({
           threadId: ThreadId.make("thread:shell"),
+          cause: "Orchestration V2 live runtime is not configured.",
+        }),
+      ),
+    listOlderSettledThreads: () =>
+      Effect.fail(
+        new OrchestratorProjectionError({
+          threadId: ThreadId.make("thread:older-settled"),
           cause: "Orchestration V2 live runtime is not configured.",
         }),
       ),

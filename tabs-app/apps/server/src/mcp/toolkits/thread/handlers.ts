@@ -75,7 +75,219 @@ const readQuestion = Effect.fn("mcp.readQuestion")(function* (
     });
   return { ...context, request, item };
 });
+
+const required = <A>(
+  value: A | undefined,
+  name: string,
+): Effect.Effect<A, OrchestratorMcpFailure> =>
+  value === undefined
+    ? new OrchestratorMcpFailure({
+        code: "invalid_request",
+        message: `Missing required property: ${name}.`,
+      })
+    : Effect.succeed(value);
+
+type ThreadInput = { readonly threadId?: ThreadId | undefined };
+
+const listQueue = (
+  input: ThreadInput & {
+    readonly cursor?: number | undefined;
+    readonly limit?: number | undefined;
+  },
+) =>
+  Effect.gen(function* () {
+    const { projection } = yield* readThread(input.threadId, ["runs", "messages"]);
+    const runs = queuedRunsInDeliveryOrder(projection);
+    const cursor = input.cursor ?? 0;
+    const end = cursor + (input.limit ?? 20);
+    return {
+      items: runs.slice(cursor, end).flatMap((run) => {
+        const entry = queueEntry(projection, run.id, 1000);
+        return entry === undefined ? [] : [entry];
+      }),
+      nextCursor: end < runs.length ? end : null,
+    };
+  });
+const readQueue = (input: ThreadInput & { readonly queuedRunId: RunId }) =>
+  Effect.gen(function* () {
+    const { projection } = yield* readThread(input.threadId, ["runs", "messages"]);
+    return (
+      queueEntry(projection, input.queuedRunId, 16000) ??
+      (yield* new OrchestratorMcpFailure({
+        code: "invalid_request",
+        message: "The queued message was not found.",
+      }))
+    );
+  });
+const listQuestions = (input: ThreadInput) =>
+  Effect.gen(function* () {
+    const { projection } = yield* readThread(input.threadId, ["runtimeRequests"]);
+    return {
+      requestIds: projection.runtimeRequests
+        .filter((request) => request.kind === "user_input" && request.status === "pending")
+        .map((request) => request.id),
+    };
+  });
+const readPendingQuestion = (input: ThreadInput & { readonly requestId: RuntimeRequestId }) =>
+  Effect.gen(function* () {
+    const { item } = yield* readQuestion(input);
+    return { requestId: input.requestId, questions: item.questions };
+  });
+const readConfiguration = (input: ThreadInput) =>
+  Effect.gen(function* () {
+    const {
+      projection: { thread },
+    } = yield* readThread(input.threadId);
+    return {
+      threadId: thread.id,
+      modelSelection: thread.modelSelection,
+      runtimeMode: thread.runtimeMode,
+      interactionMode: thread.interactionMode,
+    };
+  });
+const readTransfers = (input: ThreadInput) =>
+  Effect.gen(function* () {
+    const { projection } = yield* readThread(input.threadId, ["contextTransfers"]);
+    return {
+      transfers: projection.contextTransfers.map(
+        ({ id, sourceThreadId, targetThreadId, status }) => ({
+          id,
+          sourceThreadId,
+          targetThreadId,
+          status,
+        }),
+      ),
+    };
+  });
+
 export const layer = ThreadToolkit.toLayer({
+  t3_queue_list: listQueue,
+  t3_queue_read: readQueue,
+  t3_pending_request_list: listQuestions,
+  t3_pending_request_read: readPendingQuestion,
+  t3_thread_configuration: readConfiguration,
+  t3_thread_transfers: readTransfers,
+  t3_queue: (input) =>
+    Effect.gen(function* () {
+      if (input.action === "list") return yield* listQueue(input);
+      if (input.action === "read") {
+        const queuedRunId = yield* required(input.queuedRunId, "queuedRunId");
+        return yield* readQueue({ threadId: input.threadId, queuedRunId });
+      }
+      const runId = yield* required(input.queuedRunId, "queuedRunId");
+      switch (input.action) {
+        case "edit": {
+          const text = yield* required(input.text, "text");
+          return yield* dispatch(input.threadId, (common) => ({
+            ...common,
+            type: "queued-run.edit",
+            runId,
+            text,
+          }));
+        }
+        case "reorder": {
+          const beforeRunId = yield* required(input.beforeRunId, "beforeRunId");
+          return yield* dispatch(input.threadId, (common) => ({
+            ...common,
+            type: "queued-run.reorder",
+            runId,
+            beforeRunId,
+          }));
+        }
+        case "promote_to_steer": {
+          const targetRunId = yield* required(input.targetRunId, "targetRunId");
+          return yield* dispatch(input.threadId, (common) => ({
+            ...common,
+            type: "queued-message.promote-to-steer",
+            queuedRunId: runId,
+            targetRunId,
+          }));
+        }
+        default:
+          return yield* dispatch(input.threadId, (common) => ({
+            ...common,
+            type: "queued-run.cancel",
+            runId,
+          }));
+      }
+    }),
+  t3_pending_request: (input) =>
+    Effect.gen(function* () {
+      if (input.action === "list") return yield* listQuestions(input);
+      const requestId = yield* required(input.requestId, "requestId");
+      if (input.action === "read")
+        return yield* readPendingQuestion({ threadId: input.threadId, requestId });
+      const answers = yield* required(input.answers, "answers");
+      const { threads, projection } = yield* readQuestion(
+        { threadId: input.threadId, requestId },
+        true,
+      );
+      const result = yield* threads
+        .dispatch({
+          type: "runtime-request.respond",
+          threadId: projection.thread.id,
+          commandId: yield* newCommandId(),
+          requestId,
+          answers,
+        })
+        .pipe(Effect.mapError(unavailable));
+      return { sequence: result.sequence };
+    }),
+  t3_thread_configure: (input) =>
+    Effect.gen(function* () {
+      if (input.modelSelection === undefined) return yield* readConfiguration(input);
+      const {
+        threads,
+        projection: { thread },
+      } = yield* readWritableThread(input.threadId);
+      const type = modelSelectionCommandType(thread.providerInstanceId, input.modelSelection);
+      const result = yield* threads
+        .dispatch({
+          type,
+          threadId: thread.id,
+          commandId: yield* newCommandId(),
+          modelSelection: input.modelSelection,
+        })
+        .pipe(Effect.mapError(unavailable));
+      return { sequence: result.sequence };
+    }),
+  t3_thread_transfer: (input) =>
+    Effect.gen(function* () {
+      if (input.action === "status") return yield* readTransfers(input);
+      const sourcePoint = input.sourcePoint ?? { type: "latest_stable" as const };
+      const { threads, projection } = yield* readWritableThread(input.threadId);
+      const commandId = yield* newCommandId();
+      if (input.action === "merge_back") {
+        const targetThreadId = yield* required(input.targetThreadId, "targetThreadId");
+        yield* readWritableThread(targetThreadId);
+        const result = yield* threads
+          .dispatch({
+            type: "thread.merge_back",
+            commandId,
+            sourceThreadId: projection.thread.id,
+            targetThreadId,
+            sourcePoint,
+            createdBy: "agent",
+            creationSource: "mcp",
+          })
+          .pipe(Effect.mapError(unavailable));
+        return { sequence: result.sequence, targetThreadId };
+      }
+      const targetThreadId = ThreadId.make(`${commandId}:fork`);
+      const result = yield* threads
+        .dispatch({
+          type: "thread.fork",
+          commandId,
+          sourceThreadId: projection.thread.id,
+          targetThreadId,
+          sourcePoint,
+          ...(input.title === undefined ? {} : { title: input.title }),
+          createdBy: "agent",
+          creationSource: "mcp",
+        })
+        .pipe(Effect.mapError(unavailable));
+      return { sequence: result.sequence, targetThreadId };
+    }),
   run_scheduled_task_now: (input) =>
     Effect.gen(function* () {
       yield* readFullAccessCaller(
@@ -115,166 +327,6 @@ export const layer = ThreadToolkit.toLayer({
             : result.matches.filter((match) => match.projectId === projectId),
       };
     }),
-  t3_thread_fork: (input) =>
-    Effect.gen(function* () {
-      const { threads, projection } = yield* readWritableThread(input.threadId);
-      const commandId = yield* newCommandId();
-      const targetThreadId = ThreadId.make(`${commandId}:fork`);
-      const result = yield* threads
-        .dispatch({
-          type: "thread.fork",
-          commandId,
-          sourceThreadId: projection.thread.id,
-          targetThreadId,
-          sourcePoint: input.sourcePoint,
-          ...(input.title === undefined ? {} : { title: input.title }),
-          createdBy: "agent",
-          creationSource: "mcp",
-        })
-        .pipe(Effect.mapError(unavailable));
-      return { sequence: result.sequence, targetThreadId };
-    }),
-  t3_thread_merge_back: (input) =>
-    Effect.gen(function* () {
-      const context = yield* readWritableThread(input.targetThreadId);
-      const source = yield* readWritableThread(input.sourceThreadId);
-      const result = yield* context.threads
-        .dispatch({
-          type: "thread.merge_back",
-          commandId: yield* newCommandId(),
-          sourceThreadId: source.projection.thread.id,
-          targetThreadId: input.targetThreadId,
-          sourcePoint: input.sourcePoint,
-          createdBy: "agent",
-          creationSource: "mcp",
-        })
-        .pipe(Effect.mapError(unavailable));
-      return { sequence: result.sequence, targetThreadId: input.targetThreadId };
-    }),
-  t3_thread_transfers: (input) =>
-    Effect.gen(function* () {
-      const { projection } = yield* readThread(input.threadId, ["contextTransfers"]);
-      return {
-        transfers: projection.contextTransfers.map(
-          ({ id, sourceThreadId, targetThreadId, status }) => ({
-            id,
-            sourceThreadId,
-            targetThreadId,
-            status,
-          }),
-        ),
-      };
-    }),
-  t3_thread_configuration: (input) =>
-    Effect.gen(function* () {
-      const {
-        projection: { thread },
-      } = yield* readThread(input.threadId);
-      return {
-        threadId: thread.id,
-        modelSelection: thread.modelSelection,
-        runtimeMode: thread.runtimeMode,
-        interactionMode: thread.interactionMode,
-      };
-    }),
-  t3_thread_configure: (input) =>
-    Effect.gen(function* () {
-      const {
-        threads,
-        projection: { thread },
-      } = yield* readWritableThread(input.threadId);
-      const type = modelSelectionCommandType(thread.providerInstanceId, input.modelSelection);
-      const result = yield* threads
-        .dispatch({
-          type,
-          threadId: thread.id,
-          commandId: yield* newCommandId(),
-          modelSelection: input.modelSelection,
-        })
-        .pipe(Effect.mapError(unavailable));
-      return { sequence: result.sequence };
-    }),
-  t3_pending_request_list: (input) =>
-    Effect.gen(function* () {
-      const { projection } = yield* readThread(input.threadId, ["runtimeRequests"]);
-      return {
-        requestIds: projection.runtimeRequests
-          .filter((request) => request.kind === "user_input" && request.status === "pending")
-          .map((request) => request.id),
-      };
-    }),
-  t3_pending_request_read: (input) =>
-    Effect.gen(function* () {
-      const { item } = yield* readQuestion(input);
-      return { requestId: input.requestId, questions: item.questions };
-    }),
-  t3_pending_request_respond: (input) =>
-    Effect.gen(function* () {
-      const { threads, projection } = yield* readQuestion(input, true);
-      const result = yield* threads
-        .dispatch({
-          type: "runtime-request.respond",
-          threadId: projection.thread.id,
-          commandId: yield* newCommandId(),
-          requestId: input.requestId,
-          answers: input.answers,
-        })
-        .pipe(Effect.mapError(unavailable));
-      return { sequence: result.sequence };
-    }),
-  t3_queue_list: (input) =>
-    Effect.gen(function* () {
-      const { projection } = yield* readThread(input.threadId, ["runs", "messages"]);
-      const runs = queuedRunsInDeliveryOrder(projection);
-      const cursor = input.cursor ?? 0;
-      const end = cursor + (input.limit ?? 20);
-      return {
-        items: runs.slice(cursor, end).flatMap((run) => {
-          const entry = queueEntry(projection, run.id, 1000);
-          return entry === undefined ? [] : [entry];
-        }),
-        nextCursor: end < runs.length ? end : null,
-      };
-    }),
-  t3_queue_read: (input) =>
-    Effect.gen(function* () {
-      const { projection } = yield* readThread(input.threadId, ["runs", "messages"]);
-      const entry = queueEntry(projection, input.queuedRunId, 16000);
-      return (
-        entry ??
-        (yield* new OrchestratorMcpFailure({
-          code: "invalid_request",
-          message: "The queued message was not found.",
-        }))
-      );
-    }),
-  t3_queue_edit: (input) =>
-    dispatch(input.threadId, (common) => ({
-      ...common,
-      type: "queued-run.edit",
-      runId: input.queuedRunId,
-      text: input.text,
-    })),
-  t3_queue_cancel: (input) =>
-    dispatch(input.threadId, (common) => ({
-      ...common,
-      type: "queued-run.cancel",
-      runId: input.queuedRunId,
-    })),
-  t3_queue_reorder: (input) =>
-    dispatch(input.threadId, (common) => ({
-      ...common,
-      type: "queued-run.reorder",
-      runId: input.queuedRunId,
-      beforeRunId: input.beforeRunId,
-    })),
-  t3_queue_promote_to_steer: (input) =>
-    dispatch(input.threadId, (common) => ({
-      ...common,
-      type: "queued-message.promote-to-steer",
-      queuedRunId: input.queuedRunId,
-      targetRunId: input.targetRunId,
-    })),
   t3_thread_organize: (input) =>
     Effect.gen(function* () {
       const { threads, projection } = yield* readWritableThread(input.threadId);

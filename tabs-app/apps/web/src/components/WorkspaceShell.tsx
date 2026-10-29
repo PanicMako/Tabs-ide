@@ -1,3 +1,4 @@
+import { useOlderSettledThreads } from "../hooks/useOlderSettledThreads";
 import { InstalledExtensionToolIcon } from "./InstalledExtensionToolIcon";
 import { AgentBackground } from "./AgentBackground";
 import { resolveRouteThread } from "../resolveRouteThread";
@@ -1501,6 +1502,11 @@ function AgentsThreadList(props: {
   const [showSettledView, setShowSettledView] = useState(false);
   const [showSnoozedView, setShowSnoozedView] = useState(false);
   const [threadSearch, setThreadSearch] = useState("");
+  const olderHistory = useOlderSettledThreads(
+    props.project.environmentId,
+    props.project.id,
+    threadSearch,
+  );
   const [openThreadMenuId, setOpenThreadMenuId] = useState<ThreadId | null>(null);
   const [draggedPinnedThreadId, setDraggedPinnedThreadId] = useState<ThreadId | null>(null);
   const projectGitStatusQuery = useQuery(
@@ -1772,11 +1778,12 @@ function AgentsThreadList(props: {
       first: index === 0,
     })),
   );
-  const settledCount = activeThreads.filter((thread) =>
+  const loadedSettledCount = activeThreads.filter((thread) =>
     isSettled(thread, thread.updatedAt ?? thread.createdAt),
   ).length;
   const snoozedCount = activeThreads.filter((thread) => isSnoozed(thread, lifecycleNow)).length;
-  const actionableCount = activeThreads.length - settledCount - snoozedCount;
+  const settledCount = loadedSettledCount + olderHistory.unloaded;
+  const actionableCount = activeThreads.length - loadedSettledCount - snoozedCount;
   const searchedSettledCount = searchedActiveThreads.filter((thread) =>
     isSettled(thread, thread.updatedAt ?? thread.createdAt),
   ).length;
@@ -1960,7 +1967,7 @@ function AgentsThreadList(props: {
                     )}
                   </span>
                   <span className="inline-block max-w-0 overflow-hidden opacity-0 transition-all duration-200 ease-out group-hover:max-w-8 group-hover:ml-1.5 group-hover:opacity-70 text-[11px] font-normal text-muted-foreground align-baseline">
-                    {settledCount}
+                    {olderHistory.countsPending ? "…" : settledCount}
                   </span>
                 </button>
               </div>
@@ -2068,65 +2075,70 @@ function AgentsThreadList(props: {
                 </span>
               </div>
             )}
-            {normalizedThreadSearch && visibleThreads.length === 0 && !collapsed && (
-              <div className="rounded-xl border border-dashed border-border/60 p-4 text-center text-xs text-muted-foreground/75 space-y-2.5">
-                <p>
-                  No tasks match “{threadSearch.trim()}” in{" "}
-                  <span className="font-medium text-foreground">
-                    {view === "archived" ? "Archive" : showSettledView ? "Settled" : "Active"}
-                  </span>
-                  .
-                </p>
-                {(view !== "current" || showSettledView) && searchedActionableCount > 0 && (
-                  <div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setView("current");
-                        setShowSettledView(false);
-                        setShowSnoozedView(false);
-                      }}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-border/50 bg-background/80 px-2.5 py-1 text-xs font-medium text-foreground shadow-xs transition-colors hover:bg-accent"
-                    >
-                      <span>View {searchedActionableCount} matching in Active</span>
-                      <ArrowRightIcon className="size-3 text-muted-foreground" />
-                    </button>
-                  </div>
-                )}
-                {(!showSettledView || view === "archived") && searchedSettledCount > 0 && (
-                  <div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setView("current");
-                        setShowSettledView(true);
-                        setShowSnoozedView(false);
-                      }}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-border/50 bg-background/80 px-2.5 py-1 text-xs font-medium text-foreground shadow-xs transition-colors hover:bg-accent"
-                    >
-                      <span>View {searchedSettledCount} matching in Settled</span>
-                      <ArrowRightIcon className="size-3 text-muted-foreground" />
-                    </button>
-                  </div>
-                )}
-                {view !== "archived" && searchedArchivedCount > 0 && (
-                  <div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setView("archived");
-                        setShowSettledView(false);
-                        setShowSnoozedView(false);
-                      }}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-border/50 bg-background/80 px-2.5 py-1 text-xs font-medium text-foreground shadow-xs transition-colors hover:bg-accent"
-                    >
-                      <span>View {searchedArchivedCount} matching in Archive</span>
-                      <ArrowRightIcon className="size-3 text-muted-foreground" />
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
+            {normalizedThreadSearch &&
+              visibleThreads.length === 0 &&
+              !olderHistory.hasMore &&
+              !olderHistory.loading &&
+              !olderHistory.countsPending &&
+              !collapsed && (
+                <div className="rounded-xl border border-dashed border-border/60 p-4 text-center text-xs text-muted-foreground/75 space-y-2.5">
+                  <p>
+                    No tasks match “{threadSearch.trim()}” in{" "}
+                    <span className="font-medium text-foreground">
+                      {view === "archived" ? "Archive" : showSettledView ? "Settled" : "Active"}
+                    </span>
+                    .
+                  </p>
+                  {(view !== "current" || showSettledView) && searchedActionableCount > 0 && (
+                    <div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setView("current");
+                          setShowSettledView(false);
+                          setShowSnoozedView(false);
+                        }}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-border/50 bg-background/80 px-2.5 py-1 text-xs font-medium text-foreground shadow-xs transition-colors hover:bg-accent"
+                      >
+                        <span>View {searchedActionableCount} matching in Active</span>
+                        <ArrowRightIcon className="size-3 text-muted-foreground" />
+                      </button>
+                    </div>
+                  )}
+                  {(!showSettledView || view === "archived") && searchedSettledCount > 0 && (
+                    <div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setView("current");
+                          setShowSettledView(true);
+                          setShowSnoozedView(false);
+                        }}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-border/50 bg-background/80 px-2.5 py-1 text-xs font-medium text-foreground shadow-xs transition-colors hover:bg-accent"
+                      >
+                        <span>View {searchedSettledCount} matching in Settled</span>
+                        <ArrowRightIcon className="size-3 text-muted-foreground" />
+                      </button>
+                    </div>
+                  )}
+                  {view !== "archived" && searchedArchivedCount > 0 && (
+                    <div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setView("archived");
+                          setShowSettledView(false);
+                          setShowSnoozedView(false);
+                        }}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-border/50 bg-background/80 px-2.5 py-1 text-xs font-medium text-foreground shadow-xs transition-colors hover:bg-accent"
+                      >
+                        <span>View {searchedArchivedCount} matching in Archive</span>
+                        <ArrowRightIcon className="size-3 text-muted-foreground" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             {(view === "archived"
               ? archivedThreads.length === 0
               : showSnoozedView
@@ -2147,6 +2159,12 @@ function AgentsThreadList(props: {
                 </div>
               )}
 
+            {normalizedThreadSearch &&
+              (olderHistory.loading || olderHistory.hasMore || olderHistory.countsPending) && (
+                <p role="status" className="p-2 text-xs text-muted-foreground">
+                  Searching older tasks…
+                </p>
+              )}
             {visibleThreads.map(({ thread, section, first }) => {
               const active = props.activeThreadId === thread.id;
               const isArchived = thread.archivedAt !== null;
@@ -2778,6 +2796,29 @@ function AgentsThreadList(props: {
                 </Fragment>
               );
             })}
+            {view === "current" &&
+              (showSettledView || normalizedThreadSearch) &&
+              (olderHistory.hasMore || olderHistory.loading || olderHistory.error) && (
+                <div className="p-2">
+                  {olderHistory.error && (
+                    <p role="alert" className="text-xs text-destructive">
+                      {olderHistory.error}
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    className="min-h-8 w-full rounded-lg border border-border px-2 text-xs"
+                    disabled={olderHistory.loading}
+                    onClick={olderHistory.error ? olderHistory.retry : olderHistory.loadMore}
+                  >
+                    {olderHistory.loading
+                      ? "Loading older tasks…"
+                      : olderHistory.error
+                        ? "Retry older tasks"
+                        : `Load older tasks (${olderHistory.unloaded} remaining)`}
+                  </button>
+                </div>
+              )}
           </div>
         </ScrollArea>
         {view === "current" && !showSettledView && !showSnoozedView && snoozedCount > 0 && (

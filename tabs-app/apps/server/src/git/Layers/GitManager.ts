@@ -79,9 +79,9 @@ interface PullRequestInfo extends OpenPrInfo {
 type ResolvedPullRequest = GitResolvedPullRequest;
 
 interface PullRequestHeadRemoteInfo {
-  isCrossRepository?: boolean;
-  headRepositoryNameWithOwner?: string | null;
-  headRepositoryOwnerLogin?: string | null;
+  isCrossRepository?: boolean | undefined;
+  headRepositoryNameWithOwner?: string | null | undefined;
+  headRepositoryOwnerLogin?: string | null | undefined;
 }
 
 interface BranchHeadContext {
@@ -472,6 +472,10 @@ function toResolvedPullRequest(pr: GitHubPullRequestSummary): ResolvedPullReques
     headBranch: pr.headRefName,
     state: pr.state ?? "open",
     ...(typeof pr.isDraft === "boolean" ? { isDraft: pr.isDraft } : {}),
+    ...(pr.headRepositoryNameWithOwner
+      ? { headRepositoryNameWithOwner: pr.headRepositoryNameWithOwner }
+      : {}),
+    ...(pr.isCrossRepository === undefined ? {} : { isCrossRepository: pr.isCrossRepository }),
     ...(pr.author !== undefined ? { author: pr.author } : {}),
     ...(pr.labels ? { labels: [...pr.labels] } : {}),
     ...(pr.reviewDecision ? { reviewDecision: pr.reviewDecision } : {}),
@@ -505,9 +509,9 @@ function shouldPreferSshRemote(url: string | null): boolean {
 }
 
 function toPullRequestHeadRemoteInfo(pr: {
-  isCrossRepository?: boolean;
-  headRepositoryNameWithOwner?: string | null;
-  headRepositoryOwnerLogin?: string | null;
+  isCrossRepository?: boolean | undefined;
+  headRepositoryNameWithOwner?: string | null | undefined;
+  headRepositoryOwnerLogin?: string | null | undefined;
 }): PullRequestHeadRemoteInfo {
   return {
     ...(pr.isCrossRepository !== undefined ? { isCrossRepository: pr.isCrossRepository } : {}),

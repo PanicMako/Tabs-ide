@@ -1,3 +1,4 @@
+import { useOlderSettledThreads } from "../hooks/useOlderSettledThreads";
 import {
   ArrowLeftIcon,
   ArrowUpDownIcon,
@@ -1686,6 +1687,7 @@ export default function Sidebar() {
             className="mx-1 my-0 w-full translate-x-0 gap-0.5 px-1.5 py-0"
           >
             {renderedThreads.map((thread) => renderThreadRow(thread))}
+            {project.expanded && <OlderSettledSidebarLoader project={project} />}
 
             {project.expanded && hasHiddenThreads && !isThreadListExpanded && (
               <SidebarMenuSubItem className="w-full">
@@ -2200,5 +2202,29 @@ export default function Sidebar() {
       </SidebarFooter>
       {confirmDialog}
     </>
+  );
+}
+
+function OlderSettledSidebarLoader({ project }: { project: Project }) {
+  const history = useOlderSettledThreads(project.environmentId, project.id);
+  if (!history.hasMore && !history.error && !history.loading) return null;
+  return (
+    <SidebarMenuSubItem>
+      <SidebarMenuSubButton
+        render={<button type="button" disabled={history.loading} />}
+        onClick={history.error ? history.retry : history.loadMore}
+      >
+        {history.loading
+          ? "Loading older tasks…"
+          : history.error
+            ? "Retry older tasks"
+            : `Older tasks (${history.countsPending ? "…" : history.unloaded})`}
+      </SidebarMenuSubButton>
+      {history.error && (
+        <p role="alert" className="px-2 text-xs text-destructive">
+          {history.error}
+        </p>
+      )}
+    </SidebarMenuSubItem>
   );
 }

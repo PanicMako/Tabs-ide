@@ -456,6 +456,14 @@
     "./tabsBrand": {
       "types": "./src/tabsBrand.ts",
       "import": "./src/tabsBrand.ts"
+    },
+    "./providerWorkspaceSnapshots": {
+      "types": "./src/providerWorkspaceSnapshots.ts",
+      "import": "./src/providerWorkspaceSnapshots.ts"
+    },
+    "./orchestrationV2DedupedBodies": {
+      "types": "./src/orchestrationV2DedupedBodies.ts",
+      "import": "./src/orchestrationV2DedupedBodies.ts"
     }
   },
   "scripts": {

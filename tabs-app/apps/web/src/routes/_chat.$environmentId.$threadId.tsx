@@ -1,3 +1,7 @@
+import { appAtomRegistry } from "../state/atomRegistry";
+import { readModelStateAtom } from "../state/readModel";
+import { environmentApi } from "../connection/environmentApiRegistry";
+import { applyThreadProjectionToAtoms } from "../state/readModel";
 import { EnvironmentId, ThreadId } from "@tabs/contracts";
 import { createFileRoute, retainSearchParams, useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useCallback, useEffect, useState } from "react";
@@ -258,19 +262,65 @@ function ChatThreadRouteView() {
     }
   }, [isRightPanelOpen]);
 
+  const [hydrationAttempt, setHydrationAttempt] = useState(0);
+  const [hydrationError, setHydrationError] = useState<{ key: string; message: string } | null>(
+    null,
+  );
+  const hydrationKey = JSON.stringify([environmentId, threadId]);
   useEffect(() => {
-    if (!threadsHydrated) {
-      return;
-    }
-
-    if (!routeThreadExists) {
-      void navigate({ to: "/", replace: true });
-      return;
-    }
-  }, [navigate, routeThreadExists, threadsHydrated, threadId]);
+    if (!threadsHydrated || routeThreadExists) return;
+    let cancelled = false;
+    const startedAtSequence =
+      appAtomRegistry.get(readModelStateAtom).environmentSnapshots?.[environmentId]
+        ?.snapshotSequence ?? 0;
+    setHydrationError(null);
+    void environmentApi(environmentId)
+      .then((api) => api.orchestration.getThreadProjection({ threadId }))
+      .then((projection) => {
+        if (cancelled) return;
+        const changedAt =
+          appAtomRegistry.get(readModelStateAtom).environmentSnapshots?.[environmentId]
+            ?.olderSettled?.changes[`thread:${threadId}`] ?? 0;
+        if (changedAt > startedAtSequence) {
+          setHydrationAttempt((value) => value + 1);
+          return;
+        }
+        applyThreadProjectionToAtoms(projection, environmentId);
+      })
+      .catch((cause) => {
+        if (!cancelled)
+          setHydrationError({
+            key: hydrationKey,
+            message: cause instanceof Error ? cause.message : String(cause),
+          });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [environmentId, threadId, threadsHydrated, routeThreadExists, hydrationAttempt, hydrationKey]);
 
   if (!threadsHydrated || !routeThreadExists) {
-    return null;
+    const error = hydrationError?.key === hydrationKey ? hydrationError.message : null;
+    return (
+      <div
+        className="flex flex-1 items-center justify-center p-6 text-sm"
+        role={error ? "alert" : "status"}
+      >
+        {error ? (
+          <div>
+            <p>Could not load this conversation: {error}</p>
+            <button type="button" onClick={() => setHydrationAttempt((value) => value + 1)}>
+              Retry
+            </button>
+            <button type="button" onClick={() => void navigate({ to: "/" })}>
+              Back to tasks
+            </button>
+          </div>
+        ) : (
+          "Loading conversation…"
+        )}
+      </div>
+    );
   }
 
   const shouldRenderPanelContent = isRightPanelOpen || hasOpenedPanel;

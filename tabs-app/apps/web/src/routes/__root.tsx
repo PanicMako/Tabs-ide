@@ -63,6 +63,7 @@ import { applyServerConfigUpdate, refreshServerConfig } from "../state/settings"
 import { threadsHydratedAtom } from "../state/threads";
 import {
   initializePrimaryEnvironmentApi,
+  environmentConfig,
   onEnvironmentApiRegistryEvent,
 } from "../connection/environmentApiRegistry";
 
@@ -379,61 +380,71 @@ function EventRouter() {
       });
     });
 
-    const unsubShell = api.orchestration.subscribeShell(
-      async (item: OrchestrationV2ShellStreamItem) => {
-        if (disposed) return;
-        const primaryEnvironmentId = await primaryEnvironmentIdPromise;
-        if (disposed) return;
-        applyShellStreamItemToAtoms(item, primaryEnvironmentId ?? undefined);
-        void import("../stores/messageQueueStore").then(({ reconcileAllPendingCancellations }) =>
-          reconcileAllPendingCancellations(api, undefined, primaryEnvironmentId ?? "primary"),
-        );
-
-        if (item.kind === "project.updated" || item.kind === "project.removed") {
-          void queryClient.invalidateQueries({ queryKey: projectQueryKeys.all });
-        }
-
-        if (item.kind === "snapshot") {
-          if (item.resolvedRepositoryIdentityRoots !== undefined) {
-            void queryClient.invalidateQueries({ queryKey: projectQueryKeys.all });
-            return;
-          }
-          markStartupStage("provider-inventory-available");
-          void queryClient.invalidateQueries({ queryKey: providerQueryKeys.all });
-          void queryClient.invalidateQueries({ queryKey: projectQueryKeys.all });
-          const currentSnapshot = item.snapshot;
-          clearPromotedDraftThreads(
-            new Set(currentSnapshot.threads.map((t) => t.id)),
-            primaryEnvironmentId ?? undefined,
+    let unsubShell = () => {};
+    void primaryEnvironmentIdPromise.then((environmentId) => {
+      if (disposed) return;
+      unsubShell = api.orchestration.subscribeShell(
+        async (item: OrchestrationV2ShellStreamItem) => {
+          if (disposed) return;
+          const primaryEnvironmentId = await primaryEnvironmentIdPromise;
+          if (disposed) return;
+          applyShellStreamItemToAtoms(item, primaryEnvironmentId ?? undefined);
+          void import("../stores/messageQueueStore").then(({ reconcileAllPendingCancellations }) =>
+            reconcileAllPendingCancellations(api, undefined, primaryEnvironmentId ?? "primary"),
           );
-          const draftThreadIds = Object.keys(
-            appAtomRegistry.get(composerDraftsAtom).draftThreadsByThreadId,
-          ) as ThreadId[];
-          const projectSettingsByProjectId =
-            appAtomRegistry.get(workspaceShellAtom).projectSettingsByProjectId;
-          const customProcessIdsByProjectId = new Map<ProjectId, string[]>();
-          for (const project of currentSnapshot.projects) {
-            const settings = projectSettingsByProjectId[project.id];
-            if (!settings) continue;
-            const customIds = settings.tools.flatMap((tool) =>
-              tool.kind === "custom_process" && tool.serverProcessId != null
-                ? [tool.serverProcessId]
-                : [],
-            );
-            if (customIds.length > 0) {
-              customProcessIdsByProjectId.set(project.id, customIds);
-            }
+
+          if (item.kind === "project.updated" || item.kind === "project.removed") {
+            void queryClient.invalidateQueries({ queryKey: projectQueryKeys.all });
           }
-          const activeThreadIds = collectActiveTerminalThreadIds({
-            snapshotThreads: currentSnapshot.threads,
-            draftThreadIds,
-            projectIds: currentSnapshot.projects.map((p) => p.id),
-            customProcessIdsByProjectId,
-          });
-          terminalActions.removeOrphans(activeThreadIds);
-        }
-      },
-    );
+
+          if (item.kind === "snapshot") {
+            if (item.resolvedRepositoryIdentityRoots !== undefined) {
+              void queryClient.invalidateQueries({ queryKey: projectQueryKeys.all });
+              return;
+            }
+            markStartupStage("provider-inventory-available");
+            void queryClient.invalidateQueries({ queryKey: providerQueryKeys.all });
+            void queryClient.invalidateQueries({ queryKey: projectQueryKeys.all });
+            const currentSnapshot = item.snapshot;
+            clearPromotedDraftThreads(
+              new Set(currentSnapshot.threads.map((t) => t.id)),
+              primaryEnvironmentId ?? undefined,
+            );
+            const draftThreadIds = Object.keys(
+              appAtomRegistry.get(composerDraftsAtom).draftThreadsByThreadId,
+            ) as ThreadId[];
+            const projectSettingsByProjectId =
+              appAtomRegistry.get(workspaceShellAtom).projectSettingsByProjectId;
+            const customProcessIdsByProjectId = new Map<ProjectId, string[]>();
+            for (const project of currentSnapshot.projects) {
+              const settings = projectSettingsByProjectId[project.id];
+              if (!settings) continue;
+              const customIds = settings.tools.flatMap((tool) =>
+                tool.kind === "custom_process" && tool.serverProcessId != null
+                  ? [tool.serverProcessId]
+                  : [],
+              );
+              if (customIds.length > 0) {
+                customProcessIdsByProjectId.set(project.id, customIds);
+              }
+            }
+            const activeThreadIds = collectActiveTerminalThreadIds({
+              snapshotThreads: currentSnapshot.threads,
+              draftThreadIds,
+              projectIds: currentSnapshot.projects.map((p) => p.id),
+              customProcessIdsByProjectId,
+            });
+            if (currentSnapshot.olderSettled === undefined)
+              terminalActions.removeOrphans(activeThreadIds);
+          }
+        },
+        {
+          omitOlderSettled:
+            environmentId !== null && environmentConfig(environmentId)?.shellOlderSettled === true,
+          omitIdleSubagents: true,
+        },
+      );
+    });
 
     const unsubTerminalEvent = api.terminal.onEvent((event) => {
       const hasRunningSubprocess = terminalRunningSubprocessFromEvent(event);
@@ -623,12 +634,18 @@ function RemoteEnvironmentEventRouter() {
       }
       if (event.primary || cleanups.has(event.environmentId)) return;
 
-      const unsubscribeShell = event.api.orchestration.subscribeShell((item) => {
-        applyShellStreamItemToAtoms(item, event.environmentId);
-        void import("../stores/messageQueueStore").then(({ reconcileAllPendingCancellations }) =>
-          reconcileAllPendingCancellations(event.api, undefined, event.environmentId),
-        );
-      });
+      const unsubscribeShell = event.api.orchestration.subscribeShell(
+        (item) => {
+          applyShellStreamItemToAtoms(item, event.environmentId);
+          void import("../stores/messageQueueStore").then(({ reconcileAllPendingCancellations }) =>
+            reconcileAllPendingCancellations(event.api, undefined, event.environmentId),
+          );
+        },
+        {
+          omitOlderSettled: environmentConfig(event.environmentId)?.shellOlderSettled === true,
+          omitIdleSubagents: true,
+        },
+      );
       cleanups.set(event.environmentId, () => {
         unsubscribeShell();
       });

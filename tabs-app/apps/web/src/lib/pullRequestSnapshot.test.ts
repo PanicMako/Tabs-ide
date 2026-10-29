@@ -107,6 +107,22 @@ describe("pullRequestSnapshot", () => {
     expect(readPullRequestSnapshot(ref, storage)).toBeNull();
   });
 
+  it("keeps case-sensitive repository paths and branch names separate", () => {
+    const storage = makeMockStorage();
+    const ref = { environmentId: "remote", cwd: "/repos/Project", reference: "Feature" };
+    const cached = sampleResult({ headBranch: "Feature" });
+    writePullRequestSnapshot(ref, cached, storage);
+    expect(readPullRequestSnapshot({ ...ref, cwd: "/repos/project" }, storage)).toBeNull();
+    expect(readPullRequestSnapshot({ ...ref, reference: "feature" }, storage)).toBeNull();
+    expect(
+      resolveDisplayedPullRequestResult({
+        live: null,
+        cached,
+        ref: { ...ref, reference: "feature" },
+      }),
+    ).toBeNull();
+  });
+
   it("prunes snapshots when capacity is exceeded", () => {
     const storage = makeMockStorage();
     for (let i = 1; i <= 60; i++) {

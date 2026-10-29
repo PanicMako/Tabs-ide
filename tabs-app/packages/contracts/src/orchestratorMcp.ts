@@ -60,12 +60,14 @@ const OrchestratorMcpScheduleFromJsonString = Schema.fromJsonString(
     "Compatibility-only JSON encoding of the schedule object. Prefer a structured object.",
 });
 
+const scheduleDescription =
+  "Trigger object: {type:'interval', everyMs}, {type:'fixed_time', timeOfDay, weekdays?}, or {type:'webhook'} to run on each request to a generated URL. Never stringify it unless the provider requires the compatibility form.";
+
 const OrchestratorMcpSchedule = Schema.Union([
   ScheduledTaskUpsertSchedule,
   OrchestratorMcpScheduleFromJsonString,
 ]).annotate({
-  description:
-    "Trigger object: {type:'interval', everyMs}, {type:'fixed_time', timeOfDay, weekdays?}, or {type:'webhook'} to run on each request to a generated URL. Never stringify it unless the provider requires the compatibility form.",
+  description: scheduleDescription,
 });
 
 /**
@@ -466,7 +468,34 @@ export const OrchestratorMcpThreadInterruptResult = Schema.Struct({
 });
 export type OrchestratorMcpThreadInterruptResult = typeof OrchestratorMcpThreadInterruptResult.Type;
 
+/**
+ * Optional catalog controls. Omitting every field preserves the complete
+ * catalog response; supplying any field opts into bounded search or paging.
+ */
+export const OrchestratorMcpCapabilitiesInput = Schema.Struct({
+  search: Schema.optional(
+    TrimmedNonEmptyString.check(Schema.isMaxLength(200)).annotate({
+      description: "Case-insensitive substring across model ID, name, and aliases.",
+    }),
+  ),
+  limit: Schema.optional(
+    PositiveInt.check(Schema.isLessThanOrEqualTo(100)).annotate({
+      description: "Maximum models returned; defaults to 8, or 40 when searching.",
+    }),
+  ),
+  offset: Schema.optional(NonNegativeInt.annotate({ description: "Zero-based page offset." })),
+  includeAll: Schema.optional(
+    Schema.Boolean.annotate({
+      description: "Return all models matching search; false opts into bounded pagination.",
+    }),
+  ),
+});
+export type OrchestratorMcpCapabilitiesInput = typeof OrchestratorMcpCapabilitiesInput.Type;
+
 export const OrchestratorMcpProviderCapability = Schema.Struct({
+  totalModels: Schema.optional(Schema.Int),
+  hasMoreModels: Schema.optional(Schema.Boolean),
+  nextOffset: Schema.optional(NonNegativeInt),
   providerInstanceId: ProviderInstanceId,
   driverKind: ProviderDriverKind,
   displayName: Schema.NullOr(Schema.String),
@@ -530,6 +559,16 @@ export const OrchestratorMcpScheduleTaskInput = Schema.Struct({
   clientRequestId: Schema.optional(OrchestratorMcpClientRequestId),
 });
 export type OrchestratorMcpScheduleTaskInput = typeof OrchestratorMcpScheduleTaskInput.Type;
+
+/** `schedule_task` creates a task, or updates one when `scheduledTaskId` is given. */
+export const OrchestratorMcpSaveScheduledTaskInput = Schema.Struct({
+  ...OrchestratorMcpScheduleTaskInput.fields,
+  scheduledTaskId: Schema.optional(ScheduledTaskId),
+  prompt: Schema.optional(OrchestratorMcpPrompt),
+  schedule: Schema.optional(OrchestratorMcpSchedule).annotate({ description: scheduleDescription }),
+});
+export type OrchestratorMcpSaveScheduledTaskInput =
+  typeof OrchestratorMcpSaveScheduledTaskInput.Type;
 
 /** Summary of a scheduled task returned by the schedule/list/update tools. */
 export const OrchestratorMcpScheduledTask = Schema.Struct({

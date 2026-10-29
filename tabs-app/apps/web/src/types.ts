@@ -20,6 +20,7 @@ import type {
   ThreadTitleRegeneration,
   ProjectIconOverride,
   ThreadEnvMode,
+  RepositoryIdentity,
 } from "@tabs/contracts";
 
 export interface QueuedRunItem {
@@ -114,6 +115,7 @@ export interface Project {
   defaultThreadEnvMode?: ThreadEnvMode | null | undefined;
   faviconPath?: string | null | undefined;
   projectIcon?: ProjectIconOverride | null | undefined;
+  repositoryIdentity?: RepositoryIdentity | null | undefined;
   expanded: boolean;
   createdAt?: string | undefined;
   updatedAt?: string | undefined;
@@ -121,6 +123,7 @@ export interface Project {
 }
 
 export interface Thread {
+  isSubagent?: boolean;
   id: ThreadId;
   environmentId?: EnvironmentId | undefined;
   codexThreadId: string | null;
