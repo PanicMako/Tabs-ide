@@ -19,7 +19,6 @@ The candidate preserves the 2.1.0 behavior of returning the complete provider ca
 
 These values are serialized descriptor and instruction bytes, not model token counts or a claim about actual provider prompt billing. The separate configured-provider evaluation reports provider usage where the adapter exposes it.
 
-
 ## Integration scope and verification
 
 The former audit branch used a 2.0.0 working snapshot. Current main contains 740 subsequent commits. This candidate starts at the published 2.1.0 commit and applies only T3 changes relative to `54cf362ec`, plus the small prerequisites required by that feature set. It does not import the 735-file dirty baseline snapshot. Production version, CodeOSS 1.143 sources, dependency locks, deployment workflows and release identity are unchanged.
