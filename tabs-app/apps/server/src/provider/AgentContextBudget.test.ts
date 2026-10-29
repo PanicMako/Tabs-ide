@@ -100,6 +100,9 @@ it.effect(
       const measured = {
         claudeSystemAppendBytes: utf8Bytes(claudeSystemAppend()),
         codexAdditionalContextBytes: utf8Bytes(codexAdditionalContext()),
+        // Provider input descriptors are retained as a separate measurement so
+        // compatibility metadata cannot hide growth in the actual registry.
+        mcpFullRegistryJsonBytes: utf8Bytes(JSON.stringify(mcp.tools.map(({ tool }) => tool))),
         mcpToolListJsonBytes: utf8Bytes(
           JSON.stringify(
             mcp.tools.map(({ tool }) => ({

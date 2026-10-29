@@ -115,7 +115,7 @@ it("keeps the workspace card legible and keyboard reachable across pane, theme, 
 
   try {
     for (const scenario of scenarios) {
-      await page.viewport(...scenario.viewport);
+      await page.viewport(scenario.viewport[0], scenario.viewport[1]);
       document.documentElement.className =
         scenario.theme === "dark"
           ? `${originalClassName} dark`.trim()
