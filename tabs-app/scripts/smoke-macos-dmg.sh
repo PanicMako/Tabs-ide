@@ -41,6 +41,9 @@ hdiutil detach "$mount_point" -quiet
 mounted=0
 echo "Detached DMG"
 
+# Clear any filesystem metadata/attributes introduced during mount or copy
+xattr -cr "$app_path"
+
 binary="$app_path/Contents/MacOS/Tabs"
 if [[ ! -x "$binary" ]]; then
   echo "The DMG is missing the Tabs executable." >&2
