@@ -46,7 +46,6 @@ def settings(app_path, background):
         "icon_size": 96,
         "text_size": 13,
         "icon_locations": {app_name: (240, 170), "Applications": (240, 430)},
-        "hide_extensions": [app_name],
         "show_status_bar": False,
         "show_toolbar": False,
         "show_tab_view": False,
