@@ -18,7 +18,6 @@ export function selectCapabilityModels(
           .includes(search),
       )
     : [...models];
-
   const hasExplicitQuery =
     input.search !== undefined ||
     input.limit !== undefined ||
@@ -33,7 +32,6 @@ export function selectCapabilityModels(
       model.slug === inheritedModel ? 3 : model.isDefault ? 2 : model.isCustom ? 1 : 0;
     matches.sort((left, right) => rank(right) - rank(left));
   }
-
   const requestedLimit =
     input.limit ?? (search ? DEFAULT_SEARCH_MODELS_PER_PAGE : DEFAULT_CAPABILITY_MODELS_PER_PAGE);
   const limit = Math.min(Math.max(requestedLimit, 1), MAX_CAPABILITY_MODELS_PER_PAGE);

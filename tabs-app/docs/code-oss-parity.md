@@ -111,3 +111,50 @@ EVIDENCE_DIR=/tmp/tabs-packaged-workbench-check \
 ```
 
 Use the actual mount path. Eject the test volume after the test exits. The test never installs or replaces `/Applications/Tabs.app`. It reports failure immediately if native services are unavailable, including upstream constructor incompatibilities that the callable-method inventory cannot detect. Keep the packaged test sequential with heavy test suites to avoid artificial browser shutdown contention.
+
+## Embedded card presentation: upstream sync checks
+
+Tabs owns the activity rail in React; Code-OSS owns the sidebar, editor groups,
+virtualized lists, breadcrumbs, editor picker, splitters, and extension webviews.
+The rail sends bounded `_tabs.setRailPresentation` payloads over the existing
+project-scoped control channel; legacy spotlight commands remain supported.
+Only this command accepts presentation data. Positions are fractions of the host
+height, labels are bounded plain text, and these updates never focus the editor.
+Native hover widgets draw labels above the sidebar instead of clipping a React
+portal under the native view. The native backing strip continues the same themed
+radial gradient underneath the sidebar's curved corner. Spotlight is transient,
+clears on view changes, dialogs, disconnect, or rail disposal, and never filters
+editor text or extension webviews.
+
+Keep embedded presentation rules in `contrib/tabs/browser/media/embeddedWorkbench.css`.
+The `tabs-embedded-workbench` marker is installed before layout. Native Explorer,
+Open Editors, Search, SCM resource rows and debug trees use the shared
+`browser/tabsEmbeddedLayout.ts` row measurement; never replace that with CSS row
+heights. Specialized input, action, variable-height and extension rows retain their
+own measurements. Breadcrumb height uses the same measurement path. The default
+editor and gutter surfaces derive from the theme card; the app ground remains the
+selected theme background. Explicit token overrides keep precedence. Keep the
+shared and shipped CommonJS theme derivation engines in parity.
+
+After each upstream update:
+
+- Run the CodeChrome browser tests, desktop theme/control-channel tests, native
+  editor-type-picker tests, and embedded list geometry test.
+- Compare dark/light cards, rail/sidebar seam, connected tabs and picker. Verify
+  custom theme colors, high contrast, reduced motion, and user editor zoom/fonts.
+- Scroll a large tree, rename and drag a file, resize both sidebars, collapse the
+  primary sidebar, move it to the right, split editors, and open the terminal.
+- Check contributed activity icons and a short window: views scroll inside the
+  rail while menu/settings remain reachable. Hover cannot move click targets.
+- Switch Markdown editor types with keyboard and mouse, dismiss with Escape,
+  and verify dirty-editor prompts, default associations and diff editor choices.
+
+These are fork integration points, not a promise that upstream DOM or layout
+contracts cannot change. Keep sync repairs confined to these ownership boundaries.
+
+Rail presentation checks: validate malformed coordinates/labels at both bridge
+boundaries; confirm labels clear on pointer exit, keyboard dismissal, modal
+opening, scrolling and disposal. Verify the accent continuation in dark and light
+themes and keep the three `--tabs-rail-*` properties in the CSS variable inventory.
+SCM action rows should fill the available width while keeping their dropdown
+reachable; never change their virtualized row height to fix button width.

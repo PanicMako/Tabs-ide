@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getTabsEmbeddedRowHeight } from '../../../../browser/tabsEmbeddedLayout.js';
 import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/listWidget.js';
 import * as DOM from '../../../../../base/browser/dom.js';
 import * as glob from '../../../../../base/common/glob.js';
@@ -74,7 +75,7 @@ import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.j
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
-	static readonly ITEM_HEIGHT = 22;
+	static get ITEM_HEIGHT(): number { return getTabsEmbeddedRowHeight(22, 24); }
 
 	getHeight(element: ExplorerItem): number {
 		return ExplorerDelegate.ITEM_HEIGHT;

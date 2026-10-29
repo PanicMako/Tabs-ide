@@ -562,7 +562,7 @@ export function PRsPanel({
                 value={searchInput}
                 onChange={(event) => setSearchInput(event.target.value)}
                 placeholder="Search pull requests"
-                className="min-w-0 flex-1 rounded-md border border-border bg-background px-2 py-1.5 text-xs"
+                className="min-w-0 flex-1 rounded-md border border-border/60 bg-background px-2.5 py-1.5 text-xs outline-none focus-blur-glow"
               />
               <Button type="submit" size="sm">
                 Search

@@ -1,3 +1,6 @@
+import { DEFAULT_RESOLVED_KEYBINDINGS } from "@tabs/shared/keybindings";
+import { previewTheme, snapshotThemeState, restoreThemeSnapshot } from "../hooks/useTheme";
+import { useWorkspaceActionsState } from "./chat/workspaceActionsState";
 // Production CSS is part of the behavior under test because row height depends on it.
 import "../index.css";
 import { scopedThreadKey, scopeThreadRef } from "@tabs/client-runtime/environment";
@@ -41,7 +44,11 @@ import {
 import { isMacPlatform } from "../lib/utils";
 import { getRouter } from "../router";
 import { appAtomRegistry, AppAtomRegistryProvider } from "../state/atomRegistry";
-import { readModelStateAtom, syncServerReadModelToAtoms } from "../state/readModel";
+import {
+  readModelStateAtom,
+  syncServerReadModelToAtoms,
+  setThreadErrorInAtoms,
+} from "../state/readModel";
 import { DEFAULT_CLIENT_SETTINGS } from "@tabs/contracts/settings";
 import { hydrateClientSettings, updateClientSettings } from "../state/settings";
 import { scopedComposerThreadId } from "../state/composerDrafts";
@@ -863,6 +870,7 @@ describe("ChatView browser behavior (full app)", () => {
   });
 
   beforeEach(async () => {
+    useWorkspaceActionsState.setState({ entries: {} });
     await setViewport(DEFAULT_VIEWPORT);
     localStorage.clear();
     useRightPanelStore.setState({ isOpen: false, maximized: false, choosingSurface: true });
@@ -1125,6 +1133,7 @@ describe("ChatView browser behavior (full app)", () => {
 
     try {
       await page.getByRole("button", { name: "Toggle workspace actions" }).click();
+      await page.getByRole("tab", { name: "Run", exact: true }).click();
       const runButton = await waitForElement(
         () =>
           Array.from(document.querySelectorAll("button")).find(
@@ -1202,6 +1211,7 @@ describe("ChatView browser behavior (full app)", () => {
 
     try {
       await page.getByRole("button", { name: "Toggle workspace actions" }).click();
+      await page.getByRole("tab", { name: "Run", exact: true }).click();
       const runButton = await waitForElement(
         () =>
           Array.from(document.querySelectorAll("button")).find(
@@ -1558,6 +1568,93 @@ describe("ChatView browser behavior (full app)", () => {
     }
   });
 
+  it("uses compact workspace actions with the sidebar open and widens only when collapsed", async () => {
+    const mounted = await mountChatView({
+      viewport: { name: "wide", width: 1600, height: 1000 },
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: "workspace-width-test" as MessageId,
+        targetText: "hi",
+      }),
+    });
+    try {
+      const toggle = page.getByRole("button", { name: "Toggle workspace actions" });
+      if (toggle.element().getAttribute("aria-expanded") !== "true") await toggle.click();
+      await expect.element(page.getByRole("region", { name: "Workspace actions" })).toBeVisible();
+      const rail = document.querySelector<HTMLElement>(".workspace-actions-rail")!;
+      await expect.poll(() => Math.round(rail.getBoundingClientRect().width)).toBe(300);
+      await page.getByRole("button", { name: "Collapse sidebar", exact: true }).click();
+      await expect.poll(() => Math.round(rail.getBoundingClientRect().width)).toBe(360);
+      await page.getByRole("button", { name: "Expand sidebar", exact: true }).click();
+      await expect.poll(() => Math.round(rail.getBoundingClientRect().width)).toBe(300);
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("anchors workspace actions above the composer without moving when an error appears", async () => {
+    const mounted = await mountChatView({
+      viewport: { name: "wide-error", width: 1600, height: 1100 },
+      snapshot: createSnapshotForTargetUser({
+        targetMessageId: "workspace-anchor-test" as MessageId,
+        targetText: "hi",
+      }),
+      configureFixture: (nextFixture) => {
+        nextFixture.serverConfig = {
+          ...nextFixture.serverConfig,
+          availableEditors: ["file-manager"],
+        };
+      },
+    });
+    try {
+      const toggle = page.getByRole("button", { name: "Toggle workspace actions" });
+      await expect.element(toggle).toBeVisible();
+      if (toggle.element().getAttribute("aria-expanded") !== "true") await toggle.click();
+      await expect.element(page.getByRole("region", { name: "Workspace actions" })).toBeVisible();
+      const rail = document.querySelector<HTMLElement>(".workspace-actions-rail")!;
+      const top = rail.getBoundingClientRect().top;
+      setThreadErrorInAtoms(
+        THREAD_ID,
+        "Provider turn failed for positioning test",
+        BROWSER_ENVIRONMENT_ID,
+      );
+      await expect
+        .element(page.getByText("Provider turn failed for positioning test"))
+        .toBeVisible();
+      expect(rail.getBoundingClientRect().top).toBe(top);
+      const rootBounds = document.querySelector(".chat-workspace-root")!.getBoundingClientRect();
+      const warning = document.querySelector(".chat-status-area")!.querySelector('[role="alert"]')!;
+      const warningBounds = warning.getBoundingClientRect();
+      expect(
+        Math.abs(
+          (warningBounds.left + warningBounds.right) / 2 - (rootBounds.left + rootBounds.right) / 2,
+        ),
+      ).toBeLessThanOrEqual(1);
+
+      const composer = document.querySelector('[data-chat-composer-card="true"]')!;
+      expect(rail.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+        composer.getBoundingClientRect().top - 12,
+      );
+      await page.screenshot({ path: "__screenshots__/workspace-actions/error-anchor.png" });
+      const folder = page.getByRole("button", { name: "Open project folder", exact: true });
+      await folder.click();
+      await expect
+        .poll(() => wsRequests.find((request) => request._tag === WS_METHODS.shellOpenInEditor))
+        .toMatchObject({ editor: "file-manager" });
+      await page.getByRole("button", { name: "Close workspace card", exact: true }).click();
+      await expect
+        .poll(() => page.getByRole("region", { name: "Workspace actions" }).query())
+        .toBeNull();
+      await page.getByRole("button", { name: "Toggle workspace actions" }).click();
+      await expect.element(page.getByRole("region", { name: "Workspace actions" })).toBeVisible();
+      await page.getByRole("button", { name: "Dismiss error", exact: true }).click();
+      await expect
+        .element(page.getByText("Provider turn failed for positioning test"))
+        .not.toBeInTheDocument();
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
   it("shows the project greeting and composer for a brand-new local draft thread", async () => {
     const mounted = await mountChatView({
       viewport: DEFAULT_VIEWPORT,
@@ -1565,6 +1662,12 @@ describe("ChatView browser behavior (full app)", () => {
         targetMessageId: "msg-user-compact-draft-test" as MessageId,
         targetText: "compact draft target",
       }),
+      configureFixture: (nextFixture) => {
+        nextFixture.serverConfig = {
+          ...nextFixture.serverConfig,
+          keybindings: [...DEFAULT_RESOLVED_KEYBINDINGS],
+        };
+      },
     });
 
     try {
@@ -1581,6 +1684,68 @@ describe("ChatView browser behavior (full app)", () => {
       const composerEditor = await waitForComposerEditor();
       await expect.element(page.getByText("What should we build in Project?")).toBeVisible();
       expect(composerEditor.getBoundingClientRect().height).toBeLessThan(200);
+      const send = document.querySelector<HTMLButtonElement>(
+        '[data-workspace-action="send-message"]',
+      )!;
+      const schedule = document.querySelector<HTMLButtonElement>(
+        '[aria-label="Schedule message for a specific time"]',
+      )!;
+      expect(schedule.closest('[data-chat-composer-footer="true"]')).toBeTruthy();
+      expect(schedule.getBoundingClientRect().bottom).toBeLessThan(
+        send.getBoundingClientRect().top,
+      );
+      expect(send.closest(".composer-send-actions")!.querySelectorAll("button")).toHaveLength(1);
+      const newThreadFace = document.querySelector<HTMLElement>(".new-thread-action-face")!;
+      const newThreadLabel = newThreadFace.querySelector<HTMLElement>("[data-new-thread-label]")!;
+      const newThreadHint = newThreadFace.querySelector<HTMLElement>("kbd")!;
+      expect(newThreadHint).not.toBeNull();
+      expect(newThreadHint.textContent).toBe(
+        isMacPlatform(navigator.platform) ? "⇧⌘O" : "CtrlShiftO",
+      );
+      expect(getComputedStyle(newThreadLabel).fontWeight).toBe("400");
+      expect(
+        newThreadLabel.getBoundingClientRect().left - newThreadFace.getBoundingClientRect().left,
+      ).toBeLessThan(48);
+      if (newThreadHint) {
+        expect(newThreadLabel.getBoundingClientRect().right).toBeLessThanOrEqual(
+          newThreadHint.getBoundingClientRect().left,
+        );
+      }
+
+      await page.screenshot({
+        path: "__screenshots__/workspace-actions/themed-thread-composer.png",
+      });
+
+      const originalTheme = snapshotThemeState();
+      try {
+        for (const theme of ["true-black", "tabs-light"] as const) {
+          previewTheme(theme);
+          await waitForLayout();
+          await page.getByRole("button", { name: "New thread", exact: true }).hover();
+          await page.screenshot({
+            path: `__screenshots__/workspace-actions/thread-composer-${theme}.png`,
+          });
+          await page.screenshot({
+            element: page.getByRole("button", { name: "New thread", exact: true }).element(),
+            path: `__screenshots__/workspace-actions/new-thread-${theme}.png`,
+          });
+        }
+      } finally {
+        restoreThemeSnapshot(originalTheme);
+      }
+
+      const card = composerEditor.closest('[data-chat-composer-card="true"]')!;
+      const tray = card
+        .closest("form")!
+        .querySelector('[data-chat-composer-workspace-tray="true"]')!;
+      expect(tray).toBeTruthy();
+      expect(tray.querySelector('[data-chat-workspace-controls="true"]')).toBeTruthy();
+      expect(tray.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+        composerEditor.getBoundingClientRect().bottom,
+      );
+      expect(tray.getBoundingClientRect().width).toBeLessThan(card.getBoundingClientRect().width);
+      expect(tray.getBoundingClientRect().top).toBeLessThan(card.getBoundingClientRect().bottom);
+      expect(tray.getBoundingClientRect().left).toBeGreaterThan(card.getBoundingClientRect().left);
     } finally {
       await mounted.cleanup();
     }

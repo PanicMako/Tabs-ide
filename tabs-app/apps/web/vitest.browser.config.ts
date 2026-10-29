@@ -25,6 +25,19 @@ export default defineConfig(async (env) => {
         fileParallelism: false,
         browser: {
           enabled: true,
+          commands: {
+            async scrollFontReel({ page, frame }, deltas: number[]) {
+              const reel = (await frame()).locator(".font-reel");
+              await reel.scrollIntoViewIfNeeded();
+              const box = await reel.boundingBox();
+              if (!box) throw new Error("Font reel is not visible");
+              await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+              for (const delta of deltas) {
+                await page.mouse.wheel(0, delta);
+                await page.waitForTimeout(16);
+              }
+            },
+          },
           provider: playwright(),
           instances: [{ browser: "chromium" }],
           headless: true,

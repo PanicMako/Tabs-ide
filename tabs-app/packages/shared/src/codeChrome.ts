@@ -19,6 +19,7 @@
 
 import type {
   CodeActivityViewId,
+  CodeRailPresentation,
   CodeChromeState,
   CodeCursorPosition,
   CodeTestItem,
@@ -27,6 +28,7 @@ import type {
 
 export type {
   CodeActivityViewId,
+  CodeRailPresentation,
   CodeChromeState,
   CodeCursorPosition,
   CodeTestItem,
@@ -60,6 +62,9 @@ export const CODE_ACTIVITY_ITEMS: readonly CodeActivityItem[] = [
 
 /** Command ids used by the header / status bar / panel toggles. */
 export const CODE_CHROME_COMMANDS = {
+  railPresentation: "_tabs.setRailPresentation",
+  railSpotlightOn: "_tabs.railSpotlightOn",
+  railSpotlightOff: "_tabs.railSpotlightOff",
   commandPalette: "workbench.action.showCommands",
   toggleSidebar: "workbench.action.toggleSidebarVisibility",
   togglePanel: "workbench.action.togglePanel",
@@ -468,7 +473,8 @@ export const DEFAULT_CODE_CHROME_STATE: CodeChromeState = {
 
 /** Messages sent from the broker (Electron main) → extension. */
 export type CodeControlServerMessage =
-  | { type: "runCommand"; commandId: string }
+  | { type: "commitDraftResult"; requestId: string; message?: string; error?: string }
+  | { type: "runCommand"; commandId: string; presentation?: CodeRailPresentation }
   | {
       type: "openFile";
       filePath: string;
@@ -492,7 +498,9 @@ export type CodeControlServerMessage =
 export type CodeControlClientMessage =
   | { type: "hello"; projectId: string; token: string }
   | { type: "chromeState"; projectId: string; state: CodeChromeState }
-  | { type: "openTabsProjectTab"; projectId: string };
+  | { type: "openTabsProjectTab"; projectId: string }
+  | { type: "generateCommitDraft"; projectId: string; requestId: string; cwd: string }
+  | { type: "cancelCommitDraft"; projectId: string; requestId: string };
 
 /**
  * Parse/validate an inbound control message from a JSON string. Returns null on
@@ -513,6 +521,17 @@ export function parseCodeControlClientMessage(raw: string): CodeControlClientMes
     const token = typeof record.token === "string" ? record.token : "";
     return { type: "hello", projectId, token };
   }
+  if (
+    (record.type === "generateCommitDraft" || record.type === "cancelCommitDraft") &&
+    typeof record.requestId === "string" &&
+    /^[a-zA-Z0-9-]{1,80}$/.test(record.requestId)
+  ) {
+    if (record.type === "cancelCommitDraft")
+      return { type: record.type, projectId, requestId: record.requestId };
+    if (typeof record.cwd === "string" && record.cwd.length > 0 && record.cwd.length < 4096)
+      return { type: record.type, projectId, requestId: record.requestId, cwd: record.cwd };
+    return null;
+  }
   if (record.type === "chromeState") {
     return { type: "chromeState", projectId, state: coerceChromeState(record.state) };
   }
@@ -531,7 +550,25 @@ export function parseCodeControlServerMessage(raw: string): CodeControlServerMes
   }
   if (typeof value !== "object" || value === null) return null;
   const record = value as Record<string, unknown>;
+  if (
+    record.type === "commitDraftResult" &&
+    typeof record.requestId === "string" &&
+    /^[a-zA-Z0-9-]{1,80}$/.test(record.requestId)
+  ) {
+    if (typeof record.message === "string" && record.message.length <= 64_000)
+      return { type: "commitDraftResult", requestId: record.requestId, message: record.message };
+    if (typeof record.error === "string" && record.error.length <= 8_000)
+      return { type: "commitDraftResult", requestId: record.requestId, error: record.error };
+    return null;
+  }
   if (record.type === "runCommand" && typeof record.commandId === "string") {
+    if (record.commandId === CODE_CHROME_COMMANDS.railPresentation) {
+      const presentation = parseCodeRailPresentation(record.presentation);
+      return presentation
+        ? { type: "runCommand", commandId: record.commandId, presentation }
+        : null;
+    }
+    if (record.presentation !== undefined) return null;
     return { type: "runCommand", commandId: record.commandId };
   }
   if (record.type === "openFile" && typeof record.filePath === "string") {
@@ -745,4 +782,28 @@ export function deriveActiveFileName(path: string | null | undefined): string {
   const trimmed = path.replace(/[\\/]+$/, "");
   const lastSep = Math.max(trimmed.lastIndexOf("/"), trimmed.lastIndexOf("\\"));
   return lastSep === -1 ? trimmed : trimmed.slice(lastSep + 1);
+}
+
+/** Reject unbounded coordinates and non-text tooltip content at the bridge boundary. */
+export function parseCodeRailPresentation(value: unknown): CodeRailPresentation | null {
+  if (!value || typeof value !== "object") return null;
+  const input = value as Record<string, unknown>;
+  const position = (v: unknown): v is number =>
+    typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= 1;
+  if (input.selectionY !== null && !position(input.selectionY)) return null;
+  if (typeof input.spotlight !== "boolean") return null;
+  let label: CodeRailPresentation["label"] = null;
+  if (input.label !== null) {
+    if (!input.label || typeof input.label !== "object") return null;
+    const candidate = input.label as Record<string, unknown>;
+    if (
+      typeof candidate.text !== "string" ||
+      !candidate.text.trim() ||
+      candidate.text.length > 100 ||
+      !position(candidate.y)
+    )
+      return null;
+    label = { text: candidate.text, y: candidate.y };
+  }
+  return { selectionY: input.selectionY as number | null, spotlight: input.spotlight, label };
 }

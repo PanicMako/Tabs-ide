@@ -1,4 +1,8 @@
 import { useOlderSettledThreads } from "../hooks/useOlderSettledThreads";
+import { DockWorkspace, type DockPreset } from "./dock/DockWorkspace";
+import { useComposerDraftStore } from "../composerDraftStore";
+import { createScopedComposerDraftActions, scopedComposerThreadId } from "../state/composerDrafts";
+import { resolveProviderIcon } from "./providerIcons";
 import { InstalledExtensionToolIcon } from "./InstalledExtensionToolIcon";
 import { AgentBackground } from "./AgentBackground";
 import { resolveRouteThread } from "../resolveRouteThread";
@@ -224,18 +228,7 @@ const isWindowsDesktop =
 import { ensureNativeApi, readNativeApi } from "../nativeApi";
 import { openInPreferredEditor } from "../editorPreferences";
 import { ServerPresetFormFields, resolvePresetIconElement } from "./ServerPresetFormFields";
-import {
-  AntigravityIcon,
-  ClaudeAI,
-  OpenAI,
-  GrokIcon,
-  OpenCodeIcon,
-  KiloIcon,
-  CursorIcon,
-  CopilotIcon,
-  TabsExtensionIcon,
-  type Icon,
-} from "./Icons";
+import { TabsExtensionIcon, type Icon } from "./Icons";
 import GitCommitComposer from "./GitCommitComposer";
 import { FusedModelPicker } from "./chat/FusedModelPicker";
 import type { ProviderPickerKind } from "../session-logic";
@@ -359,6 +352,7 @@ import {
   CODE_CHROME_COMMANDS,
   DEFAULT_CODE_CHROME_STATE,
   type CodeChromeState,
+  type CodeRailPresentation,
 } from "@tabs/shared/codeChrome";
 import { resolveShortcutCommand, shortcutLabelForCommand } from "../keybindings";
 import { useKeybindings } from "../state/settings";
@@ -921,8 +915,14 @@ function isSameWebUrl(urlA: string | null | undefined, urlB: string | null | und
 function resolveProjectById(
   projects: ReadonlyArray<Project>,
   projectId: ProjectId | null,
+  environmentId?: string | null,
 ): Project | null {
-  return projectId ? (projects.find((project) => project.id === projectId) ?? null) : null;
+  return projectId
+    ? (projects.find(
+        (project) =>
+          project.id === projectId && (!environmentId || project.environmentId === environmentId),
+      ) ?? null)
+    : null;
 }
 
 function resolveMostRecentThreadForProject(
@@ -1414,20 +1414,6 @@ const PROVIDER_COLOR_MAP: Record<string, string> = {
   grok: "#ec4899",
 };
 
-/** Maps provider instanceId → SVG icon component */
-const PROVIDER_ICON_MAP: Record<string, Icon> = {
-  antigravity: AntigravityIcon,
-  claudeAgent: ClaudeAI,
-  claude: ClaudeAI,
-  codex: OpenAI,
-  openai: OpenAI,
-  copilot: CopilotIcon,
-  grok: GrokIcon,
-  opencode: OpenCodeIcon,
-  kilo: KiloIcon,
-  cursor: CursorIcon,
-};
-
 function ProviderIcon({
   instanceId,
   provider,
@@ -1437,27 +1423,9 @@ function ProviderIcon({
   provider?: string | undefined;
   className?: string;
 }) {
-  const normalizedKey = `${instanceId ?? ""} ${provider ?? ""}`.toLowerCase();
-  const IconComp =
-    PROVIDER_ICON_MAP[instanceId] ??
-    PROVIDER_ICON_MAP[normalizedKey] ??
-    (normalizedKey.includes("cursor")
-      ? CursorIcon
-      : normalizedKey.includes("antigravity") || normalizedKey.includes("gemini")
-        ? AntigravityIcon
-        : normalizedKey.includes("copilot")
-          ? CopilotIcon
-          : normalizedKey.includes("opencode")
-            ? OpenCodeIcon
-            : normalizedKey.includes("claude")
-              ? ClaudeAI
-              : normalizedKey.includes("codex") ||
-                  normalizedKey.includes("openai") ||
-                  normalizedKey.includes("gpt")
-                ? OpenAI
-                : normalizedKey.includes("grok")
-                  ? GrokIcon
-                  : BotIcon);
+  const config = useServerConfig();
+  const driver = config?.providers.find((entry) => entry.instanceId === instanceId)?.driver;
+  const IconComp = resolveProviderIcon(instanceId, driver ?? provider);
 
   // Monotone icon style matching prototype design system
   return <IconComp className={className} />;
@@ -1482,6 +1450,13 @@ function deriveThreadAttention(thread: Thread): {
   }
   // Completed threads do NOT show a permanent green dot
   return null;
+}
+
+function parseShortcutSegments(label: string): string[] {
+  if (label.includes("+")) {
+    return label.split("+").filter(Boolean);
+  }
+  return Array.from(label);
 }
 
 function AgentsThreadList(props: {
@@ -1882,31 +1857,40 @@ function AgentsThreadList(props: {
               </Tooltip>
             </div>
 
-            {/* Machined-aluminum inspired New Thread button */}
             <button
               type="button"
+              data-workspace-action="new-thread"
               onClick={props.onCreateThread}
               aria-label="New thread"
               title={
                 newThreadShortcutLabel ? `New thread (${newThreadShortcutLabel})` : "New thread"
               }
-              className="group relative flex h-10 w-full items-center justify-center rounded-lg p-[1.5px] transition-all duration-200 active:scale-[0.985] active:translate-y-[0.5px] bg-gradient-to-b from-slate-300 via-slate-400/60 to-slate-500/70 shadow-[0_1px_3px_rgba(0,0,0,0.08),0_4px_12px_rgba(0,0,0,0.04)] hover:from-slate-200 hover:via-slate-300 hover:to-slate-400 dark:from-[#e2e8f0]/75 dark:via-[#94a3b8]/30 dark:to-[#475569]/35 dark:shadow-[0_2px_12px_-2px_rgba(0,0,0,0.5),0_1px_2px_rgba(0,0,0,0.3)] dark:hover:from-white/95 dark:hover:via-[#cbd5e1]/45 dark:hover:to-[#64748b]/45 dark:hover:shadow-[0_4px_18px_-2px_rgba(0,0,0,0.65),0_0_12px_rgba(226,232,240,0.12)]"
+              className="new-thread-action group relative flex min-h-10 w-full min-w-0 items-center p-[2.5px] transition-transform active:scale-[0.985]"
             >
-              <div className="relative flex h-full w-full items-center justify-center gap-2 rounded-lg px-3 transition-colors duration-200 bg-gradient-to-b from-white via-slate-50 to-slate-100/90 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.95),inset_0_-1px_0_0_rgba(0,0,0,0.05)] group-hover:from-white group-hover:to-slate-50 dark:from-[#18191f] dark:via-[#131417] dark:to-[#0f1013] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.12),inset_0_-1px_0_0_rgba(0,0,0,0.6)] dark:group-hover:from-[#1e2027] dark:group-hover:via-[#16171c] dark:group-hover:to-[#111215]">
-                {/* Brushed metallic reflection sheen */}
-                <div className="pointer-events-none absolute inset-0 rounded-lg bg-gradient-to-r from-transparent via-white/[0.04] to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100 dark:via-white/[0.07]" />
-
-                <PlusIcon className="size-3.5 stroke-[2.25] text-foreground/80 transition-all duration-200 group-hover:scale-110 group-hover:text-foreground" />
-                <span className="text-[13px] font-semibold tracking-tight text-foreground/90 transition-colors group-hover:text-foreground">
+              <span className="new-thread-action-face flex min-h-10 w-full min-w-0 items-center justify-start gap-2.5 px-3.5 py-2">
+                <PlusIcon
+                  strokeWidth={2.5}
+                  className="size-[18px] shrink-0 transition-transform group-hover:scale-110"
+                />
+                <span
+                  data-new-thread-label
+                  className="min-w-0 truncate text-left text-sm font-normal"
+                >
                   New Thread
                 </span>
-
                 {newThreadShortcutLabel && (
-                  <kbd className="pointer-events-none absolute right-3 hidden items-center rounded-md border border-foreground/[0.08] bg-foreground/[0.03] px-1.5 py-0.5 text-[10px] font-mono font-medium text-muted-foreground/50 transition-colors group-hover:border-foreground/15 group-hover:text-muted-foreground/80 sm:inline-flex">
-                    {newThreadShortcutLabel}
+                  <kbd
+                    className="new-thread-shortcut ml-auto inline-flex shrink-0 items-center gap-0.5 py-0.5 font-sans font-medium select-none"
+                    aria-label={`Shortcut: ${newThreadShortcutLabel}`}
+                  >
+                    {parseShortcutSegments(newThreadShortcutLabel).map((segment, i) => (
+                      <span key={i} className="inline-block leading-none">
+                        {segment}
+                      </span>
+                    ))}
                   </kbd>
                 )}
-              </div>
+              </span>
             </button>
 
             {/* Task navigation: Active | Settled | Archive with underline indicator */}
@@ -3612,6 +3596,16 @@ function DesktopCodeTool(props: { project: Project }) {
     [projectId, chromeState.activityBarItems],
   );
 
+  const updateCodeRailPresentation = useCallback(
+    (presentation: CodeRailPresentation) => {
+      if (!hostReady) return;
+      void window.desktopBridge
+        ?.runCodeCommand(projectId, CODE_CHROME_COMMANDS.railPresentation, presentation)
+        .catch(() => undefined);
+    },
+    [hostReady, projectId],
+  );
+
   const toggleCodeAssistant = useCodeAssistantPanels({
     provider: aiProvider,
     hostReady,
@@ -3910,6 +3904,8 @@ function DesktopCodeTool(props: { project: Project }) {
       />
       <div className="code-workspace-body flex min-h-0 min-w-0 flex-1">
         <CodeActivityRail
+          workspaceId={projectId}
+          onPresentationChange={updateCodeRailPresentation}
           chromeState={chromeState}
           onApplicationMenuOpenChange={handleCodeMenuOpenChange}
           onRunCommand={runCodeCommand}
@@ -10294,6 +10290,11 @@ function CustomProcessTool(props: {
 }
 
 function ServerTool(props: {
+  dockApi: React.ComponentProps<typeof DockWorkspace>["api"];
+  dockThreadId: string | null;
+  renderDockTerminal: (id: string) => ReactNode;
+  onDockPreview: (preset: DockPreset) => void;
+  onDockAddToAgent: (text: string) => Promise<void>;
   project: Project;
   projectSettings: ProjectWorkspaceSettings;
   onOpenSettings: () => void;
@@ -10635,7 +10636,10 @@ function ServerTool(props: {
 
   const confirmDeletePreset = useCallback(() => {
     if (!presetToDeleteId) return;
-    const nextDrafts = presetDrafts.filter((p) => p.id !== presetToDeleteId);
+    const source = isPresetDialogOpen
+      ? presetDrafts
+      : processes.map((preset) => ({ ...preset, commands: [...preset.commands] }));
+    const nextDrafts = source.filter((p) => p.id !== presetToDeleteId);
     setPresetDrafts(nextDrafts);
     props.onSavePresets(nextDrafts);
 
@@ -10644,7 +10648,7 @@ function ServerTool(props: {
     setIsEditingRightPane(false);
     setEditingPresetDraft(null);
     setPresetToDeleteId(null);
-  }, [presetToDeleteId, presetDrafts, props]);
+  }, [presetToDeleteId, presetDrafts, props, isPresetDialogOpen, processes, normalizePresetDraft]);
 
   const editingPreset = editingPresetId
     ? (processes.find((process: any) => process.id === editingPresetId) ?? null)
@@ -10670,258 +10674,55 @@ function ServerTool(props: {
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
-      {/* Header section */}
-      <div className="border-b border-border/60 px-5 py-3.5 flex flex-col gap-3 bg-card/30">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3 min-w-0">
-            <DockUfoIcon className="size-8 text-foreground shrink-0" />
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <h2 className="text-base font-bold text-foreground leading-tight tracking-tight">
-                  Dock
-                </h2>
-                {props.runningProcessIds.length > 0 && (
-                  <Badge
-                    variant="outline"
-                    className="text-[10px] font-medium border-emerald-500/30 bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 gap-1.5 py-0 px-2 h-4.5"
-                  >
-                    <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    {props.runningProcessIds.length} running
-                  </Badge>
-                )}
-              </div>
-              <p className="mt-0.5 text-xs text-muted-foreground leading-snug truncate">
-                {processes.length === 0
-                  ? "Launch terminals or save one-click presets for your dev workflow."
-                  : "One-click launch your configured presets, or open a fresh terminal."}
-              </p>
-            </div>
-          </div>
-
-          {/* Unified Primary action toolbar right in front of user */}
-          <div className="flex items-center gap-1.5 shrink-0">
-            {props.hasTerminalWorkspace && (
-              <Button
-                type="button"
-                size="sm"
-                variant={props.terminalVisible ? "outline" : "secondary"}
-                className="h-8 gap-1.5 text-xs font-medium"
-                onClick={props.terminalVisible ? props.onHideTerminal : props.onRevealTerminal}
-              >
-                {props.terminalVisible ? (
-                  <>
-                    <PanelTopCloseIcon className="size-3.5 text-muted-foreground" />
-                    <span>Hide Terminal</span>
-                  </>
-                ) : (
-                  <>
-                    <PanelTopOpenIcon className="size-3.5 text-muted-foreground" />
-                    <span>Show Terminal</span>
-                  </>
-                )}
-              </Button>
-            )}
-
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="h-8 gap-1.5 text-xs font-medium"
-              onClick={() => {
-                props.onRevealTerminal();
-                props.onNewTerminal();
-              }}
-            >
-              <TerminalSquareIcon className="size-3.5" />
-              <span>New Terminal</span>
-            </Button>
-
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="h-8 gap-1.5 text-xs font-medium"
-              onClick={() => {
-                setPresetDialogMode("add");
-                setEditingPresetId(null);
-                setIsPresetDialogOpen(true);
-              }}
-            >
-              <PlusIcon className="size-3.5" />
-              <span>Add Preset</span>
-            </Button>
-
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground font-medium"
-              onClick={() => {
-                setPresetDialogMode("manage");
-                setEditingPresetId(null);
-                setIsPresetDialogOpen(true);
-              }}
-            >
-              <SlidersHorizontalIcon className="size-3.5" />
-              <span>Manage</span>
-            </Button>
-
-            {props.hasTerminalWorkspace && (
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                className="h-8 gap-1.5 text-xs text-red-600 hover:text-red-700 dark:text-red-500 dark:hover:text-red-400 hover:bg-red-500/10 font-medium"
-                onClick={async () => {
-                  const confirmed = await confirm("Are you sure you want to close all terminals?");
-                  if (confirmed) {
-                    props.onCloseAllTerminals();
-                  }
-                }}
-              >
-                <XIcon className="size-3.5" />
-                <span>Close All</span>
-              </Button>
-            )}
-          </div>
-        </div>
-
-        {/* Dedicated Presets strip with Lucide React icons */}
-        <div className="flex items-center gap-2.5 pt-1.5 border-t border-border/40 min-w-0">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 shrink-0 select-none">
-            Presets
-          </span>
-          {processes.length > 0 ? (
-            <ScrollArea className="flex-1 min-w-0">
-              <div className="flex w-max items-center gap-2 py-0.5 pr-2">
-                {processes.map((process: any) => {
-                  const status = resolveServerPresetRuntimeStatus({
-                    processId: process.id,
-                    runningProcessIds: runningProcessIdSet,
-                    terminalIds: terminalIdSet,
-                  });
-                  const isActive = props.activeTerminalId === process.id;
-                  const isRunning = status === "running";
-                  const hasTerminal = terminalIdSet.has(process.id);
-
-                  return (
-                    <button
-                      key={process.id}
-                      type="button"
-                      disabled={!hasRunnableCommands(process.commands)}
-                      onClick={() =>
-                        hasTerminal
-                          ? props.onOpenProcessTerminal(process.id)
-                          : handleRunProcessWithDependencies(process.id)
-                      }
-                      title={
-                        isRunning
-                          ? `${process.label} is running — click to view terminal`
-                          : hasTerminal
-                            ? `${process.label} terminal open — click to switch`
-                            : `Launch ${process.label}`
-                      }
-                      className={cn(
-                        "group flex h-7 shrink-0 cursor-pointer items-center gap-1.5 overflow-hidden rounded-full border px-3 text-xs font-medium transition-all disabled:cursor-not-allowed disabled:opacity-50",
-                        isActive
-                          ? "border-primary/50 bg-primary/10 text-foreground shadow-2xs ring-1 ring-primary/25"
-                          : isRunning
-                            ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shadow-2xs"
-                            : "border-border/70 bg-card text-foreground/90 hover:bg-accent hover:text-accent-foreground hover:border-border",
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          "size-1.5 rounded-full shrink-0 transition-transform group-hover:scale-125",
-                          isRunning
-                            ? "bg-emerald-500 animate-pulse"
-                            : hasTerminal
-                              ? "bg-sky-500"
-                              : "bg-muted-foreground/40",
-                        )}
-                      />
-                      <span className="text-muted-foreground group-hover:text-foreground shrink-0">
-                        {resolvePresetIconElement(process, "size-3.5")}
-                      </span>
-                      <span className="truncate max-w-[12rem]">{process.label}</span>
-                    </button>
-                  );
-                })}
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPresetDialogMode("add");
-                    setEditingPresetId(null);
-                    setIsPresetDialogOpen(true);
-                  }}
-                  title="Add Preset"
-                  aria-label="Add Preset"
-                  className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full border border-dashed border-border/80 text-muted-foreground transition-all hover:border-foreground/50 hover:bg-accent hover:text-foreground"
-                >
-                  <PlusIcon className="size-3.5" />
-                </button>
-              </div>
-            </ScrollArea>
-          ) : (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground py-0.5">
-              <span>No presets configured yet.</span>
-              <button
-                type="button"
-                onClick={() => {
-                  setPresetDialogMode("add");
-                  setEditingPresetId(null);
-                  setIsPresetDialogOpen(true);
-                }}
-                className="text-foreground hover:underline font-medium inline-flex items-center gap-1"
-              >
-                <PlusIcon className="size-3" />
-                Add your first preset
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-      <div className="min-h-0 flex-1">
-        {props.terminalVisible ? (
-          props.terminalContent
-        ) : (
-          <div className="flex h-full items-center justify-center p-8">
-            <div className="w-full max-w-md flex flex-col items-center text-center gap-5">
-              <div className="flex size-24 items-center justify-center rounded-2xl bg-muted/60 border border-border/60">
-                <DockUfoIcon className="size-16 text-muted-foreground" />
-              </div>
-              <div className="space-y-1.5">
-                <h3 className="text-base font-semibold text-foreground">Dock</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed max-w-xs mx-auto">
-                  Open a terminal for manual work, or save presets like{" "}
-                  <span className="font-medium text-foreground/80">Frontend</span> and{" "}
-                  <span className="font-medium text-foreground/80">Backend</span> that launch in one
-                  click.
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center justify-center gap-2">
-                <Button type="button" onClick={props.onRevealTerminal}>
-                  <TerminalSquareIcon className="size-3.5" />
-                  Open Terminal
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setPresetDialogMode("add");
-                    setEditingPresetId(null);
-                    setIsPresetDialogOpen(true);
-                  }}
-                >
-                  <PlusIcon className="size-3.5" />
-                  Add Preset
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+      <DockWorkspace
+        scope={projectUiStateKey(props.project.environmentId, props.project.id)}
+        projectName={props.project.name}
+        cwd={props.project.cwd}
+        presets={processes}
+        terminalIds={props.hasTerminalWorkspace ? props.terminalIds : []}
+        runningIds={props.runningProcessIds}
+        activeTerminalId={props.activeTerminalId}
+        threadId={props.dockThreadId}
+        api={props.dockApi}
+        renderTerminal={props.renderDockTerminal}
+        onRun={props.onRunProcess}
+        onRestart={props.onRestartProcess}
+        onStop={props.onStopProcess}
+        onActivate={props.onOpenProcessTerminal}
+        onNewTerminal={() => {
+          props.onRevealTerminal();
+          props.onNewTerminal();
+        }}
+        onCloseAll={async () => {
+          if (await confirm("Close all Dock terminals? Running commands will stop."))
+            props.onCloseAllTerminals();
+        }}
+        onAdd={() => {
+          setPresetDialogMode("add");
+          setEditingPresetId(null);
+          setIsPresetDialogOpen(true);
+        }}
+        onDelete={(id) => setPresetToDeleteId(id)}
+        onManage={(id) => {
+          setPresetDialogMode("manage");
+          setEditingPresetId(id ?? null);
+          setIsPresetDialogOpen(true);
+        }}
+        onSave={(preset) =>
+          props.onSavePresets(
+            processes.map((current) => {
+              const next = current.id === preset.id ? preset : current;
+              return { ...next, commands: [...next.commands] };
+            }),
+          )
+        }
+        onPreview={props.onDockPreview}
+        onInspectPreview={(preset) =>
+          props.onDockPreview({ ...preset, previewOpenTarget: "in-app" })
+        }
+        canInspectPreview={Boolean(window.desktopBridge?.pickBrowserElement)}
+        onAddToAgent={props.onDockAddToAgent}
+      />
       <Dialog
         open={isPresetDialogOpen}
         onOpenChange={(open) => {
@@ -10932,7 +10733,7 @@ function ServerTool(props: {
           setIsPresetDialogOpen(open);
         }}
       >
-        <DialogPopup className="max-w-4xl p-0 overflow-hidden flex flex-col h-[40rem] bg-card border border-border text-card-foreground">
+        <DialogPopup className="dock-preset-manager max-w-4xl p-0 overflow-hidden flex flex-col h-[40rem] bg-card border border-border text-card-foreground">
           {/* Global Header */}
           <DialogHeader className="p-5 border-b border-border/60 shrink-0 relative flex flex-row items-start justify-between bg-muted/20">
             <div className="text-left">
@@ -10950,10 +10751,10 @@ function ServerTool(props: {
                 type="button"
                 variant="outline"
                 onClick={handleAddPresetClick}
-                className="w-full flex items-center justify-center gap-1.5 shrink-0"
+                className="dock-manager-add w-full flex items-center justify-start gap-1.5 shrink-0"
               >
                 <PlusIcon className="size-3.5" />
-                Add Preset
+                New preset
               </Button>
 
               <ScrollArea className="flex-1 -mx-2 px-2">
@@ -10966,33 +10767,64 @@ function ServerTool(props: {
                       terminalIds: terminalIdSet,
                     });
                     return (
-                      <button
+                      <div
+                        className="dock-manager-preset-row"
+                        data-selected={isSelected || undefined}
                         key={preset.id}
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, preset.id)}
-                        onDragOver={handleDragOver}
-                        onDrop={(e) => handleDrop(e, preset.id)}
-                        onDragEnd={() => setDraggedPresetId(null)}
-                        type="button"
-                        onClick={() => selectPreset(preset.id)}
-                        className={cn(
-                          "w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-left text-sm transition-all border border-transparent cursor-pointer",
-                          isSelected
-                            ? "bg-accent text-accent-foreground font-medium shadow-xs border-border/70"
-                            : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
-                          draggedPresetId === preset.id && "opacity-40 border-dashed border-border",
-                        )}
                       >
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="text-muted-foreground shrink-0">
-                            {resolvePresetIconElement(preset, "size-4")}
-                          </span>
-                          <span className="truncate">{preset.label || "Untitled Preset"}</span>
+                        <button
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, preset.id)}
+                          onDragOver={handleDragOver}
+                          onDrop={(e) => handleDrop(e, preset.id)}
+                          onDragEnd={() => setDraggedPresetId(null)}
+                          type="button"
+                          onClick={() => selectPreset(preset.id)}
+                          className={cn(
+                            "w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-left text-sm transition-all border border-transparent cursor-pointer",
+                            isSelected
+                              ? "bg-accent text-accent-foreground font-medium border-border/70"
+                              : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+                            draggedPresetId === preset.id &&
+                              "opacity-40 border-dashed border-border",
+                          )}
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="text-muted-foreground shrink-0">
+                              {resolvePresetIconElement(preset, "size-4")}
+                            </span>
+                            <span className="truncate">{preset.label || "Untitled Preset"}</span>
+                          </div>
+                          {status === "running" && (
+                            <span className="size-2 bg-primary rounded-full shrink-0" />
+                          )}
+                        </button>
+                        <div className="dock-manager-row-actions">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-xs"
+                            aria-label={`Edit ${preset.label || "Untitled preset"}`}
+                            title="Edit preset"
+                            onClick={() => {
+                              setSelectedPresetId(preset.id);
+                              handleEditClick(preset);
+                            }}
+                          >
+                            <PencilIcon className="size-3.5" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-xs"
+                            aria-label={`Delete ${preset.label || "Untitled preset"}`}
+                            title="Delete preset"
+                            onClick={() => handleDeleteClick(preset.id)}
+                          >
+                            <Trash2Icon className="size-3.5" />
+                          </Button>
                         </div>
-                        {status === "running" && (
-                          <span className="size-2 bg-emerald-500 rounded-full shrink-0 animate-pulse" />
-                        )}
-                      </button>
+                      </div>
                     );
                   })}
                   {presetDrafts.length === 0 && (
@@ -11007,11 +10839,11 @@ function ServerTool(props: {
                 <Button
                   type="button"
                   variant="ghost"
-                  className="w-full flex items-center justify-start gap-1.5 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-500/10 shrink-0"
+                  className="w-full flex items-center justify-start gap-1.5 text-destructive hover:bg-muted shrink-0"
                   onClick={() => handleDeleteClick(selectedPreset.id)}
                 >
                   <Trash2Icon className="size-3.5" />
-                  Delete Preset
+                  Delete {selectedPreset.label || "preset"}
                 </Button>
               )}
             </div>
@@ -11036,7 +10868,7 @@ function ServerTool(props: {
                     {/* Validation notice */}
                     {(!editingPresetDraft.label?.trim() ||
                       !editingPresetDraft.commands?.some((c: string) => c.trim().length > 0)) && (
-                      <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-800 dark:text-amber-200/90 leading-normal">
+                      <div className="rounded-xl border border-border bg-muted px-3 py-2.5 text-xs text-muted-foreground leading-normal">
                         Each preset needs a label and at least one command step before saving.
                       </div>
                     )}
@@ -11055,15 +10887,15 @@ function ServerTool(props: {
                             </h2>
                             {selectedPresetStatus === "running" ? (
                               <Badge
-                                variant="success"
-                                className="text-[10px] uppercase tracking-wider font-semibold"
+                                variant="outline"
+                                className="text-xs font-medium text-foreground"
                               >
                                 Running
                               </Badge>
                             ) : (
                               <Badge
                                 variant="outline"
-                                className="text-[10px] uppercase tracking-wider font-semibold"
+                                className="text-xs font-medium text-foreground"
                               >
                                 Idle
                               </Badge>
@@ -11071,7 +10903,7 @@ function ServerTool(props: {
                             {selectedPreset.autoOpenPreview && (
                               <Badge
                                 variant="outline"
-                                className="text-[10px] uppercase tracking-wider font-semibold text-blue-600 dark:text-blue-400 border-blue-500/30"
+                                className="text-[10px] uppercase tracking-wider font-semibold text-primary border-border"
                               >
                                 Auto-opens
                               </Badge>
@@ -11271,7 +11103,13 @@ function ServerTool(props: {
         <AlertDialogPopup>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Preset?</AlertDialogTitle>
-            <AlertDialogDescription>Deletes this preset permanently.</AlertDialogDescription>
+            <AlertDialogDescription>
+              Delete "
+              {presetDrafts.find((preset) => preset.id === presetToDeleteId)?.label ||
+                processes.find((preset) => preset.id === presetToDeleteId)?.label ||
+                "Untitled preset"}
+              "? Its saved commands and settings will be removed.
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogClose render={<Button variant="outline" />}>Cancel</AlertDialogClose>
@@ -11516,7 +11354,11 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
     workspaceState.session.activeProjectId,
   ]);
 
-  const activeProject = resolveProjectById(projects, workspaceState.session.activeProjectId);
+  const activeProject = resolveProjectById(
+    projects,
+    workspaceState.session.activeProjectId,
+    routeProjectId === workspaceState.session.activeProjectId ? routeEnvironmentId : null,
+  );
   const [activeProjectApi, setActiveProjectApi] = useState<Awaited<
     ReturnType<typeof environmentApi>
   > | null>(null);
@@ -12888,6 +12730,96 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
   const serverTool =
     activeProject && activeProjectSettings ? (
       <ServerTool
+        dockApi={activeProjectApi}
+        dockThreadId={serverThreadId}
+        renderDockTerminal={(terminalId) =>
+          serverThreadId && serverTerminalState ? (
+            <ThreadTerminalDrawer
+              key={`${serverThreadId}:${terminalId}`}
+              variant="embedded"
+              showControls={false}
+              threadId={serverThreadId}
+              environmentId={activeProject.environmentId}
+              cwd={
+                activeProjectSettings.serverPresets.find((preset) => preset.id === terminalId)
+                  ?.cwd || activeProject.cwd
+              }
+              runtimeEnv={projectScriptRuntimeEnv({
+                project: { cwd: activeProject.cwd },
+                worktreePath: null,
+              })}
+              height={serverTerminalState.terminalHeight}
+              terminalIds={[terminalId]}
+              activeTerminalId={terminalId}
+              terminalGroups={[{ id: `dock-${terminalId}`, terminalIds: [terminalId] }]}
+              activeTerminalGroupId={`dock-${terminalId}`}
+              focusRequestId={
+                serverTerminalState.activeTerminalId === terminalId
+                  ? shellTerminalFocusRequestId
+                  : 0
+              }
+              terminalLabels={{
+                [terminalId]:
+                  activeProjectSettings.serverPresets.find((preset) => preset.id === terminalId)
+                    ?.label ?? "Terminal",
+              }}
+              onSplitTerminal={splitServerTerminal}
+              onNewTerminal={createNewServerTerminal}
+              onActiveTerminalChange={activateServerTerminal}
+              onCloseTerminal={closeServerTerminal}
+              onHeightChange={setServerTerminalHeight}
+              onAddTerminalContext={() => {}}
+            />
+          ) : null
+        }
+        onDockPreview={(preset) => {
+          if (!preset.previewUrl) return;
+          if (preset.previewOpenTarget === "external") {
+            void activeProjectApi?.shell.openExternal(preset.previewUrl);
+            return;
+          }
+          workspaceShellActions.setBrowserCurrentUrl(activeProject.id, preset.previewUrl);
+          setActiveTool(activeProject.id, "browser");
+        }}
+        onDockAddToAgent={async (text) => {
+          const draftActions = activeProject.environmentId
+            ? createScopedComposerDraftActions(activeProject.environmentId)
+            : composerDraftActions;
+          const resolveDockThread = () =>
+            draftActions.getDraftThreadByProjectId(activeProject.id)?.threadId ??
+            resolveProjectAgentThreadId(
+              activeProject.id,
+              threads,
+              workspaceState.session.rememberedThreadIdByProjectId[activeProject.id] ?? null,
+            );
+          let threadId = resolveDockThread();
+          if (!threadId) {
+            await createAgentsThreadForProject(activeProject.id);
+            threadId = resolveDockThread();
+          }
+          if (!threadId)
+            throw new Error("Create a project conversation before adding Dock context.");
+          const key = activeProject.environmentId
+            ? scopedComposerThreadId(activeProject.environmentId, threadId)
+            : threadId;
+          const current = useComposerDraftStore.getState().draftsByThreadId[key]?.prompt ?? "";
+          composerDraftActions.setPrompt(key, [current, text].filter(Boolean).join("\n\n"));
+          setActiveProject(activeProject.id);
+          setActiveTool(activeProject.id, "agents");
+          if (activeProject.environmentId) {
+            await navigate({
+              to: "/$environmentId/$threadId",
+              params: { environmentId: activeProject.environmentId, threadId },
+            });
+          } else {
+            await openAgentsForProject(activeProject.id);
+          }
+          toastManager.add({
+            type: "success",
+            title: "Dock context added to your draft",
+            description: "Review it before sending.",
+          });
+        }}
         project={activeProject}
         projectSettings={activeProjectSettings}
         onOpenSettings={openSettings}
@@ -12909,7 +12841,10 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
                   label: preset.label,
                   commands: preset.commands,
                   cwd: preset.cwd,
-                  env: {},
+                  env:
+                    activeProjectSettings.serverPresets.find(
+                      (existing) => existing.id === preset.id,
+                    )?.env ?? {},
                   autoStart: preset.autoStart,
                 };
                 if (preset.icon !== undefined) res.icon = preset.icon;
@@ -13360,7 +13295,7 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
           "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
           isInterfaceStudy &&
             !isSettingsSurfaceActive &&
-            "study-workspace-card rounded-t-lg bg-card relative z-1",
+            "study-workspace-card rounded-xl bg-card relative z-1",
         )}
       >
         <ToolErrorBoundary

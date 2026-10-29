@@ -1,3 +1,4 @@
+import { useWorkspaceActionsState } from "./workspaceActionsState";
 import "../../index.css";
 import {
   ThreadId,
@@ -6,11 +7,15 @@ import {
   type ScheduledTask,
   type ScheduledTaskListResult,
 } from "@tabs/contracts";
-import { expect, it, vi } from "vitest";
+import { beforeEach, expect, it, vi } from "vitest";
 import { page } from "vitest/browser";
 import { render } from "vitest-browser-react";
 import { WorkspaceAutomations } from "./WorkspaceAutomations";
 import type { WorkspaceAgentContext } from "./WorkspaceAgents";
+
+beforeEach(() => {
+  useWorkspaceActionsState.setState({ entries: {} });
+});
 
 const calls = vi.hoisted(() => ({
   subscribe: vi.fn(),

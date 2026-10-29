@@ -1134,13 +1134,15 @@ export default function ExtensionsSettings({ onBack }: { onBack?: () => void } =
                       <span className="market-installed-status">
                         {extension.revoked
                           ? "Revoked"
-                          : extension.disabled
-                            ? "Disabled"
-                            : extension.assignment.enabledGlobally
-                              ? "All projects"
-                              : extension.assignment.enabledProjectIds.length
-                                ? `${extension.assignment.enabledProjectIds.length} projects`
-                                : "Choose projects"}
+                          : extension.compatibilityError
+                            ? "Incompatible"
+                            : extension.disabled
+                              ? "Disabled"
+                              : extension.assignment.enabledGlobally
+                                ? "All projects"
+                                : extension.assignment.enabledProjectIds.length
+                                  ? `${extension.assignment.enabledProjectIds.length} projects`
+                                  : "Choose projects"}
                       </span>
                       <span className="installed-manage-label">
                         Manage <ChevronRightIcon className="size-3.5" aria-hidden="true" />
@@ -1185,7 +1187,9 @@ export default function ExtensionsSettings({ onBack }: { onBack?: () => void } =
                             <Switch
                               aria-label={`Enable ${extension.manifest.displayName}`}
                               checked={!extension.disabled}
-                              disabled={busy || extension.revoked}
+                              disabled={
+                                busy || extension.revoked || Boolean(extension.compatibilityError)
+                              }
                               onCheckedChange={(checked) => {
                                 const disabled = !checked;
                                 void run(async () => {
@@ -1196,7 +1200,13 @@ export default function ExtensionsSettings({ onBack }: { onBack?: () => void } =
                                 });
                               }}
                             />
-                            <span>{extension.disabled ? "Paused" : "Enabled"}</span>
+                            <span>
+                              {extension.compatibilityError
+                                ? "Incompatible"
+                                : extension.disabled
+                                  ? "Paused"
+                                  : "Enabled"}
+                            </span>
                           </label>
                         </div>
                         <p className="text-xs text-muted-foreground">
@@ -1225,7 +1235,12 @@ export default function ExtensionsSettings({ onBack }: { onBack?: () => void } =
                             retained.
                           </p>
                         ) : null}
-                        {extension.disabled ? (
+                        {extension.compatibilityError ? (
+                          <p role="status" className="mt-2 text-sm text-muted-foreground">
+                            {extension.compatibilityError} Your profiles, permissions, and data are
+                            retained. Use a compatible Tabs or extension version to run it.
+                          </p>
+                        ) : extension.disabled ? (
                           <p className="mt-2 text-sm text-muted-foreground">
                             Disabled. Its tools are hidden; profiles, permissions, and project
                             choices are retained.
@@ -1388,7 +1403,7 @@ export default function ExtensionsSettings({ onBack }: { onBack?: () => void } =
                               <CheckIcon className="size-3.5" aria-hidden="true" />
                               Your choices save automatically
                             </span>
-                            {extension.disabled && (
+                            {extension.disabled && !extension.compatibilityError && (
                               <p>
                                 Enable the switch above when you’re ready. Your project choices will
                                 stay here.

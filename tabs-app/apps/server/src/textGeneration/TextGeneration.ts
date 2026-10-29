@@ -11,6 +11,8 @@ import type {
 } from "@tabs/contracts";
 import { TextGenerationError } from "@tabs/contracts";
 
+import { withLocalGitGeneration } from "./LocalCommitDraft";
+import { ServerSettingsService } from "../serverSettings";
 import * as ProviderInstanceRegistry from "../provider/ProviderInstanceRegistry.ts";
 import type { ProviderInstance } from "../provider/ProviderDriver.ts";
 import type { TextGenerationPolicy } from "./TextGenerationPolicy.ts";
@@ -23,7 +25,6 @@ export type TextGenerationProvider =
   | "grok"
   | "opencode"
   | "kilo"
-  | "gemini"
   | "openrouter";
 
 export interface CommitMessageGenerationInput {
@@ -283,6 +284,10 @@ export const layer = Layer.effect(
   TextGeneration,
   Effect.gen(function* () {
     const registry = yield* ProviderInstanceRegistry.ProviderInstanceRegistry;
-    return makeTextGenerationFromRegistry(registry);
+    const settings = yield* ServerSettingsService;
+    return withLocalGitGeneration(
+      makeTextGenerationFromRegistry(registry),
+      settings.getSettings.pipe(Effect.map((value) => value.commitDraftLocalModel)),
+    );
   }),
 );

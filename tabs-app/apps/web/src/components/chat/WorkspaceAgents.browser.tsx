@@ -1,3 +1,4 @@
+import { useWorkspaceActionsState } from "./workspaceActionsState";
 import "../../index.css";
 import {
   NodeId,
@@ -7,10 +8,14 @@ import {
   type OrchestrationV2ThreadShell,
   type ServerConfig,
 } from "@tabs/contracts";
-import { expect, it, vi } from "vitest";
+import { beforeEach, expect, it, vi } from "vitest";
 import { page } from "vitest/browser";
 import { render } from "vitest-browser-react";
 import { WorkspaceAgents, type WorkspaceAgentContext } from "./WorkspaceAgents";
+
+beforeEach(() => {
+  useWorkspaceActionsState.setState({ entries: {} });
+});
 
 const fixture = vi.hoisted(() => ({
   dispatch: vi.fn(async (_command: unknown) => ({ sequence: 1 })),

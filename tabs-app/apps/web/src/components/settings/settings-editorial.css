@@ -150,7 +150,7 @@
   box-shadow: none;
 }
 [data-settings-design="editorial"] [data-slot="settings-nav"] button > svg {
-  display: none;
+  display: block;
 }
 [data-settings-design="editorial"] [data-slot="settings-scroll"] {
   padding: 26px clamp(20px, 3vw, 42px);

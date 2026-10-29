@@ -292,7 +292,7 @@ export function SettingsPanel({
         .filter(Boolean)
         .join("\n\n");
 
-      const usedModelName = activeModelSelection.model;
+      const usedModelName = settings?.commitDraftLocalModel ?? "qwen3:1.7b";
       const res = await api.git.generateDiffSummary({
         cwd,
         target: { kind: "working_tree" },
@@ -588,7 +588,7 @@ export function SettingsPanel({
                   setGitignoreChanged(true);
                 }}
                 minRows={4}
-                className="w-full border border-border rounded-lg text-foreground bg-background font-mono text-[11px] placeholder:text-muted-foreground/50 p-3 outline-none focus:border-border transition-colors"
+                className="w-full border border-border/60 rounded-lg text-foreground bg-background font-mono text-[11px] placeholder:text-muted-foreground/50 p-3 outline-none focus-blur-glow"
               />
               <div className="mt-2.5">
                 <Button
@@ -750,7 +750,7 @@ export function SettingsPanel({
             <Card className="p-4 mb-4 space-y-5">
               <Field
                 label="Model for Git"
-                description="Use the same Fusion model picker as chat. Configure providers in Tabs settings."
+                description="Uses a downloaded Ollama model on this computer. Shared with Source Control settings; no remote provider is used."
               >
                 <GitModelPicker ariaLabel="Model for Git" />
               </Field>
@@ -765,7 +765,7 @@ export function SettingsPanel({
                     onChange={(e) => setCustomInstructions(e.target.value)}
                     placeholder="e.g. Focus on breaking API changes, security vulnerabilities, and database migration risks."
                     minRows={3}
-                    className="w-full border border-border/80 rounded-lg bg-background text-foreground text-xs p-2.5 outline-none focus:border-border transition-colors leading-relaxed font-mono"
+                    className="w-full border border-border/60 rounded-lg bg-background text-foreground text-xs p-2.5 outline-none focus-blur-glow leading-relaxed font-mono"
                   />
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <Button size="sm" onClick={handleSaveCustomInstructions}>

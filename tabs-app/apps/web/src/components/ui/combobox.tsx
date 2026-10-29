@@ -171,9 +171,10 @@ function ComboboxPopup({
             "relative flex max-h-full min-w-(--anchor-width) max-w-(--available-width) origin-(--transform-origin) rounded-lg border bg-popover not-dark:bg-clip-padding shadow-lg/5 transition-[scale,opacity] before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--radius-lg)-1px)] before:shadow-[0_1px_--theme(--color-black/4%)] dark:before:shadow-[0_-1px_--theme(--color-white/6%)]",
             className,
           )}
+          style={props.style}
         >
           <ComboboxPrimitive.Popup
-            className="flex max-h-[min(var(--available-height),23rem)] flex-1 flex-col text-foreground"
+            className="flex max-h-[min(var(--available-height),23rem)] flex-1 flex-col text-foreground overflow-hidden"
             data-slot="combobox-popup"
             {...props}
           >
@@ -205,7 +206,14 @@ function ComboboxItem({
       <ComboboxPrimitive.ItemIndicator className={cn("col-start-1", hideIndicator && "hidden")}>
         <CheckIcon />
       </ComboboxPrimitive.ItemIndicator>
-      <div className={hideIndicator ? "col-start-1 col-span-full" : "col-start-2"}>{children}</div>
+      <div
+        className={cn(
+          "flex min-w-0 flex-1 items-center justify-between gap-2",
+          hideIndicator ? "col-start-1 col-span-full" : "col-start-2",
+        )}
+      >
+        {children}
+      </div>
     </ComboboxPrimitive.Item>
   );
 }
@@ -244,7 +252,7 @@ function ComboboxEmpty({ className, ...props }: ComboboxPrimitive.Empty.Props) {
   return (
     <ComboboxPrimitive.Empty
       className={cn(
-        "not-empty:p-2 text-center text-base text-muted-foreground sm:text-sm",
+        "empty:hidden not-empty:p-2 text-center text-base text-muted-foreground sm:text-sm",
         className,
       )}
       data-slot="combobox-empty"
@@ -363,6 +371,7 @@ export {
   Combobox,
   ComboboxChipsInput,
   ComboboxInput,
+  ComboboxPrimitive,
   ComboboxTrigger,
   ComboboxPopup,
   ComboboxItem,

@@ -19,8 +19,8 @@ import type {
   ThreadPullRequestLink,
   ThreadTitleRegeneration,
   ProjectIconOverride,
-  ThreadEnvMode,
   RepositoryIdentity,
+  ThreadEnvMode,
 } from "@tabs/contracts";
 
 export interface QueuedRunItem {
@@ -106,6 +106,7 @@ export interface TurnDiffSummary {
 }
 
 export interface Project {
+  repositoryIdentity?: RepositoryIdentity | null | undefined;
   id: ProjectId;
   environmentId?: EnvironmentId | undefined;
   name: string;
@@ -115,7 +116,6 @@ export interface Project {
   defaultThreadEnvMode?: ThreadEnvMode | null | undefined;
   faviconPath?: string | null | undefined;
   projectIcon?: ProjectIconOverride | null | undefined;
-  repositoryIdentity?: RepositoryIdentity | null | undefined;
   expanded: boolean;
   createdAt?: string | undefined;
   updatedAt?: string | undefined;

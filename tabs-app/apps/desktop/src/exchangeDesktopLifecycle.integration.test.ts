@@ -1000,9 +1000,13 @@ describe("Desktop Install/Update and Isolation Lifecycle (Checkpoint 2)", () => 
       registryOrigin: origin,
       digest: "a".repeat(64),
       manifest: {
+        manifestVersion: 1,
         publisher: "acme",
         name: "tool",
         version: "1.0.0",
+        displayName: "Tool",
+        description: "Broker lifecycle test",
+        engines: { tabs: ">=1.3.0 <2.0.0", api: ">=1.5.0 <2.0.0" },
         capabilities: ["workspace-read", "git-status", "network"],
         networkHosts: ["api.acme.example"],
         contributes: { tools: [{ id: "main", label: "Main", entry: "dist/index.html" }] },

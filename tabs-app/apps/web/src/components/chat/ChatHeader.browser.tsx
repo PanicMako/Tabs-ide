@@ -1,3 +1,4 @@
+import { useState } from "react";
 import "../../index.css";
 import { ThreadId } from "@tabs/contracts";
 import { expect, it, vi } from "vitest";
@@ -9,7 +10,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 vi.mock("~/connection/environmentApiRegistry", () => ({
   environmentApi: async () => ({
     git: {
-      listBranches: async () => ({ branches: [] }),
+      listBranches: async () => ({
+        branches: [
+          { name: "main", current: false },
+          { name: "feature/design", current: true },
+        ],
+      }),
       watchedBranchStatuses: async () => ({ branches: [] }),
     },
   }),
@@ -235,6 +241,79 @@ it("bounds the workspace card to the actual chat pane", async () => {
       pane.getBoundingClientRect().bottom,
     );
     expect(card.scrollWidth).toBeLessThanOrEqual(card.clientWidth + 1);
+  } finally {
+    await view.unmount();
+    client.clear();
+  }
+});
+
+function PortalFixture() {
+  const [container, setContainer] = useState<HTMLElement | null>(null);
+  const [open, setOpen] = useState(false);
+  return (
+    <div
+      data-chat-pane="true"
+      style={{ position: "relative", width: 1280, height: 900, overflow: "hidden" }}
+    >
+      <header style={{ position: "relative", padding: 12 }}>
+        <ChatHeader
+          workspaceActionsContainer={container}
+          onWorkspaceActionsOpenChange={setOpen}
+          activeThreadId={ThreadId.makeUnsafe("portal-test")}
+          activeThreadTitle="Portal test"
+          activeProjectName="tabs"
+          isGitRepo
+          openInCwd="/repo/tabs"
+          keybindings={[]}
+          availableEditors={[]}
+          terminalAvailable
+          terminalOpen={false}
+          terminalToggleShortcutLabel={null}
+          diffToggleShortcutLabel={null}
+          gitCwd="/repo/tabs"
+          diffOpen={false}
+          onToggleTerminal={() => {}}
+          onToggleDiff={() => {}}
+        />
+        <aside
+          ref={setContainer}
+          hidden={!open}
+          className="workspace-actions-rail"
+          aria-label="Workspace action rail"
+        />
+      </header>
+      <main style={{ height: 800 }}>Conversation</main>
+    </div>
+  );
+}
+
+it("portals workspace actions into the pane rail and keeps them within pane bounds", async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const view = await render(
+    <QueryClientProvider client={client}>
+      <PortalFixture />
+    </QueryClientProvider>,
+  );
+  try {
+    const pane = view.container.querySelector<HTMLElement>("[data-chat-pane]")!;
+    const rail = view.container.querySelector<HTMLElement>(".workspace-actions-rail")!;
+    const toggle = page.getByRole("button", { name: "Toggle workspace actions" });
+    await toggle.click();
+    const card = page.getByRole("region", { name: "Workspace actions" });
+    await expect.element(card).toBeVisible();
+    expect(rail.contains(card.element())).toBe(true);
+    const paneRect = pane.getBoundingClientRect();
+    const cardRect = card.element().getBoundingClientRect();
+    expect(cardRect.left).toBeGreaterThanOrEqual(paneRect.left);
+    expect(cardRect.right).toBeLessThanOrEqual(paneRect.right + 1);
+    expect(cardRect.bottom).toBeLessThanOrEqual(paneRect.bottom + 1);
+
+    await page.getByRole("button", { name: "feature/design", exact: true }).click();
+    const search = page.getByRole("textbox", { name: "Search branches" });
+    await expect.element(search).toBeVisible();
+    await search.fill("main");
+    const mainBranch = page.getByRole("button", { name: "main", exact: true });
+    await expect.element(mainBranch).toBeVisible();
   } finally {
     await view.unmount();
     client.clear();

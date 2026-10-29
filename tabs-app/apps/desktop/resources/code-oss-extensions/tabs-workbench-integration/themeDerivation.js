@@ -90,7 +90,7 @@ function calculateLuminance(hex) {
   return 0.2126 * cal(r) + 0.7152 * cal(g) + 0.0722 * cal(b);
 }
 
-function calculateContrastRatio(fgHex, bgHex, parentBgHex = "#121824") {
+function calculateRawContrastRatio(fgHex, bgHex, parentBgHex = "#121824") {
   const solidBg = resolveSolidColor(bgHex, parentBgHex);
   const solidFg = resolveSolidColor(fgHex, solidBg);
 
@@ -100,6 +100,11 @@ function calculateContrastRatio(fgHex, bgHex, parentBgHex = "#121824") {
   const darker = Math.min(l1, l2);
   const ratio = (lighter + 0.05) / (darker + 0.05);
 
+  return ratio;
+}
+
+function calculateContrastRatio(fgHex, bgHex, parentBgHex = "#121824") {
+  const ratio = calculateRawContrastRatio(fgHex, bgHex, parentBgHex);
   return {
     ratio: Math.round(ratio * 10) / 10,
     isLowContrast: ratio < 4.5,
@@ -110,7 +115,7 @@ function ensureMinContrast(fgColor, bgColor, minRatio = 4.5, parentBgHex = "#121
   const solidBg = resolveSolidColor(bgColor, parentBgHex);
   const fgHex = toHexColor(fgColor);
 
-  const currentRatio = calculateContrastRatio(fgHex, solidBg).ratio;
+  const currentRatio = calculateRawContrastRatio(fgHex, solidBg);
   if (currentRatio >= minRatio) {
     return fgColor;
   }
@@ -142,7 +147,7 @@ function ensureMinContrast(fgColor, bgColor, minRatio = 4.5, parentBgHex = "#121
     }
 
     const hexCandidate = `#${nr.toString(16).padStart(2, "0")}${ng.toString(16).padStart(2, "0")}${nb.toString(16).padStart(2, "0")}`;
-    const candRatio = calculateContrastRatio(hexCandidate, solidBg).ratio;
+    const candRatio = calculateRawContrastRatio(hexCandidate, solidBg);
 
     if (candRatio > bestRatio) {
       bestRatio = candRatio;
@@ -388,7 +393,7 @@ const VSCODE_TOKEN_REGISTRY_ENTRIES = [
     description: "Main code editor canvas background",
     category: "surfaces",
     isBg: true,
-    deriveDefault: (c) => c.background,
+    deriveDefault: (c) => c.card,
   },
   {
     id: "panel.background",
@@ -2401,7 +2406,7 @@ const VSCODE_TOKEN_REGISTRY_ENTRIES = [
     description: "Background of code editor line-number gutter",
     category: "surfaces",
     isBg: true,
-    deriveDefault: (c) => c.background,
+    deriveDefault: (c) => c.card,
   },
   {
     id: "editorGutter.modifiedBackground",
@@ -4327,7 +4332,7 @@ const VSCODE_TOKEN_REGISTRY_ENTRIES = [
     description: "Background of code editor line-number gutter",
     category: "surfaces",
     isBg: true,
-    deriveDefault: (c) => c.background,
+    deriveDefault: (c) => c.card,
   },
   {
     id: "editorGutter.modifiedBackground",
@@ -5438,7 +5443,12 @@ function evaluateThemeTokens(config, diffColorSchemeOverride) {
         ) {
           minRatio = 3.5;
         }
-        result[token.id] = ensureMinContrast(fgVal, bgVal, minRatio, colors.background);
+        result[token.id] = ensureMinContrast(
+          fgVal,
+          bgVal,
+          minRatio,
+          result["editor.background"] || colors.background,
+        );
       }
     }
   }

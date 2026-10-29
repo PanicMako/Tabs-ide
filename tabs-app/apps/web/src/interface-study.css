@@ -323,7 +323,7 @@ html[data-interface-study="light"] .study-topbar-header {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  height: 38px;
+  height: 34px;
   padding: 0 16px;
   font-family: var(--font-sans, "Bricolage Grotesque", system-ui, sans-serif);
   font-weight: 500;
@@ -360,13 +360,15 @@ html[data-interface-study="dark"] .study-tool-tab:hover {
   color: var(--foreground) !important;
   font-weight: 700;
   background: #ffffff !important;
-  border: none !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius-surface) !important;
   margin-bottom: 0;
 }
 
 html[data-interface-study="dark"] .study-tool-tab.active {
   background: #22242a !important;
-  border: none !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: var(--radius-surface) !important;
   margin-bottom: 0;
 }
 

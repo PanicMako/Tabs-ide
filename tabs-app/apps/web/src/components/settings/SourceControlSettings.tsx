@@ -1,3 +1,4 @@
+import { CommitDraftSettings } from "./CommitDraftSettings";
 import { useState } from "react";
 import * as Option from "effect/Option";
 import { Badge } from "~/components/ui/badge";
@@ -110,6 +111,7 @@ export function SourceControlSettingsPanel({
             Manage version control systems, code hosting providers, and authentication status.
           </p>
         </div>
+        <CommitDraftSettings />
         <SettingsSection title="Version Control" headerAction={scanButton}>
           <div className="p-6 text-center text-xs text-muted-foreground">
             Scanning environment...
@@ -128,6 +130,7 @@ export function SourceControlSettingsPanel({
             Manage version control systems, code hosting providers, and authentication status.
           </p>
         </div>
+        <CommitDraftSettings />
         <SettingsSection title="Version Control" headerAction={scanButton}>
           <div className="p-6 text-center text-xs text-destructive">
             Failed to scan environment: {error instanceof Error ? error.message : String(error)}
@@ -172,6 +175,7 @@ export function SourceControlSettingsPanel({
         />
       </div>
 
+      <CommitDraftSettings />
       <SettingsSection title="Version Control" headerAction={scanButton}>
         {vcs.map((item) => {
           const Icon = VCS_ICONS[item.system as keyof typeof VCS_ICONS];

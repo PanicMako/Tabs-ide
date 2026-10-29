@@ -25,11 +25,11 @@ export const BUILTIN_THEME_CONFIGS: Record<string, CustomThemeConfig> = {
   "tabs-dark": {
     baseVariant: "dark",
     colors: {
-      background: "#141414",
-      card: "#181818",
-      foreground: "#f5f5f5",
-      border: "rgba(255, 255, 255, 0.06)",
-      primary: "#366ffb",
+      background: "#101113",
+      card: "#191b1f",
+      foreground: "#f0f1f3",
+      border: "#303339",
+      primary: "#0E2AF3",
     },
     fonts: { uiFont: "Inter, sans-serif", editorFont: "Geist Mono, monospace" },
   },
@@ -37,10 +37,10 @@ export const BUILTIN_THEME_CONFIGS: Record<string, CustomThemeConfig> = {
     baseVariant: "dark",
     colors: {
       background: "#000000",
-      card: "#0a0a0a",
-      foreground: "#ffffff",
-      border: "rgba(255, 255, 255, 0.12)",
-      primary: "#366ffb",
+      card: "#0c0d10",
+      foreground: "#f4f5f7",
+      border: "#292c33",
+      primary: "#709aff",
     },
     fonts: { uiFont: "Inter, sans-serif", editorFont: "Geist Mono, monospace" },
   },
@@ -56,58 +56,69 @@ export const BUILTIN_THEME_CONFIGS: Record<string, CustomThemeConfig> = {
     tokenOverrides: { focusBorder: "#e5e5e573" },
     fonts: { uiFont: "Inter, sans-serif", editorFont: "Geist Mono, monospace" },
   },
+  "tabs-monotone-light": {
+    baseVariant: "light",
+    colors: {
+      background: "#eeeeee",
+      card: "#fafafa",
+      foreground: "#242424",
+      border: "#d0d0d0",
+      primary: "#3b3b3b",
+    },
+    fonts: { uiFont: "Inter, sans-serif", editorFont: "Geist Mono, monospace" },
+  },
   "tabs-light": {
     baseVariant: "light",
     colors: {
-      background: "#ffffff",
-      card: "#f6f6f6",
-      foreground: "#262626",
-      border: "rgba(0, 0, 0, 0.08)",
-      primary: "#2563eb",
+      background: "#e9ecf2",
+      card: "#f9fafc",
+      foreground: "#202634",
+      border: "#cdd3de",
+      primary: "#0E2AF3",
     },
     fonts: { uiFont: "Inter, sans-serif", editorFont: "Geist Mono, monospace" },
   },
   abyss: {
     baseVariant: "dark",
     colors: {
-      background: "#000c18",
-      card: "#041426",
-      foreground: "#c0cbe0",
-      border: "rgba(0, 153, 255, 0.14)",
-      primary: "#0099ff",
+      background: "#101718",
+      card: "#1a2425",
+      foreground: "#e5efed",
+      border: "#344447",
+      primary: "#73d7c3",
     },
     fonts: { uiFont: "Inter, sans-serif", editorFont: "Geist Mono, monospace" },
   },
   dracula: {
     baseVariant: "dark",
     colors: {
-      background: "#282a36",
-      card: "#21222c",
-      foreground: "#f8f8f2",
-      border: "rgba(98, 114, 164, 0.35)",
-      primary: "#bd93f9",
+      background: "#1b161b",
+      card: "#282128",
+      foreground: "#f5e9ed",
+      border: "#4a3c45",
+      primary: "#efacc4",
     },
     fonts: { uiFont: "Inter, sans-serif", editorFont: "Geist Mono, monospace" },
   },
   "deep-blue": {
     baseVariant: "dark",
     colors: {
-      background: "#0f172a",
-      card: "#1e293b",
-      foreground: "#f1f5f9",
-      border: "rgba(51, 65, 85, 0.65)",
-      primary: "#38bdf8",
+      background: "#131a16",
+      card: "#1e2922",
+      foreground: "#eaf0e5",
+      border: "#3b4c3e",
+      primary: "#c3d987",
     },
     fonts: { uiFont: "Inter, sans-serif", editorFont: "Geist Mono, monospace" },
   },
   "solarized-light": {
     baseVariant: "light",
     colors: {
-      background: "#fdf6e3",
-      card: "#eee8d5",
-      foreground: "#657b83",
-      border: "rgba(147, 161, 161, 0.28)",
-      primary: "#268bd2",
+      background: "#e9e6dc",
+      card: "#f7f5ec",
+      foreground: "#333b2d",
+      border: "#cdcdbb",
+      primary: "#536832",
     },
     fonts: { uiFont: "Inter, sans-serif", editorFont: "Geist Mono, monospace" },
   },
@@ -246,14 +257,7 @@ export function calculateLuminance(hex: string): number {
 /**
  * Calculates WCAG contrast ratio between two hex colors, blending transparent surfaces over a parent background.
  */
-export function calculateContrastRatio(
-  fgHex: string,
-  bgHex: string,
-  parentBgHex = "#121824",
-): {
-  ratio: number;
-  isLowContrast: boolean;
-} {
+function calculateRawContrastRatio(fgHex: string, bgHex: string, parentBgHex = "#121824"): number {
   const solidBg = resolveSolidColor(bgHex, parentBgHex);
   const solidFg = resolveSolidColor(fgHex, solidBg);
 
@@ -263,6 +267,15 @@ export function calculateContrastRatio(
   const darker = Math.min(l1, l2);
   const ratio = (lighter + 0.05) / (darker + 0.05);
 
+  return ratio;
+}
+
+export function calculateContrastRatio(
+  fgHex: string,
+  bgHex: string,
+  parentBgHex = "#121824",
+): { ratio: number; isLowContrast: boolean } {
+  const ratio = calculateRawContrastRatio(fgHex, bgHex, parentBgHex);
   return {
     ratio: Math.round(ratio * 10) / 10,
     isLowContrast: ratio < 4.5,
@@ -282,7 +295,7 @@ export function ensureMinContrast(
   const solidBg = resolveSolidColor(bgColor, parentBgHex);
   const fgHex = toHexColor(fgColor);
 
-  const currentRatio = calculateContrastRatio(fgHex, solidBg).ratio;
+  const currentRatio = calculateRawContrastRatio(fgHex, solidBg);
   if (currentRatio >= minRatio) {
     return fgColor;
   }
@@ -316,7 +329,7 @@ export function ensureMinContrast(
     }
 
     const hexCandidate = `#${nr.toString(16).padStart(2, "0")}${ng.toString(16).padStart(2, "0")}${nb.toString(16).padStart(2, "0")}`;
-    const candRatio = calculateContrastRatio(hexCandidate, solidBg).ratio;
+    const candRatio = calculateRawContrastRatio(hexCandidate, solidBg);
 
     if (candRatio > bestRatio) {
       bestRatio = candRatio;
@@ -573,7 +586,7 @@ const VSCODE_TOKEN_REGISTRY_ENTRIES: TokenMetadata[] = [
     description: "Main code editor canvas background",
     category: "surfaces",
     isBg: true,
-    deriveDefault: (c) => c.background,
+    deriveDefault: (c) => c.card,
   },
   {
     id: "panel.background",
@@ -2586,7 +2599,7 @@ const VSCODE_TOKEN_REGISTRY_ENTRIES: TokenMetadata[] = [
     description: "Background of code editor line-number gutter",
     category: "surfaces",
     isBg: true,
-    deriveDefault: (c) => c.background,
+    deriveDefault: (c) => c.card,
   },
   {
     id: "editorGutter.modifiedBackground",
@@ -4512,7 +4525,7 @@ const VSCODE_TOKEN_REGISTRY_ENTRIES: TokenMetadata[] = [
     description: "Background of code editor line-number gutter",
     category: "surfaces",
     isBg: true,
-    deriveDefault: (c) => c.background,
+    deriveDefault: (c) => c.card,
   },
   {
     id: "editorGutter.modifiedBackground",
@@ -5642,7 +5655,12 @@ export function evaluateThemeTokens(
         ) {
           minRatio = 3.5;
         }
-        result[token.id] = ensureMinContrast(fgVal, bgVal, minRatio, colors.background);
+        result[token.id] = ensureMinContrast(
+          fgVal,
+          bgVal,
+          minRatio,
+          result["editor.background"] || colors.background,
+        );
       }
     }
   }

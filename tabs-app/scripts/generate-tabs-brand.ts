@@ -72,6 +72,25 @@ async function icns(id: TabsLogoVariant) {
   header.writeUInt32BE(8 + chunks.reduce((length, chunk) => length + chunk.length, 0), 4);
   return Buffer.concat([header, ...chunks]);
 }
+async function generateMacInstallerAssets() {
+  await save("assets/prod/tabs-afterglow.svg", logoSvg("blue-ink"));
+  await save("apps/desktop/resources/icon.png", await png("blue-ink", 1024, "mac"));
+  await save("apps/desktop/resources/icon.icns", await icns("blue-ink"));
+  for (const size of [16, 32, 128, 256, 512]) {
+    for (const scale of [1, 2]) {
+      await save(
+        `apps/desktop/resources/icon.iconset/icon_${size}x${size}${scale === 2 ? "@2x" : ""}.png`,
+        await png("blue-ink", size * scale, "mac"),
+      );
+    }
+  }
+}
+if (process.argv.includes("--mac-installer-only")) {
+  await generateMacInstallerAssets();
+  console.log("Generated Afterglow macOS installer PNG, ICNS, and iconset.");
+  process.exit(0);
+}
+
 for (const variant of TABS_LOGO_VARIANTS) {
   for (const app of ["web", "marketing", "exchange/frontend"]) {
     for (const format of ["icon", "symbol", "horizontal"] as const) {
@@ -97,17 +116,17 @@ for (const [alias, id] of [
   ["icon-dark", "ivory-ink"],
   ["icon-light", "blue-white"],
 ] as const) {
-  await save(`apps/desktop/resources/${alias}.png`, await png(id, 1024, "mac"));
+  await save(
+    `apps/desktop/resources/${alias}.png`,
+    await png(alias === "icon" ? "blue-ink" : id, 1024, "mac"),
+  );
   await save(`apps/desktop/resources/${alias}.ico`, await ico(id, "win"));
-  await save(`apps/desktop/resources/${alias}.icns`, await icns(id));
+  await save(
+    `apps/desktop/resources/${alias}.icns`,
+    await icns(alias === "icon" ? "blue-ink" : id),
+  );
 }
-for (const size of [16, 32, 128, 256, 512]) {
-  for (const scale of [1, 2])
-    await save(
-      `apps/desktop/resources/icon.iconset/icon_${size}x${size}${scale === 2 ? "@2x" : ""}.png`,
-      await png("signature", size * scale, "mac"),
-    );
-}
+await generateMacInstallerAssets();
 for (const app of ["web", "marketing", "exchange/frontend"]) {
   await save(`apps/${app}/public/brand/blue-ink-master.png`, rasterMaster);
   await save(`apps/${app}/public/tabs.svg`, tabsLogoSvg("blue-white", "symbol"));

@@ -624,6 +624,7 @@ it.effect("keeps delegated child pull-request links independent of the parent", 
     assert.deepEqual(parentAfterChildLink.thread.pullRequests, parent.thread.pullRequests);
   }).pipe(Effect.provide(layerTest)),
 );
+
 it.effect(
   "accepts user delegation from workspace controls and preserves inherited safety policy",
   () =>
@@ -683,7 +684,6 @@ it.effect(
       assert.deepEqual(child.thread.modelSelection, run.modelSelection);
     }).pipe(Effect.provide(layerTest)),
 );
-
 it.effect(
   "rejects delegated task targeting an unsupported provider adapter at the server boundary",
   () =>

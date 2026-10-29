@@ -528,7 +528,7 @@ describe("ProviderInstanceRegistry — multi-instance codex slice", () => {
   );
 
   it.live(
-    "shadows instances whose driver is not registered in this build without failing boot",
+    "preserves unknown drivers but hides the retired direct Gemini provider",
     () =>
       Effect.gen(function* () {
         const codexId = ProviderInstanceId.make("codex_main");
@@ -539,6 +539,11 @@ describe("ProviderInstanceRegistry — multi-instance codex slice", () => {
             driver: ProviderDriverKind.make("codex"),
             enabled: false,
             config: makeCodexConfig({}),
+          },
+          [ProviderInstanceId.make("retired_google_account")]: {
+            driver: ProviderDriverKind.make("gemini"),
+            enabled: true,
+            config: {},
           },
           [ghostId]: {
             driver: ProviderDriverKind.make("ghostDriver"),

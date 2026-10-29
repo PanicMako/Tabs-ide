@@ -1,9 +1,5 @@
 import { expect, it } from "@effect/vitest";
-import {
-  OrchestratorMcpCapabilitiesInput,
-  type OrchestratorMcpCapabilitiesInput as OrchestratorMcpCapabilitiesInputType,
-  type ServerProviderModel,
-} from "@tabs/contracts";
+import { OrchestratorMcpCapabilitiesInput, type ServerProviderModel } from "@tabs/contracts";
 import * as Schema from "effect/Schema";
 
 import { selectCapabilityModels } from "./capabilityModels.ts";
@@ -29,16 +25,14 @@ it("preserves the complete catalog when callers omit all query controls", () => 
 });
 
 it("bounds opted-in pages and prioritizes inherited, default, and custom models", () => {
-  const result = selectCapabilityModels(models, { includeAll: false, limit: 2 }, "model-499");
+  const result = selectCapabilityModels(models, { limit: 3 }, "model-499");
 
-  expect(result.models.map((model) => model.slug)).toEqual(["model-499", "model-400"]);
+  expect(result.models.map((model) => model.slug)).toEqual(["model-499", "model-400", "model-300"]);
   expect(result.totalModels).toBe(500);
   expect(result.hasMoreModels).toBe(true);
-  expect(result.nextOffset).toBe(2);
+  expect(result.nextOffset).toBe(3);
   expect(selectCapabilityModels(models, { limit: 1_000 }).models).toHaveLength(100);
-  expect(
-    selectCapabilityModels(models, { offset: -1 } as OrchestratorMcpCapabilitiesInputType).models,
-  ).toHaveLength(8);
+  expect(selectCapabilityModels(models, { limit: 100, offset: 0 }).models).toHaveLength(100);
 });
 
 it("searches model IDs, names, and aliases without case sensitivity", () => {
@@ -48,6 +42,7 @@ it("searches model IDs, names, and aliases without case sensitivity", () => {
   expect(byId.models.map((model) => model.slug)).toEqual(["model-482"]);
   expect(byAlias.models.map((model) => model.slug)).toEqual(["model-482"]);
   expect(selectCapabilityModels(models, { search: "absent" }).models).toEqual([]);
+  expect(selectCapabilityModels(models, { search: "model-" }).models).toHaveLength(40);
 });
 
 it("allows all search matches when explicitly requested", () => {
@@ -56,6 +51,15 @@ it("allows all search matches when explicitly requested", () => {
   expect(result.models).toHaveLength(500);
   expect(result.hasMoreModels).toBe(false);
   expect(result.nextOffset).toBeUndefined();
+});
+
+it("keeps the full catalog reachable through explicit pages", () => {
+  const pages = [];
+  for (let offset = 0; offset < 500; offset += 100) {
+    pages.push(...selectCapabilityModels(models, { limit: 100, offset }).models);
+  }
+
+  expect(new Set(pages.map((model) => model.slug)).size).toBe(500);
 });
 
 it("validates runtime query boundaries", () => {

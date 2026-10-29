@@ -57,7 +57,7 @@ it("adds a script on its owning machine using project configuration", async () =
     />,
   );
   try {
-    await page.getByRole("button", { name: "Add action" }).click();
+    await page.getByRole("button", { name: "Add project script" }).click();
     await page.getByRole("textbox", { name: "Name", exact: true }).fill("Check types");
     await page.getByRole("textbox", { name: "Command", exact: true }).fill("bun typecheck");
     await page.getByRole("button", { name: "Save action", exact: true }).click();

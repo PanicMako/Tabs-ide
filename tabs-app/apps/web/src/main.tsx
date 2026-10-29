@@ -10,6 +10,15 @@ const rootEl = document.getElementById("root")!;
 rootEl.removeAttribute("style");
 rootEl.className = "h-dvh w-full overflow-hidden";
 const loadApplication = async () => {
+  if (new URLSearchParams(window.location.search).get("data-recovery") === "1") {
+    const { default: DataRecoveryScreen } =
+      await import("./components/settings/DataRecoveryScreen");
+    const error = await window.desktopBridge?.getBackendStartupError?.();
+    updateStartupSplash({ ready: true });
+    return (
+      <DataRecoveryScreen error={error ?? "Tabs paused startup to protect your saved data."} />
+    );
+  }
   const { startup } = await import("./appStartup");
   const app = await startup;
   // Standalone popouts have no workspace hydration gate.

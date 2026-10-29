@@ -639,6 +639,18 @@ export const ServerDirectEndpoint = Schema.Struct({
 export type ServerDirectEndpoint = typeof ServerDirectEndpoint.Type;
 
 export const ServerConfig = Schema.Struct({
+  deepSeekProfiles: Schema.optionalKey(
+    Schema.Array(
+      Schema.Struct({
+        instanceId: ProviderInstanceId,
+        name: Schema.String,
+        home: Schema.String,
+        profileDirectory: Schema.String,
+        executable: Schema.String,
+      }),
+    ),
+  ),
+  workspaceSnapshotsOmitted: Schema.optional(Schema.Boolean),
   environment: ExecutionEnvironmentDescriptor,
   auth: ServerAuthDescriptor,
   cwd: TrimmedNonEmptyString,
@@ -750,6 +762,7 @@ export type ServerConfigKeybindingsUpdatedPayload =
   typeof ServerConfigKeybindingsUpdatedPayload.Type;
 
 export const ServerConfigProviderStatusesPayload = Schema.Struct({
+  workspaceSnapshotsOmitted: Schema.optional(Schema.Boolean),
   providers: ServerProviders,
 });
 export type ServerConfigProviderStatusesPayload = typeof ServerConfigProviderStatusesPayload.Type;

@@ -263,3 +263,58 @@ it("animates details inside the active mark and respects reduced motion", async 
     else document.documentElement.setAttribute("data-reduced-motion", previousMotion);
   }
 });
+
+it("hides tool navigation for zero or one tool, restores it for two, and preserves project/settings access", async () => {
+  await page.viewport(1280, 800);
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+  const settings = vi.fn();
+  function Fixture() {
+    const [count, setCount] = useState(2);
+    return (
+      <QueryClientProvider client={client}>
+        <InterfaceStudyTopBar
+          projects={mockProjects}
+          openProjects={mockProjects}
+          activeProject={mockProjects[0]!}
+          pendingTabIds={[]}
+          activePendingTabId={null}
+          activeToolId={mockTools[0]!.id}
+          availableTools={mockTools.slice(0, count)}
+          threads={[]}
+          onActivateProject={vi.fn()}
+          onCloseProject={vi.fn()}
+          onNewTab={vi.fn()}
+          onActivatePendingTab={vi.fn()}
+          onClosePendingTab={vi.fn()}
+          onSelectTool={vi.fn()}
+          onOpenSettings={settings}
+        />
+        {[0, 1, 2].map((value) => (
+          <button key={value} onClick={() => setCount(value)}>
+            Show {value} tools
+          </button>
+        ))}
+      </QueryClientProvider>
+    );
+  }
+  const view = await render(<Fixture />);
+  try {
+    await expect.element(page.getByRole("tablist", { name: "Project tools" })).toBeVisible();
+    for (const count of [1, 0]) {
+      await page.getByRole("button", { name: `Show ${count} tools` }).click();
+      await expect
+        .element(page.getByRole("tablist", { name: "Project tools" }))
+        .not.toBeInTheDocument();
+      await expect
+        .element(page.getByRole("button", { name: "Settings", exact: true }))
+        .toBeVisible();
+    }
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    expect(settings).toHaveBeenCalledOnce();
+    await page.getByRole("button", { name: "Show 2 tools" }).click();
+    await expect.element(page.getByRole("tablist", { name: "Project tools" })).toBeVisible();
+  } finally {
+    await view.unmount();
+    client.clear();
+  }
+});

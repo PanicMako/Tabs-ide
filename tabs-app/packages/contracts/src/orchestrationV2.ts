@@ -3312,6 +3312,7 @@ export const OrchestrationV2DispatchCommandResult = Schema.Struct({
 export type OrchestrationV2DispatchCommandResult = typeof OrchestrationV2DispatchCommandResult.Type;
 
 export const OrchestrationV2GetThreadProjectionInput = Schema.Struct({
+  acceptDedupedBodies: Schema.optionalKey(Schema.Boolean),
   threadId: ThreadId,
 });
 export type OrchestrationV2GetThreadProjectionInput =

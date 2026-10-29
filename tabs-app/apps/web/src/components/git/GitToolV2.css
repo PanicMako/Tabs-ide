@@ -265,8 +265,15 @@
 .git-page [data-slot="git-card"] {
   box-shadow: 0 1px 2px color-mix(in srgb, var(--foreground) 2%, transparent);
 }
-.git-page [data-slot="git-card"] [class*="border-b"] {
+.git-page
+  [data-slot="git-card"]
+  [class*="border-b"]:not([data-slot="git-file-row"]):not(.git-file-row) {
   padding-block: 14px;
+}
+.git-page [data-slot="git-card"] [data-slot="git-file-row"],
+.git-page [data-slot="git-card"] .git-file-row,
+.git-page .git-file-row {
+  padding-block: 3px !important;
 }
 .git-page [data-slot="git-card"] [class*="text-[10px]"],
 .git-page [data-slot="git-card"] [class*="text-[11px]"] {

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getTabsEmbeddedRowHeight } from '../../../../browser/tabsEmbeddedLayout.js';
 import './media/openeditors.css';
 import * as nls from '../../../../../nls.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
@@ -668,7 +669,7 @@ class OpenEditorActionRunner extends ActionRunner {
 
 class OpenEditorsDelegate implements IListVirtualDelegate<OpenEditor | IEditorGroup> {
 
-	public static readonly ITEM_HEIGHT = 22;
+	public static get ITEM_HEIGHT(): number { return getTabsEmbeddedRowHeight(22, 24); }
 
 	getHeight(_element: OpenEditor | IEditorGroup): number {
 		return OpenEditorsDelegate.ITEM_HEIGHT;

@@ -4,6 +4,7 @@ import {
   installedMacApplication,
   trashVerifiedInstaller,
 } from "./installerCleanup";
+import { generateCommitDraft } from "./commitDraftClient";
 import { extensionHostVersion } from "./extensionHostVersion";
 import { writeBackendBootstrap } from "./backendBootstrap";
 import { waitForBackendListener } from "./backendReadiness";
@@ -19,6 +20,7 @@ import { isTrustedIpcFrame, isTrustedTabsUrl } from "./ipcSecurity";
 import { AgentsWindowManager } from "./agentsWindowManager";
 import { isLightDesktopTheme } from "./desktopTheme";
 import { resolveDesktopTitleBarOptions, updateWindowControlsOverlay } from "./windowTitleBar";
+import { DataRecovery } from "./dataRecovery";
 import { probeBrowserReadiness } from "./browserReadiness";
 import type { BrowserComparisonInput } from "@tabs/contracts";
 import * as ChildProcess from "node:child_process";
@@ -139,7 +141,11 @@ import { DesktopCaptureCoordinator } from "./capture/DesktopCaptureCoordinator";
 import type { DesktopCaptureOptions } from "@tabs/contracts";
 import { CodeControlChannel } from "./codeControlChannel";
 import { getTailscaleStatus } from "./tailscale";
-import { DEFAULT_CODE_CHROME_STATE, type CodeChromeState } from "@tabs/shared/codeChrome";
+import {
+  CODE_CHROME_COMMANDS,
+  DEFAULT_CODE_CHROME_STATE,
+  type CodeChromeState,
+} from "@tabs/shared/codeChrome";
 import {
   createNativeCodeHostMainBackend,
   type NativeCodeHostMainBackend,
@@ -382,6 +388,82 @@ const APP_USER_MODEL_ID = isDevelopment ? "com.tabs.app.dev" : "com.tabs.app";
 const ELECTRON_USER_DATA_PATH = resolveUserDataPathWithFs({ isDevelopment });
 app.setPath("userData", ELECTRON_USER_DATA_PATH);
 
+app.setName(APP_DISPLAY_NAME);
+if (process.platform === "win32") app.setAppUserModelId(APP_USER_MODEL_ID);
+// Own the lock on every platform before touching saved data. Clerk reuses it.
+if (!app.requestSingleInstanceLock()) app.exit(0);
+
+const recoveryVersion = extensionHostVersion(app);
+const recoveryCodeStateDir = Path.join(
+  process.env.TABS_HOME?.trim() || Path.join(OS.homedir(), ".tabs"),
+  "userdata",
+);
+let dataRecoveryStartupError: string | null = null;
+let dataRecoveryNotice: string | null = null;
+let dataRecovery: DataRecovery | null = null;
+const restorePrefix = "--tabs-restore-backup=";
+const versionSwitchPrefix = "--tabs-prepare-version=";
+const versionSwitchArgument = process.argv.find((argument) =>
+  argument.startsWith(versionSwitchPrefix),
+);
+const restoreArgument = process.argv.find((argument) => argument.startsWith(restorePrefix));
+const backupRequested = process.argv.includes("--tabs-backup-now");
+const recoveryArguments = process.argv.filter(
+  (argument) =>
+    argument.startsWith(restorePrefix) ||
+    argument.startsWith(versionSwitchPrefix) ||
+    argument === "--tabs-backup-now",
+);
+for (const argument of recoveryArguments) process.argv.splice(process.argv.indexOf(argument), 1);
+try {
+  dataRecovery = new DataRecovery(
+    process.env.TABS_DESKTOP_BACKUP_DIR?.trim() ||
+      Path.join(BASE_DIR, "backups", isDevelopment ? "desktop-dev" : "desktop"),
+    [STATE_DIR, Path.join(BASE_DIR, "userdata"), ELECTRON_USER_DATA_PATH, recoveryCodeStateDir],
+    recoveryVersion,
+  );
+  // The shared Code store may be selected by a different development/profile window.
+  dataRecovery.acquireLocks();
+  if (versionSwitchArgument) {
+    dataRecovery.prepareVersionSwitch(versionSwitchArgument.slice(versionSwitchPrefix.length));
+    dataRecovery.releaseLocks();
+    // The next launch must be the matching target release, not this controller.
+    app.exit(0);
+  } else if (restoreArgument) {
+    dataRecovery.recoverInterruptedRestore();
+    dataRecovery.restore(restoreArgument.slice(restorePrefix.length));
+    dataRecovery.releaseLocks();
+    app.relaunch({ args: process.argv.slice(1) });
+    app.exit(0);
+  } else if (app.isPackaged || process.env.TABS_ENABLE_DEV_BACKUPS === "1" || backupRequested) {
+    const result = dataRecovery.startup();
+    if (result.restored) {
+      dataRecovery.releaseLocks();
+      app.relaunch({ args: process.argv.slice(1) });
+      app.exit(0);
+    }
+    if (backupRequested) dataRecovery.create("manual");
+  }
+  dataRecoveryNotice = dataRecovery.notice();
+} catch (error) {
+  dataRecoveryStartupError = `Tabs paused startup to protect your saved data. ${error instanceof Error ? error.message : String(error)}`;
+  console.error("[data-recovery]", dataRecoveryStartupError);
+}
+app.once("will-quit", () => dataRecovery?.releaseLocks());
+
+// Recovery has no authentication shell and must not open the saved auth store.
+const clerkBridge = dataRecoveryStartupError
+  ? { isPrimaryInstance: true, cleanup() {} }
+  : createClerkBridge({
+      storage: clerkStorage({ path: STATE_DIR }),
+      manageSingleInstanceLock: false,
+      passkeys: true,
+      renderer: { scheme: DESKTOP_SCHEME, host: "app" },
+    });
+// Register the complete set after Clerk, which also registers the Tabs scheme.
+registerPrivilegedSchemes();
+app.once("will-quit", () => clerkBridge.cleanup());
+
 let tabsDataResetStartupError: string | null = null;
 const tabsDataResetRequested = process.argv.includes(RESET_TABS_USER_DATA_ARG);
 for (
@@ -391,7 +473,7 @@ for (
 ) {
   process.argv.splice(index, 1);
 }
-if (tabsDataResetRequested) {
+if (tabsDataResetRequested && dataRecovery?.ownsStores) {
   try {
     resetTabsUserData({
       baseDir: BASE_DIR,
@@ -470,12 +552,13 @@ let backendAuthToken = "";
 let backendWsUrl = "";
 let backendHttpUrl = "";
 let restartAttempt = 0;
-let backendStartupError: string | null = null;
+let backendStartupError: string | null = dataRecoveryStartupError;
 let restartTimer: ReturnType<typeof setTimeout> | null = null;
 let isQuitting = false;
 let isQuittingConfirmed = false;
 let isQuitConfirmationOpen = false;
 let tabsDataResetPending = false;
+let dataRecoveryRestartArgument: string | null = null;
 let desktopProtocolRegistered = false;
 let nativeCodeHostMainBackend: NativeCodeHostMainBackend | null = null;
 const pendingNativeCodeHostURLs: string[] = [];
@@ -571,6 +654,9 @@ const extensionViewManager = new ExtensionViewManager(
   extensionHostVersion(app),
   !app.isPackaged,
   safeStorage,
+  undefined,
+  undefined,
+  !dataRecoveryStartupError,
 );
 const extensionAiBrokerServer = new ExtensionAiBrokerServer(extensionViewManager);
 const registryCredentials = new RegistryCredentials(
@@ -1282,7 +1368,10 @@ function registerDesktopProtocol(): void {
   const staticRootPrefix = `${staticRootResolved}${Path.sep}`;
   const fallbackIndex = Path.join(staticRootResolved, "index.html");
 
-  protocol.handle(DESKTOP_SCHEME, async (request) => {
+  const targetProtocol = dataRecoveryStartupError
+    ? session.fromPartition("tabs-data-recovery").protocol
+    : protocol;
+  targetProtocol.handle(DESKTOP_SCHEME, async (request) => {
     try {
       const candidate = resolveDesktopStaticPath(staticRootResolved, request.url);
       const resolvedCandidate = Path.resolve(candidate);
@@ -2265,7 +2354,7 @@ function scheduleBackendRestart(reason: string): void {
 }
 
 function startBackend(): void {
-  if (isQuitting || backendProcess) return;
+  if (isQuitting || backendProcess || dataRecoveryStartupError) return;
 
   const backendEntry = resolveBackendEntry();
   if (!FS.existsSync(backendEntry)) {
@@ -3149,6 +3238,51 @@ function registerIpcHandlers(): void {
     }
   });
 
+  ipcMain.removeHandler("desktop:data-backups:list");
+  handleTabsIpc("desktop:data-backups:list", () => ({
+    version: recoveryVersion,
+    directory: dataRecovery?.directory ?? "",
+    notice: dataRecoveryNotice,
+    backups: dataRecovery?.list() ?? [],
+  }));
+  ipcMain.removeHandler("desktop:data-backups:restart");
+  handleTabsIpc("desktop:data-backups:restart", (event, id: unknown, prepareVersion: unknown) => {
+    if (event.sender !== mainWindow?.webContents || dataRecoveryRestartArgument || isQuitting)
+      return false;
+    if (prepareVersion !== undefined && typeof prepareVersion !== "boolean")
+      throw new Error("Invalid version preparation request.");
+    if (id !== undefined && id !== null) {
+      if (typeof id !== "string") throw new Error("Invalid backup identifier.");
+      const backup = dataRecovery?.list().find((entry) => entry.id === id);
+      if (
+        !backup ||
+        (prepareVersion
+          ? backup.version === "unknown" || backup.version === recoveryVersion
+          : backup.version !== recoveryVersion)
+      )
+        throw new Error("Choose a snapshot for the requested app version.");
+      dataRecoveryRestartArgument = `${prepareVersion ? versionSwitchPrefix : restorePrefix}${id}`;
+    } else dataRecoveryRestartArgument = "--tabs-backup-now";
+    isQuittingConfirmed = true;
+    setTimeout(() => app.quit(), 50);
+    return true;
+  });
+  ipcMain.removeHandler("desktop:data-backups:open");
+  handleTabsIpc("desktop:data-backups:open", async () => {
+    if (dataRecovery) {
+      const error = await shell.openPath(dataRecovery.directory);
+      if (error) throw new Error(error);
+    }
+  });
+  ipcMain.removeHandler("desktop:data-backups:delete");
+  handleTabsIpc("desktop:data-backups:delete", (event, id: unknown) => {
+    if (event.sender !== mainWindow?.webContents || typeof id !== "string")
+      throw new Error("Invalid backup request.");
+    if (!dataRecovery?.ownsStores)
+      throw new Error("Close the other Tabs session before managing its backups.");
+    dataRecovery.remove(id);
+  });
+
   ipcMain.removeHandler(GET_BACKEND_STARTUP_ERROR_CHANNEL);
   handleTabsIpc(GET_BACKEND_STARTUP_ERROR_CHANNEL, (event) => {
     if (event.sender !== mainWindow?.webContents) return null;
@@ -3644,8 +3778,15 @@ function registerIpcHandlers(): void {
     }
     const projectId = (input as { projectId: string }).projectId;
     const commandId = (input as { commandId: string }).commandId;
-    codeHostManager.focusSession(projectId);
-    return codeControlChannel.runCommand(projectId, commandId);
+    const presentation = (input as { presentation?: unknown }).presentation;
+    if (
+      commandId !== CODE_CHROME_COMMANDS.railPresentation &&
+      commandId !== CODE_CHROME_COMMANDS.railSpotlightOn &&
+      commandId !== CODE_CHROME_COMMANDS.railSpotlightOff
+    ) {
+      codeHostManager.focusSession(projectId);
+    }
+    return codeControlChannel.runCommand(projectId, commandId, presentation);
   });
 
   ipcMain.removeHandler(CODE_HOST_GET_CHROME_STATE_CHANNEL);
@@ -4652,6 +4793,7 @@ function createTabsWindow(): BrowserWindow {
     title: APP_DISPLAY_NAME,
     ...resolveTitleBarOptions(),
     webPreferences: {
+      ...(dataRecoveryStartupError ? { partition: "tabs-data-recovery" } : {}),
       preload: Path.join(__dirname, "preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
@@ -4752,9 +4894,13 @@ function createTabsWindow(): BrowserWindow {
   });
 
   if (isDevelopment && process.env.VITE_DEV_SERVER_URL) {
-    void window.loadURL(process.env.VITE_DEV_SERVER_URL);
+    const url = new URL(process.env.VITE_DEV_SERVER_URL);
+    if (dataRecoveryStartupError) url.searchParams.set("data-recovery", "1");
+    void window.loadURL(url.href);
   } else {
-    void window.loadURL(`${DESKTOP_SCHEME}://app/index.html`);
+    void window.loadURL(
+      `${DESKTOP_SCHEME}://app/index.html${dataRecoveryStartupError ? "?data-recovery=1" : ""}`,
+    );
   }
 
   window.on("closed", () => {
@@ -4799,24 +4945,6 @@ function createWindow(): BrowserWindow {
 }
 
 configureAppIdentity();
-
-// Clerk owns the single-instance lock so OAuth callbacks are forwarded to the
-// running process on Windows and Linux. Re-acquiring it here would make the
-// primary instance reject itself.
-const clerkBridge = createClerkBridge({
-  storage: clerkStorage({ path: STATE_DIR }),
-  passkeys: true,
-  renderer: { scheme: DESKTOP_SCHEME, host: "app" },
-});
-// Clerk registers its renderer scheme while constructing the bridge. Electron
-// materializes the most recent privileged-scheme registration into command-line
-// switches, so register the complete set afterwards or Clerk's `tabs` entry can
-// leave embedded Code-OSS without secure `vscode-file`/`vscode-webview` origins.
-registerPrivilegedSchemes();
-if (!clerkBridge.isPrimaryInstance) {
-  app.quit();
-}
-app.once("will-quit", () => clerkBridge.cleanup());
 
 app.on("open-url", (_event, rawUrl) => forwardNativeCodeHostURL(rawUrl));
 
@@ -4917,6 +5045,11 @@ function ensureDownloadedCodeOssRuntime(): void {
 async function bootstrap(): Promise<void> {
   const bootstrapStartedAt = performance.now();
   writeDesktopLogHeader("bootstrap start");
+  if (dataRecoveryStartupError) {
+    registerIpcHandlers();
+    mainWindow = createWindow();
+    return;
+  }
   // Code-OSS main-process compatibility services and the Tabs loopback
   // backend are independent. Start the expensive compatibility imports now
   // and overlap them with port/control-channel initialization.
@@ -5019,6 +5152,20 @@ async function bootstrap(): Promise<void> {
           state,
         });
       }
+    });
+    codeControlChannel.onGenerateCommitDraft(async (projectId, cwd, signal) => {
+      const root = codeHostManager.getWorkspaceRoot(projectId);
+      if (!root || !backendWsUrl)
+        throw new Error("Open a project before generating a commit message.");
+      const [realRoot, realCwd] = await Promise.all([
+        FS.promises.realpath(root),
+        FS.promises.realpath(cwd),
+      ]);
+      const relative = Path.relative(realRoot, realCwd);
+      if (relative === ".." || relative.startsWith(`..${Path.sep}`) || Path.isAbsolute(relative)) {
+        throw new Error("The repository must belong to this project.");
+      }
+      return generateCommitDraft(backendWsUrl, realCwd, signal);
     });
     codeControlChannel.onOpenTabsProjectTab(() => {
       if (mainWindow && !mainWindow.isDestroyed()) {
@@ -5213,9 +5360,12 @@ app.on("before-quit", (event) => {
           );
         } else {
           writeDesktopLogHeader("flushing default session storage data to disk");
-          session.defaultSession.flushStorageData();
+          const storageSession = dataRecoveryStartupError
+            ? session.fromPartition("tabs-data-recovery")
+            : session.defaultSession;
+          storageSession.flushStorageData();
           await withTimeout(
-            session.defaultSession.cookies.flushStore(),
+            storageSession.cookies.flushStore(),
             5000,
             "Default cookie flush timed out after 5000ms",
           );
@@ -5225,6 +5375,12 @@ app.on("before-quit", (event) => {
       }
 
       const quitWithFailsafe = (): void => {
+        if (dataRecoveryRestartArgument) {
+          app.relaunch({ args: [...process.argv.slice(1), dataRecoveryRestartArgument] });
+          dataRecovery?.releaseLocks();
+          app.exit(0);
+          return;
+        }
         if (tabsDataResetPending) {
           try {
             app.relaunch({
@@ -5286,6 +5442,10 @@ if (clerkBridge.isPrimaryInstance) {
       configureAppIdentity();
       configureApplicationMenu();
       registerDesktopProtocol();
+      if (dataRecoveryStartupError) {
+        void bootstrap().catch((error) => handleFatalStartupError("recovery", error));
+        return;
+      }
       configureAutoUpdater();
 
       powerMonitor.on("resume", () => {

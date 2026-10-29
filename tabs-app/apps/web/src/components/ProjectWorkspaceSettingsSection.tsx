@@ -1901,7 +1901,7 @@ export function ProjectWorkspaceSettingsSection() {
                                     {activeDraft.commands.map((command, commandIndex) => (
                                       <div
                                         key={`${activeDraft.id}-step-${commandIndex}`}
-                                        className="flex gap-2"
+                                        className="flex items-center gap-2"
                                       >
                                         <Input
                                           value={command}

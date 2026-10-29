@@ -96,6 +96,16 @@ describe("ExtensionsSettings accessibility and UI journeys", () => {
     expect(html).toContain('aria-label="Manage Dashboard"');
   });
 
+  it("keeps incompatible installations visible with their management action", () => {
+    currentExtensions = [
+      { ...baseExtension, disabled: true, compatibilityError: "Requires Tabs 2." },
+    ];
+    vi.stubGlobal("window", { desktopBridge: {} });
+    const html = renderToStaticMarkup(<ExtensionsSettings />);
+    expect(html).toContain("Incompatible");
+    expect(html).toContain('aria-label="Manage Dashboard"');
+  });
+
   it("renders desktop-only placeholder when bridge is unavailable", () => {
     vi.stubGlobal("window", {});
     const html = renderToStaticMarkup(<ExtensionsSettings />);

@@ -1,12 +1,17 @@
 import "../../index.css";
+import { useState } from "react";
 import { expect, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 import { render } from "vitest-browser-react";
-import { CODE_CHROME_COMMANDS, DEFAULT_CODE_CHROME_STATE } from "@tabs/shared/codeChrome";
+import {
+  CODE_CHROME_COMMANDS,
+  DEFAULT_CODE_CHROME_STATE,
+  type CodeRailPresentation,
+} from "@tabs/shared/codeChrome";
 import { isMacPlatform } from "../../lib/utils";
 import { CodeHeaderBar } from "./CodeHeaderBar";
 import { CodeActivityRail } from "./CodeActivityRail";
-import { restoreThemeSnapshot, snapshotThemeState } from "../../hooks/useTheme";
+import { previewTheme, restoreThemeSnapshot, snapshotThemeState } from "../../hooks/useTheme";
 import { THEME_DEFINITIONS, type CustomThemeConfig } from "../../lib/themes";
 import { evaluateThemeTokens } from "@tabs/shared/themeDerivation";
 
@@ -299,5 +304,203 @@ it("blurs and disables the Tabs chrome for native Code dialogs", async () => {
     expect(runCommand).not.toHaveBeenCalled();
   } finally {
     await view.unmount();
+  }
+});
+
+it("moves the rail selection without moving targets and clears the native spotlight", async () => {
+  const runCommand = vi.fn();
+  const view = await render(
+    <div className="code-workspace h-[600px]">
+      <CodeActivityRail
+        chromeState={{ ...DEFAULT_CODE_CHROME_STATE, activeViewId: "explorer" }}
+        onRunCommand={runCommand}
+      />
+    </div>,
+  );
+  const explorer = page.getByRole("button", { name: "Explorer", exact: true });
+  const search = page.getByRole("button", { name: "Search", exact: true });
+  const bounds = explorer.element().getBoundingClientRect();
+  expect(bounds.width).toBe(40);
+  expect(bounds.height).toBe(40);
+  const rail = document.querySelector<HTMLElement>(".code-activity-rail")!;
+  rail.style.setProperty("--primary", "#0000ff");
+  rail.style.setProperty("--vscode-focusBorder", "#ff0000");
+  const glow = getComputedStyle(rail, "::before");
+  // Native focus-token overrides must color both halves of the shared glow.
+  expect(glow.backgroundImage).toContain("color(srgb 1 0 0");
+  expect(rail.clientTop + parseFloat(glow.top)).toBe(0);
+  expect(parseFloat(getComputedStyle(rail).borderBottomWidth) + parseFloat(glow.bottom)).toBe(0);
+  expect(glow.borderTopLeftRadius).toBe(getComputedStyle(rail).borderTopLeftRadius);
+  expect(parseFloat(rail.style.getPropertyValue("--code-rail-glow-y"))).toBeCloseTo(
+    bounds.top + bounds.height / 2 - rail.getBoundingClientRect().top,
+  );
+  await userEvent.hover(explorer);
+  await expect
+    .poll(() => runCommand.mock.calls.at(-1)?.[0])
+    .toBe(CODE_CHROME_COMMANDS.railSpotlightOn);
+  expect(document.querySelector(".code-rail-views")!.hasAttribute("data-spotlight")).toBe(true);
+  expect(explorer.element().getBoundingClientRect().y).toBe(bounds.y);
+  await userEvent.hover(search);
+  await expect
+    .poll(() => runCommand.mock.calls.at(-1)?.[0])
+    .toBe(CODE_CHROME_COMMANDS.railSpotlightOff);
+  expect(document.querySelector(".code-rail-views")!.hasAttribute("data-spotlight")).toBe(false);
+  await userEvent.hover(explorer);
+  await expect
+    .poll(() => runCommand.mock.calls.at(-1)?.[0])
+    .toBe(CODE_CHROME_COMMANDS.railSpotlightOn);
+  await view.unmount();
+  expect(runCommand).toHaveBeenLastCalledWith(CODE_CHROME_COMMANDS.railSpotlightOff);
+});
+
+it("keeps the moving selection and keyboard navigation aligned with the active view", async () => {
+  function InteractiveRail() {
+    const [active, setActive] = useState<"explorer" | "search">("explorer");
+    return (
+      <div className="code-workspace h-[600px]">
+        <CodeActivityRail
+          chromeState={{ ...DEFAULT_CODE_CHROME_STATE, activeViewId: active }}
+          onRunCommand={(id) => {
+            if (id === "workbench.view.search") setActive("search");
+            if (id === "workbench.view.explorer") setActive("explorer");
+          }}
+        />
+      </div>
+    );
+  }
+  const view = await render(<InteractiveRail />);
+  const views = document.querySelector<HTMLElement>(".code-rail-views")!;
+  const explorer = page.getByRole("button", { name: "Explorer", exact: true });
+  const search = page.getByRole("button", { name: "Search", exact: true });
+  const firstY = views.style.getPropertyValue("--code-selection-y");
+  await search.click();
+  await expect.element(search).toHaveAttribute("aria-pressed", "true");
+  await expect.element(explorer).toHaveAttribute("aria-pressed", "false");
+  await expect.poll(() => views.style.getPropertyValue("--code-selection-y")).not.toBe(firstY);
+  await userEvent.keyboard("{ArrowUp}");
+  await expect.element(explorer).toHaveFocus();
+  await userEvent.keyboard("{Enter}");
+  await expect.element(explorer).toHaveAttribute("aria-pressed", "true");
+  await expect.poll(() => views.style.getPropertyValue("--code-selection-y")).toBe(firstY);
+  await view.unmount();
+});
+
+it("keeps the glow on the full rail and clears spotlight while scrolling a short window", async () => {
+  const runCommand = vi.fn();
+  const view = await render(
+    <div className="code-workspace flex h-[240px]">
+      <CodeActivityRail
+        chromeState={{ ...DEFAULT_CODE_CHROME_STATE, activeViewId: "explorer" }}
+        onRunCommand={runCommand}
+      />
+    </div>,
+  );
+  const rail = document.querySelector<HTMLElement>(".code-activity-rail")!;
+  const scroll = document.querySelector<HTMLElement>(".code-rail-scroll")!;
+  expect(scroll.scrollHeight).toBeGreaterThan(scroll.clientHeight);
+  await userEvent.hover(page.getByRole("button", { name: "Explorer", exact: true }));
+  await expect
+    .poll(() => runCommand.mock.calls.at(-1)?.[0])
+    .toBe(CODE_CHROME_COMMANDS.railSpotlightOn);
+  scroll.scrollTop = scroll.scrollHeight;
+  await expect.poll(() => rail.hasAttribute("data-has-selection")).toBe(false);
+  await expect.poll(() => rail.hasAttribute("data-spotlight")).toBe(false);
+  expect(runCommand).toHaveBeenLastCalledWith(CODE_CHROME_COMMANDS.railSpotlightOff);
+  scroll.scrollTop = 0;
+  await expect.poll(() => rail.hasAttribute("data-has-selection")).toBe(true);
+  await view.unmount();
+});
+
+it("paints the glow through the facing border without an unlit strip at the native join", async () => {
+  const view = await render(
+    <div className="code-workspace flex h-[600px]">
+      <CodeActivityRail
+        chromeState={{ ...DEFAULT_CODE_CHROME_STATE, activeViewId: "explorer" }}
+        onRunCommand={vi.fn()}
+      />
+    </div>,
+  );
+  const rail = document.querySelector<HTMLElement>(".code-activity-rail")!;
+  const glow = getComputedStyle(rail, "::before");
+  // An absolute pseudo-element's containing block excludes its parent's border.
+  // Both ends must reach the border box, including the transparent joining edge.
+  expect(rail.clientLeft + parseFloat(glow.left)).toBeCloseTo(0);
+  expect(rail.clientTop + parseFloat(glow.top)).toBeCloseTo(0);
+  expect(rail.clientLeft + parseFloat(glow.left) + parseFloat(glow.width)).toBeCloseTo(
+    rail.offsetWidth,
+  );
+  expect(rail.clientTop + parseFloat(glow.top) + parseFloat(glow.height)).toBeCloseTo(
+    rail.offsetHeight,
+  );
+  await view.unmount();
+});
+
+it("bridges complete labels to the native pane without rendering a clipped React popup", async () => {
+  const presentation = vi.fn<(value: CodeRailPresentation) => void>();
+  const runCommand = vi.fn();
+  const view = await render(
+    <div className="code-workspace flex h-[600px]">
+      <CodeActivityRail
+        chromeState={{ ...DEFAULT_CODE_CHROME_STATE, activeViewId: "explorer" }}
+        onRunCommand={runCommand}
+        onPresentationChange={presentation}
+      />
+    </div>,
+  );
+  await expect.poll(() => presentation.mock.calls.at(-1)?.[0].selectionY).toBeGreaterThan(0);
+  await userEvent.hover(page.getByRole("button", { name: "Source Control", exact: true }));
+  await expect.poll(() => presentation.mock.calls.at(-1)?.[0].label?.text).toBe("Source Control");
+  expect(presentation.mock.calls.at(-1)![0].label!.y).toBeGreaterThan(0);
+  expect(presentation.mock.calls.at(-1)![0].label!.y).toBeLessThan(1);
+  const icon = page
+    .getByRole("button", { name: "Source Control", exact: true })
+    .element()
+    .getBoundingClientRect();
+  const host = document.querySelector(".code-activity-rail")!.getBoundingClientRect();
+  expect(presentation.mock.calls.at(-1)![0].label!.y * host.height).toBeCloseTo(
+    icon.top + icon.height / 2 - host.top,
+  );
+  expect(document.querySelector('[data-slot="tooltip-popup"]')).toBeNull();
+  expect(runCommand).not.toHaveBeenCalled();
+  await userEvent.hover(page.getByRole("button", { name: "Explorer", exact: true }));
+  await expect.poll(() => presentation.mock.calls.at(-1)?.[0].spotlight).toBe(true);
+  await expect.poll(() => presentation.mock.calls.at(-1)?.[0].label).toBeNull();
+  await view.unmount();
+  expect(presentation).toHaveBeenLastCalledWith({
+    selectionY: null,
+    spotlight: false,
+    label: null,
+  });
+});
+
+it("animates the application menu artwork without moving its target and respects reduced motion", async () => {
+  const previousMotion = document.documentElement.dataset.reducedMotion;
+  document.documentElement.dataset.reducedMotion = "no-preference";
+  const view = await render(
+    <div className="code-workspace h-[600px]">
+      <CodeActivityRail chromeState={DEFAULT_CODE_CHROME_STATE} onRunCommand={() => {}} />
+    </div>,
+  );
+  try {
+    const menu = page.getByRole("button", { name: "Code application menu", exact: true });
+    const bounds = menu.element().getBoundingClientRect().toJSON();
+    const top = menu.element().querySelector(".code-menu-top")!;
+    const middle = menu.element().querySelector(".code-menu-middle")!;
+    await userEvent.hover(menu);
+    await expect.poll(() => getComputedStyle(top).transform).not.toBe("none");
+    expect(menu.element().getBoundingClientRect().toJSON()).toEqual(bounds);
+    await menu.click();
+    await expect.element(menu).toHaveAttribute("aria-expanded", "true");
+    await expect.poll(() => getComputedStyle(middle).opacity).toBe("0");
+    await userEvent.keyboard("{Escape}");
+    await expect.element(menu).toHaveAttribute("aria-expanded", "false");
+    await expect.element(menu).toHaveFocus();
+    document.documentElement.dataset.reducedMotion = "reduce";
+    expect(getComputedStyle(top).transitionDuration).toBe("0s");
+    expect(getComputedStyle(top).transform).toBe("none");
+  } finally {
+    await view.unmount();
+    if (previousMotion) document.documentElement.dataset.reducedMotion = previousMotion;
+    else delete document.documentElement.dataset.reducedMotion;
   }
 });

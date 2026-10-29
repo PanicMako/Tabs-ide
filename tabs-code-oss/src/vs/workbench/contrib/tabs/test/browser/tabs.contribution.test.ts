@@ -4,10 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import '../../browser/media/tabs.css';
 import '../../browser/media/embeddedWorkbench.css';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IWorkbenchLayoutService, Position } from '../../../../services/layout/browser/layoutService.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationOverrides, IConfigurationUpdateOverrides, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -31,6 +34,11 @@ suite('Tabs Contribution', () => {
 		const didClose = store.add(new Emitter<void>());
 		const updates: unknown[][] = [];
 		services.stub(IDialogService, { onWillShowDialog: willShow.event, onDidShowDialog: didClose.event });
+		services.stub(IViewsService, { onDidChangeViewVisibility: Event.None });
+		services.stub(IWorkbenchLayoutService, {
+			onDidLayoutMainContainer: Event.None,
+			getSideBarPosition: () => Position.LEFT
+		});
 		services.stub(ICommandService, {
 			executeCommand: async <T>(id: string, ...args: unknown[]) => {
 				updates.push([id, ...args]);
@@ -91,8 +99,8 @@ suite('Tabs Contribution', () => {
 		try {
 			assert.strictEqual(mainWindow.getComputedStyle(workbench.querySelector('.monaco-dialog-modal-block')!).backdropFilter, 'blur(4px)');
 			assert.strictEqual(mainWindow.getComputedStyle(workbench.querySelector('.monaco-dialog-box')!).filter, 'none');
-			assert.strictEqual(mainWindow.getComputedStyle(workbench.querySelector('.monaco-button')!).borderTopLeftRadius, '9px');
-			assert.strictEqual(mainWindow.getComputedStyle(workbench.querySelector('.monaco-inputbox')!).borderTopLeftRadius, '9px');
+			assert.strictEqual(mainWindow.getComputedStyle(workbench.querySelector('.monaco-button')!).borderTopLeftRadius, '36px');
+			assert.strictEqual(mainWindow.getComputedStyle(workbench.querySelector('.monaco-inputbox')!).borderTopLeftRadius, '36px');
 			document.documentElement.classList.remove('tabs-modal-open');
 			assert.strictEqual(mainWindow.getComputedStyle(workbench.querySelector('.part')!).filter, 'none');
 		} finally {
@@ -113,6 +121,14 @@ suite('Tabs Contribution', () => {
 			<div class="scm-editor-container"></div><div class="chat-input-container"></div>
 			<div class="find-widget"></div><div class="suggest-widget"></div><div class="rename-box"></div>
 			<div class="quick-input-widget"></div><div class="notifications-center"></div>
+			<div class="scm-editor"></div><div class="scm-editor-container"></div><div class="chat-input-container"></div>
+			<div class="search-view">
+				<div class="search-widgets-container">
+					<div class="monaco-findInput"></div>
+					<div class="search-widget"><div class="replace-input"></div></div>
+					<div class="query-details"><div class="file-types"><div class="monaco-inputbox"></div></div></div>
+				</div>
+			</div>
 			<div class="monaco-action-bar"><div class="action-item action-dropdown-item">
 				<a class="action-label"></a><div class="monaco-dropdown"><a class="action-label"></a></div>
 			</div></div>`;
@@ -127,24 +143,30 @@ suite('Tabs Contribution', () => {
 		const originalRadius = mainWindow.getComputedStyle(workbench.querySelector('button')!).borderRadius;
 		document.documentElement.classList.add('tabs-embedded-workbench');
 		try {
-			for (const selector of ['button', 'textarea', 'select', '.monaco-inputbox', '.monaco-findInput', '.scm-editor-container']) {
-				assert.strictEqual(mainWindow.getComputedStyle(workbench.querySelector(selector)!).borderRadius, '9px', selector);
+			for (const selector of ['button', 'textarea', 'select', '.monaco-inputbox', '.monaco-findInput:not(.search-view *)']) {
+				assert.strictEqual(mainWindow.getComputedStyle(workbench.querySelector(selector)!).borderRadius, '36px', selector);
+			}
+			for (const selector of ['.scm-editor', '.scm-editor-container']) {
+				assert.strictEqual(mainWindow.getComputedStyle(workbench.querySelector(selector)!).borderRadius, '12px', selector);
+			}
+			for (const selector of ['.search-view .monaco-findInput', '.search-view .replace-input', '.search-view .query-details .file-types > .monaco-inputbox']) {
+				assert.strictEqual(mainWindow.getComputedStyle(workbench.querySelector(selector)!).borderRadius, '36px', selector);
 			}
 			for (const selector of ['.find-widget', '.suggest-widget', '.rename-box', '.quick-input-widget', '.notifications-center']) {
-				assert.strictEqual(mainWindow.getComputedStyle(workbench.querySelector(selector)!).borderRadius, '16px', selector);
+				assert.strictEqual(mainWindow.getComputedStyle(workbench.querySelector(selector)!).borderRadius, '36px', selector);
 			}
 			for (const selector of ['.monaco-menu-container', '.monaco-menu', '.monaco-select-box-dropdown-container']) {
-				assert.strictEqual(mainWindow.getComputedStyle(portal.querySelector(selector)!).borderRadius, '16px', selector);
+				assert.strictEqual(mainWindow.getComputedStyle(portal.querySelector(selector)!).borderRadius, '36px', selector);
 			}
 			for (const [selector, radius] of [
-				['.pane-header', '8px'], ['.monaco-checkbox', '5px'],
+				['.pane-header', '36px'], ['.monaco-checkbox', '5px'],
 				['.setting-item-contents', '12px'], ['.chat-input-container', '12px'],
-				['.action-dropdown-item > .action-label', '9px 0px 0px 9px'],
-				['.monaco-dropdown > .action-label', '0px 9px 9px 0px']
+				['.action-dropdown-item > .action-label', '36px 0px 0px 36px'],
+				['.monaco-dropdown > .action-label', '0px 36px 36px 0px']
 			]) {
 				assert.strictEqual(mainWindow.getComputedStyle(workbench.querySelector(selector)!).borderRadius, radius, selector);
 			}
-			assert.strictEqual(mainWindow.getComputedStyle(portal.querySelector('.action-menu-item')!).borderRadius, '8px');
+			assert.strictEqual(mainWindow.getComputedStyle(portal.querySelector('.action-menu-item')!).borderRadius, '36px');
 			assert.strictEqual(extension.contentWindow!.getComputedStyle(extensionButton).borderRadius, '0px');
 			document.documentElement.classList.remove('tabs-embedded-workbench');
 			assert.strictEqual(mainWindow.getComputedStyle(workbench.querySelector('button')!).borderRadius, originalRadius);
@@ -160,8 +182,10 @@ suite('Tabs Contribution', () => {
 		const workbench = document.createElement('div');
 		workbench.className = 'monaco-workbench modern-ui-tabs';
 		workbench.style.setProperty('--vscode-sideBar-background', '#eee8d5');
+		workbench.style.setProperty('--vscode-titleBar-activeBackground', '#fdf6e3');
 		workbench.style.setProperty('--vscode-editor-background', '#fdf6e3');
 		workbench.style.setProperty('--vscode-sideBar-foreground', '#657b83');
+		workbench.style.setProperty('--vscode-foreground', '#657b83');
 		workbench.innerHTML = `<div class="part auxiliarybar pane-composite-part"><div class="title">
 			<div class="composite-bar-container"><div class="composite-bar"><div class="monaco-action-bar"><ul>
 				<li class="action-item checked" style="position:relative;height:35px;border-block:4px solid transparent"><a class="action-label">Chat</a><div class="active-item-indicator"></div></li>
@@ -175,19 +199,23 @@ suite('Tabs Contribution', () => {
 		document.documentElement.classList.add('tabs-embedded-workbench');
 		try {
 			const active = mainWindow.getComputedStyle(workbench.querySelector('.checked > .active-item-indicator')!);
-			assert.strictEqual(active.backgroundColor, 'rgb(238, 232, 213)');
+			assert.ok(active.backgroundImage.includes('linear-gradient'));
+			assert.ok(active.backgroundImage.includes('rgb(238, 232, 213)'));
 			assert.strictEqual(active.borderTopLeftRadius, '10px');
 			assert.strictEqual(active.borderBottomLeftRadius, '0px');
 			assert.ok(parseFloat(active.height) > 20);
 			assert.strictEqual(active.bottom, '0px');
 			assert.strictEqual(active.overflow, 'visible');
 			const shoulder = mainWindow.getComputedStyle(workbench.querySelector('.checked > .active-item-indicator')!, '::after');
-			assert.strictEqual(shoulder.borderBottomLeftRadius, '8px');
-			assert.ok(shoulder.boxShadow.includes('rgb(238, 232, 213)'));
+			assert.strictEqual(shoulder.borderBottomLeftRadius, '0px');
+			assert.ok(shoulder.backgroundImage.includes('radial-gradient'));
+			assert.ok(shoulder.backgroundImage.includes('rgb(238, 232, 213)'));
 			assert.strictEqual(mainWindow.getComputedStyle(actions.querySelector('.actions-container')!).alignItems, 'center');
 			assert.strictEqual(mainWindow.getComputedStyle(actions).paddingInlineEnd, '4px');
 			assert.strictEqual(mainWindow.getComputedStyle(workbench.querySelector('.action-item.checked')!).borderBottomWidth, '0px');
-			assert.strictEqual(mainWindow.getComputedStyle(workbench.querySelector('.title')!).backgroundColor, 'rgb(253, 246, 227)');
+			const stripBackground = mainWindow.getComputedStyle(workbench.querySelector('.title')!).backgroundColor;
+			assert.notStrictEqual(stripBackground, 'rgb(238, 232, 213)');
+			assert.notStrictEqual(stripBackground, 'rgb(253, 246, 227)');
 			assert.strictEqual(mainWindow.getComputedStyle(workbench.querySelector('.checked > .action-label')!).color, 'rgb(101, 123, 131)');
 			assert.strictEqual(mainWindow.getComputedStyle(workbench.querySelector('.action-item:not(.checked) > .active-item-indicator')!).backgroundColor, 'rgba(0, 0, 0, 0)');
 		} finally {
@@ -273,5 +301,30 @@ suite('Tabs Contribution', () => {
 			getTabsViewContainerTargetLocation('workbench.view.extension.claude-sessions-sidebar'),
 			ViewContainerLocation.Sidebar,
 		);
+	});
+
+	test('suppresses outer focus outlines and clips SCM input corners', () => {
+		const workbench = document.createElement('div');
+		workbench.className = 'monaco-workbench';
+		workbench.innerHTML = `
+			<div class="scm-editor synthetic-focus">
+				<div class="scm-editor-container"></div>
+			</div>
+			<div class="monaco-inputbox synthetic-focus"></div>
+			<input type="text" class="synthetic-focus" />
+		`;
+		document.body.append(workbench);
+		document.documentElement.classList.add('tabs-embedded-workbench');
+		try {
+			const scmEditor = workbench.querySelector<HTMLElement>('.scm-editor')!;
+			const inputBox = workbench.querySelector<HTMLElement>('.monaco-inputbox')!;
+			assert.strictEqual(mainWindow.getComputedStyle(scmEditor).borderRadius, '12px');
+			assert.strictEqual(mainWindow.getComputedStyle(scmEditor).overflow, 'hidden');
+			assert.strictEqual(mainWindow.getComputedStyle(scmEditor).outlineStyle, 'none');
+			assert.strictEqual(mainWindow.getComputedStyle(inputBox).outlineStyle, 'none');
+		} finally {
+			workbench.remove();
+			document.documentElement.classList.remove('tabs-embedded-workbench');
+		}
 	});
 });

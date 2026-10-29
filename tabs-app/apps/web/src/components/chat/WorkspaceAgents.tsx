@@ -1,4 +1,5 @@
 import { WorkspaceAutomations } from "./WorkspaceAutomations";
+import { useWorkspaceActionExpansion } from "./workspaceActionsState";
 import {
   ThreadId,
   isProviderNativeSubagentThread,
@@ -88,7 +89,9 @@ function ScopedWorkspaceAgents({
   const providerSelectId = useId();
   const modelSelectId = useId();
 
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useWorkspaceActionExpansion(
+    `agents:${environmentId ?? "local"}:${context.thread.id}`,
+  );
   const [delegateOpen, setDelegateOpen] = useState(false);
   const [delegationParentId, setDelegationParentId] = useState<RunId | null>(null);
   const delegationRetry = useRef<{

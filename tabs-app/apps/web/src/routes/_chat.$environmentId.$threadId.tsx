@@ -19,6 +19,7 @@ import {
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { Sheet, SheetPopup } from "../components/ui/sheet";
 import { Sidebar, SidebarProvider, SidebarRail } from "~/components/ui/sidebar";
+import { cn } from "~/lib/utils";
 
 const DIFF_INLINE_LAYOUT_MEDIA_QUERY = "(max-width: 1180px)";
 const DIFF_INLINE_SIDEBAR_WIDTH_STORAGE_KEY = "chat_diff_sidebar_width";
@@ -158,7 +159,10 @@ const DiffPanelInlineSidebar = (props: {
       <Sidebar
         side="right"
         collapsible="offcanvas"
-        className="border-l border-border bg-card text-foreground z-30 shadow-2xl"
+        className={cn(
+          "border-l border-border bg-card text-foreground z-30 shadow-2xl",
+          !maximized && "rounded-l-2xl border-y border-border overflow-hidden",
+        )}
         resizable={
           maximized
             ? false

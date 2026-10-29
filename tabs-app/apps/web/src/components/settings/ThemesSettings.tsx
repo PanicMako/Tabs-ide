@@ -1,8 +1,19 @@
-import "./font-specimens.css";
+import { TypographyReel } from "./TypographyReel";
+import {
+  Dialog,
+  DialogPopup,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogPanel,
+} from "../ui/dialog";
+import { ThemePrinterPreview } from "./ThemePrinterPreview";
+import "./theme-collection.css";
 import { BrandIdentitySettings } from "./BrandIdentitySettings";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CheckIcon,
+  Maximize2Icon,
   CopyIcon,
   DownloadIcon,
   PaletteIcon,
@@ -45,12 +56,9 @@ import { CustomThemeStudioModal } from "../CustomThemeStudioModal";
 import { ThemeImportExportModal } from "../ThemeImportExportModal";
 import {
   DEFAULT_FONT_PREFERENCES,
-  getActiveFontCombo,
   selectFontCombo,
   EDITOR_FONT_OPTIONS,
   UI_FONT_OPTIONS,
-  CURATED_FONT_COMBOS,
-  FONT_COMBOS,
   THEME_DEFINITIONS,
   calculateContrastRatio,
   hexToHsv,
@@ -395,7 +403,19 @@ function StudioColorPickerPopover({
   );
 }
 
-function ThemePickerGrid({
+const THEME_COLLECTION_ORDER = [
+  "abyss",
+  "dracula",
+  "deep-blue",
+  "solarized-light",
+  "tabs-dark",
+  "tabs-light",
+  "true-black",
+  "tabs-monotone",
+  "tabs-monotone-light",
+];
+
+export function ThemePickerGrid({
   activeTheme,
   customConfig,
   savedPresets,
@@ -420,6 +440,53 @@ function ThemePickerGrid({
 }) {
   const [editingPresetId, setEditingPresetId] = useState<string | null>(null);
   const [editingNameInput, setEditingNameInput] = useState("");
+  const [appearanceFilter, setAppearanceFilter] = useState("All");
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const selectedDefinition = THEME_DEFINITIONS[activeTheme as keyof typeof THEME_DEFINITIONS];
+  const publishedTheme = activeTheme.startsWith("environment:")
+    ? environmentThemes?.find((theme) => `environment:${theme.id}` === activeTheme)
+    : undefined;
+  const fallbackDefinition =
+    THEME_DEFINITIONS[
+      publishedTheme?.appearance === "light" ||
+      (!publishedTheme && !window.matchMedia("(prefers-color-scheme: dark)").matches)
+        ? "tabs-monotone-light"
+        : "tabs-monotone"
+    ];
+  const selectedConfig: CustomThemeConfig =
+    activeTheme === "custom"
+      ? customConfig
+      : {
+          baseVariant:
+            selectedDefinition?.baseVariant ??
+            publishedTheme?.appearance ??
+            fallbackDefinition.baseVariant,
+          colors: selectedDefinition?.colors ?? {
+            background:
+              publishedTheme?.colors?.background ??
+              publishedTheme?.canvas ??
+              fallbackDefinition.colors.background,
+            card:
+              publishedTheme?.colors?.card ??
+              publishedTheme?.colors?.cardBackground ??
+              fallbackDefinition.colors.card,
+            foreground: publishedTheme?.colors?.foreground ?? fallbackDefinition.colors.foreground,
+            border: publishedTheme?.colors?.border ?? fallbackDefinition.colors.border,
+            primary:
+              publishedTheme?.colors?.primary ??
+              publishedTheme?.accent ??
+              fallbackDefinition.colors.primary,
+          },
+          fonts: customConfig.fonts,
+        };
+  const selectedName =
+    selectedDefinition?.name ??
+    publishedTheme?.name ??
+    (activeTheme === "system"
+      ? "System Auto"
+      : (savedPresets.find(
+          (preset) => JSON.stringify(preset.config.colors) === JSON.stringify(customConfig.colors),
+        )?.name ?? "Custom palette"));
 
   const curatedThemes = [
     {
@@ -428,15 +495,16 @@ function ThemePickerGrid({
       description: "Match OS color scheme",
       baseVariant: "auto",
       badge: "AUTO",
-      bg: "linear-gradient(135deg, #141414 50%, #f6f5f2 50%)",
-      card: "#181818",
-      accent: "#366ffb",
-      border: "rgba(255,255,255,0.15)",
-      codeKeyword: "#38bdf8",
-      codeString: "#a7f3d0",
+      bg: fallbackDefinition.colors.background,
+      card: fallbackDefinition.colors.card,
+      accent: fallbackDefinition.colors.primary,
+      border: fallbackDefinition.colors.border,
+      codeKeyword: fallbackDefinition.colors.primary,
+      codeString: fallbackDefinition.colors.foreground,
     },
     ...Object.values(THEME_DEFINITIONS)
       .filter((t) => t.id !== "custom")
+      .sort((a, b) => THEME_COLLECTION_ORDER.indexOf(a.id) - THEME_COLLECTION_ORDER.indexOf(b.id))
       .map((t) => ({
         id: t.id,
         name: t.name,
@@ -445,7 +513,7 @@ function ThemePickerGrid({
         badge: t.id === "true-black" ? "OLED" : t.baseVariant.toUpperCase(),
         bg: t.colors.background,
         card: t.colors.card,
-        accent: t.colors.codeOss.accent || t.colors.primary,
+        accent: t.colors.primary,
         border: t.colors.border,
         codeKeyword: t.colors.primary,
         codeString: t.colors.accentForeground || t.colors.foreground,
@@ -473,326 +541,246 @@ function ThemePickerGrid({
   ];
 
   return (
-    <div className="p-5 sm:p-6 w-full">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4.5 w-full">
-        {curatedThemes.map((t) => {
-          const isSelected = activeTheme === t.id;
-          return (
-            <button
-              data-shape="preview"
-              key={t.id}
-              type="button"
-              data-theme-id={t.id}
-              aria-label={`Theme: ${t.name}`}
-              onClick={() => onSelectTheme(t.id)}
-              className={cn(
-                "group relative flex flex-col justify-between overflow-hidden rounded-2xl border p-3.5 text-left transition-all duration-300 cursor-pointer select-none",
-                isSelected
-                  ? "border-foreground/50 bg-card/90 shadow-md"
-                  : "border-border/60 bg-card/40 backdrop-blur-md hover:border-border hover:bg-card/70 hover:shadow-lg hover:-translate-y-0.5",
-              )}
-            >
-              <div
-                data-shape="thumbnail"
-                className="relative h-24 w-full overflow-hidden rounded-xl border border-black/10 dark:border-white/10 shadow-xs transition-transform duration-300 group-hover:scale-[1.02]"
-                style={{
-                  background: t.id === "system" ? t.card : t.bg,
-                  backgroundClip: "padding-box",
-                }}
-              >
-                <div
-                  className="flex items-center justify-between px-2.5 py-1.5 border-b border-black/10 dark:border-white/10"
-                  style={{ backgroundColor: t.card }}
-                >
-                  <div className="flex items-center gap-1.5">
-                    <div className="size-2 rounded-full" style={{ backgroundColor: t.accent }} />
-                    <div
-                      className="size-1.5 rounded-full opacity-40"
-                      style={{ backgroundColor: t.accent }}
-                    />
-                    <div
-                      className="size-1.5 rounded-full opacity-20"
-                      style={{ backgroundColor: t.accent }}
-                    />
-                  </div>
-                  <div className="h-1.5 w-10 rounded-full opacity-50 bg-foreground" />
-                </div>
-
-                <div
-                  className="flex h-full"
-                  style={t.id === "system" ? { background: t.bg } : undefined}
-                >
-                  <div
-                    className="w-7 border-r border-black/10 dark:border-white/10 p-1 flex flex-col gap-1"
-                    style={{ backgroundColor: t.card }}
-                  >
-                    <div className="h-1 w-full rounded-full opacity-40 bg-foreground" />
-                    <div className="h-1 w-3/4 rounded-full opacity-20 bg-foreground" />
-                    <div className="h-1 w-1/2 rounded-full opacity-20 bg-foreground" />
-                  </div>
-
-                  <div className="flex-1 p-2 flex flex-col gap-1.5">
-                    <div className="flex items-center gap-1">
-                      <div
-                        className="h-1 w-6 rounded-full opacity-80"
-                        style={{ backgroundColor: t.codeKeyword }}
-                      />
-                      <div className="h-1 w-10 rounded-full opacity-50 bg-foreground" />
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <div className="h-1 w-4 rounded-full opacity-30 bg-foreground" />
-                      <div
-                        className="h-1 w-12 rounded-full opacity-70"
-                        style={{ backgroundColor: t.codeString }}
-                      />
-                    </div>
-                    <div
-                      className="h-1 w-8 rounded-full opacity-90"
-                      style={{ backgroundColor: t.accent }}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-3.5 flex items-end justify-between gap-2">
-                <div className="min-w-0 flex-1">
-                  <span className="text-xs font-bold tracking-tight text-foreground block truncate">
-                    {t.name}
-                  </span>
-                  <p className="text-[11px] text-muted-foreground line-clamp-1 mt-0.5 font-normal">
-                    {t.description}
-                  </p>
-                </div>
-                <span
-                  className={cn(
-                    "shrink-0 rounded-full px-2 py-0.5 text-[9px] font-mono font-semibold uppercase tracking-wider",
-                    isSelected
-                      ? "bg-foreground/10 text-foreground border border-foreground/20"
-                      : "bg-muted text-muted-foreground border border-border/40",
-                  )}
-                >
-                  {t.badge}
-                </span>
-              </div>
-            </button>
-          );
-        })}
-
-        {/* User Saved Presets */}
-        {savedPresets.map((preset) => {
-          const isSelected =
-            activeTheme === "custom" &&
-            JSON.stringify(customConfig.colors) === JSON.stringify(preset.config.colors);
-          const isEditing = editingPresetId === preset.id;
-
-          return (
-            <div
-              data-shape="preview"
-              key={preset.id}
-              className={cn(
-                "group relative flex flex-col justify-between overflow-hidden rounded-2xl border p-3.5 text-left transition-all duration-300 select-none",
-                isSelected
-                  ? "border-foreground/50 bg-card/90 shadow-md"
-                  : "border-border/60 bg-card/40 backdrop-blur-md hover:border-border hover:bg-card/70 hover:shadow-lg hover:-translate-y-0.5",
-              )}
-            >
-              {!isEditing && (
-                <div className="absolute top-2.5 right-2.5 z-20 opacity-0 group-hover:opacity-100 transition-all duration-200 flex items-center gap-0.5 rounded-xl border border-border/80 bg-background/95 p-1 shadow-lg backdrop-blur-md">
-                  <button
-                    type="button"
-                    title="Edit Theme in Studio"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onEditPresetInStudio?.(preset);
-                    }}
-                    className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
-                  >
-                    <SlidersHorizontalIcon className="size-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    title="Rename Preset"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setEditingPresetId(preset.id);
-                      setEditingNameInput(preset.name);
-                    }}
-                    className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
-                  >
-                    <PencilIcon className="size-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    title="Delete Saved Preset"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDeletePreset(preset.id);
-                    }}
-                    className="p-1.5 rounded-lg text-muted-foreground hover:bg-destructive/15 hover:text-destructive transition-colors cursor-pointer"
-                  >
-                    <Trash2Icon className="size-3.5" />
-                  </button>
-                </div>
-              )}
-
+    <div className="theme-collection">
+      <div className="theme-collection-layout">
+        <div className="theme-collection-filter">
+          <div role="group" aria-label="Filter themes by appearance">
+            {["All", "Dark", "Light"].map((filter) => (
               <button
                 type="button"
-                onClick={() => !isEditing && onSelectTheme("custom", preset.config)}
-                className="w-full text-left flex flex-col justify-between h-full cursor-pointer"
+                key={filter}
+                aria-pressed={appearanceFilter === filter}
+                onClick={() => setAppearanceFilter(filter)}
               >
-                <div
-                  data-shape="thumbnail"
-                  className="relative h-24 w-full overflow-hidden rounded-xl border border-black/10 dark:border-white/10 shadow-xs transition-transform duration-300 group-hover:scale-[1.02]"
-                  style={{
-                    background: preset.config.colors.background,
-                    backgroundClip: "padding-box",
-                  }}
-                >
-                  <div
-                    className="flex items-center justify-between px-2.5 py-1.5 border-b border-black/10 dark:border-white/10"
-                    style={{ backgroundColor: preset.config.colors.card }}
-                  >
-                    <div className="flex items-center gap-1.5">
-                      <div
-                        className="size-2 rounded-full"
-                        style={{
-                          backgroundColor: preset.config.colors.primary,
-                        }}
-                      />
-                    </div>
-                    <div className="h-1.5 w-10 rounded-full opacity-50 bg-foreground" />
-                  </div>
-
-                  <div className="flex h-full p-2 flex-col gap-1.5">
-                    <div
-                      className="h-1.5 w-12 rounded-full"
-                      style={{ backgroundColor: preset.config.colors.primary }}
-                    />
-                    <div
-                      className="h-1.5 w-20 rounded-full opacity-70"
-                      style={{
-                        backgroundColor: preset.config.colors.foreground,
-                      }}
-                    />
-                  </div>
-                </div>
-
-                {isEditing ? (
-                  <div
-                    className="mt-3 flex items-center gap-1.5"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <Input
-                      autoFocus
-                      value={editingNameInput}
-                      onChange={(e) => setEditingNameInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          onRenamePreset(preset.id, editingNameInput);
-                          setEditingPresetId(null);
-                        } else if (e.key === "Escape") {
-                          setEditingPresetId(null);
-                        }
-                      }}
-                      className="h-7 text-xs rounded-lg bg-background border-border/80 text-foreground px-2"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onRenamePreset(preset.id, editingNameInput);
-                        setEditingPresetId(null);
-                      }}
-                      className="p-1 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors cursor-pointer shrink-0"
-                    >
-                      <CheckIcon className="size-3.5" />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="mt-3.5 flex items-end justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <span className="text-xs font-bold tracking-tight text-foreground block truncate">
-                        {preset.name}
-                      </span>
-                      <p className="text-[11px] text-muted-foreground line-clamp-1 mt-0.5 font-normal">
-                        User Saved Preset
-                      </p>
-                    </div>
-                    <span className="shrink-0 rounded-full px-2 py-0.5 text-[9px] font-mono font-semibold uppercase tracking-wider bg-muted text-muted-foreground border border-border/80">
-                      SAVED
-                    </span>
-                  </div>
-                )}
+                {filter}
               </button>
-            </div>
-          );
-        })}
-
-        {/* Studio Launcher Card */}
-        <button
-          data-shape="preview"
-          type="button"
-          onClick={onOpenStudio}
-          className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-dashed border-border/70 bg-card/20 p-3.5 text-left transition-all duration-300 hover:border-foreground/40 hover:bg-card/40 cursor-pointer select-none"
-        >
-          <div
-            data-shape="thumbnail"
-            className="relative flex h-24 w-full flex-col items-center justify-center rounded-xl border border-border/40 bg-muted/20 gap-2 group-hover:bg-muted/40 transition-colors"
-          >
-            <PaletteIcon className="size-5 text-foreground transition-transform group-hover:scale-110" />
-            <span className="text-xs font-medium text-muted-foreground group-hover:text-foreground">
-              Launch Studio Drawer
-            </span>
+            ))}
           </div>
-
-          <div className="mt-3.5 flex items-end justify-between gap-2">
-            <div className="min-w-0 flex-1">
-              <span className="text-xs font-bold tracking-tight text-foreground block truncate">
-                Custom Theme Studio
-              </span>
-              <p className="text-[11px] text-muted-foreground line-clamp-1 mt-0.5 font-normal">
-                Build &amp; randomize custom palettes
-              </p>
-            </div>
-            <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[9px] font-mono font-semibold uppercase tracking-wider text-muted-foreground border border-border/40">
-              STUDIO
-            </span>
-          </div>
-        </button>
-
-        {/* Import Theme Card */}
-        {onOpenImport && (
           <button
             data-shape="preview"
             type="button"
-            onClick={onOpenImport}
-            className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-dashed border-border/70 bg-card/20 p-3.5 text-left transition-all duration-300 hover:border-foreground/40 hover:bg-card/40 cursor-pointer select-none"
+            className="theme-collection-preview-trigger"
+            onClick={() => setPreviewOpen(true)}
           >
-            <div
-              data-shape="thumbnail"
-              className="relative flex h-24 w-full flex-col items-center justify-center rounded-xl border border-border/40 bg-muted/20 gap-2 group-hover:bg-muted/40 transition-colors"
-            >
-              <DownloadIcon className="size-5 text-foreground transition-transform group-hover:scale-110" />
-              <span className="text-xs font-medium text-muted-foreground group-hover:text-foreground">
-                Import Theme JSON
-              </span>
-            </div>
-
-            <div className="mt-3.5 flex items-end justify-between gap-2">
-              <div className="min-w-0 flex-1">
-                <span className="text-xs font-bold tracking-tight text-foreground block truncate">
-                  Import Theme
-                </span>
-                <p className="text-[11px] text-muted-foreground line-clamp-1 mt-0.5 font-normal">
-                  Drop VS Code or Tabs theme JSON
-                </p>
-              </div>
-              <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[9px] font-mono font-semibold uppercase tracking-wider text-muted-foreground border border-border/40">
-                IMPORT
-              </span>
-            </div>
+            <Maximize2Icon aria-hidden="true" />
+            View live preview
           </button>
-        )}
+        </div>
+        <div className="theme-collection-library">
+          <div className="theme-collection-list" role="group" aria-label="Theme collection">
+            {curatedThemes
+              .filter(
+                (t) =>
+                  appearanceFilter === "All" ||
+                  t.baseVariant === "auto" ||
+                  t.baseVariant === appearanceFilter.toLowerCase(),
+              )
+              .map((t) => {
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    data-theme-id={t.id}
+                    data-theme-choice
+                    aria-label={`Theme: ${t.name}`}
+                    aria-pressed={activeTheme === t.id}
+                    onClick={() => onSelectTheme(t.id)}
+                    className="theme-collection-choice"
+                  >
+                    <span
+                      className="theme-collection-choice-rail"
+                      style={{ background: `linear-gradient(${t.accent}, ${t.bg})` }}
+                      aria-hidden="true"
+                    />
+                    <span className="theme-collection-choice-copy">
+                      <span className="theme-collection-choice-name">{t.name}</span>
+                      <small>
+                        {t.baseVariant === "auto"
+                          ? "Auto"
+                          : t.baseVariant === "dark"
+                            ? "Dark"
+                            : "Light"}
+                      </small>
+                    </span>
+                  </button>
+                );
+              })}
+          </div>
+          <div className="theme-collection-actions">
+            <button type="button" onClick={onOpenStudio}>
+              <PaletteIcon />
+              Create a palette<span>↗</span>
+            </button>
+            {onOpenImport && (
+              <button type="button" onClick={onOpenImport}>
+                <DownloadIcon />
+                Import a theme<span>↗</span>
+              </button>
+            )}
+          </div>
+        </div>
+        <ThemePrinterPreview
+          config={selectedConfig}
+          name={selectedName}
+          previewOpen={previewOpen}
+          onPreviewOpenChange={setPreviewOpen}
+        />
       </div>
+      {savedPresets.length > 0 && (
+        <div className="theme-collection-saved">
+          <h4>Your palettes</h4>
+          <div className="theme-collection-custom-grid">
+            {/* User Saved Presets */}
+            {savedPresets.map((preset) => {
+              const isSelected =
+                activeTheme === "custom" &&
+                JSON.stringify(customConfig.colors) === JSON.stringify(preset.config.colors);
+              const isEditing = editingPresetId === preset.id;
+
+              return (
+                <div
+                  data-shape="preview"
+                  key={preset.id}
+                  className={cn(
+                    "group relative flex flex-col justify-between overflow-hidden rounded-2xl border p-3.5 text-left transition-all duration-300 select-none",
+                    isSelected
+                      ? "border-foreground/50 bg-card/90 shadow-md"
+                      : "border-border/60 bg-card/40 backdrop-blur-md hover:border-border hover:bg-card/70 hover:shadow-lg hover:-translate-y-0.5",
+                  )}
+                >
+                  {!isEditing && (
+                    <div className="absolute top-2.5 right-2.5 z-20 opacity-0 group-hover:opacity-100 transition-all duration-200 flex items-center gap-0.5 rounded-xl border border-border/80 bg-background/95 p-1 shadow-lg backdrop-blur-md">
+                      <button
+                        type="button"
+                        title="Edit Theme in Studio"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onEditPresetInStudio?.(preset);
+                        }}
+                        className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+                      >
+                        <SlidersHorizontalIcon className="size-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        title="Rename Preset"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingPresetId(preset.id);
+                          setEditingNameInput(preset.name);
+                        }}
+                        className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+                      >
+                        <PencilIcon className="size-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        title="Delete Saved Preset"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDeletePreset(preset.id);
+                        }}
+                        className="p-1.5 rounded-lg text-muted-foreground hover:bg-destructive/15 hover:text-destructive transition-colors cursor-pointer"
+                      >
+                        <Trash2Icon className="size-3.5" />
+                      </button>
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => !isEditing && onSelectTheme("custom", preset.config)}
+                    className="w-full text-left flex flex-col justify-between h-full cursor-pointer"
+                  >
+                    <div
+                      data-shape="thumbnail"
+                      className="relative h-24 w-full overflow-hidden rounded-xl border border-black/10 dark:border-white/10 shadow-xs transition-transform duration-300 group-hover:scale-[1.02]"
+                      style={{
+                        background: preset.config.colors.background,
+                        backgroundClip: "padding-box",
+                      }}
+                    >
+                      <div
+                        className="flex items-center justify-between px-2.5 py-1.5 border-b border-black/10 dark:border-white/10"
+                        style={{ backgroundColor: preset.config.colors.card }}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <div
+                            className="size-2 rounded-full"
+                            style={{
+                              backgroundColor: preset.config.colors.primary,
+                            }}
+                          />
+                        </div>
+                        <div className="h-1.5 w-10 rounded-full opacity-50 bg-foreground" />
+                      </div>
+
+                      <div className="flex h-full p-2 flex-col gap-1.5">
+                        <div
+                          className="h-1.5 w-12 rounded-full"
+                          style={{ backgroundColor: preset.config.colors.primary }}
+                        />
+                        <div
+                          className="h-1.5 w-20 rounded-full opacity-70"
+                          style={{
+                            backgroundColor: preset.config.colors.foreground,
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {isEditing ? (
+                      <div
+                        className="mt-3 flex items-center gap-1.5"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Input
+                          autoFocus
+                          value={editingNameInput}
+                          onChange={(e) => setEditingNameInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              onRenamePreset(preset.id, editingNameInput);
+                              setEditingPresetId(null);
+                            } else if (e.key === "Escape") {
+                              setEditingPresetId(null);
+                            }
+                          }}
+                          className="h-7 text-xs rounded-lg bg-background border-border/80 text-foreground px-2"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onRenamePreset(preset.id, editingNameInput);
+                            setEditingPresetId(null);
+                          }}
+                          className="p-1 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors cursor-pointer shrink-0"
+                        >
+                          <CheckIcon className="size-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="mt-3.5 flex items-end justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <span className="text-xs font-bold tracking-tight text-foreground block truncate">
+                            {preset.name}
+                          </span>
+                          <p className="text-[11px] text-muted-foreground line-clamp-1 mt-0.5 font-normal">
+                            User Saved Preset
+                          </p>
+                        </div>
+                        <span className="shrink-0 rounded-full px-2 py-0.5 text-[9px] font-mono font-semibold uppercase tracking-wider bg-muted text-muted-foreground border border-border/80">
+                          SAVED
+                        </span>
+                      </div>
+                    )}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -817,6 +805,7 @@ export function ThemesSettings() {
   const [isImportExportOpen, setIsImportExportOpen] = useState(false);
   const [importExportTab, setImportExportTab] = useState<"import" | "export">("import");
   const [isCustomFontMode, setIsCustomFontMode] = useState(false);
+  const [typographyTuneOpen, setTypographyTuneOpen] = useState(false);
   const [editingStudioPresetName, setEditingStudioPresetName] = useState("");
   const [savedPresets, setSavedPresets] = useState<SavedCustomPreset[]>(() =>
     getStoredSavedPresets(),
@@ -916,7 +905,6 @@ export function ThemesSettings() {
     });
   }, []);
 
-  const isCustomSelection = getActiveFontCombo(fontPreferences).id === "custom";
   const showCustomMixer = isCustomFontMode;
 
   return (
@@ -981,7 +969,7 @@ export function ThemesSettings() {
 
       <BrandIdentitySettings />
 
-      <SettingsSection title="App Themes & Styling">
+      <SettingsSection title="Theme collection" className="theme-collection-section">
         <ThemePickerGrid
           activeTheme={theme}
           customConfig={customThemeConfig}
@@ -1016,6 +1004,7 @@ export function ThemesSettings() {
 
       <SettingsSection
         title="Typography & Fonts"
+        className="typography-reel-section"
         headerAction={
           <Button
             size="xs"
@@ -1043,476 +1032,342 @@ export function ThemesSettings() {
           </Button>
         }
       >
-        <div className="px-4 pt-4 pb-2 flex items-center gap-2 flex-wrap">
-          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 mr-1">
-            Defaults
-          </span>
-          {FONT_COMBOS.filter((c) => c.isNeutral).map((combo) => {
-            const isCustomCombo = combo.id === "custom";
-            const isActive = isCustomCombo
-              ? showCustomMixer || isCustomSelection
-              : !showCustomMixer &&
-                fontPreferences.uiFont === combo.uiFont &&
-                fontPreferences.headingFont === combo.headingFont;
-
-            return (
-              <button
-                key={combo.id}
-                type="button"
-                onClick={() => {
-                  if (isCustomCombo) {
-                    setIsCustomFontMode(true);
-                  } else {
-                    setIsCustomFontMode(false);
-                    setFontPreferences((prev) => selectFontCombo(prev, combo));
-                    updateSettings({ fontFamilySans: combo.uiFont });
-                  }
-                }}
-                className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[11px] font-semibold transition-all duration-200 cursor-pointer",
-                  isActive
-                    ? "border-primary bg-primary/10 text-foreground shadow-[0_0_10px_hsl(var(--primary)/0.2)]"
-                    : "border-border/70 bg-card text-muted-foreground hover:border-border hover:text-foreground",
-                )}
-                style={{
-                  fontFamily: combo.uiFont !== "custom" ? combo.uiFont : undefined,
-                }}
-              >
-                {isActive && (
-                  <svg
-                    className="size-2.5 shrink-0"
-                    viewBox="0 0 12 12"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth={2.5}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M2 6l3 3 5-5" />
-                  </svg>
-                )}
-                {combo.name}
-                <span
-                  className={cn(
-                    "text-[8px] font-bold tracking-widest px-1 py-0.5 rounded border",
-                    isActive
-                      ? "border-primary/30 text-foreground/70 bg-primary/5"
-                      : "border-border/50 text-muted-foreground/50",
-                  )}
-                >
-                  {combo.tag}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="mx-4 border-t border-border/40 mb-0" />
-
-        <div className="font-specimen-grid">
-          {CURATED_FONT_COMBOS.filter((c) => !c.isNeutral).map((combo) => {
-            const isActive =
-              !showCustomMixer && getActiveFontCombo(fontPreferences).id === combo.id;
-
-            return (
-              <button
-                data-shape="preview"
-                key={combo.id}
-                type="button"
-                onClick={() => {
-                  setIsCustomFontMode(false);
-                  const updated = selectFontCombo(fontPreferences, combo);
-                  setFontPreferences(updated);
-                  if (!combo.headingOnly) {
-                    updateSettings({
-                      fontFamilySans: combo.uiFont,
-                      fontFamilyCode:
-                        combo.fonts?.editorFont ?? DEFAULT_UNIFIED_SETTINGS.fontFamilyCode,
-                    });
-                  }
-                }}
-                aria-pressed={isActive}
-                aria-label={`Select ${combo.name}: ${combo.desc}`}
-                className={cn(
-                  "font-specimen-card group relative flex flex-col items-start rounded-xl border p-3.5 text-left transition-all duration-200 cursor-pointer overflow-hidden",
-                  isActive
-                    ? "border-primary bg-primary/5 shadow-[0_0_0_1px_hsl(var(--primary)/0.3),0_4px_20px_hsl(var(--primary)/0.15)]"
-                    : "border-border/70 bg-card hover:border-border hover:shadow-md hover:scale-[1.02]",
-                )}
-              >
-                {isActive && (
-                  <div className="absolute top-2.5 right-2.5 size-4 rounded-full bg-primary flex items-center justify-center shadow-[0_0_8px_hsl(var(--primary)/0.6)]">
-                    <svg
-                      className="size-2.5 text-primary-foreground"
-                      viewBox="0 0 12 12"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth={2.5}
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M2 6l3 3 5-5" />
-                    </svg>
-                  </div>
-                )}
-
-                <div data-slot="font-specimen" className="mb-3 w-full">
-                  {combo.typography ? (
-                    <div className="flex flex-col justify-center min-h-[66px] gap-1 overflow-hidden">
-                      <span
-                        className="truncate text-[22px] sm:text-[23px] leading-[1.25]"
-                        style={{
-                          fontFamily: combo.headingFont,
-                          fontWeight: combo.typography.headingWeight,
-                          letterSpacing: combo.typography.headingTracking,
-                        }}
-                      >
-                        {combo.sansText}
-                      </span>
-                      <span
-                        className="truncate text-[20px] sm:text-[21px] leading-[1.25]"
-                        style={{
-                          fontFamily: combo.typography.specimenFont,
-                          fontWeight: combo.typography.specimenWeight,
-                          fontStyle: combo.typography.specimenStyle,
-                        }}
-                      >
-                        {combo.serifText}
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="flex items-baseline flex-wrap gap-1 min-h-[66px] overflow-hidden py-1">
-                      <span
-                        className={cn("text-[22px] leading-tight", combo.sansClass)}
-                        style={{ fontFamily: combo.uiFont }}
-                      >
-                        {combo.sansText}
-                      </span>
-                      <span
-                        className={cn("text-[22px] leading-tight", combo.serifClass)}
-                        style={{ fontFamily: combo.headingFont }}
-                      >
-                        {combo.serifText}
-                      </span>
-                      {combo.sansText2 && (
-                        <span
-                          className={cn("text-[22px] leading-tight", combo.sansClass)}
-                          style={{ fontFamily: combo.uiFont }}
-                        >
-                          {combo.sansText2}
-                        </span>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                <div className="mt-auto w-full pt-1.5 border-t border-border/30">
-                  <div className="flex items-center justify-between gap-1 mb-1">
-                    <span
-                      className="text-[11.5px] font-semibold leading-tight truncate text-foreground"
-                      style={{ fontFamily: combo.uiFont }}
-                    >
-                      {combo.name}
-                    </span>
-                    <span
-                      className={cn(
-                        "text-[7.5px] font-bold tracking-widest px-1.5 py-0.5 rounded border shrink-0",
-                        isActive
-                          ? "border-primary/40 text-foreground bg-primary/10"
-                          : "border-border/50 text-muted-foreground/50",
-                      )}
-                    >
-                      {combo.tag}
-                    </span>
-                  </div>
-                  <div className="text-[9.5px] text-muted-foreground/75 leading-tight truncate">
-                    {combo.desc}
-                  </div>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-
-        <SavedTypography
-          showMixer={showCustomMixer}
-          onCloseMixer={() => setIsCustomFontMode(false)}
-          fonts={fontPreferences}
-          onChange={(fonts) => {
-            setFontPreferences(fonts);
-            if (fonts.uiFont !== fontPreferences.uiFont)
-              updateSettings({ fontFamilySans: fonts.uiFont });
-            if (fonts.editorFont !== fontPreferences.editorFont)
-              updateSettings({ fontFamilyCode: fonts.editorFont });
+        <TypographyReel
+          fonts={{
+            ...fontPreferences,
+            fontSizeInterface:
+              fontPreferences.fontSizeInterface ??
+              settings.fontSizeInterface ??
+              DEFAULT_INTERFACE_FONT_SIZE,
+            fontSizeCode:
+              fontPreferences.fontSizeCode ?? settings.fontSizeCode ?? DEFAULT_CODE_FONT_SIZE,
+            fontSizePrompt:
+              fontPreferences.fontSizePrompt ?? settings.fontSizePrompt ?? DEFAULT_PROMPT_FONT_SIZE,
           }}
-        />
-
-        {!showCustomMixer && (
-          <div className="border-t border-border/60 px-4 py-4 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <h4 className="text-sm font-medium text-foreground">Interface Font</h4>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Font for UI tabs, sidebar, dialogs, cards, and controls.
-                </p>
-              </div>
-              <div className="shrink-0 w-full sm:w-52">
-                <Select
-                  value={fontPreferences.uiFont}
-                  onValueChange={(val) => {
-                    if (!val) return;
-                    setFontPreferences((prev) => ({ ...prev, uiFont: val }));
-                    updateSettings({ fontFamilySans: val });
-                  }}
-                >
-                  <SelectTrigger className="w-full text-xs rounded-xl bg-background border-border/80">
-                    <SelectValue placeholder="Select Interface Font" />
-                  </SelectTrigger>
-                  <SelectPopup align="end">
-                    {UI_FONT_OPTIONS.map((f) => (
-                      <SelectItem key={f.value} value={f.value} className="text-xs">
-                        <span style={{ fontFamily: f.value }}>{f.label}</span>
-                      </SelectItem>
-                    ))}
-                  </SelectPopup>
-                </Select>
-              </div>
-            </div>
-
-            <div className="border-t border-border/40 pt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <h4 className="text-sm font-medium text-foreground">Editor Font</h4>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Monospace font for code, terminals, and diff views.
-                </p>
-              </div>
-              <div className="shrink-0 w-full sm:w-52">
-                <Select
-                  value={fontPreferences.editorFont}
-                  onValueChange={(val) => {
-                    if (!val) return;
-                    setFontPreferences((prev) => ({ ...prev, editorFont: val }));
-                    updateSettings({ fontFamilyCode: val });
-                  }}
-                >
-                  <SelectTrigger className="w-full text-xs rounded-xl bg-background border-border/80">
-                    <SelectValue placeholder="Select Editor Font" />
-                  </SelectTrigger>
-                  <SelectPopup align="end">
-                    {EDITOR_FONT_OPTIONS.map((f) => (
-                      <SelectItem key={f.value} value={f.value} className="text-xs">
-                        {f.label}
-                      </SelectItem>
-                    ))}
-                  </SelectPopup>
-                </Select>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div className="border-t border-border/60 px-4 py-4 space-y-4">
-          <div className="flex items-center justify-between">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/80">
-              Font Sizes &amp; Proportions
-            </h4>
-            <Button
-              size="xs"
-              variant="ghost"
-              onClick={() => {
-                setFontPreferences((prev) => ({
-                  ...prev,
-                  fontSizeInterface: DEFAULT_INTERFACE_FONT_SIZE,
-                  fontSizeCode: DEFAULT_CODE_FONT_SIZE,
-                  fontSizePrompt: DEFAULT_PROMPT_FONT_SIZE,
-                }));
-                updateSettings({
-                  fontSizeInterface: DEFAULT_INTERFACE_FONT_SIZE,
-                  fontSizeCode: DEFAULT_CODE_FONT_SIZE,
-                  fontSizePrompt: DEFAULT_PROMPT_FONT_SIZE,
-                });
+          composerFont={settings.fontFamilyComposer}
+          onTune={() => setTypographyTuneOpen(true)}
+          onCustom={() => setIsCustomFontMode(true)}
+          onSelect={(combo) => {
+            setIsCustomFontMode(false);
+            const next = selectFontCombo(fontPreferences, combo);
+            setFontPreferences(next);
+            if (!combo.headingOnly)
+              updateSettings({ fontFamilySans: next.uiFont, fontFamilyCode: next.editorFont });
+          }}
+          savedMixes={
+            <SavedTypography
+              showMixer={showCustomMixer}
+              onCloseMixer={() => setIsCustomFontMode(false)}
+              fonts={fontPreferences}
+              onChange={(fonts) => {
+                setFontPreferences(fonts);
+                if (fonts.uiFont !== fontPreferences.uiFont)
+                  updateSettings({ fontFamilySans: fonts.uiFont });
+                if (fonts.editorFont !== fontPreferences.editorFont)
+                  updateSettings({ fontFamilyCode: fonts.editorFont });
               }}
-              className="text-[11px] h-6 px-2 text-muted-foreground hover:text-foreground cursor-pointer"
-            >
-              <RotateCcwIcon className="size-3 mr-1" />
-              Reset Sizes
-            </Button>
-          </div>
+            />
+          }
+        />
+        <Dialog
+          open={typographyTuneOpen}
+          onOpenChange={(open) => {
+            if (!open) void debouncedSettings.flush();
+            setTypographyTuneOpen(open);
+          }}
+        >
+          <DialogPopup className="typography-tune-dialog">
+            <DialogHeader>
+              <DialogTitle>Tune typography</DialogTitle>
+              <DialogDescription>
+                Adjust interface, editor, composer, and size preferences.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogPanel>
+              {!showCustomMixer && (
+                <div className="border-t border-border/60 px-4 py-4 space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <h4 className="text-sm font-medium text-foreground">Interface Font</h4>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Font for UI tabs, sidebar, dialogs, cards, and controls.
+                      </p>
+                    </div>
+                    <div className="shrink-0 w-full sm:w-52">
+                      <Select
+                        items={UI_FONT_OPTIONS}
+                        value={fontPreferences.uiFont}
+                        onValueChange={(val) => {
+                          if (!val) return;
+                          setFontPreferences((prev) => ({ ...prev, uiFont: val }));
+                          updateSettings({ fontFamilySans: val });
+                        }}
+                      >
+                        <SelectTrigger className="w-full text-xs rounded-xl bg-background border-border/80">
+                          <SelectValue placeholder="Select Interface Font" />
+                        </SelectTrigger>
+                        <SelectPopup align="end">
+                          {UI_FONT_OPTIONS.map((f) => (
+                            <SelectItem key={f.value} value={f.value} className="text-xs">
+                              <span style={{ fontFamily: f.value }}>{f.label}</span>
+                            </SelectItem>
+                          ))}
+                        </SelectPopup>
+                      </Select>
+                    </div>
+                  </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2 rounded-xl border border-border/60 bg-card/40 p-3.5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <label className="text-xs font-semibold text-foreground block">
-                    Interface Size
-                  </label>
-                  <p className="text-[10px] text-muted-foreground">UI, tabs, sidebar, dialogs</p>
+                  <div className="border-t border-border/40 pt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <h4 className="text-sm font-medium text-foreground">Editor Font</h4>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Monospace font for code, terminals, and diff views.
+                      </p>
+                    </div>
+                    <div className="shrink-0 w-full sm:w-52">
+                      <Select
+                        items={EDITOR_FONT_OPTIONS}
+                        value={fontPreferences.editorFont}
+                        onValueChange={(val) => {
+                          if (!val) return;
+                          setFontPreferences((prev) => ({ ...prev, editorFont: val }));
+                          updateSettings({ fontFamilyCode: val });
+                        }}
+                      >
+                        <SelectTrigger className="w-full text-xs rounded-xl bg-background border-border/80">
+                          <SelectValue placeholder="Select Editor Font" />
+                        </SelectTrigger>
+                        <SelectPopup align="end">
+                          {EDITOR_FONT_OPTIONS.map((f) => (
+                            <SelectItem key={f.value} value={f.value} className="text-xs">
+                              {f.label}
+                            </SelectItem>
+                          ))}
+                        </SelectPopup>
+                      </Select>
+                    </div>
+                  </div>
                 </div>
-                <span className="font-mono text-xs font-bold text-foreground bg-muted px-2 py-0.5 rounded-md border border-border/50">
-                  {fontPreferences.fontSizeInterface ??
-                    settings.fontSizeInterface ??
-                    DEFAULT_INTERFACE_FONT_SIZE}{" "}
-                  px
-                </span>
-              </div>
-              <input
-                type="range"
-                min={MIN_INTERFACE_FONT_SIZE}
-                max={MAX_INTERFACE_FONT_SIZE}
-                step={1}
-                value={
-                  fontPreferences.fontSizeInterface ??
-                  settings.fontSizeInterface ??
-                  DEFAULT_INTERFACE_FONT_SIZE
-                }
-                onChange={(e) => {
-                  const val = Number(e.target.value);
-                  setFontPreferences((prev) => ({
-                    ...prev,
-                    fontSizeInterface: val,
-                  }));
-                  debouncedSettings.updateSettings({ fontSizeInterface: val });
-                }}
-                onBlur={() => {
-                  void debouncedSettings.flush();
-                }}
-                aria-label="Interface font size slider"
-                className="w-full accent-primary h-1.5 bg-secondary rounded-lg appearance-none cursor-pointer focus:outline-none"
-              />
-              <div className="flex justify-between text-[10px] font-mono text-muted-foreground/60">
-                <span>{MIN_INTERFACE_FONT_SIZE}px</span>
-                <span>Default ({DEFAULT_INTERFACE_FONT_SIZE}px)</span>
-                <span>{MAX_INTERFACE_FONT_SIZE}px</span>
-              </div>
-            </div>
+              )}
 
-            <div className="space-y-2 rounded-xl border border-border/60 bg-card/40 p-3.5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <label className="text-xs font-semibold text-foreground block">
-                    Code &amp; Diffs Size
-                  </label>
-                  <p className="text-[10px] text-muted-foreground">Editor, code blocks, diffs</p>
+              <div className="border-t border-border/60 px-4 py-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/80">
+                    Font Sizes &amp; Proportions
+                  </h4>
+                  <Button
+                    size="xs"
+                    variant="ghost"
+                    onClick={() => {
+                      setFontPreferences((prev) => ({
+                        ...prev,
+                        fontSizeInterface: DEFAULT_INTERFACE_FONT_SIZE,
+                        fontSizeCode: DEFAULT_CODE_FONT_SIZE,
+                        fontSizePrompt: DEFAULT_PROMPT_FONT_SIZE,
+                      }));
+                      updateSettings({
+                        fontSizeInterface: DEFAULT_INTERFACE_FONT_SIZE,
+                        fontSizeCode: DEFAULT_CODE_FONT_SIZE,
+                        fontSizePrompt: DEFAULT_PROMPT_FONT_SIZE,
+                      });
+                    }}
+                    className="text-[11px] h-6 px-2 text-muted-foreground hover:text-foreground cursor-pointer"
+                  >
+                    <RotateCcwIcon className="size-3 mr-1" />
+                    Reset Sizes
+                  </Button>
                 </div>
-                <span className="font-mono text-xs font-bold text-foreground bg-muted px-2 py-0.5 rounded-md border border-border/50">
-                  {fontPreferences.fontSizeCode ?? settings.fontSizeCode ?? DEFAULT_CODE_FONT_SIZE}{" "}
-                  px
-                </span>
-              </div>
-              <input
-                type="range"
-                min={MIN_CODE_FONT_SIZE}
-                max={MAX_CODE_FONT_SIZE}
-                step={1}
-                value={
-                  fontPreferences.fontSizeCode ?? settings.fontSizeCode ?? DEFAULT_CODE_FONT_SIZE
-                }
-                onChange={(e) => {
-                  const val = Number(e.target.value);
-                  setFontPreferences((prev) => ({
-                    ...prev,
-                    fontSizeCode: val,
-                  }));
-                  debouncedSettings.updateSettings({ fontSizeCode: val });
-                }}
-                onBlur={() => {
-                  void debouncedSettings.flush();
-                }}
-                aria-label="Code font size slider"
-                className="w-full accent-primary h-1.5 bg-secondary rounded-lg appearance-none cursor-pointer focus:outline-none"
-              />
-              <div className="flex justify-between text-[10px] font-mono text-muted-foreground/60">
-                <span>{MIN_CODE_FONT_SIZE}px</span>
-                <span>Default ({DEFAULT_CODE_FONT_SIZE}px)</span>
-                <span>{MAX_CODE_FONT_SIZE}px</span>
-              </div>
-            </div>
 
-            <div className="space-y-2 rounded-xl border border-border/60 bg-card/40 p-3.5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <label className="text-xs font-semibold text-foreground block">
-                    Prompt Composer Size
-                  </label>
-                  <p className="text-[10px] text-muted-foreground">Message input area</p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-2 rounded-xl border border-border/60 bg-card/40 p-3.5">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <label className="text-xs font-semibold text-foreground block">
+                          Interface Size
+                        </label>
+                        <p className="text-[10px] text-muted-foreground">
+                          UI, tabs, sidebar, dialogs
+                        </p>
+                      </div>
+                      <span className="font-mono text-xs font-bold text-foreground bg-muted px-2 py-0.5 rounded-md border border-border/50">
+                        {fontPreferences.fontSizeInterface ??
+                          settings.fontSizeInterface ??
+                          DEFAULT_INTERFACE_FONT_SIZE}{" "}
+                        px
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min={MIN_INTERFACE_FONT_SIZE}
+                      max={MAX_INTERFACE_FONT_SIZE}
+                      step={1}
+                      value={
+                        fontPreferences.fontSizeInterface ??
+                        settings.fontSizeInterface ??
+                        DEFAULT_INTERFACE_FONT_SIZE
+                      }
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        setFontPreferences((prev) => ({
+                          ...prev,
+                          fontSizeInterface: val,
+                        }));
+                        debouncedSettings.updateSettings({ fontSizeInterface: val });
+                      }}
+                      onBlur={() => {
+                        void debouncedSettings.flush();
+                      }}
+                      aria-label="Interface font size slider"
+                      className="w-full accent-primary h-1.5 bg-secondary rounded-lg appearance-none cursor-pointer focus:outline-none"
+                    />
+                    <div className="flex justify-between text-[10px] font-mono text-muted-foreground/60">
+                      <span>{MIN_INTERFACE_FONT_SIZE}px</span>
+                      <span>Default ({DEFAULT_INTERFACE_FONT_SIZE}px)</span>
+                      <span>{MAX_INTERFACE_FONT_SIZE}px</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 rounded-xl border border-border/60 bg-card/40 p-3.5">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <label className="text-xs font-semibold text-foreground block">
+                          Code &amp; Diffs Size
+                        </label>
+                        <p className="text-[10px] text-muted-foreground">
+                          Editor, code blocks, diffs
+                        </p>
+                      </div>
+                      <span className="font-mono text-xs font-bold text-foreground bg-muted px-2 py-0.5 rounded-md border border-border/50">
+                        {fontPreferences.fontSizeCode ??
+                          settings.fontSizeCode ??
+                          DEFAULT_CODE_FONT_SIZE}{" "}
+                        px
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min={MIN_CODE_FONT_SIZE}
+                      max={MAX_CODE_FONT_SIZE}
+                      step={1}
+                      value={
+                        fontPreferences.fontSizeCode ??
+                        settings.fontSizeCode ??
+                        DEFAULT_CODE_FONT_SIZE
+                      }
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        setFontPreferences((prev) => ({
+                          ...prev,
+                          fontSizeCode: val,
+                        }));
+                        debouncedSettings.updateSettings({ fontSizeCode: val });
+                      }}
+                      onBlur={() => {
+                        void debouncedSettings.flush();
+                      }}
+                      aria-label="Code font size slider"
+                      className="w-full accent-primary h-1.5 bg-secondary rounded-lg appearance-none cursor-pointer focus:outline-none"
+                    />
+                    <div className="flex justify-between text-[10px] font-mono text-muted-foreground/60">
+                      <span>{MIN_CODE_FONT_SIZE}px</span>
+                      <span>Default ({DEFAULT_CODE_FONT_SIZE}px)</span>
+                      <span>{MAX_CODE_FONT_SIZE}px</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 rounded-xl border border-border/60 bg-card/40 p-3.5">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <label className="text-xs font-semibold text-foreground block">
+                          Prompt Composer Size
+                        </label>
+                        <p className="text-[10px] text-muted-foreground">Message input area</p>
+                      </div>
+                      <span className="font-mono text-xs font-bold text-foreground bg-muted px-2 py-0.5 rounded-md border border-border/50">
+                        {fontPreferences.fontSizePrompt ??
+                          settings.fontSizePrompt ??
+                          DEFAULT_PROMPT_FONT_SIZE}{" "}
+                        px
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min={MIN_PROMPT_FONT_SIZE}
+                      max={MAX_PROMPT_FONT_SIZE}
+                      step={1}
+                      value={
+                        fontPreferences.fontSizePrompt ??
+                        settings.fontSizePrompt ??
+                        DEFAULT_PROMPT_FONT_SIZE
+                      }
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        setFontPreferences((prev) => ({
+                          ...prev,
+                          fontSizePrompt: val,
+                        }));
+                        debouncedSettings.updateSettings({ fontSizePrompt: val });
+                      }}
+                      onBlur={() => {
+                        void debouncedSettings.flush();
+                      }}
+                      aria-label="Prompt font size slider"
+                      className="w-full accent-primary h-1.5 bg-secondary rounded-lg appearance-none cursor-pointer focus:outline-none"
+                    />
+                    <div className="flex justify-between text-[10px] font-mono text-muted-foreground/60">
+                      <span>{MIN_PROMPT_FONT_SIZE}px</span>
+                      <span>Default ({DEFAULT_PROMPT_FONT_SIZE}px)</span>
+                      <span>{MAX_PROMPT_FONT_SIZE}px</span>
+                    </div>
+                  </div>
                 </div>
-                <span className="font-mono text-xs font-bold text-foreground bg-muted px-2 py-0.5 rounded-md border border-border/50">
-                  {fontPreferences.fontSizePrompt ??
-                    settings.fontSizePrompt ??
-                    DEFAULT_PROMPT_FONT_SIZE}{" "}
-                  px
-                </span>
               </div>
-              <input
-                type="range"
-                min={MIN_PROMPT_FONT_SIZE}
-                max={MAX_PROMPT_FONT_SIZE}
-                step={1}
-                value={
-                  fontPreferences.fontSizePrompt ??
-                  settings.fontSizePrompt ??
-                  DEFAULT_PROMPT_FONT_SIZE
-                }
-                onChange={(e) => {
-                  const val = Number(e.target.value);
-                  setFontPreferences((prev) => ({
-                    ...prev,
-                    fontSizePrompt: val,
-                  }));
-                  debouncedSettings.updateSettings({ fontSizePrompt: val });
-                }}
-                onBlur={() => {
-                  void debouncedSettings.flush();
-                }}
-                aria-label="Prompt font size slider"
-                className="w-full accent-primary h-1.5 bg-secondary rounded-lg appearance-none cursor-pointer focus:outline-none"
-              />
-              <div className="flex justify-between text-[10px] font-mono text-muted-foreground/60">
-                <span>{MIN_PROMPT_FONT_SIZE}px</span>
-                <span>Default ({DEFAULT_PROMPT_FONT_SIZE}px)</span>
-                <span>{MAX_PROMPT_FONT_SIZE}px</span>
-              </div>
-            </div>
-          </div>
-        </div>
 
-        <div className="border-t border-border/60 px-4 py-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div className="min-w-0 flex-1">
-              <h4 className="text-sm font-medium text-foreground">Prompt Composer Font</h4>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Font family for the chat message composer (defaults to interface font).
-              </p>
-            </div>
-            <div className="shrink-0 w-full sm:w-52">
-              <Select
-                value={settings.fontFamilyComposer || "inherit"}
-                onValueChange={(val) =>
-                  updateSettings({
-                    fontFamilyComposer: val === "inherit" ? "" : val,
-                  })
-                }
-              >
-                <SelectTrigger className="w-full text-xs rounded-xl bg-background border-border/80">
-                  <SelectValue placeholder="Inherit Interface Font" />
-                </SelectTrigger>
-                <SelectPopup align="end">
-                  <SelectItem value="inherit" className="text-xs">
-                    Inherit Interface Font
-                  </SelectItem>
-                  <SelectItem value="monospace" className="text-xs">
-                    Monospace (Same as Editor)
-                  </SelectItem>
-                  {UI_FONT_OPTIONS.map((f) => (
-                    <SelectItem key={f.value} value={f.value} className="text-xs">
-                      {f.label}
-                    </SelectItem>
-                  ))}
-                </SelectPopup>
-              </Select>
-            </div>
-          </div>
-        </div>
+              <div className="border-t border-border/60 px-4 py-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <h4 className="text-sm font-medium text-foreground">Prompt Composer Font</h4>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Font family for the chat message composer (defaults to interface font).
+                    </p>
+                  </div>
+                  <div className="shrink-0 w-full sm:w-52">
+                    <Select
+                      items={[
+                        { value: "inherit", label: "Inherit Interface Font" },
+                        { value: "monospace", label: "Monospace (Same as Editor)" },
+                        ...UI_FONT_OPTIONS,
+                      ]}
+                      value={settings.fontFamilyComposer || "inherit"}
+                      onValueChange={(val) =>
+                        updateSettings({
+                          fontFamilyComposer: val === "inherit" ? "" : val,
+                        })
+                      }
+                    >
+                      <SelectTrigger className="w-full text-xs rounded-xl bg-background border-border/80">
+                        <SelectValue placeholder="Inherit Interface Font" />
+                      </SelectTrigger>
+                      <SelectPopup align="end">
+                        <SelectItem value="inherit" className="text-xs">
+                          Inherit Interface Font
+                        </SelectItem>
+                        <SelectItem value="monospace" className="text-xs">
+                          Monospace (Same as Editor)
+                        </SelectItem>
+                        {UI_FONT_OPTIONS.map((f) => (
+                          <SelectItem key={f.value} value={f.value} className="text-xs">
+                            {f.label}
+                          </SelectItem>
+                        ))}
+                      </SelectPopup>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+            </DialogPanel>
+          </DialogPopup>
+        </Dialog>
       </SettingsSection>
 
       <SettingsSection title="Toolbar Style">

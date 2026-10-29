@@ -1,3 +1,4 @@
+import { makeFreeStructuredModelSelector } from "./OpenRouterFreeModels";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
@@ -45,6 +46,10 @@ function mapOpenRouterError(
 export const makeOpenRouterTextGeneration = Effect.fn("makeOpenRouterTextGeneration")(function* (
   openRouterSettings: OpenRouterSettings,
 ) {
+  const selectFreeModel = makeFreeStructuredModelSelector(
+    (openRouterSettings.baseUrl?.trim() || "https://openrouter.ai/api/v1").replace(/\/+$/, ""),
+    openRouterSettings.apiKey?.trim() || "",
+  );
   const runOpenRouterJson = Effect.fn("runOpenRouterJson")(function* <S extends Schema.Top>({
     operation,
     prompt,
@@ -99,12 +104,13 @@ export const makeOpenRouterTextGeneration = Effect.fn("makeOpenRouterTextGenerat
       },
       // Tabs never silently falls back to another paid upstream. A future
       // explicit routing preference may opt back in per provider instance.
-      provider: { allow_fallbacks: false },
+      provider: { allow_fallbacks: false, require_parameters: true },
       usage: { include: true },
     };
 
     const fetchEffect = Effect.tryPromise({
       try: async (signal) => {
+        if (model === "openrouter/free") requestPayload.model = await selectFreeModel(signal);
         const response = await fetch(endpoint, {
           method: "POST",
           headers: {
@@ -116,6 +122,16 @@ export const makeOpenRouterTextGeneration = Effect.fn("makeOpenRouterTextGenerat
         });
 
         if (!response.ok) {
+          if (response.status === 429) {
+            throw new Error(
+              "OpenRouter is rate limiting this model. Try again shortly, or choose another free model in Settings > Providers > OpenRouter.",
+            );
+          }
+          if (response.status === 401) {
+            throw new Error(
+              "OpenRouter rejected the API key. Check it in Settings > Providers > OpenRouter.",
+            );
+          }
           const errorText = await response.text().catch(() => "");
           throw new Error(
             `OpenRouter API HTTP ${response.status}: ${errorText || response.statusText}`,
@@ -162,7 +178,7 @@ export const makeOpenRouterTextGeneration = Effect.fn("makeOpenRouterTextGenerat
       catch: (err) =>
         mapOpenRouterError(
           operation,
-          `Failed to parse JSON response from OpenRouter: ${String(err)}`,
+          "The selected OpenRouter model did not return structured JSON. Your draft was kept. Try again or choose another text model in Settings > Providers > OpenRouter.",
           err,
         ),
     });
@@ -171,7 +187,7 @@ export const makeOpenRouterTextGeneration = Effect.fn("makeOpenRouterTextGenerat
       Effect.mapError((err) =>
         mapOpenRouterError(
           operation,
-          `OpenRouter response did not match expected schema: ${String(err)}`,
+          "The selected OpenRouter model returned an invalid response. Your draft was kept. Try again or choose another text model in Settings > Providers > OpenRouter.",
           err,
         ),
       ),
@@ -186,6 +202,7 @@ export const makeOpenRouterTextGeneration = Effect.fn("makeOpenRouterTextGenerat
           stagedSummary: input.stagedSummary,
           stagedPatch: input.stagedPatch,
           includeBranch: input.includeBranch ?? false,
+          policy: input.policy,
         });
 
         const result = yield* runOpenRouterJson({

@@ -52,7 +52,7 @@ import {
 } from "../../modelOrdering";
 import { collectReasoningChoices, formatThinkingHeaderWords } from "../../reasoningOrdering";
 import { getActiveFontCombo } from "../../lib/themes";
-import { getStoredFontPreferences } from "../../hooks/useTheme";
+import { getStoredFontPreferences, useTheme } from "../../hooks/useTheme";
 
 // ─────────────────────────────────────────────────────────────────────────
 // FusedModelPicker — AI Cockpit Matrix design (Aligned Columns & Compact Rows)
@@ -94,7 +94,7 @@ const EMPTY_CAPABILITIES = {
   promptInjectedEffortLevels: [],
 };
 
-const MODEL_COLUMN_WIDTH_PX = 180;
+const MODEL_COLUMN_WIDTH_PX = 210;
 const TRACK_PADDING_PX = 20;
 
 interface FusedModelPickerProps {
@@ -146,6 +146,13 @@ function getCleanModelName(name: string, activeTab: ProviderPickerKind | "pinned
 }
 
 export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModelPickerProps) {
+  const { activeThemeId } = useTheme();
+  const modelColors =
+    activeThemeId === "tabs-monotone-light"
+      ? [{ hex: "#3b3b3b", rgb: "59, 59, 59" }]
+      : activeThemeId === "tabs-monotone"
+        ? [{ hex: "#e5e5e5", rgb: "229, 229, 229" }]
+        : THEME_COLORS;
   const [isOpen, setIsOpen] = useState(false);
   const [selectedTab, setSelectedTab] = useState<ProviderPickerKind | "pinned" | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -590,11 +597,13 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
   }, [activeTab, filteredModels, groupPinnedByProvider]);
 
   const activeTabHeading = useMemo(() => {
-    if (activeTab === "pinned") return "pinned";
-    if (activeTab === "claudeAgent") return "claude";
-    const found = AVAILABLE_PROVIDER_OPTIONS.find((o) => o.value === activeTab)?.label;
-    return (found ?? activeTab).toLowerCase();
+    if (activeTab === "pinned") return "Pinned";
+    return (
+      AVAILABLE_PROVIDER_OPTIONS.find((option) => option.value === activeTab)?.label ??
+      activeTab.charAt(0).toUpperCase() + activeTab.slice(1)
+    );
   }, [activeTab]);
+  const HeadingIcon = activeTab === "pinned" ? PinIcon : PROVIDER_ICON_BY_PROVIDER[activeTab];
 
   const triggerLabel = useMemo(() => {
     const selected = getProviderModels(props.providers, props.provider).find(
@@ -639,7 +648,7 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
       ),
     [models, activeModel],
   );
-  const activeColor = THEME_COLORS[activeColorIndex % THEME_COLORS.length] ?? THEME_COLORS[0]!;
+  const activeColor = modelColors[activeColorIndex % modelColors.length] ?? modelColors[0]!;
 
   const panelStyle = isUltra
     ? ({
@@ -694,17 +703,22 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
       >
         <style>{COSMIC_KEYFRAMES}</style>
         <div
-          className="relative flex max-w-[calc(100vw-32px)] gap-6 rounded-lg overflow-hidden isolate border border-border bg-popover text-popover-foreground p-6 shadow-xl transition-all duration-300 select-none animate-in fade-in zoom-in-95 duration-150"
-          style={panelStyle}
+          data-fused-picker-panel="true"
+          className="relative flex min-h-0 max-w-[calc(100vw-32px)] gap-6 rounded-lg overflow-hidden isolate border border-border bg-popover text-popover-foreground p-6 shadow-xl transition-all duration-300 select-none animate-in fade-in zoom-in-95 duration-150"
+          style={{
+            ...panelStyle,
+            maxHeight:
+              "min(560px, var(--available-height, calc(100dvh - 48px)), calc(100dvh - 48px))",
+          }}
         >
           {/* Provider Sidebar navigation on Left */}
           {(providerOptions.length > 1 ||
             pinnedModels.length > 0 ||
             AVAILABLE_PROVIDER_OPTIONS.length > 1) && (
-            <div className="flex flex-col gap-2.5 border-r border-border pr-6">
+            <div className="flex min-h-0 shrink-0 flex-col gap-2.5 overflow-y-auto border-r border-border pr-6">
               {/* 📌 Pinned Models Tab */}
               <Tooltip key="pinned">
-                <TooltipTrigger className="inline-flex" render={<span />}>
+                <TooltipTrigger className="inline-flex shrink-0" render={<span />}>
                   <button
                     type="button"
                     title="Pinned Models"
@@ -713,7 +727,7 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
                       setSearchQuery("");
                     }}
                     className={cn(
-                      "flex size-11 items-center justify-center rounded-xl bg-muted/40 border border-transparent text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-all relative",
+                      "flex size-11 shrink-0 items-center justify-center rounded-xl bg-muted/40 border border-transparent text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-all relative",
                       activeTab === "pinned" && "bg-accent border-border text-foreground shadow-xs",
                     )}
                   >
@@ -780,7 +794,7 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
 
                 return (
                   <Tooltip key={option.value}>
-                    <TooltipTrigger className="inline-flex" render={<span />}>
+                    <TooltipTrigger className="inline-flex shrink-0" render={<span />}>
                       <button
                         type="button"
                         title={
@@ -795,7 +809,7 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
                           setSearchQuery("");
                         }}
                         className={cn(
-                          "flex size-11 items-center justify-center rounded-xl bg-muted/40 border border-transparent text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-all",
+                          "flex size-11 shrink-0 items-center justify-center rounded-xl bg-muted/40 border border-transparent text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-all",
                           isActive && "bg-accent border-border text-foreground shadow-xs",
                           disabled && "cursor-not-allowed opacity-30",
                         )}
@@ -820,9 +834,7 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
           )}
 
           {/* Matrix Core containing model rows with horizontal aligned tracks */}
-          <div
-            className={cn("flex flex-col justify-center overflow-x-hidden", matrixMinWidthClass)}
-          >
+          <div className={cn("flex min-h-0 flex-col overflow-x-hidden", matrixMinWidthClass)}>
             {/* Top Toolbar: Provider Info / Model count, Minimizable Search & View toggles */}
             <div className="flex items-center justify-between h-11 mb-3 mr-6 shrink-0 select-none">
               {isSearchOpen || searchQuery ? (
@@ -869,10 +881,12 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
                 </div>
               ) : (
                 <div className="flex items-center justify-between w-full">
-                  <div className="flex items-center gap-3">
-                    <span
+                  <div className="flex min-w-0 items-center gap-3">
+                    <HeadingIcon aria-hidden="true" className="size-6 shrink-0 text-foreground" />
+                    <h3
+                      data-fused-provider-heading="true"
                       className={cn(
-                        "text-2xl sm:text-3xl font-normal lowercase tracking-tight text-foreground transition-all select-none pl-1.5 overflow-visible",
+                        "text-2xl sm:text-3xl font-normal tracking-tight text-foreground transition-all select-none overflow-visible",
                         fontCombo.serifClass || "font-serif italic",
                       )}
                       style={{
@@ -881,7 +895,7 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
                       }}
                     >
                       {activeTabHeading}
-                    </span>
+                    </h3>
                     <span className="flex items-center justify-center min-w-6 h-6 px-2 text-xs font-semibold rounded-full bg-muted/70 border border-border/50 text-foreground/80 shadow-2xs">
                       {models.length}
                     </span>
@@ -964,7 +978,10 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
               </div>
             )}
 
-            <div className="flex flex-col max-h-[380px] overflow-y-auto pr-6 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-foreground/15 hover:[&::-webkit-scrollbar-thumb]:bg-foreground/30 [&::-webkit-scrollbar-thumb]:rounded-full">
+            <div
+              data-fused-model-list="true"
+              className="flex min-h-0 flex-1 flex-col overflow-y-auto pr-6 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-foreground/15 hover:[&::-webkit-scrollbar-thumb]:bg-foreground/30 [&::-webkit-scrollbar-thumb]:rounded-full"
+            >
               {activeTab === "pinned" && pinnedModels.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 px-4 text-center select-none">
                   <PinIcon className="size-8 text-muted-foreground/40 mb-2.5" />
@@ -1016,9 +1033,9 @@ export const FusedModelPicker = memo(function FusedModelPicker(props: FusedModel
                             isFavorite={isFav}
                             onToggleFavorite={() => handleTogglePinned(modelProvider, model.slug)}
                             themeColor={
-                              THEME_COLORS[
-                                models.findIndex((m) => m.slug === model.slug) % THEME_COLORS.length
-                              ] ?? THEME_COLORS[0]!
+                              modelColors[
+                                models.findIndex((m) => m.slug === model.slug) % modelColors.length
+                              ] ?? modelColors[0]!
                             }
                             selections={isCurrentActive ? props.modelOptions : undefined}
                             globalStops={globalStops}
@@ -1097,6 +1114,32 @@ function isModelSourceBadgeEnabled(): boolean {
   }
 }
 
+// Provider defaults are metadata, not a disabled reasoning control.
+const ModelReasoningStatus = memo(function ModelReasoningStatus({
+  isActive,
+  nativeThinkingLevel,
+}: {
+  isActive: boolean;
+  nativeThinkingLevel?: string | undefined;
+}) {
+  return (
+    <span
+      data-model-reasoning-status="true"
+      title={
+        nativeThinkingLevel
+          ? "Thinking level is included directly in this model"
+          : "This provider does not expose an adjustable reasoning level for this model"
+      }
+      className={cn(
+        "inline-flex shrink-0 whitespace-nowrap py-1 text-[10px] font-medium select-none",
+        isActive ? "text-foreground/80" : "text-muted-foreground/65",
+      )}
+    >
+      {nativeThinkingLevel ? "Built-in thinking" : "Model default"}
+    </span>
+  );
+});
+
 // ── ModelRow Component: aligned stops layout with compact dynamic heights
 const ModelRow = memo(function ModelRow(props: {
   model: ThinkingModel;
@@ -1130,6 +1173,29 @@ const ModelRow = memo(function ModelRow(props: {
       : undefined;
   const isGrok = providerId === "grok" || props.model.slug.toLowerCase().startsWith("grok");
   const caps = isGrok ? EMPTY_CAPABILITIES : (props.model.capabilities ?? EMPTY_CAPABILITIES);
+  const hasGlobalStops = props.globalStops.length > 0;
+  const contextWindowTokens =
+    typeof (props.model as any).contextWindow === "number"
+      ? (props.model as any).contextWindow
+      : typeof props.model.contextWindowTokens === "number"
+        ? props.model.contextWindowTokens
+        : undefined;
+
+  const contextWindowLabel = useMemo(() => {
+    if (!contextWindowTokens || contextWindowTokens <= 0) return null;
+    if (contextWindowTokens >= 1_000_000) {
+      const millions = contextWindowTokens / 1_000_000;
+      return `${millions % 1 === 0 ? millions.toFixed(0) : millions.toFixed(1)}M ctx`;
+    }
+    if (contextWindowTokens >= 1_000) {
+      const k =
+        contextWindowTokens % 1024 === 0
+          ? contextWindowTokens / 1024
+          : Math.round(contextWindowTokens / 1000);
+      return `${k}k ctx`;
+    }
+    return `${contextWindowTokens} ctx`;
+  }, [contextWindowTokens]);
   const descriptors = [
     ...nativeThinkingDescriptor(props.model),
     ...getProviderOptionDescriptors({
@@ -1367,8 +1433,11 @@ const ModelRow = memo(function ModelRow(props: {
 
       {/* Model Name + inline Segmented Sub-controls */}
       <div
-        style={{ width: `${MODEL_COLUMN_WIDTH_PX}px` }}
-        className="pl-3.5 pr-2 flex items-center gap-1.5 shrink-0 min-w-0"
+        style={hasGlobalStops ? { width: `${MODEL_COLUMN_WIDTH_PX}px` } : undefined}
+        className={cn(
+          "pl-3.5 pr-2 flex items-center gap-1.5 min-w-0",
+          hasGlobalStops ? "shrink-0" : "flex-1",
+        )}
       >
         {props.onToggleFavorite && (
           <button
@@ -1391,6 +1460,7 @@ const ModelRow = memo(function ModelRow(props: {
           </button>
         )}
         <span
+          title={props.model.name}
           className="text-[13px] font-semibold transition-colors truncate"
           style={{
             color: props.isActive ? props.themeColor.hex : undefined,
@@ -1638,11 +1708,24 @@ const ModelRow = memo(function ModelRow(props: {
             />
           )}
         </div>
+      ) : hasGlobalStops ? (
+        <div className="flex-1 flex items-center justify-center px-4 pointer-events-none select-none">
+          <ModelReasoningStatus
+            isActive={props.isActive}
+            nativeThinkingLevel={nativeThinkingLevel}
+          />
+        </div>
       ) : (
-        <div className="flex-1 text-[11px] text-muted-foreground/50 font-medium pl-6 pr-4 pointer-events-none select-none italic tracking-wider truncate">
-          {nativeThinkingLevel
-            ? "Thinking level is included in this model selection"
-            : "No separate reasoning control"}
+        <div className="shrink-0 pr-3.5 pl-2 flex items-center gap-2 select-none">
+          {contextWindowLabel && (
+            <span className="text-[10px] font-mono text-muted-foreground/50 tracking-tight hidden sm:inline-block px-1.5 py-0.5 rounded-md bg-muted/20 border border-border/30">
+              {contextWindowLabel}
+            </span>
+          )}
+          <ModelReasoningStatus
+            isActive={props.isActive}
+            nativeThinkingLevel={nativeThinkingLevel}
+          />
         </div>
       )}
     </div>

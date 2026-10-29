@@ -1,9 +1,10 @@
 import { OrbitGroup } from "../ui/orbit-group";
 import type { GitHistoryCommit, GitStatusFile, GitStatusResult } from "@tabs/contracts";
+import { Search, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useGitApi, useGitScopeKey } from "./gitApiContext";
-import { Card, FilePathLabel, PathBreadcrumb, StatPill } from "./gitPrimitives";
+import { Card, PathBreadcrumb, StatPill } from "./gitPrimitives";
 
 export interface ParsedFileDiff {
   path: string;
@@ -221,12 +222,29 @@ export function DiffPage({
   );
 
   const api = useGitApi();
-  const stagedFiles = statusData?.staged?.files ?? [];
-  const unstagedFiles = statusData?.unstaged?.files ?? [];
-  const workingFiles = useMemo(
-    () => [...stagedFiles, ...unstagedFiles],
-    [stagedFiles, unstagedFiles],
-  );
+  const workingFiles = useMemo(() => {
+    const staged = statusData?.staged?.files ?? [];
+    const unstaged = statusData?.unstaged?.files ?? [];
+    return [...staged, ...unstaged];
+  }, [statusData?.staged?.files, statusData?.unstaged?.files]);
+
+  const [filterQuery, setFilterQuery] = useState("");
+  const normalizedFilter = filterQuery.trim().toLowerCase();
+
+  const filteredWorkingFiles = useMemo(() => {
+    if (!normalizedFilter) return workingFiles;
+    return workingFiles.filter((f) => f.path.toLowerCase().includes(normalizedFilter));
+  }, [workingFiles, normalizedFilter]);
+
+  const filteredCommits = useMemo(() => {
+    if (!normalizedFilter) return commits;
+    return commits.filter(
+      (c) =>
+        c.subject.toLowerCase().includes(normalizedFilter) ||
+        c.sha.toLowerCase().includes(normalizedFilter) ||
+        c.shortSha.toLowerCase().includes(normalizedFilter),
+    );
+  }, [commits, normalizedFilter]);
 
   const selectedPath = gitState.selectedPath;
   const selectedCommitSha = gitState.selectedCommit;
@@ -360,44 +378,126 @@ export function DiffPage({
         </div>
       ) : (
         <div className="flex flex-1 min-h-0 gap-4 overflow-hidden">
-          <div className="w-64 shrink-0 h-full overflow-y-auto custom-scrollbar">
-            {diffMode === "working"
-              ? workingFiles.map((f) => (
-                  <button
-                    key={f.path}
-                    type="button"
-                    onClick={() => setSelectedFile(f)}
-                    className={`relative w-full text-left px-2.5 py-2 rounded-lg mb-0.5 transition-colors cursor-pointer ${
-                      selectedPath === f.path ? "bg-muted" : "hover:bg-muted/50"
-                    }`}
-                  >
-                    {selectedPath === f.path && (
-                      <span
-                        className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full"
-                        style={{ backgroundColor: "var(--fg)" }}
-                      />
-                    )}
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span
-                        className="w-1.5 h-1.5 rounded-full shrink-0"
-                        style={{
-                          backgroundColor: f.untracked
-                            ? "var(--sem-emerald)"
-                            : f.deletions > 0 && f.insertions === 0
-                              ? "var(--sem-red)"
-                              : "var(--sem-amber)",
-                        }}
-                      />
-                      <FilePathLabel path={f.path} />
-                    </div>
-                  </button>
-                ))
-              : commits.map((c) => (
+          <div className="w-80 lg:w-[340px] shrink-0 h-full flex flex-col min-h-0 overflow-hidden">
+            {/* Diff Search / Filter Input */}
+            <div className="relative mb-2 shrink-0">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground/50 pointer-events-none" />
+              <input
+                type="text"
+                value={filterQuery}
+                onChange={(e) => setFilterQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") setFilterQuery("");
+                }}
+                placeholder={
+                  diffMode === "working"
+                    ? `Search ${workingFiles.length} changed files…`
+                    : `Search ${commits.length} commits…`
+                }
+                className="w-full h-8 pl-8 pr-7 text-xs bg-muted/20 hover:bg-muted/30 focus:bg-background/80 border border-border/50 rounded-md text-foreground placeholder:text-muted-foreground/50 outline-none focus-blur-glow font-mono"
+              />
+              {filterQuery && (
+                <button
+                  type="button"
+                  onClick={() => setFilterQuery("")}
+                  aria-label="Clear search"
+                  title="Clear search (Esc)"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground/50 hover:text-foreground p-0.5 rounded cursor-pointer"
+                >
+                  <X size={13} />
+                </button>
+              )}
+            </div>
+
+            {/* Filter count header when searching */}
+            {normalizedFilter && (
+              <div className="text-[10px] text-muted-foreground/60 px-1 mb-1.5 shrink-0">
+                {diffMode === "working"
+                  ? `Showing ${filteredWorkingFiles.length} of ${workingFiles.length} files`
+                  : `Showing ${filteredCommits.length} of ${commits.length} commits`}
+              </div>
+            )}
+
+            {/* Scrollable List */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar pr-1">
+              {diffMode === "working" ? (
+                filteredWorkingFiles.length === 0 ? (
+                  <div className="text-center text-xs text-muted-foreground/50 py-6 italic">
+                    No files matching "{filterQuery}"
+                  </div>
+                ) : (
+                  filteredWorkingFiles.map((f) => {
+                    const parts = f.path.split("/");
+                    const fileName = parts.pop() || f.path;
+                    const dirName = parts.join("/");
+                    const isSelected = selectedPath === f.path;
+
+                    return (
+                      <button
+                        key={f.path}
+                        type="button"
+                        onClick={() => setSelectedFile(f)}
+                        className={`relative w-full text-left px-2.5 py-1.5 rounded-lg mb-1 transition-colors cursor-pointer ${
+                          isSelected ? "bg-muted" : "hover:bg-muted/50"
+                        }`}
+                      >
+                        {isSelected && (
+                          <span
+                            className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full"
+                            style={{ backgroundColor: "var(--fg)" }}
+                          />
+                        )}
+                        <div className="flex items-start gap-2 min-w-0">
+                          <span
+                            className="w-1.5 h-1.5 rounded-full shrink-0 mt-1.5"
+                            style={{
+                              backgroundColor: f.untracked
+                                ? "var(--sem-emerald)"
+                                : f.deletions > 0 && f.insertions === 0
+                                  ? "var(--sem-red)"
+                                  : "var(--sem-amber)",
+                            }}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-baseline justify-between gap-1.5">
+                              <span
+                                className="text-xs font-mono font-medium text-foreground truncate"
+                                title={fileName}
+                              >
+                                {fileName}
+                              </span>
+                              <span className="text-[10px] font-mono shrink-0 flex items-center gap-1">
+                                <span style={{ color: "var(--sem-emerald)" }}>+{f.insertions}</span>
+                                <span style={{ color: "var(--sem-red)", opacity: 0.85 }}>
+                                  -{f.deletions}
+                                </span>
+                              </span>
+                            </div>
+                            {dirName && (
+                              <div
+                                className="text-[10px] font-mono text-muted-foreground/60 truncate"
+                                title={f.path}
+                              >
+                                {dirName}/
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })
+                )
+              ) : filteredCommits.length === 0 ? (
+                <div className="text-center text-xs text-muted-foreground/50 py-6 italic">
+                  No commits matching "{filterQuery}"
+                </div>
+              ) : (
+                filteredCommits.map((c) => (
                   <button
                     key={c.sha}
                     type="button"
                     onClick={() => setSelectedCommit(c)}
-                    className={`relative w-full text-left px-2.5 py-2 rounded-lg mb-0.5 transition-colors cursor-pointer ${
+                    className={`relative w-full text-left px-2.5 py-1.5 rounded-lg mb-1 transition-colors cursor-pointer ${
                       selectedCommitSha === c.sha ? "bg-muted" : "hover:bg-muted/50"
                     }`}
                   >
@@ -414,9 +514,11 @@ export function DiffPage({
                       {c.shortSha}
                     </div>
                   </button>
-                ))}
+                ))
+              )}
+            </div>
           </div>
-          <div className="flex-1 min-w-0 h-full">
+          <div className="flex-1 min-w-0 h-full overflow-y-auto custom-scrollbar">
             {diffMode === "working" ? (
               selectedFile ? (
                 <DiffCard

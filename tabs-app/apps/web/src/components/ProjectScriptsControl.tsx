@@ -290,22 +290,34 @@ export default function ProjectScriptsControl({
   const confirmDeleteScript = useCallback(() => {
     if (!editingScriptId) return;
     setDeleteConfirmOpen(false);
-    setDialogOpen(false);
-    void onDeleteScript(editingScriptId);
+    void Promise.resolve(onDeleteScript(editingScriptId))
+      .then(() => {
+        setDialogOpen(false);
+      })
+      .catch((error) => {
+        setValidationError(error instanceof Error ? error.message : "Failed to delete action.");
+      });
   }, [editingScriptId, onDeleteScript]);
 
   return (
     <>
       {primaryScript ? (
-        <Group aria-label="Project scripts">
+        <Group aria-label="Project scripts" className={displayMode === "panel" ? "w-full" : ""}>
           <Button
             size="xs"
             variant="outline"
             onClick={() => onRunScript(primaryScript)}
             title={`Run ${primaryScript.name}`}
+            className={displayMode === "panel" ? "min-w-0 flex-1 justify-start" : undefined}
           >
             <ScriptIcon icon={primaryScript.icon} />
-            <span className="sr-only @sm/header-actions:not-sr-only @sm/header-actions:ml-0.5">
+            <span
+              className={
+                displayMode === "panel"
+                  ? "truncate text-left"
+                  : "sr-only @sm/header-actions:not-sr-only @sm/header-actions:ml-0.5"
+              }
+            >
               {primaryScript.name}
             </span>
           </Button>
@@ -461,16 +473,28 @@ export default function ProjectScriptsControl({
               <MenuSeparator />
               <MenuItem className={dropdownItemClassName} onClick={openAddDialog}>
                 <PlusIcon className="size-4" />
-                Add action
+                Add project script
               </MenuItem>
             </MenuPopup>
           </Menu>
         </Group>
       ) : (
-        <Button size="xs" variant="outline" onClick={openAddDialog} title="Add action">
+        <Button
+          size="xs"
+          variant="ghost"
+          onClick={openAddDialog}
+          title="Add project script"
+          className={displayMode === "panel" ? "w-full justify-start" : undefined}
+        >
           <PlusIcon className="size-3.5" />
-          <span className="sr-only @sm/header-actions:not-sr-only @sm/header-actions:ml-0.5">
-            Add action
+          <span
+            className={
+              displayMode === "panel"
+                ? "truncate text-left"
+                : "sr-only @sm/header-actions:not-sr-only @sm/header-actions:ml-0.5"
+            }
+          >
+            Add project script
           </span>
         </Button>
       )}

@@ -295,7 +295,8 @@ const makeReconcile = <R>(input: {
     Effect.gen(function* () {
       const previousEntries = yield* Ref.get(state.entries);
       const previousUnavailable = yield* Ref.get(state.unavailable);
-      const nextRaw = Object.entries(configMap);
+      // Retired direct Gemini API entries stay in stored settings but are not instantiated or advertised.
+      const nextRaw = Object.entries(configMap).filter(([, entry]) => entry.driver !== "gemini");
       const nextKeys = new Set<ProviderInstanceId>(
         nextRaw.map(([raw]) => ProviderInstanceId.make(raw)),
       );

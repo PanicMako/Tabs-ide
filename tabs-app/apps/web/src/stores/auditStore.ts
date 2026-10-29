@@ -64,8 +64,8 @@ const defaultState: AuditStoreState = {
   targetPaths: [],
   enabledCategories: ["correctness", "security", "performance", "architecture"],
   modelSelection: {
-    instanceId: "gemini" as any,
-    model: "gemini-3.6-flash",
+    instanceId: "openrouter" as any,
+    model: "openrouter/free",
   },
   latestProgress: null,
   progressLogs: [],

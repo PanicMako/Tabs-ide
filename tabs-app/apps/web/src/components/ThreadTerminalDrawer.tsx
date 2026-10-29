@@ -720,6 +720,7 @@ interface ThreadTerminalDrawerProps {
   height: number;
   variant?: "drawer" | "embedded";
   showControls?: boolean;
+  autoFocus?: boolean;
   terminalIds: string[];
   activeTerminalId: string;
   terminalGroups: ThreadTerminalGroup[];
@@ -784,6 +785,7 @@ export default function ThreadTerminalDrawer({
   height,
   variant = "drawer",
   showControls = true,
+  autoFocus = true,
   terminalIds,
   activeTerminalId,
   terminalGroups,
@@ -801,6 +803,10 @@ export default function ThreadTerminalDrawer({
   onHeightChange,
   onAddTerminalContext,
 }: ThreadTerminalDrawerProps) {
+  // Streamed output and layout changes must not reconnect a terminal merely
+  // because its caller reconstructed an equivalent environment object.
+  const runtimeEnvKey = JSON.stringify(runtimeEnv);
+  const stableRuntimeEnv = useMemo(() => runtimeEnv, [runtimeEnvKey]);
   const [terminalToCloseId, setTerminalToCloseId] = useState<string | null>(null);
   const [drawerHeight, setDrawerHeight] = useState(() => clampDrawerHeight(height));
   const [resizeEpoch, setResizeEpoch] = useState(0);
@@ -1121,11 +1127,11 @@ export default function ThreadTerminalDrawer({
                         terminalId={terminalId}
                         terminalLabel={terminalLabelById.get(terminalId) ?? "Terminal"}
                         cwd={cwd}
-                        {...(runtimeEnv ? { runtimeEnv } : {})}
+                        {...(stableRuntimeEnv ? { runtimeEnv: stableRuntimeEnv } : {})}
                         onSessionExited={() => onCloseTerminal(terminalId)}
                         onAddTerminalContext={onAddTerminalContext}
                         focusRequestId={focusRequestId}
-                        autoFocus={terminalId === resolvedActiveTerminalId}
+                        autoFocus={autoFocus && terminalId === resolvedActiveTerminalId}
                         resizeEpoch={resizeEpoch}
                         drawerHeight={drawerHeight}
                       />
@@ -1142,11 +1148,11 @@ export default function ThreadTerminalDrawer({
                   terminalId={resolvedActiveTerminalId}
                   terminalLabel={terminalLabelById.get(resolvedActiveTerminalId) ?? "Terminal"}
                   cwd={cwd}
-                  {...(runtimeEnv ? { runtimeEnv } : {})}
+                  {...(stableRuntimeEnv ? { runtimeEnv: stableRuntimeEnv } : {})}
                   onSessionExited={() => onCloseTerminal(resolvedActiveTerminalId)}
                   onAddTerminalContext={onAddTerminalContext}
                   focusRequestId={focusRequestId}
-                  autoFocus
+                  autoFocus={autoFocus}
                   resizeEpoch={resizeEpoch}
                   drawerHeight={drawerHeight}
                 />

@@ -134,7 +134,11 @@ import {
   VcsRemoveWorktreeInput,
   GitResolvePullRequestResult,
   GitRunStackedActionInput,
+  GitGenerateCommitDraftInput,
+  GitGeneratePullRequestDraftInput,
+  GitGeneratePullRequestDraftResult,
   GitGenerateDiffSummaryInput,
+  GitGenerateCommitDraftResult,
   GitGenerateDiffSummaryResult,
   GitGenerateReviewInput,
   GitGenerateReviewResult,
@@ -426,6 +430,8 @@ export const WS_METHODS = {
   gitRunStackedAction: "git.runStackedAction",
   gitResolvePullRequest: "git.resolvePullRequest",
   gitPreparePullRequestThread: "git.preparePullRequestThread",
+  gitGenerateCommitDraft: "git.generateCommitDraft",
+  gitGeneratePullRequestDraft: "git.generatePullRequestDraft",
   gitGenerateDiffSummary: "git.generateDiffSummary",
   gitGenerateReview: "git.generateReview",
   gitSubmitFindingFeedback: "git.submitFindingFeedback",
@@ -596,13 +602,14 @@ const WsServerProbeRpc = Rpc.make(WS_METHODS.serverProbe, {
 });
 
 const WsServerGetConfigRpc = Rpc.make(WS_METHODS.serverGetConfig, {
-  payload: Schema.Struct({}),
+  payload: Schema.Struct({ workspaceSnapshotsOnDemand: Schema.optional(Schema.Boolean) }),
   success: ServerConfig,
   error: Schema.Union([KeybindingsConfigError, ServerSettingsError, EnvironmentAuthorizationError]),
 });
 
 const WsServerRefreshProvidersRpc = Rpc.make(WS_METHODS.serverRefreshProviders, {
   payload: Schema.Struct({
+    workspaceSnapshotsOnDemand: Schema.optional(Schema.Boolean),
     /**
      * When supplied, only refresh this specific provider instance. When
      * omitted, refresh all configured instances — the legacy `refresh()`
@@ -1369,6 +1376,18 @@ const WsGitPreparePullRequestThreadRpc = Rpc.make(WS_METHODS.gitPreparePullReque
   error: Schema.Union([GitManagerServiceError, EnvironmentAuthorizationError]),
 });
 
+const WsGitGeneratePullRequestDraftRpc = Rpc.make(WS_METHODS.gitGeneratePullRequestDraft, {
+  payload: GitGeneratePullRequestDraftInput,
+  success: GitGeneratePullRequestDraftResult,
+  error: Schema.Union([GitManagerServiceError, EnvironmentAuthorizationError]),
+});
+
+const WsGitGenerateCommitDraftRpc = Rpc.make(WS_METHODS.gitGenerateCommitDraft, {
+  payload: GitGenerateCommitDraftInput,
+  success: GitGenerateCommitDraftResult,
+  error: Schema.Union([GitManagerServiceError, EnvironmentAuthorizationError]),
+});
+
 const WsGitGenerateDiffSummaryRpc = Rpc.make(WS_METHODS.gitGenerateDiffSummary, {
   payload: GitGenerateDiffSummaryInput,
   success: GitGenerateDiffSummaryResult,
@@ -1747,6 +1766,7 @@ const WsSubscribeTerminalMetadataRpc = Rpc.make(WS_METHODS.subscribeTerminalMeta
 
 export const WsSubscribeServerConfigRpc = Rpc.make(WS_METHODS.subscribeServerConfig, {
   payload: Schema.Struct({
+    workspaceSnapshotsOnDemand: Schema.optional(Schema.Boolean),
     /**
      * Whether this client understands `environmentThemesUpdated` events.
      * Already-shipped clients decode the stream against the old event union
@@ -2009,6 +2029,8 @@ export const CoreWsRpcGroup = RpcGroup.make(
   WsGitRunStackedActionRpc,
   WsGitResolvePullRequestRpc,
   WsGitPreparePullRequestThreadRpc,
+  WsGitGenerateCommitDraftRpc,
+  WsGitGeneratePullRequestDraftRpc,
   WsGitGenerateDiffSummaryRpc,
   WsGitGenerateReviewRpc,
   WsGitSubmitFindingFeedbackRpc,

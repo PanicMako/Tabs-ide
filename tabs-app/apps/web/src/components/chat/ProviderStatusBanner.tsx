@@ -1,6 +1,6 @@
 import { PROVIDER_DISPLAY_NAMES, type ServerProvider } from "@tabs/contracts";
 import { memo } from "react";
-import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
+import { Alert, AlertAction, AlertDescription, AlertTitle } from "../ui/alert";
 import { CircleAlertIcon, XIcon } from "lucide-react";
 import { Button } from "../ui/button";
 
@@ -46,22 +46,23 @@ export const ProviderStatusBanner = memo(function ProviderStatusBanner({
 
   return (
     <div className="pt-3 mx-auto max-w-3xl">
-      <Alert className="relative pr-10" variant={status.status === "error" ? "error" : "warning"}>
+      <Alert variant={status.status === "error" ? "error" : "warning"}>
         <CircleAlertIcon />
         <AlertTitle>{title}</AlertTitle>
         <AlertDescription className="line-clamp-3" title={status.message ?? defaultMessage}>
           {status.message ?? defaultMessage}
         </AlertDescription>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-xs"
-          className="absolute right-2 top-2"
-          onClick={onDismiss}
-          aria-label={`Dismiss ${providerLabel} provider ${status.status}`}
-        >
-          <XIcon className="size-3.5" />
-        </Button>
+        <AlertAction>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            onClick={onDismiss}
+            aria-label={`Dismiss ${providerLabel} provider ${status.status}`}
+          >
+            <XIcon className="size-3.5" />
+          </Button>
+        </AlertAction>
       </Alert>
     </div>
   );

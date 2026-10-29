@@ -26,7 +26,9 @@
             const customTheme = JSON.parse(localStorage.getItem("tabs:custom-theme") || "null");
             dark = customTheme?.baseVariant !== "light";
           } else if (preference !== "system") {
-            dark = !["light", "tabs-light", "solarized-light"].includes(preference);
+            dark = !["light", "tabs-light", "tabs-monotone-light", "solarized-light"].includes(
+              preference,
+            );
           }
         } catch {
           // The operating-system preference remains a safe first-paint fallback.

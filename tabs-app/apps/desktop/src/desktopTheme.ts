@@ -7,5 +7,10 @@ export function isLightDesktopTheme(themeId: string, customConfig?: unknown): bo
       customConfig.baseVariant === "light"
     );
   }
-  return themeId === "tabs-light" || themeId === "solarized-light" || themeId === "light";
+  return (
+    themeId === "tabs-monotone-light" ||
+    themeId === "tabs-light" ||
+    themeId === "solarized-light" ||
+    themeId === "light"
+  );
 }

@@ -1,11 +1,17 @@
 import { describe, expect, it } from "vitest";
 import sharp from "sharp";
-import { renderDesktopIcon } from "./desktop-icon";
+import { desktopInstallerIconSource, renderDesktopIcon } from "./desktop-icon";
 
 const square = Buffer.from(
   '<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024"><rect width="1024" height="1024" fill="#1529e9"/></svg>',
 );
 describe("desktop icon presentation", () => {
+  it("uses Afterglow for the macOS installer while retaining the other platform sources", () => {
+    const source = "/repo/assets/prod/tabs-signature.svg";
+    expect(desktopInstallerIconSource(source, "mac")).toBe("/repo/assets/prod/tabs-afterglow.svg");
+    expect(desktopInstallerIconSource(source, "win")).toBe(source);
+    expect(desktopInstallerIconSource(source, "linux")).toBe(source);
+  });
   it("keeps a transparent perimeter around an opaque master on every desktop platform", async () => {
     for (const platform of ["mac", "win", "linux"] as const) {
       for (const size of [16, 32, 256, 1024]) {

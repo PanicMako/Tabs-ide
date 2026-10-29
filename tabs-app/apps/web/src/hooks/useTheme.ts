@@ -237,7 +237,7 @@ function getStoredPreference(): ThemePreference {
 
 export function resolveActiveThemeId(preference: ThemePreference): ThemePreference {
   if (preference === "system") {
-    return getSystemDark() ? "tabs-dark" : "tabs-light";
+    return getSystemDark() ? "tabs-monotone" : "tabs-monotone-light";
   }
   if (preference === "custom" || preference in THEME_DEFINITIONS) {
     return preference;
@@ -385,7 +385,9 @@ function applyTheme(
   const diffColorScheme = getStoredDiffColorScheme();
   const evaluatedTokens = evaluateThemeTokens(config, diffColorScheme);
 
-  const background = evaluatedTokens["editor.background"] || config.colors.background;
+  // The app ground stays recessed when the editor uses the raised card surface.
+  // Preserve an explicit background override, but do not use the editor's default.
+  const background = config.tokenOverrides?.["editor.background"] || config.colors.background;
   const cardBg = evaluatedTokens["app.cardBackground"] || config.colors.card;
   const cardFg = evaluatedTokens["app.cardForeground"] || config.colors.foreground;
   const foreground = evaluatedTokens["foreground"] || config.colors.foreground;
@@ -521,6 +523,7 @@ function applyFontPreferencesToDom(fonts: FontPreferences): void {
   style.setProperty("--font-row", typography?.rowFont ?? fonts.uiFont);
   style.setProperty("--font-row-weight", String(typography?.rowWeight ?? 500));
   style.setProperty("--font-row-tracking", typography?.rowTracking ?? "0.035em");
+  style.setProperty("--font-interface-tracking", typography.interfaceTracking);
   style.setProperty("--font-controls", typography?.controlsFont ?? fonts.uiFont);
   style.setProperty("--font-ui-meta", typography.metadataFont);
   style.setProperty("--font-supporting", typography.supportingFont);

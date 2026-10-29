@@ -52,7 +52,6 @@ import {
   CopilotIcon,
   CursorIcon,
   DroidIcon,
-  GoogleGemini,
   GrokIcon,
   KiloIcon,
   OpenAI,
@@ -122,7 +121,6 @@ const PROVIDER_ICONS_BY_KIND: Record<string, any> = {
   grok: GrokIcon,
   opencode: OpenCodeIcon,
   kilo: KiloIcon,
-  gemini: GoogleGemini,
   droid: DroidIcon,
   antigravity: AntigravityIcon,
   openrouter: OpenRouterIcon,
@@ -224,7 +222,8 @@ export const PROVIDER_SETTINGS: readonly InstallProviderSettings[] = [
     title: "OpenRouter",
     icon: OpenRouterIcon,
     binaryPlaceholder: "",
-    binaryDescription: "OpenRouter uses HTTPS and does not require a CLI.",
+    binaryDescription:
+      "OpenRouter supplies models; the selected harness runs agent sessions. Git writing runs locally.",
     hasBinaryPath: false,
     hasApiKey: true,
   },
@@ -1555,8 +1554,39 @@ export default function ProvidersSettings(props: ProvidersSettingsProps) {
                         hidden={detailView !== "connection"}
                         aria-label={`${providerDisplayName} connection settings`}
                       >
+                        {providerCard.provider === "openrouter" ? (
+                          <div className="border-t border-border/60 px-4 py-3 sm:px-5 space-y-3">
+                            <div className="text-xs font-medium">Agent harness</div>
+                            <p className="text-sm text-foreground">DeepSeek Harness</p>
+                            <label className="block text-xs">
+                              DeepSeek executable
+                              <DebouncedSettingsInput
+                                aria-label="DeepSeek Harness executable"
+                                className="mt-1.5"
+                                value={settings.providers.openrouter.deepseekBinaryPath}
+                                onPersist={(deepseekBinaryPath) =>
+                                  updateSettings({
+                                    providers: {
+                                      openrouter: {
+                                        deepseekBinaryPath: deepseekBinaryPath.trim() || "dsh",
+                                      },
+                                    },
+                                  })
+                                }
+                                placeholder="dsh"
+                                spellCheck={false}
+                              />
+                              <span className="mt-1 block text-muted-foreground">
+                                Uses the upstream ACP profile with your saved OpenRouter key.
+                                Requires Node.js 24.9 or newer. Install with{" "}
+                                <code>npm install -g @deepseek-ai/dsh@0.2.1-rc.2</code>. DeepSeek
+                                Harness is currently a developer preview.
+                              </span>
+                            </label>
+                          </div>
+                        ) : null}
                         {/* Binary path */}
-                        {providerCard.hasBinaryPath ? (
+                        {providerCard.hasBinaryPath && providerCard.provider !== "openrouter" ? (
                           <div className="border-t border-border/60 px-4 py-3 sm:px-5">
                             <label
                               htmlFor={`provider-install-${providerCard.provider}-binary-path`}

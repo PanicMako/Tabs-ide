@@ -438,3 +438,26 @@ describe("Tabs extension assignments", () => {
     expect(extensionProfileForProject(assignment, "personal")).toBe("personal");
   });
 });
+
+it("separates inventory validation from runtime compatibility without accepting unsafe manifests", () => {
+  const future = { ...manifest, engines: { tabs: ">=99.0.0 <100.0.0", api: ">=99.0.0 <100.0.0" } };
+  expect(validateTabsExtensionManifest(future, "1.3.17").ok).toBe(false);
+  expect(validateTabsExtensionManifest(future, null, null).ok).toBe(true);
+  expect(
+    validateTabsExtensionManifest(
+      { ...future, engines: { ...future.engines, api: "invalid" } },
+      null,
+      null,
+    ).ok,
+  ).toBe(false);
+  expect(
+    validateTabsExtensionManifest(
+      {
+        ...future,
+        contributes: { tools: [{ id: "main", label: "Main", entry: "../escape.html" }] },
+      },
+      null,
+      null,
+    ).ok,
+  ).toBe(false);
+});

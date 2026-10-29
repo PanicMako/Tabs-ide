@@ -142,6 +142,21 @@ describe("wsNativeApi", () => {
     expect(requestMock).toHaveBeenLastCalledWith(WS_METHODS.serverGetConfig);
   });
 
+  it("reads capacity from the execution host for Dock resource percentages", async () => {
+    const { createWsNativeApi } = await import("./wsNativeApi");
+    const api = createWsNativeApi();
+    const capacity = {
+      sampledAt: 1000,
+      cpuCount: 8,
+      cpuUtilization: 0.25,
+      totalMemoryBytes: 16_000_000_000,
+      availableMemoryBytes: 8_000_000_000,
+    };
+    requestMock.mockResolvedValueOnce(capacity);
+    expect(await api.server.getHostResources!()).toEqual(capacity);
+    expect(requestMock).toHaveBeenLastCalledWith(WS_METHODS.serverGetHostResources);
+  });
+
   it("subscribes to resource telemetry as an RPC stream instead of a unary request", async () => {
     const { createWsNativeApi } = await import("./wsNativeApi");
     const api = createWsNativeApi();
@@ -313,7 +328,70 @@ describe("wsNativeApi", () => {
 
     await api.server.refreshProviders(input);
 
-    expect(requestMock).toHaveBeenCalledWith(WS_METHODS.serverRefreshProviders, input);
+    expect(requestMock).toHaveBeenCalledWith(WS_METHODS.serverRefreshProviders, {
+      ...input,
+      workspaceSnapshotsOnDemand: true,
+    });
+  });
+
+  it("merges scoped workspace responses across folders and omitted catalog updates", async () => {
+    const { createWsNativeApi } = await import("./wsNativeApi");
+    const api = createWsNativeApi();
+    const a = makeTestServerProvider({
+      instanceId: "a",
+      workspaceSnapshots: [{ cwd: "/one" } as never],
+    });
+    const b = makeTestServerProvider({
+      instanceId: "b",
+      workspaceSnapshots: [{ cwd: "/other" } as never],
+    });
+    requestMock.mockResolvedValueOnce({ providers: [a, b] });
+    await api.server.refreshProviders();
+    requestMock.mockResolvedValueOnce({
+      providers: [{ ...a, workspaceSnapshots: [{ cwd: "/two" }] }],
+      workspaceSnapshotScope: { instanceId: a.instanceId, cwd: "/two", fresh: false },
+    });
+    const refreshed = await api.server.refreshProviders({ instanceId: a.instanceId, cwd: "/two" });
+    expect(refreshed.providers).toHaveLength(2);
+    expect(refreshed.providers[0]!.workspaceSnapshots?.map((snapshot) => snapshot.cwd)).toEqual([
+      "/one",
+      "/two",
+    ]);
+    expect(refreshed.providers[1]).toEqual(b);
+    requestMock.mockResolvedValueOnce({
+      providers: [
+        { ...a, workspaceSnapshots: undefined },
+        { ...b, workspaceSnapshots: undefined },
+      ],
+      workspaceSnapshotsOmitted: true,
+    });
+    const reconnected = await api.server.getConfig();
+    expect(reconnected.providers[0]!.workspaceSnapshots?.map((snapshot) => snapshot.cwd)).toEqual([
+      "/one",
+      "/two",
+    ]);
+  });
+
+  it("restores duplicate message bodies before returning a thread projection", async () => {
+    const { createWsNativeApi } = await import("./wsNativeApi");
+    const api = createWsNativeApi();
+    requestMock.mockResolvedValueOnce({
+      thread: { id: "thread" },
+      messages: [{ id: "message", text: "complete response" }],
+      checkpoints: [],
+      subagents: [],
+      turnItems: [{ type: "assistant_message", messageId: "message", text: "", textOmitted: true }],
+      visibleTurnItems: [],
+    });
+    const projection = await api.orchestration.getThreadProjection({
+      threadId: ThreadId.make("thread"),
+    });
+    expect(projection.turnItems[0]).toMatchObject({ text: "complete response" });
+    expect(projection.turnItems[0]).not.toHaveProperty("textOmitted");
+    expect(requestMock).toHaveBeenLastCalledWith(ORCHESTRATION_V2_WS_METHODS.getThreadProjection, {
+      threadId: "thread",
+      acceptDedupedBodies: true,
+    });
   });
 
   it("isolates progress listeners between non-singleton environment transports", async () => {

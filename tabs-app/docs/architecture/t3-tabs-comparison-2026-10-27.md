@@ -1,5 +1,7 @@
 # T3 Code and Tabs: workflow comparison
 
+> Historical implementation comparison. Its intermediate verification counts and disabled-feature notes predate the completed independent repairs. See [the combined local review](all-local-t3-review-2026-10-30/README.md) for current branch provenance and checks, and [the production candidate record](t3-parity-release-audit-2026-10-29/production-candidate.md) for the separate scoped installer source.
+
 Reviewed 27 October 2026. Upstream fetched revision: `1702d55214bdbae12278462e572b35e7c0eb4a46` (27 October). Tabs assessment uses the current local working tree, including the changes described below. This is a source and interaction audit of the agent workspace, composer, Git context, and relevant performance work; it is not a complete equivalence audit of every T3 feature.
 
 ## Independent repair status (29 October 2026)

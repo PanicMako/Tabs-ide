@@ -1,6 +1,6 @@
 # Desktop icon sizing and fifth-treatment replacement
 
-Updated 25 October 2026.
+Updated 28 October 2026.
 
 ## Findings
 
@@ -19,9 +19,13 @@ Apple's current guidance describes 1024-square layered icons and Icon Composer. 
 
 ## Fifth treatment
 
-Only the persisted `blue-ink` option changes artwork. Its name is now Afterglow. `assets/prod/tabs-blue-ink-master.png` is extracted byte-for-byte from the supplied HTML's embedded PNG. The shared SVG exports for that option contain the raster, not approximated vector paths. A rounded presentation clip removes the rectangular outer corners without redrawing the artwork. Browser previews and native exports use the same supplied source. The other four brand designs, default choice, and marketing loading animation remain unchanged.
+Only the persisted `blue-ink` option changes artwork. Its name is now Cobalt Reference Master. `assets/prod/tabs-blue-ink-master.png` is extracted byte-for-byte from the supplied HTML's embedded PNG. The shared SVG exports for that option contain the raster, not approximated vector paths. A rounded presentation clip removes the rectangular outer corners without redrawing the artwork. Browser previews and native exports use the same supplied source. The other four brand designs and marketing loading animation remain unchanged.
 
 The HTML describes an original reference of approximately 430 square, embedded as a resampled 1024-square PNG. Higher export dimensions do not create additional source detail.
+
+## macOS installer artwork
+
+The drag-to-Applications app icon now uses Afterglow (`blue-ink`). Both the checked-in `resources/icon.icns` / iconset and release packaging use the same self-contained `assets/prod/tabs-afterglow.svg`, preserving the macOS optical padding. Regenerate just these assets with `bun scripts/generate-tabs-brand.ts --mac-installer-only`. Windows/Linux installer artwork and the user's runtime icon preference remain independent.
 
 ## Sources
 

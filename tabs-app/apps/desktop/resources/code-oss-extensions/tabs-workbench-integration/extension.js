@@ -43,6 +43,9 @@ const EMBED_CHROME_DEFAULTS = {
 // imported. Restricting to this fixed set means a compromised renderer can only
 // run these navigation/layout commands, never arbitrary VS Code commands.
 const CHROME_COMMAND_ALLOWLIST = new Set([
+  "_tabs.setRailPresentation",
+  "_tabs.railSpotlightOn",
+  "_tabs.railSpotlightOff",
   "workbench.view.explorer",
   "workbench.view.search",
   "workbench.view.scm",
@@ -423,6 +426,35 @@ function startCodeControlChannel(context) {
       send({ type: "openTabsProjectTab", projectId });
     }),
   );
+  const commitDraft = require("./commitDraft.js").createCommitDraftController(
+    vscode,
+    (message) => send({ ...message, projectId }),
+    () => authenticated && !!socket && !socket.destroyed,
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "tabs.generateCommitMessage",
+      async (sourceControl, resources, token) => {
+        try {
+          const rootUri = sourceControl?.rootUri ?? sourceControl;
+          if (token) return await commitDraft.generate(rootUri, resources, token);
+          return await vscode.window.withProgress(
+            {
+              location: vscode.ProgressLocation.Notification,
+              title: "Generating commit message",
+              cancellable: true,
+            },
+            (_progress, cancellation) => commitDraft.generate(rootUri, resources, cancellation),
+          );
+        } catch (error) {
+          void vscode.window.showErrorMessage(
+            error instanceof Error ? error.message : "Commit generation failed. Try again.",
+          );
+        }
+      },
+    ),
+    { dispose: () => commitDraft.disconnect() },
+  );
   const pushState = () => send({ type: "chromeState", projectId, state: { ...state } });
   context.subscriptions.push(
     vscode.commands.registerCommand("tabs.setModalOpen", (open) => {
@@ -770,7 +802,7 @@ function startCodeControlChannel(context) {
 
   watchActiveContainerFile();
 
-  const runCommand = async (commandId) => {
+  const runCommand = async (commandId, presentation) => {
     const isStaticAllowed = CHROME_COMMAND_ALLOWLIST.has(commandId);
     const isDynamicAllowed = registeredViewContainerCommands.has(commandId);
 
@@ -778,10 +810,16 @@ function startCodeControlChannel(context) {
       return;
     }
     try {
+      if (commandId === "_tabs.setRailPresentation") {
+        await vscode.commands.executeCommand(commandId, presentation);
+        return;
+      }
+      if (presentation !== undefined) return;
       await vscode.commands.executeCommand(commandId);
     } catch {
       return;
     }
+    if (commandId === "_tabs.railSpotlightOn" || commandId === "_tabs.railSpotlightOff") return;
     // Track derived UI state from the command we just ran (VS Code exposes no
     // public active-viewlet / panel-visibility API).
     if (Object.prototype.hasOwnProperty.call(VIEW_COMMAND_TO_ID, commandId)) {
@@ -890,9 +928,11 @@ function startCodeControlChannel(context) {
         } catch {
           continue;
         }
-        if (parsed && parsed.type === "runCommand" && typeof parsed.commandId === "string") {
+        if (parsed && parsed.type === "commitDraftResult") {
+          commitDraft.receive(parsed);
+        } else if (parsed && parsed.type === "runCommand" && typeof parsed.commandId === "string") {
           log(`runCommand ${parsed.commandId}`);
-          void runCommand(parsed.commandId);
+          void runCommand(parsed.commandId, parsed.presentation);
         } else if (parsed && parsed.type === "openFile" && typeof parsed.filePath === "string") {
           log(`openFile ${parsed.filePath}`);
           void (async () => {
@@ -1240,8 +1280,16 @@ function startCodeControlChannel(context) {
       clearTimeout(connectTimeout);
       settled = true;
       authenticated = false;
+      commitDraft.disconnect();
       if (socket === sock) {
         socket = null;
+        void vscode.commands
+          .executeCommand("_tabs.setRailPresentation", {
+            selectionY: null,
+            spotlight: false,
+            label: null,
+          })
+          .catch(() => {});
       }
       log("control channel closed");
       scheduleReconnect();

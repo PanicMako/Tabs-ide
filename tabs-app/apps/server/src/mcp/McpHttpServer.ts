@@ -1,3 +1,4 @@
+import { advertisedJsonSchema } from "./advertisedJsonSchema.ts";
 import * as McpProtocol from "effect/unstable/ai/McpProtocol";
 import { ExtensionAiBrokerClient } from "./ExtensionAiBrokerClient.ts";
 import * as Cause from "effect/Cause";
@@ -33,7 +34,6 @@ import * as HtmlRender from "../htmlRender/HtmlRender.ts";
 import * as PreviewBrowser from "../htmlRender/PreviewBrowser.ts";
 import * as McpInvocationContext from "./McpInvocationContext.ts";
 import * as OrchestratorMcpService from "./OrchestratorMcpService.ts";
-import { advertisedJsonSchema } from "./advertisedJsonSchema.ts";
 import { PreviewControlsToolkit } from "./toolkits/previewControls/tools.ts";
 import * as PreviewControlsHandlers from "./toolkits/previewControls/handlers.ts";
 import { EnvironmentToolkit } from "./toolkits/environment/tools.ts";

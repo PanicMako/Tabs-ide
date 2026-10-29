@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { act } from "react";
+import { act, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { STARTUP_ANIMATION_HOLD_MS, STARTUP_ANIMATION_EXIT_MS } from "./lib/startupAnimationTiming";
@@ -110,9 +110,37 @@ it("skips the decorative hold and upward motion for reduced motion", async () =>
   await act(async () =>
     root.render(<StartupShell loadApplication={async () => <div>Workspace</div>} />),
   );
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(1);
+  });
   await act(async () => updateStartupSplash({ ready: true }));
   await act(async () => {
     await vi.advanceTimersByTimeAsync(1);
   });
   expect(getStartupSplashState().dismissed).toBe(true);
+});
+
+it("keeps the loader visible when readiness arrives before the application module", async () => {
+  let finish!: (node: ReactNode) => void;
+  const pending = new Promise<ReactNode>((resolve) => {
+    finish = resolve;
+  });
+  await act(async () => root.render(<StartupShell loadApplication={() => pending} />));
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(1);
+    updateStartupSplash({ ready: true });
+  });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(STARTUP_ANIMATION_HOLD_MS + 1);
+  });
+  expect(container.querySelector('[aria-label="Starting Tabs"]')).not.toBeNull();
+  expect(getStartupSplashState().dismissed).toBe(false);
+  await act(async () => {
+    finish(<div>Workspace</div>);
+  });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(STARTUP_ANIMATION_EXIT_MS);
+  });
+  expect(container.textContent).toContain("Workspace");
+  expect(container.querySelector('[aria-label="Starting Tabs"]')).toBeNull();
 });

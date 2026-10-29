@@ -1,4 +1,5 @@
 import { useThreadWorkspaceContext } from "../../hooks/useThreadWorkspaceContext";
+import { createPortal } from "react-dom";
 import { selectWorkspaceBranch } from "../workspaceBranchSelection";
 import { EnvironmentId } from "@tabs/contracts";
 import {
@@ -84,6 +85,8 @@ import { useScopedStateStore } from "~/state/scopedStateStore";
 import { workspaceShellActions } from "~/state/workspaceShell";
 
 interface ChatHeaderProps {
+  workspaceActionsContainer?: HTMLElement | null | undefined;
+  onWorkspaceActionsOpenChange?: ((open: boolean) => void) | undefined;
   workspaceControls?: ReactNode;
   agentWorkflow?: ReactNode;
   scriptManagement?: ReactNode;
@@ -771,6 +774,8 @@ function BranchSelectorControl({
 }
 
 export const ChatHeader = memo(function ChatHeader({
+  workspaceActionsContainer,
+  onWorkspaceActionsOpenChange,
   workspaceControls,
   agentWorkflow,
   scriptManagement,
@@ -804,6 +809,9 @@ export const ChatHeader = memo(function ChatHeader({
   onClosePane,
 }: ChatHeaderProps) {
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
+  useEffect(() => {
+    onWorkspaceActionsOpenChange?.(workspaceOpen);
+  }, [onWorkspaceActionsOpenChange, workspaceOpen]);
   const [moreActionsOpen, setMoreActionsOpen] = useState(false);
   const headerRef = useRef<HTMLDivElement | null>(null);
   const [availableCardHeight, setAvailableCardHeight] = useState<number | null>(null);
@@ -840,12 +848,13 @@ export const ChatHeader = memo(function ChatHeader({
     const observer = new ResizeObserver(measure);
     observer.observe(header);
     if (pane) observer.observe(pane);
+    if (workspaceActionsContainer) observer.observe(workspaceActionsContainer);
     window.addEventListener("resize", measure);
     return () => {
       observer.disconnect();
       window.removeEventListener("resize", measure);
     };
-  }, [workspaceOpen, isSplitActive]);
+  }, [workspaceActionsContainer, workspaceOpen, isSplitActive]);
 
   const density: WorkspaceCardDensity = useMemo(
     () =>
@@ -1056,312 +1065,330 @@ export const ChatHeader = memo(function ChatHeader({
           )}
         </div>
       </div>
-      {activeProjectName && workspaceOpen && (
-        <div
-          ref={workspaceCardRef}
-          className="absolute right-0 sm:right-3 top-full z-40 mt-1 pointer-events-auto"
-        >
-          <section
-            id={`workspace-card-${activeThreadId}`}
-            aria-label="Workspace actions"
-            data-density={density}
-            style={{
-              maxHeight:
-                availableCardHeight === null
-                  ? undefined
-                  : Math.min(availableCardHeight, density === "essential" ? 420 : 640),
-              maxWidth: Math.max(0, windowDimensions.width - 24),
-            }}
-            className={cn(
-              "workspace-card w-[304px] max-w-[calc(100vw-1.5rem)] rounded-2xl border border-border/70 bg-card p-3 text-foreground",
-              "[-webkit-app-region:no-drag] overflow-y-auto overflow-x-hidden isolate overscroll-contain shadow-xl",
-              "animate-in fade-in slide-in-from-top-1 duration-150 motion-reduce:animate-none",
-              density === "compact" && "workspace-card--compact p-2.5",
-              density === "essential" && "workspace-card--essential p-2",
-            )}
-          >
-            {/* Project identity, with workspace controls grouped below */}
+      {activeProjectName &&
+        workspaceOpen &&
+        (() => {
+          const card = (
             <div
+              ref={workspaceCardRef}
               className={cn(
-                "workspace-identity flex items-center gap-2.5 px-1 pb-3",
-                density === "essential" && "pb-2",
+                workspaceActionsContainer && density !== "compact"
+                  ? "relative w-full pointer-events-auto"
+                  : "absolute right-0 sm:right-3 top-full z-40 mt-1 pointer-events-auto",
               )}
             >
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <div
-                      tabIndex={0}
-                      role="button"
-                      aria-label={`Project: ${activeProjectName ?? "Current project"}`}
-                      className="flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-border/60 bg-muted/50 overflow-hidden shadow-2xs hover:bg-muted/80 transition-colors focus-visible:outline-2 focus-visible:outline-ring"
-                    >
-                      {activeProjectFavicon ? (
-                        <ProjectFavicon project={activeProjectFavicon} className="size-4.5" />
-                      ) : (
-                        <GitBranchIcon
-                          aria-hidden="true"
-                          className="size-3.5 text-muted-foreground"
-                        />
-                      )}
-                    </div>
-                  }
-                />
-                <TooltipPopup
-                  side="bottom"
-                  align="start"
-                  className="max-w-xs z-50 p-2.5 shadow-lg border border-border/80 bg-popover text-popover-foreground"
+              <section
+                id={`workspace-card-${activeThreadId}`}
+                aria-label="Workspace actions"
+                data-density={density}
+                style={{
+                  maxHeight:
+                    availableCardHeight === null
+                      ? undefined
+                      : Math.min(availableCardHeight, density === "essential" ? 420 : 640),
+                  maxWidth: Math.max(0, windowDimensions.width - 24),
+                }}
+                className={cn(
+                  "workspace-card w-[304px] max-w-[calc(100vw-1.5rem)] rounded-2xl border border-border/70 bg-card p-3 text-foreground",
+                  "[-webkit-app-region:no-drag] overflow-y-auto overflow-x-hidden isolate overscroll-contain shadow-xl",
+                  "animate-in fade-in slide-in-from-top-1 duration-150 motion-reduce:animate-none",
+                  density === "compact" && "workspace-card--compact p-2.5",
+                  density === "essential" && "workspace-card--essential p-2",
+                )}
+              >
+                {/* Project identity, with workspace controls grouped below */}
+                <div
+                  className={cn(
+                    "workspace-identity flex items-center gap-2.5 px-1 pb-3",
+                    density === "essential" && "pb-2",
+                  )}
                 >
-                  <div className="space-y-1.5">
-                    <div className="flex items-center gap-2">
-                      <span className="flex size-5 shrink-0 items-center justify-center rounded border border-border/60 bg-muted/60 overflow-hidden">
-                        {activeProjectFavicon ? (
-                          <ProjectFavicon project={activeProjectFavicon} className="size-3.5" />
-                        ) : (
-                          <GitBranchIcon className="size-3 text-muted-foreground" />
-                        )}
-                      </span>
-                      <p className="font-semibold text-xs leading-none truncate">
-                        {activeProjectName ?? "Active Project"}
-                      </p>
-                    </div>
-                    {openInCwd && (
-                      <p className="font-mono text-[10px] leading-relaxed text-muted-foreground break-all bg-muted/40 p-1.5 rounded border border-border/40">
-                        {openInCwd}
-                      </p>
-                    )}
-                    {vcs.status?.branch && (
-                      <div className="flex items-center justify-between pt-1 border-t border-border/40 text-[10px] text-muted-foreground">
-                        <span className="flex items-center gap-1 font-mono text-foreground/80">
-                          <GitBranchIcon className="size-3 text-primary shrink-0" />
-                          <span>{vcs.status.branch}</span>
-                        </span>
-                        {vcs.status.hasUpstream && (
-                          <span className="font-mono text-[9px] text-muted-foreground/70">
-                            {(vcs.status.aheadCount ?? 0) > 0 ? `↑${vcs.status.aheadCount} ` : ""}
-                            {(vcs.status.behindCount ?? 0) > 0 ? `↓${vcs.status.behindCount}` : ""}
-                            {(vcs.status.aheadCount ?? 0) === 0 &&
-                            (vcs.status.behindCount ?? 0) === 0
-                              ? "Synced"
-                              : ""}
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <div
+                          tabIndex={0}
+                          role="button"
+                          aria-label={`Project: ${activeProjectName ?? "Current project"}`}
+                          className="flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-border/60 bg-muted/50 overflow-hidden shadow-2xs hover:bg-muted/80 transition-colors focus-visible:outline-2 focus-visible:outline-ring"
+                        >
+                          {activeProjectFavicon ? (
+                            <ProjectFavicon project={activeProjectFavicon} className="size-4.5" />
+                          ) : (
+                            <GitBranchIcon
+                              aria-hidden="true"
+                              className="size-3.5 text-muted-foreground"
+                            />
+                          )}
+                        </div>
+                      }
+                    />
+                    <TooltipPopup
+                      side="bottom"
+                      align="start"
+                      className="max-w-xs z-50 p-2.5 shadow-lg border border-border/80 bg-popover text-popover-foreground"
+                    >
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className="flex size-5 shrink-0 items-center justify-center rounded border border-border/60 bg-muted/60 overflow-hidden">
+                            {activeProjectFavicon ? (
+                              <ProjectFavicon project={activeProjectFavicon} className="size-3.5" />
+                            ) : (
+                              <GitBranchIcon className="size-3 text-muted-foreground" />
+                            )}
                           </span>
+                          <p className="font-semibold text-xs leading-none truncate">
+                            {activeProjectName ?? "Active Project"}
+                          </p>
+                        </div>
+                        {openInCwd && (
+                          <p className="font-mono text-[10px] leading-relaxed text-muted-foreground break-all bg-muted/40 p-1.5 rounded border border-border/40">
+                            {openInCwd}
+                          </p>
+                        )}
+                        {vcs.status?.branch && (
+                          <div className="flex items-center justify-between pt-1 border-t border-border/40 text-[10px] text-muted-foreground">
+                            <span className="flex items-center gap-1 font-mono text-foreground/80">
+                              <GitBranchIcon className="size-3 text-primary shrink-0" />
+                              <span>{vcs.status.branch}</span>
+                            </span>
+                            {vcs.status.hasUpstream && (
+                              <span className="font-mono text-[9px] text-muted-foreground/70">
+                                {(vcs.status.aheadCount ?? 0) > 0
+                                  ? `↑${vcs.status.aheadCount} `
+                                  : ""}
+                                {(vcs.status.behindCount ?? 0) > 0
+                                  ? `↓${vcs.status.behindCount}`
+                                  : ""}
+                                {(vcs.status.aheadCount ?? 0) === 0 &&
+                                (vcs.status.behindCount ?? 0) === 0
+                                  ? "Synced"
+                                  : ""}
+                              </span>
+                            )}
+                          </div>
                         )}
                       </div>
-                    )}
+                    </TooltipPopup>
+                  </Tooltip>
+
+                  <div className="min-w-0 flex-1">
+                    <p className="workspace-project truncate text-xs font-semibold leading-tight">
+                      {activeProjectName}
+                    </p>
+                    <p
+                      title={openInCwd ?? undefined}
+                      className="truncate font-mono text-[9px] leading-tight text-muted-foreground/70 mt-0.5"
+                    >
+                      {openInCwd ?? "Path unavailable"}
+                    </p>
                   </div>
-                </TooltipPopup>
-              </Tooltip>
 
-              <div className="min-w-0 flex-1">
-                <p className="workspace-project truncate text-xs font-semibold leading-tight">
-                  {activeProjectName}
-                </p>
-                <p
-                  title={openInCwd ?? undefined}
-                  className="truncate font-mono text-[9px] leading-tight text-muted-foreground/70 mt-0.5"
+                  {/* Open-in-editor as icon-only button in header */}
+                  <OpenInPicker
+                    keybindings={keybindings}
+                    availableEditors={availableEditors}
+                    openInCwd={openInCwd}
+                    showEditorName={false}
+                  />
+
+                  {/* Close card button */}
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <button
+                          type="button"
+                          aria-label="Close workspace card"
+                          onClick={closeWorkspaceCard}
+                          className="flex size-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors ml-0.5"
+                        />
+                      }
+                    >
+                      <XIcon className="size-3.5" />
+                    </TooltipTrigger>
+                    <TooltipPopup side="bottom">Close</TooltipPopup>
+                  </Tooltip>
+                </div>
+
+                <div
+                  role="group"
+                  aria-label="Workspace context"
+                  className={cn(
+                    "workspace-context space-y-1 pb-3",
+                    density === "essential" && "pb-2",
+                  )}
                 >
-                  {openInCwd ?? "Path unavailable"}
-                </p>
-              </div>
-
-              {/* Open-in-editor as icon-only button in header */}
-              <OpenInPicker
-                keybindings={keybindings}
-                availableEditors={availableEditors}
-                openInCwd={openInCwd}
-                showEditorName={false}
-              />
-
-              {/* Close card button */}
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <button
-                      type="button"
-                      aria-label="Close workspace card"
-                      onClick={closeWorkspaceCard}
-                      className="flex size-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors ml-0.5"
-                    />
-                  }
-                >
-                  <XIcon className="size-3.5" />
-                </TooltipTrigger>
-                <TooltipPopup side="bottom">Close</TooltipPopup>
-              </Tooltip>
-            </div>
-
-            <div
-              role="group"
-              aria-label="Workspace context"
-              className={cn("workspace-context space-y-1 pb-3", density === "essential" && "pb-2")}
-            >
-              {workspaceControls}
-              {density === "essential" ? (
-                <div className="pt-0.5">
-                  <button
-                    type="button"
-                    onClick={() => setMoreActionsOpen((o) => !o)}
-                    aria-expanded={moreActionsOpen}
-                    className="surface-control flex h-7 w-full items-center justify-between rounded-lg px-2 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    <span>More tools</span>
-                    <ChevronDownIcon
-                      className={cn(
-                        "size-3 transition-transform duration-150",
-                        moreActionsOpen && "rotate-180",
+                  {workspaceControls}
+                  {density === "essential" ? (
+                    <div className="pt-0.5">
+                      <button
+                        type="button"
+                        onClick={() => setMoreActionsOpen((o) => !o)}
+                        aria-expanded={moreActionsOpen}
+                        className="surface-control flex h-7 w-full items-center justify-between rounded-lg px-2 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        <span>More tools</span>
+                        <ChevronDownIcon
+                          className={cn(
+                            "size-3 transition-transform duration-150",
+                            moreActionsOpen && "rotate-180",
+                          )}
+                        />
+                      </button>
+                      {moreActionsOpen && (
+                        <div className="pt-1.5 space-y-1">
+                          <OpenInPicker
+                            keybindings={keybindings}
+                            availableEditors={availableEditors}
+                            openInCwd={openInCwd}
+                            showEditorName
+                            displayMode="panel"
+                          />
+                        </div>
                       )}
-                    />
-                  </button>
-                  {moreActionsOpen && (
-                    <div className="pt-1.5 space-y-1">
-                      <OpenInPicker
-                        keybindings={keybindings}
-                        availableEditors={availableEditors}
-                        openInCwd={openInCwd}
-                        showEditorName
-                        displayMode="panel"
-                      />
                     </div>
+                  ) : (
+                    <OpenInPicker
+                      keybindings={keybindings}
+                      availableEditors={availableEditors}
+                      openInCwd={openInCwd}
+                      showEditorName
+                      displayMode="panel"
+                    />
                   )}
                 </div>
-              ) : (
-                <OpenInPicker
-                  keybindings={keybindings}
-                  availableEditors={availableEditors}
-                  openInCwd={openInCwd}
-                  showEditorName
-                  displayMode="panel"
-                />
-              )}
-            </div>
 
-            {scriptManagement && (
-              <div
-                className={cn("pb-3", density === "essential" && "pb-2")}
-                aria-label="Manage project scripts"
-              >
-                {scriptManagement}
-              </div>
-            )}
-            {!!scripts?.length && onRunScript && (
-              <div
-                role="group"
-                aria-label="Project scripts"
-                className={cn(
-                  "my-2 space-y-1 overflow-y-auto",
-                  density === "essential" ? "max-h-28" : "max-h-48",
+                {scriptManagement && (
+                  <div
+                    className={cn("pb-3", density === "essential" && "pb-2")}
+                    aria-label="Manage project scripts"
+                  >
+                    {scriptManagement}
+                  </div>
                 )}
-              >
-                {scripts.map((script) => (
+                {!!scripts?.length && onRunScript && (
+                  <div
+                    role="group"
+                    aria-label="Project scripts"
+                    className={cn(
+                      "my-2 space-y-1 overflow-y-auto",
+                      density === "essential" ? "max-h-28" : "max-h-48",
+                    )}
+                  >
+                    {scripts.map((script) => (
+                      <button
+                        type="button"
+                        key={script.id}
+                        title={`Run ${script.name}`}
+                        aria-label={`Run ${script.name}`}
+                        onClick={() => onRunScript(script)}
+                        className="surface-control flex h-8 w-full min-w-0 items-center gap-2 rounded-lg px-2 text-left text-xs focus-visible:outline-2 focus-visible:outline-ring"
+                      >
+                        <PlayIcon aria-hidden="true" className="size-3 shrink-0" />
+                        <span className="truncate">{script.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {/* Git section */}
+                <div
+                  role="group"
+                  aria-label="Version control"
+                  className={cn(
+                    "workspace-git space-y-1 border-t border-border/60 pt-3",
+                    density === "essential" && "pt-2",
+                  )}
+                >
+                  {/* Branch selector + pull + divergence */}
+                  <BranchSelectorControl
+                    key={JSON.stringify([environmentId, activeThreadId, gitCwd])}
+                    threadId={activeThreadId}
+                    projectId={projectId}
+                    gitCwd={gitCwd}
+                    environmentId={environmentId}
+                    currentBranch={vcs.status?.branch ?? null}
+                    isGitRepo={isGitRepo}
+                    aheadCount={vcs.status?.aheadCount}
+                    behindCount={vcs.status?.behindCount}
+                    hasUpstream={vcs.status?.hasUpstream}
+                    onOpenDivergence={handleOpenGitDivergence}
+                  />
+
+                  {(checkoutPr || pullRequestLinks.length > 0) && (
+                    <WorkspacePullRequests
+                      links={pullRequestLinks}
+                      cwd={isGitRepo ? gitCwd : null}
+                      summary={checkoutPr ?? undefined}
+                      details={pullRequest.data?.pullRequest}
+                      unavailable={pullRequest.isError || pullRequest.isPlaceholderData}
+                      environmentId={environmentId}
+                    />
+                  )}
+
+                  {/* Commit & Push */}
+                  <div className="flex w-full">
+                    <GitActionsControl
+                      gitCwd={gitCwd}
+                      activeThreadId={activeThreadId}
+                      environmentId={environmentId}
+                    />
+                  </div>
+
+                  {/* Changed files */}
                   <button
                     type="button"
-                    key={script.id}
-                    title={`Run ${script.name}`}
-                    aria-label={`Run ${script.name}`}
-                    onClick={() => onRunScript(script)}
-                    className="surface-control flex h-8 w-full min-w-0 items-center gap-2 rounded-lg px-2 text-left text-xs focus-visible:outline-2 focus-visible:outline-ring"
+                    disabled={!isGitRepo}
+                    className="surface-control flex h-8 w-full items-center gap-2 rounded-lg px-2 text-xs focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-40"
+                    onClick={() => {
+                      if (!diffOpen) onToggleDiff();
+                    }}
                   >
-                    <PlayIcon aria-hidden="true" className="size-3 shrink-0" />
-                    <span className="truncate">{script.name}</span>
+                    <DiffIcon aria-hidden="true" className="size-3 text-muted-foreground" />
+                    <span className="flex-1 text-left">Changes</span>
+                    {vcs.status && (
+                      <span className="flex gap-2 font-mono tabular-nums text-[11px]">
+                        <span className="text-emerald-500 font-medium">
+                          +{vcs.status.workingTree.insertions}
+                        </span>
+                        <span className="text-red-400 font-medium">
+                          −{vcs.status.workingTree.deletions}
+                        </span>
+                      </span>
+                    )}
                   </button>
-                ))}
-              </div>
-            )}
-            {/* Git section */}
-            <div
-              role="group"
-              aria-label="Version control"
-              className={cn(
-                "workspace-git space-y-1 border-t border-border/60 pt-3",
-                density === "essential" && "pt-2",
-              )}
-            >
-              {/* Branch selector + pull + divergence */}
-              <BranchSelectorControl
-                key={JSON.stringify([environmentId, activeThreadId, gitCwd])}
-                threadId={activeThreadId}
-                projectId={projectId}
-                gitCwd={gitCwd}
-                environmentId={environmentId}
-                currentBranch={vcs.status?.branch ?? null}
-                isGitRepo={isGitRepo}
-                aheadCount={vcs.status?.aheadCount}
-                behindCount={vcs.status?.behindCount}
-                hasUpstream={vcs.status?.hasUpstream}
-                onOpenDivergence={handleOpenGitDivergence}
-              />
 
-              {(checkoutPr || pullRequestLinks.length > 0) && (
-                <WorkspacePullRequests
-                  links={pullRequestLinks}
-                  cwd={isGitRepo ? gitCwd : null}
-                  summary={checkoutPr ?? undefined}
-                  details={pullRequest.data?.pullRequest}
-                  unavailable={pullRequest.isError || pullRequest.isPlaceholderData}
-                  environmentId={environmentId}
-                />
-              )}
+                  {/* Divergence Space shortcut link */}
+                  {isGitRepo && (density !== "essential" || moreActionsOpen) && (
+                    <button
+                      type="button"
+                      onClick={handleOpenGitDivergence}
+                      className="flex h-7 w-full items-center justify-between rounded-lg px-2 text-[11px] text-muted-foreground hover:bg-accent/40 hover:text-foreground transition-colors group"
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <Telescope className="size-3 text-primary shrink-0" />
+                        <span>Divergence space</span>
+                      </span>
+                      <span className="text-[10px] text-muted-foreground/60 group-hover:text-muted-foreground font-sans">
+                        Compare all →
+                      </span>
+                    </button>
+                  )}
+                </div>
 
-              {/* Commit & Push */}
-              <div className="flex w-full">
-                <GitActionsControl
-                  gitCwd={gitCwd}
-                  activeThreadId={activeThreadId}
-                  environmentId={environmentId}
-                />
-              </div>
+                {agentWorkflow}
 
-              {/* Changed files */}
-              <button
-                type="button"
-                disabled={!isGitRepo}
-                className="surface-control flex h-8 w-full items-center gap-2 rounded-lg px-2 text-xs focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-40"
-                onClick={() => {
-                  if (!diffOpen) onToggleDiff();
-                }}
-              >
-                <DiffIcon aria-hidden="true" className="size-3 text-muted-foreground" />
-                <span className="flex-1 text-left">Changes</span>
-                {vcs.status && (
-                  <span className="flex gap-2 font-mono tabular-nums text-[11px]">
-                    <span className="text-emerald-500 font-medium">
-                      +{vcs.status.workingTree.insertions}
-                    </span>
-                    <span className="text-red-400 font-medium">
-                      −{vcs.status.workingTree.deletions}
-                    </span>
-                  </span>
+                {vcs.error && (
+                  <p role="status" className="mt-2 text-[10px] text-muted-foreground">
+                    Git status temporarily unavailable.
+                  </p>
                 )}
-              </button>
-
-              {/* Divergence Space shortcut link */}
-              {isGitRepo && (density !== "essential" || moreActionsOpen) && (
-                <button
-                  type="button"
-                  onClick={handleOpenGitDivergence}
-                  className="flex h-7 w-full items-center justify-between rounded-lg px-2 text-[11px] text-muted-foreground hover:bg-accent/40 hover:text-foreground transition-colors group"
-                >
-                  <span className="flex items-center gap-1.5">
-                    <Telescope className="size-3 text-primary shrink-0" />
-                    <span>Divergence space</span>
-                  </span>
-                  <span className="text-[10px] text-muted-foreground/60 group-hover:text-muted-foreground font-sans">
-                    Compare all →
-                  </span>
-                </button>
-              )}
+              </section>
             </div>
-
-            {agentWorkflow}
-
-            {vcs.error && (
-              <p role="status" className="mt-2 text-[10px] text-muted-foreground">
-                Git status temporarily unavailable.
-              </p>
-            )}
-          </section>
-        </div>
-      )}
+          );
+          return workspaceActionsContainer && density !== "compact"
+            ? createPortal(card, workspaceActionsContainer)
+            : card;
+        })()}
     </div>
   );
 });

@@ -464,6 +464,10 @@
     "./orchestrationV2DedupedBodies": {
       "types": "./src/orchestrationV2DedupedBodies.ts",
       "import": "./src/orchestrationV2DedupedBodies.ts"
+    },
+    "./deepSeekPlugins": {
+      "types": "./src/deepSeekPlugins.ts",
+      "import": "./src/deepSeekPlugins.ts"
     }
   },
   "scripts": {

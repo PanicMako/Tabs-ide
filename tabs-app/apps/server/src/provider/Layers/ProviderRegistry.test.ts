@@ -1312,6 +1312,9 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsService.layerTest(), T
               assert.strictEqual(reprobedCodex?.installed, false);
             }).pipe(Effect.provide(runtimeServices)) as any;
           }) as any,
+        // The 5s boot and 10s refresh polling limits remain unchanged. Allow
+        // additional time for real service startup and scoped process teardown.
+        40_000,
       );
 
       it.effect("includes unavailable instance snapshots in getProviders", () =>
@@ -1470,7 +1473,6 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsService.layerTest(), T
                 "copilot",
                 "cursor",
                 "droid",
-                "gemini",
                 "grok",
                 "kilo",
                 "opencode",

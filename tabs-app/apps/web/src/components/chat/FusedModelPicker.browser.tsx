@@ -4,6 +4,7 @@ import { DEFAULT_UNIFIED_SETTINGS } from "@tabs/contracts/settings";
 import { expect, test, vi } from "vitest";
 import { page } from "vitest/browser";
 import { render } from "vitest-browser-react";
+import { restoreThemeSnapshot, snapshotThemeState } from "../../hooks/useTheme";
 import { FusedModelPicker } from "./FusedModelPicker";
 import { makeTestServerProvider } from "../../test/serverProviderFixture";
 
@@ -207,4 +208,165 @@ test("shows all ten providers, permits a live retry after a status error, and la
     .element(textOnly)
     .toHaveAttribute("title", expect.stringContaining("Text generation only"));
   await screen.unmount();
+});
+
+test("shows a capitalized provider heading with an unboxed logo and quiet model-default metadata", async () => {
+  const themeSnapshot = snapshotThemeState();
+  const storedTheme = localStorage.getItem("tabs:theme");
+  localStorage.setItem("tabs:theme", "tabs-monotone-light");
+  restoreThemeSnapshot({ ...themeSnapshot, theme: "tabs-monotone-light" });
+  const screen = await render(
+    <FusedModelPicker
+      provider="openrouter"
+      lockedProvider="openrouter"
+      model="example/default"
+      providers={[
+        makeTestServerProvider({
+          instanceId: "openrouter",
+          models: [
+            { slug: "example/default", name: "Example default", isCustom: false, capabilities: {} },
+          ],
+        }),
+      ]}
+      prompt=""
+      onPromptChange={vi.fn()}
+      onProviderModelChange={vi.fn()}
+      onModelOptionsChange={vi.fn()}
+    />,
+  );
+  try {
+    await page.getByRole("button", { name: "Example default", exact: true }).click();
+    const heading = page.getByRole("heading", { name: "OpenRouter", exact: true });
+    await expect.element(heading).toBeVisible();
+    expect(heading.element().previousElementSibling?.tagName.toLowerCase()).toBe("svg");
+    const status = page.getByText("Model default", { exact: true });
+    await expect.element(status).toBeVisible();
+    expect(status.element().querySelector("svg")).toBeNull();
+    expect(status.element().children).toHaveLength(0);
+    expect(getComputedStyle(status.element()).borderTopWidth).toBe("0px");
+    expect(getComputedStyle(document.querySelector('span[title="Example default"]')!).color).toBe(
+      "rgb(59, 59, 59)",
+    );
+  } finally {
+    await screen.unmount();
+    if (storedTheme === null) localStorage.removeItem("tabs:theme");
+    else localStorage.setItem("tabs:theme", storedTheme);
+    restoreThemeSnapshot(themeSnapshot);
+  }
+});
+
+test("keeps the provider heading inside a short viewport with a long provider rail", async () => {
+  await page.viewport(1280, 720);
+  const providerIds = [
+    "codex",
+    "claudeAgent",
+    "cursor",
+    "copilot",
+    "grok",
+    "opencode",
+    "kilo",
+    "droid",
+    "antigravity",
+    "openrouter",
+  ];
+  const screen = await render(
+    <div style={{ position: "fixed", left: 100, bottom: 180 }}>
+      <FusedModelPicker
+        provider="openrouter"
+        lockedProvider={null}
+        model="example/viewport"
+        providers={providerIds.map((instanceId) =>
+          makeTestServerProvider({
+            instanceId,
+            models: [
+              {
+                slug: "example/viewport",
+                name: "Viewport model",
+                isCustom: false,
+                capabilities: {},
+              },
+            ],
+          }),
+        )}
+        prompt=""
+        onPromptChange={vi.fn()}
+        onProviderModelChange={vi.fn()}
+        onModelOptionsChange={vi.fn()}
+      />
+    </div>,
+  );
+  try {
+    await page.getByRole("button", { name: "Viewport model", exact: true }).click();
+    const heading = page.getByRole("heading", { name: "OpenRouter", exact: true });
+    await expect.element(heading).toBeVisible();
+    await expect
+      .poll(() => document.querySelector("[data-fused-picker-panel]")!.getBoundingClientRect().top)
+      .toBeGreaterThanOrEqual(0);
+    expect(heading.element().getBoundingClientRect().top).toBeGreaterThanOrEqual(0);
+    expect(
+      document.querySelector("[data-fused-picker-panel]")!.getBoundingClientRect().bottom,
+    ).toBeLessThanOrEqual(720);
+  } finally {
+    await screen.unmount();
+  }
+});
+
+test("uses the available model-list height beside a long provider rail", async () => {
+  await page.viewport(1280, 1100);
+  const ids = [
+    "codex",
+    "claudeAgent",
+    "cursor",
+    "copilot",
+    "grok",
+    "opencode",
+    "kilo",
+    "droid",
+    "antigravity",
+    "openrouter",
+  ];
+  const screen = await render(
+    <div style={{ position: "fixed", left: 100, bottom: 30 }}>
+      <FusedModelPicker
+        provider="openrouter"
+        lockedProvider={null}
+        model="example/0"
+        providers={ids.map((instanceId) =>
+          makeTestServerProvider({
+            instanceId,
+            models: Array.from({ length: 40 }, (_, index) => ({
+              slug: `example/${index}`,
+              name: `Height model ${index}`,
+              isCustom: false,
+              capabilities: {},
+            })),
+          }),
+        )}
+        prompt=""
+        onPromptChange={vi.fn()}
+        onProviderModelChange={vi.fn()}
+        onModelOptionsChange={vi.fn()}
+      />
+    </div>,
+  );
+  try {
+    await page.getByRole("button", { name: "Height model 0", exact: true }).click();
+    await expect
+      .poll(() => document.querySelector<HTMLElement>("[data-fused-model-list]")?.clientHeight ?? 0)
+      .toBeGreaterThan(380);
+    const panel = document.querySelector<HTMLElement>("[data-fused-picker-panel]")!;
+    expect(panel.getBoundingClientRect().height).toBeLessThanOrEqual(560);
+    const list = panel.querySelector<HTMLElement>("[data-fused-model-list]")!;
+    expect(list.scrollHeight).toBeGreaterThan(list.clientHeight);
+    list.scrollTop = list.scrollHeight;
+    expect(list.scrollTop).toBeGreaterThan(0);
+    await expect.element(page.getByText("Height model 39", { exact: true })).toBeVisible();
+    await page.screenshot({ path: "__screenshots__/model-picker/capped-list.png" });
+    expect(panel.getBoundingClientRect().bottom).toBeLessThanOrEqual(1100);
+    await page.viewport(1280, 640);
+    await expect.poll(() => panel.getBoundingClientRect().top).toBeGreaterThanOrEqual(0);
+    await expect.poll(() => panel.getBoundingClientRect().bottom).toBeLessThanOrEqual(640);
+  } finally {
+    await screen.unmount();
+  }
 });

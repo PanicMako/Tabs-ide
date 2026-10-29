@@ -10,7 +10,7 @@ describe("highlighted code lines", () => {
     const highlighter = await getSharedHighlighter({
       langs: ["typescript"],
       themes: ["pierre-dark", "pierre-light"],
-      preferredHighlighter: "shiki-wasm",
+      preferredHighlighter: "highlights",
     });
     for (const theme of ["pierre-dark", "pierre-light"] as const) {
       const highlight = createIncrementalHighlightedDocument(highlighter, "typescript", theme);
@@ -20,6 +20,7 @@ describe("highlighted code lines", () => {
         const root = highlight(code.slice(0, end));
         expect(renderToStaticMarkup(<HighlightedCodeLines root={root} />)).toBe(toHtml(root));
       }
+      highlight.dispose();
     }
   });
 });

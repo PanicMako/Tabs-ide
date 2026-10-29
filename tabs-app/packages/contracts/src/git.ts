@@ -846,6 +846,28 @@ export const GitGenerateDiffSummaryTarget = Schema.Union([
     kind: Schema.Literal("full_codebase"),
   }),
 ]);
+export const GitGeneratePullRequestDraftInput = Schema.Struct({
+  cwd: TrimmedNonEmptyStringSchema,
+  baseBranch: TrimmedNonEmptyStringSchema,
+  headBranch: TrimmedNonEmptyStringSchema,
+});
+export const GitGeneratePullRequestDraftResult = Schema.Struct({
+  title: Schema.String,
+  body: Schema.String,
+});
+export type GitGeneratePullRequestDraftInput = typeof GitGeneratePullRequestDraftInput.Type;
+export type GitGeneratePullRequestDraftResult = typeof GitGeneratePullRequestDraftResult.Type;
+
+export const GitGenerateCommitDraftInput = Schema.Struct({
+  cwd: TrimmedNonEmptyStringSchema,
+});
+export const GitGenerateCommitDraftResult = Schema.Struct({
+  message: Schema.String,
+  targetScope: Schema.Literals(["staged", "working_tree"]),
+});
+export type GitGenerateCommitDraftInput = typeof GitGenerateCommitDraftInput.Type;
+export type GitGenerateCommitDraftResult = typeof GitGenerateCommitDraftResult.Type;
+
 export const GitGenerateDiffSummaryInput = Schema.Struct({
   cwd: TrimmedNonEmptyStringSchema,
   target: GitGenerateDiffSummaryTarget,

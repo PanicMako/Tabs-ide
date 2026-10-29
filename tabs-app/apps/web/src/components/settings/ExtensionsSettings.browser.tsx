@@ -413,3 +413,34 @@ test("Install resumes the verified review after first-time connection, without i
   await screen.getByRole("button", { name: "Cancel", exact: true }).click();
   delete (window as unknown as { desktopBridge?: unknown }).desktopBridge;
 });
+
+test("retains incompatible installations and explains why enabling is unavailable", async () => {
+  const reason = "engines.tabs must include this Tabs version (1.2.0).";
+  installedFixtures.splice(0, installedFixtures.length, {
+    ...sampleExtension,
+    disabled: true,
+    compatibilityError: reason,
+  });
+  const originalBridge = window.desktopBridge;
+  const enable = vi.fn(async () => undefined);
+  window.desktopBridge = {
+    listExtensions: vi.fn(async () => installedFixtures),
+    onExtensionsChanged: vi.fn(() => () => {}),
+    listExtensionCredentials: vi.fn(async () => []),
+    setExtensionDisabled: enable,
+    setTheme: vi.fn(async () => undefined),
+    exchangeInstallAvailable: vi.fn(async () => true),
+  } as unknown as DesktopBridge;
+  const screen = await render(<ExtensionsSettings />);
+  try {
+    await screen.getByRole("button", { name: "Manage Dashboard" }).click();
+    await expect.element(screen.getByRole("status")).toHaveTextContent(reason);
+    await expect.element(screen.getByRole("switch", { name: "Enable Dashboard" })).toBeDisabled();
+    expect(enable).not.toHaveBeenCalled();
+  } finally {
+    await screen.unmount();
+    installedFixtures.splice(0, installedFixtures.length, sampleExtension);
+    if (originalBridge) window.desktopBridge = originalBridge;
+    else delete window.desktopBridge;
+  }
+});

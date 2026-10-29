@@ -27,6 +27,7 @@ import type { WorkspaceAgentContext } from "./WorkspaceAgents";
 import { Button } from "../ui/button";
 import { Switch } from "../ui/switch";
 import { useConfirm } from "../../hooks/useConfirm";
+import { useWorkspaceActionExpansion } from "./workspaceActionsState";
 import {
   Dialog,
   DialogPopup,
@@ -62,7 +63,9 @@ function ScopedWorkspaceAutomations({
   readonly?: boolean;
 }) {
   const { confirm, confirmDialog } = useConfirm();
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useWorkspaceActionExpansion(
+    `automations:${environmentId ?? "local"}:${context.thread.id}`,
+  );
   const [tasks, setTasks] = useState<readonly ScheduledTask[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);

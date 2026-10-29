@@ -88,3 +88,18 @@ describe("T3 orchestration provider instructions", () => {
     assert.notInclude(withoutMcp, "T3 Code orchestration");
   });
 });
+
+it("keeps shared orchestration context below the native context-entry limit", () => {
+  assert.isBelow(Buffer.byteLength(T3_CODE_ORCHESTRATION_INSTRUCTIONS, "utf8"), 3900);
+  assert.notInclude(T3_CODE_ORCHESTRATION_INSTRUCTIONS, "T3_ACP_MCP_NODE");
+  assert.include(T3_CODE_ORCHESTRATION_INSTRUCTIONS, "no query controls returns the full catalog");
+  assert.include(
+    T3_CODE_ORCHESTRATION_INSTRUCTIONS,
+    "list threads before retrying a lost response",
+  );
+  const acp = t3AcpPromptWithInstructions({
+    prompt: "Inspect",
+    state: { interactionMode: "default", hasT3Mcp: true },
+  });
+  assert.include(acp, "T3_ACP_MCP_NODE");
+});

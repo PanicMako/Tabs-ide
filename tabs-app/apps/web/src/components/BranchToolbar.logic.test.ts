@@ -267,3 +267,9 @@ describe("resolveBranchSelectionTarget", () => {
     });
   });
 });
+
+it("derives the tracked local name when a remote name contains slashes", () => {
+  expect(deriveLocalBranchNameFromRemoteRef("team/alice/feature/base", "team/alice")).toBe(
+    "feature/base",
+  );
+});

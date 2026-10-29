@@ -1,3 +1,4 @@
+import { selectCapabilityModels } from "./capabilityModels.ts";
 import {
   CommandId,
   type RunId,
@@ -86,7 +87,6 @@ import {
 } from "./McpInvocationContext.ts";
 import * as Metrics from "../observability/Metrics.ts";
 import * as SecretRequests from "../secrets/SecretRequests.ts";
-import { selectCapabilityModels } from "./capabilityModels.ts";
 
 const DEFAULT_WAIT_TIMEOUT_MS = 10 * 60 * 1_000;
 const MAX_WAIT_TIMEOUT_MS = 60 * 60 * 1_000;
@@ -1704,13 +1704,14 @@ const make = Effect.gen(function* () {
               totalModels: selection.totalModels,
               hasMoreModels: selection.hasMoreModels,
               ...("nextOffset" in selection ? { nextOffset: selection.nextOffset } : {}),
-              models: selection.models.map((model) => ({
-                id: model.slug,
-                label: model.name ?? null,
-                ...(model.capabilities?.optionDescriptors === undefined
-                  ? {}
-                  : { options: model.capabilities.optionDescriptors }),
-              })),
+              models:
+                selection.models.map((model) => ({
+                  id: model.slug,
+                  label: model.name ?? null,
+                  ...(model.capabilities?.optionDescriptors === undefined
+                    ? {}
+                    : { options: model.capabilities.optionDescriptors }),
+                })) ?? [],
               canRunChildTask: constraints.length === 0,
               canRunCrossProviderChildTask: constraints.length === 0,
               constraints: [...constraints],

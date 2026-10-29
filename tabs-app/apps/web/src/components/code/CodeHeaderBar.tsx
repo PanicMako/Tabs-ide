@@ -115,7 +115,7 @@ export function CodeHeaderBar(props: CodeHeaderBarProps) {
               className="code-quick-open"
             >
               <SearchIcon aria-hidden="true" className="size-3.5 shrink-0" />
-              <span className="min-w-0 flex-1 truncate text-left">Search files…</span>
+              <span className="min-w-0 flex-1 truncate text-left">Go to file</span>
               <kbd aria-hidden="true">{shortcut}</kbd>
             </button>
           }

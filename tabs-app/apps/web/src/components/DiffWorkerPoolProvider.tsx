@@ -1,6 +1,7 @@
 import { WorkerPoolContextProvider, useWorkerPool } from "@pierre/diffs/react";
 import DiffsWorker from "@pierre/diffs/worker/worker.js?worker";
 import { useEffect, useMemo, type ReactNode } from "react";
+import { PREFERRED_HIGHLIGHTER } from "../lib/syntaxHighlighting";
 import { useTheme } from "../hooks/useTheme";
 import { resolveDiffThemeName, type DiffThemeName } from "../lib/diffRendering";
 
@@ -45,6 +46,7 @@ export function DiffWorkerPoolProvider({ children }: { children?: ReactNode }) {
         totalASTLRUCacheSize: 240,
       }}
       highlighterOptions={{
+        preferredHighlighter: PREFERRED_HIGHLIGHTER,
         theme: diffThemeName,
         tokenizeMaxLineLength: 1_000,
       }}

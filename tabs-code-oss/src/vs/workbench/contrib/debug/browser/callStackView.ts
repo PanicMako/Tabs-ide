@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getTabsEmbeddedRowHeight } from '../../../browser/tabsEmbeddedLayout.js';
 import * as dom from '../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { AriaRole } from '../../../../base/browser/ui/aria/aria.js';
@@ -906,7 +907,7 @@ class CallStackDelegate implements IListVirtualDelegate<CallStackItem> {
 			return 16;
 		}
 
-		return 22;
+		return getTabsEmbeddedRowHeight(22);
 	}
 
 	getTemplateId(element: CallStackItem): string {

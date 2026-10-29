@@ -1,4 +1,4 @@
-import "./setup-typography.css";
+import { refreshTheme } from "../../hooks/useTheme";
 import { useAtomValue } from "@effect/atom-react";
 import type { DesktopCodeHostState } from "@tabs/contracts";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -11,7 +11,9 @@ import { updateClientSettings } from "../../state/settings";
 import { isElectron } from "../../env";
 import { afterStartupPaint } from "../../lib/afterStartupPaint";
 import { APP_VERSION } from "../../branding";
-import { ClaudeAI, GoogleGemini, OpenAI, OpenCodeIcon } from "../Icons";
+import { ClaudeAI, OpenRouterIcon, OpenAI, OpenCodeIcon } from "../Icons";
+import { Badge } from "../ui/badge";
+import { Button } from "../ui/button";
 import {
   BRIGHT_WALLPAPERS,
   WALLPAPERS,
@@ -43,11 +45,11 @@ const PROVIDERS = [
     tagline: "Deep thinking, MCP tools, and whole-codebase reasoning",
   },
   {
-    id: "gemini",
-    name: "Gemini",
-    icon: GoogleGemini,
-    badge: "Multimodal Speed",
-    tagline: "Massive context window & low-latency repository indexing",
+    id: "openrouter",
+    name: "OpenRouter",
+    icon: OpenRouterIcon,
+    badge: "One API, many models",
+    tagline: "Access models from multiple providers through one connection",
   },
   {
     id: "local",
@@ -599,8 +601,14 @@ export function WelcomeWizard({ onDone }: WelcomeWizardProps) {
   const [selectedAppearance, setSelectedAppearance] = useState<"system" | "dark" | "light">(() => {
     try {
       const storedTheme = localStorage.getItem("tabs:theme");
-      if (storedTheme === "tabs-light" || storedTheme === "light") return "light";
-      if (storedTheme === "tabs-dark" || storedTheme === "dark") return "dark";
+      if (
+        storedTheme === "tabs-monotone-light" ||
+        storedTheme === "tabs-light" ||
+        storedTheme === "light"
+      )
+        return "light";
+      if (storedTheme === "tabs-monotone" || storedTheme === "tabs-dark" || storedTheme === "dark")
+        return "dark";
       if (storedTheme === "system") return "system";
     } catch {}
     return "system";
@@ -866,13 +874,16 @@ export function WelcomeWizard({ onDone }: WelcomeWizardProps) {
   const handleAppearanceSelect = useCallback(
     (mode: "system" | "dark" | "light") => {
       setSelectedAppearance(mode);
-      const themePref = mode === "light" ? "tabs-light" : mode === "dark" ? "tabs-dark" : "system";
+      const themePref =
+        mode === "light" ? "tabs-monotone-light" : mode === "dark" ? "tabs-monotone" : "system";
       try {
         localStorage.setItem("tabs:theme", themePref);
+        refreshTheme();
         if (typeof document !== "undefined") {
           const isDark = mode === "dark" || (mode === "system" && systemPrefersDark);
           document.documentElement.classList.toggle("dark", isDark);
-          document.documentElement.dataset.theme = themePref;
+          document.documentElement.dataset.theme =
+            mode === "system" ? (isDark ? "tabs-monotone" : "tabs-monotone-light") : themePref;
         }
       } catch {}
 
@@ -1108,12 +1119,13 @@ export function WelcomeWizard({ onDone }: WelcomeWizardProps) {
 
     const themePref =
       selectedAppearance === "light"
-        ? "tabs-light"
+        ? "tabs-monotone-light"
         : selectedAppearance === "dark"
-          ? "tabs-dark"
+          ? "tabs-monotone"
           : "system";
     try {
       localStorage.setItem("tabs:theme", themePref);
+      refreshTheme();
     } catch {}
 
     updateClientSettings((current) => ({

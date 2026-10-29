@@ -137,6 +137,10 @@ import type {
   GitWatchedBranchStatusesInput,
   GitWatchedBranchStatusesResult,
   GitGenerateDiffSummaryInput,
+  GitGenerateCommitDraftInput,
+  GitGenerateCommitDraftResult,
+  GitGeneratePullRequestDraftInput,
+  GitGeneratePullRequestDraftResult,
   GitGenerateDiffSummaryResult,
   GitGenerateReviewInput,
   GitGenerateReviewResult,
@@ -211,6 +215,7 @@ import type {
 } from "./usage.ts";
 import type {
   ResourceTelemetrySnapshot,
+  HostResourcesSnapshot,
   ResourceTelemetryHistory,
   ResourceTelemetryHistoryInput,
   ResourceTelemetryRetryResult,
@@ -1245,6 +1250,21 @@ export interface DesktopExtensionViewErrorEvent {
 }
 
 export interface DesktopBridge {
+  listDataBackups?: () => Promise<{
+    version: string;
+    directory: string;
+    notice: string | null;
+    backups: Array<{
+      id: string;
+      version: string;
+      createdAt: string;
+      reason: string;
+      bytes: number;
+    }>;
+  }>;
+  restartForDataBackup?: (restoreId?: string, prepareVersion?: boolean) => Promise<boolean>;
+  openDataBackupFolder?: () => Promise<void>;
+  deleteDataBackup?: (id: string) => Promise<void>;
   getInstallerCleanupCandidate?: () => Promise<{ name: string; size: number } | null>;
   trashInstalledDmg?: () => Promise<void>;
   listExtensions: () => Promise<DesktopInstalledExtension[]>;
@@ -1384,7 +1404,11 @@ export interface DesktopBridge {
   syncCodeSessions: (projectIds: readonly string[]) => Promise<void>;
   recreateCodeSession: (input: { projectId: string }) => Promise<void>;
   /** Forward an allowlisted workbench command to a project's embedded editor. Resolves true when delivered. */
-  runCodeCommand: (projectId: string, commandId: string) => Promise<boolean>;
+  runCodeCommand: (
+    projectId: string,
+    commandId: string,
+    presentation?: CodeRailPresentation,
+  ) => Promise<boolean>;
   /** Get the latest known chrome state for a project. */
   getCodeChromeState: (input: { projectId: string }) => Promise<CodeChromeState>;
   /** Subscribe to chrome-state pushes from the embedded workbench (tagged by project). Returns an unsubscribe fn. */
@@ -1652,6 +1676,7 @@ export interface LocalApi {
       input: ServerProcessResourceHistoryInput,
     ) => Promise<ServerProcessResourceHistoryResult>;
     getResourceTelemetry: () => Promise<ResourceTelemetrySnapshot>;
+    getHostResources?: () => Promise<HostResourcesSnapshot>;
     getResourceTelemetryHistory: (
       input: ResourceTelemetryHistoryInput,
     ) => Promise<ResourceTelemetryHistory>;
@@ -1782,6 +1807,12 @@ export interface EnvironmentApi {
       input: GitPreparePullRequestThreadInput,
     ) => Promise<GitPreparePullRequestThreadResult>;
     listWorkflowRuns: (input: GitListWorkflowRunsInput) => Promise<GitListWorkflowRunsResult>;
+    generateCommitDraft: (
+      input: GitGenerateCommitDraftInput,
+    ) => Promise<GitGenerateCommitDraftResult>;
+    generatePullRequestDraft: (
+      input: GitGeneratePullRequestDraftInput,
+    ) => Promise<GitGeneratePullRequestDraftResult>;
     generateDiffSummary: (
       input: GitGenerateDiffSummaryInput,
     ) => Promise<GitGenerateDiffSummaryResult>;
@@ -2155,4 +2186,11 @@ export interface DesktopBrowserSessionState {
   transientError: string | null;
   securityContext?: DesktopBrowserSecurityContext | undefined;
   pendingPermission?: BrowserPermissionRequest | null | undefined;
+}
+
+/** Transient rail decoration. Positions are fractions of the native host height. */
+export interface CodeRailPresentation {
+  selectionY: number | null;
+  spotlight: boolean;
+  label: { text: string; y: number } | null;
 }

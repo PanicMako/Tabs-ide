@@ -33,6 +33,7 @@ html
     [data-slot="tabs-list"],
     [data-slot="toggle-group"],
     [data-slot="sidebar-menu-button"],
+    [data-slot="input-control"],
     kbd,
     mark
   ) {
@@ -60,8 +61,8 @@ html
 }
 
 /* Decorative layers must follow their control instead of painting square ends. */
-html :is(button, [role="button"], [data-slot="input-group"])::before,
-html :is(button, [role="button"], [data-slot="input-group"])::after {
+html :is(button, [role="button"], [data-slot="input-group"], [data-slot="input-control"])::before,
+html :is(button, [role="button"], [data-slot="input-group"], [data-slot="input-control"])::after {
   border-radius: inherit;
 }
 

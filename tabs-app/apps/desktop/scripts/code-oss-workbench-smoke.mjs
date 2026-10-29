@@ -103,7 +103,11 @@ async function connect(target) {
         const id = ++next;
         const timer = setTimeout(() => {
           pending.delete(id);
-          reject(new Error(`${method} timed out`));
+          const detail =
+            method === "Runtime.evaluate"
+              ? ` (${String(params.expression).replaceAll(/\s+/g, " ").slice(0, 120)})`
+              : "";
+          reject(new Error(`${method}${detail} timed out`));
         }, 60_000);
         pending.set(id, { resolve: resolveRequest, reject, timer });
         ws.send(JSON.stringify({ id, method, params }));

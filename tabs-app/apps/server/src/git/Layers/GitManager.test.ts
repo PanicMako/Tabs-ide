@@ -134,6 +134,9 @@ function initRepo(
   return Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
     yield* runGit(cwd, ["init", "--initial-branch=main"]);
+    // Cross-repo fixtures keep GitHub URLs for owner parsing, but all Git data
+    // lives in local bare remotes. A status refresh must never contact SSH.
+    yield* runGit(cwd, ["config", "core.sshCommand", "false"]);
     yield* runGit(cwd, ["config", "user.email", "test@example.com"]);
     yield* runGit(cwd, ["config", "user.name", "Test User"]);
     yield* fs.writeFileString(path.join(cwd, "README.md"), "hello\n");

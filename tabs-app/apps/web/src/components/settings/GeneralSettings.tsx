@@ -18,6 +18,7 @@ import { useWorkspaceAppearanceStore } from "../../stores/workspaceAppearanceSto
 import { useServerConfig } from "../../state/settings";
 import { isElectron } from "../../env";
 import { Button } from "../ui/button";
+import DataRecoverySettings from "./DataRecoverySettings";
 import { ZoomRuler } from "./ZoomRuler";
 import { PanelAnimationPill } from "./PanelAnimationPill";
 import { Switch } from "../ui/switch";
@@ -805,6 +806,7 @@ export function GeneralSettings() {
       </SettingsSection>
 
       <SettingsSection title="Troubleshooting & Recovery">
+        <DataRecoverySettings />
         <SettingsRow
           title="Reload Embedded Code OSS"
           description="If the embedded editor visual state becomes corrupted, click reload to recreate the editor view without restarting Tabs."

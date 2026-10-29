@@ -730,7 +730,8 @@ function resolveVisibleTools(settings: ProjectWorkspaceSettingsType): ProjectToo
   const terminalProcessIds = new Set(
     (settings.terminalProcesses || []).map((process) => process.id),
   );
-  const visible = (settings.tools || []).filter((tool) => {
+  const configuredTools = settings.tools ?? createDefaultProjectWorkspaceSettings().tools;
+  const visible = configuredTools.filter((tool) => {
     if (!tool.visible) return false;
     if (tool.kind === "custom_embed") {
       return tool.customEmbedId ? customEmbedIds.has(tool.customEmbedId) : false;
@@ -742,7 +743,10 @@ function resolveVisibleTools(settings: ProjectWorkspaceSettingsType): ProjectToo
   });
   return visible.length > 0
     ? visible
-    : createDefaultProjectWorkspaceSettings().tools.filter((tool) => tool.visible);
+    : // Keep the workspace usable without restoring every tool the user hid.
+      createDefaultProjectWorkspaceSettings().tools.filter(
+        (tool) => tool.kind === DEFAULT_PROJECT_TOOL_KIND,
+      );
 }
 
 export function resolveActiveToolId(

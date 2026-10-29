@@ -119,6 +119,8 @@ export interface DesktopInstalledExtension {
   readonly revoked?: true;
   /** Stops tools and bridge access without erasing assignments, profiles, or data. */
   readonly disabled?: true;
+  /** Runtime-only reason this installation cannot run on the current app/API version. */
+  readonly compatibilityError?: string;
   /** Suppresses automatic update discovery/application; manual review remains available. */
   readonly updatesPinned?: true;
   /** False for older installs whose pre-inventory browser/storage data cannot be enumerated. */

@@ -316,3 +316,22 @@ it("configures Hashira Modular with Halo Grotesk as accent and Hanken Grotesk as
   expect(upgraded.uiFont).toBe("'Hanken Grotesk', sans-serif");
   expect(upgraded.supportingFont).toBe("'Hanken Grotesk', sans-serif");
 });
+
+it("opens up the two small interface faces without changing their headings or saved sizes", () => {
+  for (const [id, tracking, rowTracking] of [
+    ["culont-curve", "0.03em", "0.055em"],
+    ["otez-contrast", "0.04em", "0.05em"],
+  ]) {
+    const preset = CURATED_FONT_COMBOS.find((c) => c.id === id)!;
+    const selected = selectFontCombo(
+      { ...DEFAULT_FONT_PREFERENCES, fontSizeInterface: 14 },
+      preset,
+    );
+    const resolved = resolveFontTypography(selected);
+    expect(resolved.interfaceTracking).toBe(tracking);
+    expect(resolved.rowTracking).toBe(rowTracking);
+    expect(selected.fontSizeInterface).toBe(14);
+    expect(selected.headingFont).toBe(preset.headingFont);
+  }
+  expect(resolveFontTypography(DEFAULT_FONT_PREFERENCES).interfaceTracking).toBe("normal");
+});

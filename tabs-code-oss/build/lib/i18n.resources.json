@@ -251,6 +251,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/tabs",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/tasks",
 			"project": "vscode-workbench"
 		},

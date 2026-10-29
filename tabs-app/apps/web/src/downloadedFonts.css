@@ -747,6 +747,8 @@
 
 @font-face {
   font-family: "ZT Floogn";
+  /* Match the perceived interface size of the other curated UI faces. */
+  size-adjust: 125%;
   src:
     url(/fonts/setup/ZTFloogn-ExtraLight.woff2) format("woff2"),
     url(/fonts/setup/ZTFloogn-ExtraLight.otf) format("opentype");
@@ -757,6 +759,8 @@
 
 @font-face {
   font-family: "ZT Floogn";
+  /* Match the perceived interface size of the other curated UI faces. */
+  size-adjust: 125%;
   src:
     url(/fonts/setup/ZTFloogn-Light.woff2) format("woff2"),
     url(/fonts/setup/ZTFloogn-Light.otf) format("opentype");
@@ -767,6 +771,8 @@
 
 @font-face {
   font-family: "ZT Floogn";
+  /* Match the perceived interface size of the other curated UI faces. */
+  size-adjust: 125%;
   src:
     url(/fonts/setup/ZTFloogn-Regular.woff2) format("woff2"),
     url(/fonts/setup/ZTFloogn-Regular.otf) format("opentype");
@@ -777,6 +783,8 @@
 
 @font-face {
   font-family: "ZT Floogn";
+  /* Match the perceived interface size of the other curated UI faces. */
+  size-adjust: 125%;
   src:
     url(/fonts/setup/ZTFloogn-ExtraBold.woff2) format("woff2"),
     url(/fonts/setup/ZTFloogn-ExtraBold.otf) format("opentype");
@@ -797,6 +805,8 @@
 
 @font-face {
   font-family: "Horovod";
+  /* Match the perceived interface size of the other curated UI faces. */
+  size-adjust: 120%;
   src:
     url(/fonts/setup/Horovod-Regular.woff2) format("woff2"),
     url(/fonts/setup/Horovod-Regular.otf) format("opentype");

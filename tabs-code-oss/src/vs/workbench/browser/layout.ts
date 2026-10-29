@@ -633,6 +633,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	isFloatingPanelsEnabled(): boolean {
+		if (getActiveDocument().documentElement.classList.contains('tabs-embedded-workbench')) {
+			return true;
+		}
 		return this.configurationService.getValue<boolean>(LayoutSettings.MODERN_UI) === true;
 	}
 

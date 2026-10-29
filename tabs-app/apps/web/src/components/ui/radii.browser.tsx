@@ -4,7 +4,9 @@ import { expect, it } from "vitest";
 import { page } from "vitest/browser";
 import { render } from "vitest-browser-react";
 import workbenchStyles from "../../../../../../tabs-code-oss/src/vs/workbench/contrib/tabs/browser/media/tabs.css?raw";
+import embeddedWorkbenchStyles from "../../../../../../tabs-code-oss/src/vs/workbench/contrib/tabs/browser/media/embeddedWorkbench.css?raw";
 import { Button } from "./button";
+import { Input } from "./input";
 
 it("keeps controls, highlights and content surfaces consistent across theme skins", async () => {
   const originalStudy = document.documentElement.getAttribute("data-interface-study");
@@ -102,18 +104,18 @@ it("uses proportionate Code OSS rows, text highlights and continuous notificatio
   );
   const element = (id: string) => view.container.querySelector(`[data-testid="${id}"]`)!;
   try {
-    expect(getComputedStyle(element("tree-row")).borderRadius).toBe("10px");
+    expect(getComputedStyle(element("tree-row")).borderRadius).toBe("36px");
     for (const id of ["line", "match"]) {
-      expect(getComputedStyle(element(id)).borderRadius).toBe("6px");
+      expect(getComputedStyle(element(id)).borderRadius).toBe("5px");
     }
-    expect(getComputedStyle(element("notification")).borderRadius).toBe("0px 0px 24px 24px");
+    expect(getComputedStyle(element("notification")).borderRadius).toBe("0px 0px 36px 36px");
     expect(
       getComputedStyle(view.container.querySelector(".notifications-center")!).borderRadius,
-    ).toBe("24px");
-    expect(getComputedStyle(element("notification-focus")).borderRadius).toBe("10px");
-    expect(getComputedStyle(element("toast")).borderRadius).toBe("24px");
+    ).toBe("36px");
+    expect(getComputedStyle(element("notification-focus")).borderRadius).toBe("36px");
+    expect(getComputedStyle(element("toast")).borderRadius).toBe("36px");
     const selection = getComputedStyle(element("selection"));
-    expect(selection.borderTopLeftRadius).toBe("6px");
+    expect(selection.borderTopLeftRadius).toBe("5px");
     expect(selection.borderTopRightRadius).toBe("0px");
     expect(getComputedStyle(element("split-start")).borderTopRightRadius).toBe("0px");
     expect(getComputedStyle(element("split-end")).borderTopLeftRadius).toBe("0px");
@@ -123,7 +125,106 @@ it("uses proportionate Code OSS rows, text highlights and continuous notificatio
   }
 });
 
-it("preserves browser-style project tabs with joined bottoms and visible fillets", async () => {
+it.each([
+  [false, false],
+  [true, false],
+  [false, true],
+  [true, true],
+])(
+  "keeps Code pickers and inputs rounded (embedded: %s, reversed styles: %s)",
+  async (embedded, reversedStyles) => {
+    const originalEmbedded = document.documentElement.classList.contains("tabs-embedded-workbench");
+    document.documentElement.classList.toggle("tabs-embedded-workbench", embedded);
+    const style = document.createElement("style");
+    // Embedded layout must not introduce a second owner for corner geometry.
+    expect(embeddedWorkbenchStyles).not.toMatch(/[\w-]*radius[\w-]*\s*:/i);
+    style.textContent = (
+      reversedStyles
+        ? [embeddedWorkbenchStyles, workbenchStyles]
+        : [workbenchStyles, embeddedWorkbenchStyles]
+    ).join("\n");
+    document.head.append(style);
+    const view = await render(
+      <div
+        className="monaco-workbench"
+        style={{ padding: 24, background: "var(--background)", color: "var(--foreground)" }}
+      >
+        <div
+          className="quick-input-widget"
+          style={{
+            position: "relative",
+            width: "min(580px, 100%)",
+            border: "1px solid var(--border)",
+            background: "var(--card)",
+            padding: 12,
+          }}
+        >
+          <div className="quick-input-header">
+            <div
+              className="monaco-inputbox"
+              style={{ border: "1px solid var(--border)", height: 32 }}
+            >
+              <input
+                className="input"
+                aria-label="Search files"
+                defaultValue="README"
+                style={{ width: "100%", height: "100%", background: "transparent" }}
+              />
+            </div>
+          </div>
+          <div className="monaco-list" style={{ marginTop: 8 }}>
+            <div
+              className="monaco-list-row focused"
+              style={{ padding: "6px 14px", background: "var(--accent)" }}
+            >
+              README.md
+            </div>
+          </div>
+        </div>
+        <div className="search-view">
+          <div className="monaco-inputbox" data-testid="search-field" />
+        </div>
+        <div className="settings-editor">
+          <div className="monaco-inputbox" data-testid="settings-field" />
+        </div>
+        <div className="monaco-button" data-testid="code-button" />
+      </div>,
+    );
+    try {
+      for (const selector of [
+        ".quick-input-widget",
+        ".quick-input-widget .monaco-inputbox",
+        ".monaco-list-row",
+        '[data-testid="search-field"]',
+        '[data-testid="settings-field"]',
+        '[data-testid="code-button"]',
+      ]) {
+        expect(getComputedStyle(view.container.querySelector(selector)!).borderTopLeftRadius).toBe(
+          "36px",
+        );
+      }
+      const input = view.container.querySelector<HTMLInputElement>("input")!;
+      input.focus();
+      input.setSelectionRange(0, 6);
+      expect(input.selectionStart).toBe(0);
+      expect(input.selectionEnd).toBe(6);
+      expect(getComputedStyle(input).paddingLeft).toBe("12px");
+      expect(
+        getComputedStyle(view.container.querySelector(".quick-input-header")!).paddingLeft,
+      ).toBe("12px");
+      await page.screenshot({
+        element: view.container,
+        path: "__screenshots__/radii/code-picker.png",
+      });
+    } finally {
+      style.remove();
+      document.documentElement.classList.toggle("tabs-embedded-workbench", originalEmbedded);
+      await view.unmount();
+    }
+  },
+);
+
+it("preserves authentic project tabs with rounded top corners and flush bottom connection for fillets", async () => {
   const study = document.documentElement.getAttribute("data-interface-study");
   const view = await render(
     <div data-slot="workspace-tabbar" className="border-b bg-background p-3 pb-0">
@@ -176,6 +277,52 @@ it("preserves browser-style project tabs with joined bottoms and visible fillets
   } finally {
     if (study === null) document.documentElement.removeAttribute("data-interface-study");
     else document.documentElement.setAttribute("data-interface-study", study);
+    await view.unmount();
+  }
+});
+
+it("centers text vertically and maintains pill radius in inputs across sizes and flex containers", async () => {
+  const view = await render(
+    <div className="flex flex-col gap-4 p-4">
+      <Input data-testid="default-input" defaultValue="npm install" />
+      <Input size="sm" data-testid="sm-input" defaultValue="npm test" />
+      <Input size="lg" data-testid="lg-input" defaultValue="npm build" />
+      <div className="flex items-center gap-2">
+        <div className="flex size-8 shrink-0 items-center justify-center rounded-full">1</div>
+        <Input data-testid="row-input" defaultValue="npm run dev" />
+      </div>
+    </div>,
+  );
+  try {
+    for (const testId of ["default-input", "sm-input", "lg-input", "row-input"]) {
+      const input = view.container.querySelector(`[data-testid="${testId}"]`) as HTMLInputElement;
+      expect(input).not.toBeNull();
+      const control = input.closest('[data-slot="input-control"]') as HTMLElement;
+      expect(control).not.toBeNull();
+
+      const controlStyle = getComputedStyle(control);
+      const inputStyle = getComputedStyle(input);
+
+      // Control wrapper uses items-center for vertical alignment
+      expect(controlStyle.alignItems).toBe("center");
+
+      // Inner input is centered vertically within the control
+      const controlRect = control.getBoundingClientRect();
+      const inputRect = input.getBoundingClientRect();
+      const controlCenter = controlRect.top + controlRect.height / 2;
+      const inputCenter = inputRect.top + inputRect.height / 2;
+      expect(Math.abs(inputCenter - controlCenter)).toBeLessThan(0.1);
+
+      expect(inputStyle.paddingTop).toBe("0px");
+      expect(inputStyle.paddingBottom).toBe("0px");
+
+      // Both control and inner input maintain pill curvature (clamped by height)
+      expect(controlStyle.borderTopLeftRadius).toBe("36px");
+      expect(controlStyle.borderBottomRightRadius).toBe("36px");
+      expect(inputStyle.borderTopLeftRadius).toBe("36px");
+      expect(inputStyle.borderBottomRightRadius).toBe("36px");
+    }
+  } finally {
     await view.unmount();
   }
 });

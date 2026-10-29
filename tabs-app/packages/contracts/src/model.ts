@@ -157,7 +157,6 @@ const GROK_DRIVER_KIND = ProviderDriverKind.make("grok");
 const PI_DRIVER_KIND = ProviderDriverKind.make("pi");
 const ACP_REGISTRY_DRIVER_KIND = ProviderDriverKind.make("acpRegistry");
 const OPENCODE_DRIVER_KIND = ProviderDriverKind.make("opencode");
-const GEMINI_DRIVER_KIND = ProviderDriverKind.make("gemini");
 const DROID_DRIVER_KIND = ProviderDriverKind.make("droid");
 const ANTIGRAVITY_DRIVER_KIND = ProviderDriverKind.make("antigravity");
 const OPENROUTER_DRIVER_KIND = ProviderDriverKind.make("openrouter");
@@ -182,7 +181,6 @@ export const DEFAULT_MODEL_BY_PROVIDER: Partial<Record<ProviderDriverKind, strin
   [ACP_REGISTRY_DRIVER_KIND]: "default",
   [PI_DRIVER_KIND]: "default",
   [OPENCODE_DRIVER_KIND]: "openai/gpt-5",
-  [GEMINI_DRIVER_KIND]: "gemini-3.6-flash",
   [DROID_DRIVER_KIND]: "auto",
   [ANTIGRAVITY_DRIVER_KIND]: ANTIGRAVITY_DEFAULT_MODEL,
 };
@@ -195,7 +193,6 @@ export const DEFAULT_GIT_TEXT_GENERATION_MODEL_BY_PROVIDER: Partial<
   [CLAUDE_DRIVER_KIND]: "claude-haiku-4-5",
   [CURSOR_DRIVER_KIND]: "composer-2",
   [OPENCODE_DRIVER_KIND]: "openai/gpt-5",
-  [GEMINI_DRIVER_KIND]: "gemini-3.6-flash",
   [ANTIGRAVITY_DRIVER_KIND]: ANTIGRAVITY_DEFAULT_MODEL,
 };
 
@@ -249,17 +246,6 @@ export const MODEL_SLUG_ALIASES_BY_PROVIDER: Partial<
     "opus-4.5": "claude-opus-4-5",
   },
   [OPENCODE_DRIVER_KIND]: {},
-  [GEMINI_DRIVER_KIND]: {
-    "gemini-2.5-flash": "gemini-2.5-flash",
-    "2.5-flash": "gemini-2.5-flash",
-    flash: "gemini-2.5-flash",
-    "gemini-2.5-pro": "gemini-2.5-pro",
-    "2.5-pro": "gemini-2.5-pro",
-    pro: "gemini-2.5-pro",
-    "gemini-2.0-flash": "gemini-2.0-flash",
-    "2.0-flash": "gemini-2.0-flash",
-    "gemini-3.6-flash": "gemini-3.6-flash",
-  },
 };
 
 // ── Provider display names ────────────────────────────────────────────
@@ -271,7 +257,6 @@ export const PROVIDER_DISPLAY_NAMES: Partial<Record<ProviderDriverKind, string>>
   [COPILOT_DRIVER_KIND]: "GitHub Copilot",
   [GROK_DRIVER_KIND]: "Grok",
   [OPENCODE_DRIVER_KIND]: "OpenCode",
-  [GEMINI_DRIVER_KIND]: "Google Gemini",
   [DROID_DRIVER_KIND]: "Factory Droid",
   [ANTIGRAVITY_DRIVER_KIND]: "Antigravity",
   [OPENROUTER_DRIVER_KIND]: "OpenRouter",

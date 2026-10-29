@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getTabsEmbeddedRowHeight } from '../../../browser/tabsEmbeddedLayout.js';
 import * as DOM from '../../../../base/browser/dom.js';
 import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
 import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
@@ -78,7 +79,7 @@ interface IMatchTemplate {
 
 export class SearchDelegate implements IListVirtualDelegate<RenderableMatch> {
 
-	public static ITEM_HEIGHT = 22;
+	public static get ITEM_HEIGHT(): number { return getTabsEmbeddedRowHeight(22); }
 
 	getHeight(element: RenderableMatch): number {
 		return SearchDelegate.ITEM_HEIGHT;

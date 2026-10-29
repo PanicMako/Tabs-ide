@@ -7,7 +7,7 @@
  * 2. Creates a .tabs-review.json with project rules.
  * 3. Runs RepoContextService directly and shows: git log output, git grep
  *    output, and the final compressed contextSection.
- * 4. Calls the live Gemini API (gemini-3.6-flash) with the full enriched
+ * 4. Calls the live Gemini API (openrouter/free) with the full enriched
  *    prompt and shows the raw LLM response.
  * 5. Verifies the LLM output references the broader impact without being
  *    explicitly told the caller list in plain diff form.
@@ -20,7 +20,7 @@ import path from "node:path";
 
 import * as Effect from "effect/Effect";
 import { ProviderInstanceId } from "@tabs/contracts";
-import { makeGeminiTextGeneration } from "../src/textGeneration/GeminiTextGeneration.ts";
+import { makeOpenRouterTextGeneration } from "../src/textGeneration/OpenRouterTextGeneration.ts";
 import {
   buildRepoContext,
   loadTabsReviewJson,
@@ -194,21 +194,21 @@ console.log("\n=== STEP 5: projectRules section ===");
 console.log(projectRules);
 
 // ---------------------------------------------------------------------------
-// STEP 6: Live Gemini call with full enriched prompt
+// STEP 6: Live OpenRouter call with full enriched prompt
 // ---------------------------------------------------------------------------
-const settingsJson = JSON.parse(
-  fs.readFileSync(path.join(os.homedir(), ".tabs", "dev", "settings.json"), "utf8"),
-);
-const apiKey = settingsJson.providers?.gemini?.apiKey;
-console.log("\n=== STEP 6: Live Gemini generateDiffSummary call ===");
+const apiKey = process.env.OPENROUTER_API_KEY ?? "";
+console.log("\n=== STEP 6: Live OpenRouter generateDiffSummary call ===");
 console.log("API key present:", !!apiKey, "| length:", apiKey?.length ?? 0);
-console.log("Model: gemini-3.6-flash");
+console.log("Model: openrouter/free");
 
 const driver = await Effect.runPromise(
-  makeGeminiTextGeneration({
+  makeOpenRouterTextGeneration({
     enabled: true,
+    harness: "deepseek",
+    deepseekBinaryPath: "dsh",
+    binaryPath: "opencode",
     apiKey,
-    baseUrl: "https://generativelanguage.googleapis.com",
+    baseUrl: "https://openrouter.ai/api/v1",
     customModels: [],
   }),
 );
@@ -222,8 +222,8 @@ const result = await Effect.runPromise(
     repoContext: rcResult.contextSection || undefined,
     projectRules: projectRules || undefined,
     modelSelection: {
-      instanceId: ProviderInstanceId.make("gemini"),
-      model: "gemini-3.6-flash",
+      instanceId: ProviderInstanceId.make("openrouter"),
+      model: "openrouter/free",
     },
   }),
 );

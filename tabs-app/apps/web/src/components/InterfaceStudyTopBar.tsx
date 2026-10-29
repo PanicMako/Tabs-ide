@@ -61,26 +61,7 @@ function resolveToolIcon(kind: ProjectToolKind) {
 }
 
 function StudyToolBottomFillets() {
-  return (
-    <>
-      <svg
-        className="study-tab-fillet pointer-events-none absolute bottom-0 -left-2.5 w-3 h-2.5 z-10"
-        viewBox="0 0 12 10"
-        fill="none"
-        aria-hidden="true"
-      >
-        <path d="M 0 10 A 10 10 0 0 0 10 0 L 12 0 L 12 10 Z" fill="currentColor" />
-      </svg>
-      <svg
-        className="study-tab-fillet pointer-events-none absolute bottom-0 -right-2.5 w-3 h-2.5 z-10"
-        viewBox="0 0 12 10"
-        fill="none"
-        aria-hidden="true"
-      >
-        <path d="M 0 0 L 2 0 A 10 10 0 0 0 12 10 L 0 10 Z" fill="currentColor" />
-      </svg>
-    </>
-  );
+  return null;
 }
 
 export interface InterfaceStudyTopBarProps {
@@ -475,76 +456,80 @@ export const InterfaceStudyTopBar = memo(function InterfaceStudyTopBar(
       </div>
 
       {/* ── Center: Tools Navigation as Integrated Tabs ── */}
-      <nav
-        ref={navRef}
-        role="tablist"
-        aria-label="Project tools"
-        onKeyDown={handleNavKeyDown}
-        onWheel={handleNavWheel}
-        className="study-tools-nav no-drag flex items-end justify-center gap-2 flex-1 min-w-0 h-full px-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-      >
-        {props.availableTools.map((tool, index) => {
-          const active = tool.id === props.activeToolId;
-          const isAgents = tool.kind === "agents";
-          const isGit = tool.kind === "git";
+      {props.availableTools.length > 1 ? (
+        <nav
+          ref={navRef}
+          role="tablist"
+          aria-label="Project tools"
+          onKeyDown={handleNavKeyDown}
+          onWheel={handleNavWheel}
+          className="study-tools-nav no-drag flex items-end justify-center gap-2 flex-1 min-w-0 h-full px-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
+          {props.availableTools.map((tool, index) => {
+            const active = tool.id === props.activeToolId;
+            const isAgents = tool.kind === "agents";
+            const isGit = tool.kind === "git";
 
-          return (
-            <button
-              key={tool.id}
-              ref={(el) => {
-                tabRefs.current[index] = el;
-              }}
-              type="button"
-              role="tab"
-              data-tool-kind={tool.kind}
-              aria-selected={active}
-              tabIndex={active ? 0 : -1}
-              onClick={() => props.onSelectTool(tool.id)}
-              className={cn("study-tool-tab group", active && "active")}
-            >
-              {active && <StudyToolBottomFillets />}
-              <span
-                className={cn(
-                  "study-tool-tab-icon shrink-0 transition-colors",
-                  active
-                    ? "text-foreground font-semibold"
-                    : "text-muted-foreground group-hover:text-foreground",
-                )}
+            return (
+              <button
+                key={tool.id}
+                ref={(el) => {
+                  tabRefs.current[index] = el;
+                }}
+                type="button"
+                role="tab"
+                data-tool-kind={tool.kind}
+                aria-selected={active}
+                tabIndex={active ? 0 : -1}
+                onClick={() => props.onSelectTool(tool.id)}
+                className={cn("study-tool-tab group", active && "active")}
               >
-                {isAgents ? (
-                  <AssistantBubbleIcon className="size-4" />
-                ) : (
-                  (tool.icon ?? resolveToolIcon(tool.kind))
-                )}
-              </span>
-              <span>{tool.label}</span>
-
-              {/* Agent live ping pulse */}
-              {isAgents && hasActiveAgents && (
-                <span
-                  className="size-1.5 rounded-full bg-emerald-500 animate-pulse ml-0.5"
-                  title="Agents working"
-                  aria-label="Agents working"
-                />
-              )}
-
-              {/* Git changes count pill */}
-              {isGit && changeCount > 0 && (
+                {active && <StudyToolBottomFillets />}
                 <span
                   className={cn(
-                    "text-[10px] font-bold px-1.5 py-0.2 rounded-full ml-0.5 transition-colors",
+                    "study-tool-tab-icon shrink-0 transition-colors",
                     active
-                      ? "bg-foreground/10 text-foreground"
-                      : "bg-foreground/5 text-muted-foreground group-hover:text-foreground",
+                      ? "text-foreground font-semibold"
+                      : "text-muted-foreground group-hover:text-foreground",
                   )}
                 >
-                  {changeCount}
+                  {isAgents ? (
+                    <AssistantBubbleIcon className="size-4" />
+                  ) : (
+                    (tool.icon ?? resolveToolIcon(tool.kind))
+                  )}
                 </span>
-              )}
-            </button>
-          );
-        })}
-      </nav>
+                <span>{tool.label}</span>
+
+                {/* Agent live ping pulse */}
+                {isAgents && hasActiveAgents && (
+                  <span
+                    className="size-1.5 rounded-full bg-emerald-500 animate-pulse ml-0.5"
+                    title="Agents working"
+                    aria-label="Agents working"
+                  />
+                )}
+
+                {/* Git changes count pill */}
+                {isGit && changeCount > 0 && (
+                  <span
+                    className={cn(
+                      "text-[10px] font-bold px-1.5 py-0.2 rounded-full ml-0.5 transition-colors",
+                      active
+                        ? "bg-foreground/10 text-foreground"
+                        : "bg-foreground/5 text-muted-foreground group-hover:text-foreground",
+                    )}
+                  >
+                    {changeCount}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </nav>
+      ) : (
+        <div className="flex-1" aria-hidden="true" />
+      )}
 
       {/* ── Right: Quick Actions & Settings ── */}
       <div className="no-drag flex items-center gap-1.5 shrink-0 self-center">

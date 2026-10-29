@@ -105,10 +105,11 @@ function supportedTabsRangeSyntax(range: string): boolean {
   );
 }
 
-/** Pass null only for registry review, where client compatibility is checked later. */
+/** Null versions validate package structure for inventory/review without authorizing activation. */
 export function validateTabsExtensionManifest(
   input: unknown,
   tabsVersion: string | null,
+  apiVersion: string | null = TABS_EXTENSION_API_VERSION,
 ): ManifestValidationResult {
   const errors: string[] = [];
   if (!record(input)) return { ok: false, errors: ["Manifest must be a JSON object."] };
@@ -176,10 +177,12 @@ export function validateTabsExtensionManifest(
   if (
     record(engines) &&
     engines.api !== undefined &&
-    (typeof engines.api !== "string" || !extensionApiRangeCompatible(engines.api))
+    (typeof engines.api !== "string" ||
+      !supportedTabsRangeSyntax(engines.api) ||
+      (apiVersion !== null && !satisfiesSemverRange(apiVersion, engines.api)))
   ) {
     errors.push(
-      `engines.api must include the current extension API (${TABS_EXTENSION_API_VERSION}).`,
+      `engines.api must include the current extension API (${apiVersion ?? TABS_EXTENSION_API_VERSION}).`,
     );
   }
   const contributes = input.contributes;

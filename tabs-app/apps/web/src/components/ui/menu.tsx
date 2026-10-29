@@ -50,9 +50,7 @@ function MenuPopup({
 }) {
   const motionRef = useGsapSurface(props.ref);
 
-  const isUnstyled =
-    typeof className === "string" &&
-    (className.includes("bg-transparent") || className.includes("p-0"));
+  const isUnstyled = typeof className === "string" && className.includes("bg-transparent");
 
   if (isUnstyled) {
     return (

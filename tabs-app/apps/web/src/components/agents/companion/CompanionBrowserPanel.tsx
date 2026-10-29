@@ -20,7 +20,9 @@ import {
 } from "lucide-react";
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useActiveProjectTarget } from "~/hooks/useActiveProjectTarget";
-import { useProjectWorkspaceSettings } from "~/state/workspaceShell";
+import { useProjectWorkspaceSettings, useWorkspaceActiveProjectId } from "~/state/workspaceShell";
+import { useAtomValue } from "@effect/atom-react";
+import { projectsAtom } from "~/state/threads";
 import { useNativeSurfaceOverlaySuspension } from "~/nativeSurfaceOverlay";
 import { useCompanionSurfaceStore, type CompanionSurface } from "~/stores/companionSurfaceStore";
 import { toastManager } from "~/components/ui/toast";
@@ -55,7 +57,28 @@ export const CompanionBrowserPanel = memo(function CompanionBrowserPanel({
   surface: CompanionSurface;
   scope: string;
 }) {
-  const target = useActiveProjectTarget(threadId);
+  const threadTarget = useActiveProjectTarget(threadId);
+  // When no thread-specific target is found (e.g. new-thread view) but the
+  // surface has an external URL (e.g. a PR link), fall back to the globally
+  // active project so we can still spin up a BrowserView.
+  const fallbackProjectId = useWorkspaceActiveProjectId();
+  const allProjects = useAtomValue(projectsAtom);
+  const fallbackProject =
+    !threadTarget && surface.url && fallbackProjectId
+      ? allProjects.find((p) => p.id === fallbackProjectId)
+      : undefined;
+  const target =
+    threadTarget ??
+    (fallbackProject
+      ? {
+          environmentId: fallbackProject.environmentId ?? null,
+          projectId: fallbackProject.id,
+          cwd: fallbackProject.cwd,
+          projectCwd: fallbackProject.cwd,
+          projectName: fallbackProject.name,
+          threadId: null,
+        }
+      : null);
   const settings = useProjectWorkspaceSettings(target?.projectId ?? null);
   const bridge = window.desktopBridge;
   const sessionId = `agents-surface-${surface.id}`;

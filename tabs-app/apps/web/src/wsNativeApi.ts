@@ -1,3 +1,4 @@
+import { mergeProviderWorkspaceSnapshots } from "@tabs/shared/providerWorkspaceSnapshots";
 import {
   hasOmittedBodies,
   stripBodySourceSequence,
@@ -6,7 +7,6 @@ import {
   restoreSubagentBodies,
   restoreTurnItemBodies,
 } from "@tabs/shared/orchestrationV2DedupedBodies";
-import { mergeProviderWorkspaceSnapshots } from "@tabs/shared/providerWorkspaceSnapshots";
 import {
   GitActionProgressEvent,
   type GitRunStackedActionResult,
@@ -24,6 +24,7 @@ import {
   type OrchestrationV2Subagent,
   type ContextMenuItem,
   type NativeApi,
+  type ServerConfig,
   type AssetCreateUrlResult,
   ServerConfigStreamEvent,
   ServerConfigUpdatedPayload,
@@ -288,22 +289,32 @@ export function createWsNativeApi(options?: {
   }
 
   let streamConfig: ServerConfigUpdatedPayload | null = null;
+  let workspaceProviders = singleton ? (latestV2Providers?.providers ?? []) : [];
   transport.subscribeRpc<ServerConfigStreamEvent>(
     WS_METHODS.subscribeServerConfig,
-    () => ({}),
+    () => ({ workspaceSnapshotsOnDemand: true }),
     Schema.decodeUnknownSync(ServerConfigStreamEvent),
     (event) => {
       if (event.type === "snapshot") {
         streamConfig = {
           issues: event.config.issues,
-          providers: event.config.providers,
+          providers: (workspaceProviders = mergeProviderWorkspaceSnapshots(
+            workspaceProviders,
+            event.config,
+          )),
           settings: event.config.settings,
           environmentThemes: event.config.environmentThemes,
           usageLimitSources: event.config.usageLimitSources,
         };
       } else if (streamConfig) {
         if (event.type === "providerStatuses")
-          streamConfig = { ...streamConfig, providers: event.payload.providers };
+          streamConfig = {
+            ...streamConfig,
+            providers: (workspaceProviders = mergeProviderWorkspaceSnapshots(
+              workspaceProviders,
+              event.payload,
+            )),
+          };
         else if (event.type === "settingsUpdated")
           streamConfig = { ...streamConfig, settings: event.payload.settings };
         else if (event.type === "keybindingsUpdated")
@@ -625,6 +636,10 @@ export function createWsNativeApi(options?: {
       listTags: (input) => transport.request(WS_METHODS.gitListTags, input),
       watchedBranchStatuses: (input) =>
         transport.request(WS_METHODS.gitWatchedBranchStatuses, input),
+      generateCommitDraft: (input) =>
+        transport.request(WS_METHODS.gitGenerateCommitDraft, input, { timeoutMs: 90_000 }),
+      generatePullRequestDraft: (input) =>
+        transport.request(WS_METHODS.gitGeneratePullRequestDraft, input, { timeoutMs: 90_000 }),
       generateDiffSummary: (input) => transport.request(WS_METHODS.gitGenerateDiffSummary, input),
       generateReview: (input) =>
         transport.request(WS_METHODS.gitGenerateReview, input, { timeoutMs: null }),
@@ -657,8 +672,22 @@ export function createWsNativeApi(options?: {
       },
     },
     server: {
-      getConfig: () => transport.request(WS_METHODS.serverGetConfig),
-      refreshProviders: (input) => transport.request(WS_METHODS.serverRefreshProviders, input),
+      getConfig: async () => {
+        const config = await transport.request<ServerConfig>(WS_METHODS.serverGetConfig, {
+          workspaceSnapshotsOnDemand: true,
+        });
+        workspaceProviders = mergeProviderWorkspaceSnapshots(workspaceProviders, config);
+        return { ...config, providers: workspaceProviders };
+      },
+      refreshProviders: async (input) => {
+        const payload = await transport.request<ServerProviderUpdatedPayload>(
+          WS_METHODS.serverRefreshProviders,
+          { ...input, workspaceSnapshotsOnDemand: true },
+        );
+        workspaceProviders = mergeProviderWorkspaceSnapshots(workspaceProviders, payload);
+        if (streamConfig) streamConfig = { ...streamConfig, providers: workspaceProviders };
+        return { ...payload, providers: workspaceProviders };
+      },
       runProviderMaintenance: (input) =>
         transport.request(WS_METHODS.serverRunProviderMaintenance, input, { timeoutMs: 310_000 }),
       upsertKeybinding: (input) => transport.request(WS_METHODS.serverUpsertKeybinding, input),
@@ -678,6 +707,7 @@ export function createWsNativeApi(options?: {
       getProcessResourceHistory: (input) =>
         transport.request(WS_METHODS.serverGetProcessResourceHistory, input),
       getResourceTelemetry: () => transport.request(WS_METHODS.serverGetResourceTelemetry),
+      getHostResources: () => transport.request(WS_METHODS.serverGetHostResources),
       getResourceTelemetryHistory: (input) =>
         transport.request(WS_METHODS.serverGetResourceTelemetryHistory, input),
       retryResourceTelemetry: () => transport.request(WS_METHODS.serverRetryResourceTelemetry),
@@ -708,14 +738,21 @@ export function createWsNativeApi(options?: {
         ),
       readUsageSummary: (input) => transport.request("server.getUsageSummary", input),
       listUsageSnapshots: async (input = {}) => {
-        if (input.forceRefresh) await transport.request(WS_METHODS.serverRefreshProviders, {});
+        if (input.forceRefresh)
+          await transport.request<ServerProviderUpdatedPayload>(
+            WS_METHODS.serverRefreshProviders,
+            {},
+          );
         const config = await transport.request<ServerConfigUpdatedPayload>(
           WS_METHODS.serverGetConfig,
         );
         return providerUsageSnapshots(config.providers, input.provider);
       },
       refreshAllUsageSnapshots: async () => {
-        await transport.request(WS_METHODS.serverRefreshProviders, {});
+        await transport.request<ServerProviderUpdatedPayload>(
+          WS_METHODS.serverRefreshProviders,
+          {},
+        );
         const config = await transport.request<ServerConfigUpdatedPayload>(
           WS_METHODS.serverGetConfig,
         );

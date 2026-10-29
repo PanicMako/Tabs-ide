@@ -704,3 +704,26 @@ describe("workspaceShellStore", () => {
     expect(next.browserStateBySessionKey[figmaKey]?.landscape).toBe(true);
   });
 });
+
+it("uses only the Agents fallback for an all-hidden toolbar without restoring hidden tools", async () => {
+  const { createDefaultProjectWorkspaceSettings, resolveProjectTools, resolveActiveToolId } =
+    await import("./workspaceShellStore");
+  const defaults = createDefaultProjectWorkspaceSettings();
+  const hidden = {
+    ...defaults,
+    tools: defaults.tools.map((tool) => ({ ...tool, visible: false })),
+  };
+  expect(resolveProjectTools(hidden).map((tool) => tool.id)).toEqual(["agents"]);
+  expect(resolveActiveToolId(hidden, "git")).toBe("agents");
+  expect(hidden.tools.every((tool) => !tool.visible)).toBe(true);
+});
+
+it("keeps normal defaults for legacy settings with no saved tool preferences", async () => {
+  const { createDefaultProjectWorkspaceSettings, resolveProjectTools } =
+    await import("./workspaceShellStore");
+  const defaults = createDefaultProjectWorkspaceSettings();
+  const { tools: _tools, ...legacy } = defaults;
+  expect(resolveProjectTools(legacy as typeof defaults).map((tool) => tool.id)).toEqual(
+    defaults.tools.filter((tool) => tool.visible).map((tool) => tool.id),
+  );
+});

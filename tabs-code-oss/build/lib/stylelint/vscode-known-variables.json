@@ -1356,7 +1356,10 @@
 		"--tabbed-action-list-tab-icon-light",
 		"--tabbed-action-list-tab-icon-dark",
 		"--chat-model-picker-welcome-icon-light",
-		"--chat-model-picker-welcome-icon-dark"
+		"--chat-model-picker-welcome-icon-dark",
+		"--tabs-rail-light",
+		"--tabs-rail-shoulder",
+		"--tabs-rail-y"
 	],
 	"sizes": [
 		"--segmented-icon-toggle-cell-radius",

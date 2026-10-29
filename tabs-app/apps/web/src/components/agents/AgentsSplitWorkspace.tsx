@@ -69,7 +69,9 @@ export function AgentsSplitWorkspace({
 
   const activeProject = useMemo(() => {
     if (activeProjectId) {
-      const p = projects.find((proj) => proj.id === activeProjectId);
+      const p = projects.find(
+        (proj) => proj.id === activeProjectId && proj.environmentId === environmentId,
+      );
       if (p) return p;
     }
     if (routeThreadId) {
@@ -77,7 +79,11 @@ export function AgentsSplitWorkspace({
         (thread) => thread.id === routeThreadId && thread.environmentId === environmentId,
       );
       if (t?.projectId) {
-        return projects.find((proj) => proj.id === t.projectId) ?? null;
+        return (
+          projects.find(
+            (proj) => proj.id === t.projectId && proj.environmentId === environmentId,
+          ) ?? null
+        );
       }
     }
     return null;

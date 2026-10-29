@@ -9,6 +9,7 @@ import rootPackageJson from "../package.json" with { type: "json" };
 import desktopPackageJson from "../apps/desktop/package.json" with { type: "json" };
 import serverPackageJson from "../apps/server/package.json" with { type: "json" };
 
+import { desktopInstallerIconSource } from "./lib/desktop-icon.ts";
 import { BRAND_LOGO_SVG_PATHS } from "./lib/brand-assets.ts";
 import { renderSvgToIcoFile, renderSvgToPngFile } from "./lib/icon-assets.ts";
 import { resolveCatalogDependencies } from "./lib/resolve-catalog.ts";
@@ -363,7 +364,7 @@ function stageMacIcons(stageResourcesDir: string, verbose: boolean) {
   return Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
-    const iconSource = yield* ProductionBrandLogoSource;
+    const iconSource = desktopInstallerIconSource(yield* ProductionBrandLogoSource, "mac");
     if (!(yield* fs.exists(iconSource))) {
       return yield* new BuildScriptError({
         message: `Production icon source is missing at ${iconSource}`,

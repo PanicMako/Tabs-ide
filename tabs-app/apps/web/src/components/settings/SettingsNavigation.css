@@ -1,0 +1,135 @@
+/* A quiet navigation rail separates the page index from the working surface. */
+nav.settings-navigation[data-slot="settings-nav"] {
+  width: 224px;
+  flex: 0 0 224px;
+  padding: 24px 16px 32px 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-inline-end: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+  scrollbar-width: thin;
+}
+.settings-navigation-group + .settings-navigation-group {
+  margin-block-start: 24px;
+}
+.settings-navigation-heading {
+  margin: 0 0 9px;
+  padding-inline: 12px;
+  color: var(--muted-foreground);
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 16px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.settings-navigation-items {
+  display: grid;
+  gap: 2px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+nav.settings-navigation[data-slot="settings-nav"] button {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  min-height: 34px;
+  margin: 0;
+  padding: 7px 12px;
+  border: 0;
+  border-radius: var(--radius-control, 12px);
+  background: transparent;
+  box-shadow: none;
+  color: var(--muted-foreground);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.025em;
+  text-align: start;
+  cursor: pointer;
+  transition:
+    background-color 140ms ease,
+    color 140ms ease;
+}
+nav.settings-navigation[data-slot="settings-nav"] button:hover {
+  background: color-mix(in srgb, var(--accent) 45%, transparent);
+  color: var(--foreground);
+}
+nav.settings-navigation[data-slot="settings-nav"] button[aria-current="page"] {
+  background: var(--accent);
+  color: var(--foreground);
+  font-weight: 500;
+}
+nav.settings-navigation[data-slot="settings-nav"] button:focus-visible {
+  background: var(--accent);
+  color: var(--foreground);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.settings-navigation-label {
+  flex: 1;
+}
+[data-settings-design="editorial"] nav.settings-navigation[data-slot="settings-nav"] {
+  padding-inline-start: 12px;
+}
+@media (max-width: 760px) and (min-width: 561px) {
+  nav.settings-navigation[data-slot="settings-nav"] {
+    width: 196px;
+    flex-basis: 196px;
+    padding-inline-end: 12px;
+  }
+}
+@media (max-width: 560px) {
+  [data-slot="settings-columns"].settings-shell-columns {
+    flex-direction: column;
+    gap: 0;
+    padding-inline: 16px;
+  }
+  nav.settings-navigation[data-slot="settings-nav"] {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 20px;
+    width: 100%;
+    max-height: 254px;
+    padding: 16px 0;
+    overflow: auto;
+    border-inline-end: 0;
+    border-block-end: 1px solid var(--border);
+  }
+  .settings-navigation-group {
+    flex: 0 0 176px;
+  }
+  .settings-navigation-group + .settings-navigation-group {
+    margin-block-start: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  nav.settings-navigation[data-slot="settings-nav"] button {
+    transition: none;
+  }
+}
+:root[data-reduced-motion="reduce"] nav.settings-navigation[data-slot="settings-nav"] button {
+  transition: none;
+}
+
+/* Keep the entire index visible on short desktop windows. */
+@media (max-height: 800px) and (min-width: 561px) {
+  nav.settings-navigation[data-slot="settings-nav"] {
+    padding-block: 14px;
+  }
+  .settings-navigation-group + .settings-navigation-group {
+    margin-block-start: 12px;
+  }
+  .settings-navigation-heading {
+    margin-block-end: 5px;
+    line-height: 15px;
+  }
+  .settings-navigation-items {
+    gap: 0;
+  }
+  nav.settings-navigation[data-slot="settings-nav"] button {
+    min-height: 28px;
+    padding-block: 4px;
+  }
+}

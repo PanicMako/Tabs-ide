@@ -442,7 +442,7 @@ export function SearchableBranchSelect({
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search branches…"
-                className="w-full bg-background border border-border/60 rounded-md pl-8 pr-2 py-1 text-xs text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-border"
+                className="w-full bg-background border border-border/60 rounded-md pl-8 pr-2 py-1 text-xs text-foreground placeholder:text-muted-foreground/50 outline-none focus-blur-glow"
               />
             </div>
           </div>
@@ -484,15 +484,15 @@ export function SearchableBranchSelect({
 }
 
 export function CreatePRModal({
+  cwd,
   currentBranch,
   branches,
-  lastSubject,
   onCreate,
   onClose,
 }: {
   currentBranch: string;
   branches: ReadonlyArray<GitBranchType>;
-  lastSubject: string;
+  cwd: string;
   onCreate: (pr: {
     title: string;
     head: string;
@@ -524,12 +524,45 @@ export function CreatePRModal({
     }
   };
 
-  const autoFillTitleAndDescription = () => {
-    if (lastSubject) {
-      setTitle(lastSubject);
+  const api = useGitApi();
+  const [generating, setGenerating] = useState(false);
+  const currentDraft = useRef({ title, body, head, base });
+  currentDraft.current = { title, body, head, base };
+  const autoFillTitleAndDescription = async () => {
+    if (!api || generating) return;
+    const original = currentDraft.current;
+    setGenerating(true);
+    try {
+      const result = await api.git.generatePullRequestDraft({
+        cwd,
+        headBranch: head,
+        baseBranch: base,
+      });
+      const latest = currentDraft.current;
+      if (
+        latest.title !== original.title ||
+        latest.body !== original.body ||
+        latest.head !== original.head ||
+        latest.base !== original.base
+      ) {
+        toastManager.add({
+          type: "info",
+          title: "Your edits were kept",
+          description: "The draft changed during generation. Generate again when ready.",
+        });
+        return;
+      }
+      setTitle(result.title);
+      setBody(result.body);
+    } catch (error) {
+      toastManager.add({
+        type: "error",
+        title: "Pull request generation failed",
+        description: toGitUserFacingErrorMessage(error),
+      });
+    } finally {
+      setGenerating(false);
     }
-    const defaultTemplate = `## Summary\n\n${lastSubject || "Describe the changes introduced in this pull request."}\n\n## Changes Included\n\n- Describe the implementation changes on ${head}.\n\n## Verification\n\n- Add the checks or manual verification actually performed.`;
-    setBody(defaultTemplate);
   };
 
   const clearAllFields = () => {
@@ -688,11 +721,12 @@ export function CreatePRModal({
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={autoFillTitleAndDescription}
+                disabled={generating || submitting}
+                onClick={() => void autoFillTitleAndDescription()}
                 className="gap-1.5 text-xs text-muted-foreground hover:text-foreground"
               >
                 <Wand2 size={13} />
-                <span>Auto-fill title & description</span>
+                <span>{generating ? "Generating locally…" : "Generate title & description"}</span>
               </Button>
             </div>
 
@@ -1015,7 +1049,7 @@ function SearchableTagSelect({
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search tags…"
-                className="w-full bg-background border border-border/60 rounded-md pl-8 pr-2 py-1 text-xs text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-border"
+                className="w-full bg-background border border-border/60 rounded-md pl-8 pr-2 py-1 text-xs text-foreground placeholder:text-muted-foreground/50 outline-none focus-blur-glow"
               />
             </div>
           </div>
@@ -1229,7 +1263,7 @@ export function DraftReleaseModal({
                 className="gap-1.5 text-xs text-muted-foreground hover:text-foreground"
               >
                 <Wand2 size={13} />
-                <span>Auto-generate notes</span>
+                <span>Fill from recent commits</span>
               </Button>
             </div>
 

@@ -1282,6 +1282,10 @@ export class CodeHostManager {
     );
   }
 
+  getWorkspaceRoot(projectId: string): string | null {
+    return this.sessions.get(projectId)?.workspaceRoot ?? null;
+  }
+
   async getState(): Promise<DesktopCodeHostState> {
     let version: string | null = null;
     if (this.config.runtime) {

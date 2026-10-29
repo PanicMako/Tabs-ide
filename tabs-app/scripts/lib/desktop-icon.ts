@@ -1,4 +1,12 @@
+import { dirname, join } from "node:path";
 import sharp from "sharp";
+
+/** Finder's install icon is baked into the app; runtime icon preferences are separate. */
+export function desktopInstallerIconSource(signatureSource: string, platform: DesktopIconPlatform) {
+  return platform === "mac"
+    ? join(dirname(signatureSource), "tabs-afterglow.svg")
+    : signatureSource;
+}
 
 export type DesktopIconPlatform = "mac" | "win" | "linux";
 

@@ -30,3 +30,37 @@ it.each(["#eee8d5", "#181818"])(
     }
   },
 );
+
+it.each(["dark", "light"] as const)(
+  "coordinates editor cards and respects overrides in %s themes",
+  (baseVariant) => {
+    const config: CustomThemeConfig = {
+      baseVariant,
+      colors: {
+        background: baseVariant === "dark" ? "#09090a" : "#edf0f7",
+        foreground: baseVariant === "dark" ? "#eeeeee" : "#151518",
+        card: baseVariant === "dark" ? "#17171a" : "#ffffff",
+        border: "#777777",
+        primary: "#268bd2",
+      },
+      fonts: { uiFont: "Inter", editorFont: "Menlo" },
+    };
+    for (const evaluate of [evaluateThemeTokens, embeddedTheme.evaluateThemeTokens]) {
+      const tokens = evaluate(config);
+      for (const id of [
+        "editor.background",
+        "editorGutter.background",
+        "sideBar.background",
+        "breadcrumb.background",
+      ]) {
+        expect(tokens[id]).toBe(config.colors.card);
+      }
+      const custom = evaluate({
+        ...config,
+        tokenOverrides: { "editor.background": "#202030", "editorGutter.background": "#303040" },
+      });
+      expect(custom["editor.background"]).toBe("#202030");
+      expect(custom["editorGutter.background"]).toBe("#303040");
+    }
+  },
+);

@@ -41,7 +41,7 @@ export function WorkbenchPreview({ mode = "light" }: { readonly mode?: "light" |
             aria-pressed={project === name}
             aria-controls={panelId}
             onClick={() => setProject(name)}
-            className={`flex min-w-0 flex-1 items-center justify-between gap-3 rounded-t-lg border px-3 py-3 text-xs font-medium focus-visible:outline-2 focus-visible:outline-offset-[-3px] ${project === name ? (light ? "-mb-px border-black/10 border-b-white bg-white text-neutral-800 shadow-sm" : "-mb-px border-white/15 border-b-[#292929] bg-[#292929] text-white") : "border-transparent opacity-65 hover:opacity-100"}`}
+            className={`flex min-w-0 flex-1 items-center justify-between gap-3 rounded-lg border px-3 py-3 text-xs font-medium focus-visible:outline-2 focus-visible:outline-offset-[-3px] ${project === name ? (light ? "border-black/10 bg-white text-neutral-800 shadow-sm" : "border-white/15 bg-[#292929] text-white") : "border-transparent opacity-65 hover:opacity-100"}`}
           >
             <span>{name}</span>
             <XIcon aria-hidden="true" className="size-3 opacity-55" />
@@ -91,7 +91,7 @@ export function WorkbenchPreview({ mode = "light" }: { readonly mode?: "light" |
         className={`flex justify-between border-t px-5 py-3 text-[10px] text-[var(--preview-muted)] ${light ? "border-black/8" : "border-white/10"}`}
       >
         <span>Interactive preview</span>
-        <span>{light ? "Light" : "Dark"} · Frost</span>
+        <span>{light ? "Light" : "Dark"} · Monotone</span>
       </div>
     </div>
   );
