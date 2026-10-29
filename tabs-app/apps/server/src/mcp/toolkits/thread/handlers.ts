@@ -281,6 +281,7 @@ export const layer = ThreadToolkit.toLayer({
           sourceThreadId: projection.thread.id,
           targetThreadId,
           sourcePoint,
+          ...(input.title === undefined ? {} : { title: input.title }),
           createdBy: "agent",
           creationSource: "mcp",
         })

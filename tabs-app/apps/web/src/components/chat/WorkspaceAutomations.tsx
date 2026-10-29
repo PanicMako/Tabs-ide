@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type {
   ScheduledTask,
   ScheduledTaskId,
@@ -39,7 +39,20 @@ import {
 
 const WEEKDAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 
-export function WorkspaceAutomations({
+export function WorkspaceAutomations(props: {
+  context: WorkspaceAgentContext;
+  environmentId?: string | undefined;
+  readonly?: boolean;
+}) {
+  return (
+    <ScopedWorkspaceAutomations
+      key={JSON.stringify([props.environmentId, props.context.thread.id])}
+      {...props}
+    />
+  );
+}
+
+function ScopedWorkspaceAutomations({
   context,
   environmentId,
   readonly = false,
@@ -81,6 +94,15 @@ export function WorkspaceAutomations({
     null,
   );
   const [deliveriesLoading, setDeliveriesLoading] = useState(false);
+  const deliveryRequest = useRef(0);
+  const detailRequest = useRef(0);
+  useEffect(
+    () => () => {
+      deliveryRequest.current++;
+      detailRequest.current++;
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!expanded) return;
@@ -130,6 +152,14 @@ export function WorkspaceAutomations({
     setTitle(task?.title ?? "");
     setPrompt(task?.prompt ?? "");
     setError(null);
+    setSignatureEnabled(false);
+    setSignatureHeader("x-hub-signature-256");
+    setSignaturePrefix("");
+    setSignatureEncoding("hex");
+    setSignatureSecret("");
+    setMaxDeliveryAgeMinutes("");
+    setWeekdays(new Set());
+    setTime("09:00");
 
     if (task?.schedule.type === "fixed_time") {
       setKind("fixed_time");
@@ -145,11 +175,7 @@ export function WorkspaceAutomations({
       setMaxDeliveryAgeMinutes(task.schedule.maxDeliveryAgeMinutes ?? "");
     } else {
       setKind("interval");
-      setMinutes(
-        task?.schedule.type === "interval"
-          ? Math.max(1, Math.round(task.schedule.everyMs / 60000))
-          : 60,
-      );
+      setMinutes(task?.schedule.type === "interval" ? task.schedule.everyMs / 60000 : 60);
     }
   };
 
@@ -178,35 +204,40 @@ export function WorkspaceAutomations({
   const handleCopyWebhookUrl = async (task: ScheduledTask) => {
     const url = task.webhook?.url ?? task.webhook?.path ?? "";
     if (!url) return;
-    await navigator.clipboard.writeText(url);
-    setCopiedTaskId(task.id);
-    setTimeout(() => setCopiedTaskId(null), 2000);
+    await perform(`copy-${task.id}`, async () => {
+      await navigator.clipboard.writeText(url);
+      setCopiedTaskId(task.id);
+    });
   };
 
   const handleOpenDeliveries = async (task: ScheduledTask) => {
+    const request = ++deliveryRequest.current;
+    detailRequest.current++;
+    setDeliveries([]);
     setInspectingTaskId(task.id);
     setSelectedDelivery(null);
     setDeliveriesLoading(true);
     try {
       const api = await environmentApi(environmentId);
       const res = await api.scheduledTasks.listWebhookDeliveries({ id: task.id });
-      setDeliveries(res.deliveries);
+      if (request === deliveryRequest.current) setDeliveries(res.deliveries);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
-      setDeliveriesLoading(false);
+      if (request === deliveryRequest.current) setDeliveriesLoading(false);
     }
   };
 
   const handleViewDeliveryDetail = async (deliveryId: ScheduledTaskWebhookDeliveryId) => {
     if (!inspectingTaskId) return;
+    const request = ++detailRequest.current;
     try {
       const api = await environmentApi(environmentId);
       const res = await api.scheduledTasks.getWebhookDelivery({
         id: inspectingTaskId,
         deliveryId,
       });
-      setSelectedDelivery(res.delivery);
+      if (request === detailRequest.current) setSelectedDelivery(res.delivery);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     }
@@ -240,6 +271,16 @@ export function WorkspaceAutomations({
   };
 
   const isIntervalValid = kind !== "interval" || (Number.isFinite(minutes) && minutes >= 1);
+  const isWebhookValid =
+    kind !== "webhook" ||
+    ((maxDeliveryAgeMinutes === "" ||
+      (Number.isInteger(maxDeliveryAgeMinutes) &&
+        maxDeliveryAgeMinutes >= 1 &&
+        maxDeliveryAgeMinutes <= 1440)) &&
+      (!signatureEnabled ||
+        (signatureHeader.trim().length > 0 &&
+          (signatureSecret.trim().length > 0 ||
+            (editing?.schedule.type === "webhook" && editing.webhook?.hasSecret)))));
   const isTimeValid = kind !== "fixed_time" || Boolean(time);
 
   return (
@@ -660,7 +701,8 @@ export function WorkspaceAutomations({
                     !prompt.trim() ||
                     busy !== null ||
                     !isIntervalValid ||
-                    !isTimeValid
+                    !isTimeValid ||
+                    !isWebhookValid
                   }
                   onClick={() =>
                     void perform("save", async () => {
@@ -735,6 +777,8 @@ export function WorkspaceAutomations({
           open={inspectingTaskId !== null}
           onOpenChange={(open) => {
             if (!open) {
+              deliveryRequest.current++;
+              detailRequest.current++;
               setInspectingTaskId(null);
               setSelectedDelivery(null);
             }
@@ -757,9 +801,10 @@ export function WorkspaceAutomations({
                 )}
                 <div className="space-y-1.5">
                   {deliveries.map((d) => (
-                    <div
+                    <button
+                      type="button"
                       key={d.id}
-                      className="cursor-pointer rounded border border-border/50 p-2 text-xs hover:bg-muted"
+                      className="w-full rounded border border-border/50 p-2 text-left text-xs hover:bg-muted"
                       onClick={() => void handleViewDeliveryDetail(d.id)}
                     >
                       <div className="flex items-center justify-between">
@@ -779,7 +824,7 @@ export function WorkspaceAutomations({
                         {d.signatureVerified ? " · Verified" : ""}
                       </p>
                       {d.error && <p className="text-[10px] text-destructive">{d.error}</p>}
-                    </div>
+                    </button>
                   ))}
                 </div>
 

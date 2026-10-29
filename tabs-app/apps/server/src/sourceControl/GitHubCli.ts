@@ -32,6 +32,8 @@ import {
   type NormalizedGitHubPullRequestRecord,
 } from "./gitHubPullRequests.ts";
 
+import { decodePullRequestReadinessJson } from "../pullRequest/gitHubPullRequestJson.ts";
+
 const DEFAULT_TIMEOUT_MS = 30_000;
 
 /** Server-local credential scope; never put its value in RPC payloads or cache keys. */
@@ -997,7 +999,7 @@ export const make = Effect.gen(function* () {
           "view",
           input.reference,
           "--json",
-          "number,title,url,baseRefName,headRefName,state,isDraft,mergedAt,closedAt,updatedAt,isCrossRepository,headRepository,headRepositoryOwner",
+          "number,title,url,baseRefName,headRefName,state,isDraft,mergedAt,closedAt,updatedAt,isCrossRepository,headRepository,headRepositoryOwner,reviewDecision,mergeable,statusCheckRollup",
         ],
       }).pipe(
         Effect.map((result) => result.stdout.trim()),
@@ -1014,7 +1016,20 @@ export const make = Effect.gen(function* () {
                 );
               }
 
-              return Effect.succeed(pullRequestSummary(decoded.success));
+              const readiness = decodePullRequestReadinessJson(raw);
+              if (!Result.isSuccess(readiness)) {
+                return Effect.fail(
+                  new GitHubPullRequestDecodeError({
+                    command: "gh",
+                    cwd: input.cwd,
+                    cause: readiness.failure,
+                  }),
+                );
+              }
+              return Effect.succeed({
+                ...pullRequestSummary(decoded.success),
+                ...readiness.success,
+              });
             }),
           ),
         ),

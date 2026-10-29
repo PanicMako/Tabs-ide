@@ -8,7 +8,7 @@ import {
   type ServerConfig,
   ProviderInstanceId,
 } from "@tabs/contracts";
-import { useState, useId, useEffect } from "react";
+import { useState, useId, useEffect, useRef } from "react";
 import {
   BotIcon,
   ChevronDownIcon,
@@ -16,7 +16,6 @@ import {
   CornerLeftUpIcon,
   PlusIcon,
   SquareIcon,
-  ArrowRightIcon,
   ShieldAlertIcon,
 } from "lucide-react";
 import { environmentApi } from "../../connection/environmentApiRegistry";
@@ -50,7 +49,20 @@ const INITIAL_VISIBLE_COUNT = 6;
 const VISIBLE_INCREMENT = 12;
 
 /** Consumes the parent conversation's existing stream. Reuses family snapshot without unbounded polling. */
-export function WorkspaceAgents({
+export function WorkspaceAgents(props: {
+  context: WorkspaceAgentContext;
+  environmentId?: string | undefined;
+  onOpenThread: (id: ThreadId) => void;
+}) {
+  return (
+    <ScopedWorkspaceAgents
+      key={JSON.stringify([props.environmentId, props.context.thread.id])}
+      {...props}
+    />
+  );
+}
+
+function ScopedWorkspaceAgents({
   context,
   environmentId,
   onOpenThread,
@@ -59,6 +71,16 @@ export function WorkspaceAgents({
   environmentId?: string | undefined;
   onOpenThread: (id: ThreadId) => void;
 }) {
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  const openThread = (id: ThreadId) => {
+    if (mounted.current) onOpenThread(id);
+  };
   const nativeChild = isProviderNativeSubagentThread(context.thread);
   const taskInputId = useId();
   const providerSelectId = useId();
@@ -156,32 +178,33 @@ export function WorkspaceAgents({
 
   // Build the relationship graph from known family shells + current projection
   const currentShell: OrchestrationV2ThreadShell = {
-    id: context.thread.id,
-    projectId:
-      (context.thread as unknown as OrchestrationV2ThreadShell).projectId ?? ("default" as any),
-    title:
-      (context.thread as unknown as OrchestrationV2ThreadShell).title ?? "Current conversation",
-    status: (parentRun?.status ?? "idle") as any,
-    activityRunStatus: (parentRun?.status ?? null) as any,
-    lineage: context.thread.lineage,
-    forkedFrom: (context.thread as unknown as OrchestrationV2ThreadShell).forkedFrom ?? null,
-    modelSelection: context.thread.modelSelection,
-    runtimeMode: context.thread.runtimeMode,
-    interactionMode: context.thread.interactionMode,
-    archivedAt: null,
-    deletedAt: null,
-    settledAt: null,
-    createdAt: (context.thread as unknown as OrchestrationV2ThreadShell).createdAt,
-    updatedAt: (context.thread as unknown as OrchestrationV2ThreadShell).updatedAt,
-  } as unknown as OrchestrationV2ThreadShell;
+    ...context.thread,
+    status: parentRun?.status ?? "idle",
+    activityRunStatus:
+      parentRun?.status === "starting" ||
+      parentRun?.status === "running" ||
+      parentRun?.status === "waiting"
+        ? parentRun.status
+        : null,
+    activeRunId: parentRun?.id ?? null,
+    latestRunId: context.runs.toSorted((a, b) => b.ordinal - a.ordinal)[0]?.id ?? null,
+    pendingRuntimeRequest: null,
+    latestVisibleMessage: null,
+    latestUserMessageAt: null,
+    hasActionableProposedPlan: false,
+    pendingBackgroundTasks: [],
+    providerInstanceHistory: [],
+    itemCount: 0,
+    visibleItemCount: 0,
+  };
 
-  const allShells = [...familyThreads, currentShell];
+  const allShells = [currentShell, ...familyThreads];
   const graph = deriveThreadRelationshipGraph({
     threads: allShells,
-    projection: context as unknown as OrchestrationV2ThreadProjection,
+    projection: context,
   });
 
-  const mergeTargetThreadId = resolveMergeBackTargetThreadId(context as any);
+  const mergeTargetThreadId = resolveMergeBackTargetThreadId(context);
   const walkRows = walkThreadRelationships(graph, context.thread.id);
   const orderedRows = orderWebThreadLineageRows({
     graph,
@@ -253,7 +276,7 @@ export function WorkspaceAgents({
                 disabled={isParentMissing}
                 className={row}
                 onClick={() =>
-                  !isParentMissing && onOpenThread(context.thread.lineage.parentThreadId!)
+                  !isParentMissing && openThread(context.thread.lineage.parentThreadId!)
                 }
                 aria-label={
                   isParentMissing
@@ -281,7 +304,6 @@ export function WorkspaceAgents({
                   const node = graph.nodes.get(lineageRow.threadId);
                   const isParent = isParentThreadRelationship(lineageRow.edge, context.thread.id);
                   const isFork = lineageRow.edge.kind === "fork";
-                  const isMergeTarget = lineageRow.threadId === mergeTargetThreadId;
                   const agent = context.subagents.find(
                     (a) => a.childThreadId === lineageRow.threadId,
                   );
@@ -330,7 +352,7 @@ export function WorkspaceAgents({
                           <button
                             type="button"
                             disabled={isMissing}
-                            onClick={() => !isMissing && onOpenThread(lineageRow.threadId)}
+                            onClick={() => !isMissing && openThread(lineageRow.threadId)}
                             className="w-full text-left text-xs disabled:cursor-default"
                             title={threadTitle}
                             aria-label={isParent ? "Open parent conversation" : undefined}
@@ -383,37 +405,6 @@ export function WorkspaceAgents({
                           </p>
                         </details>
                       )}
-
-                      {/* Merge back action for fork targets */}
-                      {isMergeTarget &&
-                        context.thread.lineage.parentThreadId &&
-                        context.thread.lineage.relationshipToParent === "fork" && (
-                          <button
-                            type="button"
-                            disabled={
-                              busy !== null || !context.runs.some((r) => r.status === "completed")
-                            }
-                            className="mt-2 flex min-h-7 items-center gap-1.5 rounded bg-muted/60 px-2 text-[11px] text-foreground hover:bg-muted"
-                            onClick={() =>
-                              void perform("merge", async () => {
-                                const targetThreadId = lineageRow.threadId;
-                                await dispatch({
-                                  type: "thread.merge_back",
-                                  commandId: newCommandId(),
-                                  sourceThreadId: context.thread.id,
-                                  targetThreadId,
-                                  sourcePoint: { type: "latest_stable" },
-                                  createdBy: "user",
-                                  creationSource: "web",
-                                });
-                                onOpenThread(targetThreadId);
-                              })
-                            }
-                          >
-                            <CornerLeftUpIcon aria-hidden="true" className="size-3" />
-                            {busy === "merge" ? "Merging…" : "Merge result into parent"}
-                          </button>
-                        )}
 
                       {/* Stop active child work */}
                       {canStop && (
@@ -474,7 +465,7 @@ export function WorkspaceAgents({
                       <button
                         type="button"
                         disabled={!agent.childThreadId}
-                        onClick={() => agent.childThreadId && onOpenThread(agent.childThreadId)}
+                        onClick={() => agent.childThreadId && openThread(agent.childThreadId)}
                         className="min-w-0 flex-1 text-left text-xs disabled:cursor-default"
                         title={agent.title ?? agent.prompt}
                       >
@@ -571,6 +562,36 @@ export function WorkspaceAgents({
               </p>
             )}
 
+            {mergeTargetThreadId && (
+              <button
+                type="button"
+                className={row}
+                disabled={
+                  busy !== null ||
+                  !familyLoaded ||
+                  graph.nodes.get(mergeTargetThreadId)?.missing !== false ||
+                  !context.runs.some((run) => run.status === "completed")
+                }
+                onClick={() =>
+                  void perform("merge", async () => {
+                    await dispatch({
+                      type: "thread.merge_back",
+                      commandId: newCommandId(),
+                      sourceThreadId: context.thread.id,
+                      targetThreadId: mergeTargetThreadId,
+                      sourcePoint: { type: "latest_stable" },
+                      createdBy: "user",
+                      creationSource: "web",
+                    });
+                    openThread(mergeTargetThreadId);
+                  })
+                }
+              >
+                <CornerLeftUpIcon aria-hidden="true" className="size-3.5" />
+                {busy === "merge" ? "Merging…" : "Merge result into parent"}
+              </button>
+            )}
+
             {/* Fork button */}
             <button
               type="button"
@@ -588,7 +609,7 @@ export function WorkspaceAgents({
                     createdBy: "user",
                     creationSource: "web",
                   });
-                  onOpenThread(targetThreadId);
+                  openThread(targetThreadId);
                 })
               }
             >
@@ -709,19 +730,20 @@ export function WorkspaceAgents({
 
                       // Revalidate provider and model availability on the owning machine
                       const api = await environmentApi(environmentId);
-                      const latestCfg = await api.server.getConfig().catch(() => null);
-                      if (latestCfg) {
-                        const providerExists = latestCfg.providers?.some(
-                          (p) => p.instanceId === selectedInstanceId && p.status === "ready",
+                      const latestCfg = await api.server.getConfig();
+                      const provider = latestCfg.providers.find(
+                        (entry) =>
+                          entry.instanceId === selectedInstanceId && entry.status === "ready",
+                      );
+                      if (!provider) {
+                        throw new Error(
+                          `Provider "${selectedInstanceId}" is not available on this machine.`,
                         );
-                        if (
-                          !providerExists &&
-                          selectedInstanceId !== parentRun.modelSelection.instanceId
-                        ) {
-                          throw new Error(
-                            `Provider "${selectedInstanceId}" is not available on this machine.`,
-                          );
-                        }
+                      }
+                      if (!provider.models.some((model) => model.slug === selectedModel)) {
+                        throw new Error(
+                          `Model "${selectedModel}" is not available on this machine.`,
+                        );
                       }
 
                       await dispatch({
@@ -735,7 +757,8 @@ export function WorkspaceAgents({
                         modelSelection: {
                           instanceId: ProviderInstanceId.make(selectedInstanceId),
                           model: selectedModel,
-                          ...(parentRun.modelSelection.options
+                          ...(selectedInstanceId === parentRun.modelSelection.instanceId &&
+                          parentRun.modelSelection.options
                             ? { options: parentRun.modelSelection.options }
                             : {}),
                         },

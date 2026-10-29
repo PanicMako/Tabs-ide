@@ -279,3 +279,47 @@ it("handles missing or unavailable relatives safely without crashing", async () 
     await view.unmount();
   }
 });
+
+it("merges a completed fork into its parent even though the parent is outside family rows", async () => {
+  fixture.dispatch.mockClear();
+  const target = ThreadId.make("fork-parent");
+  const ctx = context(false);
+  const fork: WorkspaceAgentContext = {
+    ...ctx,
+    thread: {
+      ...ctx.thread,
+      lineage: { parentThreadId: target, rootThreadId: target, relationshipToParent: "fork" },
+    },
+    runs: [{ ...context(true).runs[0]!, status: "completed" }],
+  };
+  fixture.family.mockResolvedValueOnce({
+    snapshotSequence: 1,
+    threads: [
+      {
+        ...ctx.thread,
+        id: target,
+        title: "Parent",
+        lineage: { parentThreadId: null, rootThreadId: target, relationshipToParent: null },
+      } as unknown as OrchestrationV2ThreadShell,
+    ],
+  });
+  const open = vi.fn();
+  const view = await render(<WorkspaceAgents context={fork} onOpenThread={open} />);
+  try {
+    await page.getByRole("button", { name: /Sub-agents/ }).click();
+    const merge = page.getByRole("button", { name: "Merge result into parent", exact: true });
+    await expect.element(merge).toBeEnabled();
+    await merge.click();
+    await expect.poll(() => open.mock.calls.length).toBe(1);
+    expect(fixture.dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "thread.merge_back",
+        sourceThreadId: parent,
+        targetThreadId: target,
+      }),
+    );
+    expect(open).toHaveBeenCalledWith(target);
+  } finally {
+    await view.unmount();
+  }
+});

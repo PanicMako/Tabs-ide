@@ -334,6 +334,74 @@ it.effect(
 );
 
 it.effect(
+  "fork transfers preserve the requested title through legacy and consolidated tools",
+  () =>
+    Effect.gen(function* () {
+      const server = yield* McpServer.McpServer;
+      for (const name of ["t3_thread_fork", "t3_thread_transfer"]) {
+        const result = yield* server
+          .callTool({
+            name,
+            arguments:
+              name === "t3_thread_fork"
+                ? {
+                    threadId: "explicit-source",
+                    title: "Named fork",
+                    sourcePoint: { type: "latest_stable" },
+                  }
+                : { action: "fork", threadId: "explicit-source", title: "Named fork" },
+          })
+          .pipe(
+            Effect.provideService(McpInvocationContext.McpInvocationContext, scope),
+            Effect.provideService(McpSchema.McpServerClient, client),
+          );
+        expect(result.isError, JSON.stringify(result.content)).toBe(false);
+      }
+    }).pipe(
+      Effect.provide(
+        McpHttpServer.layerTools.pipe(
+          Layer.provideMerge(McpHttpServer.layerMcpServer),
+          Layer.provide(
+            Layer.mock(ThreadManagementService)({
+              getThreadShell: (id) =>
+                Effect.succeed({
+                  id,
+                  projectId: "p-1",
+                  runtimeMode: "full-access",
+                  interactionMode: "default",
+                  archivedAt: null,
+                  activeRunId: "active-run",
+                  providerInstanceId: ProviderInstanceId.make("codex"),
+                  deletedAt: null,
+                } as any),
+              getProjectThreadRecords: ({ threadId: id }) =>
+                Effect.succeed({
+                  thread: {
+                    id,
+                    projectId: "p-1",
+                    runtimeMode: "full-access",
+                    interactionMode: "default",
+                    deletedAt: null,
+                  },
+                } as any),
+              dispatch: (command) =>
+                Effect.sync(() => {
+                  expect(command).toMatchObject({
+                    type: "thread.fork",
+                    sourceThreadId: "explicit-source",
+                    title: "Named fork",
+                  });
+                  return { sequence: 1 } as any;
+                }),
+            }),
+          ),
+          Layer.provide(services()),
+        ),
+      ),
+    ) as any,
+);
+
+it.effect(
   "legacy tool aliases resolve and execute against consolidated tools",
   () =>
     Effect.gen(function* () {
@@ -366,9 +434,9 @@ it.effect(
       });
       expect(server.tools.map(({ tool }) => tool.name)).toContain("t3_queue_list");
       expect(server.tools.map(({ tool }) => tool.name)).toContain("t3_pending_request_list");
-      expect(legacyAliases.t3_thread_fork!({ sourceThreadId: "t-1" })).toEqual({
+      expect(legacyAliases.t3_thread_fork!({ threadId: "t-1" })).toEqual({
         name: "t3_thread_transfer",
-        arguments: { action: "fork", sourceThreadId: "t-1" },
+        arguments: { action: "fork", threadId: "t-1" },
       });
       expect(
         legacyAliases.t3_thread_merge_back!({ sourceThreadId: "source", action: "fork" }),

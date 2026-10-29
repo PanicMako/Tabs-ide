@@ -379,3 +379,34 @@ it("disables mutation controls for readonly users", async () => {
     await view.unmount();
   }
 });
+
+it("preserves a fractional-minute interval when editing the title", async () => {
+  calls.upsert.mockClear();
+  const task = {
+    id: "schedule:fractional" as ScheduledTaskId,
+    title: "Fractional interval",
+    prompt: "Check",
+    threadId,
+    enabled: true,
+    schedule: { type: "interval", everyMs: 90000 },
+    lastRunStatus: "never",
+    nextRunAt: null,
+  } as ScheduledTask;
+  calls.subscribe.mockImplementation((receive: (value: ScheduledTaskListResult) => void) => {
+    receive({ tasks: [task] });
+    return calls.unsubscribe;
+  });
+  const view = await render(<WorkspaceAutomations context={context} />);
+  try {
+    await page.getByRole("button", { name: "Automations", exact: true }).click();
+    await page.getByRole("button", { name: "Edit", exact: true }).click();
+    await page.getByRole("textbox", { name: "Name", exact: true }).fill("Renamed interval");
+    await page.getByRole("button", { name: "Save automation", exact: true }).click();
+    await expect.poll(() => calls.upsert.mock.calls.length).toBe(1);
+    expect(calls.upsert.mock.calls[0]![0]).toMatchObject({
+      schedule: { type: "interval", everyMs: 90000 },
+    });
+  } finally {
+    await view.unmount();
+  }
+});

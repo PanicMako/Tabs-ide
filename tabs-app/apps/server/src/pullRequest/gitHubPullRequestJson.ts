@@ -2176,6 +2176,34 @@ export function decodePullRequestCoreJson(
   });
 }
 
+// The workspace summary uses the same check and review normalization as the PR detail view.
+const decodeReadiness = decodeJsonResult(
+  Schema.Struct({
+    reviewDecision: Schema.optional(Schema.NullOr(Schema.String)),
+    mergeable: Schema.optional(Schema.NullOr(Schema.String)),
+    statusCheckRollup: Schema.optional(Schema.NullOr(Schema.Array(RawCheckSchema))),
+  }),
+);
+
+export function decodePullRequestReadinessJson(raw: string) {
+  return Result.map(decodeReadiness(raw), (value) => {
+    const decision = toReviewDecision(value.reviewDecision);
+    const reviewDecision =
+      decision === "changes-requested"
+        ? ("changes_requested" as const)
+        : decision === "review-required"
+          ? ("review_required" as const)
+          : decision;
+    return {
+      ...(value.reviewDecision === undefined ? {} : { reviewDecision }),
+      ...(value.mergeable === undefined ? {} : { mergeability: toMergeability(value.mergeable) }),
+      ...(value.statusCheckRollup === undefined
+        ? {}
+        : { checksState: rollupChecksState(value.statusCheckRollup) }),
+    };
+  });
+}
+
 export function decodePullRequestDetailJson(
   raw: string,
 ): Result.Result<GitHubPullRequestDetail, DecodeFailure> {
