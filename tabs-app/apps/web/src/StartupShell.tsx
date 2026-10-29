@@ -1,4 +1,4 @@
-import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, useState, useSyncExternalStore, lazy, Suspense, type ReactNode } from "react";
 import { SplashScreen, STARTUP_ANIMATION_EXIT_MS } from "./components/SplashScreen";
 import { readFirstPaintSplashSettings } from "./startupSplashSettings";
 import {
@@ -7,6 +7,8 @@ import {
   updateStartupSplash,
 } from "./lib/startupSplashLifecycle";
 import { markStartupStage } from "./lib/startupReadiness";
+
+const DataRecoverySettings = lazy(() => import("./components/settings/DataRecoverySettings"));
 
 /** Keep the original animation mounted while the workspace module graph loads. */
 export function StartupShell({ loadApplication }: { loadApplication: () => Promise<ReactNode> }) {
@@ -51,13 +53,13 @@ export function StartupShell({ loadApplication }: { loadApplication: () => Promi
   }, [application]);
 
   useEffect(() => {
-    if (!state.ready) return;
+    if (!state.ready || !application) return;
     const timer = setTimeout(() => {
       setVisible(false);
       updateStartupSplash({ dismissed: true });
     }, STARTUP_ANIMATION_EXIT_MS);
     return () => clearTimeout(timer);
-  }, [state.ready]);
+  }, [state.ready, application]);
 
   return (
     <>
@@ -65,17 +67,20 @@ export function StartupShell({ loadApplication }: { loadApplication: () => Promi
         <div
           role="status"
           aria-label="Starting Tabs"
-          aria-hidden={state.ready || undefined}
-          className={`fixed inset-0 z-[9999] bg-background transition-transform duration-200 ease-out motion-reduce:duration-0 ${state.ready ? "pointer-events-none -translate-y-full" : "pointer-events-auto translate-y-0"}`}
+          aria-hidden={(state.ready && !!application) || undefined}
+          className={`fixed inset-0 z-[9999] bg-background transition-transform duration-200 ease-out motion-reduce:duration-0 ${state.ready && application ? "pointer-events-none -translate-y-full" : "pointer-events-auto translate-y-0"}`}
         >
           <SplashScreen {...settings} />
           {state.error ? (
             <div
-              className="absolute inset-x-4 bottom-8 mx-auto max-w-2xl rounded-lg border bg-background p-5 text-sm shadow-lg"
+              className="absolute inset-x-4 top-8 bottom-8 mx-auto max-w-2xl overflow-y-auto rounded-lg border bg-background p-5 text-sm"
               role="alert"
             >
               <h1 className="mb-2 font-semibold">Tabs could not open your workspace</h1>
               <p className="whitespace-pre-wrap text-muted-foreground">{state.error}</p>
+              <Suspense fallback={null}>
+                <DataRecoverySettings />
+              </Suspense>
             </div>
           ) : state.delayed ? (
             <p

@@ -19,10 +19,12 @@ import {
   Loader2,
   Plus,
   RefreshCw,
+  Search,
   Upload,
   Wand2,
+  X,
 } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 import { deriveRepoState } from "../../lib/deriveRepoState";
 import { toGitUserFacingErrorMessage } from "../../lib/gitErrorMessages";
@@ -139,6 +141,19 @@ export function OverviewPanel({
   const hasConflict = conflictedFiles.length > 0;
   const remoteName = branchList?.remoteName ?? "origin";
   const pushAccess = branchList?.pushAccess ?? "unknown";
+
+  const [fileFilter, setFileFilter] = useState("");
+  const normalizedFilter = fileFilter.trim().toLowerCase();
+
+  const filteredStagedFiles = useMemo(() => {
+    if (!normalizedFilter) return stagedFiles;
+    return stagedFiles.filter((f) => f.path.toLowerCase().includes(normalizedFilter));
+  }, [stagedFiles, normalizedFilter]);
+
+  const filteredUnstagedFiles = useMemo(() => {
+    if (!normalizedFilter) return unstagedFiles;
+    return unstagedFiles.filter((f) => f.path.toLowerCase().includes(normalizedFilter));
+  }, [unstagedFiles, normalizedFilter]);
 
   const performRepositoryAction = useCallback(
     async (operation: GitRepositoryActionInput["operation"], successTitle: string) => {
@@ -266,18 +281,21 @@ export function OverviewPanel({
     ],
   );
 
+  const latestMessage = useRef(msg);
+  latestMessage.current = msg;
   const handleGenerate = async () => {
     if (!api) return;
+    const original = msg;
     setGenerating(true);
     try {
-      const result = await api.git.generateDiffSummary({
-        cwd,
-        target: { kind: "working_tree" },
-        userHint: stagedFiles.length
-          ? "Prioritize the staged changes and return a concise imperative commit subject as the first line."
-          : "Return a concise imperative commit subject as the first line.",
-      });
-      setMsg(result.summary.split("\n", 1)[0]?.trim() ?? "");
+      const result = await api.git.generateCommitDraft({ cwd });
+      if (latestMessage.current === original) setMsg(result.message);
+      else
+        toastManager.add({
+          type: "info",
+          title: "Your edits were kept",
+          description: "The message changed during generation. Generate again when ready.",
+        });
     } catch (error) {
       toastManager.add({
         type: "error",
@@ -695,7 +713,7 @@ export function OverviewPanel({
       <SectionLabel>Commit & sync</SectionLabel>
       <Card className="p-4 mb-1">
         <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
-          <span className="text-[10px] uppercase tracking-widest text-muted-foreground/70">
+          <span className="text-[10px] uppercase tracking-widest text-muted-foreground/70 font-semibold">
             Commit
           </span>
           <div className="flex items-center gap-2">
@@ -705,48 +723,125 @@ export function OverviewPanel({
             </span>
           </div>
         </div>
-        <div className="mb-3 space-y-2" aria-busy={stagingBusy || isStagingAll}>
+
+        {/* Search / filter changed files if there are any */}
+        {changed > 0 && (
+          <div className="relative mb-2.5">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground/50 pointer-events-none" />
+            <input
+              type="text"
+              value={fileFilter}
+              onChange={(e) => setFileFilter(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") setFileFilter("");
+              }}
+              placeholder="Search changed files… (press Esc to clear)"
+              className="w-full h-8 pl-8 pr-8 text-xs bg-muted/20 hover:bg-muted/30 focus:bg-background/80 border border-border/50 rounded-md text-foreground placeholder:text-muted-foreground/50 outline-none focus-blur-glow font-mono"
+            />
+            {fileFilter && (
+              <button
+                type="button"
+                onClick={() => setFileFilter("")}
+                aria-label="Clear search"
+                title="Clear search (Esc)"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground/50 hover:text-foreground p-0.5 rounded cursor-pointer transition-colors"
+              >
+                <X size={13} />
+              </button>
+            )}
+          </div>
+        )}
+
+        <div className="mb-3 space-y-3" aria-busy={stagingBusy || isStagingAll}>
           {(
             [
-              { label: "Staged changes", files: stagedFiles, staged: true },
-              { label: "Changes", files: unstagedFiles, staged: false },
+              {
+                label: "Staged changes",
+                files: filteredStagedFiles,
+                totalCount: stagedFiles.length,
+                staged: true,
+              },
+              {
+                label: "Changes",
+                files: filteredUnstagedFiles,
+                totalCount: unstagedFiles.length,
+                staged: false,
+              },
             ] as const
-          ).map(({ label, files, staged }) => (
-            <div key={label}>
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <span>
-                  {label} ({files.length})
-                </span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled={
-                    !files.length ||
-                    stagingBusy ||
-                    isStagingAll ||
-                    isCommitting ||
-                    isCommittingAndPushing
-                  }
-                  onClick={() => void updateStaging(files, staged)}
-                >
-                  {staged ? "Unstage all" : "Stage all"}
-                </Button>
+          ).map(({ label, files, totalCount, staged }) => {
+            if (totalCount === 0 && !normalizedFilter) {
+              return (
+                <div key={label} className="space-y-1">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>{label} (0)</span>
+                    <Button variant="ghost" size="sm" disabled>
+                      {staged ? "Unstage all" : "Stage all"}
+                    </Button>
+                  </div>
+                </div>
+              );
+            }
+
+            const isFiltered = Boolean(normalizedFilter);
+
+            return (
+              <div key={label} className="space-y-1.5">
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground/80">
+                    {label} ({files.length}
+                    {isFiltered ? ` of ${totalCount}` : ""})
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={
+                      !files.length ||
+                      stagingBusy ||
+                      isStagingAll ||
+                      isCommitting ||
+                      isCommittingAndPushing
+                    }
+                    onClick={() => void updateStaging(files, staged)}
+                    title={
+                      isFiltered && files.length < totalCount
+                        ? `${staged ? "Unstage" : "Stage"} ${files.length} filtered file${files.length === 1 ? "" : "s"}`
+                        : undefined
+                    }
+                  >
+                    {isFiltered && files.length < totalCount
+                      ? `${staged ? "Unstage" : "Stage"} filtered (${files.length})`
+                      : staged
+                        ? "Unstage all"
+                        : "Stage all"}
+                  </Button>
+                </div>
+
+                {files.length === 0 ? (
+                  isFiltered ? (
+                    <div className="text-[11px] text-muted-foreground/60 py-2 px-2.5 rounded border border-border/30 bg-muted/10 italic">
+                      No matching {label.toLowerCase()} for "{fileFilter}"
+                    </div>
+                  ) : null
+                ) : (
+                  <div className="max-h-[420px] overflow-y-auto custom-scrollbar rounded-md border border-border/40 bg-muted/10">
+                    {files.map((file) => (
+                      <FileRow
+                        key={file.path}
+                        cwd={cwd}
+                        f={file}
+                        staged={staged}
+                        rowLoadingAction={
+                          stagingBusy || isStagingAll ? (staged ? "unstage" : "stage") : null
+                        }
+                        onOpenDiff={onOpenDiff}
+                        onToggleStage={(selected) => void updateStaging([selected], staged)}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
-              {files.map((file) => (
-                <FileRow
-                  key={file.path}
-                  cwd={cwd}
-                  f={file}
-                  staged={staged}
-                  rowLoadingAction={
-                    stagingBusy || isStagingAll ? (staged ? "unstage" : "stage") : null
-                  }
-                  onOpenDiff={onOpenDiff}
-                  onToggleStage={(selected) => void updateStaging([selected], staged)}
-                />
-              ))}
-            </div>
-          ))}
+            );
+          })}
         </div>
         <AutoTextarea
           aria-label="Commit message"
@@ -761,7 +856,7 @@ export function OverviewPanel({
           }}
           placeholder="Summarize your change…"
           minRows={2}
-          className="w-full border border-border rounded-lg bg-background text-foreground text-xs placeholder:text-muted-foreground/50 p-3 outline-none focus:border-border transition-colors"
+          className="w-full border border-border/60 rounded-lg bg-background text-foreground text-xs placeholder:text-muted-foreground/50 p-3 outline-none focus-blur-glow"
         />
         <div className="flex flex-wrap items-center justify-between gap-2 mt-2.5">
           <div className="flex flex-wrap items-center gap-2">
@@ -810,7 +905,7 @@ export function OverviewPanel({
                 isCommitting ||
                 isCommittingAndPushing
               }
-              title="Fills the box from your changed file names"
+              title="Draft a Conventional Commit locally from staged changes, or tracked edits"
               onClick={() => void handleGenerate()}
             >
               {generating ? (

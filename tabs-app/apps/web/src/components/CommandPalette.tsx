@@ -1069,7 +1069,7 @@ function OpenCommandPaletteDialog(props: {
                   setHighlightedItemValue(null);
                 }
               }}
-              className="mr-2 flex size-6 items-center justify-center rounded-sm hover:bg-muted"
+              className="mr-2 flex size-6 items-center justify-center rounded-full hover:bg-muted"
             >
               <ArrowLeftIcon className="size-4" />
             </button>
@@ -1085,7 +1085,7 @@ function OpenCommandPaletteDialog(props: {
                     <button
                       type="button"
                       disabled={isRemoteProjectLookingUp}
-                      className="flex items-center gap-1.5 rounded-sm bg-accent border border-border/40 px-2 py-1 text-[10px] font-medium text-foreground hover:bg-accent/80 transition-colors pointer-events-auto"
+                      className="flex items-center gap-1.5 rounded-full bg-accent border border-border/40 px-2 py-1 text-[10px] font-medium text-foreground hover:bg-accent/80 transition-colors pointer-events-auto"
                       onClick={() => void handleLookupRepository()}
                     >
                       {isRemoteProjectLookingUp
@@ -1106,7 +1106,7 @@ function OpenCommandPaletteDialog(props: {
               <div className="px-2 py-1.5 font-medium text-muted-foreground text-xs">
                 Repository
               </div>
-              <div className="flex min-h-8 items-center gap-2 rounded-sm px-2 py-1.5 bg-accent/30 border border-border/40">
+              <div className="flex min-h-8 items-center gap-2 rounded-lg px-2 py-1.5 bg-accent/30 border border-border/40">
                 {remoteProjectContext.icon}
                 <span className="flex min-w-0 flex-1 flex-col">
                   <span className="truncate text-foreground text-sm font-medium">

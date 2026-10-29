@@ -1,3 +1,4 @@
+import { CommitDraftContext } from "./CommitDraftContext";
 import { auditReviewPlan } from "../review/AuditReviewPlan.ts";
 import * as Arr from "effect/Array";
 import * as Cache from "effect/Cache";
@@ -37,6 +38,11 @@ import {
   type ThreadId,
   type VcsCreateWorktreeInput,
   type VcsCreateWorktreeResult,
+  ProviderInstanceId,
+  type GitGenerateCommitDraftInput,
+  type GitGeneratePullRequestDraftInput,
+  type GitGeneratePullRequestDraftResult,
+  type GitGenerateCommitDraftResult,
   type GitGenerateDiffSummaryInput,
   type GitGenerateDiffSummaryResult,
   type GitGenerateReviewInput,
@@ -91,6 +97,7 @@ import { extractBranchNameFromRemoteRef } from "./remoteRefs.ts";
 import { detachStackFrame } from "./detachStackFrame.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import type { GitManagerServiceError } from "@tabs/contracts";
+import * as VcsProcess from "../vcs/VcsProcess.ts";
 import * as GitVcsDriver from "../vcs/GitVcsDriver.ts";
 import * as SourceControlProviderRegistry from "../sourceControl/SourceControlProviderRegistry.ts";
 import { detectPrTemplate } from "../sourceControl/PrTemplateDetection.ts";
@@ -157,6 +164,12 @@ export class GitManager extends Context.Service<
       input: GitRunStackedActionInput,
       options?: GitRunStackedActionOptions,
     ) => Effect.Effect<GitRunStackedActionResult, GitManagerServiceError>;
+    readonly generatePullRequestDraft: (
+      input: GitGeneratePullRequestDraftInput,
+    ) => Effect.Effect<GitGeneratePullRequestDraftResult, GitManagerServiceError>;
+    readonly generateCommitDraft: (
+      input: GitGenerateCommitDraftInput,
+    ) => Effect.Effect<GitGenerateCommitDraftResult, GitManagerServiceError>;
     readonly generateDiffSummary: (
       input: GitGenerateDiffSummaryInput,
     ) => Effect.Effect<GitGenerateDiffSummaryResult, GitManagerServiceError>;
@@ -705,6 +718,7 @@ function toResolvedPullRequest(pr: {
   baseRefName: string;
   headRefName: string;
   state?: "open" | "closed" | "merged";
+  isDraft?: boolean | undefined;
 }): ResolvedPullRequest {
   return {
     number: pr.number,
@@ -713,6 +727,7 @@ function toResolvedPullRequest(pr: {
     baseBranch: pr.baseRefName,
     headBranch: pr.headRefName,
     state: pr.state ?? "open",
+    ...(typeof pr.isDraft === "boolean" ? { isDraft: pr.isDraft } : {}),
   };
 }
 
@@ -748,6 +763,7 @@ export const make = Effect.gen(function* () {
   const path = yield* Path.Path;
 
   const sourceControlProvider = (cwd: string) => sourceControlProviders.resolve({ cwd });
+  const draftProcess = yield* VcsProcess.VcsProcess;
   const serverSettingsService = yield* ServerSettings.ServerSettingsService;
   const threads = yield* ProjectionStore.ProjectionStoreV2;
   const projects = yield* ProjectStore.ProjectStoreV2;
@@ -2791,22 +2807,13 @@ export const make = Effect.gen(function* () {
         let preResolvedCommitSuggestion: CommitAndBranchSuggestion | undefined = undefined;
 
         const textGenerationSettings = yield* projectSettingsFor(input).pipe(
-          Effect.flatMap((settings) =>
-            settings.sourceControlWriterModelSelection === null
-              ? Effect.succeed({
-                  modelSelection: settings.textGenerationModelSelection,
-                  style: settings.sourceControlWritingStyle,
-                })
-              : providerRegistry.getProviders.pipe(
-                  Effect.map((providers) => ({
-                    modelSelection: ServerSettings.resolveSourceControlWriterModelSelection(
-                      settings,
-                      providers,
-                    ),
-                    style: settings.sourceControlWritingStyle,
-                  })),
-                ),
-          ),
+          Effect.map((settings) => ({
+            modelSelection: {
+              instanceId: ProviderInstanceId.makeUnsafe("local"),
+              model: settings.commitDraftLocalModel,
+            },
+            style: settings.sourceControlWritingStyle,
+          })),
           Effect.mapError(
             (cause) =>
               new GitManagerError({
@@ -2932,20 +2939,158 @@ export const make = Effect.gen(function* () {
     },
   );
 
+  const generatePullRequestDraft = (input: GitGeneratePullRequestDraftInput) =>
+    Effect.gen(function* () {
+      const settings = yield* serverSettingsService.getSettings;
+      const resolve = (ref: string) =>
+        gitCore
+          .execute({
+            operation: "generatePullRequestDraft.resolve",
+            cwd: input.cwd,
+            args: ["rev-parse", "--verify", "--end-of-options", `${ref}^{commit}`],
+          })
+          .pipe(Effect.map((result) => result.stdout.trim()));
+      const base = yield* resolve(input.baseBranch);
+      const head = yield* resolve(input.headBranch);
+      const range = `${base}...${head}`;
+      const read = (args: string[], patch = false) => {
+        const context = new CommitDraftContext();
+        return draftProcess
+          .run({
+            operation: "generatePullRequestDraft.context",
+            command: "git",
+            cwd: input.cwd,
+            args,
+            maxOutputBytes: 8_000,
+            outputMode: "truncate",
+            appendTruncationMarker: true,
+            ...(patch ? { onStdoutChunk: (chunk: Uint8Array) => context.push(chunk) } : {}),
+          })
+          .pipe(
+            Effect.map((result) => (patch ? context.render() || result.stdout : result.stdout)),
+          );
+      };
+      const diffPatch = yield* read(
+        ["diff", "--no-color", "--no-ext-diff", "--no-textconv", "--unified=2", range],
+        true,
+      );
+      if (!diffPatch.trim())
+        return yield* new GitManagerError({
+          operation: "generatePullRequestDraft",
+          cwd: input.cwd,
+          detail: "The selected branches have no changes to describe.",
+        });
+      const diffSummary = yield* read(["diff", "--stat", range]);
+      const commitSummary = yield* read(["log", "--oneline", `${base}..${head}`]);
+      const template = Option.getOrUndefined(
+        yield* detectPrTemplate(input.cwd, base, gitCore.execute),
+      );
+      return yield* textGeneration.generatePrContent({
+        cwd: input.cwd,
+        baseBranch: input.baseBranch,
+        headBranch: input.headBranch,
+        diffPatch,
+        diffSummary,
+        commitSummary,
+        ...(template ? { changeRequestTemplate: template } : {}),
+        policy: conventionalCommitsTextGenerationPolicy,
+        modelSelection: {
+          instanceId: ProviderInstanceId.makeUnsafe("local"),
+          model: settings.commitDraftLocalModel,
+        },
+      });
+    }).pipe(
+      Effect.mapError((cause) =>
+        cause instanceof GitManagerError
+          ? cause
+          : new GitManagerError({
+              operation: "generatePullRequestDraft",
+              cwd: input.cwd,
+              detail: cause instanceof Error ? cause.message : String(cause),
+              cause,
+            }),
+      ),
+    );
+
+  // Drafting must never call prepareCommitContext: that helper stages files.
+  const generateCommitDraft = (input: GitGenerateCommitDraftInput) =>
+    Effect.gen(function* () {
+      const settings = yield* serverSettingsService.getSettings;
+      const modelSelection = {
+        instanceId: ProviderInstanceId.makeUnsafe("local"),
+        model: settings.commitDraftLocalModel,
+      };
+      const readDiff = (cached: boolean, stat: boolean) => {
+        const context = new CommitDraftContext();
+        return draftProcess
+          .run({
+            operation: "GitManager.generateCommitDraft.diff",
+            command: "git",
+            cwd: input.cwd,
+            args: [
+              "diff",
+              "--no-color",
+              "--no-ext-diff",
+              "--no-textconv",
+              ...(cached ? ["--cached"] : []),
+              ...(stat ? ["--stat"] : ["--patch", "--unified=2"]),
+            ],
+            maxOutputBytes: 8_000,
+            outputMode: "truncate",
+            appendTruncationMarker: true,
+            ...(stat ? {} : { onStdoutChunk: (chunk: Uint8Array) => context.push(chunk) }),
+          })
+          .pipe(
+            Effect.map((result) => ({
+              ...result,
+              stdout: stat ? result.stdout : context.render() || result.stdout,
+            })),
+          );
+      };
+      const staged = yield* readDiff(true, false);
+      const targetScope = staged.stdout.trim() ? ("staged" as const) : ("working_tree" as const);
+      const patch =
+        targetScope === "staged" ? staged.stdout : (yield* readDiff(false, false)).stdout;
+      if (!patch.trim()) {
+        return yield* new GitManagerError({
+          operation: "generateCommitDraft",
+          cwd: input.cwd,
+          detail: "No tracked changes to describe. Stage new files first, then generate a draft.",
+        });
+      }
+      const summary = yield* readDiff(targetScope === "staged", true);
+      const policy = conventionalCommitsTextGenerationPolicy;
+      const generationInput = {
+        cwd: input.cwd,
+        branch: null,
+        stagedSummary: limitContext(summary.stdout, 8_000),
+        stagedPatch: limitContext(patch, 50_000),
+        modelSelection,
+        policy,
+      };
+      const generated = yield* textGeneration.generateCommitMessage(generationInput);
+      const sanitized = sanitizeCommitMessage(generated);
+      return { message: formatCommitMessage(sanitized.subject, sanitized.body), targetScope };
+    }).pipe(
+      Effect.mapError((cause) =>
+        cause instanceof GitManagerError
+          ? cause
+          : new GitManagerError({
+              operation: "generateCommitDraft",
+              cwd: input.cwd,
+              detail: cause instanceof Error ? cause.message : String(cause),
+              cause,
+            }),
+      ),
+    );
+
   const generateDiffSummary = (input: GitGenerateDiffSummaryInput) =>
     Effect.gen(function* () {
       const settings = yield* serverSettingsService.getSettings;
-      const modelSelection =
-        input.modelSelection ??
-        settings.gitAi?.gitTextGenerationModelSelection ??
-        settings.textGenerationModelSelection;
-      if (!modelSelection || !modelSelection.instanceId || !modelSelection.model) {
-        return yield* new GitManagerError({
-          operation: "generateDiffSummary",
-          cwd: input.cwd,
-          detail: "No text generation model configured — set one up in Settings → Providers",
-        });
-      }
+      const modelSelection = {
+        instanceId: ProviderInstanceId.makeUnsafe("local"),
+        model: settings.commitDraftLocalModel,
+      };
 
       let diffSummary = "";
       let rawPatch = "";
@@ -3161,17 +3306,10 @@ export const make = Effect.gen(function* () {
   ) =>
     Effect.gen(function* () {
       const settings = yield* serverSettingsService.getSettings;
-      const modelSelection =
-        input.modelSelection ??
-        settings.gitAi?.gitTextGenerationModelSelection ??
-        settings.textGenerationModelSelection;
-      if (!modelSelection || !modelSelection.instanceId || !modelSelection.model) {
-        return yield* new GitManagerError({
-          operation: "generateReview",
-          cwd: input.cwd,
-          detail: "No text generation model configured — set one up in Settings → Providers",
-        });
-      }
+      const modelSelection = {
+        instanceId: ProviderInstanceId.makeUnsafe("local"),
+        model: settings.commitDraftLocalModel,
+      };
 
       const auditPlan = input.audit
         ? yield* Effect.try({
@@ -3503,6 +3641,8 @@ export const make = Effect.gen(function* () {
     resolvePullRequest,
     preparePullRequestThread,
     runStackedAction,
+    generateCommitDraft,
+    generatePullRequestDraft,
     generateDiffSummary,
     generateReview,
     submitFindingFeedback,

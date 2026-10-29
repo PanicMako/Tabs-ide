@@ -2,27 +2,12 @@ import { type CSSProperties, memo } from "react";
 import { ProviderDriverKind } from "@tabs/contracts";
 import { providerInstanceInitials } from "@tabs/client-runtime/state/provider-instance-display";
 
-import {
-  AntigravityIcon,
-  ClaudeAI,
-  CursorIcon,
-  GrokIcon,
-  type Icon,
-  OpenAI,
-  OpenCodeIcon,
-} from "../Icons";
+import { PROVIDER_BRAND_ICONS } from "../providerIcons";
 import { cn } from "../../lib/utils";
 
 export { providerInstanceInitials };
 
-export const PROVIDER_ICON_BY_PROVIDER: Partial<Record<ProviderDriverKind, Icon>> = {
-  [ProviderDriverKind.make("codex")]: OpenAI,
-  [ProviderDriverKind.make("claudeAgent")]: ClaudeAI,
-  [ProviderDriverKind.make("opencode")]: OpenCodeIcon,
-  [ProviderDriverKind.make("cursor")]: CursorIcon,
-  [ProviderDriverKind.make("grok")]: GrokIcon,
-  [ProviderDriverKind.make("antigravity")]: AntigravityIcon,
-};
+export const PROVIDER_ICON_BY_PROVIDER = PROVIDER_BRAND_ICONS;
 
 export const ProviderInstanceIcon = memo(function ProviderInstanceIcon(props: {
   driverKind: ProviderDriverKind;

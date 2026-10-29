@@ -194,7 +194,11 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 		};
 
 		const updateToolbar = () => {
-			const actions = getFlatActionBarActions(menu.getActions({ shouldForwardArgs: true }));
+			const availableActions = getFlatActionBarActions(menu.getActions({ shouldForwardArgs: true }));
+			// The embedded Tabs contribution owns generation/provider selection. Keep
+			// upstream setup actions (and remembered selections) out of its single-icon UI.
+			const tabsDraftAction = availableActions.find(action => action.id === 'tabs.generateCommitMessage');
+			const actions = tabsDraftAction ? [tabsDraftAction] : availableActions;
 
 			for (const action of actions) {
 				action.enabled = isEnabled();

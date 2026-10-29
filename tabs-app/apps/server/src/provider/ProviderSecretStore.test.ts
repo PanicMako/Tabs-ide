@@ -37,20 +37,20 @@ describe("ProviderSecretStore", () => {
 
   it("stores and normalizes secrets", async () => {
     keytarMock.setPassword.mockClear();
-    await setProviderSecret("gemini.api-key", "  my-key  ");
+    await setProviderSecret("openrouter.api-key", "  my-key  ");
     expect(keytarMock.setPassword).toHaveBeenCalledWith(
       "Tabs Provider Credentials",
-      "gemini.api-key",
+      "openrouter.api-key",
       "my-key",
     );
   });
 
   it("deletes secrets when given an empty value", async () => {
     keytarMock.deletePassword.mockClear();
-    await setProviderSecret("gemini.api-key", "   ");
+    await setProviderSecret("openrouter.api-key", "   ");
     expect(keytarMock.deletePassword).toHaveBeenCalledWith(
       "Tabs Provider Credentials",
-      "gemini.api-key",
+      "openrouter.api-key",
     );
   });
 
@@ -58,6 +58,6 @@ describe("ProviderSecretStore", () => {
     keytarMock.deletePassword.mockRejectedValueOnce(
       new Error("No such interface 'org.freedesktop.Secret.Collection'"),
     );
-    await expect(deleteProviderSecret("gemini.api-key")).rejects.toThrow("No such interface");
+    await expect(deleteProviderSecret("openrouter.api-key")).rejects.toThrow("No such interface");
   });
 });

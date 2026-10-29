@@ -1,5 +1,6 @@
 import { Children, isValidElement, useId, type ComponentProps, type ReactNode } from "react";
 import { Checkbox } from "../ui/checkbox";
+import { Switch } from "../ui/switch";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 /** Uses the shared custom listbox while keeping option definitions close to their settings. */
 export function ExtensionChoice({
@@ -51,6 +52,19 @@ export function ExtensionCheckbox(props: ComponentProps<typeof Checkbox>) {
   return (
     <>
       <Checkbox {...props} aria-labelledby={labelId} />
+      <span id={labelId} className="sr-only">
+        {props["aria-label"]}
+      </span>
+    </>
+  );
+}
+
+/** Keep contextual names when the shared switch discovers a wrapping label. */
+export function ExtensionSwitch(props: ComponentProps<typeof Switch>) {
+  const labelId = useId();
+  return (
+    <>
+      <Switch {...props} aria-labelledby={labelId} />
       <span id={labelId} className="sr-only">
         {props["aria-label"]}
       </span>

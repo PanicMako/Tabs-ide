@@ -1,3 +1,4 @@
+import { WorkspaceAgents, type WorkspaceAgentContext } from "./chat/WorkspaceAgents";
 import { ensureDraftThreadExists, type DraftThreadCreation } from "../stores/ensureDraftThread";
 import { onApiServerProvidersUpdated } from "../wsNativeApi";
 import {
@@ -37,6 +38,7 @@ import {
   type ServerProviderSkill,
   type AssistantCitation,
   type OrchestrationV2ThreadProjection,
+  isProviderNativeSubagentThread,
 } from "@tabs/contracts";
 import {
   formatProviderSkillDisplayName,
@@ -134,6 +136,8 @@ import { useTheme } from "../hooks/useTheme";
 import { useTurnDiffSummaries } from "../hooks/useTurnDiffSummaries";
 import { useConfirm } from "~/hooks/useConfirm";
 import BranchToolbar from "./BranchToolbar";
+import type { Project } from "../types";
+import { workspaceShellActions } from "../state/workspaceShell";
 import { resolveShortcutCommand, shortcutLabelForCommand } from "../keybindings";
 import PlanSidebar from "./PlanSidebar";
 import ThreadTerminalDrawer from "./ThreadTerminalDrawer";
@@ -250,6 +254,7 @@ import { assistantCitationFromLocation } from "~/lib/assistantCitationNavigation
 import { type AssistantCitationRequest } from "./chat/AssistantCitationSource";
 import { formatAssistantCitationForComposer } from "~/composer-logic";
 import { ChatHeader } from "./chat/ChatHeader";
+import { WorkspaceProjectScripts } from "./chat/WorkspaceProjectScripts";
 import { ContextWindowMeter } from "./chat/ContextWindowMeter";
 import {
   isCompactCommandMessage,
@@ -1251,9 +1256,16 @@ export default function ChatView({
             fallbackDraftProject?.defaultModelSelection ??
               makeAppModelSelection("codex", DEFAULT_MODEL),
             localDraftError,
+            environmentId,
           )
         : undefined,
-    [draftThread, fallbackDraftProject?.defaultModelSelection, localDraftError, threadId],
+    [
+      draftThread,
+      fallbackDraftProject?.defaultModelSelection,
+      localDraftError,
+      threadId,
+      environmentId,
+    ],
   );
   const activeThread = serverThread ?? localDraftThread;
   const activeLifecycle = activeThread ?? null;
@@ -1272,18 +1284,50 @@ export default function ChatView({
   const diffOpen = propDiffOpen !== undefined ? propDiffOpen : rawSearch.diff === "1";
   const activeThreadId = activeThread?.id ?? null;
   const projectionRef = useRef<OrchestrationV2ThreadProjection | null>(null);
+  const [workspaceActionsContainer, setWorkspaceActionsContainer] = useState<HTMLElement | null>(
+    null,
+  );
+  const [workspaceActionsOpen, setWorkspaceActionsOpen] = useState(false);
+  useLayoutEffect(() => {
+    const host = workspaceActionsContainer;
+    const header = host?.closest("header");
+    const root = host?.closest(".chat-workspace-root");
+    const composer = composerFormRef.current;
+    if (!host || !header || !root || !workspaceActionsOpen) return;
+    const measure = () => {
+      const bottom = composer?.getBoundingClientRect().top ?? root.getBoundingClientRect().bottom;
+      host.style.maxHeight = `${Math.max(80, bottom - header.getBoundingClientRect().bottom - 24)}px`;
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(root);
+    observer.observe(header);
+    if (composer) observer.observe(composer);
+    return () => observer.disconnect();
+  }, [workspaceActionsContainer, workspaceActionsOpen, activeThreadId]);
+  const [workspaceAgentContext, setWorkspaceAgentContext] = useState<WorkspaceAgentContext | null>(
+    null,
+  );
   const projectionKey = JSON.stringify([environmentId, activeThreadId]);
   const [loadedProjectionKey, setLoadedProjectionKey] = useState<string | null>(null);
   useEffect(() => {
     if (!threadApi || !activeThreadId || !isServerThread) {
       projectionRef.current = null;
+      setWorkspaceAgentContext(null);
       return;
     }
+    let disposed = false;
     const unsubscribe = threadApi.orchestration.subscribeThread(
       { threadId: activeThreadId, acceptBoundedSnapshot: true },
       (item) => {
+        if (disposed) return;
         if ("kind" in item && item.kind === "snapshot") {
           projectionRef.current = item.projection;
+          setWorkspaceAgentContext({
+            thread: item.projection.thread,
+            runs: item.projection.runs,
+            subagents: item.projection.subagents,
+          });
           setLoadedProjectionKey(projectionKey);
           applyThreadProjectionToAtoms(item.projection, environmentId);
         } else if ("kind" in item && item.kind === "event") {
@@ -1292,6 +1336,16 @@ export default function ChatView({
             const next = applyOrchestrationV2ProjectionEvent(current, item.event);
             projectionRef.current = next;
             if (next) {
+              if (
+                next.subagents !== current.subagents ||
+                next.runs !== current.runs ||
+                next.thread !== current.thread
+              )
+                setWorkspaceAgentContext({
+                  thread: next.thread,
+                  runs: next.runs,
+                  subagents: next.subagents,
+                });
               applyThreadProjectionToAtoms(next, environmentId);
             }
           }
@@ -1299,6 +1353,7 @@ export default function ChatView({
       },
     );
     return () => {
+      disposed = true;
       unsubscribe();
       projectionRef.current = null;
     };
@@ -2860,14 +2915,31 @@ export default function ChatView({
     const savedScrollTop = peekRememberedThreadScrollTop(displayedTimelineKey);
     if (savedScrollTop !== null) {
       scrollContainer.scrollTop = savedScrollTop;
-      lastKnownScrollTopRef.current = savedScrollTop;
-      shouldAutoScrollRef.current = false;
-      setShowScrollToBottom(true);
+      lastKnownScrollTopRef.current = scrollContainer.scrollTop;
+      const isNearBottom = isScrollContainerNearBottom(scrollContainer);
+      shouldAutoScrollRef.current = isNearBottom;
+      setShowScrollToBottom(!isNearBottom);
     }
   }, [displayedTimelineKey]);
+  useLayoutEffect(() => {
+    const scrollContainer = messagesScrollRef.current;
+    if (!scrollContainer || scrollContainer.clientHeight === 0) return;
+    // A cached timeline can be replaced by shorter content without a scroll event.
+    if (scrollContainer.scrollHeight <= scrollContainer.clientHeight) {
+      shouldAutoScrollRef.current = true;
+      pendingUserScrollUpIntentRef.current = false;
+      setShowScrollToBottom(false);
+    }
+  }, [displayedTimeline.entries, messagesScrollElement]);
   const onMessagesWheel = useCallback(
     (event: React.WheelEvent<HTMLDivElement>) => {
       const scrollContainer = messagesScrollRef.current;
+      if (scrollContainer && scrollContainer.scrollHeight <= scrollContainer.clientHeight) {
+        shouldAutoScrollRef.current = true;
+        pendingUserScrollUpIntentRef.current = false;
+        setShowScrollToBottom(false);
+        return;
+      }
       if (
         shouldPauseAutoScrollOnUserScrollIntent({
           shouldAutoScroll: shouldAutoScrollRef.current,
@@ -4888,6 +4960,88 @@ export default function ChatView({
     [isLocalDraftThread, scheduleComposerFocus, setDraftThreadContext, threadId],
   );
 
+  const onMachineChange = useCallback(
+    async (target: Project) => {
+      if (
+        !isLocalDraftThread ||
+        envLocked ||
+        !activeProject ||
+        !target.environmentId ||
+        target.environmentId === environmentId
+      )
+        return;
+      if (
+        composerImages.length ||
+        composerFiles.length ||
+        composerTerminalContexts.length ||
+        composerPreviewAnnotations.length ||
+        composerReviewComments.length
+      ) {
+        toastManager.add({
+          type: "info",
+          title: "Keep attached context on its machine",
+          description:
+            "Remove attachments and workspace context before changing machines. Your draft was kept.",
+        });
+        return;
+      }
+      const actions = createScopedComposerDraftActions(target.environmentId);
+      const existing = actions.getDraftThreadByProjectId(target.id);
+      if (existing) {
+        toastManager.add({
+          type: "info",
+          title: "A draft already exists on that machine",
+          description: "Finish or clear that draft first. Your current message was kept.",
+        });
+        return;
+      }
+      try {
+        const nextId = newThreadId();
+        actions.setProjectDraftThreadId(target.id, nextId, {
+          createdAt: new Date().toISOString(),
+          runtimeMode,
+          interactionMode,
+          envMode: draftThread?.envMode ?? "local",
+          branch: null,
+          worktreePath: null,
+        });
+        actions.setPrompt(nextId, prompt);
+        actions.setModelSelection(nextId, selectedModelSelection);
+        await navigate({
+          to: "/$environmentId/$threadId",
+          params: { environmentId: target.environmentId, threadId: nextId },
+        });
+        workspaceShellActions.setActiveProject(target.id);
+        workspaceShellActions.rememberThread(target.id, nextId);
+        clearProjectDraftThreadId(activeProject.id);
+      } catch (error) {
+        toastManager.add({
+          type: "error",
+          title: "Could not change machines",
+          description: error instanceof Error ? error.message : String(error),
+        });
+      }
+    },
+    [
+      isLocalDraftThread,
+      envLocked,
+      activeProject,
+      environmentId,
+      composerImages.length,
+      composerFiles.length,
+      composerTerminalContexts.length,
+      composerPreviewAnnotations.length,
+      composerReviewComments.length,
+      runtimeMode,
+      interactionMode,
+      draftThread?.envMode,
+      prompt,
+      selectedModelSelection,
+      navigate,
+      clearProjectDraftThreadId,
+    ],
+  );
+
   const extendReplacementRangeForTrailingSpace = (
     text: string,
     rangeEnd: number,
@@ -5356,8 +5510,24 @@ export default function ChatView({
     });
   const composerPromptLengthValidationMessage =
     submissionValidationMessage ?? getComposerPromptLengthValidationMessage(prompt);
+  const branchToolbar = (
+    <BranchToolbar
+      threadId={activeThread.id}
+      {...(environmentId ? { environmentId } : {})}
+      onEnvModeChange={onEnvModeChange}
+      envLocked={envLocked}
+      showGitControls={isGitRepo}
+      showMachineSelector={!compact}
+      onMachineChange={onMachineChange}
+      onComposerFocusRequest={scheduleComposerFocus}
+      {...(canCheckoutPullRequestIntoThread
+        ? { onCheckoutPullRequestRequest: openPullRequestDialog }
+        : {})}
+    />
+  );
+
   const composerSection = (
-    <div className={cn("px-3 pt-1.5 sm:px-5 sm:pt-2", isGitRepo ? "pb-1" : "pb-3 sm:pb-4")}>
+    <div className="px-3 pb-3 pt-1.5 sm:px-5 sm:pb-4 sm:pt-2">
       <form
         ref={composerFormRef}
         onSubmit={onSend}
@@ -5411,7 +5581,7 @@ export default function ChatView({
         )}
         <div
           className={cn(
-            "group relative rounded-2xl p-0.5 transition-all duration-200",
+            "group relative isolate rounded-2xl p-0.5 transition-all duration-200",
             composerProviderState.composerFrameClassName,
           )}
           onDragEnter={onComposerDragEnter}
@@ -5437,8 +5607,9 @@ export default function ChatView({
           )}
           <div
             ref={composerCardRef}
+            data-chat-composer-card="true"
             className={cn(
-              "rounded-2xl border bg-card/90 shadow-md transition-all duration-200 overflow-hidden flex flex-col",
+              "relative z-10 rounded-2xl border bg-card/90 shadow-md transition-all duration-200 overflow-hidden flex flex-col",
               isDragOverComposer
                 ? "border-foreground/40 bg-accent/30"
                 : "border-border/60 hover:border-border/80 has-focus-visible:border-foreground/30 has-focus-visible:ring-1 has-focus-visible:ring-foreground/20",
@@ -5679,6 +5850,25 @@ export default function ChatView({
                     onClose={() => setIsStashMenuOpen(false)}
                   />
                 </div>
+                {!isComposerApprovalState && pendingUserInputs.length === 0 && (
+                  <button
+                    type="button"
+                    disabled={
+                      !composerSendState.hasSendableContent ||
+                      isSendBusy ||
+                      isConnecting ||
+                      threadDetailLoading ||
+                      Boolean(composerPromptLengthValidationMessage)
+                    }
+                    aria-label="Schedule message for a specific time"
+                    title="Schedule this message to send at a specific time"
+                    className="composer-schedule-button flex h-7 shrink-0 items-center justify-center gap-1.5 px-2 text-xs text-muted-foreground transition-colors enabled:cursor-pointer hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    onClick={() => setIsSchedulePopoverOpen(true)}
+                  >
+                    <ClockIcon className="size-3.5" />
+                    {!isComposerFooterCompact && <span>Schedule</span>}
+                  </button>
+                )}
                 <Tooltip>
                   <TooltipTrigger
                     render={
@@ -6035,21 +6225,11 @@ export default function ChatView({
                             size="sm"
                             variant="secondary"
                             onClick={() => onQueueMessage()}
-                            className="h-8 gap-1.5 rounded-l-lg rounded-r-none border border-r-0 border-border/80 bg-secondary/90 px-2.5 text-xs font-medium text-foreground hover:bg-secondary transition-all cursor-pointer shadow-2xs"
+                            className="h-8 gap-1.5 rounded-lg border border-border/80 bg-secondary/90 px-2.5 text-xs font-medium text-foreground hover:bg-secondary transition-all cursor-pointer shadow-2xs"
                             title="Queue message for when agent finishes (Enter)"
                           >
                             <ListOrderedIcon className="size-3.5 text-foreground" />
                             <span>Queue</span>
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="secondary"
-                            className="h-8 w-8 rounded-l-none rounded-r-lg border border-border/80 bg-secondary/90 p-0 text-muted-foreground hover:text-foreground hover:bg-secondary transition-all cursor-pointer shadow-2xs"
-                            aria-label="Schedule message for specific time"
-                            onClick={() => setIsSchedulePopoverOpen(true)}
-                          >
-                            <ClockIcon className="size-3.5" />
                           </Button>
                         </div>
                       )}
@@ -6096,7 +6276,7 @@ export default function ChatView({
                         {isConnecting || isSendBusy ? "Sending..." : "Refine"}
                       </Button>
                     ) : (
-                      <div className="flex items-center">
+                      <div data-slot="joined-control" className="flex items-center">
                         <Button
                           type="submit"
                           size="sm"
@@ -6131,11 +6311,12 @@ export default function ChatView({
                       </div>
                     )
                   ) : (
-                    // Idle composer: split send button with schedule clock always visible
-                    <div className="flex items-center">
+                    // Send and schedule are separate controls with equal hit targets.
+                    <div className="composer-send-actions flex items-center gap-1.5">
                       <button
                         type="submit"
-                        className="flex h-9 w-9 enabled:cursor-pointer items-center justify-center rounded-l-lg rounded-r-none bg-foreground text-background transition-all duration-150 hover:bg-foreground/90 hover:scale-105 disabled:pointer-events-none disabled:opacity-30 disabled:hover:scale-100 sm:h-8 sm:w-8"
+                        data-workspace-action="send-message"
+                        className="composer-send-button flex size-9 shrink-0 enabled:cursor-pointer items-center justify-center bg-primary text-primary-foreground transition-colors duration-150 hover:bg-primary/90 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                         disabled={
                           isSendBusy ||
                           isConnecting ||
@@ -6191,23 +6372,6 @@ export default function ChatView({
                           </svg>
                         )}
                       </button>
-                      {/* Clock / schedule button — always visible even on idle/fresh threads */}
-                      <button
-                        type="button"
-                        disabled={
-                          !composerSendState.hasSendableContent ||
-                          isSendBusy ||
-                          isConnecting ||
-                          threadDetailLoading ||
-                          Boolean(composerPromptLengthValidationMessage)
-                        }
-                        aria-label="Schedule message for a specific time"
-                        title="Schedule this message to send at a specific time"
-                        className="flex h-9 w-7 enabled:cursor-pointer items-center justify-center rounded-l-none rounded-r-lg border-l border-foreground/15 bg-foreground text-background/70 transition-all duration-150 hover:bg-foreground/90 hover:text-background disabled:pointer-events-none disabled:opacity-30 disabled:hover:scale-100 sm:h-8"
-                        onClick={() => setIsSchedulePopoverOpen(true)}
-                      >
-                        <ClockIcon className="size-3" />
-                      </button>
                     </div>
                   )
                 ) : null}
@@ -6215,28 +6379,22 @@ export default function ChatView({
             </div>
             <ComposerPromptLengthValidation message={composerPromptLengthValidationMessage} />
           </div>
+          <div
+            data-chat-composer-workspace-tray="true"
+            className="composer-context-tray relative z-0 mx-4 -mt-3 rounded-b-2xl border border-t-0 border-border/60 bg-card pt-3"
+          >
+            {branchToolbar}
+          </div>
         </div>
       </form>
     </div>
   );
-  const branchToolbar = isGitRepo ? (
-    <BranchToolbar
-      threadId={activeThread.id}
-      {...(environmentId ? { environmentId } : {})}
-      onEnvModeChange={onEnvModeChange}
-      envLocked={envLocked}
-      onComposerFocusRequest={scheduleComposerFocus}
-      {...(canCheckoutPullRequestIntoThread
-        ? { onCheckoutPullRequestRequest: openPullRequestDialog }
-        : {})}
-    />
-  ) : null;
 
   return (
     <div
       onPointerDownCapture={onActivatePane}
       onFocusCapture={onActivatePane}
-      className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background"
+      className="chat-workspace-root relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background"
     >
       {/* Top bar — hidden in the compact side-chat embed (the Code tab provides
           its own chrome; the branch/github/terminal/diff tools live in Agents). */}
@@ -6250,6 +6408,45 @@ export default function ChatView({
           )}
         >
           <ChatHeader
+            workspaceActionsContainer={workspaceActionsContainer}
+            onWorkspaceActionsOpenChange={setWorkspaceActionsOpen}
+            agentWorkflow={
+              loadedProjectionKey === projectionKey &&
+              workspaceAgentContext?.thread.id === activeThread.id ? (
+                <WorkspaceAgents
+                  key={`${resolvedEnvironmentId}:${activeThread.id}`}
+                  context={workspaceAgentContext}
+                  environmentId={environmentId}
+                  onOpenThread={(childId) => {
+                    void navigate({
+                      to: "/$environmentId/$threadId",
+                      params: { environmentId: resolvedEnvironmentId, threadId: childId },
+                    });
+                  }}
+                />
+              ) : null
+            }
+            workspaceControls={
+              <BranchToolbar
+                threadId={activeThread.id}
+                environmentId={environmentId}
+                onEnvModeChange={onEnvModeChange}
+                envLocked={envLocked}
+                showGitControls={false}
+                onMachineChange={onMachineChange}
+              />
+            }
+            scriptManagement={
+              activeProject ? (
+                <WorkspaceProjectScripts
+                  project={activeProject}
+                  keybindings={keybindings}
+                  onRunScript={(script) => {
+                    void runProjectScript(script);
+                  }}
+                />
+              ) : null
+            }
             scripts={activeProject?.scripts}
             onRunScript={(script) => {
               void runProjectScript(script);
@@ -6290,20 +6487,28 @@ export default function ChatView({
             onToggleMaximize={onToggleMaximize}
             onClosePane={onClosePane}
           />
+          <aside
+            ref={setWorkspaceActionsContainer}
+            hidden={!workspaceActionsOpen || compact}
+            className="workspace-actions-rail"
+            aria-label="Workspace action rail"
+          />
         </header>
       )}
 
-      {/* Error banner */}
-      <ProviderStatusBanner
-        status={visibleProviderStatus}
-        onDismiss={() => setDismissedProviderStatusBannerKey(providerStatusBannerKey)}
-      />
-      <ThreadErrorBanner
-        error={activeThread.error}
-        onDismiss={() => setThreadError(activeThread.id, null)}
-      />
+      <div className="chat-status-area" data-workspace-open={workspaceActionsOpen || undefined}>
+        {/* Error banner */}
+        <ProviderStatusBanner
+          status={visibleProviderStatus}
+          onDismiss={() => setDismissedProviderStatusBannerKey(providerStatusBannerKey)}
+        />
+        <ThreadErrorBanner
+          error={activeThread.error}
+          onDismiss={() => setThreadError(activeThread.id, null)}
+        />
+      </div>
       {/* Main content area with optional plan sidebar */}
-      <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+      <div className="chat-workspace-body relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
         {/* Chat column */}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden")}>
@@ -6373,6 +6578,7 @@ export default function ChatView({
                   onCiteAssistantText={citeAssistantText}
                   latestTaskDescription={paintOnlyDisplayedTimeline ? null : latestTaskDescription}
                   providerInstanceId={selectedProvider}
+                  providerDriverKind={activeProviderStatus?.driver}
                 />
               </div>
 
@@ -6381,7 +6587,7 @@ export default function ChatView({
                   data-wallpaper-empty-heading="true"
                   className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none px-6 text-center"
                 >
-                  <h2 className="text-balance text-3xl font-semibold tracking-tight text-foreground/92 sm:text-4xl">
+                  <h2 className="text-balance text-3xl font-medium tracking-tight text-foreground/92 sm:text-4xl">
                     {activeProject?.name
                       ? `What should we build in ${activeProject.name}?`
                       : "What should we build?"}
@@ -6408,10 +6614,38 @@ export default function ChatView({
             </div>
 
             <div className="relative w-full">
-              <div className="w-full">{composerSection}</div>
+              <div className="w-full">
+                {loadedProjectionKey === projectionKey &&
+                workspaceAgentContext &&
+                isProviderNativeSubagentThread(workspaceAgentContext.thread) ? (
+                  <div className="mx-4 mb-4 flex items-center gap-3 rounded-2xl border border-border bg-card p-4 text-sm">
+                    <p className="min-w-0 flex-1 text-muted-foreground">
+                      Provider sub-agent · read only. Reply to questions and approvals in the parent
+                      conversation.
+                    </p>
+                    {workspaceAgentContext.thread.lineage.parentThreadId && (
+                      <button
+                        type="button"
+                        className="shrink-0 rounded-lg px-3 py-2 font-medium hover:bg-muted"
+                        onClick={() => {
+                          void navigate({
+                            to: "/$environmentId/$threadId",
+                            params: {
+                              environmentId: resolvedEnvironmentId,
+                              threadId: workspaceAgentContext.thread.lineage.parentThreadId!,
+                            },
+                          });
+                        }}
+                      >
+                        Open parent
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  composerSection
+                )}
+              </div>
             </div>
-
-            {branchToolbar}
           </div>
           {pullRequestDialogState ? (
             <PullRequestThreadDialog

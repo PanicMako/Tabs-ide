@@ -1,3 +1,4 @@
+import DataRecoverySettings from "../components/settings/DataRecoverySettings";
 import { ProjectId, ThreadId } from "@tabs/contracts";
 import {
   Outlet,
@@ -186,11 +187,12 @@ function FullAppRootView() {
           />
           {backendStartupError && !bootstrapReady ? (
             <div
-              className="absolute inset-x-4 bottom-8 mx-auto max-w-2xl rounded-lg border bg-background p-5 text-sm shadow-lg"
+              className="absolute inset-x-4 top-8 bottom-8 mx-auto max-w-2xl overflow-y-auto rounded-lg border bg-background p-5 text-sm"
               role="alert"
             >
               <h1 className="mb-2 font-semibold">Tabs could not open your workspace</h1>
               <p className="whitespace-pre-wrap text-muted-foreground">{backendStartupError}</p>
+              <DataRecoverySettings />
             </div>
           ) : startupDeadlineElapsed && !bootstrapReady ? (
             <p

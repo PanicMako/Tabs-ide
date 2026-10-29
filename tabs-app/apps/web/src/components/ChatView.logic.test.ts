@@ -1,7 +1,8 @@
-import { MessageId, ThreadId } from "@tabs/contracts";
+import { EnvironmentId, ProviderInstanceId, ProjectId, MessageId, ThreadId } from "@tabs/contracts";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
+  buildLocalDraftThread,
   FOLLOW_UP_COMPOSER_PLACEHOLDER,
   GENERIC_COMPOSER_PLACEHOLDER,
   MAX_REMEMBERED_SCROLL_POSITIONS,
@@ -440,5 +441,27 @@ describe("scroll restoration", () => {
       expect(peekRememberedThreadScrollTop(`env-1:thread-${i}`)).toBe(i * 10);
     }
     expect(MAX_REMEMBERED_SCROLL_POSITIONS).toBe(32);
+  });
+});
+
+describe("local draft machine ownership", () => {
+  it("keeps the owning environment when constructing a draft thread", () => {
+    const thread = buildLocalDraftThread(
+      ThreadId.make("local-draft"),
+      {
+        projectId: ProjectId.make("shared-project-id"),
+        createdAt: "2026-10-26T00:00:00Z",
+        runtimeMode: "full-access",
+        interactionMode: "default",
+        branch: null,
+        worktreePath: null,
+        envMode: "local",
+      },
+      { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5", options: [] },
+      null,
+      EnvironmentId.make("remote-machine"),
+    );
+    expect(thread.environmentId).toBe("remote-machine");
+    expect(thread.projectId).toBe("shared-project-id");
   });
 });

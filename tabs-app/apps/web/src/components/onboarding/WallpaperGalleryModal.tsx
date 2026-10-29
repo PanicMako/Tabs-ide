@@ -559,6 +559,7 @@ export function WallpaperGalleryModal({
                 const isSelected = wp.url === activeWallpaperUrl;
                 return (
                   <button
+                    data-shape="preview"
                     key={wp.id}
                     type="button"
                     onClick={() => {

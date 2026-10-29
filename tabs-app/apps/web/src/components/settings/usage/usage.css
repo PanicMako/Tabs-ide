@@ -48,7 +48,7 @@
 .usage-overview {
   overflow: hidden;
   border: 1px solid var(--border);
-  border-radius: 28px;
+  border-radius: var(--radius-surface);
   background: var(--card);
 }
 .usage-totals {
@@ -106,7 +106,7 @@
 }
 .usage-provider {
   border: 1px solid var(--border);
-  border-radius: 20px;
+  border-radius: var(--radius-surface);
   padding: 16px;
   background: color-mix(in srgb, var(--card) 75%, var(--background));
 }
@@ -121,7 +121,7 @@
 }
 .usage-share {
   height: 4px;
-  border-radius: 999px;
+  border-radius: var(--radius-control);
   overflow: hidden;
   background: var(--muted);
 }
@@ -154,7 +154,7 @@
 .usage-details > summary:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 4px;
-  border-radius: 8px;
+  border-radius: var(--radius-surface);
 }
 .usage-token-details {
   display: grid;
@@ -181,7 +181,7 @@
   justify-content: center;
   gap: 8px;
   border: 1px dashed var(--border);
-  border-radius: 24px;
+  border-radius: var(--radius-surface);
   color: var(--muted-foreground);
   text-align: center;
   padding: 24px;
@@ -227,7 +227,7 @@
   font-weight: 600;
   cursor: pointer;
   padding: 3px 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-control);
   background: color-mix(in srgb, var(--primary) 8%, transparent);
   white-space: nowrap;
 }

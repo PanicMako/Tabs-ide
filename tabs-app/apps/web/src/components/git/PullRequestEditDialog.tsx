@@ -79,7 +79,7 @@ export function PullRequestEditForm({
               Description
             </span>
             <OrbitGroup
-              className="tabs-segmented flex items-center rounded-full"
+              className="tabs-segmented inline-flex items-center rounded-full w-fit"
               role="group"
               aria-label="Description editor mode"
             >

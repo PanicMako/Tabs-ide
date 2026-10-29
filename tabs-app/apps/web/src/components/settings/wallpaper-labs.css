@@ -62,7 +62,8 @@
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   padding: 0.625rem 1rem;
-  border-radius: 0.875rem 0.25rem 0.25rem 0.875rem;
+  border-radius: var(--radius-surface) var(--radius-surface) var(--radius-surface)
+    var(--radius-surface);
   border-right: 3px solid rgba(255, 255, 255, 0.9) !important;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
   color: #ffffff !important;
@@ -177,7 +178,8 @@
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   padding: 0.625rem 1rem;
-  border-radius: 0.875rem 0.25rem 0.25rem 0.875rem;
+  border-radius: var(--radius-surface) var(--radius-surface) var(--radius-surface)
+    var(--radius-surface);
   border-right: 3px solid #0284c7 !important;
   box-shadow: 0 4px 18px rgba(0, 0, 0, 0.06);
   color: #0f172a !important;

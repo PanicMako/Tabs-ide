@@ -1,4 +1,5 @@
 import { OrbitGroup } from "../ui/orbit-group";
+import { cn } from "../../lib/utils";
 import {
   ArrowUpDown,
   Bot,
@@ -11,12 +12,12 @@ import {
   GitMerge,
   GitPullRequest,
   Layers,
-  MessageSquare,
   MoreHorizontal,
   Pencil,
   Plus,
   Search,
 } from "lucide-react";
+import { AssistantBubbleIcon } from "../AssistantBubbleIcon";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useMemo, useState } from "react";
 import type { KeyboardEvent } from "react";
@@ -92,6 +93,61 @@ interface PullRequestRow {
   autoMergeMethod?: "merge" | "squash" | "rebase";
   stackMembership?: GitPullRequestStackMembership;
   stack?: GitPullRequestStack;
+}
+
+function formatPrErrorMessage(rawError: unknown): { message: string; details?: string } {
+  if (!rawError) {
+    return { message: "The pull-request provider returned an unknown error." };
+  }
+  let raw = "";
+  if (rawError instanceof Error) {
+    raw = rawError.message;
+  } else if (typeof rawError === "object" && rawError !== null && "message" in rawError) {
+    raw = String((rawError as { message: unknown }).message);
+  } else {
+    raw = String(rawError);
+  }
+
+  // Attempt to parse structured error JSON
+  const jsonStart = raw.indexOf("{");
+  const jsonEnd = raw.lastIndexOf("}");
+  let detailStr = "";
+  if (jsonStart !== -1 && jsonEnd > jsonStart) {
+    try {
+      const parsed = JSON.parse(raw.slice(jsonStart, jsonEnd + 1)) as Record<string, unknown>;
+      detailStr = String(parsed.detail || parsed.message || "");
+    } catch {
+      // not valid JSON
+    }
+  }
+
+  const candidate = detailStr || raw;
+  if (/no git remotes found/i.test(candidate)) {
+    return {
+      message: "No Git remotes configured for this repository.",
+      ...(candidate !== "No Git remotes configured for this repository."
+        ? { details: candidate }
+        : {}),
+    };
+  }
+
+  const failedMatch = candidate.match(/failed \([^)]+\),\s*(.+)$/i);
+  if (failedMatch && failedMatch[1]) {
+    return {
+      message: failedMatch[1].trim(),
+      details: candidate,
+    };
+  }
+
+  const cleanMessage = candidate
+    .replace(/^Server request failed:\s*/i, "")
+    .replace(/^GitHub CLI command failed:\s*/i, "")
+    .trim();
+
+  return {
+    message: cleanMessage || "The pull-request provider returned an unknown error.",
+    ...(raw !== cleanMessage ? { details: raw } : {}),
+  };
 }
 
 const REACTION_OPTIONS = [
@@ -506,7 +562,7 @@ export function PRsPanel({
                 value={searchInput}
                 onChange={(event) => setSearchInput(event.target.value)}
                 placeholder="Search pull requests"
-                className="min-w-0 flex-1 rounded-md border border-border bg-background px-2 py-1.5 text-xs"
+                className="min-w-0 flex-1 rounded-md border border-border/60 bg-background px-2.5 py-1.5 text-xs outline-none focus-blur-glow"
               />
               <Button type="submit" size="sm">
                 Search
@@ -542,11 +598,26 @@ export function PRsPanel({
           <Card className="border-destructive/40 bg-destructive/5 p-6 text-center">
             <GitPullRequest className="mx-auto mb-2 text-destructive" size={28} />
             <p className="text-sm font-medium text-foreground">Unable to load pull requests</p>
-            <p className="mx-auto mt-1 max-w-md text-xs text-muted-foreground">
-              {activeQuery.error instanceof Error
-                ? activeQuery.error.message
-                : "The pull-request provider returned an unknown error."}
-            </p>
+            {(() => {
+              const formatted = formatPrErrorMessage(activeQuery.error);
+              return (
+                <div className="mx-auto mt-2 max-w-xl text-center">
+                  <p className="text-xs text-muted-foreground break-words [overflow-wrap:anywhere] leading-relaxed">
+                    {formatted.message}
+                  </p>
+                  {formatted.details && formatted.details !== formatted.message ? (
+                    <details className="mt-2 text-left">
+                      <summary className="cursor-pointer text-[11px] text-muted-foreground/75 hover:text-foreground">
+                        Technical details
+                      </summary>
+                      <pre className="mt-1 max-h-32 overflow-auto rounded-md bg-muted/50 p-2 font-mono text-[10px] text-muted-foreground whitespace-pre-wrap break-all">
+                        {formatted.details}
+                      </pre>
+                    </details>
+                  ) : null}
+                </div>
+              );
+            })()}
             <Button
               className="mt-4"
               size="sm"
@@ -822,16 +893,19 @@ export function PRsPanel({
                   {detailQuery.isLoading ? (
                     <GitCheckingState message={`Loading pull request #${pr.n}…`} size={24} />
                   ) : detailQuery.isError ? (
-                    <div role="alert" className="rounded-lg border border-destructive/40 p-3">
-                      <p className="text-xs text-destructive">
-                        {detailQuery.error instanceof Error
-                          ? detailQuery.error.message
-                          : "Unable to load pull-request details."}
-                      </p>
+                    <div
+                      role="alert"
+                      className="rounded-lg border border-destructive/40 p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs text-destructive break-words [overflow-wrap:anywhere]">
+                          {formatPrErrorMessage(detailQuery.error).message}
+                        </p>
+                      </div>
                       <Button
-                        className="mt-2"
                         variant="outline"
                         size="sm"
+                        className="shrink-0"
                         onClick={() => detailQuery.refetch()}
                       >
                         Retry
@@ -843,7 +917,7 @@ export function PRsPanel({
                         role="tablist"
                         aria-label={`Pull request #${pr.n} details`}
                         onKeyDown={handleTabListKeyDown}
-                        className="tabs-segmented flex flex-wrap"
+                        className="tabs-segmented inline-flex flex-wrap w-fit"
                       >
                         {(
                           [
@@ -851,7 +925,7 @@ export function PRsPanel({
                             ["code", "Code", FileDiff],
                             ["checks", "Checks", CheckCircle2],
                             ["commits", "Commits", GitCommit],
-                            ["activity", "Activity", MessageSquare],
+                            ["activity", "Activity", AssistantBubbleIcon],
                           ] as const
                         )
                           .filter(
@@ -859,19 +933,25 @@ export function PRsPanel({
                               id !== "code" || detailQuery.data?.capabilities?.diff !== false,
                           )
                           .map(([id, label, Icon]) => (
-                            <Button
+                            <button
                               key={id}
                               id={`pr-${pr.n}-${id}-tab`}
+                              type="button"
                               role="tab"
                               aria-controls={`pr-${pr.n}-detail-panel`}
                               aria-selected={detailTab === id}
                               tabIndex={detailTab === id ? 0 : -1}
-                              variant={detailTab === id ? "secondary" : "ghost"}
-                              size="sm"
+                              className={cn(
+                                "h-7 px-3 text-xs font-medium rounded-full transition-colors whitespace-nowrap cursor-pointer flex items-center justify-center gap-1.5",
+                                detailTab === id
+                                  ? "text-foreground font-semibold"
+                                  : "text-muted-foreground hover:text-foreground hover:bg-muted/40",
+                              )}
                               onClick={() => setDetailTab(id)}
                             >
-                              <Icon /> {label}
-                            </Button>
+                              <Icon className="size-3.5 shrink-0" />
+                              <span className="orbit-label">{label}</span>
+                            </button>
                           ))}
                       </OrbitGroup>
                       <div
@@ -1210,7 +1290,7 @@ export function PRsPanel({
                                                     }`}
                                                     title={`${fileThreads.length} discussion${fileThreads.length === 1 ? "" : "s"} (${unresolvedThreads.length} unresolved)`}
                                                   >
-                                                    <MessageSquare className="size-2.5" />
+                                                    <AssistantBubbleIcon className="size-2.5" />
                                                     {fileThreads.length}
                                                   </span>
                                                 ) : null}
@@ -1514,7 +1594,7 @@ export function PRsPanel({
                                         className="space-y-2 border-t border-border/60 bg-muted/10 p-3"
                                       >
                                         <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                                          <MessageSquare className="size-3.5" />
+                                          <AssistantBubbleIcon className="size-3.5" />
                                           <span>
                                             Outdated or File Discussions ({unmappedThreads.length})
                                           </span>

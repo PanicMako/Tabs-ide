@@ -4,6 +4,7 @@ export type ThemeId =
   | "tabs-dark"
   | "true-black"
   | "tabs-monotone"
+  | "tabs-monotone-light"
   | "tabs-light"
   | "abyss"
   | "dracula"
@@ -59,76 +60,76 @@ export const THEME_DEFINITIONS: Record<ThemeId, ThemeDefinition> = {
   "tabs-dark": {
     id: "tabs-dark",
     name: "Tabs Dark",
-    description: "Default high-contrast dark theme with electric blue accent",
+    description: "Carbon surfaces with a precise ultramarine accent",
     baseVariant: "dark",
     colors: {
-      background: "#141414",
-      appChromeBackground: "#141414",
-      foreground: "#f5f5f5",
-      card: "#181818",
-      cardForeground: "#f5f5f5",
-      popover: "#181818",
-      popoverForeground: "#f5f5f5",
-      primary: "#1d4ed8",
+      background: "#101113",
+      appChromeBackground: "#101113",
+      foreground: "#f0f1f3",
+      card: "#191b1f",
+      cardForeground: "#f0f1f3",
+      popover: "#23262b",
+      popoverForeground: "#f0f1f3",
+      primary: "#0E2AF3",
       primaryForeground: "#ffffff",
-      secondary: "rgba(255, 255, 255, 0.04)",
-      secondaryForeground: "#f5f5f5",
-      muted: "rgba(255, 255, 255, 0.04)",
-      mutedForeground: "#8a8a8a",
-      accent: "rgba(255, 255, 255, 0.04)",
-      accentForeground: "#f5f5f5",
-      border: "rgba(255, 255, 255, 0.06)",
-      input: "rgba(255, 255, 255, 0.08)",
-      ring: "#1d4ed8",
-      accentWashBg: "rgba(29, 78, 216, 0.12)",
-      accentWashBorder: "rgba(29, 78, 216, 0.32)",
+      secondary: "#23262b",
+      secondaryForeground: "#f0f1f3",
+      muted: "#23262b",
+      mutedForeground: "#a4a7af",
+      accent: "#23262b",
+      accentForeground: "#f0f1f3",
+      border: "#303339",
+      input: "#303339",
+      ring: "#0E2AF3",
+      accentWashBg: "#0E2AF318",
+      accentWashBorder: "#0E2AF342",
       codeOss: {
-        bg: "#141414",
-        bgSidebar: "#1a1a1a",
-        bgElevated: "#1f1f1f",
-        bgPopover: "#181818",
-        inputBg: "#1c1c1c",
-        text: "#ececec",
-        textMuted: "#8a8a8a",
-        accent: "#1d4ed8",
+        bg: "#191b1f",
+        bgSidebar: "#191b1f",
+        bgElevated: "#23262b",
+        bgPopover: "#23262b",
+        inputBg: "#23262b",
+        text: "#f0f1f3",
+        textMuted: "#a4a7af",
+        accent: "#0E2AF3",
       },
     },
   },
   "true-black": {
     id: "true-black",
     name: "True Black",
-    description: "Pure OLED black theme with crisp contrast",
+    description: "Obsidian, silver type, and a clear cobalt signal",
     baseVariant: "dark",
     colors: {
       background: "#000000",
       appChromeBackground: "#000000",
-      foreground: "#ffffff",
-      card: "#0a0a0a",
-      cardForeground: "#ffffff",
-      popover: "#0a0a0a",
-      popoverForeground: "#ffffff",
-      primary: "#1d4ed8",
-      primaryForeground: "#ffffff",
-      secondary: "rgba(255, 255, 255, 0.05)",
-      secondaryForeground: "#ffffff",
-      muted: "rgba(255, 255, 255, 0.05)",
-      mutedForeground: "#888888",
-      accent: "rgba(255, 255, 255, 0.05)",
-      accentForeground: "#ffffff",
-      border: "rgba(255, 255, 255, 0.12)",
-      input: "rgba(255, 255, 255, 0.14)",
-      ring: "#1d4ed8",
-      accentWashBg: "rgba(29, 78, 216, 0.15)",
-      accentWashBorder: "rgba(29, 78, 216, 0.40)",
+      foreground: "#f4f5f7",
+      card: "#0c0d10",
+      cardForeground: "#f4f5f7",
+      popover: "#191b20",
+      popoverForeground: "#f4f5f7",
+      primary: "#709aff",
+      primaryForeground: "#09111f",
+      secondary: "#191b20",
+      secondaryForeground: "#f4f5f7",
+      muted: "#191b20",
+      mutedForeground: "#9b9fa8",
+      accent: "#191b20",
+      accentForeground: "#f4f5f7",
+      border: "#292c33",
+      input: "#292c33",
+      ring: "#709aff",
+      accentWashBg: "#709aff18",
+      accentWashBorder: "#709aff42",
       codeOss: {
-        bg: "#000000",
-        bgSidebar: "#050505",
-        bgElevated: "#0d0d0d",
-        bgPopover: "#0a0a0a",
-        inputBg: "#0f0f0f",
-        text: "#ffffff",
-        textMuted: "#888888",
-        accent: "#1d4ed8",
+        bg: "#0c0d10",
+        bgSidebar: "#0c0d10",
+        bgElevated: "#191b20",
+        bgPopover: "#191b20",
+        inputBg: "#191b20",
+        text: "#f4f5f7",
+        textMuted: "#9b9fa8",
+        accent: "#709aff",
       },
     },
   },
@@ -170,193 +171,231 @@ export const THEME_DEFINITIONS: Record<ThemeId, ThemeDefinition> = {
       },
     },
   },
-  "tabs-light": {
-    id: "tabs-light",
-    name: "Tabs Light",
-    description: "Clean, warm light mode with soft neutral surfaces",
+  "tabs-monotone-light": {
+    id: "tabs-monotone-light",
+    name: "Monotone Light",
+    description: "Layered paper and silver surfaces with graphite controls",
     baseVariant: "light",
     colors: {
-      background: "#f6f5f2",
-      appChromeBackground: "#f6f5f2",
-      foreground: "#3a3936",
-      card: "#ffffff",
-      cardForeground: "#262626",
+      background: "#eeeeee",
+      appChromeBackground: "#eeeeee",
+      foreground: "#242424",
+      card: "#fafafa",
+      cardForeground: "#242424",
       popover: "#ffffff",
-      popoverForeground: "#262626",
-      primary: "#1d4ed8",
+      popoverForeground: "#242424",
+      primary: "#3b3b3b",
       primaryForeground: "#ffffff",
-      secondary: "rgba(0, 0, 0, 0.04)",
-      secondaryForeground: "#262626",
-      muted: "rgba(0, 0, 0, 0.04)",
-      mutedForeground: "#5f5f5f",
-      accent: "rgba(0, 0, 0, 0.04)",
-      accentForeground: "#262626",
-      border: "rgba(0, 0, 0, 0.08)",
-      input: "rgba(0, 0, 0, 0.10)",
-      ring: "#1d4ed8",
-      accentWashBg: "rgba(29, 78, 216, 0.09)",
-      accentWashBorder: "rgba(29, 78, 216, 0.28)",
+      secondary: "#e5e5e5",
+      secondaryForeground: "#242424",
+      muted: "#e9e9e9",
+      mutedForeground: "#666666",
+      accent: "#dedede",
+      accentForeground: "#242424",
+      border: "#d0d0d0",
+      input: "#c2c2c2",
+      ring: "#737373",
+      accentWashBg: "rgba(59, 59, 59, 0.08)",
+      accentWashBorder: "rgba(59, 59, 59, 0.24)",
       codeOss: {
-        bg: "#ffffff",
-        bgSidebar: "#f6f6f6",
+        bg: "#fafafa",
+        bgSidebar: "#f4f4f4",
         bgElevated: "#ffffff",
         bgPopover: "#ffffff",
         inputBg: "#ffffff",
-        text: "#262626",
-        textMuted: "#5f5f5f",
-        accent: "#1d4ed8",
+        text: "#242424",
+        textMuted: "#666666",
+        accent: "#3b3b3b",
+      },
+    },
+  },
+  "tabs-light": {
+    id: "tabs-light",
+    name: "Tabs Light",
+    description: "Porcelain and cool ink, punctuated with ultramarine",
+    baseVariant: "light",
+    colors: {
+      background: "#e9ecf2",
+      appChromeBackground: "#e9ecf2",
+      foreground: "#202634",
+      card: "#f9fafc",
+      cardForeground: "#202634",
+      popover: "#ffffff",
+      popoverForeground: "#202634",
+      primary: "#0E2AF3",
+      primaryForeground: "#ffffff",
+      secondary: "#ffffff",
+      secondaryForeground: "#202634",
+      muted: "#ffffff",
+      mutedForeground: "#626b7b",
+      accent: "#ffffff",
+      accentForeground: "#202634",
+      border: "#cdd3de",
+      input: "#cdd3de",
+      ring: "#0E2AF3",
+      accentWashBg: "#0E2AF318",
+      accentWashBorder: "#0E2AF342",
+      codeOss: {
+        bg: "#f9fafc",
+        bgSidebar: "#f9fafc",
+        bgElevated: "#ffffff",
+        bgPopover: "#ffffff",
+        inputBg: "#ffffff",
+        text: "#202634",
+        textMuted: "#626b7b",
+        accent: "#0E2AF3",
       },
     },
   },
   abyss: {
     id: "abyss",
-    name: "Abyss",
-    description: "Deep oceanic dark palette with luminous cyan-blue highlights",
+    name: "Tide",
+    description: "Mineral charcoal, sea glass, and a tidal teal accent",
     baseVariant: "dark",
     colors: {
-      background: "#000c18",
-      appChromeBackground: "#000c18",
-      foreground: "#c0cbe0",
-      card: "#041426",
-      cardForeground: "#d8e2f0",
-      popover: "#041426",
-      popoverForeground: "#d8e2f0",
-      primary: "#0099ff",
-      primaryForeground: "#000c18",
-      secondary: "rgba(0, 153, 255, 0.08)",
-      secondaryForeground: "#d8e2f0",
-      muted: "rgba(0, 153, 255, 0.06)",
-      mutedForeground: "#6880a0",
-      accent: "rgba(0, 153, 255, 0.08)",
-      accentForeground: "#ffffff",
-      border: "rgba(0, 153, 255, 0.14)",
-      input: "rgba(0, 153, 255, 0.16)",
-      ring: "#0099ff",
-      accentWashBg: "rgba(0, 153, 255, 0.12)",
-      accentWashBorder: "rgba(0, 153, 255, 0.35)",
+      background: "#101718",
+      appChromeBackground: "#101718",
+      foreground: "#e5efed",
+      card: "#1a2425",
+      cardForeground: "#e5efed",
+      popover: "#263234",
+      popoverForeground: "#e5efed",
+      primary: "#73d7c3",
+      primaryForeground: "#102421",
+      secondary: "#263234",
+      secondaryForeground: "#e5efed",
+      muted: "#263234",
+      mutedForeground: "#a1b4b1",
+      accent: "#263234",
+      accentForeground: "#e5efed",
+      border: "#344447",
+      input: "#344447",
+      ring: "#73d7c3",
+      accentWashBg: "#73d7c318",
+      accentWashBorder: "#73d7c342",
       codeOss: {
-        bg: "#000c18",
-        bgSidebar: "#021020",
-        bgElevated: "#04172c",
-        bgPopover: "#041426",
-        inputBg: "#061a32",
-        text: "#c0cbe0",
-        textMuted: "#6880a0",
-        accent: "#0099ff",
+        bg: "#1a2425",
+        bgSidebar: "#1a2425",
+        bgElevated: "#263234",
+        bgPopover: "#263234",
+        inputBg: "#263234",
+        text: "#e5efed",
+        textMuted: "#a1b4b1",
+        accent: "#73d7c3",
       },
     },
   },
   dracula: {
     id: "dracula",
-    name: "Dracula",
-    description: "Classic dark theme with purple and pastel accent swatches",
+    name: "Dusk",
+    description: "Smoked plum and rose, with warm chalk typography",
     baseVariant: "dark",
     colors: {
-      background: "#282a36",
-      appChromeBackground: "#282a36",
-      foreground: "#f8f8f2",
-      card: "#21222c",
-      cardForeground: "#f8f8f2",
-      popover: "#21222c",
-      popoverForeground: "#f8f8f2",
-      primary: "#bd93f9",
-      primaryForeground: "#282a36",
-      secondary: "rgba(189, 147, 249, 0.10)",
-      secondaryForeground: "#f8f8f2",
-      muted: "rgba(255, 255, 255, 0.05)",
-      mutedForeground: "#6272a4",
-      accent: "rgba(189, 147, 249, 0.10)",
-      accentForeground: "#ffffff",
-      border: "rgba(98, 114, 164, 0.35)",
-      input: "rgba(98, 114, 164, 0.25)",
-      ring: "#bd93f9",
-      accentWashBg: "rgba(189, 147, 249, 0.14)",
-      accentWashBorder: "rgba(189, 147, 249, 0.38)",
+      background: "#1b161b",
+      appChromeBackground: "#1b161b",
+      foreground: "#f5e9ed",
+      card: "#282128",
+      cardForeground: "#f5e9ed",
+      popover: "#372d35",
+      popoverForeground: "#f5e9ed",
+      primary: "#efacc4",
+      primaryForeground: "#301b25",
+      secondary: "#372d35",
+      secondaryForeground: "#f5e9ed",
+      muted: "#372d35",
+      mutedForeground: "#bdabb5",
+      accent: "#372d35",
+      accentForeground: "#f5e9ed",
+      border: "#4a3c45",
+      input: "#4a3c45",
+      ring: "#efacc4",
+      accentWashBg: "#efacc418",
+      accentWashBorder: "#efacc442",
       codeOss: {
-        bg: "#282a36",
-        bgSidebar: "#21222c",
-        bgElevated: "#343746",
-        bgPopover: "#21222c",
-        inputBg: "#282a36",
-        text: "#f8f8f2",
-        textMuted: "#6272a4",
-        accent: "#bd93f9",
+        bg: "#282128",
+        bgSidebar: "#282128",
+        bgElevated: "#372d35",
+        bgPopover: "#372d35",
+        inputBg: "#372d35",
+        text: "#f5e9ed",
+        textMuted: "#bdabb5",
+        accent: "#efacc4",
       },
     },
   },
   "deep-blue": {
     id: "deep-blue",
-    name: "Deep Blue",
-    description: "Midnight slate dark theme with vivid sky-blue highlights",
+    name: "Grove",
+    description: "Deep evergreen and lichen, grounded in green-black",
     baseVariant: "dark",
     colors: {
-      background: "#0f172a",
-      appChromeBackground: "#0f172a",
-      foreground: "#f1f5f9",
-      card: "#1e293b",
-      cardForeground: "#f8fafc",
-      popover: "#1e293b",
-      popoverForeground: "#f8fafc",
-      primary: "#38bdf8",
-      primaryForeground: "#0f172a",
-      secondary: "rgba(56, 189, 248, 0.08)",
-      secondaryForeground: "#f1f5f9",
-      muted: "rgba(255, 255, 255, 0.05)",
-      mutedForeground: "#94a3b8",
-      accent: "rgba(56, 189, 248, 0.08)",
-      accentForeground: "#ffffff",
-      border: "rgba(51, 65, 85, 0.65)",
-      input: "rgba(51, 65, 85, 0.75)",
-      ring: "#38bdf8",
-      accentWashBg: "rgba(56, 189, 248, 0.12)",
-      accentWashBorder: "rgba(56, 189, 248, 0.35)",
+      background: "#131a16",
+      appChromeBackground: "#131a16",
+      foreground: "#eaf0e5",
+      card: "#1e2922",
+      cardForeground: "#eaf0e5",
+      popover: "#2c3a30",
+      popoverForeground: "#eaf0e5",
+      primary: "#c3d987",
+      primaryForeground: "#202b13",
+      secondary: "#2c3a30",
+      secondaryForeground: "#eaf0e5",
+      muted: "#2c3a30",
+      mutedForeground: "#a9b7a6",
+      accent: "#2c3a30",
+      accentForeground: "#eaf0e5",
+      border: "#3b4c3e",
+      input: "#3b4c3e",
+      ring: "#c3d987",
+      accentWashBg: "#c3d98718",
+      accentWashBorder: "#c3d98742",
       codeOss: {
-        bg: "#0f172a",
-        bgSidebar: "#131d33",
-        bgElevated: "#1e293b",
-        bgPopover: "#1e293b",
-        inputBg: "#16233b",
-        text: "#f1f5f9",
-        textMuted: "#94a3b8",
-        accent: "#38bdf8",
+        bg: "#1e2922",
+        bgSidebar: "#1e2922",
+        bgElevated: "#2c3a30",
+        bgPopover: "#2c3a30",
+        inputBg: "#2c3a30",
+        text: "#eaf0e5",
+        textMuted: "#a9b7a6",
+        accent: "#c3d987",
       },
     },
   },
   "solarized-light": {
     id: "solarized-light",
-    name: "Solarized Light",
-    description: "Warm cream light theme with teal and amber solarized tones",
+    name: "Linen",
+    description: "Natural paper, olive ink, and soft limestone surfaces",
     baseVariant: "light",
     colors: {
-      background: "#fdf6e3",
-      appChromeBackground: "#fdf6e3",
-      foreground: "#657b83",
-      card: "#eee8d5",
-      cardForeground: "#586e75",
-      popover: "#eee8d5",
-      popoverForeground: "#586e75",
-      primary: "#268bd2",
+      background: "#e9e6dc",
+      appChromeBackground: "#e9e6dc",
+      foreground: "#333b2d",
+      card: "#f7f5ec",
+      cardForeground: "#333b2d",
+      popover: "#fffdf6",
+      popoverForeground: "#333b2d",
+      primary: "#536832",
       primaryForeground: "#ffffff",
-      secondary: "rgba(181, 137, 0, 0.08)",
-      secondaryForeground: "#586e75",
-      muted: "rgba(0, 0, 0, 0.05)",
-      mutedForeground: "#93a1a1",
-      accent: "rgba(38, 139, 210, 0.08)",
-      accentForeground: "#073642",
-      border: "rgba(147, 161, 161, 0.28)",
-      input: "rgba(147, 161, 161, 0.32)",
-      ring: "#268bd2",
-      accentWashBg: "rgba(38, 139, 210, 0.10)",
-      accentWashBorder: "rgba(38, 139, 210, 0.30)",
+      secondary: "#fffdf6",
+      secondaryForeground: "#333b2d",
+      muted: "#fffdf6",
+      mutedForeground: "#5f6656",
+      accent: "#fffdf6",
+      accentForeground: "#333b2d",
+      border: "#cdcdbb",
+      input: "#cdcdbb",
+      ring: "#536832",
+      accentWashBg: "#53683218",
+      accentWashBorder: "#53683242",
       codeOss: {
-        bg: "#fdf6e3",
-        bgSidebar: "#eee8d5",
-        bgElevated: "#fdf6e3",
-        bgPopover: "#eee8d5",
-        inputBg: "#fdf6e3",
-        text: "#657b83",
-        textMuted: "#93a1a1",
-        accent: "#268bd2",
+        bg: "#f7f5ec",
+        bgSidebar: "#f7f5ec",
+        bgElevated: "#fffdf6",
+        bgPopover: "#fffdf6",
+        inputBg: "#fffdf6",
+        text: "#333b2d",
+        textMuted: "#5f6656",
+        accent: "#536832",
       },
     },
   },
@@ -650,9 +689,72 @@ export const UI_FONT_OPTIONS = [
   { value: "'Necto Mono', monospace", label: "Necto Mono" },
   { value: "'Hanken Grotesk', sans-serif", label: "Hanken Grotesk" },
   { value: "'Funnel Sans', sans-serif", label: "Funnel Sans" },
+  { value: "'Sirius', sans-serif", label: "Sirius" },
+  { value: "'Gerbil', sans-serif", label: "Gerbil" },
+  { value: "'OTR Type', sans-serif", label: "OTR Type" },
+  { value: "'Sun Seed', sans-serif", label: "Sun Seed" },
+  { value: "'World Tour', sans-serif", label: "World Tour" },
+  { value: "'Kunika', sans-serif", label: "Kunika" },
+  { value: "'Taruno Wide', sans-serif", label: "Taruno Wide" },
+  { value: "'Novoposelensky', sans-serif", label: "Novoposelensky" },
+  { value: "'ZT Gatha', sans-serif", label: "ZT Gatha" },
+  { value: "'Racama', sans-serif", label: "Racama" },
+  { value: "'Oddval', sans-serif", label: "Oddval" },
+  { value: "'Quanta Grotesk Pro', sans-serif", label: "Quanta Grotesk Pro" },
+  { value: "'ZT Floogn', sans-serif", label: "ZT Floogn" },
+  { value: "'Gnocchi', sans-serif", label: "Gnocchi" },
+  { value: "'Horovod', sans-serif", label: "Horovod" },
+  { value: "'Seenonim', sans-serif", label: "Seenonim" },
+  { value: "'Overused Grotesk', sans-serif", label: "Overused Grotesk" },
 ] as const;
 
 export const HEADING_FONT_OPTIONS = [
+  { value: "'KS Bistra', sans-serif", label: "KS Bistra" },
+  { value: "'Pavot', sans-serif", label: "Pavot" },
+  { value: "'Exotica', sans-serif", label: "Exotica" },
+  { value: "'Northern', sans-serif", label: "Northern" },
+  { value: "'ZT Otez', serif", label: "ZT Otez" },
+  { value: "'Aicon', sans-serif", label: "Aicon" },
+  { value: "'Mirano', sans-serif", label: "Mirano" },
+  { value: "'Culont', sans-serif", label: "Culont" },
+  { value: "'Hebdomadal', sans-serif", label: "Hebdomadal" },
+  { value: "'Ductile Display', sans-serif", label: "Ductile Display" },
+  { value: "'Mantranaga 36DOT', sans-serif", label: "Mantranaga 36DOT" },
+  { value: "'Nafile', sans-serif", label: "Nafile" },
+  { value: "'Halo Grotesk', sans-serif", label: "Halo Grotesk" },
+  { value: "'Nauryz Redkeds', sans-serif", label: "Nauryz Redkeds" },
+  { value: "'Angst', sans-serif", label: "Angst" },
+  { value: "'Angst Serif', serif", label: "Angst Serif" },
+  { value: "'Equilla', serif", label: "Equilla" },
+  { value: "'Deserta', sans-serif", label: "Deserta" },
+  { value: "'Darker Grotesque', sans-serif", label: "Darker Grotesque" },
+  { value: "'Arck', serif", label: "Arck" },
+  { value: "'Moche', sans-serif", label: "Moche" },
+  { value: "'Urbanist', sans-serif", label: "Urbanist" },
+  { value: "'Sato Sans', sans-serif", label: "Sato Sans" },
+  { value: "'Rebel Type Dog', sans-serif", label: "Rebel Type Dog" },
+  { value: "'Hashira Mt', serif", label: "Hashira Mt" },
+  { value: "'Neutral Face', sans-serif", label: "Neutral Face" },
+  { value: "'Stigma', serif", label: "Stigma" },
+  { value: "'Sun Seed', sans-serif", label: "Sun Seed" },
+  { value: "'Balbes', serif", label: "Balbes" },
+  { value: "'Sirius', sans-serif", label: "Sirius" },
+  { value: "'Gerbil', sans-serif", label: "Gerbil" },
+  { value: "'OTR Type', sans-serif", label: "OTR Type" },
+  { value: "'Gella Display', sans-serif", label: "Gella Display" },
+  { value: "'World Tour', sans-serif", label: "World Tour" },
+  { value: "'Kunika', sans-serif", label: "Kunika" },
+  { value: "'Taruno Wide', sans-serif", label: "Taruno Wide" },
+  { value: "'Novoposelensky', sans-serif", label: "Novoposelensky" },
+  { value: "'ZT Gatha', sans-serif", label: "ZT Gatha" },
+  { value: "'Racama', sans-serif", label: "Racama" },
+  { value: "'Oddval', sans-serif", label: "Oddval" },
+  { value: "'Quanta Grotesk Pro', sans-serif", label: "Quanta Grotesk Pro" },
+  { value: "'ZT Floogn', sans-serif", label: "ZT Floogn" },
+  { value: "'Gnocchi', sans-serif", label: "Gnocchi" },
+  { value: "'Horovod', sans-serif", label: "Horovod" },
+  { value: "'Seenonim', sans-serif", label: "Seenonim" },
+  { value: "'Overused Grotesk', sans-serif", label: "Overused Grotesk" },
   { value: "'Newsreader', serif", label: "Newsreader (Default)" },
   { value: "system-ui", label: "Match Interface Font" },
   { value: "'Instrument Serif', serif", label: "Instrument Serif" },
@@ -686,6 +788,7 @@ export interface FontComboTypography {
   sectionTracking: string;
   rowFont: string;
   rowWeight: number;
+  rowTracking?: string;
   controlsFont: string;
   metadataFont: string;
   specimenFont: string;
@@ -693,6 +796,7 @@ export interface FontComboTypography {
   specimenStyle: "normal" | "italic";
   supportingFont: string;
   supportingStyle: "normal" | "italic";
+  supportingWeight?: number;
 }
 
 export interface FontCombo {
@@ -715,6 +819,72 @@ export interface FontCombo {
   /** If true, show as a small neutral pill rather than a big personality card */
   isNeutral?: boolean;
   typography?: FontComboTypography;
+  /** New collection presets affect heading roles only. */
+  headingOnly?: boolean;
+  fonts?: Pick<FontPreferences, "sectionFont" | "supportingFont" | "editorFont">;
+}
+
+function headingCombo(
+  id: string,
+  name: string,
+  headingFont: string,
+  headingWeight: number,
+  accentFont: string,
+  accentWeight: number,
+  accentStyle: "normal" | "italic",
+  sansText: string,
+  serifText: string,
+  uiFont: string = "'Manrope', sans-serif",
+  editorFont: string = "Menlo, Monaco, 'Courier New', monospace",
+  tag: string = "THEME",
+  supportingFont?: string,
+  rowWeight: number = 500,
+  sectionTracking: string = "-.01em",
+  supportingWeight: number = 400,
+): FontCombo {
+  const hClean = headingFont.split(",")[0]!.replaceAll("'", "");
+  const aClean = accentFont.split(",")[0]!.replaceAll("'", "");
+  const uiClean = uiFont.split(",")[0]!.replaceAll("'", "");
+  const effectiveSupportingFont = supportingFont ?? uiFont;
+  return {
+    id,
+    name,
+    headingFont,
+    desc: `${hClean} + ${aClean} · ${uiClean}`,
+    tag,
+    uiFont,
+    sansText,
+    serifText,
+    sansClass: "normal-case",
+    serifClass: "normal-case",
+    headingOnly: false,
+    fonts: {
+      sectionFont: accentFont,
+      supportingFont: effectiveSupportingFont,
+      editorFont,
+    },
+    typography: {
+      headingWeight,
+      headingTracking: "0em",
+      headingTransform: "none",
+      sectionFont: accentFont,
+      sectionWeight: accentWeight,
+      sectionStyle: accentStyle,
+      sectionTransform: "none",
+      sectionTracking,
+      rowFont: uiFont,
+      rowWeight,
+      rowTracking: "0.035em",
+      controlsFont: uiFont,
+      metadataFont: editorFont,
+      specimenFont: accentFont,
+      specimenWeight: accentWeight,
+      specimenStyle: accentStyle,
+      supportingFont: effectiveSupportingFont,
+      supportingStyle: "normal",
+      supportingWeight,
+    },
+  };
 }
 
 export const FONT_COMBOS: FontCombo[] = [
@@ -1041,18 +1211,194 @@ export const FONT_COMBOS: FontCombo[] = [
   },
   {
     id: "syne-dropped",
-    name: "Syne Dropped",
-    desc: "Syne + Newsreader",
+    name: "Abstract Forms",
+    desc: "Syne + Newsreader · Syne UI",
     tag: "BRUTAL",
     uiFont: "'Syne', sans-serif",
     headingFont: "'Newsreader', serif",
     sansText: "ab",
     serifText: "stract ",
     sansText2: "forms",
-    sansClass: "font-extrabold tracking-tighter lowercase",
+    sansClass: "font-extrabold tracking-tight lowercase",
     serifClass: "italic font-normal normal-case",
+    headingOnly: false,
+    fonts: {
+      sectionFont: "'Newsreader', serif",
+      supportingFont: "'Syne', sans-serif",
+      editorFont: "'Geist Mono', monospace",
+    },
+    typography: {
+      headingWeight: 800,
+      headingTracking: "-.03em",
+      headingTransform: "none",
+      sectionFont: "'Newsreader', serif",
+      sectionWeight: 400,
+      sectionStyle: "italic",
+      sectionTransform: "none",
+      sectionTracking: "normal",
+      rowFont: "'Syne', sans-serif",
+      rowWeight: 700,
+      controlsFont: "'Syne', sans-serif",
+      metadataFont: "'Geist Mono', monospace",
+      specimenFont: "'Newsreader', serif",
+      specimenWeight: 400,
+      specimenStyle: "italic",
+      supportingFont: "'Syne', sans-serif",
+      supportingStyle: "normal",
+    },
   },
+  headingCombo(
+    "studio-signal",
+    "Studio Signal",
+    "'Coconat', serif",
+    700,
+    "'Sun Seed', sans-serif",
+    300,
+    "normal",
+    "studio",
+    "signal",
+    "'Gnocchi', sans-serif",
+    "'Fragment Mono', monospace",
+    "STUDIO",
+    undefined,
+    500,
+    "0.06em",
+  ),
+  headingCombo(
+    "bistra-signal",
+    "Bistra Signal",
+    "'KS Bistra', sans-serif",
+    400,
+    "'Sato Sans', sans-serif",
+    500,
+    "normal",
+    "clear",
+    "signal",
+    "'Sirius', sans-serif",
+    "'Necto Mono', monospace",
+    "SIGNAL",
+  ),
+  headingCombo(
+    "pavot-motion",
+    "Exotica Motion",
+    "'Exotica', sans-serif",
+    400,
+    "'Arck', serif",
+    400,
+    "normal",
+    "exotica",
+    "motion",
+    "'Seenonim', sans-serif",
+    "'Geist Mono', monospace",
+    "KINETIC",
+  ),
+  headingCombo(
+    "otez-contrast",
+    "Moche Urbanist",
+    "'Moche', sans-serif",
+    400,
+    "'Urbanist', sans-serif",
+    700,
+    "normal",
+    "moche",
+    "urbanist",
+    "'ZT Floogn', sans-serif",
+    "'Fragment Mono', monospace",
+    "MODERN",
+    undefined,
+    300,
+  ),
+  headingCombo(
+    "aicon-grid",
+    "Aicon Grid",
+    "'Aicon', sans-serif",
+    600,
+    "'Rebel Type Dog', sans-serif",
+    400,
+    "normal",
+    "digital",
+    "grid",
+    "'Quanta Grotesk Pro', sans-serif",
+    "'Necto Mono', monospace",
+    "DIGITAL",
+  ),
+  headingCombo(
+    "mirano-flow",
+    "Mirano Flow",
+    "'Mirano', sans-serif",
+    300,
+    "'Gella Display', sans-serif",
+    500,
+    "normal",
+    "mirano",
+    "flow",
+    "'Racama', sans-serif",
+    "'Fragment Mono', monospace",
+    "LUXURY",
+  ),
+  headingCombo(
+    "culont-curve",
+    "Culont Curve",
+    "'Culont', sans-serif",
+    400,
+    "'Equilla', serif",
+    400,
+    "normal",
+    "culont",
+    "curve",
+    "'Horovod', sans-serif",
+    "'Geist Mono', monospace",
+    "ORGANIC",
+  ),
+  headingCombo(
+    "hebdomadal-shift",
+    "Hebdomadal Shift",
+    "'Hebdomadal', sans-serif",
+    400,
+    "'Balbes', serif",
+    400,
+    "normal",
+    "hebdomadal",
+    "shift",
+    "'Overused Grotesk', sans-serif",
+    "'Geist Mono', monospace",
+    "FASHION",
+    "'Overused Grotesk', sans-serif",
+    400,
+    "-.01em",
+    300,
+  ),
+  headingCombo(
+    "ductile-motion",
+    "Hashira Modular",
+    "'Hashira Mt', serif",
+    400,
+    "'Halo Grotesk', sans-serif",
+    400,
+    "normal",
+    "hashira",
+    "beauty",
+    "'Hanken Grotesk', sans-serif",
+    "'Fragment Mono', monospace",
+    "BEAUTY",
+  ),
 ];
+
+/** Visible collection; retired definitions remain above for saved-setting compatibility. */
+export const CURATED_FONT_COMBOS = FONT_COMBOS.filter(
+  (combo) =>
+    (combo.isNeutral && combo.id !== "custom") ||
+    combo.id === "syne-dropped" ||
+    combo.id === "studio-signal" ||
+    combo.id === "bistra-signal" ||
+    combo.id === "pavot-motion" ||
+    combo.id === "otez-contrast" ||
+    combo.id === "aicon-grid" ||
+    combo.id === "mirano-flow" ||
+    combo.id === "culont-curve" ||
+    combo.id === "hebdomadal-shift" ||
+    combo.id === "ductile-motion",
+);
 
 // Upgrade only exact retired preset pairs; preserve custom choices, sizes and editor font.
 const PREVIOUS_FONT_COMBOS = [
@@ -1085,7 +1431,130 @@ const PREVIOUS_FONT_COMBOS = [
   ["'Unbounded', sans-serif", "'Newsreader', serif", "funnel-weights"],
 ] as const;
 export function upgradeFontPreferences(fonts: FontPreferences): FontPreferences {
-  if (fonts.sectionFont || fonts.supportingFont) return fonts;
+  if (fonts.sectionFont || fonts.supportingFont) {
+    if (
+      fonts.headingFont === "'Hebdomadal', sans-serif" &&
+      fonts.sectionFont === "'Balbes', serif"
+    ) {
+      return {
+        ...fonts,
+        uiFont: "'Overused Grotesk', sans-serif",
+        supportingFont: "'Overused Grotesk', sans-serif",
+      };
+    }
+    if (
+      fonts.headingFont === "'Mirano', sans-serif" &&
+      fonts.sectionFont === "'Gella Display', sans-serif" &&
+      fonts.uiFont === "'Kunika', sans-serif"
+    ) {
+      return {
+        ...fonts,
+        uiFont: "'Racama', sans-serif",
+        supportingFont:
+          fonts.supportingFont === "'Kunika', sans-serif"
+            ? "'Racama', sans-serif"
+            : fonts.supportingFont,
+      };
+    }
+    if (
+      fonts.headingFont === "'Aicon', sans-serif" &&
+      fonts.sectionFont === "'Rebel Type Dog', sans-serif" &&
+      fonts.uiFont === "'OTR Type', sans-serif"
+    ) {
+      return {
+        ...fonts,
+        uiFont: "'Quanta Grotesk Pro', sans-serif",
+        supportingFont:
+          fonts.supportingFont === "'OTR Type', sans-serif"
+            ? "'Quanta Grotesk Pro', sans-serif"
+            : fonts.supportingFont,
+      };
+    }
+    if (
+      fonts.headingFont === "'Moche', sans-serif" &&
+      fonts.sectionFont === "'Urbanist', sans-serif" &&
+      fonts.uiFont === "'Taruno Wide', sans-serif"
+    ) {
+      return {
+        ...fonts,
+        uiFont: "'ZT Floogn', sans-serif",
+        supportingFont:
+          fonts.supportingFont === "'Taruno Wide', sans-serif"
+            ? "'ZT Floogn', sans-serif"
+            : fonts.supportingFont,
+      };
+    }
+    if (
+      fonts.headingFont === "'Coconat', serif" &&
+      fonts.sectionFont === "'Sun Seed', sans-serif" &&
+      fonts.uiFont === "'Sun Seed', sans-serif"
+    ) {
+      return {
+        ...fonts,
+        uiFont: "'Gnocchi', sans-serif",
+        supportingFont:
+          fonts.supportingFont === "'Sun Seed', sans-serif"
+            ? "'Gnocchi', sans-serif"
+            : fonts.supportingFont,
+      };
+    }
+    if (
+      fonts.headingFont === "'Culont', sans-serif" &&
+      fonts.sectionFont === "'Equilla', serif" &&
+      fonts.uiFont === "'Novoposelensky', sans-serif"
+    ) {
+      return {
+        ...fonts,
+        uiFont: "'Horovod', sans-serif",
+        supportingFont:
+          fonts.supportingFont === "'Novoposelensky', sans-serif"
+            ? "'Horovod', sans-serif"
+            : fonts.supportingFont,
+      };
+    }
+    if (
+      fonts.headingFont === "'Exotica', sans-serif" &&
+      fonts.sectionFont === "'Arck', serif" &&
+      fonts.uiFont === "'Gerbil', sans-serif"
+    ) {
+      return {
+        ...fonts,
+        uiFont: "'Seenonim', sans-serif",
+        supportingFont:
+          fonts.supportingFont === "'Gerbil', sans-serif"
+            ? "'Seenonim', sans-serif"
+            : fonts.supportingFont,
+      };
+    }
+    if (
+      fonts.headingFont === "'Hashira Mt', serif" &&
+      fonts.sectionFont === "'Halo Grotesk', sans-serif" &&
+      fonts.uiFont === "'Overused Grotesk', sans-serif"
+    ) {
+      return {
+        ...fonts,
+        uiFont: "'Hanken Grotesk', sans-serif",
+        supportingFont:
+          fonts.supportingFont === "'Overused Grotesk', sans-serif"
+            ? "'Hanken Grotesk', sans-serif"
+            : fonts.supportingFont,
+      };
+    }
+    return fonts;
+  }
+  if (fonts.headingFont === "'Northern', sans-serif") {
+    return { ...fonts, headingFont: "'Exotica', sans-serif" };
+  }
+  if (fonts.headingFont === "'ZT Otez', serif") {
+    return { ...fonts, headingFont: "'Moche', sans-serif" };
+  }
+  if (
+    fonts.headingFont === "'Ductile Display', sans-serif" ||
+    fonts.headingFont === "'Mantranaga 36DOT', sans-serif" ||
+    fonts.headingFont === "'Darker Grotesque', sans-serif"
+  ) {
+    return { ...fonts, headingFont: "'Hashira Mt', serif" };
+  }
   const previous = PREVIOUS_FONT_COMBOS.find(
     ([ui, heading]) => ui === fonts.uiFont && heading === fonts.headingFont,
   );
@@ -1103,6 +1572,17 @@ export function getFontComboPageHeading(combo: FontCombo, fonts?: FontPreference
   return {
     className: keepInterfaceHeading ? combo.sansClass : combo.serifClass,
     fontFamily: keepInterfaceHeading ? "var(--font-sans)" : "var(--font-display)",
+    fontSize: [
+      "'Hebdomadal', sans-serif",
+      "'Culont', sans-serif",
+      "'KS Bistra', sans-serif",
+      "'Exotica', sans-serif",
+      "'Mirano', sans-serif",
+      "'Darker Grotesque', sans-serif",
+      "'Hashira Mt', serif",
+    ].includes(fonts?.headingFont ?? combo.headingFont)
+      ? "40px"
+      : undefined,
     ...(typography
       ? {
           fontWeight: typography.headingWeight,
@@ -1114,6 +1594,27 @@ export function getFontComboPageHeading(combo: FontCombo, fonts?: FontPreference
 }
 
 export function getActiveFontCombo(fonts: FontPreferences): FontCombo {
+  const fullPreset = FONT_COMBOS.find(
+    (combo) =>
+      combo.fonts &&
+      combo.uiFont === fonts.uiFont &&
+      combo.headingFont === fonts.headingFont &&
+      combo.fonts.sectionFont === fonts.sectionFont &&
+      combo.fonts.supportingFont === fonts.supportingFont,
+  );
+  if (fullPreset) return fullPreset;
+  const legacyFullPreset = FONT_COMBOS.find(
+    (combo) =>
+      combo.fonts &&
+      combo.uiFont === fonts.uiFont &&
+      combo.headingFont === fonts.headingFont &&
+      combo.fonts.sectionFont === fonts.sectionFont,
+  );
+  if (legacyFullPreset) return legacyFullPreset;
+  const headingPreset =
+    !fonts.sectionFont &&
+    FONT_COMBOS.find((combo) => combo.headingOnly && combo.headingFont === fonts.headingFont);
+  if (headingPreset) return headingPreset;
   if (fonts.sectionFont || fonts.supportingFont) return FONT_COMBOS.find((c) => c.id === "custom")!;
   const match = FONT_COMBOS.find(
     (c) => c.uiFont === fonts.uiFont && c.headingFont === fonts.headingFont,
@@ -1131,7 +1632,9 @@ export function resolveFontTypography(fonts: FontPreferences) {
   const section = FONT_COMBOS.find((c) => c.typography?.sectionFont === sectionFont)?.typography;
   const isSerifSection =
     sectionFont.includes("Newsreader") || sectionFont.includes("Instrument Serif");
-  const supportingFont = fonts.supportingFont ?? preset?.supportingFont ?? fonts.uiFont;
+  const supportingFont =
+    fonts.supportingFont ??
+    (combo.headingOnly ? fonts.uiFont : (preset?.supportingFont ?? fonts.uiFont));
   return {
     headingWeight:
       display?.headingWeight ??
@@ -1150,17 +1653,35 @@ export function resolveFontTypography(fonts: FontPreferences) {
           ? ("italic" as const)
           : ("normal" as const),
     sectionTransform: preset && !fonts.sectionFont ? preset.sectionTransform : ("none" as const),
-    sectionTracking: preset && !fonts.sectionFont ? preset.sectionTracking : "-.015em",
-    rowFont: preset?.rowFont ?? fonts.uiFont,
-    rowWeight: preset?.rowWeight ?? 700,
-    controlsFont: preset?.controlsFont ?? fonts.uiFont,
-    metadataFont: preset?.metadataFont ?? fonts.uiFont,
+    sectionTracking:
+      sectionFont === "'Sun Seed', sans-serif"
+        ? "0.06em"
+        : preset && !fonts.sectionFont
+          ? preset.sectionTracking
+          : "-.015em",
+    rowFont: combo.headingOnly || combo.fonts ? fonts.uiFont : (preset?.rowFont ?? fonts.uiFont),
+    rowWeight: preset?.rowWeight ?? 500,
+    rowTracking: fonts.uiFont.startsWith("'Horovod'")
+      ? "0.055em"
+      : fonts.uiFont.startsWith("'ZT Floogn'")
+        ? "0.05em"
+        : (preset?.rowTracking ?? "0.035em"),
+    interfaceTracking: fonts.uiFont.startsWith("'Horovod'")
+      ? "0.03em"
+      : fonts.uiFont.startsWith("'ZT Floogn'")
+        ? "0.04em"
+        : "normal",
+    controlsFont:
+      combo.headingOnly || combo.fonts ? fonts.uiFont : (preset?.controlsFont ?? fonts.uiFont),
+    metadataFont:
+      combo.headingOnly || combo.fonts ? fonts.uiFont : (preset?.metadataFont ?? fonts.uiFont),
     supportingFont,
     supportingStyle: fonts.supportingFont
       ? supportingFont.includes("Newsreader") || supportingFont.includes("Instrument Serif")
         ? ("italic" as const)
         : ("normal" as const)
       : (preset?.supportingStyle ?? ("normal" as const)),
+    supportingWeight: preset?.supportingWeight ?? 400,
   };
 }
 
@@ -1174,14 +1695,16 @@ export function prepareCustomFontPreferences(fonts: FontPreferences): FontPrefer
   };
 }
 
-/** Selecting a preset clears independent overrides, preserving sizes and code font. */
 export function selectFontCombo(fonts: FontPreferences, combo: FontCombo): FontPreferences {
+  if (combo.headingOnly)
+    return { ...fonts, headingFont: combo.headingFont, sectionFont: undefined };
   return {
     ...fonts,
     uiFont: combo.uiFont,
     headingFont: combo.headingFont,
-    sectionFont: undefined,
-    supportingFont: undefined,
+    sectionFont: combo.fonts?.sectionFont,
+    supportingFont: combo.fonts?.supportingFont,
+    editorFont: combo.fonts?.editorFont ?? fonts.editorFont,
   };
 }
 

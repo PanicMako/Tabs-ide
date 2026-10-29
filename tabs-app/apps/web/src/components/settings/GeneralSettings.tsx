@@ -18,6 +18,7 @@ import { useWorkspaceAppearanceStore } from "../../stores/workspaceAppearanceSto
 import { useServerConfig } from "../../state/settings";
 import { isElectron } from "../../env";
 import { Button } from "../ui/button";
+import DataRecoverySettings from "./DataRecoverySettings";
 import { ZoomRuler } from "./ZoomRuler";
 import { PanelAnimationPill } from "./PanelAnimationPill";
 import { Switch } from "../ui/switch";
@@ -63,6 +64,11 @@ const DESKTOP_ICON_OPTIONS = [
     value: "light",
     label: "Light",
     description: "Uses the white icon variant.",
+  },
+  {
+    value: "signature",
+    label: "Custom",
+    description: "Choose from all logo treatments in Themes.",
   },
 ] as const;
 
@@ -260,7 +266,7 @@ export function GeneralSettings() {
         {isElectron ? (
           <SettingsRow
             title="Desktop icon"
-            description="Choose which icon variant Tabs uses in the desktop shell and dock."
+            description="Choose a quick appearance. Find all five custom treatments in Themes."
             resetAction={
               settings.desktopIconTheme !== DEFAULT_DESKTOP_ICON_THEME ? (
                 <SettingResetButton
@@ -276,9 +282,14 @@ export function GeneralSettings() {
             control={
               <SegmentedControl
                 orbitKind="spotlight"
-                value={settings.desktopIconTheme}
+                value={
+                  ["system", "dark", "light"].includes(settings.desktopIconTheme)
+                    ? settings.desktopIconTheme
+                    : "signature"
+                }
                 onValueChange={(val) => {
-                  if (val !== "dark" && val !== "light" && val !== "system") return;
+                  if (val !== "dark" && val !== "light" && val !== "system" && val !== "signature")
+                    return;
                   updateSettings({
                     desktopIconTheme: val,
                   });
@@ -795,6 +806,7 @@ export function GeneralSettings() {
       </SettingsSection>
 
       <SettingsSection title="Troubleshooting & Recovery">
+        <DataRecoverySettings />
         <SettingsRow
           title="Reload Embedded Code OSS"
           description="If the embedded editor visual state becomes corrupted, click reload to recreate the editor view without restarting Tabs."

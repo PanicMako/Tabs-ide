@@ -1,9 +1,6 @@
-import fs from "fs";
-import path from "path";
-import os from "os";
 import * as Effect from "effect/Effect";
 import { ProviderInstanceId } from "@tabs/contracts";
-import { makeGeminiTextGeneration } from "../src/textGeneration/GeminiTextGeneration.ts";
+import { makeOpenRouterTextGeneration } from "../src/textGeneration/OpenRouterTextGeneration.ts";
 import { buildDiffSummaryPrompt } from "../src/textGeneration/TextGenerationPrompts.ts";
 
 // These values exactly match the unit test added to TextGenerationPrompts.test.ts
@@ -39,18 +36,19 @@ console.log("Static comes after custom:", staticIndex > customIndex);
 // ================================================================
 // STEP 3: Live LLM call using the same inputs
 // ================================================================
-console.log("\n=== STEP 3: Live Gemini generateDiffSummary call ===");
-const settingsPath = path.join(os.homedir(), ".tabs", "dev", "settings.json");
-const settingsJson = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
-const apiKey = settingsJson.providers?.gemini?.apiKey;
+console.log("\n=== STEP 3: Live OpenRouter generateDiffSummary call ===");
+const apiKey = process.env.OPENROUTER_API_KEY ?? "";
 console.log("API key present:", !!apiKey, "| length:", apiKey ? apiKey.length : 0);
-console.log("Model used: gemini-3.6-flash");
+console.log("Model used: openrouter/free");
 
 const driver = await Effect.runPromise(
-  makeGeminiTextGeneration({
+  makeOpenRouterTextGeneration({
     enabled: true,
+    harness: "deepseek",
+    deepseekBinaryPath: "dsh",
+    binaryPath: "opencode",
     apiKey: apiKey,
-    baseUrl: "https://generativelanguage.googleapis.com",
+    baseUrl: "https://openrouter.ai/api/v1",
     customModels: [],
   }),
 );
@@ -62,8 +60,8 @@ const program = driver.generateDiffSummary({
   userHint: testUserHint,
   staticAnalysisContext: testStaticContext,
   modelSelection: {
-    instanceId: ProviderInstanceId.make("gemini"),
-    model: "gemini-3.6-flash",
+    instanceId: ProviderInstanceId.make("openrouter"),
+    model: "openrouter/free",
   },
 });
 

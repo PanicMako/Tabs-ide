@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getTabsEmbeddedRowHeight } from '../../../browser/tabsEmbeddedLayout.js';
 import './media/scm.css';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import { basename, dirname } from '../../../../base/common/resources.js';
@@ -679,7 +680,7 @@ class ListDelegate implements IListVirtualDelegate<TreeElement> {
 		} else if (isSCMActionButton(element)) {
 			return ActionButtonRenderer.DEFAULT_HEIGHT + 8;
 		} else {
-			return 22;
+			return getTabsEmbeddedRowHeight(22);
 		}
 	}
 

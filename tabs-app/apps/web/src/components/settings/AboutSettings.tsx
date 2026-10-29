@@ -382,7 +382,7 @@ export function AboutSettings() {
         >
           <SettingsRow
             title="Reset Tabs data"
-            description="Remove local projects, threads, settings, Tabs-stored credentials, saved connections, browser-profile data, attachments, and caches. Tabs will restart and show the setup wizard."
+            description="Remove local projects, threads, settings, Tabs-stored credentials, saved connections, browser-profile data, attachments, and caches. Tabs will restart and show the setup wizard. Recovery snapshots are kept separately; remove those copies in General > Backups & recovery."
             status={
               resetStartupError ? (
                 <p className="text-destructive" role="alert">

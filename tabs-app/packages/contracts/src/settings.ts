@@ -43,9 +43,18 @@ import { PullRequestMergeMethod } from "./pullRequest.ts";
 
 // ── Client Settings (local-only) ───────────────────────────────
 
-export const DesktopIconTheme = Schema.Literals(["dark", "light", "system"]);
+export const DesktopIconTheme = Schema.Literals([
+  "dark",
+  "light",
+  "system",
+  "signature",
+  "blue-white",
+  "mono",
+  "ivory-ink",
+  "blue-ink",
+]);
 export type DesktopIconTheme = typeof DesktopIconTheme.Type;
-export const DEFAULT_DESKTOP_ICON_THEME: DesktopIconTheme = "dark";
+export const DEFAULT_DESKTOP_ICON_THEME: DesktopIconTheme = "system";
 
 export const TimestampFormat = Schema.Literals(["locale", "12-hour", "24-hour"]);
 export type TimestampFormat = typeof TimestampFormat.Type;
@@ -1243,12 +1252,28 @@ export type DroidSettings = typeof DroidSettings.Type;
 
 export const OpenRouterSettings = makeProviderSettingsSchema(
   {
+    // Read legacy saved values without exposing a harness choice. The OpenRouter
+    // driver always starts DeepSeek Harness, including for older configurations.
+    harness: Schema.Literals(["deepseek", "opencode"]).pipe(
+      Schema.withDecodingDefault(Effect.succeed("deepseek" as const)),
+      Schema.annotateKey({ providerSettingsForm: { hidden: true } }),
+    ),
+    deepseekBinaryPath: TrimmedString.pipe(
+      Schema.withDecodingDefault(Effect.succeed("dsh")),
+      Schema.annotateKey({
+        title: "DeepSeek executable",
+        description:
+          "Install @deepseek-ai/dsh@0.2.1-rc.2 with Node.js 24.9 or newer. Uses the upstream ACP profile without modifying the harness.",
+        providerSettingsForm: { placeholder: "dsh" },
+      }),
+    ),
     binaryPath: TrimmedString.pipe(
       Schema.withDecodingDefault(Effect.succeed("opencode")),
       Schema.annotateKey({
-        title: "Agent engine path",
-        description: "OpenCode 1.x CLI used for agent sessions. Code Review uses the API directly.",
-        providerSettingsForm: { placeholder: "opencode" },
+        title: "OpenCode executable",
+        description:
+          "Legacy setting retained for saved configurations. OpenRouter uses DeepSeek Harness.",
+        providerSettingsForm: { hidden: true },
       }),
     ),
     enabled: Schema.Boolean.pipe(
@@ -1282,49 +1307,9 @@ export const OpenRouterSettings = makeProviderSettingsSchema(
       Schema.annotateKey({ providerSettingsForm: { hidden: true } }),
     ),
   },
-  { order: ["apiKey", "baseUrl", "binaryPath"] },
+  { order: ["apiKey", "baseUrl", "deepseekBinaryPath"] },
 );
 export type OpenRouterSettings = typeof OpenRouterSettings.Type;
-
-export const GeminiSettings = makeProviderSettingsSchema(
-  {
-    enabled: Schema.Boolean.pipe(
-      Schema.withDecodingDefault(Effect.succeed(false)),
-      Schema.annotateKey({ providerSettingsForm: { hidden: true } }),
-    ),
-    apiKey: TrimmedString.pipe(
-      Schema.withDecodingDefault(Effect.succeed("")),
-      Schema.annotateKey({
-        title: "API key",
-        description: "Google Gemini API key from Google AI Studio.",
-        providerSettingsForm: {
-          control: "password",
-          placeholder: "AIzaSy...",
-          clearWhenEmpty: "omit",
-        },
-      }),
-    ),
-    baseUrl: TrimmedString.pipe(
-      Schema.withDecodingDefault(Effect.succeed("https://generativelanguage.googleapis.com")),
-      Schema.annotateKey({
-        title: "API Base URL",
-        description: "Custom base URL for Gemini API (optional).",
-        providerSettingsForm: {
-          placeholder: "https://generativelanguage.googleapis.com",
-          clearWhenEmpty: "omit",
-        },
-      }),
-    ),
-    customModels: Schema.Array(CustomModelSetting).pipe(
-      Schema.withDecodingDefault(Effect.succeed([])),
-      Schema.annotateKey({ providerSettingsForm: { hidden: true } }),
-    ),
-  },
-  {
-    order: ["apiKey", "baseUrl"],
-  },
-);
-export type GeminiSettings = typeof GeminiSettings.Type;
 
 /**
  * A read-only quota source outside this environment's provider CLIs. The
@@ -1588,6 +1573,7 @@ export const StorageCleanupSettings = Schema.Struct({
 export type StorageCleanupSettings = typeof StorageCleanupSettings.Type;
 
 export const ServerSettings = Schema.Struct({
+  deepSeekPluginPatches: Schema.optionalKey(Schema.Record(ProviderInstanceId, Schema.String)),
   enableUsageAnalytics: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   enableAssistantStreaming: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   alwaysCreateTasks: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
@@ -1755,6 +1741,13 @@ export const ServerSettings = Schema.Struct({
   branchNamePrefix: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed("t3"))),
   branchNameInstructions: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
   removeAgentCreditsOnMerge: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
+  /** Legacy source preference retained for settings compatibility; Git writing now always runs locally. */
+  commitDraftSource: Schema.Literals(["auto", "local", "openrouter"]).pipe(
+    Schema.withDecodingDefault(Effect.succeed("local" as const)),
+  ),
+  commitDraftLocalModel: TrimmedNonEmptyString.pipe(
+    Schema.withDecodingDefault(Effect.succeed("qwen3:1.7b")),
+  ),
   sourceControlWritingStyle: SourceControlWritingStyleSettings.pipe(
     Schema.withDecodingDefault(Effect.succeed({})),
   ),
@@ -1785,7 +1778,6 @@ export const ServerSettings = Schema.Struct({
     droid: DroidSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
     kilo: KiloSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
     openrouter: OpenRouterSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
-    gemini: GeminiSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
     pi: PiSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
     opencode: OpenCodeSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
     antigravity: AntigravitySettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
@@ -2053,6 +2045,8 @@ const KiloSettingsPatch = Schema.Struct({
 });
 
 const OpenRouterSettingsPatch = Schema.Struct({
+  harness: Schema.optionalKey(Schema.Literals(["deepseek", "opencode"])),
+  deepseekBinaryPath: Schema.optionalKey(TrimmedString),
   binaryPath: Schema.optionalKey(TrimmedString),
   enabled: Schema.optionalKey(Schema.Boolean),
   apiKey: Schema.optionalKey(TrimmedString),
@@ -2060,14 +2054,8 @@ const OpenRouterSettingsPatch = Schema.Struct({
   customModels: Schema.optionalKey(Schema.Array(CustomModelSetting)),
 });
 
-const GeminiSettingsPatch = Schema.Struct({
-  enabled: Schema.optionalKey(Schema.Boolean),
-  apiKey: Schema.optionalKey(TrimmedString),
-  baseUrl: Schema.optionalKey(TrimmedString),
-  customModels: Schema.optionalKey(Schema.Array(CustomModelSetting)),
-});
-
 export const ServerSettingsPatch = Schema.Struct({
+  deepSeekPluginPatches: Schema.optionalKey(Schema.Record(ProviderInstanceId, Schema.String)),
   enableUsageAnalytics: Schema.optionalKey(Schema.Boolean),
   enableAssistantStreaming: Schema.optionalKey(Schema.Boolean),
   alwaysCreateTasks: Schema.optionalKey(Schema.Boolean),
@@ -2156,6 +2144,8 @@ export const ServerSettingsPatch = Schema.Struct({
   branchNamePrefix: Schema.optionalKey(TrimmedString),
   branchNameInstructions: Schema.optionalKey(TrimmedString),
   removeAgentCreditsOnMerge: Schema.optionalKey(Schema.Boolean),
+  commitDraftSource: Schema.optionalKey(Schema.Literals(["auto", "local", "openrouter"])),
+  commitDraftLocalModel: Schema.optionalKey(TrimmedNonEmptyString),
   sourceControlWritingStyle: Schema.optionalKey(
     Schema.Struct({
       mode: Schema.optionalKey(SourceControlWritingStyleMode),
@@ -2190,7 +2180,6 @@ export const ServerSettingsPatch = Schema.Struct({
       droid: Schema.optionalKey(DroidSettingsPatch),
       kilo: Schema.optionalKey(KiloSettingsPatch),
       openrouter: Schema.optionalKey(OpenRouterSettingsPatch),
-      gemini: Schema.optionalKey(GeminiSettingsPatch),
       pi: Schema.optionalKey(PiSettingsPatch),
       opencode: Schema.optionalKey(OpenCodeSettingsPatch),
       antigravity: Schema.optionalKey(AntigravitySettingsPatch),
@@ -2481,7 +2470,7 @@ export const ProjectWorkspaceSettings = Schema.Struct({
               : kind === "agents"
                 ? "Agents"
                 : kind === "server"
-                  ? "Launchpad"
+                  ? "Dock"
                   : kind === "git"
                     ? "Git"
                     : kind === "browser"

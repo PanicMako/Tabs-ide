@@ -104,7 +104,7 @@ function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       className={cn(
-        "flex flex-col gap-1.5 p-5 in-[[data-slot=dialog-popup]:has([data-slot=dialog-panel])]:pb-3 max-sm:pb-4 in-[[data-slot=dialog-panel]]:p-0 in-[[data-slot=dialog-panel]]:mb-4",
+        "flex flex-col gap-2 p-5 pe-14 in-[[data-slot=dialog-popup]:has([data-slot=dialog-panel])]:pb-3 max-sm:pb-4 in-[[data-slot=dialog-panel]]:p-0 in-[[data-slot=dialog-panel]]:mb-4",
         className,
       )}
       data-slot="dialog-header"
@@ -148,7 +148,7 @@ function DialogTitle({ className, ...props }: DialogPrimitive.Title.Props) {
 function DialogDescription({ className, ...props }: DialogPrimitive.Description.Props) {
   return (
     <DialogPrimitive.Description
-      className={cn("text-muted-foreground text-xs leading-relaxed", className)}
+      className={cn("text-muted-foreground text-sm leading-relaxed", className)}
       data-slot="dialog-description"
       {...props}
     />
@@ -162,14 +162,7 @@ function DialogPanel({
 }: React.ComponentProps<"div"> & { scrollFade?: boolean }) {
   return (
     <ScrollArea scrollFade={scrollFade}>
-      <div
-        className={cn(
-          "p-5 in-[[data-slot=dialog-popup]:has([data-slot=dialog-header])]:pt-1 in-[[data-slot=dialog-popup]:has([data-slot=dialog-footer]:not(.border-t))]:pb-1",
-          className,
-        )}
-        data-slot="dialog-panel"
-        {...props}
-      />
+      <div className={cn("p-5", className)} data-slot="dialog-panel" {...props} />
     </ScrollArea>
   );
 }
@@ -187,7 +180,7 @@ function DialogDetails({
       className={cn("group rounded-xl border border-border/60 bg-muted/15 px-3 py-2.5", className)}
       data-slot="dialog-details"
     >
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded-sm text-xs font-medium text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
         {title}
         <ChevronDownIcon
           aria-hidden="true"

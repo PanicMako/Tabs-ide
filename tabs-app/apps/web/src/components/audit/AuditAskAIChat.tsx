@@ -116,7 +116,7 @@ export function AuditAskAIChat({ selectedFinding, isOpen, onClose }: AuditAskAIC
         />
         <Button
           onClick={handleSend}
-          className="bg-purple-600 hover:bg-purple-500 text-white text-xs px-3 py-1.5"
+          className="bg-purple-600 hover:bg-purple-500 text-white text-xs px-3 py-1.5 rounded-lg"
         >
           Send
         </Button>

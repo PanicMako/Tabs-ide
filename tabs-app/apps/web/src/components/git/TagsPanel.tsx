@@ -348,7 +348,7 @@ export function TagsPanel({
             return (
               <div
                 key={tagName}
-                className="group/row flex items-center justify-between gap-3 px-3.5 py-2.5 hover:bg-muted/30 transition-colors duration-150 min-h-[42px]"
+                className="group/row flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-lg hover:bg-muted/30 transition-colors duration-150 min-h-[42px]"
               >
                 {/* Left: Tag Badge & Optional Commit Info */}
                 <div className="flex items-center gap-2.5 min-w-0 flex-1">

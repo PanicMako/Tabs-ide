@@ -651,6 +651,7 @@ export function WallpaperTopBar({
                 const isSelected = wp.url === activeWallpaperUrl;
                 return (
                   <button
+                    data-shape="preview"
                     key={wp.id}
                     data-wallpaper-id={wp.id}
                     type="button"

@@ -193,7 +193,7 @@ export const SettingsProviderModelPicker = memo(function SettingsProviderModelPi
                           type="button"
                           aria-label={isPinned ? `Unpin ${m.name}` : `Pin ${m.name}`}
                           className={cn(
-                            "size-5 p-0.5 rounded-sm flex items-center justify-center transition-all",
+                            "size-5 p-0.5 rounded-full flex items-center justify-center transition-all",
                             isPinned
                               ? "text-amber-500 hover:text-amber-600"
                               : "text-muted-foreground/30 opacity-0 group-hover/row:opacity-100 hover:text-foreground",

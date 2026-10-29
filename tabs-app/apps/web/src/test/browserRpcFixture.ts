@@ -184,13 +184,21 @@ export function attachBrowserRpcFixture(
       });
       return;
     }
+    if (request.tag === WS_METHODS.scheduledTasksSubscribe) {
+      chunk(request.id, { tasks: [] });
+      return;
+    }
     if (request.tag.startsWith("subscribe") || request.tag.includes(".subscribe")) return;
     const value =
       request.tag === WS_METHODS.serverGetConfig
         ? withBrowserEnvironment(current.serverConfig)
         : request.tag === ORCHESTRATION_V2_WS_METHODS.getThreadProjection
           ? projection(current.snapshot, body.threadId)
-          : resolve(body);
+          : request.tag === WS_METHODS.serverRefreshProviders
+            ? { providers: current.serverConfig.providers }
+            : request.tag === WS_METHODS.scheduledTasksList
+              ? { tasks: [] }
+              : resolve(body);
     client.send(
       JSON.stringify({ _tag: "Exit", requestId: request.id, exit: { _tag: "Success", value } }),
     );

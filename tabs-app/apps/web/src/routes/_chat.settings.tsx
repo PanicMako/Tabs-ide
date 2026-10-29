@@ -1,29 +1,21 @@
+import {
+  SettingsNavigation,
+  SETTINGS_NAV,
+  type SettingsPageId,
+} from "~/components/settings/SettingsNavigation";
+import { usePanelAnimationSettings } from "~/panelAnimations";
 import { useGsapSurface } from "~/hooks/useGsapSurface";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  FlaskConicalIcon,
-  ActivityIcon,
   ArrowLeftIcon,
   ArrowUpCircleIcon,
-  BellIcon,
-  BookOpenIcon,
-  BotIcon,
   DownloadIcon,
-  FingerprintIcon,
-  FolderIcon,
-  GitBranchIcon,
-  InfoIcon,
-  KeyboardIcon,
-  Link2Icon,
   LogInIcon,
   LogOutIcon,
-  MonitorPlayIcon,
-  PaletteIcon,
-  SlidersHorizontalIcon,
-  GaugeIcon,
   XIcon,
+  TerminalIcon,
 } from "lucide-react";
 import {
   SettingsEditorialFrame,
@@ -119,6 +111,11 @@ function NotificationsBadge() {
   );
 }
 
+const AgentPluginsSettings = lazy(() =>
+  import("~/components/settings/AgentPluginsSettings").then((module) => ({
+    default: module.AgentPluginsSettings,
+  })),
+);
 const GeneralSettings = lazy(() => import("~/components/settings/GeneralSettings"));
 const LabsSettings = lazy(() => import("~/components/settings/LabsSettings"));
 const ThemesSettings = lazy(() => import("~/components/settings/ThemesSettings"));
@@ -171,48 +168,12 @@ const SourceControlSettingsPanel = lazy(() =>
   })),
 );
 
-export type SettingsSectionId =
-  | "labs"
-  | "general"
-  | "notifications"
-  | "themes"
-  | "workspace"
-  | "profiles"
-  | "providers"
-  | "usage"
-  | "source-control"
-  | "connections"
-  | "startup-animation"
-  | "keybindings"
-  | "about"
-  | "diagnostics"
-  | "documentation";
-
-const SETTINGS_NAV: ReadonlyArray<{
-  id: SettingsSectionId;
-  label: string;
-  icon: typeof SlidersHorizontalIcon;
-}> = [
-  { id: "general", label: "General", icon: SlidersHorizontalIcon },
-  { id: "notifications", label: "Notifications", icon: BellIcon },
-  { id: "themes", label: "Themes", icon: PaletteIcon },
-  { id: "startup-animation", label: "Animations", icon: MonitorPlayIcon },
-  { id: "providers", label: "Providers", icon: BotIcon },
-  { id: "usage", label: "Usage & Limits", icon: GaugeIcon },
-  { id: "diagnostics", label: "Diagnostics", icon: ActivityIcon },
-  { id: "documentation", label: "Documentation", icon: BookOpenIcon },
-  { id: "source-control", label: "Source Control", icon: GitBranchIcon },
-  { id: "connections", label: "Connections", icon: Link2Icon },
-  { id: "workspace", label: "Workspace", icon: FolderIcon },
-  { id: "profiles", label: "Browser Profiles", icon: FingerprintIcon },
-  { id: "keybindings", label: "Keybindings", icon: KeyboardIcon },
-  { id: "about", label: "About", icon: InfoIcon },
-  { id: "labs", label: "Labs", icon: FlaskConicalIcon },
-];
+export type SettingsSectionId = SettingsPageId;
 
 const EMPTY_KEYBINDINGS: ResolvedKeybindingsConfig = [];
 
 function SettingsRouteView() {
+  const iconMotion = usePanelAnimationSettings();
   const { confirm, confirmDialog } = useConfirm();
   const navigate = useNavigate();
   const isAnyDraftDirty = useIsAnyDraftDirty();
@@ -361,7 +322,7 @@ function SettingsRouteView() {
       });
   }, [queryClient]);
 
-  type ProviderActionKind = "login" | "logout" | "install" | "update";
+  type ProviderActionKind = "login" | "logout" | "install" | "update" | "plugins";
   const [providerActionSession, setProviderActionSession] = useState<{
     provider: ProviderSettingsKey;
     providerName: string;
@@ -688,37 +649,14 @@ function SettingsRouteView() {
         <div className="min-h-0 flex-1 overflow-hidden">
           <div
             data-slot="settings-columns"
-            className="flex h-full w-full gap-6 px-6 sm:px-10 lg:px-16"
+            className="settings-shell-columns flex h-full w-full gap-6 px-6 sm:px-10 lg:px-16"
           >
-            <nav
-              data-slot="settings-nav"
-              aria-label="Settings pages"
-              className="w-48 shrink-0 space-y-0.5 py-4 overflow-y-auto"
-            >
-              <span data-slot="settings-nav-label">Settings</span>
-              {SETTINGS_NAV.map((item) => {
-                const NavIcon = item.icon;
-                const active = activeSettingsSection === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    aria-current={active ? "page" : undefined}
-                    onClick={() => setActiveSettingsSection(item.id)}
-                    className={cn(
-                      "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-xs font-medium transition-colors cursor-pointer",
-                      active
-                        ? "bg-accent font-semibold text-foreground shadow-2xs"
-                        : "text-muted-foreground hover:bg-accent/40 hover:text-foreground",
-                    )}
-                  >
-                    <NavIcon className="size-3.5 shrink-0" />
-                    <span className="capitalize flex-1">{item.label}</span>
-                    {item.id === "notifications" && !active && <NotificationsBadge />}
-                  </button>
-                );
-              })}
-            </nav>
+            <SettingsNavigation
+              activeSection={activeSettingsSection}
+              onSelect={setActiveSettingsSection}
+              reducedMotion={iconMotion.reducedMotion}
+              notificationBadge={<NotificationsBadge />}
+            />
             <div
               data-slot="settings-scroll"
               className="min-w-0 flex-1 overflow-y-auto overscroll-y-contain py-6"
@@ -754,6 +692,18 @@ function SettingsRouteView() {
                     {activeSettingsSection === "connections" ? <ConnectionsSettings /> : null}
                     {activeSettingsSection === "documentation" ? (
                       <DocumentationSettings onOpenSettingsSection={openSettingsSection} />
+                    ) : null}
+                    {activeSettingsSection === "agent-plugins" ? (
+                      <AgentPluginsSettings
+                        onRunCommand={(command, name) =>
+                          startProviderAction({
+                            provider: "openrouter",
+                            providerName: name,
+                            command,
+                            kind: "plugins",
+                          })
+                        }
+                      />
                     ) : null}
                     {activeSettingsSection === "providers" ? (
                       <ProvidersSettings
@@ -809,6 +759,8 @@ function SettingsRouteView() {
                   <ArrowUpCircleIcon className="size-3.5 shrink-0 text-muted-foreground" />
                 ) : providerActionSession.kind === "logout" ? (
                   <LogOutIcon className="size-3.5 shrink-0 text-muted-foreground" />
+                ) : providerActionSession.kind === "plugins" ? (
+                  <TerminalIcon className="size-3.5 shrink-0 text-muted-foreground" />
                 ) : (
                   <LogInIcon className="size-3.5 shrink-0 text-muted-foreground" />
                 )}
@@ -819,9 +771,11 @@ function SettingsRouteView() {
                       ? `Updating ${providerActionSession.providerName}`
                       : providerActionSession.kind === "logout"
                         ? `Logging out of ${providerActionSession.providerName}`
-                        : `Signing in to ${providerActionSession.providerName}`}
+                        : providerActionSession.kind === "plugins"
+                          ? `Plugins · ${providerActionSession.providerName}`
+                          : `Signing in to ${providerActionSession.providerName}`}
                 </DialogTitle>
-                <code className="min-w-0 truncate rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                <code className="min-w-0 truncate rounded-md bg-muted px-2.5 py-0.5 text-[11px] font-mono text-muted-foreground">
                   {providerActionSession.command}
                 </code>
                 <Button

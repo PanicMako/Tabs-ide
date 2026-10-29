@@ -1296,7 +1296,10 @@
 		"--vg-ring-width",
 		"--vg-ring-opacity",
 		"--vg-corner-alpha",
-		"--vg-inner-fade"
+		"--vg-inner-fade",
+		"--tabs-rail-light",
+		"--tabs-rail-shoulder",
+		"--tabs-rail-y"
 	],
 	"sizes": [
 		"--segmented-icon-toggle-cell-radius",

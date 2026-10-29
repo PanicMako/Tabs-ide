@@ -22,7 +22,6 @@ export const SUPPORTED_USAGE_PROVIDERS: readonly string[] = [
   "copilot",
   "grok",
   "antigravity",
-  "gemini",
   "openrouter",
   "droid",
   "kilo",

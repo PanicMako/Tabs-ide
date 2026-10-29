@@ -466,7 +466,18 @@ export const OrchestratorMcpThreadInterruptResult = Schema.Struct({
 });
 export type OrchestratorMcpThreadInterruptResult = typeof OrchestratorMcpThreadInterruptResult.Type;
 
+export const OrchestratorMcpCapabilitiesInput = Schema.Struct({
+  search: Schema.optional(TrimmedNonEmptyString.check(Schema.isMaxLength(200))),
+  limit: Schema.optional(Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 100 }))),
+  offset: Schema.optional(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))),
+  includeAll: Schema.optional(Schema.Boolean),
+});
+export type OrchestratorMcpCapabilitiesInput = typeof OrchestratorMcpCapabilitiesInput.Type;
+
 export const OrchestratorMcpProviderCapability = Schema.Struct({
+  totalModels: Schema.optional(Schema.Int),
+  hasMoreModels: Schema.optional(Schema.Boolean),
+  nextOffset: Schema.optional(Schema.Int),
   providerInstanceId: ProviderInstanceId,
   driverKind: ProviderDriverKind,
   displayName: Schema.NullOr(Schema.String),

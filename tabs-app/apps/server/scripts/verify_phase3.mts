@@ -4,7 +4,7 @@
  * Requirements:
  * 1. Emits review_cost_preview before LLM calls fire, showing the emitted payload.
  * 2. Diff contains a genuine null-dereference and a genuine SQL-injection-shaped issue.
- * 3. Runs 2 sequential passes (Correctness + Security) via Gemini API (gemini-3.6-flash).
+ * 3. Runs 2 sequential passes (Correctness + Security) via Gemini API (openrouter/free).
  * 4. Shows raw live findings produced by the 2 passes and filtered by VerificationFilter.
  */
 
@@ -15,7 +15,7 @@ import spawnSync from "node:child_process";
 
 import * as Effect from "effect/Effect";
 import { ProviderInstanceId } from "@tabs/contracts";
-import { makeGeminiTextGeneration } from "../src/textGeneration/GeminiTextGeneration.ts";
+import { makeOpenRouterTextGeneration } from "../src/textGeneration/OpenRouterTextGeneration.ts";
 import { runReviewPasses, estimateReviewCost } from "../src/review/ReviewPassRunner.ts";
 
 console.log("=== Phase 3 Live Verification Script START ===");
@@ -59,19 +59,20 @@ console.log(diffPatch);
 console.log("=== STEP 1: Diff patch END ===");
 
 // 2. Load API key
-const settingsPath = path.join(os.homedir(), ".tabs", "dev", "settings.json");
-const settingsJson = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
-const apiKey = settingsJson.providers?.gemini?.apiKey;
+const apiKey = process.env.OPENROUTER_API_KEY ?? "";
 
-console.log("\n=== STEP 2: Gemini API Key & Driver Setup ===");
+console.log("\n=== STEP 2: OpenRouter API Key & Driver Setup ===");
 console.log("API Key present:", !!apiKey, "| length:", apiKey?.length ?? 0);
-console.log("Model: gemini-3.6-flash");
+console.log("Model: openrouter/free");
 
 const driver = await Effect.runPromise(
-  makeGeminiTextGeneration({
+  makeOpenRouterTextGeneration({
     enabled: true,
+    harness: "deepseek",
+    deepseekBinaryPath: "dsh",
+    binaryPath: "opencode",
     apiKey,
-    baseUrl: "https://generativelanguage.googleapis.com",
+    baseUrl: "https://openrouter.ai/api/v1",
     customModels: [],
   }),
 );
@@ -98,8 +99,8 @@ const program = runReviewPasses(
     diffPatch,
     userHint: "Find code quality, safety, and security vulnerabilities.",
     modelSelection: {
-      instanceId: ProviderInstanceId.make("gemini"),
-      model: "gemini-3.6-flash",
+      instanceId: ProviderInstanceId.make("openrouter"),
+      model: "openrouter/free",
     },
     configuredPasses: ["correctness", "security"],
     onCostPreview,

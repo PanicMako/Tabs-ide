@@ -93,7 +93,7 @@ export function AssistantCitationChip({
   const composerSourceLink = (
     <Link
       {...sourceLinkProps}
-      className="inline-flex h-full min-w-0 items-center gap-[0.33em] rounded-sm text-inherit no-underline focus-visible:outline-2 focus-visible:outline-primary"
+      className="inline-flex h-full min-w-0 items-center gap-[0.33em] rounded-full text-inherit no-underline focus-visible:outline-2 focus-visible:outline-primary"
       aria-label={`View cited assistant text: ${label}`}
     >
       <QuoteIcon aria-hidden="true" className={COMPOSER_INLINE_CHIP_ICON_CLASS_NAME} />
@@ -103,7 +103,7 @@ export function AssistantCitationChip({
   const chatSourceLink = (
     <Link
       {...sourceLinkProps}
-      className="inline-flex h-full min-w-0 items-center gap-[0.33em] rounded-sm text-inherit no-underline hover:bg-primary/10 focus-visible:outline-2 focus-visible:outline-primary"
+      className="inline-flex h-full min-w-0 items-center gap-[0.33em] rounded-full text-inherit no-underline hover:bg-primary/10 focus-visible:outline-2 focus-visible:outline-primary"
       aria-label={`View cited assistant text: ${label}`}
     >
       <QuoteIcon aria-hidden="true" className={COMPOSER_INLINE_CHIP_ICON_CLASS_NAME} />

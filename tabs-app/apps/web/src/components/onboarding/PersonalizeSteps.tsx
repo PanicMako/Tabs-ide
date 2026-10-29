@@ -5,8 +5,8 @@ import { WorkbenchPreview } from "./WorkbenchPreview";
 type Appearance = "system" | "dark" | "light";
 const ICONS = [
   { id: "system", label: "System", description: "Follows your appearance" },
-  { id: "dark", label: "Dark", description: "A darker outline" },
-  { id: "light", label: "Light", description: "A lighter outline" },
+  { id: "dark", label: "Dark", description: "Ivory on ink" },
+  { id: "light", label: "Light", description: "Cobalt on white" },
 ] as const;
 const MODES = [
   { id: "system", label: "System", icon: MonitorIcon },
@@ -74,7 +74,7 @@ export function AppIconStep({
           </p>
           <p className="mt-4 text-xs text-white/60">You can change it anytime in Settings.</p>
         </div>
-        <div className="rounded-[32px] border border-white/25 bg-white/90 p-4 text-neutral-800 shadow-xl shadow-black/15 sm:p-5">
+        <div className="rounded-lg border border-white/25 bg-white/90 p-4 text-neutral-800 shadow-xl shadow-black/15 sm:p-5">
           <div role="group" aria-label="App icon style" className="grid grid-cols-3 gap-2">
             {ICONS.map((item) => (
               <button
@@ -83,7 +83,7 @@ export function AppIconStep({
                 aria-pressed={selected === item.id}
                 aria-label={`${item.label} app icon`}
                 onClick={() => onSelect(item.id)}
-                className={`relative flex min-w-0 flex-col items-center gap-5 rounded-[24px] px-2 pb-6 pt-10 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-700 ${selected === item.id ? "bg-white shadow-sm ring-1 ring-black/10" : "hover:bg-white/60"}`}
+                className={`relative flex min-w-0 flex-col items-center gap-5 rounded-lg px-2 pb-6 pt-10 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-700 ${selected === item.id ? "bg-white shadow-sm ring-1 ring-black/10" : "hover:bg-white/60"}`}
               >
                 <span
                   aria-hidden="true"
@@ -94,7 +94,7 @@ export function AppIconStep({
                 <img
                   src={`/onboarding/app-icon-${item.id}.png`}
                   alt=""
-                  className="size-16 rounded-[20px] shadow-md sm:size-24"
+                  className="size-16 rounded-lg shadow-md sm:size-24"
                 />
                 <span className="text-xs font-semibold">{item.label}</span>
               </button>

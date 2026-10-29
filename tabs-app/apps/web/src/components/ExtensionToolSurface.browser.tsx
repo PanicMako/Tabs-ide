@@ -1,3 +1,4 @@
+import { StrictMode } from "react";
 import "../index.css";
 import { expect, test, vi } from "vitest";
 import { userEvent } from "vitest/browser";
@@ -6,7 +7,7 @@ import type { DesktopBridge, DesktopExtensionViewErrorEvent } from "@tabs/contra
 
 import { ExtensionToolSurface } from "./ExtensionToolSurface";
 
-test("keeps extension identity visible outside its content area on unsupported clients", async () => {
+test("uses the full content area without a redundant identity bar", async () => {
   const screen = await render(
     <div style={{ width: 600, height: 400 }}>
       <ExtensionToolSurface
@@ -22,22 +23,12 @@ test("keeps extension identity visible outside its content area on unsupported c
       />
     </div>,
   );
-  const identity = screen.getByRole("banner", { name: "Extension identity" });
   const content = screen.getByRole("region", { name: "Overview extension content" });
-  await expect.element(identity).toBeVisible();
   await expect.element(content).toBeVisible();
+  await expect.element(screen.getByRole("banner")).not.toBeInTheDocument();
   await expect
     .element(screen.getByRole("alert"))
     .toHaveTextContent("Extensions are available in Tabs desktop.");
-  const header = document.querySelector<HTMLElement>('header[aria-label="Extension identity"]');
-  const region = document.querySelector<HTMLElement>(
-    '[role="region"][aria-label="Overview extension content"]',
-  );
-  expect(header).not.toBeNull();
-  expect(region).not.toBeNull();
-  expect(region!.getBoundingClientRect().top).toBeGreaterThanOrEqual(
-    header!.getBoundingClientRect().bottom,
-  );
 });
 
 test("shows accessible crash error with safe keyboard retry and ignores stale events from earlier attempts", async () => {
@@ -173,5 +164,51 @@ test("shows accessible crash error with safe keyboard retry and ignores stale ev
   expect(lastActivationInput?.activationId).not.toBe(secondActivationId);
   await expect.element(screen.getByRole("alert")).not.toBeInTheDocument();
 
+  delete (window as unknown as { desktopBridge?: unknown }).desktopBridge;
+});
+
+test("Strict Mode cleanup cannot hide the current native extension after a delayed launch", async () => {
+  const launches: Array<{ input: any; finish: () => void }> = [];
+  let activeId: string | undefined;
+  const mockBridge: Partial<DesktopBridge> = {
+    activateExtensionTool: vi.fn(
+      (input) =>
+        new Promise<void>((resolve) => {
+          launches.push({ input, finish: resolve });
+          activeId = input.activationId;
+        }),
+    ),
+    setExtensionBounds: vi.fn(async () => undefined),
+    hideExtensionTool: vi.fn(async (input) => {
+      if (typeof input === "object" && input?.activationId === activeId) activeId = undefined;
+    }),
+  };
+  (window as unknown as { desktopBridge: typeof mockBridge }).desktopBridge = mockBridge;
+  const screen = await render(
+    <StrictMode>
+      <div style={{ width: 600, height: 400 }}>
+        <ExtensionToolSurface
+          input={{
+            projectId: "project-a",
+            extensionId: "acme.dashboard",
+            toolId: "overview",
+            profileId: "work",
+          }}
+          label="Overview"
+          source="exchange"
+          registryOrigin="https://exchange.example"
+        />
+      </div>
+    </StrictMode>,
+  );
+  expect(launches).toHaveLength(2);
+  expect(launches[0]!.input.activationId).not.toBe(launches[1]!.input.activationId);
+  launches[1]!.finish();
+  await vi.waitFor(() => expect(mockBridge.setExtensionBounds).toHaveBeenCalled());
+  launches[0]!.finish();
+  await vi.waitFor(() => expect(mockBridge.hideExtensionTool).toHaveBeenCalledTimes(2));
+  expect(activeId).toBe(launches[1]!.input.activationId);
+  await expect.element(screen.getByRole("alert")).not.toBeInTheDocument();
+  await screen.unmount();
   delete (window as unknown as { desktopBridge?: unknown }).desktopBridge;
 });

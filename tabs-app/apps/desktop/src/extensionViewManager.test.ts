@@ -2813,3 +2813,79 @@ describe("development extension installation", () => {
     ).rejects.toThrow(/No credential is saved/);
   });
 });
+
+describe("extension inventory across app versions", () => {
+  it.each(["1.2.0", "3.0.0"])(
+    "retains incompatible Exchange registrations across saves and restart on %s",
+    async (version) => {
+      const { directory, manager, installed } = await exchangeUpdateFixture();
+      const statePath = Path.join(directory, "installed.json");
+      const before = JSON.parse(FS.readFileSync(statePath, "utf8"));
+      const reopen = (tabsVersion: string) =>
+        new ExtensionViewManager(
+          () => null,
+          {} as ConstructorParameters<typeof ExtensionViewManager>[1],
+          statePath,
+          tabsVersion,
+          false,
+        );
+      const incompatible = reopen(version);
+      expect(incompatible.list()).toHaveLength(1);
+      expect(incompatible.list()[0]).toMatchObject({
+        id: installed.id,
+        disabled: true,
+        compatibilityError: expect.stringContaining(version),
+        assignment: manager.list()[0]!.assignment,
+        profiles: manager.list()[0]!.profiles,
+      });
+      expect(() => incompatible.setDisabled(installed.id, false)).toThrow(/Tabs version/);
+      await expect(
+        incompatible.activate({
+          extensionId: installed.id,
+          projectId: "project-a",
+          profileId: "default",
+          toolId: "main",
+        }),
+      ).rejects.toThrow(/disabled/);
+      expect(incompatible.listAiToolsForProject("project-a")).toEqual([]);
+      incompatible.setUpdatesPinned(installed.id, true);
+      const saved = JSON.parse(FS.readFileSync(statePath, "utf8"));
+      expect(saved[0]).toEqual({ ...before[0], updatesPinned: true });
+      expect(reopen(version).list()[0]?.compatibilityError).toBeDefined();
+      expect(reopen("1.3.17").list()[0]).toMatchObject({ id: installed.id, updatesPinned: true });
+      expect(reopen("1.3.17").list()[0]?.disabled).toBeUndefined();
+      manager.setDisabled(installed.id, true);
+      const paused = reopen(version);
+      paused.setUpdatesPinned(installed.id, true);
+      expect(reopen("1.3.17").list()[0]?.disabled).toBe(true);
+    },
+  );
+
+  it("retains future API requirements without permitting activation", () => {
+    const { directory, manager } = fixture();
+    const installed = manager.installDevelopment(directory);
+    const statePath = Path.join(directory, "installed.json");
+    const entries = JSON.parse(FS.readFileSync(statePath, "utf8"));
+    entries[0].manifest.engines.api = ">=99.0.0 <100.0.0";
+    FS.writeFileSync(
+      Path.join(directory, "tabs-extension.json"),
+      JSON.stringify(entries[0].manifest),
+    );
+    FS.writeFileSync(statePath, JSON.stringify(entries));
+    const reloaded = new ExtensionViewManager(
+      () => null,
+      {} as ConstructorParameters<typeof ExtensionViewManager>[1],
+      statePath,
+      "1.3.17",
+      true,
+    );
+    expect(reloaded.list()[0]).toMatchObject({
+      disabled: true,
+      compatibilityError: expect.stringContaining("extension API"),
+    });
+    reloaded.setAssignment(installed.id, installed.assignment);
+    expect(JSON.parse(FS.readFileSync(statePath, "utf8"))[0].manifest.engines.api).toBe(
+      ">=99.0.0 <100.0.0",
+    );
+  });
+});

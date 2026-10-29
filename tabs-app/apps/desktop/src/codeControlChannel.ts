@@ -33,6 +33,8 @@ import type { AddressInfo } from "node:net";
 
 import {
   CODE_CHROME_COMMAND_ALLOWLIST,
+  CODE_CHROME_COMMANDS,
+  parseCodeRailPresentation,
   parseCodeControlClientMessage,
   type CodeChromeState,
   type CodeControlServerMessage,
@@ -53,6 +55,14 @@ export class CodeControlChannel {
   private readonly projectBySocket = new Map<Net.Socket, string>();
   private readonly dynamicAllowedCommandsByProject = new Map<string, Set<string>>();
   private readonly latestChromeStateByProject = new Map<string, CodeChromeState>();
+  private commitDraftHandler:
+    | ((projectId: string, cwd: string, signal: AbortSignal) => Promise<string>)
+    | null = null;
+  onGenerateCommitDraft(
+    handler: (projectId: string, cwd: string, signal: AbortSignal) => Promise<string>,
+  ): void {
+    this.commitDraftHandler = handler;
+  }
   private token = "";
   private port = 0;
   private readonly chromeStateListeners: ((projectId: string, state: CodeChromeState) => void)[] =
@@ -100,6 +110,7 @@ export class CodeControlChannel {
   private handleConnection(socket: Net.Socket): void {
     let authed = false;
     let buffer = "";
+    let draftRequest: { id: string; controller: AbortController } | null = null;
     socket.setNoDelay(true);
 
     socket.on("data", (chunk) => {
@@ -134,7 +145,51 @@ export class CodeControlChannel {
           this.extensionHostConnectedListener?.(message.projectId);
           continue;
         }
-        if (message.type === "chromeState") {
+        if (this.projectBySocket.get(socket) !== message.projectId) {
+          socket.destroy();
+          return;
+        }
+        if (message.type === "generateCommitDraft") {
+          if (draftRequest) {
+            socket.write(
+              `${JSON.stringify({
+                type: "commitDraftResult",
+                requestId: message.requestId,
+                error: "A commit draft is already being generated.",
+              })}\n`,
+            );
+            continue;
+          }
+          const controller = new AbortController();
+          draftRequest = { id: message.requestId, controller };
+          const reply = (result: { message?: string; error?: string }) => {
+            if (draftRequest?.controller !== controller || controller.signal.aborted) return;
+            draftRequest = null;
+            if (!socket.destroyed)
+              socket.write(
+                `${JSON.stringify({ type: "commitDraftResult", requestId: message.requestId, ...result })}\n`,
+              );
+          };
+          const handler = this.commitDraftHandler;
+          void Promise.resolve()
+            .then(() => {
+              if (!handler)
+                throw new Error("Commit generation is unavailable. Restart Tabs and try again.");
+              return handler(message.projectId, message.cwd, controller.signal);
+            })
+            .then(
+              (message) => reply({ message }),
+              (error: unknown) =>
+                reply({
+                  error: error instanceof Error ? error.message : "Commit generation failed.",
+                }),
+            );
+        } else if (message.type === "cancelCommitDraft") {
+          if (draftRequest?.id === message.requestId) {
+            draftRequest.controller.abort();
+            draftRequest = null;
+          }
+        } else if (message.type === "chromeState") {
           this.latestChromeStateByProject.set(message.projectId, message.state);
           const allowed = new Set<string>();
           if (message.state.activityBarItems) {
@@ -157,6 +212,8 @@ export class CodeControlChannel {
     });
 
     const cleanup = () => {
+      draftRequest?.controller.abort();
+      draftRequest = null;
       const projectId = this.projectBySocket.get(socket);
       if (projectId !== undefined) {
         this.projectBySocket.delete(socket);
@@ -265,7 +322,7 @@ export class CodeControlChannel {
    * true if that project had a live connection and the (allowed) command was
    * sent. Routing by project keeps a click on one editor from driving another.
    */
-  runCommand(projectId: string, commandId: string): boolean {
+  runCommand(projectId: string, commandId: string, rawPresentation?: unknown): boolean {
     const isStaticAllowed = CODE_CHROME_COMMAND_ALLOWLIST.includes(commandId);
     const projectDynamicAllowed = this.dynamicAllowedCommandsByProject.get(projectId);
     const isDynamicAllowed = projectDynamicAllowed?.has(commandId) ?? false;
@@ -273,11 +330,24 @@ export class CodeControlChannel {
     if (!isStaticAllowed && !isDynamicAllowed) {
       return false;
     }
+    const presentation =
+      commandId === CODE_CHROME_COMMANDS.railPresentation
+        ? parseCodeRailPresentation(rawPresentation)
+        : undefined;
+    if (
+      (commandId === CODE_CHROME_COMMANDS.railPresentation && !presentation) ||
+      (commandId !== CODE_CHROME_COMMANDS.railPresentation && rawPresentation !== undefined)
+    )
+      return false;
     const socket = this.socketsByProject.get(projectId);
     if (!socket || socket.destroyed || !socket.writable) {
       return false;
     }
-    const message: CodeControlServerMessage = { type: "runCommand", commandId };
+    const message: CodeControlServerMessage = {
+      type: "runCommand",
+      commandId,
+      ...(presentation ? { presentation } : {}),
+    };
     socket.write(`${JSON.stringify(message)}\n`);
     return true;
   }
@@ -341,6 +411,7 @@ export class CodeControlChannel {
     this.extensionHostWaiters.clear();
     this.server?.close();
     this.server = null;
+    this.commitDraftHandler = null;
     this.chromeStateListeners.length = 0;
     if (this.urlFilePath) {
       try {

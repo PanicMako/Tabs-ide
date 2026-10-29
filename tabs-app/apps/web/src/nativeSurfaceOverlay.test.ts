@@ -8,6 +8,8 @@ import {
 describe("native surface overlay policy", () => {
   it("suspends native surfaces for blocking menus, dialogs, and resize overlays", () => {
     expect(isNativeSurfaceBlockingOverlaySlot("menu-positioner")).toBe(true);
+    expect(isNativeSurfaceBlockingOverlaySlot("study-project-deck")).toBe(true);
+    expect(isNativeSurfaceBlockingOverlaySlot("notification-history-panel")).toBe(true);
     expect(isNativeSurfaceBlockingOverlaySlot("popover-positioner")).toBe(true);
     expect(isNativeSurfaceBlockingOverlaySlot("dialog-backdrop")).toBe(true);
     expect(isNativeSurfaceBlockingOverlaySlot("dialog-popup")).toBe(true);

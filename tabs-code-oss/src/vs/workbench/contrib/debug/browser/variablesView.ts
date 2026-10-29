@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getTabsEmbeddedRowHeight } from '../../../browser/tabsEmbeddedLayout.js';
 import * as dom from '../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { HighlightedLabel, IHighlight } from '../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
@@ -368,7 +369,7 @@ interface IScopeTemplateData {
 class VariablesDelegate implements IListVirtualDelegate<IExpression | IScope> {
 
 	getHeight(element: IExpression | IScope): number {
-		return 22;
+		return getTabsEmbeddedRowHeight(22);
 	}
 
 	getTemplateId(element: IExpression | IScope): string {

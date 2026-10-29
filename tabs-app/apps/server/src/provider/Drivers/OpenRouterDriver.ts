@@ -1,15 +1,16 @@
 import {
   OpenRouterSettings,
-  OpenCodeSettings,
   ProviderDriverKind,
   validateServerProviderModelList,
   type ServerProvider,
 } from "@tabs/contracts";
+import { makeDeepSeekOpenRouterAdapterV2 } from "../../orchestration-v2/Adapters/DeepSeekOpenRouterAdapterV2";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
-import { HttpClient } from "effect/unstable/http";
 
 import { makeOpenRouterTextGeneration } from "../../textGeneration/OpenRouterTextGeneration.ts";
 import { ProviderAdapterRequestError, ProviderDriverError } from "../Errors.ts";
@@ -25,12 +26,7 @@ import { buildServerProvider } from "../providerSnapshot.ts";
 import { makeManualOnlyProviderMaintenanceCapabilities } from "../providerMaintenance.ts";
 import { getProviderSecret } from "../ProviderSecretStore.ts";
 import { mergeProviderInstanceEnvironment } from "../ProviderInstanceEnvironment.ts";
-import { OpenCodeRuntime } from "../opencodeRuntime.ts";
-import { makeOpenCodeRuntimeProbe, probeOpenCodeRuntime } from "../opencodeVersionProbe.ts";
-import { makeOpenCodeAdapterV2 } from "../../orchestration-v2/Adapters/OpenCodeAdapterV2.ts";
 import { ProviderAdapterOpenSessionError } from "../../orchestration-v2/ProviderAdapter.ts";
-import { IdAllocatorV2 } from "../../orchestration-v2/IdAllocator.ts";
-import { ServerConfig } from "../../config.ts";
 import { ProviderRuntimeGeneration } from "../ProviderRuntimeGeneration.ts";
 
 const decodeOpenRouterSettings = Schema.decodeSync(OpenRouterSettings);
@@ -59,6 +55,8 @@ export async function discoverOpenRouterModels(
       id?: unknown;
       name?: unknown;
       supported_parameters?: unknown;
+      context_length?: number;
+      top_provider?: { max_completion_tokens?: number };
     }>;
   };
   const models = validateServerProviderModelList(
@@ -77,7 +75,22 @@ export async function discoverOpenRouterModels(
       return [{ slug, name, isCustom: false, capabilities: null }];
     }),
   );
-  return { kind: "authenticated" as const, models };
+  return {
+    kind: "authenticated" as const,
+    models: models.map((model) => {
+      const metadata = payload.data?.find((item) => item.id === model.slug);
+      return {
+        ...model,
+        ...(typeof metadata?.context_length === "number" && metadata.context_length > 0
+          ? { contextWindow: metadata.context_length }
+          : {}),
+        ...(typeof metadata?.top_provider?.max_completion_tokens === "number" &&
+        metadata.top_provider.max_completion_tokens > 0
+          ? { maxTokens: metadata.top_provider.max_completion_tokens }
+          : {}),
+      };
+    }),
+  };
 }
 
 const withInstanceIdentity =
@@ -106,10 +119,14 @@ export const OpenRouterDriver: ProviderDriver<OpenRouterSettings, any> = {
   defaultConfig: (): OpenRouterSettings => decodeOpenRouterSettings({}),
   create: ({ instanceId, displayName, accentColor, environment, enabled, config }) =>
     Effect.gen(function* () {
-      const continuationIdentity = defaultProviderContinuationIdentity({
+      const baseIdentity = defaultProviderContinuationIdentity({
         driverKind: DRIVER_KIND,
         instanceId,
       });
+      const continuationIdentity = {
+        ...baseIdentity,
+        continuationKey: `${baseIdentity.continuationKey}:deepseek`,
+      };
       const stampIdentity = withInstanceIdentity({
         instanceId,
         displayName,
@@ -121,83 +138,29 @@ export const OpenRouterDriver: ProviderDriver<OpenRouterSettings, any> = {
       ).pipe(Effect.orElseSucceed(() => null));
       const effectiveConfig = {
         ...config,
+        harness: "deepseek" as const,
         enabled,
         apiKey: secureApiKey ?? config.apiKey,
       } satisfies OpenRouterSettings;
-      const runtime = yield* OpenCodeRuntime;
       const generation = yield* ProviderRuntimeGeneration;
-      const idAllocator = yield* IdAllocatorV2;
-      const serverConfig = yield* ServerConfig;
-      const httpClient = yield* HttpClient.HttpClient;
-      const harnessSettings = Schema.decodeSync(OpenCodeSettings)({
-        enabled,
-        binaryPath: effectiveConfig.binaryPath || "opencode",
-      });
       const processEnv = mergeProviderInstanceEnvironment(environment);
-      const runtimeProbe = yield* makeOpenCodeRuntimeProbe(
-        probeOpenCodeRuntime(harnessSettings, processEnv).pipe(
-          Effect.provideService(OpenCodeRuntime, runtime),
-          Effect.provideService(HttpClient.HttpClient, httpClient),
-        ),
-      );
-      // Credentials stay in the child process environment, never in the
-      // prompt, model selection, persisted thread or protocol logs.
-      const inheritedConfig = processEnv.OPENCODE_CONFIG_CONTENT;
-      let nativeConfig: Record<string, unknown> = {};
-      if (inheritedConfig) {
-        const parsed = yield* Effect.try({
-          try: () => JSON.parse(inheritedConfig) as unknown,
-          catch: () =>
-            new ProviderDriverError({
-              driver: DRIVER_KIND,
-              instanceId,
-              detail:
-                "OPENCODE_CONFIG_CONTENT contains invalid JSON for OpenRouter agent sessions.",
-            }),
-        });
-        if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-          return yield* new ProviderDriverError({
-            driver: DRIVER_KIND,
-            instanceId,
-            detail: "OPENCODE_CONFIG_CONTENT must be a JSON object for OpenRouter agent sessions.",
-          });
-        }
-        nativeConfig = parsed as Record<string, unknown>;
-      }
-      const nativeProviders = nativeConfig.provider as Record<string, unknown> | undefined;
-      const nativeOpenRouter = nativeProviders?.openrouter as Record<string, unknown> | undefined;
-      const nativeOptions = nativeOpenRouter?.options as Record<string, unknown> | undefined;
-      const agentEnvironment = {
-        ...processEnv,
-        OPENROUTER_API_KEY: effectiveConfig.apiKey,
-        OPENCODE_CONFIG_CONTENT: JSON.stringify({
-          ...nativeConfig,
-          provider: {
-            ...nativeProviders,
-            openrouter: {
-              ...nativeOpenRouter,
-              options: {
-                ...nativeOptions,
-                apiKey: effectiveConfig.apiKey,
-                baseURL: effectiveConfig.baseUrl.replace(/\/+$/u, ""),
-              },
-            },
-          },
-        }),
-      };
-      const makeAgentAdapter = (environment: NodeJS.ProcessEnv) =>
-        makeOpenCodeAdapterV2({
-          instanceId,
-          driver: DRIVER_KIND,
-          modelProviderId: "openrouter",
-          settings: harnessSettings,
-          environment,
-          runtime,
-          idAllocator,
-          serverConfig,
-        });
-      const nativeAdapter = makeAgentAdapter(agentEnvironment);
       let catalogModels: Awaited<ReturnType<typeof discoverOpenRouterModels>>["models"] = [];
+      const nativeAdapter = yield* makeDeepSeekOpenRouterAdapterV2({
+        instanceId,
+        settings: effectiveConfig,
+        environment: processEnv,
+        models: () => catalogModels,
+      });
+      const probeEngine = Effect.tryPromise(async () => {
+        const { stdout } = await promisify(execFile)(
+          effectiveConfig.deepseekBinaryPath || "dsh",
+          ["--version"],
+          { env: processEnv, timeout: 10_000, maxBuffer: 32_768 },
+        );
+        return { generation: "deepseek", version: stdout.trim() };
+      });
+      const engineIsReady = (engine: { generation: string } | null) =>
+        engine?.generation === "deepseek";
       const orchestrationAdapter = {
         ...nativeAdapter,
         openSession: (input: Parameters<typeof nativeAdapter.openSession>[0]) =>
@@ -209,7 +172,7 @@ export const OpenRouterDriver: ProviderDriver<OpenRouterSettings, any> = {
                 cause: "Configure an OpenRouter API key in Settings > Providers.",
               });
             }
-            const probed = yield* runtimeProbe.get.pipe(
+            const probed = yield* probeEngine.pipe(
               Effect.mapError(
                 (cause) =>
                   new ProviderAdapterOpenSessionError({
@@ -219,12 +182,12 @@ export const OpenRouterDriver: ProviderDriver<OpenRouterSettings, any> = {
                   }),
               ),
             );
-            if (probed.generation !== "v1") {
+            if (!engineIsReady(probed)) {
               return yield* new ProviderAdapterOpenSessionError({
                 driver: DRIVER_KIND,
                 providerSessionId: input.providerSessionId,
                 cause:
-                  "OpenRouter agent sessions currently require OpenCode 1.x. Configure its executable in Agent engine path; OpenCode 2 uses a different server API.",
+                  "Install DeepSeek Harness (@deepseek-ai/dsh@0.2.1-rc.2) and configure its executable in Providers > OpenRouter.",
               });
             }
             if (catalogModels.length === 0) {
@@ -247,25 +210,7 @@ export const OpenRouterDriver: ProviderDriver<OpenRouterSettings, any> = {
                   "The selected OpenRouter model is not in this account's tool-capable catalog. Refresh Providers and select an available model.",
               });
             }
-            // Register the live account catalog with the native engine rather
-            // than depending on its bundled, potentially older models.dev list.
-            const nativeAgentConfig = JSON.parse(agentEnvironment.OPENCODE_CONFIG_CONTENT);
-            nativeAgentConfig.provider.openrouter.models = {
-              ...(nativeOpenRouter?.models as Record<string, unknown> | undefined),
-              ...Object.fromEntries(
-                catalogModels.map((model) => [
-                  model.slug,
-                  {
-                    name: model.name,
-                    tool_call: true,
-                  },
-                ]),
-              ),
-            };
-            return yield* makeAgentAdapter({
-              ...agentEnvironment,
-              OPENCODE_CONFIG_CONTENT: JSON.stringify(nativeAgentConfig),
-            }).openSession(input);
+            return yield* nativeAdapter.openSession(input);
           }),
       };
       const maintenanceCapabilities = makeManualOnlyProviderMaintenanceCapabilities({
@@ -286,7 +231,7 @@ export const OpenRouterDriver: ProviderDriver<OpenRouterSettings, any> = {
           ),
           engine:
             effectiveConfig.enabled && effectiveConfig.apiKey.trim()
-              ? runtimeProbe.get.pipe(Effect.orElseSucceed(() => null))
+              ? probeEngine.pipe(Effect.orElseSucceed(() => null))
               : Effect.succeed(null),
         },
         { concurrency: "unbounded" },
@@ -302,10 +247,10 @@ export const OpenRouterDriver: ProviderDriver<OpenRouterSettings, any> = {
               catalogCheckedAt: new Date().toISOString(),
               models: discovery.models,
               probe: {
-                installed: engine?.generation === "v1",
+                installed: engineIsReady(engine),
                 version: engine?.version ?? null,
                 status:
-                  discovery.kind === "authenticated" && engine?.generation === "v1"
+                  discovery.kind === "authenticated" && engineIsReady(engine)
                     ? "ready"
                     : discovery.kind === "missing"
                       ? "warning"
@@ -322,14 +267,14 @@ export const OpenRouterDriver: ProviderDriver<OpenRouterSettings, any> = {
                     ? {
                         message: `OpenRouter rejected the configured API key (HTTP ${discovery.status}).`,
                       }
-                    : engine?.generation !== "v1"
+                    : !engineIsReady(engine)
                       ? {
                           message:
-                            "OpenRouter agent sessions require an OpenCode 1.x executable in Agent engine path. Code Review remains available through the API.",
+                            "Install DeepSeek Harness with npm install -g @deepseek-ai/dsh@0.2.1-rc.2, then set its executable path. Node.js 24.9 or newer is required.",
                         }
                       : {
                           message:
-                            "Agent sessions use the OpenCode engine with your OpenRouter API key.",
+                            "Agent sessions use DeepSeek Harness with your OpenRouter API key.",
                         }),
               },
             }),
@@ -388,7 +333,7 @@ export const OpenRouterDriver: ProviderDriver<OpenRouterSettings, any> = {
           provider: DRIVER_KIND,
           method,
           detail:
-            "OpenRouter agent sessions require orchestration V2 and the OpenCode agent engine. " +
+            "OpenRouter agent sessions require orchestration V2 and DeepSeek Harness. " +
             "Code Review remains available through the API in legacy orchestration.",
         });
 

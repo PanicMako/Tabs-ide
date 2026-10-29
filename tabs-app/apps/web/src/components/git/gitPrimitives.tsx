@@ -1,17 +1,8 @@
 import { AlertTriangle, Check, CircleAlert, Copy, Loader2, Wand2, X } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import { ModelSlug, ProviderInstanceId, type ModelSelection } from "@tabs/contracts";
+import type { ModelSelection } from "@tabs/contracts";
 import { useSettings, useUpdateSettings } from "../../hooks/useSettings";
-import { useServerConfig } from "../../state/settings";
-import {
-  applyProviderInstanceSettings,
-  deriveProviderInstanceEntries,
-  sortProviderInstanceEntries,
-} from "../../providerInstances";
-import { makeAppModelSelection, resolveAppModelSelectionState } from "../../modelSelection";
-import { FusedModelPicker } from "../chat/FusedModelPicker";
-import { PROVIDER_OPTIONS } from "../../session-logic";
-import { pickGitProviderInstance } from "../../lib/gitModelSelection";
+import { DebouncedSettingsInput } from "../settings/DebouncedSettingsInput";
 import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
 
@@ -64,8 +55,8 @@ export function Banner({
       className="w-full flex items-center justify-between gap-4 rounded-lg border px-4 py-3 mb-4"
       style={{ borderColor: c.border, backgroundColor: c.soft }}
     >
-      <div className="flex items-start gap-3 min-w-0 flex-1">
-        <Icon size={14} className="shrink-0 mt-0.5" style={{ color: c.color }} />
+      <div className="flex items-center gap-3 min-w-0 flex-1">
+        <Icon size={16} className="shrink-0" style={{ color: c.color }} />
         <div className="flex flex-col gap-1 min-w-0">
           <span className="text-xs font-semibold" style={{ color: c.color }}>
             {title}
@@ -165,16 +156,14 @@ export function FilePathLabel({ path, size = "text-[11px]" }: { path: string; si
   const file = parts.pop();
   const dir = parts.join("/");
   const content = (
-    <div className="min-w-0 flex-1">
+    <span className="min-w-0 flex-1 flex items-baseline gap-1.5 truncate">
       {dir && (
-        <div className="text-[10px] font-mono text-muted-foreground/70 truncate leading-normal pb-0.5">
+        <span className="text-[10px] font-mono text-muted-foreground/60 truncate min-w-0 shrink">
           {dir}/
-        </div>
+        </span>
       )}
-      <div className={`${size} font-mono text-foreground/90 truncate leading-normal pb-0.5`}>
-        {file}
-      </div>
-    </div>
+      <span className={`${size} font-mono text-foreground/90 shrink-0 font-medium`}>{file}</span>
+    </span>
   );
   return (
     <Tooltip>
@@ -281,7 +270,7 @@ export function InlineForm({
 
   return (
     <div
-      className={`flex items-center gap-2 bg-muted/50 border border-border rounded-lg px-2.5 py-2 ${className || "mb-2"}`}
+      className={`flex items-center gap-2 bg-muted/50 border border-border/60 rounded-lg px-2.5 py-2 focus-blur-glow-within ${className || "mb-2"}`}
     >
       <input
         autoFocus
@@ -368,7 +357,7 @@ export const Field = ({
 export const TextInput = (props: React.InputHTMLAttributes<HTMLInputElement>) => (
   <input
     {...props}
-    className={`w-full border border-border rounded-lg text-foreground text-xs placeholder:text-muted-foreground/50 px-3 py-2 outline-none focus:border-border transition-colors ${props.className || ""}`}
+    className={`w-full border border-border/60 rounded-lg text-foreground text-xs placeholder:text-muted-foreground/50 px-3 py-2 outline-none focus-blur-glow ${props.className || ""}`}
     style={{ backgroundColor: "var(--bg-base)" }}
   />
 );
@@ -459,21 +448,7 @@ export function DiffSummaryCard({
 }: DiffSummaryCardProps) {
   const [copied, setCopied] = useState(false);
   const settings = useSettings();
-  const serverConfig = useServerConfig();
-
-  const activeSelection = useMemo(() => {
-    return resolveAppModelSelectionState(
-      {
-        ...settings,
-        ...(settings?.gitAi?.gitTextGenerationModelSelection
-          ? { textGenerationModelSelection: settings.gitAi.gitTextGenerationModelSelection }
-          : {}),
-      },
-      serverConfig?.providers ?? [],
-    );
-  }, [settings, serverConfig?.providers]);
-
-  const activeModelDisplay = modelName || activeSelection.model;
+  const activeModelDisplay = modelName || settings.commitDraftLocalModel;
 
   const showSummary = settings?.gitAi?.includeSummarySection ?? true;
   const showKeyChanges = settings?.gitAi?.includeKeyChangesSection ?? true;
@@ -585,94 +560,24 @@ export interface GitModelPickerProps {
 }
 
 export function GitModelPicker({
-  selection,
-  onSelect,
   className,
-  persistSelection = true,
-  ariaLabel = "Select AI model",
+  ariaLabel = "Local Git model",
   disabled = false,
 }: GitModelPickerProps) {
   const settings = useSettings();
-  const updateSettings = useUpdateSettings();
-  const serverConfig = useServerConfig();
-  const providers = serverConfig?.providers ?? [];
-  const active =
-    selection ??
-    settings.gitAi?.gitTextGenerationModelSelection ??
-    resolveAppModelSelectionState(settings, providers);
-  const entries = sortProviderInstanceEntries(
-    applyProviderInstanceSettings(deriveProviderInstanceEntries(providers), settings),
-  ).filter((entry) => entry.enabled && entry.isAvailable);
-  const currentEntry = entries.find((entry) => entry.instanceId === active.instanceId);
-  const driver =
-    PROVIDER_OPTIONS.find((option) => option.value === currentEntry?.driverKind)?.value ?? "codex";
-  // Fusion uses driver tabs; keep the real configured instance ID when dispatching.
-  const catalog = PROVIDER_OPTIONS.flatMap(({ value }) => {
-    const entry = pickGitProviderInstance(entries, value, active.instanceId);
-    return entry ? [{ ...entry.snapshot, instanceId: ProviderInstanceId.makeUnsafe(value) }] : [];
-  });
-  const save = (next: ModelSelection) => {
-    if (persistSelection)
-      updateSettings.updateSettings({
-        gitAi: { gitTextGenerationModelSelection: next, modelSourceMode: "connected" },
-      });
-    onSelect?.(next);
-  };
-  const instances = entries.filter((entry) => entry.driverKind === currentEntry?.driverKind);
+  const { updateSettings } = useUpdateSettings();
   return (
-    <div className={cn("flex flex-wrap items-center gap-2", className)}>
-      {instances.length > 1 && (
-        <Select
-          aria-label="Provider account for Git"
-          value={active.instanceId}
-          disabled={disabled}
-          onChange={(event) => {
-            const entry = entries.find((item) => item.instanceId === event.target.value);
-            if (entry)
-              save(
-                makeAppModelSelection(
-                  entry.instanceId,
-                  entry.models.find((model) => model.slug === active.model)?.slug ??
-                    entry.models[0]?.slug ??
-                    active.model,
-                ),
-              );
-          }}
-        >
-          {instances.map((entry) => (
-            <option key={entry.instanceId} value={entry.instanceId}>
-              {entry.displayName}
-            </option>
-          ))}
-        </Select>
-      )}
-      <FusedModelPicker
-        provider={driver}
-        model={active.model as ModelSlug}
-        lockedProvider={null}
-        providers={catalog}
-        prompt=""
-        onPromptChange={() => {}}
-        modelOptions={active.options}
-        ariaLabel={ariaLabel}
-        disabled={disabled || catalog.length === 0}
-        availableProviders={catalog.map(
-          (entry) => entry.driver as import("../../session-logic").ProviderPickerKind,
-        )}
-        labelOverride={
-          !currentEntry?.models.some((model) => model.slug === active.model)
-            ? active.model
-            : undefined
+    <div className={cn("flex items-center gap-2", className)}>
+      <span className="text-xs text-muted-foreground">Ollama</span>
+      <DebouncedSettingsInput
+        aria-label={ariaLabel}
+        disabled={disabled}
+        value={settings.commitDraftLocalModel}
+        onPersist={(model) =>
+          updateSettings({ commitDraftLocalModel: model.trim() || "qwen3:1.7b" })
         }
-        triggerClassName="border border-border rounded-lg px-3 h-10 text-foreground"
-        side="bottom"
-        onProviderModelChange={(nextDriver, model, options) => {
-          const entry = pickGitProviderInstance(entries, nextDriver, active.instanceId);
-          if (entry) save(makeAppModelSelection(entry.instanceId, model, options));
-        }}
-        onModelOptionsChange={(options) =>
-          save(makeAppModelSelection(active.instanceId, active.model, options))
-        }
+        placeholder="qwen3:1.7b"
+        spellCheck={false}
       />
     </div>
   );
