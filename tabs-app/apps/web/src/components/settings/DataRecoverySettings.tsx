@@ -3,6 +3,7 @@ import type { DesktopBridge } from "@tabs/contracts";
 import { useConfirm } from "../../hooks/useConfirm";
 import { ScopedPortalContext } from "../../lib/scopedPortal";
 import { Button } from "../ui/button";
+import { cn } from "../../lib/utils";
 
 type Inventory = Awaited<ReturnType<NonNullable<DesktopBridge["listDataBackups"]>>>;
 const reasons: Record<string, string> = {
@@ -19,7 +20,7 @@ function size(bytes: number): string {
     : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-export default function DataRecoverySettings() {
+export default function DataRecoverySettings({ className }: { className?: string } = {}) {
   const [inventory, setInventory] = useState<Inventory | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -50,9 +51,28 @@ export default function DataRecoverySettings() {
   };
   return (
     <ScopedPortalContext.Provider value={portal ?? undefined}>
-      <section ref={setPortal} aria-label="Backups and recovery" className="space-y-3 py-3 text-sm">
-        <h3 className="font-normal">Backups &amp; recovery</h3>
-        <p className="text-xs text-muted-foreground">
+      <section
+        ref={setPortal}
+        aria-label="Backups and recovery"
+        className={cn("space-y-3 px-4 py-4 sm:px-5 text-sm", className)}
+      >
+        <h3
+          className="text-[14.5px] font-medium text-foreground tracking-[0.035em]"
+          style={{
+            fontFamily: "var(--font-row, var(--font-sans))",
+            fontWeight: "var(--font-row-weight, 500)" as React.CSSProperties["fontWeight"],
+            letterSpacing: "var(--font-row-tracking, 0.035em)",
+          }}
+        >
+          Backups &amp; recovery
+        </h3>
+        <p
+          className="text-xs text-muted-foreground/80 leading-relaxed font-normal"
+          style={{
+            fontFamily: "var(--font-supporting, var(--font-sans))",
+            fontWeight: "var(--font-supporting-weight, 400)" as React.CSSProperties["fontWeight"],
+          }}
+        >
           Tabs snapshots local data before a new version opens it, and at most once a day on
           startup. Saved project records, chats, editor state, extensions and stored sessions are
           included. Project source files outside Tabs are not copied. Recovery requires a snapshot

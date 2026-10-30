@@ -175,3 +175,8 @@ html
   border-top-left-radius: 0 !important;
   border-top-right-radius: 0 !important;
 }
+
+/* Metrics grid buttons share straight dividing seams */
+html .diagnostics-metrics > button {
+  border-radius: 0 !important;
+}

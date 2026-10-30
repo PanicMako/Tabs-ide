@@ -23,11 +23,22 @@ export function CommitDraftSettings() {
             spellCheck={false}
           />
         }
-      />
-      <p className="text-xs text-muted-foreground">
-        Start Ollama, then download the model once with <code>ollama pull qwen3:1.7b</code>. These
-        preferences apply across your workspaces. Generation never stages or commits files.
-      </p>
+      >
+        <p
+          className="mt-2.5 text-xs text-muted-foreground/80 leading-relaxed font-normal"
+          style={{
+            fontFamily: "var(--font-supporting, var(--font-sans))",
+            fontWeight: "var(--font-supporting-weight, 400)" as React.CSSProperties["fontWeight"],
+          }}
+        >
+          Start Ollama, then download the model once with{" "}
+          <code className="font-mono text-[11px] bg-muted/60 px-1 py-0.5 rounded border border-border/40">
+            ollama pull qwen3:1.7b
+          </code>
+          . These preferences apply across your workspaces. Generation never stages or commits
+          files.
+        </p>
+      </SettingsRow>
     </SettingsSection>
   );
 }

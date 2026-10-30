@@ -42,6 +42,7 @@
     transparent 75%
   );
 }
+html .diagnostics-metrics > button,
 .diagnostics-metrics > button {
   display: flex;
   flex-direction: column;
@@ -53,6 +54,7 @@
   cursor: pointer;
   color: var(--foreground);
   border-right: 1px solid var(--border);
+  border-radius: 0 !important;
   transition: background-color 150ms ease;
 }
 .diagnostics-metrics > button:last-child {
@@ -64,7 +66,7 @@
 .diagnostics-metrics > button:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: -4px;
-  border-radius: var(--radius-surface);
+  border-radius: 0 !important;
 }
 .diagnostics-metrics > button > span {
   color: var(--muted-foreground);
