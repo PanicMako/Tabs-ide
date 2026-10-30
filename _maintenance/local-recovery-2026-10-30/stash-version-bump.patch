@@ -1,0 +1,48 @@
+diff --git a/tabs-main/apps/desktop/package.json b/tabs-main/apps/desktop/package.json
+index bd9c517e2..f11e4d6a2 100644
+--- a/tabs-main/apps/desktop/package.json
++++ b/tabs-main/apps/desktop/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "@tabs/desktop",
+-  "version": "1.2.119",
++  "version": "1.2.122",
+   "private": true,
+   "main": "dist-electron/main.js",
+   "scripts": {
+diff --git a/tabs-main/apps/server/package.json b/tabs-main/apps/server/package.json
+index 6d5567fa4..f0f074cd2 100644
+--- a/tabs-main/apps/server/package.json
++++ b/tabs-main/apps/server/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "tabs",
+-  "version": "1.2.119",
++  "version": "1.2.122",
+   "license": "MIT",
+   "repository": {
+     "type": "git",
+diff --git a/tabs-main/apps/web/package.json b/tabs-main/apps/web/package.json
+index 95ac37fae..7f30a58f7 100644
+--- a/tabs-main/apps/web/package.json
++++ b/tabs-main/apps/web/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "@tabs/web",
+-  "version": "1.2.119",
++  "version": "1.2.122",
+   "private": true,
+   "type": "module",
+   "scripts": {
+diff --git a/tabs-main/packages/contracts/package.json b/tabs-main/packages/contracts/package.json
+index 7c4c3b904..9395160fc 100644
+--- a/tabs-main/packages/contracts/package.json
++++ b/tabs-main/packages/contracts/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "@tabs/contracts",
+-  "version": "1.2.119",
++  "version": "1.2.122",
+   "private": true,
+   "files": [
+     "dist"
