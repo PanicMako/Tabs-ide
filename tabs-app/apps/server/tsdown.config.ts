@@ -8,6 +8,8 @@ export default defineConfig({
   },
   outDir: "dist",
   sourcemap: true,
+  // Strip whitespace/comments without rewriting functions or their names.
+  minify: { compress: false, mangle: false, codegen: { removeWhitespace: true } },
   clean: true,
   // Bundle internal workspace packages into the server output so the packaged
   // desktop app doesn't need to resolve `workspace:*` deps at runtime. This

@@ -1,10 +1,11 @@
 export interface StartupSplashState {
   ready: boolean;
+  dismissed: boolean;
   error: string | null;
   delayed: boolean;
 }
 
-const initial: StartupSplashState = { ready: false, error: null, delayed: false };
+const initial: StartupSplashState = { ready: false, dismissed: false, error: null, delayed: false };
 let snapshot = initial;
 let active = false;
 const listeners = new Set<() => void>();
