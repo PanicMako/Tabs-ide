@@ -1,0 +1,315 @@
+.settings-nav-icon {
+  display: block;
+  flex: none;
+  overflow: visible;
+}
+.settings-nav-icon * {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.settings-nav-icon .sni-lamp {
+  transform-origin: 12px 9px;
+  transform-box: view-box;
+}
+.settings-nav-icon .sni-gauge-needle {
+  transform-origin: 16px 20px;
+  transform-box: view-box;
+}
+.settings-nav-icon .sni-bell {
+  transform-origin: top center;
+}
+.settings-nav-icon .sni-book-page {
+  opacity: 0;
+  transform-origin: left center;
+}
+.settings-nav-icon .sni-lamp-light,
+.settings-nav-icon .sni-bell-signal {
+  opacity: 0;
+}
+
+/* Only the selected scene loops. Other scenes react to hover or keyboard focus. */
+[data-settings-nav-item]:is(:hover, :focus-visible, [aria-current="page"]) .settings-nav-icon {
+  --sni-duration: 1100ms;
+}
+[data-settings-nav-item]:is(:hover, :focus-visible, [aria-current="page"])
+  .settings-nav-icon
+  :is(.sni-link-first, .sni-link-second) {
+  animation: sni-link var(--sni-duration) ease-in-out;
+}
+[data-settings-nav-item]:is(:hover, :focus-visible, [aria-current="page"]) .sni-link-second {
+  animation-direction: reverse;
+}
+[data-settings-nav-item]:is(:hover, :focus-visible, [aria-current="page"]) .sni-link-bridge {
+  animation: sni-ink var(--sni-duration) ease-in-out;
+}
+[data-settings-nav-item]:is(:hover, :focus-visible, [aria-current="page"]) .sni-lamp {
+  animation: sni-lamp var(--sni-duration) ease-in-out;
+}
+[data-settings-nav-item]:is(:hover, :focus-visible, [aria-current="page"])
+  :is(.sni-lamp-light, .sni-bell-signal) {
+  animation: sni-signal var(--sni-duration) ease-out;
+}
+[data-settings-nav-item]:is(:hover, :focus-visible, [aria-current="page"])
+  :is(.sni-profile-first, .sni-profile-second) {
+  animation: sni-profile var(--sni-duration) ease-in-out;
+}
+[data-settings-nav-item]:is(:hover, :focus-visible, [aria-current="page"]) .sni-profile-second {
+  animation-direction: reverse;
+}
+[data-settings-nav-item]:is(:hover, :focus-visible, [aria-current="page"]) .sni-liquid {
+  animation: sni-liquid var(--sni-duration) ease-in-out;
+}
+[data-settings-nav-item]:is(:hover, :focus-visible, [aria-current="page"])
+  :is(.sni-bubble-first, .sni-bubble-second) {
+  animation: sni-bubble var(--sni-duration) ease-out;
+}
+[data-settings-nav-item]:is(:hover, :focus-visible, [aria-current="page"]) .sni-bubble-second {
+  animation-delay: 100ms;
+}
+[data-settings-nav-item]:is(:hover, :focus-visible, [aria-current="page"]) .sni-heartbeat {
+  animation: sni-trace var(--sni-duration) ease-in-out;
+  stroke-dasharray: 42;
+}
+[data-settings-nav-item]:is(:hover, :focus-visible, [aria-current="page"]) .sni-magnifier {
+  animation: sni-inspect var(--sni-duration) ease-in-out;
+}
+[data-settings-nav-item]:is(:hover, :focus-visible, [aria-current="page"]) .sni-film {
+  animation: sni-film var(--sni-duration) steps(4, end);
+}
+[data-settings-nav-item]:is(:hover, :focus-visible, [aria-current="page"]) .sni-motion-node {
+  animation: sni-node var(--sni-duration) ease-in-out;
+}
+[data-settings-nav-item]:is(:hover, :focus-visible, [aria-current="page"]) .sni-robot-gaze {
+  animation: sni-gaze var(--sni-duration) ease-in-out;
+}
+[data-settings-nav-item]:is(:hover, :focus-visible, [aria-current="page"]) .sni-robot-eye {
+  animation: sni-blink var(--sni-duration) ease-in-out;
+}
+[data-settings-nav-item]:is(:hover, :focus-visible, [aria-current="page"]) .sni-antenna {
+  animation: sni-ink var(--sni-duration) ease-in-out;
+}
+[data-settings-nav-item]:is(:hover, :focus-visible, [aria-current="page"]) .sni-roller {
+  animation: sni-paint var(--sni-duration) ease-in-out;
+}
+[data-settings-nav-item]:is(:hover, :focus-visible, [aria-current="page"]) .sni-bell {
+  animation: sni-ring var(--sni-duration) ease-in-out;
+}
+[data-settings-nav-item]:is(:hover, :focus-visible, [aria-current="page"]) .sni-gauge-needle {
+  animation: sni-meter var(--sni-duration) ease-in-out;
+}
+[data-settings-nav-item]:is(:hover, :focus-visible, [aria-current="page"]) .sni-book-page {
+  animation: sni-page var(--sni-duration) ease-in-out;
+}
+[data-settings-nav-item]:is(:hover, :focus-visible, [aria-current="page"]) .sni-commit {
+  animation: sni-commit var(--sni-duration) ease-in-out;
+}
+[data-settings-nav-item]:is(:hover, :focus-visible, [aria-current="page"]) .sni-key {
+  animation: sni-key var(--sni-duration) ease-in-out;
+}
+
+@keyframes sni-link {
+  35%,
+  65% {
+    transform: translate(-0.8px, 0.8px);
+  }
+}
+@keyframes sni-ink {
+  45% {
+    opacity: 0.4;
+  }
+}
+@keyframes sni-lamp {
+  35%,
+  65% {
+    transform: rotate(-9deg);
+  }
+}
+@keyframes sni-signal {
+  25%,
+  65% {
+    opacity: 0.7;
+  }
+}
+@keyframes sni-profile {
+  40%,
+  65% {
+    transform: translateX(1px);
+    opacity: 0.55;
+  }
+}
+@keyframes sni-liquid {
+  35% {
+    transform: skewX(-6deg);
+  }
+  70% {
+    transform: skewX(4deg);
+  }
+}
+@keyframes sni-bubble {
+  65% {
+    transform: translateY(-5px) scale(0.6);
+    opacity: 0;
+  }
+  66% {
+    transform: none;
+    opacity: 0;
+  }
+}
+@keyframes sni-trace {
+  0% {
+    stroke-dashoffset: 42;
+  }
+  80%,
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes sni-inspect {
+  45%,
+  65% {
+    transform: translate(-2px, 1px);
+  }
+}
+@keyframes sni-film {
+  50% {
+    transform: translateX(1.5px);
+  }
+}
+@keyframes sni-node {
+  45% {
+    transform: translate(-3px, 3px);
+  }
+}
+@keyframes sni-gaze {
+  25%,
+  45% {
+    transform: translateX(1.2px);
+  }
+  65%,
+  80% {
+    transform: translateX(-0.7px);
+  }
+}
+@keyframes sni-blink {
+  0%,
+  47%,
+  61%,
+  100% {
+    transform: scaleY(1);
+  }
+  53%,
+  55% {
+    transform: scaleY(0.12);
+  }
+}
+@keyframes sni-paint {
+  35%,
+  65% {
+    transform: translateY(-2px);
+  }
+}
+@keyframes sni-ring {
+  20% {
+    transform: rotate(10deg);
+  }
+  40% {
+    transform: rotate(-8deg);
+  }
+  60% {
+    transform: rotate(5deg);
+  }
+  80% {
+    transform: rotate(-2deg);
+  }
+}
+@keyframes sni-meter {
+  35% {
+    transform: rotate(-35deg);
+  }
+  70% {
+    transform: rotate(12deg);
+  }
+}
+@keyframes sni-page {
+  0%,
+  100% {
+    opacity: 0;
+    transform: scaleX(1);
+  }
+  30%,
+  65% {
+    opacity: 1;
+  }
+  75% {
+    opacity: 0;
+    transform: scaleX(0.1);
+  }
+}
+@keyframes sni-commit {
+  0% {
+    transform: translate(7px, -10px);
+    opacity: 0;
+  }
+  25%,
+  75% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-7px, 7px);
+    opacity: 0;
+  }
+}
+@keyframes sni-key {
+  30%,
+  55% {
+    transform: scale(0.8);
+    opacity: 0.45;
+  }
+}
+
+[data-settings-nav-item][aria-current="page"] .settings-nav-icon {
+  --sni-duration: 3600ms;
+}
+[data-settings-nav-item][aria-current="page"] .settings-nav-icon * {
+  animation-iteration-count: infinite;
+}
+
+[data-settings-nav-item]:is(:hover, :focus-visible, [aria-current="page"]) .sni-compass-needle {
+  animation: sni-compass var(--sni-duration) ease-in-out;
+  animation-iteration-count: inherit;
+}
+[data-settings-nav-item][aria-current="page"] .sni-compass-needle {
+  animation-iteration-count: infinite;
+}
+[data-settings-nav-item="general"][aria-current="page"] .settings-nav-icon {
+  --sni-duration: 5600ms;
+}
+/* A quiet bearing check; the dial and central pin never move. */
+@keyframes sni-compass {
+  0%,
+  12%,
+  58%,
+  100% {
+    transform: rotate(0deg);
+  }
+  28% {
+    transform: rotate(-10deg);
+  }
+  42% {
+    transform: rotate(6deg);
+  }
+  50% {
+    transform: rotate(-2deg);
+  }
+}
+
+/* Follow both Tabs' preference and the OS fallback before settings have hydrated. */
+:root[data-reduced-motion="reduce"] .settings-nav-icon *,
+[data-settings-icon-motion="off"] .settings-nav-icon * {
+  animation: none !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-reduced-motion="no-preference"]) .settings-nav-icon * {
+    animation: none !important;
+  }
+}

@@ -19,6 +19,7 @@ import type {
   ThreadPullRequestLink,
   ThreadTitleRegeneration,
   ProjectIconOverride,
+  RepositoryIdentity,
   ThreadEnvMode,
 } from "@tabs/contracts";
 
@@ -105,6 +106,7 @@ export interface TurnDiffSummary {
 }
 
 export interface Project {
+  repositoryIdentity?: RepositoryIdentity | null | undefined;
   id: ProjectId;
   environmentId?: EnvironmentId | undefined;
   name: string;

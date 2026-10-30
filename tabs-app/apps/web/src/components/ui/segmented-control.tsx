@@ -82,7 +82,10 @@ export function SegmentedControl<T extends string>({
       role={itemRole === "button" ? "group" : "radiogroup"}
       data-current={value}
       aria-label={ariaLabel}
-      className={cn("tabs-segmented inline-flex items-center rounded-lg select-none", className)}
+      className={cn(
+        "tabs-segmented inline-flex items-center rounded-full select-none w-fit max-w-full",
+        className,
+      )}
     >
       {options.map((opt, index) => {
         const isSelected = opt.value === value;
@@ -121,8 +124,8 @@ export function SegmentedControl<T extends string>({
               }
             }}
             className={cn(
-              "font-medium rounded-md transition-colors whitespace-nowrap cursor-pointer flex items-center justify-center gap-1.5",
-              size === "sm" ? "px-2.5 py-1 text-xs" : "px-3.5 py-1.5 text-xs",
+              "font-medium rounded-full transition-colors whitespace-nowrap cursor-pointer flex items-center justify-center gap-1.5",
+              size === "sm" ? "h-7 px-3 py-0.5 text-xs" : "h-8 px-3.5 py-1 text-xs",
               isSelected
                 ? "text-foreground"
                 : "text-muted-foreground hover:text-foreground hover:bg-muted/40",

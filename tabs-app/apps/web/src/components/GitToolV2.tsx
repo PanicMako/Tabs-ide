@@ -796,9 +796,9 @@ export function GitToolV2({
         )}
         {modal === "createPR" && (
           <CreatePRModal
+            cwd={cwd}
             currentBranch={branchName}
             branches={allBranches}
-            lastSubject={commits[0]?.subject || ""}
             onClose={closeModal}
             onCreate={async (pr) => {
               if (!api) return;

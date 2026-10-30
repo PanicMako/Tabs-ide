@@ -3,7 +3,7 @@ import { PROVIDER_OPTIONS, type ProviderPickerKind } from "./session-logic";
 import { resolveSelectableProvider } from "./providerModels";
 
 describe("Provider Selection Edge Cases", () => {
-  it("ensures PROVIDER_OPTIONS contains all active providers including gemini in type union", () => {
+  it("ensures PROVIDER_OPTIONS contains all active providers", () => {
     expect(PROVIDER_OPTIONS.length).toBeGreaterThanOrEqual(7);
     for (const option of PROVIDER_OPTIONS) {
       expect(option.available).toBe(true);

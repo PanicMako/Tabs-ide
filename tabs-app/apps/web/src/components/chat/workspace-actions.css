@@ -1,0 +1,245 @@
+.chat-workspace-root {
+  container-type: inline-size;
+  container-name: chat-workspace;
+}
+.workspace-actions-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  color: var(--foreground);
+  -webkit-app-region: no-drag;
+}
+.workspace-action-capsule,
+.workspace-action-pane {
+  border: 1px solid var(--border);
+  background: var(--card);
+  border-radius: var(--radius-surface);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--foreground) 5%, transparent);
+}
+.workspace-action-identity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+}
+.workspace-action-project-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.workspace-action-icon-button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+}
+.workspace-action-icon-button:hover {
+  background: var(--accent);
+  color: var(--foreground);
+}
+.workspace-action-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px;
+}
+.workspace-action-tabs > button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  min-height: 38px;
+  padding: 8px 12px;
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+.workspace-action-tabs > button[aria-selected="true"] {
+  background: var(--foreground);
+  color: var(--background);
+  flex: 1.6;
+}
+.workspace-action-tabs > button:not([aria-selected="true"]) > span {
+  display: none;
+}
+.workspace-action-tabs > button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.workspace-action-pane {
+  min-width: 0;
+  padding: 14px;
+}
+.workspace-action-pane[hidden] {
+  display: none;
+}
+.workspace-action-pane .workspace-context {
+  padding-bottom: 8px;
+}
+.workspace-action-pane .workspace-git > button,
+.workspace-action-pane .workspace-git > div > button {
+  min-height: 38px;
+}
+.workspace-action-pane .workspace-git > div {
+  min-width: 0;
+}
+.workspace-action-agents > section:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+.workspace-actions-floating {
+  position: absolute;
+  right: 12px;
+  top: 100%;
+  z-index: 40;
+  width: min(var(--workspace-actions-width, 300px), calc(100% - 32px));
+  max-height: calc(100dvh - 160px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-bottom: 8px;
+}
+.workspace-actions-rail {
+  position: absolute;
+  z-index: 25;
+  top: 100%;
+  right: 16px;
+  width: min(var(--workspace-actions-width, 300px), calc(100% - 32px));
+  max-height: calc(100dvh - 320px);
+  overflow: auto;
+  padding: 8px 0 16px;
+  scrollbar-width: thin;
+}
+.workspace-actions-rail[hidden] {
+  display: none;
+}
+
+.workspace-action-icon-button,
+.workspace-action-tabs > button {
+  border-radius: var(--radius-control);
+}
+.workspace-action-tabs > button {
+  transition:
+    flex 180ms ease,
+    background-color 140ms ease,
+    color 140ms ease;
+}
+.workspace-action-tabs > button:hover:not([aria-selected="true"]) {
+  background: var(--accent);
+  color: var(--foreground);
+}
+.workspace-action-pane:not(.workspace-action-run):not(.workspace-action-agents) {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.workspace-git > button,
+.workspace-git > div {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--card);
+}
+.workspace-git > div {
+  padding: 4px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .workspace-action-tabs > button {
+    transition: none;
+  }
+}
+
+/* Keep inactive destinations compact; the current destination owns the dock. */
+.workspace-action-tabs > button {
+  flex: 0 0 44px;
+  padding-inline: 0;
+}
+.workspace-action-tabs > button[aria-selected="true"] {
+  flex: 1 1 auto;
+  padding-inline: 12px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+.workspace-git > .workspace-branch-card {
+  padding: 12px;
+  border-radius: var(--radius-thumbnail);
+}
+.workspace-branch-card > div:first-child {
+  min-width: 0;
+}
+.workspace-branch-card .workspace-pinned-branch {
+  border-radius: 999px;
+  padding: 10px 14px;
+}
+.workspace-pull-request {
+  padding: 14px 18px;
+  border-radius: var(--radius-thumbnail) !important;
+}
+.workspace-pull-request > span {
+  overflow-wrap: anywhere;
+}
+
+.workspace-branch-picker {
+  width: min(380px, calc(100vw - 32px));
+  max-height: min(440px, var(--available-height));
+  background: var(--popover);
+  color: var(--popover-foreground);
+  border: 1px solid var(--border);
+  box-shadow: 0 16px 48px color-mix(in srgb, var(--foreground) 16%, transparent);
+}
+.workspace-branch-picker-viewport {
+  padding: 0 !important;
+}
+.workspace-branch-search input {
+  min-width: 0;
+}
+.workspace-branch-results {
+  scrollbar-width: thin;
+}
+.workspace-branch-result:focus-within {
+  background: var(--accent);
+  outline: 1px solid var(--ring);
+  outline-offset: -1px;
+}
+.workspace-branch-result > button:first-child {
+  padding-block: 6px;
+}
+
+.chat-status-area {
+  flex-shrink: 0;
+}
+
+/* Use the actual Agents sidebar state rather than guessing from window width. */
+:has(> .agents-tab[data-collapsed="true"]) .chat-workspace-root {
+  --workspace-actions-width: 360px;
+}
+:has(> .agents-tab[data-collapsed="false"]) .chat-workspace-root {
+  --workspace-actions-width: 300px;
+}
+@container chat-workspace (max-width: 800px) {
+  .workspace-actions-rail {
+    width: min(300px, calc(100% - 32px));
+  }
+}
+.chat-status-area {
+  position: relative;
+  z-index: 35;
+  padding-inline: 16px;
+}
+
+/* Banner padding may overlap the workspace rail, but must not block its controls. */
+.chat-status-area {
+  pointer-events: none;
+}
+.chat-status-area [data-slot="alert"] {
+  pointer-events: auto;
+}

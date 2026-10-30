@@ -93,7 +93,7 @@ export const CompanionPRPanel = memo(function CompanionPRPanel({
               <CreatePRModal
                 currentBranch={branchName}
                 branches={branches.data?.branches ?? []}
-                lastSubject=""
+                cwd={target.cwd}
                 onClose={() => setCreating(false)}
                 onCreate={async (pr) => {
                   if (!api) return;

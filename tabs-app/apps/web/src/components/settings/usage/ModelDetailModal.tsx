@@ -34,7 +34,7 @@ import {
   OpenRouterIcon,
   type Icon,
 } from "../../Icons";
-import { SparklesIcon, TagIcon } from "lucide-react";
+import { CpuIcon, TagIcon } from "lucide-react";
 
 const PROVIDER_ICONS: Record<string, Icon> = {
   codex: OpenAI,
@@ -55,7 +55,7 @@ const PROVIDER_ICONS: Record<string, Icon> = {
 function getProviderInfo(provider: string): { name: string; icon: Icon } {
   const normKey =
     provider === "claude" ? "claudeAgent" : provider === "gemini" ? "googleGemini" : provider;
-  const icon = PROVIDER_ICONS[normKey] ?? PROVIDER_ICONS[provider] ?? SparklesIcon;
+  const icon = PROVIDER_ICONS[normKey] ?? PROVIDER_ICONS[provider] ?? CpuIcon;
   const name =
     provider === "antigravity"
       ? "Antigravity"

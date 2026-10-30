@@ -169,6 +169,10 @@ function mapProjectsFromReadModel(
       environmentId: environmentId ?? existing?.environmentId,
       name: project.title,
       cwd: project.workspaceRoot,
+      repositoryIdentity:
+        project.repositoryIdentity === undefined
+          ? existing?.repositoryIdentity
+          : project.repositoryIdentity,
       defaultModelSelection:
         existing?.defaultModelSelection ??
         (project.defaultModelSelection
@@ -643,6 +647,10 @@ function mapProjectsFromV2Shells(
       name: project.title,
       title: project.title,
       cwd: project.workspaceRoot,
+      repositoryIdentity:
+        project.repositoryIdentity === undefined
+          ? existing?.repositoryIdentity
+          : project.repositoryIdentity,
       defaultModelSelection:
         existing?.defaultModelSelection ??
         (project.defaultModelSelection

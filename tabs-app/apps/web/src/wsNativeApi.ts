@@ -1,3 +1,6 @@
+import { ScheduledTaskListResult } from "@tabs/contracts";
+import { restoreSnapshotBodies } from "@tabs/shared/orchestrationV2DedupedBodies";
+import { mergeProviderWorkspaceSnapshots } from "@tabs/shared/providerWorkspaceSnapshots";
 import {
   GitActionProgressEvent,
   type GitRunStackedActionResult,
@@ -9,6 +12,8 @@ import {
   OrchestrationV2ThreadStreamItem,
   type ContextMenuItem,
   type NativeApi,
+  type ServerConfig,
+  type OrchestrationV2ThreadProjection,
   type AssetCreateUrlResult,
   ServerConfigStreamEvent,
   ServerConfigUpdatedPayload,
@@ -33,6 +38,12 @@ const decodeThreadStreamItem = Schema.decodeUnknownSync(OrchestrationV2ThreadStr
 
 export function normalizeOrchestrationCommand(command: any): any {
   if (!command || typeof command !== "object") return command;
+  if (command.type === "project.meta.update") {
+    return {
+      ...command,
+      type: "project.update",
+    };
+  }
   if (command.type === "thread.create") {
     return {
       ...command,
@@ -266,22 +277,32 @@ export function createWsNativeApi(options?: {
   }
 
   let streamConfig: ServerConfigUpdatedPayload | null = null;
+  let workspaceProviders = singleton ? (latestV2Providers?.providers ?? []) : [];
   transport.subscribeRpc<ServerConfigStreamEvent>(
     WS_METHODS.subscribeServerConfig,
-    () => ({}),
+    () => ({ workspaceSnapshotsOnDemand: true }),
     Schema.decodeUnknownSync(ServerConfigStreamEvent),
     (event) => {
       if (event.type === "snapshot") {
         streamConfig = {
           issues: event.config.issues,
-          providers: event.config.providers,
+          providers: (workspaceProviders = mergeProviderWorkspaceSnapshots(
+            workspaceProviders,
+            event.config,
+          )),
           settings: event.config.settings,
           environmentThemes: event.config.environmentThemes,
           usageLimitSources: event.config.usageLimitSources,
         };
       } else if (streamConfig) {
         if (event.type === "providerStatuses")
-          streamConfig = { ...streamConfig, providers: event.payload.providers };
+          streamConfig = {
+            ...streamConfig,
+            providers: (workspaceProviders = mergeProviderWorkspaceSnapshots(
+              workspaceProviders,
+              event.payload,
+            )),
+          };
         else if (event.type === "settingsUpdated")
           streamConfig = { ...streamConfig, settings: event.payload.settings };
         else if (event.type === "keybindingsUpdated")
@@ -603,6 +624,10 @@ export function createWsNativeApi(options?: {
       listTags: (input) => transport.request(WS_METHODS.gitListTags, input),
       watchedBranchStatuses: (input) =>
         transport.request(WS_METHODS.gitWatchedBranchStatuses, input),
+      generateCommitDraft: (input) =>
+        transport.request(WS_METHODS.gitGenerateCommitDraft, input, { timeoutMs: 90_000 }),
+      generatePullRequestDraft: (input) =>
+        transport.request(WS_METHODS.gitGeneratePullRequestDraft, input, { timeoutMs: 90_000 }),
       generateDiffSummary: (input) => transport.request(WS_METHODS.gitGenerateDiffSummary, input),
       generateReview: (input) =>
         transport.request(WS_METHODS.gitGenerateReview, input, { timeoutMs: null }),
@@ -635,8 +660,22 @@ export function createWsNativeApi(options?: {
       },
     },
     server: {
-      getConfig: () => transport.request(WS_METHODS.serverGetConfig),
-      refreshProviders: (input) => transport.request(WS_METHODS.serverRefreshProviders, input),
+      getConfig: async () => {
+        const config = await transport.request<ServerConfig>(WS_METHODS.serverGetConfig, {
+          workspaceSnapshotsOnDemand: true,
+        });
+        workspaceProviders = mergeProviderWorkspaceSnapshots(workspaceProviders, config);
+        return { ...config, providers: workspaceProviders };
+      },
+      refreshProviders: async (input) => {
+        const payload = await transport.request<ServerProviderUpdatedPayload>(
+          WS_METHODS.serverRefreshProviders,
+          { ...input, workspaceSnapshotsOnDemand: true },
+        );
+        workspaceProviders = mergeProviderWorkspaceSnapshots(workspaceProviders, payload);
+        if (streamConfig) streamConfig = { ...streamConfig, providers: workspaceProviders };
+        return { ...payload, providers: workspaceProviders };
+      },
       runProviderMaintenance: (input) =>
         transport.request(WS_METHODS.serverRunProviderMaintenance, input, { timeoutMs: 310_000 }),
       upsertKeybinding: (input) => transport.request(WS_METHODS.serverUpsertKeybinding, input),
@@ -656,6 +695,7 @@ export function createWsNativeApi(options?: {
       getProcessResourceHistory: (input) =>
         transport.request(WS_METHODS.serverGetProcessResourceHistory, input),
       getResourceTelemetry: () => transport.request(WS_METHODS.serverGetResourceTelemetry),
+      getHostResources: () => transport.request(WS_METHODS.serverGetHostResources),
       getResourceTelemetryHistory: (input) =>
         transport.request(WS_METHODS.serverGetResourceTelemetryHistory, input),
       retryResourceTelemetry: () => transport.request(WS_METHODS.serverRetryResourceTelemetry),
@@ -686,14 +726,21 @@ export function createWsNativeApi(options?: {
         ),
       readUsageSummary: (input) => transport.request("server.getUsageSummary", input),
       listUsageSnapshots: async (input = {}) => {
-        if (input.forceRefresh) await transport.request(WS_METHODS.serverRefreshProviders, {});
+        if (input.forceRefresh)
+          await transport.request<ServerProviderUpdatedPayload>(
+            WS_METHODS.serverRefreshProviders,
+            {},
+          );
         const config = await transport.request<ServerConfigUpdatedPayload>(
           WS_METHODS.serverGetConfig,
         );
         return providerUsageSnapshots(config.providers, input.provider);
       },
       refreshAllUsageSnapshots: async () => {
-        await transport.request(WS_METHODS.serverRefreshProviders, {});
+        await transport.request<ServerProviderUpdatedPayload>(
+          WS_METHODS.serverRefreshProviders,
+          {},
+        );
         const config = await transport.request<ServerConfigUpdatedPayload>(
           WS_METHODS.serverGetConfig,
         );
@@ -701,6 +748,20 @@ export function createWsNativeApi(options?: {
       },
       consumeResetCredit: (input) =>
         transport.request(WS_METHODS.providerConsumeResetCredit, input),
+    },
+    scheduledTasks: {
+      list: () => transport.request(WS_METHODS.scheduledTasksList, {}),
+      subscribe: (callback, onError) =>
+        transport.subscribeRpc(
+          WS_METHODS.scheduledTasksSubscribe,
+          () => ({}),
+          Schema.decodeUnknownSync(ScheduledTaskListResult),
+          callback,
+          onError,
+        ),
+      upsert: (input) => transport.request(WS_METHODS.scheduledTasksUpsert, input),
+      setEnabled: (input) => transport.request(WS_METHODS.scheduledTasksSetEnabled, input),
+      runNow: (input) => transport.request(WS_METHODS.scheduledTasksRunNow, input),
     },
     orchestration: {
       getSnapshot: async (environmentId?: string) => {
@@ -750,10 +811,13 @@ export function createWsNativeApi(options?: {
           normalized &&
           (normalized.type === "project.create" ||
             normalized.type === "project.update" ||
+            normalized.type === "project.meta.update" ||
             normalized.type === "project.delete")
         ) {
+          const type =
+            normalized.type === "project.meta.update" ? "project.update" : normalized.type;
           return transport.request(WS_METHODS.projectsMutate, {
-            type: normalized.type,
+            type,
             commandId: normalized.commandId,
             projectId: normalized.projectId,
             ...(normalized.title !== undefined ? { title: normalized.title } : {}),
@@ -794,7 +858,12 @@ export function createWsNativeApi(options?: {
       getArchivedShellSnapshot: () =>
         transport.request(ORCHESTRATION_WS_METHODS.getArchivedShellSnapshot, {}),
       getThreadProjection: (input) =>
-        transport.request(ORCHESTRATION_V2_WS_METHODS.getThreadProjection, input),
+        transport
+          .request<OrchestrationV2ThreadProjection>(
+            ORCHESTRATION_V2_WS_METHODS.getThreadProjection,
+            { ...input, acceptDedupedBodies: true },
+          )
+          .then(restoreSnapshotBodies),
       reconcileIntake: (input) =>
         transport.request(ORCHESTRATION_V2_WS_METHODS.reconcileIntake, input),
       recordCancellationIntent: (input) =>
@@ -854,6 +923,7 @@ export function createWsNativeApi(options?: {
             return {
               threadId,
               ...(lastSeenSequence !== undefined ? { afterSequence: lastSeenSequence } : {}),
+              acceptDedupedBodies: true,
               acceptBoundedSnapshot:
                 "acceptBoundedSnapshot" in input ? input.acceptBoundedSnapshot : true,
             };
@@ -875,7 +945,11 @@ export function createWsNativeApi(options?: {
             ) {
               lastSeenSequence = (item as any).snapshotSequence;
             }
-            callback(item);
+            callback(
+              "kind" in item && item.kind === "snapshot"
+                ? { ...item, projection: restoreSnapshotBodies(item.projection) }
+                : item,
+            );
           },
           (error) => {
             console.error(`Thread subscription error for ${threadId}:`, error);

@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron";
 import { exposeClerkBridge } from "@clerk/electron/preload";
-import type { DesktopBridge } from "@tabs/contracts";
+import type { CodeRailPresentation, DesktopBridge } from "@tabs/contracts";
 
 exposeClerkBridge({ passkeys: true });
 
@@ -167,6 +167,8 @@ contextBridge.exposeInMainWorld("desktopBridge", {
     ipcRenderer.invoke(DESKTOP_CAPTURE_REQUEST_PERMISSION_CHANNEL),
   captureDesktopScreen: (options) => ipcRenderer.invoke(DESKTOP_CAPTURE_SCREEN_CHANNEL, options),
   getClientPlatform: () => process.platform,
+  getInstallerCleanupCandidate: () => ipcRenderer.invoke("desktop:installer-cleanup:candidate"),
+  trashInstalledDmg: () => ipcRenderer.invoke("desktop:installer-cleanup:trash"),
   getBuildInfo: () => ipcRenderer.invoke("desktop:build-info"),
   getLocalEnvironmentBootstraps: () => {
     const result = ipcRenderer.sendSync(GET_LOCAL_ENVIRONMENT_BOOTSTRAPS_CHANNEL);
@@ -262,6 +264,11 @@ contextBridge.exposeInMainWorld("desktopBridge", {
       ipcRenderer.removeListener(MENU_ACTION_CHANNEL, wrappedListener);
     };
   },
+  listDataBackups: () => ipcRenderer.invoke("desktop:data-backups:list"),
+  restartForDataBackup: (id, prepareVersion) =>
+    ipcRenderer.invoke("desktop:data-backups:restart", id, prepareVersion),
+  openDataBackupFolder: () => ipcRenderer.invoke("desktop:data-backups:open"),
+  deleteDataBackup: (id) => ipcRenderer.invoke("desktop:data-backups:delete", id),
   getUpdateState: () => ipcRenderer.invoke(UPDATE_GET_STATE_CHANNEL),
   downloadUpdate: () => ipcRenderer.invoke(UPDATE_DOWNLOAD_CHANNEL),
   installUpdate: () => ipcRenderer.invoke(UPDATE_INSTALL_CHANNEL),
@@ -274,8 +281,8 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   setCodeBounds: (input) => ipcRenderer.invoke(CODE_HOST_SET_BOUNDS_CHANNEL, input),
   syncCodeSessions: (projectIds) => ipcRenderer.invoke(CODE_HOST_SYNC_SESSIONS_CHANNEL, projectIds),
   recreateCodeSession: (input) => ipcRenderer.invoke(CODE_HOST_RECREATE_SESSION_CHANNEL, input),
-  runCodeCommand: (projectId: string, commandId: string) =>
-    ipcRenderer.invoke(CODE_HOST_RUN_COMMAND_CHANNEL, { projectId, commandId }),
+  runCodeCommand: (projectId: string, commandId: string, presentation?: CodeRailPresentation) =>
+    ipcRenderer.invoke(CODE_HOST_RUN_COMMAND_CHANNEL, { projectId, commandId, presentation }),
   getCodeChromeState: (input: { projectId: string }) =>
     ipcRenderer.invoke(CODE_HOST_GET_CHROME_STATE_CHANNEL, input),
   onCodeChromeState: (listener) => {

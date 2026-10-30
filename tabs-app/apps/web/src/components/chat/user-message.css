@@ -1,0 +1,102 @@
+.user-message-row {
+  display: flex;
+  justify-content: flex-end;
+  min-width: 0;
+  width: 100%;
+}
+.user-message-frame {
+  position: relative;
+  width: fit-content;
+  min-width: 0;
+  max-width: min(100%, 68ch, 42rem);
+  padding-top: 28px;
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.65;
+  text-align: start;
+}
+.user-message-actions {
+  position: absolute;
+  right: 0;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.user-message-frame:hover .user-message-actions,
+.user-message-frame:focus-within .user-message-actions {
+  opacity: 1;
+}
+.user-message-content {
+  position: relative;
+  width: fit-content;
+  max-width: 100%;
+  margin-left: auto;
+  border-right: 2px solid color-mix(in srgb, var(--foreground) 20%, transparent);
+  padding: 2px 18px 2px 0;
+  min-width: 0;
+  text-align: start;
+  font-size: 16px;
+  line-height: 1.65;
+  color: var(--foreground);
+  overflow-wrap: anywhere;
+}
+.user-prompt-prose {
+  min-width: 0;
+}
+.user-prompt-prose > p {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  tab-size: 4;
+  font: inherit;
+  line-height: inherit;
+  text-align: inherit;
+}
+.user-prompt-prose > p + p {
+  margin-top: 0.75em;
+}
+@media (max-width: 640px) {
+  .user-message-frame {
+    max-width: 100%;
+  }
+  .user-message-content {
+    padding-right: 14px;
+  }
+}
+@media (pointer: coarse) {
+  .user-message-actions {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .user-message-actions {
+    transition: none;
+  }
+}
+@media (forced-colors: active) {
+  .user-message-content {
+    border-color: CanvasText;
+  }
+}
+
+.user-message-rail-beam {
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  right: -2px;
+  width: 2px;
+  opacity: 0;
+  background: color-mix(in srgb, var(--foreground) 80%, transparent);
+}
+@media (forced-colors: active) {
+  .user-message-rail-beam {
+    background: CanvasText;
+  }
+}

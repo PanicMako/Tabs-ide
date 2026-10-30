@@ -1,6 +1,6 @@
 import { SegmentedControl } from "../ui/segmented-control";
 import { OrbitGroup } from "../ui/orbit-group";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { MonitorPlayIcon, RotateCcwIcon, SaveIcon, XIcon } from "lucide-react";
 import { DEFAULT_UNIFIED_SETTINGS } from "@tabs/contracts/settings";
@@ -167,7 +167,7 @@ function ClosePreviewOverlay({ loader, palette, theme, fontComboId, customFont, 
 
 export function AnimationsSettings() {
   const { confirm } = useConfirm();
-  const { theme } = useTheme();
+  const { resolvedTheme } = useTheme();
   const settings = useSettings();
   const { updateSettings } = useUpdateSettings();
 
@@ -290,8 +290,21 @@ export function AnimationsSettings() {
   const [fullscreenClosePreview, setFullscreenClosePreview] = useState(false);
   const [fullscreenStartupPreview, setFullscreenStartupPreview] = useState(false);
 
-  const effectivePreviewTheme = previewTheme === "system" ? theme : previewTheme;
-  const effectiveClosePreviewTheme = closePreviewTheme === "system" ? theme : closePreviewTheme;
+  const effectivePreviewTheme = previewTheme === "system" ? resolvedTheme : previewTheme;
+  const effectiveClosePreviewTheme =
+    closePreviewTheme === "system" ? resolvedTheme : closePreviewTheme;
+  const previewViewport = useRef<HTMLDivElement>(null);
+  const [previewScale, setPreviewScale] = useState(0.5);
+  useLayoutEffect(() => {
+    const viewport = previewViewport.current;
+    if (!viewport) return;
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry) setPreviewScale(entry.contentRect.width / 1280);
+    });
+    observer.observe(viewport);
+    setPreviewScale(viewport.getBoundingClientRect().width / 1280);
+    return () => observer.disconnect();
+  }, []);
 
   const activeStyle = animationTab === "startup" ? previewStyle : closePreviewStyle;
   const setActiveStyle = animationTab === "startup" ? setPreviewStyle : setClosePreviewStyle;
@@ -396,7 +409,7 @@ export function AnimationsSettings() {
                 {animationTab === "startup" ? "Startup Animation" : "Close Animation"}
               </h3>
               <OrbitGroup
-                className="tabs-segmented flex rounded-full"
+                className="tabs-segmented inline-flex items-center rounded-full w-fit"
                 role="group"
                 aria-label="Animation preview"
               >
@@ -433,17 +446,20 @@ export function AnimationsSettings() {
             <div className="px-4 sm:px-5">
               <div className="relative mx-auto w-full max-w-2xl overflow-hidden rounded-xl border border-border shadow-sm">
                 <div
+                  ref={previewViewport}
+                  data-slot="animation-preview-viewport"
                   className={cn(
                     "aspect-video w-full relative overflow-hidden flex items-center justify-center transition-colors duration-300",
                     activeEffectiveTheme === "dark" ? "bg-[#09090b]" : "bg-white",
                   )}
                 >
                   <div
-                    className="absolute"
+                    data-slot="animation-preview-canvas"
+                    className="absolute left-0 top-0 origin-top-left"
                     style={{
                       width: "1280px",
                       height: "720px",
-                      transform: "scale(0.5)",
+                      transform: `scale(${previewScale})`,
                     }}
                   >
                     {animationTab === "startup" ? (
@@ -451,14 +467,18 @@ export function AnimationsSettings() {
                         key={startupReplayKey}
                         loader={activeStyle}
                         palette={activePalette}
-                        theme={activeTheme}
+                        theme={activeEffectiveTheme}
+                        fontComboId={activeFontComboId}
+                        customFont={activeCustomFont}
                       />
                     ) : (
                       <CloseScreen
                         key={closeReplayKey}
                         loader={activeStyle}
                         palette={activePalette}
-                        theme={activeTheme}
+                        theme={activeEffectiveTheme}
+                        fontComboId={activeFontComboId}
+                        customFont={activeCustomFont}
                         phase="closing"
                         onIntroEnd={() => {}}
                       />
@@ -504,7 +524,7 @@ export function AnimationsSettings() {
               description={`Choose the visual aesthetic for the ${animationTab} animation.`}
               control={
                 <OrbitGroup
-                  className="tabs-segmented flex rounded-full"
+                  className="tabs-segmented inline-flex items-center rounded-full w-fit"
                   role="group"
                   aria-label="Animation style"
                 >
@@ -536,7 +556,7 @@ export function AnimationsSettings() {
               description={`Choose the color palette for the ${animationTab} animation.`}
               control={
                 <OrbitGroup
-                  className="tabs-segmented flex rounded-full"
+                  className="tabs-segmented inline-flex items-center rounded-full w-fit"
                   role="group"
                   aria-label="Animation palette"
                 >
@@ -758,6 +778,7 @@ export function AnimationsSettings() {
                   const isActive = activeFontComboId === combo.id;
                   return (
                     <button
+                      data-shape="preview"
                       key={combo.id}
                       type="button"
                       onClick={() => {
@@ -786,7 +807,7 @@ export function AnimationsSettings() {
                         </div>
                       )}
 
-                      <div className="mb-3 leading-none">
+                      <div data-slot="font-specimen" className="mb-3 w-full min-w-0 leading-none">
                         <span
                           className={cn("text-[26px] leading-none", combo.sansClass)}
                           style={{
@@ -795,6 +816,7 @@ export function AnimationsSettings() {
                         >
                           {combo.sansText}
                         </span>
+                        <wbr />
                         <span
                           className={cn("text-[26px] leading-none", combo.serifClass)}
                           style={{

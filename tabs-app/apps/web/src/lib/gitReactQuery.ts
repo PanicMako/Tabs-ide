@@ -400,6 +400,9 @@ export function gitCreateWorktreeMutationOptions(input: {
     }) => {
       const api = await environmentApi(environmentId ?? input.environmentId);
       if (!cwd) throw new Error("Git worktree creation is unavailable.");
+      // Remote bases are explicit full refs. Fetch before creating so the new
+      // worktree starts from the current remote tip, never a stale tracking ref.
+      if (branch.startsWith("refs/remotes/")) await api.git.fetch({ cwd });
       return api.git.createWorktree({ cwd, branch, newBranch, path: path ?? null });
     },
     mutationKey: scopedGitKey(input.environmentId, ["git", "mutation", "create-worktree"]),

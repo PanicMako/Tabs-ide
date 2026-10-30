@@ -205,10 +205,15 @@ describe("TestingService and component lifecycle drain", () => {
     const locatorStore = new LocatorLibraryStore(dbPath);
 
     let activeInterrupted = false;
+    let markGenerationStarted!: () => void;
+    const generationStarted = new Promise<void>((resolve) => {
+      markGenerationStarted = resolve;
+    });
 
     const mockTextGeneration: TextGenerationShape = {
       generateStructuredTesting: () =>
         Effect.callback((resume, signal) => {
+          markGenerationStarted();
           signal.addEventListener("abort", () => {
             activeInterrupted = true;
           });
@@ -228,7 +233,7 @@ describe("TestingService and component lifecycle drain", () => {
       },
     });
 
-    await new Promise((r) => setTimeout(r, 30));
+    await generationStarted;
 
     await generator.close();
 

@@ -1,3 +1,7 @@
+import { UserMessageImages } from "./UserMessageImages";
+import { AssistantMessageBorder } from "./AssistantMessageBorder";
+import { resolveProviderIcon } from "../providerIcons";
+import { UserMessageLayout, UserPromptText } from "./UserMessageLayout";
 import {
   type EnvironmentId,
   type MessageId,
@@ -15,7 +19,6 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import gsap from "gsap";
 import { deriveTimelineEntries, formatElapsed } from "../../session-logic";
 import { isScrollContainerNearBottom } from "../../chat-scroll";
 import { AnimatedHeight } from "../AnimatedHeight";
@@ -52,7 +55,7 @@ import {
   ZapIcon,
 } from "lucide-react";
 import { Button } from "../ui/button";
-import { buildExpandedImagePreview, ExpandedImagePreview } from "./ExpandedImagePreview";
+import { type ExpandedImagePreview } from "./ExpandedImagePreview";
 import { ProposedPlanCard } from "./ProposedPlanCard";
 import { ChangedFilesTree } from "./ChangedFilesTree";
 import { DiffStatLabel, hasNonZeroStat } from "./DiffStatLabel";
@@ -76,27 +79,8 @@ import { parseScopedThreadKey } from "@tabs/client-runtime/environment";
 import { AssistantCitationSource, type AssistantCitationRequest } from "./AssistantCitationSource";
 import { useAssistantCitationTarget } from "./useAssistantCitationTarget";
 import { AssistantSelectionToolbar } from "./AssistantSelectionToolbar";
-import {
-  ClaudeAI,
-  OpenAI,
-  GrokIcon,
-  OpenCodeIcon,
-  CursorIcon,
-  CopilotIcon,
-  type Icon,
-} from "../Icons";
 
 const MAX_VISIBLE_WORK_LOG_ENTRIES = 6;
-
-/** Maps provider instanceId → SVG icon component for the assistant message header */
-const TIMELINE_PROVIDER_ICON_MAP: Record<string, Icon> = {
-  claudeAgent: ClaudeAI,
-  codex: OpenAI,
-  copilot: CopilotIcon,
-  grok: GrokIcon,
-  opencode: OpenCodeIcon,
-  cursor: CursorIcon,
-};
 
 interface MessagesTimelineProps {
   hasMessages: boolean;
@@ -124,6 +108,7 @@ interface MessagesTimelineProps {
   latestTaskDescription: string | null;
   /** Provider instanceId for the active thread (e.g. "claudeAgent", "codex", "grok") */
   providerInstanceId?: string;
+  providerDriverKind?: string | undefined;
   citationRequest?: AssistantCitationRequest | null;
   onCiteAssistantText?: (
     citation: AssistantCitation,
@@ -158,6 +143,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
   environmentId,
   latestTaskDescription,
   providerInstanceId,
+  providerDriverKind,
   citationRequest,
   onCiteAssistantText,
   threadId,
@@ -366,7 +352,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
                       type="button"
                       onClick={() => onToggleWorkGroup(groupId)}
                       aria-expanded={isExpanded}
-                      className="flex items-center gap-2 group/header rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+                      className="flex items-center gap-2 group/header rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
                     >
                       {onlyToolEntries ? (
                         <WrenchIcon className="size-3.5 text-muted-foreground/60 shrink-0" />
@@ -388,7 +374,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
                               ? `Hide details for ${groupLabel}`
                               : `View details for ${groupLabel}`
                           }
-                          className="flex items-center gap-1 rounded-sm text-[11px] font-mono text-muted-foreground/40 hover:text-foreground/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 motion-reduce:transition-none"
+                          className="flex items-center gap-1 rounded-md text-[11px] font-mono text-muted-foreground/40 hover:text-foreground/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 motion-reduce:transition-none"
                           onClick={() => onToggleWorkGroup(groupId)}
                         >
                           <span>{isExpanded ? "Hide details" : `View details`}</span>
@@ -482,11 +468,10 @@ export const MessagesTimeline = memo(function MessagesTimeline({
           const terminalContexts = displayedUserMessage.contexts;
           const canRevertAgentWork = revertTurnCountByUserMessageId.has(row.message.id);
           return (
-            // Prototype-style: right-aligned, no bubble, right-border accent + large text
-            <div className="flex justify-end">
-              <div className="group relative max-w-[80%]">
-                {/* Action row: timestamp + copy + revert (visible on hover, focus-within, and touch/pointer-coarse) */}
-                <div className="mb-1.5 flex items-center justify-end gap-2 opacity-0 transition-opacity duration-200 pointer-coarse:opacity-100 focus-within:opacity-100 group-hover:opacity-100 motion-reduce:transition-none">
+            <UserMessageLayout
+              scrollContainer={scrollContainer}
+              actions={
+                <>
                   <div className="flex items-center gap-1.5">
                     {displayedUserMessage.copyText && (
                       <MessageCopyButton
@@ -518,78 +503,47 @@ export const MessagesTimeline = memo(function MessagesTimeline({
                   <p className="text-right text-[10px] text-muted-foreground/30 transition-colors duration-150 hover:text-foreground/60 cursor-default">
                     {formatTimestamp(row.message.createdAt, timestampFormat)}
                   </p>
-                </div>
-                {/* Image attachments above text */}
-                {userImages.length > 0 && (
-                  <div
-                    className={cn(
-                      "mb-2 ml-auto grid gap-2",
-                      userImages.length === 1
-                        ? "max-w-[280px] grid-cols-1"
-                        : "max-w-[420px] grid-cols-2",
-                    )}
-                  >
-                    {userImages.map((image) => (
-                      <div
-                        key={image.id}
-                        className="overflow-hidden rounded-lg border border-border/80 bg-background/70"
-                      >
-                        {image.previewUrl ? (
-                          <button
-                            type="button"
-                            className="h-full w-full cursor-zoom-in"
-                            aria-label={`Preview ${image.name}`}
-                            onClick={() => {
-                              const preview = buildExpandedImagePreview(userImages, image.id);
-                              if (!preview) return;
-                              onImageExpand(preview);
-                            }}
-                          >
-                            <img
-                              src={image.previewUrl}
-                              alt={image.name}
-                              className="h-full max-h-[220px] w-full object-cover"
-                            />
-                          </button>
-                        ) : (
-                          <div className="flex min-h-[72px] items-center justify-center px-2 py-3 text-center text-[11px] text-muted-foreground/70">
-                            {image.name}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {userFiles.length > 0 && (
-                  <div className="mb-2 ml-auto flex max-w-[420px] flex-wrap justify-end gap-2">
-                    {userFiles.map((file) => (
-                      <div
-                        key={file.id}
-                        className="flex min-w-0 max-w-full items-center gap-2 rounded-lg border border-border/80 bg-background/70 px-2.5 py-2 text-xs"
-                      >
-                        <FileTextIcon className="size-4 shrink-0 text-muted-foreground" />
-                        <span className="truncate" title={file.name}>
-                          {file.name}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {/* Main message text — left-aligned, right-border accent */}
-                {(displayedUserMessage.visibleText.trim().length > 0 ||
-                  terminalContexts.length > 0) && (
-                  <div className="border-r-2 border-foreground/80 pr-4 text-left text-base font-sans leading-relaxed text-foreground">
-                    <UserMessageBody
-                      text={displayedUserMessage.visibleText}
-                      terminalContexts={terminalContexts}
-                      workspaceRoot={workspaceRoot}
-                      resolvedTheme={resolvedTheme}
-                      markdownCwd={markdownCwd}
+                </>
+              }
+              attachments={
+                <>
+                  {/* Image attachments above text */}
+                  {userImages.length > 0 && (
+                    <UserMessageImages
+                      images={userImages}
+                      environmentId={environmentId}
+                      onExpand={onImageExpand}
                     />
-                  </div>
-                )}
-              </div>
-            </div>
+                  )}
+                  {userFiles.length > 0 && (
+                    <div className="mb-2 ml-auto flex max-w-[420px] flex-wrap justify-end gap-2">
+                      {userFiles.map((file) => (
+                        <div
+                          key={file.id}
+                          className="flex min-w-0 max-w-full items-center gap-2 rounded-lg border border-border/80 bg-background/70 px-2.5 py-2 text-xs"
+                        >
+                          <FileTextIcon className="size-4 shrink-0 text-muted-foreground" />
+                          <span className="truncate" title={file.name}>
+                            {file.name}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              }
+            >
+              {(displayedUserMessage.visibleText.trim().length > 0 ||
+                terminalContexts.length > 0) && (
+                <UserMessageBody
+                  text={displayedUserMessage.visibleText}
+                  terminalContexts={terminalContexts}
+                  workspaceRoot={workspaceRoot}
+                  resolvedTheme={resolvedTheme}
+                  markdownCwd={markdownCwd}
+                />
+              )}
+            </UserMessageLayout>
           );
         })()}
 
@@ -598,9 +552,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
         (() => {
           const messageText = row.message.text || (row.message.streaming ? "" : "(empty response)");
           // Resolve provider icon for the header
-          const ProviderIconComp = providerInstanceId
-            ? (TIMELINE_PROVIDER_ICON_MAP[providerInstanceId] ?? BotIcon)
-            : BotIcon;
+          const ProviderIconComp = resolveProviderIcon(providerInstanceId, providerDriverKind);
           const providerLabel = providerInstanceId ?? "agent";
           return (
             <>
@@ -981,12 +933,7 @@ const UserMessageBody = memo(function UserMessageBody(props: {
         {reviewCommentSegments.map((segment) =>
           segment.kind === "text" ? (
             segment.text.trim().length > 0 ? (
-              <div
-                key={segment.id}
-                className="wrap-break-word whitespace-pre-wrap font-sans text-base leading-relaxed text-foreground"
-              >
-                {segment.text.trim()}
-              </div>
+              <UserPromptText key={segment.id} text={segment.text.trim()} />
             ) : null
           ) : (
             <UserMessageReviewCommentCard
@@ -1084,11 +1031,7 @@ const UserMessageBody = memo(function UserMessageBody(props: {
     return null;
   }
 
-  return (
-    <p className="whitespace-pre-wrap wrap-break-word font-sans text-base leading-relaxed text-foreground">
-      {props.text}
-    </p>
-  );
+  return <UserPromptText text={props.text} />;
 });
 
 function workToneIcon(tone: TimelineWorkEntry["tone"]): {
@@ -1233,115 +1176,6 @@ const SimpleWorkEntryRow = memo(function SimpleWorkEntryRow(props: {
           )}
         </div>
       )}
-    </div>
-  );
-});
-
-const AssistantMessageBorder = memo(function AssistantMessageBorder({
-  scrollContainer,
-  children,
-}: {
-  scrollContainer: HTMLDivElement | null;
-  children: ReactNode;
-}) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const sweepRef = useRef<HTMLDivElement>(null);
-  const lightBarRef = useRef<HTMLDivElement>(null);
-  const tweenRef = useRef<gsap.core.Tween | null>(null);
-  const isScrolledActiveRef = useRef(false);
-
-  // Single-pass hover sweep using GSAP — suppressed if scroll light bar is active
-  const handleMouseEnter = useCallback(() => {
-    if (isScrolledActiveRef.current) return;
-    if (!sweepRef.current) return;
-    if (tweenRef.current) tweenRef.current.kill();
-
-    // GSAP silky-smooth sweep from top to bottom
-    tweenRef.current = gsap.fromTo(
-      sweepRef.current,
-      { y: "-100%", opacity: 0 },
-      {
-        y: "280%",
-        opacity: 1,
-        duration: 1.5,
-        ease: "power2.inOut",
-        onComplete: () => {
-          if (sweepRef.current) {
-            gsap.to(sweepRef.current, { opacity: 0, duration: 0.35 });
-          }
-        },
-      },
-    );
-  }, []);
-
-  // GSAP scroll progress listener — silky smooth tweening with light-to-dark gradient
-  useEffect(() => {
-    const el = containerRef.current;
-    const bar = lightBarRef.current;
-    if (!el || !bar) return;
-    const target = scrollContainer ?? (typeof window !== "undefined" ? window : null);
-    if (!target) return;
-
-    const updateProgress = () => {
-      if (!containerRef.current || !lightBarRef.current) return;
-      const rect = containerRef.current.getBoundingClientRect();
-      const viewportHeight = scrollContainer ? scrollContainer.clientHeight : window.innerHeight;
-      const containerTop = scrollContainer ? scrollContainer.getBoundingClientRect().top : 0;
-      const elementTop = rect.top - containerTop;
-      const elementHeight = rect.height;
-
-      if (elementHeight <= 0) return;
-
-      const scrolled = viewportHeight * 0.45 - elementTop;
-      const rawProgress = scrolled / elementHeight;
-      const isActivelyScrolled = rawProgress > 0.05 && rawProgress < 0.95;
-      isScrolledActiveRef.current = isActivelyScrolled;
-
-      // Kill any running hover sweep if active scroll takes over
-      if (isActivelyScrolled && tweenRef.current) {
-        tweenRef.current.kill();
-        if (sweepRef.current) {
-          gsap.set(sweepRef.current, { opacity: 0 });
-        }
-      }
-
-      const progress = Math.max(0, Math.min(1, rawProgress));
-
-      // GSAP smooth tween to target height & opacity with zero jitter
-      gsap.to(lightBarRef.current, {
-        height: `${Math.max(6, Math.min(100, progress * 100))}%`,
-        opacity: isActivelyScrolled ? 1 : 0,
-        duration: 0.3,
-        ease: "power1.out",
-        overwrite: "auto",
-      });
-    };
-
-    updateProgress();
-    target.addEventListener("scroll", updateProgress, { passive: true });
-    return () => target.removeEventListener("scroll", updateProgress);
-  }, [scrollContainer]);
-
-  return (
-    <div ref={containerRef} onMouseEnter={handleMouseEnter} className="group relative min-w-0 pl-4">
-      {/* Static base line — single 1px left track */}
-      <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-px bg-border/40 transition-colors duration-200 group-hover:bg-border/60" />
-
-      {/* 1. GSAP Single-pass hover sweep beam — perfectly aligned at left-0 */}
-      <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-px overflow-hidden">
-        <div
-          ref={sweepRef}
-          className="h-44 w-full opacity-0 bg-gradient-to-b from-foreground/10 via-foreground/90 to-foreground/30 shadow-[0_0_8px_rgba(255,255,255,0.3)]"
-        />
-      </div>
-
-      {/* 2. GSAP Scroll Light Bar — perfectly aligned at left-0 */}
-      <div
-        ref={lightBarRef}
-        className="pointer-events-none absolute left-0 top-0 w-px opacity-0 bg-gradient-to-b from-foreground/95 via-foreground/60 to-foreground/20"
-      />
-
-      {children}
     </div>
   );
 });

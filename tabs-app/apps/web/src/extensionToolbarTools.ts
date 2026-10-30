@@ -15,21 +15,21 @@ export function mergeExtensionToolbarTools(
   savedTools: readonly ProjectToolDefinition[],
   installedExtensions: readonly DesktopInstalledExtension[],
   projectId: string,
+  includeUnassigned = false,
 ): ProjectToolDefinition[] {
   const available = new Map<string, ProjectToolDefinition>();
   for (const extension of installedExtensions) {
-    if (
-      extension.revoked ||
-      extension.disabled ||
-      !isExtensionEnabledForProject(extension.assignment, projectId)
-    )
-      continue;
+    const enabled =
+      !extension.revoked &&
+      !extension.disabled &&
+      isExtensionEnabledForProject(extension.assignment, projectId);
+    if (!includeUnassigned && !enabled) continue;
     for (const tool of extension.manifest.contributes.tools) {
       const definition: ProjectToolDefinition = {
         id: extensionToolbarToolId(extension, tool.id),
         kind: "extension",
         label: tool.label,
-        visible: true,
+        visible: enabled,
         extensionId: extension.id,
         extensionToolId: tool.id,
       };
@@ -51,7 +51,7 @@ export function mergeExtensionToolbarTools(
     )
       continue;
     available.delete(saved.id);
-    merged.push({ ...verified, visible: saved.visible });
+    merged.push({ ...verified, visible: saved.visible && verified.visible });
   }
   return [...merged, ...available.values()];
 }

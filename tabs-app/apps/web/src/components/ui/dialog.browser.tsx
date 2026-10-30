@@ -45,6 +45,11 @@ it("avoids double padding and keeps long modal content scrollable with reachable
     const header = dialog.element().querySelector('[data-slot="dialog-header"]')!;
     expect(getComputedStyle(header).paddingLeft).toBe("0px");
     expect(getComputedStyle(header).paddingTop).toBe("0px");
+    const panel = dialog.element().querySelector<HTMLElement>('[data-slot="dialog-panel"]')!;
+    expect(parseFloat(getComputedStyle(panel).paddingTop)).toBeGreaterThanOrEqual(20);
+    expect(
+      header.getBoundingClientRect().top - panel.getBoundingClientRect().top,
+    ).toBeGreaterThanOrEqual(20);
     expect(dialog.element().getBoundingClientRect().height).toBeLessThanOrEqual(
       window.innerHeight - 32,
     );

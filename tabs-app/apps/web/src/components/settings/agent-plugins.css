@@ -1,0 +1,220 @@
+.agent-plugins-page {
+  min-width: 0;
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}
+.agent-plugins-help {
+  font-family: var(--font-sans);
+}
+.agent-plugins-help p {
+  margin-bottom: 14px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--muted-foreground);
+}
+.agent-plugins-help a {
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.agent-plugins-accounts,
+.agent-plugins-accounts > div {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.agent-plugins-accounts {
+  margin-bottom: 20px;
+  font-size: 13px;
+}
+.agent-plugins-accounts > span {
+  margin-right: 8px;
+  color: var(--muted-foreground);
+}
+.agent-plugins-list {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-surface);
+  background: var(--card);
+}
+.agent-plugins-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border);
+}
+.agent-plugins-toolbar h2 {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font: 600 15px/1.5 var(--font-sans);
+}
+.agent-plugins-toolbar p {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+.agent-plugins-count {
+  color: var(--muted-foreground);
+  font-size: 13px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+.agent-plugins-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.agent-plugins-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 240px;
+  padding: 32px 24px;
+  text-align: center;
+}
+.agent-plugins-empty > svg {
+  width: 24px;
+  height: 24px;
+  margin-bottom: 5px;
+  color: var(--muted-foreground);
+}
+.agent-plugins-empty h2,
+.agent-plugins-empty h3 {
+  font: 500 16px/1.5 var(--font-sans);
+}
+.agent-plugins-empty p {
+  max-width: 44ch;
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--muted-foreground);
+}
+.agent-plugins-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0 24px;
+}
+.agent-plugins-rows li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 19px 0;
+}
+.agent-plugins-rows li + li {
+  border-top: 1px solid var(--border);
+}
+.agent-plugins-package {
+  min-width: 0;
+}
+.agent-plugins-package h3 {
+  overflow-wrap: anywhere;
+  font: 500 14px/1.5 var(--font-sans);
+}
+.agent-plugins-package p {
+  margin-top: 5px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.agent-plugins-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px 0;
+  color: var(--muted-foreground);
+}
+.agent-plugins-notice {
+  margin: 16px 24px 0;
+  padding: 12px 14px;
+  border-radius: var(--radius-control);
+  font-size: 13px;
+  line-height: 1.6;
+  background: var(--muted);
+}
+.agent-plugins-loading {
+  padding: 40px 24px;
+  font-size: 14px;
+  color: var(--muted-foreground);
+}
+.agent-plugins-advanced {
+  margin-top: 24px;
+  padding: 20px 24px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-surface);
+  background: var(--card);
+}
+.agent-plugins-advanced summary {
+  width: fit-content;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--foreground);
+}
+.agent-plugins-advanced > p {
+  margin: 16px 0 12px;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--muted-foreground);
+}
+.agent-plugins-advanced-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+.agent-plugins-add-form {
+  margin-top: 0;
+}
+.agent-plugins-add-form > label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 500;
+}
+.agent-plugins-add-form > p {
+  margin-top: 10px;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--muted-foreground);
+}
+.agent-plugins-install-target {
+  margin-top: 20px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.agent-plugins-install-target strong {
+  font-weight: 500;
+  color: var(--foreground);
+}
+.agent-plugins-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 24px;
+}
+@media (max-width: 600px) {
+  .agent-plugins-toolbar {
+    align-items: flex-start;
+    padding: 16px;
+    gap: 14px;
+  }
+  .agent-plugins-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+  .agent-plugins-rows {
+    padding-inline: 16px;
+  }
+  .agent-plugins-rows li {
+    gap: 12px;
+  }
+  .agent-plugins-notice {
+    margin-inline: 16px;
+  }
+}

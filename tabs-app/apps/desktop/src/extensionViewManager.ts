@@ -171,6 +171,7 @@ export class ExtensionViewManager {
     cryptography?: CredentialCryptography,
     private readonly networkGetText: typeof extensionNetworkGetText = extensionNetworkGetText,
     private readonly logicRun: typeof runExtensionLogicSpike = runExtensionLogicSpike,
+    loadOnStartup = true,
   ) {
     this.storage = new ExtensionStorage(Path.join(Path.dirname(statePath), "extension-storage"));
     this.credentials = cryptography
@@ -179,7 +180,7 @@ export class ExtensionViewManager {
           cryptography,
         )
       : null;
-    this.load();
+    if (loadOnStartup) this.load();
   }
 
   invokeStorage(sender: Electron.WebContents, operation: ExtensionStorageOperation): unknown {
@@ -190,7 +191,7 @@ export class ExtensionViewManager {
     const installed = this.requireInstalled(active.extensionId);
     this.assertNotDeleting(installed.id);
     if (installed.revoked) throw new Error("This extension version has been revoked.");
-    if (installed.disabled) throw new Error("This extension is disabled.");
+    if (this.isDisabled(installed)) throw new Error("This extension is disabled.");
     if (!installed.manifest.capabilities?.includes("profile-storage")) {
       throw new Error("Extension did not request profile storage.");
     }
@@ -232,7 +233,8 @@ export class ExtensionViewManager {
     const authorize = () => {
       const installed = this.requireInstalled(active.extensionId);
       this.assertNotDeleting(installed.id);
-      if (installed.revoked || installed.disabled) throw new Error("Extension is unavailable.");
+      if (installed.revoked || this.isDisabled(installed))
+        throw new Error("Extension is unavailable.");
       if (!installed.manifest.capabilities?.includes("workspace-read")) {
         throw new Error("Extension did not request workspace read access.");
       }
@@ -266,7 +268,7 @@ export class ExtensionViewManager {
       this.assertNotDeleting(installed.id);
       if (
         installed.revoked ||
-        installed.disabled ||
+        this.isDisabled(installed) ||
         !installed.manifest.capabilities?.includes("git-status") ||
         !isExtensionEnabledForProject(installed.assignment, active.projectId) ||
         !installed.assignment.gitStatusGrantedProjectIds?.includes(active.projectId) ||
@@ -298,7 +300,7 @@ export class ExtensionViewManager {
       this.assertNotDeleting(installed.id);
       if (
         installed.revoked ||
-        installed.disabled ||
+        this.isDisabled(installed) ||
         !installed.manifest.capabilities?.includes("network") ||
         !isExtensionEnabledForProject(installed.assignment, active.projectId) ||
         !installed.assignment.networkGrantedProjectIds?.includes(active.projectId) ||
@@ -371,7 +373,7 @@ export class ExtensionViewManager {
       this.assertNotDeleting(installed.id);
       if (
         installed.revoked ||
-        installed.disabled ||
+        this.isDisabled(installed) ||
         !isExtensionEnabledForProject(installed.assignment, active.projectId) ||
         extensionProfileForProject(installed.assignment, active.projectId) !== active.profileId ||
         !installed.manifest.logic?.entry ||
@@ -400,7 +402,7 @@ export class ExtensionViewManager {
     const tools: DesktopExtensionAiTool[] = [];
     for (const installed of this.installed.values()) {
       if (
-        installed.disabled ||
+        this.isDisabled(installed) ||
         installed.revoked ||
         this.deleting.has(installed.id) ||
         !installed.manifest.capabilities?.includes("ai-tools") ||
@@ -901,7 +903,7 @@ export class ExtensionViewManager {
     const current = this.installed.get(extensionId);
     return Boolean(
       current?.source === "exchange" &&
-      !current.disabled &&
+      !this.isDisabled(current) &&
       !current.revoked &&
       !current.updatesPinned &&
       !current.pendingRollback &&
@@ -1080,6 +1082,8 @@ export class ExtensionViewManager {
     this.assertNotDeleting(extensionId);
     const current = this.requireInstalled(extensionId);
     if (!disabled && current.revoked) throw new Error("A revoked extension cannot be enabled.");
+    const compatibilityError = this.compatibilityError(current);
+    if (!disabled && compatibilityError) throw new Error(compatibilityError);
     if (Boolean(current.disabled) === disabled) return;
     const { disabled: _disabled, ...enabled } = current;
     const next: StoredExtension = disabled ? { ...current, disabled: true } : enabled;
@@ -1133,7 +1137,7 @@ export class ExtensionViewManager {
     this.assertNotDeleting(input.extensionId);
     const installed = this.requireInstalled(input.extensionId);
     if (installed.revoked) throw new Error("This extension version has been revoked.");
-    if (installed.disabled) throw new Error("This extension is disabled.");
+    if (this.isDisabled(installed)) throw new Error("This extension is disabled.");
     if (!isExtensionEnabledForProject(installed.assignment, input.projectId)) {
       throw new Error("Extension is not enabled for this project.");
     }
@@ -1225,7 +1229,7 @@ export class ExtensionViewManager {
         this.active?.key !== key ||
         this.active?.activationId !== activationId ||
         !current ||
-        current.disabled ||
+        this.isDisabled(current) ||
         current.revoked ||
         !isExtensionEnabledForProject(current.assignment, input.projectId) ||
         extensionProfileForProject(current.assignment, input.projectId) !== input.profileId ||
@@ -1235,7 +1239,7 @@ export class ExtensionViewManager {
           this.hide({ activationId });
         }
         if (current?.revoked) throw new Error("This extension version has been revoked.");
-        if (current?.disabled) throw new Error("This extension is disabled.");
+        if (current && this.isDisabled(current)) throw new Error("This extension is disabled.");
         if (!current) throw new Error("Extension was removed during activation.");
         throw new Error("Extension became unavailable or assignment changed during activation.");
       }
@@ -1654,7 +1658,21 @@ export class ExtensionViewManager {
       pendingRollback: _pendingRollback,
       ...entry
     } = stored;
-    return { ...entry, dataDeletionAvailable: this.canDeleteData(stored) };
+    const compatibilityError = this.compatibilityError(stored);
+    return {
+      ...entry,
+      ...(compatibilityError ? { disabled: true, compatibilityError } : {}),
+      dataDeletionAvailable: this.canDeleteData(stored),
+    };
+  }
+
+  private compatibilityError(entry: StoredExtension): string | undefined {
+    const result = validateTabsExtensionManifest(entry.manifest, this.tabsVersion);
+    return result.ok ? undefined : result.errors.join(" ");
+  }
+
+  private isDisabled(entry: StoredExtension): boolean {
+    return Boolean(entry.disabled || this.compatibilityError(entry));
   }
 
   private canDeleteData(entry: StoredExtension): boolean {
@@ -1834,7 +1852,7 @@ export class ExtensionViewManager {
           if (!this.validPartitionInventory(entry, entry.id, entry.source, entry.registryOrigin)) {
             continue;
           }
-          const result = validateTabsExtensionManifest(entry.manifest, this.tabsVersion);
+          const result = validateTabsExtensionManifest(entry.manifest, null, null);
           if (!result.ok || result.id !== entry.id || !Array.isArray(entry.profiles)) continue;
           if (
             entry.profiles.length === 0 ||
@@ -1859,7 +1877,7 @@ export class ExtensionViewManager {
           const diskManifest = JSON.parse(
             FS.readFileSync(Path.join(entry.directory, "tabs-extension.json"), "utf8"),
           );
-          const diskResult = validateTabsExtensionManifest(diskManifest, this.tabsVersion);
+          const diskResult = validateTabsExtensionManifest(diskManifest, null, null);
           if (!diskResult.ok || diskResult.id !== entry.id) continue;
           if (JSON.stringify(diskResult.manifest) !== JSON.stringify(entry.manifest)) continue;
           if (entry.source === "local-package" || entry.source === "exchange") {
@@ -1922,7 +1940,7 @@ export class ExtensionViewManager {
       return false;
     try {
       if (!/^[a-f0-9]{64}$/.test(previous.digest) || previous.digest === entry.digest) return false;
-      const parsed = validateTabsExtensionManifest(previous.manifest, this.tabsVersion);
+      const parsed = validateTabsExtensionManifest(previous.manifest, null, null);
       if (
         !parsed.ok ||
         parsed.id !== entry.id ||

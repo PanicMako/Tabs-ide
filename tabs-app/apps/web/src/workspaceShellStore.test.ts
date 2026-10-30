@@ -73,6 +73,29 @@ describe("workspaceShellStore", () => {
     useWorkspaceShellStore.setState(createDefaultWorkspaceShellPersistedState());
   });
 
+  it("remembers a runtime extension when reopening projects and synchronizing the workspace", () => {
+    const alpha = makeProject("extension-project");
+    const beta = makeProject("other-project");
+    const relayTool = "ext:https%3A%2F%2Fexchange.tabs.test:demo.notes:main";
+    const store = useWorkspaceShellStore.getState();
+    store.syncProjects([alpha, beta], []);
+    store.openProject(alpha.id);
+    store.setActiveTool(alpha.id, relayTool);
+    store.openProject(beta.id);
+    store.openProject(alpha.id);
+    expect(useWorkspaceShellStore.getState().session.activeToolIdByProjectId[alpha.id]).toBe(
+      relayTool,
+    );
+    store.syncProjects([alpha, beta], []);
+    expect(useWorkspaceShellStore.getState().session.activeToolIdByProjectId[alpha.id]).toBe(
+      relayTool,
+    );
+    store.openProjectSurface(alpha.id);
+    expect(useWorkspaceShellStore.getState().session.activeToolIdByProjectId[alpha.id]).toBe(
+      relayTool,
+    );
+  });
+
   it("keeps custom-tab controls, viewport, and navigation under the same persistence key", async () => {
     const { browserSessionStateKey } = await import("./workspaceShellStore");
     const projectId = ProjectId.makeUnsafe("toolbar-project");
@@ -218,6 +241,36 @@ describe("workspaceShellStore", () => {
       expect(state.session.activeToolIdByProjectId[projectId]).toBe("agents");
     }
   });
+
+  it.each(["Launchpad", "Server", "Dock", "My Services"])(
+    "migrates the %s server label without changing its saved tool ID or selection",
+    async (label) => {
+      const { createDefaultProjectWorkspaceSettings } = await import("./workspaceShellStore");
+      const project = makeProject("dock-migration");
+      const base = createDefaultWorkspaceShellPersistedState();
+      const settings = createDefaultProjectWorkspaceSettings();
+      const next = syncWorkspaceShellState(
+        {
+          ...base,
+          session: { ...base.session, activeToolIdByProjectId: { [project.id]: "server" } },
+          projectSettingsByProjectId: {
+            [project.id]: {
+              ...settings,
+              tools: settings.tools.map((tool) =>
+                tool.kind === "server" ? { ...tool, label } : tool,
+              ),
+            },
+          },
+        },
+        [project],
+        [],
+      );
+      expect(
+        next.projectSettingsByProjectId[project.id]?.tools.find((tool) => tool.kind === "server"),
+      ).toMatchObject({ id: "server", label: label === "My Services" ? label : "Dock" });
+      expect(next.session.activeToolIdByProjectId[project.id]).toBe("server");
+    },
+  );
 
   it("merges newly registered built-in tools into persisted project tool lists", () => {
     const project = makeProject("project-before-testing-tool");
@@ -650,4 +703,27 @@ describe("workspaceShellStore", () => {
     expect(next.browserStateBySessionKey[figmaKey]?.devicePreset).toBe("desktop");
     expect(next.browserStateBySessionKey[figmaKey]?.landscape).toBe(true);
   });
+});
+
+it("uses only the Agents fallback for an all-hidden toolbar without restoring hidden tools", async () => {
+  const { createDefaultProjectWorkspaceSettings, resolveProjectTools, resolveActiveToolId } =
+    await import("./workspaceShellStore");
+  const defaults = createDefaultProjectWorkspaceSettings();
+  const hidden = {
+    ...defaults,
+    tools: defaults.tools.map((tool) => ({ ...tool, visible: false })),
+  };
+  expect(resolveProjectTools(hidden).map((tool) => tool.id)).toEqual(["agents"]);
+  expect(resolveActiveToolId(hidden, "git")).toBe("agents");
+  expect(hidden.tools.every((tool) => !tool.visible)).toBe(true);
+});
+
+it("keeps normal defaults for legacy settings with no saved tool preferences", async () => {
+  const { createDefaultProjectWorkspaceSettings, resolveProjectTools } =
+    await import("./workspaceShellStore");
+  const defaults = createDefaultProjectWorkspaceSettings();
+  const { tools: _tools, ...legacy } = defaults;
+  expect(resolveProjectTools(legacy as typeof defaults).map((tool) => tool.id)).toEqual(
+    defaults.tools.filter((tool) => tool.visible).map((tool) => tool.id),
+  );
 });

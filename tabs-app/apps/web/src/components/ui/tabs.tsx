@@ -67,7 +67,7 @@ export function TabsList({
         tabs[next]?.click();
       }}
       className={cn(
-        "tabs-segmented inline-flex h-9 items-center justify-center rounded-full text-muted-foreground",
+        "tabs-segmented inline-flex h-9 items-center justify-center rounded-full text-muted-foreground w-fit max-w-full",
         className,
       )}
     >

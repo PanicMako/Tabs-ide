@@ -172,7 +172,7 @@ it("uses moving symbols for icon choices and a rounded Spotlight pill for text c
     await expect.poll(() => aligned(button.element())).toBe(true);
     const orb = grid.element().querySelector("[data-orbit-orb]")!;
     expect(orb.getBoundingClientRect().width).toBe(button.element().getBoundingClientRect().width);
-    expect(getComputedStyle(orb).borderRadius).toBe("9999px");
+    expect(getComputedStyle(orb).borderRadius).toBe("36px");
   } finally {
     await view.unmount();
   }

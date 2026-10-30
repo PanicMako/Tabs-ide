@@ -664,7 +664,7 @@ describe("OrchestratorMcpService provider resolution", () => {
 
         yield* Effect.gen(function* () {
           const service = yield* OrchestratorMcpService.OrchestratorMcpService;
-          const capabilities = yield* service.capabilities(scope);
+          const capabilities = yield* service.capabilities(scope, { includeAll: true });
           const byId = new Map(
             capabilities.providers.map((provider) => [provider.providerInstanceId, provider]),
           );
@@ -687,7 +687,7 @@ describe("OrchestratorMcpService provider resolution", () => {
               },
             ],
           }));
-          const refreshed = yield* service.capabilities(scope);
+          const refreshed = yield* service.capabilities(scope, { includeAll: true });
           for (const provider of providers) {
             assert.deepEqual(
               refreshed.providers

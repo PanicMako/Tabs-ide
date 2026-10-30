@@ -4,7 +4,6 @@ export const agentProviders = [
   { id: "antigravity", name: "Antigravity" },
   { id: "cursor", name: "Cursor" },
   { id: "copilot", name: "Copilot" },
-  { id: "gemini", name: "Gemini" },
   { id: "grok", name: "Grok" },
   { id: "opencode", name: "OpenCode" },
   { id: "kilo", name: "Kilo" },

@@ -1,3 +1,9 @@
+import { createPortal } from "react-dom";
+import { useWorkspaceActionsState, type WorkspaceActionSection } from "./workspaceActionsState";
+import { GitCompanionIcon } from "../WorkspaceToolMarks";
+import { DockUfoIcon } from "../DockUfoIcon";
+import { AssistantBubbleIcon } from "../AssistantBubbleIcon";
+import "./workspace-actions.css";
 import {
   type EditorId,
   type GitWatchedBranchStatus,
@@ -6,7 +12,7 @@ import {
   type ResolvedKeybindingsConfig,
   type ThreadId,
 } from "@tabs/contracts";
-import { memo, useState, useCallback, useMemo, useRef, useEffect } from "react";
+import { type ReactNode, memo, useState, useCallback, useMemo, useRef, useEffect } from "react";
 import {
   SquareMenuIcon,
   GitBranchIcon,
@@ -17,6 +23,7 @@ import {
   PanelBottomIcon,
   XIcon,
   FolderGit2Icon,
+  FolderOpenIcon,
   CheckIcon,
   ChevronDownIcon,
   ArrowDownIcon,
@@ -29,6 +36,8 @@ import {
   Loader2,
   Pin,
 } from "lucide-react";
+import { useCheckoutPullRequest } from "../../hooks/useCheckoutPullRequest";
+import { WorkspacePullRequest } from "./WorkspacePullRequest";
 import GitActionsControl from "../GitActionsControl";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { Toggle } from "../ui/toggle";
@@ -38,7 +47,7 @@ import { useVcs } from "~/state/vcs";
 import { cn } from "~/lib/utils";
 import { useRightPanelStore } from "~/stores/rightPanelStore";
 import { ProjectFavicon, type ProjectFaviconProject } from "../ProjectFavicon";
-import { Menu, MenuItem, MenuPopup, MenuTrigger } from "../ui/menu";
+import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
 import {
   gitBranchesQueryOptions,
   gitCheckoutMutationOptions,
@@ -70,6 +79,11 @@ import { useScopedStateStore } from "~/state/scopedStateStore";
 import { workspaceShellActions } from "~/state/workspaceShell";
 
 interface ChatHeaderProps {
+  workspaceActionsContainer?: HTMLElement | null;
+  onWorkspaceActionsOpenChange?: (open: boolean) => void;
+  workspaceControls?: ReactNode;
+  agentWorkflow?: ReactNode;
+  scriptManagement?: ReactNode;
   scripts?: ReadonlyArray<ProjectScript> | undefined;
   onRunScript?: ((script: ProjectScript) => void) | undefined;
   projectId?: ProjectId | undefined;
@@ -126,6 +140,7 @@ function BranchSelectorControl({
   const [newWorktreeOpen, setNewWorktreeOpen] = useState(false);
   const [newBranchName, setNewBranchName] = useState("");
   const [search, setSearch] = useState("");
+  const [branchPickerOpen, setBranchPickerOpen] = useState(false);
   const [isMerging, setIsMerging] = useState(false);
   const [mergingBranch, setMergingBranch] = useState<string | null>(null);
 
@@ -229,6 +244,7 @@ function BranchSelectorControl({
     (branch: string) => {
       checkoutMutation.mutate(branch, {
         onSuccess: () => {
+          setBranchPickerOpen(false);
           toastManager.add({ type: "success", title: `Switched to branch '${branch}'` });
         },
         onError: (err) => {
@@ -314,15 +330,17 @@ function BranchSelectorControl({
   const hasBehind = (behindCount ?? 0) > 0;
 
   return (
-    <div className="space-y-1.5">
+    <div className="workspace-branch-card space-y-3">
       {/* Branch row: picker + pull button + divergence shortcut */}
       <div className="flex items-center gap-1">
-        <Menu
+        <Popover
+          open={branchPickerOpen}
           onOpenChange={(open) => {
+            setBranchPickerOpen(open);
             if (!open) setSearch("");
           }}
         >
-          <MenuTrigger
+          <PopoverTrigger
             render={
               <button
                 type="button"
@@ -362,27 +380,41 @@ function BranchSelectorControl({
                 className="size-3 shrink-0 text-muted-foreground opacity-60 transition-transform duration-150 group-data-[popup-open]:rotate-180"
               />
             )}
-          </MenuTrigger>
+          </PopoverTrigger>
 
-          <MenuPopup
-            align="start"
-            className="w-68 p-0 overflow-hidden shadow-lg border border-border/80"
+          <PopoverPopup
+            align="end"
+            sideOffset={10}
+            aria-label="Switch branch"
+            className="workspace-branch-picker"
+            viewportClassName="workspace-branch-picker-viewport"
           >
             {/* Search bar */}
-            <div className="flex items-center gap-2 border-b border-border/60 px-2.5 py-1.5 bg-muted/20">
+            <div className="workspace-branch-search flex items-center gap-2 border-b border-border/60 px-4 py-3">
               <SearchIcon className="size-3.5 shrink-0 text-muted-foreground" />
               <input
                 autoFocus
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search branches…"
+                aria-label="Search branches"
+                placeholder="Find a branch…"
+                onKeyDown={(event) => {
+                  if (event.key === "ArrowDown") {
+                    event.preventDefault();
+                    event.currentTarget
+                      .closest('[data-slot="popover-popup"]')
+                      ?.querySelector<HTMLButtonElement>("[data-branch-checkout]:not(:disabled)")
+                      ?.focus();
+                  }
+                }}
                 className="flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground/50 py-0.5"
               />
               {search && (
                 <button
                   type="button"
                   onClick={() => setSearch("")}
+                  aria-label="Clear branch search"
                   className="size-4 flex items-center justify-center text-muted-foreground hover:text-foreground rounded"
                 >
                   <XIcon className="size-3" />
@@ -391,21 +423,23 @@ function BranchSelectorControl({
             </div>
 
             {/* New worktree — prominent top CTA */}
-            <div className="border-b border-border/60 p-1 bg-accent/20">
-              <MenuItem
+            <div className="border-b border-border/60 p-2">
+              <button
+                type="button"
                 onClick={() => {
                   setSearch("");
+                  setBranchPickerOpen(false);
                   setNewWorktreeOpen(true);
                 }}
-                className="gap-2 rounded-md bg-primary/10 text-primary hover:bg-primary/20 font-medium py-1.5"
+                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-foreground hover:bg-accent font-medium"
               >
                 <FolderGit2Icon className="size-3.5 shrink-0 text-primary" />
                 <span className="flex-1 text-xs">New worktree…</span>
-              </MenuItem>
+              </button>
             </div>
 
             {/* Branch list */}
-            <div className="max-h-56 overflow-y-auto p-1 divide-y divide-border/20">
+            <div className="workspace-branch-results max-h-72 overflow-y-auto p-2">
               {filteredBranches.length === 0 ? (
                 <p className="py-4 text-center text-xs text-muted-foreground">No branches found</p>
               ) : (
@@ -418,13 +452,36 @@ function BranchSelectorControl({
                     <div
                       key={b.name}
                       className={cn(
-                        "group/item flex items-center gap-1.5 rounded-md px-2 py-1.5 transition-colors hover:bg-accent/40",
+                        "workspace-branch-result group/item flex min-h-11 items-center gap-2 rounded-md px-2 py-2 transition-colors hover:bg-accent/40",
                         b.current && "bg-accent/30 font-medium",
                       )}
                     >
                       <button
                         type="button"
                         disabled={b.current || checkoutMutation.isPending}
+                        data-branch-checkout
+                        aria-label={`Switch to ${b.name}`}
+                        title={b.name}
+                        onKeyDown={(event) => {
+                          if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+                          event.preventDefault();
+                          const rows = [
+                            ...event.currentTarget
+                              .closest(".workspace-branch-results")!
+                              .querySelectorAll<HTMLButtonElement>(
+                                "[data-branch-checkout]:not(:disabled)",
+                              ),
+                          ];
+                          const current = rows.indexOf(event.currentTarget);
+                          const index =
+                            event.key === "Home"
+                              ? 0
+                              : event.key === "End"
+                                ? rows.length - 1
+                                : (current + (event.key === "ArrowDown" ? 1 : -1) + rows.length) %
+                                  rows.length;
+                          rows[index]?.focus();
+                        }}
                         onClick={() => handleCheckout(b.name)}
                         className="flex flex-1 items-center gap-2 min-w-0 text-left disabled:cursor-default"
                       >
@@ -532,8 +589,8 @@ function BranchSelectorControl({
                 })
               )}
             </div>
-          </MenuPopup>
-        </Menu>
+          </PopoverPopup>
+        </Popover>
 
         {/* Pull button — shown when behind upstream */}
         {isGitRepo && hasUpstream && hasBehind && (
@@ -588,37 +645,31 @@ function BranchSelectorControl({
             <div
               key={branchName}
               className={cn(
-                "flex items-center justify-between gap-1.5 rounded-lg border px-2 py-1 text-xs transition-colors",
+                "workspace-pinned-branch flex min-w-0 items-center justify-between gap-2 rounded-lg border px-3 py-2 text-xs transition-colors",
                 behind > 0
                   ? "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400"
                   : ahead > 0
-                    ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                    ? "border-border/70 bg-muted/40 text-foreground/80"
                     : isCurrent
                       ? "border-sky-500/20 bg-sky-500/5 text-sky-600 dark:text-sky-400"
                       : "border-border/70 bg-muted/20 text-muted-foreground",
               )}
             >
-              <div className="flex items-center gap-1.5 min-w-0">
-                <Pin className="size-3 shrink-0 fill-current opacity-80" />
-                <span className="truncate text-[10px] leading-tight font-mono">
-                  {isCurrent ? (
-                    <span>
-                      Current branch (<strong>{branchName}</strong>)
-                    </span>
-                  ) : (
-                    <>
-                      vs <strong>{branchName}</strong>:
-                      {behind > 0 && (
-                        <span className="text-amber-500 font-semibold ml-1">+{behind} behind</span>
-                      )}
-                      {ahead > 0 && (
-                        <span className="text-emerald-500 font-normal ml-1">+{ahead} ahead</span>
-                      )}
-                      {behind === 0 && ahead === 0 && (
-                        <span className="text-emerald-500 font-medium ml-1">✓ Synced</span>
-                      )}
-                    </>
-                  )}
+              <div className="min-w-0 flex-1">
+                <div className="flex min-w-0 items-center gap-1.5">
+                  <Pin className="size-3 shrink-0 fill-current opacity-80" />
+                  <span className="truncate font-mono text-[11px] font-medium" title={branchName}>
+                    {branchName}
+                  </span>
+                </div>
+                <span className="ml-[18px] mt-1 block text-[10px] text-muted-foreground">
+                  {isCurrent
+                    ? "Current branch"
+                    : behind === 0 && ahead === 0
+                      ? "In sync"
+                      : [behind > 0 ? `${behind} behind` : "", ahead > 0 ? `${ahead} ahead` : ""]
+                          .filter(Boolean)
+                          .join(" · ")}
                 </span>
               </div>
 
@@ -629,7 +680,8 @@ function BranchSelectorControl({
                     variant="outline"
                     disabled={isMerging}
                     onClick={() => void handleMergeBranch(branchName)}
-                    className="h-5 px-1.5 text-[10px] border-amber-500/40 hover:bg-amber-500/20 shrink-0 gap-1 text-amber-600 dark:text-amber-400"
+                    aria-label={`Merge ${branchName} into ${currentBranch ?? "current branch"}`}
+                    className="min-h-7 px-2 text-[10px] border-amber-500/40 hover:bg-amber-500/20 shrink-0 gap-1 text-amber-600 dark:text-amber-400"
                   >
                     {isMerging && mergingBranch === branchName ? (
                       <Loader2 className="size-2.5 animate-spin" />
@@ -709,6 +761,11 @@ function BranchSelectorControl({
 }
 
 export const ChatHeader = memo(function ChatHeader({
+  workspaceActionsContainer,
+  onWorkspaceActionsOpenChange,
+  workspaceControls,
+  agentWorkflow,
+  scriptManagement,
   scripts,
   onRunScript,
   projectId,
@@ -737,7 +794,27 @@ export const ChatHeader = memo(function ChatHeader({
   onToggleMaximize,
   onClosePane,
 }: ChatHeaderProps) {
-  const [workspaceOpen, setWorkspaceOpen] = useState(false);
+  const workspaceKey = JSON.stringify([
+    environmentId ?? "primary",
+    projectId ?? openInCwd ?? activeThreadId,
+  ]);
+  const savedOpen = useWorkspaceActionsState((state) => state.entries[workspaceKey]?.open);
+  const workspaceOpen = savedOpen ?? (typeof window !== "undefined" && window.innerWidth >= 1440);
+  const section =
+    useWorkspaceActionsState((state) => state.entries[workspaceKey]?.section) ??
+    (isGitRepo ? "git" : "run");
+  const setWorkspaceOpen = useCallback(
+    (value: boolean | ((old: boolean) => boolean)) =>
+      useWorkspaceActionsState
+        .getState()
+        .update(workspaceKey, { open: typeof value === "function" ? value(workspaceOpen) : value }),
+    [workspaceKey, workspaceOpen],
+  );
+  const setSection = (value: WorkspaceActionSection) =>
+    useWorkspaceActionsState.getState().update(workspaceKey, { section: value });
+  useEffect(() => {
+    onWorkspaceActionsOpenChange?.(workspaceOpen);
+  }, [workspaceOpen, onWorkspaceActionsOpenChange]);
   const workspaceCardRef = useRef<HTMLDivElement | null>(null);
   const workspaceTriggerRef = useRef<HTMLButtonElement | null>(null);
 
@@ -746,15 +823,23 @@ export const ChatHeader = memo(function ChatHeader({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         setWorkspaceOpen(false);
+        workspaceTriggerRef.current?.focus();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
+
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [workspaceOpen]);
+  }, [workspaceOpen, setWorkspaceOpen]);
 
   const vcs = useVcs(gitCwd, environmentId);
+  const pullRequest = useCheckoutPullRequest(
+    isGitRepo ? gitCwd : null,
+    vcs.status?.branch ?? null,
+    environmentId,
+  );
+  const checkoutPr = pullRequest.data?.pullRequest ?? vcs.status?.pr;
   const storeIsOpen = useRightPanelStore((s) => s.isOpen);
   const storeToggle = useRightPanelStore((s) => s.toggleOpen);
   const effectiveRightPanelOpen = rightPanelOpen ?? storeIsOpen;
@@ -775,6 +860,251 @@ export const ChatHeader = memo(function ChatHeader({
       ? "Tabs IDE"
       : activeProjectName
     : null;
+
+  const workspaceCard = (
+    <section
+      id={`workspace-card-${activeThreadId}`}
+      aria-label="Workspace actions"
+      className="workspace-actions-layout"
+    >
+      <div className="workspace-action-capsule workspace-action-identity">
+        <span className="workspace-action-project-icon">
+          {activeProjectFavicon ? (
+            <ProjectFavicon project={activeProjectFavicon} className="size-5" />
+          ) : (
+            <FolderGit2Icon className="size-5" />
+          )}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold">{activeProjectName}</p>
+          <p className="truncate text-[11px] text-muted-foreground" title={openInCwd ?? undefined}>
+            {openInCwd ?? "Path unavailable"}
+          </p>
+        </div>
+        {openInCwd && availableEditors.includes("file-manager") && (
+          <button
+            type="button"
+            aria-label="Open project folder"
+            className="workspace-action-icon-button"
+            onClick={() => {
+              void environmentApi(environmentId)
+                .then((api) => api.shell.openInEditor(openInCwd, "file-manager"))
+                .catch((error) =>
+                  toastManager.add({
+                    type: "error",
+                    title: "Could not open project folder",
+                    description: String(error),
+                  }),
+                );
+            }}
+          >
+            <FolderOpenIcon className="size-4" />
+          </button>
+        )}
+        <button
+          type="button"
+          aria-label="Close workspace card"
+          className="workspace-action-icon-button"
+          onClick={() => {
+            setWorkspaceOpen(false);
+            workspaceTriggerRef.current?.focus();
+          }}
+        >
+          <XIcon className="size-4" />
+        </button>
+      </div>
+      <div
+        className="workspace-action-capsule workspace-action-tabs"
+        role="tablist"
+        aria-label="Workspace sections"
+      >
+        {(
+          [
+            { id: "git", label: "Git", Icon: GitCompanionIcon },
+            { id: "run", label: "Run", Icon: DockUfoIcon },
+            { id: "agents", label: "Agents", Icon: AssistantBubbleIcon },
+          ] as const
+        ).map(({ id, label, Icon }) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            id={`workspace-tab-${activeThreadId}-${id}`}
+            aria-label={label}
+            title={label}
+            aria-selected={section === id}
+            aria-controls={`workspace-pane-${activeThreadId}-${id}`}
+            onClick={() => setSection(id)}
+            onKeyDown={(event) => {
+              const order: WorkspaceActionSection[] = ["git", "run", "agents"];
+              const offset = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
+              if (!offset && event.key !== "Home" && event.key !== "End") return;
+              event.preventDefault();
+              const next =
+                event.key === "Home"
+                  ? "git"
+                  : event.key === "End"
+                    ? "agents"
+                    : order[(order.indexOf(id) + offset + 3) % 3]!;
+              setSection(next);
+              document.getElementById(`workspace-tab-${activeThreadId}-${next}`)?.focus();
+            }}
+            tabIndex={section === id ? 0 : -1}
+          >
+            <Icon className="size-4 shrink-0" />
+            <span>{label}</span>
+          </button>
+        ))}
+      </div>
+      <div
+        hidden={section !== "run"}
+        role="tabpanel"
+        id={`workspace-pane-${activeThreadId}-run`}
+        aria-labelledby={`workspace-tab-${activeThreadId}-run`}
+        className="workspace-action-pane workspace-action-run"
+      >
+        <div
+          role="group"
+          aria-label="Workspace context"
+          className="workspace-context space-y-1 pb-3"
+        >
+          {workspaceControls}
+          <OpenInPicker
+            keybindings={keybindings}
+            availableEditors={availableEditors}
+            openInCwd={openInCwd}
+            showEditorName
+            displayMode="panel"
+          />
+        </div>
+        {scriptManagement && (
+          <div className="pb-3" aria-label="Manage project scripts">
+            {scriptManagement}
+          </div>
+        )}
+        {!!scripts?.length && onRunScript && (
+          <div
+            role="group"
+            aria-label="Project scripts"
+            className="my-2 max-h-48 space-y-1 overflow-y-auto"
+          >
+            {scripts.map((script) => (
+              <button
+                type="button"
+                key={script.id}
+                title={`Run ${script.name}`}
+                aria-label={`Run ${script.name}`}
+                onClick={() => onRunScript(script)}
+                className="surface-control flex h-8 w-full min-w-0 items-center gap-2 rounded-lg px-2 text-left text-xs focus-visible:outline-2 focus-visible:outline-ring"
+              >
+                <PlayIcon aria-hidden="true" className="size-3 shrink-0" />
+                <span className="truncate">{script.name}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      {/* Git section */}
+      <div
+        hidden={section !== "git"}
+        role="tabpanel"
+        id={`workspace-pane-${activeThreadId}-git`}
+        aria-labelledby={`workspace-tab-${activeThreadId}-git`}
+        className="workspace-action-pane"
+      >
+        <div role="group" aria-label="Version control" className="workspace-git space-y-2">
+          {/* Branch selector + pull + divergence */}
+          <BranchSelectorControl
+            projectId={projectId}
+            gitCwd={gitCwd}
+            environmentId={environmentId}
+            currentBranch={vcs.status?.branch ?? null}
+            isGitRepo={isGitRepo}
+            aheadCount={vcs.status?.aheadCount}
+            behindCount={vcs.status?.behindCount}
+            hasUpstream={vcs.status?.hasUpstream}
+            onOpenDivergence={handleOpenGitDivergence}
+          />
+
+          {checkoutPr && (
+            <WorkspacePullRequest
+              summary={checkoutPr}
+              details={pullRequest.data?.pullRequest}
+              unavailable={pullRequest.isError}
+              environmentId={environmentId}
+            />
+          )}
+
+          {/* Changed files */}
+          <button
+            type="button"
+            disabled={!isGitRepo}
+            className="surface-control flex h-8 w-full items-center gap-2 rounded-lg px-2 text-xs focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-40"
+            onClick={() => {
+              if (!diffOpen) onToggleDiff();
+            }}
+          >
+            <DiffIcon aria-hidden="true" className="size-3 text-muted-foreground" />
+            <span className="flex-1 text-left">Changes</span>
+            {vcs.status && (
+              <span className="flex gap-2 font-mono tabular-nums text-[11px]">
+                <span className="text-emerald-500 font-medium">
+                  +{vcs.status.workingTree.insertions}
+                </span>
+                <span className="text-red-400 font-medium">
+                  −{vcs.status.workingTree.deletions}
+                </span>
+              </span>
+            )}
+          </button>
+
+          {/* Divergence Space shortcut link */}
+          {isGitRepo && (
+            <button
+              type="button"
+              onClick={handleOpenGitDivergence}
+              className="flex h-7 w-full items-center justify-between rounded-lg px-2 text-[11px] text-muted-foreground hover:bg-accent/40 hover:text-foreground transition-colors group"
+            >
+              <span className="flex items-center gap-1.5">
+                <Telescope className="size-3 text-primary shrink-0" />
+                <span>Divergence space</span>
+              </span>
+              <span className="text-[10px] text-muted-foreground/60 group-hover:text-muted-foreground font-sans">
+                Compare all →
+              </span>
+            </button>
+          )}
+          {/* Commit & Push */}
+          <div className="flex w-full">
+            <GitActionsControl
+              gitCwd={gitCwd}
+              activeThreadId={activeThreadId}
+              environmentId={environmentId}
+            />
+          </div>
+        </div>
+      </div>
+      <div
+        hidden={section !== "agents"}
+        role="tabpanel"
+        id={`workspace-pane-${activeThreadId}-agents`}
+        aria-labelledby={`workspace-tab-${activeThreadId}-agents`}
+        className="workspace-action-pane workspace-action-agents"
+      >
+        {agentWorkflow ?? (
+          <p className="p-3 text-xs text-muted-foreground">
+            Open a conversation to manage its agents and automations.
+          </p>
+        )}
+      </div>
+
+      {vcs.error && (
+        <p role="status" className="mt-2 text-[10px] text-muted-foreground">
+          Git status temporarily unavailable.
+        </p>
+      )}
+    </section>
+  );
 
   return (
     <div className="flex min-w-0 flex-1 flex-col">
@@ -930,217 +1260,15 @@ export const ChatHeader = memo(function ChatHeader({
           )}
         </div>
       </div>
-      {activeProjectName && workspaceOpen && (
-        <div
-          ref={workspaceCardRef}
-          className="absolute right-3 top-full z-40 mt-1 pointer-events-auto"
-        >
-          <section
-            id={`workspace-card-${activeThreadId}`}
-            aria-label="Workspace actions"
-            className="workspace-card w-72 max-w-[calc(100vw-2rem)] rounded-[20px] border border-border/80 bg-background/95 backdrop-blur-md p-3 text-foreground shadow-xl [-webkit-app-region:no-drag] animate-in fade-in slide-in-from-top-1 duration-150"
-          >
-            {/* Project header — logo with rich tooltip + name/path + openInPicker + close */}
-            <div className="flex items-center gap-2 pb-2.5">
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <div
-                      tabIndex={0}
-                      role="button"
-                      aria-label={`Project: ${activeProjectName ?? "Current project"}`}
-                      className="flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-[10px] border border-border/60 bg-muted/50 overflow-hidden shadow-2xs hover:bg-muted/80 transition-colors focus-visible:outline-2 focus-visible:outline-ring"
-                    >
-                      {activeProjectFavicon ? (
-                        <ProjectFavicon project={activeProjectFavicon} className="size-4.5" />
-                      ) : (
-                        <GitBranchIcon
-                          aria-hidden="true"
-                          className="size-3.5 text-muted-foreground"
-                        />
-                      )}
-                    </div>
-                  }
-                />
-                <TooltipPopup
-                  side="bottom"
-                  align="start"
-                  className="max-w-xs z-50 p-2.5 shadow-lg border border-border/80 bg-popover text-popover-foreground"
-                >
-                  <div className="space-y-1.5">
-                    <div className="flex items-center gap-2">
-                      <span className="flex size-5 shrink-0 items-center justify-center rounded border border-border/60 bg-muted/60 overflow-hidden">
-                        {activeProjectFavicon ? (
-                          <ProjectFavicon project={activeProjectFavicon} className="size-3.5" />
-                        ) : (
-                          <GitBranchIcon className="size-3 text-muted-foreground" />
-                        )}
-                      </span>
-                      <p className="font-semibold text-xs leading-none truncate">
-                        {activeProjectName ?? "Active Project"}
-                      </p>
-                    </div>
-                    {openInCwd && (
-                      <p className="font-mono text-[10px] leading-relaxed text-muted-foreground break-all bg-muted/40 p-1.5 rounded border border-border/40">
-                        {openInCwd}
-                      </p>
-                    )}
-                    {vcs.status?.branch && (
-                      <div className="flex items-center justify-between pt-1 border-t border-border/40 text-[10px] text-muted-foreground">
-                        <span className="flex items-center gap-1 font-mono text-foreground/80">
-                          <GitBranchIcon className="size-3 text-primary shrink-0" />
-                          <span>{vcs.status.branch}</span>
-                        </span>
-                        {vcs.status.hasUpstream && (
-                          <span className="font-mono text-[9px] text-muted-foreground/70">
-                            {(vcs.status.aheadCount ?? 0) > 0 ? `↑${vcs.status.aheadCount} ` : ""}
-                            {(vcs.status.behindCount ?? 0) > 0 ? `↓${vcs.status.behindCount}` : ""}
-                            {(vcs.status.aheadCount ?? 0) === 0 &&
-                            (vcs.status.behindCount ?? 0) === 0
-                              ? "Synced"
-                              : ""}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </TooltipPopup>
-              </Tooltip>
-
-              <div className="min-w-0 flex-1">
-                <p className="workspace-project truncate text-xs font-semibold leading-tight">
-                  {activeProjectName}
-                </p>
-                <p
-                  title={openInCwd ?? undefined}
-                  className="truncate font-mono text-[9px] leading-tight text-muted-foreground/70 mt-0.5"
-                >
-                  {openInCwd ?? "Path unavailable"}
-                </p>
-              </div>
-
-              {/* Open-in-editor as icon-only button in header */}
-              <OpenInPicker
-                keybindings={keybindings}
-                availableEditors={availableEditors}
-                openInCwd={openInCwd}
-                showEditorName={false}
-              />
-
-              {/* Close card button */}
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <button
-                      type="button"
-                      aria-label="Close workspace card"
-                      onClick={() => setWorkspaceOpen(false)}
-                      className="flex size-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors ml-0.5"
-                    />
-                  }
-                >
-                  <XIcon className="size-3.5" />
-                </TooltipTrigger>
-                <TooltipPopup side="bottom">Close</TooltipPopup>
-              </Tooltip>
-            </div>
-
-            <div className="h-px bg-border/50" />
-
-            {!!scripts?.length && onRunScript && (
-              <div
-                role="group"
-                aria-label="Project scripts"
-                className="my-2 max-h-48 space-y-1 overflow-y-auto"
-              >
-                {scripts.map((script) => (
-                  <button
-                    type="button"
-                    key={script.id}
-                    title={`Run ${script.name}`}
-                    aria-label={`Run ${script.name}`}
-                    onClick={() => onRunScript(script)}
-                    className="surface-control flex h-8 w-full min-w-0 items-center gap-2 rounded-lg px-2 text-left text-xs focus-visible:outline-2 focus-visible:outline-ring"
-                  >
-                    <PlayIcon aria-hidden="true" className="size-3 shrink-0" />
-                    <span className="truncate">{script.name}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-            {/* Git section */}
-            <div className="mt-2.5 space-y-1.5">
-              {/* Branch selector + pull + divergence */}
-              <BranchSelectorControl
-                projectId={projectId}
-                gitCwd={gitCwd}
-                environmentId={environmentId}
-                currentBranch={vcs.status?.branch ?? null}
-                isGitRepo={isGitRepo}
-                aheadCount={vcs.status?.aheadCount}
-                behindCount={vcs.status?.behindCount}
-                hasUpstream={vcs.status?.hasUpstream}
-                onOpenDivergence={handleOpenGitDivergence}
-              />
-
-              {/* Commit & Push */}
-              <div className="flex w-full">
-                <GitActionsControl
-                  gitCwd={gitCwd}
-                  activeThreadId={activeThreadId}
-                  environmentId={environmentId}
-                />
-              </div>
-
-              {/* Changed files */}
-              <button
-                type="button"
-                disabled={!isGitRepo}
-                className="surface-control flex h-8 w-full items-center gap-2 rounded-lg px-2 text-xs focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-40"
-                onClick={() => {
-                  if (!diffOpen) onToggleDiff();
-                }}
-              >
-                <DiffIcon aria-hidden="true" className="size-3 text-muted-foreground" />
-                <span className="flex-1 text-left">Changes</span>
-                {vcs.status && (
-                  <span className="flex gap-2 font-mono tabular-nums text-[11px]">
-                    <span className="text-emerald-500 font-medium">
-                      +{vcs.status.workingTree.insertions}
-                    </span>
-                    <span className="text-red-400 font-medium">
-                      −{vcs.status.workingTree.deletions}
-                    </span>
-                  </span>
-                )}
-              </button>
-
-              {/* Divergence Space shortcut link */}
-              {isGitRepo && (
-                <button
-                  type="button"
-                  onClick={handleOpenGitDivergence}
-                  className="flex h-7 w-full items-center justify-between rounded-lg px-2 text-[11px] text-muted-foreground hover:bg-accent/40 hover:text-foreground transition-colors group"
-                >
-                  <span className="flex items-center gap-1.5">
-                    <Telescope className="size-3 text-primary shrink-0" />
-                    <span>Divergence space</span>
-                  </span>
-                  <span className="text-[10px] text-muted-foreground/60 group-hover:text-muted-foreground font-sans">
-                    Compare all →
-                  </span>
-                </button>
-              )}
-            </div>
-
-            {vcs.error && (
-              <p role="status" className="mt-2 text-[10px] text-muted-foreground">
-                Git status temporarily unavailable.
-              </p>
-            )}
-          </section>
-        </div>
-      )}
+      {activeProjectName &&
+        workspaceOpen &&
+        (workspaceActionsContainer ? (
+          createPortal(workspaceCard, workspaceActionsContainer)
+        ) : (
+          <div ref={workspaceCardRef} className="workspace-actions-floating">
+            {workspaceCard}
+          </div>
+        ))}
     </div>
   );
 });

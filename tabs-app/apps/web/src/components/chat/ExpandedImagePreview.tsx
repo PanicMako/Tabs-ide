@@ -11,7 +11,12 @@ export interface ExpandedImagePreview {
 }
 
 export function buildExpandedImagePreview(
-  images: ReadonlyArray<{ id: string; name: string; previewUrl?: string; type?: string }>,
+  images: ReadonlyArray<{
+    id: string;
+    name: string;
+    previewUrl?: string | undefined;
+    type?: string;
+  }>,
   selectedImageId: string,
 ): ExpandedImagePreview | null {
   const previewableImages = images.flatMap((image) =>

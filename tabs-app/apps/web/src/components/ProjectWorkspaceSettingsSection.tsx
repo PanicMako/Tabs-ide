@@ -1,3 +1,9 @@
+import { useInstalledExtensions, refreshExtensions } from "../state/extensions";
+import {
+  mergeExtensionToolbarTools,
+  preserveUnavailableExtensionTools,
+} from "../extensionToolbarTools";
+import { InstalledExtensionToolIcon } from "./InstalledExtensionToolIcon";
 import { OrbitGroup } from "./ui/orbit-group";
 import { type BrowserPartitionMode } from "@tabs/contracts/settings";
 import {
@@ -364,6 +370,8 @@ function SortableToolRow({
 }
 
 export function ProjectWorkspaceSettingsSection() {
+  const installedExtensions = useInstalledExtensions();
+  const [extensionToggleBusy, setExtensionToggleBusy] = useState(false);
   const { confirmDialog } = useConfirm();
   const activeProjectId = useWorkspaceActiveProjectId();
   const activeProject = useAtomValue(projectsAtom, (state) =>
@@ -535,9 +543,63 @@ export function ProjectWorkspaceSettingsSection() {
   const [terminalToDeleteId, setTerminalToDeleteId] = useState<string | null>(null);
   const [presetToDeleteId, setPresetToDeleteId] = useState<string | null>(null);
 
-  const confirmToggle = useCallback(() => {
+  const confirmToggle = useCallback(async () => {
     if (!pendingToggle || !activeProjectId) return;
     const { toolId, toolKind, nextVisible } = pendingToggle;
+    if (toolKind === "extension") {
+      const tool = mergeExtensionToolbarTools([], installedExtensions, activeProjectId, true).find(
+        (entry) => entry.id === toolId,
+      );
+      const extension = installedExtensions.find((entry) => entry.id === tool?.extensionId);
+      const bridge = window.desktopBridge;
+      if (!extension || !bridge || extension.disabled || extension.revoked) return;
+      setExtensionToggleBusy(true);
+      try {
+        const assignment = extension.assignment;
+        await bridge.setExtensionAssignment(extension.id, {
+          ...assignment,
+          enabledProjectIds: nextVisible
+            ? [...new Set([...assignment.enabledProjectIds, activeProjectId])]
+            : assignment.enabledProjectIds.filter((id) => id !== activeProjectId),
+          disabledProjectIds: nextVisible
+            ? assignment.disabledProjectIds.filter((id) => id !== activeProjectId)
+            : [...new Set([...assignment.disabledProjectIds, activeProjectId])],
+        });
+        upsertProjectSettings(activeProjectId, (current) => ({
+          ...current,
+          tools: preserveUnavailableExtensionTools(
+            current.tools,
+            mergeExtensionToolbarTools(
+              current.tools,
+              installedExtensions,
+              activeProjectId,
+              true,
+            ).map((entry) =>
+              entry.kind === "extension"
+                ? {
+                    ...entry,
+                    visible:
+                      entry.extensionId === extension.id
+                        ? true
+                        : (current.tools.find((saved) => saved.id === entry.id)?.visible ?? true),
+                  }
+                : entry,
+            ),
+          ),
+        }));
+        await refreshExtensions();
+        setPendingToggle(null);
+      } catch (error) {
+        toastManager.add({
+          title: "Could not update extension",
+          description: error instanceof Error ? error.message : String(error),
+          type: "error",
+        });
+      } finally {
+        setExtensionToggleBusy(false);
+      }
+      return;
+    }
     if (toolKind === "custom_embed") {
       setCustomEmbedDrafts((current) =>
         current.map((entry) =>
@@ -562,7 +624,7 @@ export function ProjectWorkspaceSettingsSection() {
       ),
     }));
     setPendingToggle(null);
-  }, [activeProjectId, pendingToggle, upsertProjectSettings]);
+  }, [activeProjectId, pendingToggle, upsertProjectSettings, installedExtensions]);
 
   const draftsRef = useRef<ProjectWorkspaceDraftSnapshot>({
     customEmbedDrafts,
@@ -698,7 +760,12 @@ export function ProjectWorkspaceSettingsSection() {
   useSettingsDraftSource("workspace", isWorkspaceDirty, "Workspace");
 
   const toolbarPreviewTools = useMemo(() => {
-    return (projectSettings?.tools ?? []).filter((tool) => {
+    return mergeExtensionToolbarTools(
+      projectSettings?.tools ?? [],
+      installedExtensions,
+      activeProjectId ?? "",
+      true,
+    ).filter((tool) => {
       if (tool.kind === "custom_embed") {
         return customEmbedDrafts.some((draft) => createCustomEmbedToolId(draft.id) === tool.id);
       }
@@ -707,7 +774,13 @@ export function ProjectWorkspaceSettingsSection() {
       }
       return true;
     });
-  }, [projectSettings?.tools, customEmbedDrafts, serverProcessDrafts]);
+  }, [
+    projectSettings?.tools,
+    customEmbedDrafts,
+    serverProcessDrafts,
+    installedExtensions,
+    activeProjectId,
+  ]);
 
   const visibleToolsCount = useMemo(
     () => toolbarPreviewTools.filter((tool) => tool.visible).length,
@@ -886,7 +959,17 @@ export function ProjectWorkspaceSettingsSection() {
     const rankOf = (id: string) => rank.get(id) ?? Number.MAX_SAFE_INTEGER;
     upsertProjectSettings(projectId, (current) => ({
       ...current,
-      tools: [...current.tools].sort((a, b) => rankOf(a.id) - rankOf(b.id)),
+      tools: preserveUnavailableExtensionTools(
+        current.tools,
+        toolbarPreviewTools.map((tool) =>
+          tool.kind === "extension"
+            ? {
+                ...tool,
+                visible: current.tools.find((saved) => saved.id === tool.id)?.visible ?? true,
+              }
+            : tool,
+        ),
+      ).sort((a, b) => rankOf(a.id) - rankOf(b.id)),
     }));
     setCustomEmbedDrafts((current) =>
       [...current].sort(
@@ -1136,6 +1219,11 @@ export function ProjectWorkspaceSettingsSection() {
                 >
                   {toolbarPreviewTools.map((tool) => {
                     const isLastToolLocked = visibleToolsCount <= 1 && tool.visible;
+                    const extension =
+                      tool.kind === "extension"
+                        ? installedExtensions.find((entry) => entry.id === tool.extensionId)
+                        : undefined;
+                    const extensionUnavailable = Boolean(extension?.disabled || extension?.revoked);
 
                     return (
                       <SortableToolRow key={tool.id} id={tool.id}>
@@ -1153,6 +1241,9 @@ export function ProjectWorkspaceSettingsSection() {
                               </button>
                               <div className="min-w-0 flex-1">
                                 <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                                  {extension ? (
+                                    <InstalledExtensionToolIcon extension={extension} />
+                                  ) : null}
                                   <span>{tool.label}</span>
                                   {tool.kind === "testing" ? (
                                     <Tooltip>
@@ -1176,7 +1267,13 @@ export function ProjectWorkspaceSettingsSection() {
                                   ) : null}
                                 </div>
                                 <div className="text-xs text-muted-foreground">
-                                  {describeToolKind(tool.kind)}
+                                  {extension
+                                    ? extension.revoked
+                                      ? "Revoked · unavailable"
+                                      : extension.disabled
+                                        ? "Disabled in Extensions settings"
+                                        : "Extension · available in this project when enabled"
+                                    : describeToolKind(tool.kind)}
                                 </div>
                               </div>
                               {isLastToolLocked ? (
@@ -1195,6 +1292,7 @@ export function ProjectWorkspaceSettingsSection() {
                               ) : (
                                 <Switch
                                   checked={tool.visible}
+                                  disabled={extensionUnavailable || extensionToggleBusy}
                                   onCheckedChange={(checked) => {
                                     const nextVisible = Boolean(checked);
                                     setPendingToggle({
@@ -1224,8 +1322,8 @@ export function ProjectWorkspaceSettingsSection() {
             <CardTitle>Browser Default URL</CardTitle>
             <CardDescription>
               The Browser tool loads this URL by default for the active project. Note: If you run a
-              Launchpad Preset that has a Preview URL configured, it will automatically override
-              this default and navigate to the preset's preview.
+              Dock Preset that has a Preview URL configured, it will automatically override this
+              default and navigate to the preset's preview.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -1265,8 +1363,8 @@ export function ProjectWorkspaceSettingsSection() {
                   <Alert variant="default" className="bg-muted/50 py-3">
                     <InfoIcon className="size-4 mt-0" />
                     <AlertDescription className="text-muted-foreground ml-2">
-                      A Launchpad Preset is configured to open a preview in the Internal Browser.
-                      When you run that preset, its preview URL will override this default.
+                      A Dock Preset is configured to open a preview in the Internal Browser. When
+                      you run that preset, its preview URL will override this default.
                     </AlertDescription>
                   </Alert>
                 )}
@@ -1300,7 +1398,7 @@ export function ProjectWorkspaceSettingsSection() {
                     </div>
                   </div>
                   <OrbitGroup
-                    className="tabs-segmented flex shrink-0 self-start sm:self-auto rounded-full"
+                    className="tabs-segmented inline-flex items-center shrink-0 self-start sm:self-auto rounded-full w-fit"
                     role="group"
                     aria-label="Project browser session isolation"
                   >
@@ -1391,7 +1489,7 @@ export function ProjectWorkspaceSettingsSection() {
           <CardHeader>
             <CardTitle>Project Tools</CardTitle>
             <CardDescription>
-              Manage your project-specific browser tabs, background terminals, or launchpad presets.
+              Manage your project-specific browser tabs, background terminals, or Dock presets.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -1399,7 +1497,7 @@ export function ProjectWorkspaceSettingsSection() {
               <TabsList className="mb-4">
                 <TabsTrigger value="browser">Browser Tabs</TabsTrigger>
                 <TabsTrigger value="terminal">Terminal Tabs</TabsTrigger>
-                <TabsTrigger value="preset">Launchpad Presets</TabsTrigger>
+                <TabsTrigger value="preset">Dock Presets</TabsTrigger>
               </TabsList>
 
               <TabsContent value="browser" className="mt-0">
@@ -1572,7 +1670,7 @@ export function ProjectWorkspaceSettingsSection() {
                                       </div>
                                     </div>
                                     <OrbitGroup
-                                      className="tabs-segmented flex shrink-0 self-start sm:self-auto rounded-full"
+                                      className="tabs-segmented inline-flex items-center shrink-0 self-start sm:self-auto rounded-full w-fit"
                                       role="group"
                                       aria-label="Tab browser session isolation"
                                     >
@@ -1803,7 +1901,7 @@ export function ProjectWorkspaceSettingsSection() {
                                     {activeDraft.commands.map((command, commandIndex) => (
                                       <div
                                         key={`${activeDraft.id}-step-${commandIndex}`}
-                                        className="flex gap-2"
+                                        className="flex items-center gap-2"
                                       >
                                         <Input
                                           value={command}
@@ -2108,8 +2206,9 @@ export function ProjectWorkspaceSettingsSection() {
               }
             />
             <Button
+              disabled={extensionToggleBusy}
               onClick={() => {
-                confirmToggle();
+                void confirmToggle();
               }}
             >
               {pendingToggle?.nextVisible ? "Show" : "Hide"} {pendingToggle?.toolLabel ?? "tool"}

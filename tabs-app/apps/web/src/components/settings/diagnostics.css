@@ -19,7 +19,7 @@
 .diagnostics-overview {
   overflow: hidden;
   border: 1px solid var(--border);
-  border-radius: 28px;
+  border-radius: var(--radius-surface);
   background: var(--card);
 }
 .diagnostics-sample {
@@ -42,6 +42,7 @@
     transparent 75%
   );
 }
+html .diagnostics-metrics > button,
 .diagnostics-metrics > button {
   display: flex;
   flex-direction: column;
@@ -53,6 +54,7 @@
   cursor: pointer;
   color: var(--foreground);
   border-right: 1px solid var(--border);
+  border-radius: 0 !important;
   transition: background-color 150ms ease;
 }
 .diagnostics-metrics > button:last-child {
@@ -64,7 +66,7 @@
 .diagnostics-metrics > button:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: -4px;
-  border-radius: 20px;
+  border-radius: 0 !important;
 }
 .diagnostics-metrics > button > span {
   color: var(--muted-foreground);
@@ -140,7 +142,7 @@
 .diagnostics-details > summary:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 4px;
-  border-radius: 8px;
+  border-radius: var(--radius-surface);
 }
 .diagnostics-details[open] > summary {
   margin-bottom: 20px;
@@ -159,7 +161,7 @@
   font-weight: 600;
 }
 .diagnostics-page section > div:last-child {
-  border-radius: 24px;
+  border-radius: var(--radius-surface);
 }
 @media (max-width: 600px) {
   .diagnostics-metrics {

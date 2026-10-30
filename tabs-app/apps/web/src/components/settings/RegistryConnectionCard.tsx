@@ -209,15 +209,17 @@ export function RegistryConnectionCard({
               </p>
             ) : (
               <>
-                <div className="rounded-xl border border-border bg-muted/30 p-4 text-sm">
-                  <strong>Two public files. One connection.</strong>
-                  <p className="mt-1 text-muted-foreground">
-                    In Exchange, open Review desk → Releases. Download <b>root.json</b> and{" "}
-                    <b>desktop connection settings</b>. Never choose the signing backup.
-                  </p>
+                <div className="rounded-xl border border-border bg-muted/30 p-4 text-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="min-w-0">
+                    <strong>Two public files. One connection.</strong>
+                    <p className="mt-1 text-muted-foreground">
+                      In Exchange, open Review desk → Releases. Download <b>root.json</b> and{" "}
+                      <b>desktop connection settings</b>. Never choose the signing backup.
+                    </p>
+                  </div>
                   <Button
                     variant="link"
-                    className="mt-2 h-auto p-0"
+                    className="h-auto p-0 shrink-0 self-start sm:self-center"
                     onClick={() =>
                       void bridge.openExternal("https://exchange.buildwithtabs.com/admin/releases")
                     }

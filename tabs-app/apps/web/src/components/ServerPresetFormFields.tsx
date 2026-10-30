@@ -281,8 +281,8 @@ export function ServerPresetFormFields(props: {
           {preset.commands.map((command: string, commandIndex: number) => {
             const stepKey = `${preset.id}-step-${commandIndex}`;
             return (
-              <div key={stepKey} className="flex gap-2">
-                <div className="flex h-10 min-w-10 items-center justify-center rounded-xl border border-border/70 bg-muted/20 text-xs font-medium text-muted-foreground">
+              <div key={stepKey} className="flex items-center gap-2">
+                <div className="flex size-8 shrink-0 items-center justify-center rounded-full border border-border/70 bg-muted/20 text-xs font-medium text-muted-foreground">
                   {commandIndex + 1}
                 </div>
                 <Input
@@ -352,7 +352,7 @@ export function ServerPresetFormFields(props: {
         <div>
           <div className="text-sm font-medium text-foreground">Auto-start</div>
           <div className="text-xs text-muted-foreground">
-            Launch this preset automatically when the Launchpad tab opens.
+            Launch this preset automatically when the Dock tab opens.
           </div>
         </div>
         <Switch
@@ -404,7 +404,7 @@ export function ServerPresetFormFields(props: {
             <div className="flex items-center justify-between gap-4">
               <div className="text-sm font-medium text-foreground">Target Browser</div>
               <OrbitGroup
-                className="tabs-segmented flex rounded-full"
+                className="tabs-segmented inline-flex items-center rounded-full w-fit"
                 role="group"
                 aria-label="Target browser"
               >

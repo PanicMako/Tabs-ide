@@ -5,7 +5,6 @@ const SERVICE = "Tabs Provider Credentials";
 export type ProviderSecretName =
   | "copilot.github-token"
   | "copilot.byok-api-key"
-  | "gemini.api-key"
   | "droid.api-key"
   | "antigravity.api-key"
   | "openrouter.api-key"

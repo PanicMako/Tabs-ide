@@ -2973,7 +2973,6 @@ it.layer(
               "copilot",
               "cursor",
               "droid",
-              "gemini",
               "grok",
               "kilo",
               "opencode",

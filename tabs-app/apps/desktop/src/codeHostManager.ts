@@ -381,6 +381,9 @@ export const CODE_OSS_EMBED_DEFAULT_SETTINGS: Record<string, unknown> = {
   // workbench restoration is disabled so a stale editor-group snapshot cannot
   // reintroduce files from another Tabs project before that filtered restore.
   "workbench.editor.restoreEditors": false,
+  "workbench.experimental.modernUI": true,
+  // Tab geometry and breadcrumbs are contributed defaults in tabs-embed-defaults.
+  // Do not persist them here: doing so overrides the user's editor preferences.
   // Code owns its complete stock workbench inside the Tabs Code tool. Keeping
   // these parts native avoids duplicating VS Code's layout and accessibility
   // behavior in the surrounding React shell.
@@ -413,7 +416,6 @@ export const CODE_OSS_EMBED_DEFAULT_SETTINGS: Record<string, unknown> = {
   // visible without changing extension enablement.
   "chat.disableAIFeatures": false,
   "chat.commandCenter.enabled": true,
-  "workbench.secondarySideBar.defaultVisibility": "visible",
   // Open VSX signature archives are not Microsoft Marketplace repository
   // signatures. Some currently contain the Open VSX signature alongside an
   // empty legacy .signature.p7s, which Microsoft's verifier rejects before an
@@ -433,6 +435,8 @@ export const CODE_OSS_EMBED_DEFAULT_SETTINGS: Record<string, unknown> = {
 // they are in stock VS Code. Only remove a value when it still exactly matches
 // the historical forced value; a user's different customization is preserved.
 const LEGACY_FORCED_EDITOR_SETTINGS: Record<string, unknown> = {
+  "workbench.experimental.modernUIEditorTabStyle": "pill",
+  "workbench.secondarySideBar.defaultVisibility": "visible",
   "workbench.editor.showTabs": "multiple",
   "workbench.editor.tabActionLocation": "right",
   "workbench.editor.tabSizing": "shrink",
@@ -498,7 +502,7 @@ export function resolveCodeOssAiProviderSettings(
     // Provider selection controls Tabs' overlay. It must not disable or hide
     // native extension views such as Copilot Chat, Claude Code, or Codex.
     "chat.commandCenter.enabled": true,
-    "workbench.secondarySideBar.defaultVisibility": "visible",
+    "workbench.experimental.modernUI": true,
   };
 }
 
@@ -1276,6 +1280,10 @@ export class CodeHostManager {
         !session.view.webContents.isDestroyed() &&
         session.view.webContents.id === id,
     );
+  }
+
+  getWorkspaceRoot(projectId: string): string | null {
+    return this.sessions.get(projectId)?.workspaceRoot ?? null;
   }
 
   async getState(): Promise<DesktopCodeHostState> {
@@ -2524,7 +2532,23 @@ export class CodeHostManager {
         parsed.version = packageConfiguration.version;
       }
     }
-    const configuredProduct = addDefaultExtensionGallery(parsed);
+    const withGallery = addDefaultExtensionGallery(parsed);
+    const embedExtensionPath = getCodeOssEmbedExtensionPath(__dirname);
+    let defaults: Record<string, unknown> = {};
+    try {
+      const pkgPath = Path.join(embedExtensionPath, "package.json");
+      if (FS.existsSync(pkgPath)) {
+        const pkg = JSON.parse(FS.readFileSync(pkgPath, "utf8")) as {
+          contributes?: { configurationDefaults?: Record<string, unknown> };
+        };
+        if (pkg.contributes?.configurationDefaults) {
+          defaults = pkg.contributes.configurationDefaults;
+        }
+      }
+    } catch {
+      // ignore
+    }
+    const configuredProduct = mergeProductConfigurationDefaults(withGallery, defaults).product;
     productConfigurationCache.set(vscodeRoot, configuredProduct);
     return configuredProduct;
   }

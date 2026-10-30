@@ -1,3 +1,4 @@
+import { TabsBrandMark } from "./TabsBrandMark";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -5,16 +6,19 @@ import {
   PlusIcon,
   SettingsIcon,
   XIcon,
-  WorkflowIcon,
-  BotIcon,
-  RocketIcon,
-  GithubIcon,
-  GlobeIcon,
   FlaskConicalIcon,
-  TerminalSquareIcon,
-  PuzzleIcon,
   SearchIcon,
 } from "lucide-react";
+import {
+  GitCompanionIcon,
+  WorkspaceBrowserIcon,
+  WorkspaceTerminalIcon,
+} from "./WorkspaceToolMarks";
+import { CodeGlyphIcon } from "./CodeGlyphIcon";
+import { DockUfoIcon } from "./DockUfoIcon";
+import { BrowserPlanetIcon } from "./BrowserPlanetIcon";
+import { AssistantBubbleIcon } from "./AssistantBubbleIcon";
+import { TabsExtensionIcon } from "./Icons";
 import type { Project, Thread } from "../types";
 import type { ProjectId } from "@tabs/contracts";
 import type { ProjectToolKind } from "@tabs/contracts/settings";
@@ -36,46 +40,28 @@ const isMac =
 function resolveToolIcon(kind: ProjectToolKind) {
   switch (kind) {
     case "code":
-      return <WorkflowIcon className="size-4" />;
+      return <CodeGlyphIcon className="size-[18px]" />;
     case "agents":
-      return <BotIcon className="size-4" />;
+      return <AssistantBubbleIcon className="size-4" />;
     case "server":
-      return <RocketIcon className="size-4" />;
+      return <DockUfoIcon className="size-[18px]" />;
     case "git":
-      return <GithubIcon className="size-4" />;
+      return <GitCompanionIcon className="size-4" />;
     case "browser":
+      return <BrowserPlanetIcon className="size-4" />;
     case "custom_embed":
-      return <GlobeIcon className="size-4" />;
+      return <WorkspaceBrowserIcon className="size-4" />;
     case "testing":
       return <FlaskConicalIcon className="size-4" />;
     case "custom_process":
-      return <TerminalSquareIcon className="size-4" />;
+      return <WorkspaceTerminalIcon className="size-4" />;
     case "extension":
-      return <PuzzleIcon className="size-4" />;
+      return <TabsExtensionIcon className="size-4" />;
   }
 }
 
 function StudyToolBottomFillets() {
-  return (
-    <>
-      <svg
-        className="study-tab-fillet pointer-events-none absolute bottom-0 -left-2.5 w-3 h-2.5 z-10"
-        viewBox="0 0 12 10"
-        fill="none"
-        aria-hidden="true"
-      >
-        <path d="M 0 10 A 10 10 0 0 0 10 0 L 12 0 L 12 10 Z" fill="currentColor" />
-      </svg>
-      <svg
-        className="study-tab-fillet pointer-events-none absolute bottom-0 -right-2.5 w-3 h-2.5 z-10"
-        viewBox="0 0 12 10"
-        fill="none"
-        aria-hidden="true"
-      >
-        <path d="M 0 0 L 2 0 A 10 10 0 0 0 12 10 L 0 10 Z" fill="currentColor" />
-      </svg>
-    </>
-  );
+  return null;
 }
 
 export interface InterfaceStudyTopBarProps {
@@ -89,6 +75,7 @@ export interface InterfaceStudyTopBarProps {
     id: string;
     kind: ProjectToolKind;
     label: string;
+    icon?: React.ReactNode;
   }>;
   threads?: ReadonlyArray<Thread>;
   onActivateProject: (projectId: ProjectId) => void;
@@ -275,6 +262,7 @@ export const InterfaceStudyTopBar = memo(function InterfaceStudyTopBar(
       <div className="flex items-center gap-3 min-w-0 self-center">
         {/* Brand logo */}
         <div className="no-drag flex items-baseline gap-1.5 font-display text-[16px] font-extrabold tracking-tight text-foreground/90 shrink-0 select-none">
+          <TabsBrandMark className="size-6 self-center" />
           <span>Tabs</span>
           <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 px-1.5 py-0.5 rounded bg-foreground/5 border border-foreground/10">
             IDE
@@ -346,6 +334,7 @@ export const InterfaceStudyTopBar = memo(function InterfaceStudyTopBar(
           {isDeckOpen && (
             <div
               ref={deckRef}
+              data-slot="study-project-deck"
               role="menu"
               aria-label="Open projects"
               className="study-project-deck"
@@ -467,71 +456,80 @@ export const InterfaceStudyTopBar = memo(function InterfaceStudyTopBar(
       </div>
 
       {/* ── Center: Tools Navigation as Integrated Tabs ── */}
-      <nav
-        ref={navRef}
-        role="tablist"
-        aria-label="Project tools"
-        onKeyDown={handleNavKeyDown}
-        onWheel={handleNavWheel}
-        className="study-tools-nav no-drag flex items-end justify-center gap-2 flex-1 min-w-0 h-full px-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-      >
-        {props.availableTools.map((tool, index) => {
-          const active = tool.id === props.activeToolId;
-          const isAgents = tool.kind === "agents";
-          const isGit = tool.kind === "git";
+      {props.availableTools.length > 1 ? (
+        <nav
+          ref={navRef}
+          role="tablist"
+          aria-label="Project tools"
+          onKeyDown={handleNavKeyDown}
+          onWheel={handleNavWheel}
+          className="study-tools-nav no-drag flex items-end justify-center gap-2 flex-1 min-w-0 h-full px-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
+          {props.availableTools.map((tool, index) => {
+            const active = tool.id === props.activeToolId;
+            const isAgents = tool.kind === "agents";
+            const isGit = tool.kind === "git";
 
-          return (
-            <button
-              key={tool.id}
-              ref={(el) => {
-                tabRefs.current[index] = el;
-              }}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              tabIndex={active ? 0 : -1}
-              onClick={() => props.onSelectTool(tool.id)}
-              className={cn("study-tool-tab group", active && "active")}
-            >
-              {active && <StudyToolBottomFillets />}
-              <span
-                className={cn(
-                  "study-tool-tab-icon shrink-0 transition-colors",
-                  active
-                    ? "text-foreground font-semibold"
-                    : "text-muted-foreground group-hover:text-foreground",
-                )}
+            return (
+              <button
+                key={tool.id}
+                ref={(el) => {
+                  tabRefs.current[index] = el;
+                }}
+                type="button"
+                role="tab"
+                data-tool-kind={tool.kind}
+                aria-selected={active}
+                tabIndex={active ? 0 : -1}
+                onClick={() => props.onSelectTool(tool.id)}
+                className={cn("study-tool-tab group", active && "active")}
               >
-                {resolveToolIcon(tool.kind)}
-              </span>
-              <span>{tool.label}</span>
-
-              {/* Agent live ping pulse */}
-              {isAgents && hasActiveAgents && (
-                <span
-                  className="size-1.5 rounded-full bg-emerald-500 animate-pulse ml-0.5"
-                  title="Agents working"
-                  aria-label="Agents working"
-                />
-              )}
-
-              {/* Git changes count pill */}
-              {isGit && changeCount > 0 && (
+                {active && <StudyToolBottomFillets />}
                 <span
                   className={cn(
-                    "text-[10px] font-bold px-1.5 py-0.2 rounded-full ml-0.5 transition-colors",
+                    "study-tool-tab-icon shrink-0 transition-colors",
                     active
-                      ? "bg-foreground/10 text-foreground"
-                      : "bg-foreground/5 text-muted-foreground group-hover:text-foreground",
+                      ? "text-foreground font-semibold"
+                      : "text-muted-foreground group-hover:text-foreground",
                   )}
                 >
-                  {changeCount}
+                  {isAgents ? (
+                    <AssistantBubbleIcon className="size-4" />
+                  ) : (
+                    (tool.icon ?? resolveToolIcon(tool.kind))
+                  )}
                 </span>
-              )}
-            </button>
-          );
-        })}
-      </nav>
+                <span>{tool.label}</span>
+
+                {/* Agent live ping pulse */}
+                {isAgents && hasActiveAgents && (
+                  <span
+                    className="size-1.5 rounded-full bg-emerald-500 animate-pulse ml-0.5"
+                    title="Agents working"
+                    aria-label="Agents working"
+                  />
+                )}
+
+                {/* Git changes count pill */}
+                {isGit && changeCount > 0 && (
+                  <span
+                    className={cn(
+                      "text-[10px] font-bold px-1.5 py-0.2 rounded-full ml-0.5 transition-colors",
+                      active
+                        ? "bg-foreground/10 text-foreground"
+                        : "bg-foreground/5 text-muted-foreground group-hover:text-foreground",
+                    )}
+                  >
+                    {changeCount}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </nav>
+      ) : (
+        <div className="flex-1" aria-hidden="true" />
+      )}
 
       {/* ── Right: Quick Actions & Settings ── */}
       <div className="no-drag flex items-center gap-1.5 shrink-0 self-center">

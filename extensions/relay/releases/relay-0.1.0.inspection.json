@@ -1,0 +1,64 @@
+{
+  "digest": "08e806dec847039053a017f5a7e31a6a76ae69eca1843880213c40d8014aa5d1",
+  "bytes": 163079,
+  "manifest": {
+    "manifestVersion": 1,
+    "publisher": "rushil",
+    "name": "relay",
+    "version": "0.1.0",
+    "displayName": "Relay",
+    "description": "A quiet notebook for project context. Optional nested folders, boards, custom note templates, project logos, and reversible bulk deletion.",
+    "releaseNotes": "First Relay build. Start with notes or nested folders; customize templates and board columns; upload project logos; move a whole folder tree to Trash and restore it together. Notes and attachments stay in your Tabs profile. Local development package; marketplace publication pending registry readiness.",
+    "engines": {
+      "tabs": ">=2.0.0 <3.0.0",
+      "api": "^1.6.0"
+    },
+    "capabilities": [],
+    "listing": {
+      "readme": "README.md",
+      "icon": "icon.png",
+      "categories": [
+        "productivity"
+      ],
+      "keywords": [
+        "notes",
+        "handoff",
+        "folders",
+        "kanban",
+        "context"
+      ],
+      "externalServices": "None. Notes, project logos, attachments, and Trash stay in local extension profile browser storage. No telemetry or cloud sync."
+    },
+    "contributes": {
+      "tools": [
+        {
+          "id": "notebook",
+          "label": "Relay",
+          "entry": "dist/index.html",
+          "icon": "tool.svg"
+        }
+      ]
+    }
+  },
+  "id": "rushil.relay",
+  "files": [
+    "dist/appearances.css",
+    "dist/features.css",
+    "dist/fonts/bricolagegrotesque-OFL.txt",
+    "dist/fonts/bricolagegrotesque.woff2",
+    "dist/fonts/dmsans-OFL.txt",
+    "dist/fonts/dmsans.woff2",
+    "dist/index.html",
+    "dist/local-fonts.css",
+    "dist/organization.css",
+    "dist/relay.js",
+    "dist/runtime.css",
+    "dist/styles.css",
+    "dist/typography.css",
+    "icon.png",
+    "PRIVACY.md",
+    "README.md",
+    "tabs-extension.json",
+    "tool.svg"
+  ]
+}

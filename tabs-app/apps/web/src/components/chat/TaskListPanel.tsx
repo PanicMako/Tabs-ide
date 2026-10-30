@@ -66,7 +66,7 @@ export const TaskListPanel = memo(function TaskListPanel({ tasks }: TaskListPane
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="flex w-full items-center justify-between gap-2 px-4 py-2.5 text-left transition-colors duration-150 hover:bg-muted/20"
+        className="flex w-full items-center justify-between gap-2 px-4 py-2.5 rounded-xl text-left transition-colors duration-150 hover:bg-muted/20"
       >
         <div className="flex items-center gap-2.5">
           {/* Drag handle dots */}

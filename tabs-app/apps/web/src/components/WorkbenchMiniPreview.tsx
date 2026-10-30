@@ -12,7 +12,6 @@ import {
   GitBranch,
   Layers,
   LayoutGrid,
-  MessageSquare,
   MoreHorizontal,
   Search,
   Send,
@@ -21,6 +20,7 @@ import {
   Wrench,
   X,
 } from "lucide-react";
+import { AssistantBubbleIcon } from "./AssistantBubbleIcon";
 import {
   evaluateThemeTokens,
   runThemeWcagCheck,
@@ -115,7 +115,7 @@ export const WorkbenchMiniPreview: React.FC<WorkbenchMiniPreviewProps> = ({ conf
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            <MessageSquare className="size-3.5" />
+            <AssistantBubbleIcon className="size-3.5" />
             <span>Chat & App Shell</span>
           </button>
 
@@ -137,6 +137,7 @@ export const WorkbenchMiniPreview: React.FC<WorkbenchMiniPreviewProps> = ({ conf
 
       {/* Surface Frame */}
       <div
+        data-shape="preview"
         className="relative flex flex-col overflow-hidden rounded-2xl border shadow-2xl transition-all duration-200 text-xs font-sans w-full"
         style={{
           backgroundColor: editorBg,
@@ -378,7 +379,7 @@ export const WorkbenchMiniPreview: React.FC<WorkbenchMiniPreviewProps> = ({ conf
                     </div>
 
                     <div
-                      className="flex items-center gap-3 rounded-sm my-0.5"
+                      className="flex items-center gap-3 rounded-md my-0.5"
                       style={{ backgroundColor: activeLineBg }}
                     >
                       <span
@@ -394,7 +395,7 @@ export const WorkbenchMiniPreview: React.FC<WorkbenchMiniPreviewProps> = ({ conf
                         <span style={{ color: config.colors.primary }}>return </span>
                         <span
                           style={{ backgroundColor: selectionBg, color: editorFg }}
-                          className="px-0.5 rounded-xs"
+                          className="px-0.5 rounded"
                         >
                           &lt;<span style={{ color: config.colors.primary }}>CustomStudio</span>{" "}
                           /&gt;

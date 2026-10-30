@@ -1,0 +1,16 @@
+{
+  "package": "rushil.relay",
+  "version": "0.1.0",
+  "bytes": 163079,
+  "sha256": "08e806dec847039053a017f5a7e31a6a76ae69eca1843880213c40d8014aa5d1",
+  "validatedForTabs": "2.0.0",
+  "marketplacePublished": false,
+  "registry": "https://tabs-exchange-api.onrender.com",
+  "observedRegistryStatus": {
+    "publishingEnabled": false,
+    "rootMetadataHTTPStatus": 404,
+    "rootMetadataMessage": "Signed metadata is not published."
+  },
+  "verification": "Archive packed and inspected; packaged UI visually reviewed under matching CSP in browser. No automated tests or native Tabs installation performed.",
+  "installScope": "Tabs development builds only; installed packaged Tabs rejects local imports."
+}

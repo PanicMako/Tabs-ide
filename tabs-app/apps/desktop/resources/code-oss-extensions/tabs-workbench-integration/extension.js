@@ -33,7 +33,6 @@ const EMBED_CHROME_DEFAULTS = {
   // Don't nag about recommended extensions inside the embed.
   "extensions.ignoreRecommendations": true,
   // Ordinary editor preferences remain user-controlled, matching VS Code.
-  "workbench.secondarySideBar.defaultVisibility": "visible",
   "window.dialogStyle": "custom",
 };
 
@@ -44,6 +43,9 @@ const EMBED_CHROME_DEFAULTS = {
 // imported. Restricting to this fixed set means a compromised renderer can only
 // run these navigation/layout commands, never arbitrary VS Code commands.
 const CHROME_COMMAND_ALLOWLIST = new Set([
+  "_tabs.setRailPresentation",
+  "_tabs.railSpotlightOn",
+  "_tabs.railSpotlightOff",
   "workbench.view.explorer",
   "workbench.view.search",
   "workbench.view.scm",
@@ -227,6 +229,17 @@ function activate(context) {
   copilotStatusItem.show();
   context.subscriptions.push(copilotStatusItem);
 
+  // Keep the reference layout's Run action beside the native editor status.
+  // Running the stock task picker preserves task discovery and keybindings.
+  const runTaskStatusItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 99);
+  runTaskStatusItem.name = "Run Task";
+  runTaskStatusItem.text = "$(play) Run";
+  runTaskStatusItem.tooltip = "Run Task";
+  runTaskStatusItem.accessibilityInformation = { label: "Run task", role: "button" };
+  runTaskStatusItem.command = "workbench.action.tasks.runTask";
+  runTaskStatusItem.show();
+  context.subscriptions.push(runTaskStatusItem);
+
   context.subscriptions.push(
     vscode.commands.registerCommand("tabs.showCopilotQuotaMenu", async () => {
       const allCommands = await vscode.commands.getCommands(true);
@@ -372,8 +385,9 @@ function startCodeControlChannel(context) {
   // commands/state to the right editor when multiple projects are open.
   const projectId = process.env.TABS_PROJECT_ID || "";
 
-  /** @type {{ activeViewId: string | null, panelOpen: boolean, panelMaximized: boolean, dirtyCount: number, branch: string | null, activityBarItems: any[], autoSaveEnabled: boolean, openTabs: any[], testItems: any[] }} */
+  /** @type {{ modalOpen: boolean, activeViewId: string | null, panelOpen: boolean, panelMaximized: boolean, dirtyCount: number, branch: string | null, activityBarItems: any[], autoSaveEnabled: boolean, activeFilePath: string | null, openTabs: any[], testItems: any[] }} */
   const state = {
+    modalOpen: false,
     activeViewId: "explorer",
     panelOpen: false,
     panelMaximized: false,
@@ -381,6 +395,7 @@ function startCodeControlChannel(context) {
     branch: null,
     activityBarItems: [],
     autoSaveEnabled: false,
+    activeFilePath: null,
     openTabs: [],
     testItems: [],
   };
@@ -394,6 +409,7 @@ function startCodeControlChannel(context) {
   // `refreshContainers().then(…)` that sends `hello` — the server sees a
   // `chromeState` as the first message, fails auth, and destroys the socket.
   let authenticated = false;
+  let appearanceUpdate = Promise.resolve();
 
   const send = (message) => {
     if (!socket || socket.destroyed || !socket.writable) return;
@@ -410,7 +426,50 @@ function startCodeControlChannel(context) {
       send({ type: "openTabsProjectTab", projectId });
     }),
   );
+  const commitDraft = require("./commitDraft.js").createCommitDraftController(
+    vscode,
+    (message) => send({ ...message, projectId }),
+    () => authenticated && !!socket && !socket.destroyed,
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "tabs.generateCommitMessage",
+      async (sourceControl, resources, token) => {
+        try {
+          const rootUri = sourceControl?.rootUri ?? sourceControl;
+          if (token) return await commitDraft.generate(rootUri, resources, token);
+          return await vscode.window.withProgress(
+            {
+              location: vscode.ProgressLocation.Notification,
+              title: "Generating commit message",
+              cancellable: true,
+            },
+            (_progress, cancellation) => commitDraft.generate(rootUri, resources, cancellation),
+          );
+        } catch (error) {
+          void vscode.window.showErrorMessage(
+            error instanceof Error ? error.message : "Commit generation failed. Try again.",
+          );
+        }
+      },
+    ),
+    { dispose: () => commitDraft.disconnect() },
+  );
   const pushState = () => send({ type: "chromeState", projectId, state: { ...state } });
+  context.subscriptions.push(
+    vscode.commands.registerCommand("tabs.setModalOpen", (open) => {
+      state.modalOpen = open === true;
+      pushState();
+    }),
+  );
+  // Recover the current state if the extension activates during a dialog.
+  void vscode.commands.executeCommand("_tabs.getModalOpen").then(
+    (open) => {
+      state.modalOpen = open === true;
+      pushState();
+    },
+    (error) => log(`modal state unavailable: ${error}`),
+  );
 
   const serializeTestItem = (item) => {
     const children = [];
@@ -477,7 +536,7 @@ function startCodeControlChannel(context) {
               result.push({
                 filePath,
                 viewColumn,
-                active: !!tab.isActive,
+                active: !!tab.isActive && !!group.isActive,
                 pinned: !!tab.isPinned,
                 preview: !!tab.isPreview,
               });
@@ -491,11 +550,20 @@ function startCodeControlChannel(context) {
     }
   };
 
+  const computeActiveFilePath = () => {
+    const activeTab = vscode.window.tabGroups?.activeTabGroup?.activeTab;
+    const input = activeTab?.input;
+    const uri = input?.modified || input?.uri || vscode.window.activeTextEditor?.document.uri;
+    return uri?.fsPath || activeTab?.label || null;
+  };
+
   let lastTabsJson = "";
   const recomputeOpenTabs = () => {
     const nextTabs = computeOpenTabs();
     const nextJson = JSON.stringify(nextTabs);
-    if (nextJson !== lastTabsJson) {
+    const activeFilePath = computeActiveFilePath();
+    if (nextJson !== lastTabsJson || activeFilePath !== state.activeFilePath) {
+      state.activeFilePath = activeFilePath;
       lastTabsJson = nextJson;
       state.openTabs = nextTabs;
       pushState();
@@ -734,7 +802,7 @@ function startCodeControlChannel(context) {
 
   watchActiveContainerFile();
 
-  const runCommand = async (commandId) => {
+  const runCommand = async (commandId, presentation) => {
     const isStaticAllowed = CHROME_COMMAND_ALLOWLIST.has(commandId);
     const isDynamicAllowed = registeredViewContainerCommands.has(commandId);
 
@@ -742,10 +810,16 @@ function startCodeControlChannel(context) {
       return;
     }
     try {
+      if (commandId === "_tabs.setRailPresentation") {
+        await vscode.commands.executeCommand(commandId, presentation);
+        return;
+      }
+      if (presentation !== undefined) return;
       await vscode.commands.executeCommand(commandId);
     } catch {
       return;
     }
+    if (commandId === "_tabs.railSpotlightOn" || commandId === "_tabs.railSpotlightOff") return;
     // Track derived UI state from the command we just ran (VS Code exposes no
     // public active-viewlet / panel-visibility API).
     if (Object.prototype.hasOwnProperty.call(VIEW_COMMAND_TO_ID, commandId)) {
@@ -829,6 +903,7 @@ function startCodeControlChannel(context) {
       refreshBranch();
       state.dirtyCount = computeDirtyCount();
       state.autoSaveEnabled = computeAutoSaveEnabled();
+      state.activeFilePath = computeActiveFilePath();
       state.openTabs = computeOpenTabs();
       lastTabsJson = JSON.stringify(state.openTabs);
       // Authenticate immediately. Container discovery can be delayed while the
@@ -853,9 +928,11 @@ function startCodeControlChannel(context) {
         } catch {
           continue;
         }
-        if (parsed && parsed.type === "runCommand" && typeof parsed.commandId === "string") {
+        if (parsed && parsed.type === "commitDraftResult") {
+          commitDraft.receive(parsed);
+        } else if (parsed && parsed.type === "runCommand" && typeof parsed.commandId === "string") {
           log(`runCommand ${parsed.commandId}`);
-          void runCommand(parsed.commandId);
+          void runCommand(parsed.commandId, parsed.presentation);
         } else if (parsed && parsed.type === "openFile" && typeof parsed.filePath === "string") {
           log(`openFile ${parsed.filePath}`);
           void (async () => {
@@ -888,7 +965,7 @@ function startCodeControlChannel(context) {
           })();
         } else if (parsed && parsed.type === "setTheme" && typeof parsed.theme === "string") {
           log(`setTheme ${parsed.theme}`);
-          void (async () => {
+          appearanceUpdate = appearanceUpdate.then(async () => {
             try {
               const themeId = parsed.theme;
 
@@ -1145,11 +1222,7 @@ function startCodeControlChannel(context) {
               const isLight = activeConfig.baseVariant === "light";
               const targetTheme = isLight ? "Default Light Modern" : "Default Dark Modern";
               const workspaceConfig = vscode.workspace.getConfiguration();
-              await workspaceConfig.update(
-                "workbench.colorTheme",
-                targetTheme,
-                vscode.ConfigurationTarget.Global,
-              );
+              const appearance = { "workbench.colorTheme": targetTheme };
 
               const diffColorScheme =
                 (parsed.customConfig && parsed.customConfig.diffColorScheme) ||
@@ -1169,22 +1242,11 @@ function startCodeControlChannel(context) {
                 }
               }
 
-              await workspaceConfig.update(
-                "workbench.colorCustomizations",
-                Object.keys(currentCustomizations).length > 0 ? currentCustomizations : undefined,
-                vscode.ConfigurationTarget.Global,
-              );
-
-              await workspaceConfig.update(
-                "editor.tokenColorCustomizations",
-                generateEditorTokenCustomizations(activeConfig),
-                vscode.ConfigurationTarget.Global,
-              );
-              await workspaceConfig.update(
-                "editor.semanticTokenColorCustomizations",
-                generateSemanticTokenCustomizations(activeConfig),
-                vscode.ConfigurationTarget.Global,
-              );
+              appearance["workbench.colorCustomizations"] = currentCustomizations;
+              appearance["editor.tokenColorCustomizations"] =
+                generateEditorTokenCustomizations(activeConfig);
+              appearance["editor.semanticTokenColorCustomizations"] =
+                generateSemanticTokenCustomizations(activeConfig);
 
               const editorFont =
                 (parsed.fontPreferences && parsed.fontPreferences.editorFont) ||
@@ -1192,11 +1254,7 @@ function startCodeControlChannel(context) {
                   parsed.customConfig.fonts &&
                   parsed.customConfig.fonts.editorFont);
               if (editorFont) {
-                await workspaceConfig.update(
-                  "editor.fontFamily",
-                  editorFont,
-                  vscode.ConfigurationTarget.Global,
-                );
+                appearance["editor.fontFamily"] = editorFont;
               }
 
               const fontSizeCode =
@@ -1208,16 +1266,13 @@ function startCodeControlChannel(context) {
                 fontSizeCode >= 10 &&
                 fontSizeCode <= 24
               ) {
-                await workspaceConfig.update(
-                  "editor.fontSize",
-                  fontSizeCode,
-                  vscode.ConfigurationTarget.Global,
-                );
+                appearance["editor.fontSize"] = fontSizeCode;
               }
+              await vscode.commands.executeCommand("_tabs.applyAppearance", appearance);
             } catch (err) {
               log(`setTheme error: ${err && err.message ? err.message : err}`);
             }
-          })();
+          });
         }
       }
     });
@@ -1225,8 +1280,16 @@ function startCodeControlChannel(context) {
       clearTimeout(connectTimeout);
       settled = true;
       authenticated = false;
+      commitDraft.disconnect();
       if (socket === sock) {
         socket = null;
+        void vscode.commands
+          .executeCommand("_tabs.setRailPresentation", {
+            selectionY: null,
+            spotlight: false,
+            label: null,
+          })
+          .catch(() => {});
       }
       log("control channel closed");
       scheduleReconnect();
@@ -1565,7 +1628,7 @@ function renderShellHtml(_webview, state) {
           border: 1px solid transparent;
           background: transparent;
           color: var(--vscode-foreground);
-          border-radius: 999px;
+          border-radius: var(--vscode-cornerRadius-circle, 36px);
           padding: 6px 12px;
           cursor: pointer;
           font: inherit;
@@ -1612,7 +1675,7 @@ function renderShellHtml(_webview, state) {
         }
         .primary {
           border: 0;
-          border-radius: 8px;
+          border-radius: var(--vscode-cornerRadius-circle, 36px);
           padding: 8px 14px;
           cursor: pointer;
           font: inherit;

@@ -66,3 +66,28 @@ it("cancels a pending exit notification when the shell unmounts", async () => {
   });
   expect(getStartupSplashState().dismissed).toBe(false);
 });
+
+it("keeps the loader visible when readiness arrives before the application module", async () => {
+  let finish!: (node: React.ReactNode) => void;
+  const pending = new Promise<React.ReactNode>((resolve) => {
+    finish = resolve;
+  });
+  await act(async () => root.render(<StartupShell loadApplication={() => pending} />));
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(1);
+    updateStartupSplash({ ready: true });
+  });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(500);
+  });
+  expect(container.querySelector('[aria-label="Starting Tabs"]')).not.toBeNull();
+  expect(getStartupSplashState().dismissed).toBe(false);
+  await act(async () => {
+    finish(<div>Workspace</div>);
+  });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(200);
+  });
+  expect(container.textContent).toContain("Workspace");
+  expect(container.querySelector('[aria-label="Starting Tabs"]')).toBeNull();
+});

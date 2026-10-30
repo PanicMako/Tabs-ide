@@ -1,4 +1,4 @@
-import { ProjectId, type ModelSelection, type ThreadId } from "@tabs/contracts";
+import { ProjectId, type EnvironmentId, type ModelSelection, type ThreadId } from "@tabs/contracts";
 import { type ChatMessage, type SessionPhase, type Thread } from "../types";
 import { randomUUID } from "~/lib/utils";
 import { type ComposerImageAttachment, type DraftThreadState } from "../composerDraftStore";
@@ -24,9 +24,11 @@ export function buildLocalDraftThread(
   draftThread: DraftThreadState,
   fallbackModelSelection: ModelSelection,
   error: string | null,
+  environmentId?: EnvironmentId,
 ): Thread {
   return {
     id: threadId,
+    ...(environmentId ? { environmentId } : {}),
     codexThreadId: null,
     projectId: draftThread.projectId,
     title: "New thread",

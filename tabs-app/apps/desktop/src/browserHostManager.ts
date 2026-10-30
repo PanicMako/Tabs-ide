@@ -1547,7 +1547,7 @@ export class BrowserHostManager {
               pointer.setAttribute('data-tabs-agent-pointer', '');
               Object.assign(pointer.style, {
                 position: 'fixed', left: '${point.x}px', top: '${point.y}px', width: '18px', height: '18px',
-                transform: 'translate(-50%, -50%)', borderRadius: '999px', pointerEvents: 'none',
+                transform: 'translate(-50%, -50%)', borderRadius: '50%', pointerEvents: 'none',
                 zIndex: '2147483647', background: 'rgba(124,58,237,.3)', border: '2px solid #7c3aed',
                 boxShadow: '0 0 0 5px rgba(124,58,237,.12)', transition: 'opacity 180ms ease'
               });
@@ -1806,7 +1806,7 @@ export class BrowserHostManager {
         help.textContent = "Select an element · Esc to cancel";
         Object.assign(help.style, {
           position: "fixed", top: "12px", left: "50%", transform: "translateX(-50%)",
-          zIndex: "2147483647", padding: "8px 12px", borderRadius: "8px",
+          zIndex: "2147483647", padding: "8px 12px", borderRadius: "36px",
           color: "white", background: "rgba(17,24,39,.94)", font: "12px system-ui",
           pointerEvents: "none", boxShadow: "0 4px 16px rgba(0,0,0,.3)"
         });

@@ -2,6 +2,8 @@ import { useEffect, useRef } from "react";
 
 const BLOCKING_NATIVE_SURFACE_OVERLAY_SELECTORS = [
   "[data-slot='menu-positioner']",
+  "[data-slot='study-project-deck']",
+  "[data-slot='notification-history-panel']",
   "[data-slot='popover-positioner']",
   "[data-slot='dialog-backdrop']",
   "[data-slot='dialog-popup']",
@@ -15,8 +17,8 @@ const BLOCKING_NATIVE_SURFACE_OVERLAY_SELECTORS = [
 /**
  * Native WebContentsViews sit above renderer CSS, so modal overlays that must
  * remain readable or interactive temporarily suspend the active native surface.
- * Notifications now render in a dedicated topmost WebContentsView and do not
- * suspend or detach native surfaces.
+ * Toast notifications render in a dedicated topmost WebContentsView and do not
+ * suspend native surfaces. The interactive renderer-owned history panel does.
  */
 export const NATIVE_SURFACE_BLOCKING_OVERLAY_SELECTOR =
   BLOCKING_NATIVE_SURFACE_OVERLAY_SELECTORS.join(", ");

@@ -9,6 +9,7 @@ import rootPackageJson from "../package.json" with { type: "json" };
 import desktopPackageJson from "../apps/desktop/package.json" with { type: "json" };
 import serverPackageJson from "../apps/server/package.json" with { type: "json" };
 
+import { desktopInstallerIconSource } from "./lib/desktop-icon.ts";
 import { BRAND_LOGO_SVG_PATHS } from "./lib/brand-assets.ts";
 import { renderSvgToIcoFile, renderSvgToPngFile } from "./lib/icon-assets.ts";
 import { resolveCatalogDependencies } from "./lib/resolve-catalog.ts";
@@ -39,8 +40,10 @@ const BuildArch = Schema.Literals(["arm64", "x64", "universal"]);
 const RepoRoot = Effect.service(Path.Path).pipe(
   Effect.flatMap((path) => path.fromFileUrl(new URL("..", import.meta.url))),
 );
-const LightBrandLogoSource = Effect.zipWith(RepoRoot, Effect.service(Path.Path), (repoRoot, path) =>
-  path.join(repoRoot, BRAND_LOGO_SVG_PATHS.light),
+const ProductionBrandLogoSource = Effect.zipWith(
+  RepoRoot,
+  Effect.service(Path.Path),
+  (repoRoot, path) => path.join(repoRoot, BRAND_LOGO_SVG_PATHS.signature),
 );
 const encodeJsonString = Schema.encodeEffect(Schema.fromJsonString(Schema.Unknown));
 
@@ -361,7 +364,7 @@ function stageMacIcons(stageResourcesDir: string, verbose: boolean) {
   return Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
-    const iconSource = yield* LightBrandLogoSource;
+    const iconSource = desktopInstallerIconSource(yield* ProductionBrandLogoSource, "mac");
     if (!(yield* fs.exists(iconSource))) {
       return yield* new BuildScriptError({
         message: `Production icon source is missing at ${iconSource}`,
@@ -374,7 +377,7 @@ function stageMacIcons(stageResourcesDir: string, verbose: boolean) {
 
     const iconPngPath = path.join(stageResourcesDir, "icon.png");
     const iconIcnsPath = path.join(stageResourcesDir, "icon.icns");
-    yield* renderSvgToPngFile(iconSource, iconPngPath, 1024);
+    yield* renderSvgToPngFile(iconSource, iconPngPath, 1024, "mac");
     yield* generateMacIconSet(iconPngPath, iconIcnsPath, tmpRoot, path, verbose);
   });
 }
@@ -382,18 +385,18 @@ function stageMacIcons(stageResourcesDir: string, verbose: boolean) {
 function stageLinuxIcons(stageResourcesDir: string) {
   return Effect.gen(function* () {
     const path = yield* Path.Path;
-    const iconSource = yield* LightBrandLogoSource;
+    const iconSource = yield* ProductionBrandLogoSource;
     const iconPath = path.join(stageResourcesDir, "icon.png");
-    yield* renderSvgToPngFile(iconSource, iconPath, 1024);
+    yield* renderSvgToPngFile(iconSource, iconPath, 1024, "linux");
   });
 }
 
 function stageWindowsIcons(stageResourcesDir: string) {
   return Effect.gen(function* () {
     const path = yield* Path.Path;
-    const iconSource = yield* LightBrandLogoSource;
+    const iconSource = yield* ProductionBrandLogoSource;
     const iconPath = path.join(stageResourcesDir, "icon.ico");
-    yield* renderSvgToIcoFile(iconSource, iconPath);
+    yield* renderSvgToIcoFile(iconSource, iconPath, "win");
   });
 }
 
@@ -837,25 +840,16 @@ const createMacDmgFromZip = Effect.fn("createMacDmgFromZip")(function* (input: {
     .remove(`${updaterZipPath}.blockmap`, { force: true })
     .pipe(Effect.ignore({ log: true }));
 
-  // Add the familiar drag-to-install layout: a symlink to /Applications next to
-  // the app, so the mounted DMG shows "Tabs.app  ->  Applications" and the user
-  // can drag the app into place. (A custom background/icon positioning needs a
-  // writable DMG + .DS_Store, which is fragile on headless CI — the alias alone
-  // gives the standard drag target reliably.)
-  const applicationsAlias = path.join(dmgRoot, "Applications");
-  if (!(yield* fs.exists(applicationsAlias))) {
-    yield* Effect.log("[desktop-artifact] Adding /Applications drag target to DMG...");
-    yield* Effect.sync(() => {
-      spawnSync("ln", ["-s", "/Applications", applicationsAlias]);
-    });
-  }
+  // Write Finder's background and icon positions directly, without UI automation.
+  // dmgbuild uses ditto, preserving the framework symlinks validated above.
+  const installerLayoutScript = path.join(yield* RepoRoot, "scripts", "create-themed-dmg.sh");
 
   yield* fs.remove(dmgPath, { force: true }).pipe(Effect.ignore({ log: true }));
   yield* runCommandWithRetry(
     ChildProcess.make({
       ...commandOutputOptions(input.verbose),
-    })`hdiutil create -volname ${input.productName} -srcfolder ${dmgRoot} -ov -format UDZO ${dmgPath}`,
-    { attempts: 3, baseDelaySeconds: 10, label: "hdiutil create (DMG)" },
+    })`bash ${installerLayoutScript} ${dmgRoot} ${dmgPath} ${input.productName}`,
+    { attempts: 3, baseDelaySeconds: 10, label: "themed DMG layout" },
   );
   // The smoke test runs the bundled server; thin builds don't bundle it.
   if (!input.thin) {

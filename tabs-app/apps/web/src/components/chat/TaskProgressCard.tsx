@@ -140,7 +140,7 @@ export const TaskProgressCard = memo(function TaskProgressCard({
         onClick={() => setExpanded((v) => !v)}
         aria-expanded={expanded}
         aria-controls={contentId}
-        className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left transition-colors hover:bg-muted/20"
+        className="flex w-full items-center justify-between gap-2 px-4 py-3 rounded-xl text-left transition-colors hover:bg-muted/20"
       >
         <div className="flex items-center gap-2">
           <ListChecksIcon className="size-3.5 text-muted-foreground/50 shrink-0" />

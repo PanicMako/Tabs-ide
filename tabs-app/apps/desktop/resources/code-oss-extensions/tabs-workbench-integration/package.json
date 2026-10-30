@@ -41,6 +41,12 @@
         "command": "tabs.focusGit",
         "title": "Tabs: Focus Git",
         "category": "Tabs"
+      },
+      {
+        "command": "tabs.generateCommitMessage",
+        "title": "Generate Commit Message",
+        "category": "Tabs",
+        "icon": "$(git-commit)"
       }
     ],
     "keybindings": [

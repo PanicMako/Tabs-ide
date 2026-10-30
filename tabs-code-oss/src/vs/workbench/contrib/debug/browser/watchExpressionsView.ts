@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getTabsEmbeddedRowHeight } from '../../../browser/tabsEmbeddedLayout.js';
 import { IDragAndDropData } from '../../../../base/browser/dnd.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IHighlight } from '../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
@@ -238,7 +239,7 @@ export class WatchExpressionsView extends ViewPane implements IDebugViewWithVari
 class WatchExpressionsDelegate implements IListVirtualDelegate<IExpression> {
 
 	getHeight(_element: IExpression): number {
-		return 22;
+		return getTabsEmbeddedRowHeight(22);
 	}
 
 	getTemplateId(element: IExpression): string {

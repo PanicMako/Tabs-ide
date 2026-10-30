@@ -573,6 +573,29 @@ export const GoogleGemini: Icon = (props) => (
   </svg>
 );
 
+export const GoogleLogo: Icon = (props) => (
+  <svg viewBox="0 0 24 24" fill="none" {...props}>
+    <path
+      fill="#4285F4"
+      d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17Z"
+    />
+    <path
+      fill="#34A853"
+      d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.34 24 12 24Z"
+    />
+    <path
+      fill="#FBBC05"
+      d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.14-1.55.38-2.27V6.58H1.25C.45 8.16 0 9.98 0 12c0 2.02.45 3.84 1.25 5.42l4.03-3.15Z"
+    />
+    <path
+      fill="#EA4335"
+      d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.34 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98Z"
+    />
+  </svg>
+);
+
+export const GoogleIcon: Icon = GoogleLogo;
+
 export const FinderIcon: Icon = (props) => (
   <svg viewBox="0 0 24 24" fill="none" {...props}>
     <rect x="2" y="2" width="20" height="20" rx="4" fill="#36A9F5" />
@@ -818,3 +841,13 @@ export const VSCodium: Icon = (props) => {
     </svg>
   );
 };
+
+export const TabsExtensionIcon: Icon = (props) => (
+  <svg viewBox="0 0 128 128" fill="currentColor" {...props}>
+    <path
+      transform="translate(16 21) scale(.84)"
+      fillRule="evenodd"
+      d="M20 24H38C45 24 47 20 45 13C42 3 45 0 51 0C57 0 60 3 57 13C55 20 57 24 64 24H78Q88 24 88 34V53C88 60 92 62 99 60C109 57 112 60 112 66C112 72 109 75 99 72C92 70 88 72 88 79V90Q88 100 78 100H60C63 90 62 84 57 80C52 76 44 76 39 80C34 84 33 90 36 100H20Q10 100 10 90V76C20 79 26 78 30 73C34 68 34 60 30 55C26 50 20 49 10 52V34Q10 24 20 24Z M60 33C55 33 55 41 60 41H70Q73 41 73 44V53C73 59 81 59 81 53V44Q81 33 70 33Z"
+    />
+  </svg>
+);

@@ -3,7 +3,7 @@ import { isLightDesktopTheme } from "./desktopTheme";
 import { resolveCodeOssWorkbenchTheme } from "./codeHostManager";
 
 describe("desktop theme appearance", () => {
-  it.each(["tabs-light", "solarized-light", "light"])(
+  it.each(["tabs-monotone-light", "tabs-light", "solarized-light", "light"])(
     "recognizes the %s light theme",
     (theme: string) => {
       expect(isLightDesktopTheme(theme)).toBe(true);

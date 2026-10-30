@@ -197,7 +197,7 @@ function StatBlock({
                 <button
                   type="button"
                   tabIndex={0}
-                  className="cursor-help inline-flex size-3.5 shrink-0 items-center justify-center rounded-sm text-muted-foreground/60 hover:text-foreground"
+                  className="cursor-help inline-flex size-3.5 shrink-0 items-center justify-center rounded-full text-muted-foreground/60 hover:text-foreground"
                   aria-label={`${label} details`}
                 >
                   <InfoIcon className="size-3" />
@@ -1387,7 +1387,7 @@ export function DiagnosticsSettings() {
               headerAction={
                 <div className="flex items-center gap-1.5">
                   <OrbitGroup
-                    className="tabs-segmented flex items-center text-xs rounded-full"
+                    className="tabs-segmented inline-flex items-center text-xs rounded-full w-fit"
                     role="group"
                     aria-label="Resource timeline window"
                   >
