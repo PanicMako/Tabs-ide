@@ -433,7 +433,7 @@ html.tabs-embedded-workbench .webview-overlay-content.webview-overlay-auxiliaryb
 	border-top-right-radius: 12px;
 }
 html.tabs-embedded-workbench .monaco-workbench .part.auxiliarybar > .title {
-	border-radius: 16px 16px 0 0;
+	border-radius: 10px 10px 0 0 !important;
 }
 html.tabs-embedded-workbench .monaco-scrollable-element > .scrollbar > .slider,
 html.tabs-embedded-workbench .xterm .xterm-scrollable-element > .xterm-scrollbar > .xterm-slider {
@@ -497,5 +497,21 @@ html.tabs-embedded-workbench .monaco-workbench.modern-ui-tabs.modern-ui-connecte
 	border-top-right-radius: 10px !important;
 }
 html.tabs-embedded-workbench .monaco-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active > .tab-fill {
+	border-radius: 10px 10px 0 0 !important;
+}
+
+/* Chat's first connected tab needs the same tight frame as the editor tabs. */
+html.tabs-embedded-workbench .monaco-workbench.modern-ui-tabs .part.auxiliarybar {
+	border-top-left-radius: 10px !important;
+	border-top-right-radius: 10px !important;
+}
+
+/* Floating editor content is inset by the frame stroke; keep its clipping
+	concentric with the frame instead of retaining the inherited 36px top arc. */
+html.tabs-embedded-workbench .monaco-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs .part.editor:not(.modal-editor-part) > .content {
+	border-top-left-radius: max(0px, calc(10px - var(--vscode-strokeThickness, 1px))) !important;
+	border-top-right-radius: max(0px, calc(10px - var(--vscode-strokeThickness, 1px))) !important;
+}
+html.tabs-embedded-workbench .monaco-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active > .tab-connected-edge {
 	border-radius: 10px 10px 0 0 !important;
 }
