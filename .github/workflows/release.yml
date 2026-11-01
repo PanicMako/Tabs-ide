@@ -616,7 +616,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Could not extract the NSIS application archive." }
           if (-not (Test-Path (Join-Path $appRoot "resources/app.asar") -PathType Leaf)) { throw "Packaged app.asar is missing." }
           $runtimeRoot = Join-Path $appRoot "resources/tabs-code-oss"
-          & node --experimental-strip-types tabs-app/scripts/verify-windows-runtime-payload.ts $runtimeRoot
+          & node --experimental-strip-types tabs-app/scripts/verify-windows-runtime-payload.ts $runtimeRoot (Join-Path $appRoot "Tabs.exe")
           if ($LASTEXITCODE -ne 0) { throw "Windows editor payload failed production packaging checks." }
           if (-not (Test-Path (Join-Path $runtimeRoot "out/vs/code/electron-browser/workbench/workbench-dev.html") -PathType Leaf)) { throw "The full Code OSS runtime is missing from Windows installer." }
           if (-not (Test-Path (Join-Path $runtimeRoot "out-build/nls.messages.json") -PathType Leaf)) { throw "Code OSS localization data is missing from Windows installer." }

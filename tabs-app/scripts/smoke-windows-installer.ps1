@@ -328,7 +328,7 @@ try {
   if (-not (Test-Path (Join-Path $installDir "Tabs.exe"))) { throw "Tabs.exe is missing after upgrade." }
   if (-not (Test-Path (Join-Path $installDir "resources/tabs-code-oss/out/vs/code/electron-browser/workbench/workbench-dev.html") -PathType Leaf)) { throw "Upgrade is missing the bundled editor." }
   if (-not (Test-Path (Join-Path $installDir "resources/tabs-code-oss/node_modules/minimist/index.js") -PathType Leaf)) { throw "Upgrade is missing editor runtime dependencies." }
-  & node ./tabs-app/scripts/verify-windows-runtime-payload.ts (Join-Path $installDir "resources/tabs-code-oss")
+  & node ./tabs-app/scripts/verify-windows-runtime-payload.ts (Join-Path $installDir "resources/tabs-code-oss") (Join-Path $installDir "Tabs.exe")
   if ($LASTEXITCODE -ne 0) { throw "Installed Windows editor failed production packaging checks." }
   Assert-TabsShortcuts -InstallDir $installDir
   # A manual reinstall must also restore missing Desktop and Start Menu links.
