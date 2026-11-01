@@ -2,6 +2,30 @@
 
 All notable changes to Tabs IDE will be documented in this file.
 
+## [v2.2.0] - 2026-11-01
+
+### A refreshed workspace for code and agents
+
+Tabs brings a more cohesive Code workspace together with richer agent controls, project scripts, local commit drafting, and data recovery. This release also refreshes theme and typography collections and reduces work during desktop startup.
+
+### What changed
+
+- Switch between Run, Git, and Agents in Workspace Actions, with remembered sections and a layout that adapts to your chat pane.
+- Follow agent relationships, fork work into another conversation, and bring results back into the parent thread.
+- Discover project scripts and inspect linked pull requests from the workspace, with clearer readiness and checkout behavior.
+- Work in the updated Code OSS 1.143 editor with a wider Go to file control, connected tabs, coordinated panel corners, and more restrained menus, tooltips, and notifications.
+- Draft commit messages with a local Ollama model and choose the model in settings.
+- Review saved Tabs data backups and restore compatible snapshots from the recovery settings.
+- Browse refreshed theme and typography collections and preview combinations before applying them.
+- Reach the workspace sooner as optional services and startup resources load when needed.
+- Explore the website's new interactive footer and updated product presentation.
+
+### Upgrade notes
+
+Local commit drafting requires Ollama and a downloaded model, such as `qwen3:1.7b`. Tabs data backups cover application data, not project source files outside Tabs.
+
+macOS builds are not Apple Developer ID signed or notarized. After attempting to open a downloaded build, use System Settings → Privacy & Security → Open Anyway.
+
 ## [v2.1.0] - 2026-10-25
 
 ### A new identity for Tabs
