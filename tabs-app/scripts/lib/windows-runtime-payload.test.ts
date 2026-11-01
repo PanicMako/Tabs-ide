@@ -6,7 +6,7 @@ import {
   copyWindowsProductionDependencies,
   finalizeWindowsRuntimePayload,
   includeWindowsCompiledFile,
-  readServerRuntimeDependencyPaths,
+  readAdditionalRuntimeDependencyPaths,
   stripInlineSourceMap,
   validateProductionDependencyPaths,
   verifyWindowsRuntimePayload,
@@ -45,12 +45,26 @@ describe("Windows editor production payload", () => {
       '{"dependencies":{"child":"1"},"optionalDependencies":{"not-installed":"1"}}',
     );
     write(source, "node_modules/cookie/node_modules/child/package.json", "{}");
-    expect(readServerRuntimeDependencyPaths(source)).toEqual([
+    expect(readAdditionalRuntimeDependencyPaths(source)).toEqual([
       cookie,
       path.join(cookie, "node_modules/child"),
     ]);
     fs.rmSync(path.join(cookie, "node_modules/child"), { recursive: true });
-    expect(() => readServerRuntimeDependencyPaths(source)).toThrow("Missing");
+    expect(() => readAdditionalRuntimeDependencyPaths(source)).toThrow("Missing");
+  });
+  it("preserves the embedded Claude SDK and installed native dependencies", () => {
+    const source = temporaryDirectory();
+    write(source, "package.json", '{"devDependencies":{"@anthropic-ai/claude-agent-sdk":"1"}}');
+    write(
+      source,
+      "node_modules/@anthropic-ai/claude-agent-sdk/package.json",
+      '{"optionalDependencies":{"@anthropic-ai/claude-agent-sdk-win32-x64":"1","not-installed":"1"}}',
+    );
+    write(source, "node_modules/@anthropic-ai/claude-agent-sdk-win32-x64/package.json", "{}");
+    expect(readAdditionalRuntimeDependencyPaths(source)).toEqual([
+      path.join(source, "node_modules/@anthropic-ai/claude-agent-sdk"),
+      path.join(source, "node_modules/@anthropic-ai/claude-agent-sdk-win32-x64"),
+    ]);
   });
   it("copies scoped and nested runtime dependencies without nested dev packages", () => {
     const source = temporaryDirectory();

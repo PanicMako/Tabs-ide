@@ -4,14 +4,16 @@ import * as path from "node:path";
 
 export const WINDOWS_RUNTIME_MAX_FILES = 50_000;
 
-/** Server-only packages (currently cookie) are root devDependencies upstream. */
-export function readServerRuntimeDependencyPaths(sourceRoot: string): string[] {
+/** Code-OSS classifies some modules used by our embedded runtime as dev-only. */
+export function readAdditionalRuntimeDependencyPaths(sourceRoot: string): string[] {
   const manifestPath = path.join(sourceRoot, "remote", "package.json");
-  if (!fs.existsSync(manifestPath)) return [];
   const desktop = JSON.parse(fs.readFileSync(path.join(sourceRoot, "package.json"), "utf8")) as {
     dependencies?: Record<string, string>;
+    devDependencies?: Record<string, string>;
   };
-  const server = JSON.parse(fs.readFileSync(manifestPath, "utf8")) as {
+  const server = (
+    fs.existsSync(manifestPath) ? JSON.parse(fs.readFileSync(manifestPath, "utf8")) : {}
+  ) as {
     dependencies?: Record<string, string>;
   };
   const result = new Set<string>();
@@ -43,6 +45,11 @@ export function readServerRuntimeDependencyPaths(sourceRoot: string): string[] {
   for (const name of Object.keys(server.dependencies ?? {})) {
     if (!(name in (desktop.dependencies ?? {}))) collect(name, sourceRoot, false);
   }
+  // Tabs embeds source product configuration without Microsoft's SDK CDN
+  // metadata, so its agent host uses the local bare-import fallback.
+  if (desktop.devDependencies?.["@anthropic-ai/claude-agent-sdk"]) {
+    collect("@anthropic-ai/claude-agent-sdk", sourceRoot, false);
+  }
   return [...result];
 }
 
@@ -69,7 +76,7 @@ export function readProductionDependencyPaths(sourceRoot: string): string[] {
   }
   return validateProductionDependencyPaths(sourceRoot, [
     ...result.stdout.split(/\r?\n/),
-    ...readServerRuntimeDependencyPaths(sourceRoot),
+    ...readAdditionalRuntimeDependencyPaths(sourceRoot),
   ]);
 }
 
