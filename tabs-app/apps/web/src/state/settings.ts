@@ -18,6 +18,7 @@ import { useEffect } from "react";
 import { getLocalStorageItem, setLocalStorageItem } from "../hooks/useLocalStorage";
 import { setEnvironmentThemes, refreshTheme } from "../hooks/useTheme";
 import { ensureNativeApi } from "../nativeApi";
+import { DEFAULT_RESOLVED_KEYBINDINGS } from "@tabs/shared/keybindings";
 import { appAtomRegistry } from "./atomRegistry";
 
 const CLIENT_SETTINGS_STORAGE_KEY = "tabs:client-settings:v1";
@@ -48,7 +49,10 @@ export const serverSettingsAtom = Atom.make((get): ServerSettings => {
 }).pipe(Atom.withLabel("tabs-server-settings"));
 
 export const keybindingsAtom = Atom.make((get): ResolvedKeybindingsConfig => {
-  return get(serverConfigAtom)?.keybindings ?? [];
+  const loaded = get(serverConfigAtom)?.keybindings;
+  return loaded && loaded.length > 0
+    ? loaded
+    : (DEFAULT_RESOLVED_KEYBINDINGS as ResolvedKeybindingsConfig);
 }).pipe(Atom.withLabel("tabs-keybindings"));
 
 export const clientSettingsAtom = Atom.make<ClientSettings>(DEFAULT_CLIENT_SETTINGS).pipe(

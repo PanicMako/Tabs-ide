@@ -104,17 +104,48 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 	getFocusedCodeEditor(): ICodeEditor | null {
 		let editorWithWidgetFocus: ICodeEditor | null = null;
 
+		// Collect all editors that claim text focus. Under normal circumstances
+		// there will be at most one, but Chromium's NativeEditContext
+		// implementation can drop blur events when focus moves between two
+		// EditContext-backed DOM nodes (e.g. the center code editor and the
+		// built-in Chat input editor). When that happens both editors report
+		// hasTextFocus()=true simultaneously. We break the tie by checking
+		// which editor's container DOM node actually contains the current
+		// document.activeElement — that is always authoritative.
+		const editorsWithTextFocus: ICodeEditor[] = [];
+
 		const editors = this.listCodeEditors();
 		for (const editor of editors) {
-
 			if (editor.hasTextFocus()) {
-				// bingo!
-				return editor;
-			}
-
-			if (editor.hasWidgetFocus()) {
+				editorsWithTextFocus.push(editor);
+			} else if (editor.hasWidgetFocus()) {
 				editorWithWidgetFocus = editor;
 			}
+		}
+
+		if (editorsWithTextFocus.length === 1) {
+			// Fast path — no ambiguity.
+			return editorsWithTextFocus[0];
+		}
+
+		if (editorsWithTextFocus.length > 1) {
+			// Multiple editors claim text focus (NativeEditContext ghost-focus
+			// bug). Use document.activeElement containment as the tiebreaker.
+			const activeElement = dom.getActiveWindow().document.activeElement;
+			if (activeElement) {
+				for (const editor of editorsWithTextFocus) {
+					if (editor.getContainerDomNode().contains(activeElement)) {
+						return editor;
+					}
+				}
+			}
+			// Fallback: prefer the active editor reported by the workbench.
+			const activeEditor = this.getActiveCodeEditor();
+			if (activeEditor && editorsWithTextFocus.includes(activeEditor)) {
+				return activeEditor;
+			}
+			// Last resort: return the first claimant (original behaviour).
+			return editorsWithTextFocus[0];
 		}
 
 		return editorWithWidgetFocus;

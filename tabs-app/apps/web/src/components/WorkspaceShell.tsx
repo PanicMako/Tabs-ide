@@ -1471,7 +1471,9 @@ function AgentsThreadList(props: {
   onUnarchiveThread: (thread: Thread) => void | Promise<void>;
   children: ReactNode;
 }) {
-  const newThreadShortcutLabel = shortcutLabelForCommand(useKeybindings(), "chat.new");
+  const newThreadShortcutLabel =
+    shortcutLabelForCommand(useKeybindings(), "chat.new") ??
+    shortcutLabelForCommand(useKeybindings(), "chat.newLocal");
   const [threadPendingDelete, setThreadPendingDelete] = useState<Thread | null>(null);
   const [lifecycleNow, setLifecycleNow] = useState(() => Date.now());
   const [showSettledView, setShowSettledView] = useState(false);

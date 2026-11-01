@@ -467,6 +467,7 @@ function EventRouter() {
       markStartupStage("backend-connection-ready");
       // Migrate old localStorage settings to server on first connect
       migrateLocalSettingsToServer();
+      void refreshServerConfig();
       void (async () => {
         markStartupStage("provider-inventory-available");
         const primaryEnvironmentId = await primaryEnvironmentIdPromise;

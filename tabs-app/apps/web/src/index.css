@@ -2845,6 +2845,38 @@ html[data-reduced-motion="reduce"]
     0 0 24px color-mix(in srgb, var(--foreground) 6%, transparent) !important;
 }
 
+/* ─── Soft diffused accent blur/glow for interactive cards and controls ─── */
+.card-blur-glow,
+[data-card-glow="true"] {
+  outline: none !important;
+  transition:
+    background 200ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 200ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 200ms cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.card-blur-glow:hover,
+[data-card-glow="true"]:hover {
+  background: color-mix(in srgb, var(--primary) 8%, var(--muted)) !important;
+  border-color: color-mix(in srgb, var(--primary) 40%, var(--border)) !important;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--primary) 20%, transparent),
+    0 0 24px 2px color-mix(in srgb, var(--primary) 28%, transparent),
+    inset 0 1px 1px 0 color-mix(in srgb, var(--primary) 25%, transparent),
+    0 8px 24px -4px rgba(0, 0, 0, 0.35) !important;
+}
+
+.card-blur-glow:focus-visible,
+[data-card-glow="true"]:focus-visible {
+  outline: none !important;
+  background: color-mix(in srgb, var(--primary) 10%, var(--muted)) !important;
+  border-color: color-mix(in srgb, var(--primary) 55%, var(--border)) !important;
+  box-shadow:
+    0 0 0 2px var(--background),
+    0 0 0 4px color-mix(in srgb, var(--primary) 50%, transparent),
+    0 0 28px 2px color-mix(in srgb, var(--primary) 36%, transparent) !important;
+}
+
 /* Scroll area gradient mask fade using Base UI CSS variables */
 .scroll-area-fade {
   --fade-size: 1.5rem;

@@ -147,6 +147,7 @@ function BranchSelectorControl({
   );
   const queryClient = useQueryClient();
   const [branchMenuOpen, setBranchMenuOpen] = useState(false);
+  const branchRowRef = useRef<HTMLDivElement | null>(null);
   const [newWorktreeOpen, setNewWorktreeOpen] = useState(false);
   const [newBranchName, setNewBranchName] = useState("");
   const [search, setSearch] = useState("");
@@ -382,7 +383,7 @@ function BranchSelectorControl({
   return (
     <div className="workspace-branch-card space-y-3">
       {/* Branch row: picker + pull button + divergence shortcut */}
-      <div className="flex items-center gap-1">
+      <div ref={branchRowRef} className="flex w-full items-center gap-1">
         <Menu
           open={branchMenuOpen}
           onOpenChange={(open) => {
@@ -395,7 +396,7 @@ function BranchSelectorControl({
               <button
                 type="button"
                 disabled={!isGitRepo || branches.length === 0}
-                className="surface-control flex h-8 min-w-0 flex-1 items-center gap-1.5 rounded-lg px-2 text-xs focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-40 group"
+                className="surface-control flex h-8 min-w-0 flex-1 items-center gap-1.5 rounded-lg px-2 text-xs focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-40 group data-[popup-open]:bg-accent data-[popup-open]:text-foreground"
               />
             }
           >
@@ -433,8 +434,11 @@ function BranchSelectorControl({
           </MenuTrigger>
 
           <MenuPopup
+            anchor={branchRowRef}
             align="start"
-            className="workspace-branch-picker p-0 overflow-hidden shadow-lg border border-border/80"
+            side="bottom"
+            sideOffset={4}
+            className="workspace-branch-picker w-(--anchor-width) p-0 overflow-hidden shadow-2xl border border-border/80 rounded-xl bg-popover/95 backdrop-blur-md"
           >
             {/* Search bar */}
             <div className="flex items-center gap-2 border-b border-border/60 px-2.5 py-1.5 bg-muted/20">
@@ -445,6 +449,7 @@ function BranchSelectorControl({
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search branches…"
+                aria-label="Search branches"
                 className="flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground/50 py-0.5"
               />
               {search && (
@@ -552,7 +557,7 @@ function BranchSelectorControl({
                                 "size-6 shrink-0 rounded flex items-center justify-center transition-all",
                                 isThisPinned
                                   ? "text-sky-500 hover:bg-sky-500/20 opacity-100"
-                                  : "opacity-30 hover:opacity-100 hover:bg-accent text-muted-foreground hover:text-foreground",
+                                  : "opacity-0 group-hover/item:opacity-60 hover:!opacity-100 hover:bg-accent text-muted-foreground hover:text-foreground focus-visible:opacity-100",
                               )}
                             />
                           }
@@ -579,7 +584,12 @@ function BranchSelectorControl({
                                   void handleMergeBranch(b.name);
                                 }}
                                 aria-label={`Merge ${b.name} into ${currentBranch ?? "current branch"}`}
-                                className="size-6 shrink-0 rounded flex items-center justify-center opacity-40 hover:opacity-100 hover:bg-accent text-muted-foreground hover:text-foreground transition-all"
+                                className={cn(
+                                  "size-6 shrink-0 rounded flex items-center justify-center hover:bg-accent text-muted-foreground hover:text-foreground transition-all focus-visible:opacity-100",
+                                  isMerging && mergingBranch === b.name
+                                    ? "opacity-100"
+                                    : "opacity-0 group-hover/item:opacity-60 hover:!opacity-100",
+                                )}
                               />
                             }
                           >

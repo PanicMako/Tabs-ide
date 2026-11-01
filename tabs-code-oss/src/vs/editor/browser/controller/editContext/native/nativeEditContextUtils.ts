@@ -39,7 +39,14 @@ export class FocusTracker extends Disposable {
 			if (this._isPaused) {
 				return;
 			}
-			this._handleFocusedChanged(false);
+			// Do not unconditionally clear focus on blur: Chromium's EditContext
+			// implementation sometimes drops the blur event when focus moves
+			// directly between two EditContext-backed DOM nodes (e.g. the center
+			// editor and the Chat input editor). Using refreshFocusState() lets
+			// us validate against document.activeElement, which is always
+			// authoritative, so we never leave a stale isFocused=true on the
+			// editor that just lost focus.
+			this.refreshFocusState();
 		}));
 	}
 

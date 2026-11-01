@@ -189,12 +189,18 @@
 }
 
 .workspace-branch-picker {
-  width: min(380px, calc(100vw - 32px));
-  max-height: min(440px, var(--available-height));
+  width: var(--anchor-width, min(var(--workspace-actions-width, 300px), calc(100vw - 32px)));
+  max-width: calc(100vw - 32px);
+  max-height: min(440px, var(--available-height, 440px));
   background: var(--popover);
   color: var(--popover-foreground);
   border: 1px solid var(--border);
-  box-shadow: 0 16px 48px color-mix(in srgb, var(--foreground) 16%, transparent);
+  border-radius: var(--radius-surface);
+  box-shadow:
+    0 16px 48px -4px color-mix(in srgb, var(--foreground) 16%, transparent),
+    0 4px 16px -2px color-mix(in srgb, var(--foreground) 8%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 .workspace-branch-picker-viewport {
   padding: 0 !important;
