@@ -1,5 +1,8 @@
 # Close processes launched from this installation before NSIS replaces files.
 !macro customCheckAppRunning
+  !ifmacrodef tabsInstallPhase
+    !insertmacro tabsInstallPhase "process-close-start"
+  !endif
   InitPluginsDir
   File /oname=$PLUGINSDIR\close-tabs-processes.ps1 "${PROJECT_DIR}\build\close-windows-install-processes.ps1"
   !ifdef BUILD_UNINSTALLER
@@ -24,6 +27,9 @@
     SetErrorLevel 1
     Quit
   checkDone:
+    !ifmacrodef tabsInstallPhase
+      !insertmacro tabsInstallPhase "process-close-complete"
+    !endif
     !ifndef BUILD_UNINSTALLER
       IfFileExists "$PLUGINSDIR\tabs-temp-drive.txt" 0 noTempDrive
       FileOpen $1 "$PLUGINSDIR\tabs-temp-drive.txt" r
@@ -77,5 +83,8 @@ FunctionEnd
     SetErrorLevel 2
     Quit
   uninstallCheckDone:
+    !ifmacrodef tabsInstallPhase
+      !insertmacro tabsInstallPhase "old-uninstall-complete"
+    !endif
 !macroend
 !endif

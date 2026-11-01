@@ -16,6 +16,7 @@ import { resolveCatalogDependencies } from "./lib/resolve-catalog.ts";
 import { updateMacUpdateMetadata } from "./lib/mac-update-artifact.ts";
 import { sanitizeMacAppSymlinks } from "./lib/mac-symlink-sanitizer.ts";
 import { resolveNativeDependencyTarget } from "./lib/native-dependency-target.ts";
+import { writeWindowsNsisScripts } from "./lib/windows-nsis.ts";
 import {
   copyWindowsProductionDependencies,
   finalizeWindowsRuntimePayload,
@@ -971,6 +972,7 @@ const createBuildConfig = Effect.fn("createBuildConfig")(function* (
       };
       if (installerNshStaged) {
         nsisConfig.include = "./build/installer.nsh";
+        if (!thin) nsisConfig.script = "./build/windows-installer.nsi";
       }
       buildConfig.nsis = nsisConfig;
     }
@@ -1573,6 +1575,10 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
       symlinkSanitizerSource,
       path.join(afterPackDestDir, "mac-symlink-sanitizer.cjs"),
     );
+    yield* fs.copyFile(
+      path.join(repoRoot, "scripts", "lib", "windows-packed-inventory.cjs"),
+      path.join(afterPackDestDir, "windows-packed-inventory.cjs"),
+    );
     afterPackHookStaged = true;
   } else {
     return yield* new BuildScriptError({
@@ -1590,6 +1596,13 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
       path.join(repoRoot, "scripts", "close-windows-install-processes.ps1"),
       path.join(buildDestDir, "close-windows-install-processes.ps1"),
     );
+    if (options.platform === "win" && !effectiveThin) {
+      writeWindowsNsisScripts(buildDestDir);
+      yield* fs.copyFile(
+        path.join(repoRoot, "scripts", "verify-staged-runtime.ps1"),
+        path.join(buildDestDir, "verify-staged-runtime.ps1"),
+      );
+    }
     installerNshStaged = true;
   }
 

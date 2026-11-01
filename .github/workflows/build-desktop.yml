@@ -21,6 +21,11 @@ on:
         description: "Existing build run ID for smoke-only mode (skips all compilation)"
         required: false
         type: string
+      repack_windows:
+        description: "Repack an existing full-fat Windows artifact with the current installer logic"
+        required: false
+        default: false
+        type: boolean
       smoke_platforms:
         description: "Smoke-only targets: win-x64, linux-x64, mac (comma-separated)"
         required: false
@@ -492,7 +497,7 @@ jobs:
     if: inputs.artifact_run_id != '' && contains(inputs.smoke_platforms, 'win-x64')
     name: Smoke existing Windows installer
     runs-on: windows-2022
-    timeout-minutes: 50
+    timeout-minutes: 70
     steps:
       - uses: actions/checkout@v6
       - uses: actions/download-artifact@v8
@@ -501,6 +506,27 @@ jobs:
           path: tabs-app/release
           run-id: ${{ inputs.artifact_run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - name: Install pinned repack tooling
+        if: inputs.repack_windows
+        shell: pwsh
+        run: npm install --ignore-scripts --no-audit --no-fund --prefix "$env:RUNNER_TEMP/repack-tools" electron-builder@26.15.3
+      - name: Repack existing full-fat Windows payload
+        if: inputs.repack_windows
+        shell: pwsh
+        env:
+          NODE_PATH: ${{ runner.temp }}/repack-tools/node_modules
+        run: node --experimental-strip-types tabs-app/scripts/repack-windows-installer.ts tabs-app/release
+      - name: Upload repacked Windows installer
+        if: inputs.repack_windows
+        uses: actions/upload-artifact@v7
+        with:
+          name: desktop-win-x64
+          path: tabs-app/release/*
+          compression-level: 0
+          retention-days: 14
       - name: Smoke-test Windows install and locked-process upgrade
         shell: pwsh
         env:
@@ -519,6 +545,51 @@ jobs:
             ${{ runner.temp }}/tabs-installer-processes.log
             ${{ runner.temp }}/tabs-installer-diagnostics/installer-*.txt
             ${{ runner.temp }}/tabs-installer-diagnostics/installer-*.dmp
+            ${{ runner.temp }}/TabsLaunchSmoke/userdata/logs/desktop-main.log
+            ${{ runner.temp }}/TabsLaunchSmoke/userdata/logs/server-child.log
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Upload Windows installation timings
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-installer-timings
+          path: |
+            ${{ runner.temp }}/tabs-installer-metrics.json
+            ${{ runner.temp }}/tabs-installer-phase-*.log
+          if-no-files-found: ignore
+          retention-days: 14
+
+  windows_fresh_artifact_smoke:
+    needs: windows_artifact_smoke
+    if: inputs.artifact_run_id != '' && contains(inputs.smoke_platforms, 'win-x64')
+    name: Smoke fresh full-fat Windows installer
+    runs-on: windows-2022
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - uses: actions/download-artifact@v8
+        with:
+          name: desktop-win-x64
+          path: tabs-app/release
+          run-id: ${{ inputs.repack_windows && github.run_id || inputs.artifact_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install and launch full-fat app on a fresh runner
+        shell: pwsh
+        env:
+          TABS_SMOKE_FRESH_ONLY: "true"
+        run: ./tabs-app/scripts/smoke-windows-installer.ps1
+      - name: Upload fresh Windows installation timings
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-fresh-installer-timings
+          path: |
+            ${{ runner.temp }}/tabs-installer-metrics.json
+            ${{ runner.temp }}/tabs-installer-phase-*.log
             ${{ runner.temp }}/TabsLaunchSmoke/userdata/logs/desktop-main.log
             ${{ runner.temp }}/TabsLaunchSmoke/userdata/logs/server-child.log
           if-no-files-found: ignore

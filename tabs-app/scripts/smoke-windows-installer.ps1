@@ -84,6 +84,8 @@ function Invoke-SilentInstaller {
 
   Write-Host "$Label`: $Path"
   Write-Host "Install directory: $InstallDir"
+  $phaseName = $Label -replace '[^a-zA-Z0-9-]', '-'
+  $env:TABS_INSTALLER_PHASE_LOG = Join-Path $env:RUNNER_TEMP "tabs-installer-phase-$phaseName.log"
 
   # NSIS requires /D= to be the final installer argument.
   $arguments = @(
@@ -226,7 +228,8 @@ function Assert-TabsShortcuts {
 
 $installer = (Get-ChildItem tabs-app/release -Filter *.exe | Select-Object -First 1).FullName
 $initialInstaller = $installer
-if ($env:TABS_SMOKE_PREVIOUS_VERSION) {
+$freshOnly = $env:TABS_SMOKE_FRESH_ONLY -eq 'true'
+if ($env:TABS_SMOKE_PREVIOUS_VERSION -and -not $freshOnly) {
   $version = $env:TABS_SMOKE_PREVIOUS_VERSION
   $assetName = "Tabs-$version-x64.exe"
   $initialInstaller = Join-Path $env:RUNNER_TEMP $assetName
@@ -250,6 +253,12 @@ $holder = $null
 $unrelated = $null
 $installedApp = $null
 try {
+  if ($freshOnly) {
+    Invoke-SilentInstaller -Path $installer -InstallDir $installDir -Label "Candidate fresh NSIS install" -TimeoutSeconds 1200
+    Assert-TabsShortcuts -InstallDir $installDir
+    & node ./tabs-app/scripts/verify-windows-runtime-payload.ts (Join-Path $installDir "resources/tabs-code-oss") (Join-Path $installDir "Tabs.exe")
+    if ($LASTEXITCODE -ne 0) { throw "Fresh full-fat editor failed production packaging checks." }
+  } else {
   Write-Host "Installing previous version into $installDir..."
   Invoke-SilentInstaller -Path $initialInstaller -InstallDir $installDir -Label "Initial NSIS install" -TimeoutSeconds 1200
   if (-not (Test-Path (Join-Path $installDir "Tabs.exe"))) { throw "Tabs.exe was not installed." }
@@ -336,6 +345,7 @@ try {
   Invoke-SilentInstaller -Path $installer -InstallDir $installDir -Label "NSIS shortcut repair reinstall" -TimeoutSeconds 1200
   Assert-TabsShortcuts -InstallDir $installDir
   Write-Host "Windows legacy upgrade, shortcut repair, and process-scope checks passed."
+  }
 
   $smokeHome = Join-Path $env:RUNNER_TEMP "TabsLaunchSmoke"
   $desktopLog = Join-Path $smokeHome "userdata/logs/desktop-main.log"
