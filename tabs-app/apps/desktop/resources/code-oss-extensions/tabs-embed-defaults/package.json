@@ -33,7 +33,7 @@
       "editor.padding.bottom": 10,
       "workbench.experimental.modernUI": true,
       "workbench.experimental.modernUIEditorTabStyle": "connected",
-      "window.density.editorTabHeight": "compact",
+      "window.density.editorTabHeight": "default",
       "workbench.secondarySideBar.defaultVisibility": "hidden",
       "workbench.editorAssociations": {
         "*.svg": "default"

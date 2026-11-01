@@ -80,7 +80,7 @@ export function WorkspacePullRequest({
         disabled={readonly}
         aria-label={`Open pull request #${summary.number}`}
         onClick={() => handleOpenPr(summary.url)}
-        className="flex w-full items-start gap-2 rounded-lg px-2 py-2 text-left hover:bg-muted/60 disabled:pointer-events-none disabled:opacity-75"
+        className="workspace-pull-request flex w-full items-start gap-2 rounded-lg px-2 py-2 text-left hover:bg-muted/60 disabled:pointer-events-none disabled:opacity-75"
       >
         <GitPullRequestIcon
           aria-hidden="true"
@@ -121,7 +121,7 @@ export function WorkspacePullRequest({
             disabled={readonly}
             aria-label={`Open pull request #${pr.number}`}
             onClick={() => handleOpenPr(pr.url || summary.url)}
-            className="flex w-full items-start gap-2 rounded-lg px-2 py-2 text-left hover:bg-muted/60 disabled:pointer-events-none disabled:opacity-75"
+            className="workspace-pull-request flex w-full items-start gap-2 rounded-lg px-2 py-2 text-left hover:bg-muted/60 disabled:pointer-events-none disabled:opacity-75"
           >
             <GitPullRequestIcon
               aria-hidden="true"

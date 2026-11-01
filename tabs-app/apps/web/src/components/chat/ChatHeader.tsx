@@ -1,3 +1,8 @@
+import { useWorkspaceActionsState, type WorkspaceActionSection } from "./workspaceActionsState";
+import { GitCompanionIcon } from "../WorkspaceToolMarks";
+import { DockUfoIcon } from "../DockUfoIcon";
+import { AssistantBubbleIcon } from "../AssistantBubbleIcon";
+import "./workspace-actions.css";
 import { useThreadWorkspaceContext } from "../../hooks/useThreadWorkspaceContext";
 import { createPortal } from "react-dom";
 import { selectWorkspaceBranch } from "../workspaceBranchSelection";
@@ -11,16 +16,7 @@ import {
   type ThreadId,
   type ThreadPullRequestLink,
 } from "@tabs/contracts";
-import {
-  type ReactNode,
-  memo,
-  useState,
-  useCallback,
-  useMemo,
-  useRef,
-  useEffect,
-  useLayoutEffect,
-} from "react";
+import { type ReactNode, memo, useState, useCallback, useMemo, useRef, useEffect } from "react";
 import {
   SquareMenuIcon,
   GitBranchIcon,
@@ -31,6 +27,7 @@ import {
   PanelBottomIcon,
   XIcon,
   FolderGit2Icon,
+  FolderOpenIcon,
   CheckIcon,
   ChevronDownIcon,
   ArrowDownIcon,
@@ -44,7 +41,6 @@ import {
   Pin,
 } from "lucide-react";
 import { useCheckoutPullRequest } from "../../hooks/useCheckoutPullRequest";
-import { resolveWorkspaceCardDensity, type WorkspaceCardDensity } from "./workspaceCardDensity";
 import { WorkspacePullRequests } from "./WorkspacePullRequests";
 import GitActionsControl from "../GitActionsControl";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
@@ -150,6 +146,7 @@ function BranchSelectorControl({
     environmentId === undefined ? undefined : EnvironmentId.make(environmentId),
   );
   const queryClient = useQueryClient();
+  const [branchMenuOpen, setBranchMenuOpen] = useState(false);
   const [newWorktreeOpen, setNewWorktreeOpen] = useState(false);
   const [newBranchName, setNewBranchName] = useState("");
   const [search, setSearch] = useState("");
@@ -287,8 +284,10 @@ function BranchSelectorControl({
     (branch: string) => {
       checkoutMutation.mutate(branch, {
         onSuccess: (selectedBranch) => {
-          if (selectedBranch)
+          if (selectedBranch) {
+            setBranchMenuOpen(false);
             toastManager.add({ type: "success", title: `Switched to branch '${selectedBranch}'` });
+          }
         },
         onError: (err) => {
           toastManager.add({
@@ -381,11 +380,13 @@ function BranchSelectorControl({
   const hasBehind = (behindCount ?? 0) > 0;
 
   return (
-    <div className="space-y-1.5">
+    <div className="workspace-branch-card space-y-3">
       {/* Branch row: picker + pull button + divergence shortcut */}
       <div className="flex items-center gap-1">
         <Menu
+          open={branchMenuOpen}
           onOpenChange={(open) => {
+            setBranchMenuOpen(open);
             if (!open) setSearch("");
           }}
         >
@@ -433,7 +434,7 @@ function BranchSelectorControl({
 
           <MenuPopup
             align="start"
-            className="w-68 p-0 overflow-hidden shadow-lg border border-border/80"
+            className="workspace-branch-picker p-0 overflow-hidden shadow-lg border border-border/80"
           >
             {/* Search bar */}
             <div className="flex items-center gap-2 border-b border-border/60 px-2.5 py-1.5 bg-muted/20">
@@ -483,13 +484,14 @@ function BranchSelectorControl({
                     <div
                       key={b.name}
                       className={cn(
-                        "group/item flex items-center gap-1.5 rounded-md px-2 py-1.5 transition-colors hover:bg-accent/40",
+                        "workspace-branch-result group/item flex items-center gap-1.5 rounded-md px-2 py-1.5 transition-colors hover:bg-accent/40",
                         b.current && "bg-accent/30 font-medium",
                       )}
                     >
                       <button
                         type="button"
                         disabled={b.current || checkoutMutation.isPending}
+                        aria-label={`Switch to ${b.name}`}
                         onClick={() => handleCheckout(b.name)}
                         className="flex flex-1 items-center gap-2 min-w-0 text-left disabled:cursor-default"
                       >
@@ -653,7 +655,7 @@ function BranchSelectorControl({
             <div
               key={branchName}
               className={cn(
-                "flex items-center justify-between gap-1.5 rounded-lg border px-2 py-1 text-xs transition-colors",
+                "workspace-pinned-branch flex min-w-0 items-center justify-between gap-2 rounded-lg border px-3 py-2 text-xs transition-colors",
                 behind > 0
                   ? "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400"
                   : ahead > 0
@@ -808,80 +810,53 @@ export const ChatHeader = memo(function ChatHeader({
   onToggleMaximize,
   onClosePane,
 }: ChatHeaderProps) {
-  const [workspaceOpen, setWorkspaceOpen] = useState(false);
+  const workspaceKey = JSON.stringify([
+    environmentId ?? "primary",
+    activeThreadId,
+    projectId ?? openInCwd ?? activeThreadId,
+  ]);
+  const legacyWorkspaceKey = JSON.stringify([
+    environmentId ?? "primary",
+    projectId ?? openInCwd ?? activeThreadId,
+  ]);
+  const savedOpen = useWorkspaceActionsState(
+    (state) => state.entries[workspaceKey]?.open ?? state.entries[legacyWorkspaceKey]?.open,
+  );
+  const workspaceOpen = savedOpen ?? (typeof window !== "undefined" && window.innerWidth >= 1440);
+  const section =
+    useWorkspaceActionsState(
+      (state) => state.entries[workspaceKey]?.section ?? state.entries[legacyWorkspaceKey]?.section,
+    ) ?? (isGitRepo ? "git" : "run");
+  const setWorkspaceOpen = useCallback(
+    (value: boolean | ((old: boolean) => boolean)) =>
+      useWorkspaceActionsState
+        .getState()
+        .update(workspaceKey, { open: typeof value === "function" ? value(workspaceOpen) : value }),
+    [workspaceKey, workspaceOpen],
+  );
+  const setSection = (value: WorkspaceActionSection) =>
+    useWorkspaceActionsState.getState().update(workspaceKey, { section: value });
   useEffect(() => {
     onWorkspaceActionsOpenChange?.(workspaceOpen);
-  }, [onWorkspaceActionsOpenChange, workspaceOpen]);
-  const [moreActionsOpen, setMoreActionsOpen] = useState(false);
-  const headerRef = useRef<HTMLDivElement | null>(null);
-  const [availableCardHeight, setAvailableCardHeight] = useState<number | null>(null);
+  }, [workspaceOpen, onWorkspaceActionsOpenChange]);
   const workspaceCardRef = useRef<HTMLDivElement | null>(null);
   const workspaceTriggerRef = useRef<HTMLButtonElement | null>(null);
-  const closeWorkspaceCard = useCallback(() => {
-    setWorkspaceOpen(false);
-    workspaceTriggerRef.current?.focus();
-  }, []);
-
-  const [windowDimensions, setWindowDimensions] = useState(() => ({
-    width: typeof window !== "undefined" ? window.innerWidth : 1280,
-    height: typeof window !== "undefined" ? window.innerHeight : 800,
-  }));
-
-  useLayoutEffect(() => {
-    const header = headerRef.current;
-    if (!header) return;
-    const pane = header.closest<HTMLElement>("[data-chat-pane]");
-    const measure = () => {
-      const bounds = pane?.getBoundingClientRect();
-      setWindowDimensions({
-        width: bounds?.width ?? window.innerWidth,
-        height: bounds?.height ?? window.innerHeight,
-      });
-      const top =
-        workspaceCardRef.current?.getBoundingClientRect().top ??
-        header.getBoundingClientRect().bottom + 4;
-      setAvailableCardHeight(
-        Math.max(0, Math.min(bounds?.bottom ?? window.innerHeight, window.innerHeight) - top - 12),
-      );
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(header);
-    if (pane) observer.observe(pane);
-    if (workspaceActionsContainer) observer.observe(workspaceActionsContainer);
-    window.addEventListener("resize", measure);
-    return () => {
-      observer.disconnect();
-      window.removeEventListener("resize", measure);
-    };
-  }, [workspaceActionsContainer, workspaceOpen, isSplitActive]);
-
-  const density: WorkspaceCardDensity = useMemo(
-    () =>
-      resolveWorkspaceCardDensity({
-        windowHeight: windowDimensions.height,
-        windowWidth: windowDimensions.width,
-        isSplitActive,
-        cardHeight: availableCardHeight ?? undefined,
-      }),
-    [windowDimensions.height, windowDimensions.width, isSplitActive, availableCardHeight],
-  );
 
   useEffect(() => {
     if (!workspaceOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        if (document.querySelector('[role="dialog"], [data-state="open"][role="menu"]')) {
-          return;
-        }
-        closeWorkspaceCard();
+        if (document.querySelector('[role="dialog"], [data-state="open"][role="menu"]')) return;
+        setWorkspaceOpen(false);
+        workspaceTriggerRef.current?.focus();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
+
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [workspaceOpen, closeWorkspaceCard]);
+  }, [workspaceOpen, setWorkspaceOpen]);
 
   const vcs = useVcs(gitCwd, environmentId);
   const pullRequest = useCheckoutPullRequest(
@@ -911,8 +886,256 @@ export const ChatHeader = memo(function ChatHeader({
       : activeProjectName
     : null;
 
+  const workspaceCard = (
+    <section
+      id={`workspace-card-${activeThreadId}`}
+      aria-label="Workspace actions"
+      className="workspace-actions-layout"
+    >
+      <div className="workspace-action-capsule workspace-action-identity">
+        <span className="workspace-action-project-icon">
+          {activeProjectFavicon ? (
+            <ProjectFavicon project={activeProjectFavicon} className="size-5" />
+          ) : (
+            <FolderGit2Icon className="size-5" />
+          )}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold">{activeProjectName}</p>
+          <p className="truncate text-[11px] text-muted-foreground" title={openInCwd ?? undefined}>
+            {openInCwd ?? "Path unavailable"}
+          </p>
+        </div>
+        {openInCwd && availableEditors.includes("file-manager") && (
+          <button
+            type="button"
+            aria-label="Open project folder"
+            className="workspace-action-icon-button"
+            onClick={() => {
+              void environmentApi(environmentId)
+                .then((api) => api.shell.openInEditor(openInCwd, "file-manager"))
+                .catch((error) =>
+                  toastManager.add({
+                    type: "error",
+                    title: "Could not open project folder",
+                    description: String(error),
+                  }),
+                );
+            }}
+          >
+            <FolderOpenIcon className="size-4" />
+          </button>
+        )}
+        <button
+          type="button"
+          aria-label="Close workspace card"
+          className="workspace-action-icon-button"
+          onClick={() => {
+            setWorkspaceOpen(false);
+            workspaceTriggerRef.current?.focus();
+          }}
+        >
+          <XIcon className="size-4" />
+        </button>
+      </div>
+      <div
+        className="workspace-action-capsule workspace-action-tabs"
+        role="tablist"
+        aria-label="Workspace sections"
+      >
+        {(
+          [
+            { id: "git", label: "Git", Icon: GitCompanionIcon },
+            { id: "run", label: "Run", Icon: DockUfoIcon },
+            { id: "agents", label: "Agents", Icon: AssistantBubbleIcon },
+          ] as const
+        ).map(({ id, label, Icon }) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            id={`workspace-tab-${activeThreadId}-${id}`}
+            aria-label={label}
+            title={label}
+            aria-selected={section === id}
+            aria-controls={`workspace-pane-${activeThreadId}-${id}`}
+            onClick={() => setSection(id)}
+            onKeyDown={(event) => {
+              const order: WorkspaceActionSection[] = ["git", "run", "agents"];
+              const offset = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
+              if (!offset && event.key !== "Home" && event.key !== "End") return;
+              event.preventDefault();
+              const next =
+                event.key === "Home"
+                  ? "git"
+                  : event.key === "End"
+                    ? "agents"
+                    : order[(order.indexOf(id) + offset + 3) % 3]!;
+              setSection(next);
+              document.getElementById(`workspace-tab-${activeThreadId}-${next}`)?.focus();
+            }}
+            tabIndex={section === id ? 0 : -1}
+          >
+            <Icon className="size-4 shrink-0" />
+            <span>{label}</span>
+          </button>
+        ))}
+      </div>
+      <div
+        hidden={section !== "run"}
+        role="tabpanel"
+        id={`workspace-pane-${activeThreadId}-run`}
+        aria-labelledby={`workspace-tab-${activeThreadId}-run`}
+        className="workspace-action-pane workspace-action-run"
+      >
+        <div
+          role="group"
+          aria-label="Workspace context"
+          className="workspace-context space-y-1 pb-3"
+        >
+          {workspaceControls}
+          <OpenInPicker
+            keybindings={keybindings}
+            availableEditors={availableEditors}
+            openInCwd={openInCwd}
+            showEditorName
+            displayMode="panel"
+          />
+        </div>
+        {scriptManagement && (
+          <div className="pb-3" aria-label="Manage project scripts">
+            {scriptManagement}
+          </div>
+        )}
+        {!!scripts?.length && onRunScript && (
+          <div
+            role="group"
+            aria-label="Project scripts"
+            className="my-2 max-h-48 space-y-1 overflow-y-auto"
+          >
+            {scripts.map((script) => (
+              <button
+                type="button"
+                key={script.id}
+                title={`Run ${script.name}`}
+                aria-label={`Run ${script.name}`}
+                onClick={() => onRunScript(script)}
+                className="surface-control flex h-8 w-full min-w-0 items-center gap-2 rounded-lg px-2 text-left text-xs focus-visible:outline-2 focus-visible:outline-ring"
+              >
+                <PlayIcon aria-hidden="true" className="size-3 shrink-0" />
+                <span className="truncate">{script.name}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      {/* Git section */}
+      <div
+        hidden={section !== "git"}
+        role="tabpanel"
+        id={`workspace-pane-${activeThreadId}-git`}
+        aria-labelledby={`workspace-tab-${activeThreadId}-git`}
+        className="workspace-action-pane"
+      >
+        <div role="group" aria-label="Version control" className="workspace-git space-y-2">
+          {/* Branch selector + pull + divergence */}
+          <BranchSelectorControl
+            projectId={projectId}
+            threadId={activeThreadId}
+            gitCwd={gitCwd}
+            environmentId={environmentId}
+            currentBranch={vcs.status?.branch ?? null}
+            isGitRepo={isGitRepo}
+            aheadCount={vcs.status?.aheadCount}
+            behindCount={vcs.status?.behindCount}
+            hasUpstream={vcs.status?.hasUpstream}
+            onOpenDivergence={handleOpenGitDivergence}
+          />
+
+          {(checkoutPr || pullRequestLinks.length > 0) && (
+            <WorkspacePullRequests
+              links={pullRequestLinks}
+              cwd={isGitRepo ? gitCwd : null}
+              summary={checkoutPr ?? undefined}
+              details={pullRequest.data?.pullRequest}
+              unavailable={pullRequest.isError || pullRequest.isPlaceholderData}
+              environmentId={environmentId}
+            />
+          )}
+
+          {/* Changed files */}
+          <button
+            type="button"
+            disabled={!isGitRepo}
+            className="surface-control flex h-8 w-full items-center gap-2 rounded-lg px-2 text-xs focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-40"
+            onClick={() => {
+              if (!diffOpen) onToggleDiff();
+            }}
+          >
+            <DiffIcon aria-hidden="true" className="size-3 text-muted-foreground" />
+            <span className="flex-1 text-left">Changes</span>
+            {vcs.status && (
+              <span className="flex gap-2 font-mono tabular-nums text-[11px]">
+                <span className="text-emerald-500 font-medium">
+                  +{vcs.status.workingTree.insertions}
+                </span>
+                <span className="text-red-400 font-medium">
+                  −{vcs.status.workingTree.deletions}
+                </span>
+              </span>
+            )}
+          </button>
+
+          {/* Divergence Space shortcut link */}
+          {isGitRepo && (
+            <button
+              type="button"
+              onClick={handleOpenGitDivergence}
+              className="flex h-7 w-full items-center justify-between rounded-lg px-2 text-[11px] text-muted-foreground hover:bg-accent/40 hover:text-foreground transition-colors group"
+            >
+              <span className="flex items-center gap-1.5">
+                <Telescope className="size-3 text-primary shrink-0" />
+                <span>Divergence space</span>
+              </span>
+              <span className="text-[10px] text-muted-foreground/60 group-hover:text-muted-foreground font-sans">
+                Compare all →
+              </span>
+            </button>
+          )}
+          {/* Commit & Push */}
+          <div className="flex w-full">
+            <GitActionsControl
+              gitCwd={gitCwd}
+              activeThreadId={activeThreadId}
+              environmentId={environmentId}
+            />
+          </div>
+        </div>
+      </div>
+      <div
+        hidden={section !== "agents"}
+        role="tabpanel"
+        id={`workspace-pane-${activeThreadId}-agents`}
+        aria-labelledby={`workspace-tab-${activeThreadId}-agents`}
+        className="workspace-action-pane workspace-action-agents"
+      >
+        {agentWorkflow ?? (
+          <p className="p-3 text-xs text-muted-foreground">
+            Open a conversation to manage its agents and automations.
+          </p>
+        )}
+      </div>
+
+      {vcs.error && (
+        <p role="status" className="mt-2 text-[10px] text-muted-foreground">
+          Git status temporarily unavailable.
+        </p>
+      )}
+    </section>
+  );
+
   return (
-    <div ref={headerRef} className="flex min-w-0 flex-1 flex-col">
+    <div className="flex min-w-0 flex-1 flex-col">
       <div className="flex min-w-0 items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2 overflow-hidden">
           <SidebarTrigger className="size-7 shrink-0 md:hidden" />
@@ -1067,328 +1290,13 @@ export const ChatHeader = memo(function ChatHeader({
       </div>
       {activeProjectName &&
         workspaceOpen &&
-        (() => {
-          const card = (
-            <div
-              ref={workspaceCardRef}
-              className={cn(
-                workspaceActionsContainer && density !== "compact"
-                  ? "relative w-full pointer-events-auto"
-                  : "absolute right-0 sm:right-3 top-full z-40 mt-1 pointer-events-auto",
-              )}
-            >
-              <section
-                id={`workspace-card-${activeThreadId}`}
-                aria-label="Workspace actions"
-                data-density={density}
-                style={{
-                  maxHeight:
-                    availableCardHeight === null
-                      ? undefined
-                      : Math.min(availableCardHeight, density === "essential" ? 420 : 640),
-                  maxWidth: Math.max(0, windowDimensions.width - 24),
-                }}
-                className={cn(
-                  "workspace-card w-[304px] max-w-[calc(100vw-1.5rem)] rounded-2xl border border-border/70 bg-card p-3 text-foreground",
-                  "[-webkit-app-region:no-drag] overflow-y-auto overflow-x-hidden isolate overscroll-contain shadow-xl",
-                  "animate-in fade-in slide-in-from-top-1 duration-150 motion-reduce:animate-none",
-                  density === "compact" && "workspace-card--compact p-2.5",
-                  density === "essential" && "workspace-card--essential p-2",
-                )}
-              >
-                {/* Project identity, with workspace controls grouped below */}
-                <div
-                  className={cn(
-                    "workspace-identity flex items-center gap-2.5 px-1 pb-3",
-                    density === "essential" && "pb-2",
-                  )}
-                >
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <div
-                          tabIndex={0}
-                          role="button"
-                          aria-label={`Project: ${activeProjectName ?? "Current project"}`}
-                          className="flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-border/60 bg-muted/50 overflow-hidden shadow-2xs hover:bg-muted/80 transition-colors focus-visible:outline-2 focus-visible:outline-ring"
-                        >
-                          {activeProjectFavicon ? (
-                            <ProjectFavicon project={activeProjectFavicon} className="size-4.5" />
-                          ) : (
-                            <GitBranchIcon
-                              aria-hidden="true"
-                              className="size-3.5 text-muted-foreground"
-                            />
-                          )}
-                        </div>
-                      }
-                    />
-                    <TooltipPopup
-                      side="bottom"
-                      align="start"
-                      className="max-w-xs z-50 p-2.5 shadow-lg border border-border/80 bg-popover text-popover-foreground"
-                    >
-                      <div className="space-y-1.5">
-                        <div className="flex items-center gap-2">
-                          <span className="flex size-5 shrink-0 items-center justify-center rounded border border-border/60 bg-muted/60 overflow-hidden">
-                            {activeProjectFavicon ? (
-                              <ProjectFavicon project={activeProjectFavicon} className="size-3.5" />
-                            ) : (
-                              <GitBranchIcon className="size-3 text-muted-foreground" />
-                            )}
-                          </span>
-                          <p className="font-semibold text-xs leading-none truncate">
-                            {activeProjectName ?? "Active Project"}
-                          </p>
-                        </div>
-                        {openInCwd && (
-                          <p className="font-mono text-[10px] leading-relaxed text-muted-foreground break-all bg-muted/40 p-1.5 rounded border border-border/40">
-                            {openInCwd}
-                          </p>
-                        )}
-                        {vcs.status?.branch && (
-                          <div className="flex items-center justify-between pt-1 border-t border-border/40 text-[10px] text-muted-foreground">
-                            <span className="flex items-center gap-1 font-mono text-foreground/80">
-                              <GitBranchIcon className="size-3 text-primary shrink-0" />
-                              <span>{vcs.status.branch}</span>
-                            </span>
-                            {vcs.status.hasUpstream && (
-                              <span className="font-mono text-[9px] text-muted-foreground/70">
-                                {(vcs.status.aheadCount ?? 0) > 0
-                                  ? `↑${vcs.status.aheadCount} `
-                                  : ""}
-                                {(vcs.status.behindCount ?? 0) > 0
-                                  ? `↓${vcs.status.behindCount}`
-                                  : ""}
-                                {(vcs.status.aheadCount ?? 0) === 0 &&
-                                (vcs.status.behindCount ?? 0) === 0
-                                  ? "Synced"
-                                  : ""}
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </TooltipPopup>
-                  </Tooltip>
-
-                  <div className="min-w-0 flex-1">
-                    <p className="workspace-project truncate text-xs font-semibold leading-tight">
-                      {activeProjectName}
-                    </p>
-                    <p
-                      title={openInCwd ?? undefined}
-                      className="truncate font-mono text-[9px] leading-tight text-muted-foreground/70 mt-0.5"
-                    >
-                      {openInCwd ?? "Path unavailable"}
-                    </p>
-                  </div>
-
-                  {/* Open-in-editor as icon-only button in header */}
-                  <OpenInPicker
-                    keybindings={keybindings}
-                    availableEditors={availableEditors}
-                    openInCwd={openInCwd}
-                    showEditorName={false}
-                  />
-
-                  {/* Close card button */}
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <button
-                          type="button"
-                          aria-label="Close workspace card"
-                          onClick={closeWorkspaceCard}
-                          className="flex size-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors ml-0.5"
-                        />
-                      }
-                    >
-                      <XIcon className="size-3.5" />
-                    </TooltipTrigger>
-                    <TooltipPopup side="bottom">Close</TooltipPopup>
-                  </Tooltip>
-                </div>
-
-                <div
-                  role="group"
-                  aria-label="Workspace context"
-                  className={cn(
-                    "workspace-context space-y-1 pb-3",
-                    density === "essential" && "pb-2",
-                  )}
-                >
-                  {workspaceControls}
-                  {density === "essential" ? (
-                    <div className="pt-0.5">
-                      <button
-                        type="button"
-                        onClick={() => setMoreActionsOpen((o) => !o)}
-                        aria-expanded={moreActionsOpen}
-                        className="surface-control flex h-7 w-full items-center justify-between rounded-lg px-2 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
-                      >
-                        <span>More tools</span>
-                        <ChevronDownIcon
-                          className={cn(
-                            "size-3 transition-transform duration-150",
-                            moreActionsOpen && "rotate-180",
-                          )}
-                        />
-                      </button>
-                      {moreActionsOpen && (
-                        <div className="pt-1.5 space-y-1">
-                          <OpenInPicker
-                            keybindings={keybindings}
-                            availableEditors={availableEditors}
-                            openInCwd={openInCwd}
-                            showEditorName
-                            displayMode="panel"
-                          />
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <OpenInPicker
-                      keybindings={keybindings}
-                      availableEditors={availableEditors}
-                      openInCwd={openInCwd}
-                      showEditorName
-                      displayMode="panel"
-                    />
-                  )}
-                </div>
-
-                {scriptManagement && (
-                  <div
-                    className={cn("pb-3", density === "essential" && "pb-2")}
-                    aria-label="Manage project scripts"
-                  >
-                    {scriptManagement}
-                  </div>
-                )}
-                {!!scripts?.length && onRunScript && (
-                  <div
-                    role="group"
-                    aria-label="Project scripts"
-                    className={cn(
-                      "my-2 space-y-1 overflow-y-auto",
-                      density === "essential" ? "max-h-28" : "max-h-48",
-                    )}
-                  >
-                    {scripts.map((script) => (
-                      <button
-                        type="button"
-                        key={script.id}
-                        title={`Run ${script.name}`}
-                        aria-label={`Run ${script.name}`}
-                        onClick={() => onRunScript(script)}
-                        className="surface-control flex h-8 w-full min-w-0 items-center gap-2 rounded-lg px-2 text-left text-xs focus-visible:outline-2 focus-visible:outline-ring"
-                      >
-                        <PlayIcon aria-hidden="true" className="size-3 shrink-0" />
-                        <span className="truncate">{script.name}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {/* Git section */}
-                <div
-                  role="group"
-                  aria-label="Version control"
-                  className={cn(
-                    "workspace-git space-y-1 border-t border-border/60 pt-3",
-                    density === "essential" && "pt-2",
-                  )}
-                >
-                  {/* Branch selector + pull + divergence */}
-                  <BranchSelectorControl
-                    key={JSON.stringify([environmentId, activeThreadId, gitCwd])}
-                    threadId={activeThreadId}
-                    projectId={projectId}
-                    gitCwd={gitCwd}
-                    environmentId={environmentId}
-                    currentBranch={vcs.status?.branch ?? null}
-                    isGitRepo={isGitRepo}
-                    aheadCount={vcs.status?.aheadCount}
-                    behindCount={vcs.status?.behindCount}
-                    hasUpstream={vcs.status?.hasUpstream}
-                    onOpenDivergence={handleOpenGitDivergence}
-                  />
-
-                  {(checkoutPr || pullRequestLinks.length > 0) && (
-                    <WorkspacePullRequests
-                      links={pullRequestLinks}
-                      cwd={isGitRepo ? gitCwd : null}
-                      summary={checkoutPr ?? undefined}
-                      details={pullRequest.data?.pullRequest}
-                      unavailable={pullRequest.isError || pullRequest.isPlaceholderData}
-                      environmentId={environmentId}
-                    />
-                  )}
-
-                  {/* Commit & Push */}
-                  <div className="flex w-full">
-                    <GitActionsControl
-                      gitCwd={gitCwd}
-                      activeThreadId={activeThreadId}
-                      environmentId={environmentId}
-                    />
-                  </div>
-
-                  {/* Changed files */}
-                  <button
-                    type="button"
-                    disabled={!isGitRepo}
-                    className="surface-control flex h-8 w-full items-center gap-2 rounded-lg px-2 text-xs focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-40"
-                    onClick={() => {
-                      if (!diffOpen) onToggleDiff();
-                    }}
-                  >
-                    <DiffIcon aria-hidden="true" className="size-3 text-muted-foreground" />
-                    <span className="flex-1 text-left">Changes</span>
-                    {vcs.status && (
-                      <span className="flex gap-2 font-mono tabular-nums text-[11px]">
-                        <span className="text-emerald-500 font-medium">
-                          +{vcs.status.workingTree.insertions}
-                        </span>
-                        <span className="text-red-400 font-medium">
-                          −{vcs.status.workingTree.deletions}
-                        </span>
-                      </span>
-                    )}
-                  </button>
-
-                  {/* Divergence Space shortcut link */}
-                  {isGitRepo && (density !== "essential" || moreActionsOpen) && (
-                    <button
-                      type="button"
-                      onClick={handleOpenGitDivergence}
-                      className="flex h-7 w-full items-center justify-between rounded-lg px-2 text-[11px] text-muted-foreground hover:bg-accent/40 hover:text-foreground transition-colors group"
-                    >
-                      <span className="flex items-center gap-1.5">
-                        <Telescope className="size-3 text-primary shrink-0" />
-                        <span>Divergence space</span>
-                      </span>
-                      <span className="text-[10px] text-muted-foreground/60 group-hover:text-muted-foreground font-sans">
-                        Compare all →
-                      </span>
-                    </button>
-                  )}
-                </div>
-
-                {agentWorkflow}
-
-                {vcs.error && (
-                  <p role="status" className="mt-2 text-[10px] text-muted-foreground">
-                    Git status temporarily unavailable.
-                  </p>
-                )}
-              </section>
-            </div>
-          );
-          return workspaceActionsContainer && density !== "compact"
-            ? createPortal(card, workspaceActionsContainer)
-            : card;
-        })()}
+        (workspaceActionsContainer ? (
+          createPortal(workspaceCard, workspaceActionsContainer)
+        ) : (
+          <div ref={workspaceCardRef} className="workspace-actions-floating">
+            {workspaceCard}
+          </div>
+        ))}
     </div>
   );
 });

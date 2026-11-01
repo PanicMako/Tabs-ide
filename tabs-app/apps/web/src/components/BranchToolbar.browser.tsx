@@ -257,7 +257,7 @@ test("keeps workspace and branch targets separate in a narrow composer", async (
   await expect
     .element(page.getByRole("option", { name: "New worktree", exact: true }))
     .toBeVisible();
-  await page.getByRole("option", { name: "Local", exact: true }).click();
+  await page.getByRole("option", { name: "Current checkout", exact: true }).click();
   await screen.unmount();
   client.clear();
 });

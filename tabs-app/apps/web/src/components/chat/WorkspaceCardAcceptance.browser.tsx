@@ -187,9 +187,9 @@ it("keeps the workspace card legible and keyboard reachable across pane, theme, 
         const toggle = page.getByRole("button", { name: "Toggle workspace actions" });
         if (toggle.element().getAttribute("aria-expanded") !== "true") await toggle.click();
         const card = document.querySelector<HTMLElement>('[aria-label="Workspace actions"]')!;
-        await expect.poll(() => card.dataset.density).toBe(scenario.density);
+        expect(card.className).toContain("workspace-actions-layout");
+        await expect.element(page.getByRole("tab", { name: "Git", exact: true })).toBeVisible();
         await expect.element(page.getByRole("region", { name: "Workspace actions" })).toBeVisible();
-        expect(card.className).toContain("motion-reduce:animate-none");
         if (scenario.reducedMotion) expect(getComputedStyle(card).animationName).toBe("none");
         expect(
           [...document.styleSheets].some((sheet) => {
@@ -197,7 +197,7 @@ it("keeps the workspace card legible and keyboard reachable across pane, theme, 
               return [...sheet.cssRules].some(
                 (rule) =>
                   rule.cssText.includes("prefers-reduced-motion") &&
-                  rule.cssText.includes("workspace-card"),
+                  rule.cssText.includes("workspace-action"),
               );
             } catch {
               return false;
@@ -220,7 +220,8 @@ it("keeps the workspace card legible and keyboard reachable across pane, theme, 
           }),
         ).toBeLessThanOrEqual(paneRect.bottom + 1);
         const cardStyle = getComputedStyle(card);
-        expect(cardStyle.backgroundImage).toContain("linear-gradient");
+        const capsule = card.querySelector<HTMLElement>(".workspace-action-capsule")!;
+        expect(getComputedStyle(capsule).backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
         themeColors.set(scenario.theme, cardStyle.getPropertyValue("--background").trim());
         expect(themeColors.get(scenario.theme)).not.toBe("");
 
@@ -230,6 +231,7 @@ it("keeps the workspace card legible and keyboard reachable across pane, theme, 
         });
 
         if (scenario.name === "narrow-light") {
+          await page.getByRole("tab", { name: "Run", exact: true }).click();
           const lastScript = page.getByRole("button", {
             name: "Run Workspace action 15",
             exact: true,

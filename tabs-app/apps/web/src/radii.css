@@ -70,10 +70,17 @@ mark {
   box-decoration-break: clone;
 }
 
-/* Project tabs retain their browser silhouette and join the workspace below. */
-html [data-slot="workspace-project-tab"],
+/* Study tool tabs are rounded on both top and bottom. */
 html .study-tool-tab {
-  border-radius: var(--radius-joined) var(--radius-joined) 0 0 !important;
+  border-radius: var(--radius-joined) !important;
+}
+
+/* Project tabs preserve classic folder tab geometry with flush bottom connection for tab fillets. */
+html:not([data-interface-study]) [data-slot="workspace-project-tab"] {
+  border-top-left-radius: 12px !important;
+  border-top-right-radius: 12px !important;
+  border-bottom-left-radius: 0px !important;
+  border-bottom-right-radius: 0px !important;
 }
 
 /* Tailwind's legacy bare utility does not read the named radius scale. */

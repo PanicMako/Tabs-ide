@@ -143,19 +143,61 @@ it.each([
     const actions = document.querySelector(".code-command-actions")!.getBoundingClientRect();
     expect(search.right).toBeLessThanOrEqual(actions.left);
     expect(search.width).toBeGreaterThan(100);
-    // Native WebContentsView excludes the 48px rail + 4px gutter and Tabs chat.
-    const nativePickerCenter = 52 + (width - 52 - sideChatWidth) / 2;
+    expect(search.width).toBeLessThanOrEqual(200);
+    if (width === 1280 && sideChatWidth === 320) {
+      const originalTheme = snapshotThemeState();
+      try {
+        previewTheme("tabs-dark");
+        await document.fonts.ready;
+        await Promise.all(
+          document
+            .querySelector(".code-command-strip")!
+            .getAnimations({ subtree: true })
+            .map((animation) => animation.finished),
+        );
+        await page.screenshot({
+          element: document.querySelector(".code-command-strip")!,
+          path: "__screenshots__/code/compact-go-to-file.png",
+        });
+      } finally {
+        restoreThemeSnapshot(originalTheme);
+      }
+    }
+    await expect
+      .element(page.getByRole("button", { name: "Quick open file search" }))
+      .toHaveTextContent("Go to file");
+    // Native WebContentsView excludes the 60px rail + 4px gutter and Tabs chat.
+    const nativePickerCenter = 64 + (width - 64 - sideChatWidth) / 2;
     expect(Math.abs((search.left + search.right) / 2 - nativePickerCenter)).toBeLessThan(1);
     const actionButton = page.getByRole("button", { name: "Toggle panel" }).element();
     expect(actionButton.getBoundingClientRect().width).toBeGreaterThanOrEqual(32);
+    expect(actionButton.getBoundingClientRect().width).toBe(
+      actionButton.getBoundingClientRect().height,
+    );
+    expect(getComputedStyle(actionButton).borderRadius).toBe("50%");
+    const actionButtons = document.querySelectorAll<HTMLElement>(
+      ".code-command-actions .code-chrome-action",
+    );
+    expect(actionButtons[0]!.getBoundingClientRect().left - actions.left).toBe(1);
+    expect(
+      actions.right - actionButtons[actionButtons.length - 1]!.getBoundingClientRect().right,
+    ).toBe(1);
     if (width >= 700) {
       const location = document.querySelector(".code-current-file")!.getBoundingClientRect();
       expect(location.right).toBeLessThanOrEqual(search.left);
     }
+    const header = document.querySelector(".code-command-strip")!.getBoundingClientRect();
+    const controls = [search, actions];
+    if (width >= 700)
+      controls.push(document.querySelector(".code-current-file")!.getBoundingClientRect());
+    for (const control of controls) {
+      expect(control.height).toBe(34);
+      // The native panel cards start 4px below the toolbar. Balance that
+      // visible gap rather than just the toolbar's own internal padding.
+      expect(control.top - header.top).toBe(6);
+      expect(header.bottom - control.bottom + 4).toBe(6);
+    }
     expect(actions.right).toBeLessThanOrEqual(width);
-    const strip = document.querySelector(".code-command-strip")!.getBoundingClientRect();
-    expect(actions.top - strip.top).toBeGreaterThanOrEqual(3);
-    expect(strip.bottom - actions.bottom).toBeGreaterThanOrEqual(3);
     await view.unmount();
   },
 );
@@ -237,10 +279,11 @@ it("keeps the light rail gutter on the workspace surface and rounds both search 
     const rail = getComputedStyle(document.querySelector(".code-activity-rail")!);
     const footer = getComputedStyle(document.querySelector(".code-workspace")!, "::before");
     const settings = getComputedStyle(document.querySelector(".code-rail-settings")!);
-    expect(footer.backgroundColor).toBe(rail.backgroundColor);
+    expect(footer.backgroundColor).toBe("rgb(249, 250, 252)");
     expect(footer.height).toBe("28px");
     expect(footer.bottom).toBe("0px");
-    expect(settings.backgroundColor).toBe("rgba(0, 0, 0, 0)");
+    expect(settings.backgroundColor).toBe(footer.backgroundColor);
+    expect(gutter.backgroundSize).toContain("28px");
     expect(gutter.backgroundColor).toBe(workspace.backgroundColor);
     expect(gutter.backgroundColor).not.toBe(rail.backgroundColor);
     const search = getComputedStyle(document.querySelector(".code-quick-open")!);

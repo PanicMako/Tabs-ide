@@ -1,0 +1,446 @@
+{
+  "baseline": "82d3a5151",
+  "meaning": "Remaining differences from exact usual-folder snapshot, including release/upstream repairs; not automatically regressions.",
+  "paths": [
+    {
+      "path": "tabs-app/apps/desktop/src/codeHostManager.test.ts",
+      "added": "33",
+      "removed": "0"
+    },
+    {
+      "path": "tabs-app/apps/desktop/src/codeHostManager.ts",
+      "added": "3",
+      "removed": "3"
+    },
+    {
+      "path": "tabs-app/apps/desktop/src/main.ts",
+      "added": "5",
+      "removed": "0"
+    },
+    {
+      "path": "tabs-app/apps/desktop/src/preload.ts",
+      "added": "2",
+      "removed": "0"
+    },
+    {
+      "path": "tabs-app/apps/server/src/auth/RpcAuthorization.ts",
+      "added": "2",
+      "removed": "0"
+    },
+    {
+      "path": "tabs-app/apps/server/src/git/GitManager.test.ts",
+      "added": "3",
+      "removed": "0"
+    },
+    {
+      "path": "tabs-app/apps/server/src/git/GitManager.ts",
+      "added": "54",
+      "removed": "12"
+    },
+    {
+      "path": "tabs-app/apps/server/src/mcp/McpHttpServer.test.ts",
+      "added": "52",
+      "removed": "1"
+    },
+    {
+      "path": "tabs-app/apps/server/src/mcp/McpHttpServer.ts",
+      "added": "120",
+      "removed": "10"
+    },
+    {
+      "path": "tabs-app/apps/server/src/mcp/OrchestratorMcpService.test.ts",
+      "added": "65",
+      "removed": "3"
+    },
+    {
+      "path": "tabs-app/apps/server/src/mcp/capabilityModels.test.ts",
+      "added": "68",
+      "removed": "26"
+    },
+    {
+      "path": "tabs-app/apps/server/src/mcp/capabilityModels.ts",
+      "added": "17",
+      "removed": "4"
+    },
+    {
+      "path": "tabs-app/apps/server/src/mcp/toolkits/core.test.ts",
+      "added": "6",
+      "removed": "4"
+    },
+    {
+      "path": "tabs-app/apps/server/src/mcp/toolkits/orchestrator/handlers.ts",
+      "added": "25",
+      "removed": "7"
+    },
+    {
+      "path": "tabs-app/apps/server/src/mcp/toolkits/orchestrator/tools.ts",
+      "added": "11",
+      "removed": "12"
+    },
+    {
+      "path": "tabs-app/apps/server/src/orchestration-v2/Orchestrator.control-reads.test.ts",
+      "added": "59",
+      "removed": "0"
+    },
+    {
+      "path": "tabs-app/apps/server/src/provider/T3OrchestrationInstructions.test.ts",
+      "added": "5",
+      "removed": "0"
+    },
+    {
+      "path": "tabs-app/apps/server/src/provider/T3OrchestrationInstructions.ts",
+      "added": "2",
+      "removed": "2"
+    },
+    {
+      "path": "tabs-app/apps/server/src/ws.ts",
+      "added": "59",
+      "removed": "3"
+    },
+    {
+      "path": "tabs-app/apps/web/package.json",
+      "added": "4",
+      "removed": "4"
+    },
+    {
+      "path": "tabs-app/apps/web/src/StartupShell.test.tsx",
+      "added": "61",
+      "removed": "8"
+    },
+    {
+      "path": "tabs-app/apps/web/src/StartupShell.tsx",
+      "added": "8",
+      "removed": "6"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/BranchToolbar.browser.tsx",
+      "added": "64",
+      "removed": "1"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/BranchToolbar.tsx",
+      "added": "18",
+      "removed": "126"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/BranchToolbarBranchSelector.tsx",
+      "added": "64",
+      "removed": "238"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/ChatView.tsx",
+      "added": "11",
+      "removed": "5"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/ProjectScriptsControl.tsx",
+      "added": "131",
+      "removed": "2"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/ProjectWorkspaceSettingsSection.tsx",
+      "added": "1",
+      "removed": "1"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/Sidebar.tsx",
+      "added": "26",
+      "removed": "0"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/SplashScreen.tsx",
+      "added": "24",
+      "removed": "8"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/WorkspaceShell.tsx",
+      "added": "103",
+      "removed": "62"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/chat/ChatHeader.browser.tsx",
+      "added": "11",
+      "removed": "0"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/chat/ChatHeader.tsx",
+      "added": "136",
+      "removed": "108"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/chat/WorkspaceAgents.browser.tsx",
+      "added": "455",
+      "removed": "32"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/chat/WorkspaceAgents.tsx",
+      "added": "683",
+      "removed": "172"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/chat/WorkspaceAutomations.browser.tsx",
+      "added": "325",
+      "removed": "6"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/chat/WorkspaceAutomations.tsx",
+      "added": "774",
+      "removed": "236"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/chat/WorkspaceProjectScripts.browser.tsx",
+      "added": "186",
+      "removed": "4"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/chat/WorkspaceProjectScripts.tsx",
+      "added": "14",
+      "removed": "1"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/chat/WorkspacePullRequest.test.ts",
+      "added": "150",
+      "removed": "18"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/chat/WorkspacePullRequest.tsx",
+      "added": "148",
+      "removed": "45"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/onboarding/PersonalizeSteps.tsx",
+      "added": "17",
+      "removed": "15"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/onboarding/PreviewContent.tsx",
+      "added": "14",
+      "removed": "12"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/onboarding/SetupCard.tsx",
+      "added": "13",
+      "removed": "1"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/onboarding/WallpaperGalleryModal.tsx",
+      "added": "25",
+      "removed": "18"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/onboarding/WallpaperTopBar.tsx",
+      "added": "3",
+      "removed": "1"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/onboarding/WelcomeWizard.tsx",
+      "added": "15",
+      "removed": "97"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/onboarding/WorkbenchPreview.tsx",
+      "added": "3",
+      "removed": "2"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/settings/AnimationsSettings.tsx",
+      "added": "24",
+      "removed": "8"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/settings/ConnectionsSettings.tsx",
+      "added": "2",
+      "removed": "17"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/settings/DiagnosticsSettings.tsx",
+      "added": "2",
+      "removed": "19"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/settings/ExtensionsSettings.browser.tsx",
+      "added": "24",
+      "removed": "0"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/settings/HeadingCollection.browser.tsx",
+      "added": "68",
+      "removed": "0"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/settings/KeybindingsSettings.tsx",
+      "added": "3",
+      "removed": "16"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/settings/ProvidersSettings.tsx",
+      "added": "2",
+      "removed": "17"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/settings/SourceControlSettings.tsx",
+      "added": "4",
+      "removed": "44"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/settings/ThemesSettings.tsx",
+      "added": "1",
+      "removed": "0"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/settings/WallpaperSettings.tsx",
+      "added": "1",
+      "removed": "1"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/settings/extensions-settings.css",
+      "added": "34",
+      "removed": "0"
+    },
+    {
+      "path": "tabs-app/apps/web/src/components/ui/radii.browser.tsx",
+      "added": "22",
+      "removed": "7"
+    },
+    {
+      "path": "tabs-app/apps/web/src/index.css",
+      "added": "17",
+      "removed": "1"
+    },
+    {
+      "path": "tabs-app/apps/web/src/interface-study.css",
+      "added": "2",
+      "removed": "1"
+    },
+    {
+      "path": "tabs-app/apps/web/src/localFonts.css",
+      "added": "1",
+      "removed": "0"
+    },
+    {
+      "path": "tabs-app/apps/web/src/routes/__root.tsx",
+      "added": "89",
+      "removed": "63"
+    },
+    {
+      "path": "tabs-app/apps/web/src/routes/_chat.$environmentId.$threadId.tsx",
+      "added": "60",
+      "removed": "10"
+    },
+    {
+      "path": "tabs-app/apps/web/src/state/readModelTransitions.ts",
+      "added": "271",
+      "removed": "3"
+    },
+    {
+      "path": "tabs-app/apps/web/src/types.ts",
+      "added": "1",
+      "removed": "0"
+    },
+    {
+      "path": "tabs-app/apps/web/src/wsNativeApi.test.ts",
+      "added": "356",
+      "removed": "0"
+    },
+    {
+      "path": "tabs-app/apps/web/src/wsNativeApi.ts",
+      "added": "212",
+      "removed": "52"
+    },
+    {
+      "path": "tabs-app/docs/architecture/t3-tabs-comparison-2026-10-27.md",
+      "added": "30",
+      "removed": "21"
+    },
+    {
+      "path": "tabs-app/docs/code-oss-parity.md",
+      "added": "16",
+      "removed": "2"
+    },
+    {
+      "path": "tabs-app/package.json",
+      "added": "1",
+      "removed": "0"
+    },
+    {
+      "path": "tabs-app/packages/contracts/src/git.ts",
+      "added": "2",
+      "removed": "0"
+    },
+    {
+      "path": "tabs-app/packages/contracts/src/ipc.ts",
+      "added": "30",
+      "removed": "0"
+    },
+    {
+      "path": "tabs-app/packages/contracts/src/orchestrationV2.ts",
+      "added": "155",
+      "removed": "11"
+    },
+    {
+      "path": "tabs-app/packages/contracts/src/orchestratorMcp.ts",
+      "added": "35",
+      "removed": "7"
+    },
+    {
+      "path": "tabs-app/packages/contracts/src/rpc.ts",
+      "added": "17",
+      "removed": "0"
+    },
+    {
+      "path": "tabs-app/packages/contracts/src/server.ts",
+      "added": "5",
+      "removed": "1"
+    },
+    {
+      "path": "tabs-app/packages/shared/src/orchestrationV2DedupedBodies.ts",
+      "added": "26",
+      "removed": "0"
+    },
+    {
+      "path": "tabs-app/scripts/build-desktop-artifact.ts",
+      "added": "27",
+      "removed": "0"
+    },
+    {
+      "path": "tabs-app/scripts/lib/dmg-layout.py",
+      "added": "0",
+      "removed": "1"
+    },
+    {
+      "path": "tabs-code-oss/build/lib/i18n.resources.json",
+      "added": "16",
+      "removed": "0"
+    },
+    {
+      "path": "tabs-code-oss/build/lib/stylelint/vscode-known-variables.json",
+      "added": "62",
+      "removed": "2"
+    },
+    {
+      "path": "tabs-code-oss/src/vs/workbench/browser/parts/editor/breadcrumbsControl.ts",
+      "added": "8",
+      "removed": "5"
+    },
+    {
+      "path": "tabs-code-oss/src/vs/workbench/contrib/debug/browser/callStackView.ts",
+      "added": "10",
+      "removed": "6"
+    },
+    {
+      "path": "tabs-code-oss/src/vs/workbench/contrib/files/browser/views/explorerViewer.ts",
+      "added": "37",
+      "removed": "109"
+    },
+    {
+      "path": "tabs-code-oss/src/vs/workbench/contrib/tabs/test/browser/tabs.contribution.test.ts",
+      "added": "36",
+      "removed": "18"
+    },
+    {
+      "path": "tabs-code-oss/src/vs/workbench/services/layout/browser/layoutService.ts",
+      "added": "8",
+      "removed": "0"
+    }
+  ]
+}
