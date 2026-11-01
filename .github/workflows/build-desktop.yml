@@ -563,9 +563,13 @@ jobs:
   windows_fresh_artifact_smoke:
     needs: windows_artifact_smoke
     if: inputs.artifact_run_id != '' && contains(inputs.smoke_platforms, 'win-x64')
-    name: Smoke fresh full-fat Windows installer
+    name: Smoke fresh full-fat Windows installer (${{ matrix.volume }})
     runs-on: windows-2022
     timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        volume: [same-volume, cross-volume]
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
@@ -581,12 +585,13 @@ jobs:
         shell: pwsh
         env:
           TABS_SMOKE_FRESH_ONLY: "true"
+          TABS_SMOKE_CROSS_VOLUME: ${{ matrix.volume == 'cross-volume' && 'true' || 'false' }}
         run: ./tabs-app/scripts/smoke-windows-installer.ps1
       - name: Upload fresh Windows installation timings
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: windows-fresh-installer-timings
+          name: windows-fresh-installer-timings-${{ matrix.volume }}
           path: |
             ${{ runner.temp }}/tabs-installer-metrics.json
             ${{ runner.temp }}/tabs-installer-phase-*.log

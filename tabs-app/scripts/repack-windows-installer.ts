@@ -50,11 +50,15 @@ try {
     for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
       const filename = path.join(directory, entry.name);
       if (entry.isDirectory()) inspect(filename);
-      else if (entry.isFile()) largest.push({ name: path.relative(app, filename), bytes: fs.statSync(filename).size });
+      else if (entry.isFile())
+        largest.push({ name: path.relative(app, filename), bytes: fs.statSync(filename).size });
     }
   }
   inspect(app);
-  console.info("Largest packaged Windows files:", largest.sort((a, b) => b.bytes - a.bytes).slice(0, 12));
+  console.info(
+    "Largest packaged Windows files:",
+    largest.sort((a, b) => b.bytes - a.bytes).slice(0, 12),
+  );
   const runtime = path.join(app, "resources", "tabs-code-oss");
   writeWindowsPackedInventory(runtime);
   const project = path.join(temporary, "project");
@@ -77,7 +81,9 @@ try {
     throw new Error("Packaged app version differs from its update manifest.");
   fs.writeFileSync(path.join(project, "package.json"), packedPackage);
   const config = {
-    electronVersion: JSON.parse(fs.readFileSync(path.join(repo, "apps/desktop/package.json"), "utf8")).dependencies.electron,
+    electronVersion: JSON.parse(
+      fs.readFileSync(path.join(repo, "apps/desktop/package.json"), "utf8"),
+    ).dependencies.electron,
     appId: "com.tabs.app",
     productName: "Tabs",
     artifactName: "Tabs-${version}-${arch}.${ext}",

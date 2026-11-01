@@ -246,7 +246,11 @@ if ($env:TABS_SMOKE_PREVIOUS_VERSION -and -not $freshOnly) {
   if ($actualDigest -ne $expectedDigest) { throw "Previous installer checksum mismatch." }
   Write-Host "Previous installer digest verified."
 }
-$installDir = Join-Path $env:RUNNER_TEMP "TabsSmokeInstall"
+$installDir = if ($env:TABS_SMOKE_CROSS_VOLUME -eq 'true') {
+  Join-Path $env:RUNNER_TEMP "TabsSmokeInstall"
+} else {
+  Join-Path $env:LOCALAPPDATA "Programs\TabsSmokeInstall"
+}
 $unrelatedDir = Join-Path $env:RUNNER_TEMP "TabsUnrelatedProcess"
 New-Item $unrelatedDir -ItemType Directory -Force | Out-Null
 $holder = $null
