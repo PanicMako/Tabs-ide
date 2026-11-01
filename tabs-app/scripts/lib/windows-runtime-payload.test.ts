@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { createRequire } from "node:module";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   copyWindowsProductionDependencies,
@@ -11,9 +12,37 @@ import {
   stripInlineSourceMap,
   validateProductionDependencyPaths,
   verifyWindowsRuntimePayload,
+  WINDOWS_RUNTIME_FILE_FILTER,
 } from "./windows-runtime-payload";
 
 const temporaryDirectories: string[] = [];
+
+it("retains TypeScript standard libraries through electron-builder's runtime filter", () => {
+  const require = createRequire(import.meta.url);
+  const builderRequire = createRequire(require.resolve("electron-builder/package.json"));
+  const { FileMatcher } = builderRequire("app-builder-lib/out/fileMatcher.js") as {
+    FileMatcher: new (
+      from: string,
+      to: string,
+      expand: (value: string) => string,
+      patterns: string[],
+    ) => { createFilter(): (filename: string, stat: fs.Stats) => boolean };
+  };
+  const root = temporaryDirectory();
+  const filter = new FileMatcher(
+    root,
+    root,
+    (value) => value,
+    WINDOWS_RUNTIME_FILE_FILTER,
+  ).createFilter();
+  for (const name of ["typescript.js", "lib.d.ts", "lib.es5.d.ts", "lib.dom.d.ts"]) {
+    const filename = write(root, `extensions/node_modules/typescript/lib/${name}`, "library");
+    expect(filter(filename, fs.statSync(filename))).toBe(true);
+  }
+  const source = write(root, "extensions/example/src/extension.ts", "development source");
+  expect(filter(source, fs.statSync(source))).toBe(false);
+});
+
 function temporaryDirectory(): string {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "tabs-windows-payload-"));
   temporaryDirectories.push(directory);
@@ -162,8 +191,13 @@ describe("Windows editor production payload", () => {
       "console.log(1);\n//# sourceMappingURL=data:application/json;base64,e30=\n",
     );
     write(root, "out-build/nls.messages.json", '["hello"]');
+    write(root, "extensions/copilot/node_modules/telemetry/dist/index.js.map", "debug data");
+    write(root, "node_modules/example/build.tsbuildinfo", "build cache");
     const report = finalizeWindowsRuntimePayload(root);
     expect(report.files).toBe(2);
+    expect(
+      fs.existsSync(path.join(root, "extensions/copilot/node_modules/telemetry/dist/index.js.map")),
+    ).toBe(false);
     expect(report.sourceMapBytesRemoved).toBeGreaterThan(0);
     expect(report.bytes).toBe(fs.statSync(javascript).size + Buffer.byteLength('["hello"]'));
     expect(() => verifyWindowsRuntimePayload(root)).not.toThrow();

@@ -23,6 +23,7 @@ import {
   finalizeWindowsRuntimePayload,
   includeWindowsCompiledFile,
 } from "./lib/windows-runtime-payload.ts";
+import { WINDOWS_RUNTIME_FILE_FILTER } from "./lib/windows-runtime-payload.ts";
 
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeServices from "@effect/platform-node/NodeServices";
@@ -914,7 +915,7 @@ const createBuildConfig = Effect.fn("createBuildConfig")(function* (
           {
             from: "apps/desktop/resources/tabs-code-oss",
             to: platform === "mac" ? "Resources/tabs-code-oss" : "resources/tabs-code-oss",
-            filter: ["!**/*.ts", "!**/.git"],
+            filter: platform === "win" ? WINDOWS_RUNTIME_FILE_FILTER : ["!**/*.ts", "!**/.git"],
           },
         ],
   };

@@ -19,7 +19,10 @@ try {
     'resources\tabs-code-oss\out\nls.messages.json',
     'resources\tabs-code-oss\out-build\nls.messages.json',
     'resources\tabs-code-oss\node_modules\@anthropic-ai\claude-agent-sdk\sdk.mjs',
-    'resources\tabs-code-oss\extensions\node_modules\typescript\lib\typescript.js'
+    'resources\tabs-code-oss\extensions\node_modules\typescript\lib\typescript.js',
+    'resources\tabs-code-oss\extensions\node_modules\typescript\lib\lib.d.ts',
+    'resources\tabs-code-oss\extensions\node_modules\typescript\lib\lib.es5.d.ts',
+    'resources\tabs-code-oss\extensions\node_modules\typescript\lib\lib.dom.d.ts'
   )) {
     if (-not (Test-Path -LiteralPath (Join-Path $StageDir $relative) -PathType Leaf)) {
       throw "Incomplete full-fat application extraction: $relative"

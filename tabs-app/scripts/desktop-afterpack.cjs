@@ -54,6 +54,9 @@ module.exports = async function afterPack(context) {
   const requiredDependencies = [
     ["node_modules", "minimist/index.js"],
     ["extensions/node_modules", "typescript/lib/typescript.js"],
+    ["extensions/node_modules", "typescript/lib/lib.d.ts"],
+    ["extensions/node_modules", "typescript/lib/lib.es5.d.ts"],
+    ["extensions/node_modules", "typescript/lib/lib.dom.d.ts"],
     [
       "extensions/git/node_modules",
       platform === "darwin" || platform === "mas"

@@ -3,6 +3,8 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 export const WINDOWS_RUNTIME_MAX_FILES = 50_000;
+// Runtime TypeScript libraries are declarations, not development source.
+export const WINDOWS_RUNTIME_FILE_FILTER = ["**/*", "!**/*.ts", "**/*.d.ts", "!**/.git"];
 
 /** Code-OSS classifies some modules used by our embedded runtime as dev-only. */
 export function readAdditionalRuntimeDependencyPaths(sourceRoot: string): string[] {
@@ -163,6 +165,12 @@ export function finalizeWindowsRuntimePayload(runtimeRoot: string): {
       if (entry.isDirectory()) {
         visit(filename);
       } else if (entry.isFile()) {
+        if (filename.endsWith(".map") || filename.endsWith(".tsbuildinfo")) {
+          // Work only on the staged copy. These debug/build artifacts are not
+          // needed by the editor or built-in extensions at runtime.
+          fs.unlinkSync(filename);
+          continue;
+        }
         if (
           filename.startsWith(path.join(runtimeRoot, "out") + path.sep) &&
           filename.endsWith(".js")
