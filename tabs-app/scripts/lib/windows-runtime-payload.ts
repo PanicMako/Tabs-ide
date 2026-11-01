@@ -165,7 +165,7 @@ export function finalizeWindowsRuntimePayload(runtimeRoot: string): {
       if (entry.isDirectory()) {
         visit(filename);
       } else if (entry.isFile()) {
-        if (filename.endsWith(".map") || filename.endsWith(".tsbuildinfo")) {
+        if (/\.(?:[cm]?js|css|wasm)\.map$/.test(filename) || filename.endsWith(".tsbuildinfo")) {
           // Work only on the staged copy. These debug/build artifacts are not
           // needed by the editor or built-in extensions at runtime.
           fs.unlinkSync(filename);

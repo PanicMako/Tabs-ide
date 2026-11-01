@@ -191,15 +191,18 @@ describe("Windows editor production payload", () => {
       "console.log(1);\n//# sourceMappingURL=data:application/json;base64,e30=\n",
     );
     write(root, "out-build/nls.messages.json", '["hello"]');
+    write(root, "extensions/example/keyboard.map", "runtime asset");
     write(root, "extensions/copilot/node_modules/telemetry/dist/index.js.map", "debug data");
     write(root, "node_modules/example/build.tsbuildinfo", "build cache");
     const report = finalizeWindowsRuntimePayload(root);
-    expect(report.files).toBe(2);
+    expect(report.files).toBe(3);
     expect(
       fs.existsSync(path.join(root, "extensions/copilot/node_modules/telemetry/dist/index.js.map")),
     ).toBe(false);
     expect(report.sourceMapBytesRemoved).toBeGreaterThan(0);
-    expect(report.bytes).toBe(fs.statSync(javascript).size + Buffer.byteLength('["hello"]'));
+    expect(report.bytes).toBe(
+      fs.statSync(javascript).size + Buffer.byteLength('["hello"]runtime asset'),
+    );
     expect(() => verifyWindowsRuntimePayload(root)).not.toThrow();
     write(root, "out-build/vs/duplicate.js", "duplicate");
     expect(() => verifyWindowsRuntimePayload(root)).toThrow("Redundant");

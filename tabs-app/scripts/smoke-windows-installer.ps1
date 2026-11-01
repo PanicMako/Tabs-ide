@@ -357,6 +357,8 @@ try {
   $env:TABS_HOME = $smokeHome
   $env:TABS_DESKTOP_USER_DATA_DIR = Join-Path $smokeHome "electron-profile"
   $env:TABS_DISABLE_AUTO_UPDATE = "1"
+  # A full-fat installer must start the editor with runtime downloads unavailable.
+  $env:TABS_RUNTIME_BASE_URL = "https://127.0.0.1:9/unavailable-runtime"
   Write-Host "Launching upgraded Tabs with isolated state..."
   $installedApp = Start-Process (Join-Path $installDir "Tabs.exe") -PassThru
   $ready = $false
@@ -374,6 +376,9 @@ try {
     throw "The upgraded app did not start its bundled editor backend within 120 seconds."
   }
   Write-Host "Upgraded Tabs launched with its bundled editor backend."
+  if (Select-String $desktopLog -Pattern "code-oss runtime downloaded and activated" -Quiet) {
+    throw "The full-fat Windows installation downloaded its editor at first launch."
+  }
   & node ./tabs-app/scripts/smoke-desktop-backend.mjs $desktopLog $serverLog
   if ($LASTEXITCODE -ne 0) { throw "Workspace backend smoke failed." }
 } finally {
