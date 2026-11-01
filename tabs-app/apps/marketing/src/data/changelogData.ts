@@ -21,15 +21,39 @@ export interface ChangelogRelease {
   }[];
 }
 
-export const TOTAL_TAGS_COUNT = 182;
+export const TOTAL_TAGS_COUNT = 183;
 
 export const changelogData: ChangelogRelease[] = [
+  {
+    tag: "v2.2.0",
+    title: "A refreshed workspace for code and agents",
+    date: "November 1, 2026",
+    shortDate: "Nov 1",
+    isLatest: true,
+    type: "feature",
+    summary:
+      "Tabs brings a more cohesive Code workspace together with richer agent controls, project scripts, local commit drafting, and data recovery. This release also refreshes theme and typography collections and reduces work during desktop startup.",
+    highlights: [
+      "Switch between Run, Git, and Agents in Workspace Actions, with remembered sections and a layout that adapts to your chat pane.",
+      "Follow agent relationships, fork work into another conversation, and bring results back into the parent thread.",
+      "Discover project scripts and inspect linked pull requests from the workspace, with clearer readiness and checkout behavior.",
+      "Work in the updated Code OSS 1.143 editor with a wider Go to file control, connected tabs, coordinated panel corners, and more restrained menus, tooltips, and notifications.",
+      "Draft commit messages with a local Ollama model and choose the model in settings.",
+      "Review saved Tabs data backups and restore compatible snapshots from the recovery settings.",
+      "Browse refreshed theme and typography collections and preview combinations before applying them.",
+      "Reach the workspace sooner as optional services and startup resources load when needed.",
+      "Explore the website's new interactive footer and updated product presentation.",
+      "See refreshed response rail animations, clearer branch menus, and updated Dock interaction styling.",
+      "Use keyboard shortcuts more reliably during startup and switch focus between embedded editor and chat inputs more consistently.",
+    ],
+    categories: [],
+  },
   {
     tag: "v2.1.0",
     title: "A new identity for Tabs",
     date: "October 25, 2026",
     shortDate: "Oct 25",
-    isLatest: true,
+    isLatest: false,
     type: "feature",
     summary:
       "A new app identity, five icon treatments, balanced desktop icon sizing, and a playful website introduction.",
