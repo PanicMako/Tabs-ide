@@ -2,10 +2,15 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import { StartupShell } from "./StartupShell";
 import { activateStartupSplash, updateStartupSplash } from "./lib/startupSplashLifecycle";
+import { handleZoomMenuAction, initializeZoom } from "./state/zoom";
 import "./localFonts.css";
 import "./index.css";
 
 activateStartupSplash();
+initializeZoom();
+// Register for every app window, including diagnostics popouts and recovery.
+const removeZoomMenuListener = window.desktopBridge?.onMenuAction(handleZoomMenuAction);
+if (import.meta.hot) import.meta.hot.dispose(() => removeZoomMenuListener?.());
 const rootEl = document.getElementById("root")!;
 rootEl.removeAttribute("style");
 rootEl.className = "h-dvh w-full overflow-hidden";

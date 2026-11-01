@@ -260,6 +260,13 @@ const resolveBuildOptions = Effect.fn("resolveBuildOptions")(function* (input: B
   const verbose = resolveBooleanFlag(input.verbose, env.verbose);
   const thin = resolveBooleanFlag(input.thin, env.thin);
 
+  if (platform === "win" && thin) {
+    return yield* new BuildScriptError({
+      message:
+        "Windows installers must include Code-OSS. Build without --thin or TABS_DESKTOP_THIN=true.",
+    });
+  }
+
   return {
     platform,
     target,

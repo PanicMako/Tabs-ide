@@ -19,6 +19,7 @@ import desktopPackage from "../package.json" with { type: "json" };
 import { isTrustedIpcFrame, isTrustedTabsUrl } from "./ipcSecurity";
 import { AgentsWindowManager } from "./agentsWindowManager";
 import { isLightDesktopTheme } from "./desktopTheme";
+import { desktopZoomFactor, desktopZoomMenu } from "./desktopZoom";
 import { resolveDesktopTitleBarOptions, updateWindowControlsOverlay } from "./windowTitleBar";
 import { DataRecovery } from "./dataRecovery";
 import { probeBrowserReadiness } from "./browserReadiness";
@@ -1708,10 +1709,7 @@ function configureApplicationMenu(): void {
               { type: "separator" },
             ] as MenuItemConstructorOptions[])
           : []),
-        { role: "resetZoom" },
-        { role: "zoomIn", accelerator: "CmdOrCtrl+=" },
-        { role: "zoomIn", accelerator: "CmdOrCtrl+Plus", visible: false },
-        { role: "zoomOut" },
+        ...desktopZoomMenu(process.platform, dispatchMenuAction),
         { type: "separator" },
         { role: "togglefullscreen" },
       ],
@@ -3510,10 +3508,10 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(SET_ZOOM_FACTOR_CHANNEL);
-  handleTabsIpc(SET_ZOOM_FACTOR_CHANNEL, async (_event, rawFactor: unknown) => {
-    if (typeof rawFactor === "number" && !isNaN(rawFactor) && rawFactor > 0) {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.setZoomFactor(rawFactor);
+  handleTabsIpc(SET_ZOOM_FACTOR_CHANNEL, async (event, rawFactor: unknown) => {
+    if (typeof rawFactor === "number" && Number.isFinite(rawFactor) && rawFactor > 0) {
+      if (!event.sender.isDestroyed()) {
+        event.sender.setZoomFactor(desktopZoomFactor(process.platform, rawFactor));
       }
     }
   });
@@ -4740,6 +4738,7 @@ function createPopoutWindow(
       nodeIntegration: false,
       sandbox: true,
       additionalArguments: ["--tabs-popout-window"],
+      zoomFactor: desktopZoomFactor(process.platform),
     },
   });
 
@@ -4794,6 +4793,7 @@ function createTabsWindow(): BrowserWindow {
     ...resolveTitleBarOptions(),
     webPreferences: {
       ...(dataRecoveryStartupError ? { partition: "tabs-data-recovery" } : {}),
+      zoomFactor: desktopZoomFactor(process.platform),
       preload: Path.join(__dirname, "preload.js"),
       contextIsolation: true,
       nodeIntegration: false,

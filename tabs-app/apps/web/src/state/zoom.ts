@@ -79,6 +79,14 @@ export function resetZoom(): number {
   return applyZoomFactor(DEFAULT_ZOOM);
 }
 
+export function handleZoomMenuAction(action: string): boolean {
+  if (action === "zoom-in") zoomIn();
+  else if (action === "zoom-out") zoomOut();
+  else if (action === "zoom-reset") resetZoom();
+  else return false;
+  return true;
+}
+
 export function initializeZoom(): void {
   const current = getZoomFactor();
   applyZoomFactor(current);

@@ -35,6 +35,9 @@ module.exports = async function afterPack(context) {
   // Thin builds (or any build without the bundled runtime) have no
   // tabs-code-oss directory — nothing to restore.
   if (!fs.existsSync(runtimeDir)) {
+    if (platform === "win32") {
+      throw new Error("Windows installers must bundle the full Code-OSS runtime.");
+    }
     if (platform === "darwin" || platform === "mas") {
       const appPath = path.join(context.appOutDir, `${productFilename}.app`);
       if (fs.existsSync(appPath)) {

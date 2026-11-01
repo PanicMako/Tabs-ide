@@ -1,5 +1,12 @@
 import { describe, expect, it, beforeEach } from "vitest";
-import { applyZoomFactor, getZoomFactor, resetZoom, zoomIn, zoomOut } from "./zoom";
+import {
+  applyZoomFactor,
+  getZoomFactor,
+  handleZoomMenuAction,
+  resetZoom,
+  zoomIn,
+  zoomOut,
+} from "./zoom";
 
 describe("zoom state module", () => {
   beforeEach(() => {
@@ -40,5 +47,16 @@ describe("zoom state module", () => {
     applyZoomFactor(1.5);
     expect(resetZoom()).toBe(1.0);
     expect(getZoomFactor()).toBe(1.0);
+  });
+
+  it("keeps menu zoom and the saved percentage in sync", () => {
+    expect(handleZoomMenuAction("zoom-in")).toBe(true);
+    expect(getZoomFactor()).toBe(1.1);
+    handleZoomMenuAction("zoom-out");
+    expect(getZoomFactor()).toBe(1);
+    applyZoomFactor(1.5);
+    handleZoomMenuAction("zoom-reset");
+    expect(getZoomFactor()).toBe(1);
+    expect(handleZoomMenuAction("tab-new")).toBe(false);
   });
 });

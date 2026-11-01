@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { join, resolve } from "node:path";
 import { verifyWindowsRuntimePayload } from "./lib/windows-runtime-payload.ts";
+import { windowsPeMachine } from "./lib/windows-pe.ts";
 
 const runtimeRoot = process.argv[2];
 if (!runtimeRoot)
@@ -8,6 +9,13 @@ if (!runtimeRoot)
 verifyWindowsRuntimePayload(resolve(runtimeRoot));
 const electronExecutable = process.argv[3];
 if (electronExecutable) {
+  const expectedMachine = process.arch === "arm64" ? 0xaa64 : 0x8664;
+  const actualMachine = windowsPeMachine(resolve(electronExecutable));
+  if (actualMachine !== expectedMachine) {
+    throw new Error(
+      `Installed Tabs architecture mismatch: PE machine 0x${actualMachine.toString(16)}, expected 0x${expectedMachine.toString(16)}.`,
+    );
+  }
   const environment: NodeJS.ProcessEnv = { ...process.env, ELECTRON_RUN_AS_NODE: "1" };
   delete environment.VSCODE_DEV;
   const result = spawnSync(
