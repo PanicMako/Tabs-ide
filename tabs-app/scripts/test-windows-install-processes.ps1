@@ -71,6 +71,39 @@ public static class TabsUninstallRenameTest {
   if (Test-Path -LiteralPath $scope) { throw 'Private uninstaller temp was not removed.' }
   if (-not (Test-Path -LiteralPath $outsideMarker)) { throw 'Private temp cleanup followed a junction outside its scope.' }
   Write-Host 'Same-volume uninstaller staging and junction-safe cleanup passed.'
+
+  $stage = Join-Path $sameVolumeRoot 'staged app'
+  foreach ($relative in @(
+    'resources/app.asar',
+    'resources/tabs-code-oss/out/vs/code/electron-browser/workbench/workbench-dev.html',
+    'resources/tabs-code-oss/out/nls.messages.json', 'resources/tabs-code-oss/out-build/nls.messages.json',
+    'resources/tabs-code-oss/node_modules/@anthropic-ai/claude-agent-sdk/sdk.mjs',
+    'resources/tabs-code-oss/extensions/node_modules/typescript/lib/typescript.js',
+    'resources/tabs-code-oss/extensions/node_modules/typescript/lib/lib.d.ts',
+    'resources/tabs-code-oss/extensions/node_modules/typescript/lib/lib.es5.d.ts',
+    'resources/tabs-code-oss/extensions/node_modules/typescript/lib/lib.dom.d.ts'
+  )) {
+    $filename = Join-Path $stage $relative
+    New-Item (Split-Path -Parent $filename) -ItemType Directory -Force | Out-Null
+    Set-Content -LiteralPath $filename 'runtime fixture'
+  }
+  Copy-Item (Get-Command node.exe).Source (Join-Path $stage 'Tabs.exe')
+  $validator = Join-Path $root 'validator with spaces'
+  New-Item $validator -ItemType Directory | Out-Null
+  Copy-Item "$PSScriptRoot/verify-staged-runtime.ps1" $validator
+  Copy-Item "$PSScriptRoot/lib/windows-packed-inventory.cjs" $validator
+  $runtime = Join-Path $stage 'resources/tabs-code-oss'
+  Set-Content (Join-Path $runtime 'tabs-payload.json') '{}'
+  & node -e 'require(process.argv[1]).writeWindowsPackedInventory(process.argv[2])' (Join-Path $validator 'windows-packed-inventory.cjs') $runtime
+  if ($LASTEXITCODE -ne 0) { throw 'Could not create staged runtime test inventory.' }
+  $originalRunAsNode = $env:ELECTRON_RUN_AS_NODE
+  & "$env:WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $validator 'verify-staged-runtime.ps1') $stage
+  if ($LASTEXITCODE -ne 0) { throw 'Bundled Node staged verification failed.' }
+  if ($env:ELECTRON_RUN_AS_NODE -ne $originalRunAsNode) { throw 'Verification leaked Node mode into the parent environment.' }
+  Remove-Item (Join-Path $stage 'resources/app.asar')
+  & "$env:WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $validator 'verify-staged-runtime.ps1') $stage
+  if ($LASTEXITCODE -ne 2) { throw 'Staged verification accepted an incomplete app.' }
+  Write-Host 'Bundled Node validation preserves the parent environment and rejects incomplete payloads.'
 } finally {
   if ($tempDrive) { & subst.exe $tempDrive /D | Out-Null }
   foreach ($process in @($inside, $outside)) {

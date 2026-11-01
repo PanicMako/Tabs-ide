@@ -105,6 +105,7 @@ export function writeWindowsNsisScripts(outputDirectory: string): string {
     extraction,
     "  # Retry counter",
     String.raw`  File /oname=$PLUGINSDIR\verify-staged-runtime.ps1 "${"${PROJECT_DIR}"}\build\verify-staged-runtime.ps1"
+  File /oname=$PLUGINSDIR\windows-packed-inventory.cjs "${"${PROJECT_DIR}"}\build\windows-packed-inventory.cjs"
   nsExec::ExecToLog /TIMEOUT=60000 '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\verify-staged-runtime.ps1" "$PLUGINSDIR\7z-out"'
   Pop $R1
   StrCmp $R1 0 +3
@@ -131,6 +132,10 @@ export function writeWindowsNsisScripts(outputDirectory: string): string {
     copy +
     "\n!endif\n";
   mkdirSync(outputDirectory, { recursive: true });
+  writeFileSync(
+    join(outputDirectory, "windows-packed-inventory.cjs"),
+    readFileSync(new URL("./windows-packed-inventory.cjs", import.meta.url)),
+  );
   writeFileSync(
     join(outputDirectory, "windows-install-phases.nsh"),
     "!ifndef TABS_INSTALL_PHASES_DEFINED\n!define TABS_INSTALL_PHASES_DEFINED\n" +

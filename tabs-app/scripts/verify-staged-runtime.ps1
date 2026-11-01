@@ -1,36 +1,44 @@
 param([Parameter(Mandatory)] [string]$StageDir)
 $ErrorActionPreference = 'Stop'
+$process = New-Object Diagnostics.Process
+$started = $false
 try {
-  $runtime = Join-Path $StageDir 'resources\tabs-code-oss'
-  $manifestPath = Join-Path $runtime 'tabs-payload.json'
-  $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
-  if (-not $manifest.packedFiles -or $manifest.packedFiles -gt 50000) {
-    throw 'The staged editor has no valid packed file inventory.'
+  # Use the bundled Node runtime and the build's own inventory reader. This
+  # handles long paths and short/long path aliases consistently on Windows.
+  $process.StartInfo.FileName = Join-Path $StageDir 'Tabs.exe'
+  $script = Join-Path $PSScriptRoot 'windows-packed-inventory.cjs'
+  $process.StartInfo.Arguments = "`"$script`" `"$StageDir`""
+  $process.StartInfo.UseShellExecute = $false
+  $process.StartInfo.CreateNoWindow = $true
+  $process.StartInfo.RedirectStandardOutput = $true
+  $process.StartInfo.RedirectStandardError = $true
+  # Change only the child's environment; the installer and relaunched app
+  # must retain normal Electron startup behavior.
+  $process.StartInfo.EnvironmentVariables['ELECTRON_RUN_AS_NODE'] = '1'
+  $started = $process.Start()
+  $stdout = $process.StandardOutput.ReadToEndAsync()
+  $stderr = $process.StandardError.ReadToEndAsync()
+  if (-not $process.WaitForExit(45000)) {
+    $process.Kill()
+    $process.WaitForExit()
+    throw 'Staged runtime verification timed out.'
   }
-  $count = @(Get-ChildItem -LiteralPath $runtime -Recurse -File -Force |
-    Where-Object { $_.FullName -ne $manifestPath }).Count
-  if ($count -ne $manifest.packedFiles) {
-    throw "Incomplete editor extraction: expected $($manifest.packedFiles) files, got $count."
+  $output = $stdout.GetAwaiter().GetResult()
+  $errors = $stderr.GetAwaiter().GetResult()
+  if ($process.ExitCode -ne 0) { throw "Bundled Node verification failed: $errors $output" }
+  Write-Output $output.Trim()
+  if ($env:TABS_INSTALLER_PHASE_LOG) {
+    [IO.File]::AppendAllText($env:TABS_INSTALLER_PHASE_LOG, "$($output.Trim())`r`n", [Text.UTF8Encoding]::new($false))
   }
-  foreach ($relative in @(
-    'Tabs.exe',
-    'resources\app.asar',
-    'resources\tabs-code-oss\out\vs\code\electron-browser\workbench\workbench-dev.html',
-    'resources\tabs-code-oss\out\nls.messages.json',
-    'resources\tabs-code-oss\out-build\nls.messages.json',
-    'resources\tabs-code-oss\node_modules\@anthropic-ai\claude-agent-sdk\sdk.mjs',
-    'resources\tabs-code-oss\extensions\node_modules\typescript\lib\typescript.js',
-    'resources\tabs-code-oss\extensions\node_modules\typescript\lib\lib.d.ts',
-    'resources\tabs-code-oss\extensions\node_modules\typescript\lib\lib.es5.d.ts',
-    'resources\tabs-code-oss\extensions\node_modules\typescript\lib\lib.dom.d.ts'
-  )) {
-    if (-not (Test-Path -LiteralPath (Join-Path $StageDir $relative) -PathType Leaf)) {
-      throw "Incomplete full-fat application extraction: $relative"
-    }
-  }
-  Write-Output "Verified full-fat staged editor: $count files."
   exit 0
 } catch {
-  Write-Output "Staged application validation failed: $_"
+  $message = "Staged application validation failed: $_"
+  Write-Output $message
+  if ($env:TABS_INSTALLER_PHASE_LOG) {
+    [IO.File]::AppendAllText($env:TABS_INSTALLER_PHASE_LOG, "$message`r`n", [Text.UTF8Encoding]::new($false))
+  }
   exit 2
+} finally {
+  if ($started -and -not $process.HasExited) { $process.Kill() }
+  $process.Dispose()
 }

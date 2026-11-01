@@ -21,4 +21,56 @@ function writeWindowsPackedInventory(runtimeDir) {
   return packedFiles;
 }
 
-module.exports = { writeWindowsPackedInventory };
+function verifyWindowsStagedRuntime(appDir) {
+  const runtimeDir = path.join(appDir, "resources", "tabs-code-oss");
+  const manifestPath = path.join(runtimeDir, "tabs-payload.json");
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  if (
+    !Number.isInteger(manifest.packedFiles) ||
+    manifest.packedFiles < 1 ||
+    manifest.packedFiles > 50_000
+  )
+    throw new Error("The staged editor has no valid packed file inventory.");
+  let files = 0;
+  function count(directory) {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const filename = path.join(directory, entry.name);
+      if (entry.isDirectory()) count(filename);
+      else if (entry.isFile() && filename !== manifestPath) files++;
+    }
+  }
+  count(runtimeDir);
+  if (files !== manifest.packedFiles)
+    throw new Error(
+      `Incomplete editor extraction: expected ${manifest.packedFiles} files, got ${files}.`,
+    );
+  for (const relative of [
+    "Tabs.exe",
+    "resources/app.asar",
+    "resources/tabs-code-oss/out/vs/code/electron-browser/workbench/workbench-dev.html",
+    "resources/tabs-code-oss/out/nls.messages.json",
+    "resources/tabs-code-oss/out-build/nls.messages.json",
+    "resources/tabs-code-oss/node_modules/@anthropic-ai/claude-agent-sdk/sdk.mjs",
+    "resources/tabs-code-oss/extensions/node_modules/typescript/lib/typescript.js",
+    "resources/tabs-code-oss/extensions/node_modules/typescript/lib/lib.d.ts",
+    "resources/tabs-code-oss/extensions/node_modules/typescript/lib/lib.es5.d.ts",
+    "resources/tabs-code-oss/extensions/node_modules/typescript/lib/lib.dom.d.ts",
+  ]) {
+    if (!fs.statSync(path.join(appDir, relative)).isFile())
+      throw new Error(`Incomplete full-fat application extraction: ${relative}`);
+  }
+  return files;
+}
+
+module.exports = { writeWindowsPackedInventory, verifyWindowsStagedRuntime };
+
+if (require.main === module) {
+  try {
+    console.info(
+      `Verified full-fat staged editor: ${verifyWindowsStagedRuntime(process.argv[2])} files.`,
+    );
+  } catch (error) {
+    console.error(error);
+    process.exitCode = 2;
+  }
+}

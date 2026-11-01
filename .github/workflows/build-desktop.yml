@@ -129,6 +129,9 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
       - name: Verify process scope, same-volume staging and junction-safe cleanup
         shell: pwsh
         run: ./tabs-app/scripts/test-windows-install-processes.ps1
