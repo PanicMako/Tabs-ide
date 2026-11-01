@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   copyWindowsProductionDependencies,
   finalizeWindowsRuntimePayload,
+  hasUnacceptableNpmLsErrors,
   includeWindowsCompiledFile,
   readAdditionalRuntimeDependencyPaths,
   stripInlineSourceMap,
@@ -168,5 +169,25 @@ describe("Windows editor production payload", () => {
     expect(() => verifyWindowsRuntimePayload(root)).not.toThrow();
     write(root, "out-build/vs/duplicate.js", "duplicate");
     expect(() => verifyWindowsRuntimePayload(root)).toThrow("Redundant");
+  });
+
+  it("accepts ELSPROBLEMS inventories with invalid and extraneous packages while rejecting missing dependencies", () => {
+    const validErrors = [
+      "npm error code ELSPROBLEMS",
+      "npm error invalid: @microsoft/dev-tunnels-ssh-tcp@3.12.22 D:\\a\\Tabs-ide\\Tabs-ide\\tabs-code-oss\\node_modules\\@microsoft\\dev-tunnels-ssh-tcp",
+      "npm error extraneous: buildcheck@0.0.7 D:\\a\\Tabs-ide\\Tabs-ide\\tabs-code-oss\\node_modules\\buildcheck",
+      "npm error A complete log of this run can be found in: C:\\npm\\cache\\_logs\\log.log",
+    ].join("\n");
+    expect(hasUnacceptableNpmLsErrors(validErrors)).toBe(false);
+
+    const missingErrors = [
+      "npm error code ELSPROBLEMS",
+      "npm error missing: minimist@^1.2.8, required by tabs-code-oss",
+      "npm error A complete log of this run can be found in: log.log",
+    ].join("\n");
+    expect(hasUnacceptableNpmLsErrors(missingErrors)).toBe(true);
+
+    expect(hasUnacceptableNpmLsErrors("")).toBe(true);
+    expect(hasUnacceptableNpmLsErrors("npm ERR! fatal network failure")).toBe(true);
   });
 });

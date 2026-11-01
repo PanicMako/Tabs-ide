@@ -53,6 +53,17 @@ export function readAdditionalRuntimeDependencyPaths(sourceRoot: string): string
   return [...result];
 }
 
+export function hasUnacceptableNpmLsErrors(stderr: string): boolean {
+  const errors = stderr.split(/\r?\n/).filter((line) => /^npm (?:error|ERR!)/.test(line));
+  return (
+    errors.length === 0 ||
+    errors.some(
+      (line) =>
+        !/^npm (?:error|ERR!) (?:code ELSPROBLEMS|invalid:|extraneous:|A complete log)/.test(line),
+    )
+  );
+}
+
 /** Use the same production dependency inventory as Code-OSS' packaging tasks. */
 export function readProductionDependencyPaths(sourceRoot: string): string[] {
   const result = spawnSync("npm", ["ls", "--all", "--omit=dev", "--parseable"], {
@@ -63,15 +74,9 @@ export function readProductionDependencyPaths(sourceRoot: string): string[] {
   });
   if (result.error) throw result.error;
   // npm also returns ELSPROBLEMS for installed prerelease versions that do not
-  // satisfy their declared range. Accept those inventories, never missing deps.
-  const errors = result.stderr.split(/\r?\n/).filter((line) => /^npm (?:error|ERR!)/.test(line));
-  if (
-    result.status !== 0 &&
-    (errors.length === 0 ||
-      errors.some(
-        (line) => !/^npm (?:error|ERR!) (?:code ELSPROBLEMS|invalid:|A complete log)/.test(line),
-      ))
-  ) {
+  // satisfy their declared range or extraneous packages left behind after
+  // optional dependency pruning. Accept those inventories, never missing deps.
+  if (result.status !== 0 && hasUnacceptableNpmLsErrors(result.stderr)) {
     throw new Error(`Cannot inventory Code-OSS production dependencies: ${result.stderr}`);
   }
   return validateProductionDependencyPaths(sourceRoot, [
