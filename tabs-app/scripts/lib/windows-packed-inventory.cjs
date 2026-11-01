@@ -3,9 +3,8 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
-function writeWindowsPackedInventory(runtimeDir) {
+function countWindowsRuntimeFiles(runtimeDir) {
   const manifestPath = path.join(runtimeDir, "tabs-payload.json");
-  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
   let packedFiles = 0;
   function count(directory) {
     for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
@@ -15,6 +14,13 @@ function writeWindowsPackedInventory(runtimeDir) {
     }
   }
   count(runtimeDir);
+  return packedFiles;
+}
+
+function writeWindowsPackedInventory(runtimeDir) {
+  const manifestPath = path.join(runtimeDir, "tabs-payload.json");
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  const packedFiles = countWindowsRuntimeFiles(runtimeDir);
   if (packedFiles < 1 || packedFiles > 50_000)
     throw new Error(`Invalid Windows packed editor inventory: ${packedFiles}`);
   fs.writeFileSync(manifestPath, JSON.stringify({ ...manifest, packedFiles }, null, 2) + "\n");
@@ -31,15 +37,7 @@ function verifyWindowsStagedRuntime(appDir) {
     manifest.packedFiles > 50_000
   )
     throw new Error("The staged editor has no valid packed file inventory.");
-  let files = 0;
-  function count(directory) {
-    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
-      const filename = path.join(directory, entry.name);
-      if (entry.isDirectory()) count(filename);
-      else if (entry.isFile() && filename !== manifestPath) files++;
-    }
-  }
-  count(runtimeDir);
+  const files = countWindowsRuntimeFiles(runtimeDir);
   if (files !== manifest.packedFiles)
     throw new Error(
       `Incomplete editor extraction: expected ${manifest.packedFiles} files, got ${files}.`,
