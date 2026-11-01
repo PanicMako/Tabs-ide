@@ -31,6 +31,13 @@ html.tabs-embedded-workbench .monaco-workbench :is(.quick-input-widget, .suggest
 	border-radius: var(--vscode-cornerRadius-medium) !important;
 }
 
+/* Compact surfaces own compact tokens, including their nested inputs and rows.
+	Panel-sized inherited tokens otherwise turn short controls into capsules. */
+html.tabs-embedded-workbench :is(.quick-input-widget, .suggest-widget, .suggest-details, .parameter-hints-widget, .find-widget, .rename-box, .colorpicker-widget, .debug-hover-widget, .debug-toolbar, .monaco-menu-container, .monaco-menu, .monaco-select-box-dropdown-container, .monaco-hover, .monaco-dialog-box, .notifications-center, .notification-toast) {
+	--vscode-cornerRadius-large: 12px !important;
+	--vscode-cornerRadius-xLarge: 8px !important;
+}
+
 /* Controls share the shell's pill curvature; CSS clamps it to their actual height. */
 .monaco-workbench .monaco-button,
 .monaco-workbench .monaco-text-button,
@@ -477,4 +484,18 @@ html.tabs-embedded-workbench .monaco-workbench .part.auxiliarybar > .title .comp
 html.tabs-embedded-workbench .monaco-workbench.floating-panels.noactivitybar .part.sidebar.left {
 	border-top-left-radius: 20px !important;
 	border-bottom-left-radius: 20px !important;
+}
+
+/* Small search/settings fields must not inherit workspace-panel curvature. */
+html.tabs-embedded-workbench .monaco-workbench :is(.settings-editor, .search-view, .search-editor) :is(.monaco-inputbox, .monaco-findInput, .monaco-select-box, input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), textarea) {
+	border-radius: var(--vscode-cornerRadius-small) !important;
+}
+
+/* The frame must not clip the first tab with a larger curve than its right cap. */
+html.tabs-embedded-workbench .monaco-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs .part.editor:not(.modal-editor-part) {
+	border-top-left-radius: 10px !important;
+	border-top-right-radius: 10px !important;
+}
+html.tabs-embedded-workbench .monaco-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active > .tab-fill {
+	border-radius: 10px 10px 0 0 !important;
 }

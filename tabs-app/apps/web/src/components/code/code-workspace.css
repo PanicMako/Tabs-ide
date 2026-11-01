@@ -8,7 +8,11 @@
   --code-picker-center-offset: calc(
     (var(--code-rail-width) + 4px - var(--code-sidechat-width, 0px)) / 2
   );
-  --code-search-width: clamp(184px, 22vw, 280px);
+  /* Native Quick Open is 62% of its viewport, capped at 600px. */
+  --code-search-width: min(
+    480px,
+    calc((100% - var(--code-rail-width) - 4px - var(--code-sidechat-width, 0px)) * 0.496)
+  );
   /* Native StatusbarPart reserves 22px plus 6px floating bottom padding. */
   --code-statusbar-height: 28px;
   --code-statusbar-surface: var(--vscode-statusBar-background, var(--card));
@@ -575,5 +579,12 @@ html[data-reduced-motion="reduce"]
     .code-menu-glyph
     path {
     transform: none;
+  }
+}
+
+/* Keep the wider picker target clear of toolbar actions on small windows. */
+@media (max-width: 680px) {
+  .code-command-actions {
+    gap: 0;
   }
 }
