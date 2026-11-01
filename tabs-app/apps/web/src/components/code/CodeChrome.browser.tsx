@@ -143,7 +143,8 @@ it.each([
     const actions = document.querySelector(".code-command-actions")!.getBoundingClientRect();
     expect(search.right).toBeLessThanOrEqual(actions.left);
     expect(search.width).toBeGreaterThan(100);
-    expect(search.width).toBeLessThanOrEqual(200);
+    expect(search.width).toBeLessThanOrEqual(280);
+    if (width >= 1280) expect(search.width).toBeGreaterThanOrEqual(260);
     if (width === 1280 && sideChatWidth === 320) {
       const originalTheme = snapshotThemeState();
       try {

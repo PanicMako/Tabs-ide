@@ -20,11 +20,15 @@
 html.tabs-embedded-workbench .monaco-workbench .part:is(.sidebar, .auxiliarybar, .panel),
 html.tabs-embedded-workbench .monaco-workbench .part.editor:not(.modal-editor-part),
 html.tabs-embedded-workbench .monaco-workbench.floating-panels .part:is(.sidebar, .auxiliarybar, .panel),
-html.tabs-embedded-workbench .monaco-workbench.modern-ui .part.editor:not(.modal-editor-part),
+html.tabs-embedded-workbench .monaco-workbench.modern-ui .part.editor:not(.modal-editor-part) {
+	border-radius: var(--vscode-cornerRadius-large) !important;
+}
+
+/* Transient overlays need tighter corners than full workspace panels. */
 html.tabs-embedded-workbench .monaco-workbench :is(.monaco-dialog-box, .monaco-menu-container, .monaco-hover),
 html.tabs-embedded-workbench :is(.monaco-menu-container, .monaco-menu, .monaco-select-box-dropdown-container, .monaco-hover, .context-view.monaco-component .monaco-dialog-box),
 html.tabs-embedded-workbench .monaco-workbench :is(.quick-input-widget, .suggest-widget, .suggest-details, .parameter-hints-widget, .find-widget, .rename-box, .colorpicker-widget, .debug-hover-widget, .debug-toolbar, .notifications-center, .notification-toast, .notifications-list-container) {
-	border-radius: var(--vscode-cornerRadius-large) !important;
+	border-radius: var(--vscode-cornerRadius-medium) !important;
 }
 
 /* Controls share the shell's pill curvature; CSS clamps it to their actual height. */
@@ -97,11 +101,11 @@ html.tabs-embedded-workbench .monaco-action-bar .action-item.action-dropdown-ite
 .monaco-workbench .monaco-editor .suggest-details,
 .context-view .monaco-menu .monaco-action-bar.vertical,
 .context-view .monaco-select-box-dropdown-container {
-	border-radius: var(--vscode-cornerRadius-large) !important;
+	border-radius: var(--vscode-cornerRadius-medium) !important;
 }
 
 .monaco-workbench .monaco-dialog-box {
-	border-radius: var(--vscode-cornerRadius-large) !important;
+	border-radius: var(--vscode-cornerRadius-medium) !important;
 }
 
 /* Rounded row backgrounds do not change virtualized row positions or heights. */
@@ -189,42 +193,42 @@ html.tabs-embedded-workbench .monaco-workbench :is(.scm-editor, .scm-editor-cont
 
 /* Notifications have one continuous rounded frame. Rounding every nested row
 	creates intersecting pills and clips message text, toolbars and action buttons. */
-.monaco-workbench .notifications-center,
-.monaco-workbench .notifications-toasts .notification-toast,
-.monaco-workbench .notifications-toasts .notifications-list-container,
-.monaco-workbench .notifications-toasts .notification-toast .monaco-scrollable-element {
-	border-radius: var(--vscode-cornerRadius-large) !important;
+html.tabs-embedded-workbench .monaco-workbench .notifications-center,
+html.tabs-embedded-workbench .monaco-workbench .notifications-toasts .notification-toast,
+html.tabs-embedded-workbench .monaco-workbench .notifications-toasts .notifications-list-container,
+html.tabs-embedded-workbench .monaco-workbench .notifications-toasts .notification-toast .monaco-scrollable-element {
+	border-radius: var(--vscode-cornerRadius-medium) !important;
 }
 
-.monaco-workbench .notifications-center {
+html.tabs-embedded-workbench .monaco-workbench .notifications-center {
 	overflow: hidden;
 }
 
-.monaco-workbench .notifications-center > .notifications-center-header {
+html.tabs-embedded-workbench .monaco-workbench .notifications-center > .notifications-center-header {
 	padding-inline: 16px;
 }
 
-.monaco-workbench :is(.notifications-center, .notifications-toasts) .monaco-list .monaco-list-row:not(.separator),
-.monaco-workbench :is(.notifications-center, .notifications-toasts) .notification-list-item {
+html.tabs-embedded-workbench .monaco-workbench :is(.notifications-center, .notifications-toasts) .monaco-list .monaco-list-row:not(.separator),
+html.tabs-embedded-workbench .monaco-workbench :is(.notifications-center, .notifications-toasts) .notification-list-item {
 	border-radius: 0 !important;
 }
 
-.monaco-workbench .notifications-center .monaco-list .monaco-list-row:last-child {
-	border-radius: 0 0 var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) !important;
+html.tabs-embedded-workbench .monaco-workbench .notifications-center .monaco-list .monaco-list-row:last-child {
+	border-radius: 0 0 var(--vscode-cornerRadius-medium) var(--vscode-cornerRadius-medium) !important;
 }
 
-.monaco-workbench .notifications-toasts .notification-toast .monaco-list .monaco-list-row,
-.monaco-workbench .notifications-toasts .notification-toast .monaco-list:not(.element-focused):focus::before {
-	border-radius: var(--vscode-cornerRadius-large) !important;
+html.tabs-embedded-workbench .monaco-workbench .notifications-toasts .notification-toast .monaco-list .monaco-list-row,
+html.tabs-embedded-workbench .monaco-workbench .notifications-toasts .notification-toast .monaco-list:not(.element-focused):focus::before {
+	border-radius: var(--vscode-cornerRadius-medium) !important;
 }
 
 /* Keyboard focus follows the inset row shape without turning it into a pill. */
-.monaco-workbench .notifications-center .monaco-list .monaco-list-row.focused:not(:last-child) {
-	border-radius: var(--vscode-cornerRadius-xLarge) !important;
+html.tabs-embedded-workbench .monaco-workbench .notifications-center .monaco-list .monaco-list-row.focused:not(:last-child) {
+	border-radius: var(--vscode-cornerRadius-small) !important;
 }
 
-.monaco-workbench .notifications-center .monaco-list .monaco-list-row.focused:last-child {
-	border-radius: var(--vscode-cornerRadius-xLarge) var(--vscode-cornerRadius-xLarge) var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) !important;
+html.tabs-embedded-workbench .monaco-workbench .notifications-center .monaco-list .monaco-list-row.focused:last-child {
+	border-radius: var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-medium) var(--vscode-cornerRadius-medium) !important;
 }
 
 /* Tiny glyph controls and text decorations should not use panel-sized curves. */
@@ -393,8 +397,8 @@ html.tabs-embedded-workbench .monaco-workbench :is(.scm-editor, .scm-editor-cont
 
 .monaco-workbench .quick-input-widget .quick-input-titlebar,
 html.tabs-embedded-workbench .quick-input-titlebar {
-	border-top-left-radius: var(--vscode-cornerRadius-large);
-	border-top-right-radius: var(--vscode-cornerRadius-large);
+	border-top-left-radius: var(--vscode-cornerRadius-medium);
+	border-top-right-radius: var(--vscode-cornerRadius-medium);
 }
 
 .monaco-workbench .quick-input-widget .monaco-inputbox input.input {
@@ -410,7 +414,7 @@ html.tabs-embedded-workbench :is(.monaco-custom-toggle, .monaco-keybinding-key, 
 	border-radius: 5px !important;
 }
 html.tabs-embedded-workbench .monaco-workbench .quick-input-widget {
-	border-radius: var(--vscode-cornerRadius-large);
+	border-radius: var(--vscode-cornerRadius-medium);
 }
 html.tabs-embedded-workbench .monaco-workbench .part.auxiliarybar > .content {
 	border-radius: 12px 12px 0 0;

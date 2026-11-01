@@ -8,7 +8,7 @@
   --code-picker-center-offset: calc(
     (var(--code-rail-width) + 4px - var(--code-sidechat-width, 0px)) / 2
   );
-  --code-search-width: 184px;
+  --code-search-width: clamp(184px, 22vw, 280px);
   /* Native StatusbarPart reserves 22px plus 6px floating bottom padding. */
   --code-statusbar-height: 28px;
   --code-statusbar-surface: var(--vscode-statusBar-background, var(--card));
