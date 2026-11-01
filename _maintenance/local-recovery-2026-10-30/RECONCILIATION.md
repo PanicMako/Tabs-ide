@@ -32,3 +32,15 @@ The installed Code OSS dependencies were stale relative to the source. `npm inst
 The isolated workbench smoke passed: Code OSS 1.143.0 backend available, real file opened, Tabs radius CSS present, integrated terminal opened, and a real terminal command executed. Its temporary profile was removed by the harness. Evidence is under `/Users/rushil.dev/.codex/recovery/tabs-20261030/smoke-fixed/`.
 
 A broader `npm run compile-client` invocation (which also compiles built-in extension media) encountered the missing `@vscode/web-editors` dependency in the markdown extension. The successful core/development editor builds and smoke do not certify built-in extension packaging or packaged cross-platform releases.
+
+## Final verification
+
+- Full workspace suite: `bunx turbo run test --concurrency=1` passed all 18 tasks. Server: 648 test files passed, 11 skipped; 7,621 tests passed, 35 skipped. The earlier browser teardown timeout did not recur with serialized package execution.
+- `vp check`: passed, zero errors and 677 existing warnings.
+- `vp run typecheck`: passed all 16 tasks.
+- `bun run build:desktop`: passed all four tasks.
+- Code OSS `compile-build-without-mangling` and `compile-client` gulp tasks: passed.
+- Isolated native workbench smoke: passed, including actual file contents, radius CSS and a terminal command.
+- `git diff --check`: passed. Repository precommit hook ran during commits; there were no changed native Code OSS source files for it to check.
+
+Logs and isolated smoke evidence are retained outside the repository at `/Users/rushil.dev/.codex/recovery/tabs-20261030/`. No local user profile was reset, no stash was altered, and no push or release was performed.
