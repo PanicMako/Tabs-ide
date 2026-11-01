@@ -1,5 +1,5 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { TopBar } from "./TopBar";
 
@@ -32,6 +32,7 @@ const defaultProps = {
 };
 
 describe("TopBar header tools", () => {
+  afterEach(() => vi.restoreAllMocks());
   it("renders repository name and branch label cleanly", () => {
     const markup = renderToStaticMarkup(<TopBar {...defaultProps} />);
 
@@ -71,13 +72,17 @@ describe("TopBar header tools", () => {
     expect(markup).toContain('aria-label="GitHub account sign in"');
   });
 
-  it("renders terminal button in closed state with keyboard shortcut", () => {
+  it.each([
+    ["Linux x86_64", "Ctrl+J"],
+    ["MacIntel", "⌘J"],
+  ])("renders the configured terminal shortcut on %s", (platform, shortcut) => {
+    vi.spyOn(navigator, "platform", "get").mockReturnValue(platform);
     const markup = renderToStaticMarkup(<TopBar {...defaultProps} terminalOpen={false} />);
 
     expect(markup).toContain("Terminal");
     expect(markup).toContain('aria-pressed="false"');
     expect(markup).toContain('aria-label="Open Git terminal drawer"');
-    expect(markup).toContain("⌃`");
+    expect(markup).toContain(`data-slot="kbd">${shortcut}</kbd>`);
   });
 
   it("renders terminal button in active state with live indicator and Active badge", () => {
