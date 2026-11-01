@@ -239,3 +239,11 @@ export function verifyWindowsRuntimePayload(runtimeRoot: string): void {
   if (!Array.isArray(messages) || messages.length === 0)
     throw new Error("Windows editor localization messages are invalid.");
 }
+
+export function verifyWindowsTypeScriptLibraries(runtimeRoot: string): void {
+  for (const name of ["lib.d.ts", "lib.es5.d.ts", "lib.dom.d.ts"]) {
+    if (!fs.existsSync(path.join(runtimeRoot, "extensions/node_modules/typescript/lib", name))) {
+      throw new Error(`Bundled TypeScript standard library is missing: ${name}`);
+    }
+  }
+}

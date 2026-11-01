@@ -1,18 +1,16 @@
 import { spawnSync } from "node:child_process";
 import { join, resolve } from "node:path";
-import { existsSync } from "node:fs";
-import { verifyWindowsRuntimePayload } from "./lib/windows-runtime-payload.ts";
+import {
+  verifyWindowsRuntimePayload,
+  verifyWindowsTypeScriptLibraries,
+} from "./lib/windows-runtime-payload.ts";
 import { windowsPeMachine } from "./lib/windows-pe.ts";
 
 const runtimeRoot = process.argv[2];
 if (!runtimeRoot)
   throw new Error("Usage: verify-windows-runtime-payload.ts <packaged-runtime-directory>");
 verifyWindowsRuntimePayload(resolve(runtimeRoot));
-for (const name of ["lib.d.ts", "lib.es5.d.ts", "lib.dom.d.ts"]) {
-  if (!existsSync(join(resolve(runtimeRoot), "extensions/node_modules/typescript/lib", name))) {
-    throw new Error(`Bundled TypeScript standard library is missing: ${name}`);
-  }
-}
+verifyWindowsTypeScriptLibraries(resolve(runtimeRoot));
 const electronExecutable = process.argv[3];
 if (electronExecutable) {
   const expectedMachine = process.arch === "arm64" ? 0xaa64 : 0x8664;

@@ -13,6 +13,7 @@ import {
   validateProductionDependencyPaths,
   verifyWindowsRuntimePayload,
   WINDOWS_RUNTIME_FILE_FILTER,
+  verifyWindowsTypeScriptLibraries,
 } from "./windows-runtime-payload";
 
 const temporaryDirectories: string[] = [];
@@ -41,6 +42,15 @@ it("retains TypeScript standard libraries through electron-builder's runtime fil
   }
   const source = write(root, "extensions/example/src/extension.ts", "development source");
   expect(filter(source, fs.statSync(source))).toBe(false);
+});
+
+it("rejects incomplete prepackaged TypeScript libraries before producing an installer", () => {
+  const root = temporaryDirectory();
+  for (const name of ["lib.d.ts", "lib.es5.d.ts", "lib.dom.d.ts"]) {
+    expect(() => verifyWindowsTypeScriptLibraries(root)).toThrow(name);
+    write(root, `extensions/node_modules/typescript/lib/${name}`, "declaration");
+  }
+  expect(() => verifyWindowsTypeScriptLibraries(root)).not.toThrow();
 });
 
 function temporaryDirectory(): string {

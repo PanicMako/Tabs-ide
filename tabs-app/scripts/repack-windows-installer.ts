@@ -9,6 +9,10 @@ import { writeWindowsPackedInventory } from "./lib/windows-packed-inventory.ts";
 import { trimWindowsAppArchive } from "./lib/windows-app-payload.ts";
 import { verifyDesktopUpdateArtifact } from "./lib/desktop-update-artifact.ts";
 import { readReleaseNotes } from "./verify-desktop-update-metadata.ts";
+import {
+  verifyWindowsRuntimePayload,
+  verifyWindowsTypeScriptLibraries,
+} from "./lib/windows-runtime-payload.ts";
 
 const require = createRequire(import.meta.url);
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -61,6 +65,8 @@ try {
     largest.sort((a, b) => b.bytes - a.bytes).slice(0, 12),
   );
   const runtime = path.join(app, "resources", "tabs-code-oss");
+  verifyWindowsRuntimePayload(runtime);
+  verifyWindowsTypeScriptLibraries(runtime);
   writeWindowsPackedInventory(runtime);
   const project = path.join(temporary, "project");
   const build = path.join(project, "build");
