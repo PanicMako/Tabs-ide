@@ -134,6 +134,9 @@ describe("Windows editor production payload", () => {
     expect(stripInlineSourceMap(executable + "\n//# sourceMappingURL=external.js.map\n")).toBe(
       executable + "\n//# sourceMappingURL=external.js.map\n",
     );
+    const templateLiteral =
+      "const text = `hello\n//# sourceMappingURL=data:application/json;base64,e30=`;\n";
+    expect(stripInlineSourceMap(templateLiteral)).toBe(templateLiteral);
   });
 
   it("reports actual bytes and rejects redundant output after packaging", () => {

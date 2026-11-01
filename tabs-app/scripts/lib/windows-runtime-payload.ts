@@ -133,7 +133,10 @@ export function includeWindowsCompiledFile(sourceRoot: string, entry: string): b
 
 /** Remove debug data at build time; runtime JavaScript remains unchanged. */
 export function stripInlineSourceMap(source: string): string {
-  return source.replace(/\r?\n\/\/[#@] sourceMappingURL=data:[^\r\n]*(?:\r?\n)?$/, "\n");
+  return source.replace(
+    /\r?\n\/\/[#@] sourceMappingURL=data:application\/json(?:;charset=[\w-]+)?;base64,[A-Za-z0-9+/=]+(?:\r?\n)?$/,
+    "\n",
+  );
 }
 
 export function finalizeWindowsRuntimePayload(runtimeRoot: string): {
