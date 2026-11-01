@@ -17,7 +17,10 @@ describe("full-fat Windows installer commit", () => {
       expect(
         fs.readFileSync(path.join(windowsNsisTemplateDirectory(), "installer.nsi"), "utf8"),
       ).toBe(stock);
-      expect(fs.readdirSync(directory)).toEqual(["windows-extract-override.nsh"]);
+      expect(fs.readdirSync(directory).sort()).toEqual([
+        "windows-extract-override.nsh",
+        "windows-install-phases.nsh",
+      ]);
       const extraction = fs.readFileSync(script, "utf8");
       expect(extraction).toContain("!macroundef extractUsing7za");
       expect(extraction).toContain('$installMode != "all"');

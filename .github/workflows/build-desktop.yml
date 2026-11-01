@@ -26,8 +26,13 @@ on:
         required: false
         default: false
         type: boolean
+      windows_fresh_only:
+        description: "Only run fresh same-volume/cross-volume checks for an existing Windows artifact"
+        required: false
+        default: false
+        type: boolean
       smoke_platforms:
-        description: "Smoke-only targets: win-x64, linux-x64, mac (comma-separated)"
+        description: "Smoke-only targets: win-x64, win-processes, linux-x64, mac (comma-separated)"
         required: false
         default: "win-x64"
         type: string
@@ -69,18 +74,23 @@ jobs:
           REQUESTED_PLATFORMS: ${{ inputs.platforms }}
           REQUESTED_ARTIFACT_RUN_ID: ${{ inputs.artifact_run_id }}
           REQUESTED_SMOKE_PLATFORMS: ${{ inputs.smoke_platforms }}
+          REQUESTED_WINDOWS_FRESH_ONLY: ${{ inputs.windows_fresh_only }}
         with:
           script: |
             const artifactRunId = (process.env.REQUESTED_ARTIFACT_RUN_ID || '').trim();
+            if (process.env.REQUESTED_WINDOWS_FRESH_ONLY === 'true' && !artifactRunId) {
+              core.setFailed('windows_fresh_only requires artifact_run_id.');
+              return;
+            }
             if (artifactRunId) {
               if (!/^\d+$/.test(artifactRunId)) {
                 core.setFailed('artifact_run_id must be a numeric Actions run ID.');
                 return;
               }
-              const allowed = new Set(['win-x64', 'linux-x64', 'mac']);
+              const allowed = new Set(['win-x64', 'win-processes', 'linux-x64', 'mac']);
               const requested = (process.env.REQUESTED_SMOKE_PLATFORMS || '').split(',').map(x => x.trim()).filter(Boolean);
               if (!requested.length || requested.some(x => !allowed.has(x)) || new Set(requested).size !== requested.length) {
-                core.setFailed('smoke_platforms must contain distinct entries from win-x64, linux-x64, mac.');
+                core.setFailed('smoke_platforms must contain distinct entries from win-x64, win-processes, linux-x64, mac.');
                 return;
               }
             }
@@ -110,6 +120,18 @@ jobs:
             }
 
             return { include };
+
+  windows_process_checks:
+    name: Windows installer process and temp checks
+    needs: resolve
+    if: inputs.artifact_run_id != '' && contains(inputs.smoke_platforms, 'win-processes')
+    runs-on: windows-2022
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - name: Verify process scope, same-volume staging and junction-safe cleanup
+        shell: pwsh
+        run: ./tabs-app/scripts/test-windows-install-processes.ps1
 
   linux_preflight:
     name: Linux bootstrap preflight
@@ -528,6 +550,7 @@ jobs:
           compression-level: 0
           retention-days: 14
       - name: Smoke-test Windows install and locked-process upgrade
+        if: ${{ !inputs.windows_fresh_only }}
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

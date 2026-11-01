@@ -125,12 +125,18 @@ export function writeWindowsNsisScripts(outputDirectory: string): string {
   );
   const content =
     "!ifndef TABS_EXTRACT_OVERRIDE_DEFINED\n!define TABS_EXTRACT_OVERRIDE_DEFINED\n!macroundef extractUsing7za\n!macroundef copyFile\n" +
-    phaseMacro +
+    '!include "${PROJECT_DIR}\\build\\windows-install-phases.nsh"\n' +
     extraction +
     "\n" +
     copy +
     "\n!endif\n";
   mkdirSync(outputDirectory, { recursive: true });
+  writeFileSync(
+    join(outputDirectory, "windows-install-phases.nsh"),
+    "!ifndef TABS_INSTALL_PHASES_DEFINED\n!define TABS_INSTALL_PHASES_DEFINED\n" +
+      phaseMacro +
+      "\n!endif\n",
+  );
   const filename = join(outputDirectory, "windows-extract-override.nsh");
   writeFileSync(filename, content);
   return filename;

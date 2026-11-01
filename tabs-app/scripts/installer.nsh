@@ -1,4 +1,10 @@
 # Close processes launched from this installation before NSIS replaces files.
+!ifndef BUILD_UNINSTALLER
+  !if /FileExists "${PROJECT_DIR}\build\windows-install-phases.nsh"
+    !include "${PROJECT_DIR}\build\windows-install-phases.nsh"
+  !endif
+!endif
+
 !macro customCheckAppRunning
   !ifndef BUILD_UNINSTALLER
     !if /FileExists "${PROJECT_DIR}\build\windows-extract-override.nsh"
@@ -41,6 +47,8 @@
       FileRead $1 $2
       FileClose $1
       StrCpy $2 $2 3
+      ReadEnvStr $tabsOriginalTmp "TMP"
+      ReadEnvStr $tabsOriginalTemp "TEMP"
       System::Call 'kernel32::SetEnvironmentVariableW(w "TMP", w r2)i.r1'
       StrCmp $1 0 cancelInstall
       System::Call 'kernel32::SetEnvironmentVariableW(w "TEMP", w r2)i.r1'
@@ -51,6 +59,8 @@
 !macroend
 
 !ifndef BUILD_UNINSTALLER
+Var tabsOriginalTmp
+Var tabsOriginalTemp
 # Upgrades can preserve a shortcut whose target no longer exists. Refresh both
 # shell links after extraction, including missing links on a repair install.
 # Use the builder macros to retain AppUserModelID and --no-desktop-shortcut.
@@ -66,7 +76,9 @@ Function cleanupOldUninstallTempDrive
   FileRead $1 $2
   FileClose $1
   StrCpy $2 $2 2
-  nsExec::ExecToLog /TIMEOUT=60000 `"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\close-tabs-processes.ps1" "$INSTDIR" -CleanupTempDrive "$2"`
+  System::Call 'kernel32::SetEnvironmentVariableW(w "TMP", w "$tabsOriginalTmp")i.r1'
+  System::Call 'kernel32::SetEnvironmentVariableW(w "TEMP", w "$tabsOriginalTemp")i.r1'
+  nsExec::ExecToLog /TIMEOUT=60000 `"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\close-tabs-processes.ps1" "$INSTDIR" -CleanupTempDrive "$2" -TempDriveOutputPath "$PLUGINSDIR\tabs-temp-drive.txt"`
   Pop $1
   Delete "$PLUGINSDIR\tabs-temp-drive.txt"
   cleanupDone:
@@ -75,6 +87,9 @@ FunctionEnd
 !macro customUnInstallCheck
   IfErrors uninstallLaunchFailed
   ${if} $R0 != 0
+    !ifmacrodef tabsInstallPhase
+      !insertmacro tabsInstallPhase "old-uninstall-exit-$R0"
+    !endif
     DetailPrint "Previous Tabs uninstaller failed with exit code $R0."
     Call cleanupOldUninstallTempDrive
     SetErrorLevel $R0
@@ -83,6 +98,9 @@ FunctionEnd
   Call cleanupOldUninstallTempDrive
   Goto uninstallCheckDone
   uninstallLaunchFailed:
+    !ifmacrodef tabsInstallPhase
+      !insertmacro tabsInstallPhase "old-uninstall-launch-failed"
+    !endif
     DetailPrint "Previous Tabs uninstaller could not be launched."
     Call cleanupOldUninstallTempDrive
     SetErrorLevel 2
