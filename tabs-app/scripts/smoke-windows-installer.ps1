@@ -2,6 +2,7 @@ $ErrorActionPreference = "Stop"
 $processLogPath = Join-Path $env:RUNNER_TEMP "tabs-installer-processes.log"
 $env:TABS_INSTALLER_PROCESS_LOG = $processLogPath
 $diagnosticDir = Join-Path $env:RUNNER_TEMP "tabs-installer-diagnostics"
+$installationMetrics = [Collections.Generic.List[object]]::new()
 
 function Save-InstallerDiagnostics {
   param(
@@ -187,6 +188,12 @@ function Invoke-SilentInstaller {
       throw "$Label failed with exit code $($process.ExitCode)."
     }
     Write-Host "  [$Label finished successfully in $([int]$sw.Elapsed.TotalSeconds)s]"
+    $installationMetrics.Add([ordered]@{
+      label = $Label
+      seconds = [Math]::Round($sw.Elapsed.TotalSeconds, 2)
+      installerBytes = (Get-Item $Path).Length
+    })
+    $installationMetrics | ConvertTo-Json -AsArray | Set-Content (Join-Path $env:RUNNER_TEMP 'tabs-installer-metrics.json')
   }
   finally {
     if ($process -and -not $process.HasExited) {
@@ -321,6 +328,8 @@ try {
   if (-not (Test-Path (Join-Path $installDir "Tabs.exe"))) { throw "Tabs.exe is missing after upgrade." }
   if (-not (Test-Path (Join-Path $installDir "resources/tabs-code-oss/out/vs/code/electron-browser/workbench/workbench-dev.html") -PathType Leaf)) { throw "Upgrade is missing the bundled editor." }
   if (-not (Test-Path (Join-Path $installDir "resources/tabs-code-oss/node_modules/minimist/index.js") -PathType Leaf)) { throw "Upgrade is missing editor runtime dependencies." }
+  & node ./tabs-app/scripts/verify-windows-runtime-payload.ts (Join-Path $installDir "resources/tabs-code-oss")
+  if ($LASTEXITCODE -ne 0) { throw "Installed Windows editor failed production packaging checks." }
   Assert-TabsShortcuts -InstallDir $installDir
   # A manual reinstall must also restore missing Desktop and Start Menu links.
   foreach ($shortcutPath in $shortcutPaths) { Remove-Item $shortcutPath }

@@ -616,6 +616,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Could not extract the NSIS application archive." }
           if (-not (Test-Path (Join-Path $appRoot "resources/app.asar") -PathType Leaf)) { throw "Packaged app.asar is missing." }
           $runtimeRoot = Join-Path $appRoot "resources/tabs-code-oss"
+          & node --experimental-strip-types tabs-app/scripts/verify-windows-runtime-payload.ts $runtimeRoot
+          if ($LASTEXITCODE -ne 0) { throw "Windows editor payload failed production packaging checks." }
           if (-not (Test-Path (Join-Path $runtimeRoot "out/vs/code/electron-browser/workbench/workbench-dev.html") -PathType Leaf)) { throw "The full Code OSS runtime is missing from Windows installer." }
           if (-not (Test-Path (Join-Path $runtimeRoot "out-build/nls.messages.json") -PathType Leaf)) { throw "Code OSS localization data is missing from Windows installer." }
           if (-not (Test-Path (Join-Path $runtimeRoot "node_modules/minimist/index.js") -PathType Leaf)) { throw "Code OSS runtime dependencies are missing from Windows installer." }
@@ -697,6 +699,15 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TABS_SMOKE_PREVIOUS_VERSION: ${{ needs.preflight.outputs.previous_version }}
         run: ./tabs-app/scripts/smoke-windows-installer.ps1
+
+      - name: Upload Windows installation timings
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-installer-timings
+          path: ${{ runner.temp }}/tabs-installer-metrics.json
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Upload Windows installer process log on failure
         if: failure()

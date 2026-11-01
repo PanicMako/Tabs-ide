@@ -2,7 +2,7 @@
 
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { createReadStream, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { cpSync, createReadStream, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import rootPackageJson from "../package.json" with { type: "json" };
@@ -16,6 +16,11 @@ import { resolveCatalogDependencies } from "./lib/resolve-catalog.ts";
 import { updateMacUpdateMetadata } from "./lib/mac-update-artifact.ts";
 import { sanitizeMacAppSymlinks } from "./lib/mac-symlink-sanitizer.ts";
 import { resolveNativeDependencyTarget } from "./lib/native-dependency-target.ts";
+import {
+  copyWindowsProductionDependencies,
+  finalizeWindowsRuntimePayload,
+  includeWindowsCompiledFile,
+} from "./lib/windows-runtime-payload.ts";
 
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeServices from "@effect/platform-node/NodeServices";
@@ -1131,16 +1136,34 @@ const stageVsCodeRuntime = Effect.fn("stageVsCodeRuntime")(function* (
     ".claude",
     ".gitignore",
   ]);
+  if (platform === "win") {
+    // Build the dependency tree from npm's production inventory below. The
+    // second compiled tree and development remote server are not desktop code.
+    for (const entry of ["node_modules", "out-build", "out-vscode", "remote"]) {
+      excludedSourceEntries.add(entry);
+    }
+  }
   for (const entry of yield* fs.readDirectory(vsCodeSourceDir)) {
     if (excludedSourceEntries.has(entry)) continue;
     const source = path.join(vsCodeSourceDir, entry);
     const destination = path.join(vsCodeDestDir, entry);
     const stat = yield* fs.stat(source);
     if (stat.type === "Directory") {
-      yield* fs.copy(source, destination);
+      if (platform === "win" && entry === "out") {
+        // Use Node's copy filter to avoid writing test/debug files even in CI.
+        cpSync(source, destination, {
+          recursive: true,
+          filter: (filename) => includeWindowsCompiledFile(source, filename),
+        });
+      } else {
+        yield* fs.copy(source, destination);
+      }
     } else if (stat.type === "File") {
       yield* fs.copyFile(source, destination);
     }
+  }
+  if (platform === "win") {
+    copyWindowsProductionDependencies(vsCodeSourceDir, vsCodeDestDir);
   }
 
   // The source extensions tree is a development checkout and can exceed 3 GB:
@@ -1260,11 +1283,19 @@ const stageVsCodeRuntime = Effect.fn("stageVsCodeRuntime")(function* (
     "pseudo-localization",
     "agent-browser",
   ];
-  for (const mod of devOnlyModules) {
+  // Windows already selected the production graph, including Copilot's SDK.
+  for (const mod of platform === "win" ? [] : devOnlyModules) {
     const modPath = path.join(vsCodeDestDir, "node_modules", mod);
     if (yield* fs.exists(modPath)) {
       yield* fs.remove(modPath, { recursive: true });
     }
+  }
+
+  if (platform === "win") {
+    const report = finalizeWindowsRuntimePayload(vsCodeDestDir);
+    yield* Effect.log(
+      `[desktop-artifact] Windows editor payload: ${report.files} files, ${report.bytes} bytes; removed ${report.sourceMapBytesRemoved} inline source-map bytes.`,
+    );
   }
 
   // Clean up only dangling symlinks (but keep .bin directories intact — they

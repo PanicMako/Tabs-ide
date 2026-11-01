@@ -42,6 +42,7 @@ Tabs desktop releases distinguish between fully production-ready platforms, inte
 - **User Data & DPAPI Continuity**: New installs use `%APPDATA%\tabs` (dev at `%APPDATA%\tabs-dev`); existing `%APPDATA%\Tabs (Alpha)` profiles continue to be selected for compatibility.
 - **Installer Identity**: The package uses stable `appId` `com.tabs.app`. NSIS install-over-existing and DPAPI continuity still require native Windows release validation; they cannot be proven by macOS unit tests.
 - **Azure Trusted Signing**: Optional for local and internal builds; production signing is isolated to Windows CI jobs using Azure ATS secrets.
+- **Installation Performance**: Windows packaging selects Code-OSS production dependencies (including server-only dependencies), omits compiled tests/debug maps, and retains only localization messages from the second build tree. All optimization happens in CI; the installed editor remains self-contained. The extracted installer and installed runtime must pass `scripts/verify-windows-runtime-payload.ts`, including a 50,000-file editor budget. Build and release CI upload `windows-installer-timings` with fresh-install, upgrade, and repair durations. Upgrading an old large installation still incurs its old uninstaller's cleanup cost once; compare subsequent optimized-to-optimized upgrades separately.
 
 ### 3. macOS (`.dmg`, `.zip`) — Release Tiers & Accepted Exception
 
