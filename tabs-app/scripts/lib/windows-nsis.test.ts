@@ -9,19 +9,18 @@ describe("full-fat Windows installer commit", () => {
   it("preserves the stock installer lifecycle and adds a checked directory move with copy fallback", () => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), "tabs-nsis-test-"));
     try {
-      const script = writeWindowsNsisScripts(directory);
       const stock = fs.readFileSync(
         path.join(windowsNsisTemplateDirectory(), "installer.nsi"),
         "utf8",
       );
-      const generated = fs.readFileSync(script, "utf8");
+      const script = writeWindowsNsisScripts(directory);
       expect(
-        generated.replace(
-          /!include "\$\{PROJECT_DIR\}.*windows-install-section.nsh"/,
-          '!include "installSection.nsh"',
-        ),
+        fs.readFileSync(path.join(windowsNsisTemplateDirectory(), "installer.nsi"), "utf8"),
       ).toBe(stock);
-      const extraction = fs.readFileSync(path.join(directory, "windows-extract.nsh"), "utf8");
+      expect(fs.readdirSync(directory)).toEqual(["windows-extract-override.nsh"]);
+      const extraction = fs.readFileSync(script, "utf8");
+      expect(extraction).toContain("!macroundef extractUsing7za");
+      expect(extraction).toContain('$installMode != "all"');
       expect(extraction.indexOf("verify-staged-runtime.ps1")).toBeLessThan(
         extraction.indexOf('Rename "$PLUGINSDIR\\7z-out" "$INSTDIR"'),
       );

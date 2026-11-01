@@ -22,6 +22,10 @@ export function windowsNsisTemplateDirectory(): string {
 
 const phaseMacro = String.raw`
 !macro tabsInstallPhase NAME
+  Push $R6
+  StrCpy $R6 0
+  IfErrors 0 +2
+    StrCpy $R6 1
   Push $R7
   Push $R8
   Push $0
@@ -32,15 +36,21 @@ const phaseMacro = String.raw`
   System::Call 'kernel32::GetTickCount()i.r0'
   FileWrite $R8 "$0 ${"${NAME}"}$\r$\n"
   FileClose $R8
+  StrCmp $R6 1 0 +3
+    SetErrors
+    Goto +2
+    ClearErrors
   Pop $0
   Pop $R8
   Pop $R7
+  Pop $R6
 !macroend
 `;
 
 const moveExtractedDirectory = String.raw`
     !insertmacro tabsInstallPhase "commit-start"
     ${"${if}"} $R1 == 1
+    ${"${andIf}"} $installMode != "all"
       Push $R2
       StrCpy $R2 $OUTDIR
       # Release NSIS' working-directory handle before removing the empty target.
@@ -71,32 +81,10 @@ const moveExtractedDirectory = String.raw`
 export function writeWindowsNsisScripts(outputDirectory: string): string {
   const templates = windowsNsisTemplateDirectory();
   const load = (name: string) => readFileSync(join(templates, name), "utf8");
-  const include = (name: string) => `"${"${PROJECT_DIR}"}\\build\\${name}"`;
-  const files: Record<string, string> = {
-    "windows-installer.nsi": replaceOnce(
-      load("installer.nsi"),
-      '!include "installSection.nsh"',
-      `!include ${include("windows-install-section.nsh")}`,
-    ),
-    "windows-install-section.nsh": replaceOnce(
-      load("installSection.nsh"),
-      "!include installer.nsh",
-      `!include ${include("windows-installer-functions.nsh")}`,
-    ),
-    "windows-installer-functions.nsh": replaceOnce(
-      load("include/installer.nsh"),
-      '!include "extractAppPackage.nsh"',
-      `!include ${include("windows-extract.nsh")}`,
-    ),
-  };
-  files["windows-installer-functions.nsh"] = replaceOnce(
-    files["windows-installer-functions.nsh"]!,
-    '      !insertmacro copyFile "$EXEPATH" "$LOCALAPPDATA\\${APP_INSTALLER_STORE_FILE}"',
-    String.raw`      !insertmacro tabsInstallPhase "installer-cache-start"
-      !insertmacro copyFile "$EXEPATH" "$LOCALAPPDATA${"\\"}${"${APP_INSTALLER_STORE_FILE}"}"
-      !insertmacro tabsInstallPhase "installer-cache-complete"`,
-  );
-  let extraction = load("include/extractAppPackage.nsh");
+  const stockExtraction = load("include/extractAppPackage.nsh");
+  const start = stockExtraction.indexOf("!macro extractUsing7za FILE");
+  if (start < 0) throw new Error("NSIS extraction macro is missing.");
+  let extraction = stockExtraction.slice(start);
   extraction = replaceOnce(
     extraction,
     '\n  Nsis7z::Extract "${FILE}"\n',
@@ -125,9 +113,25 @@ export function writeWindowsNsisScripts(outputDirectory: string): string {
 
   # Retry counter`,
   );
-  files["windows-extract.nsh"] = phaseMacro + extraction;
+  const stockUtilities = load("include/installUtil.nsh");
+  const copyStart = stockUtilities.indexOf("!macro copyFile FROM TO");
+  const copyEnd = stockUtilities.indexOf("!macroend", copyStart);
+  if (copyStart < 0 || copyEnd < 0) throw new Error("NSIS copy macro is missing.");
+  const stockCopy = stockUtilities.slice(copyStart, copyEnd + "!macroend".length);
+  const copy = replaceOnce(
+    stockCopy,
+    "  CopyFiles /SILENT `${FROM}` `${TO}`",
+    '  !insertmacro tabsInstallPhase "cache-copy-start"\n  CopyFiles /SILENT `${FROM}` `${TO}`\n  !insertmacro tabsInstallPhase "cache-copy-complete"',
+  );
+  const content =
+    "!ifndef TABS_EXTRACT_OVERRIDE_DEFINED\n!define TABS_EXTRACT_OVERRIDE_DEFINED\n!macroundef extractUsing7za\n!macroundef copyFile\n" +
+    phaseMacro +
+    extraction +
+    "\n" +
+    copy +
+    "\n!endif\n";
   mkdirSync(outputDirectory, { recursive: true });
-  for (const [name, content] of Object.entries(files))
-    writeFileSync(join(outputDirectory, name), content);
-  return join(outputDirectory, "windows-installer.nsi");
+  const filename = join(outputDirectory, "windows-extract-override.nsh");
+  writeFileSync(filename, content);
+  return filename;
 }

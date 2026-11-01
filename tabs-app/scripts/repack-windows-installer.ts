@@ -6,6 +6,7 @@ import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import { writeWindowsNsisScripts } from "./lib/windows-nsis.ts";
 import { writeWindowsPackedInventory } from "./lib/windows-packed-inventory.ts";
+import { trimWindowsAppArchive } from "./lib/windows-app-payload.ts";
 import { verifyDesktopUpdateArtifact } from "./lib/desktop-update-artifact.ts";
 import { readReleaseNotes } from "./verify-desktop-update-metadata.ts";
 
@@ -80,6 +81,19 @@ try {
   if ((JSON.parse(packedPackage.toString()) as { version: string }).version !== version)
     throw new Error("Packaged app version differs from its update manifest.");
   fs.writeFileSync(path.join(project, "package.json"), packedPackage);
+  const { getCurrentFuseWire, FuseV1Options } = packagerRequire("@electron/fuses") as {
+    getCurrentFuseWire: (filename: string) => Promise<Record<number, number>>;
+    FuseV1Options: { EnableEmbeddedAsarIntegrityValidation: number };
+  };
+  const fuses = await getCurrentFuseWire(path.join(app, "Tabs.exe"));
+  if (fuses[FuseV1Options.EnableEmbeddedAsarIntegrityValidation] !== 48)
+    throw new Error(
+      "Rebuild from source: prepackaged app enables ASAR header integrity validation.",
+    );
+  console.info(
+    "Removed duplicate editor/debug bytes from app.asar:",
+    trimWindowsAppArchive(path.join(app, "resources", "app.asar")),
+  );
   const config = {
     electronVersion: JSON.parse(
       fs.readFileSync(path.join(repo, "apps/desktop/package.json"), "utf8"),
@@ -96,7 +110,6 @@ try {
       perMachine: false,
       runAfterFinish: false,
       include: "./build/installer.nsh",
-      script: "./build/windows-installer.nsi",
     },
     publish: [{ provider: "github", owner: "PanicMako", repo: "Tabs-ide", channel: "latest" }],
   };

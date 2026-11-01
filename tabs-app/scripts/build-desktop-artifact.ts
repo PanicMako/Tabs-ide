@@ -17,6 +17,7 @@ import { updateMacUpdateMetadata } from "./lib/mac-update-artifact.ts";
 import { sanitizeMacAppSymlinks } from "./lib/mac-symlink-sanitizer.ts";
 import { resolveNativeDependencyTarget } from "./lib/native-dependency-target.ts";
 import { writeWindowsNsisScripts } from "./lib/windows-nsis.ts";
+import { WINDOWS_APP_FILE_EXCLUSIONS } from "./lib/windows-app-payload.ts";
 import {
   copyWindowsProductionDependencies,
   finalizeWindowsRuntimePayload,
@@ -953,6 +954,7 @@ const createBuildConfig = Effect.fn("createBuildConfig")(function* (
   }
 
   if (platform === "win") {
+    buildConfig.files = ["**/*", ...WINDOWS_APP_FILE_EXCLUSIONS];
     const winConfig: Record<string, unknown> = {
       target: [target],
       icon: "icon.ico",
@@ -972,7 +974,6 @@ const createBuildConfig = Effect.fn("createBuildConfig")(function* (
       };
       if (installerNshStaged) {
         nsisConfig.include = "./build/installer.nsh";
-        if (!thin) nsisConfig.script = "./build/windows-installer.nsi";
       }
       buildConfig.nsis = nsisConfig;
     }
@@ -1578,6 +1579,10 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
     yield* fs.copyFile(
       path.join(repoRoot, "scripts", "lib", "windows-packed-inventory.cjs"),
       path.join(afterPackDestDir, "windows-packed-inventory.cjs"),
+    );
+    yield* fs.copyFile(
+      path.join(repoRoot, "scripts", "lib", "windows-app-payload.cjs"),
+      path.join(afterPackDestDir, "windows-app-payload.cjs"),
     );
     afterPackHookStaged = true;
   } else {

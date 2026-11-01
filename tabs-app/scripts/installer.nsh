@@ -1,5 +1,10 @@
 # Close processes launched from this installation before NSIS replaces files.
 !macro customCheckAppRunning
+  !ifndef BUILD_UNINSTALLER
+    !if /FileExists "${PROJECT_DIR}\build\windows-extract-override.nsh"
+      !include "${PROJECT_DIR}\build\windows-extract-override.nsh"
+    !endif
+  !endif
   !ifmacrodef tabsInstallPhase
     !insertmacro tabsInstallPhase "process-close-start"
   !endif

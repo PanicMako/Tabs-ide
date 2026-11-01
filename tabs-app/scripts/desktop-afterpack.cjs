@@ -20,6 +20,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { sanitizeMacAppSymlinks } = require("./mac-symlink-sanitizer.cjs");
 const { writeWindowsPackedInventory } = require("./windows-packed-inventory.cjs");
+const { assertWindowsAppArchiveLean } = require("./windows-app-payload.cjs");
 
 /** @param {{ appOutDir: string, electronPlatformName: string, packager: any }} context */
 module.exports = async function afterPack(context) {
@@ -82,6 +83,7 @@ module.exports = async function afterPack(context) {
     }
   }
   if (platform === "win32") {
+    assertWindowsAppArchiveLean(path.join(resourcesDir, "app.asar"));
     writeWindowsPackedInventory(runtimeDir);
   }
 };
