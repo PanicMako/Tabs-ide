@@ -580,6 +580,27 @@ describe("Grok usage limits", () => {
       grokUsageResponseToLimits(
         {
           config: {
+            currentPeriod: {
+              type: "USAGE_PERIOD_TYPE_WEEKLY",
+              end: "2026-09-18T03:10:30.159171+00:00",
+            },
+          },
+        },
+        checkedAt,
+      ).windows,
+    ).toEqual([
+      {
+        id: "subscription",
+        kind: "weekly",
+        label: "Weekly",
+        usedPercent: 0,
+        resetsAt: "2026-09-18T03:10:30.159Z",
+      },
+    ]);
+    expect(
+      grokUsageResponseToLimits(
+        {
+          config: {
             creditUsagePercent: 120,
             currentPeriod: { type: "USAGE_PERIOD_TYPE_MONTHLY", end: "invalid" },
           },
