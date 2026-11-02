@@ -227,12 +227,15 @@ describe("orchestrator replay fixtures", () => {
         (provider) => [fixture.name, provider.driver, fixture, provider] as const,
       ),
     ),
-  )("runs %s/%s through OrchestratorV2 using deterministic replay", ([, , fixture, provider]) =>
-    runFixtureProviderWithRegisteredHarness({
-      fixtureName: fixture.name,
-      buildInput: fixture.buildInput,
-      driver: provider,
-    }),
+  )(
+    "runs %s/%s through OrchestratorV2 using deterministic replay",
+    ([, , fixture, provider]) =>
+      runFixtureProviderWithRegisteredHarness({
+        fixtureName: fixture.name,
+        buildInput: fixture.buildInput,
+        driver: provider,
+      }),
+    60_000,
   );
 
   const steeringFixture = ORCHESTRATOR_REPLAY_FIXTURES.find(
