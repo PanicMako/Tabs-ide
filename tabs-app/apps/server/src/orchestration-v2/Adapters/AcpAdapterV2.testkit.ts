@@ -7,6 +7,7 @@ import * as Effect from "effect/Effect";
 import * as Crypto from "effect/Crypto";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
+import * as Schedule from "effect/Schedule";
 import * as Schema from "effect/Schema";
 import type * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
@@ -131,6 +132,7 @@ export function makeAcpReplayCompletenessAssertion(
           }),
       }),
     ),
+    Effect.retry({ times: 5, schedule: Schedule.spaced("50 millis") }),
     Effect.flatMap((status) => {
       if (
         status.failure === undefined &&

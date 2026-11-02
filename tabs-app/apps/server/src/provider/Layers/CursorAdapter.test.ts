@@ -940,7 +940,19 @@ cursorAdapterTestLayer("CursorAdapterLive", (it) => {
       const requests = yield* Effect.promise(async () => {
         for (let i = 0; i < 40; i++) {
           const lines = await readJsonLines(requestLogPath);
-          if (lines.some((entry) => entry.method === "session/cancel")) {
+          const hasCancel = lines.some((entry) => entry.method === "session/cancel");
+          const hasCancelledOutcome = lines.some(
+            (entry) =>
+              !("method" in entry) &&
+              typeof entry.result === "object" &&
+              entry.result !== null &&
+              "outcome" in entry.result &&
+              typeof entry.result.outcome === "object" &&
+              entry.result.outcome !== null &&
+              "outcome" in entry.result.outcome &&
+              entry.result.outcome.outcome === "cancelled",
+          );
+          if (hasCancel && hasCancelledOutcome) {
             return lines;
           }
           await new Promise((resolve) => setTimeout(resolve, 50));
