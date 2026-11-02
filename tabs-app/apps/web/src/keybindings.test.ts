@@ -1,3 +1,4 @@
+import { DEFAULT_RESOLVED_KEYBINDINGS } from "@tabs/shared/keybindings";
 import { assert, describe, it } from "vitest";
 
 import {
@@ -547,4 +548,31 @@ describe("plus key parsing", () => {
       }),
     );
   });
+});
+
+it("opens Quick Actions with the default Option-K shortcut without using Siri's Space shortcut", () => {
+  assert.equal(
+    resolveShortcutCommand(
+      event({ key: "˚", code: "KeyK", metaKey: true, altKey: true }),
+      DEFAULT_RESOLVED_KEYBINDINGS,
+      { platform: "MacIntel" },
+    ),
+    "quickActions.toggle",
+  );
+  assert.equal(
+    resolveShortcutCommand(
+      event({ key: "k", ctrlKey: true, altKey: true }),
+      DEFAULT_RESOLVED_KEYBINDINGS,
+      { platform: "Win32" },
+    ),
+    "quickActions.toggle",
+  );
+  assert.notEqual(
+    resolveShortcutCommand(
+      event({ key: " ", metaKey: true, shiftKey: true }),
+      DEFAULT_RESOLVED_KEYBINDINGS,
+      { platform: "MacIntel" },
+    ),
+    "quickActions.toggle",
+  );
 });

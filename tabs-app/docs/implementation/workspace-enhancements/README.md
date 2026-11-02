@@ -87,8 +87,10 @@ unattended deletion policy is enabled.
 
 ### Quick Actions
 
-Use the bottom-left compass, **Tools → Quick Actions**, or **Cmd/Ctrl+Shift+Space**. The shortcut
-is editable through **Settings → Keybindings → Quick Actions: Toggle**. Native menu accelerators
+Use the bottom-left compass, **Tools → Quick Actions**, or **Cmd+Option+K / Ctrl+Alt+K**. The shortcut
+is editable through **Settings → Keybindings → Quick Actions: Toggle**. The original
+Cmd+Shift+Space default conflicts with Siri on newer macOS versions. Startup migrates that
+unchanged default to the new binding while preserving custom rules and occupied shortcuts. Native menu accelerators
 also work while embedded tools have focus. Conditional shortcut rules stay renderer-scoped because
 native menus cannot evaluate renderer focus conditions.
 

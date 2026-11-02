@@ -500,7 +500,29 @@ const makeKeybindings = Effect.gen(function* () {
         yield* Cache.invalidate(resolvedConfigCache, resolvedConfigCacheKey);
         return;
       }
-      const customConfig = runtimeConfig.keybindings;
+      const quickActionsDefault = DEFAULT_KEYBINDINGS.find(
+        (rule) => rule.command === "quickActions.toggle",
+      );
+      const launcherRules = runtimeConfig.keybindings.filter(
+        (rule) => rule.command === "quickActions.toggle",
+      );
+      // Move only our original unconditional default away from macOS Siri.
+      // Preserve custom rules and never take a shortcut used by another command.
+      const migrateLauncherDefault =
+        quickActionsDefault !== undefined &&
+        launcherRules.length === 1 &&
+        launcherRules[0]!.key === "mod+shift+space" &&
+        launcherRules[0]!.when === undefined &&
+        !runtimeConfig.keybindings.some(
+          (rule) =>
+            rule.command !== "quickActions.toggle" &&
+            hasSameShortcutContext(rule, quickActionsDefault),
+        );
+      const customConfig = runtimeConfig.keybindings.map((rule) =>
+        migrateLauncherDefault && rule.command === "quickActions.toggle"
+          ? quickActionsDefault!
+          : rule,
+      );
       const existingCommands = new Set(customConfig.map((entry) => entry.command));
       const missingDefaults: KeybindingRule[] = [];
       const shortcutConflictWarnings: Array<{
@@ -537,7 +559,7 @@ const makeKeybindings = Effect.gen(function* () {
           reason: "shortcut context already used by existing rule",
         });
       }
-      if (missingDefaults.length === 0) {
+      if (missingDefaults.length === 0 && !migrateLauncherDefault) {
         yield* Cache.invalidate(resolvedConfigCache, resolvedConfigCacheKey);
         return;
       }

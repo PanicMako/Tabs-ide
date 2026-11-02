@@ -140,9 +140,7 @@ try {
   await main.reload();
   await main.locator(".qa-designs button[aria-pressed=true]").waitFor();
   assert.match(await main.locator(".qa-designs button[aria-pressed=true]").innerText(), /Keypad/);
-  await main.keyboard.press(
-    process.platform === "darwin" ? "Meta+Shift+Space" : "Control+Shift+Space",
-  );
+  await main.keyboard.press(process.platform === "darwin" ? "Meta+Alt+K" : "Control+Alt+K");
   await main.locator(".qa-popup .qa-matrix").waitFor();
   await main.keyboard.press("Escape");
 

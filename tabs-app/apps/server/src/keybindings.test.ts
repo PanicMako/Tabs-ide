@@ -259,6 +259,45 @@ it.layer(NodeServices.layer)("keybindings", (it) => {
       }).pipe(Effect.provide(makeKeybindingsLayer())),
   );
 
+  for (const scenario of [
+    {
+      name: "migrates the previous Siri-conflicting launcher default",
+      rules: [
+        ...DEFAULT_KEYBINDINGS.filter((rule) => rule.command !== "quickActions.toggle"),
+        { key: "mod+shift+space", command: "quickActions.toggle" },
+      ],
+      expected: "mod+alt+k",
+    },
+    {
+      name: "preserves a customized launcher shortcut",
+      rules: [{ key: "mod+alt+x", command: "quickActions.toggle" }],
+      expected: "mod+alt+x",
+    },
+    {
+      name: "does not migrate onto an occupied shortcut",
+      rules: [
+        { key: "mod+shift+space", command: "quickActions.toggle" },
+        { key: "mod+alt+k", command: "terminal.toggle" },
+      ],
+      expected: "mod+shift+space",
+    },
+  ] as const) {
+    it.effect(scenario.name, () =>
+      Effect.gen(function* () {
+        const { keybindingsConfigPath } = yield* ServerConfig;
+        yield* writeKeybindingsConfig(keybindingsConfigPath, scenario.rules);
+        yield* (yield* Keybindings).syncDefaultKeybindingsOnStartup;
+        const persisted = yield* readKeybindingsConfig(keybindingsConfigPath);
+        assert.equal(
+          persisted.find((rule) => rule.command === "quickActions.toggle")?.key,
+          scenario.expected,
+        );
+        yield* (yield* Keybindings).syncDefaultKeybindingsOnStartup;
+        assert.deepEqual(yield* readKeybindingsConfig(keybindingsConfigPath), persisted);
+      }).pipe(Effect.provide(makeKeybindingsLayer())),
+    );
+  }
+
   it("ships lifecycle and reference shortcuts from the T3 thread workflow", () => {
     const defaultsByCommand = new Map(
       DEFAULT_KEYBINDINGS.map((binding) => [binding.command, binding.key] as const),

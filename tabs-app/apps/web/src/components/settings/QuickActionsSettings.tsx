@@ -28,7 +28,7 @@ export default function QuickActionsSettings() {
         <h1>Quick actions</h1>
         <p>
           Your next move, where your pointer already is. Use the compass button in the bottom left
-          or the Quick Actions shortcut in Keybindings (default: ⌘/Ctrl Shift Space).
+          or the Quick Actions shortcut in Keybindings (default: ⌘ Option K / Ctrl Alt K).
         </p>
       </section>
       <section>

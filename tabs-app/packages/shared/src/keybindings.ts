@@ -43,7 +43,8 @@ export const DEFAULT_KEYBINDINGS: ReadonlyArray<KeybindingRule> = [
   { key: "[", command: "git.prevFile" },
   { key: "s", command: "git.stageFile" },
   { key: "u", command: "git.unstageFile" },
-  { key: "mod+shift+space", command: "quickActions.toggle" },
+  // Cmd+Shift+Space is reserved by Siri on newer macOS versions.
+  { key: "mod+alt+k", command: "quickActions.toggle" },
   { key: "alt+1", command: "workspace.basicMode" },
   { key: "alt+2", command: "workspace.advancedMode" },
   { key: "mod+j", command: "terminal.toggle" },
