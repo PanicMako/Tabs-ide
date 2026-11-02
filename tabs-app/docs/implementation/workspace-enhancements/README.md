@@ -293,3 +293,17 @@ Settings destinations are now router-owned. Desktop hash parameters override sta
 parameters, and section changes remain reactive when navigating within settings. Manually repeated
 Quick Actions → Usage & Limits → Worktrees & Storage → Usage & Limits → Quick Actions with a
 conflicting outer section parameter to verify the selected page follows the active route.
+
+### Worktrees & Storage subsection redesign
+
+The page heading and Quick Actions are unchanged. The worktree section now has a repository
+selector, a filterable checkout list, compact per-checkout actions, and an on-demand creation form.
+Paths, revisions, protection reasons, and inspection errors remain available in expandable details.
+Storage has a three-value summary, category rows, an eligible-log review disclosure, and grouped
+cleanup and retention controls. Storage results render independently of the Git inspection.
+
+Subsection headers and panel corners use the existing SettingsSection and SettingsRow components.
+Repository and retention selectors use Tabs' themed Select popups, with no native dropdown menus.
+Browser checks cover filtering, protected removal controls, creation, custom retention selection,
+zero storage, and a 390px viewport. Desktop and mobile fixture captures were visually reviewed,
+and the custom repository popup was verified in the running Electron app.

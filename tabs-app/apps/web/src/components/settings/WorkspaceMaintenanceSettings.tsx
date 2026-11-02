@@ -12,17 +12,10 @@ import { useNavigate } from "@tanstack/react-router";
 import { newCommandId, newProjectId } from "~/lib/utils";
 import { makeAppModelSelection } from "~/modelSelection";
 import { Button } from "../ui/button";
-import { Input } from "../ui/input";
 import { RefreshCwIcon } from "lucide-react";
-import { SettingsSection, SettingsSectionHeader } from "./SettingsLayout";
-import "./workspace-maintenance.css";
+import { SettingsSectionHeader } from "./SettingsLayout";
+import { WorkspaceMaintenanceView, maintenanceBytes } from "./WorkspaceMaintenanceView";
 
-const bytes = (value: number) =>
-  value < 1024 * 1024
-    ? `${(value / 1024).toFixed(1)} KB`
-    : value < 1024 ** 3
-      ? `${(value / 1024 ** 2).toFixed(1)} MB`
-      : `${(value / 1024 ** 3).toFixed(2)} GB`;
 export default function WorkspaceMaintenanceSettings() {
   const projects = useAtomValue(projectsAtom).filter(
     (p) => p.environmentId === getPrimaryEnvironmentId(),
@@ -43,6 +36,7 @@ export default function WorkspaceMaintenanceSettings() {
   const cleanup = useSettings((s) => s.storageCleanup);
   const { updateSettings: update } = useUpdateSettings();
   const generation = useRef(0);
+  const operationGeneration = useRef(0);
   const refresh = async () => {
     const revision = ++generation.current;
     const api = ensureNativeApi().maintenance;
@@ -50,16 +44,19 @@ export default function WorkspaceMaintenanceSettings() {
       throw new Error(
         "Workspace maintenance is unavailable. Restart the desktop app after updating.",
       );
-    const [files, trees] = await Promise.all([
-      api.inspectStorage(),
-      project ? api.inspectWorktrees(project.cwd) : Promise.resolve([]),
+    const results = await Promise.allSettled([
+      api.inspectStorage().then((files) => {
+        if (revision === generation.current) setStorage(files);
+      }),
+      (project ? api.inspectWorktrees(project.cwd) : Promise.resolve([])).then((trees) => {
+        if (revision === generation.current) setWorktrees(trees);
+      }),
     ]);
-    if (revision === generation.current) {
-      setStorage(files);
-      setWorktrees(trees);
-    }
+    const failure = results.find((result) => result.status === "rejected");
+    if (failure?.status === "rejected") throw failure.reason;
   };
   const perform = async (operation: () => Promise<void>) => {
+    const operationRevision = ++operationGeneration.current;
     setBusy(true);
     setError(null);
     setMessage("");
@@ -67,15 +64,17 @@ export default function WorkspaceMaintenanceSettings() {
       await operation();
       await refresh();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      if (operationRevision === operationGeneration.current)
+        setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
-      setBusy(false);
+      if (operationRevision === operationGeneration.current) setBusy(false);
     }
   };
   useEffect(() => {
     void perform(async () => {});
     return () => {
       generation.current++;
+      operationGeneration.current++;
     };
   }, [project?.cwd]);
   const openWorktree = async (entry: ManagedWorktree) => {
@@ -124,277 +123,82 @@ export default function WorkspaceMaintenanceSettings() {
           </span>
         </div>
       )}
-      <SettingsSection
-        title="Git worktrees"
-        description="Open a checkout, start an agent, or create an isolated branch."
-        contentClassName="maintenance-panel"
-      >
-        <div className="maintenance-controls">
-          <label className="sr-only" htmlFor="maintenance-repository">
-            Repository
-          </label>
-          <select
-            id="maintenance-repository"
-            aria-label="Repository"
-            value={projectId}
-            onChange={(e) => setProjectId(e.target.value)}
-          >
-            <option value="">Choose a project</option>
-            {projects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        {project && (
-          <form
-            className="maintenance-controls"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void perform(async () => {
-                const result = await ensureNativeApi().git.createWorktree({
-                  cwd: project.cwd,
-                  branch: base.trim() || "HEAD",
-                  newBranch: branch.trim(),
-                  path: null,
-                });
-                setMessage(`Created ${result.worktree.branch} at ${result.worktree.path}`);
-                setBranch("");
-              });
-            }}
-          >
-            <label className="maintenance-field">
-              <span>New branch</span>
-              <Input
-                required
-                aria-label="New worktree branch"
-                placeholder="feature/my-task"
-                value={branch}
-                onChange={(e) => setBranch(e.target.value)}
-              />
-            </label>
-            <label className="maintenance-field">
-              <span>Base branch or commit</span>
-              <Input
-                aria-label="Base branch or commit"
-                placeholder="HEAD"
-                value={base}
-                onChange={(e) => setBase(e.target.value)}
-              />
-            </label>
-            <Button
-              className="self-end"
-              variant="outline"
-              size="sm"
-              disabled={busy || !branch.trim()}
-              type="submit"
-            >
-              Create worktree
-            </Button>
-          </form>
-        )}
-        {!project && <p>Select a local project to inspect its worktrees.</p>}
-        <div className="maintenance-list">
-          {!busy && project && worktrees.length === 0 && (
-            <p className="maintenance-empty">No worktrees found for this repository.</p>
-          )}
-          {worktrees.map((tree) => {
-            const protectedReason = tree.main
-              ? "Main checkout"
-              : tree.locked
-                ? "Locked by Git"
-                : tree.error
-                  ? "Inspection failed"
-                  : tree.protected
-                    ? "Referenced by a project, conversation, or terminal"
-                    : tree.dirty
-                      ? "Modified or untracked files"
-                      : tree.ignored
-                        ? "Contains ignored files"
-                        : null;
-            return (
-              <article className="maintenance-row" key={tree.path}>
-                <strong>{tree.branch ?? "Detached HEAD"}</strong>
-                <code>{tree.path}</code>
-                <small>
-                  {tree.head.slice(0, 10)} ·{" "}
-                  {protectedReason ??
-                    (tree.prunable
-                      ? "Missing checkout · stale Git record"
-                      : "Clean · available to remove")}
-                  {tree.threadCount
-                    ? ` · ${tree.threadCount} conversation(s), ${tree.settledThreadCount} settled`
-                    : ""}
-                </small>
-                {tree.error && (
-                  <details className="maintenance-error-details">
-                    <summary>Inspection details</summary>
-                    <p>{tree.error}</p>
-                  </details>
-                )}
-                <div className="maintenance-controls">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={busy || Boolean(tree.error) || tree.prunable}
-                    onClick={() => void perform(() => openWorktree(tree))}
-                  >
-                    Open workspace
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={busy || Boolean(tree.error) || tree.prunable || !project}
-                    onClick={() =>
-                      void perform(async () => {
-                        if (!project) return;
-                        workspaceShellActions.setActiveProject(project.id);
-                        workspaceShellActions.setActiveTool(project.id, "agents");
-                        await handleNewThread(project.id, {
-                          branch: tree.branch,
-                          worktreePath: tree.path,
-                          envMode: "worktree",
-                          environmentId: project.environmentId,
-                        });
-                      })
-                    }
-                  >
-                    Start agent here
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={busy || Boolean(protectedReason)}
-                    onClick={() =>
-                      void perform(async () => {
-                        if (
-                          !project ||
-                          !(await confirm(
-                            `${tree.prunable ? "Remove stale Git record" : "Remove clean worktree"} ${tree.path}? Its branch is retained. This cannot be undone.`,
-                          ))
-                        )
-                          return;
-                        await ensureNativeApi().maintenance!.removeWorktree(project.cwd, tree.path);
-                        setMessage("Removed worktree. Branch retained.");
-                      })
-                    }
-                  >
-                    {tree.prunable ? "Remove stale record…" : "Remove…"}
-                  </Button>
-                </div>
-              </article>
+      <WorkspaceMaintenanceView
+        projects={projects}
+        projectId={projectId}
+        onProjectChange={(id) => {
+          setProjectId(id);
+          setWorktrees([]);
+        }}
+        hasProject={Boolean(project)}
+        worktrees={worktrees}
+        storage={storage}
+        busy={busy}
+        branch={branch}
+        base={base}
+        onBranchChange={setBranch}
+        onBaseChange={setBase}
+        onCreate={() =>
+          void perform(async () => {
+            if (!project) return;
+            const result = await ensureNativeApi().git.createWorktree({
+              cwd: project.cwd,
+              branch: base.trim() || "HEAD",
+              newBranch: branch.trim(),
+              path: null,
+            });
+            setMessage(`Created ${result.worktree.branch} at ${result.worktree.path}`);
+            setBranch("");
+          })
+        }
+        onOpen={(tree) => void perform(() => openWorktree(tree))}
+        onStart={(tree) =>
+          void perform(async () => {
+            if (!project) return;
+            workspaceShellActions.setActiveProject(project.id);
+            workspaceShellActions.setActiveTool(project.id, "agents");
+            await handleNewThread(project.id, {
+              branch: tree.branch,
+              worktreePath: tree.path,
+              envMode: "worktree",
+              environmentId: project.environmentId,
+            });
+          })
+        }
+        onRemove={(tree) =>
+          void perform(async () => {
+            if (
+              !project ||
+              !(await confirm(
+                `${tree.prunable ? "Remove stale Git record" : "Remove clean worktree"} ${tree.path}? Its branch is retained. This cannot be undone.`,
+              ))
+            )
+              return;
+            await ensureNativeApi().maintenance!.removeWorktree(project.cwd, tree.path);
+            setMessage("Removed worktree. Branch retained.");
+          })
+        }
+        onClean={() =>
+          void perform(async () => {
+            if (
+              !storage ||
+              !(await confirm(
+                `Delete ${storage.candidates.length} old rotated logs (${maintenanceBytes(storage.reclaimableBytes)})?`,
+              ))
+            )
+              return;
+            const result = await ensureNativeApi().maintenance!.cleanStorage(
+              storage.candidates.map((file) => file.id),
             );
-          })}
-        </div>
-        <details className="maintenance-note">
-          <summary>What keeps a worktree protected?</summary>
-          <p>
-            Deletion rechecks Git status and protects all conversation references, open projects,
-            terminals, locks, ignored files and untracked work. No force-delete is offered. Close or
-            remove references before cleanup.
-          </p>
-        </details>
-      </SettingsSection>
-      <SettingsSection
-        title="Application storage"
-        description="Review application-owned files and remove eligible rotated logs."
-        contentClassName="maintenance-panel"
-      >
-        {storage ? (
-          <>
-            <p>
-              <strong>{bytes(storage.totalBytes)}</strong> in logs and browser artifacts ·{" "}
-              <strong>{bytes(storage.reclaimableBytes)}</strong> reclaimable in{" "}
-              {storage.candidates.length} rotated logs.
-            </p>
-            <div className="maintenance-categories">
-              {storage.categories.map((category) => (
-                <div key={category.id} className="maintenance-category">
-                  <span>
-                    {category.id === "logs" ? "Application logs" : "Browser exports (retained)"}
-                  </span>
-                  <strong>{bytes(category.bytes)}</strong>
-                  <small>{bytes(category.reclaimableBytes)} reclaimable</small>
-                </div>
-              ))}
-            </div>
-            <p>
-              Only rotated logs older than seven days can be removed here. Current logs, browser
-              exports, credentials, conversations, source files and caches are retained.
-            </p>
-            <div className="maintenance-controls">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={busy || storage.candidates.length === 0}
-                onClick={() =>
-                  void perform(async () => {
-                    if (
-                      !(await confirm(
-                        `Delete ${storage.candidates.length} old rotated logs (${bytes(storage.reclaimableBytes)})?`,
-                      ))
-                    )
-                      return;
-                    const result = await ensureNativeApi().maintenance!.cleanStorage(
-                      storage.candidates.map((c) => c.id),
-                    );
-                    setMessage(
-                      `Removed ${result.deletedCount} files, reclaimed ${bytes(result.deletedBytes)}.`,
-                    );
-                    if (result.errors.length) setError(result.errors.join("\n"));
-                  })
-                }
-              >
-                Clean eligible logs…
-              </Button>
-            </div>
-            {storage.warnings.map((warning) => (
-              <p key={warning} role="status">
-                {warning}
-              </p>
-            ))}
-            <div className="maintenance-list">
-              {storage.candidates.map((file) => (
-                <div className="maintenance-row" key={file.id}>
-                  <strong>{file.name}</strong>
-                  <p>
-                    {bytes(file.bytes)} · Modified {new Date(file.modifiedAt).toLocaleDateString()}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </>
-        ) : (
-          <p>Refresh to inspect application-owned storage.</p>
-        )}
-        <label className="maintenance-retention">
-          <span>Automatic rotated log retention</span>
-          <select
-            className="maintenance-select"
-            aria-label="Automatic log retention"
-            value={cleanup.logsAfterDays ?? "off"}
-            onChange={(e) =>
-              void update({
-                storageCleanup: {
-                  logsAfterDays: e.target.value === "off" ? null : Number(e.target.value),
-                },
-              })
-            }
-          >
-            <option value="off">Manual only</option>
-            {[7, 14, 30, 90].map((days) => (
-              <option key={days} value={days}>
-                {days} days
-              </option>
-            ))}
-          </select>
-        </label>
-        <p>
-          Automatic retention uses the existing hourly cleanup service. Manual cleanup always
-          preserves at least seven days.
-        </p>
-      </SettingsSection>
+            setMessage(
+              `Removed ${result.deletedCount} files, reclaimed ${maintenanceBytes(result.deletedBytes)}.`,
+            );
+            if (result.errors.length) setError(result.errors.join("\n"));
+          })
+        }
+        retentionDays={cleanup.logsAfterDays}
+        onRetentionChange={(days) => void update({ storageCleanup: { logsAfterDays: days } })}
+      />
       {confirmDialog}
     </div>
   );
