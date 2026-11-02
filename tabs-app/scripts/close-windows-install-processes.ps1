@@ -88,7 +88,7 @@ try {
           $rule = [Security.AccessControl.FileSystemAccessRule]::new($sid, 'FullControl', 'ContainerInherit,ObjectInherit', 'None', 'Allow')
           $security.AddAccessRule($rule)
         }
-        Set-Acl -LiteralPath $tempScope -AclObject $security
+        [IO.Directory]::SetAccessControl($tempScope, $security)
         [IO.File]::WriteAllText((Join-Path $tempScope '.tabs-uninstall-scope'), $tempScope)
         foreach ($letter in @('Z', 'Y', 'X', 'W', 'V', 'U', 'T', 'S', 'R', 'Q', 'P')) {
           $drive = "${letter}:"

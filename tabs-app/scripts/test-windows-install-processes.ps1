@@ -72,6 +72,21 @@ public static class TabsUninstallRenameTest {
   if (-not (Test-Path -LiteralPath $outsideMarker)) { throw 'Private temp cleanup followed a junction outside its scope.' }
   Write-Host 'Same-volume uninstaller staging and junction-safe cleanup passed.'
 
+  $wow64Powershell = "$env:WINDIR\SysWOW64\WindowsPowerShell\v1.0\powershell.exe"
+  if (Test-Path $wow64Powershell -PathType Leaf) {
+    & $wow64Powershell `
+      -NoProfile -NonInteractive -ExecutionPolicy Bypass `
+      -File "$PSScriptRoot/close-windows-install-processes.ps1" $sameVolumeInstall -TempDriveOutputPath $tempRecord
+    if ($LASTEXITCODE -ne 0) { throw 'SysWOW64 private uninstaller temp preparation failed.' }
+    $record = @(Get-Content -LiteralPath $tempRecord -Encoding UTF8)
+    $wowDrive = $record[0].Substring(0, 2)
+    & $wow64Powershell `
+      -NoProfile -NonInteractive -ExecutionPolicy Bypass `
+      -File "$PSScriptRoot/close-windows-install-processes.ps1" $sameVolumeInstall -CleanupTempDrive $wowDrive -TempDriveOutputPath $tempRecord
+    if ($LASTEXITCODE -ne 0) { throw 'SysWOW64 private uninstaller temp cleanup failed.' }
+    Write-Host 'SysWOW64 uninstaller staging and cleanup passed.'
+  }
+
   $stage = Join-Path $sameVolumeRoot 'staged app'
   foreach ($relative in @(
     'resources/app.asar',
