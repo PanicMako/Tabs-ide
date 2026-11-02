@@ -113,7 +113,13 @@ export function LauncherSurface({
     }
   };
   const focusAction = (next: number) => {
-    const value = (next + visible.length) % Math.max(visible.length, 1);
+    const count = Math.max(visible.length, 1);
+    let value = ((next % count) + count) % count;
+    let skipped = 0;
+    while (visible[value] && disabled(visible[value]!.id)) {
+      if (design === "compass" || ++skipped >= visible.length) return;
+      value = (value + (next < index ? -1 : 1) + visible.length) % visible.length;
+    }
     setSelected(value);
     if (focusFrame.current !== null) cancelAnimationFrame(focusFrame.current);
     focusFrame.current = requestAnimationFrame(() => {

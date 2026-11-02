@@ -210,11 +210,15 @@ export async function inspectWorktrees(
 export function supportsSafeWorktreeRemoval(version: string, platform: string): boolean {
   if (platform !== "win32") return true;
   const match = /^git version (\d+)\.(\d+)/.exec(version.trim());
-  return Boolean(match && (Number(match[1]) > 2 || (Number(match[1]) === 2 && Number(match[2]) >= 54)));
+  return Boolean(
+    match && (Number(match[1]) > 2 || (Number(match[1]) === 2 && Number(match[2]) >= 54)),
+  );
 }
 export async function verifyWorktreeRemovalSafety(cwd: string): Promise<void> {
   if (process.platform !== "win32") return;
   if (!supportsSafeWorktreeRemoval(await git(cwd, ["--version"]), process.platform)) {
-    throw new Error("Safe native worktree removal on Windows requires Git 2.54 or later. No files were deleted.");
+    throw new Error(
+      "Safe native worktree removal on Windows requires Git 2.54 or later. No files were deleted.",
+    );
   }
 }

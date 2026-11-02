@@ -247,7 +247,7 @@
   display: grid;
   gap: 24px;
 }
-.qa-settings h2 {
+.qa-settings :is(h1, h2) {
   font-size: 18px;
   font-weight: 600;
 }

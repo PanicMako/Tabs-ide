@@ -95,7 +95,7 @@ export default function WorkspaceMaintenanceSettings() {
   return (
     <div className="qa-settings" aria-busy={busy}>
       <section>
-        <h2>Worktrees & storage</h2>
+        <h1>Worktrees & storage</h1>
         <p>
           Keep parallel tasks isolated and understand what lives on disk. Operations below apply to
           this computer's environment.
@@ -186,7 +186,11 @@ export default function WorkspaceMaintenanceSettings() {
                 <strong>{tree.branch ?? "Detached HEAD"}</strong>
                 <code>{tree.path}</code>
                 <small>
-                  {tree.head.slice(0, 10)} · {protectedReason ?? (tree.prunable ? "Missing checkout · stale Git record" : "Clean · available to remove")}
+                  {tree.head.slice(0, 10)} ·{" "}
+                  {protectedReason ??
+                    (tree.prunable
+                      ? "Missing checkout · stale Git record"
+                      : "Clean · available to remove")}
                   {tree.threadCount
                     ? ` · ${tree.threadCount} conversation(s), ${tree.settledThreadCount} settled`
                     : ""}

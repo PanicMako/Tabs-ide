@@ -25,7 +25,7 @@ export default function QuickActionsSettings() {
   return (
     <div className="qa-settings">
       <section>
-        <h2>Quick actions</h2>
+        <h1>Quick actions</h1>
         <p>
           Your next move, where your pointer already is. Use the compass button in the bottom left
           or the Quick Actions shortcut in Keybindings (default: ⌘/Ctrl Shift Space).

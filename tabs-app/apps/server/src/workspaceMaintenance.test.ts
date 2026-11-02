@@ -142,14 +142,32 @@ it("requires junction-safe Git before native Windows removal", () => {
 });
 
 it("inspects absent registered checkouts for metadata-only removal while retaining their branch", async () => {
-  const root = await fixture(), repo = path.join(root, "repo"), tree = path.join(root, "missing-task");
+  const root = await fixture(),
+    repo = path.join(root, "repo"),
+    tree = path.join(root, "missing-task");
   await fs.mkdir(repo);
   const git = (...args: string[]) => execFileSync("git", args, { cwd: repo, encoding: "utf8" });
-  git("init", "-b", "main"); git("-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "--allow-empty", "-m", "initial");
+  git("init", "-b", "main");
+  git(
+    "-c",
+    "user.name=Test",
+    "-c",
+    "user.email=test@example.com",
+    "commit",
+    "--allow-empty",
+    "-m",
+    "initial",
+  );
   git("worktree", "add", "-b", "missing-task", tree);
   await fs.rm(tree, { recursive: true, force: true });
   const entries = await inspectWorktrees(repo, [], []);
-  expect(entries.find((entry) => entry.path === tree)).toMatchObject({ prunable: true, dirty: false, ignored: false, protected: false, error: null });
+  expect(entries.find((entry) => entry.path === tree)).toMatchObject({
+    prunable: true,
+    dirty: false,
+    ignored: false,
+    protected: false,
+    error: null,
+  });
   git("-c", "status.showUntrackedFiles=all", "worktree", "remove", "--", tree);
   expect(git("branch", "--list", "missing-task")).toContain("missing-task");
   expect((await inspectWorktrees(repo, [], [])).some((entry) => entry.path === tree)).toBe(false);

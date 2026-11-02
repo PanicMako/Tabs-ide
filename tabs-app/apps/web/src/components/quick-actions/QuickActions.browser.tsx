@@ -110,3 +110,35 @@ it("keypad reserves numbers for navigation outside text input and moves vertical
   await userEvent.keyboard("4");
   expect(execute).toHaveBeenCalledWith("scratch-browser", "");
 });
+
+it("arrow navigation skips unavailable actions instead of leaving focus behind", async () => {
+  await render(
+    <LauncherSurface
+      design="list"
+      actions={QUICK_ACTIONS}
+      execute={async () => {}}
+      disabled={(id) => (id === "new-agent" ? "Unavailable" : undefined)}
+      preview
+    />,
+  );
+  await page.getByRole("textbox").click();
+  await userEvent.keyboard("{ArrowDown}");
+  await expect.element(page.getByRole("button", { name: /New workspace tab/ })).toHaveFocus();
+  await userEvent.keyboard("{ArrowDown}");
+  await expect.element(page.getByRole("button", { name: /Isolated agent/ })).toHaveFocus();
+});
+
+it("keypad wraps vertical navigation on a partial final page", async () => {
+  await render(
+    <LauncherSurface
+      design="matrix"
+      actions={QUICK_ACTIONS}
+      execute={async () => {}}
+      disabled={() => undefined}
+      preview
+    />,
+  );
+  await page.getByRole("button", { name: "More →" }).click();
+  await userEvent.keyboard("{ArrowUp}");
+  await expect.element(page.getByRole("button", { name: /Customize quick actions/ })).toHaveFocus();
+});

@@ -1,5 +1,10 @@
 import * as SqlClient from "effect/unstable/sql/SqlClient";
-import { inspectStorage, cleanStorage, inspectWorktrees, verifyWorktreeRemovalSafety } from "./workspaceMaintenance.ts";
+import {
+  inspectStorage,
+  cleanStorage,
+  inspectWorktrees,
+  verifyWorktreeRemovalSafety,
+} from "./workspaceMaintenance.ts";
 import * as ProjectStore from "./orchestration-v2/ProjectStore.ts";
 import { withWorkspaceLease } from "./workspace/workspaceLease.ts";
 import * as GitWorkflowService from "./git/GitWorkflowService.ts";
@@ -93,7 +98,10 @@ export const makeWorkspaceCompatibilityHandlers = Effect.gen(function* () {
       withWorkspaceLease(
         input.path,
         Effect.gen(function* () {
-          yield* Effect.tryPromise({ try: () => verifyWorktreeRemovalSafety(input.cwd), catch: maintenanceError });
+          yield* Effect.tryPromise({
+            try: () => verifyWorktreeRemovalSafety(input.cwd),
+            catch: maintenanceError,
+          });
           const entries = yield* inspect(input.cwd);
           const entry = entries.find((e) => e.path === input.path);
           if (

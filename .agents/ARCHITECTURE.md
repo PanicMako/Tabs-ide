@@ -124,3 +124,33 @@ Electron browser host, and built-in Code workbench integration.
 Captured URLs, accessibility names, semantic context, generated code, prompts, and logs cross the
 Testing sanitization boundary before persistence. Authentication cookies and credentials remain in
 the project-scoped browser profile and are not written to Testing records.
+
+
+## Workspace enhancements (November 2026)
+
+- Conversation windows reuse the existing Electron pop-out host and authenticated WebSocket
+  transport. `conversationPopout=true` selects the full app bootstrap and a single `ChatView`,
+  bypassing the main shell and split-layout preferences. Closing a renderer does not issue an
+  orchestration stop/delete command. Docking forwards the original environment/thread route to
+  the main window through trusted desktop IPC. Client preferences refresh across windows through
+  the storage event; server state remains authoritative through the existing streams.
+- `apps/server/src/workspaceMaintenance.ts` inventories registered Git worktrees and exact
+  application-owned cleanup candidates. `workspaceCompatibilityHandlers.ts` exposes scoped
+  `storage.inspect`, `storage.clean`, `worktrees.inspect`, and `worktrees.remove` RPCs. Removal
+  takes the existing workspace lease, checks project/thread/provider-session/terminal references,
+  and delegates to the existing Git implementation with force disabled. Branches remain intact.
+  Missing checkouts support metadata-only removal. Older Git for Windows is refused by this
+  manual removal path because of the upstream junction handling issue.
+- Manual storage cleanup accepts identity-bound candidate IDs rather than filesystem paths.
+  Current logs, linked files, browser exports, conversations and repositories are retained.
+  Automatic log retention continues through `storageCleanup.ts` and unified server settings.
+- `apps/web/src/components/quick-actions/` separates the action catalog, ordering/search/position
+  functions, invocation host, and five presentation models. WorkspaceShell supplies execution
+  against its existing project, browser-tool, agent-draft and navigation actions. Settings reuse
+  the same executor for live previews. Preferences use the unified client settings schema;
+  invocation uses the existing keybindings system and a native menu accelerator for embedded
+  editor/browser focus. The overlay participates in native surface suspension.
+- `scripts/workspace-enhancements-smoke.mjs` connects over CDP to an already-running, isolated
+  Electron test instance. It refuses ordinary application data. Run it with Node, following the
+  environment setup in the implementation guide. Turbo passes the isolated Electron profile
+  environment variable through to desktop development processes.
