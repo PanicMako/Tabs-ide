@@ -14,28 +14,6 @@
   background: transparent;
   box-shadow: none;
 }
-.qa-invoke {
-  position: fixed;
-  z-index: 45;
-  left: 12px;
-  bottom: 12px;
-  width: 34px;
-  height: 34px;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--border);
-  border-radius: 50%;
-  color: var(--muted-foreground);
-  background: var(--popover);
-}
-.qa-invoke:hover {
-  color: var(--foreground);
-  border-color: var(--ring);
-}
-.qa-invoke:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 3px;
-}
 .qa-preview {
   display: flex;
   justify-content: center;

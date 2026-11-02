@@ -650,6 +650,20 @@ function decodeProjectWorkspaceSettings(input: unknown): ProjectWorkspaceSetting
       autoStart: Boolean(process.autoStart),
     };
 
+    if (process.interactiveShell !== undefined) {
+      result.interactiveShell = Boolean(process.interactiveShell);
+    } else if (
+      normalizedCommands.every((command: string) => !command.trim()) &&
+      decoded.tools.some(
+        (tool) =>
+          tool.kind === "custom_process" &&
+          tool.terminalProcessId === process.id &&
+          tool.id.startsWith("scratch-terminal-"),
+      )
+    ) {
+      // Older Quick Actions shells lost this flag during normalization.
+      result.interactiveShell = true;
+    }
     if (process.command) result.command = process.command;
     if (process.icon !== undefined) result.icon = process.icon;
     if (process.previewUrl !== undefined) result.previewUrl = process.previewUrl;

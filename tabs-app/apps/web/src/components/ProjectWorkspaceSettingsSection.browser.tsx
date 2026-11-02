@@ -7,7 +7,7 @@ import { ProjectId, type EnvironmentId } from "@tabs/contracts";
 import type { Project } from "../types";
 import { appAtomRegistry, AppAtomRegistryProvider } from "../state/atomRegistry";
 import { readModelStateAtom } from "../state/readModel";
-import { initializeWorkspaceShellState } from "../state/workspaceShell";
+import { workspaceShellActions, initializeWorkspaceShellState } from "../state/workspaceShell";
 import {
   createDefaultWorkspaceShellPersistedState,
   useWorkspaceShellStore,
@@ -110,6 +110,91 @@ it("cancels without changing settings and restores a confirmed hide after rehydr
     await expect
       .element(page.getByRole("switch", { name: "Toggle Agents", exact: true }))
       .toHaveAttribute("aria-checked", "false");
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
+it("configures, keeps and removes scratch tools through Workspace settings", async () => {
+  workspaceShellActions.upsertProjectSettings(id, (current) => ({
+    ...current,
+    tools: [
+      ...current.tools,
+      {
+        id: "scratch-browser-ui",
+        kind: "custom_embed",
+        label: "Scratch docs",
+        visible: true,
+        temporary: true,
+        customEmbedId: "scratch-browser-ui",
+      },
+      {
+        id: "scratch-terminal-ui",
+        kind: "custom_process",
+        label: "Scratch shell",
+        visible: true,
+        temporary: true,
+        terminalProcessId: "scratch-terminal-ui",
+      },
+    ],
+    customEmbeds: [
+      {
+        id: "scratch-browser-ui",
+        label: "Scratch docs",
+        url: "https://example.com",
+        resumeLastVisitedPage: true,
+        partitionMode: "isolated",
+      },
+    ],
+    terminalProcesses: [
+      {
+        id: "scratch-terminal-ui",
+        label: "Scratch shell",
+        commands: [],
+        cwd: "/workspace",
+        env: { SHELL_MODE: "test" },
+        autoStart: false,
+      },
+    ],
+  }));
+  const fixture = await mount();
+  const current = () => useWorkspaceShellStore.getState().projectSettingsByProjectId[id]!;
+  try {
+    expect(current().terminalProcesses[0]?.interactiveShell).toBe(true);
+    await expect
+      .element(page.getByRole("switch", { name: "Toggle Scratch docs", exact: true }))
+      .toBeVisible();
+    await page.getByRole("button", { name: "Configure Scratch docs", exact: true }).click();
+    await page.getByRole("textbox", { name: "Browser tab name", exact: true }).fill("Team docs");
+    await page.getByRole("button", { name: "Save Changes", exact: true }).click();
+    expect(current().tools.find((tool) => tool.id === "scratch-browser-ui")).toMatchObject({
+      label: "Team docs",
+      temporary: true,
+    });
+    expect(
+      current().tools.filter((tool) => tool.customEmbedId === "scratch-browser-ui"),
+    ).toHaveLength(1);
+    await page.getByRole("button", { name: "Keep Team docs in workspace", exact: true }).click();
+    expect(current().tools.find((tool) => tool.id === "scratch-browser-ui")?.temporary).toBe(false);
+    await page.getByRole("button", { name: "Configure Scratch shell", exact: true }).click();
+    await page
+      .getByRole("textbox", { name: "Terminal tab name", exact: true })
+      .fill("Project shell");
+    await page.getByRole("button", { name: "Save Changes", exact: true }).click();
+    expect(current().terminalProcesses[0]).toMatchObject({
+      interactiveShell: true,
+      env: { SHELL_MODE: "test" },
+      label: "Project shell",
+    });
+    await page.getByRole("button", { name: "Delete Terminal", exact: true }).click();
+    await page.getByRole("button", { name: "Cancel", exact: true }).click();
+    expect(current().tools.some((tool) => tool.id === "scratch-terminal-ui")).toBe(true);
+    await page.getByRole("button", { name: "Delete Terminal", exact: true }).click();
+    await page.getByRole("button", { name: "Delete", exact: true }).click();
+    await expect
+      .poll(() => current().tools.some((tool) => tool.id === "scratch-terminal-ui"))
+      .toBe(false);
+    expect(current().terminalProcesses).toHaveLength(0);
   } finally {
     await fixture.cleanup();
   }

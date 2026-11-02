@@ -119,7 +119,7 @@ export default function QuickActionsSettings() {
       </SettingsSection>
       <SettingsSection
         title="Open the launcher"
-        description="Use the compass button or your Quick Actions shortcut."
+        description="Use Tools → Quick Actions or your Quick Actions shortcut."
       >
         <SettingsRow
           title="Open at the pointer"

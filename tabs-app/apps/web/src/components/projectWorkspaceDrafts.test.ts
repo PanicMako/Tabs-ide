@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { ProjectWorkspaceSettings } from "@tabs/contracts/settings";
 import {
   createCustomEmbedDrafts,
+  savePersistedCustomEmbed,
+  savePersistedServerProcess,
   createCustomEmbedToolId,
   createServerPresetDrafts,
   createServerProcessToolId,
@@ -517,5 +519,102 @@ describe("projectWorkspaceDrafts pure helpers", () => {
       expect(restored[0]!.label).toBe("Docs");
       expect(isCustomEmbedDraftDirty(restored[0]!)).toBe(false);
     });
+  });
+});
+
+describe("Quick Actions scratch tool identities", () => {
+  function scratchSettings(): ProjectWorkspaceSettings {
+    return {
+      ...createMockSettings(),
+      tools: [
+        {
+          id: "scratch-browser-1",
+          kind: "custom_embed",
+          label: "Scratch",
+          visible: true,
+          temporary: true,
+          customEmbedId: "scratch-browser-1",
+        },
+        {
+          id: "scratch-terminal-1",
+          kind: "custom_process",
+          label: "Shell",
+          visible: true,
+          temporary: true,
+          terminalProcessId: "scratch-terminal-1",
+        },
+      ],
+      customEmbeds: [
+        {
+          id: "scratch-browser-1",
+          label: "Scratch",
+          url: "https://example.com",
+          resumeLastVisitedPage: true,
+          partitionMode: "isolated",
+        },
+      ],
+      terminalProcesses: [
+        {
+          id: "scratch-terminal-1",
+          label: "Shell",
+          commands: [],
+          cwd: "/repo",
+          env: { WORKSPACE_MODE: "test" },
+          autoStart: false,
+          interactiveShell: true,
+        },
+      ],
+    };
+  }
+  it("renames and configures an existing scratch browser without changing its ID or temporary state", () => {
+    const current = scratchSettings();
+    const draft = {
+      ...createCustomEmbedDrafts(current)[0]!,
+      label: "Team docs",
+      url: "https://example.com/docs",
+      visible: false,
+    };
+    const saved = savePersistedCustomEmbed(current, draft);
+    expect(saved.tools).toHaveLength(2);
+    expect(saved.tools[0]).toMatchObject({
+      id: "scratch-browser-1",
+      temporary: true,
+      label: "Team docs",
+      visible: false,
+    });
+    expect(saved.customEmbeds[0]).toMatchObject({
+      url: "https://example.com/docs",
+      partitionMode: "isolated",
+    });
+    expect(createCustomEmbedToolId(draft.id, saved)).toBe("scratch-browser-1");
+    expect(deletePersistedCustomEmbed(saved, draft.id).tools.map((tool) => tool.id)).toEqual([
+      "scratch-terminal-1",
+    ]);
+  });
+  it("preserves interactive shell and environment when editing a temporary terminal", () => {
+    const current = scratchSettings();
+    const draft = {
+      ...createTerminalProcessDrafts(current)[0]!,
+      label: "Project shell",
+      cwd: "/repo/subdir",
+      visible: false,
+    };
+    const saved = savePersistedServerProcess(current, draft);
+    expect(saved.tools).toHaveLength(2);
+    expect(saved.tools[1]).toMatchObject({
+      id: "scratch-terminal-1",
+      temporary: true,
+      label: "Project shell",
+      visible: false,
+    });
+    expect(saved.terminalProcesses[0]).toMatchObject({
+      interactiveShell: true,
+      env: { WORKSPACE_MODE: "test" },
+      cwd: "/repo/subdir",
+    });
+    expect(createServerProcessToolId(draft.id, saved)).toBe("scratch-terminal-1");
+    expect(deletePersistedServerProcess(saved, draft.id).tools.map((tool) => tool.id)).toEqual([
+      "scratch-browser-1",
+    ]);
   });
 });

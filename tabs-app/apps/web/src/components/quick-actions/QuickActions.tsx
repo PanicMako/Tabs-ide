@@ -9,10 +9,9 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
-import { Compass } from "lucide-react";
 import { useSettings } from "~/hooks/useSettings";
 import { useKeybindings } from "~/state/settings";
-import { resolveShortcutCommand, shortcutLabelForCommand } from "~/keybindings";
+import { resolveShortcutCommand } from "~/keybindings";
 import {
   normalizeLauncherDesign,
   clampLauncher,
@@ -152,18 +151,6 @@ export function QuickActionsHost({
   return (
     <Context.Provider value={{ execute, disabled }}>
       {children}
-      <button
-        className="qa-invoke"
-        type="button"
-        title={`Quick actions (${shortcutLabelForCommand(keybindings, "quickActions.toggle") ?? "unbound"})`}
-        aria-label="Open quick actions"
-        onClick={(event) => {
-          const r = event.currentTarget.getBoundingClientRect();
-          open({ x: r.x, y: r.y - 300 });
-        }}
-      >
-        <Compass size={18} aria-hidden="true" />
-      </button>
       {anchor &&
         createPortal(
           <div

@@ -4,12 +4,25 @@ import type {
   ProjectWorkspaceSettings,
 } from "@tabs/contracts/settings";
 
-export function createCustomEmbedToolId(embedId: string): string {
-  return `custom-${embedId}`;
+export function createCustomEmbedToolId(
+  embedId: string,
+  settings?: ProjectWorkspaceSettings | null,
+): string {
+  return (
+    settings?.tools.find((tool) => tool.kind === "custom_embed" && tool.customEmbedId === embedId)
+      ?.id ?? `custom-${embedId}`
+  );
 }
 
-export function createServerProcessToolId(processId: string): string {
-  return `terminal-${processId}`;
+export function createServerProcessToolId(
+  processId: string,
+  settings?: ProjectWorkspaceSettings | null,
+): string {
+  return (
+    settings?.tools.find(
+      (tool) => tool.kind === "custom_process" && tool.terminalProcessId === processId,
+    )?.id ?? `terminal-${processId}`
+  );
 }
 
 export interface CustomEmbedDraft {
@@ -97,8 +110,10 @@ export function createCustomEmbedDrafts(
   );
   return [...(settings.customEmbeds ?? [])]
     .sort((a, b) => {
-      const aRank = toolRank.get(createCustomEmbedToolId(a.id)) ?? Number.MAX_SAFE_INTEGER;
-      const bRank = toolRank.get(createCustomEmbedToolId(b.id)) ?? Number.MAX_SAFE_INTEGER;
+      const aRank =
+        toolRank.get(createCustomEmbedToolId(a.id, settings)) ?? Number.MAX_SAFE_INTEGER;
+      const bRank =
+        toolRank.get(createCustomEmbedToolId(b.id, settings)) ?? Number.MAX_SAFE_INTEGER;
       return aRank - bRank;
     })
     .map((embed) => {
@@ -135,8 +150,10 @@ export function createTerminalProcessDrafts(
   );
   return [...(settings.terminalProcesses ?? [])]
     .sort((a, b) => {
-      const aRank = toolRank.get(createServerProcessToolId(a.id)) ?? Number.MAX_SAFE_INTEGER;
-      const bRank = toolRank.get(createServerProcessToolId(b.id)) ?? Number.MAX_SAFE_INTEGER;
+      const aRank =
+        toolRank.get(createServerProcessToolId(a.id, settings)) ?? Number.MAX_SAFE_INTEGER;
+      const bRank =
+        toolRank.get(createServerProcessToolId(b.id, settings)) ?? Number.MAX_SAFE_INTEGER;
       return aRank - bRank;
     })
     .map((process) => {
@@ -257,7 +274,10 @@ export function deletePersistedCustomEmbed(
   return {
     ...current,
     customEmbeds: (current.customEmbeds ?? []).filter((entry) => entry.id !== embedId),
-    tools: (current.tools ?? []).filter((tool) => tool.id !== toolId),
+    tools: (current.tools ?? []).filter(
+      (tool) =>
+        tool.id !== toolId && !(tool.kind === "custom_embed" && tool.customEmbedId === embedId),
+    ),
   };
 }
 
@@ -273,7 +293,11 @@ export function deletePersistedServerProcess(
   return {
     ...current,
     terminalProcesses: (current.terminalProcesses ?? []).filter((entry) => entry.id !== processId),
-    tools: (current.tools ?? []).filter((tool) => tool.id !== toolId),
+    tools: (current.tools ?? []).filter(
+      (tool) =>
+        tool.id !== toolId &&
+        !(tool.kind === "custom_process" && tool.terminalProcessId === processId),
+    ),
   };
 }
 
@@ -421,8 +445,10 @@ export function syncCustomEmbedDrafts(
 
   // Sort by tool order
   return merged.sort((a, b) => {
-    const aRank = toolRank.get(createCustomEmbedToolId(a.id)) ?? Number.MAX_SAFE_INTEGER;
-    const bRank = toolRank.get(createCustomEmbedToolId(b.id)) ?? Number.MAX_SAFE_INTEGER;
+    const aRank =
+      toolRank.get(createCustomEmbedToolId(a.id, persistedSettings)) ?? Number.MAX_SAFE_INTEGER;
+    const bRank =
+      toolRank.get(createCustomEmbedToolId(b.id, persistedSettings)) ?? Number.MAX_SAFE_INTEGER;
     if (aRank !== bRank) {
       return aRank - bRank;
     }
@@ -512,8 +538,10 @@ export function syncTerminalProcessDrafts(
   }
 
   return merged.sort((a, b) => {
-    const aRank = toolRank.get(createServerProcessToolId(a.id)) ?? Number.MAX_SAFE_INTEGER;
-    const bRank = toolRank.get(createServerProcessToolId(b.id)) ?? Number.MAX_SAFE_INTEGER;
+    const aRank =
+      toolRank.get(createServerProcessToolId(a.id, persistedSettings)) ?? Number.MAX_SAFE_INTEGER;
+    const bRank =
+      toolRank.get(createServerProcessToolId(b.id, persistedSettings)) ?? Number.MAX_SAFE_INTEGER;
     if (aRank !== bRank) {
       return aRank - bRank;
     }
@@ -680,7 +708,7 @@ export function savePersistedCustomEmbed(
   current: ProjectWorkspaceSettings,
   draft: CustomEmbedDraft,
 ): ProjectWorkspaceSettings {
-  const toolId = createCustomEmbedToolId(draft.id);
+  const toolId = createCustomEmbedToolId(draft.id, current);
   const label = draft.label.trim().length > 0 ? draft.label.trim() : "Untitled tab";
   const url = draft.url.trim();
   const partitionProfile = draft.partitionMode === "profile" ? draft.partitionProfile.trim() : "";
@@ -702,6 +730,7 @@ export function savePersistedCustomEmbed(
 
   const existingTool = (current.tools ?? []).find((t) => t.id === toolId);
   const updatedTool = {
+    ...existingTool,
     id: toolId,
     kind: "custom_embed" as const,
     label,
@@ -787,23 +816,25 @@ export function savePersistedServerProcess(
   current: ProjectWorkspaceSettings,
   draft: ServerProcessDraft,
 ): ProjectWorkspaceSettings {
-  const toolId = createServerProcessToolId(draft.id);
+  const toolId = createServerProcessToolId(draft.id, current);
   const label = draft.label.trim().length > 0 ? draft.label.trim() : "Untitled terminal";
+  const existingProcess = (current.terminalProcesses ?? []).find((p) => p.id === draft.id);
   const updatedProcess = {
+    ...existingProcess,
     id: draft.id,
     label,
     commands: [...draft.commands],
     cwd: draft.cwd,
-    env: {},
+    env: existingProcess?.env ?? {},
     autoStart: draft.autoStart,
   };
-  const existingProcess = (current.terminalProcesses ?? []).find((p) => p.id === draft.id);
   const nextProcesses = existingProcess
     ? (current.terminalProcesses ?? []).map((p) => (p.id === draft.id ? updatedProcess : p))
     : [...(current.terminalProcesses ?? []), updatedProcess];
 
   const existingTool = (current.tools ?? []).find((t) => t.id === toolId);
   const updatedTool = {
+    ...existingTool,
     id: toolId,
     kind: "custom_process" as const,
     label,

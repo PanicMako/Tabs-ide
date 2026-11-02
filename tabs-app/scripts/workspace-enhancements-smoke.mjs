@@ -154,12 +154,6 @@ try {
     }),
   );
   try {
-    await main.waitForFunction(() =>
-      document
-        .querySelector('[aria-label="Open quick actions"]')
-        ?.getAttribute("title")
-        ?.includes("K"),
-    );
     await main.keyboard.press(
       process.platform === "darwin" ? "Meta+Alt+Shift+K" : "Control+Alt+Shift+K",
     );

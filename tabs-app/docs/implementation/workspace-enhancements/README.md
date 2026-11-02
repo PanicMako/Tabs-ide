@@ -87,7 +87,7 @@ unattended deletion policy is enabled.
 
 ### Quick Actions
 
-Use the bottom-left compass, **Tools → Quick Actions**, or **Cmd+Option+K / Ctrl+Alt+K**. The shortcut
+Use **Tools → Quick Actions** or **Cmd+Option+K / Ctrl+Alt+K**. The shortcut
 is editable through **Settings → Keybindings → Quick Actions: Toggle**. The original
 Cmd+Shift+Space default conflicts with Siri on newer macOS versions. Startup migrates that
 unchanged default to the new binding while preserving custom rules and occupied shortcuts. Native menu accelerators
@@ -220,7 +220,7 @@ build does not package or publish an installer.
    conversation. For live-provider review, observe streaming, tools and any approvals in that same
    thread while navigating the main workspace elsewhere.
 
-6. Open Quick Actions with the compass or shortcut. Try all three radial styles,
+6. Open Quick Actions from the Tools menu or shortcut. Try all three radial styles,
    action-colored selection, browser sub-actions, typing to search, and More options.
 
 7. In Settings → Quick Actions, preview each design, select one, reorder actions, hide a seldom-used
@@ -348,3 +348,14 @@ Clipboard accepts explicit paste (Command/Ctrl+V or Paste), notes, links, and im
 1 MB. Recent items last for the window, pinned items persist on the device, and the list supports
 search, copy, pin/unpin, and removal. Existing saved snippets are preserved. It does not monitor
 or import clipboard history in the background.
+
+### Managing scratch tools in Workspace settings
+
+Workspace settings lists temporary browsers and terminals under Temporary tools. Configure
+opens the matching Browser Tabs or Terminal Tabs editor; Keep promotes the same tool to a
+permanent workspace tool. Rename, URLs, browser session assignment, terminal commands/cwd,
+visibility, and confirmed removal use the existing Workspace controls. Editing preserves live
+tool identity, temporary state, cookie partition, interactive shell mode, and environment values.
+Removing a tool releases its native browser session or terminal sessions before deleting its
+configuration. The persistent bottom-left Quick Actions button has been removed; keyboard,
+Tools menu, and the optional pointer gesture remain available.

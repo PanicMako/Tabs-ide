@@ -32,6 +32,7 @@ import {
   InfoIcon,
   LockIcon,
   CheckIcon,
+  PinIcon,
 } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -46,7 +47,9 @@ import { ServerPresetFormFields, resolvePresetIconElement } from "./ServerPreset
 
 import { projectsAtom } from "../state/threads";
 import { useAtomValue } from "@effect/atom-react";
-import { SettingsSectionHeader } from "./settings/SettingsLayout";
+import { releaseWorkspaceTool } from "../releaseWorkspaceTool";
+import { isTemporaryWorkspaceTool, keepWorkspaceTool } from "../temporaryWorkspaceTools";
+import { SettingsSection, SettingsSectionHeader } from "./settings/SettingsLayout";
 import { useSettings, useUpdateSettings } from "../hooks/useSettings";
 import type { BrowserProfileDefinition } from "@tabs/contracts/settings";
 import type { ProjectIconOverride } from "@tabs/contracts";
@@ -370,6 +373,8 @@ function SortableToolRow({
 }
 
 export function ProjectWorkspaceSettingsSection() {
+  const [deletingTool, setDeletingTool] = useState(false);
+  const [projectToolsTab, setProjectToolsTab] = useState("browser");
   const installedExtensions = useInstalledExtensions();
   const [extensionToggleBusy, setExtensionToggleBusy] = useState(false);
   const { confirmDialog } = useConfirm();
@@ -603,7 +608,7 @@ export function ProjectWorkspaceSettingsSection() {
     if (toolKind === "custom_embed") {
       setCustomEmbedDrafts((current) =>
         current.map((entry) =>
-          createCustomEmbedToolId(entry.id) === toolId
+          createCustomEmbedToolId(entry.id, projectSettings) === toolId
             ? { ...entry, visible: nextVisible, originalVisible: nextVisible }
             : entry,
         ),
@@ -611,7 +616,7 @@ export function ProjectWorkspaceSettingsSection() {
     } else if (toolKind === "custom_process") {
       setServerProcessDrafts((current) =>
         current.map((entry) =>
-          createServerProcessToolId(entry.id) === toolId
+          createServerProcessToolId(entry.id, projectSettings) === toolId
             ? { ...entry, visible: nextVisible, originalVisible: nextVisible }
             : entry,
         ),
@@ -620,11 +625,11 @@ export function ProjectWorkspaceSettingsSection() {
     upsertProjectSettings(activeProjectId, (current) => ({
       ...current,
       tools: (current.tools ?? []).map((entry) =>
-        entry.id === toolId ? { ...entry, visible: true } : entry,
+        entry.id === toolId ? { ...entry, visible: nextVisible } : entry,
       ),
     }));
     setPendingToggle(null);
-  }, [activeProjectId, pendingToggle, upsertProjectSettings, installedExtensions]);
+  }, [activeProjectId, pendingToggle, upsertProjectSettings, installedExtensions, projectSettings]);
 
   const draftsRef = useRef<ProjectWorkspaceDraftSnapshot>({
     customEmbedDrafts,
@@ -767,10 +772,10 @@ export function ProjectWorkspaceSettingsSection() {
       true,
     ).filter((tool) => {
       if (tool.kind === "custom_embed") {
-        return customEmbedDrafts.some((draft) => createCustomEmbedToolId(draft.id) === tool.id);
+        return customEmbedDrafts.some((draft) => draft.id === tool.customEmbedId);
       }
       if (tool.kind === "custom_process") {
-        return serverProcessDrafts.some((draft) => createServerProcessToolId(draft.id) === tool.id);
+        return serverProcessDrafts.some((draft) => draft.id === tool.terminalProcessId);
       }
       return true;
     });
@@ -973,12 +978,16 @@ export function ProjectWorkspaceSettingsSection() {
     }));
     setCustomEmbedDrafts((current) =>
       [...current].sort(
-        (a, b) => rankOf(createCustomEmbedToolId(a.id)) - rankOf(createCustomEmbedToolId(b.id)),
+        (a, b) =>
+          rankOf(createCustomEmbedToolId(a.id, projectSettings)) -
+          rankOf(createCustomEmbedToolId(b.id, projectSettings)),
       ),
     );
     setServerProcessDrafts((current) =>
       [...current].sort(
-        (a, b) => rankOf(createServerProcessToolId(a.id)) - rankOf(createServerProcessToolId(b.id)),
+        (a, b) =>
+          rankOf(createServerProcessToolId(a.id, projectSettings)) -
+          rankOf(createServerProcessToolId(b.id, projectSettings)),
       ),
     );
   };
@@ -1006,6 +1015,41 @@ export function ProjectWorkspaceSettingsSection() {
             ? "This tab now uses its own isolated session."
             : "This tab now shares the project's browser session.",
     });
+  };
+
+  const deleteSavedTool = async (kind: "browser" | "terminal", id: string) => {
+    if (deletingTool) return;
+    setDeletingTool(true);
+    try {
+      const tool = projectSettings.tools.find((entry) =>
+        kind === "browser"
+          ? entry.kind === "custom_embed" && entry.customEmbedId === id
+          : entry.kind === "custom_process" && entry.terminalProcessId === id,
+      );
+      if (tool) await releaseWorkspaceTool(activeProject, tool);
+      upsertProjectSettings(projectId, (current) =>
+        kind === "browser"
+          ? deletePersistedCustomEmbed(current, id)
+          : deletePersistedServerProcess(current, id),
+      );
+      if (kind === "browser") {
+        setCustomEmbedDrafts((current) => deleteCustomEmbedDraft(current, id));
+        if (activeCustomEmbedId === id) setActiveCustomEmbedId(null);
+        setTabToDeleteId(null);
+      } else {
+        setServerProcessDrafts((current) => deleteServerProcessDraft(current, id));
+        if (activeServerProcessId === id) setActiveServerProcessId(null);
+        setTerminalToDeleteId(null);
+      }
+    } catch (error) {
+      toastManager.add({
+        type: "error",
+        title: "Could not remove tool",
+        description: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setDeletingTool(false);
+    }
   };
 
   const saveSingleCustomEmbed = (embedId: string) => {
@@ -1058,6 +1102,63 @@ export function ProjectWorkspaceSettingsSection() {
           title="Workspace"
           description={`Configure tools, browser tabs, and terminals for ${activeProject.name || "this project"}.`}
         />
+
+        {projectSettings?.tools.some(isTemporaryWorkspaceTool) && (
+          <SettingsSection
+            title="Temporary tools"
+            description="Scratch browsers and terminals from Quick Actions. Configure them here, or keep them as workspace tools."
+          >
+            <div className="divide-y divide-border">
+              {projectSettings.tools.filter(isTemporaryWorkspaceTool).map((tool) => (
+                <div key={tool.id} className="flex flex-wrap items-center gap-3 px-4 py-3 sm:px-5">
+                  <div className="min-w-0 flex-1">
+                    <span className="block text-sm font-medium">{tool.label}</span>
+                    <span className="mt-0.5 block text-xs text-muted-foreground">
+                      {tool.kind === "custom_process" ? "Terminal" : "Browser"} ·{" "}
+                      {tool.visible ? "Shown in toolbar" : "Hidden from toolbar"}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      aria-label={`Configure ${tool.label}`}
+                      onClick={() => {
+                        if (tool.kind === "custom_embed" && tool.customEmbedId) {
+                          setProjectToolsTab("browser");
+                          setActiveCustomEmbedId(tool.customEmbedId);
+                        } else if (tool.kind === "custom_process" && tool.terminalProcessId) {
+                          setProjectToolsTab("terminal");
+                          setActiveServerProcessId(tool.terminalProcessId);
+                        }
+                        requestAnimationFrame(() => {
+                          const panel = document.getElementById("workspace-project-tools");
+                          panel?.scrollIntoView({ block: "start" });
+                          panel?.focus({ preventScroll: true });
+                        });
+                      }}
+                    >
+                      Configure
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      aria-label={`Keep ${tool.label} in workspace`}
+                      onClick={() =>
+                        upsertProjectSettings(projectId, (current) =>
+                          keepWorkspaceTool(current, tool.id, tool.label),
+                        )
+                      }
+                    >
+                      <PinIcon className="size-3.5" />
+                      Keep
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </SettingsSection>
+        )}
 
         <Card>
           <CardHeader className="pb-3">
@@ -1485,7 +1586,7 @@ export function ProjectWorkspaceSettingsSection() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card id="workspace-project-tools" tabIndex={-1}>
           <CardHeader>
             <CardTitle>Project Tools</CardTitle>
             <CardDescription>
@@ -1493,7 +1594,7 @@ export function ProjectWorkspaceSettingsSection() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue="browser">
+            <Tabs value={projectToolsTab} onValueChange={setProjectToolsTab}>
               <TabsList className="mb-4">
                 <TabsTrigger value="browser">Browser Tabs</TabsTrigger>
                 <TabsTrigger value="terminal">Terminal Tabs</TabsTrigger>
@@ -1599,6 +1700,7 @@ export function ProjectWorkspaceSettingsSection() {
                                         ),
                                       )
                                     }
+                                    aria-label="Browser tab name"
                                     placeholder="Figma"
                                   />
                                 </div>
@@ -1871,6 +1973,7 @@ export function ProjectWorkspaceSettingsSection() {
                                         ),
                                       )
                                     }
+                                    aria-label="Terminal tab name"
                                     placeholder="OpenCore"
                                   />
                                 </div>
@@ -2220,7 +2323,7 @@ export function ProjectWorkspaceSettingsSection() {
       <AlertDialog
         open={tabToDeleteId !== null}
         onOpenChange={(open) => {
-          if (!open) setTabToDeleteId(null);
+          if (!open && !deletingTool) setTabToDeleteId(null);
         }}
       >
         <AlertDialogPopup>
@@ -2231,22 +2334,20 @@ export function ProjectWorkspaceSettingsSection() {
           <AlertDialogFooter>
             <AlertDialogClose
               render={
-                <Button variant="outline" onClick={() => setTabToDeleteId(null)}>
+                <Button
+                  disabled={deletingTool}
+                  variant="outline"
+                  onClick={() => setTabToDeleteId(null)}
+                >
                   Cancel
                 </Button>
               }
             />
             <Button
               variant="destructive"
+              disabled={deletingTool}
               onClick={() => {
-                if (tabToDeleteId && activeProjectId) {
-                  upsertProjectSettings(activeProjectId, (current) =>
-                    deletePersistedCustomEmbed(current, tabToDeleteId),
-                  );
-                  setCustomEmbedDrafts((current) => deleteCustomEmbedDraft(current, tabToDeleteId));
-                  if (activeCustomEmbedId === tabToDeleteId) setActiveCustomEmbedId(null);
-                }
-                setTabToDeleteId(null);
+                if (tabToDeleteId) void deleteSavedTool("browser", tabToDeleteId);
               }}
             >
               Delete
@@ -2258,7 +2359,7 @@ export function ProjectWorkspaceSettingsSection() {
       <AlertDialog
         open={terminalToDeleteId !== null}
         onOpenChange={(open) => {
-          if (!open) setTerminalToDeleteId(null);
+          if (!open && !deletingTool) setTerminalToDeleteId(null);
         }}
       >
         <AlertDialogPopup>
@@ -2269,24 +2370,20 @@ export function ProjectWorkspaceSettingsSection() {
           <AlertDialogFooter>
             <AlertDialogClose
               render={
-                <Button variant="outline" onClick={() => setTerminalToDeleteId(null)}>
+                <Button
+                  disabled={deletingTool}
+                  variant="outline"
+                  onClick={() => setTerminalToDeleteId(null)}
+                >
                   Cancel
                 </Button>
               }
             />
             <Button
               variant="destructive"
+              disabled={deletingTool}
               onClick={() => {
-                if (terminalToDeleteId && activeProjectId) {
-                  upsertProjectSettings(activeProjectId, (current) =>
-                    deletePersistedServerProcess(current, terminalToDeleteId),
-                  );
-                  setServerProcessDrafts((current) =>
-                    deleteServerProcessDraft(current, terminalToDeleteId),
-                  );
-                  if (activeServerProcessId === terminalToDeleteId) setActiveServerProcessId(null);
-                }
-                setTerminalToDeleteId(null);
+                if (terminalToDeleteId) void deleteSavedTool("terminal", terminalToDeleteId);
               }}
             >
               Delete

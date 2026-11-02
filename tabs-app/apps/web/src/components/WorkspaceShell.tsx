@@ -9,6 +9,7 @@ import {
   isTemporaryWorkspaceTool,
   keepWorkspaceTool,
 } from "../temporaryWorkspaceTools";
+import { releaseWorkspaceTool } from "../releaseWorkspaceTool";
 import { BrowserStartupState } from "./BrowserStartupState";
 import { TemporaryClipboard } from "./quick-actions/TemporaryClipboard";
 import { QuickActionsHost } from "./quick-actions/QuickActions";
@@ -13254,25 +13255,7 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
         : `Close ${tool.label}?${isTemporaryWorkspaceTool(tool) ? " This temporary browser session will be discarded. Keep it with the pin button if you want to save it." : " You can reopen it from Workspace settings."}`;
     if (!(await confirmToolClose(message))) return;
     try {
-      if (tool.kind === "custom_embed" && tool.customEmbedId)
-        await window.desktopBridge?.destroyBrowserSession?.({
-          projectId: activeProject.id,
-          sessionId: `custom-${tool.customEmbedId}`,
-        });
-      if (tool.kind === "custom_process" && tool.terminalProcessId) {
-        const threadId = ThreadId.makeUnsafe(
-          `server:${activeProject.id}:custom:${tool.terminalProcessId}`,
-        );
-        const state = getThreadTerminalState(threadId);
-        if (activeProjectApi && "close" in activeProjectApi.terminal) {
-          for (const terminalId of state?.terminalIds ?? []) {
-            if (terminalId === DEFAULT_THREAD_TERMINAL_ID && terminalId !== tool.terminalProcessId)
-              continue;
-            await activeProjectApi.terminal.close({ threadId, terminalId });
-          }
-        }
-        storeClearTerminalState(threadId);
-      }
+      await releaseWorkspaceTool(activeProject, tool);
       upsertProjectSettings(activeProject.id, (current) => closeWorkspaceTool(current, id));
       if (activeTool?.id === id)
         setActiveTool(
