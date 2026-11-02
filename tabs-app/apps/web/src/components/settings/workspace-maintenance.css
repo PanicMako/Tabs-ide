@@ -1,0 +1,139 @@
+.workspace-maintenance .maintenance-panel {
+  padding: 20px;
+}
+.workspace-maintenance .maintenance-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.workspace-maintenance .maintenance-controls input {
+  flex: 1 1 180px;
+}
+.workspace-maintenance select {
+  min-width: 0;
+  max-width: 100%;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-xl);
+  background: var(--background);
+  color: var(--foreground);
+  padding: 6px 10px;
+  font-size: 13px;
+}
+.workspace-maintenance select:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.workspace-maintenance p {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.65;
+}
+.workspace-maintenance .maintenance-list {
+  display: grid;
+}
+.workspace-maintenance .maintenance-row {
+  border-top: 1px solid var(--border);
+  padding: 16px 0;
+  font-size: 13px;
+}
+.workspace-maintenance .maintenance-row strong {
+  font-weight: 500;
+}
+.workspace-maintenance .maintenance-row code {
+  display: block;
+  overflow-wrap: anywhere;
+  margin: 4px 0;
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.workspace-maintenance .maintenance-row small {
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+.workspace-maintenance .maintenance-row .maintenance-controls {
+  margin: 12px 0 0;
+}
+.workspace-maintenance .maintenance-note {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.workspace-maintenance .maintenance-note summary {
+  cursor: pointer;
+}
+.workspace-maintenance .maintenance-note p {
+  margin-top: 8px;
+}
+.workspace-maintenance .maintenance-categories {
+  margin: 16px 0;
+}
+.workspace-maintenance .maintenance-category {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  gap: 4px 16px;
+  border-top: 1px solid var(--border);
+  padding: 12px 0;
+  font-size: 13px;
+}
+.workspace-maintenance .maintenance-category strong {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.workspace-maintenance .maintenance-category small {
+  grid-column: 1 / -1;
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+.workspace-maintenance .maintenance-retention {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid var(--border);
+  margin-top: 16px;
+  padding: 16px 0 8px;
+  font-size: 13px;
+}
+.workspace-maintenance .maintenance-empty {
+  padding: 16px 0;
+}
+@media (max-width: 640px) {
+  .workspace-maintenance .maintenance-panel {
+    padding: 16px;
+  }
+  .workspace-maintenance .maintenance-retention {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+.workspace-maintenance .maintenance-field {
+  display: grid;
+  gap: 6px;
+  flex: 1 1 180px;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.workspace-maintenance .maintenance-controls [data-slot="input-control"] {
+  flex: 1 1 180px;
+}
+
+.workspace-maintenance .maintenance-list {
+  max-height: 24rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.workspace-maintenance .maintenance-error-details {
+  margin-top: 8px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.workspace-maintenance .maintenance-error-details summary {
+  cursor: pointer;
+}

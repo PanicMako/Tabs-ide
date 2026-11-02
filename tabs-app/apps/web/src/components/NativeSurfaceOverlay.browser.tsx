@@ -14,9 +14,9 @@ it("keeps decoded native pixels behind the overlay before hiding and discards la
         resolveCapture = resolve;
       }),
   );
-  let host: HTMLDivElement | null = null;
+  const host = { current: null as HTMLDivElement | null };
   const suspend = vi.fn(() => {
-    expect(host?.querySelector("img")?.getAttribute("src")).toBe(pixel);
+    expect(host.current?.querySelector("img")?.getAttribute("src")).toBe(pixel);
   });
   let finishResume!: () => void;
   const resume = vi.fn().mockImplementationOnce(
@@ -40,7 +40,7 @@ it("keeps decoded native pixels behind the overlay before hiding and discards la
       <div
         ref={(element) => {
           ref.current = element;
-          host = element;
+          host.current = element;
         }}
       />
     );
@@ -53,12 +53,12 @@ it("keeps decoded native pixels behind the overlay before hiding and discards la
   expect(suspend).not.toHaveBeenCalled();
   resolveCapture(pixel);
   await vi.waitFor(() => expect(suspend).toHaveBeenCalledOnce());
-  expect(host?.querySelector("img")?.getAttribute("aria-hidden")).toBe("true");
+  expect(host.current?.querySelector("img")?.getAttribute("aria-hidden")).toBe("true");
   overlay.remove();
   await vi.waitFor(() => expect(resume).toHaveBeenCalledOnce());
-  expect(host?.querySelector("img")).not.toBeNull();
+  expect(host.current?.querySelector("img")).not.toBeNull();
   finishResume();
-  await vi.waitFor(() => expect(host?.querySelector("img")).toBeNull());
+  await vi.waitFor(() => expect(host.current?.querySelector("img")).toBeNull());
 
   document.body.append(overlay);
   await vi.waitFor(() => expect(capture).toHaveBeenCalledTimes(2));
@@ -67,6 +67,6 @@ it("keeps decoded native pixels behind the overlay before hiding and discards la
   resolveCapture(pixel);
   await new Promise((resolve) => requestAnimationFrame(resolve));
   expect(suspend).toHaveBeenCalledOnce();
-  expect(host?.querySelector("img")).toBeNull();
+  expect(host.current?.querySelector("img")).toBeNull();
   await view.unmount();
 });

@@ -11,7 +11,11 @@ import { useSettings, useUpdateSettings } from "~/hooks/useSettings";
 import { useNavigate } from "@tanstack/react-router";
 import { newCommandId, newProjectId } from "~/lib/utils";
 import { makeAppModelSelection } from "~/modelSelection";
-import "../quick-actions/quick-actions.css";
+import { Button } from "../ui/button";
+import { Input } from "../ui/input";
+import { RefreshCwIcon } from "lucide-react";
+import { SettingsSection, SettingsSectionHeader } from "./SettingsLayout";
+import "./workspace-maintenance.css";
 
 const bytes = (value: number) =>
   value < 1024 * 1024
@@ -93,31 +97,44 @@ export default function WorkspaceMaintenanceSettings() {
     await navigate({ to: "/" });
   };
   return (
-    <div className="qa-settings" aria-busy={busy}>
-      <section>
-        <h1>Worktrees & storage</h1>
-        <p>
-          Keep parallel tasks isolated and understand what lives on disk. Operations below apply to
-          this computer's environment.
-        </p>
-        <div className="maintenance-controls">
-          <button disabled={busy} onClick={() => void perform(async () => {})}>
+    <div className="workspace-maintenance space-y-6" aria-busy={busy}>
+      <SettingsSectionHeader
+        title="Worktrees & Storage"
+        description="Manage isolated checkouts and reclaim old application logs on this computer."
+        actions={
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={busy}
+            onClick={() => void perform(async () => {})}
+          >
+            <RefreshCwIcon className={busy ? "size-3.5 animate-spin" : "size-3.5"} />
             {busy ? "Inspecting…" : "Refresh inventory"}
-          </button>
+          </Button>
+        }
+      />
+      {(busy || message || error) && (
+        <div
+          className="text-xs leading-relaxed"
+          role={error ? "alert" : "status"}
+          aria-live="polite"
+        >
+          <span className={error ? "text-destructive" : "text-muted-foreground"}>
+            {error ?? (busy ? "Inspecting worktrees and application storage…" : message)}
+          </span>
         </div>
-        <p role="status" aria-live="polite">
-          {busy ? "Operation in progress…" : message}
-        </p>
-        {error && (
-          <p role="alert" className="qa-error">
-            {error}
-          </p>
-        )}
-      </section>
-      <section>
-        <h2>Git worktrees</h2>
+      )}
+      <SettingsSection
+        title="Git worktrees"
+        description="Open a checkout, start an agent, or create an isolated branch."
+        contentClassName="maintenance-panel"
+      >
         <div className="maintenance-controls">
+          <label className="sr-only" htmlFor="maintenance-repository">
+            Repository
+          </label>
           <select
+            id="maintenance-repository"
             aria-label="Repository"
             value={projectId}
             onChange={(e) => setProjectId(e.target.value)}
@@ -147,26 +164,41 @@ export default function WorkspaceMaintenanceSettings() {
               });
             }}
           >
-            <input
-              required
-              aria-label="New worktree branch"
-              placeholder="feature/my-task"
-              value={branch}
-              onChange={(e) => setBranch(e.target.value)}
-            />
-            <input
-              aria-label="Base branch or commit"
-              placeholder="HEAD"
-              value={base}
-              onChange={(e) => setBase(e.target.value)}
-            />
-            <button disabled={busy || !branch.trim()} type="submit">
+            <label className="maintenance-field">
+              <span>New branch</span>
+              <Input
+                required
+                aria-label="New worktree branch"
+                placeholder="feature/my-task"
+                value={branch}
+                onChange={(e) => setBranch(e.target.value)}
+              />
+            </label>
+            <label className="maintenance-field">
+              <span>Base branch or commit</span>
+              <Input
+                aria-label="Base branch or commit"
+                placeholder="HEAD"
+                value={base}
+                onChange={(e) => setBase(e.target.value)}
+              />
+            </label>
+            <Button
+              className="self-end"
+              variant="outline"
+              size="sm"
+              disabled={busy || !branch.trim()}
+              type="submit"
+            >
               Create worktree
-            </button>
+            </Button>
           </form>
         )}
         {!project && <p>Select a local project to inspect its worktrees.</p>}
         <div className="maintenance-list">
+          {!busy && project && worktrees.length === 0 && (
+            <p className="maintenance-empty">No worktrees found for this repository.</p>
+          )}
           {worktrees.map((tree) => {
             const protectedReason = tree.main
               ? "Main checkout"
@@ -195,15 +227,24 @@ export default function WorkspaceMaintenanceSettings() {
                     ? ` · ${tree.threadCount} conversation(s), ${tree.settledThreadCount} settled`
                     : ""}
                 </small>
-                {tree.error && <p>{tree.error}</p>}
+                {tree.error && (
+                  <details className="maintenance-error-details">
+                    <summary>Inspection details</summary>
+                    <p>{tree.error}</p>
+                  </details>
+                )}
                 <div className="maintenance-controls">
-                  <button
+                  <Button
+                    variant="outline"
+                    size="sm"
                     disabled={busy || Boolean(tree.error) || tree.prunable}
                     onClick={() => void perform(() => openWorktree(tree))}
                   >
                     Open workspace
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
                     disabled={busy || Boolean(tree.error) || tree.prunable || !project}
                     onClick={() =>
                       void perform(async () => {
@@ -220,8 +261,10 @@ export default function WorkspaceMaintenanceSettings() {
                     }
                   >
                     Start agent here
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
                     disabled={busy || Boolean(protectedReason)}
                     onClick={() =>
                       void perform(async () => {
@@ -238,20 +281,26 @@ export default function WorkspaceMaintenanceSettings() {
                     }
                   >
                     {tree.prunable ? "Remove stale record…" : "Remove…"}
-                  </button>
+                  </Button>
                 </div>
               </article>
             );
           })}
         </div>
-        <p>
-          Deletion rechecks Git status and protects all conversation references, open projects,
-          terminals, locks, ignored files and untracked work. No force-delete is offered. Close or
-          remove references before cleanup.
-        </p>
-      </section>
-      <section>
-        <h2>Application storage</h2>
+        <details className="maintenance-note">
+          <summary>What keeps a worktree protected?</summary>
+          <p>
+            Deletion rechecks Git status and protects all conversation references, open projects,
+            terminals, locks, ignored files and untracked work. No force-delete is offered. Close or
+            remove references before cleanup.
+          </p>
+        </details>
+      </SettingsSection>
+      <SettingsSection
+        title="Application storage"
+        description="Review application-owned files and remove eligible rotated logs."
+        contentClassName="maintenance-panel"
+      >
         {storage ? (
           <>
             <p>
@@ -259,9 +308,9 @@ export default function WorkspaceMaintenanceSettings() {
               <strong>{bytes(storage.reclaimableBytes)}</strong> reclaimable in{" "}
               {storage.candidates.length} rotated logs.
             </p>
-            <div>
+            <div className="maintenance-categories">
               {storage.categories.map((category) => (
-                <div key={category.id} className="qa-setting-row">
+                <div key={category.id} className="maintenance-category">
                   <span>
                     {category.id === "logs" ? "Application logs" : "Browser exports (retained)"}
                   </span>
@@ -275,7 +324,9 @@ export default function WorkspaceMaintenanceSettings() {
               exports, credentials, conversations, source files and caches are retained.
             </p>
             <div className="maintenance-controls">
-              <button
+              <Button
+                variant="outline"
+                size="sm"
                 disabled={busy || storage.candidates.length === 0}
                 onClick={() =>
                   void perform(async () => {
@@ -296,7 +347,7 @@ export default function WorkspaceMaintenanceSettings() {
                 }
               >
                 Clean eligible logs…
-              </button>
+              </Button>
             </div>
             {storage.warnings.map((warning) => (
               <p key={warning} role="status">
@@ -317,7 +368,7 @@ export default function WorkspaceMaintenanceSettings() {
         ) : (
           <p>Refresh to inspect application-owned storage.</p>
         )}
-        <label className="qa-setting-row">
+        <label className="maintenance-retention">
           <span>Automatic rotated log retention</span>
           <select
             className="maintenance-select"
@@ -343,7 +394,7 @@ export default function WorkspaceMaintenanceSettings() {
           Automatic retention uses the existing hourly cleanup service. Manual cleanup always
           preserves at least seven days.
         </p>
-      </section>
+      </SettingsSection>
       {confirmDialog}
     </div>
   );

@@ -1,5 +1,10 @@
 import { useState } from "react";
+import { ArrowDownIcon, ArrowUpIcon, CheckIcon, RotateCcwIcon } from "lucide-react";
 import { useSettings, useUpdateSettings } from "~/hooks/useSettings";
+import { Button } from "../ui/button";
+import { Checkbox } from "../ui/checkbox";
+import { Switch } from "../ui/switch";
+import { SettingsRow, SettingsSection, SettingsSectionHeader } from "./SettingsLayout";
 import { LauncherSurface, useQuickActions } from "../quick-actions/QuickActions";
 import {
   LAUNCHER_DESIGNS,
@@ -22,124 +27,164 @@ export default function QuickActionsSettings() {
     [ids[index], ids[index + delta]] = [ids[index + delta]!, ids[index]!];
     patch({ actionOrder: ids });
   };
+  const selected = LAUNCHER_DESIGNS.find((design) => design.id === preview)!;
   return (
-    <div className="qa-settings">
-      <section>
-        <h1>Quick actions</h1>
-        <p>
-          Your next move, where your pointer already is. Use the compass button in the bottom left
-          or the Quick Actions shortcut in Keybindings (default: ⌘ Option K / Ctrl Alt K).
-        </p>
-      </section>
-      <section>
-        <div className="qa-designs">
-          {LAUNCHER_DESIGNS.map((design) => (
-            <button
-              key={design.id}
-              type="button"
-              aria-pressed={preview === design.id}
-              onClick={() => setPreview(design.id)}
-            >
-              <strong>
-                {design.name}
-                {preferences.design === design.id ? " · Selected" : ""}
-              </strong>
-              <span>{design.description}</span>
-            </button>
-          ))}
-        </div>
-      </section>
-      <section>
-        <div className="qa-setting-row">
-          <span>Interactive preview · Actions run in your current workspace.</span>
-          <button
-            type="button"
-            disabled={preview === preferences.design}
-            onClick={() => patch({ design: preview })}
+    <div className="space-y-6">
+      <SettingsSectionHeader
+        title="Quick Actions"
+        description="Choose how your launcher looks and keep your most useful actions close."
+      />
+      <SettingsSection
+        title="Launcher design"
+        description="Five ways to move around your workspace. Choose a design to try it before applying."
+      >
+        <div className="grid gap-5 p-4 sm:p-5 lg:grid-cols-[140px_minmax(0,1fr)]">
+          <div
+            className="grid content-start gap-1.5 sm:grid-cols-2 lg:grid-cols-1"
+            aria-label="Launcher designs"
           >
-            Use this design
-          </button>
-        </div>
-        <div className="qa-preview">
-          {context ? (
-            <LauncherSurface
-              key={preview}
-              design={preview}
-              actions={orderedActions(preferences.actionOrder, preferences.hiddenActions)}
-              execute={context.execute}
-              disabled={context.disabled}
-              preview
-            />
-          ) : (
-            <p>Open settings from the workspace to try actions.</p>
-          )}
-        </div>
-      </section>
-      <section>
-        <h2>Make it yours</h2>
-        <label className="qa-setting-row">
-          <span>Alt + right-click in workspace chrome to open at the pointer</span>
-          <input
-            type="checkbox"
-            checked={preferences.pointerGesture}
-            onChange={(e) => patch({ pointerGesture: e.target.checked })}
-          />
-        </label>
-        <p>
-          Change “Quick Actions: Toggle” in Settings → Keybindings. Escape returns focus. Arrow keys
-          navigate; Tab reaches every control. The keypad also accepts 1–9 when its buttons have
-          focus.
-        </p>
-        {actions.map((action, index) => (
-          <div className="qa-setting-row" key={action.id}>
-            <label>
-              <input
-                aria-label={`Show ${action.label}`}
-                type="checkbox"
-                checked={!preferences.hiddenActions.includes(action.id)}
-                disabled={action.id === "customize"}
-                onChange={(e) =>
-                  patch({
-                    hiddenActions: e.target.checked
-                      ? preferences.hiddenActions.filter((id) => id !== action.id)
-                      : [...preferences.hiddenActions, action.id],
-                  })
-                }
-              />
-            </label>
-            <span>{action.label}</span>
-            <button
-              aria-label={`Move ${action.label} earlier`}
-              disabled={index === 0}
-              onClick={() => reorder(index, -1)}
-            >
-              ↑
-            </button>
-            <button
-              aria-label={`Move ${action.label} later`}
-              disabled={index === actions.length - 1}
-              onClick={() => reorder(index, 1)}
-            >
-              ↓
-            </button>
+            {LAUNCHER_DESIGNS.map((design) => (
+              <button
+                type="button"
+                key={design.id}
+                aria-pressed={preview === design.id}
+                onClick={() => setPreview(design.id)}
+                className={`rounded-xl border px-3 py-3 text-left transition-colors focus-visible:outline-2 focus-visible:outline-ring ${preview === design.id ? "border-ring/50 bg-accent" : "border-transparent hover:bg-muted/60"}`}
+              >
+                <span className="flex items-center justify-between gap-2 text-sm font-medium">
+                  {design.name}
+                  {preferences.design === design.id && (
+                    <CheckIcon
+                      className="size-3.5 text-muted-foreground"
+                      aria-label="Current design"
+                    />
+                  )}
+                </span>
+                <span className="mt-1 block text-xs leading-relaxed text-muted-foreground lg:hidden">
+                  {design.description}
+                </span>
+              </button>
+            ))}
           </div>
-        ))}
-        <div className="maintenance-controls">
-          <button
-            type="button"
-            onClick={() =>
+          <div className="min-w-0 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-xs text-muted-foreground">{selected.name} preview</span>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={preview === preferences.design}
+                onClick={() => patch({ design: preview })}
+              >
+                {preview === preferences.design ? "Current design" : "Use this design"}
+              </Button>
+            </div>
+            <div className="qa-preview !p-3 sm:!p-4">
+              {context ? (
+                <LauncherSurface
+                  key={preview}
+                  design={preview}
+                  actions={orderedActions(preferences.actionOrder, preferences.hiddenActions)}
+                  execute={context.execute}
+                  disabled={context.disabled}
+                  preview
+                />
+              ) : (
+                <p className="py-6 text-sm text-muted-foreground">
+                  Open settings from your workspace to try actions.
+                </p>
+              )}
+            </div>
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              {selected.description} Preview actions run in your current workspace.
+            </p>
+          </div>
+        </div>
+      </SettingsSection>
+      <SettingsSection
+        title="Open the launcher"
+        description="Use the compass button or your Quick Actions shortcut."
+      >
+        <SettingsRow
+          title="Open at the pointer"
+          description="Option / Alt + right-click in workspace chrome."
+          control={
+            <Switch
+              aria-label="Open at the pointer"
+              checked={preferences.pointerGesture}
+              onCheckedChange={(checked) => patch({ pointerGesture: checked })}
+            />
+          }
+        />
+        <SettingsRow
+          title="Keyboard shortcut"
+          description="Change Quick Actions: Toggle in Keybindings. The default is Command-Option-K on macOS and Ctrl-Alt-K on Windows and Linux."
+          status="Escape returns focus. Arrow keys navigate; Tab reaches every control. The keypad also accepts 1–9 when its buttons have focus."
+        />
+      </SettingsSection>
+      <SettingsSection
+        title="Actions"
+        description="Choose what appears and move your frequent actions toward the top."
+        headerAction={
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setPreview("list");
               patch({
                 actionOrder: QUICK_ACTIONS.map((a) => a.id),
                 hiddenActions: [],
                 pointerGesture: false,
                 design: "list",
-              })
-            }
+              });
+            }}
           >
+            <RotateCcwIcon className="size-3.5" />
             Restore defaults
-          </button>
-        </div>
-      </section>
+          </Button>
+        }
+      >
+        {actions.map((action, index) => (
+          <div
+            key={action.id}
+            data-slot="settings-row"
+            className="flex items-center gap-3 border-t border-border px-4 py-3 first:border-t-0 sm:px-5"
+          >
+            <Checkbox
+              aria-label={`Show ${action.label}`}
+              checked={!preferences.hiddenActions.includes(action.id)}
+              disabled={action.id === "customize"}
+              onCheckedChange={(checked) =>
+                patch({
+                  hiddenActions: checked
+                    ? preferences.hiddenActions.filter((id) => id !== action.id)
+                    : [...preferences.hiddenActions, action.id],
+                })
+              }
+            />
+            <span className="min-w-0 flex-1 text-sm">{action.label}</span>
+            <div className="flex shrink-0 gap-1">
+              <Button
+                size="icon-xs"
+                variant="ghost"
+                aria-label={`Move ${action.label} earlier`}
+                disabled={index === 0}
+                onClick={() => reorder(index, -1)}
+              >
+                <ArrowUpIcon className="size-3.5" />
+              </Button>
+              <Button
+                size="icon-xs"
+                variant="ghost"
+                aria-label={`Move ${action.label} later`}
+                disabled={index === actions.length - 1}
+                onClick={() => reorder(index, 1)}
+              >
+                <ArrowDownIcon className="size-3.5" />
+              </Button>
+            </div>
+          </div>
+        ))}
+      </SettingsSection>
     </div>
   );
 }

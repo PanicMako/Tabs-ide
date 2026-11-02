@@ -280,3 +280,16 @@ Visually verified over the Code-OSS editor and the embedded Google page on macOS
 regression verifies capture-before-hide ordering, keeping pixels through delayed reattachment,
 and discarding captures after rapid dismissal. Desktop tests cover missing/closed browser views
 and the in-memory viewport capture path.
+
+### Settings consistency and navigation
+
+Quick Actions and Worktrees & Storage use the same SettingsSectionHeader, SettingsSection, form
+controls, typography, and theme tokens as the established settings pages. Launcher choices sit
+beside the interactive preview on desktop and stack on smaller screens. Worktree creation has
+labelled branch fields, compact actions, and a disclosure for protection details. The conversation
+pop-out title strip is 32px tall with a compact Dock conversation control.
+
+Settings destinations are now router-owned. Desktop hash parameters override stale outer URL
+parameters, and section changes remain reactive when navigating within settings. Manually repeated
+Quick Actions → Usage & Limits → Worktrees & Storage → Usage & Limits → Quick Actions with a
+conflicting outer section parameter to verify the selected page follows the active route.

@@ -6,7 +6,7 @@ import {
 import { usePanelAnimationSettings } from "~/panelAnimations";
 import { useGsapSurface } from "~/hooks/useGsapSurface";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeftIcon,
@@ -211,31 +211,22 @@ function SettingsRouteView() {
   const isPopout = isPopoutMode();
 
   const [settingsViewState, updateSettingsViewState] = useSettingsViewState();
-  const [initialUrlSection, setInitialUrlSection] = useState<SettingsSectionId | null>(() => {
-    const section = getHashAwareSearchParams().get("section");
-    return SETTINGS_NAV.some((item) => item.id === section) ? (section as SettingsSectionId) : null;
-  });
-  const activeSettingsSection =
-    initialUrlSection ?? (settingsViewState.activeSection as SettingsSectionId) ?? "general";
+  const routeSearch = useRouterState({ select: (state) => state.location.searchStr });
+  const requestedSection =
+    new URLSearchParams(routeSearch).get("section") ?? getHashAwareSearchParams().get("section");
+  const activeSettingsSection = SETTINGS_NAV.some((item) => item.id === requestedSection)
+    ? (requestedSection as SettingsSectionId)
+    : ((settingsViewState.activeSection as SettingsSectionId) ?? "general");
   const setActiveSettingsSection = useCallback(
-    (s: SettingsSectionId) => {
-      setInitialUrlSection(null);
-      updateSettingsViewState({ activeSection: s });
-      if (typeof window !== "undefined") {
-        const url = new URL(window.location.href);
-        url.searchParams.set("section", s);
-
-        const hash = url.hash;
-        const queryStart = hash.indexOf("?");
-        if (queryStart >= 0) {
-          const hashParams = new URLSearchParams(hash.slice(queryStart + 1));
-          hashParams.set("section", s);
-          url.hash = `${hash.slice(0, queryStart)}?${hashParams.toString()}`;
-        }
-        window.history.replaceState(window.history.state, "", url.toString());
-      }
+    (section: SettingsSectionId) => {
+      updateSettingsViewState({ activeSection: section });
+      void navigate({
+        to: "/settings",
+        search: (previous) => ({ ...previous, section }),
+        replace: true,
+      });
     },
-    [updateSettingsViewState],
+    [updateSettingsViewState, navigate],
   );
   const openSettingsSection = useCallback(
     (section: string) => {
@@ -244,17 +235,6 @@ function SettingsRouteView() {
     },
     [setActiveSettingsSection],
   );
-
-  useEffect(() => {
-    const syncUrlSection = () => {
-      const section = getHashAwareSearchParams().get("section");
-      setInitialUrlSection(
-        SETTINGS_NAV.some((item) => item.id === section) ? (section as SettingsSectionId) : null,
-      );
-    };
-    window.addEventListener("popstate", syncUrlSection);
-    return () => window.removeEventListener("popstate", syncUrlSection);
-  }, []);
 
   const [isRefreshingProviders, setIsRefreshingProviders] = useState(false);
   const refreshingRef = useRef(false);

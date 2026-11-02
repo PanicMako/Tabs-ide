@@ -58,9 +58,9 @@ export function getHashAwareSearchParams(): URLSearchParams {
   if (qIdx !== -1) {
     const hashParams = new URLSearchParams(hash.slice(qIdx));
     for (const [key, value] of hashParams.entries()) {
-      if (!params.has(key)) {
-        params.set(key, value);
-      }
+      // The hash is the active route in desktop windows; outer query values
+      // can survive earlier navigation and must not override its destination.
+      params.set(key, value);
     }
   }
   return params;

@@ -11,9 +11,9 @@ function ChatRouteLayout() {
       <SidebarProvider defaultOpen={false}>
         <div className="flex h-dvh w-full min-h-0 min-w-0 flex-1 flex-col bg-background">
           {isConversationPopout && (
-            <div className="drag-region flex h-12 shrink-0 items-center justify-end border-b px-4">
+            <div className="drag-region flex h-8 shrink-0 items-center justify-end border-b border-border/60 px-3">
               <button
-                className="no-drag rounded px-3 py-1 text-sm hover:bg-accent focus-visible:outline"
+                className="no-drag rounded-md px-2 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
                 onClick={() => {
                   const route = window.location.hash
                     ? window.location.hash.slice(1)
