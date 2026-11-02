@@ -351,6 +351,17 @@ try {
   Write-Host "Windows legacy upgrade, shortcut repair, and process-scope checks passed."
   }
 
+  # Native Windows icon APIs require real files outside app.asar.
+  Add-Type -AssemblyName System.Drawing
+  foreach ($variant in @('signature', 'blue-white', 'mono', 'ivory-ink', 'blue-ink')) {
+    $iconPath = Join-Path $installDir "resources/app.asar.unpacked/apps/desktop/prod-resources/brand/icon-$variant.ico"
+    if (-not (Test-Path $iconPath -PathType Leaf)) { throw "Missing native Windows logo asset: $iconPath" }
+    $icon = [System.Drawing.Icon]::new($iconPath)
+    try { if ($icon.Width -le 0 -or $icon.Height -le 0) { throw "Invalid Windows logo asset: $iconPath" } }
+    finally { $icon.Dispose() }
+  }
+  Write-Host "All five logo treatments are accessible to native Windows icon APIs."
+
   $smokeHome = Join-Path $env:RUNNER_TEMP "TabsLaunchSmoke"
   $desktopLog = Join-Path $smokeHome "userdata/logs/desktop-main.log"
   $serverLog = Join-Path $smokeHome "userdata/logs/server-child.log"

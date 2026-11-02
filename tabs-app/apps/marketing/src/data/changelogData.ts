@@ -25,11 +25,30 @@ export const TOTAL_TAGS_COUNT = 183;
 
 export const changelogData: ChangelogRelease[] = [
   {
+    tag: "v2.2.1",
+    title: "Quick actions and temporary workspace tools",
+    date: "November 2, 2026",
+    shortDate: "Nov 2",
+    isLatest: true,
+    type: "feature",
+    summary:
+      "Open frequent actions beside your pointer, keep scratch browsers and terminals organized, and manage worktrees and storage from Settings. This release also improves Windows installation and fixes logo selection on Windows.",
+    highlights: [
+      "Choose three radial Quick Actions designs with configurable action shortcuts.",
+      "Create temporary browser and terminal tabs and manage them from Workspace settings.",
+      "Paste and search clipboard items, then pin snippets to keep on your device.",
+      "Inspect worktrees and application storage with protection for local work.",
+      "Apply the selected Windows logo to native icons and Tabs shortcuts.",
+      "Install and upgrade Windows with a smaller bundled editor payload.",
+    ],
+    categories: [],
+  },
+  {
     tag: "v2.2.0",
     title: "A refreshed workspace for code and agents",
     date: "November 1, 2026",
     shortDate: "Nov 1",
-    isLatest: true,
+    isLatest: false,
     type: "feature",
     summary:
       "Tabs brings a more cohesive Code workspace together with richer agent controls, project scripts, local commit drafting, and data recovery. This release also refreshes theme and typography collections and reduces work during desktop startup.",

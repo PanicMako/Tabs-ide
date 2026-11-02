@@ -906,7 +906,14 @@ const createBuildConfig = Effect.fn("createBuildConfig")(function* (
     // `app.asar.unpacked/apps/desktop/prod-resources/…` where cpSync works.
     // Code-OSS loads extensions through original-fs, which cannot traverse app.asar.
     // Keep every bundled Tabs integration extension on the real filesystem.
-    asarUnpack: ["apps/desktop/prod-resources/code-oss-extensions/**"],
+    asarUnpack: [
+      "apps/desktop/prod-resources/code-oss-extensions/**",
+      // Windows icon/taskbar/shortcut APIs require real files, not virtual ASAR paths.
+      "apps/desktop/prod-resources/brand/**",
+      "apps/desktop/prod-resources/*.ico",
+      "apps/desktop/prod-resources/*.png",
+      "apps/desktop/prod-resources/*.icns",
+    ],
     // Thin builds ship without the VS Code runtime (it's downloaded on first
     // run from the emitted tabs-code-runtime-*.zip asset).
     extraFiles: thin

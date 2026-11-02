@@ -1,3 +1,4 @@
+import { diskIconPath, windowsIconDetails, updateWindowsIconShortcuts } from "./windowsAppIcon";
 import { installNativeQuickActionsForwarding } from "./nativeQuickActions";
 import { isTabsLogoVariant, resolveTabsLogoVariant } from "@tabs/shared/tabsBrand";
 import {
@@ -1811,7 +1812,10 @@ function resolveIconPath(
   const resolved = resolveTabsLogoVariant(theme, nativeTheme.shouldUseDarkColors);
   const folder = process.platform === "darwin" && ext === "png" ? "brand/macos" : "brand";
   return (
-    resolveResourcePath(`${folder}/icon-${resolved}.${ext}`) ?? resolveResourcePath(`icon.${ext}`)
+    [resolveResourcePath(`${folder}/icon-${resolved}.${ext}`), resolveResourcePath(`icon.${ext}`)]
+      .filter((path): path is string => Boolean(path))
+      .map((path) => diskIconPath(path))
+      .find((path) => path !== null) ?? null
   );
 }
 
@@ -1849,6 +1853,24 @@ function applyDesktopIconTheme(theme: DesktopIconTheme): void {
       continue;
     }
     window.setIcon(iconPath);
+    if (process.platform === "win32")
+      window.setAppDetails(windowsIconDetails(APP_USER_MODEL_ID, iconPath));
+  }
+  if (process.platform === "win32" && app.isPackaged) {
+    const appData = app.getPath("appData");
+    updateWindowsIconShortcuts({
+      roots: [
+        app.getPath("desktop"),
+        Path.join(appData, "Microsoft/Windows/Start Menu/Programs"),
+        Path.join(appData, "Microsoft/Internet Explorer/Quick Launch/User Pinned/TaskBar"),
+      ],
+      executable: process.execPath,
+      appId: APP_USER_MODEL_ID,
+      icon: iconPath,
+      read: (path) => shell.readShortcutLink(path),
+      write: (path, operation, details) => shell.writeShortcutLink(path, operation, details),
+      report: writeDesktopLogHeader,
+    });
   }
 }
 
@@ -4810,6 +4832,10 @@ function createPopoutWindow(
     },
   });
 
+  if (process.platform === "win32") {
+    const icon = resolveIconPath("ico");
+    if (icon) window.setAppDetails(windowsIconDetails(APP_USER_MODEL_ID, icon));
+  }
   popoutWindows.add(window);
   popoutWindowUrls.set(window, resolvedUrl);
   window.on("closed", () => {
@@ -4876,6 +4902,11 @@ function createTabsWindow(): BrowserWindow {
       sandbox: true,
     },
   });
+
+  if (process.platform === "win32") {
+    const icon = resolveIconPath("ico");
+    if (icon) window.setAppDetails(windowsIconDetails(APP_USER_MODEL_ID, icon));
+  }
 
   window.webContents.on("context-menu", (event, params) => {
     event.preventDefault();

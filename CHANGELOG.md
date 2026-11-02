@@ -2,6 +2,24 @@
 
 All notable changes to Tabs IDE will be documented in this file.
 
+## [v2.2.1] - 2026-11-02
+
+### Quick actions and temporary workspace tools
+
+Open frequent actions beside your pointer, keep scratch browsers and terminals organized, and manage worktrees and storage from Settings. This release also improves Windows installation and fixes logo selection on Windows.
+
+### What changed
+
+- Choose Halo Fade, Glass Dial, or Pie Sectors for Quick Actions, with configurable shortcuts beside each action and highlights that follow its color.
+- Open Quick Actions from the editor, browser, or terminal with Command-Option-K on macOS or Ctrl-Alt-K on Windows and Linux. The workspace remains visible beneath the blurred overlay.
+- Create temporary browser and terminal tabs, then rename, configure, keep, hide, or remove them from Workspace settings. Closing a tab asks for confirmation.
+- Paste text, links, and images into Clipboard, search recent items, and pin snippets to keep on your device.
+- Inspect Git worktrees and application storage, open isolated workspaces, and clean eligible logs with protection for checkouts that contain local work.
+- Open agent conversations in separate windows and return them to the workspace.
+- Use clearer settings navigation and a compact editor for configuring Quick Actions shortcuts.
+- Install and upgrade Windows with a smaller bundled editor payload and better handling of running app processes.
+- Apply the selected logo treatment to Windows window and taskbar icons and existing Tabs shortcuts.
+
 ## [v2.2.0] - 2026-11-01
 
 ### A refreshed workspace for code and agents
