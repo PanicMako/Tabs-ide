@@ -185,7 +185,7 @@ jobs:
               if [ "$run_sha" != "$GITHUB_SHA" ]; then
                 git fetch origin "$run_sha" --depth=1 || true
                 # Test scheduling helpers are not bundled application entry points.
-                modified_runtime_files=$(git diff --name-only "$run_sha" "$GITHUB_SHA" -- . ':(exclude)*.test.ts' ':(exclude)*.test.tsx' ':(exclude)*.spec.ts' ':(exclude)*.test.mjs' ':(exclude)tabs-app/apps/server/src/testUtils/**' ':(exclude)scripts/replace-desktop-release.mjs' ':(exclude)*.md' ':(exclude).github/*')
+                modified_runtime_files=$(git diff --name-only "$run_sha" "$GITHUB_SHA" -- . ':(exclude)*.test.ts' ':(exclude)*.test.tsx' ':(exclude)*.spec.ts' ':(exclude)*.test.mjs' ':(exclude)tabs-app/apps/server/src/testUtils/**' ':(exclude)scripts/replace-desktop-release.mjs' ':(exclude)*.md' ':(exclude).github/*' ':(exclude)tabs-app/scripts/smoke-windows-installer.ps1')
                 if [ -n "$modified_runtime_files" ]; then
                   echo "::error::Installer artifacts must come from a successful build of this exact commit. Modified runtime files:"
                   echo "$modified_runtime_files"
@@ -199,12 +199,22 @@ jobs:
               fi
             elif [ "$run_name" = "Release Desktop" ]; then
               tag_sha=$(git ls-remote origin "refs/tags/$RELEASE_TAG^{}" | awk '{print $1}')
-              if [ -z "$tag_sha" ] || [ "$run_sha" != "$tag_sha" ] || [ "$run_conclusion" != "failure" ]; then
-                echo "::error::Release artifacts must come from the existing tag's failed publication run."
+              if [ -n "$tag_sha" ] && [ "$run_sha" != "$tag_sha" ]; then
+                echo "::error::Release artifacts must come from the existing tag's commit."
                 exit 1
               fi
+              if [ "$run_sha" != "$GITHUB_SHA" ]; then
+                git fetch origin "$run_sha" --depth=1 || true
+                modified_runtime_files=$(git diff --name-only "$run_sha" "$GITHUB_SHA" -- . ':(exclude)*.test.ts' ':(exclude)*.test.tsx' ':(exclude)*.spec.ts' ':(exclude)*.test.mjs' ':(exclude)tabs-app/apps/server/src/testUtils/**' ':(exclude)scripts/replace-desktop-release.mjs' ':(exclude)*.md' ':(exclude).github/*' ':(exclude)tabs-app/scripts/smoke-windows-installer.ps1')
+                if [ -n "$modified_runtime_files" ]; then
+                  echo "::error::Release artifacts must come from a build of this exact commit. Modified runtime files:"
+                  echo "$modified_runtime_files"
+                  exit 1
+                fi
+                echo "Release artifacts were built from $run_sha; verified commit $GITHUB_SHA only touches tests, documentation, or workflows."
+              fi
               jobs=$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$artifact_run_id/jobs" --jq '.jobs[] | [.name, .conclusion] | @tsv')
-              for name in "Build macOS arm64" "Build macOS x64" "Build Linux x64" "Build Windows x64" "Smoke-test Windows upgrade"; do
+              for name in "Build macOS arm64" "Build macOS x64" "Build Linux x64" "Build Windows x64"; do
                 if ! grep -Fxq "$name"$'\t'success <<< "$jobs"; then
                   echo "::error::Source release run lacks a successful $name job."
                   exit 1
@@ -678,7 +688,7 @@ jobs:
   windows_smoke:
     name: Smoke-test Windows upgrade
     needs: [preflight, build]
-    if: needs.preflight.outputs.artifact_run_id == ''
+    if: needs.preflight.result == 'success' && (needs.build.result == 'success' || needs.preflight.outputs.artifact_run_id != '')
     runs-on: windows-2022
     timeout-minutes: 35
     steps:
@@ -687,11 +697,21 @@ jobs:
         with:
           ref: ${{ needs.preflight.outputs.ref }}
 
-      - name: Download Windows installer
+      - name: Download Windows installer from this release build
+        if: needs.preflight.outputs.artifact_run_id == ''
         uses: actions/download-artifact@v8
         with:
           name: desktop-win-x64
           path: tabs-app/release
+
+      - name: Download Windows installer from artifact build run
+        if: needs.preflight.outputs.artifact_run_id != ''
+        uses: actions/download-artifact@v8
+        with:
+          name: desktop-win-x64
+          path: tabs-app/release
+          run-id: ${{ needs.preflight.outputs.artifact_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Smoke-test Windows install and locked-process upgrade
         shell: pwsh
@@ -716,6 +736,7 @@ jobs:
           name: windows-installer-process-log
           path: |
             ${{ runner.temp }}/tabs-installer-processes.log
+            ${{ runner.temp }}/tabs-installer-phase-*.log
             ${{ runner.temp }}/tabs-installer-diagnostics/installer-*.txt
             ${{ runner.temp }}/tabs-installer-diagnostics/installer-*.dmp
             ${{ runner.temp }}/TabsLaunchSmoke/userdata/logs/desktop-main.log
@@ -726,7 +747,7 @@ jobs:
   release:
     name: Publish GitHub Release
     needs: [preflight, build, windows_smoke]
-    if: ${{ always() && needs.preflight.result == 'success' && ((needs.build.result == 'success' && needs.windows_smoke.result == 'success') || (needs.build.result == 'skipped' && needs.windows_smoke.result == 'skipped' && needs.preflight.outputs.artifact_run_id != '')) }}
+    if: ${{ always() && needs.preflight.result == 'success' && ((needs.build.result == 'success' && needs.windows_smoke.result == 'success') || (needs.build.result == 'skipped' && (needs.windows_smoke.result == 'success' || needs.windows_smoke.result == 'skipped') && needs.preflight.outputs.artifact_run_id != '')) }}
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout

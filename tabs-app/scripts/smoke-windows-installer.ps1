@@ -187,6 +187,10 @@ function Invoke-SilentInstaller {
 
     $process.Refresh()
     if ($process.ExitCode -ne 0) {
+      if ($env:TABS_INSTALLER_PHASE_LOG -and (Test-Path $env:TABS_INSTALLER_PHASE_LOG)) {
+        Write-Host "--- Installer phase log ($env:TABS_INSTALLER_PHASE_LOG) ---"
+        Get-Content $env:TABS_INSTALLER_PHASE_LOG | Write-Host
+      }
       throw "$Label failed with exit code $($process.ExitCode)."
     }
     Write-Host "  [$Label finished successfully in $([int]$sw.Elapsed.TotalSeconds)s]"
@@ -246,10 +250,10 @@ if ($env:TABS_SMOKE_PREVIOUS_VERSION -and -not $freshOnly) {
   if ($actualDigest -ne $expectedDigest) { throw "Previous installer checksum mismatch." }
   Write-Host "Previous installer digest verified."
 }
-$installDir = if ($env:TABS_SMOKE_CROSS_VOLUME -eq 'true') {
-  Join-Path $env:RUNNER_TEMP "TabsSmokeInstall"
-} else {
+$installDir = if ($freshOnly -and $env:TABS_SMOKE_CROSS_VOLUME -ne 'true') {
   Join-Path $env:LOCALAPPDATA "Programs\TabsSmokeInstall"
+} else {
+  Join-Path $env:RUNNER_TEMP "TabsSmokeInstall"
 }
 $unrelatedDir = Join-Path $env:RUNNER_TEMP "TabsUnrelatedProcess"
 New-Item $unrelatedDir -ItemType Directory -Force | Out-Null
