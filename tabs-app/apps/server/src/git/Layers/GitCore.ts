@@ -2519,11 +2519,11 @@ export const makeGitCore = (options?: { executeOverride?: GitCoreShape["execute"
 
     const removeWorktree: GitCoreShape["removeWorktree"] = (input) =>
       Effect.gen(function* () {
-        const args = ["worktree", "remove"];
+        const args = ["-c", "status.showUntrackedFiles=all", "worktree", "remove"];
         if (input.force) {
           args.push("--force");
         }
-        args.push(input.path);
+        args.push("--", input.path);
         yield* executeGit("GitCore.removeWorktree", input.cwd, args, {
           timeoutMs: 15_000,
           fallbackErrorMessage: "git worktree remove failed",

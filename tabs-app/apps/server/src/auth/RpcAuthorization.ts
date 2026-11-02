@@ -26,6 +26,10 @@ type WsRpcMethod = RpcGroup.Rpcs<typeof WsRpcGroup>["_tag"];
  * runtime failure.
  */
 export const RPC_REQUIRED_SCOPES = {
+  "storage.inspect": AuthOrchestrationReadScope,
+  "storage.clean": AuthOrchestrationOperateScope,
+  "worktrees.inspect": AuthOrchestrationReadScope,
+  "worktrees.remove": AuthOrchestrationOperateScope,
   "git.environment": AuthOrchestrationReadScope,
   "terminal.list": AuthOrchestrationReadScope,
   "git.fetch": AuthOrchestrationOperateScope,

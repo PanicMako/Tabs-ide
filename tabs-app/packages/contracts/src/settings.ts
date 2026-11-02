@@ -372,7 +372,24 @@ export const DEFAULT_DIFF_COLOR_SCHEME: DiffColorScheme = "red-green";
 export const ChatWidth = Schema.Literals(["comfortable", "wide", "full"]);
 export type ChatWidth = typeof ChatWidth.Type;
 
+export const QuickActionsDesign = Schema.Literals(["list", "compass", "shelf", "matrix", "stack"]);
+export const QuickActionsPreferences = Schema.Struct({
+  design: QuickActionsDesign,
+  actionOrder: Schema.Array(Schema.String),
+  hiddenActions: Schema.Array(Schema.String),
+  pointerGesture: Schema.Boolean,
+});
 export const ClientSettingsSchema = Schema.Struct({
+  quickActions: QuickActionsPreferences.pipe(
+    Schema.withDecodingDefault(
+      Effect.succeed({
+        design: "list" as const,
+        actionOrder: [],
+        hiddenActions: [],
+        pointerGesture: false,
+      }),
+    ),
+  ),
   notificationMode: NotificationMode.pipe(
     Schema.withDecodingDefault(Effect.succeed("off" as const)),
   ),
@@ -2209,6 +2226,7 @@ export const ServerSettingsPatch = Schema.Struct({
 export type ServerSettingsPatch = typeof ServerSettingsPatch.Type;
 
 export const ClientSettingsPatch = Schema.Struct({
+  quickActions: Schema.optionalKey(QuickActionsPreferences),
   notificationMode: Schema.optionalKey(NotificationMode),
   inAppNotificationsEnabled: Schema.optionalKey(Schema.Boolean),
   diffColorScheme: Schema.optionalKey(DiffColorScheme),

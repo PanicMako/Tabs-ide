@@ -1,4 +1,9 @@
 import type {
+  StorageInventory,
+  StorageCleanResult,
+  ManagedWorktree,
+} from "./workspaceMaintenance.ts";
+import type {
   ScheduledTaskListResult,
   ScheduledTaskUpsertInput,
   ScheduledTaskSetEnabledInput,
@@ -1383,6 +1388,8 @@ export interface DesktopBridge {
   ) => Promise<T | null>;
   openExternal: (url: string) => Promise<boolean>;
   isPopout?: boolean;
+  getCursorPosition?: () => Promise<{ x: number; y: number }>;
+  dockConversation?: (path: string) => Promise<void>;
   openPopoutWindow?: (options: {
     readonly url: string;
     readonly title?: string;
@@ -1910,6 +1917,12 @@ export type DesktopCloneRepositoryResult =
   | { ok: false; error: string };
 
 export interface NativeApi extends LocalApi, EnvironmentApi {
+  maintenance?: {
+    inspectStorage: () => Promise<StorageInventory>;
+    cleanStorage: (ids: readonly string[]) => Promise<StorageCleanResult>;
+    inspectWorktrees: (cwd: string) => Promise<readonly ManagedWorktree[]>;
+    removeWorktree: (cwd: string, path: string) => Promise<void>;
+  };
   testing: TestingApi;
   terminal: EnvironmentApi["terminal"] & {
     list: () => Promise<ReadonlyArray<TerminalSessionSnapshot>>;

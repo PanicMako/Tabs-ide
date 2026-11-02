@@ -1,3 +1,7 @@
+import * as SqlClient from "effect/unstable/sql/SqlClient";
+import { inspectStorage, cleanStorage, inspectWorktrees } from "./workspaceMaintenance.ts";
+import * as ProjectStore from "./orchestration-v2/ProjectStore.ts";
+import { withWorkspaceLease } from "./workspace/workspaceLease.ts";
 import * as GitWorkflowService from "./git/GitWorkflowService.ts";
 import { WorkspaceCompatibilityError, WorkspaceCompatibilityRpcGroup } from "@tabs/contracts";
 import * as Effect from "effect/Effect";
@@ -37,7 +41,80 @@ export const makeWorkspaceCompatibilityHandlers = Effect.gen(function* () {
   const terminalManager = yield* TerminalManager.TerminalManager;
   const sourceControlRepositories =
     yield* SourceControlRepositoryService.SourceControlRepositoryService;
+  const sql = yield* SqlClient.SqlClient;
+  const projects = yield* ProjectStore.ProjectStoreV2;
+  const roots = { logs: config.logsDir, "browser-artifacts": config.browserArtifactsDir };
+  const maintenanceError = (error: unknown) =>
+    new WorkspaceCompatibilityError({
+      operation: "workspace maintenance",
+      detail: error instanceof Error ? error.message : String(error),
+    });
+  const inspect = Effect.fn("Maintenance.inspectWorktrees")(function* (cwd: string) {
+    const threadRows = yield* sql<{ worktreePath: string | null }>`
+      SELECT json_extract(payload_json, '$.worktreePath') AS "worktreePath"
+      FROM orchestration_v2_projection_threads WHERE deleted_at IS NULL
+    `;
+    const projectList = yield* projects.listShells();
+    const terminals = yield* terminalManager.list();
+    const sessions = yield* sql<{ cwd: string }>`
+      SELECT json_extract(payload_json, '$.cwd') AS cwd
+      FROM orchestration_v2_projection_provider_sessions WHERE status != 'stopped'
+    `;
+    const threadPaths = threadRows.flatMap((t) =>
+      t.worktreePath ? [t.worktreePath] : [],
+    );
+    return yield* Effect.tryPromise({
+      try: () =>
+        inspectWorktrees(
+          cwd,
+          [
+            ...projectList.map((p) => p.workspaceRoot),
+            ...terminals.map((t) => t.cwd),
+            ...sessions.map((s) => s.cwd),
+            ...threadPaths,
+          ],
+          threadPaths,
+        ),
+      catch: maintenanceError,
+    });
+  });
   return WorkspaceCompatibilityRpcGroup.of({
+    "storage.inspect": () =>
+      Effect.tryPromise({
+        try: async () => (await inspectStorage(roots)).inventory,
+        catch: maintenanceError,
+      }),
+    "storage.clean": ({ ids }) =>
+      Effect.tryPromise({ try: () => cleanStorage(roots, ids), catch: maintenanceError }),
+    "worktrees.inspect": ({ cwd }) => inspect(cwd).pipe(Effect.mapError(maintenanceError)),
+    "worktrees.remove": (input) =>
+      withWorkspaceLease(
+        input.path,
+        Effect.gen(function* () {
+          const entries = yield* inspect(input.cwd);
+          const entry = entries.find((e) => e.path === input.path);
+          if (
+            !entry ||
+            entry.main ||
+            entry.locked ||
+            entry.prunable ||
+            entry.dirty ||
+            entry.ignored ||
+            entry.protected ||
+            entry.error
+          ) {
+            return yield* Effect.fail(
+              maintenanceError(
+                new Error(
+                  "Worktree is protected, dirty, referenced by a task, contains ignored files, or cannot be verified. Nothing was deleted.",
+                ),
+              ),
+            );
+          }
+          yield* legacyGit.removeWorktree({ ...input, force: false });
+          yield* refreshStatus(input);
+        }),
+      ).pipe(Effect.mapError(maintenanceError)),
     "terminal.list": () => terminalManager.list(),
     "git.fetch": (input) =>
       legacyGit.fetchLatest(input).pipe(
