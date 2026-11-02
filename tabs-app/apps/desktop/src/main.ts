@@ -279,6 +279,7 @@ const BROWSER_HOST_BACK_SESSION_CHANNEL = "desktop:browser-host:back-session";
 const BROWSER_HOST_FORWARD_SESSION_CHANNEL = "desktop:browser-host:forward-session";
 const BROWSER_HOST_TOGGLE_DEVTOOLS_CHANNEL = "desktop:browser-host:toggle-devtools";
 const BROWSER_HOST_AUTOMATION_CHANNEL = "desktop:browser-host:automation";
+const BROWSER_HOST_CAPTURE_SESSION_CHANNEL = "desktop:browser-host:capture-session";
 const BROWSER_HOST_CAPTURE_SCREENSHOT_CHANNEL = "desktop:browser-host:capture-screenshot";
 const BROWSER_HOST_MEDIA_SOURCE_CHANNEL = "desktop:browser-host:media-source";
 const BROWSER_HOST_SAVE_RECORDING_CHANNEL = "desktop:browser-host:save-recording";
@@ -4236,6 +4237,21 @@ function registerIpcHandlers(): void {
       input?: unknown;
     };
     return browserHostManager.runAutomation(request);
+  });
+
+  ipcMain.removeHandler(BROWSER_HOST_CAPTURE_SESSION_CHANNEL);
+  handleTabsIpc(BROWSER_HOST_CAPTURE_SESSION_CHANNEL, async (_event, input: unknown) => {
+    if (
+      typeof input !== "object" ||
+      input === null ||
+      typeof (input as { projectId?: unknown }).projectId !== "string"
+    ) {
+      throw new Error("Invalid browser backdrop request.");
+    }
+    return browserHostManager.captureSession({
+      projectId: (input as { projectId: string }).projectId,
+      sessionId: readBrowserSessionId(input),
+    });
   });
 
   ipcMain.removeHandler(BROWSER_HOST_CAPTURE_SCREENSHOT_CHANNEL);

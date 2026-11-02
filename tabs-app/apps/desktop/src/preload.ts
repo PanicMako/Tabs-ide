@@ -115,6 +115,7 @@ const BROWSER_HOST_BACK_SESSION_CHANNEL = "desktop:browser-host:back-session";
 const BROWSER_HOST_FORWARD_SESSION_CHANNEL = "desktop:browser-host:forward-session";
 const BROWSER_HOST_TOGGLE_DEVTOOLS_CHANNEL = "desktop:browser-host:toggle-devtools";
 const BROWSER_HOST_AUTOMATION_CHANNEL = "desktop:browser-host:automation";
+const BROWSER_HOST_CAPTURE_SESSION_CHANNEL = "desktop:browser-host:capture-session";
 const BROWSER_HOST_CAPTURE_SCREENSHOT_CHANNEL = "desktop:browser-host:capture-screenshot";
 const BROWSER_HOST_MEDIA_SOURCE_CHANNEL = "desktop:browser-host:media-source";
 const BROWSER_HOST_SAVE_RECORDING_CHANNEL = "desktop:browser-host:save-recording";
@@ -280,6 +281,7 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   ensureCodeSession: (input) => ipcRenderer.invoke(CODE_HOST_ENSURE_SESSION_CHANNEL, input),
   activateCodeSession: (input) => ipcRenderer.invoke(CODE_HOST_ACTIVATE_SESSION_CHANNEL, input),
   hideCodeSession: () => ipcRenderer.invoke(CODE_HOST_HIDE_SESSION_CHANNEL),
+  captureBrowserSession: (input) => ipcRenderer.invoke(BROWSER_HOST_CAPTURE_SESSION_CHANNEL, input),
   captureCodeSession: (input) => ipcRenderer.invoke(CODE_HOST_CAPTURE_SESSION_CHANNEL, input),
   openCodeFile: (input) => ipcRenderer.invoke(CODE_HOST_OPEN_FILE_CHANNEL, input),
   setCodeBounds: (input) => ipcRenderer.invoke(CODE_HOST_SET_BOUNDS_CHANNEL, input),

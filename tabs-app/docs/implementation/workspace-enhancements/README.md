@@ -266,3 +266,17 @@ use native keyboard input when repeating these checks.
 Validation: desktop build, repository check, all 16 typecheck tasks, and all 18 test tasks passed.
 The native forwarding tests cover attached-view ownership, root/unattached exclusions, exact
 modifiers, Option/dead keys, repeats/composition, dynamic rebinding, and listener disposal.
+
+### Quick Actions blurred backdrop
+
+Quick Actions now dims and blurs the workspace while keeping embedded Code-OSS and browser
+content visible behind it. Before suspending an attached native view, the shared overlay hook
+captures and decodes its current viewport into an inert, accessibility-hidden image in the host.
+That image remains until the live native view reattaches on dismissal. Captures stay in memory;
+no screenshot artifact is saved. A generation check discards captures after close or unmount.
+This is a still image while the overlay is open, since CSS cannot blur a separate native view.
+
+Visually verified over the Code-OSS editor and the embedded Google page on macOS. The browser
+regression verifies capture-before-hide ordering, keeping pixels through delayed reattachment,
+and discarding captures after rapid dismissal. Desktop tests cover missing/closed browser views
+and the in-memory viewport capture path.

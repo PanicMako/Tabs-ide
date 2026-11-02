@@ -1405,6 +1405,7 @@ export interface DesktopBridge {
   ensureCodeSession: (input: DesktopCodeHostEnsureSessionInput) => Promise<void>;
   activateCodeSession: (input: DesktopCodeHostActivateSessionInput) => Promise<void>;
   hideCodeSession: () => Promise<void>;
+  captureBrowserSession: (input: DesktopBrowserHostControlInput) => Promise<string | null>;
   captureCodeSession: (input: { projectId: string }) => Promise<string | null>;
   openCodeFile: (input: DesktopCodeHostOpenFileInput) => Promise<void>;
   setCodeBounds: (input: DesktopCodeHostSetBoundsInput) => Promise<void>;

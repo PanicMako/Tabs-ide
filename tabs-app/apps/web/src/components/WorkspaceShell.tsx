@@ -3836,11 +3836,14 @@ function DesktopCodeTool(props: { project: Project }) {
   useNativeSurfaceOverlaySuspension({
     enabled: Boolean(window.desktopBridge && codeHostState?.available),
     surfaceReady: hostReady,
+    backdropHost: hostRef,
+    captureBackdrop: () =>
+      window.desktopBridge!.captureCodeSession({ projectId: props.project.id }),
     onSuspend: () => {
       void window.desktopBridge?.hideCodeSession().catch(() => undefined);
     },
     onResume: () => {
-      void window.desktopBridge
+      return window.desktopBridge
         ?.activateCodeSession({
           projectId: props.project.id,
         })
@@ -8994,11 +8997,13 @@ function DesktopBrowserTool(props: {
   useNativeSurfaceOverlaySuspension({
     enabled: Boolean(bridge && hostState.available),
     surfaceReady: !sessionState.loading && !sessionState.lastError,
+    backdropHost: hostRef,
+    captureBackdrop: () => bridge!.captureBrowserSession({ projectId: props.project.id }),
     onSuspend: () => {
       void bridge?.hideBrowserSession().catch(() => undefined);
     },
     onResume: () => {
-      void bridge
+      return bridge
         ?.activateBrowserSession({
           projectId: props.project.id,
         })
@@ -9900,11 +9905,14 @@ export function DesktopCustomEmbedTool(props: {
   useNativeSurfaceOverlaySuspension({
     enabled: Boolean(bridge && hostState.available),
     surfaceReady: !sessionState.loading && !sessionState.lastError,
+    backdropHost: hostRef,
+    captureBackdrop: () =>
+      bridge!.captureBrowserSession({ projectId: props.project.id, sessionId: props.sessionId }),
     onSuspend: () => {
       void bridge?.hideBrowserSession().catch(() => undefined);
     },
     onResume: () => {
-      void bridge
+      return bridge
         ?.activateBrowserSession({
           projectId: props.project.id,
           sessionId: props.sessionId,

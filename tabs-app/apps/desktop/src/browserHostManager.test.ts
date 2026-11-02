@@ -679,6 +679,22 @@ describe("BrowserHostManager automation", () => {
 });
 
 describe("BrowserHostManager artifacts", () => {
+  it("captures viewport pixels in memory without producing a saved artifact", async () => {
+    const manager = new BrowserHostManager(() => null);
+    const capturePage = vi.fn().mockResolvedValue({
+      isEmpty: () => false,
+      toDataURL: () => "data:image/png;base64,dGVzdA==",
+    });
+    (manager as unknown as { sessions: Map<string, unknown> }).sessions.set("p::tab", {
+      view: { webContents: { isDestroyed: () => false, capturePage } },
+    });
+    await expect(manager.captureSession({ projectId: "p", sessionId: "tab" })).resolves.toBe(
+      "data:image/png;base64,dGVzdA==",
+    );
+    await expect(manager.captureSession({ projectId: "missing" })).resolves.toBeNull();
+    capturePage.mockRejectedValueOnce(new Error("page closed"));
+    await expect(manager.captureSession({ projectId: "p", sessionId: "tab" })).resolves.toBeNull();
+  });
   it("reveals only files inside the managed artifact directory", () => {
     const manager = new BrowserHostManager(() => null);
 

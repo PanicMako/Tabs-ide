@@ -44,8 +44,10 @@ export interface NativeSurfaceOverlaySuspensionOptions {
   enabled: boolean;
   surfaceReady: boolean;
   onSuspend: () => void;
-  onResume: () => void;
+  onResume: () => void | Promise<void>;
   debounceMs?: number;
+  captureBackdrop?: () => Promise<string | null>;
+  backdropHost?: { current: HTMLElement | null };
 }
 
 /**
@@ -58,7 +60,13 @@ export function useNativeSurfaceOverlaySuspension({
   onSuspend,
   onResume,
   debounceMs = 50,
+  captureBackdrop,
+  backdropHost,
 }: NativeSurfaceOverlaySuspensionOptions): void {
+  const captureRef = useRef(captureBackdrop);
+  captureRef.current = captureBackdrop;
+  const hostRef = useRef(backdropHost);
+  hostRef.current = backdropHost;
   const onSuspendRef = useRef(onSuspend);
   onSuspendRef.current = onSuspend;
   const onResumeRef = useRef(onResume);
@@ -70,6 +78,12 @@ export function useNativeSurfaceOverlaySuspension({
     if (!enabled) return;
 
     let suspended = false;
+    let generation = 0;
+    let backdrop: HTMLImageElement | null = null;
+    const clearBackdrop = () => {
+      backdrop?.remove();
+      backdrop = null;
+    };
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
     const syncOverlayVisibility = () => {
@@ -88,10 +102,36 @@ export function useNativeSurfaceOverlaySuspension({
       }
 
       suspended = shouldSuspend;
+      const current = ++generation;
       if (shouldSuspend) {
-        onSuspendRef.current();
+        // Capture and decode while the native surface is still visible. CSS
+        // cannot blur a sibling WebContentsView, so keep its pixels in the DOM.
+        void (async () => {
+          const source = await Promise.resolve()
+            .then(() => captureRef.current?.())
+            .catch(() => null);
+          if (current !== generation) return;
+          const host = hostRef.current?.current;
+          if (source && host) {
+            const image = new Image();
+            image.src = source;
+            image.alt = "";
+            image.setAttribute("aria-hidden", "true");
+            image.className = "pointer-events-none absolute inset-0 size-full select-none";
+            image.dataset.slot = "native-surface-backdrop";
+            await image.decode().catch(() => undefined);
+            if (current !== generation) return;
+            clearBackdrop();
+            host.append(image);
+            backdrop = image;
+          }
+          onSuspendRef.current();
+        })();
       } else {
-        onResumeRef.current();
+        // Keep the captured pixels until the native view has reattached.
+        void Promise.resolve(onResumeRef.current()).finally(() => {
+          if (current === generation) clearBackdrop();
+        });
       }
     };
 
@@ -119,6 +159,8 @@ export function useNativeSurfaceOverlaySuspension({
     });
 
     return () => {
+      ++generation;
+      clearBackdrop();
       observer.disconnect();
       if (debounceTimer !== null) {
         clearTimeout(debounceTimer);

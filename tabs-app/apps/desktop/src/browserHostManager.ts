@@ -1708,6 +1708,17 @@ export class BrowserHostManager {
     throw new Error(`Unsupported browser automation operation: ${request.operation}`);
   }
 
+  async captureSession(input: DesktopBrowserHostControlInput): Promise<string | null> {
+    const session = this.sessions.get(this.sessionKey(input.projectId, input.sessionId));
+    if (!session || session.view.webContents.isDestroyed()) return null;
+    try {
+      const image = await session.view.webContents.capturePage();
+      return image.isEmpty() ? null : image.toDataURL();
+    } catch {
+      return null;
+    }
+  }
+
   private async captureSessionImage(session: BrowserSession): Promise<Buffer> {
     let data: Buffer;
     if (session.cdpCoordinator && !session.view.webContents.isDevToolsOpened()) {
