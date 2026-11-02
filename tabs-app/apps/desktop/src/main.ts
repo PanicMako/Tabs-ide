@@ -1,3 +1,4 @@
+import { installNativeQuickActionsForwarding } from "./nativeQuickActions";
 import { isTabsLogoVariant, resolveTabsLogoVariant } from "@tabs/shared/tabsBrand";
 import {
   findDownloadedInstaller,
@@ -1525,7 +1526,9 @@ function setupKeybindingsWatcher() {
   }
 }
 
-function getActiveAccelerator(command: string): string | undefined {
+let nativeQuickActionsShortcut: KeybindingShortcut | undefined;
+
+function getActiveShortcut(command: string): KeybindingShortcut | undefined {
   const keybindingsPath =
     command === "quickActions.toggle"
       ? Path.join(STATE_DIR, "keybindings.json")
@@ -1552,9 +1555,12 @@ function getActiveAccelerator(command: string): string | undefined {
 
   if (!binding) return undefined;
 
-  const shortcut = parseKeybindingShortcut(binding.key);
-  if (!shortcut) return undefined;
+  return parseKeybindingShortcut(binding.key) ?? undefined;
+}
 
+function getActiveAccelerator(command: string): string | undefined {
+  const shortcut = getActiveShortcut(command);
+  if (!shortcut) return undefined;
   const parts: string[] = [];
   if (shortcut.modKey) parts.push("CmdOrCtrl");
   if (shortcut.metaKey) parts.push("Meta");
@@ -1577,6 +1583,7 @@ function getActiveAccelerator(command: string): string | undefined {
 }
 
 function configureApplicationMenu(): void {
+  nativeQuickActionsShortcut = getActiveShortcut("quickActions.toggle");
   const quickActionsAccelerator = getActiveAccelerator("quickActions.toggle");
   const template: MenuItemConstructorOptions[] = [];
 
@@ -5493,6 +5500,19 @@ if (clerkBridge.isPrimaryInstance) {
     .then(() => {
       writeDesktopLogHeader("app ready");
       configureAppIdentity();
+      const disposeNativeQuickActions = installNativeQuickActionsForwarding({
+        app,
+        getWindows: () =>
+          [mainWindow, ...popoutWindows].filter((window): window is BrowserWindow =>
+            Boolean(window && !window.isDestroyed()),
+          ),
+        getShortcut: () => nativeQuickActionsShortcut,
+        forward: (window) => {
+          window.webContents.focus();
+          window.webContents.send(MENU_ACTION_CHANNEL, "quick-actions");
+        },
+      });
+      app.once("will-quit", disposeNativeQuickActions);
       configureApplicationMenu();
       registerDesktopProtocol();
       if (dataRecoveryStartupError) {

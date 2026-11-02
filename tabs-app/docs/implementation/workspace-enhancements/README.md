@@ -249,3 +249,20 @@ node scripts/workspace-enhancements-smoke.mjs
 The script refuses a backend outside that test home. It uses local throwaway repositories and
 requires no model turn. Use Node for the Playwright CDP connection. Captures are written beside
 this guide; runtime files/logs stay in the ignored `.maintenance-validation/` directory.
+
+### Native Quick Actions shortcut regression
+
+The desktop shell forwards the configured Quick Actions chord from attached native Code-OSS and
+browser views to their owning Tabs window. It consumes that chord before the embedded tool or
+native menu can handle it twice. Other keys remain with the embedded view. Matching is shared
+with the web app, including physical key fallback for macOS Option dead keys and live rebinding.
+
+Verified with native macOS keyboard input using Command-Option-K in the Code-OSS editor,
+Code-OSS integrated zsh terminal, embedded browser (including its offline error page), and Dock
+terminal input. Escape returned focus to the integrated terminal. No terminal commands or model
+requests were sent. CDP keyboard injection bypasses Electron's native before-input-event hook;
+use native keyboard input when repeating these checks.
+
+Validation: desktop build, repository check, all 16 typecheck tasks, and all 18 test tasks passed.
+The native forwarding tests cover attached-view ownership, root/unattached exclusions, exact
+modifiers, Option/dead keys, repeats/composition, dynamic rebinding, and listener disposal.

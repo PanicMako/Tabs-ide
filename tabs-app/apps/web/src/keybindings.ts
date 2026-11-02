@@ -1,4 +1,16 @@
 import {
+  matchesShortcut as matchesSharedShortcut,
+  matchesShortcutModifiers as matchesSharedShortcutModifiers,
+  normalizeEventKey,
+  type ShortcutEventLike,
+  type ShortcutModifierStateLike,
+} from "@tabs/shared/keybindings";
+export {
+  shortcutKeyFromEvent,
+  type ShortcutEventLike,
+  type ShortcutModifierStateLike,
+} from "@tabs/shared/keybindings";
+import {
   type KeybindingCommand,
   type KeybindingShortcut,
   type KeybindingWhenNode,
@@ -9,23 +21,6 @@ import {
   MODEL_PICKER_JUMP_KEYBINDING_COMMANDS,
 } from "@tabs/contracts";
 import { isMacPlatform } from "./lib/utils";
-
-export interface ShortcutEventLike {
-  type?: string;
-  code?: string;
-  key: string;
-  metaKey: boolean;
-  ctrlKey: boolean;
-  shiftKey: boolean;
-  altKey: boolean;
-}
-
-export interface ShortcutModifierStateLike {
-  metaKey: boolean;
-  ctrlKey: boolean;
-  shiftKey: boolean;
-  altKey: boolean;
-}
 
 export interface ShortcutMatchContext {
   terminalFocus: boolean;
@@ -51,82 +46,19 @@ const TERMINAL_LINE_START = "\u0001";
 const TERMINAL_LINE_END = "\u0005";
 const TERMINAL_DELETE_TO_LINE_START = "\u0015";
 
-const EVENT_CODE_SHORTCUT_KEYS: Readonly<Record<string, string>> = {
-  Backquote: "`",
-  Backslash: "\\",
-  BracketLeft: "[",
-  BracketRight: "]",
-  Comma: ",",
-  Digit0: "0",
-  Digit1: "1",
-  Digit2: "2",
-  Digit3: "3",
-  Digit4: "4",
-  Digit5: "5",
-  Digit6: "6",
-  Digit7: "7",
-  Digit8: "8",
-  Digit9: "9",
-  Equal: "=",
-  Minus: "-",
-  Period: ".",
-  Quote: "'",
-  Semicolon: ";",
-  Slash: "/",
-};
-
-function normalizeEventKey(key: string): string {
-  const normalized = key.toLowerCase();
-  if (normalized === "esc") return "escape";
-  return normalized;
-}
-
-export function shortcutKeyFromEvent(event: Pick<ShortcutEventLike, "key" | "code">): string {
-  const layoutKey = normalizeEventKey(event.key);
-  if (/^[a-z]$/.test(layoutKey)) return layoutKey;
-  const physicalKey = event.code ? EVENT_CODE_SHORTCUT_KEYS[event.code] : undefined;
-  return physicalKey ?? layoutKey;
-}
-
-function resolveEventKeys(event: ShortcutEventLike): Set<string> {
-  const layoutKey = normalizeEventKey(event.key);
-  const keys = new Set([layoutKey]);
-  // The physical-position fallback exists for layouts that type non-Latin
-  // letters (Cyrillic, Greek) and for Option-modified symbols on macOS.
-  // When the layout already produces a Latin letter, match on it alone;
-  // otherwise a remapped physical key triggers shortcuts for two different
-  // letters at once and shadows system shortcuts on non-QWERTY layouts.
-  const letterCode = event.code?.match(/^Key([A-Z])$/)?.[1];
-  if (letterCode && !/^[a-z]$/.test(layoutKey)) {
-    keys.add(letterCode.toLowerCase());
-  }
-  keys.add(shortcutKeyFromEvent(event));
-  return keys;
-}
-
 function matchesShortcutModifiers(
   event: ShortcutModifierStateLike,
   shortcut: KeybindingShortcut,
   platform = navigator.platform,
 ): boolean {
-  const useMetaForMod = isMacPlatform(platform);
-  const expectedMeta = shortcut.metaKey || (shortcut.modKey && useMetaForMod);
-  const expectedCtrl = shortcut.ctrlKey || (shortcut.modKey && !useMetaForMod);
-  return (
-    event.metaKey === expectedMeta &&
-    event.ctrlKey === expectedCtrl &&
-    event.shiftKey === shortcut.shiftKey &&
-    event.altKey === shortcut.altKey
-  );
+  return matchesSharedShortcutModifiers(event, shortcut, platform);
 }
-
 function matchesShortcut(
   event: ShortcutEventLike,
   shortcut: KeybindingShortcut,
   platform = navigator.platform,
 ): boolean {
-  if (!matchesShortcutModifiers(event, shortcut, platform)) return false;
-  return resolveEventKeys(event).has(shortcut.key);
+  return matchesSharedShortcut(event, shortcut, platform);
 }
 
 function resolvePlatform(options: ShortcutMatchOptions | undefined): string {
