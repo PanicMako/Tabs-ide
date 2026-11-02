@@ -2,6 +2,8 @@ import type { SVGProps } from "react";
 import "./SettingsNavIcon.css";
 
 export type SettingsNavIconKind =
+  | "quick-actions"
+  | "maintenance"
   | "general"
   | "notifications"
   | "themes"
@@ -39,6 +41,18 @@ export function SettingsNavIcon({ kind, className = "", ...props }: Props) {
       className={`settings-nav-icon ${className}`}
       data-settings-icon={kind}
     >
+      {kind === "quick-actions" && (
+        <>
+          <circle cx="16" cy="16" r="11" />
+          <path d="m21 11-3 7-7 3 3-7Z" />
+        </>
+      )}
+      {kind === "maintenance" && (
+        <>
+          <path d="M5 8h22v16H5zM5 18h22" />
+          <circle cx="22" cy="21" r="1" />
+        </>
+      )}
       {kind === "agent-plugins" && (
         <>
           <path d="M5 9h8V6a3 3 0 0 1 6 0v3h8v8h-3a3 3 0 0 0 0 6h3v5H5V9Z" />

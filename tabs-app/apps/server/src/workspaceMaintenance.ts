@@ -24,11 +24,17 @@ const candidateId = (file: string, stat: { size: number; mtimeMs: number; ino: n
 /** Only rotated logs and old completed browser exports are disposable. No project traversal. */
 export async function inspectStorage(roots: StorageRoots, now = Date.now()) {
   const inventory: {
+    categories: Array<{
+      id: "logs" | "browser-artifacts";
+      bytes: number;
+      reclaimableBytes: number;
+    }>;
     totalBytes: number;
     reclaimableBytes: number;
     candidates: StorageInventory["candidates"][number][];
     warnings: string[];
   } = {
+    categories: [],
     totalBytes: 0,
     reclaimableBytes: 0,
     candidates: [],
@@ -37,6 +43,8 @@ export async function inspectStorage(roots: StorageRoots, now = Date.now()) {
   const files = new Map<string, string>();
   let visited = 0;
   for (const category of ["logs", "browser-artifacts"] as const) {
+    const summary = { id: category, bytes: 0, reclaimableBytes: 0 };
+    inventory.categories.push(summary);
     const root = path.resolve(roots[category]);
     try {
       if ((await fs.realpath(root)) !== root || !(await fs.lstat(root)).isDirectory()) {
@@ -56,6 +64,7 @@ export async function inspectStorage(roots: StorageRoots, now = Date.now()) {
           const stat = await fs.lstat(target);
           if (!stat.isFile() || stat.nlink !== 1) continue;
           inventory.totalBytes += stat.size;
+          summary.bytes += stat.size;
           const eligible = category === "logs" ? /\.(?:log|ndjson)\.\d+$/.test(entry.name) : false;
           // Browser exports may still be referenced by conversations. Inventory them, retain them.
           if (!eligible || stat.mtimeMs > now - 7 * DAY) continue;
@@ -68,6 +77,7 @@ export async function inspectStorage(roots: StorageRoots, now = Date.now()) {
             modifiedAt: stat.mtimeMs,
           });
           inventory.reclaimableBytes += stat.size;
+          summary.reclaimableBytes += stat.size;
           files.set(id, target);
         }
       };
@@ -87,10 +97,13 @@ export async function cleanStorage(
 ): Promise<StorageCleanResult> {
   if (ids.length > 20_000) throw new Error("Too many cleanup candidates.");
   const { inventory, files } = await inspectStorage(roots);
+  const candidatesById = new Map(
+    inventory.candidates.map((candidate) => [candidate.id, candidate]),
+  );
   const result = { deletedBytes: 0, deletedCount: 0, errors: [] as string[] };
   for (const id of new Set(ids)) {
     const target = files.get(id);
-    const candidate = inventory.candidates.find((entry) => entry.id === id);
+    const candidate = candidatesById.get(id);
     if (!target || !candidate) {
       result.errors.push("Candidate changed or is no longer eligible. Refresh storage.");
       continue;
@@ -140,11 +153,13 @@ export async function inspectWorktrees(
   cwd: string,
   protectedPaths: readonly string[],
   threadPaths: readonly string[],
+  settledThreadPaths: readonly string[] = [],
 ): Promise<readonly ManagedWorktree[]> {
   const entries = parseWorktrees(await git(cwd, ["worktree", "list", "--porcelain", "-z"]));
   const canonical = async (target: string) => fs.realpath(target).catch(() => path.resolve(target));
   const protectedRoots = await Promise.all(protectedPaths.map(canonical));
   const threads = await Promise.all(threadPaths.map(canonical));
+  const settled = await Promise.all(settledThreadPaths.map(canonical));
   const inside = (parent: string, child: string) =>
     child === parent || child.startsWith(parent + path.sep);
   return Promise.all(
@@ -172,7 +187,11 @@ export async function inspectWorktrees(
             "-z",
           ])) !== "";
       } catch (cause) {
-        error = String(cause);
+        if (entry.prunable && (cause as NodeJS.ErrnoException).code === "ENOENT") {
+          // Git registered this absent checkout. Only its metadata can be removed.
+          dirty = false;
+          ignored = false;
+        } else error = String(cause);
       }
       return {
         ...entry,
@@ -181,7 +200,21 @@ export async function inspectWorktrees(
         error,
         protected: protectedRoots.some((p) => inside(root, p)),
         threadCount: threads.filter((p) => inside(root, p)).length,
+        settledThreadCount: settled.filter((p) => inside(root, p)).length,
       };
     }),
   );
+}
+
+/** Older Git for Windows can follow directory junctions while removing worktrees. */
+export function supportsSafeWorktreeRemoval(version: string, platform: string): boolean {
+  if (platform !== "win32") return true;
+  const match = /^git version (\d+)\.(\d+)/.exec(version.trim());
+  return Boolean(match && (Number(match[1]) > 2 || (Number(match[1]) === 2 && Number(match[2]) >= 54)));
+}
+export async function verifyWorktreeRemovalSafety(cwd: string): Promise<void> {
+  if (process.platform !== "win32") return;
+  if (!supportsSafeWorktreeRemoval(await git(cwd, ["--version"]), process.platform)) {
+    throw new Error("Safe native worktree removal on Windows requires Git 2.54 or later. No files were deleted.");
+  }
 }

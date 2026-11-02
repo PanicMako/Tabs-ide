@@ -12,6 +12,7 @@ export const SETTINGS_NAV_GROUPS = [
       { id: "general", label: "General" },
       { id: "notifications", label: "Notifications" },
       { id: "themes", label: "Themes" },
+      { id: "quick-actions", label: "Quick Actions" },
       { id: "startup-animation", label: "Animations" },
     ],
   },
@@ -30,6 +31,7 @@ export const SETTINGS_NAV_GROUPS = [
     items: [
       { id: "workspace", label: "Workspace" },
       { id: "source-control", label: "Source Control" },
+      { id: "maintenance", label: "Worktrees & Storage" },
       { id: "connections", label: "Connections" },
       { id: "profiles", label: "Browser Profiles" },
       { id: "keybindings", label: "Keybindings" },

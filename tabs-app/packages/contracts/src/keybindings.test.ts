@@ -3,6 +3,7 @@ import * as Schema from "effect/Schema";
 import * as Effect from "effect/Effect";
 
 import {
+  KeybindingShortcut,
   KeybindingsConfig,
   KeybindingRule,
   ResolvedKeybindingRule,
@@ -204,4 +205,14 @@ it.effect("drops unknown fields in resolved keybinding rules", () =>
       assert.strictEqual(view.command, "terminal.toggle");
     }),
   ),
+);
+
+it.effect("preserves Space shortcuts through the wire schema", () =>
+  Effect.gen(function* () {
+    const value = { key: " ", metaKey: false, ctrlKey: false, shiftKey: true, altKey: false, modKey: true };
+    const encoded = yield* Schema.encodeEffect(KeybindingShortcut)(value);
+    assert.strictEqual(encoded.key, " ");
+    const decoded = yield* decode(KeybindingShortcut, encoded);
+    assert.strictEqual(decoded.key, " ");
+  }),
 );

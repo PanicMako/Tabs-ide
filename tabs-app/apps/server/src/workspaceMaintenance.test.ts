@@ -8,6 +8,7 @@ import {
   inspectStorage,
   inspectWorktrees,
   parseWorktrees,
+  supportsSafeWorktreeRemoval,
 } from "./workspaceMaintenance";
 
 const directories: string[] = [];
@@ -131,4 +132,25 @@ describe("Git worktree inspection", () => {
     });
     expect(inventory.find((t) => t.path === repo)?.main).toBe(true);
   });
+});
+
+it("requires junction-safe Git before native Windows removal", () => {
+  expect(supportsSafeWorktreeRemoval("git version 2.53.0.windows.1", "win32")).toBe(false);
+  expect(supportsSafeWorktreeRemoval("unknown", "win32")).toBe(false);
+  expect(supportsSafeWorktreeRemoval("git version 2.54.0.windows.1", "win32")).toBe(true);
+  expect(supportsSafeWorktreeRemoval("git version 2.39.0", "darwin")).toBe(true);
+});
+
+it("inspects absent registered checkouts for metadata-only removal while retaining their branch", async () => {
+  const root = await fixture(), repo = path.join(root, "repo"), tree = path.join(root, "missing-task");
+  await fs.mkdir(repo);
+  const git = (...args: string[]) => execFileSync("git", args, { cwd: repo, encoding: "utf8" });
+  git("init", "-b", "main"); git("-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "--allow-empty", "-m", "initial");
+  git("worktree", "add", "-b", "missing-task", tree);
+  await fs.rm(tree, { recursive: true, force: true });
+  const entries = await inspectWorktrees(repo, [], []);
+  expect(entries.find((entry) => entry.path === tree)).toMatchObject({ prunable: true, dirty: false, ignored: false, protected: false, error: null });
+  git("-c", "status.showUntrackedFiles=all", "worktree", "remove", "--", tree);
+  expect(git("branch", "--list", "missing-task")).toContain("missing-task");
+  expect((await inspectWorktrees(repo, [], [])).some((entry) => entry.path === tree)).toBe(false);
 });

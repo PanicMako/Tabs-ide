@@ -6,6 +6,9 @@ import { EnvironmentId, ThreadId } from "@tabs/contracts";
 import { createFileRoute, retainSearchParams, useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useCallback, useEffect, useState } from "react";
 
+import ChatView from "../components/ChatView";
+import { isConversationPopout } from "../lib/utils";
+import type { AgentsSplitWorkspaceProps } from "../components/agents/AgentsSplitWorkspace";
 import { AgentsSplitWorkspace } from "../components/agents/AgentsSplitWorkspace";
 import { RightPanelTabs } from "../components/RightPanelTabs";
 import { composerDraftsAtom, scopedComposerThreadId } from "../state/composerDrafts";
@@ -20,6 +23,27 @@ import { useMediaQuery } from "../hooks/useMediaQuery";
 import { Sheet, SheetPopup } from "../components/ui/sheet";
 import { Sidebar, SidebarProvider, SidebarRail } from "~/components/ui/sidebar";
 import { cn } from "~/lib/utils";
+
+function DetachedConversation({
+  environmentId,
+  routeThreadId,
+  diffOpen,
+  rightPanelOpen,
+  onOpenDiff,
+  onToggleRightPanel,
+}: AgentsSplitWorkspaceProps) {
+  return (
+    <ChatView
+      environmentId={environmentId}
+      threadId={routeThreadId}
+      diffOpen={diffOpen}
+      rightPanelOpen={rightPanelOpen}
+      onToggleDiff={onOpenDiff}
+      onToggleRightPanel={onToggleRightPanel}
+    />
+  );
+}
+const ConversationWorkspace = isConversationPopout ? DetachedConversation : AgentsSplitWorkspace;
 
 const DIFF_INLINE_LAYOUT_MEDIA_QUERY = "(max-width: 1180px)";
 const DIFF_INLINE_SIDEBAR_WIDTH_STORAGE_KEY = "chat_diff_sidebar_width";
@@ -333,7 +357,7 @@ function ChatThreadRouteView() {
     return (
       <div className="flex h-full min-h-0 min-w-0 flex-1 flex-row overflow-hidden">
         <div className={maximized && isRightPanelOpen ? "hidden" : "flex min-h-0 min-w-0 flex-1"}>
-          <AgentsSplitWorkspace
+          <ConversationWorkspace
             environmentId={environmentId}
             routeThreadId={threadId}
             diffOpen={diffOpen}
@@ -358,7 +382,7 @@ function ChatThreadRouteView() {
 
   return (
     <>
-      <AgentsSplitWorkspace
+      <ConversationWorkspace
         environmentId={environmentId}
         routeThreadId={threadId}
         diffOpen={diffOpen}

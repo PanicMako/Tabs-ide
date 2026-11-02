@@ -9,6 +9,13 @@ export const StorageCandidate = Schema.Struct({
   modifiedAt: Schema.Number,
 });
 export const StorageInventory = Schema.Struct({
+  categories: Schema.Array(
+    Schema.Struct({
+      id: StorageCategory,
+      bytes: Schema.Number,
+      reclaimableBytes: Schema.Number,
+    }),
+  ),
   totalBytes: Schema.Number,
   reclaimableBytes: Schema.Number,
   candidates: Schema.Array(StorageCandidate),
@@ -33,6 +40,7 @@ export const ManagedWorktree = Schema.Struct({
   ignored: Schema.Boolean,
   protected: Schema.Boolean,
   threadCount: Schema.Number,
+  settledThreadCount: Schema.Number,
   error: Schema.NullOr(Schema.String),
 });
 export const WorktreeInventory = Schema.Array(ManagedWorktree);

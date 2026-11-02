@@ -1,3 +1,5 @@
+import { useAtomValue } from "@effect/atom-react";
+import { threadsAtom } from "../../state/threads";
 import { useWorkspaceActionsState, type WorkspaceActionSection } from "./workspaceActionsState";
 import { GitCompanionIcon } from "../WorkspaceToolMarks";
 import { DockUfoIcon } from "../DockUfoIcon";
@@ -48,7 +50,7 @@ import { Toggle } from "../ui/toggle";
 import { SidebarTrigger } from "../ui/sidebar";
 import { OpenInPicker } from "./OpenInPicker";
 import { useVcs } from "~/state/vcs";
-import { cn } from "~/lib/utils";
+import { cn, isConversationPopout } from "~/lib/utils";
 import { useRightPanelStore } from "~/stores/rightPanelStore";
 import { ProjectFavicon, type ProjectFaviconProject } from "../ProjectFavicon";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "../ui/menu";
@@ -820,6 +822,11 @@ export const ChatHeader = memo(function ChatHeader({
   onToggleMaximize,
   onClosePane,
 }: ChatHeaderProps) {
+  const persistedConversation = useAtomValue(threadsAtom, (threads) =>
+    threads.some(
+      (thread) => thread.id === activeThreadId && thread.environmentId === environmentId,
+    ),
+  );
   const workspaceKey = JSON.stringify([
     environmentId ?? "primary",
     activeThreadId,
@@ -1184,6 +1191,34 @@ export const ChatHeader = memo(function ChatHeader({
           )}
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
+          {!isConversationPopout &&
+            persistedConversation &&
+            environmentId &&
+            window.desktopBridge?.openPopoutWindow && (
+              <button
+                type="button"
+                className="surface-control flex size-9 items-center justify-center rounded-xl text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring"
+                aria-label="Pop out conversation"
+                title="Pop out conversation"
+                onClick={() =>
+                  void window.desktopBridge!.openPopoutWindow!({
+                    url: `/${encodeURIComponent(environmentId)}/${encodeURIComponent(activeThreadId)}?conversationPopout=true`,
+                    title: activeThreadTitle,
+                    width: 840,
+                    height: 760,
+                  }).catch((error: unknown) =>
+                    toastManager.add({
+                      type: "error",
+                      title: "Could not open conversation window",
+                      description: String(error),
+                    }),
+                  )
+                }
+              >
+                <Maximize2Icon aria-hidden="true" className="size-4" />
+              </button>
+            )}
+
           {activeProjectName && (
             <Tooltip>
               <TooltipTrigger

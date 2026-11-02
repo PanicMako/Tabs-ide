@@ -1550,6 +1550,22 @@ it.layer(TestLayer)("git integration", (it) => {
         }),
     );
 
+    it.effect("protects untracked work even when status.showUntrackedFiles is disabled", () =>
+      Effect.gen(function* () {
+        const tmp = yield* makeTmpDir();
+        yield* initRepoWithCommit(tmp);
+        const target = path.join(tmp, "isolated-task");
+        yield* git(tmp, ["worktree", "add", "-b", "safe-removal", target]);
+        yield* git(tmp, ["config", "status.showUntrackedFiles", "no"]);
+        yield* writeTextFile(path.join(target, "keep.txt"), "user work");
+        const result = yield* Effect.result(
+          (yield* GitCore).removeWorktree({ cwd: tmp, path: target, force: false }),
+        );
+        expect(result._tag).toBe("Failure");
+        expect(existsSync(path.join(target, "keep.txt"))).toBe(true);
+      }),
+    );
+
     it.effect("includes command context when worktree removal fails", () =>
       Effect.gen(function* () {
         const tmp = yield* makeTmpDir();
@@ -1565,7 +1581,7 @@ it.layer(TestLayer)("git integration", (it) => {
           return;
         }
         const message = removeResult.failure.message;
-        expect(message).toContain("git worktree remove");
+        expect(message).toContain("git -c status.showUntrackedFiles=all worktree remove");
         expect(message).toContain(`cwd: ${tmp}`);
         expect(message).toContain(missingWorktreePath);
       }),

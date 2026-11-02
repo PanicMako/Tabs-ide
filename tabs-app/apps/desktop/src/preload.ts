@@ -253,6 +253,8 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   showContextMenu: (items, position) => ipcRenderer.invoke(CONTEXT_MENU_CHANNEL, items, position),
   openExternal: (url: string) => ipcRenderer.invoke(OPEN_EXTERNAL_CHANNEL, url),
   isPopout: isPopoutProcess,
+  getCursorPosition: () => ipcRenderer.invoke("desktop:cursor-position"),
+  dockConversation: (path: string) => ipcRenderer.invoke("desktop:dock-conversation", path),
   openPopoutWindow: (options: { url: string; title?: string; width?: number; height?: number }) =>
     ipcRenderer.invoke(OPEN_POPOUT_WINDOW_CHANNEL, options),
   onMenuAction: (listener) => {

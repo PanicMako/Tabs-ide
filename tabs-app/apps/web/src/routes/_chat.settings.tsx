@@ -116,6 +116,10 @@ const AgentPluginsSettings = lazy(() =>
     default: module.AgentPluginsSettings,
   })),
 );
+const QuickActionsSettings = lazy(() => import("~/components/settings/QuickActionsSettings"));
+const WorkspaceMaintenanceSettings = lazy(
+  () => import("~/components/settings/WorkspaceMaintenanceSettings"),
+);
 const GeneralSettings = lazy(() => import("~/components/settings/GeneralSettings"));
 const LabsSettings = lazy(() => import("~/components/settings/LabsSettings"));
 const ThemesSettings = lazy(() => import("~/components/settings/ThemesSettings"));
@@ -674,6 +678,10 @@ function SettingsRouteView() {
                 >
                   <SettingsSurface key={activeSettingsSection}>
                     {activeSettingsSection === "general" ? <GeneralSettings /> : null}
+                    {activeSettingsSection === "quick-actions" ? <QuickActionsSettings /> : null}
+                    {activeSettingsSection === "maintenance" ? (
+                      <WorkspaceMaintenanceSettings />
+                    ) : null}
                     {activeSettingsSection === "notifications" ? <NotificationsSettings /> : null}
                     {activeSettingsSection === "themes" ? <ThemesSettings /> : null}
                     {activeSettingsSection === "startup-animation" ? <AnimationsSettings /> : null}

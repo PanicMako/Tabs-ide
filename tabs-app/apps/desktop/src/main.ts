@@ -35,6 +35,7 @@ import { storage as clerkStorage } from "@clerk/electron/storage";
 import {
   app,
   BrowserWindow,
+  screen,
   clipboard,
   dialog,
   ipcMain,
@@ -1496,53 +1497,58 @@ async function checkForUpdatesFromMenu(): Promise<void> {
   }
 }
 
-let keybindingsWatcher: FS.FSWatcher | null = null;
+const keybindingsWatchers = new Map<string, FS.FSWatcher>();
 
 function setupKeybindingsWatcher() {
-  if (keybindingsWatcher) return;
-  const keybindingsPath = Path.join(
-    CODE_OSS_PRIMARY_STATE_DIR,
-    "profile",
-    "default",
-    "keybindings.json",
-  );
-  const profileDir = Path.dirname(keybindingsPath);
-  try {
-    FS.mkdirSync(profileDir, { recursive: true });
-    let timeout: ReturnType<typeof setTimeout> | null = null;
-    keybindingsWatcher = FS.watch(profileDir, (eventType, filename) => {
-      if (filename === "keybindings.json") {
+  const directories = [Path.join(CODE_OSS_PRIMARY_STATE_DIR, "profile", "default"), STATE_DIR];
+  for (const directory of directories) {
+    if (keybindingsWatchers.has(directory)) continue;
+    try {
+      FS.mkdirSync(directory, { recursive: true });
+      let timeout: ReturnType<typeof setTimeout> | null = null;
+      const watcher = FS.watch(directory, (_eventType, filename) => {
+        if (filename !== "keybindings.json") return;
         if (timeout) clearTimeout(timeout);
         timeout = setTimeout(() => {
+          timeout = null;
           configureApplicationMenu();
-          setupKeybindingsWatcher();
         }, 500);
-      }
-    });
-  } catch (e) {
-    // ignore
+      });
+      keybindingsWatchers.set(directory, watcher);
+      app.once("will-quit", () => {
+        if (timeout) clearTimeout(timeout);
+        watcher.close();
+      });
+    } catch (error) {
+      console.warn("Could not watch desktop keybindings", error);
+    }
   }
 }
 
 function getActiveAccelerator(command: string): string | undefined {
-  const keybindingsPath = Path.join(
-    CODE_OSS_PRIMARY_STATE_DIR,
-    "profile",
-    "default",
-    "keybindings.json",
-  );
+  const keybindingsPath =
+    command === "quickActions.toggle"
+      ? Path.join(STATE_DIR, "keybindings.json")
+      : Path.join(CODE_OSS_PRIMARY_STATE_DIR, "profile", "default", "keybindings.json");
   let userBindings: Array<{ key: string; command: string; when?: string }> = [];
   try {
     if (FS.existsSync(keybindingsPath)) {
-      userBindings = JSON.parse(FS.readFileSync(keybindingsPath, "utf-8"));
+      const parsed: unknown = JSON.parse(FS.readFileSync(keybindingsPath, "utf-8"));
+      if (Array.isArray(parsed))
+        userBindings = parsed.filter(
+          (binding) =>
+            binding && typeof binding.key === "string" && typeof binding.command === "string",
+        );
     }
   } catch (e) {
     // ignore
   }
 
-  const binding =
-    [...userBindings].reverse().find((b: any) => b.command === command) ||
-    DEFAULT_KEYBINDINGS.find((b: any) => b.command === command);
+  // Native menu accelerators have no renderer focus context. Conditional
+  // launcher bindings stay in the renderer instead of becoming global shortcuts.
+  const custom = [...userBindings].reverse().find((b) => b.command === command);
+  if (command === "quickActions.toggle" && custom?.when) return undefined;
+  const binding = custom || DEFAULT_KEYBINDINGS.find((b: any) => b.command === command);
 
   if (!binding) return undefined;
 
@@ -1571,6 +1577,7 @@ function getActiveAccelerator(command: string): string | undefined {
 }
 
 function configureApplicationMenu(): void {
+  const quickActionsAccelerator = getActiveAccelerator("quickActions.toggle");
   const template: MenuItemConstructorOptions[] = [];
 
   if (process.platform === "darwin") {
@@ -1674,6 +1681,12 @@ function configureApplicationMenu(): void {
     {
       label: "Tools",
       submenu: [
+        {
+          label: "Quick Actions",
+          ...(quickActionsAccelerator ? { accelerator: quickActionsAccelerator } : {}),
+          click: () => dispatchMenuAction("quick-actions"),
+        },
+        { type: "separator" },
         ...(
           [
             ["Code", "code"],
@@ -1727,6 +1740,7 @@ function configureApplicationMenu(): void {
   );
 
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+  setupKeybindingsWatcher();
 }
 
 function resolveResourcePath(fileName: string): string | null {
@@ -3609,6 +3623,34 @@ function registerIpcHandlers(): void {
     });
   });
 
+  handleTabsIpc("desktop:cursor-position", (event) => {
+    const owner = BrowserWindow.fromWebContents(event.sender);
+    if (!owner) throw new Error("Window unavailable.");
+    const pointer = screen.getCursorScreenPoint();
+    const bounds = owner.getContentBounds();
+    const zoom = event.sender.getZoomFactor();
+    return { x: (pointer.x - bounds.x) / zoom, y: (pointer.y - bounds.y) / zoom };
+  });
+
+  handleTabsIpc("desktop:dock-conversation", (event, input: unknown) => {
+    const owner = BrowserWindow.fromWebContents(event.sender);
+    if (
+      !owner ||
+      !popoutWindows.has(owner) ||
+      typeof input !== "string" ||
+      !/^\/[^/?#]+\/[^/?#]+$/.test(input)
+    ) {
+      throw new Error("Invalid conversation window.");
+    }
+    if (!mainWindow || mainWindow.isDestroyed())
+      throw new Error("Workspace window is unavailable.");
+    mainWindow.webContents.send(MENU_ACTION_CHANNEL, `conversation-dock:${input}`);
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+    owner.close();
+  });
+
   ipcMain.removeHandler(UPDATE_GET_STATE_CHANNEL);
   handleTabsIpc(UPDATE_GET_STATE_CHANNEL, async () => updateState);
 
@@ -4641,6 +4683,7 @@ function getIconOption(): { icon: string } | Record<string, never> {
 }
 
 const popoutWindows = new Set<BrowserWindow>();
+const popoutWindowUrls = new WeakMap<BrowserWindow, string>();
 
 function isTrustedTabsSender(event: {
   sender: Electron.WebContents;
@@ -4700,8 +4743,11 @@ function createPopoutWindow(
     height?: number | undefined;
   },
 ): BrowserWindow {
+  const resolvedUrl = resolveInternalTabsUrl(targetUrl);
+  if (!isInternalTabsUrl(resolvedUrl))
+    throw new Error("Pop-out windows must use an internal Tabs route.");
   for (const existing of popoutWindows) {
-    if (!existing.isDestroyed()) {
+    if (!existing.isDestroyed() && popoutWindowUrls.get(existing) === resolvedUrl) {
       if (existing.isMinimized()) {
         existing.restore();
       }
@@ -4711,7 +4757,6 @@ function createPopoutWindow(
     }
   }
 
-  const resolvedUrl = resolveInternalTabsUrl(targetUrl);
   const width = options?.width ?? 780;
   const height = options?.height ?? 560;
 
@@ -4743,6 +4788,7 @@ function createPopoutWindow(
   });
 
   popoutWindows.add(window);
+  popoutWindowUrls.set(window, resolvedUrl);
   window.on("closed", () => {
     popoutWindows.delete(window);
   });
@@ -4770,7 +4816,14 @@ function createPopoutWindow(
   });
 
   window.once("ready-to-show", () => {
-    window.center();
+    const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea;
+    const bounds = window.getBounds();
+    window.setBounds({
+      x: Math.round(display.x + Math.max(0, (display.width - bounds.width) / 2)),
+      y: Math.round(display.y + Math.max(0, (display.height - bounds.height) / 2)),
+      width: Math.min(bounds.width, display.width),
+      height: Math.min(bounds.height, display.height),
+    });
     window.show();
     window.focus();
   });

@@ -33,3 +33,7 @@ scratch/
 /apps/web/public/fonts/setup/Dirtyline-*.otf
 /apps/web/public/fonts/setup/Nohemi-*.otf
 
+
+# Isolated desktop smoke profiles, validation logs, and design exploration artifacts.
+.maintenance-validation/
+.taste-skill/

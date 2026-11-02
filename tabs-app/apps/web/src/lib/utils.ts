@@ -76,3 +76,9 @@ export function isPopoutMode(): boolean {
   if (window.desktopBridge?.isPopout) return true;
   return getHashAwareSearchParams().get("popout") === "true";
 }
+
+/** Capture the window role before router search normalization. */
+export const isConversationPopout =
+  typeof window !== "undefined" &&
+  typeof window.location !== "undefined" &&
+  getHashAwareSearchParams().get("conversationPopout") === "true";

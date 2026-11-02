@@ -1,3 +1,5 @@
+import { QuickActionsHost } from "./quick-actions/QuickActions";
+import { searchTarget, type QuickActionId } from "./quick-actions/actions";
 import { useOlderSettledThreads } from "../hooks/useOlderSettledThreads";
 import { DockWorkspace, type DockPreset } from "./dock/DockWorkspace";
 import { useComposerDraftStore } from "../composerDraftStore";
@@ -11665,6 +11667,10 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
       const currentIndex = getCurrentIndex();
       const base = currentIndex < 0 ? 0 : currentIndex;
 
+      if (action.startsWith("conversation-dock:")) {
+        void navigate({ to: action.slice("conversation-dock:".length) });
+        return;
+      }
       switch (action) {
         case "tab-new":
           void (() => {
@@ -13179,162 +13185,246 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
     content
   );
 
+  const quickActionDisabled = (id: QuickActionId): string | undefined => {
+    if (
+      ["new-agent", "isolated-agent", "scratch-browser", "search", "code", "git"].includes(id) &&
+      !activeProject
+    )
+      return "Open a project first";
+    if (
+      id === "popout" &&
+      (!routeThreadId ||
+        !routeEnvironmentId ||
+        !threads.some(
+          (thread) => thread.id === routeThreadId && thread.environmentId === routeEnvironmentId,
+        ) ||
+        !window.desktopBridge?.openPopoutWindow)
+    )
+      return "Open an existing conversation in the desktop app";
+    return undefined;
+  };
+  const runQuickAction = async (id: QuickActionId, query: string) => {
+    const reason = quickActionDisabled(id);
+    if (reason) throw new Error(reason);
+    if (id === "new-tab") {
+      openPendingTab(randomUUID());
+      await navigate({ to: "/" });
+    } else if (id === "usage" || id === "customize" || id === "worktrees") {
+      await navigate({
+        to: "/settings",
+        search: {
+          section: id === "usage" ? "usage" : id === "customize" ? "quick-actions" : "maintenance",
+        },
+      });
+    } else if (id === "popout") {
+      await window.desktopBridge!.openPopoutWindow!({
+        url: `/${encodeURIComponent(routeEnvironmentId!)}/${encodeURIComponent(routeThreadId!)}?conversationPopout=true`,
+        title: "Tabs · Agent conversation",
+        width: 840,
+        height: 760,
+      });
+    } else if (activeProject && (id === "new-agent" || id === "isolated-agent")) {
+      setActiveTool(activeProject.id, "agents");
+      await handleNewThread(activeProject.id, {
+        environmentId: activeProject.environmentId,
+        envMode: id === "isolated-agent" ? "worktree" : "local",
+      });
+    } else if (activeProject && (id === "scratch-browser" || id === "search")) {
+      const embedId = `scratch-${randomUUID()}`;
+      const url =
+        id === "search" ? searchTarget(query || "developer documentation") : "about:blank";
+      upsertProjectSettings(activeProject.id, (current) => ({
+        ...current,
+        customEmbeds: [
+          ...current.customEmbeds,
+          {
+            id: embedId,
+            label: id === "search" ? "Web search" : "Scratch browser",
+            url,
+            resumeLastVisitedPage: true,
+            partitionMode: "isolated",
+          },
+        ],
+        tools: [
+          ...current.tools,
+          {
+            id: embedId,
+            kind: "custom_embed",
+            label: id === "search" ? "Web search" : "Scratch browser",
+            visible: true,
+            customEmbedId: embedId,
+          },
+        ],
+      }));
+      setActiveTool(activeProject.id, embedId);
+      await navigate({ to: "/" });
+    } else if (activeProject && (id === "code" || id === "git")) {
+      const tool = activeToolSettings?.find((t) => t.kind === id);
+      if (!tool)
+        throw new Error(`${id === "code" ? "Code" : "Git"} is not configured for this workspace.`);
+      setActiveTool(activeProject.id, tool.id);
+      await navigate({ to: "/" });
+    }
+  };
+
   return (
-    <div className="flex h-dvh min-h-0 min-w-0 flex-1 flex-col bg-background text-foreground">
-      <CloneRepositoryDialog
-        open={cloneDialogOpen}
-        onOpenChange={setCloneDialogOpen}
-        onCloned={handleClonedRepository}
-      />
-      {!threadsHydrated || shouldHideShellChrome ? null : isInterfaceStudy ? (
-        !isSettingsSurfaceActive ? (
-          <InterfaceStudyTopBar
-            projects={projects}
-            openProjects={openProjects}
-            activeProject={activeProject}
-            pendingTabIds={pendingTabIds}
-            activePendingTabId={activePendingTabId}
-            activeToolId={activeTool?.id ?? ""}
-            availableTools={availableTools}
-            threads={threads}
-            onActivateProject={(projectId) => void focusProject(projectId)}
-            onCloseProject={(projectId) => {
-              const wasActive = workspaceState.session.activeProjectId === projectId;
-              void requestCloseProject(projectId).then((closed) => {
-                if (!closed || !wasActive) return;
-                const remainingProjectIds = workspaceState.session.openProjectIds.filter(
-                  (id) => id !== projectId,
-                );
-                const fallbackProjectId =
-                  remainingProjectIds[remainingProjectIds.length - 1] ?? null;
-                if (fallbackProjectId) {
-                  void focusProject(fallbackProjectId);
-                } else {
-                  void navigate({ to: "/" });
-                }
-              });
-            }}
-            onNewTab={() => {
-              const pendingId = randomUUID();
-              openPendingTab(pendingId);
-              void navigate({ to: "/" });
-            }}
-            onActivatePendingTab={(pendingId) => {
-              openPendingTab(pendingId);
-              void navigate({ to: "/" });
-            }}
-            onClosePendingTab={(pendingId) => {
-              closePendingTab(pendingId);
-            }}
-            onSelectTool={(toolId) => void handleSelectTool(toolId)}
-            onOpenSettings={openSettings}
-          />
-        ) : null
-      ) : (
-        <>
-          <ProjectTabs
-            projects={projects}
-            openProjects={openProjects}
-            activeProjectId={activeProject?.id ?? null}
-            pendingTabIds={pendingTabIds}
-            activePendingTabId={activePendingTabId}
-            threads={threads}
-            onActivateProject={(projectId) => void focusProject(projectId)}
-            onCloseProject={(projectId) => {
-              const wasActive = workspaceState.session.activeProjectId === projectId;
-              void requestCloseProject(projectId).then((closed) => {
-                if (!closed || !wasActive) return;
-                const remainingProjectIds = workspaceState.session.openProjectIds.filter(
-                  (id) => id !== projectId,
-                );
-                const fallbackProjectId =
-                  remainingProjectIds[remainingProjectIds.length - 1] ?? null;
-                if (fallbackProjectId) {
-                  void focusProject(fallbackProjectId);
-                } else {
-                  void navigate({ to: "/" });
-                }
-              });
-            }}
-            onNewTab={() => {
-              const pendingId = randomUUID();
-              openPendingTab(pendingId);
-              void navigate({ to: "/" });
-            }}
-            onActivatePendingTab={(pendingId) => {
-              openPendingTab(pendingId);
-              void navigate({ to: "/" });
-            }}
-            onClosePendingTab={(pendingId) => {
-              closePendingTab(pendingId);
-            }}
-            showSettings={
-              !isSettingsSurfaceActive && Boolean(activeProject) && availableTools.length <= 1
-            }
-            onOpenSettings={openSettings}
-            hasToolbar={
-              !isSettingsSurfaceActive && Boolean(activeProject) && availableTools.length >= 2
-            }
-          />
-          {!shouldHideShellChrome &&
-          !isSettingsSurfaceActive &&
-          activeProject &&
-          availableTools.length >= 2 ? (
-            <ProjectToolBar
+    <QuickActionsHost execute={runQuickAction} disabled={quickActionDisabled}>
+      <div className="flex h-dvh min-h-0 min-w-0 flex-1 flex-col bg-background text-foreground">
+        <CloneRepositoryDialog
+          open={cloneDialogOpen}
+          onOpenChange={setCloneDialogOpen}
+          onCloned={handleClonedRepository}
+        />
+        {!threadsHydrated || shouldHideShellChrome ? null : isInterfaceStudy ? (
+          !isSettingsSurfaceActive ? (
+            <InterfaceStudyTopBar
+              projects={projects}
+              openProjects={openProjects}
+              activeProject={activeProject}
+              pendingTabIds={pendingTabIds}
+              activePendingTabId={activePendingTabId}
               activeToolId={activeTool?.id ?? ""}
               availableTools={availableTools}
               threads={threads}
-              activeProjectId={activeProject?.id ?? null}
+              onActivateProject={(projectId) => void focusProject(projectId)}
+              onCloseProject={(projectId) => {
+                const wasActive = workspaceState.session.activeProjectId === projectId;
+                void requestCloseProject(projectId).then((closed) => {
+                  if (!closed || !wasActive) return;
+                  const remainingProjectIds = workspaceState.session.openProjectIds.filter(
+                    (id) => id !== projectId,
+                  );
+                  const fallbackProjectId =
+                    remainingProjectIds[remainingProjectIds.length - 1] ?? null;
+                  if (fallbackProjectId) {
+                    void focusProject(fallbackProjectId);
+                  } else {
+                    void navigate({ to: "/" });
+                  }
+                });
+              }}
+              onNewTab={() => {
+                const pendingId = randomUUID();
+                openPendingTab(pendingId);
+                void navigate({ to: "/" });
+              }}
+              onActivatePendingTab={(pendingId) => {
+                openPendingTab(pendingId);
+                void navigate({ to: "/" });
+              }}
+              onClosePendingTab={(pendingId) => {
+                closePendingTab(pendingId);
+              }}
               onSelectTool={(toolId) => void handleSelectTool(toolId)}
               onOpenSettings={openSettings}
             />
-          ) : null}
-        </>
-      )}
-
-      <div
-        className={cn(
-          "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
-          isInterfaceStudy &&
+          ) : null
+        ) : (
+          <>
+            <ProjectTabs
+              projects={projects}
+              openProjects={openProjects}
+              activeProjectId={activeProject?.id ?? null}
+              pendingTabIds={pendingTabIds}
+              activePendingTabId={activePendingTabId}
+              threads={threads}
+              onActivateProject={(projectId) => void focusProject(projectId)}
+              onCloseProject={(projectId) => {
+                const wasActive = workspaceState.session.activeProjectId === projectId;
+                void requestCloseProject(projectId).then((closed) => {
+                  if (!closed || !wasActive) return;
+                  const remainingProjectIds = workspaceState.session.openProjectIds.filter(
+                    (id) => id !== projectId,
+                  );
+                  const fallbackProjectId =
+                    remainingProjectIds[remainingProjectIds.length - 1] ?? null;
+                  if (fallbackProjectId) {
+                    void focusProject(fallbackProjectId);
+                  } else {
+                    void navigate({ to: "/" });
+                  }
+                });
+              }}
+              onNewTab={() => {
+                const pendingId = randomUUID();
+                openPendingTab(pendingId);
+                void navigate({ to: "/" });
+              }}
+              onActivatePendingTab={(pendingId) => {
+                openPendingTab(pendingId);
+                void navigate({ to: "/" });
+              }}
+              onClosePendingTab={(pendingId) => {
+                closePendingTab(pendingId);
+              }}
+              showSettings={
+                !isSettingsSurfaceActive && Boolean(activeProject) && availableTools.length <= 1
+              }
+              onOpenSettings={openSettings}
+              hasToolbar={
+                !isSettingsSurfaceActive && Boolean(activeProject) && availableTools.length >= 2
+              }
+            />
+            {!shouldHideShellChrome &&
             !isSettingsSurfaceActive &&
-            "study-workspace-card rounded-xl bg-card relative z-1",
+            activeProject &&
+            availableTools.length >= 2 ? (
+              <ProjectToolBar
+                activeToolId={activeTool?.id ?? ""}
+                availableTools={availableTools}
+                threads={threads}
+                activeProjectId={activeProject?.id ?? null}
+                onSelectTool={(toolId) => void handleSelectTool(toolId)}
+                onOpenSettings={openSettings}
+              />
+            ) : null}
+          </>
         )}
-      >
-        <ToolErrorBoundary
-          resetKey={`${activeProject?.environmentId ?? "none"}:${activeProject?.id ?? "none"}:${activeTool?.id ?? "none"}`}
-        >
-          {renderedContent}
-        </ToolErrorBoundary>
-      </div>
 
-      {!shouldHideShellChrome &&
-      activeTool?.kind === "git" &&
-      activeProject &&
-      gitTerminalThreadId &&
-      gitTerminalState?.terminalOpen ? (
-        <ThreadTerminalDrawer
-          key={gitTerminalThreadId}
-          threadId={gitTerminalThreadId}
-          cwd={activeProject.cwd}
-          runtimeEnv={projectScriptRuntimeEnv({
-            project: { cwd: activeProject.cwd },
-            worktreePath: null,
-          })}
-          height={gitTerminalState.terminalHeight}
-          terminalIds={gitTerminalState.terminalIds}
-          activeTerminalId={gitTerminalState.activeTerminalId}
-          terminalGroups={gitTerminalState.terminalGroups}
-          activeTerminalGroupId={gitTerminalState.activeTerminalGroupId}
-          focusRequestId={shellTerminalFocusRequestId}
-          terminalLabels={gitTerminalState.terminalLabels}
-          onSplitTerminal={splitGitTerminal}
-          onNewTerminal={createNewGitTerminal}
-          onActiveTerminalChange={activateGitTerminal}
-          onCloseTerminal={closeGitTerminal}
-          onHeightChange={setGitTerminalHeight}
-          onAddTerminalContext={() => {}}
-        />
-      ) : null}
-    </div>
+        <div
+          className={cn(
+            "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
+            isInterfaceStudy &&
+              !isSettingsSurfaceActive &&
+              "study-workspace-card rounded-xl bg-card relative z-1",
+          )}
+        >
+          <ToolErrorBoundary
+            resetKey={`${activeProject?.environmentId ?? "none"}:${activeProject?.id ?? "none"}:${activeTool?.id ?? "none"}`}
+          >
+            {renderedContent}
+          </ToolErrorBoundary>
+        </div>
+
+        {!shouldHideShellChrome &&
+        activeTool?.kind === "git" &&
+        activeProject &&
+        gitTerminalThreadId &&
+        gitTerminalState?.terminalOpen ? (
+          <ThreadTerminalDrawer
+            key={gitTerminalThreadId}
+            threadId={gitTerminalThreadId}
+            cwd={activeProject.cwd}
+            runtimeEnv={projectScriptRuntimeEnv({
+              project: { cwd: activeProject.cwd },
+              worktreePath: null,
+            })}
+            height={gitTerminalState.terminalHeight}
+            terminalIds={gitTerminalState.terminalIds}
+            activeTerminalId={gitTerminalState.activeTerminalId}
+            terminalGroups={gitTerminalState.terminalGroups}
+            activeTerminalGroupId={gitTerminalState.activeTerminalGroupId}
+            focusRequestId={shellTerminalFocusRequestId}
+            terminalLabels={gitTerminalState.terminalLabels}
+            onSplitTerminal={splitGitTerminal}
+            onNewTerminal={createNewGitTerminal}
+            onActiveTerminalChange={activateGitTerminal}
+            onCloseTerminal={closeGitTerminal}
+            onHeightChange={setGitTerminalHeight}
+            onAddTerminalContext={() => {}}
+          />
+        ) : null}
+      </div>
+    </QuickActionsHost>
   );
 }

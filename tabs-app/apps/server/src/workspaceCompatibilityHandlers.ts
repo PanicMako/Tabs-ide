@@ -1,5 +1,5 @@
 import * as SqlClient from "effect/unstable/sql/SqlClient";
-import { inspectStorage, cleanStorage, inspectWorktrees } from "./workspaceMaintenance.ts";
+import { inspectStorage, cleanStorage, inspectWorktrees, verifyWorktreeRemovalSafety } from "./workspaceMaintenance.ts";
 import * as ProjectStore from "./orchestration-v2/ProjectStore.ts";
 import { withWorkspaceLease } from "./workspace/workspaceLease.ts";
 import * as GitWorkflowService from "./git/GitWorkflowService.ts";
@@ -50,8 +50,9 @@ export const makeWorkspaceCompatibilityHandlers = Effect.gen(function* () {
       detail: error instanceof Error ? error.message : String(error),
     });
   const inspect = Effect.fn("Maintenance.inspectWorktrees")(function* (cwd: string) {
-    const threadRows = yield* sql<{ worktreePath: string | null }>`
-      SELECT json_extract(payload_json, '$.worktreePath') AS "worktreePath"
+    const threadRows = yield* sql<{ worktreePath: string | null; settledAt: string | null }>`
+      SELECT json_extract(payload_json, '$.worktreePath') AS "worktreePath",
+             json_extract(payload_json, '$.settledAt') AS "settledAt"
       FROM orchestration_v2_projection_threads WHERE deleted_at IS NULL
     `;
     const projectList = yield* projects.listShells();
@@ -60,9 +61,7 @@ export const makeWorkspaceCompatibilityHandlers = Effect.gen(function* () {
       SELECT json_extract(payload_json, '$.cwd') AS cwd
       FROM orchestration_v2_projection_provider_sessions WHERE status != 'stopped'
     `;
-    const threadPaths = threadRows.flatMap((t) =>
-      t.worktreePath ? [t.worktreePath] : [],
-    );
+    const threadPaths = threadRows.flatMap((t) => (t.worktreePath ? [t.worktreePath] : []));
     return yield* Effect.tryPromise({
       try: () =>
         inspectWorktrees(
@@ -74,6 +73,9 @@ export const makeWorkspaceCompatibilityHandlers = Effect.gen(function* () {
             ...threadPaths,
           ],
           threadPaths,
+          threadRows.flatMap((thread) =>
+            thread.worktreePath && thread.settledAt ? [thread.worktreePath] : [],
+          ),
         ),
       catch: maintenanceError,
     });
@@ -91,13 +93,13 @@ export const makeWorkspaceCompatibilityHandlers = Effect.gen(function* () {
       withWorkspaceLease(
         input.path,
         Effect.gen(function* () {
+          yield* Effect.tryPromise({ try: () => verifyWorktreeRemovalSafety(input.cwd), catch: maintenanceError });
           const entries = yield* inspect(input.cwd);
           const entry = entries.find((e) => e.path === input.path);
           if (
             !entry ||
             entry.main ||
             entry.locked ||
-            entry.prunable ||
             entry.dirty ||
             entry.ignored ||
             entry.protected ||

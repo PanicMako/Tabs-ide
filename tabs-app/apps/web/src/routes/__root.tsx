@@ -31,7 +31,7 @@ import { SplashScreen } from "../components/SplashScreen";
 import { useStartupAnimation } from "../hooks/useStartupAnimation";
 import { markStartupStage } from "../lib/startupReadiness";
 import { hasEarlyStartupSplash, updateStartupSplash } from "../lib/startupSplashLifecycle";
-import { cn, isPopoutMode } from "../lib/utils";
+import { cn, isPopoutMode, isConversationPopout } from "../lib/utils";
 import { providerQueryKeys } from "../lib/providerReactQuery";
 import { projectQueryKeys } from "../lib/projectReactQuery";
 import { collectActiveTerminalThreadIds } from "../lib/terminalStateCleanup";
@@ -60,7 +60,11 @@ import {
   scopedComposerProjectId,
 } from "../state/composerDrafts";
 import { workspaceShellAtom } from "../state/workspaceShell";
-import { applyServerConfigUpdate, refreshServerConfig } from "../state/settings";
+import {
+  applyServerConfigUpdate,
+  refreshServerConfig,
+  hydrateClientSettings,
+} from "../state/settings";
 import { threadsHydratedAtom } from "../state/threads";
 import {
   initializePrimaryEnvironmentApi,
@@ -114,6 +118,14 @@ function PopoutRootView() {
  * thread/project sync, CommandPalette, etc.
  */
 function FullAppRootView() {
+  useEffect(() => {
+    const syncSettings = (event: StorageEvent) => {
+      if (event.key === "tabs:client-settings:v1") hydrateClientSettings(true);
+    };
+    window.addEventListener("storage", syncSettings);
+    return () => window.removeEventListener("storage", syncSettings);
+  }, []);
+
   useEffect(() => startRendererPerformanceCapture(), []);
   const isNativeApiReady = !!readNativeApi();
   const threadsHydrated = useAtomValue(threadsHydratedAtom);
@@ -243,7 +255,7 @@ function FullAppRootView() {
  * across all renders — no hooks are called before it.
  */
 function RootRouteView() {
-  if (isPopoutMode()) {
+  if (isPopoutMode() && !isConversationPopout) {
     return <PopoutRootView />;
   }
   return <FullAppRootView />;

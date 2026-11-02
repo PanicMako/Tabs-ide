@@ -557,6 +557,13 @@ export function createWsNativeApi(options?: {
         window.open(url, "_blank", "noopener,noreferrer");
       },
     },
+    maintenance: {
+      inspectStorage: () => transport.request("storage.inspect", {}),
+      cleanStorage: (ids) => transport.request("storage.clean", { ids }),
+      inspectWorktrees: (cwd) => transport.request("worktrees.inspect", { cwd }),
+      removeWorktree: (cwd, path) =>
+        transport.request("worktrees.remove", { cwd, path, force: false }),
+    },
     git: {
       fetch: (input) => transport.request(WS_METHODS.gitFetch, input),
       pull: (input) => transport.request(WS_METHODS.gitPull, input),
