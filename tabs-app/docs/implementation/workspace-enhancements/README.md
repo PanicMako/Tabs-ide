@@ -333,3 +333,18 @@ shortcuts open destinations directly in an isolated browser tab.
 Temporary clipboard is a local scratch pad. Its draft lasts for the window session;
 explicitly saved snippets remain on this device until removed. It never reads the system
 clipboard automatically. Copy writes only the text the user chooses.
+
+### Browser startup and compact tool controls
+
+Temporary browser initialization displays an animated pending state until host/session setup
+resolves. An unavailable-host message is reserved for an actual failure. Toolbar controls
+use icon-only pin and close buttons; closing prompts through the app's custom confirmation.
+
+Quick Actions now keeps shortcuts under their parent action in one expandable list. Shortcut
+names and destinations are summarized in rows; one dialog edits a shortcut, with Save/Cancel
+and browser/search presets. Reordering remains available by dragging or arrow buttons.
+
+Clipboard accepts explicit paste (Command/Ctrl+V or Paste), notes, links, and images up to
+1 MB. Recent items last for the window, pinned items persist on the device, and the list supports
+search, copy, pin/unpin, and removal. Existing saved snippets are preserved. It does not monitor
+or import clipboard history in the background.

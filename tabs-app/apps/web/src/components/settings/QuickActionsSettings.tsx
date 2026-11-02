@@ -1,5 +1,12 @@
 import { useState } from "react";
-import { ArrowDownIcon, ArrowUpIcon, CheckIcon, RotateCcwIcon } from "lucide-react";
+import {
+  ArrowDownIcon,
+  ArrowUpIcon,
+  CheckIcon,
+  RotateCcwIcon,
+  ChevronDownIcon,
+  GripVerticalIcon,
+} from "lucide-react";
 import { useSettings, useUpdateSettings } from "~/hooks/useSettings";
 import { Button } from "../ui/button";
 import { Checkbox } from "../ui/checkbox";
@@ -24,6 +31,7 @@ export default function QuickActionsSettings() {
   const [preview, setPreview] = useState<LauncherDesign>(
     normalizeLauncherDesign(preferences.design),
   );
+  const [expandedAction, setExpandedAction] = useState<string | null>("scratch-browser");
   const actions = orderedActions(preferences.actionOrder, []);
   const patch = (value: Partial<typeof preferences>) => {
     void update({ quickActions: { ...preferences, ...value } });
@@ -130,13 +138,9 @@ export default function QuickActionsSettings() {
           status="Escape returns focus. Arrow keys navigate; Tab reaches every control. Choose More for workspace and settings actions."
         />
       </SettingsSection>
-      <QuickSubActionsSettings
-        value={preferences.subActions ?? DEFAULT_SUB_ACTIONS}
-        onChange={(subActions) => patch({ subActions })}
-      />
       <SettingsSection
-        title="Actions"
-        description="Choose what appears. Drag to reorder or use the arrows; the first actions fill the ring."
+        title="Actions & shortcuts"
+        description="Turn actions on or off, drag to arrange the ring, and expand an action to manage its shortcuts."
         headerAction={
           <Button
             variant="ghost"
@@ -158,59 +162,101 @@ export default function QuickActionsSettings() {
         }
       >
         {actions.map((action, index) => (
-          <div
-            key={action.id}
-            draggable
-            onDragStart={(event) =>
-              event.dataTransfer.setData("application/x-tabs-action", action.id)
-            }
-            onDragOver={(event) => event.preventDefault()}
-            onDrop={(event) => {
-              event.preventDefault();
-              const from = event.dataTransfer.getData("application/x-tabs-action");
-              const ids = actions.map((entry) => entry.id);
-              const start = ids.findIndex((id) => id === from);
-              if (start < 0 || start === index) return;
-              const [moved] = ids.splice(start, 1);
-              ids.splice(index, 0, moved!);
-              patch({ actionOrder: ids });
-            }}
-            data-slot="settings-row"
-            className="flex items-center gap-3 border-t border-border px-4 py-3 first:border-t-0 sm:px-5"
-          >
-            <Checkbox
-              aria-label={`Show ${action.label}`}
-              checked={!preferences.hiddenActions.includes(action.id)}
-              disabled={action.id === "customize"}
-              onCheckedChange={(checked) =>
-                patch({
-                  hiddenActions: checked
-                    ? preferences.hiddenActions.filter((id) => id !== action.id)
-                    : [...preferences.hiddenActions, action.id],
-                })
+          <div key={action.id} className="border-t border-border first:border-t-0">
+            <div
+              draggable
+              onDragStart={(event) =>
+                event.dataTransfer.setData("application/x-tabs-action", action.id)
               }
-            />
-            <span className="min-w-0 flex-1 text-sm">{action.label}</span>
-            <div className="flex shrink-0 gap-1">
-              <Button
-                size="icon-xs"
-                variant="ghost"
-                aria-label={`Move ${action.label} earlier`}
-                disabled={index === 0}
-                onClick={() => reorder(index, -1)}
+              onDragOver={(event) => event.preventDefault()}
+              onDrop={(event) => {
+                event.preventDefault();
+                const from = event.dataTransfer.getData("application/x-tabs-action");
+                const ids = actions.map((entry) => entry.id);
+                const start = ids.findIndex((id) => id === from);
+                if (start < 0 || start === index) return;
+                const [moved] = ids.splice(start, 1);
+                ids.splice(index, 0, moved!);
+                patch({ actionOrder: ids });
+              }}
+              data-slot="settings-row"
+              className="flex items-center gap-2 px-4 py-3 sm:px-5"
+            >
+              <GripVerticalIcon
+                aria-hidden="true"
+                className="size-3.5 shrink-0 text-muted-foreground/50"
+              />
+              <Checkbox
+                aria-label={`Show ${action.label}`}
+                checked={!preferences.hiddenActions.includes(action.id)}
+                disabled={action.id === "customize"}
+                onCheckedChange={(checked) =>
+                  patch({
+                    hiddenActions: checked
+                      ? preferences.hiddenActions.filter((id) => id !== action.id)
+                      : [...preferences.hiddenActions, action.id],
+                  })
+                }
+              />
+              <button
+                type="button"
+                className="min-w-0 flex-1 text-left"
+                aria-expanded={expandedAction === action.id}
+                aria-label={`Configure ${action.label}`}
+                onClick={() => setExpandedAction(expandedAction === action.id ? null : action.id)}
               >
-                <ArrowUpIcon className="size-3.5" />
-              </Button>
-              <Button
-                size="icon-xs"
-                variant="ghost"
-                aria-label={`Move ${action.label} later`}
-                disabled={index === actions.length - 1}
-                onClick={() => reorder(index, 1)}
-              >
-                <ArrowDownIcon className="size-3.5" />
-              </Button>
+                <span className="block text-sm font-medium">{action.label}</span>
+                <span className="mt-0.5 block text-xs text-muted-foreground">
+                  {
+                    (preferences.subActions ?? DEFAULT_SUB_ACTIONS).filter(
+                      (entry) => entry.parentId === action.id,
+                    ).length
+                  }{" "}
+                  shortcuts{preferences.hiddenActions.includes(action.id) ? " · Hidden" : ""}
+                </span>
+              </button>
+              <div className="flex shrink-0 gap-1">
+                <Button
+                  size="icon-xs"
+                  variant="ghost"
+                  aria-label={`Move ${action.label} earlier`}
+                  disabled={index === 0}
+                  onClick={() => reorder(index, -1)}
+                >
+                  <ArrowUpIcon className="size-3.5" />
+                </Button>
+                <Button
+                  size="icon-xs"
+                  variant="ghost"
+                  aria-label={`Move ${action.label} later`}
+                  disabled={index === actions.length - 1}
+                  onClick={() => reorder(index, 1)}
+                >
+                  <ArrowDownIcon className="size-3.5" />
+                </Button>
+                <Button
+                  size="icon-xs"
+                  variant="ghost"
+                  aria-label={`Configure ${action.label} shortcuts`}
+                  aria-expanded={expandedAction === action.id}
+                  onClick={() => setExpandedAction(expandedAction === action.id ? null : action.id)}
+                >
+                  <ChevronDownIcon
+                    className={`size-3.5 transition-transform ${expandedAction === action.id ? "rotate-180" : ""}`}
+                  />
+                </Button>
+              </div>
             </div>
+            {expandedAction === action.id && (
+              <div className="border-t border-border bg-muted/20">
+                <QuickSubActionsSettings
+                  parentId={action.id}
+                  embedded
+                  value={preferences.subActions ?? DEFAULT_SUB_ACTIONS}
+                  onChange={(subActions) => patch({ subActions })}
+                />
+              </div>
+            )}
           </div>
         ))}
       </SettingsSection>

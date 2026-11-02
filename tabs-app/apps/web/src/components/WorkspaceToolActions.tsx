@@ -32,7 +32,7 @@ export function WorkspaceToolActions({
             render={
               <button
                 type="button"
-                className="inline-flex h-6 items-center gap-1 rounded-md px-1.5 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
+                className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
                 aria-label={`Keep ${tool.label} in workspace`}
                 onClick={(event) => {
                   event.stopPropagation();
@@ -40,7 +40,6 @@ export function WorkspaceToolActions({
                 }}
               >
                 <PinIcon aria-hidden="true" className="size-3" />
-                Keep
               </button>
             }
           />

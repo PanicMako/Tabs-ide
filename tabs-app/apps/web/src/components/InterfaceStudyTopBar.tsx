@@ -509,9 +509,6 @@ export const InterfaceStudyTopBar = memo(function InterfaceStudyTopBar(
                     )}
                   </span>
                   <span>{tool.label}</span>
-                  {tool.temporary && (
-                    <span className="text-[10px] font-normal text-muted-foreground">Temporary</span>
-                  )}
 
                   {/* Agent live ping pulse */}
                   {isAgents && hasActiveAgents && (

@@ -9,6 +9,7 @@ import {
   isTemporaryWorkspaceTool,
   keepWorkspaceTool,
 } from "../temporaryWorkspaceTools";
+import { BrowserStartupState } from "./BrowserStartupState";
 import { TemporaryClipboard } from "./quick-actions/TemporaryClipboard";
 import { QuickActionsHost } from "./quick-actions/QuickActions";
 import { searchTarget, type QuickActionId } from "./quick-actions/actions";
@@ -1392,9 +1393,6 @@ function ProjectToolBar(props: {
                   )}
                 </span>
                 <span>{tool.label}</span>
-                {tool.temporary && (
-                  <span className="text-[10px] font-normal text-muted-foreground">Temporary</span>
-                )}
                 {toolActivityIndicator && (
                   <span
                     className={cn(
@@ -9600,6 +9598,7 @@ export function DesktopCustomEmbedTool(props: {
     },
     [props.sessionId],
   );
+  const [hostStarting, setHostStarting] = useState(true);
   const [hostState, setHostState] = useState<DesktopBrowserHostState>(
     DEFAULT_DESKTOP_BROWSER_HOST_STATE,
   );
@@ -9733,6 +9732,7 @@ export function DesktopCustomEmbedTool(props: {
     // URL changes are handled by the navigation effect; recreating the host
     // subscription for each address change can issue duplicate navigations.
     let disposed = false;
+    setHostStarting(true);
     const partition = resolveBrowserPartition({
       projectId: props.project.id,
       sessionId: props.sessionId,
@@ -9776,6 +9776,8 @@ export function DesktopCustomEmbedTool(props: {
             available: false,
             reason: error instanceof Error ? error.message : String(error),
           });
+      } finally {
+        if (!disposed) setHostStarting(false);
       }
     })();
 
@@ -9916,7 +9918,7 @@ export function DesktopCustomEmbedTool(props: {
         })
         .catch(() => undefined);
     };
-  }, [bridge, hostState.available, props.project.id]);
+  }, [bridge, hostState.available, hostStarting, props.project.id]);
 
   useEffect(() => {
     if (!bridge || !hostState.available) return;
@@ -9933,7 +9935,7 @@ export function DesktopCustomEmbedTool(props: {
   }, [bridge, hostState.available, viewportSelectorOpen, props.project.id]);
 
   useNativeSurfaceOverlaySuspension({
-    enabled: Boolean(bridge && hostState.available),
+    enabled: Boolean(bridge && hostState.available && !hostStarting),
     surfaceReady: !sessionState.loading && !sessionState.lastError,
     backdropHost: hostRef,
     captureBackdrop: () =>
@@ -9962,6 +9964,8 @@ export function DesktopCustomEmbedTool(props: {
     observer.observe(document.body, { childList: true, subtree: true });
     return () => observer.disconnect();
   }, []);
+
+  if (bridge && hostStarting) return <BrowserStartupState title={props.title} />;
 
   if (!bridge || !hostState.available) {
     return (
@@ -13235,6 +13239,7 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
     content
   );
 
+  const { confirm: confirmToolClose, confirmDialog: toolCloseDialog } = useConfirm();
   const [clipboardOpen, setClipboardOpen] = useState(false);
   const [toolToKeep, setToolToKeep] = useState<WorkspaceToolActionTarget | null>(null);
   const requestKeepTool = (id: string) =>
@@ -13243,6 +13248,11 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
     if (!activeProject || !activeProjectSettings) return;
     const tool = activeProjectSettings.tools.find((entry) => entry.id === id);
     if (!tool || !canCloseWorkspaceTool(tool)) return;
+    const message =
+      tool.kind === "custom_process"
+        ? `Close ${tool.label}? Running commands in this tab will stop.${isTemporaryWorkspaceTool(tool) ? " This temporary tool will be discarded." : " You can reopen it from Workspace settings."}`
+        : `Close ${tool.label}?${isTemporaryWorkspaceTool(tool) ? " This temporary browser session will be discarded. Keep it with the pin button if you want to save it." : " You can reopen it from Workspace settings."}`;
+    if (!(await confirmToolClose(message))) return;
     try {
       if (tool.kind === "custom_embed" && tool.customEmbedId)
         await window.desktopBridge?.destroyBrowserSession?.({
@@ -13403,6 +13413,7 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
   return (
     <QuickActionsHost execute={runQuickAction} disabled={quickActionDisabled}>
       <div className="flex h-dvh min-h-0 min-w-0 flex-1 flex-col bg-background text-foreground">
+        {toolCloseDialog}
         <TemporaryClipboard open={clipboardOpen} onOpenChange={setClipboardOpen} />
         <KeepWorkspaceToolDialog
           tool={toolToKeep}
