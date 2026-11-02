@@ -4,6 +4,7 @@ import {
   type ProviderReplayTranscript,
 } from "@tabs/contracts";
 import * as Effect from "effect/Effect";
+import * as Clock from "effect/Clock";
 import * as Crypto from "effect/Crypto";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
@@ -114,7 +115,7 @@ export function makeAcpReplayCompletenessAssertion(
   statusPath: string,
   transcript: AcpReplayTranscript,
 ): Effect.Effect<void, EffectAcpErrors.AcpError> {
-  return fileSystem.readFileString(statusPath).pipe(
+  const readAndDecode = fileSystem.readFileString(statusPath).pipe(
     Effect.mapError(
       (cause) =>
         new EffectAcpErrors.AcpTransportError({
@@ -132,7 +133,11 @@ export function makeAcpReplayCompletenessAssertion(
           }),
       }),
     ),
+  );
+
+  return readAndDecode.pipe(
     Effect.retry({ times: 5, schedule: Schedule.spaced("50 millis") }),
+    Effect.provideService(Clock.Clock, Clock.Clock.defaultValue()),
     Effect.flatMap((status) => {
       if (
         status.failure === undefined &&
