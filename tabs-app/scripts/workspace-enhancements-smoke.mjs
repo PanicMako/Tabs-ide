@@ -130,21 +130,21 @@ try {
     location.hash = "/settings?section=quick-actions";
   });
   await main.getByRole("heading", { name: "Quick Actions", exact: true }).waitFor();
-  for (const [index, name] of ["dispatch", "compass", "toolbelt", "keypad", "focus"].entries()) {
+  for (const [index, name] of ["halo-fade", "glass-dial", "pie-sectors"].entries()) {
     await main.locator('[aria-label="Launcher designs"] button').nth(index).click();
     await main.locator(".qa-preview").screenshot({ path: join(evidence, `launcher-${name}.png`) });
   }
-  await main.locator('[aria-label="Launcher designs"] button').nth(3).click();
+  await main.locator('[aria-label="Launcher designs"] button').nth(2).click();
   const useDesign = main.getByRole("button", { name: "Use this design", exact: true });
   if ((await useDesign.count()) && (await useDesign.isEnabled())) await useDesign.click();
   await main.reload();
   await main.locator('[aria-label="Launcher designs"] button[aria-pressed=true]').waitFor();
   assert.match(
     await main.locator('[aria-label="Launcher designs"] button[aria-pressed=true]').innerText(),
-    /Keypad/,
+    /Pie Sectors/,
   );
   await main.keyboard.press(process.platform === "darwin" ? "Meta+Alt+K" : "Control+Alt+K");
-  await main.locator(".qa-popup .qa-matrix").waitFor();
+  await main.locator(".qa-popup .qa-radial-sectors").waitFor();
   await main.keyboard.press("Escape");
 
   await main.evaluate(async () =>
@@ -247,7 +247,7 @@ try {
   await main.getByRole("button", { name: "Refresh inventory", exact: true }).waitFor();
   await main.screenshot({ path: join(evidence, "storage-settings.png") });
   console.log(
-    "PASS: two windows, deduplication, synchronization, close/dock continuity, five previews, design persistence, default/custom shortcuts, gesture bounds, dirty protection, branch-retaining removal and exact log cleanup.",
+    "PASS: two windows, deduplication, synchronization, close/dock continuity, three radial previews, design persistence, default/custom shortcuts, gesture bounds, dirty protection, branch-retaining removal and exact log cleanup.",
   );
 } finally {
   await browser.close(); // Disconnect CDP; leave the developer's test instance running.

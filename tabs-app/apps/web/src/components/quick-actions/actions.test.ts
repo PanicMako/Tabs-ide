@@ -13,7 +13,7 @@ describe("quick actions", () => {
     expect(actions.some((a) => a.id === "new-tab")).toBe(false);
     expect(actions.some((a) => a.id === "customize")).toBe(true);
     expect(new Set(actions.map((a) => a.id)).size).toBe(actions.length);
-    expect(LAUNCHER_DESIGNS).toHaveLength(5);
+    expect(LAUNCHER_DESIGNS).toHaveLength(3);
     expect(orderedActions([], [])).toEqual(QUICK_ACTIONS);
   });
   it("creates supported web URLs and encodes queries without executing schemes", () => {
@@ -26,6 +26,7 @@ describe("quick actions", () => {
   it("clamps every corner and oversized launchers within the available viewport origin", () => {
     const size = { width: 420, height: 400 },
       viewport = { width: 800, height: 600 };
+    expect(clampLauncher({ x: 400, y: 300 }, size, viewport)).toEqual({ x: 190, y: 100 });
     expect(clampLauncher({ x: 0, y: 0 }, size, viewport)).toEqual({ x: 8, y: 8 });
     expect(clampLauncher({ x: 799, y: 599 }, size, viewport)).toEqual({ x: 372, y: 192 });
     expect(clampLauncher({ x: 0, y: 0 }, size, { width: 200, height: 200 })).toEqual({

@@ -1,3 +1,4 @@
+import { WorkspaceToolActions } from "./WorkspaceToolActions";
 import { TabsBrandMark } from "./TabsBrandMark";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -76,7 +77,11 @@ export interface InterfaceStudyTopBarProps {
     kind: ProjectToolKind;
     label: string;
     icon?: React.ReactNode;
+    temporary?: boolean;
+    closable?: boolean;
   }>;
+  onCloseTool?: (id: string) => void;
+  onKeepTool?: (id: string) => void;
   threads?: ReadonlyArray<Thread>;
   onActivateProject: (projectId: ProjectId) => void;
   onCloseProject: (projectId: ProjectId) => void;
@@ -471,59 +476,72 @@ export const InterfaceStudyTopBar = memo(function InterfaceStudyTopBar(
             const isGit = tool.kind === "git";
 
             return (
-              <button
+              <div
                 key={tool.id}
-                ref={(el) => {
-                  tabRefs.current[index] = el;
-                }}
-                type="button"
-                role="tab"
-                data-tool-kind={tool.kind}
-                aria-selected={active}
-                tabIndex={active ? 0 : -1}
-                onClick={() => props.onSelectTool(tool.id)}
-                className={cn("study-tool-tab group", active && "active")}
+                className="inline-flex shrink-0 items-center self-stretch"
+                data-slot="workspace-tool-tab"
               >
-                {active && <StudyToolBottomFillets />}
-                <span
-                  className={cn(
-                    "study-tool-tab-icon shrink-0 transition-colors",
-                    active
-                      ? "text-foreground font-semibold"
-                      : "text-muted-foreground group-hover:text-foreground",
-                  )}
+                <button
+                  ref={(el) => {
+                    tabRefs.current[index] = el;
+                  }}
+                  type="button"
+                  role="tab"
+                  data-tool-kind={tool.kind}
+                  aria-selected={active}
+                  tabIndex={active ? 0 : -1}
+                  onClick={() => props.onSelectTool(tool.id)}
+                  className={cn("study-tool-tab group", active && "active")}
                 >
-                  {isAgents ? (
-                    <AssistantBubbleIcon className="size-4" />
-                  ) : (
-                    (tool.icon ?? resolveToolIcon(tool.kind))
-                  )}
-                </span>
-                <span>{tool.label}</span>
-
-                {/* Agent live ping pulse */}
-                {isAgents && hasActiveAgents && (
-                  <span
-                    className="size-1.5 rounded-full bg-emerald-500 animate-pulse ml-0.5"
-                    title="Agents working"
-                    aria-label="Agents working"
-                  />
-                )}
-
-                {/* Git changes count pill */}
-                {isGit && changeCount > 0 && (
+                  {active && <StudyToolBottomFillets />}
                   <span
                     className={cn(
-                      "text-[10px] font-bold px-1.5 py-0.2 rounded-full ml-0.5 transition-colors",
+                      "study-tool-tab-icon shrink-0 transition-colors",
                       active
-                        ? "bg-foreground/10 text-foreground"
-                        : "bg-foreground/5 text-muted-foreground group-hover:text-foreground",
+                        ? "text-foreground font-semibold"
+                        : "text-muted-foreground group-hover:text-foreground",
                     )}
                   >
-                    {changeCount}
+                    {isAgents ? (
+                      <AssistantBubbleIcon className="size-4" />
+                    ) : (
+                      (tool.icon ?? resolveToolIcon(tool.kind))
+                    )}
                   </span>
-                )}
-              </button>
+                  <span>{tool.label}</span>
+                  {tool.temporary && (
+                    <span className="text-[10px] font-normal text-muted-foreground">Temporary</span>
+                  )}
+
+                  {/* Agent live ping pulse */}
+                  {isAgents && hasActiveAgents && (
+                    <span
+                      className="size-1.5 rounded-full bg-emerald-500 animate-pulse ml-0.5"
+                      title="Agents working"
+                      aria-label="Agents working"
+                    />
+                  )}
+
+                  {/* Git changes count pill */}
+                  {isGit && changeCount > 0 && (
+                    <span
+                      className={cn(
+                        "text-[10px] font-bold px-1.5 py-0.2 rounded-full ml-0.5 transition-colors",
+                        active
+                          ? "bg-foreground/10 text-foreground"
+                          : "bg-foreground/5 text-muted-foreground group-hover:text-foreground",
+                      )}
+                    >
+                      {changeCount}
+                    </span>
+                  )}
+                </button>
+                <WorkspaceToolActions
+                  tool={tool}
+                  onClose={props.onCloseTool}
+                  onKeep={props.onKeepTool}
+                />
+              </div>
             );
           })}
         </nav>

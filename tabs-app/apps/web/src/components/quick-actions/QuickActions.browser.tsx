@@ -19,20 +19,20 @@ for (const design of LAUNCHER_DESIGNS) {
     );
     await page.getByRole("button", { name: /New workspace tab/ }).click();
     expect(execute).toHaveBeenCalledWith("new-tab", "");
+    await page.getByRole("button", { name: /Search the web/ }).click();
     await page.getByRole("textbox").fill("some documentation query");
     await page.getByRole("button", { name: /Search the web/ }).click();
     expect(execute).toHaveBeenLastCalledWith("search", "some documentation query");
   });
 }
 it("shows action errors and respects unavailable workspace actions", async () => {
-  const execute = vi.fn(async () => {
-    throw new Error("Workspace disconnected");
-  });
   await render(
     <LauncherSurface
-      design="list"
+      design="compass"
       actions={QUICK_ACTIONS}
-      execute={execute}
+      execute={async () => {
+        throw new Error("Workspace disconnected");
+      }}
       disabled={(id) => (id === "new-agent" ? "Open a project first" : undefined)}
       preview
     />,
@@ -41,21 +41,108 @@ it("shows action errors and respects unavailable workspace actions", async () =>
   await page.getByRole("button", { name: /New workspace tab/ }).click();
   await expect.element(page.getByRole("alert")).toHaveTextContent("Workspace disconnected");
 });
-it("focus view advances one action at a time", async () => {
+it("keeps secondary actions in one More group without page navigation or duplicates", async () => {
+  const execute = vi.fn(async () => {});
   await render(
     <LauncherSurface
-      design="stack"
+      design="compass"
+      actions={QUICK_ACTIONS}
+      execute={execute}
+      disabled={() => undefined}
+      preview
+    />,
+  );
+  await page.getByRole("button", { name: "More actions" }).click();
+  await expect.element(page.getByRole("button", { name: /Usage & limits/ })).toBeVisible();
+  expect(document.querySelectorAll('[aria-label="Source control"]')).toHaveLength(1);
+  expect(document.querySelectorAll(".qa-radial-surface button")).toHaveLength(
+    QUICK_ACTIONS.length + 1,
+  );
+  await page.getByRole("button", { name: /Usage & limits/ }).click();
+  expect(execute).toHaveBeenCalledWith("usage", "");
+});
+it("rotates keyboard focus and opens More sub-options", async () => {
+  const execute = vi.fn(async () => {});
+  await render(
+    <LauncherSurface
+      design="dial"
+      actions={QUICK_ACTIONS}
+      execute={execute}
+      disabled={() => undefined}
+      preview
+    />,
+  );
+  await page.getByRole("button", { name: /New workspace tab/ }).click();
+  await userEvent.keyboard("{ArrowRight}");
+  await expect.element(page.getByRole("button", { name: /New conversation/ })).toHaveFocus();
+  await userEvent.keyboard("{Enter}");
+  expect(execute).toHaveBeenCalledWith("new-agent", "");
+  await page.getByRole("button", { name: "More actions" }).click();
+  await userEvent.keyboard("{ArrowDown}");
+  await expect
+    .element(page.getByRole("button", { name: "Pop out chat", exact: true }))
+    .toHaveFocus();
+});
+it("uses the action color and keeps the radial surface transparent", async () => {
+  await render(
+    <LauncherSurface
+      design="sectors"
       actions={QUICK_ACTIONS}
       execute={async () => {}}
       disabled={() => undefined}
       preview
     />,
   );
-  await expect.element(page.getByRole("button", { name: /New workspace tab/ })).toBeVisible();
-  await page.getByRole("button", { name: "Next →" }).click();
-  await expect.element(page.getByRole("button", { name: /New conversation/ })).toBeVisible();
+  const surface = document.querySelector<HTMLElement>(".qa-radial-surface")!;
+  const before = surface.style.getPropertyValue("--qa-action-color");
+  await page.getByRole("button", { name: /Temporary browser/ }).hover();
+  expect(surface.style.getPropertyValue("--qa-action-color")).not.toBe(before);
+  expect(getComputedStyle(surface).backgroundColor).toBe("rgba(0, 0, 0, 0)");
 });
-it("compass pages reveal the same remaining actions", async () => {
+
+it("reveals browser sub-actions and runs their configured URL without a center caret", async () => {
+  const execute = vi.fn(async () => {});
+  await render(
+    <LauncherSurface
+      design="compass"
+      actions={QUICK_ACTIONS}
+      execute={execute}
+      disabled={() => undefined}
+      preview
+    />,
+  );
+  expect(document.querySelector(".qa-radial-hub input")).toBeNull();
+  expect(document.querySelector(".qa-radial-close")).toBeNull();
+  await page.getByRole("button", { name: "Temporary browser", exact: true }).hover();
+  await page.getByRole("button", { name: "Google", exact: true }).click();
+  expect(execute).toHaveBeenCalledWith("scratch-browser", "https://www.google.com");
+});
+it("uses custom sub-actions in saved order", async () => {
+  const execute = vi.fn(async () => {});
+  await render(
+    <LauncherSurface
+      design="dial"
+      actions={QUICK_ACTIONS}
+      execute={execute}
+      disabled={() => undefined}
+      subActions={[
+        {
+          id: "docs",
+          parentId: "scratch-browser",
+          actionId: "scratch-browser",
+          label: "Team docs",
+          query: "https://example.com/docs",
+        },
+      ]}
+      preview
+    />,
+  );
+  await page.getByRole("button", { name: "Temporary browser", exact: true }).hover();
+  await page.getByRole("button", { name: "Team docs", exact: true }).click();
+  expect(execute).toHaveBeenCalledWith("scratch-browser", "https://example.com/docs");
+});
+
+it("keeps More options in a compact fan beside their parent", async () => {
   await render(
     <LauncherSurface
       design="compass"
@@ -65,80 +152,31 @@ it("compass pages reveal the same remaining actions", async () => {
       preview
     />,
   );
-  await page.getByRole("button", { name: "More →" }).click();
-  await expect.element(page.getByRole("button", { name: /Pop out conversation/ })).toBeVisible();
+  await page.getByRole("button", { name: "More actions" }).click();
+  const parent = document.querySelector<HTMLElement>('[aria-label="More actions"]')!;
+  const px = Number.parseFloat(parent.style.left) - 280,
+    py = Number.parseFloat(parent.style.top) - 280;
+  for (const child of document.querySelectorAll<HTMLElement>(".qa-more-action")) {
+    const cx = Number.parseFloat(child.style.left) - 280,
+      cy = Number.parseFloat(child.style.top) - 280;
+    expect(Math.hypot(cx, cy)).toBeCloseTo(206, 0);
+    expect(px * cx + py * cy).toBeGreaterThan(0);
+  }
 });
-
-it("focus view preserves keyboard focus while replacing its single action", async () => {
+it("searches using a chosen engine while keeping browser shortcuts separate", async () => {
   const execute = vi.fn(async () => {});
   await render(
     <LauncherSurface
-      design="stack"
+      design="compass"
       actions={QUICK_ACTIONS}
       execute={execute}
       disabled={() => undefined}
       preview
     />,
   );
-  await page.getByRole("textbox").click();
-  await userEvent.keyboard("{ArrowDown}");
-  await expect.element(page.getByRole("button", { name: /New workspace tab/ })).toHaveFocus();
-  await userEvent.keyboard("{ArrowRight}");
-  await expect.element(page.getByRole("button", { name: /New conversation/ })).toHaveFocus();
+  await page.getByRole("button", { name: "Search the web", exact: true }).hover();
+  await page.getByRole("button", { name: "DuckDuckGo", exact: true }).click();
+  await page.getByRole("textbox").fill("tabs editor");
   await userEvent.keyboard("{Enter}");
-  expect(execute).toHaveBeenCalledWith("new-agent", "");
-});
-it("keypad reserves numbers for navigation outside text input and moves vertically by row", async () => {
-  const execute = vi.fn(async () => {});
-  await render(
-    <LauncherSurface
-      design="matrix"
-      actions={QUICK_ACTIONS}
-      execute={execute}
-      disabled={() => undefined}
-      preview
-    />,
-  );
-  await page.getByRole("textbox").click();
-  await userEvent.keyboard("123");
-  expect(execute).not.toHaveBeenCalled();
-  await page.getByRole("textbox").fill("");
-  await userEvent.keyboard("{ArrowDown}");
-  await expect.element(page.getByRole("button", { name: /New workspace tab/ })).toHaveFocus();
-  await userEvent.keyboard("{ArrowDown}");
-  await expect.element(page.getByRole("button", { name: /Scratch browser/ })).toHaveFocus();
-  await userEvent.keyboard("4");
-  expect(execute).toHaveBeenCalledWith("scratch-browser", "");
-});
-
-it("arrow navigation skips unavailable actions instead of leaving focus behind", async () => {
-  await render(
-    <LauncherSurface
-      design="list"
-      actions={QUICK_ACTIONS}
-      execute={async () => {}}
-      disabled={(id) => (id === "new-agent" ? "Unavailable" : undefined)}
-      preview
-    />,
-  );
-  await page.getByRole("textbox").click();
-  await userEvent.keyboard("{ArrowDown}");
-  await expect.element(page.getByRole("button", { name: /New workspace tab/ })).toHaveFocus();
-  await userEvent.keyboard("{ArrowDown}");
-  await expect.element(page.getByRole("button", { name: /Isolated agent/ })).toHaveFocus();
-});
-
-it("keypad wraps vertical navigation on a partial final page", async () => {
-  await render(
-    <LauncherSurface
-      design="matrix"
-      actions={QUICK_ACTIONS}
-      execute={async () => {}}
-      disabled={() => undefined}
-      preview
-    />,
-  );
-  await page.getByRole("button", { name: "More →" }).click();
-  await userEvent.keyboard("{ArrowUp}");
-  await expect.element(page.getByRole("button", { name: /Customize quick actions/ })).toHaveFocus();
+  expect(execute).toHaveBeenCalledWith("search", "https://duckduckgo.com/?q=tabs%20editor");
 });

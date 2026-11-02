@@ -372,18 +372,37 @@ export const DEFAULT_DIFF_COLOR_SCHEME: DiffColorScheme = "red-green";
 export const ChatWidth = Schema.Literals(["comfortable", "wide", "full"]);
 export type ChatWidth = typeof ChatWidth.Type;
 
-export const QuickActionsDesign = Schema.Literals(["list", "compass", "shelf", "matrix", "stack"]);
+export const QuickActionsDesign = Schema.Literals([
+  "list",
+  "compass",
+  "dial",
+  "sectors",
+  "shelf",
+  "matrix",
+  "stack",
+]);
 export const QuickActionsPreferences = Schema.Struct({
   design: QuickActionsDesign,
   actionOrder: Schema.Array(Schema.String),
   hiddenActions: Schema.Array(Schema.String),
   pointerGesture: Schema.Boolean,
+  subActions: Schema.optionalKey(
+    Schema.Array(
+      Schema.Struct({
+        id: Schema.String,
+        parentId: Schema.String,
+        actionId: Schema.String,
+        label: Schema.String,
+        query: Schema.String,
+      }),
+    ),
+  ),
 });
 export const ClientSettingsSchema = Schema.Struct({
   quickActions: QuickActionsPreferences.pipe(
     Schema.withDecodingDefault(
       Effect.succeed({
-        design: "list" as const,
+        design: "compass" as const,
         actionOrder: [],
         hiddenActions: [],
         pointerGesture: false,
@@ -2424,6 +2443,7 @@ export const ProjectToolDefinition = Schema.Struct({
   kind: ProjectToolKind,
   label: TrimmedNonEmptyString,
   visible: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
+  temporary: Schema.optionalKey(Schema.Boolean),
   customEmbedId: Schema.optionalKey(Schema.NullOr(ProjectSettingId)),
   serverProcessId: Schema.optionalKey(Schema.NullOr(ProjectSettingId)),
   terminalProcessId: Schema.optionalKey(Schema.NullOr(ProjectSettingId)),
@@ -2452,6 +2472,7 @@ export const ProjectServerProcessDefinition = Schema.Struct({
   env: Schema.Record(Schema.String, Schema.String).pipe(
     Schema.withDecodingDefault(Effect.succeed({})),
   ),
+  interactiveShell: Schema.optionalKey(Schema.Boolean),
   autoStart: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
 });
 export type ProjectServerProcessDefinition = typeof ProjectServerProcessDefinition.Type;

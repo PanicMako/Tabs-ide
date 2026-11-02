@@ -14,23 +14,23 @@ export const QUICK_ACTIONS = [
     icon: "agent",
   },
   {
-    id: "isolated-agent",
-    label: "Isolated agent",
-    detail: "Start a task in a new Git worktree",
-    group: "Create",
-    icon: "branch",
-  },
-  {
     id: "scratch-browser",
-    label: "Scratch browser",
+    label: "Temporary browser",
     detail: "Open a separate browser tool with isolated cookies",
     group: "Create",
     icon: "browser",
   },
   {
+    id: "scratch-terminal",
+    label: "Temporary terminal",
+    detail: "Open a shell here; close it or keep it in your workspace",
+    group: "Create",
+    icon: "terminal",
+  },
+  {
     id: "search",
     label: "Search the web",
-    detail: "Type a query or URL above, then open it",
+    detail: "Search with your chosen search engine; type a query to begin",
     group: "Explore",
     icon: "search",
   },
@@ -40,6 +40,13 @@ export const QUICK_ACTIONS = [
     detail: "Keep this agent beside your workspace",
     group: "Workspace",
     icon: "popout",
+  },
+  {
+    id: "clipboard",
+    label: "Temporary clipboard",
+    detail: "Collect text snippets, copy them, or save them on this device",
+    group: "Create",
+    icon: "clipboard",
   },
   {
     id: "code",
@@ -53,6 +60,13 @@ export const QUICK_ACTIONS = [
     label: "Source control",
     detail: "Review changes in this project",
     group: "Workspace",
+    icon: "branch",
+  },
+  {
+    id: "isolated-agent",
+    label: "Isolated agent",
+    detail: "Start a task in a new Git worktree",
+    group: "Create",
     icon: "branch",
   },
   {
@@ -81,30 +95,19 @@ export type QuickActionId = (typeof QUICK_ACTIONS)[number]["id"];
 export type QuickAction = (typeof QUICK_ACTIONS)[number];
 export const LAUNCHER_DESIGNS = [
   {
-    id: "list",
-    name: "Dispatch",
-    description: "A searchable command list. Type, arrow, Enter. Familiar at any speed.",
-  },
-  {
     id: "compass",
-    name: "Compass",
-    description:
-      "Four directions around your cursor. Arrow keys select a direction; pages reveal more.",
+    name: "Halo Fade",
+    description: "Eight actions with a soft halo that follows the selected action's color.",
   },
   {
-    id: "shelf",
-    name: "Toolbelt",
-    description: "A horizontal shelf. Scan icons and labels, move left or right, then act.",
+    id: "dial",
+    name: "Glass Dial",
+    description: "Six labelled nodes with a quiet center and More for secondary actions.",
   },
   {
-    id: "matrix",
-    name: "Keypad",
-    description: "A spatial 3 by 3 pad. Press 1–9 for the visible action; page for more.",
-  },
-  {
-    id: "stack",
-    name: "Focus",
-    description: "One action at a time. Step through with left and right, inspect, then commit.",
+    id: "sectors",
+    name: "Pie Sectors",
+    description: "Rounded wedges with action-colored highlights and an outer More menu.",
   },
 ] as const;
 export type LauncherDesign = (typeof LAUNCHER_DESIGNS)[number]["id"];
@@ -133,6 +136,98 @@ export function clampLauncher(
 ) {
   return {
     x: Math.max(8, Math.min(point.x - size.width / 2, viewport.width - size.width - 8)),
-    y: Math.max(8, Math.min(point.y - 28, viewport.height - size.height - 8)),
+    y: Math.max(8, Math.min(point.y - size.height / 2, viewport.height - size.height - 8)),
   };
 }
+
+export const normalizeLauncherDesign = (design: string): LauncherDesign =>
+  design === "dial" || design === "sectors" ? design : "compass";
+export function actionAccentIdentity(action: QuickAction): string {
+  return {
+    tab: "workspace",
+    agent: "agents",
+    branch: "git",
+    browser: "browser",
+    terminal: "server",
+    search: "search",
+    popout: "agents",
+    code: "code",
+    storage: "workspace",
+    usage: "usage",
+    settings: "settings",
+    clipboard: "clipboard",
+  }[action.icon];
+}
+
+export interface QuickSubAction {
+  id: string;
+  parentId: string;
+  actionId: string;
+  label: string;
+  query: string;
+}
+export const DEFAULT_SUB_ACTIONS: readonly QuickSubAction[] = [
+  {
+    id: "search-google",
+    parentId: "search",
+    actionId: "search",
+    label: "Google",
+    query: "https://www.google.com/search?q={query}",
+  },
+  {
+    id: "search-duckduckgo",
+    parentId: "search",
+    actionId: "search",
+    label: "DuckDuckGo",
+    query: "https://duckduckgo.com/?q={query}",
+  },
+  {
+    id: "browser-blank",
+    parentId: "scratch-browser",
+    actionId: "scratch-browser",
+    label: "Blank browser",
+    query: "",
+  },
+  {
+    id: "browser-google",
+    parentId: "scratch-browser",
+    actionId: "scratch-browser",
+    label: "Google",
+    query: "https://www.google.com",
+  },
+  {
+    id: "browser-github",
+    parentId: "scratch-browser",
+    actionId: "scratch-browser",
+    label: "GitHub",
+    query: "https://github.com",
+  },
+  {
+    id: "temporary-browser",
+    parentId: "new-tab",
+    actionId: "scratch-browser",
+    label: "Temporary browser",
+    query: "",
+  },
+  {
+    id: "temporary-terminal",
+    parentId: "new-tab",
+    actionId: "scratch-terminal",
+    label: "Temporary terminal",
+    query: "",
+  },
+  {
+    id: "agent-local",
+    parentId: "new-agent",
+    actionId: "new-agent",
+    label: "Local conversation",
+    query: "",
+  },
+  {
+    id: "agent-isolated",
+    parentId: "new-agent",
+    actionId: "isolated-agent",
+    label: "Isolated agent",
+    query: "",
+  },
+];

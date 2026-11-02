@@ -8,16 +8,22 @@ import { SettingsRow, SettingsSection, SettingsSectionHeader } from "./SettingsL
 import { LauncherSurface, useQuickActions } from "../quick-actions/QuickActions";
 import {
   LAUNCHER_DESIGNS,
+  DEFAULT_SUB_ACTIONS,
+  normalizeLauncherDesign,
   QUICK_ACTIONS,
   orderedActions,
   type LauncherDesign,
 } from "../quick-actions/actions";
 
+import { QuickSubActionsSettings } from "./QuickSubActionsSettings";
+
 export default function QuickActionsSettings() {
   const preferences = useSettings((s) => s.quickActions);
   const { updateSettings: update } = useUpdateSettings();
   const context = useQuickActions();
-  const [preview, setPreview] = useState<LauncherDesign>(preferences.design);
+  const [preview, setPreview] = useState<LauncherDesign>(
+    normalizeLauncherDesign(preferences.design),
+  );
   const actions = orderedActions(preferences.actionOrder, []);
   const patch = (value: Partial<typeof preferences>) => {
     void update({ quickActions: { ...preferences, ...value } });
@@ -36,7 +42,7 @@ export default function QuickActionsSettings() {
       />
       <SettingsSection
         title="Launcher design"
-        description="Five ways to move around your workspace. Choose a design to try it before applying."
+        description="Three radial launchers. Choose a design to try it before applying."
       >
         <div className="grid gap-5 p-4 sm:p-5 lg:grid-cols-[140px_minmax(0,1fr)]">
           <div
@@ -53,7 +59,7 @@ export default function QuickActionsSettings() {
               >
                 <span className="flex items-center justify-between gap-2 text-sm font-medium">
                   {design.name}
-                  {preferences.design === design.id && (
+                  {normalizeLauncherDesign(preferences.design) === design.id && (
                     <CheckIcon
                       className="size-3.5 text-muted-foreground"
                       aria-label="Current design"
@@ -72,10 +78,12 @@ export default function QuickActionsSettings() {
               <Button
                 size="sm"
                 variant="outline"
-                disabled={preview === preferences.design}
+                disabled={preview === normalizeLauncherDesign(preferences.design)}
                 onClick={() => patch({ design: preview })}
               >
-                {preview === preferences.design ? "Current design" : "Use this design"}
+                {preview === normalizeLauncherDesign(preferences.design)
+                  ? "Current design"
+                  : "Use this design"}
               </Button>
             </div>
             <div className="qa-preview !p-3 sm:!p-4">
@@ -84,6 +92,7 @@ export default function QuickActionsSettings() {
                   key={preview}
                   design={preview}
                   actions={orderedActions(preferences.actionOrder, preferences.hiddenActions)}
+                  subActions={preferences.subActions}
                   execute={context.execute}
                   disabled={context.disabled}
                   preview
@@ -118,23 +127,28 @@ export default function QuickActionsSettings() {
         <SettingsRow
           title="Keyboard shortcut"
           description="Change Quick Actions: Toggle in Keybindings. The default is Command-Option-K on macOS and Ctrl-Alt-K on Windows and Linux."
-          status="Escape returns focus. Arrow keys navigate; Tab reaches every control. The keypad also accepts 1–9 when its buttons have focus."
+          status="Escape returns focus. Arrow keys navigate; Tab reaches every control. Choose More for workspace and settings actions."
         />
       </SettingsSection>
+      <QuickSubActionsSettings
+        value={preferences.subActions ?? DEFAULT_SUB_ACTIONS}
+        onChange={(subActions) => patch({ subActions })}
+      />
       <SettingsSection
         title="Actions"
-        description="Choose what appears and move your frequent actions toward the top."
+        description="Choose what appears. Drag to reorder or use the arrows; the first actions fill the ring."
         headerAction={
           <Button
             variant="ghost"
             size="sm"
             onClick={() => {
-              setPreview("list");
+              setPreview("compass");
               patch({
                 actionOrder: QUICK_ACTIONS.map((a) => a.id),
                 hiddenActions: [],
                 pointerGesture: false,
-                design: "list",
+                design: "compass",
+                subActions: [...DEFAULT_SUB_ACTIONS],
               });
             }}
           >
@@ -146,6 +160,21 @@ export default function QuickActionsSettings() {
         {actions.map((action, index) => (
           <div
             key={action.id}
+            draggable
+            onDragStart={(event) =>
+              event.dataTransfer.setData("application/x-tabs-action", action.id)
+            }
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={(event) => {
+              event.preventDefault();
+              const from = event.dataTransfer.getData("application/x-tabs-action");
+              const ids = actions.map((entry) => entry.id);
+              const start = ids.findIndex((id) => id === from);
+              if (start < 0 || start === index) return;
+              const [moved] = ids.splice(start, 1);
+              ids.splice(index, 0, moved!);
+              patch({ actionOrder: ids });
+            }}
             data-slot="settings-row"
             className="flex items-center gap-3 border-t border-border px-4 py-3 first:border-t-0 sm:px-5"
           >

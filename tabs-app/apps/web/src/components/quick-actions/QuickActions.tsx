@@ -9,45 +9,22 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
-import {
-  ArrowUpRight,
-  Bot,
-  Braces,
-  CircleGauge,
-  Compass,
-  GitBranch,
-  Globe,
-  HardDrive,
-  Plus,
-  Search,
-  Settings2,
-  X,
-} from "lucide-react";
+import { Compass } from "lucide-react";
 import { useSettings } from "~/hooks/useSettings";
 import { useKeybindings } from "~/state/settings";
 import { resolveShortcutCommand, shortcutLabelForCommand } from "~/keybindings";
 import {
-  LAUNCHER_DESIGNS,
+  normalizeLauncherDesign,
   clampLauncher,
   orderedActions,
+  type QuickSubAction,
   type QuickAction,
   type QuickActionId,
   type LauncherDesign,
 } from "./actions";
+import { RadialLauncher } from "./RadialActions";
 import "./quick-actions.css";
 
-const ICONS = {
-  tab: Plus,
-  agent: Bot,
-  branch: GitBranch,
-  browser: Globe,
-  search: Search,
-  popout: ArrowUpRight,
-  code: Braces,
-  storage: HardDrive,
-  usage: CircleGauge,
-  settings: Settings2,
-};
 export interface ActionContext {
   execute: (id: QuickActionId, query: string) => Promise<void>;
   disabled: (id: QuickActionId) => string | undefined;
@@ -55,250 +32,16 @@ export interface ActionContext {
 const Context = createContext<ActionContext | null>(null);
 export const useQuickActions = () => useContext(Context);
 
-export function LauncherSurface({
-  design,
-  actions,
-  execute,
-  disabled,
-  onClose,
-  preview = false,
-}: {
+export function LauncherSurface(props: {
   design: LauncherDesign;
   actions: readonly QuickAction[];
   execute: ActionContext["execute"];
   disabled: ActionContext["disabled"];
   onClose?: () => void;
   preview?: boolean;
+  subActions?: readonly QuickSubAction[] | undefined;
 }) {
-  const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState(0);
-  const [page, setPage] = useState(0);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const container = useRef<HTMLDivElement>(null);
-  const focusFrame = useRef<number | null>(null);
-  useEffect(
-    () => () => {
-      if (focusFrame.current !== null) cancelAnimationFrame(focusFrame.current);
-    },
-    [],
-  );
-  const queryMatches = actions.filter((a) =>
-    `${a.label} ${a.detail} ${a.group}`.toLowerCase().includes(query.toLowerCase()),
-  );
-  const filtered = query
-    ? queryMatches.length
-      ? queryMatches
-      : actions.filter((a) => a.id === "search")
-    : actions;
-  const pageSize = design === "compass" ? 4 : design === "matrix" ? 9 : filtered.length || 1;
-  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const visible = filtered.slice(
-    (page % pageCount) * pageSize,
-    ((page % pageCount) + 1) * pageSize,
-  );
-  const index = Math.min(selected, Math.max(0, visible.length - 1));
-  const active = visible[index];
-  const invoke = async (action: QuickAction) => {
-    if (busy || disabled(action.id)) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await execute(action.id, query);
-      onClose?.();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-    } finally {
-      setBusy(false);
-    }
-  };
-  const focusAction = (next: number) => {
-    const count = Math.max(visible.length, 1);
-    let value = ((next % count) + count) % count;
-    let skipped = 0;
-    while (visible[value] && disabled(visible[value]!.id)) {
-      if (design === "compass" || ++skipped >= visible.length) return;
-      value = (value + (next < index ? -1 : 1) + visible.length) % visible.length;
-    }
-    setSelected(value);
-    if (focusFrame.current !== null) cancelAnimationFrame(focusFrame.current);
-    focusFrame.current = requestAnimationFrame(() => {
-      focusFrame.current = null;
-      container.current
-        ?.querySelector<HTMLButtonElement>(`[data-action-index="${value}"]`)
-        ?.focus();
-    });
-  };
-  const button = (action: QuickAction, i: number) => {
-    const Icon = ICONS[action.icon];
-    const reason = disabled(action.id);
-    return (
-      <button
-        key={action.id}
-        type="button"
-        data-action-index={i}
-        data-current={i === index}
-        className="qa-action"
-        disabled={busy || Boolean(reason)}
-        title={reason ?? action.detail}
-        aria-label={reason ? `${action.label}: ${reason}` : undefined}
-        onFocus={() => setSelected(i)}
-        onClick={() => void invoke(action)}
-      >
-        <Icon aria-hidden="true" size={18} />
-        <span>
-          <strong>{action.label}</strong>
-          {(design === "list" || design === "stack") && <small>{reason ?? action.detail}</small>}
-        </span>
-        {design === "matrix" && <kbd>{i + 1}</kbd>}
-      </button>
-    );
-  };
-  return (
-    <div
-      ref={container}
-      className={`qa-surface qa-${design}`}
-      data-qa-preview={preview}
-      aria-busy={busy}
-      onKeyDown={(event) => {
-        const input = event.target instanceof HTMLInputElement;
-        if (event.key === "Escape") {
-          event.stopPropagation();
-          onClose?.();
-          return;
-        }
-        if (event.key === "Enter" && input && active) {
-          event.preventDefault();
-          void invoke(active);
-        }
-        if (design === "matrix" && /^[1-9]$/.test(event.key) && !input) {
-          const action = visible[Number(event.key) - 1];
-          if (action) {
-            event.preventDefault();
-            void invoke(action);
-          }
-        }
-        if (
-          ["ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight"].includes(event.key) &&
-          (!input || event.key === "ArrowDown" || event.key === "ArrowUp")
-        ) {
-          event.preventDefault();
-          if (design === "compass")
-            focusAction(["ArrowUp", "ArrowRight", "ArrowDown", "ArrowLeft"].indexOf(event.key));
-          else
-            focusAction(
-              input
-                ? event.key === "ArrowUp"
-                  ? visible.length - 1
-                  : 0
-                : index +
-                    (event.key === "ArrowUp" || event.key === "ArrowLeft" ? -1 : 1) *
-                      (design === "matrix" && (event.key === "ArrowUp" || event.key === "ArrowDown")
-                        ? 3
-                        : 1),
-            );
-        }
-        if (event.key === "PageDown" || event.key === "PageUp") {
-          event.preventDefault();
-          setPage((p) => (p + (event.key === "PageDown" ? 1 : pageCount - 1)) % pageCount);
-          setSelected(0);
-        }
-      }}
-    >
-      <header>
-        <span>
-          Tabs{" "}
-          <span className="qa-muted">/ {LAUNCHER_DESIGNS.find((d) => d.id === design)?.name}</span>
-        </span>
-        {onClose && (
-          <button type="button" aria-label="Close quick actions" onClick={onClose}>
-            <X size={16} />
-          </button>
-        )}
-      </header>
-      <label className="qa-search">
-        <Search size={16} aria-hidden="true" />
-        <input
-          autoFocus={!preview}
-          aria-label="Find an action, search the web, or enter a URL"
-          placeholder="Action, search, or URL…"
-          value={query}
-          onChange={(e) => {
-            setQuery(e.target.value);
-            setSelected(0);
-            setPage(0);
-          }}
-        />
-      </label>
-      <div className="qa-actions" role="group" aria-label="Quick actions">
-        {design === "stack" ? (
-          <>
-            <div className="qa-stack-count">
-              {index + 1} / {visible.length}
-            </div>
-            {active && button(active, index)}
-            <div className="qa-stack-controls">
-              <button
-                type="button"
-                onClick={() => setSelected((index + visible.length - 1) % visible.length)}
-              >
-                ← Previous
-              </button>
-              <button type="button" onClick={() => setSelected((index + 1) % visible.length)}>
-                Next →
-              </button>
-            </div>
-          </>
-        ) : (
-          visible.map(button)
-        )}
-        {design === "compass" && (
-          <div className="qa-compass-center" aria-hidden="true">
-            <Compass size={25} />
-          </div>
-        )}
-      </div>
-      {pageCount > 1 && (
-        <div className="qa-pages">
-          <button
-            type="button"
-            onClick={() => {
-              setPage((page + pageCount - 1) % pageCount);
-              setSelected(0);
-            }}
-          >
-            ←
-          </button>
-          <span>
-            {(page % pageCount) + 1} / {pageCount}
-          </span>
-          <button
-            type="button"
-            onClick={() => {
-              setPage((page + 1) % pageCount);
-              setSelected(0);
-            }}
-          >
-            More →
-          </button>
-        </div>
-      )}
-      <footer>
-        {busy
-          ? "Working…"
-          : design === "matrix"
-            ? "Tab into the pad · 1–9 to run · PgUp / PgDn"
-            : design === "compass"
-              ? "Arrows choose a direction · Enter to run"
-              : "Arrows to explore · Enter to run · Esc to return"}
-      </footer>
-      {error && (
-        <p className="qa-error" role="alert">
-          {error}
-        </p>
-      )}
-    </div>
-  );
+  return <RadialLauncher {...props} />;
 }
 
 export function QuickActionsHost({
@@ -313,11 +56,24 @@ export function QuickActionsHost({
   const previousFocus = useRef<HTMLElement | null>(null);
   const popup = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState({ x: 8, y: 8 });
+  const [closing, setClosing] = useState(false);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(closeTimer.current), []);
   const dismiss = useCallback(() => {
-    setAnchor(null);
-    previousFocus.current?.focus();
+    setClosing(true);
+    clearTimeout(closeTimer.current);
+    closeTimer.current = setTimeout(
+      () => {
+        setAnchor(null);
+        setClosing(false);
+        previousFocus.current?.focus();
+      },
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 140,
+    );
   }, []);
   const open = useCallback((point?: { x: number; y: number }) => {
+    clearTimeout(closeTimer.current);
+    setClosing(false);
     previousFocus.current =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setAnchor(point ?? pointer.current ?? { x: window.innerWidth / 2, y: window.innerHeight / 3 });
@@ -412,9 +168,10 @@ export function QuickActionsHost({
         createPortal(
           <div
             className="qa-overlay"
+            data-closing={closing}
             data-slot="quick-actions-overlay"
             onPointerDown={(e) => {
-              if (e.target === e.currentTarget) dismiss();
+              if (!(e.target as Element).closest("button,input")) dismiss();
             }}
             onKeyDown={(e) => {
               if (e.key === "Escape") {
@@ -446,8 +203,9 @@ export function QuickActionsHost({
               style={{ left: position.x, top: position.y }}
             >
               <LauncherSurface
-                design={settings.design}
+                design={normalizeLauncherDesign(settings.design)}
                 actions={orderedActions(settings.actionOrder, settings.hiddenActions)}
+                subActions={settings.subActions}
                 execute={execute}
                 disabled={disabled}
                 onClose={dismiss}

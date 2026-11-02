@@ -102,18 +102,21 @@ chrome, leaving ordinary editor text selection and double-clicks alone.
 
 All variants share the action registry and executor:
 
-| Design   | Interaction                                                                                           | Preview                             |
-| -------- | ----------------------------------------------------------------------------------------------------- | ----------------------------------- |
-| Dispatch | Searchable list; up/down and Enter                                                                    | [Screenshot](launcher-dispatch.png) |
-| Compass  | Four directional positions; arrows select directions; paging exposes the remaining actions            | [Screenshot](launcher-compass.png)  |
-| Toolbelt | Horizontal, scrollable tool shelf; left/right navigation and direct clicks                            | [Screenshot](launcher-toolbelt.png) |
-| Keypad   | 3×3 spatial pad; vertical arrows move by row, and 1–9 run visible actions when outside the text field | [Screenshot](launcher-keypad.png)   |
-| Focus    | One detailed action at a time; previous/next or left/right; Enter commits the selected action         | [Screenshot](launcher-focus.png)    |
+| Design      | Interaction                                                |
+| ----------- | ---------------------------------------------------------- |
+| Halo Fade   | Circular icon ring with an action-colored fading highlight |
+| Glass Dial  | Labelled glass buttons around the center hub               |
+| Pie Sectors | Rounded radial sectors with action-colored gradients       |
 
-![Compass launcher](launcher-compass.png)
-![Keypad launcher](launcher-keypad.png)
+The launcher floats directly over the blurred workspace without a rectangular panel.
+Arrow keys rotate the selection; Enter runs it. Secondary actions live under one More
+item, with up/down navigation. Each action appears once; there are no pages.
+Legacy layout preferences open Halo Fade. The center is a label; typing opens search and URL entry.
+Hover or focus a parent action to reveal its configurable sub-actions. Edit names, destinations,
+and action targets in Quick Actions settings; drag to reorder or use accessible arrow buttons.
+Click outside or press Escape to dismiss with a short fade (reduced motion is respected).
 
-Available actions: new workspace tab, new local conversation, isolated agent task, scratch browser,
+Available actions: new workspace tab, new local conversation, isolated agent task, scratch browser, temporary terminal,
 web search/URL, pop out conversation, return to code, source control, worktrees/storage, provider
 usage/limits, and customization. Context-dependent actions are disabled with an explanation.
 Usage opens the existing connected-provider page; no usage values or account data are fabricated.
@@ -217,8 +220,8 @@ build does not package or publish an installer.
    conversation. For live-provider review, observe streaming, tools and any approvals in that same
    thread while navigating the main workspace elsewhere.
 
-6. Open Quick Actions with the compass or shortcut. Try Dispatch typing, Compass directions,
-   Toolbelt scrolling, Keypad numbers after leaving the input, and Focus next/previous.
+6. Open Quick Actions with the compass or shortcut. Try all three radial styles,
+   action-colored selection, browser sub-actions, typing to search, and More options.
 
 7. In Settings → Quick Actions, preview each design, select one, reorder actions, hide a seldom-used
    action and optionally enable Alt+right-click in chrome. Change the shortcut in Keybindings.
@@ -307,3 +310,26 @@ Repository and retention selectors use Tabs' themed Select popups, with no nativ
 Browser checks cover filtering, protected removal controls, creation, custom retention selection,
 zero storage, and a 390px viewport. Desktop and mobile fixture captures were visually reviewed,
 and the custom repository popup was verified in the running Electron app.
+
+### Temporary workspace tools
+
+Scratch browser, web search, and temporary terminal tabs have a close button in both
+workspace toolbar styles. Keep opens an app-styled naming dialog and saves the tool to
+the workspace. Closing a temporary terminal ends its sessions; closing a temporary
+browser releases its native session. Kept tools retain their configuration when closed
+and can be reopened from Workspace settings.
+
+### Prototype radial geometry and clipboard
+
+Sub-actions and More use the prototype's adjacent fan: Halo nodes at 112 px with chips at
+206 px and 30-degree spacing; Dial nodes at 108 px with chips at 204 px (24/28 degrees);
+Pie nodes at 94 px with rounded outer sectors from 134 to 198 px. The action-colored
+radial fade follows the active node. Each fan stays beside its parent.
+
+Search has Google and DuckDuckGo sub-actions. Search shortcut URLs can contain `{query}`;
+choosing an engine asks for text, then substitutes the encoded query. Temporary browser
+shortcuts open destinations directly in an isolated browser tab.
+
+Temporary clipboard is a local scratch pad. Its draft lasts for the window session;
+explicitly saved snippets remain on this device until removed. It never reads the system
+clipboard automatically. Copy writes only the text the user chooses.

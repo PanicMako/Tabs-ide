@@ -1,0 +1,260 @@
+.qa-radial-surface {
+  position: relative;
+  width: min(560px, calc(100vw - 20px), calc(100dvh - 20px));
+  aspect-ratio: 1;
+  color: var(--foreground);
+  isolation: isolate;
+  outline: none;
+  --qa-action-color: var(--primary);
+  --qa-scale: 1;
+}
+.qa-radial-canvas {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 560px;
+  height: 560px;
+  transform: translate(-50%, -50%) scale(var(--qa-scale));
+}
+.qa-radial-disc {
+  position: absolute;
+  inset: 40px;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--popover) 68%, transparent),
+    color-mix(in srgb, var(--popover) 20%, transparent) 48%,
+    transparent 71%
+  );
+}
+.qa-halo-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  filter: blur(5px);
+}
+.qa-radial-node {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 4px;
+  width: 48px;
+  height: 48px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--popover) 68%, transparent);
+  box-shadow: 0 3px 12px color-mix(in srgb, var(--foreground) 9%, transparent);
+  backdrop-filter: blur(16px);
+  transition:
+    background 120ms,
+    border-color 120ms,
+    box-shadow 120ms;
+}
+.qa-radial-node:is(:hover, [data-current="true"]):not(:disabled) {
+  background: color-mix(in srgb, var(--qa-node-color) 65%, var(--popover));
+  border-color: var(--qa-node-color);
+  box-shadow: 0 0 26px color-mix(in srgb, var(--qa-node-color) 30%, transparent);
+}
+.qa-radial-dial .qa-radial-node {
+  width: 66px;
+  height: 66px;
+}
+.qa-radial-node span {
+  font-size: 11px;
+  line-height: 1.1;
+  max-width: 66px;
+  text-align: center;
+}
+.qa-radial-hub {
+  position: absolute;
+  left: 280px;
+  top: 280px;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  width: 92px;
+  height: 92px;
+  padding: 10px;
+  border: 1px solid color-mix(in srgb, var(--qa-action-color) 65%, var(--border));
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--popover) 76%, transparent);
+}
+.qa-radial-hub svg {
+  color: var(--qa-action-color);
+}
+.qa-radial-hub input {
+  width: 82px;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--foreground);
+  text-align: center;
+  font-size: 12px;
+}
+.qa-radial-hub input::placeholder {
+  color: var(--foreground);
+  opacity: 0.9;
+}
+.qa-radial-hub:focus-within {
+  outline: 2px solid color-mix(in srgb, var(--qa-action-color) 50%, transparent);
+  outline-offset: 3px;
+}
+.qa-radial-hub > span {
+  color: var(--muted-foreground);
+  font-size: 10px;
+}
+.qa-more-action {
+  position: absolute;
+  z-index: 3;
+  transform: translate(-50%, -50%);
+  max-width: 140px;
+  min-height: 34px;
+  padding: 7px 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--foreground);
+  background: var(--popover);
+  font-size: 12px;
+}
+.qa-more-action:is(:hover, [data-current="true"]):not(:disabled) {
+  background: color-mix(in srgb, var(--qa-node-color) 38%, var(--popover));
+  border-color: var(--qa-node-color);
+  box-shadow: 0 0 22px color-mix(in srgb, var(--qa-node-color) 20%, transparent);
+}
+.qa-radial-node:disabled,
+.qa-more-action:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.qa-radial-surface button:focus-visible {
+  outline: 2px solid var(--qa-node-color, var(--ring));
+  outline-offset: 3px;
+}
+.qa-sector-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.qa-sector-art path {
+  fill: color-mix(in srgb, var(--popover) 74%, transparent);
+  stroke: var(--border);
+  stroke-width: 1;
+}
+.qa-radial-sectors .qa-radial-node {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+.qa-radial-sectors .qa-radial-node:is(:hover, [data-current="true"]):not(:disabled) {
+  background: transparent;
+  box-shadow: none;
+  color: var(--qa-node-color);
+}
+.qa-hub-label {
+  font-size: 12px !important;
+  line-height: 1.25;
+  color: var(--foreground) !important;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.qa-radial-hub {
+  backdrop-filter: blur(16px);
+}
+.qa-more-action {
+  backdrop-filter: blur(16px);
+  background: color-mix(in srgb, var(--popover) 78%, transparent);
+}
+.qa-radial-error {
+  position: absolute;
+  top: 100%;
+  left: 10%;
+  right: 10%;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid var(--destructive);
+  border-radius: 10px;
+  background: var(--popover);
+  color: var(--destructive);
+  font-size: 12px;
+  text-align: center;
+}
+@media (max-width: 500px) {
+  .qa-radial-node {
+    width: calc(44px / var(--qa-scale));
+    height: calc(44px / var(--qa-scale));
+  }
+  .qa-radial-dial .qa-radial-node {
+    width: calc(60px / var(--qa-scale));
+    height: calc(60px / var(--qa-scale));
+  }
+  .qa-radial-node svg {
+    width: calc(20px / var(--qa-scale));
+    height: calc(20px / var(--qa-scale));
+  }
+  .qa-radial-dial .qa-radial-node span {
+    font-size: calc(10px / var(--qa-scale));
+    max-width: calc(54px / var(--qa-scale));
+  }
+  .qa-more-action {
+    max-width: calc(100px / var(--qa-scale));
+    font-size: calc(11px / var(--qa-scale));
+    padding: calc(6px / var(--qa-scale));
+  }
+  .qa-radial-hub {
+    width: calc(78px / var(--qa-scale));
+    height: calc(78px / var(--qa-scale));
+  }
+  .qa-radial-hub input {
+    width: calc(66px / var(--qa-scale));
+    font-size: calc(11px / var(--qa-scale));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .qa-radial-surface * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+.qa-radial-sectors .qa-radial-hub {
+  width: 104px;
+  height: 104px;
+}
+
+.qa-sector-art .qa-sub-sector {
+  fill: color-mix(in srgb, var(--popover) 70%, transparent);
+}
+.qa-sector-art .qa-sub-sector[data-current="true"] {
+  fill: color-mix(in srgb, var(--qa-action-color) 60%, transparent);
+  stroke: var(--qa-action-color);
+}
+.qa-radial-sectors .qa-more-action {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  max-width: 108px;
+}
+.qa-radial-sectors .qa-more-action:is(:hover, [data-current="true"]) {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  color: var(--qa-action-color);
+}

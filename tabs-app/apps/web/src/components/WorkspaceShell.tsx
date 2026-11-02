@@ -1,3 +1,15 @@
+import {
+  WorkspaceToolActions,
+  KeepWorkspaceToolDialog,
+  type WorkspaceToolActionTarget,
+} from "./WorkspaceToolActions";
+import {
+  canCloseWorkspaceTool,
+  closeWorkspaceTool,
+  isTemporaryWorkspaceTool,
+  keepWorkspaceTool,
+} from "../temporaryWorkspaceTools";
+import { TemporaryClipboard } from "./quick-actions/TemporaryClipboard";
 import { QuickActionsHost } from "./quick-actions/QuickActions";
 import { searchTarget, type QuickActionId } from "./quick-actions/actions";
 import { useOlderSettledThreads } from "../hooks/useOlderSettledThreads";
@@ -883,6 +895,7 @@ function normalizeBrowserUrl(rawUrl: string): string {
   if (trimmed.length === 0) {
     return "";
   }
+  if (trimmed === "about:blank") return trimmed;
   if (/^[a-z]+:\/\//i.test(trimmed)) {
     return trimmed;
   }
@@ -1272,7 +1285,11 @@ function ProjectToolBar(props: {
     kind: ProjectToolKind;
     label: string;
     icon?: React.ReactNode;
+    temporary?: boolean;
+    closable?: boolean;
   }>;
+  onCloseTool?: (id: string) => void;
+  onKeepTool?: (id: string) => void;
   threads?: ReadonlyArray<Thread>;
   activeProjectId?: ProjectId | null;
   onSelectTool: (toolId: string) => void;
@@ -1347,42 +1364,55 @@ function ProjectToolBar(props: {
           const toolActivityIndicator =
             isAgentsTool && !active ? resolveTabActivityIndicator(activeProjectThreads) : null;
           return (
-            <button
+            <div
               key={tool.id}
-              type="button"
-              role="tab"
-              data-tool-kind={tool.kind}
-              style={interfaceStudyAccent(tool.kind)}
-              aria-selected={active}
-              tabIndex={active ? 0 : -1}
-              onClick={() => props.onSelectTool(tool.id)}
-              className={cn("nav-tab", active && "active")}
+              className="inline-flex shrink-0 items-center"
+              data-slot="workspace-tool-tab"
             >
-              <span
-                className={cn(
-                  "nav-tab-icon inline-flex items-center justify-center shrink-0 transition-colors",
-                  active ? "text-foreground font-semibold" : "text-muted-foreground",
-                )}
+              <button
+                type="button"
+                role="tab"
+                data-tool-kind={tool.kind}
+                style={interfaceStudyAccent(tool.kind)}
+                aria-selected={active}
+                tabIndex={active ? 0 : -1}
+                onClick={() => props.onSelectTool(tool.id)}
+                className={cn("nav-tab", active && "active")}
               >
-                {isAgentsTool ? (
-                  <AssistantBubbleIcon className="size-4" />
-                ) : (
-                  (tool.icon ?? toolIcon(tool.kind))
-                )}
-              </span>
-              <span>{tool.label}</span>
-              {toolActivityIndicator && (
                 <span
                   className={cn(
-                    "size-1.5 shrink-0 rounded-full ml-1",
-                    toolActivityIndicator.dotClass,
-                    toolActivityIndicator.pulse && "animate-pulse",
+                    "nav-tab-icon inline-flex items-center justify-center shrink-0 transition-colors",
+                    active ? "text-foreground font-semibold" : "text-muted-foreground",
                   )}
-                  title={toolActivityIndicator.label}
-                  aria-label={toolActivityIndicator.label}
-                />
-              )}
-            </button>
+                >
+                  {isAgentsTool ? (
+                    <AssistantBubbleIcon className="size-4" />
+                  ) : (
+                    (tool.icon ?? toolIcon(tool.kind))
+                  )}
+                </span>
+                <span>{tool.label}</span>
+                {tool.temporary && (
+                  <span className="text-[10px] font-normal text-muted-foreground">Temporary</span>
+                )}
+                {toolActivityIndicator && (
+                  <span
+                    className={cn(
+                      "size-1.5 shrink-0 rounded-full ml-1",
+                      toolActivityIndicator.dotClass,
+                      toolActivityIndicator.pulse && "animate-pulse",
+                    )}
+                    title={toolActivityIndicator.label}
+                    aria-label={toolActivityIndicator.label}
+                  />
+                )}
+              </button>
+              <WorkspaceToolActions
+                tool={tool}
+                onClose={props.onCloseTool}
+                onKeep={props.onKeepTool}
+              />
+            </div>
           );
         })}
       </div>
@@ -10191,14 +10221,24 @@ function CustomProcessTool(props: {
   }, [props.process.id]);
 
   useEffect(() => {
-    if (commands.length === 0 || isRunning || autoStartedRef.current) {
+    if (
+      (!props.process.interactiveShell && commands.length === 0) ||
+      isRunning ||
+      autoStartedRef.current
+    ) {
       return;
     }
     autoStartedRef.current = true;
     props.onRunProcess(props.process.id);
-  }, [commands.length, isRunning, props.onRunProcess, props.process.id]);
+  }, [
+    commands.length,
+    isRunning,
+    props.onRunProcess,
+    props.process.id,
+    props.process.interactiveShell,
+  ]);
 
-  if (commands.length === 0) {
+  if (commands.length === 0 && !props.process.interactiveShell) {
     return (
       <div className="flex h-full items-center justify-center p-6">
         <Card className="max-w-lg">
@@ -11412,6 +11452,8 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
     id: tool.id,
     kind: tool.kind,
     label: tool.label,
+    temporary: isTemporaryWorkspaceTool(tool),
+    closable: canCloseWorkspaceTool(tool),
     icon:
       tool.kind === "extension" ? (
         <InstalledExtensionToolIcon
@@ -12347,7 +12389,7 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
       const commands = input.process.commands
         .map((command) => command.trim())
         .filter((command) => command.length > 0);
-      if (commands.length === 0) return;
+      if (commands.length === 0 && !input.process.interactiveShell) return;
       const terminalId = input.process.id || DEFAULT_THREAD_TERMINAL_ID;
       const cwd = input.process.cwd.trim().length > 0 ? input.process.cwd : activeProject.cwd;
       const env = input.process.env;
@@ -13193,9 +13235,60 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
     content
   );
 
+  const [clipboardOpen, setClipboardOpen] = useState(false);
+  const [toolToKeep, setToolToKeep] = useState<WorkspaceToolActionTarget | null>(null);
+  const requestKeepTool = (id: string) =>
+    setToolToKeep(availableTools.find((tool) => tool.id === id) ?? null);
+  const requestCloseTool = async (id: string) => {
+    if (!activeProject || !activeProjectSettings) return;
+    const tool = activeProjectSettings.tools.find((entry) => entry.id === id);
+    if (!tool || !canCloseWorkspaceTool(tool)) return;
+    try {
+      if (tool.kind === "custom_embed" && tool.customEmbedId)
+        await window.desktopBridge?.destroyBrowserSession?.({
+          projectId: activeProject.id,
+          sessionId: `custom-${tool.customEmbedId}`,
+        });
+      if (tool.kind === "custom_process" && tool.terminalProcessId) {
+        const threadId = ThreadId.makeUnsafe(
+          `server:${activeProject.id}:custom:${tool.terminalProcessId}`,
+        );
+        const state = getThreadTerminalState(threadId);
+        if (activeProjectApi && "close" in activeProjectApi.terminal) {
+          for (const terminalId of state?.terminalIds ?? []) {
+            if (terminalId === DEFAULT_THREAD_TERMINAL_ID && terminalId !== tool.terminalProcessId)
+              continue;
+            await activeProjectApi.terminal.close({ threadId, terminalId });
+          }
+        }
+        storeClearTerminalState(threadId);
+      }
+      upsertProjectSettings(activeProject.id, (current) => closeWorkspaceTool(current, id));
+      if (activeTool?.id === id)
+        setActiveTool(
+          activeProject.id,
+          availableTools.find((entry) => entry.id !== id)?.id ?? "agents",
+        );
+    } catch (error) {
+      toastManager.add({
+        type: "error",
+        title: "Could not close tool",
+        description: error instanceof Error ? error.message : String(error),
+      });
+    }
+  };
+
   const quickActionDisabled = (id: QuickActionId): string | undefined => {
     if (
-      ["new-agent", "isolated-agent", "scratch-browser", "search", "code", "git"].includes(id) &&
+      [
+        "new-agent",
+        "isolated-agent",
+        "scratch-browser",
+        "scratch-terminal",
+        "search",
+        "code",
+        "git",
+      ].includes(id) &&
       !activeProject
     )
       return "Open a project first";
@@ -13237,10 +13330,41 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
         environmentId: activeProject.environmentId,
         envMode: id === "isolated-agent" ? "worktree" : "local",
       });
+    } else if (id === "clipboard") {
+      setClipboardOpen(true);
+    } else if (activeProject && id === "scratch-terminal") {
+      const id = `scratch-terminal-${randomUUID()}`;
+      upsertProjectSettings(activeProject.id, (current) => ({
+        ...current,
+        terminalProcesses: [
+          ...current.terminalProcesses,
+          {
+            id,
+            label: "Terminal",
+            commands: [],
+            cwd: activeProject.cwd,
+            env: {},
+            autoStart: false,
+            interactiveShell: true,
+          },
+        ],
+        tools: [
+          ...current.tools,
+          {
+            id,
+            kind: "custom_process",
+            label: "Terminal",
+            visible: true,
+            temporary: true,
+            terminalProcessId: id,
+          },
+        ],
+      }));
+      setActiveTool(activeProject.id, id);
+      await navigate({ to: "/" });
     } else if (activeProject && (id === "scratch-browser" || id === "search")) {
       const embedId = `scratch-${randomUUID()}`;
-      const url =
-        id === "search" ? searchTarget(query || "developer documentation") : "about:blank";
+      const url = id === "search" || query.trim() ? searchTarget(query) : "about:blank";
       upsertProjectSettings(activeProject.id, (current) => ({
         ...current,
         customEmbeds: [
@@ -13258,6 +13382,7 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
           {
             id: embedId,
             kind: "custom_embed",
+            temporary: true,
             label: id === "search" ? "Web search" : "Scratch browser",
             visible: true,
             customEmbedId: embedId,
@@ -13278,6 +13403,18 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
   return (
     <QuickActionsHost execute={runQuickAction} disabled={quickActionDisabled}>
       <div className="flex h-dvh min-h-0 min-w-0 flex-1 flex-col bg-background text-foreground">
+        <TemporaryClipboard open={clipboardOpen} onOpenChange={setClipboardOpen} />
+        <KeepWorkspaceToolDialog
+          tool={toolToKeep}
+          onClose={() => setToolToKeep(null)}
+          onKeep={(id, label) => {
+            if (activeProject)
+              upsertProjectSettings(activeProject.id, (current) =>
+                keepWorkspaceTool(current, id, label),
+              );
+            setToolToKeep(null);
+          }}
+        />
         <CloneRepositoryDialog
           open={cloneDialogOpen}
           onOpenChange={setCloneDialogOpen}
@@ -13324,6 +13461,8 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
                 closePendingTab(pendingId);
               }}
               onSelectTool={(toolId) => void handleSelectTool(toolId)}
+              onCloseTool={(id) => void requestCloseTool(id)}
+              onKeepTool={requestKeepTool}
               onOpenSettings={openSettings}
             />
           ) : null
@@ -13383,6 +13522,8 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
                 threads={threads}
                 activeProjectId={activeProject?.id ?? null}
                 onSelectTool={(toolId) => void handleSelectTool(toolId)}
+                onCloseTool={(id) => void requestCloseTool(id)}
+                onKeepTool={requestKeepTool}
                 onOpenSettings={openSettings}
               />
             ) : null}
