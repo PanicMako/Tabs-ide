@@ -4,15 +4,16 @@ import {
   CopyIcon,
   FileTextIcon,
   ImageIcon,
+  LinkIcon,
   PinIcon,
   PlusIcon,
   SearchIcon,
   Trash2Icon,
+  XIcon,
 } from "lucide-react";
-import { Dialog, DialogPopup, DialogTitle, DialogDescription } from "../ui/dialog";
+import { Dialog, DialogPopup, DialogTitle, DialogDescription, DialogClose } from "../ui/dialog";
 import { Button } from "../ui/button";
-import { Input } from "../ui/input";
-import { Textarea } from "../ui/textarea";
+import "./temporary-clipboard.css";
 
 type Clip = {
   id: string;
@@ -160,59 +161,76 @@ export function TemporaryClipboard({
   );
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogPopup className="max-w-xl overflow-hidden" onPaste={onPaste}>
-        <div className="border-b border-border p-5 pb-4">
-          <div className="flex items-center gap-2">
-            <ClipboardIcon className="size-4 text-muted-foreground" aria-hidden="true" />
-            <DialogTitle>Clipboard</DialogTitle>
+      <DialogPopup className="tc-popup" showCloseButton={false} onPaste={onPaste}>
+        <div className="tc-header">
+          <div className="tc-header-top">
+            <div className="tc-title-wrap">
+              <ClipboardIcon className="size-4 text-muted-foreground" aria-hidden="true" />
+              <DialogTitle className="tc-title">Clipboard</DialogTitle>
+              {visible.length > 0 && <span className="tc-count-badge">{visible.length}</span>}
+            </div>
+            <div className="tc-header-actions">
+              <Button
+                size="sm"
+                variant="outline"
+                className="tc-action-pill-btn"
+                aria-label="Paste"
+                onClick={() => void paste()}
+              >
+                Paste
+              </Button>
+              <Button
+                size="sm"
+                variant={composing ? "default" : "outline"}
+                className="tc-action-pill-btn"
+                aria-label="New note"
+                onClick={() => setComposing((value) => !value)}
+              >
+                <PlusIcon className="size-3.5" aria-hidden="true" />
+                <span>Note</span>
+              </Button>
+              <DialogClose className="tc-close-btn" aria-label="Close">
+                <XIcon className="size-3.5" aria-hidden="true" />
+              </DialogClose>
+            </div>
           </div>
-          <DialogDescription className="mt-1">
+          <DialogDescription className="sr-only">
             Paste text, links, or an image here. Pin anything you want to keep.
           </DialogDescription>
-          <div className="mt-4 flex items-center gap-2">
-            <div className="relative min-w-0 flex-1">
-              <SearchIcon
-                className="pointer-events-none absolute left-3 top-2.5 size-4 text-muted-foreground"
-                aria-hidden="true"
-              />
-              <Input
+
+          <div className="tc-controls-row">
+            <div className="tc-filter-group" role="group" aria-label="Clipboard filter">
+              {[false, true].map((saved) => (
+                <button
+                  key={String(saved)}
+                  type="button"
+                  aria-pressed={savedOnly === saved}
+                  onClick={() => setSavedOnly(saved)}
+                  className="tc-filter-pill"
+                >
+                  {saved ? "Saved" : "Recent"}
+                </button>
+              ))}
+            </div>
+
+            <div className="tc-search-wrap">
+              <SearchIcon className="tc-search-icon" aria-hidden="true" />
+              <input
                 autoFocus
+                type="text"
                 aria-label="Search clipboard"
-                placeholder="Search your clipboard…"
-                className="pl-9"
+                placeholder="Search…"
+                className="tc-search-input"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
               />
             </div>
-            <Button size="sm" variant="outline" onClick={() => void paste()}>
-              Paste
-            </Button>
-            <Button
-              size="icon-sm"
-              variant="ghost"
-              aria-label="New note"
-              onClick={() => setComposing((value) => !value)}
-            >
-              <PlusIcon className="size-4" />
-            </Button>
-          </div>
-          <div className="mt-3 flex gap-1" aria-label="Clipboard filter">
-            {[false, true].map((saved) => (
-              <button
-                key={String(saved)}
-                type="button"
-                aria-pressed={savedOnly === saved}
-                onClick={() => setSavedOnly(saved)}
-                className={`rounded-md px-2.5 py-1 text-xs ${savedOnly === saved ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-muted"}`}
-              >
-                {saved ? "Saved" : "Recent"}
-              </button>
-            ))}
           </div>
         </div>
+
         {composing && (
           <form
-            className="space-y-3 border-b border-border bg-muted/20 p-4"
+            className="tc-compose-panel"
             onSubmit={(event) => {
               event.preventDefault();
               add(draft, "text", true);
@@ -225,11 +243,12 @@ export function TemporaryClipboard({
               }
             }}
           >
-            <Textarea
+            <textarea
               autoFocus
               aria-label="Clipboard text"
-              placeholder="Paste or write a note…"
-              rows={4}
+              placeholder="Write a note…"
+              className="tc-compose-textarea"
+              rows={3}
               maxLength={100000}
               value={draft}
               onChange={(event) => {
@@ -241,7 +260,7 @@ export function TemporaryClipboard({
                 }
               }}
             />
-            <div className="flex justify-end gap-2">
+            <div className="tc-compose-footer">
               <Button size="sm" variant="ghost" type="button" onClick={() => setComposing(false)}>
                 Cancel
               </Button>
@@ -251,120 +270,126 @@ export function TemporaryClipboard({
             </div>
           </form>
         )}
-        <div
-          className="max-h-[min(55dvh,440px)] min-h-44 overflow-y-auto p-2"
-          aria-label="Clipboard items"
-        >
+
+        <div className="tc-list" aria-label="Clipboard items">
           {visible.length ? (
-            visible.map((clip) => (
-              <div
-                key={clip.id}
-                className="group flex items-start gap-3 rounded-lg p-3 hover:bg-muted/60"
-              >
-                <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/40">
-                  {clip.type === "image" ? (
-                    <ImageIcon className="size-4 text-muted-foreground" aria-hidden="true" />
-                  ) : (
-                    <FileTextIcon className="size-4 text-muted-foreground" aria-hidden="true" />
-                  )}
-                </div>
-                <button
-                  type="button"
-                  className="min-w-0 flex-1 text-left"
-                  aria-label={
-                    clip.type === "image" ? "Copy clipboard image" : "Open clipboard item"
-                  }
-                  onClick={() => {
-                    if (clip.type === "text") {
-                      setDraft(clip.text);
-                      setComposing(true);
-                    } else void copy(clip);
-                  }}
-                >
-                  {clip.type === "image" ? (
-                    <img
-                      src={clip.text}
-                      alt="Pasted clipboard image"
-                      className="max-h-32 max-w-full rounded-md object-contain"
-                    />
-                  ) : (
-                    <span className="line-clamp-2 whitespace-pre-wrap break-words text-sm">
-                      {clip.text}
-                    </span>
-                  )}
-                  <span className="mt-1 block text-[11px] text-muted-foreground">
-                    {clip.type === "image"
-                      ? "Image"
-                      : /^https?:\/\/\S+$/.test(clip.text)
-                        ? "Link"
-                        : "Text"}{" "}
-                    ·{" "}
-                    {clip.pinned
-                      ? "Saved"
-                      : new Date(clip.createdAt).toLocaleTimeString([], {
+            visible.map((clip) => {
+              const isLink = clip.type === "text" && /^https?:\/\/\S+$/.test(clip.text);
+              return (
+                <div key={clip.id} className="tc-clip-card">
+                  <div
+                    className={`tc-clip-rail ${
+                      clip.pinned
+                        ? "rail-pinned"
+                        : clip.type === "image"
+                          ? "rail-image"
+                          : isLink
+                            ? "rail-link"
+                            : "rail-text"
+                    }`}
+                    aria-hidden="true"
+                  />
+                  <div className="tc-clip-icon-box" aria-hidden="true">
+                    {clip.type === "image" ? (
+                      <ImageIcon className="size-3.5" />
+                    ) : isLink ? (
+                      <LinkIcon className="size-3.5" />
+                    ) : (
+                      <FileTextIcon className="size-3.5" />
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    className="tc-clip-content-btn"
+                    aria-label={
+                      clip.type === "image" ? "Copy clipboard image" : "Open clipboard item"
+                    }
+                    onClick={() => {
+                      if (clip.type === "text") {
+                        setDraft(clip.text);
+                        setComposing(true);
+                      } else void copy(clip);
+                    }}
+                  >
+                    {clip.type === "image" ? (
+                      <img
+                        src={clip.text}
+                        alt="Pasted clipboard image"
+                        className="max-h-28 max-w-full rounded-md object-contain"
+                      />
+                    ) : (
+                      <span className="tc-clip-text">{clip.text}</span>
+                    )}
+                    <div className="tc-clip-meta">
+                      <span>
+                        {new Date(clip.createdAt).toLocaleTimeString([], {
                           hour: "2-digit",
                           minute: "2-digit",
                         })}
-                  </span>
-                </button>
-                <div className="flex shrink-0 gap-0.5">
-                  <Button
-                    size="icon-xs"
-                    variant="ghost"
-                    aria-label="Copy clipboard item"
-                    onClick={() => void copy(clip)}
-                  >
-                    <CopyIcon className="size-3.5" />
-                  </Button>
-                  <Button
-                    size="icon-xs"
-                    variant="ghost"
-                    aria-label={clip.pinned ? "Unpin clipboard item" : "Save clipboard item"}
-                    aria-pressed={clip.pinned}
-                    onClick={() =>
-                      setClips((current) =>
-                        current.map((item) =>
-                          item.id === clip.id ? { ...item, pinned: !item.pinned } : item,
-                        ),
-                      )
-                    }
-                  >
-                    <PinIcon className="size-3.5" />
-                  </Button>
-                  <Button
-                    size="icon-xs"
-                    variant="ghost"
-                    aria-label="Remove clipboard item"
-                    onClick={() =>
-                      setClips((current) => current.filter((item) => item.id !== clip.id))
-                    }
-                  >
-                    <Trash2Icon className="size-3.5" />
-                  </Button>
+                      </span>
+                      {clip.pinned && <span className="tc-pinned-tag">★ Saved</span>}
+                    </div>
+                  </button>
+                  <div className="tc-clip-actions">
+                    <Button
+                      size="icon-xs"
+                      variant="ghost"
+                      aria-label="Copy clipboard item"
+                      onClick={() => void copy(clip)}
+                    >
+                      <CopyIcon className="size-3.5" />
+                    </Button>
+                    <Button
+                      size="icon-xs"
+                      variant="ghost"
+                      aria-label={clip.pinned ? "Unpin clipboard item" : "Save clipboard item"}
+                      aria-pressed={clip.pinned}
+                      onClick={() =>
+                        setClips((current) =>
+                          current.map((item) =>
+                            item.id === clip.id ? { ...item, pinned: !item.pinned } : item,
+                          ),
+                        )
+                      }
+                    >
+                      <PinIcon className="size-3.5" />
+                    </Button>
+                    <Button
+                      size="icon-xs"
+                      variant="ghost"
+                      aria-label="Remove clipboard item"
+                      onClick={() =>
+                        setClips((current) => current.filter((item) => item.id !== clip.id))
+                      }
+                    >
+                      <Trash2Icon className="size-3.5" />
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           ) : (
-            <div className="flex min-h-44 flex-col items-center justify-center gap-2 px-6 text-center">
-              <ClipboardIcon className="size-7 text-muted-foreground/60" aria-hidden="true" />
-              <p className="text-sm">
+            <div className="tc-empty">
+              <ClipboardIcon className="size-6 text-muted-foreground/35 mb-2" aria-hidden="true" />
+              <p className="tc-empty-title">
                 {query
                   ? "No matching items"
                   : savedOnly
                     ? "No saved snippets yet"
                     : "Your clipboard starts here"}
               </p>
-              <p className="max-w-xs text-xs leading-relaxed text-muted-foreground">
-                {query
-                  ? "Try a different search."
-                  : "Press Command / Ctrl + V, choose Paste, or add a note. Pin items to keep them on this device."}
+              <p className="tc-empty-description">
+                {query ? "Try a different search." : "Paste text or images to keep them handy."}
               </p>
             </div>
           )}
         </div>
-        <p role="status" className="border-t border-border px-5 py-3 text-xs text-muted-foreground">
-          {status || "Recent items stay in this window. Saved items stay on this device."}
-        </p>
+
+        <div className="tc-footer">
+          <p role="status" className="tc-status-text">
+            {status || "Recent items stay in this window."}
+          </p>
+        </div>
       </DialogPopup>
     </Dialog>
   );

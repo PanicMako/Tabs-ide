@@ -124,6 +124,24 @@ function removeInternalTree(path: string): void {
   makeWritable(path);
   FS.rmSync(path, { recursive: true, force: true });
 }
+/** Only durable filesystem entries belong in a snapshot. Runtime endpoints can
+ * have any name and may disappear between listing a directory and inspecting it. */
+function backupStat(path: string): FS.Stats | null {
+  let stat: FS.Stats;
+  try {
+    stat = FS.lstatSync(path);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
+  }
+  if (stat.isSocket() || stat.isFIFO()) return null;
+  if (!stat.isSymbolicLink() && !stat.isDirectory() && !stat.isFile())
+    throw new Error(
+      `Cannot back up an unsupported file: ${path}. Move this device entry outside Tabs data and retry.`,
+    );
+  return stat;
+}
+
 function inventory(root: string): Entry[] {
   if (FS.lstatSync(root).isSymbolicLink() || !FS.statSync(root).isDirectory())
     throw new Error("Backup root must be a real directory.");
@@ -132,9 +150,8 @@ function inventory(root: string): Entry[] {
     for (const name of FS.readdirSync(directory).sort()) {
       const path = Path.join(directory, name);
       if (excluded(Path.relative(root, path))) continue;
-      const stat = FS.lstatSync(path);
-      if (!stat.isSymbolicLink() && !stat.isDirectory() && !stat.isFile())
-        throw new Error(`Cannot back up a special file: ${path}`);
+      const stat = backupStat(path);
+      if (!stat) continue;
       if (entries.length >= 250_000) throw new Error("Backup contains too many files.");
       entries.push({
         path: Path.relative(root, path),
@@ -155,7 +172,8 @@ function copyTree(source: string, destination: string, prefix = ""): void {
     if (excluded(relative)) continue;
     const from = Path.join(source, name);
     const to = Path.join(destination, name);
-    const stat = FS.lstatSync(from);
+    const stat = backupStat(from);
+    if (!stat) continue;
     if (stat.isDirectory()) {
       copyTree(from, to, relative);
       FS.chmodSync(to, stat.mode & 0o777);

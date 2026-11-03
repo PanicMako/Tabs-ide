@@ -147,3 +147,37 @@ test("prepares a different version offline with explicit quit and target-version
     await view.unmount();
   }
 });
+
+test.each([390, 1440])(
+  "shows the startup failure and refresh feedback at %i pixels",
+  async (width) => {
+    await page.viewport(width, 900);
+    bridge();
+    const list = vi.mocked(window.desktopBridge!.listDataBackups!);
+    list.mockResolvedValue({
+      version: "2.2.1",
+      directory: "/local/tabs/backups",
+      notice: null,
+      backups: [],
+    });
+    const view = await render(
+      <DataRecoveryScreen error="Cannot back up a special file: /Users/rushil.dev/.tabs/userdata/code-oss-main/1.11-main.sock" />,
+    );
+    try {
+      await expect.element(view.getByText(/No complete snapshots yet/)).toBeVisible();
+      await view.getByRole("button", { name: "Refresh", exact: true }).click();
+      await expect.element(view.getByRole("status")).toHaveTextContent("Snapshot list refreshed");
+      expect(list).toHaveBeenCalledTimes(2);
+      expect(window.desktopBridge!.restartForDataBackup).not.toHaveBeenCalled();
+      expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(width);
+      const main = view.getByRole("main").element();
+      expect(main.scrollWidth).toBeLessThanOrEqual(main.clientWidth);
+      await page.screenshot({
+        element: main,
+        path: `__screenshots__/recovery/startup-${width}.png`,
+      });
+    } finally {
+      await view.unmount();
+    }
+  },
+);

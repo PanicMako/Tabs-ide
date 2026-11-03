@@ -1,10 +1,8 @@
 import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
 import {
   ArrowUpRight,
-  Bot,
   Braces,
   GitBranch,
-  Globe,
   HardDrive,
   MoreHorizontal,
   Plus,
@@ -13,7 +11,10 @@ import {
   Terminal,
   CircleGauge,
   Clipboard,
+  X,
 } from "lucide-react";
+import { AssistantBubbleIcon } from "../AssistantBubbleIcon";
+import { BrowserPlanetIcon } from "../BrowserPlanetIcon";
 import { interfaceStudyAccent } from "../../lib/interfaceStudy";
 import {
   actionAccentIdentity,
@@ -25,11 +26,19 @@ import {
 } from "./actions";
 import "./radial-actions.css";
 
-const ICONS = {
+type RadialIconComponent = React.ComponentType<{
+  size?: number | string;
+  width?: number | string;
+  height?: number | string;
+  className?: string;
+  "aria-hidden"?: boolean | "true" | "false";
+}>;
+
+const ICONS: Record<QuickAction["icon"], RadialIconComponent> = {
   tab: Plus,
-  agent: Bot,
+  agent: AssistantBubbleIcon,
   branch: GitBranch,
-  browser: Globe,
+  browser: BrowserPlanetIcon,
   terminal: Terminal,
   search: Search,
   popout: ArrowUpRight,
@@ -140,17 +149,25 @@ export function RadialLauncher({
   const highlighted = query.trim()
     ? (matched ?? actions.find((action) => action.id === "search"))
     : (selectedSub ?? active);
-  const Icon = highlighted ? ICONS[highlighted.icon] : MoreHorizontal;
+  const Icon: RadialIconComponent =
+    (highlighted ? ICONS[highlighted.icon] : undefined) ?? MoreHorizontal;
   const childStep =
-    design === "dial"
+    design === "sectors"
       ? children.length > 3
-        ? 24
-        : 28
-      : design === "sectors"
-        ? children.length > 3
-          ? 32
-          : 40
-        : 30;
+        ? 32
+        : 44
+      : children.length <= 2
+        ? 48
+        : children.length === 3
+          ? 38
+          : design === "dial"
+            ? 26
+            : 30;
+  const trimmedQuery = query.trim();
+  const isUrl =
+    Boolean(trimmedQuery) &&
+    (/^https?:\/\//i.test(trimmedQuery) ||
+      /^(localhost|[\w-]+(?:\.[\w-]+)+)(:\d+)?(?:\/.*)?$/.test(trimmedQuery));
   const childAngle = (i: number) => activeAngle + (i - (children.length - 1) / 2) * childStep;
   const activeAngle = (currentIndex * 360) / Math.max(nodes.length, 1);
   const run = async (action: QuickAction | undefined, target = query) => {
@@ -179,6 +196,16 @@ export function RadialLauncher({
     } finally {
       setBusy(false);
       root.current?.focus();
+    }
+  };
+  const submitSearch = (customTemplate = searchTemplate) => {
+    if (!query.trim()) return;
+    const searchAction = actions.find((action) => action.id === "search");
+    if (!searchAction) return;
+    if (customTemplate) {
+      void run(searchAction, customTemplate);
+    } else {
+      void run(matched ?? searchAction, query);
     }
   };
   const select = (next: number, focus = false) => {
@@ -245,9 +272,17 @@ export function RadialLauncher({
         if (event.key === "Escape") {
           event.preventDefault();
           event.stopPropagation();
+          if (searching) {
+            setSearching(false);
+            setQuery("");
+            setSearchTemplate(null);
+            root.current?.focus();
+            return;
+          }
           onClose?.();
           return;
         }
+        if (searching) return;
         if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
           if (event.target === input.current && query) return;
           event.preventDefault();
@@ -293,6 +328,18 @@ export function RadialLauncher({
     >
       <div
         className="qa-radial-canvas"
+        data-searching={searching}
+        onPointerDown={(event) => {
+          if (
+            searching &&
+            !(event.target as Element).closest(".qa-search-panel, .qa-radial-node")
+          ) {
+            setSearching(false);
+            setQuery("");
+            setSearchTemplate(null);
+            root.current?.focus();
+          }
+        }}
         onPointerMove={(event) => {
           if (
             (event.target as Element).closest(".qa-more-action") ||
@@ -313,7 +360,7 @@ export function RadialLauncher({
         }}
       >
         <div className="qa-radial-disc" aria-hidden="true" />
-        {design !== "sectors" && (
+        {design !== "sectors" && !searching && (
           <svg className="qa-halo-art" viewBox="-280 -280 560 560" aria-hidden="true">
             <defs>
               <radialGradient
@@ -340,7 +387,7 @@ export function RadialLauncher({
             />
           </svg>
         )}
-        {design === "sectors" && (
+        {design === "sectors" && !searching && (
           <svg className="qa-sector-art" viewBox="-280 -280 560 560" aria-hidden="true">
             <defs>
               {nodes.map((action, i) => (
@@ -374,6 +421,7 @@ export function RadialLauncher({
               />
             ))}
             {expanded &&
+              !searching &&
               children.map((entry, i) => (
                 <path
                   key={`sub-${entry.id}`}
@@ -390,68 +438,157 @@ export function RadialLauncher({
               ))}
           </svg>
         )}
-        {nodes.map((action, i) => {
-          const p = point(
-              design === "sectors" ? 94 : design === "dial" ? 108 : 112,
-              (i * 360) / nodes.length,
-            ),
-            NodeIcon = action ? ICONS[action.icon] : MoreHorizontal;
-          const reason = action ? disabled(action.id) : undefined;
-          return (
-            <button
-              key={action?.id ?? "more"}
-              type="button"
-              className="qa-radial-node"
-              data-radial-index={i}
-              data-current={i === currentIndex}
-              style={
-                {
-                  left: 280 + p.x,
-                  top: 280 + p.y,
-                  "--qa-node-color": accent(action),
-                } as CSSProperties
-              }
-              disabled={busy || Boolean(reason)}
-              aria-label={
-                reason ? `${action!.label}: ${reason}` : (action?.label ?? "More actions")
-              }
-              aria-expanded={
-                !action || subActions.some((entry) => entry.parentId === action.id)
-                  ? expanded && i === currentIndex
-                  : undefined
-              }
-              title={reason ?? action?.detail ?? "Workspace and settings actions"}
-              onFocus={() => {
-                setIndex(i);
-                setSubIndex(-1);
-                setExpanded(true);
-              }}
-              onPointerEnter={() => select(i)}
-              onClick={() => {
-                if (action) void run(action);
-                else {
-                  setExpanded(true);
-                  setSubIndex(-1);
+        {!searching &&
+          nodes.map((action, i) => {
+            const p = point(
+                design === "sectors" ? 94 : design === "dial" ? 108 : 112,
+                (i * 360) / nodes.length,
+              ),
+              NodeIcon: RadialIconComponent =
+                (action ? ICONS[action.icon] : undefined) ?? MoreHorizontal;
+            const reason = action ? disabled(action.id) : undefined;
+            return (
+              <button
+                key={action?.id ?? "more"}
+                type="button"
+                className="qa-radial-node"
+                data-radial-index={i}
+                data-current={i === currentIndex}
+                style={
+                  {
+                    left: 280 + p.x,
+                    top: 280 + p.y,
+                    "--qa-node-color": accent(action),
+                  } as CSSProperties
                 }
-              }}
-            >
-              <NodeIcon aria-hidden="true" size={22} />
-              {design === "dial" && <span>{action ? SHORT_LABELS[action.id] : "More"}</span>}
-            </button>
-          );
-        })}
-        <div className="qa-radial-hub">
-          <Icon size={25} aria-hidden="true" />
-          {searching ? (
-            <input
-              ref={input}
-              autoFocus
-              aria-label="Find an action, search the web, or enter a URL"
-              placeholder="Search or URL"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-            />
-          ) : (
+                disabled={busy || Boolean(reason)}
+                aria-label={
+                  reason ? `${action!.label}: ${reason}` : (action?.label ?? "More actions")
+                }
+                aria-expanded={
+                  !action || subActions.some((entry) => entry.parentId === action.id)
+                    ? expanded && i === currentIndex
+                    : undefined
+                }
+                title={reason ?? action?.detail ?? "Workspace and settings actions"}
+                onFocus={() => {
+                  setIndex(i);
+                  setSubIndex(-1);
+                  setExpanded(true);
+                }}
+                onPointerEnter={() => select(i)}
+                onClick={() => {
+                  if (action) void run(action);
+                  else {
+                    setExpanded(true);
+                    setSubIndex(-1);
+                  }
+                }}
+              >
+                <NodeIcon aria-hidden="true" size={22} width={22} height={22} />
+                {design === "dial" && <span>{action ? SHORT_LABELS[action.id] : "More"}</span>}
+              </button>
+            );
+          })}
+        {searching && (
+          <div
+            className="qa-search-panel"
+            role="region"
+            aria-label="Search or enter URL"
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <div className="qa-search-input-row">
+              <Search className="qa-search-input-icon" width={15} height={15} aria-hidden="true" />
+              <input
+                ref={input}
+                autoFocus
+                type="text"
+                aria-label="Find an action, search the web, or enter a URL"
+                placeholder="Search or enter URL…"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    submitSearch();
+                  } else if (event.key === "Escape") {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setSearching(false);
+                    setQuery("");
+                    setSearchTemplate(null);
+                    root.current?.focus();
+                  }
+                }}
+              />
+              {query.trim() && (
+                <button
+                  type="button"
+                  className="qa-search-panel-clear"
+                  aria-label="Clear query"
+                  onClick={() => {
+                    setQuery("");
+                    input.current?.focus();
+                  }}
+                >
+                  <X size={12} width={12} height={12} aria-hidden="true" />
+                </button>
+              )}
+              <div className="qa-search-engines" role="radiogroup" aria-label="Search engine">
+                <button
+                  type="button"
+                  className="qa-search-engine-chip"
+                  data-active={!searchTemplate || searchTemplate.includes("google")}
+                  onClick={() => {
+                    setSearchTemplate("https://www.google.com/search?q={query}");
+                    input.current?.focus();
+                  }}
+                >
+                  Google
+                </button>
+                <button
+                  type="button"
+                  className="qa-search-engine-chip"
+                  data-active={Boolean(searchTemplate?.includes("duckduckgo"))}
+                  onClick={() => {
+                    setSearchTemplate("https://duckduckgo.com/?q={query}");
+                    input.current?.focus();
+                  }}
+                >
+                  DuckDuckGo
+                </button>
+              </div>
+              <button
+                type="button"
+                className="qa-search-go-btn"
+                aria-label="Submit search - Search the web"
+                disabled={busy || !query.trim()}
+                onClick={() => submitSearch()}
+              >
+                <span>Go</span>
+                <kbd className="qa-search-kbd">↵</kbd>
+              </button>
+              <button
+                type="button"
+                className="qa-search-panel-close"
+                aria-label="Close search"
+                title="Close search (Esc)"
+                onClick={() => {
+                  setSearching(false);
+                  setQuery("");
+                  setSearchTemplate(null);
+                  root.current?.focus();
+                }}
+              >
+                <X size={13} width={13} height={13} aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+        )}
+        {!searching && (
+          <div className="qa-radial-hub">
+            <Icon size={24} width={24} height={24} aria-hidden="true" />
             <span className="qa-hub-label">
               {expanded && subIndex >= 0
                 ? children[subIndex]?.label
@@ -459,10 +596,11 @@ export function RadialLauncher({
                   ? SHORT_LABELS[highlighted.id]
                   : "More"}
             </span>
-          )}
-          <span>{searching ? "Enter to run" : "Type to search"}</span>
-        </div>
+            <span className="sr-only">Type to search</span>
+          </div>
+        )}
         {expanded &&
+          !searching &&
           children.map((entry, i) => {
             const { action } = entry;
             const p = point(

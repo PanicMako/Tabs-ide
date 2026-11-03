@@ -39,7 +39,7 @@
 .qa-radial-node {
   position: absolute;
   transform: translate(-50%, -50%);
-  z-index: 2;
+  z-index: 25;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -67,6 +67,11 @@
   width: 66px;
   height: 66px;
 }
+.qa-radial-node svg {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+}
 .qa-radial-node span {
   font-size: 11px;
   line-height: 1.1;
@@ -82,15 +87,18 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 5px;
+  gap: 4px;
   width: 92px;
   height: 92px;
-  padding: 10px;
+  padding: 8px 10px;
   border: 1px solid color-mix(in srgb, var(--qa-action-color) 65%, var(--border));
   border-radius: 50%;
   background: color-mix(in srgb, var(--popover) 76%, transparent);
 }
 .qa-radial-hub svg {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
   color: var(--qa-action-color);
 }
 .qa-radial-hub input {
@@ -111,15 +119,19 @@
   outline: 2px solid color-mix(in srgb, var(--qa-action-color) 50%, transparent);
   outline-offset: 3px;
 }
-.qa-radial-hub > span {
-  color: var(--muted-foreground);
-  font-size: 10px;
+.qa-radial-hub .qa-hub-label {
+  color: var(--foreground);
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1.25;
+  text-align: center;
+  max-width: 74px;
 }
 .qa-more-action {
   position: absolute;
-  z-index: 3;
+  z-index: 25;
   transform: translate(-50%, -50%);
-  max-width: 140px;
+  max-width: 154px;
   min-height: 34px;
   padding: 7px 12px;
   overflow: hidden;
@@ -257,4 +269,194 @@
   border-color: transparent;
   box-shadow: none;
   color: var(--qa-action-color);
+}
+
+/* ── Search Panel: inline minimalist omnibar ────────────────────── */
+.qa-search-panel {
+  position: absolute;
+  left: 280px;
+  top: 280px;
+  transform: translate(-50%, -50%);
+  z-index: 50;
+  width: min(510px, calc(100% - 32px));
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  background: color-mix(in srgb, var(--popover) 95%, var(--background));
+  border: 1px solid color-mix(in srgb, var(--foreground) 14%, transparent);
+  border-radius: 16px;
+  box-shadow:
+    0 24px 60px -12px rgba(0, 0, 0, 0.5),
+    0 0 0 1px color-mix(in srgb, var(--foreground) 6%, transparent);
+  backdrop-filter: blur(32px);
+  -webkit-backdrop-filter: blur(32px);
+  overflow: hidden;
+  animation: qa-panel-in 140ms ease-out both;
+}
+
+@keyframes qa-panel-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -48%) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+.qa-search-input-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  border-radius: 12px;
+  padding: 3px 6px 3px 10px;
+  gap: 7px;
+  transition: all 130ms ease;
+}
+
+.qa-search-input-row svg.qa-search-input-icon {
+  width: 15px;
+  height: 15px;
+  color: var(--muted-foreground);
+  flex-shrink: 0;
+  opacity: 0.75;
+}
+
+.qa-search-input-row input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  padding: 6px 0;
+}
+
+.qa-search-input-row input::placeholder {
+  color: var(--muted-foreground);
+  opacity: 0.55;
+}
+
+.qa-search-panel-clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: all 100ms;
+}
+
+.qa-search-panel-clear:hover {
+  background: color-mix(in srgb, var(--foreground) 16%, transparent);
+  color: var(--foreground);
+}
+
+.qa-search-engines {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  background: var(--muted);
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+
+.qa-search-engine-chip {
+  padding: 3px 8px;
+  border-radius: 9999px;
+  border: 0;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 10.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+
+.qa-search-engine-chip:hover {
+  color: var(--foreground);
+}
+
+.qa-search-engine-chip[data-active="true"] {
+  background: var(--foreground);
+  color: var(--background);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+}
+
+.qa-search-go-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  height: 28px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--foreground);
+  color: var(--background);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    opacity 100ms,
+    transform 80ms;
+  flex-shrink: 0;
+}
+
+.qa-search-go-btn:hover:not(:disabled) {
+  opacity: 0.88;
+}
+
+.qa-search-go-btn:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.qa-search-go-btn:disabled {
+  opacity: 0.28;
+  cursor: not-allowed;
+}
+
+.qa-search-kbd {
+  font-size: 10px;
+  opacity: 0.6;
+  font-family: inherit;
+}
+
+.qa-search-panel-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: all 120ms ease;
+  flex-shrink: 0;
+}
+
+.qa-search-panel-close:hover {
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+  color: var(--foreground);
+}
+
+@media (max-width: 500px) {
+  .qa-search-panel {
+    width: calc(320px / var(--qa-scale));
+  }
+  .qa-search-input-row input {
+    font-size: calc(12px / var(--qa-scale));
+  }
 }

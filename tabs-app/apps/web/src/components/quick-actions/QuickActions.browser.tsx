@@ -180,3 +180,65 @@ it("searches using a chosen engine while keeping browser shortcuts separate", as
   await userEvent.keyboard("{Enter}");
   expect(execute).toHaveBeenCalledWith("search", "https://duckduckgo.com/?q=tabs%20editor");
 });
+
+it("provides adequate spacing between subactions preventing overlap", async () => {
+  await render(
+    <LauncherSurface
+      design="compass"
+      actions={QUICK_ACTIONS}
+      execute={async () => {}}
+      disabled={() => undefined}
+      preview
+    />,
+  );
+  await page.getByRole("button", { name: /New workspace tab/ }).hover();
+  const browserBtn = document.querySelector<HTMLButtonElement>(
+    '.qa-more-action[data-sub-index="0"]',
+  )!;
+  const terminalBtn = document.querySelector<HTMLButtonElement>(
+    '.qa-more-action[data-sub-index="1"]',
+  )!;
+  expect(browserBtn).not.toBeNull();
+  expect(terminalBtn).not.toBeNull();
+  const b1 = browserBtn.getBoundingClientRect();
+  const b2 = terminalBtn.getBoundingClientRect();
+  // Ensure the buttons do not overlap horizontally
+  expect(b1.right).toBeLessThan(b2.left);
+});
+
+it("renders AssistantBubbleIcon for agent and BrowserPlanetIcon for browser", async () => {
+  await render(
+    <LauncherSurface
+      design="compass"
+      actions={QUICK_ACTIONS}
+      execute={async () => {}}
+      disabled={() => undefined}
+      preview
+    />,
+  );
+  const agentBtn = document.querySelector<HTMLButtonElement>('[aria-label*="New conversation"]')!;
+  const browserBtn = document.querySelector<HTMLButtonElement>(
+    '[aria-label*="Temporary browser"]',
+  )!;
+  expect(agentBtn.querySelector(".tool-assistant-gaze")).not.toBeNull();
+  expect(browserBtn.querySelector(".tool-planet-ring")).not.toBeNull();
+});
+
+it("opens the search panel allowing direct URL entry and Go submission", async () => {
+  const execute = vi.fn(async () => {});
+  await render(
+    <LauncherSurface
+      design="compass"
+      actions={QUICK_ACTIONS}
+      execute={execute}
+      disabled={() => undefined}
+      preview
+    />,
+  );
+  await page.getByRole("button", { name: "Search the web", exact: true }).click();
+  const searchPanel = document.querySelector(".qa-search-panel");
+  expect(searchPanel).not.toBeNull();
+  await page.getByRole("textbox").fill("github.com");
+  await page.getByRole("button", { name: "Submit search" }).click();
+  expect(execute).toHaveBeenCalledWith("search", "github.com");
+});

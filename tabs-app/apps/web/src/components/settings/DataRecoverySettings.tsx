@@ -20,10 +20,14 @@ function size(bytes: number): string {
     : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-export default function DataRecoverySettings({ className }: { className?: string } = {}) {
+export default function DataRecoverySettings({
+  className,
+  recovery = false,
+}: { className?: string; recovery?: boolean } = {}) {
   const [inventory, setInventory] = useState<Inventory | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
   const [portal, setPortal] = useState<HTMLElement | null>(null);
   const { confirm, confirmDialog } = useConfirm();
   const bridge = window.desktopBridge;
@@ -38,6 +42,7 @@ export default function DataRecoverySettings({ className }: { className?: string
     const trigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setBusy(true);
     setError(null);
+    setStatus(null);
     try {
       await action();
     } catch (error) {
@@ -56,28 +61,41 @@ export default function DataRecoverySettings({ className }: { className?: string
         aria-label="Backups and recovery"
         className={cn("space-y-3 px-4 py-4 sm:px-5 text-sm", className)}
       >
-        <h3
-          className="text-[14.5px] font-medium text-foreground tracking-[0.035em]"
-          style={{
-            fontFamily: "var(--font-row, var(--font-sans))",
-            fontWeight: "var(--font-row-weight, 500)" as React.CSSProperties["fontWeight"],
-            letterSpacing: "var(--font-row-tracking, 0.035em)",
-          }}
-        >
-          Backups &amp; recovery
-        </h3>
-        <p
-          className="text-xs text-muted-foreground/80 leading-relaxed font-normal"
-          style={{
-            fontFamily: "var(--font-supporting, var(--font-sans))",
-            fontWeight: "var(--font-supporting-weight, 400)" as React.CSSProperties["fontWeight"],
-          }}
-        >
-          Tabs snapshots local data before a new version opens it, and at most once a day on
-          startup. Saved project records, chats, editor state, extensions and stored sessions are
-          included. Project source files outside Tabs are not copied. Recovery requires a snapshot
-          for the exact app version. Your newer data is backed up before restoring.
-        </p>
+        {recovery ? (
+          <>
+            <h2 className="text-base font-medium">Backups &amp; recovery</h2>
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              Restart &amp; back up retries startup. Refresh checks the snapshot list only.
+              Restoring a snapshot replaces saved chats, settings and editor state.
+            </p>
+          </>
+        ) : (
+          <>
+            <h3
+              className="text-[14.5px] font-medium text-foreground tracking-[0.035em]"
+              style={{
+                fontFamily: "var(--font-row, var(--font-sans))",
+                fontWeight: "var(--font-row-weight, 500)" as React.CSSProperties["fontWeight"],
+                letterSpacing: "var(--font-row-tracking, 0.035em)",
+              }}
+            >
+              Backups &amp; recovery
+            </h3>
+            <p
+              className="text-xs text-muted-foreground/80 leading-relaxed font-normal"
+              style={{
+                fontFamily: "var(--font-supporting, var(--font-sans))",
+                fontWeight:
+                  "var(--font-supporting-weight, 400)" as React.CSSProperties["fontWeight"],
+              }}
+            >
+              Tabs snapshots local data before a new version opens it, and at most once a day on
+              startup. Saved project records, chats, editor state, extensions and stored sessions
+              are included. Project source files outside Tabs are not copied. Recovery requires a
+              snapshot for the exact app version. Your newer data is backed up before restoring.
+            </p>
+          </>
+        )}
         {inventory?.notice ? (
           <p role="status" className="text-xs">
             {inventory.notice}
@@ -90,8 +108,8 @@ export default function DataRecoverySettings({ className }: { className?: string
         ) : null}
         <div className="flex flex-wrap gap-2">
           <Button
-            size="xs"
-            variant="outline"
+            size={recovery ? "default" : "xs"}
+            variant={recovery ? "default" : "outline"}
             disabled={busy}
             onClick={() =>
               void run(async () => {
@@ -103,13 +121,16 @@ export default function DataRecoverySettings({ className }: { className?: string
                   return;
                 if (!(await bridge.restartForDataBackup?.()))
                   throw new Error("Tabs could not schedule the backup restart.");
+                setStatus(
+                  "Restart scheduled. Tabs will close and retry the backup before opening your workspace.",
+                );
               })
             }
           >
             Restart &amp; back up
           </Button>
           <Button
-            size="xs"
+            size={recovery ? "default" : "xs"}
             variant="ghost"
             disabled={busy}
             onClick={() =>
@@ -120,10 +141,25 @@ export default function DataRecoverySettings({ className }: { className?: string
           >
             Open backup folder
           </Button>
-          <Button size="xs" variant="ghost" disabled={busy} onClick={() => void run(refresh)}>
+          <Button
+            size={recovery ? "default" : "xs"}
+            variant="ghost"
+            disabled={busy}
+            onClick={() =>
+              void run(async () => {
+                await refresh();
+                setStatus("Snapshot list refreshed. Restart & back up retries startup.");
+              })
+            }
+          >
             Refresh
           </Button>
         </div>
+        {status ? (
+          <p role="status" className="text-sm text-muted-foreground">
+            {status}
+          </p>
+        ) : null}
         {busy ? (
           <p role="status" className="text-xs text-muted-foreground">
             Preparing recovery…
@@ -135,7 +171,8 @@ export default function DataRecoverySettings({ className }: { className?: string
           </p>
         ) : inventory.backups.length === 0 ? (
           <p className="text-xs text-muted-foreground">
-            No complete snapshots yet. Create one with Restart &amp; back up.
+            No complete snapshots yet. A successful backup must finish before a recovery point is
+            available.
           </p>
         ) : (
           <ul className="max-h-72 overflow-y-auto divide-y divide-border">

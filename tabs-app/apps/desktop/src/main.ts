@@ -114,6 +114,7 @@ import {
   type PreparedLinuxAppImageUpdate,
 } from "./linuxAppImageUpdater";
 import { CodeHostManager, resolveCodeHostConfig } from "./codeHostManager";
+import { clearLegacyEditorCaches } from "./editorCache";
 import { BrowserHostManager } from "./browserHostManager";
 import {
   resolveDesktopBaseDir,
@@ -5546,6 +5547,15 @@ if (clerkBridge.isPrimaryInstance) {
     .whenReady()
     .then(() => {
       writeDesktopLogHeader("app ready");
+      if (!dataRecoveryStartupError) {
+        // Electron's cache APIs are safe for live sessions; keep maintenance
+        // off the critical path while the application opens its first window.
+        void clearLegacyEditorCaches(
+          app.getPath("sessionData"),
+          (partition, options) => session.fromPartition(partition, options),
+          (message) => console.warn(message),
+        ).catch((error) => console.warn(`[editor-cache] Cleanup failed: ${String(error)}`));
+      }
       configureAppIdentity();
       const disposeNativeQuickActions = installNativeQuickActionsForwarding({
         app,

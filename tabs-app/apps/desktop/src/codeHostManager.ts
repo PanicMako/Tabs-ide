@@ -7,6 +7,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
   ipcMain,
+  session as electronSession,
   nativeTheme,
   shell,
   WebContentsView,
@@ -26,6 +27,7 @@ import type {
 import { RotatingFileSink } from "@tabs/shared/logging";
 
 import { resolveCodeHostIdentity } from "./codeHostIdentity";
+import { EDITOR_CACHE_PREFERENCES, EDITOR_SESSION_OPTIONS } from "./editorCache";
 import type { CodeControlChannel } from "./codeControlChannel";
 import type { NativeViewStackCoordinator } from "./nativeViewStackCoordinator";
 
@@ -1367,7 +1369,8 @@ export class CodeHostManager {
         contextIsolation: true,
         sandbox: true,
         nodeIntegration: false,
-        partition,
+        session: electronSession.fromPartition(partition, EDITOR_SESSION_OPTIONS),
+        ...EDITOR_CACHE_PREFERENCES,
         // Never throttle the workbench while the Code tab is hidden: a detached
         // view throttles timers, which stalls the workbench's startup lifecycle
         // (it can sit forever before "Restored"/"Eventually"), so extensions

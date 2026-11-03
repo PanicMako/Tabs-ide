@@ -28,7 +28,7 @@ const { webContentsViews, MockWebContentsView } = vi.hoisted(() => {
     readonly loadedUrls: string[] = [];
     bounds: { x: number; y: number; width: number; height: number } | null = null;
 
-    constructor(_options: unknown) {
+    constructor(readonly options: unknown) {
       webContentsViews.push(this);
     }
 
@@ -46,6 +46,7 @@ const { webContentsViews, MockWebContentsView } = vi.hoisted(() => {
 
 vi.mock("electron", () => ({
   app: { getPath: vi.fn(() => "/tmp/mock-user-data") },
+  session: { fromPartition: vi.fn(() => ({})) },
   WebContentsView: MockWebContentsView,
 }));
 
@@ -627,6 +628,12 @@ describe("CodeHostManager", () => {
 
     await manager.ensureSession({ projectId: "a", workspaceRoot: workspaceA });
     await manager.ensureSession({ projectId: "b", workspaceRoot: workspaceB });
+    for (const view of webContentsViews) {
+      expect(view.options).toMatchObject({
+        webPreferences: { session: {}, v8CacheOptions: "none" },
+      });
+      expect(view.options).not.toHaveProperty("webPreferences.partition");
+    }
     manager.setBounds({
       projectId: "a",
       x: 0,

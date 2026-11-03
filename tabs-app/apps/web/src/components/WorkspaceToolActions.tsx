@@ -20,7 +20,7 @@ export function WorkspaceToolActions({
   onClose?: ((id: string) => void) | undefined;
   onKeep?: ((id: string) => void) | undefined;
 }) {
-  if (!tool.closable) return null;
+  if (!tool.closable || !tool.temporary) return null;
   return (
     <span
       className="no-drag inline-flex shrink-0 items-center gap-0.5 pr-1"
@@ -98,8 +98,8 @@ export function KeepWorkspaceToolDialog({
           <div className="space-y-2">
             <DialogTitle>Keep in workspace</DialogTitle>
             <DialogDescription>
-              Give this tool a name. It will stay in your toolbar until you close it, and you can
-              manage it in Workspace settings.
+              Give this tool a name. It will stay in your toolbar. You can rename or remove it in
+              Workspace settings.
             </DialogDescription>
           </div>
           <label className="grid gap-2 text-sm">

@@ -1,10 +1,17 @@
 import * as FS from "node:fs";
 import * as OS from "node:os";
 import * as Path from "node:path";
+import { createServer } from "node:net";
 import { spawnSync } from "node:child_process";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, expect, it, vi } from "vitest";
 import { DataRecovery } from "./dataRecovery";
+
+// Wrap the native module so fault injection can model filesystem races and
+// permission failures without changing real user data or depending on uid.
+vi.mock("node:fs", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("node:fs")>()),
+}));
 
 const directories: string[] = [];
 afterEach(() => {
@@ -392,5 +399,105 @@ it("does not prepare a version switch from an unversioned initial snapshot", () 
   manager.startup();
   const unknown = manager.list()[0]!;
   expect(() => manager.prepareVersionSwitch(unknown.id)).toThrow(/known snapshot/);
+  expect(FS.readFileSync(Path.join(state, "settings.json"), "utf8")).toBe("old settings");
+});
+
+it.skipIf(process.platform === "win32")(
+  "starts, verifies and restores with Code OSS IPC sockets while preserving regular .sock files",
+  async () => {
+    const directory = FS.realpathSync(FS.mkdtempSync("/tmp/tabs-ipc-"));
+    directories.push(directory);
+    const state = Path.join(directory, "userdata");
+    const code = Path.join(state, "code-oss-main");
+    FS.mkdirSync(code, { recursive: true });
+    const socket = Path.join(code, "1.11-main.sock");
+    const saved = Path.join(code, "saved.sock");
+    FS.writeFileSync(saved, "durable data despite the suffix");
+    const server = createServer();
+    await new Promise<void>((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(socket, resolve);
+    });
+    try {
+      const manager = new DataRecovery(Path.join(directory, "backups"), [state], "2.2.1");
+      const result = manager.startup();
+      const snapshot = manager.verify(result.backup!);
+      expect(snapshot.roots[0]!.entries.map((entry) => entry.path)).toEqual([
+        "code-oss-main",
+        Path.join("code-oss-main", "saved.sock"),
+      ]);
+      expect(FS.lstatSync(socket).isSocket()).toBe(true);
+      expect(manager.startup()).toEqual({});
+      const restorable = manager.create("manual");
+      FS.writeFileSync(saved, "new data");
+      manager.restore(restorable.id);
+      expect(FS.existsSync(socket)).toBe(false);
+      expect(FS.readFileSync(saved, "utf8")).toBe("durable data despite the suffix");
+      expect(manager.list()).toHaveLength(3);
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  },
+);
+
+it.skipIf(process.platform === "win32")(
+  "skips named pipes regardless of name without dropping saved files named like runtime endpoints",
+  () => {
+    const { state, manager } = fixture();
+    const pipe = Path.join(state, "extension-runtime");
+    expect(spawnSync("mkfifo", [pipe]).status).toBe(0);
+    FS.writeFileSync(Path.join(state, "session.pipe"), "saved session");
+    const backup = manager.create("manual");
+    expect(
+      manager
+        .verify(backup.id)
+        .roots.flatMap((root) => root.entries)
+        .some((entry) => entry.path === "extension-runtime"),
+    ).toBe(false);
+    manager.restore(backup.id);
+    expect(FS.existsSync(pipe)).toBe(false);
+    expect(FS.readFileSync(Path.join(state, "session.pipe"), "utf8")).toBe("saved session");
+  },
+);
+
+it("tolerates entries disappearing before inspection", () => {
+  const { state, manager } = fixture();
+  const runtime = Path.join(state, "ephemeral-endpoint");
+  FS.writeFileSync(runtime, "temporary");
+  const lstat = FS.lstatSync;
+  vi.spyOn(FS, "lstatSync").mockImplementation((...args: Parameters<typeof FS.lstatSync>) => {
+    if (args[0] === runtime) FS.rmSync(runtime, { force: true });
+    return lstat(...args);
+  });
+  const backup = manager.create("manual");
+  expect(
+    manager
+      .verify(backup.id)
+      .roots.flatMap((root) => root.entries)
+      .some((entry) => entry.path === "ephemeral-endpoint"),
+  ).toBe(false);
+});
+
+it("does not publish a snapshot when saved data disappears during copying", () => {
+  const { state, manager } = fixture();
+  const missing = new DataRecovery(manager.directory, manager.roots, "1.0.0", () => {
+    FS.unlinkSync(Path.join(state, "settings.json"));
+    return Number.MAX_SAFE_INTEGER;
+  });
+  expect(() => missing.create("manual")).toThrow(/changed while/);
+  expect(missing.list()).toEqual([]);
+  expect(FS.readdirSync(manager.directory)).toEqual([]);
+});
+
+it("keeps permission failures on saved data visible instead of publishing an incomplete backup", () => {
+  const { state, manager } = fixture();
+  const lstat = FS.lstatSync;
+  vi.spyOn(FS, "lstatSync").mockImplementation((...args: Parameters<typeof FS.lstatSync>) => {
+    if (args[0] === Path.join(state, "settings.json"))
+      throw Object.assign(new Error("Permission denied: settings.json"), { code: "EACCES" });
+    return lstat(...args);
+  });
+  expect(() => manager.create("manual")).toThrow(/Permission denied/);
+  expect(manager.list()).toEqual([]);
   expect(FS.readFileSync(Path.join(state, "settings.json"), "utf8")).toBe("old settings");
 });

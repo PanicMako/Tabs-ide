@@ -1,0 +1,387 @@
+/* ── Temporary Clipboard: Minimalist Modern Styling ────────────────── */
+
+.tc-popup {
+  max-width: 580px !important;
+  width: min(580px, calc(100vw - 32px)) !important;
+  border-radius: 18px !important;
+  background: color-mix(in srgb, var(--popover) 96%, var(--background)) !important;
+  border: 1px solid color-mix(in srgb, var(--foreground) 12%, transparent) !important;
+  box-shadow:
+    0 24px 64px -14px rgba(0, 0, 0, 0.5),
+    0 0 0 1px color-mix(in srgb, var(--foreground) 6%, transparent) !important;
+  backdrop-filter: blur(28px) !important;
+  -webkit-backdrop-filter: blur(28px) !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+/* Header */
+.tc-header {
+  padding: 14px 18px 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+}
+
+.tc-header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.tc-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tc-title {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--foreground);
+  margin: 0;
+}
+
+.tc-count-badge {
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  background: var(--muted);
+  padding: 1px 6px;
+  border-radius: 9999px;
+}
+
+.tc-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tc-action-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 9999px;
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+
+.tc-close-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: all 120ms ease;
+  margin-left: 2px;
+}
+
+.tc-close-btn:hover {
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+  color: var(--foreground);
+}
+
+.tc-close-btn:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.tc-description {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  margin-top: 3px;
+}
+
+/* Controls row */
+.tc-controls-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.tc-filter-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  background: var(--muted);
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+
+.tc-filter-pill {
+  border: 0;
+  background: transparent;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+
+.tc-filter-pill:hover {
+  color: var(--foreground);
+}
+
+.tc-filter-pill[aria-pressed="true"] {
+  background: var(--foreground);
+  color: var(--background);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+}
+
+.tc-search-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.tc-search-icon {
+  position: absolute;
+  left: 9px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 13px;
+  height: 13px;
+  color: var(--muted-foreground);
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+.tc-search-input {
+  width: 100%;
+  height: 28px;
+  padding: 0 8px 0 28px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  background: color-mix(in srgb, var(--muted) 55%, var(--background));
+  color: var(--foreground);
+  font-size: 12px;
+  outline: none;
+  transition: all 130ms ease;
+}
+
+.tc-search-input:focus {
+  background: var(--background);
+  border-color: color-mix(in srgb, var(--foreground) 35%, var(--border));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--foreground) 8%, transparent);
+}
+
+.tc-search-input::placeholder {
+  color: var(--muted-foreground);
+  opacity: 0.6;
+}
+
+/* Compose form */
+.tc-compose-panel {
+  padding: 10px 14px;
+  background: color-mix(in srgb, var(--muted) 30%, var(--card));
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+}
+
+.tc-compose-textarea {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+  background: var(--background);
+  color: var(--foreground);
+  padding: 8px 10px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  outline: none;
+  resize: vertical;
+  min-height: 72px;
+  font-family: inherit;
+  transition: all 130ms ease;
+}
+
+.tc-compose-textarea:focus {
+  border-color: color-mix(in srgb, var(--foreground) 40%, var(--border));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--foreground) 8%, transparent);
+}
+
+.tc-compose-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+/* List container */
+.tc-list {
+  max-height: min(50dvh, 400px);
+  min-height: 160px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  scrollbar-width: thin;
+}
+
+/* Clip card */
+.tc-clip-card {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px 8px 14px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  background: color-mix(in srgb, var(--card) 60%, transparent);
+  transition: all 140ms ease;
+  overflow: hidden;
+}
+
+.tc-clip-card:hover {
+  background: color-mix(in srgb, var(--muted) 45%, var(--card));
+  border-color: color-mix(in srgb, var(--border) 80%, transparent);
+}
+
+.tc-clip-rail {
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--border);
+}
+
+.tc-clip-rail.rail-text {
+  background: #10b981;
+}
+
+.tc-clip-rail.rail-link {
+  background: #3b82f6;
+}
+
+.tc-clip-rail.rail-image {
+  background: #8b5cf6;
+}
+
+.tc-clip-rail.rail-pinned {
+  background: #f59e0b;
+}
+
+.tc-clip-icon-box {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--muted) 75%, var(--background));
+  border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  color: var(--muted-foreground);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.tc-clip-content-btn {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  color: inherit;
+}
+
+.tc-clip-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--foreground);
+}
+
+.tc-clip-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 10.5px;
+  color: var(--muted-foreground);
+}
+
+.tc-pinned-tag {
+  color: #d97706;
+  font-weight: 500;
+}
+
+.tc-clip-actions {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  flex-shrink: 0;
+  opacity: 0.3;
+  transition: opacity 120ms ease;
+}
+
+.tc-clip-card:hover .tc-clip-actions,
+.tc-clip-card:focus-within .tc-clip-actions {
+  opacity: 1;
+}
+
+/* Empty State */
+.tc-empty {
+  min-height: 180px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 20px;
+  text-align: center;
+}
+
+.tc-empty-title {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--foreground);
+  margin: 0;
+}
+
+.tc-empty-description {
+  max-width: 300px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+  margin-top: 4px;
+}
+
+/* Footer status */
+.tc-footer {
+  padding: 8px 16px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+
+.tc-status-text {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
