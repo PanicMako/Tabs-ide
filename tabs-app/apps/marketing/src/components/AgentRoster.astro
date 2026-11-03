@@ -24,9 +24,9 @@ const providers = agentProviders;
   </div>
   <div class="agent-roster-navigation">
     <span><span class="roster-star" aria-hidden="true">✳</span> DIFFERENT MINDS. SAME WORKSPACE.</span>
-    <div class="roster-status" aria-label="11 supported agent collaborators">
+    <div class="roster-status" aria-label={`${providers.length} supported agent collaborators`}>
       <span class="roster-status-dot" aria-hidden="true"></span>
-      <span>11 COLLABORATORS</span>
+      <span>{providers.length} COLLABORATORS</span>
     </div>
   </div>
   <div class="agent-roster-marquee" tabindex="0" role="region" aria-label="Supported agents continuous marquee">
@@ -34,7 +34,7 @@ const providers = agentProviders;
       <ul class="agent-roster-list" role="list">
         {providers.map((provider, index) => (
           <li class={`agent-roster-item roster-tint-${index % 3}`}>
-            <span class="roster-number" aria-hidden="true">{String(index + 1).padStart(2, "0")} / 11</span>
+            <span class="roster-number" aria-hidden="true">{String(index + 1).padStart(2, "0")} / {providers.length}</span>
             <span class="agent-roster-icon" aria-hidden="true">
               <img
                 src={`/providers/${provider.id}.svg`}
@@ -52,7 +52,7 @@ const providers = agentProviders;
       <ul class="agent-roster-list" role="list" aria-hidden="true">
         {providers.map((provider, index) => (
           <li class={`agent-roster-item roster-tint-${index % 3}`}>
-            <span class="roster-number" aria-hidden="true">{String(index + 1).padStart(2, "0")} / 11</span>
+            <span class="roster-number" aria-hidden="true">{String(index + 1).padStart(2, "0")} / {providers.length}</span>
             <span class="agent-roster-icon" aria-hidden="true">
               <img
                 src={`/providers/${provider.id}.svg`}

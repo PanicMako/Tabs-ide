@@ -12,7 +12,6 @@ import {
   AntigravityIcon,
   DroidIcon,
   OpenRouterIcon,
-  Gemini,
 } from "../../web/src/components/Icons";
 // Keep marketing provider identities identical to the Tabs application.
 const brands = {
@@ -26,7 +25,6 @@ const brands = {
   antigravity: AntigravityIcon,
   "factory-droid": DroidIcon,
   openrouter: OpenRouterIcon,
-  gemini: Gemini,
 };
 await mkdir("public/providers", { recursive: true });
 for (const [name, icon] of Object.entries(brands))
