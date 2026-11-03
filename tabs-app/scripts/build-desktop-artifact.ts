@@ -1432,13 +1432,15 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
     });
   }
 
-  // Drop `workspace:*` deps (e.g. `effect-acp`, `effect-codex-app-server`): they
-  // are bundled into the server output by tsdown's `noExternal`, so they must
-  // not appear in the staged package.json — the staged install has no workspace
-  // and would fail to resolve them.
+  // Drop bundled server dependencies: workspace packages (effect-acp,
+  // effect-codex-app-server) and packages bundled into the server output by
+  // tsdown (e.g. @pierre/diffs). They must not appear in the staged
+  // package.json — the staged install has no workspace and would fail to resolve them.
   const externalServerDependencies = Object.fromEntries(
     Object.entries(serverDependencies).filter(
-      ([, spec]) => typeof spec !== "string" || !spec.startsWith("workspace:"),
+      ([name, spec]) =>
+        name !== "@pierre/diffs" &&
+        (typeof spec !== "string" || !spec.startsWith("workspace:")),
     ),
   );
   const resolvedServerDependencies = yield* Effect.try({
