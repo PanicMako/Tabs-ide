@@ -21,15 +21,33 @@ export interface ChangelogRelease {
   }[];
 }
 
-export const TOTAL_TAGS_COUNT = 183;
+export const TOTAL_TAGS_COUNT = 184;
 
 export const changelogData: ChangelogRelease[] = [
+  {
+    tag: "v2.2.2",
+    title: "Quick Actions refinements and smaller editor caches",
+    date: "November 3, 2026",
+    shortDate: "Nov 3",
+    isLatest: true,
+    type: "feature",
+    summary:
+      "Quick Actions makes searching and temporary clipboard items easier to manage. This update also reduces accumulated editor caches and improves backup recovery.",
+    highlights: [
+      "Use the refreshed Quick Actions search panel, clearer action icons, and updated radial layouts.",
+      "Work with the updated temporary clipboard and manage kept browser and terminal tools from Workspace settings.",
+      "Get clearer backup and recovery controls, including separate feedback for refreshing snapshots and retrying startup.",
+      "Create backups when runtime sockets or temporary pipes are present in application data.",
+      "Reclaim legacy editor resource caches automatically and prevent the embedded editor from retaining separate resource and JavaScript disk caches for every project.",
+      "Improve Windows update extraction when packaged files are checked through virtual directories.",
+    ],
+    categories: [],
+  },
   {
     tag: "v2.2.1",
     title: "Quick actions and temporary workspace tools",
     date: "November 2, 2026",
     shortDate: "Nov 2",
-    isLatest: true,
     type: "feature",
     summary:
       "Open frequent actions beside your pointer, keep scratch browsers and terminals organized, and manage worktrees and storage from Settings. This release also improves Windows installation and fixes logo selection on Windows.",
