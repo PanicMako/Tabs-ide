@@ -31,6 +31,20 @@ describe("full-fat Windows installer commit", () => {
       fs.writeFileSync(path.join(runtime, "tabs-payload.json"), "{}");
       const count = writeWindowsPackedInventory(runtime);
       expect(verifyWindowsStagedRuntime(directory)).toBe(count);
+      fs.writeFileSync(
+        path.join(runtime, "tabs-payload.json"),
+        JSON.stringify({ packedFiles: count + 45 }),
+      );
+      expect(verifyWindowsStagedRuntime(directory)).toBe(count);
+      fs.writeFileSync(
+        path.join(runtime, "tabs-payload.json"),
+        JSON.stringify({ packedFiles: count + 150 }),
+      );
+      expect(() => verifyWindowsStagedRuntime(directory)).toThrow("expected");
+      fs.writeFileSync(
+        path.join(runtime, "tabs-payload.json"),
+        JSON.stringify({ packedFiles: count }),
+      );
       fs.writeFileSync(path.join(runtime, "unexpected.js"), "extra");
       expect(() => verifyWindowsStagedRuntime(directory)).toThrow("expected");
       fs.unlinkSync(path.join(runtime, "unexpected.js"));

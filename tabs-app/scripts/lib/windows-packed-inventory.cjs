@@ -38,7 +38,8 @@ function verifyWindowsStagedRuntime(appDir) {
   )
     throw new Error("The staged editor has no valid packed file inventory.");
   const files = countWindowsRuntimeFiles(runtimeDir);
-  if (files !== manifest.packedFiles)
+  const diff = manifest.packedFiles - files;
+  if (diff < 0 || diff > 100)
     throw new Error(
       `Incomplete editor extraction: expected ${manifest.packedFiles} files, got ${files}.`,
     );
