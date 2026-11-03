@@ -15,6 +15,7 @@ try {
   # Change only the child's environment; the installer and relaunched app
   # must retain normal Electron startup behavior.
   $process.StartInfo.EnvironmentVariables['ELECTRON_RUN_AS_NODE'] = '1'
+  $process.StartInfo.EnvironmentVariables['ELECTRON_NO_ASAR'] = '1'
   $started = $process.Start()
   $stdout = $process.StandardOutput.ReadToEndAsync()
   $stderr = $process.StandardError.ReadToEndAsync()

@@ -50,6 +50,10 @@ describe("full-fat Windows installer commit", () => {
       fs.unlinkSync(path.join(runtime, "unexpected.js"));
       fs.unlinkSync(path.join(directory, "resources/app.asar"));
       expect(() => verifyWindowsStagedRuntime(directory)).toThrow();
+      fs.mkdirSync(path.join(directory, "resources/app.asar"));
+      expect(verifyWindowsStagedRuntime(directory)).toBe(count);
+      fs.rmdirSync(path.join(directory, "resources/app.asar"));
+      expect(() => verifyWindowsStagedRuntime(directory)).toThrow();
     } finally {
       fs.rmSync(directory, { recursive: true, force: true });
     }

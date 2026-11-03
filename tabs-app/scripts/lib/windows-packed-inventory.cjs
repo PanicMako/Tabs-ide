@@ -1,4 +1,4 @@
-"use strict";
+process.noAsar = true;
 
 const fs = require("node:fs");
 const path = require("node:path");
@@ -55,8 +55,15 @@ function verifyWindowsStagedRuntime(appDir) {
     "resources/tabs-code-oss/extensions/node_modules/typescript/lib/lib.es5.d.ts",
     "resources/tabs-code-oss/extensions/node_modules/typescript/lib/lib.dom.d.ts",
   ]) {
-    if (!fs.statSync(path.join(appDir, relative)).isFile())
+    const fullPath = path.join(appDir, relative);
+    let stat;
+    try {
+      stat = fs.statSync(fullPath);
+    } catch {
       throw new Error(`Incomplete full-fat application extraction: ${relative}`);
+    }
+    const isFile = relative.endsWith(".asar") ? stat.isFile() || stat.isDirectory() : stat.isFile();
+    if (!isFile) throw new Error(`Incomplete full-fat application extraction: ${relative}`);
   }
   return files;
 }
