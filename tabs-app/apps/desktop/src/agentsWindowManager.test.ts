@@ -108,7 +108,13 @@ vi.mock("./codeHostManager", () => {
       this.registrar = reg;
       if (reg) {
         // Register mock webContents immediately
-        reg(mockWebContents, { x: 0, y: 0, width: 1200, height: 800 }, "test-project");
+        reg(
+          mockWebContents,
+          () => ({ x: 0, y: 0, width: 1200, height: 800 }),
+          "test-project",
+          "test-workspace",
+          "test-workbench-view",
+        );
       }
     }
   }
@@ -233,6 +239,8 @@ describe("AgentsWindowManager", () => {
       mockBrowserWindows[0],
       "test-project",
       true,
+      "test-workspace",
+      "test-workbench-view",
     );
     await manager.open(payload);
     expect(mockWebContents.send).toHaveBeenCalledTimes(2);

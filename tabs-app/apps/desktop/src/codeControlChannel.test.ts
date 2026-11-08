@@ -214,3 +214,60 @@ describe("CodeControlChannel commit drafts", () => {
     expect(called).toBe(false);
   });
 });
+
+describe("CodeControlChannel project isolation", () => {
+  async function connect(channel: CodeControlChannel, projectId: string) {
+    const { url, token } = await channel.start();
+    const address = new URL(url);
+    const socket = Net.createConnection(Number(address.port), address.hostname);
+    const messages: string[] = [];
+    socket.setEncoding("utf8");
+    socket.on("data", (chunk) => messages.push(String(chunk)));
+    await new Promise<void>((resolve) => socket.once("connect", resolve));
+    socket.write(`${JSON.stringify({ type: "hello", token, projectId })}\n`);
+    return { socket, messages };
+  }
+
+  it.each(["", "   "])(
+    "rejects anonymous identity %j without satisfying project waiters",
+    async (projectId) => {
+      const channel = new CodeControlChannel();
+      channels.push(channel);
+      const a = expect(channel.waitForExtensionHost("a", 100)).rejects.toThrow("did not connect");
+      const b = expect(channel.waitForExtensionHost("b", 100)).rejects.toThrow("did not connect");
+      const { socket } = await connect(channel, projectId);
+      await new Promise<void>((resolve) => socket.once("close", resolve));
+      await Promise.all([a, b]);
+      expect(channel.isExtensionHostConnected("never-registered")).toBe(false);
+      expect(channel.openFile("never-registered", "/private.md")).toBe(false);
+    },
+  );
+
+  it("routes commands and files to their project through reconnects", async () => {
+    const channel = new CodeControlChannel();
+    channels.push(channel);
+    const firstA = await connect(channel, "a");
+    const b = await connect(channel, "b");
+    await Promise.all([
+      channel.waitForExtensionHost("a", 1000),
+      channel.waitForExtensionHost("b", 1000),
+    ]);
+    expect(channel.runCommand("a", "workbench.action.terminal.new")).toBe(true);
+    expect(channel.openFile("b", "/b/private.md")).toBe(true);
+    expect(channel.runCommand("unknown", "workbench.action.terminal.new")).toBe(false);
+    await expect.poll(() => firstA.messages.join("")).toContain("terminal.new");
+    await expect.poll(() => b.messages.join("")).toContain("/b/private.md");
+    expect(firstA.messages.join("")).not.toContain("/b/private.md");
+    expect(b.messages.join("")).not.toContain("terminal.new");
+    const oldClosed = new Promise<void>((resolve) => firstA.socket.once("close", resolve));
+    const replacementA = await connect(channel, "a");
+    await oldClosed;
+    expect(channel.isExtensionHostConnected("b")).toBe(true);
+    expect(channel.runCommand("a", "workbench.action.terminal.new")).toBe(true);
+    await expect.poll(() => replacementA.messages.join("")).toContain("terminal.new");
+    replacementA.socket.destroy();
+    await expect.poll(() => channel.isExtensionHostConnected("a")).toBe(false);
+    expect(channel.isExtensionHostConnected("b")).toBe(true);
+    b.socket.destroy();
+  });
+});

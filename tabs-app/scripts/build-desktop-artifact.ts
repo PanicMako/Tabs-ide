@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { CODE_OSS_EXTENSION_MEDIA, verifyCodeOssExtensionMedia } from "./lib/code-oss-media.ts";
 
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -560,6 +561,7 @@ function getRequiredMacArtifactPaths(productName: string, thin = false): readonl
   const codeOss = join(appRoot, "Contents", "Resources", "tabs-code-oss");
   return [
     ...appLevel,
+    ...CODE_OSS_EXTENSION_MEDIA.map((entry) => join(codeOss, "extensions", entry)),
     join(codeOss, "out", "vs", "code", "electron-browser", "workbench", "workbench-dev.html"),
     join(codeOss, "out", "vs", "base", "parts", "sandbox", "electron-browser", "preload.js"),
     join(codeOss, "out-build", "nls.messages.json"),
@@ -646,6 +648,20 @@ const validateMacDmgContents = Effect.fn("validateMacDmgContents")(function* (
 
   try {
     yield* assertRequiredPaths(mountPoint, requiredPaths, "Generated DMG");
+    yield* Effect.try({
+      try: () =>
+        verifyCodeOssExtensionMedia(
+          join(
+            mountPoint,
+            `${productName}.app`,
+            "Contents",
+            "Resources",
+            "tabs-code-oss",
+            "extensions",
+          ),
+        ),
+      catch: (cause) => new BuildScriptError({ message: String(cause) }),
+    });
   } finally {
     const detachResult = spawnSync("hdiutil", ["detach", mountPoint], {
       encoding: "utf8",
@@ -1053,6 +1069,11 @@ const stageVsCodeRuntime = Effect.fn("stageVsCodeRuntime")(function* (
     });
   }
 
+  yield* Effect.try({
+    try: () => verifyCodeOssExtensionMedia(packagedExtensionsDir),
+    catch: (cause) => new BuildScriptError({ message: String(cause) }),
+  });
+
   // Guard: the source must be FULLY compiled before we stage/zip it. A common
   // failure mode is a tree where the core `out/` exists but the built-in
   // extensions were never compiled (no `extensions/<name>/out`). At runtime that
@@ -1329,6 +1350,10 @@ const stageVsCodeRuntime = Effect.fn("stageVsCodeRuntime")(function* (
     });
   }
 
+  yield* Effect.try({
+    try: () => verifyCodeOssExtensionMedia(path.join(vsCodeDestDir, "extensions")),
+    catch: (cause) => new BuildScriptError({ message: String(cause) }),
+  });
   return true;
 });
 
@@ -1439,8 +1464,7 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
   const externalServerDependencies = Object.fromEntries(
     Object.entries(serverDependencies).filter(
       ([name, spec]) =>
-        name !== "@pierre/diffs" &&
-        (typeof spec !== "string" || !spec.startsWith("workspace:")),
+        name !== "@pierre/diffs" && (typeof spec !== "string" || !spec.startsWith("workspace:")),
     ),
   );
   const resolvedServerDependencies = yield* Effect.try({

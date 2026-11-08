@@ -348,6 +348,9 @@ jobs:
           # distributions instead of shipping source and dev dependencies.
           npm run gulp compile-extensions-build
           npm run gulp compile-copilot-extension-build
+          # Packaging cleans .build/extensions; generate media into the final tree afterwards.
+          npm run gulp compile-extension-media-build
+          bun ../tabs-app/scripts/verify-code-oss-media.ts .build/extensions
           # fs-copyfile uses a native binding only on macOS. Linux and Windows
           # use its JavaScript fallback; binding.gyp builds no binary there.
           native_runtime_dir=".build/extensions/git/node_modules/@vscode/fs-copyfile"
@@ -421,6 +424,7 @@ jobs:
           test -s "$extract_root/squashfs-root/resources/tabs-code-oss/extensions/node_modules/typescript/lib/typescript.js"
           test -s "$extract_root/squashfs-root/resources/tabs-code-oss/extensions/git/node_modules/@vscode/fs-copyfile/lib/native.js"
           test -s "$extract_root/squashfs-root/resources/tabs-code-oss/extensions/copilot/node_modules/@anthropic-ai/sdk/package.json"
+          bun tabs-app/scripts/verify-code-oss-media.ts "$extract_root/squashfs-root/resources/tabs-code-oss/extensions"
           grep -Eq '^provider:[[:space:]]*github[[:space:]]*$' "$extract_root/squashfs-root/resources/app-update.yml"
 
       - name: Inspect Windows NSIS update payload
@@ -444,6 +448,8 @@ jobs:
           $runtimeRoot = Join-Path $appRoot "resources/tabs-code-oss"
           & node --experimental-strip-types tabs-app/scripts/verify-windows-runtime-payload.ts $runtimeRoot (Join-Path $appRoot "Tabs.exe")
           if ($LASTEXITCODE -ne 0) { throw "Windows editor payload failed production packaging checks." }
+          & bun tabs-app/scripts/verify-code-oss-media.ts (Join-Path $runtimeRoot "extensions")
+          if ($LASTEXITCODE -ne 0) { throw "Windows editor extension media is incomplete." }
           if (-not (Test-Path (Join-Path $runtimeRoot "out/vs/code/electron-browser/workbench/workbench-dev.html") -PathType Leaf)) { throw "The full Code OSS runtime is missing from Windows installer." }
           if (-not (Test-Path (Join-Path $runtimeRoot "out-build/nls.messages.json") -PathType Leaf)) { throw "Code OSS localization data is missing from Windows installer." }
           if (-not (Test-Path (Join-Path $runtimeRoot "node_modules/minimist/index.js") -PathType Leaf)) { throw "Code OSS runtime dependencies are missing from Windows installer." }

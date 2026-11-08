@@ -51,6 +51,7 @@ vi.mock("electron", () => ({
 }));
 
 import {
+  normalizeCodeHostConsoleMessage,
   addDefaultExtensionGallery,
   CODE_OSS_EMBED_DEFAULT_SETTINGS,
   CODE_OSS_DESKTOP_PRELOAD_RELATIVE_PATH,
@@ -571,6 +572,12 @@ describe("CodeHostManager", () => {
     expect(manager.ownsWebContents(42)).toBe(false);
     expect(registrar).toHaveBeenCalledOnce();
     expect(registrar.mock.calls[0]?.[2]).toBe("project-owner");
+    const workspaceId = registrar.mock.calls[0]?.[3];
+    expect(workspaceId).toMatch(/^[a-f0-9]{64}$/);
+    expect(registrar.mock.calls[0]?.[4]).toBe(webContentsViews[0]);
+    const replacementRegistrar = vi.fn();
+    manager.setNativeWebContentsRegistrar(replacementRegistrar);
+    expect(replacementRegistrar.mock.calls[0]?.[3]).toBe(workspaceId);
   });
 
   it.each(["Bloomberg Terminal Alternative", "literal%20folder", "hash#question?", "café folder"])(
@@ -881,6 +888,43 @@ describe("CodeHostManager", () => {
 
       expect(filterWorkspaceTabs(workspaceRoot, tabs)).toEqual(tabs.slice(0, 2));
       expect(isPathInsideWorkspace(workspaceRoot, workspaceRoot)).toBe(false);
+    });
+  });
+});
+
+describe("Code-OSS console diagnostics", () => {
+  it.each([
+    ["debug", 0],
+    ["info", 1],
+    ["warning", 2],
+    ["error", 3],
+  ] as const)("preserves modern %s severity", (severity, level) => {
+    expect(
+      normalizeCodeHostConsoleMessage([
+        { level: severity, message: "renderer failure", lineNumber: 7, sourceId: "editor.js" },
+      ]),
+    ).toEqual({ level, message: "renderer failure", line: 7, sourceId: "editor.js" });
+  });
+  it.each([0, 1, 2, 3])("preserves legacy numeric severity %d", (level) => {
+    expect(normalizeCodeHostConsoleMessage([{}, level, "legacy message", 8, "legacy.js"])).toEqual({
+      level,
+      message: "legacy message",
+      line: 8,
+      sourceId: "legacy.js",
+    });
+  });
+  it("uses the modern error event when deprecated arguments are also present", () => {
+    expect(
+      normalizeCodeHostConsoleMessage([{ level: "error", message: "failure" }, 0, "old value"])
+        .level,
+    ).toBe(3);
+  });
+  it("handles malformed events without creating a diagnostic flood", () => {
+    expect(normalizeCodeHostConsoleMessage([{ level: "other", message: 12 }])).toEqual({
+      level: 0,
+      message: "",
+      line: 0,
+      sourceId: "",
     });
   });
 });

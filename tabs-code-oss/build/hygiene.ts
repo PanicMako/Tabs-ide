@@ -79,7 +79,7 @@ export function checkNoNewJavaScriptFiles(repoRoot: string): string | undefined 
 	});
 	const tracked = out.split('\0').filter(line => !!line);
 
-	const unknown = tracked.filter(file => !allowed.has(file));
+	const unknown = tracked.filter(file => !allowed.has(file) && fs.existsSync(path.join(repoRoot, file)));
 	if (unknown.length > 0) {
 		return [
 			'New JavaScript files are not allowed. Use TypeScript (.ts) instead.',

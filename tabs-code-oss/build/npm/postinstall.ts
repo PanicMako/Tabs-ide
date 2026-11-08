@@ -13,6 +13,7 @@ import { ensureElectronTypes } from './electronTypes.ts';
 import { finishCloudSandbox } from './cloudSandbox.ts';
 import { patchNativeGyp } from './patchNativeGyp.ts';
 
+
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const rootNpmrcConfigKeys = getNpmrcConfigKeys(path.join(root, '.npmrc'));
 
@@ -134,11 +135,7 @@ function setNpmrcConfig(dir: string, env: NodeJS.ProcessEnv) {
 	}
 
 	if (dir === 'build') {
-		// Temporarily lock the target version.
-		// Node 24 V8 headers require C++20, but tree-sitter hard-pin "c++17" in their binding.gyp.
-		// This is fixed in v0.25.1 however the version is not published to npm, refs
-		// https://github.com/tree-sitter/node-tree-sitter/issues/268.
-		// env['npm_config_target'] = process.versions.node;
+		env['npm_config_target'] = process.versions.node;
 		env['npm_config_arch'] = process.arch;
 	}
 }

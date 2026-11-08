@@ -5251,14 +5251,19 @@ async function bootstrap(): Promise<void> {
         for (const rawUrl of pendingNativeCodeHostURLs.splice(0)) {
           forwardNativeCodeHostURL(rawUrl);
         }
-        codeHostManager.setNativeWebContentsRegistrar((webContents, getBounds, projectId) => {
-          nativeCodeHostMainBackend?.registerWebContents(
-            webContents,
-            getBounds,
-            mainWindow ?? undefined,
-            projectId,
-          );
-        });
+        codeHostManager.setNativeWebContentsRegistrar(
+          (webContents, getBounds, projectId, workspaceId, browserViewContainer) => {
+            nativeCodeHostMainBackend?.registerWebContents(
+              webContents,
+              getBounds,
+              mainWindow ?? undefined,
+              projectId,
+              false,
+              workspaceId,
+              browserViewContainer,
+            );
+          },
+        );
         writeDesktopLogHeader("bootstrap native Code-OSS main-process backend started");
       })
       .catch((error: unknown) => {

@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { readFileSync } from "node:fs";
 import { webcrypto } from "node:crypto";
+import { resolve } from "node:path";
 import { beforeEach, afterEach, expect, it, vi } from "vitest";
 import { createSigningBackup, fingerprint, lockBackup } from "../frontend/src/lib/releaseSigning";
 const api = vi.hoisted(() => ({ request: vi.fn() }));
@@ -15,7 +16,10 @@ beforeEach(() => {
     for (const [type, listener, options] of events.mock.calls)
       window.removeEventListener(type, listener, options);
   };
-  const page = readFileSync("frontend/src/pages/admin/releases.astro", "utf8");
+  const page = readFileSync(
+    resolve(import.meta.dirname, "../frontend/src/pages/admin/releases.astro"),
+    "utf8",
+  );
   document.body.innerHTML = page.match(/<Operations[^>]*>([\s\S]*?)<\/Operations>/)![1]!;
   HTMLElement.prototype.scrollIntoView = vi.fn();
 });

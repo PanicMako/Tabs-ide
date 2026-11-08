@@ -33,6 +33,45 @@ import type { NativeViewStackCoordinator } from "./nativeViewStackCoordinator";
 
 export const CODE_HOST_CHROME_STATE_CHANNEL = "desktop:code-host:chrome-state";
 
+const CODE_CONSOLE_LEVELS: Readonly<Record<string, number>> = {
+  debug: 0,
+  info: 1,
+  warning: 2,
+  error: 3,
+};
+
+/** Normalize modern Electron event details and the deprecated positional signature. */
+export function normalizeCodeHostConsoleMessage(args: readonly unknown[]) {
+  const event = args[0];
+  const details =
+    typeof event === "object" && event !== null && "message" in event
+      ? (event as {
+          level?: unknown;
+          message?: unknown;
+          lineNumber?: unknown;
+          line?: unknown;
+          sourceId?: unknown;
+        })
+      : { level: args[1], message: args[2], lineNumber: args[3], sourceId: args[4] };
+  const level =
+    typeof details.level === "string"
+      ? (CODE_CONSOLE_LEVELS[details.level] ?? 0)
+      : typeof details.level === "number"
+        ? details.level
+        : 0;
+  return {
+    level,
+    message: typeof details.message === "string" ? details.message : "",
+    line:
+      typeof details.lineNumber === "number"
+        ? details.lineNumber
+        : typeof details.line === "number"
+          ? details.line
+          : 0,
+    sourceId: typeof details.sourceId === "string" ? details.sourceId : "",
+  };
+}
+
 export const CODE_OSS_EMBED_EXTENSION_RELATIVE_PATH = Path.join(
   "..",
   "resources",
@@ -1089,6 +1128,8 @@ export class CodeHostManager {
         webContents: Electron.WebContents,
         getBounds: () => Electron.Rectangle | null,
         projectId: string,
+        workspaceId: string,
+        browserViewContainer: WebContentsView,
       ) => void)
     | null = null;
 
@@ -1098,6 +1139,8 @@ export class CodeHostManager {
           webContents: Electron.WebContents,
           getBounds: () => Electron.Rectangle | null,
           projectId: string,
+          workspaceId: string,
+          browserViewContainer: WebContentsView,
         ) => void)
       | null,
   ): void {
@@ -1109,6 +1152,8 @@ export class CodeHostManager {
             session.view.webContents,
             () => session.view?.getBounds() ?? null,
             session.projectId,
+            this.resolveDesktopWorkspaceId(session.workspaceRoot),
+            session.view,
           );
         }
       }
@@ -1388,7 +1433,13 @@ export class CodeHostManager {
           : null),
       },
     });
-    this.registerNativeWebContents?.(view.webContents, () => view.getBounds(), input.projectId);
+    this.registerNativeWebContents?.(
+      view.webContents,
+      () => view.getBounds(),
+      input.projectId,
+      this.resolveDesktopWorkspaceId(input.workspaceRoot),
+      view,
+    );
     view.setBackgroundColor(this.isCurrentThemeLight() ? "#f8f8f8" : "#141414");
 
     const allowedPermissions = new Set([
@@ -2353,7 +2404,7 @@ export class CodeHostManager {
       userDataDir: sessionStateRoot,
       ...(this.agentsWorkspace ? { isSessionsWindow: true } : {}),
       workspace: {
-        id: this.hashDesktopIdentity(`workspace:${this.agentsWorkspace ?? session.workspaceRoot}`),
+        id: this.resolveDesktopWorkspaceId(session.workspaceRoot),
         ...(this.agentsWorkspace
           ? { configPath: this.toFileUriComponent(this.agentsWorkspace) }
           : { uri: this.toFileUriComponent(session.workspaceRoot) }),
@@ -2515,6 +2566,10 @@ export class CodeHostManager {
     return Crypto.createHash("sha256").update(value).digest("hex");
   }
 
+  private resolveDesktopWorkspaceId(workspaceRoot: string): string {
+    return this.hashDesktopIdentity(`workspace:${this.agentsWorkspace ?? workspaceRoot}`);
+  }
+
   private getProductConfiguration(vscodeRoot: string): Record<string, unknown> {
     const cached = productConfigurationCache.get(vscodeRoot);
     if (cached) {
@@ -2624,7 +2679,9 @@ export class CodeHostManager {
     session.view.webContents.on("responsive", () => {
       writeCodeHostDiagnostic(`${prefix} webContents responsive`);
     });
-    session.view.webContents.on("console-message", (_event, level, message, line, sourceId) => {
+    session.view.webContents.on("console-message", (...args: unknown[]) => {
+      const { level, message, line, sourceId } = normalizeCodeHostConsoleMessage(args);
+
       // Chromium levels 0-2 include routine debug/info/warnings. Forwarding all
       // of them synchronously produced thousands of writes during startup and
       // blocked input dispatch in Electron's main process.

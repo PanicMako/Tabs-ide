@@ -5,8 +5,8 @@
 
 /* Tabs uses the same rounded surfaces and pill controls in the shell and Code.
 	Text selections keep Monaco's joined geometry; glyph-sized details stay compact. */
-:root,
-.monaco-workbench {
+:where(html.tabs-embedded-workbench):root,
+:where(html.tabs-embedded-workbench) .monaco-workbench {
 	--vscode-cornerRadius-xSmall: 5px !important;
 	--vscode-cornerRadius-small: 8px !important;
 	--vscode-cornerRadius-medium: 12px !important;
@@ -15,8 +15,8 @@
 }
 
 /* Surfaces and parts throughout Code-OSS use generous rounded corners */
-.monaco-workbench .part:is(.sidebar, .auxiliarybar, .panel),
-.monaco-workbench .part.editor:not(.modal-editor-part),
+:where(html.tabs-embedded-workbench) .monaco-workbench .part:is(.sidebar, .auxiliarybar, .panel),
+:where(html.tabs-embedded-workbench) .monaco-workbench .part.editor:not(.modal-editor-part),
 html.tabs-embedded-workbench .monaco-workbench .part:is(.sidebar, .auxiliarybar, .panel),
 html.tabs-embedded-workbench .monaco-workbench .part.editor:not(.modal-editor-part),
 html.tabs-embedded-workbench .monaco-workbench.floating-panels .part:is(.sidebar, .auxiliarybar, .panel),
@@ -39,13 +39,13 @@ html.tabs-embedded-workbench :is(.quick-input-widget, .suggest-widget, .suggest-
 }
 
 /* Controls share the shell's pill curvature; CSS clamps it to their actual height. */
-.monaco-workbench .monaco-button,
-.monaco-workbench .monaco-text-button,
-.monaco-workbench .monaco-inputbox:not(.multiline),
-.monaco-workbench .monaco-select-box,
-.monaco-workbench .monaco-action-bar .action-label,
-.monaco-workbench .monaco-action-bar .action-item,
-.monaco-workbench .part.statusbar .statusbar-item > a,
+:where(html.tabs-embedded-workbench) .monaco-workbench .monaco-button,
+:where(html.tabs-embedded-workbench) .monaco-workbench .monaco-text-button,
+:where(html.tabs-embedded-workbench) .monaco-workbench .monaco-inputbox:not(.multiline),
+:where(html.tabs-embedded-workbench) .monaco-workbench .monaco-select-box,
+:where(html.tabs-embedded-workbench) .monaco-workbench .monaco-action-bar .action-label,
+:where(html.tabs-embedded-workbench) .monaco-workbench .monaco-action-bar .action-item,
+:where(html.tabs-embedded-workbench) .monaco-workbench .part.statusbar .statusbar-item > a,
 html.tabs-embedded-workbench .monaco-workbench .pane-header,
 html.tabs-embedded-workbench .monaco-workbench .monaco-button:not(.monaco-dropdown-button),
 html.tabs-embedded-workbench .monaco-workbench .monaco-inputbox,
@@ -74,24 +74,24 @@ html.tabs-embedded-workbench .monaco-workbench .settings-editor :is(.monaco-inpu
 	border-radius: var(--vscode-cornerRadius-xLarge) !important;
 }
 
-.monaco-workbench .monaco-count-badge,
-.monaco-workbench .chat-input-picker-item,
-.monaco-workbench .chat-suggest-followups .monaco-button {
+:where(html.tabs-embedded-workbench) .monaco-workbench .monaco-count-badge,
+:where(html.tabs-embedded-workbench) .monaco-workbench .chat-input-picker-item,
+:where(html.tabs-embedded-workbench) .monaco-workbench .chat-suggest-followups .monaco-button {
 	border-radius: var(--vscode-cornerRadius-large) !important;
 }
 
 /* Joined buttons retain straight internal seams. */
-.monaco-workbench .monaco-button-dropdown {
+:where(html.tabs-embedded-workbench) .monaco-workbench .monaco-button-dropdown {
 	border-radius: var(--vscode-cornerRadius-xLarge) !important;
 }
 
-.monaco-workbench .monaco-button-dropdown > .monaco-button.monaco-text-button,
+:where(html.tabs-embedded-workbench) .monaco-workbench .monaco-button-dropdown > .monaco-button.monaco-text-button,
 html.tabs-embedded-workbench .monaco-workbench .monaco-button-dropdown > .monaco-button.monaco-text-button,
 html.tabs-embedded-workbench .monaco-action-bar .action-item.action-dropdown-item > .action-label {
 	border-radius: var(--vscode-cornerRadius-xLarge) 0 0 var(--vscode-cornerRadius-xLarge) !important;
 }
 
-.monaco-workbench .monaco-button-dropdown > .monaco-button.monaco-dropdown-button,
+:where(html.tabs-embedded-workbench) .monaco-workbench .monaco-button-dropdown > .monaco-button.monaco-dropdown-button,
 html.tabs-embedded-workbench .monaco-workbench .monaco-button-dropdown > .monaco-button.monaco-dropdown-button,
 html.tabs-embedded-workbench .monaco-action-bar .action-item.action-dropdown-item > .monaco-dropdown .action-label {
 	border-radius: 0 var(--vscode-cornerRadius-xLarge) var(--vscode-cornerRadius-xLarge) 0 !important;
@@ -99,75 +99,75 @@ html.tabs-embedded-workbench .monaco-action-bar .action-item.action-dropdown-ite
 
 /* Menus, suggestions and hovers are compact overlays, with smaller inset rows.
 	Preserve overflow: suggestions, focus indicators and submenu anchors need it. */
-.monaco-workbench .quick-input-widget,
-.monaco-workbench .monaco-menu .monaco-action-bar.vertical,
-.monaco-workbench .monaco-select-box-dropdown-container,
-.monaco-workbench .monaco-hover,
-.monaco-workbench .editor-widget.suggest-widget,
-.monaco-workbench .monaco-editor .parameter-hints-widget,
-.monaco-workbench .monaco-editor .suggest-details,
-.context-view .monaco-menu .monaco-action-bar.vertical,
-.context-view .monaco-select-box-dropdown-container {
+:where(html.tabs-embedded-workbench) .monaco-workbench .quick-input-widget,
+:where(html.tabs-embedded-workbench) .monaco-workbench .monaco-menu .monaco-action-bar.vertical,
+:where(html.tabs-embedded-workbench) .monaco-workbench .monaco-select-box-dropdown-container,
+:where(html.tabs-embedded-workbench) .monaco-workbench .monaco-hover,
+:where(html.tabs-embedded-workbench) .monaco-workbench .editor-widget.suggest-widget,
+:where(html.tabs-embedded-workbench) .monaco-workbench .monaco-editor .parameter-hints-widget,
+:where(html.tabs-embedded-workbench) .monaco-workbench .monaco-editor .suggest-details,
+:where(html.tabs-embedded-workbench) .context-view .monaco-menu .monaco-action-bar.vertical,
+:where(html.tabs-embedded-workbench) .context-view .monaco-select-box-dropdown-container {
 	border-radius: var(--vscode-cornerRadius-medium) !important;
 }
 
-.monaco-workbench .monaco-dialog-box {
+:where(html.tabs-embedded-workbench) .monaco-workbench .monaco-dialog-box {
 	border-radius: var(--vscode-cornerRadius-medium) !important;
 }
 
 /* Rounded row backgrounds do not change virtualized row positions or heights. */
-.monaco-workbench .monaco-list .monaco-list-row:not(.separator),
-.monaco-workbench .monaco-menu .monaco-action-bar .action-item,
-.monaco-workbench .monaco-menu .action-menu-item,
-.monaco-workbench .pane-header,
-.monaco-workbench .monaco-breadcrumbs .monaco-breadcrumb-item,
-.monaco-workbench .chat-attachment,
-.context-view .monaco-menu .action-item,
-.context-view .monaco-menu .action-menu-item {
+:where(html.tabs-embedded-workbench) .monaco-workbench .monaco-list .monaco-list-row:not(.separator),
+:where(html.tabs-embedded-workbench) .monaco-workbench .monaco-menu .monaco-action-bar .action-item,
+:where(html.tabs-embedded-workbench) .monaco-workbench .monaco-menu .action-menu-item,
+:where(html.tabs-embedded-workbench) .monaco-workbench .pane-header,
+:where(html.tabs-embedded-workbench) .monaco-workbench .monaco-breadcrumbs .monaco-breadcrumb-item,
+:where(html.tabs-embedded-workbench) .monaco-workbench .chat-attachment,
+:where(html.tabs-embedded-workbench) .context-view .monaco-menu .action-item,
+:where(html.tabs-embedded-workbench) .context-view .monaco-menu .action-menu-item {
 	border-radius: var(--vscode-cornerRadius-xLarge) !important;
 }
 
 /* Multiline commit editors retain room for text and the cursor at each corner. */
-.monaco-workbench .scm-editor {
+:where(html.tabs-embedded-workbench) .monaco-workbench .scm-editor {
 	border-radius: var(--vscode-cornerRadius-medium) !important;
 	overflow: hidden !important;
 	padding-left: 8px !important;
 	padding-right: 4px !important;
 }
 
-.monaco-workbench .scm-editor-container {
+:where(html.tabs-embedded-workbench) .monaco-workbench .scm-editor-container {
 	border-radius: var(--vscode-cornerRadius-medium) !important;
 	overflow: hidden !important;
 }
 
-.monaco-workbench .scm-view .scm-editor-container .monaco-editor,
-.monaco-workbench .scm-view .scm-editor-container .monaco-editor .overflow-guard {
+:where(html.tabs-embedded-workbench) .monaco-workbench .scm-view .scm-editor-container .monaco-editor,
+:where(html.tabs-embedded-workbench) .monaco-workbench .scm-view .scm-editor-container .monaco-editor .overflow-guard {
 	border-radius: var(--vscode-cornerRadius-medium) !important;
 	outline: none !important;
 }
 
 /* Suppress harsh outer focus borders/outlines on inputs when clicked or focused */
-.monaco-workbench .monaco-inputbox.synthetic-focus,
-.monaco-workbench .monaco-inputbox:focus,
-.monaco-workbench .monaco-inputbox:focus-within,
-.monaco-workbench .monaco-inputbox input:focus,
-.monaco-workbench .monaco-inputbox textarea:focus,
-.monaco-workbench .monaco-findInput.synthetic-focus,
-.monaco-workbench .monaco-findInput:focus,
-.monaco-workbench .monaco-findInput:focus-within,
-.monaco-workbench .scm-editor.synthetic-focus,
-.monaco-workbench .scm-editor:focus,
-.monaco-workbench .scm-editor:focus-within,
-.monaco-workbench .scm-editor-container:focus-within,
-.monaco-workbench .quick-input-filter .monaco-inputbox.synthetic-focus,
-.monaco-workbench .quick-input-filter .monaco-inputbox:focus,
-.monaco-workbench .search-widget .monaco-inputbox.synthetic-focus,
-.monaco-workbench .search-widget .monaco-inputbox:focus,
-.monaco-workbench input[type="text"]:focus,
-.monaco-workbench input[type="search"]:focus,
-.monaco-workbench textarea:focus,
-.monaco-workbench select:focus,
-.monaco-workbench .synthetic-focus {
+:where(html.tabs-embedded-workbench) .monaco-workbench .monaco-inputbox.synthetic-focus,
+:where(html.tabs-embedded-workbench) .monaco-workbench .monaco-inputbox:focus,
+:where(html.tabs-embedded-workbench) .monaco-workbench .monaco-inputbox:focus-within,
+:where(html.tabs-embedded-workbench) .monaco-workbench .monaco-inputbox input:focus,
+:where(html.tabs-embedded-workbench) .monaco-workbench .monaco-inputbox textarea:focus,
+:where(html.tabs-embedded-workbench) .monaco-workbench .monaco-findInput.synthetic-focus,
+:where(html.tabs-embedded-workbench) .monaco-workbench .monaco-findInput:focus,
+:where(html.tabs-embedded-workbench) .monaco-workbench .monaco-findInput:focus-within,
+:where(html.tabs-embedded-workbench) .monaco-workbench .scm-editor.synthetic-focus,
+:where(html.tabs-embedded-workbench) .monaco-workbench .scm-editor:focus,
+:where(html.tabs-embedded-workbench) .monaco-workbench .scm-editor:focus-within,
+:where(html.tabs-embedded-workbench) .monaco-workbench .scm-editor-container:focus-within,
+:where(html.tabs-embedded-workbench) .monaco-workbench .quick-input-filter .monaco-inputbox.synthetic-focus,
+:where(html.tabs-embedded-workbench) .monaco-workbench .quick-input-filter .monaco-inputbox:focus,
+:where(html.tabs-embedded-workbench) .monaco-workbench .search-widget .monaco-inputbox.synthetic-focus,
+:where(html.tabs-embedded-workbench) .monaco-workbench .search-widget .monaco-inputbox:focus,
+:where(html.tabs-embedded-workbench) .monaco-workbench input[type="text"]:focus,
+:where(html.tabs-embedded-workbench) .monaco-workbench input[type="search"]:focus,
+:where(html.tabs-embedded-workbench) .monaco-workbench textarea:focus,
+:where(html.tabs-embedded-workbench) .monaco-workbench select:focus,
+:where(html.tabs-embedded-workbench) .monaco-workbench .synthetic-focus {
 	outline: none !important;
 	outline-width: 0 !important;
 	outline-style: none !important;
@@ -175,23 +175,23 @@ html.tabs-embedded-workbench .monaco-action-bar .action-item.action-dropdown-ite
 }
 
 /* Cards and multiline editors need clean modern IDE radii (12px), not circular capsules. */
-.monaco-workbench .settings-editor .setting-item-contents,
-.monaco-workbench .chat-input-container,
-.monaco-workbench .chat-input-part,
-.monaco-workbench .interactive-input-part,
+:where(html.tabs-embedded-workbench) .monaco-workbench .settings-editor .setting-item-contents,
+:where(html.tabs-embedded-workbench) .monaco-workbench .chat-input-container,
+:where(html.tabs-embedded-workbench) .monaco-workbench .chat-input-part,
+:where(html.tabs-embedded-workbench) .monaco-workbench .interactive-input-part,
 html.tabs-embedded-workbench .monaco-workbench :is(.settings-editor .setting-item-contents, .chat-input-container, .chat-input-part, .interactive-input-part),
 html.tabs-embedded-workbench .monaco-workbench .settings-editor .setting-item-contents,
 html.tabs-embedded-workbench .monaco-workbench .part.sidebar .monaco-inputbox {
 	border-radius: 12px !important;
 }
 
-.monaco-workbench .monaco-inputbox.multiline,
-.monaco-workbench .monaco-description-button,
-.monaco-workbench .chat-codeblock,
-.monaco-workbench .monaco-editor .rename-box,
-.monaco-workbench .monaco-editor .peekview-widget,
-.monaco-workbench .monaco-editor .find-widget,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab,
+:where(html.tabs-embedded-workbench) .monaco-workbench .monaco-inputbox.multiline,
+:where(html.tabs-embedded-workbench) .monaco-workbench .monaco-description-button,
+:where(html.tabs-embedded-workbench) .monaco-workbench .chat-codeblock,
+:where(html.tabs-embedded-workbench) .monaco-workbench .monaco-editor .rename-box,
+:where(html.tabs-embedded-workbench) .monaco-workbench .monaco-editor .peekview-widget,
+:where(html.tabs-embedded-workbench) .monaco-workbench .monaco-editor .find-widget,
+:where(html.tabs-embedded-workbench) .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab,
 html.tabs-embedded-workbench .monaco-workbench .scm-view .scm-editor-container .monaco-editor,
 html.tabs-embedded-workbench .monaco-workbench .scm-view .scm-editor-container .monaco-editor .overflow-guard,
 html.tabs-embedded-workbench .monaco-workbench :is(.scm-editor, .scm-editor-container) {
@@ -239,40 +239,40 @@ html.tabs-embedded-workbench .monaco-workbench .notifications-center .monaco-lis
 }
 
 /* Tiny glyph controls and text decorations should not use panel-sized curves. */
-.monaco-workbench .monaco-checkbox,
-.monaco-workbench .monaco-custom-toggle,
-.monaco-workbench .monaco-keybinding-key,
-.monaco-workbench .monaco-highlighted-label .highlight,
-.monaco-workbench .monaco-editor .view-overlays .current-line,
-.monaco-workbench .monaco-editor .findMatch,
-.monaco-workbench .monaco-editor .currentFindMatch,
-.monaco-workbench .monaco-editor .rangeHighlight,
-.monaco-workbench .monaco-editor .wordHighlight,
-.monaco-workbench .monaco-editor .wordHighlightStrong,
-.monaco-workbench .monaco-editor .wordHighlightText,
-.monaco-workbench .monaco-scrollable-element > .scrollbar > .slider {
+:where(html.tabs-embedded-workbench) .monaco-workbench .monaco-checkbox,
+:where(html.tabs-embedded-workbench) .monaco-workbench .monaco-custom-toggle,
+:where(html.tabs-embedded-workbench) .monaco-workbench .monaco-keybinding-key,
+:where(html.tabs-embedded-workbench) .monaco-workbench .monaco-highlighted-label .highlight,
+:where(html.tabs-embedded-workbench) .monaco-workbench .monaco-editor .view-overlays .current-line,
+:where(html.tabs-embedded-workbench) .monaco-workbench .monaco-editor .findMatch,
+:where(html.tabs-embedded-workbench) .monaco-workbench .monaco-editor .currentFindMatch,
+:where(html.tabs-embedded-workbench) .monaco-workbench .monaco-editor .rangeHighlight,
+:where(html.tabs-embedded-workbench) .monaco-workbench .monaco-editor .wordHighlight,
+:where(html.tabs-embedded-workbench) .monaco-workbench .monaco-editor .wordHighlightStrong,
+:where(html.tabs-embedded-workbench) .monaco-workbench .monaco-editor .wordHighlightText,
+:where(html.tabs-embedded-workbench) .monaco-workbench .monaco-scrollable-element > .scrollbar > .slider {
 	border-radius: var(--vscode-cornerRadius-xSmall) !important;
 }
 
 /* Preserve Monaco's joined selection edges and high-contrast geometry. */
-.monaco-workbench .monaco-editor:not(.hc-black):not(.hc-light) .top-left-radius {
+:where(html.tabs-embedded-workbench) .monaco-workbench .monaco-editor:not(.hc-black):not(.hc-light) .top-left-radius {
 	border-top-left-radius: var(--vscode-cornerRadius-xSmall);
 }
 
-.monaco-workbench .monaco-editor:not(.hc-black):not(.hc-light) .top-right-radius {
+:where(html.tabs-embedded-workbench) .monaco-workbench .monaco-editor:not(.hc-black):not(.hc-light) .top-right-radius {
 	border-top-right-radius: var(--vscode-cornerRadius-xSmall);
 }
 
-.monaco-workbench .monaco-editor:not(.hc-black):not(.hc-light) .bottom-left-radius {
+:where(html.tabs-embedded-workbench) .monaco-workbench .monaco-editor:not(.hc-black):not(.hc-light) .bottom-left-radius {
 	border-bottom-left-radius: var(--vscode-cornerRadius-xSmall);
 }
 
-.monaco-workbench .monaco-editor:not(.hc-black):not(.hc-light) .bottom-right-radius {
+:where(html.tabs-embedded-workbench) .monaco-workbench .monaco-editor:not(.hc-black):not(.hc-light) .bottom-right-radius {
 	border-bottom-right-radius: var(--vscode-cornerRadius-xSmall);
 }
 
 /* Assistant providers share the compact control shape. */
-.monaco-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon) .action-label {
+:where(html.tabs-embedded-workbench) .monaco-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon) .action-label {
 	border-radius: var(--vscode-cornerRadius-large) !important;
 	color: var(--vscode-sideBarTitle-foreground);
 	padding-left: 8px;
@@ -280,27 +280,27 @@ html.tabs-embedded-workbench .monaco-workbench .notifications-center .monaco-lis
 	text-transform: none;
 }
 
-.monaco-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus-visible .action-label {
+:where(html.tabs-embedded-workbench) .monaco-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus-visible .action-label {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: -1px;
 }
 
 /* The shared assistant switcher replaces per-editor launch shortcuts. */
-.monaco-workbench .editor-actions .action-item:has(> .action-label[aria-label^='Claude Code: Open']),
-.monaco-workbench .editor-actions .action-item:has(> .action-label[aria-label='Open Codex Sidebar']) {
+:where(html.tabs-embedded-workbench) .monaco-workbench .editor-actions .action-item:has(> .action-label[aria-label^='Claude Code: Open']),
+:where(html.tabs-embedded-workbench) .monaco-workbench .editor-actions .action-item:has(> .action-label[aria-label='Open Codex Sidebar']) {
 	display: none;
 }
 
 /* ============================================================================
  * Search View: Compact, Highly Organized, Crisp IDE Geometry
  * ============================================================================ */
-.monaco-workbench .search-view .search-widgets-container {
+:where(html.tabs-embedded-workbench) .monaco-workbench .search-view .search-widgets-container {
 	padding: 8px 12px;
 	margin: 0;
 }
 
 /* Search fields use the same control curvature as Quick Open and the shell. */
-.monaco-workbench .search-view :is(
+:where(html.tabs-embedded-workbench) .monaco-workbench .search-view :is(
 	.monaco-findInput,
 	.monaco-inputbox,
 	.search-widget .replace-input,
@@ -310,16 +310,16 @@ html.tabs-embedded-workbench .monaco-workbench .notifications-center .monaco-lis
 }
 
 /* Align Search, Replace and Include/Exclude fields cleanly */
-.monaco-workbench .search-view .search-widget .search-container,
-.monaco-workbench .search-view .search-widget .replace-container {
+:where(html.tabs-embedded-workbench) .monaco-workbench .search-view .search-widget .search-container,
+:where(html.tabs-embedded-workbench) .monaco-workbench .search-view .search-widget .replace-container {
 	margin-left: 20px !important;
 }
 
-.monaco-workbench .search-view .search-widget .replace-container {
+:where(html.tabs-embedded-workbench) .monaco-workbench .search-view .search-widget .replace-container {
 	margin-top: 6px !important;
 }
 
-.monaco-workbench .search-view .search-widget .toggle-replace-button {
+:where(html.tabs-embedded-workbench) .monaco-workbench .search-view .search-widget .toggle-replace-button {
 	border-radius: 4px !important;
 	width: 16px;
 	height: 26px;
@@ -327,32 +327,32 @@ html.tabs-embedded-workbench .monaco-workbench .notifications-center .monaco-lis
 	left: 0;
 }
 
-.monaco-workbench .search-view .query-details {
+:where(html.tabs-embedded-workbench) .monaco-workbench .search-view .query-details {
 	margin: 8px 0 0 20px !important;
 }
 
-.monaco-workbench .search-view .query-details.more h4 {
+:where(html.tabs-embedded-workbench) .monaco-workbench .search-view .query-details.more h4 {
 	font-size: 11px;
 	font-weight: 500;
 	padding: 6px 0 3px;
 	opacity: 0.85;
 }
 
-.monaco-workbench .search-view .query-details .file-types > .monaco-inputbox {
+:where(html.tabs-embedded-workbench) .monaco-workbench .search-view .query-details .file-types > .monaco-inputbox {
 	height: 26px;
 	margin-bottom: 6px;
 }
 
-.monaco-workbench .search-view .monaco-findInput .monaco-inputbox > .ibwrapper > textarea.input,
-.monaco-workbench .search-view .replace-input .monaco-inputbox > .ibwrapper > textarea.input,
-.monaco-workbench .search-view .query-details .file-types > .monaco-inputbox input {
+:where(html.tabs-embedded-workbench) .monaco-workbench .search-view .monaco-findInput .monaco-inputbox > .ibwrapper > textarea.input,
+:where(html.tabs-embedded-workbench) .monaco-workbench .search-view .replace-input .monaco-inputbox > .ibwrapper > textarea.input,
+:where(html.tabs-embedded-workbench) .monaco-workbench .search-view .query-details .file-types > .monaco-inputbox input {
 	height: 26px;
 	line-height: 20px;
 	padding: 3px 6px;
 	font-size: 12px;
 }
 
-.monaco-workbench .search-view .search-widget .replace-container .monaco-action-bar {
+:where(html.tabs-embedded-workbench) .monaco-workbench .search-view .search-widget .replace-container .monaco-action-bar {
 	height: 26px;
 	margin-left: 6px;
 }
@@ -360,27 +360,27 @@ html.tabs-embedded-workbench .monaco-workbench .notifications-center .monaco-lis
 /* ============================================================================
  * Settings Editor: Modern, Clean, Cohesive IDE Aesthetics
  * ============================================================================ */
-.monaco-workbench .settings-editor > .settings-header {
+:where(html.tabs-embedded-workbench) .monaco-workbench .settings-editor > .settings-header {
 	padding: 12px 24px 8px;
 }
 
-.monaco-workbench .settings-editor .suggest-input-container {
+:where(html.tabs-embedded-workbench) .monaco-workbench .settings-editor .suggest-input-container {
 	border-radius: 8px !important;
 	border: 1px solid color-mix(in srgb, var(--vscode-sideBar-border, #444) 60%, transparent);
 	padding: 2px 4px;
 }
 
-.monaco-workbench .settings-editor .suggest-input-container .monaco-inputbox {
+:where(html.tabs-embedded-workbench) .monaco-workbench .settings-editor .suggest-input-container .monaco-inputbox {
 	border-radius: var(--vscode-cornerRadius-xLarge) !important;
 }
 
-.monaco-workbench .settings-editor .settings-tabs-widget .action-label {
+:where(html.tabs-embedded-workbench) .monaco-workbench .settings-editor .settings-tabs-widget .action-label {
 	border-radius: var(--vscode-cornerRadius-xLarge) !important;
 	padding: 4px 10px !important;
 	font-size: 12px !important;
 }
 
-.monaco-workbench .settings-editor .setting-item-contents {
+:where(html.tabs-embedded-workbench) .monaco-workbench .settings-editor .setting-item-contents {
 	border-radius: 12px !important;
 	border: 1px solid color-mix(in srgb, var(--vscode-settings-rowHoverBackground, var(--vscode-sideBar-border, transparent)) 60%, transparent);
 	padding: 10px 14px !important;
@@ -388,32 +388,32 @@ html.tabs-embedded-workbench .monaco-workbench .notifications-center .monaco-lis
 	transition: background-color 120ms ease, border-color 120ms ease;
 }
 
-.monaco-workbench .settings-editor .setting-item-contents:hover {
+:where(html.tabs-embedded-workbench) .monaco-workbench .settings-editor .setting-item-contents:hover {
 	background-color: color-mix(in srgb, var(--vscode-settings-rowHoverBackground, #ffffff) 15%, transparent);
 }
 
-.monaco-workbench .settings-editor :is(.monaco-inputbox, .monaco-select-box, .monaco-button) {
+:where(html.tabs-embedded-workbench) .monaco-workbench .settings-editor :is(.monaco-inputbox, .monaco-select-box, .monaco-button) {
 	border-radius: var(--vscode-cornerRadius-xLarge) !important;
 }
 
 
 /* Quick Open paints its list inside one rounded surface, including the last row. */
-.monaco-workbench .quick-input-widget {
+:where(html.tabs-embedded-workbench) .monaco-workbench .quick-input-widget {
 	overflow: hidden;
 }
 
-.monaco-workbench .quick-input-widget .quick-input-titlebar,
+:where(html.tabs-embedded-workbench) .monaco-workbench .quick-input-widget .quick-input-titlebar,
 html.tabs-embedded-workbench .quick-input-titlebar {
 	border-top-left-radius: var(--vscode-cornerRadius-medium);
 	border-top-right-radius: var(--vscode-cornerRadius-medium);
 }
 
-.monaco-workbench .quick-input-widget .monaco-inputbox input.input {
+:where(html.tabs-embedded-workbench) .monaco-workbench .quick-input-widget .monaco-inputbox input.input {
 	padding-inline: 12px;
 }
 
 /* Inset the search capsule far enough to clear the outer picker's larger curve. */
-.monaco-workbench .quick-input-widget .quick-input-header {
+:where(html.tabs-embedded-workbench) .monaco-workbench .quick-input-widget .quick-input-header {
 	padding: 12px 12px 6px;
 }
 html.tabs-embedded-workbench .monaco-workbench .monaco-breadcrumbs .monaco-breadcrumb-item,
@@ -487,7 +487,7 @@ html.tabs-embedded-workbench .monaco-workbench.floating-panels.noactivitybar .pa
 }
 
 /* Small search/settings fields must not inherit workspace-panel curvature. */
-html.tabs-embedded-workbench .monaco-workbench :is(.settings-editor, .search-view, .search-editor) :is(.monaco-inputbox, .monaco-findInput, .monaco-select-box, input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), textarea) {
+html.tabs-embedded-workbench .monaco-workbench :is(.settings-editor, .search-view, .search-editor) :is(.monaco-inputbox, .monaco-findInput, .monaco-select-box, .search-widget .replace-input, input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), textarea) {
 	border-radius: var(--vscode-cornerRadius-small) !important;
 }
 
