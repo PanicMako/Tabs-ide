@@ -2,6 +2,21 @@
 
 All notable changes to Tabs IDE will be documented in this file.
 
+## [v2.3.0] - 2026-11-08
+
+### Guided workspace setup and a refreshed editor
+
+Start with a project and follow a hands-on tour of Tabs. The embedded editor now runs Code OSS 1.145.0 and restores Markdown editing and preview in the installed app.
+
+### What changed
+
+- Open or create a local project, or clone into the current tab using a Git URL or a supported host such as GitHub or GitLab.
+- Explore Code, Dock, Git, and Browser at your own pace. Minimize the tour while you work and click the Tabs mascot to resume.
+- Follow optional setup through saving a Browser tab, Terminal tab, or Dock preset. The tour also walks through Quick Actions and shows where to connect a coding agent.
+- Turn off Quick Actions without losing your layout or shortcuts. Longer labels wrap inside the action wheel.
+- Edit thread titles from the thread list or conversation header. Titles are trimmed and blank titles are rejected.
+- Switch between Text Editor, Markdown editing, and Preview. The embedded browser stays with its owning project when you switch tools.
+
 ## [v2.2.2] - 2026-11-03
 
 ### Quick Actions refinements and smaller editor caches

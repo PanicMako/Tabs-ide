@@ -4,14 +4,16 @@
 }
 
 .project-source-picker[data-slot="command-dialog-popup"] {
-  --source-gutter: 24px;
+  --source-gutter: 28px;
+  --source-row-radius: min(var(--radius-control), calc(var(--radius-surface) * 0.55));
   max-width: 624px;
   max-height: min(620px, 82dvh);
   overflow: auto;
-  border: 0;
-  border-radius: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-surface);
   background: var(--popover);
   color: var(--popover-foreground);
+  font-family: var(--font-sans);
   box-shadow: none;
 }
 
@@ -24,11 +26,11 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  padding: 22px var(--source-gutter) 14px;
+  padding: 25px var(--source-gutter) 16px;
 }
 
 .project-source-heading h1 {
-  font-size: 23px;
+  font-size: 1.375rem;
   font-weight: 600;
   line-height: 1.2;
   letter-spacing: -0.025em;
@@ -45,8 +47,13 @@
   align-items: center;
   gap: 6px;
   margin-inline: var(--source-gutter);
-  border-radius: 9px;
+  border-radius: var(--radius-control);
   background: var(--muted);
+}
+
+.project-source-search input,
+.project-source-options [data-slot="command-item"] {
+  font-family: var(--font-controls, var(--font-sans));
 }
 
 .project-source-search > div {
@@ -100,7 +107,7 @@
   min-height: 48px;
   gap: 10px;
   padding: 7px 8px;
-  border-radius: 8px !important;
+  border-radius: var(--source-row-radius) !important;
 }
 
 .project-source-options [data-slot="command-item"][data-result-active] {
@@ -157,7 +164,7 @@
 
 @media (max-width: 555px) {
   .project-source-picker[data-slot="command-dialog-popup"] {
-    --source-gutter: 16px;
+    --source-gutter: 20px;
   }
 
   .project-source-options [data-slot="command-list"] {

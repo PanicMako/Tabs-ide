@@ -50,6 +50,24 @@
   pointer-events: none;
 }
 
+.workspace-tour-coach--project {
+  width: min(324px, calc(100% - 24px));
+  border: 1px solid var(--border);
+  border-radius: min(24px, var(--radius-surface));
+  background: var(--popover);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 12%);
+  color: var(--popover-foreground);
+}
+
+.workspace-tour-coach--project::before {
+  content: none;
+}
+
+.workspace-tour-coach--project .workspace-tour-footer {
+  border: 0;
+  padding-top: 0;
+}
+
 .workspace-tour-mascot,
 .workspace-tour-keyboard-resume {
   position: absolute;

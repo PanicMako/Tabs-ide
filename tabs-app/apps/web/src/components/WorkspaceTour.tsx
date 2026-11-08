@@ -96,6 +96,7 @@ export function WorkspaceTour({
   settingsSection,
   settingsTool,
   onSelectTool,
+  onChooseProject,
   onOpenSettings,
   onReturnToProject,
   canLeaveSettings,
@@ -106,6 +107,7 @@ export function WorkspaceTour({
   readonly settingsSection: string | null;
   readonly settingsTool: TourProjectTool | null;
   readonly onSelectTool: (id: string) => void;
+  readonly onChooseProject: () => void;
   readonly onOpenSettings: (section: SettingsStop, tool?: TourProjectTool) => void;
   readonly onReturnToProject: () => void;
   readonly canLeaveSettings: () => boolean;
@@ -178,8 +180,7 @@ export function WorkspaceTour({
   if (waitingForProject) {
     stop = {
       title: "Start with a project",
-      description:
-        "Open or create a folder, open a file, or clone a Git repository. Your tour picks up when the project opens.",
+      description: "Open a project to continue the tour.",
       selector: "[data-tour-project-actions]",
     };
   } else if (phase === "project_tools" && lesson) {
@@ -321,13 +322,18 @@ export function WorkspaceTour({
       }
       if (!setupTarget) {
         targetObserver.disconnect();
-        target.dataset.tourSpotlight = "overlay";
+        if (!waitingForProject) target.dataset.tourSpotlight = "overlay";
       }
       if (phase !== "add_project") target.scrollIntoView({ block: "nearest", inline: "nearest" });
+      const recentProjects = waitingForProject
+        ? target
+            .closest('[data-slot="workspace-welcome"]')
+            ?.querySelector("[data-tour-project-recent]")
+        : null;
       const measure = () => {
         const frame = guide.getBoundingClientRect();
         const rect = target.getBoundingClientRect();
-        const inset = waitingForProject ? 3 : 1;
+        const inset = 1;
         const x = Math.max(0, rect.left - inset);
         const y = Math.max(0, rect.top - inset);
         const right = Math.min(frame.width, rect.right + inset);
@@ -337,11 +343,32 @@ export function WorkspaceTour({
           return;
         }
         const center = (x + right) / 2;
-        const width = Math.min(376, frame.width - 24);
-        const left = Math.max(12, Math.min(center - width / 2, frame.width - width - 12));
+        const width = cardRef.current?.offsetWidth ?? Math.min(376, frame.width - 24);
         const height = cardRef.current?.offsetHeight ?? 0;
         const above = bottom + 13 + height > frame.height - 12 && y - 13 - height >= 12;
-        const preferredTop = above ? y - 13 - height : bottom + 13;
+        let preferredLeft = center - width / 2;
+        let preferredTop = above ? y - 13 - height : bottom + 13;
+        if (waitingForProject) {
+          const recent = recentProjects?.getBoundingClientRect();
+          const sideTop = Math.max(y, (recent?.bottom ?? y) + 18);
+          if (
+            recent &&
+            recent.left > right &&
+            recent.left + width <= frame.width - 12 &&
+            sideTop + height <= frame.height - 12
+          ) {
+            preferredLeft = recent.left;
+            preferredTop = sideTop;
+          } else if (x >= width + 34) {
+            preferredLeft = x - width - 22;
+            preferredTop = y + (bottom - y - height) / 2;
+          } else {
+            preferredLeft = x;
+            if (recent && recent.left <= right)
+              preferredTop = Math.max(preferredTop, recent.bottom + 13);
+          }
+        }
+        const left = Math.max(12, Math.min(preferredLeft, frame.width - width - 12));
         const top = Math.max(12, Math.min(preferredTop, frame.height - height - 12));
         setAnchor({
           selector,
@@ -355,6 +382,7 @@ export function WorkspaceTour({
       const observer = new ResizeObserver(measure);
       observer.observe(guide);
       observer.observe(target);
+      if (recentProjects) observer.observe(recentProjects);
       if (cardRef.current) observer.observe(cardRef.current);
       const open = () => {
         if (!waitingForProject && !setupTarget) setExploring(true);
@@ -420,8 +448,8 @@ export function WorkspaceTour({
     : undefined;
   const spotlight = currentAnchor?.target;
   let scrimStyle: CSSProperties | undefined;
-  if (spotlight) {
-    const radius = Math.min(spotlight.height / 2, waitingForProject ? 18 : 12);
+  if (spotlight && !waitingForProject) {
+    const radius = Math.min(spotlight.height / 2, 12);
     const { x, y, width, height } = spotlight;
     const mask = `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%">
       <filter id="soft"><feGaussianBlur stdDeviation="1.4"/></filter>
@@ -437,7 +465,7 @@ export function WorkspaceTour({
       data-slot="workspace-tour"
       className="workspace-tour"
     >
-      {!isCollapsed && (
+      {!isCollapsed && !waitingForProject && (
         <div
           data-slot="workspace-tour-overlay"
           className="workspace-tour-overlay"
@@ -451,7 +479,11 @@ export function WorkspaceTour({
       ) : (
         <div
           ref={cardRef}
-          className="workspace-tour-coach"
+          className={
+            waitingForProject
+              ? "workspace-tour-coach workspace-tour-coach--project"
+              : "workspace-tour-coach"
+          }
           style={currentAnchor ? { left: currentAnchor.left, top: currentAnchor.top } : undefined}
           onKeyDown={(event) => {
             if (event.key === "Escape" && !event.defaultPrevented) {
@@ -465,7 +497,8 @@ export function WorkspaceTour({
               Workspace tour <span aria-hidden="true">·</span> {step} of {total}
             </span>
             <Button size="xs" variant="ghost" onClick={toggleCollapsed}>
-              Minimize and explore <MinusIcon aria-hidden="true" />
+              {waitingForProject ? "Minimize" : "Minimize and explore"}
+              <MinusIcon aria-hidden="true" />
             </Button>
           </div>
           <div aria-live="polite" aria-atomic="true">
@@ -522,7 +555,11 @@ export function WorkspaceTour({
             >
               Skip tour
             </Button>
-            {!waitingForProject && (
+            {waitingForProject ? (
+              <Button size="xs" onClick={onChooseProject}>
+                Choose a project <ArrowRightIcon aria-hidden="true" />
+              </Button>
+            ) : (
               <div className="ml-auto flex items-center gap-1">
                 {step > 2 && (
                   <Button size="xs" variant="outline" onClick={() => move(-1)}>

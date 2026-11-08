@@ -27,6 +27,7 @@ const renderTour = (hasProject = true) =>
       settingsSection={null}
       settingsTool={null}
       onSelectTool={vi.fn()}
+      onChooseProject={vi.fn()}
       onOpenSettings={vi.fn()}
       onReturnToProject={vi.fn()}
       canLeaveSettings={() => true}
@@ -42,7 +43,9 @@ describe("WorkspaceTour", () => {
     useGuidedTourStore.getState().resetTour();
     const markup = renderTour(false);
     expect(markup).toContain("Start with a project");
+    expect(markup).toContain("Choose a project");
     expect(markup).toContain("Skip tour");
+    expect(markup).not.toContain('data-slot="workspace-tour-overlay"');
     expect(markup).not.toContain("Explore Code");
   });
 

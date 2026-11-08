@@ -13847,6 +13847,7 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
                 : null
             }
             settingsTool={readTourProjectTool(location.searchStr)}
+            onChooseProject={openProjectSources}
             onOpenSettings={(section, tourTool) => {
               void navigate({
                 to: "/settings",

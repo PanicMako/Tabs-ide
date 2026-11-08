@@ -52,15 +52,12 @@ export function WorkspaceWelcomeScreen<T extends { id: any; name: string; cwd: s
             </p>
           </div>
 
-          <div
-            data-tour-project-actions
-            className="grid gap-12 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)]"
-          >
+          <div className="grid gap-12 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)]">
             <div className="space-y-5">
               <div>
                 <div className="text-xl font-medium text-foreground">Start</div>
               </div>
-              <div className="space-y-1">
+              <div data-tour-project-actions className="space-y-1">
                 <button
                   type="button"
                   className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-accent/40 cursor-pointer"
@@ -96,7 +93,7 @@ export function WorkspaceWelcomeScreen<T extends { id: any; name: string; cwd: s
               </div>
             </div>
 
-            <div className="space-y-5">
+            <div data-tour-project-recent className="self-start space-y-5">
               <div>
                 <div className="text-xl font-medium text-foreground">Recent</div>
               </div>
