@@ -1,4 +1,11 @@
-import { ArrowRightIcon, CheckIcon, MonitorIcon, MoonIcon, SunIcon } from "lucide-react";
+import {
+  ArrowRightIcon,
+  CheckIcon,
+  FolderPlusIcon,
+  MonitorIcon,
+  MoonIcon,
+  SunIcon,
+} from "lucide-react";
 import { SetupCard, SETUP_ACTION_CLASS, SETUP_BACK_CLASS } from "./SetupCard";
 import { WorkbenchPreview } from "./WorkbenchPreview";
 
@@ -20,12 +27,14 @@ function StepFooter({
   onNext,
   nextLabel,
   disabled = false,
+  secondaryAction,
 }: {
   readonly step: string;
   readonly onBack: () => void;
   readonly onNext: () => void;
   readonly nextLabel: string;
   readonly disabled?: boolean;
+  readonly secondaryAction?: React.ReactNode;
 }) {
   return (
     <div className="mt-7 flex items-center justify-between gap-3 border-t border-white/15 pt-5">
@@ -34,10 +43,20 @@ function StepFooter({
         Back<span className="sr-only"> to previous setup step</span>
       </button>
       <span className="hidden text-xs text-white/90 sm:block">{step}</span>
-      <button type="button" disabled={disabled} onClick={onNext} className={SETUP_ACTION_CLASS}>
-        {nextLabel}
-        <ArrowRightIcon aria-hidden="true" className="size-3.5" />
-      </button>
+      {secondaryAction ? (
+        <div className="flex flex-col items-end gap-2">
+          <button type="button" disabled={disabled} onClick={onNext} className={SETUP_ACTION_CLASS}>
+            {nextLabel}
+            <ArrowRightIcon aria-hidden="true" className="size-3.5" />
+          </button>
+          {secondaryAction}
+        </div>
+      ) : (
+        <button type="button" disabled={disabled} onClick={onNext} className={SETUP_ACTION_CLASS}>
+          {nextLabel}
+          <ArrowRightIcon aria-hidden="true" className="size-3.5" />
+        </button>
+      )}
     </div>
   );
 }
@@ -121,6 +140,7 @@ export function AppearanceStep({
   onBack,
   onLaunch,
   launching,
+  onAddProject,
 }: {
   readonly selected: Appearance;
   readonly resolvedMode: "light" | "dark";
@@ -128,6 +148,7 @@ export function AppearanceStep({
   readonly onBack: () => void;
   readonly onLaunch: () => void;
   readonly launching: boolean;
+  readonly onAddProject?: () => void;
 }) {
   return (
     <SetupCard labelledBy="setup-appearance-title" step={3}>
@@ -184,6 +205,22 @@ export function AppearanceStep({
         onNext={onLaunch}
         nextLabel={launching ? "Opening Tabs..." : "Enter Tabs"}
         disabled={launching}
+        secondaryAction={
+          onAddProject ? (
+            <button
+              type="button"
+              disabled={launching}
+              onClick={onAddProject}
+              className="group inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-white/70 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white cursor-pointer disabled:opacity-50"
+            >
+              <FolderPlusIcon
+                aria-hidden="true"
+                className="size-3.5 text-white/60 transition-colors group-hover:text-white"
+              />
+              <span>Add a project to get started</span>
+            </button>
+          ) : undefined
+        }
       />
     </SetupCard>
   );

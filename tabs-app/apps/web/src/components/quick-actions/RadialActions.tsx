@@ -71,6 +71,22 @@ function point(radius: number, angle: number) {
   const radians = (angle * Math.PI) / 180;
   return { x: radius * Math.sin(radians), y: -radius * Math.cos(radians) };
 }
+function sectorLabelWidth(angle: number, step: number) {
+  const radians = (angle * Math.PI) / 180;
+  const radial = Math.abs(Math.sin(radians));
+  const tangent = Math.abs(Math.cos(radians));
+  const labelHeight = 28;
+  const radialSpace = 54;
+  const tangentSpace = 2 * 166 * Math.sin(((step / 2 - 4) * Math.PI) / 180);
+  return Math.floor(
+    Math.min(
+      102,
+      radial > 0.01 ? (radialSpace - labelHeight * tangent) / radial : Infinity,
+      tangent > 0.01 ? (tangentSpace - labelHeight * radial) / tangent : Infinity,
+    ),
+  );
+}
+
 export function radialSector(inner: number, outer: number, start: number, end: number, corner = 7) {
   const p = (radius: number, angle: number) => {
     const v = point(radius, angle);
@@ -603,10 +619,8 @@ export function RadialLauncher({
           !searching &&
           children.map((entry, i) => {
             const { action } = entry;
-            const p = point(
-              design === "sectors" ? 166 : design === "dial" ? 204 : 206,
-              childAngle(i),
-            );
+            const angle = childAngle(i);
+            const p = point(design === "sectors" ? 166 : design === "dial" ? 204 : 206, angle);
             const reason = disabled(action.id);
             return (
               <button
@@ -620,16 +634,18 @@ export function RadialLauncher({
                     left: 280 + p.x,
                     top: 280 + p.y,
                     "--qa-node-color": accent(action),
+                    "--qa-sector-label-width":
+                      design === "sectors" ? `${sectorLabelWidth(angle, childStep)}px` : undefined,
                   } as CSSProperties
                 }
                 disabled={busy || Boolean(reason)}
                 aria-label={reason ? `${entry.label}: ${reason}` : entry.label}
-                title={reason ?? action.detail}
+                title={`${entry.label} · ${reason ?? action.detail}`}
                 onPointerEnter={() => setSubIndex(i)}
                 onFocus={() => setSubIndex(i)}
                 onClick={() => void run(action, entry.query)}
               >
-                {entry.label}
+                {design === "sectors" ? <span>{entry.label}</span> : entry.label}
               </button>
             );
           })}

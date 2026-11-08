@@ -703,6 +703,113 @@ describe("workspaceShellStore", () => {
     expect(next.browserStateBySessionKey[figmaKey]?.devicePreset).toBe("desktop");
     expect(next.browserStateBySessionKey[figmaKey]?.landscape).toBe(true);
   });
+
+  it("automatically creates a fresh pending tab when the only open project is closed", () => {
+    const alpha = makeProject("single-project");
+    const store = useWorkspaceShellStore.getState();
+    store.syncProjects([alpha], []);
+    store.openProject(alpha.id);
+
+    expect(useWorkspaceShellStore.getState().session.openProjectIds).toEqual([alpha.id]);
+    expect(useWorkspaceShellStore.getState().session.activeProjectId).toBe(alpha.id);
+
+    // Closing the only project tab must create a pending tab
+    store.closeProject(alpha.id);
+
+    const afterClose = useWorkspaceShellStore.getState().session;
+    expect(afterClose.openProjectIds).toEqual([]);
+    expect(afterClose.activeProjectId).toBeNull();
+    expect(afterClose.pendingTabIds.length).toBe(1);
+    expect(afterClose.activePendingTabId).toBe(afterClose.pendingTabIds[0]);
+  });
+
+  it("automatically creates a fresh pending tab when the only pending tab is closed", () => {
+    const store = useWorkspaceShellStore.getState();
+    const pendingId = "pending-123";
+    store.openPendingTab(pendingId);
+
+    expect(useWorkspaceShellStore.getState().session.pendingTabIds).toEqual([pendingId]);
+    expect(useWorkspaceShellStore.getState().session.activePendingTabId).toBe(pendingId);
+
+    // Closing the only pending tab with no open projects must create a fresh pending tab
+    store.closePendingTab(pendingId);
+
+    const afterClose = useWorkspaceShellStore.getState().session;
+    expect(afterClose.openProjectIds).toEqual([]);
+    expect(afterClose.activeProjectId).toBeNull();
+    expect(afterClose.pendingTabIds.length).toBe(1);
+    expect(afterClose.pendingTabIds[0]).not.toBe(pendingId);
+    expect(afterClose.activePendingTabId).toBe(afterClose.pendingTabIds[0]);
+  });
+
+  it("rehydrates open projects and active project across application restart", async () => {
+    const alpha = makeProject("rehydrate-alpha");
+    const beta = makeProject("rehydrate-beta");
+    const storedState = {
+      state: {
+        session: {
+          openProjectIds: [alpha.id, beta.id],
+          activeProjectId: beta.id,
+          pendingTabIds: [],
+          activePendingTabId: null,
+          activeToolIdByProjectId: {},
+          rememberedThreadIdByProjectId: {},
+        },
+        projectSettingsByProjectId: {},
+        browserStateByProjectId: {},
+        browserStateBySessionKey: {},
+        browserUrlBySessionKey: {},
+        codeStateByProjectId: {},
+        codeChromeStateByProjectId: {},
+        gitStateByProjectId: {},
+        serverStateByProjectId: {},
+      },
+      version: 2,
+    };
+
+    localStorage.setItem("tabs:workspace-shell:v1", JSON.stringify(storedState));
+    await useWorkspaceShellStore.persist.rehydrate();
+
+    const hydratedSession = useWorkspaceShellStore.getState().session;
+    expect(hydratedSession.openProjectIds).toEqual([alpha.id, beta.id]);
+    expect(hydratedSession.activeProjectId).toBe(beta.id);
+
+    // When the snapshot arrives from the server, syncing projects must preserve both open projects and active tab
+    useWorkspaceShellStore.getState().syncProjects([alpha, beta], []);
+    const syncedSession = useWorkspaceShellStore.getState().session;
+    expect(syncedSession.openProjectIds).toEqual([alpha.id, beta.id]);
+    expect(syncedSession.activeProjectId).toBe(beta.id);
+    expect(syncedSession.activePendingTabId).toBeNull();
+  });
+
+  it("syncWorkspaceShellState generates a fresh pending tab if no open projects and no pending tabs exist", () => {
+    const emptyState = createDefaultWorkspaceShellPersistedState();
+    const synced = syncWorkspaceShellState(emptyState, [], []);
+    expect(synced.session.openProjectIds).toEqual([]);
+    expect(synced.session.activeProjectId).toBeNull();
+    expect(synced.session.pendingTabIds.length).toBe(1);
+    expect(synced.session.activePendingTabId).toBe(synced.session.pendingTabIds[0]);
+  });
+
+  it("syncWorkspaceShellState respects activePendingTabId without forcing a project tab active", () => {
+    const alpha = makeProject("active-pending-alpha");
+    const defaultState = createDefaultWorkspaceShellPersistedState();
+    const base: WorkspaceShellPersistedState = {
+      ...defaultState,
+      session: {
+        ...defaultState.session,
+        openProjectIds: [alpha.id],
+        pendingTabIds: ["pending-tab-1"],
+        activePendingTabId: "pending-tab-1",
+        activeProjectId: null,
+      },
+    };
+
+    const synced = syncWorkspaceShellState(base, [alpha], []);
+    expect(synced.session.openProjectIds).toEqual([alpha.id]);
+    expect(synced.session.activePendingTabId).toBe("pending-tab-1");
+    expect(synced.session.activeProjectId).toBeNull();
+  });
 });
 
 it("uses only the Agents fallback for an all-hidden toolbar without restoring hidden tools", async () => {

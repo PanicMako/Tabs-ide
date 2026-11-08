@@ -11,6 +11,7 @@ export interface NativeViewStackCoordinatorOptions {
  * Layers:
  * - Bottom: Active tool surfaces (CodeHost sessions, BrowserHost sessions, comparisons)
  * - Middle: Automation and transient modal surfaces
+ * - Top: Tour mascot
  * - Topmost: Notification overlay view
  *
  * Invariant: The notification overlay view is ALWAYS at the highest index in
@@ -19,6 +20,7 @@ export interface NativeViewStackCoordinatorOptions {
  */
 export class NativeViewStackCoordinator {
   private readonly getWindow: () => BrowserWindow | null;
+  private tourMascotView: WebContentsView | null = null;
   private notificationOverlayView: WebContentsView | null = null;
   private readonly toolViews = new Set<WebContentsView>();
   private readonly automationViews = new Set<WebContentsView>();
@@ -58,10 +60,8 @@ export class NativeViewStackCoordinator {
       } else {
         window.contentView.addChildView(view);
       }
-    } else if (overlay && children.includes(overlay)) {
-      // Re-assert overlay sits above this view
-      this.ensureTopmost();
     }
+    this.ensureTopmost();
   }
 
   /**
@@ -106,9 +106,7 @@ export class NativeViewStackCoordinator {
       }
     }
 
-    if (overlay && children.includes(overlay)) {
-      this.ensureTopmost();
-    }
+    this.ensureTopmost();
   }
 
   /**
@@ -200,19 +198,29 @@ export class NativeViewStackCoordinator {
    * `contentView.children`.
    */
   public ensureTopmost(): void {
-    const overlay = this.notificationOverlayView;
-    if (!overlay) return;
-
     const window = this.getWindow();
     if (!window || window.isDestroyed()) return;
-
     const children = window.contentView.children;
-    if (children.length === 0) return;
-
-    // Only re-add if it's already a child and not already the last (topmost) element
-    if (children.includes(overlay) && children[children.length - 1] !== overlay) {
-      window.contentView.addChildView(overlay);
+    const overlays = [this.tourMascotView, this.notificationOverlayView].filter(
+      (view): view is WebContentsView => view !== null && children.includes(view),
+    );
+    if (
+      overlays.some((view, index) => children[children.length - overlays.length + index] !== view)
+    ) {
+      for (const view of overlays) window.contentView.addChildView(view);
     }
+  }
+
+  public setTourMascotView(view: WebContentsView | null): void {
+    const window = this.getWindow();
+    if (window && !window.isDestroyed()) {
+      if (this.tourMascotView && window.contentView.children.includes(this.tourMascotView)) {
+        window.contentView.removeChildView(this.tourMascotView);
+      }
+      if (view) window.contentView.addChildView(view);
+    }
+    this.tourMascotView = view;
+    this.ensureTopmost();
   }
 
   /**
@@ -294,6 +302,7 @@ export class NativeViewStackCoordinator {
    * Clean up all references.
    */
   public destroy(): void {
+    this.setTourMascotView(null);
     this.removeNotificationOverlayView();
     for (const [contents, handler] of this.focusHandlers) {
       if (!contents.isDestroyed()) {

@@ -1,0 +1,171 @@
+[data-slot="command-dialog-viewport"]:has(.project-source-picker) {
+  justify-content: center;
+  padding-block: 16px;
+}
+
+.project-source-picker[data-slot="command-dialog-popup"] {
+  --source-gutter: 24px;
+  max-width: 624px;
+  max-height: min(620px, 82dvh);
+  overflow: auto;
+  border: 0;
+  border-radius: 20px;
+  background: var(--popover);
+  color: var(--popover-foreground);
+  box-shadow: none;
+}
+
+.project-source-picker::before {
+  content: none;
+}
+
+.project-source-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 22px var(--source-gutter) 14px;
+}
+
+.project-source-heading h1 {
+  font-size: 23px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.025em;
+}
+
+.project-source-heading p {
+  margin-top: 4px;
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+
+.project-source-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-inline: var(--source-gutter);
+  border-radius: 9px;
+  background: var(--muted);
+}
+
+.project-source-search > div {
+  min-width: 0;
+  flex: 1;
+  padding: 0;
+}
+
+.project-source-search:focus-within {
+  outline: 1px solid var(--ring);
+  outline-offset: 1px;
+}
+
+.project-source-panel {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  clip-path: none;
+}
+
+.project-source-panel::before {
+  content: none;
+}
+
+.project-source-options {
+  max-height: none;
+  padding: 0;
+}
+
+.project-source-options [data-slot="command-list"] {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  gap: 20px;
+  padding: 18px var(--source-gutter);
+}
+
+.project-source-options [data-slot="command-group"] {
+  min-width: 0;
+  margin: 0;
+}
+
+.project-source-options [data-slot="command-group-label"] {
+  padding: 0 8px 5px;
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+
+.project-source-options [data-slot="command-item"] {
+  min-height: 48px;
+  gap: 10px;
+  padding: 7px 8px;
+  border-radius: 8px !important;
+}
+
+.project-source-options [data-slot="command-item"][data-result-active] {
+  background: color-mix(in srgb, var(--popover-foreground) 9%, var(--popover)) !important;
+  color: var(--popover-foreground) !important;
+}
+
+.project-source-options [data-slot="command-item"] > svg {
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+  filter: grayscale(1);
+}
+
+.project-source-options [data-slot="command-item"] .truncate {
+  white-space: normal;
+}
+
+.project-source-options [data-slot="command-item"] > span > span + span {
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+
+.project-source-options [data-result-group="git-hosts"] [data-slot="command-item"] {
+  min-height: 38px;
+}
+
+.project-source-options
+  [data-result-group="git-hosts"]
+  [data-slot="command-item"]
+  > span
+  > span
+  + span {
+  display: none;
+}
+
+.project-source-options [data-slot="badge"] {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
+.project-source-footer .text-xs {
+  font-size: 13px;
+}
+
+.project-source-footer {
+  border-color: color-mix(in srgb, var(--foreground) 8%, transparent);
+  border-radius: 0;
+  padding-inline: var(--source-gutter);
+}
+
+@media (max-width: 555px) {
+  .project-source-picker[data-slot="command-dialog-popup"] {
+    --source-gutter: 16px;
+  }
+
+  .project-source-options [data-slot="command-list"] {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  .project-source-options [data-result-group="git-hosts"] [data-slot="command-item"] {
+    min-height: 44px;
+  }
+}

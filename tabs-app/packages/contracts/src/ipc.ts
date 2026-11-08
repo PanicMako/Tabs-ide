@@ -1556,6 +1556,20 @@ export interface DesktopBridge {
   setConfirmBeforeQuit: (value: boolean) => Promise<void>;
   onQuitConfirmationRequested: (listener: () => void) => () => void;
   respondToQuitConfirmation: (choice: "save-and-quit" | "cancel") => void;
+  setQuickActionsEnabled?: (enabled: boolean) => Promise<void>;
+  syncTourMascot?: (
+    state: {
+      position: { x: number; y: number };
+      reducedMotion: boolean;
+      artwork: string;
+      dark: boolean;
+    } | null,
+  ) => Promise<boolean>;
+  onTourMascotEvent?: (
+    listener: (
+      event: { type: "resume" } | { type: "move"; position: { x: number; y: number } },
+    ) => void,
+  ) => () => void;
   syncNotificationOverlay?: (toasts: readonly NotificationToastPayload[]) => Promise<void>;
   onNotificationOverlayAction?: (
     listener: (action: { toastId: string; actionId: string }) => void,

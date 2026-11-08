@@ -4,6 +4,10 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./tourMascot": {
+      "types": "./src/tourMascot.ts",
+      "import": "./src/tourMascot.ts"
+    },
     "./exchangeErrors": {
       "types": "./src/exchangeErrors.ts",
       "import": "./src/exchangeErrors.ts"

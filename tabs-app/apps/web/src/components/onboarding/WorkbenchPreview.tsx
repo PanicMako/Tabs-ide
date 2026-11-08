@@ -26,28 +26,48 @@ export function WorkbenchPreview({ mode = "light" }: { readonly mode?: "light" |
   const light = mode === "light";
   return (
     <div
-      className={`overflow-hidden rounded-lg border shadow-xl shadow-black/10 ${light ? "border-black/10 bg-[#faf9f7] text-neutral-700" : "border-white/15 bg-[#202020] text-neutral-200"}`}
+      data-slot="onboarding-workbench-preview"
+      data-preview-mode={mode}
+      className={`overflow-hidden rounded-lg border shadow-xl shadow-black/10 ${light ? "border-black/10 bg-[#faf9f7] text-neutral-800" : "border-white/15 bg-[#202020] text-neutral-200"}`}
     >
       <div
         role="group"
         aria-label="Explore example projects"
-        className={`flex items-end gap-1 border-b px-3 pt-3 ${light ? "border-black/10 bg-[#f0eeeb]/80" : "border-white/10 bg-white/5"}`}
+        className={`flex items-end gap-1 border-b px-3 pt-3 ${light ? "border-black/10 bg-[#f0eeeb]/90" : "border-white/10 bg-white/5"}`}
       >
-        {PROJECTS.map((name) => (
-          <button
-            key={name}
-            data-slot="workspace-project-tab"
-            type="button"
-            aria-pressed={project === name}
-            aria-controls={panelId}
-            onClick={() => setProject(name)}
-            className={`flex min-w-0 flex-1 items-center justify-between gap-3 rounded-lg border px-3 py-3 text-xs font-medium focus-visible:outline-2 focus-visible:outline-offset-[-3px] ${project === name ? (light ? "border-black/10 bg-white text-neutral-800 shadow-sm" : "border-white/15 bg-[#292929] text-white") : "border-transparent opacity-65 hover:opacity-100"}`}
-          >
-            <span>{name}</span>
-            <XIcon aria-hidden="true" className="size-3 opacity-55" />
-          </button>
-        ))}
-        <PlusIcon aria-hidden="true" className="mb-3 ml-1 mr-1 size-4 shrink-0 opacity-60" />
+        {PROJECTS.map((name) => {
+          const isActive = project === name;
+          return (
+            <button
+              key={name}
+              data-slot="workspace-project-tab"
+              data-active={isActive ? "true" : undefined}
+              type="button"
+              aria-pressed={isActive}
+              aria-controls={panelId}
+              onClick={() => setProject(name)}
+              className={`relative flex min-w-0 flex-1 items-center justify-between gap-2.5 rounded-t-xl rounded-b-none border px-3 py-2.5 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-[-3px] ${
+                isActive
+                  ? light
+                    ? "-mb-px border-black/10 border-b-white bg-white !text-neutral-900 shadow-sm font-semibold z-10"
+                    : "-mb-px border-white/15 border-b-[#292929] bg-[#292929] !text-white font-semibold z-10"
+                  : light
+                    ? "border-transparent !text-neutral-600 hover:!text-neutral-900 hover:bg-black/5"
+                    : "border-transparent !text-white/60 hover:!text-white hover:bg-white/5"
+              }`}
+            >
+              <span className="truncate">{name}</span>
+              <XIcon
+                aria-hidden="true"
+                className={`size-3 shrink-0 ${light ? "!text-neutral-400 group-hover:!text-neutral-600" : "!text-white/40"}`}
+              />
+            </button>
+          );
+        })}
+        <PlusIcon
+          aria-hidden="true"
+          className={`mb-2.5 ml-1 mr-1 size-4 shrink-0 ${light ? "!text-neutral-500 hover:!text-neutral-800" : "!text-white/60 hover:!text-white"}`}
+        />
       </div>
       <div
         className={`border-b px-2.5 py-3 ${light ? "border-black/10 bg-white/80" : "border-white/10 bg-black/10"}`}
@@ -63,14 +83,23 @@ export function WorkbenchPreview({ mode = "light" }: { readonly mode?: "light" |
         >
           {TOOLS.map((item, index) => {
             const ToolIcon = item.icon;
+            const isToolActive = toolIndex === index;
             return (
               <button
                 key={item.name}
                 type="button"
-                aria-pressed={toolIndex === index}
+                aria-pressed={isToolActive}
                 aria-controls={panelId}
                 onClick={() => setToolsByProject((current) => ({ ...current, [project]: index }))}
-                className={`inline-flex shrink-0 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-2 py-2 text-[11px] font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-[-2px] ${toolIndex === index ? (light ? "bg-white text-neutral-800 shadow-sm" : "bg-white/20 text-white shadow-sm") : "text-[var(--preview-muted)] hover:text-[var(--preview-foreground)]"}`}
+                className={`inline-flex shrink-0 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-2 py-2 text-[11px] font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-[-2px] ${
+                  isToolActive
+                    ? light
+                      ? "bg-white !text-neutral-900 shadow-sm font-semibold"
+                      : "bg-white/20 !text-white shadow-sm font-semibold"
+                    : light
+                      ? "!text-neutral-600 hover:!text-neutral-900 hover:bg-black/5"
+                      : "!text-white/65 hover:!text-white hover:bg-white/5"
+                }`}
               >
                 <ToolIcon aria-hidden="true" className="size-3.5 stroke-[1.7]" />
                 {item.name}

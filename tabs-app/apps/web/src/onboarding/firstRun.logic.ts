@@ -99,39 +99,37 @@ export function transitionFirstRunGateState(
  * Resolves the gate decision based on current client settings and workspace state:
  * - If disabled or already completed: "app"
  * - If settings not hydrated: "pending"
- * - If multiple projects/threads exist: "app" (and marks completion once threads are hydrated)
+ * - If multiple projects/threads exist: "app"
  * - If threads not yet hydrated: "pending"
  * - If workspace is fresh: "wizard"
- * - Otherwise: "app" (with completion persisted)
+ * - Otherwise: "app"
  */
 export function resolveFirstRunDecision(input: FirstRunDecisionInput): {
   readonly decision: FirstRunDecision;
-  readonly persistCompletion: boolean;
 } {
   if (!input.enabled || (input.hydrated && input.completed)) {
-    return { decision: "app", persistCompletion: false };
+    return { decision: "app" };
   }
 
   if (!input.hydrated) {
-    return { decision: "pending", persistCompletion: false };
+    return { decision: "pending" };
   }
 
   // If user already has multiple projects or multiple threads, they are an existing user
   if (input.projectCount > 1 || input.threadCount > 1) {
     return {
       decision: "app",
-      persistCompletion: input.threadsHydrated,
     };
   }
 
   // Wait until thread store is hydrated so we don't flash the wizard before local storage loads
   if (!input.threadsHydrated) {
-    return { decision: "pending", persistCompletion: false };
+    return { decision: "pending" };
   }
 
   if (input.workspaceFresh) {
-    return { decision: "wizard", persistCompletion: false };
+    return { decision: "wizard" };
   }
 
-  return { decision: "app", persistCompletion: true };
+  return { decision: "app" };
 }

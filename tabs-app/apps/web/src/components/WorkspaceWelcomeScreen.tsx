@@ -48,11 +48,14 @@ export function WorkspaceWelcomeScreen<T extends { id: any; name: string; cwd: s
           <div className="space-y-2">
             <h1 className="text-4xl font-medium tracking-tight text-foreground">Welcome</h1>
             <p className="text-base text-muted-foreground">
-              Open a local project to start using the workspace shell.
+              Open a folder, create a new one, or clone a repository to get started.
             </p>
           </div>
 
-          <div className="grid gap-12 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)]">
+          <div
+            data-tour-project-actions
+            className="grid gap-12 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)]"
+          >
             <div className="space-y-5">
               <div>
                 <div className="text-xl font-medium text-foreground">Start</div>
@@ -64,7 +67,7 @@ export function WorkspaceWelcomeScreen<T extends { id: any; name: string; cwd: s
                   onClick={onCreateProject}
                 >
                   <PlusIcon className="size-4 text-muted-foreground" />
-                  <span>Add Project...</span>
+                  <span>Open or create project…</span>
                 </button>
                 <button
                   type="button"
@@ -133,7 +136,7 @@ export function WorkspaceWelcomeScreen<T extends { id: any; name: string; cwd: s
   // Modern Marketing-Inspired Editorial Welcome Layout for Interface Study
   const quickActions = [
     {
-      title: "Add Project",
+      title: "Open or create project",
       icon: PlusIcon,
       onClick: onCreateProject,
       badge: "Folder",
@@ -184,8 +187,7 @@ export function WorkspaceWelcomeScreen<T extends { id: any; name: string; cwd: s
                   </span>
                 </h1>
                 <p className="text-xs sm:text-sm text-muted-foreground max-w-lg font-normal leading-relaxed">
-                  An AI-first engineering workspace designed for deep focus, agent orchestration,
-                  and seamless flow.
+                  Open a folder, create a new one, or clone a repository to get started.
                 </p>
               </div>
             </div>
@@ -197,7 +199,7 @@ export function WorkspaceWelcomeScreen<T extends { id: any; name: string; cwd: s
                 <span>Quick Actions</span>
               </div>
 
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+              <div data-tour-project-actions className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
                 {quickActions.map((action) => {
                   const ActionIcon = action.icon;
                   return (

@@ -50,6 +50,8 @@ export function QuickActionsHost({
 }: ActionContext & { children: ReactNode }) {
   const settings = useSettings((s) => s.quickActions);
   const keybindings = useKeybindings();
+  const enabled = useRef(settings.enabled);
+  enabled.current = settings.enabled;
   const [anchor, setAnchor] = useState<{ x: number; y: number } | null>(null);
   const pointer = useRef<{ x: number; y: number } | null>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
@@ -71,6 +73,7 @@ export function QuickActionsHost({
     );
   }, []);
   const open = useCallback((point?: { x: number; y: number }) => {
+    if (!enabled.current) return;
     clearTimeout(closeTimer.current);
     setClosing(false);
     previousFocus.current =
@@ -78,6 +81,13 @@ export function QuickActionsHost({
     setAnchor(point ?? pointer.current ?? { x: window.innerWidth / 2, y: window.innerHeight / 3 });
   }, []);
   useEffect(() => {
+    void window.desktopBridge?.setQuickActionsEnabled?.(settings.enabled).catch(() => undefined);
+  }, [settings.enabled]);
+  useEffect(() => {
+    if (!settings.enabled && anchor) dismiss();
+  }, [settings.enabled, anchor, dismiss]);
+  useEffect(() => {
+    if (!settings.enabled) return;
     const move = (event: PointerEvent) => {
       pointer.current = { x: event.clientX, y: event.clientY };
     };
@@ -113,11 +123,11 @@ export function QuickActionsHost({
       window.removeEventListener("keydown", key, true);
       window.removeEventListener("contextmenu", gesture);
     };
-  }, [anchor, keybindings, settings.pointerGesture, dismiss, open]);
+  }, [anchor, keybindings, settings.enabled, settings.pointerGesture, dismiss, open]);
   useEffect(
     () =>
       window.desktopBridge?.onMenuAction((action) => {
-        if (action !== "quick-actions") return;
+        if (action !== "quick-actions" || !enabled.current) return;
         if (anchor) {
           dismiss();
           return;
@@ -151,7 +161,8 @@ export function QuickActionsHost({
   return (
     <Context.Provider value={{ execute, disabled }}>
       {children}
-      {anchor &&
+      {settings.enabled &&
+        anchor &&
         createPortal(
           <div
             className="qa-overlay"

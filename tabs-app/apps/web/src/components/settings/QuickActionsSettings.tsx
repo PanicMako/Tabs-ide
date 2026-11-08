@@ -102,7 +102,11 @@ export default function QuickActionsSettings() {
                   actions={orderedActions(preferences.actionOrder, preferences.hiddenActions)}
                   subActions={preferences.subActions}
                   execute={context.execute}
-                  disabled={context.disabled}
+                  disabled={(id) =>
+                    preferences.enabled
+                      ? context.disabled(id)
+                      : "Enable Quick Actions to run this action."
+                  }
                   preview
                 />
               ) : (
@@ -122,12 +126,24 @@ export default function QuickActionsSettings() {
         description="Use Tools → Quick Actions or your Quick Actions shortcut."
       >
         <SettingsRow
+          title="Enable Quick Actions"
+          description="Open the launcher from the Tools menu, shortcut, or pointer gesture. Your design and shortcuts are kept when it’s off."
+          control={
+            <Switch
+              aria-label="Enable Quick Actions"
+              checked={preferences.enabled}
+              onCheckedChange={(enabled) => patch({ enabled })}
+            />
+          }
+        />
+        <SettingsRow
           title="Open at the pointer"
           description="Option / Alt + right-click in workspace chrome."
           control={
             <Switch
               aria-label="Open at the pointer"
               checked={preferences.pointerGesture}
+              disabled={!preferences.enabled}
               onCheckedChange={(checked) => patch({ pointerGesture: checked })}
             />
           }

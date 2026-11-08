@@ -92,6 +92,20 @@ describe("NativeViewStackCoordinator", () => {
     expect(coordinator.isTopmost(browserView)).toBe(false);
   });
 
+  it("keeps the tour mascot above tools and below notifications", () => {
+    const window = createMockWindow();
+    const coordinator = new NativeViewStackCoordinator({ getWindow: () => window });
+    const mascot = createMockView("mascot");
+    const notifications = createMockView("notifications");
+    const code = createMockView("code");
+    coordinator.setTourMascotView(mascot);
+    coordinator.setNotificationOverlayView(notifications);
+    coordinator.attachToolView(code);
+    expect(window.contentView.children).toEqual([code, mascot, notifications]);
+    coordinator.setTourMascotView(null);
+    expect(window.contentView.children).toEqual([code, notifications]);
+  });
+
   it("keeps notification overlay topmost when switching tool views (detach Code, attach Browser)", () => {
     const mockWindow = createMockWindow();
     const coordinator = new NativeViewStackCoordinator({ getWindow: () => mockWindow });

@@ -41,6 +41,7 @@ import {
   Telescope,
   Loader2,
   Pin,
+  PencilIcon,
 } from "lucide-react";
 import { useCheckoutPullRequest } from "../../hooks/useCheckoutPullRequest";
 import { WorkspacePullRequests } from "./WorkspacePullRequests";
@@ -50,7 +51,10 @@ import { Toggle } from "../ui/toggle";
 import { SidebarTrigger } from "../ui/sidebar";
 import { OpenInPicker } from "./OpenInPicker";
 import { useVcs } from "~/state/vcs";
-import { cn, isConversationPopout } from "~/lib/utils";
+import { cn, isConversationPopout, newCommandId } from "~/lib/utils";
+import { normalizeThreadRenameTitle } from "../Sidebar.logic";
+import { readModelStateAtom } from "../../state/readModel";
+import { appAtomRegistry } from "../../state/atomRegistry";
 import { useRightPanelStore } from "~/stores/rightPanelStore";
 import { ProjectFavicon, type ProjectFaviconProject } from "../ProjectFavicon";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "../ui/menu";
@@ -859,6 +863,71 @@ export const ChatHeader = memo(function ChatHeader({
   const workspaceCardRef = useRef<HTMLDivElement | null>(null);
   const workspaceTriggerRef = useRef<HTMLButtonElement | null>(null);
 
+  const activeThreadKey = JSON.stringify([environmentId, activeThreadId]);
+  const [editingThreadKey, setEditingThreadKey] = useState<string | null>(null);
+  const isEditingTitle = editingThreadKey === activeThreadKey;
+  const [editingTitle, setEditingTitle] = useState("");
+  const headerInputRef = useRef<HTMLInputElement | null>(null);
+  const headerCommittedRef = useRef(false);
+
+  useEffect(() => {
+    if (isEditingTitle) {
+      headerInputRef.current?.focus();
+      headerInputRef.current?.select();
+    }
+  }, [isEditingTitle]);
+
+  const commitHeaderRename = useCallback(async () => {
+    if (headerCommittedRef.current) return;
+    headerCommittedRef.current = true;
+    setEditingThreadKey(null);
+
+    const normalized = normalizeThreadRenameTitle(editingTitle, activeThreadTitle);
+    if (normalized.status === "empty") {
+      toastManager.add({ type: "warning", title: "Thread title cannot be empty" });
+      return;
+    }
+    if (normalized.status === "unchanged") {
+      return;
+    }
+
+    const previousTitle = activeThreadTitle;
+    appAtomRegistry.update(readModelStateAtom, (state) => ({
+      ...state,
+      threads: state.threads.map((t) =>
+        t.id === activeThreadId && t.environmentId === environmentId
+          ? { ...t, title: normalized.title }
+          : t,
+      ),
+    }));
+
+    try {
+      const api = await environmentApi(environmentId);
+      await api.orchestration.dispatchCommand({
+        type: "thread.metadata.update",
+        commandId: newCommandId(),
+        threadId: activeThreadId,
+        title: normalized.title,
+      });
+    } catch (error) {
+      appAtomRegistry.update(readModelStateAtom, (state) => ({
+        ...state,
+        threads: state.threads.map((t) =>
+          t.id === activeThreadId &&
+          t.environmentId === environmentId &&
+          t.title === normalized.title
+            ? { ...t, title: previousTitle }
+            : t,
+        ),
+      }));
+      toastManager.add({
+        type: "error",
+        title: "Failed to rename thread",
+        description: error instanceof Error ? error.message : "An error occurred.",
+      });
+    }
+  }, [editingTitle, activeThreadTitle, activeThreadId, environmentId]);
+
   useEffect(() => {
     if (!workspaceOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -1165,17 +1234,103 @@ export const ChatHeader = memo(function ChatHeader({
               title={isActivePane ? "Active thread pane" : "Inactive pane — click to activate"}
             />
           )}
-          <h2
-            className={cn(
-              "min-w-0 truncate text-sm font-semibold tracking-tight",
-              isSplitActive && !isActivePane
-                ? "text-muted-foreground font-normal"
-                : "text-foreground",
-            )}
-            title={activeThreadTitle}
-          >
-            {activeThreadTitle}
-          </h2>
+          {isEditingTitle ? (
+            <div
+              className="flex items-center rounded-lg border border-primary/40 bg-background pl-2 pr-1 py-0.5 gap-1.5 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/40"
+              onClick={(event) => event.stopPropagation()}
+              onBlur={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget)) void commitHeaderRename();
+              }}
+              onKeyDown={(event) => {
+                if (event.key !== "Escape" || event.nativeEvent.isComposing) return;
+                event.preventDefault();
+                event.stopPropagation();
+                headerCommittedRef.current = true;
+                setEditingThreadKey(null);
+              }}
+            >
+              <input
+                ref={headerInputRef}
+                type="text"
+                value={editingTitle}
+                onChange={(e) => setEditingTitle(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    void commitHeaderRename();
+                  }
+                }}
+                className="h-6 min-w-44 bg-transparent border-none p-0 text-sm font-semibold text-foreground focus:outline-none focus:ring-0"
+                aria-label="Rename thread"
+              />
+              <div className="flex items-center gap-0.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    headerCommittedRef.current = true;
+                    setEditingThreadKey(null);
+                  }}
+                  aria-label="Cancel rename"
+                  title="Cancel (Esc)"
+                  className="flex size-5 items-center justify-center rounded-md text-muted-foreground/70 hover:bg-muted/80 hover:text-foreground transition-all active:scale-95 cursor-pointer"
+                >
+                  <XIcon className="size-3 stroke-[2.5]" />
+                </button>
+                <button
+                  type="button"
+                  disabled={editingTitle.trim().length === 0}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    void commitHeaderRename();
+                  }}
+                  aria-label="Confirm rename"
+                  title="Save (Enter)"
+                  className={cn(
+                    "flex size-5 items-center justify-center rounded-md transition-all active:scale-95 cursor-pointer",
+                    editingTitle.trim().length === 0
+                      ? "opacity-30 cursor-not-allowed text-muted-foreground"
+                      : "bg-primary text-primary-foreground hover:bg-primary/90 shadow-xs shadow-primary/30",
+                  )}
+                >
+                  <CheckIcon className="size-3 stroke-[2.5]" />
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="group/title flex items-center gap-1.5 min-w-0">
+              <h2
+                onDoubleClick={() => {
+                  headerCommittedRef.current = false;
+                  setEditingTitle(activeThreadTitle);
+                  setEditingThreadKey(activeThreadKey);
+                }}
+                className={cn(
+                  "min-w-0 truncate text-sm font-semibold tracking-tight cursor-pointer hover:underline decoration-muted-foreground/40 underline-offset-2",
+                  isSplitActive && !isActivePane
+                    ? "text-muted-foreground font-normal"
+                    : "text-foreground",
+                )}
+                title={`${activeThreadTitle} (double-click to rename)`}
+              >
+                {activeThreadTitle}
+              </h2>
+              <button
+                type="button"
+                aria-label="Rename thread"
+                title="Rename thread"
+                onClick={() => {
+                  headerCommittedRef.current = false;
+                  setEditingTitle(activeThreadTitle);
+                  setEditingThreadKey(activeThreadKey);
+                }}
+                className="opacity-0 group-hover/title:opacity-100 focus-visible:opacity-100 p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-opacity shrink-0"
+              >
+                <PencilIcon className="size-3" />
+              </button>
+            </div>
+          )}
           {!isSplitActive && formattedProjectName && (
             <span
               className="hidden shrink-0 text-xs font-sans text-muted-foreground/50 sm:inline"

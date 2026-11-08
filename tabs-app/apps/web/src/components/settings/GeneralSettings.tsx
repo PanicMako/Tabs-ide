@@ -1,3 +1,4 @@
+import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { LoaderCircleIcon, RotateCcwIcon } from "lucide-react";
 import {
@@ -11,6 +12,7 @@ import { createModelSelection } from "@tabs/shared/model";
 import { useDebouncedSettingField, useSettings, useUpdateSettings } from "../../hooks/useSettings";
 import { useConfirm } from "../../hooks/useConfirm";
 import { useTheme } from "../../hooks/useTheme";
+import { useGuidedTourStore } from "../../stores/guidedTourStore";
 import { useResetOnboarding } from "../../onboarding/firstRun";
 import { useZoomFactor } from "../../state/zoom";
 import { useWorkspaceActiveProjectId } from "../../state/workspaceShell";
@@ -156,6 +158,7 @@ function OsNotificationsToggle() {
 
 export function GeneralSettings() {
   const resetOnboarding = useResetOnboarding();
+  const navigate = useNavigate();
   const { confirm } = useConfirm();
   const { setTheme } = useTheme();
   const settings = useSettings();
@@ -893,6 +896,22 @@ export function GeneralSettings() {
           }
         />
 
+        <SettingsRow
+          title="Workspace Tour"
+          description="Learn how to add Browser and Terminal tabs and move between your project tools."
+          control={
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={() => {
+                useGuidedTourStore.getState().resetTour(Boolean(activeProjectId));
+                void navigate({ to: "/" });
+              }}
+            >
+              Start tour
+            </Button>
+          }
+        />
         <SettingsRow
           title="First-Run Setup Wizard"
           description="Revisit the welcome wizard to review Tabs' core architecture (Code, Agents, Server, Git, Browser, Testing), check AI provider configuration, and setup workspaces."

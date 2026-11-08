@@ -21,6 +21,7 @@ interface CommandPaletteResultsProps {
   groups: ReadonlyArray<CommandPaletteGroup>;
   highlightedItemValue?: string | null;
   isActionsOnly: boolean;
+  neutralHighlight?: boolean;
   keybindings: ResolvedKeybindingsConfig;
   onExecuteItem: (item: CommandPaletteActionItem | CommandPaletteSubmenuItem) => void;
 }
@@ -40,7 +41,7 @@ export function CommandPaletteResults(props: CommandPaletteResultsProps) {
   return (
     <CommandList>
       {props.groups.map((group) => (
-        <CommandGroup items={group.items} key={group.value}>
+        <CommandGroup items={group.items} key={group.value} data-result-group={group.value}>
           <CommandGroupLabel>{group.label}</CommandGroupLabel>
           <CommandCollection>
             {(item) =>
@@ -52,6 +53,7 @@ export function CommandPaletteResults(props: CommandPaletteResultsProps) {
                   key={item.value}
                   keybindings={props.keybindings}
                   isActive={props.highlightedItemValue === item.value}
+                  neutralHighlight={props.neutralHighlight ?? false}
                   onExecuteItem={props.onExecuteItem}
                 />
               )
@@ -93,6 +95,7 @@ function DisabledCommandPaletteResultRow(props: {
 function CommandPaletteResultRow(props: {
   item: CommandPaletteActionItem | CommandPaletteSubmenuItem;
   isActive: boolean;
+  neutralHighlight: boolean;
   keybindings: ResolvedKeybindingsConfig;
   onExecuteItem: (item: CommandPaletteActionItem | CommandPaletteSubmenuItem) => void;
 }) {
@@ -103,9 +106,10 @@ function CommandPaletteResultRow(props: {
   return (
     <CommandItem
       value={props.item.value}
+      data-result-active={props.isActive ? "" : undefined}
       className={cn(
         "cursor-pointer gap-2 hover:bg-transparent hover:text-inherit data-highlighted:bg-transparent data-highlighted:text-inherit data-selected:bg-transparent data-selected:text-inherit [&[data-highlighted][data-selected]]:bg-transparent [&[data-highlighted][data-selected]]:text-inherit",
-        props.isActive && "bg-accent! text-accent-foreground!",
+        props.isActive && !props.neutralHighlight && "bg-accent! text-accent-foreground!",
       )}
       onMouseDown={(event) => {
         event.preventDefault();

@@ -1,3 +1,5 @@
+import { createMemoryStorage, type StateStorage } from "./lib/storage";
+import { randomUUID } from "./lib/utils";
 import { type Project, type Thread } from "./types";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
@@ -902,17 +904,24 @@ export function syncWorkspaceShellState(
   // resolve against, so the existing "resolve or drop" filter must not touch them.
   const pendingTabIds = [...(input.session.pendingTabIds ?? [])];
   const nextOpenProjectIds = openProjectIds;
-  const activeProjectId =
-    input.session.activeProjectId &&
-    projectIds.has(input.session.activeProjectId) &&
-    nextOpenProjectIds.includes(input.session.activeProjectId)
-      ? input.session.activeProjectId
-      : (nextOpenProjectIds[0] ?? null);
-  // Preserve activePendingTabId only if the pending tab still exists.
-  const activePendingTabId =
+  let activePendingTabId =
     input.session.activePendingTabId && pendingTabIds.includes(input.session.activePendingTabId)
       ? input.session.activePendingTabId
       : null;
+  let activeProjectId = activePendingTabId
+    ? null
+    : input.session.activeProjectId &&
+      projectIds.has(input.session.activeProjectId) &&
+      nextOpenProjectIds.includes(input.session.activeProjectId)
+      ? input.session.activeProjectId
+      : (nextOpenProjectIds[0] ?? null);
+
+  if (nextOpenProjectIds.length === 0 && pendingTabIds.length === 0) {
+    const freshPendingId = randomUUID();
+    pendingTabIds.push(freshPendingId);
+    activePendingTabId = freshPendingId;
+    activeProjectId = null;
+  }
   const rememberedThreadIdByProjectId: Record<ProjectId, ThreadId> = {};
   const threadIds = new Set(threads.map((thread) => thread.id));
   for (const [projectId, threadId] of Object.entries(
@@ -964,6 +973,28 @@ export function resolveProjectTools(
     tools: mergeExtensionToolbarTools(settings.tools, installedExtensions, projectId),
   });
 }
+
+const memoryFallbackStorage = createMemoryStorage();
+const safeStorage: StateStorage = {
+  getItem: (name) =>
+    typeof localStorage !== "undefined"
+      ? localStorage.getItem(name)
+      : memoryFallbackStorage.getItem(name),
+  setItem: (name, value) => {
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem(name, value);
+    } else {
+      memoryFallbackStorage.setItem(name, value);
+    }
+  },
+  removeItem: (name) => {
+    if (typeof localStorage !== "undefined") {
+      localStorage.removeItem(name);
+    } else {
+      memoryFallbackStorage.removeItem(name);
+    }
+  },
+};
 
 export const useWorkspaceShellStore = create<WorkspaceShellStore>()(
   persist(
@@ -1035,20 +1066,30 @@ export const useWorkspaceShellStore = create<WorkspaceShellStore>()(
           const wasActive = state.session.activeProjectId === projectId;
           // When closing the active project, fall back to: another real project
           // first, then a pending tab (setting activePendingTabId, not activeProjectId),
-          // then null if all tabs are gone.
-          const nextActiveProjectId = wasActive
+          // then a fresh pending tab if all tabs are gone.
+          let nextActiveProjectId = wasActive
             ? (openProjectIds[openProjectIds.length - 1] ?? null)
             : state.session.activeProjectId;
-          const nextActivePendingTabId =
+          let nextActivePendingTabId =
             wasActive && !nextActiveProjectId
               ? (state.session.pendingTabIds[state.session.pendingTabIds.length - 1] ??
                 state.session.activePendingTabId)
               : state.session.activePendingTabId;
+          let pendingTabIds = state.session.pendingTabIds;
+
+          if (openProjectIds.length === 0 && pendingTabIds.length === 0) {
+            const freshPendingId = randomUUID();
+            pendingTabIds = [freshPendingId];
+            nextActivePendingTabId = freshPendingId;
+            nextActiveProjectId = null;
+          }
+
           return {
             ...state,
             session: {
               ...state.session,
               openProjectIds,
+              pendingTabIds,
               activeProjectId: nextActiveProjectId,
               activePendingTabId: nextActivePendingTabId,
             },
@@ -1458,18 +1499,27 @@ export const useWorkspaceShellStore = create<WorkspaceShellStore>()(
 
       closePendingTab: (pendingId) =>
         set((state) => {
-          const pendingTabIds = state.session.pendingTabIds.filter((id) => id !== pendingId);
+          const remainingPendingIds = state.session.pendingTabIds.filter((id) => id !== pendingId);
           const wasActive = state.session.activePendingTabId === pendingId;
           // On close, fall back to the last real open project, or the last
-          // remaining pending tab, or null (all tabs gone).
-          const nextActivePendingTabId = wasActive
-            ? (pendingTabIds[pendingTabIds.length - 1] ?? null)
+          // remaining pending tab, or a new pending tab if all tabs are gone.
+          let nextActivePendingTabId = wasActive
+            ? (remainingPendingIds[remainingPendingIds.length - 1] ?? null)
             : state.session.activePendingTabId;
-          const nextActiveProjectId = wasActive
+          let nextActiveProjectId = wasActive
             ? nextActivePendingTabId
               ? null
               : (state.session.openProjectIds[state.session.openProjectIds.length - 1] ?? null)
             : state.session.activeProjectId;
+          let pendingTabIds = remainingPendingIds;
+
+          if (state.session.openProjectIds.length === 0 && pendingTabIds.length === 0) {
+            const freshPendingId = randomUUID();
+            pendingTabIds = [freshPendingId];
+            nextActivePendingTabId = freshPendingId;
+            nextActiveProjectId = null;
+          }
+
           return {
             ...state,
             session: {
@@ -1483,7 +1533,7 @@ export const useWorkspaceShellStore = create<WorkspaceShellStore>()(
     }),
     {
       name: WORKSPACE_SHELL_STORAGE_KEY,
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(() => safeStorage),
       // Stable persistence version 2 with field-by-field migration recovery.
       version: 2,
       migrate: (persistedState: unknown, version: number) => {

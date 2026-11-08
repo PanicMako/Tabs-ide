@@ -1,0 +1,103 @@
+.workspace-tour {
+  position: fixed;
+  z-index: 45;
+  inset: 0;
+  pointer-events: none;
+}
+
+.workspace-tour-overlay,
+.workspace-tour-scrim {
+  position: absolute;
+  inset: 0;
+}
+
+.workspace-tour-overlay {
+  animation: workspace-tour-appear 160ms ease-out;
+}
+
+.workspace-tour-scrim {
+  background: color-mix(in srgb, var(--foreground) 35%, transparent);
+  backdrop-filter: blur(9px);
+  mask-mode: luminance;
+  mask-repeat: no-repeat;
+  mask-size: 100% 100%;
+}
+
+.dark .workspace-tour-scrim {
+  background: color-mix(in srgb, var(--background) 64%, rgb(0 0 0 / 45%));
+}
+
+.workspace-tour-coach {
+  position: absolute;
+  top: 84px;
+  left: 12px;
+  isolation: isolate;
+  width: min(376px, calc(100% - 24px));
+  padding: 10px 14px 14px;
+  color: var(--foreground);
+
+  pointer-events: auto;
+}
+
+.workspace-tour-coach::before {
+  position: absolute;
+  z-index: -1;
+  inset: -10px;
+  border-radius: 28px;
+  background: color-mix(in srgb, var(--popover) 95%, transparent);
+  filter: blur(19px);
+  content: "";
+  pointer-events: none;
+}
+
+.workspace-tour-mascot,
+.workspace-tour-keyboard-resume {
+  position: absolute;
+  border: 0;
+  pointer-events: auto;
+}
+
+.workspace-tour-text-resume,
+.workspace-tour-keyboard-resume:focus-visible {
+  right: 12px;
+  bottom: 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--card);
+  outline: 2px solid var(--ring);
+}
+
+[data-tour-spotlight]:not([data-tour-spotlight="overlay"]) {
+  box-shadow: 0 0 12px color-mix(in oklab, #7188f8 27%, transparent);
+}
+
+@keyframes workspace-tour-appear {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace-tour-overlay {
+    animation: none;
+  }
+}
+
+html[data-reduced-motion="reduce"] .workspace-tour-overlay {
+  animation: none;
+}
+
+.workspace-tour-context-action {
+  margin-inline-start: -0.625rem;
+}
+
+.workspace-tour-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-block-start: 10px;
+  border-block-start: 1px solid color-mix(in srgb, var(--foreground) 13%, transparent);
+  padding-block-start: 10px;
+}

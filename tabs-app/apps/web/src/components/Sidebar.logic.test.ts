@@ -5,6 +5,7 @@ import {
   getVisibleThreadsForProject,
   getProjectSortTimestamp,
   hasUnseenCompletion,
+  normalizeThreadRenameTitle,
   resolveProjectStatusIndicator,
   resolveSidebarNewThreadEnvMode,
   resolveThreadRowClassName,
@@ -707,5 +708,23 @@ describe("sortProjectsForSidebar", () => {
     );
 
     expect(timestamp).toBe(Date.parse("2026-03-09T10:10:00.000Z"));
+  });
+});
+
+describe("normalizeThreadRenameTitle", () => {
+  it("returns empty status for empty or whitespace-only titles", () => {
+    expect(normalizeThreadRenameTitle("", "Original")).toEqual({ status: "empty" });
+    expect(normalizeThreadRenameTitle("   ", "Original")).toEqual({ status: "empty" });
+  });
+
+  it("returns unchanged status when title has not changed", () => {
+    expect(normalizeThreadRenameTitle("Original", "Original")).toEqual({ status: "unchanged" });
+  });
+
+  it("returns valid status and trimmed title for a valid new title", () => {
+    expect(normalizeThreadRenameTitle("  New Custom Name  ", "Original")).toEqual({
+      status: "valid",
+      title: "New Custom Name",
+    });
   });
 });

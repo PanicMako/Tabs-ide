@@ -311,6 +311,7 @@ export const InterfaceStudyTopBar = memo(function InterfaceStudyTopBar(
           <button
             ref={projBtnRef}
             type="button"
+            data-tour-new-tab
             aria-expanded={isDeckOpen}
             aria-haspopup="menu"
             aria-label={`Current project: ${activeProjectTitle}. Click to switch project.`}
@@ -488,6 +489,7 @@ export const InterfaceStudyTopBar = memo(function InterfaceStudyTopBar(
                   type="button"
                   role="tab"
                   data-tool-kind={tool.kind}
+                  data-workspace-tool-id={tool.id}
                   aria-selected={active}
                   tabIndex={active ? 0 : -1}
                   onClick={() => props.onSelectTool(tool.id)}
@@ -575,6 +577,7 @@ export const InterfaceStudyTopBar = memo(function InterfaceStudyTopBar(
         <button
           type="button"
           aria-label="Settings"
+          data-slot="workspace-settings-trigger"
           title="Settings (⌘,)"
           onClick={props.onOpenSettings}
           className="size-8 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors"

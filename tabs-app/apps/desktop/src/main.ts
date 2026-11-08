@@ -136,6 +136,7 @@ import {
   normalizeNotificationToasts,
   NotificationOverlayManager,
 } from "./notificationOverlayManager";
+import { TourMascotOverlay } from "./tourMascotOverlay";
 import {
   ensureRuntimeInstalled,
   isRuntimeInstalled,
@@ -618,6 +619,7 @@ const notificationOverlayManager = new NotificationOverlayManager({
     } catch {}
   },
 });
+const tourMascotOverlay = new TourMascotOverlay(() => mainWindow, nativeViewCoordinator);
 const codeControlChannel = new CodeControlChannel();
 const codeHostManager = new CodeHostManager(
   () => mainWindow,
@@ -1529,6 +1531,7 @@ function setupKeybindingsWatcher() {
   }
 }
 
+let nativeQuickActionsEnabled = true;
 let nativeQuickActionsShortcut: KeybindingShortcut | undefined;
 
 function getActiveShortcut(command: string): KeybindingShortcut | undefined {
@@ -1693,6 +1696,7 @@ function configureApplicationMenu(): void {
       submenu: [
         {
           label: "Quick Actions",
+          enabled: nativeQuickActionsEnabled,
           ...(quickActionsAccelerator ? { accelerator: quickActionsAccelerator } : {}),
           click: () => dispatchMenuAction("quick-actions"),
         },
@@ -3891,6 +3895,28 @@ function registerIpcHandlers(): void {
     );
   });
 
+  ipcMain.removeHandler("desktop:quick-actions:enabled");
+  handleTabsIpc("desktop:quick-actions:enabled", (event, enabled: unknown) => {
+    if (
+      event.sender !== mainWindow?.webContents ||
+      typeof enabled !== "boolean" ||
+      enabled === nativeQuickActionsEnabled
+    )
+      return;
+    nativeQuickActionsEnabled = enabled;
+    configureApplicationMenu();
+  });
+
+  ipcMain.removeHandler("desktop:tour-mascot:sync");
+  handleTabsIpc("desktop:tour-mascot:sync", (event, state: unknown) => {
+    if (!mainWindow || event.sender !== mainWindow.webContents) return false;
+    return tourMascotOverlay.sync(state);
+  });
+  ipcMain.removeAllListeners("desktop:tour-mascot:input");
+  ipcMain.on("desktop:tour-mascot:input", (event, value: unknown) => {
+    tourMascotOverlay.input(event.sender, value);
+  });
+
   ipcMain.removeHandler(NOTIFICATION_OVERLAY_SYNC_CHANNEL);
   handleTabsIpc(NOTIFICATION_OVERLAY_SYNC_CHANNEL, async (event, rawToasts: unknown) => {
     if (!mainWindow || event.sender !== mainWindow.webContents) return;
@@ -5015,6 +5041,7 @@ function createTabsWindow(): BrowserWindow {
     if (mainWindow === window) {
       mainWindow = null;
       notificationOverlayManager.destroy();
+      tourMascotOverlay.destroy();
       nativeViewCoordinator.destroy();
       for (const popout of popoutWindows) {
         if (!popout.isDestroyed()) {
@@ -5563,7 +5590,7 @@ if (clerkBridge.isPrimaryInstance) {
           [mainWindow, ...popoutWindows].filter((window): window is BrowserWindow =>
             Boolean(window && !window.isDestroyed()),
           ),
-        getShortcut: () => nativeQuickActionsShortcut,
+        getShortcut: () => (nativeQuickActionsEnabled ? nativeQuickActionsShortcut : undefined),
         forward: (window) => {
           window.webContents.focus();
           window.webContents.send(MENU_ACTION_CHANNEL, "quick-actions");

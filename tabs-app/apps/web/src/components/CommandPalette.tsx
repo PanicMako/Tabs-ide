@@ -15,6 +15,8 @@ import {
   SquarePenIcon,
   GitBranchIcon,
   LoaderCircleIcon,
+  LinkIcon,
+  XIcon,
 } from "lucide-react";
 import { captureDesktopToComposer } from "~/lib/desktopCapture";
 import {
@@ -27,10 +29,14 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from "react";
+import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
-import { toastManager } from "~/components/ui/toast";
 import { GitHubIcon, GitLabIcon, AzureDevOpsIcon, BitbucketIcon } from "~/components/Icons";
-import { OpenAddProjectCommandPaletteProvider } from "../commandPaletteContext";
+import {
+  CommandPaletteOpenContext,
+  OpenAddProjectCommandPaletteProvider,
+  type WorkspaceProjectSourceActions,
+} from "../commandPaletteContext";
 import { environmentApi } from "../connection/environmentApiRegistry";
 import { useHandleNewThread } from "../hooks/useHandleNewThread";
 import { serverConfigQueryOptions } from "../lib/serverReactQuery";
@@ -66,6 +72,8 @@ import {
   type SearchOverlayMode,
 } from "./CommandPalette.logic";
 import { CommandPaletteResults } from "./CommandPaletteResults";
+import { validateCloneSource } from "./cloneRepositoryValidation";
+import "./project-source-picker.css";
 import { ProjectFilePicker } from "./files/ProjectFilePicker";
 import { ProjectContentSearchDialog } from "./search/ProjectContentSearchDialog";
 import { ProjectFavicon } from "./Sidebar";
@@ -78,6 +86,17 @@ import {
   CommandFooter,
 } from "./ui/command";
 
+function getCloneFolderName(remote: string): string {
+  let path = remote;
+  if (URL.canParse(remote) && remote.includes("://")) path = new URL(remote).pathname;
+  const name = path
+    .replace(/[/\\]+$/, "")
+    .split(/[/\\:]/)
+    .at(-1)
+    ?.replace(/\.git$/, "");
+  return name && name !== "." && name !== ".." ? name : "cloned-repo";
+}
+
 export function CommandPalette({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reduceCommandPaletteUiState, {
     open: false,
@@ -86,8 +105,8 @@ export function CommandPalette({ children }: { children: ReactNode }) {
   });
 
   const toggleOpen = useCallback(() => dispatch({ _tag: "ToggleMode", mode: "command" }), []);
-  const openAddProject = useCallback(() => {
-    dispatch({ _tag: "OpenAddProject" });
+  const openAddProject = useCallback((workspace?: WorkspaceProjectSourceActions) => {
+    dispatch({ _tag: "OpenAddProject", ...(workspace ? { workspace } : {}) });
   }, []);
   const clearOpenIntent = useCallback(() => dispatch({ _tag: "ClearOpenIntent" }), []);
 
@@ -141,7 +160,7 @@ export function CommandPalette({ children }: { children: ReactNode }) {
         }}
       >
         <div className="contents" inert={state.open}>
-          {children}
+          <CommandPaletteOpenContext value={state.open}>{children}</CommandPaletteOpenContext>
         </div>
         <CommandPaletteDialog
           open={state.open}
@@ -215,6 +234,7 @@ function OpenCommandPaletteDialog(props: {
   const navigate = useNavigate();
   const { clearOpenIntent, openIntent, setOpen, keybindings } = props;
 
+  const workspaceSourceActions = useRef<WorkspaceProjectSourceActions | undefined>(undefined);
   const [query, setQuery] = useState("");
   const [highlightedItemValue, setHighlightedItemValue] = useState<string | null>(null);
 
@@ -555,10 +575,12 @@ function OpenCommandPaletteDialog(props: {
     if (trimmedQuery.length === 0) return;
 
     if (addProjectCloneFlow.provider === "git-url") {
-      let repoName = "cloned-repo";
-      const parts = trimmedQuery.split("/");
-      const lastPart = parts.pop() || "";
-      repoName = lastPart.replace(/\.git$/, "") || "cloned-repo";
+      const validationError = validateCloneSource(trimmedQuery);
+      if (validationError) {
+        setLookupError(validationError);
+        return;
+      }
+      const repoName = getCloneFolderName(trimmedQuery);
 
       setAddProjectCloneFlow({
         step: "confirm",
@@ -611,6 +633,7 @@ function OpenCommandPaletteDialog(props: {
       destinationPath: string,
       remoteUrl?: string,
     ) => {
+      if (isRemoteProjectCloning) return;
       const api = readNativeApi();
       if (!api) {
         setLookupError("Connection to the server is not available.");
@@ -627,9 +650,10 @@ function OpenCommandPaletteDialog(props: {
         };
         const result = await api.server.cloneRepository(input);
         if (result && result.cwd) {
+          const workspace = workspaceSourceActions.current;
+          if (workspace) await workspace.openClonedProject(result.cwd);
+          else await addProjectFromPath(result.cwd);
           setOpen(false);
-          setAddProjectCloneFlow(null);
-          await addProjectFromPath(result.cwd);
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : "Clone failed. Please try again.";
@@ -638,100 +662,126 @@ function OpenCommandPaletteDialog(props: {
         setIsRemoteProjectCloning(false);
       }
     },
-    [addProjectFromPath],
+    [addProjectFromPath, isRemoteProjectCloning, setOpen],
   );
 
-  const openAddProjectSourcesView = useCallback(() => {
-    setViewStack((prev) => [
-      ...prev,
-      {
-        addonIcon: <GitBranchIcon className={ADDON_ICON_CLASS} />,
-        groups: [
-          {
-            value: "sources",
-            label: "Clone Repository",
-            items: [
+  const openAddProjectSourcesView = useCallback(
+    (workspace?: WorkspaceProjectSourceActions) => {
+      workspaceSourceActions.current = workspace;
+      const startItems: CommandPaletteGroup["items"] = [
+        ...(workspace
+          ? [
               {
                 kind: "action" as const,
-                value: "action:add-project:git-url",
-                searchTerms: ["git", "url", "clone", "remote"],
-                title: "Git URL",
-                description: "Clone from a remote URL",
-                icon: <FolderIcon className={ITEM_ICON_CLASS} />,
-                keepOpen: true,
-                run: async () => {
-                  setAddProjectCloneFlow({ step: "repository", provider: "git-url" });
-                  setQuery("");
-                },
+                value: "action:add-project:new",
+                searchTerms: ["new", "project", "create", "git", "initialize"],
+                title: "New project",
+                description: "Start with a new Git repository",
+                icon: <FolderPlusIcon className={ITEM_ICON_CLASS} />,
+                run: () => workspace.openLocalProject(true),
               },
-              {
-                kind: "action" as const,
-                value: "action:add-project:github",
-                searchTerms: ["github", "gh", "clone"],
-                title: "GitHub repository",
-                description: "Clone GitHub owner/repo",
-                icon: <GitHubIcon className={ITEM_ICON_CLASS} />,
-                titleTrailingContent: getProviderBadge("github"),
-                keepOpen: true,
-                run: async () => {
-                  setAddProjectCloneFlow({ step: "repository", provider: "github" });
-                  setQuery("");
-                },
-              },
-              {
-                kind: "action" as const,
-                value: "action:add-project:azure-devops",
-                searchTerms: ["azure", "devops", "az", "clone"],
-                title: "Azure DevOps repository",
-                description: "Clone Azure DevOps project/repository",
-                icon: <AzureDevOpsIcon className={ITEM_ICON_CLASS} />,
-                titleTrailingContent: getProviderBadge("azure-devops"),
-                keepOpen: true,
-                run: async () => {
-                  setAddProjectCloneFlow({ step: "repository", provider: "azure-devops" });
-                  setQuery("");
-                },
-              },
-              {
-                kind: "action" as const,
-                value: "action:add-project:bitbucket",
-                searchTerms: ["bitbucket", "clone"],
-                title: "Bitbucket repository",
-                description: "Clone Bitbucket workspace/repository",
-                icon: <BitbucketIcon className={ITEM_ICON_CLASS} />,
-                titleTrailingContent: getProviderBadge("bitbucket"),
-                keepOpen: true,
-                run: async () => {
-                  setAddProjectCloneFlow({ step: "repository", provider: "bitbucket" });
-                  setQuery("");
-                },
-              },
-              {
-                kind: "action" as const,
-                value: "action:add-project:gitlab",
-                searchTerms: ["gitlab", "glab", "clone"],
-                title: "GitLab repository",
-                description: "Clone GitLab group/project",
-                icon: <GitLabIcon className={ITEM_ICON_CLASS} />,
-                titleTrailingContent: getProviderBadge("gitlab"),
-                keepOpen: true,
-                run: async () => {
-                  setAddProjectCloneFlow({ step: "repository", provider: "gitlab" });
-                  setQuery("");
-                },
-              },
-            ],
+            ]
+          : []),
+        {
+          kind: "action" as const,
+          value: "action:add-project:local-folder",
+          searchTerms: ["local", "folder", "open", "directory", "disk"],
+          title: "Local folder",
+          description: "Open a folder on disk",
+          icon: <FolderIcon className={ITEM_ICON_CLASS} />,
+          run: workspace ? () => workspace.openLocalProject(false) : openAddProjectFlow,
+        },
+        {
+          kind: "action" as const,
+          value: "action:add-project:git-url",
+          searchTerms: ["git", "url", "clone", "remote"],
+          title: "Git URL",
+          description: "Paste an HTTPS or SSH clone URL",
+          icon: <LinkIcon className={ITEM_ICON_CLASS} />,
+          keepOpen: true,
+          run: async () => {
+            setAddProjectCloneFlow({ step: "repository", provider: "git-url" });
+            setQuery("");
           },
-        ],
-      },
-    ]);
-    setQuery("");
-  }, [openAddProjectFlow, getProviderBadge]);
+        },
+      ];
+      const hostItems: CommandPaletteGroup["items"] = [
+        {
+          kind: "action" as const,
+          value: "action:add-project:github",
+          searchTerms: ["github", "gh", "clone"],
+          title: workspace ? "GitHub" : "GitHub repository",
+          description: "Clone GitHub owner/repo",
+          icon: <GitHubIcon className={ITEM_ICON_CLASS} />,
+          titleTrailingContent: getProviderBadge("github"),
+          keepOpen: true,
+          run: async () => {
+            setAddProjectCloneFlow({ step: "repository", provider: "github" });
+            setQuery("");
+          },
+        },
+        {
+          kind: "action" as const,
+          value: "action:add-project:azure-devops",
+          searchTerms: ["azure", "devops", "az", "clone"],
+          title: workspace ? "Azure DevOps" : "Azure DevOps repository",
+          description: "Clone Azure DevOps project/repository",
+          icon: <AzureDevOpsIcon className={ITEM_ICON_CLASS} />,
+          titleTrailingContent: getProviderBadge("azure-devops"),
+          keepOpen: true,
+          run: async () => {
+            setAddProjectCloneFlow({ step: "repository", provider: "azure-devops" });
+            setQuery("");
+          },
+        },
+        {
+          kind: "action" as const,
+          value: "action:add-project:bitbucket",
+          searchTerms: ["bitbucket", "clone"],
+          title: workspace ? "Bitbucket" : "Bitbucket repository",
+          description: "Clone Bitbucket workspace/repository",
+          icon: <BitbucketIcon className={ITEM_ICON_CLASS} />,
+          titleTrailingContent: getProviderBadge("bitbucket"),
+          keepOpen: true,
+          run: async () => {
+            setAddProjectCloneFlow({ step: "repository", provider: "bitbucket" });
+            setQuery("");
+          },
+        },
+        {
+          kind: "action" as const,
+          value: "action:add-project:gitlab",
+          searchTerms: ["gitlab", "glab", "clone"],
+          title: workspace ? "GitLab" : "GitLab repository",
+          description: "Clone GitLab group/project",
+          icon: <GitLabIcon className={ITEM_ICON_CLASS} />,
+          titleTrailingContent: getProviderBadge("gitlab"),
+          keepOpen: true,
+          run: async () => {
+            setAddProjectCloneFlow({ step: "repository", provider: "gitlab" });
+            setQuery("");
+          },
+        },
+      ];
+      setViewStack((prev) => [
+        ...prev,
+        {
+          addonIcon: <GitBranchIcon className={ADDON_ICON_CLASS} />,
+          groups: [
+            { value: "sources", label: "Start here", items: startItems },
+            { value: "git-hosts", label: "Git hosts", items: hostItems },
+          ],
+        },
+      ]);
+      setQuery("");
+    },
+    [openAddProjectFlow, getProviderBadge],
+  );
 
   useEffect(() => {
     if (openIntent?.kind === "add-project") {
       clearOpenIntent();
-      void openAddProjectSourcesView();
+      openAddProjectSourcesView(openIntent.workspace);
     }
   }, [clearOpenIntent, openAddProjectSourcesView, openIntent]);
 
@@ -918,49 +968,18 @@ function OpenCommandPaletteDialog(props: {
       setHighlightedItemValue(flatItems[prevIdx]?.value ?? null);
     } else if (event.key === "Enter") {
       event.preventDefault();
-      console.log(
-        "[DIAG] handleKeyDown: Enter key pressed. addProjectCloneFlow =",
-        addProjectCloneFlow,
-        "query =",
-        query,
-      );
-      toastManager.add({
-        type: "info",
-        title: "[DIAG] Enter Pressed",
-        description: `flow active: ${!!addProjectCloneFlow}, query: "${query}"`,
-      });
       if (addProjectCloneFlow) {
         const trimmedQuery = query.trim();
-        toastManager.add({
-          type: "info",
-          title: `[DIAG] step is: ${addProjectCloneFlow.step}`,
-          description: `trimmedQuery: "${trimmedQuery}"`,
-        });
-        if (trimmedQuery.length > 0) {
-          if (addProjectCloneFlow.step === "repository") {
-            console.log(
-              "[DIAG] handleKeyDown: Enter in repository step. Invoking handleLookupRepository.",
-            );
-            toastManager.add({
-              type: "info",
-              title: "[DIAG] Triggering Lookup",
-              description: `Calling handleLookupRepository for "${trimmedQuery}"`,
-            });
-            void handleLookupRepository();
-          } else if (addProjectCloneFlow.step === "confirm") {
-            console.log("[DIAG] handleKeyDown: Enter in confirm step. Invoking triggerClone.");
-            toastManager.add({
-              type: "info",
-              title: "[DIAG] Triggering Clone",
-              description: `Calling triggerClone for provider=${addProjectCloneFlow.provider}, destinationPath="${trimmedQuery}"`,
-            });
-            void triggerClone(
-              addProjectCloneFlow.provider,
-              addProjectCloneFlow.repositoryInput,
-              trimmedQuery,
-              addProjectCloneFlow.remoteUrl,
-            );
-          }
+        if (trimmedQuery.length === 0) return;
+        if (addProjectCloneFlow.step === "repository") {
+          void handleLookupRepository();
+        } else {
+          void triggerClone(
+            addProjectCloneFlow.provider,
+            addProjectCloneFlow.repositoryInput,
+            trimmedQuery,
+            addProjectCloneFlow.remoteUrl,
+          );
         }
         return;
       }
@@ -984,27 +1003,9 @@ function OpenCommandPaletteDialog(props: {
       if (highlightedItem) {
         void handleExecuteItem(highlightedItem);
       }
-    } else if (event.key === "Escape") {
-      if (addProjectCloneFlow) {
-        event.preventDefault();
-        if (addProjectCloneFlow.step === "confirm") {
-          setAddProjectCloneFlow({
-            step: "repository",
-            provider: addProjectCloneFlow.provider,
-          });
-          setQuery(addProjectCloneFlow.repositoryInput ?? "");
-        } else {
-          setAddProjectCloneFlow(null);
-          setQuery("");
-        }
-        return;
-      }
-      if (currentView) {
-        event.preventDefault();
-        setViewStack((prev) => prev.slice(0, -1));
-        setQuery("");
-        setHighlightedItemValue(null);
-      }
+    } else if (event.key === "Escape" && isRemoteProjectCloning) {
+      event.preventDefault();
+      event.stopPropagation();
     } else if (event.key === "Backspace" && query.length === 0) {
       if (addProjectCloneFlow) {
         event.preventDefault();
@@ -1042,11 +1043,46 @@ function OpenCommandPaletteDialog(props: {
     }
   }
 
+  const isProjectPicker = Boolean(workspaceSourceActions.current && currentView);
+  const isSourceList = isProjectPicker && !addProjectCloneFlow;
+  const pickerTitle = isSourceList
+    ? "Choose a project source"
+    : addProjectCloneFlow?.step === "confirm"
+      ? "Choose a destination"
+      : "Find a repository";
+
   return (
-    <CommandDialogPopup data-command-palette>
+    <CommandDialogPopup
+      data-command-palette
+      className={isProjectPicker ? "project-source-picker" : undefined}
+      aria-label={isProjectPicker ? "Project sources" : "Command palette"}
+    >
+      {isProjectPicker && (
+        <header className="project-source-heading">
+          <div>
+            <h1>{pickerTitle}</h1>
+            <p>
+              {isSourceList
+                ? "Your selection opens in this tab."
+                : "Clone a repository into this tab."}
+            </p>
+          </div>
+          <Button
+            aria-label="Close project picker"
+            size="icon-sm"
+            variant="ghost"
+            disabled={isRemoteProjectCloning}
+            onClick={() => setOpen(false)}
+          >
+            <XIcon aria-hidden="true" />
+          </Button>
+        </header>
+      )}
       <Command>
-        <div className="flex items-center border-b px-3">
-          {(currentView || addProjectCloneFlow) && (
+        <div
+          className={isProjectPicker ? "project-source-search" : "flex items-center border-b px-3"}
+        >
+          {!isSourceList && (currentView || addProjectCloneFlow) && (
             <button
               onClick={() => {
                 if (addProjectCloneFlow) {
@@ -1069,15 +1105,29 @@ function OpenCommandPaletteDialog(props: {
                   setHighlightedItemValue(null);
                 }
               }}
+              type="button"
+              disabled={isRemoteProjectCloning}
+              aria-label="Back"
               className="mr-2 flex size-6 items-center justify-center rounded-full hover:bg-muted"
             >
               <ArrowLeftIcon className="size-4" />
             </button>
           )}
           <CommandInput
-            placeholder={placeholder}
+            placeholder={isSourceList ? "Filter sources…" : placeholder}
+            aria-label={
+              addProjectCloneFlow?.step === "confirm"
+                ? "Clone destination"
+                : addProjectCloneFlow?.step === "repository"
+                  ? "Repository"
+                  : "Search"
+            }
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            disabled={isRemoteProjectCloning}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              if (lookupError) setLookupError(null);
+            }}
             onKeyDown={handleKeyDown}
             {...(addProjectCloneFlow?.step === "repository" && query.trim().length > 0
               ? {
@@ -1100,7 +1150,12 @@ function OpenCommandPaletteDialog(props: {
               : {})}
           />
         </div>
-        <CommandPanel className="max-h-[300px] overflow-y-auto">
+        <CommandPanel
+          className={cn(
+            isProjectPicker && "project-source-panel",
+            isSourceList ? "project-source-options" : "max-h-[360px] overflow-y-auto",
+          )}
+        >
           {remoteProjectContext ? (
             <div className="p-2 pb-0">
               <div className="px-2 py-1.5 font-medium text-muted-foreground text-xs">
@@ -1151,51 +1206,87 @@ function OpenCommandPaletteDialog(props: {
             <CommandPaletteResults
               groups={filteredGroups}
               highlightedItemValue={highlightedItemValue}
+              neutralHighlight={isSourceList}
               isActionsOnly={query.startsWith(">")}
               keybindings={keybindings}
               onExecuteItem={handleExecuteItem}
-              {...(addProjectCloneFlow?.step === "repository"
-                ? {
-                    emptyStateMessage:
-                      addProjectCloneFlow.provider === "git-url"
-                        ? "Enter a Git clone URL and press Enter to continue."
-                        : `Enter a repository path (e.g. owner/repo) and press Enter to look it up on ${addProjectCloneFlow.provider === "azure-devops" ? "Azure DevOps" : addProjectCloneFlow.provider}.`,
-                  }
-                : addProjectCloneFlow?.step === "confirm"
-                  ? { emptyStateMessage: "Choose a destination path and press Enter to clone." }
-                  : {})}
+              {...(isSourceList
+                ? { emptyStateMessage: "No matching project sources." }
+                : addProjectCloneFlow?.step === "repository"
+                  ? {
+                      emptyStateMessage:
+                        addProjectCloneFlow.provider === "git-url"
+                          ? "Enter a Git clone URL and press Enter to continue."
+                          : `Enter a repository path (e.g. owner/repo) and press Enter to look it up on ${addProjectCloneFlow.provider === "azure-devops" ? "Azure DevOps" : addProjectCloneFlow.provider}.`,
+                    }
+                  : addProjectCloneFlow?.step === "confirm"
+                    ? { emptyStateMessage: "Choose a destination path and press Enter to clone." }
+                    : {})}
             />
           )}
         </CommandPanel>
-        <CommandFooter>
-          <div className="flex items-center gap-4">
+        {addProjectCloneFlow?.step === "confirm" && (
+          <div className="flex items-center justify-end gap-2 border-t px-4 py-3">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={isRemoteProjectCloning}
+              onClick={() => {
+                void readNativeApi()
+                  ?.dialogs.pickFolder()
+                  .then((folder) => {
+                    if (!folder) return;
+                    const name = getCloneFolderName(addProjectCloneFlow.remoteUrl ?? "");
+                    const separator = folder.includes("\\") ? "\\" : "/";
+                    setQuery(folder.replace(/[/\\]+$/, "") + separator + name);
+                    setLookupError(null);
+                  })
+                  .catch(() =>
+                    setLookupError(
+                      "Could not open the folder picker. Enter the destination path instead.",
+                    ),
+                  );
+              }}
+            >
+              Choose parent folder…
+            </Button>
+            <Button
+              size="sm"
+              disabled={isRemoteProjectCloning || !query.trim()}
+              onClick={() =>
+                void triggerClone(
+                  addProjectCloneFlow.provider,
+                  addProjectCloneFlow.repositoryInput,
+                  query.trim(),
+                  addProjectCloneFlow.remoteUrl,
+                )
+              }
+            >
+              Clone project
+            </Button>
+          </div>
+        )}
+        <CommandFooter className={isProjectPicker ? "project-source-footer" : undefined}>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
             <span className="flex items-center gap-1 text-xs">
-              <kbd className="rounded border px-1.5 py-0.5 text-[10px] font-sans">↑↓</kbd> Navigate
+              <kbd className="font-sans">↑↓</kbd> Navigate
             </span>
             {addProjectCloneFlow?.step === "repository" ? (
               <span className="flex items-center gap-1 text-xs">
-                <kbd className="rounded border px-1.5 py-0.5 text-[10px] font-sans">Enter</kbd>{" "}
+                <kbd className="font-sans">Enter</kbd>{" "}
                 {addProjectCloneFlow.provider === "git-url" ? "Continue" : "Lookup"}
               </span>
             ) : addProjectCloneFlow?.step === "confirm" ? (
               <span className="flex items-center gap-1 text-xs">
-                <kbd className="rounded border px-1.5 py-0.5 text-[10px] font-sans">Enter</kbd>{" "}
-                Clone
+                <kbd className="font-sans">Enter</kbd> Clone
               </span>
             ) : (
               <span className="flex items-center gap-1 text-xs">
-                <kbd className="rounded border px-1.5 py-0.5 text-[10px] font-sans">Enter</kbd>{" "}
-                Select
-              </span>
-            )}
-            {(currentView || addProjectCloneFlow) && (
-              <span className="flex items-center gap-1 text-xs">
-                <kbd className="rounded border px-1.5 py-0.5 text-[10px] font-sans">Backspace</kbd>{" "}
-                Back
+                <kbd className="font-sans">Enter</kbd> Select
               </span>
             )}
             <span className="flex items-center gap-1 text-xs">
-              <kbd className="rounded border px-1.5 py-0.5 text-[10px] font-sans">Esc</kbd> Close
+              <kbd className="font-sans">Esc</kbd> Close
             </span>
           </div>
         </CommandFooter>

@@ -262,7 +262,22 @@
   border-color: transparent;
   box-shadow: none;
   backdrop-filter: none;
-  max-width: 108px;
+  width: var(--qa-sector-label-width, 56px);
+  max-width: none;
+  padding: 0 2px;
+  display: grid;
+  place-items: center;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  line-height: 1.15;
+}
+.qa-radial-sectors .qa-more-action > span {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  max-width: 100%;
+  overflow: hidden;
 }
 .qa-radial-sectors .qa-more-action:is(:hover, [data-current="true"]) {
   background: transparent;

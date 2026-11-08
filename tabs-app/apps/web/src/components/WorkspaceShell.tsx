@@ -196,7 +196,6 @@ import { useTheme } from "../hooks/useTheme";
 import { useAppClosing } from "../hooks/useAppClosing";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import { isElectron } from "../env";
-import { useOpenAddProjectCommandPalette } from "../commandPaletteContext";
 import { toGitUserFacingErrorMessage } from "../lib/gitErrorMessages";
 import { clipTestingPreviewBounds } from "../lib/testingPreviewBounds";
 import {
@@ -248,12 +247,18 @@ import { TabsExtensionIcon, type Icon } from "./Icons";
 import GitCommitComposer from "./GitCommitComposer";
 import { FusedModelPicker } from "./chat/FusedModelPicker";
 import type { ProviderPickerKind } from "../session-logic";
+import { normalizeThreadRenameTitle } from "./Sidebar.logic";
+import { readModelStateAtom } from "../state/readModel";
+import { appAtomRegistry } from "../state/atomRegistry";
 import { useServerConfig } from "../state/settings";
 import { Badge } from "./ui/badge";
 import { initializeZoom, resetZoom, zoomIn, zoomOut } from "../state/zoom";
 import { Button } from "./ui/button";
-import { CloneRepositoryDialog } from "./CloneRepositoryDialog";
+import { useOpenAddProjectCommandPalette } from "../commandPaletteContext";
 import { WorkspaceWelcomeScreen } from "./WorkspaceWelcomeScreen";
+import { WorkspaceTour } from "./WorkspaceTour";
+import { readTourProjectTool, useGuidedTourStore } from "../stores/guidedTourStore";
+import { settingsDraftRegistryAtom } from "../state/settingsDraftRegistry";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Checkbox } from "./ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
@@ -1252,6 +1257,7 @@ function ProjectTabs(props: {
           type="button"
           className="no-drag mb-1 shrink-0 rounded-lg p-1.5 text-muted-foreground transition-all hover:bg-muted/80 hover:text-foreground cursor-pointer"
           aria-label="New tab"
+          data-tour-new-tab
           onClick={props.onNewTab}
         >
           <PlusIcon className="size-4" />
@@ -1268,6 +1274,7 @@ function ProjectTabs(props: {
             type="button"
             variant="ghost"
             size="sm"
+            data-slot="workspace-settings-trigger"
             className="shrink-0 rounded-full text-muted-foreground hover:text-foreground text-xs h-7 px-2.5"
             onClick={props.onOpenSettings}
           >
@@ -1375,6 +1382,8 @@ function ProjectToolBar(props: {
                 type="button"
                 role="tab"
                 data-tool-kind={tool.kind}
+                data-workspace-tool-id={tool.id}
+                data-slot={`workspace-tool-${tool.kind}`}
                 style={interfaceStudyAccent(tool.kind)}
                 aria-selected={active}
                 tabIndex={active ? 0 : -1}
@@ -1421,6 +1430,7 @@ function ProjectToolBar(props: {
           type="button"
           variant="ghost"
           size="sm"
+          data-slot="workspace-settings-trigger"
           className="shrink-0 rounded-full text-muted-foreground hover:text-foreground"
           onClick={props.onOpenSettings}
         >
@@ -1517,6 +1527,101 @@ function AgentsThreadList(props: {
   );
   const [openThreadMenuId, setOpenThreadMenuId] = useState<ThreadId | null>(null);
   const [draggedPinnedThreadId, setDraggedPinnedThreadId] = useState<ThreadId | null>(null);
+  const [renamingThreadId, setRenamingThreadId] = useState<ThreadId | null>(null);
+  const [renamingTitle, setRenamingTitle] = useState("");
+  const renamingInputRef = useRef<HTMLInputElement | null>(null);
+  const renamingCommittedRef = useRef(false);
+  const canBlurCommitRef = useRef(false);
+
+  useEffect(() => {
+    if (!renamingThreadId) {
+      canBlurCommitRef.current = false;
+      return;
+    }
+    const timer = setTimeout(() => {
+      const input = renamingInputRef.current;
+      if (input) {
+        input.focus();
+        input.select();
+      }
+      canBlurCommitRef.current = true;
+    }, 60);
+    return () => clearTimeout(timer);
+  }, [renamingThreadId]);
+
+  const startRename = useCallback((thread: Thread) => {
+    canBlurCommitRef.current = false;
+    renamingCommittedRef.current = false;
+    setRenamingThreadId(thread.id);
+    setRenamingTitle(thread.title);
+  }, []);
+
+  const cancelRename = useCallback(() => {
+    canBlurCommitRef.current = false;
+    renamingCommittedRef.current = false;
+    setRenamingThreadId(null);
+    renamingInputRef.current = null;
+  }, []);
+
+  const commitRename = useCallback(
+    async (thread: Thread, newTitle: string, originalTitle: string) => {
+      const threadId = thread.id;
+      const finishRename = () => {
+        setRenamingThreadId((current) => {
+          if (current !== threadId) return current;
+          renamingInputRef.current = null;
+          canBlurCommitRef.current = false;
+          return null;
+        });
+      };
+
+      const normalized = normalizeThreadRenameTitle(newTitle, originalTitle);
+      if (normalized.status === "empty") {
+        toastManager.add({ type: "warning", title: "Thread title cannot be empty" });
+        finishRename();
+        return;
+      }
+      if (normalized.status === "unchanged") {
+        finishRename();
+        return;
+      }
+
+      // Optimistic update for instantaneous UI responsiveness
+      const previousTitle = thread.title;
+      appAtomRegistry.update(readModelStateAtom, (state) => ({
+        ...state,
+        threads: state.threads.map((t) =>
+          t.id === threadId ? { ...t, title: normalized.title } : t,
+        ),
+      }));
+
+      try {
+        const api = await environmentApi(thread.environmentId ?? props.project.environmentId);
+        await api.orchestration.dispatchCommand({
+          type: "thread.metadata.update",
+          commandId: newCommandId(),
+          threadId,
+          title: normalized.title,
+        });
+      } catch (error) {
+        // Rollback optimistic update on failure
+        appAtomRegistry.update(readModelStateAtom, (state) => ({
+          ...state,
+          threads: state.threads.map((t) =>
+            t.id === threadId ? { ...t, title: previousTitle } : t,
+          ),
+        }));
+        toastManager.add({
+          type: "error",
+          title: "Failed to rename thread",
+          description: error instanceof Error ? error.message : "An error occurred.",
+        });
+      } finally {
+        finishRename();
+      }
+    },
+    [props.project.environmentId],
+  );
   const projectGitStatusQuery = useQuery(
     gitStatusQueryOptions(props.project.cwd, props.project.environmentId),
   );
@@ -2185,6 +2290,7 @@ function AgentsThreadList(props: {
             {visibleThreads.map(({ thread, section, first }) => {
               const active = props.activeThreadId === thread.id;
               const isArchived = thread.archivedAt !== null;
+              const isRenaming = renamingThreadId === thread.id;
               const lifecycleEntry = thread;
               const threadIsSnoozed = isSnoozed(lifecycleEntry, lifecycleNow);
               const attention = deriveThreadAttention(thread);
@@ -2430,27 +2536,15 @@ function AgentsThreadList(props: {
                     ) : (
                       // ── Full expanded row matching prototype ──
                       <>
-                        <Tooltip>
-                          <TooltipTrigger
-                            render={
-                              <button
-                                type="button"
-                                onClick={(event) => {
-                                  if (event.altKey || event.metaKey || event.ctrlKey) {
-                                    props.onOpenThreadToSide?.(thread.id);
-                                    return;
-                                  }
-                                  props.onSelectThread(thread.id);
-                                }}
-                                className={cn(
-                                  "min-w-0 flex-1 text-left",
-                                  section === "settled" ? "px-2.5 py-1.5" : "px-2.5 py-2",
-                                )}
-                                aria-label={`${thread.title}, ${accessibleState}, ${props.project.name}`}
-                              />
-                            }
+                        {isRenaming ? (
+                          <div
+                            className={cn(
+                              "min-w-0 flex-1 text-left",
+                              section === "settled" ? "px-1.5 py-1" : "px-1.5 py-1.5",
+                            )}
+                            onClick={(event) => event.stopPropagation()}
                           >
-                            <div className="flex items-center gap-2">
+                            <div className="group/rename-capsule relative flex items-center w-full rounded-lg border border-primary/40 bg-zinc-900/90 shadow-sm shadow-primary/10 ring-1 ring-primary/30 transition-all focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/40 pl-2 pr-1 py-0.5 gap-1.5">
                               {section === "pinned" && (
                                 <PinIcon
                                   aria-hidden="true"
@@ -2460,160 +2554,276 @@ function AgentsThreadList(props: {
                               {(section === "settled" || section === "snoozed") && (
                                 <AssistantBubbleIcon className="size-3.5 shrink-0 text-muted-foreground/50" />
                               )}
-                              {/* Status dot or spinner for active attention */}
-                              {(() => {
-                                const attn = deriveThreadAttention(thread);
-                                if (!attn) return null;
-                                if (attn.spin) {
-                                  return <Spinner className="size-3 shrink-0 text-foreground" />;
-                                }
-                                return (
-                                  <span
-                                    className={cn(
-                                      "size-1.5 shrink-0 rounded-full",
-                                      attn.tone === "red"
-                                        ? "bg-red-400"
-                                        : attn.tone === "amber"
-                                          ? "bg-amber-400"
-                                          : "bg-primary",
-                                    )}
-                                  />
-                                );
-                              })()}
-                              <div
-                                className={cn(
-                                  "truncate text-sm font-semibold tracking-tight transition-colors flex-1 pr-2 group-hover:pr-[170px] group-focus-within:pr-[170px]",
-                                  active
-                                    ? "text-foreground font-semibold"
-                                    : isArchived
-                                      ? "text-muted-foreground/40"
-                                      : "text-muted-foreground/60 group-hover:text-foreground",
-                                )}
-                              >
-                                {thread.title}
+                              <input
+                                ref={renamingInputRef}
+                                type="text"
+                                value={renamingTitle}
+                                onChange={(event) => setRenamingTitle(event.target.value)}
+                                onKeyDown={(event) => {
+                                  if (event.key === "Enter") {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    renamingCommittedRef.current = true;
+                                    void commitRename(thread, renamingTitle, thread.title);
+                                  } else if (event.key === "Escape") {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    renamingCommittedRef.current = true;
+                                    cancelRename();
+                                  }
+                                }}
+                                onBlur={() => {
+                                  if (canBlurCommitRef.current && !renamingCommittedRef.current) {
+                                    void commitRename(thread, renamingTitle, thread.title);
+                                  }
+                                }}
+                                onClick={(event) => event.stopPropagation()}
+                                aria-label="Rename thread"
+                                className="h-6 w-full min-w-0 flex-1 bg-transparent border-none p-0 text-xs font-semibold text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-0"
+                              />
+                              <div className="flex items-center gap-0.5 shrink-0">
+                                <button
+                                  type="button"
+                                  onMouseDown={(event) => {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    renamingCommittedRef.current = true;
+                                    cancelRename();
+                                  }}
+                                  aria-label="Cancel rename"
+                                  title="Cancel (Esc)"
+                                  className="flex size-5 items-center justify-center rounded-md text-muted-foreground/70 hover:bg-muted/80 hover:text-foreground transition-all active:scale-95 cursor-pointer"
+                                >
+                                  <XIcon className="size-3 stroke-[2.5]" />
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={renamingTitle.trim().length === 0}
+                                  onMouseDown={(event) => {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    renamingCommittedRef.current = true;
+                                    void commitRename(thread, renamingTitle, thread.title);
+                                  }}
+                                  aria-label="Confirm rename"
+                                  title="Save (Enter)"
+                                  className={cn(
+                                    "flex size-5 items-center justify-center rounded-md transition-all active:scale-95 cursor-pointer",
+                                    renamingTitle.trim().length === 0
+                                      ? "opacity-30 cursor-not-allowed text-muted-foreground"
+                                      : "bg-primary text-primary-foreground hover:bg-primary/90 shadow-xs shadow-primary/30",
+                                  )}
+                                >
+                                  <CheckIcon className="size-3 stroke-[2.5]" />
+                                </button>
                               </div>
-                              {section === "settled" && (
-                                <span className="shrink-0 text-[11px] font-normal text-muted-foreground/45 transition-opacity group-hover:opacity-0 group-focus-within:opacity-0">
-                                  {(() => {
-                                    const age =
-                                      Date.now() -
-                                      new Date(thread.updatedAt ?? thread.createdAt).getTime();
-                                    const days = Math.floor(age / 86_400_000);
-                                    if (days > 0) return `${days}d`;
-                                    const hours = Math.floor(age / 3_600_000);
-                                    if (hours > 0) return `${hours}h`;
-                                    return `${Math.max(1, Math.floor(age / 60_000))}m`;
-                                  })()}
-                                </span>
-                              )}
                             </div>
-                            {section !== "settled" && (
-                              <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground/55 pr-2 group-hover:pr-[170px] group-focus-within:pr-[170px] transition-all">
-                                {section === "snoozed" ? (
-                                  <Clock3Icon className="size-3 shrink-0 text-muted-foreground/60" />
-                                ) : thread.branch ? (
-                                  <GitBranchIcon className="size-3 shrink-0 text-muted-foreground/60 group-hover:text-foreground/75" />
-                                ) : (
-                                  <AssistantBubbleIcon className="size-3 shrink-0 text-muted-foreground/60 group-hover:text-foreground/75" />
+                          </div>
+                        ) : (
+                          <Tooltip>
+                            <TooltipTrigger
+                              render={
+                                <button
+                                  type="button"
+                                  onClick={(event) => {
+                                    if (event.altKey || event.metaKey || event.ctrlKey) {
+                                      props.onOpenThreadToSide?.(thread.id);
+                                      return;
+                                    }
+                                    props.onSelectThread(thread.id);
+                                  }}
+                                  onDoubleClick={(event) => {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    startRename(thread);
+                                  }}
+                                  onKeyDown={(event) => {
+                                    if (event.key === "F2") {
+                                      event.preventDefault();
+                                      event.stopPropagation();
+                                      startRename(thread);
+                                    }
+                                  }}
+                                  className={cn(
+                                    "min-w-0 flex-1 text-left",
+                                    section === "settled" ? "px-2.5 py-1.5" : "px-2.5 py-2",
+                                  )}
+                                  aria-label={`${thread.title}, ${accessibleState}, ${props.project.name}`}
+                                />
+                              }
+                            >
+                              <div className="flex items-center gap-2">
+                                {section === "pinned" && (
+                                  <PinIcon
+                                    aria-hidden="true"
+                                    className="size-3.5 shrink-0 text-muted-foreground/55"
+                                  />
                                 )}
-                                <span className="truncate">
-                                  {section === "snoozed"
-                                    ? `Wakes at ${wakeLabel ?? "the scheduled time"}`
-                                    : (thread.branch ??
-                                      (deriveThreadAttention(thread)?.spin
-                                        ? "Working"
-                                        : thread.error
-                                          ? "Needs attention"
-                                          : threadIsSnoozed
-                                            ? "Snoozed"
-                                            : lifecycleEntry.pinnedAt
-                                              ? "Pinned"
-                                              : "Active"))}
-                                </span>
-                              </div>
-                            )}
-                          </TooltipTrigger>
-                          <TooltipPopup side="right" align="start" className="w-72 p-3">
-                            {threadInspector}
-                            <div className="hidden space-y-2 text-xs">
-                              <div className="flex items-start justify-between gap-3 border-b border-border/50 pb-2">
-                                <p className="font-semibold leading-5 text-foreground">
-                                  {thread.title}
-                                </p>
-                                <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium capitalize text-muted-foreground">
-                                  {accessibleState}
-                                </span>
-                              </div>
-                              <p className="flex items-center gap-2 text-muted-foreground">
-                                <FolderSearchIcon aria-hidden="true" className="size-3.5" />
-                                <span className="truncate">{props.project.name}</span>
-                              </p>
-                              {thread.branch && (
-                                <p className="flex items-center gap-2 text-muted-foreground">
-                                  <GitBranchIcon aria-hidden="true" className="size-3.5" />
-                                  <span className="truncate">Thread branch: {thread.branch}</span>
-                                </p>
-                              )}
-                              {projectGitStatusQuery.data?.branch && (
-                                <p className="flex items-center gap-2 text-muted-foreground">
-                                  <GitBranchIcon aria-hidden="true" className="size-3.5" />
-                                  <span className="truncate">
-                                    Checked out: {projectGitStatusQuery.data.branch}
-                                  </span>
-                                </p>
-                              )}
-                              {thread.branch &&
-                                projectGitStatusQuery.data?.branch &&
-                                thread.branch !== projectGitStatusQuery.data.branch && (
-                                  <p className="flex items-start gap-2 rounded-md bg-amber-500/10 p-2 text-amber-700 dark:text-amber-400">
-                                    <TriangleAlertIcon
-                                      aria-hidden="true"
-                                      className="mt-0.5 size-3.5 shrink-0"
+                                {(section === "settled" || section === "snoozed") && (
+                                  <AssistantBubbleIcon className="size-3.5 shrink-0 text-muted-foreground/50" />
+                                )}
+                                {/* Status dot or spinner for active attention */}
+                                {(() => {
+                                  const attn = deriveThreadAttention(thread);
+                                  if (!attn) return null;
+                                  if (attn.spin) {
+                                    return <Spinner className="size-3 shrink-0 text-foreground" />;
+                                  }
+                                  return (
+                                    <span
+                                      className={cn(
+                                        "size-1.5 shrink-0 rounded-full",
+                                        attn.tone === "red"
+                                          ? "bg-red-400"
+                                          : attn.tone === "amber"
+                                            ? "bg-amber-400"
+                                            : "bg-primary",
+                                      )}
                                     />
-                                    <span>You are currently checked out on another branch.</span>
+                                  );
+                                })()}
+                                <div
+                                  onDoubleClick={(event) => {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    startRename(thread);
+                                  }}
+                                  className={cn(
+                                    "truncate text-sm font-semibold tracking-tight transition-colors flex-1 pr-2 group-hover:pr-[170px] group-focus-within:pr-[170px]",
+                                    active
+                                      ? "text-foreground font-semibold"
+                                      : isArchived
+                                        ? "text-muted-foreground/40"
+                                        : "text-muted-foreground/60 group-hover:text-foreground",
+                                  )}
+                                >
+                                  {thread.title}
+                                </div>
+                                {section === "settled" && (
+                                  <span className="shrink-0 text-[11px] font-normal text-muted-foreground/45 transition-opacity group-hover:opacity-0 group-focus-within:opacity-0">
+                                    {(() => {
+                                      const age =
+                                        Date.now() -
+                                        new Date(thread.updatedAt ?? thread.createdAt).getTime();
+                                      const days = Math.floor(age / 86_400_000);
+                                      if (days > 0) return `${days}d`;
+                                      const hours = Math.floor(age / 3_600_000);
+                                      if (hours > 0) return `${hours}h`;
+                                      return `${Math.max(1, Math.floor(age / 60_000))}m`;
+                                    })()}
+                                  </span>
+                                )}
+                              </div>
+                              {section !== "settled" && (
+                                <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground/55 pr-2 group-hover:pr-[170px] group-focus-within:pr-[170px] transition-all">
+                                  {section === "snoozed" ? (
+                                    <Clock3Icon className="size-3 shrink-0 text-muted-foreground/60" />
+                                  ) : thread.branch ? (
+                                    <GitBranchIcon className="size-3 shrink-0 text-muted-foreground/60 group-hover:text-foreground/75" />
+                                  ) : (
+                                    <AssistantBubbleIcon className="size-3 shrink-0 text-muted-foreground/60 group-hover:text-foreground/75" />
+                                  )}
+                                  <span className="truncate">
+                                    {section === "snoozed"
+                                      ? `Wakes at ${wakeLabel ?? "the scheduled time"}`
+                                      : (thread.branch ??
+                                        (deriveThreadAttention(thread)?.spin
+                                          ? "Working"
+                                          : thread.error
+                                            ? "Needs attention"
+                                            : threadIsSnoozed
+                                              ? "Snoozed"
+                                              : lifecycleEntry.pinnedAt
+                                                ? "Pinned"
+                                                : "Active"))}
+                                  </span>
+                                </div>
+                              )}
+                            </TooltipTrigger>
+                            <TooltipPopup side="right" align="start" className="w-72 p-3">
+                              {threadInspector}
+                              <div className="hidden space-y-2 text-xs">
+                                <div className="flex items-start justify-between gap-3 border-b border-border/50 pb-2">
+                                  <p className="font-semibold leading-5 text-foreground">
+                                    {thread.title}
+                                  </p>
+                                  <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium capitalize text-muted-foreground">
+                                    {accessibleState}
+                                  </span>
+                                </div>
+                                <p className="flex items-center gap-2 text-muted-foreground">
+                                  <FolderSearchIcon aria-hidden="true" className="size-3.5" />
+                                  <span className="truncate">{props.project.name}</span>
+                                </p>
+                                {thread.branch && (
+                                  <p className="flex items-center gap-2 text-muted-foreground">
+                                    <GitBranchIcon aria-hidden="true" className="size-3.5" />
+                                    <span className="truncate">Thread branch: {thread.branch}</span>
                                   </p>
                                 )}
-                              <p className="flex items-center gap-2 text-muted-foreground">
-                                <MonitorIcon aria-hidden="true" className="size-3.5" />
-                                <span className="truncate">
-                                  {thread.worktreePath ?? props.project.cwd}
-                                </span>
-                              </p>
-                              <p className="flex items-center gap-2 text-muted-foreground">
-                                <ProviderIcon
-                                  instanceId={thread.modelSelection.instanceId}
-                                  provider={thread.session?.provider}
-                                  className="size-3.5"
-                                />
-                                {thread.modelSelection.instanceId} · {thread.modelSelection.model}
-                              </p>
-                              <p className="text-muted-foreground/70">
-                                Local workspace · {thread.runtimeMode}
-                              </p>
-                              <p className="text-muted-foreground/70">
-                                {section === "settled"
-                                  ? "Settled"
-                                  : threadIsSnoozed
-                                    ? "Snoozed"
-                                    : lifecycleEntry.pinnedAt
-                                      ? "Pinned"
-                                      : "Active"}
-                              </p>
-                              {section === "snoozed" && wakeLabel && (
-                                <p className="flex items-center gap-2 rounded-md bg-blue-500/10 p-2 text-blue-600 dark:text-blue-400">
-                                  <Clock3Icon aria-hidden="true" className="size-3.5 shrink-0" />
-                                  Wakes automatically at {wakeLabel}
+                                {projectGitStatusQuery.data?.branch && (
+                                  <p className="flex items-center gap-2 text-muted-foreground">
+                                    <GitBranchIcon aria-hidden="true" className="size-3.5" />
+                                    <span className="truncate">
+                                      Checked out: {projectGitStatusQuery.data.branch}
+                                    </span>
+                                  </p>
+                                )}
+                                {thread.branch &&
+                                  projectGitStatusQuery.data?.branch &&
+                                  thread.branch !== projectGitStatusQuery.data.branch && (
+                                    <p className="flex items-start gap-2 rounded-md bg-amber-500/10 p-2 text-amber-700 dark:text-amber-400">
+                                      <TriangleAlertIcon
+                                        aria-hidden="true"
+                                        className="mt-0.5 size-3.5 shrink-0"
+                                      />
+                                      <span>You are currently checked out on another branch.</span>
+                                    </p>
+                                  )}
+                                <p className="flex items-center gap-2 text-muted-foreground">
+                                  <MonitorIcon aria-hidden="true" className="size-3.5" />
+                                  <span className="truncate">
+                                    {thread.worktreePath ?? props.project.cwd}
+                                  </span>
                                 </p>
-                              )}
-                            </div>
-                          </TooltipPopup>
-                        </Tooltip>
+                                <p className="flex items-center gap-2 text-muted-foreground">
+                                  <ProviderIcon
+                                    instanceId={thread.modelSelection.instanceId}
+                                    provider={thread.session?.provider}
+                                    className="size-3.5"
+                                  />
+                                  {thread.modelSelection.instanceId} · {thread.modelSelection.model}
+                                </p>
+                                <p className="text-muted-foreground/70">
+                                  Local workspace · {thread.runtimeMode}
+                                </p>
+                                <p className="text-muted-foreground/70">
+                                  {section === "settled"
+                                    ? "Settled"
+                                    : threadIsSnoozed
+                                      ? "Snoozed"
+                                      : lifecycleEntry.pinnedAt
+                                        ? "Pinned"
+                                        : "Active"}
+                                </p>
+                                {section === "snoozed" && wakeLabel && (
+                                  <p className="flex items-center gap-2 rounded-md bg-blue-500/10 p-2 text-blue-600 dark:text-blue-400">
+                                    <Clock3Icon aria-hidden="true" className="size-3.5 shrink-0" />
+                                    Wakes automatically at {wakeLabel}
+                                  </p>
+                                )}
+                              </div>
+                            </TooltipPopup>
+                          </Tooltip>
+                        )}
                         <div
                           className={cn(
                             "absolute right-1.5 top-1/2 z-10 flex h-7 -translate-y-1/2 items-stretch overflow-hidden rounded-full border border-border/80 bg-card/95 shadow-md shadow-black/15 backdrop-blur-md transition-all duration-150 dark:border-zinc-700/80 dark:bg-zinc-800/95 dark:shadow-black/50",
-                            openThreadMenuId === thread.id
-                              ? "pointer-events-auto opacity-100"
-                              : "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100",
+                            isRenaming
+                              ? "hidden"
+                              : openThreadMenuId === thread.id
+                                ? "pointer-events-auto opacity-100"
+                                : "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100",
                           )}
                         >
                           {!isArchived && (
@@ -2719,6 +2929,16 @@ function AgentsThreadList(props: {
                                     <Columns2Icon className="size-3.5" />
                                     Open to the side
                                   </MenuItem>
+                                  <MenuItem
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      setOpenThreadMenuId(null);
+                                      startRename(thread);
+                                    }}
+                                  >
+                                    <PencilIcon className="size-3.5" />
+                                    Rename thread
+                                  </MenuItem>
                                   <MenuItem onClick={() => void dispatchLifecycle(thread, "pin")}>
                                     <PinIcon className="size-3.5" />
                                     {lifecycleEntry.pinnedAt ? "Unpin thread" : "Pin thread"}
@@ -2787,10 +3007,22 @@ function AgentsThreadList(props: {
                                 </>
                               )}
                               {isArchived ? (
-                                <MenuItem onClick={() => void props.onUnarchiveThread(thread)}>
-                                  <ArchiveRestoreIcon className="size-3.5" />
-                                  Unarchive thread
-                                </MenuItem>
+                                <>
+                                  <MenuItem
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      setOpenThreadMenuId(null);
+                                      startRename(thread);
+                                    }}
+                                  >
+                                    <PencilIcon className="size-3.5" />
+                                    Rename thread
+                                  </MenuItem>
+                                  <MenuItem onClick={() => void props.onUnarchiveThread(thread)}>
+                                    <ArchiveRestoreIcon className="size-3.5" />
+                                    Unarchive thread
+                                  </MenuItem>
+                                </>
                               ) : (
                                 <MenuItem onClick={() => void props.onArchiveThread(thread)}>
                                   <ArchiveIcon className="size-3.5" />
@@ -11185,7 +11417,6 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
   const installedExtensions = useInstalledExtensions();
   useDesktopIconThemeSync();
   useAutoRefreshModelsOnStartup();
-  const openAddProjectCommandPalette = useOpenAddProjectCommandPalette();
   const navigate = useNavigate();
   const location = useLocation();
   const [isSettingsNavigationPending, setIsSettingsNavigationPending] = useState(false);
@@ -11600,55 +11831,80 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
   const routeTerminalState = useThreadTerminalState(routeThreadId ?? null);
   const terminalOpen = routeTerminalState?.terminalOpen ?? false;
 
-  const handleCreateProject = useCallback(async () => {
-    const api = readNativeApi();
-    if (!api) return;
-    const cwd = await api.dialogs.pickFolder();
-    if (!cwd) return;
-    const existing = projects.find((project) => project.cwd === cwd);
-    if (existing) {
+  const handleCreateProject = useCallback(
+    async (initializeGit = false) => {
+      const api = readNativeApi();
+      if (!api) return;
+      const cwd = await api.dialogs.pickFolder();
+      if (!cwd) return;
+      if (initializeGit) await api.git.init({ cwd });
+      const existing = projects.find((project) => project.cwd === cwd);
+      if (existing) {
+        if (activePendingTabId) {
+          // Resolve the pending tab into the existing project at the same slot.
+          resolvePendingTab(activePendingTabId, existing.id);
+          setActiveTool(existing.id, "agents");
+          await navigate({ to: "/" });
+        } else {
+          await focusProject(existing.id);
+        }
+        return;
+      }
+
+      const projectId = newProjectId();
+      const createdAt = new Date().toISOString();
+      await api.orchestration.dispatchCommand({
+        type: "project.create",
+        commandId: newCommandId(),
+        projectId,
+        title: basenameOfPath(cwd),
+        workspaceRoot: cwd,
+        defaultModelSelection: makeAppModelSelection("codex", DEFAULT_MODEL),
+        createdAt,
+      });
       if (activePendingTabId) {
-        // Resolve the pending tab into the existing project at the same slot.
-        resolvePendingTab(activePendingTabId, existing.id);
-        setActiveTool(existing.id, "agents");
+        // Convert the pending slot into a real project tab.
+        resolvePendingTab(activePendingTabId, projectId);
+        setActiveTool(projectId, "code");
         await navigate({ to: "/" });
       } else {
-        await focusProject(existing.id);
+        openProject(projectId);
+        setActiveProject(projectId);
+        setActiveTool(projectId, "code");
+        await navigate({ to: "/" });
       }
-      return;
-    }
+    },
+    [
+      activePendingTabId,
+      focusProject,
+      navigate,
+      openProject,
+      projects,
+      resolvePendingTab,
+      setActiveProject,
+      setActiveTool,
+    ],
+  );
 
-    const projectId = newProjectId();
-    const createdAt = new Date().toISOString();
-    await api.orchestration.dispatchCommand({
-      type: "project.create",
-      commandId: newCommandId(),
-      projectId,
-      title: basenameOfPath(cwd),
-      workspaceRoot: cwd,
-      defaultModelSelection: makeAppModelSelection("codex", DEFAULT_MODEL),
-      createdAt,
-    });
-    if (activePendingTabId) {
-      // Convert the pending slot into a real project tab.
-      resolvePendingTab(activePendingTabId, projectId);
-      setActiveTool(projectId, "code");
-      await navigate({ to: "/" });
-    } else {
-      openProject(projectId);
-      setActiveProject(projectId);
-      setActiveTool(projectId, "code");
-      await navigate({ to: "/" });
+  const awaitingTourProject = useGuidedTourStore(
+    (state) => state.isStarted && !state.isDismissed && state.currentStepIndex === 0,
+  );
+  useEffect(() => {
+    if (!threadsHydrated || embeddedMode.enabled) return;
+    const tour = useGuidedTourStore.getState();
+    if (!activeProject?.id && projects.length === 0 && !tour.isStarted && !tour.isDismissed) {
+      tour.resetTour();
+    } else if (awaitingTourProject && !isActivePendingTab && activeProject?.id) {
+      tour.advanceIfAtStep("add_project");
+      tour.setCollapsed(false);
     }
   }, [
-    activePendingTabId,
-    focusProject,
-    navigate,
-    openProject,
-    projects,
-    resolvePendingTab,
-    setActiveProject,
-    setActiveTool,
+    activeProject?.id,
+    awaitingTourProject,
+    embeddedMode.enabled,
+    isActivePendingTab,
+    projects.length,
+    threadsHydrated,
   ]);
 
   // Browser-like tab keyboard shortcuts, driven by application-menu accelerators
@@ -11737,17 +11993,32 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
         case "tab-close":
           if (activePendingTabId) {
             closePendingTab(activePendingTabId);
+            const currentSession = useWorkspaceShellStore.getState().session;
+            if (currentSession.activePendingTabId) {
+              void navigate({ to: "/" });
+            } else if (currentSession.activeProjectId) {
+              void focusProject(currentSession.activeProjectId);
+            }
           } else if (activeProjectId) {
             const closingId = activeProjectId;
             void requestCloseProject(closingId).then((closed) => {
               if (!closed) return;
-              const remainingProjectIds = tabShortcutStateRef.current.openProjectIds.filter(
-                (id) => id !== closingId,
-              );
-              const fallbackProjectId = remainingProjectIds[remainingProjectIds.length - 1] ?? null;
+              const currentSession = useWorkspaceShellStore.getState().session;
+              const fallbackProjectId =
+                currentSession.openProjectIds[currentSession.openProjectIds.length - 1] ?? null;
               if (fallbackProjectId) {
                 void focusProject(fallbackProjectId);
               } else {
+                const fallbackPendingId =
+                  currentSession.activePendingTabId ??
+                  currentSession.pendingTabIds[currentSession.pendingTabIds.length - 1] ??
+                  null;
+                if (fallbackPendingId) {
+                  openPendingTab(fallbackPendingId);
+                } else {
+                  const pendingId = randomUUID();
+                  openPendingTab(pendingId);
+                }
                 void navigate({ to: "/" });
               }
             });
@@ -11797,7 +12068,7 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
   );
   ensureProjectForWorkspaceRootRef.current = ensureProjectForWorkspaceRoot;
 
-  const [cloneDialogOpen, setCloneDialogOpen] = useState(false);
+  const openProjectSourcePalette = useOpenAddProjectCommandPalette();
   const handleClonedRepository = useCallback(
     async (clonedPath: string) => {
       const projectId = await ensureProjectForWorkspaceRoot(clonedPath);
@@ -11817,6 +12088,22 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
       setActiveTool,
     ],
   );
+
+  const openProjectSources = () =>
+    openProjectSourcePalette({
+      openClonedProject: handleClonedRepository,
+      openLocalProject: async (initializeGit) => {
+        try {
+          await handleCreateProject(initializeGit);
+        } catch (error) {
+          toastManager.add({
+            type: "error",
+            title: initializeGit ? "Could not create project" : "Could not open folder",
+            description: error instanceof Error ? error.message : undefined,
+          });
+        }
+      },
+    });
 
   const handleOpenProjectFile = useCallback(async () => {
     const api = readNativeApi();
@@ -13108,7 +13395,7 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
         recentProjects={recentProjects}
         onCreateProject={() => void handleCreateProject()}
         onOpenFile={() => void handleOpenProjectFile()}
-        onCloneGit={() => openAddProjectCommandPalette()}
+        onCloneGit={openProjectSources}
         onOpenSettings={openSettings}
         onSelectProject={(project) => void handleRecentProject(project)}
       />
@@ -13128,7 +13415,7 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
         recentProjects={recentProjects}
         onCreateProject={() => void handleCreateProject()}
         onOpenFile={() => void handleOpenProjectFile()}
-        onCloneGit={() => openAddProjectCommandPalette()}
+        onCloneGit={openProjectSources}
         onOpenSettings={openSettings}
         onSelectProject={(project) => void focusProject(project.id)}
       />
@@ -13409,11 +13696,6 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
             setToolToKeep(null);
           }}
         />
-        <CloneRepositoryDialog
-          open={cloneDialogOpen}
-          onOpenChange={setCloneDialogOpen}
-          onCloned={handleClonedRepository}
-        />
         {!threadsHydrated || shouldHideShellChrome ? null : isInterfaceStudy ? (
           !isSettingsSurfaceActive ? (
             <InterfaceStudyTopBar
@@ -13430,14 +13712,23 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
                 const wasActive = workspaceState.session.activeProjectId === projectId;
                 void requestCloseProject(projectId).then((closed) => {
                   if (!closed || !wasActive) return;
-                  const remainingProjectIds = workspaceState.session.openProjectIds.filter(
-                    (id) => id !== projectId,
-                  );
+                  const currentSession = useWorkspaceShellStore.getState().session;
+                  const remainingProjectIds = currentSession.openProjectIds;
                   const fallbackProjectId =
                     remainingProjectIds[remainingProjectIds.length - 1] ?? null;
                   if (fallbackProjectId) {
                     void focusProject(fallbackProjectId);
                   } else {
+                    const fallbackPendingId =
+                      currentSession.activePendingTabId ??
+                      currentSession.pendingTabIds[currentSession.pendingTabIds.length - 1] ??
+                      null;
+                    if (fallbackPendingId) {
+                      openPendingTab(fallbackPendingId);
+                    } else {
+                      const pendingId = randomUUID();
+                      openPendingTab(pendingId);
+                    }
                     void navigate({ to: "/" });
                   }
                 });
@@ -13453,6 +13744,12 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
               }}
               onClosePendingTab={(pendingId) => {
                 closePendingTab(pendingId);
+                const currentSession = useWorkspaceShellStore.getState().session;
+                if (currentSession.activePendingTabId) {
+                  void navigate({ to: "/" });
+                } else if (currentSession.activeProjectId) {
+                  void focusProject(currentSession.activeProjectId);
+                }
               }}
               onSelectTool={(toolId) => void handleSelectTool(toolId)}
               onCloseTool={(id) => void requestCloseTool(id)}
@@ -13474,14 +13771,23 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
                 const wasActive = workspaceState.session.activeProjectId === projectId;
                 void requestCloseProject(projectId).then((closed) => {
                   if (!closed || !wasActive) return;
-                  const remainingProjectIds = workspaceState.session.openProjectIds.filter(
-                    (id) => id !== projectId,
-                  );
+                  const currentSession = useWorkspaceShellStore.getState().session;
+                  const remainingProjectIds = currentSession.openProjectIds;
                   const fallbackProjectId =
                     remainingProjectIds[remainingProjectIds.length - 1] ?? null;
                   if (fallbackProjectId) {
                     void focusProject(fallbackProjectId);
                   } else {
+                    const fallbackPendingId =
+                      currentSession.activePendingTabId ??
+                      currentSession.pendingTabIds[currentSession.pendingTabIds.length - 1] ??
+                      null;
+                    if (fallbackPendingId) {
+                      openPendingTab(fallbackPendingId);
+                    } else {
+                      const pendingId = randomUUID();
+                      openPendingTab(pendingId);
+                    }
                     void navigate({ to: "/" });
                   }
                 });
@@ -13497,6 +13803,12 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
               }}
               onClosePendingTab={(pendingId) => {
                 closePendingTab(pendingId);
+                const currentSession = useWorkspaceShellStore.getState().session;
+                if (currentSession.activePendingTabId) {
+                  void navigate({ to: "/" });
+                } else if (currentSession.activeProjectId) {
+                  void focusProject(currentSession.activeProjectId);
+                }
               }}
               showSettings={
                 !isSettingsSurfaceActive && Boolean(activeProject) && availableTools.length <= 1
@@ -13522,6 +13834,45 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
               />
             ) : null}
           </>
+        )}
+
+        {!shouldHideShellChrome && !isSettingsNavigationPending && threadsHydrated && (
+          <WorkspaceTour
+            tools={availableTools}
+            activeToolId={activeTool?.id}
+            hasProject={Boolean(activeProject) && !isActivePendingTab}
+            settingsSection={
+              isSettingsRoute
+                ? (new URLSearchParams(location.searchStr).get("section") ?? "")
+                : null
+            }
+            settingsTool={readTourProjectTool(location.searchStr)}
+            onOpenSettings={(section, tourTool) => {
+              void navigate({
+                to: "/settings",
+                search: { section, ...(tourTool ? { tourTool } : {}) },
+              });
+            }}
+            onReturnToProject={() => void navigate({ to: "/" })}
+            onSelectTool={(toolId) => {
+              if (isSettingsRoute) void navigate({ to: "/" });
+              void handleSelectTool(toolId);
+            }}
+            canLeaveSettings={() => {
+              if (
+                !isSettingsRoute ||
+                !Object.values(appAtomRegistry.get(settingsDraftRegistryAtom)).some(
+                  (draft) => draft.isDirty,
+                )
+              )
+                return true;
+              toastManager.add({
+                type: "warning",
+                title: "Save or cancel your changes before continuing the tour",
+              });
+              return false;
+            }}
+          />
         )}
 
         <div

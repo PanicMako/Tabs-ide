@@ -14,6 +14,8 @@ import {
   PinIcon,
   Clock3Icon,
   CircleCheckIcon,
+  CheckIcon,
+  XIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import {
@@ -54,6 +56,7 @@ import {
   type ThreadCurrentPullRequest,
 } from "@tabs/shared/threadPullRequests";
 import { useLocation, useNavigate, useParams } from "@tanstack/react-router";
+import { useWorkspaceShellStore } from "../workspaceShellStore";
 import {
   type SidebarProjectSortOrder,
   type SidebarThreadSortOrder,
@@ -61,6 +64,7 @@ import {
 import { isElectron } from "../env";
 import { APP_STAGE_LABEL, APP_VERSION } from "../branding";
 import {
+  cn,
   isLinuxPlatform,
   isMacPlatform,
   isWindowsPlatform,
@@ -79,6 +83,7 @@ import {
   reorderProjectsInAtoms,
   toggleProjectInAtoms,
 } from "../state/readModel";
+import { appAtomRegistry } from "../state/atomRegistry";
 import { useKeybindings } from "../state/settings";
 import { shortcutLabelForCommand } from "../keybindings";
 import { derivePendingApprovals, derivePendingUserInputs } from "../session-logic";
@@ -130,6 +135,7 @@ import { isNonEmpty as isNonEmptyString } from "effect/String";
 import {
   getFallbackThreadIdAfterDelete,
   getVisibleThreadsForProject,
+  normalizeThreadRenameTitle,
   resolveProjectStatusIndicator,
   resolveSidebarNewThreadEnvMode,
   resolveThreadRowClassName,
@@ -455,6 +461,23 @@ export default function Sidebar() {
   >(() => new Set());
   const renamingCommittedRef = useRef(false);
   const renamingInputRef = useRef<HTMLInputElement | null>(null);
+  const canBlurCommitRef = useRef(false);
+
+  useEffect(() => {
+    if (!renamingThreadId) {
+      canBlurCommitRef.current = false;
+      return;
+    }
+    const timer = setTimeout(() => {
+      const input = renamingInputRef.current;
+      if (input) {
+        input.focus();
+        input.select();
+      }
+      canBlurCommitRef.current = true;
+    }, 60);
+    return () => clearTimeout(timer);
+  }, [renamingThreadId]);
   const dragInProgressRef = useRef(false);
   const suppressProjectClickAfterDragRef = useRef(false);
   const [desktopUpdateState, setDesktopUpdateState] = useState<DesktopUpdateState | null>(null);
@@ -713,6 +736,8 @@ export default function Sidebar() {
   };
 
   const cancelRename = useCallback(() => {
+    canBlurCommitRef.current = false;
+    renamingCommittedRef.current = false;
     setRenamingThreadId(null);
     renamingInputRef.current = null;
   }, []);
@@ -724,36 +749,61 @@ export default function Sidebar() {
         setRenamingThreadId((current) => {
           if (current !== threadId) return current;
           renamingInputRef.current = null;
+          canBlurCommitRef.current = false;
           return null;
         });
       };
 
-      const trimmed = newTitle.trim();
-      if (trimmed.length === 0) {
+      const normalized = normalizeThreadRenameTitle(newTitle, originalTitle);
+      if (normalized.status === "empty") {
         toastManager.add({ type: "warning", title: "Thread title cannot be empty" });
         finishRename();
         return;
       }
-      if (trimmed === originalTitle) {
+      if (normalized.status === "unchanged") {
         finishRename();
         return;
       }
+
+      // Optimistic update for instantaneous UI responsiveness
+      const previousTitle = thread.title;
+      appAtomRegistry.update(readModelStateAtom, (state) => ({
+        ...state,
+        threads: state.threads.map((t) =>
+          t.id === threadId && t.environmentId === thread.environmentId
+            ? { ...t, title: normalized.title }
+            : t,
+        ),
+      }));
+
       try {
         const api = await environmentApi(thread.environmentId);
         await api.orchestration.dispatchCommand({
           type: "thread.metadata.update",
           commandId: newCommandId(),
           threadId,
-          title: trimmed,
+          title: normalized.title,
         });
       } catch (error) {
+        // Rollback optimistic update on failure
+        appAtomRegistry.update(readModelStateAtom, (state) => ({
+          ...state,
+          threads: state.threads.map((t) =>
+            t.id === threadId &&
+            t.environmentId === thread.environmentId &&
+            t.title === normalized.title
+              ? { ...t, title: previousTitle }
+              : t,
+          ),
+        }));
         toastManager.add({
           type: "error",
           title: "Failed to rename thread",
           description: error instanceof Error ? error.message : "An error occurred.",
         });
+      } finally {
+        finishRename();
       }
-      finishRename();
     },
     [],
   );
@@ -1001,9 +1051,10 @@ export default function Sidebar() {
       }
 
       if (clicked === "rename") {
+        canBlurCommitRef.current = false;
+        renamingCommittedRef.current = false;
         setRenamingThreadId(threadId);
         setRenamingTitle(thread.title);
-        renamingCommittedRef.current = false;
         return;
       }
       if (clicked === "regenerate-title") {
@@ -1249,16 +1300,12 @@ export default function Sidebar() {
         (thread) =>
           thread.projectId === projectId && thread.environmentId === project.environmentId,
       );
-      if (projectThreads.length > 0) {
-        toastManager.add({
-          type: "warning",
-          title: "Project is not empty",
-          description: "Delete all threads in this project before removing it.",
-        });
-        return;
-      }
 
-      const confirmed = await confirm(`Remove project "${project.name}"?`);
+      const confirmPrompt =
+        projectThreads.length > 0
+          ? `Remove project "${project.name}" and all its threads?`
+          : `Remove project "${project.name}"?`;
+      const confirmed = await confirm(confirmPrompt);
       if (!confirmed) return;
 
       try {
@@ -1272,6 +1319,8 @@ export default function Sidebar() {
           commandId: newCommandId(),
           projectId,
         });
+        useWorkspaceShellStore.getState().closeProject(projectId);
+        void navigate({ to: "/" });
       } catch (error) {
         const message = error instanceof Error ? error.message : "Unknown error removing project.";
         console.error("Failed to remove project", { projectId, error });
@@ -1282,7 +1331,14 @@ export default function Sidebar() {
         });
       }
     },
-    [clearComposerDraftForThread, clearProjectDraftThreadId, getDraftThreadByProjectId, threads],
+    [
+      clearComposerDraftForThread,
+      clearProjectDraftThreadId,
+      confirm,
+      getDraftThreadByProjectId,
+      navigate,
+      threads,
+    ],
   );
 
   const projectDnDSensors = useSensors(
@@ -1526,36 +1582,75 @@ export default function Sidebar() {
                 <CircleCheckIcon aria-label="Settled" className="size-3 text-muted-foreground/50" />
               )}
               {renamingThreadId === thread.id ? (
-                <input
-                  ref={(el) => {
-                    if (el && renamingInputRef.current !== el) {
-                      renamingInputRef.current = el;
-                      el.focus();
-                      el.select();
-                    }
-                  }}
-                  className="min-w-0 flex-1 truncate text-xs bg-transparent outline-none border border-ring rounded px-0.5"
-                  value={renamingTitle}
-                  onChange={(e) => setRenamingTitle(e.target.value)}
-                  onKeyDown={(e) => {
-                    e.stopPropagation();
-                    if (e.key === "Enter") {
-                      e.preventDefault();
+                <div
+                  className="flex items-center w-full min-w-0 rounded-md border border-primary/40 bg-background pl-1.5 pr-1 py-0.5 gap-1 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/40"
+                  onClick={(event) => event.stopPropagation()}
+                  onBlur={(event) => {
+                    if (
+                      !event.currentTarget.contains(event.relatedTarget) &&
+                      canBlurCommitRef.current &&
+                      !renamingCommittedRef.current
+                    ) {
                       renamingCommittedRef.current = true;
                       void commitRename(thread, renamingTitle, thread.title);
-                    } else if (e.key === "Escape") {
-                      e.preventDefault();
+                    }
+                  }}
+                  onKeyDown={(event) => {
+                    event.stopPropagation();
+                    if (event.key !== "Escape" || event.nativeEvent.isComposing) return;
+                    event.preventDefault();
+                    cancelRename();
+                  }}
+                >
+                  <input
+                    ref={renamingInputRef}
+                    className="min-w-0 flex-1 bg-transparent border-none p-0 text-xs font-medium text-foreground focus:outline-none focus:ring-0"
+                    value={renamingTitle}
+                    onChange={(e) => setRenamingTitle(e.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
+                      event.preventDefault();
+                      if (renamingCommittedRef.current) return;
                       renamingCommittedRef.current = true;
-                      cancelRename();
-                    }
-                  }}
-                  onBlur={() => {
-                    if (!renamingCommittedRef.current) {
                       void commitRename(thread, renamingTitle, thread.title);
-                    }
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                />
+                    }}
+                    aria-label="Rename thread"
+                  />
+                  <div className="flex items-center gap-0.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        cancelRename();
+                      }}
+                      aria-label="Cancel rename"
+                      title="Cancel (Esc)"
+                      className="flex size-4.5 items-center justify-center rounded text-muted-foreground/70 hover:bg-muted/80 hover:text-foreground transition-all active:scale-95 cursor-pointer"
+                    >
+                      <XIcon className="size-2.5 stroke-[2.5]" />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={renamingTitle.trim().length === 0}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        if (renamingCommittedRef.current) return;
+                        renamingCommittedRef.current = true;
+                        void commitRename(thread, renamingTitle, thread.title);
+                      }}
+                      aria-label="Confirm rename"
+                      title="Save (Enter)"
+                      className={cn(
+                        "flex size-4.5 items-center justify-center rounded transition-all active:scale-95 cursor-pointer",
+                        renamingTitle.trim().length === 0
+                          ? "opacity-30 cursor-not-allowed text-muted-foreground"
+                          : "bg-primary text-primary-foreground hover:bg-primary/90 shadow-xs",
+                      )}
+                    >
+                      <CheckIcon className="size-2.5 stroke-[2.5]" />
+                    </button>
+                  </div>
+                </div>
               ) : (
                 <span className="min-w-0 flex-1 truncate text-xs">{thread.title}</span>
               )}

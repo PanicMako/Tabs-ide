@@ -176,19 +176,16 @@ describe("resolveFirstRunDecision", () => {
   it("returns app when onboarding is disabled", () => {
     const result = resolveFirstRunDecision({ ...baseInput, enabled: false });
     expect(result.decision).toBe("app");
-    expect(result.persistCompletion).toBe(false);
   });
 
   it("returns app when onboarding has already been completed", () => {
     const result = resolveFirstRunDecision({ ...baseInput, completed: true });
     expect(result.decision).toBe("app");
-    expect(result.persistCompletion).toBe(false);
   });
 
   it("returns pending when client settings are not yet hydrated", () => {
     const result = resolveFirstRunDecision({ ...baseInput, hydrated: false });
     expect(result.decision).toBe("pending");
-    expect(result.persistCompletion).toBe(false);
   });
 
   it("routes to app for existing users with multiple projects", () => {
@@ -199,7 +196,6 @@ describe("resolveFirstRunDecision", () => {
       workspaceFresh: false,
     });
     expect(result.decision).toBe("app");
-    expect(result.persistCompletion).toBe(true);
   });
 
   it("routes to app for existing users with multiple threads", () => {
@@ -210,7 +206,6 @@ describe("resolveFirstRunDecision", () => {
       workspaceFresh: false,
     });
     expect(result.decision).toBe("app");
-    expect(result.persistCompletion).toBe(true);
   });
 
   it("returns pending while threads are not yet hydrated", () => {
@@ -219,16 +214,14 @@ describe("resolveFirstRunDecision", () => {
       threadsHydrated: false,
     });
     expect(result.decision).toBe("pending");
-    expect(result.persistCompletion).toBe(false);
   });
 
   it("routes fresh install to wizard", () => {
     const result = resolveFirstRunDecision(baseInput);
     expect(result.decision).toBe("wizard");
-    expect(result.persistCompletion).toBe(false);
   });
 
-  it("routes non-fresh install with single active project to app and persists completion", () => {
+  it("routes non-fresh install with single active project to app", () => {
     const result = resolveFirstRunDecision({
       ...baseInput,
       projectCount: 1,
@@ -236,6 +229,5 @@ describe("resolveFirstRunDecision", () => {
       workspaceFresh: false,
     });
     expect(result.decision).toBe("app");
-    expect(result.persistCompletion).toBe(true);
   });
 });

@@ -1,13 +1,7 @@
 import { useAtomValue } from "@effect/atom-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { useSettingsViewState } from "../../state/scopedStateStore";
-
-import {
-  closeWelcomeWizard,
-  manualOnboardingActiveAtom,
-  useCompleteOnboarding,
-} from "../../onboarding/firstRun";
+import { closeWelcomeWizard, manualOnboardingActiveAtom } from "../../onboarding/firstRun";
 import {
   type FirstRunGateState,
   isFreshFirstRunWorkspace,
@@ -15,8 +9,9 @@ import {
   transitionFirstRunGateState,
 } from "../../onboarding/firstRun.logic";
 import { readModelStateAtom } from "../../state/readModel";
-import { useClientSettings } from "../../state/settings";
+import { isClientSettingsHydrated, useClientSettings } from "../../state/settings";
 import { threadsHydratedAtom } from "../../state/threads";
+import { useGuidedTourStore } from "../../stores/guidedTourStore";
 import { WelcomeWizard } from "./WelcomeWizard";
 
 const FIRST_RUN_DECISION_TIMEOUT_MS = 4_000;
@@ -28,13 +23,11 @@ export interface FirstRunGateProps {
 
 export function FirstRunGate({ enabled = true, children }: FirstRunGateProps) {
   const navigate = useNavigate();
-  const [, updateSettingsViewState] = useSettingsViewState();
   const clientSettings = useClientSettings();
   const onboardingCompletedAt = clientSettings.onboardingCompletedAt;
   const manualOnboardingActive = useAtomValue(manualOnboardingActiveAtom);
   const threadsHydrated = useAtomValue(threadsHydratedAtom);
   const readModel = useAtomValue(readModelStateAtom);
-  const completeOnboarding = useCompleteOnboarding();
 
   const projects = readModel.projects;
   const threads = readModel.threads;
@@ -44,9 +37,11 @@ export function FirstRunGate({ enabled = true, children }: FirstRunGateProps) {
     threads,
   });
 
-  const { decision: resolvedDecision, persistCompletion } = resolveFirstRunDecision({
+  const settingsHydrated = isClientSettingsHydrated();
+
+  const { decision: resolvedDecision } = resolveFirstRunDecision({
     enabled,
-    hydrated: true,
+    hydrated: settingsHydrated,
     completed: onboardingCompletedAt !== null,
     threadsHydrated,
     projectCount: projects.length,
@@ -71,24 +66,13 @@ export function FirstRunGate({ enabled = true, children }: FirstRunGateProps) {
       return;
     }
 
-    if (persistCompletion && onboardingCompletedAt === null) {
-      void completeOnboarding().catch(() => undefined);
-    }
-
     setGateState((prev) =>
       transitionFirstRunGateState(prev, {
         type: "evidence",
         decision: resolvedDecision,
       }),
     );
-  }, [
-    completeOnboarding,
-    enabled,
-    manualOnboardingActive,
-    onboardingCompletedAt,
-    persistCompletion,
-    resolvedDecision,
-  ]);
+  }, [enabled, manualOnboardingActive, resolvedDecision]);
 
   // Stalled safety timer: after 4s timeout, transition to "app" so user is never locked out
   useEffect(() => {
@@ -105,10 +89,13 @@ export function FirstRunGate({ enabled = true, children }: FirstRunGateProps) {
       <div className="fixed inset-0 z-[9990] flex h-screen w-screen bg-background">
         <WelcomeWizard
           onDone={() => {
+            const tour = useGuidedTourStore.getState();
+            if (manualOnboardingActive || (!tour.isStarted && !tour.isDismissed)) {
+              tour.resetTour();
+            }
             closeWelcomeWizard();
             setGateState({ decision: "app", stalled: false });
-            updateSettingsViewState({ activeSection: "themes" });
-            void navigate({ to: "/settings" });
+            void navigate({ to: "/" });
           }}
         />
       </div>

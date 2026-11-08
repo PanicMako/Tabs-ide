@@ -1,11 +1,13 @@
 import { refreshTheme } from "../../hooks/useTheme";
 import { useAtomValue } from "@effect/atom-react";
-import type { DesktopCodeHostState } from "@tabs/contracts";
+import { DEFAULT_MODEL, type DesktopCodeHostState } from "@tabs/contracts";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useCompleteOnboarding } from "../../onboarding/firstRun";
 import { readNativeApi } from "../../nativeApi";
 import { newCommandId, newProjectId, cn } from "../../lib/utils";
+import { makeAppModelSelection } from "../../modelSelection";
+import { basenameOfPath } from "../../vscode-icons";
 import { readModelStateAtom } from "../../state/readModel";
 import { updateClientSettings } from "../../state/settings";
 import { isElectron } from "../../env";
@@ -969,6 +971,32 @@ export function WelcomeWizard({ onDone }: WelcomeWizardProps) {
     }
   }, [playClick]);
 
+  const handleAddProject = useCallback(async () => {
+    void playClick();
+    const api = readNativeApi();
+    if (!api) return;
+    const cwd = await api.dialogs.pickFolder();
+    if (!cwd) return;
+    const existing = projects.find((project) => project.cwd === cwd);
+    if (existing) return;
+
+    const projectId = newProjectId();
+    const createdAt = new Date().toISOString();
+    await api.orchestration
+      .dispatchCommand({
+        type: "project.create",
+        commandId: newCommandId(),
+        projectId,
+        title: basenameOfPath(cwd),
+        workspaceRoot: cwd,
+        defaultModelSelection: makeAppModelSelection("codex", DEFAULT_MODEL),
+        createdAt,
+      })
+      .catch((err) => {
+        console.warn("[Onboarding] Failed to create project", err);
+      });
+  }, [playClick, projects]);
+
   // Cinematic Sci-Fi Hyperspace Jump & Celestial Launch Chime
   const playLaunchChime = useCallback(() => {
     if (!audioCtxRef.current) return;
@@ -1165,8 +1193,9 @@ export function WelcomeWizard({ onDone }: WelcomeWizardProps) {
     setIsSkipping(true);
     playSkipChime();
     stopMusic();
+    void completeOnboarding();
     setTimeout(() => {
-      void completeOnboarding().then(() => onDone?.());
+      onDone?.();
     }, 550);
   }, [isLaunching, isSkipping, playSkipChime, stopMusic, completeOnboarding, onDone]);
 
@@ -1346,6 +1375,7 @@ export function WelcomeWizard({ onDone }: WelcomeWizardProps) {
                 }}
                 onLaunch={triggerLaunch}
                 launching={isLaunching}
+                onAddProject={handleAddProject}
               />
             </div>
           </div>

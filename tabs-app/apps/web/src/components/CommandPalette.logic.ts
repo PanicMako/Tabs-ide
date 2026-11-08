@@ -1,3 +1,4 @@
+import type { WorkspaceProjectSourceActions } from "../commandPaletteContext";
 import {
   type KeybindingCommand,
   type FilesystemBrowseEntry,
@@ -60,7 +61,7 @@ export type CommandPaletteMode = "root" | "root-browse" | "submenu" | "submenu-b
 export type SearchOverlayMode = "command" | "files" | "content";
 
 export type CommandPaletteOpenIntent =
-  | { readonly kind: "add-project" }
+  | { readonly kind: "add-project"; readonly workspace?: WorkspaceProjectSourceActions }
   | {
       readonly kind: "search";
       readonly query: string;
@@ -75,7 +76,7 @@ export interface CommandPaletteUiState {
 export type CommandPaletteUiAction =
   | { readonly _tag: "SetOpen"; readonly open: boolean }
   | { readonly _tag: "ToggleMode"; readonly mode: SearchOverlayMode }
-  | { readonly _tag: "OpenAddProject" }
+  | { readonly _tag: "OpenAddProject"; readonly workspace?: WorkspaceProjectSourceActions }
   | { readonly _tag: "ClearOpenIntent" };
 
 export function reduceCommandPaletteUiState(
@@ -92,7 +93,14 @@ export function reduceCommandPaletteUiState(
         ? { ...state, open: false, openIntent: null }
         : { open: true, mode: action.mode, openIntent: null };
     case "OpenAddProject":
-      return { open: true, mode: "command", openIntent: { kind: "add-project" } };
+      return {
+        open: true,
+        mode: "command",
+        openIntent: {
+          kind: "add-project",
+          ...(action.workspace ? { workspace: action.workspace } : {}),
+        },
+      };
     case "ClearOpenIntent":
       return { ...state, openIntent: null };
   }

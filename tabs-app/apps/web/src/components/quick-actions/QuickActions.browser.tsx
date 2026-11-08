@@ -242,3 +242,28 @@ it("opens the search panel allowing direct URL entry and Go submission", async (
   await page.getByRole("button", { name: "Submit search" }).click();
   expect(execute).toHaveBeenCalledWith("search", "github.com");
 });
+
+it("wraps sector labels inside the narrow side wedges", async () => {
+  await render(
+    <LauncherSurface
+      design="sectors"
+      actions={QUICK_ACTIONS}
+      execute={vi.fn(async () => {})}
+      disabled={() => undefined}
+      preview
+    />,
+  );
+  await page.getByRole("button", { name: "More actions" }).click();
+  const source = document.querySelector<HTMLElement>(
+    '.qa-more-action[aria-label="Source control"]',
+  );
+  const label = source?.querySelector("span");
+  expect(source).toBeTruthy();
+  expect(label?.textContent).toBe("Source control");
+  expect(getComputedStyle(source!).whiteSpace).toBe("normal");
+  expect(source!.scrollWidth).toBeLessThanOrEqual(source!.clientWidth);
+  expect(label!.scrollHeight).toBeLessThanOrEqual(label!.clientHeight);
+  expect(label!.clientHeight).toBeLessThanOrEqual(
+    Math.ceil(2 * parseFloat(getComputedStyle(label!).lineHeight)),
+  );
+});

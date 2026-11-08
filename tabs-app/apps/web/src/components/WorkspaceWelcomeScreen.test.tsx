@@ -33,7 +33,7 @@ describe("WorkspaceWelcomeScreen", () => {
 
     expect(markup).toContain('data-slot="workspace-welcome"');
     expect(markup).toContain("Welcome");
-    expect(markup).toContain("Add Project...");
+    expect(markup).toContain("Open or create project…");
     expect(markup).toContain("Open File...");
     expect(markup).toContain("Clone from Git...");
     expect(markup).toContain("Workspace Settings");
@@ -55,7 +55,7 @@ describe("WorkspaceWelcomeScreen", () => {
           onSelectProject={vi.fn()}
         />,
       );
-      expect(markup).toContain("Add Project...");
+      expect(markup).toContain("Open or create project…");
       expect(markup).toContain("Workspace Settings");
     } finally {
       mockSettingsOnly = false;
@@ -78,12 +78,51 @@ describe("WorkspaceWelcomeScreen", () => {
 
     expect(markup).toContain("Welcome to");
     expect(markup).toContain("Tabs");
-    expect(markup).toContain("Add Project");
+    expect(markup).toContain("Open or create project");
     expect(markup).toContain("Open File");
     expect(markup).toContain("Clone from Git");
     expect(markup).toContain("Workspace Settings");
     expect(markup).toContain("tabs");
     expect(markup).toContain("throttle");
     expect(markup).toContain("2 projects");
+  });
+
+  it("offers the normal project choices and a target for the overlay", () => {
+    mockEditorial = false;
+
+    const markup = renderToStaticMarkup(
+      <WorkspaceWelcomeScreen
+        recentProjects={[]}
+        onCreateProject={vi.fn()}
+        onOpenFile={vi.fn()}
+        onCloneGit={vi.fn()}
+        onOpenSettings={vi.fn()}
+        onSelectProject={vi.fn()}
+      />,
+    );
+
+    expect(markup).toContain("Open or create project…");
+    expect(markup).toContain("Clone from Git...");
+    expect(markup).toContain("Open File...");
+    expect(markup).toContain("data-tour-project-actions");
+    expect(markup).not.toContain("Preview workspace tour");
+    expect(markup).not.toContain("Get to know the tools");
+  });
+
+  it("does not render guided tour callout when recent projects exist", () => {
+    mockEditorial = false;
+
+    const markup = renderToStaticMarkup(
+      <WorkspaceWelcomeScreen
+        recentProjects={dummyProjects}
+        onCreateProject={vi.fn()}
+        onOpenFile={vi.fn()}
+        onCloneGit={vi.fn()}
+        onOpenSettings={vi.fn()}
+        onSelectProject={vi.fn()}
+      />,
+    );
+
+    expect(markup).not.toContain("Workspace tour");
   });
 });

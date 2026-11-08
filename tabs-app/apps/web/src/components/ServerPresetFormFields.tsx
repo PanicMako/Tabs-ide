@@ -121,6 +121,7 @@ export function ServerPresetFormFields(props: {
   removePresetRow?: (id: string) => void;
   index?: number;
   variant?: "card" | "plain";
+  guideNewPreset?: boolean;
 }) {
   const {
     preset,
@@ -201,6 +202,10 @@ export function ServerPresetFormFields(props: {
         <div className="space-y-1.5">
           <div className="text-sm font-medium text-foreground">Label</div>
           <Input
+            aria-label="Preset name"
+            data-tour-setup-step={
+              props.guideNewPreset && !preset.label.trim() ? "preset-name" : undefined
+            }
             value={preset.label}
             onChange={(event) =>
               updatePresetRow(preset.id, (current) => ({
@@ -286,6 +291,15 @@ export function ServerPresetFormFields(props: {
                   {commandIndex + 1}
                 </div>
                 <Input
+                  aria-label={`Preset command ${commandIndex + 1}`}
+                  data-tour-setup-step={
+                    props.guideNewPreset &&
+                    preset.label.trim() &&
+                    commandIndex === 0 &&
+                    !preset.commands.some((step) => step.trim())
+                      ? "preset-command"
+                      : undefined
+                  }
                   value={command}
                   onChange={(event) =>
                     updateCommandStep(preset.id, commandIndex, event.target.value)

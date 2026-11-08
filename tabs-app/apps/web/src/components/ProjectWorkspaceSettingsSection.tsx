@@ -1,3 +1,8 @@
+import {
+  WORKSPACE_SETUP_STEP,
+  type TourProjectTool,
+  useGuidedTourStore,
+} from "../stores/guidedTourStore";
 import { useInstalledExtensions, refreshExtensions } from "../state/extensions";
 import {
   mergeExtensionToolbarTools,
@@ -372,9 +377,32 @@ function SortableToolRow({
   );
 }
 
-export function ProjectWorkspaceSettingsSection() {
+export function ProjectWorkspaceSettingsSection({
+  tourTool = null,
+}: {
+  readonly tourTool?: TourProjectTool | null;
+}) {
+  const showTour = useGuidedTourStore(
+    (state) =>
+      state.isStarted &&
+      !state.isDismissed &&
+      (state.currentStepIndex === WORKSPACE_SETUP_STEP ||
+        (state.currentStepIndex === 1 && tourTool === "preset")),
+  );
   const [deletingTool, setDeletingTool] = useState(false);
-  const [projectToolsTab, setProjectToolsTab] = useState("browser");
+  const [projectToolsTab, setProjectToolsTab] = useState<string>(tourTool ?? "browser");
+  const [savedTourTool, setSavedTourTool] = useState<TourProjectTool | null>(null);
+  const guidedTool =
+    showTour && tourTool
+      ? projectToolsTab === "browser" ||
+        projectToolsTab === "terminal" ||
+        projectToolsTab === "preset"
+        ? projectToolsTab
+        : null
+      : null;
+  const addBrowserRef = useRef<HTMLButtonElement>(null);
+  const addTerminalRef = useRef<HTMLButtonElement>(null);
+  const addPresetRef = useRef<HTMLButtonElement>(null);
   const installedExtensions = useInstalledExtensions();
   const [extensionToggleBusy, setExtensionToggleBusy] = useState(false);
   const { confirmDialog } = useConfirm();
@@ -382,6 +410,27 @@ export function ProjectWorkspaceSettingsSection() {
   const activeProject = useAtomValue(projectsAtom, (state) =>
     activeProjectId ? (state.find((project) => project.id === activeProjectId) ?? null) : null,
   );
+  useEffect(() => {
+    if (tourTool) {
+      setProjectToolsTab(tourTool);
+      setSavedTourTool(null);
+    }
+  }, [tourTool]);
+  useEffect(() => {
+    if (!guidedTool || !activeProjectId) return;
+    const frame = requestAnimationFrame(() => {
+      const button = (
+        guidedTool === "browser"
+          ? addBrowserRef
+          : guidedTool === "terminal"
+            ? addTerminalRef
+            : addPresetRef
+      ).current;
+      button?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [guidedTool, activeProjectId]);
+
   const projectSettings = useProjectWorkspaceSettings(activeProjectId);
   const upsertProjectSettings = workspaceShellActions.upsertProjectSettings;
   const initialCached = activeProjectId ? getProjectWorkspaceDrafts(activeProjectId) : undefined;
@@ -1058,6 +1107,7 @@ export function ProjectWorkspaceSettingsSection() {
     if (!draft) return;
     upsertProjectSettings(activeProjectId, (current) => savePersistedCustomEmbed(current, draft));
     setCustomEmbedDrafts((current) => commitSingleCustomEmbedDraft(current, embedId));
+    if (guidedTool === "browser" && draft.isNew && draft.url.trim()) setSavedTourTool("browser");
   };
 
   const resetSingleCustomEmbed = (embedId: string) => {
@@ -1072,6 +1122,13 @@ export function ProjectWorkspaceSettingsSection() {
     if (!draft) return;
     upsertProjectSettings(activeProjectId, (current) => savePersistedServerProcess(current, draft));
     setServerProcessDrafts((current) => commitSingleServerProcessDraft(current, processId));
+    if (
+      guidedTool === "terminal" &&
+      draft.isNew &&
+      draft.commands.some((command) => command.trim())
+    ) {
+      setSavedTourTool("terminal");
+    }
   };
 
   const resetSingleServerProcess = (processId: string) => {
@@ -1086,6 +1143,13 @@ export function ProjectWorkspaceSettingsSection() {
     if (!draft) return;
     upsertProjectSettings(activeProjectId, (current) => savePersistedServerPreset(current, draft));
     setServerPresetDrafts((current) => commitSingleServerPresetDraft(current, presetId));
+    if (
+      guidedTool === "preset" &&
+      draft.isNew &&
+      draft.label.trim() &&
+      draft.commands.some((command) => command.trim())
+    )
+      setSavedTourTool("preset");
   };
 
   const resetSingleServerPreset = (presetId: string) => {
@@ -1588,7 +1652,13 @@ export function ProjectWorkspaceSettingsSection() {
 
         <Card id="workspace-project-tools" tabIndex={-1}>
           <CardHeader>
-            <CardTitle>Project Tools</CardTitle>
+            <CardTitle
+              data-tour-setup-step={
+                guidedTool && guidedTool === savedTourTool ? `${guidedTool}-done` : undefined
+              }
+            >
+              Project Tools
+            </CardTitle>
             <CardDescription>
               Manage your project-specific browser tabs, background terminals, or Dock presets.
             </CardDescription>
@@ -1614,6 +1684,14 @@ export function ProjectWorkspaceSettingsSection() {
                         size="sm"
                         variant="outline"
                         className="w-full justify-start"
+                        ref={addBrowserRef}
+                        data-tour-setup-step={
+                          guidedTool === "browser" &&
+                          savedTourTool !== "browser" &&
+                          !customEmbedDrafts.some((draft) => draft.isNew)
+                            ? "browser-add"
+                            : undefined
+                        }
                         onClick={() => {
                           const newId = createCustomEmbedId();
                           setCustomEmbedDrafts((current) => [
@@ -1700,6 +1778,13 @@ export function ProjectWorkspaceSettingsSection() {
                                         ),
                                       )
                                     }
+                                    data-tour-setup-step={
+                                      guidedTool === "browser" &&
+                                      activeDraft.isNew &&
+                                      !activeDraft.label.trim()
+                                        ? "browser-name"
+                                        : undefined
+                                    }
                                     aria-label="Browser tab name"
                                     placeholder="Figma"
                                   />
@@ -1718,6 +1803,15 @@ export function ProjectWorkspaceSettingsSection() {
                                             : entry,
                                         ),
                                       )
+                                    }
+                                    aria-label="Browser tab URL"
+                                    data-tour-setup-step={
+                                      guidedTool === "browser" &&
+                                      activeDraft.isNew &&
+                                      activeDraft.label.trim() &&
+                                      !activeDraft.url.trim()
+                                        ? "browser-url"
+                                        : undefined
                                     }
                                     placeholder="https://www.figma.com/file/..."
                                   />
@@ -1862,6 +1956,14 @@ export function ProjectWorkspaceSettingsSection() {
                                 <Button
                                   type="button"
                                   onClick={() => saveSingleCustomEmbed(activeDraft.id)}
+                                  data-tour-setup-step={
+                                    guidedTool === "browser" &&
+                                    activeDraft.isNew &&
+                                    activeDraft.label.trim() &&
+                                    activeDraft.url.trim()
+                                      ? "browser-save"
+                                      : undefined
+                                  }
                                   disabled={!isDirty}
                                 >
                                   Save Changes
@@ -1889,6 +1991,14 @@ export function ProjectWorkspaceSettingsSection() {
                         size="sm"
                         variant="outline"
                         className="w-full justify-start"
+                        ref={addTerminalRef}
+                        data-tour-setup-step={
+                          guidedTool === "terminal" &&
+                          savedTourTool !== "terminal" &&
+                          !serverProcessDrafts.some((draft) => draft.isNew)
+                            ? "terminal-add"
+                            : undefined
+                        }
                         onClick={() => {
                           const newId = createServerProcessId();
                           setServerProcessDrafts((current) => [
@@ -1973,6 +2083,13 @@ export function ProjectWorkspaceSettingsSection() {
                                         ),
                                       )
                                     }
+                                    data-tour-setup-step={
+                                      guidedTool === "terminal" &&
+                                      activeDraft.isNew &&
+                                      !activeDraft.label.trim()
+                                        ? "terminal-name"
+                                        : undefined
+                                    }
                                     aria-label="Terminal tab name"
                                     placeholder="OpenCore"
                                   />
@@ -2024,6 +2141,16 @@ export function ProjectWorkspaceSettingsSection() {
                                                   : entry,
                                               ),
                                             )
+                                          }
+                                          aria-label={`Terminal command ${commandIndex + 1}`}
+                                          data-tour-setup-step={
+                                            guidedTool === "terminal" &&
+                                            activeDraft.isNew &&
+                                            activeDraft.label.trim() &&
+                                            commandIndex === 0 &&
+                                            !activeDraft.commands.some((step) => step.trim())
+                                              ? "terminal-command"
+                                              : undefined
                                           }
                                           placeholder={
                                             commandIndex === 0 ? "npm install" : "npm run dev"
@@ -2134,6 +2261,14 @@ export function ProjectWorkspaceSettingsSection() {
                                 <Button
                                   type="button"
                                   onClick={() => saveSingleServerProcess(activeDraft.id)}
+                                  data-tour-setup-step={
+                                    guidedTool === "terminal" &&
+                                    activeDraft.isNew &&
+                                    activeDraft.label.trim() &&
+                                    activeDraft.commands.some((command) => command.trim())
+                                      ? "terminal-save"
+                                      : undefined
+                                  }
                                   disabled={!isDirty}
                                 >
                                   Save Changes
@@ -2161,6 +2296,14 @@ export function ProjectWorkspaceSettingsSection() {
                         size="sm"
                         variant="outline"
                         className="w-full justify-start"
+                        ref={addPresetRef}
+                        data-tour-setup-step={
+                          guidedTool === "preset" &&
+                          savedTourTool !== "preset" &&
+                          !serverPresetDrafts.some((draft) => draft.isNew)
+                            ? "preset-add"
+                            : undefined
+                        }
                         onClick={() => {
                           const newId = createServerProcessId();
                           setServerPresetDrafts((current) => [
@@ -2235,6 +2378,7 @@ export function ProjectWorkspaceSettingsSection() {
                                 presetDrafts={serverPresetDrafts}
                                 projectCwd={activeProject.cwd}
                                 variant="plain"
+                                guideNewPreset={guidedTool === "preset" && activeDraft.isNew}
                                 updatePresetRow={updatePresetRow}
                                 addCommandStep={addCommandStep}
                                 updateCommandStep={updateCommandStep}
@@ -2265,6 +2409,14 @@ export function ProjectWorkspaceSettingsSection() {
                                 <Button
                                   type="button"
                                   onClick={() => saveSingleServerPreset(activeDraft.id)}
+                                  data-tour-setup-step={
+                                    guidedTool === "preset" &&
+                                    activeDraft.isNew &&
+                                    activeDraft.label.trim() &&
+                                    activeDraft.commands.some((command) => command.trim())
+                                      ? "preset-save"
+                                      : undefined
+                                  }
                                   disabled={!isDirty}
                                 >
                                   Save Changes

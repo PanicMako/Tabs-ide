@@ -1,14 +1,63 @@
 /* The specimen's appearance can differ from the surrounding application. Keep
    its text palette local and its slots separate from live workspace chrome. */
 [data-slot="onboarding-workbench-preview"] {
-  --preview-foreground: #404040;
-  --preview-muted: #626262;
+  --preview-foreground: #1e293b;
+  --preview-muted: #64748b;
+  --preview-tab-active-bg: #ffffff;
+  --preview-tab-active-text: #0f172a;
+  --preview-tab-inactive-text: #475569;
+  --preview-tab-inactive-hover: #0f172a;
   color-scheme: light;
   color: var(--preview-foreground);
 }
 
 [data-slot="onboarding-workbench-preview"][data-preview-mode="dark"] {
-  --preview-foreground: #e5e5e5;
-  --preview-muted: #b5b5b5;
+  --preview-foreground: #f1f5f9;
+  --preview-muted: #94a3b8;
+  --preview-tab-active-bg: #292929;
+  --preview-tab-active-text: #ffffff;
+  --preview-tab-inactive-text: rgba(255, 255, 255, 0.65);
+  --preview-tab-inactive-hover: #ffffff;
   color-scheme: dark;
+}
+
+/* Authentic browser-tab geometry: rounded top corners, flat bottom connected to panel */
+[data-slot="onboarding-workbench-preview"] [data-slot="workspace-project-tab"] {
+  border-top-left-radius: 10px !important;
+  border-top-right-radius: 10px !important;
+  border-bottom-left-radius: 0px !important;
+  border-bottom-right-radius: 0px !important;
+}
+
+/* Scoped tab styles within preview, immune to global workspace chrome .dark rules */
+[data-slot="onboarding-workbench-preview"][data-preview-mode="light"] [data-slot="workspace-project-tab"],
+[data-slot="onboarding-workbench-preview"][data-preview-mode="light"] [data-slot="workspace-project-tab"] span {
+  color: #475569 !important;
+}
+
+[data-slot="onboarding-workbench-preview"][data-preview-mode="light"] [data-slot="workspace-project-tab"]:hover,
+[data-slot="onboarding-workbench-preview"][data-preview-mode="light"] [data-slot="workspace-project-tab"]:hover span {
+  color: #0f172a !important;
+}
+
+[data-slot="onboarding-workbench-preview"][data-preview-mode="light"] [data-slot="workspace-project-tab"][data-active="true"],
+[data-slot="onboarding-workbench-preview"][data-preview-mode="light"] [data-slot="workspace-project-tab"][data-active="true"] span {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+
+[data-slot="onboarding-workbench-preview"][data-preview-mode="dark"] [data-slot="workspace-project-tab"],
+[data-slot="onboarding-workbench-preview"][data-preview-mode="dark"] [data-slot="workspace-project-tab"] span {
+  color: rgba(255, 255, 255, 0.65) !important;
+}
+
+[data-slot="onboarding-workbench-preview"][data-preview-mode="dark"] [data-slot="workspace-project-tab"]:hover,
+[data-slot="onboarding-workbench-preview"][data-preview-mode="dark"] [data-slot="workspace-project-tab"]:hover span {
+  color: #ffffff !important;
+}
+
+[data-slot="onboarding-workbench-preview"][data-preview-mode="dark"] [data-slot="workspace-project-tab"][data-active="true"],
+[data-slot="onboarding-workbench-preview"][data-preview-mode="dark"] [data-slot="workspace-project-tab"][data-active="true"] span {
+  background-color: #292929 !important;
+  color: #ffffff !important;
 }

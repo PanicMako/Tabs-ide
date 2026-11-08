@@ -375,3 +375,17 @@ export function sortProjectsForSidebar<TProject extends SidebarProject, TThread 
     return left.name.localeCompare(right.name) || left.id.localeCompare(right.id);
   });
 }
+
+export function normalizeThreadRenameTitle(
+  newTitle: string,
+  originalTitle: string,
+): { status: "empty" } | { status: "unchanged" } | { status: "valid"; title: string } {
+  const trimmed = newTitle.trim();
+  if (trimmed.length === 0) {
+    return { status: "empty" };
+  }
+  if (trimmed === originalTitle) {
+    return { status: "unchanged" };
+  }
+  return { status: "valid", title: trimmed };
+}

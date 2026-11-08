@@ -1,10 +1,18 @@
 import { createContext, use, type ReactNode } from "react";
 
-const OpenAddProjectCommandPaletteContext = createContext<(() => void) | null>(null);
+export interface WorkspaceProjectSourceActions {
+  readonly openLocalProject: (initializeGit: boolean) => Promise<void>;
+  readonly openClonedProject: (cwd: string) => Promise<void>;
+}
+
+type OpenAddProject = (workspace?: WorkspaceProjectSourceActions) => void;
+
+const OpenAddProjectCommandPaletteContext = createContext<OpenAddProject | null>(null);
+export const CommandPaletteOpenContext = createContext(false);
 
 export function OpenAddProjectCommandPaletteProvider(props: {
   readonly children: ReactNode;
-  readonly openAddProject: () => void;
+  readonly openAddProject: OpenAddProject;
 }) {
   return (
     <OpenAddProjectCommandPaletteContext value={props.openAddProject}>
@@ -13,7 +21,7 @@ export function OpenAddProjectCommandPaletteProvider(props: {
   );
 }
 
-export function useOpenAddProjectCommandPalette(): () => void {
+export function useOpenAddProjectCommandPalette(): OpenAddProject {
   const openAddProject = use(OpenAddProjectCommandPaletteContext);
   if (!openAddProject) {
     throw new Error("Command palette actions must be used inside CommandPalette");

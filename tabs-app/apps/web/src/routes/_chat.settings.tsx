@@ -1,3 +1,4 @@
+import { readTourProjectTool } from "~/stores/guidedTourStore";
 import {
   SettingsNavigation,
   SETTINGS_NAV,
@@ -222,7 +223,7 @@ function SettingsRouteView() {
       updateSettingsViewState({ activeSection: section });
       void navigate({
         to: "/settings",
-        search: (previous) => ({ ...previous, section }),
+        search: { section },
         replace: true,
       });
     },
@@ -666,7 +667,9 @@ function SettingsRouteView() {
                     {activeSettingsSection === "themes" ? <ThemesSettings /> : null}
                     {activeSettingsSection === "startup-animation" ? <AnimationsSettings /> : null}
                     {activeSettingsSection === "workspace" ? (
-                      <ProjectWorkspaceSettingsSection />
+                      <ProjectWorkspaceSettingsSection
+                        tourTool={readTourProjectTool(routeSearch)}
+                      />
                     ) : null}
                     {activeSettingsSection === "profiles" ? <BrowserProfilesSettings /> : null}
                     {activeSettingsSection === "source-control" ? (
@@ -788,6 +791,13 @@ function SettingsRouteView() {
                     ? "Log-out terminal opened"
                     : "Provider command terminal opened"}
               </div>
+              {/^npm\s/.test(providerActionSession.command) && (
+                <p className="border-b border-border px-4 py-2 text-xs text-muted-foreground">
+                  If npm is missing, install Node.js and npm or activate your Node version first. On
+                  macOS or Linux, NVM users can try <code>nvm use --lts</code> in this terminal
+                  before retrying the command.
+                </p>
+              )}
               <div className="min-h-0 w-full flex-1 bg-background p-2">
                 <ThreadTerminalDrawer
                   variant="embedded"

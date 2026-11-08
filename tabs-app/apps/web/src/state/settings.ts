@@ -142,6 +142,10 @@ export function useSettingsPersistence(): SettingsPersistenceState {
   return useAtomValue(settingsPersistenceAtom);
 }
 
+export function isClientSettingsHydrated(): boolean {
+  return clientSettingsHydrated;
+}
+
 export function hydrateClientSettings(force = false) {
   if (clientSettingsHydrated && !force) return;
   clientSettingsHydrated = true;
@@ -229,4 +233,8 @@ export function useClientSettings(): ClientSettings {
     hydrateClientSettings();
   }, []);
   return settings;
+}
+
+if (typeof window !== "undefined") {
+  hydrateClientSettings();
 }

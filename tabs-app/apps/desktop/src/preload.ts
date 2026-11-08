@@ -524,6 +524,14 @@ contextBridge.exposeInMainWorld("desktopBridge", {
     ipcRenderer.send(APP_READY_TO_EXIT_CHANNEL);
     return Promise.resolve();
   },
+  setQuickActionsEnabled: (enabled) => ipcRenderer.invoke("desktop:quick-actions:enabled", enabled),
+  syncTourMascot: (state) => ipcRenderer.invoke("desktop:tour-mascot:sync", state),
+  onTourMascotEvent: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, value: Parameters<typeof listener>[0]) =>
+      listener(value);
+    ipcRenderer.on("desktop:tour-mascot:event", handler);
+    return () => ipcRenderer.removeListener("desktop:tour-mascot:event", handler);
+  },
   syncNotificationOverlay: (toasts) => {
     return ipcRenderer.invoke(NOTIFICATION_OVERLAY_SYNC_CHANNEL, toasts);
   },

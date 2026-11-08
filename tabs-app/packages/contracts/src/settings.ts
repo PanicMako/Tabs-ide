@@ -382,6 +382,7 @@ export const QuickActionsDesign = Schema.Literals([
   "stack",
 ]);
 export const QuickActionsPreferences = Schema.Struct({
+  enabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   design: QuickActionsDesign,
   actionOrder: Schema.Array(Schema.String),
   hiddenActions: Schema.Array(Schema.String),
@@ -402,6 +403,7 @@ export const ClientSettingsSchema = Schema.Struct({
   quickActions: QuickActionsPreferences.pipe(
     Schema.withDecodingDefault(
       Effect.succeed({
+        enabled: true,
         design: "compass" as const,
         actionOrder: [],
         hiddenActions: [],

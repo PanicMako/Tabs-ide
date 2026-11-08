@@ -19,6 +19,7 @@ describe("native surface overlay policy", () => {
     expect(isNativeSurfaceBlockingOverlaySlot("command-dialog-popup")).toBe(true);
     expect(isNativeSurfaceBlockingOverlaySlot("code-resize-overlay")).toBe(true);
     expect(isNativeSurfaceBlockingOverlaySlot("quick-actions-overlay")).toBe(true);
+    expect(isNativeSurfaceBlockingOverlaySlot("workspace-tour-overlay")).toBe(true);
   });
 
   it("does not suspend native surfaces for notifications (handled by dedicated overlay WebContentsView)", () => {

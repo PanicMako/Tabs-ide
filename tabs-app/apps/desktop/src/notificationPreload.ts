@@ -78,3 +78,7 @@ contextBridge.exposeInMainWorld("notificationOverlayBridge", {
     }
   },
 });
+
+contextBridge.exposeInMainWorld("tourMascotBridge", {
+  emit: (value: unknown) => ipcRenderer.send("desktop:tour-mascot:input", value),
+});
