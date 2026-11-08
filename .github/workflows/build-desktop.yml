@@ -95,8 +95,8 @@ jobs:
               }
             }
             const allTargets = {
-              'mac-arm64':  { label: 'macOS arm64',  runner: 'macos-14',       platform: 'mac',   target: 'dmg',      arch: 'arm64' },
-              'mac-x64':    { label: 'macOS x64',    runner: 'macos-14',       platform: 'mac',   target: 'dmg',      arch: 'x64'   },
+              'mac-arm64':  { label: 'macOS arm64',  runner: 'macos-15',       platform: 'mac',   target: 'dmg',      arch: 'arm64' },
+              'mac-x64':    { label: 'macOS x64',    runner: 'macos-15',       platform: 'mac',   target: 'dmg',      arch: 'x64'   },
               'linux-x64':  { label: 'Linux x64',    runner: 'ubuntu-24.04',   platform: 'linux', target: 'AppImage', arch: 'x64'   },
               'win-x64':    { label: 'Windows x64',  runner: 'windows-2022',   platform: 'win',   target: 'nsis',     arch: 'x64'   },
             };
@@ -252,7 +252,7 @@ jobs:
           # Code-OSS server runs via ELECTRON_RUN_AS_NODE
           # on Tabs' Electron, so native modules must match its ABI.
           # `--arch` cross-builds x64 natives for the mac-x64 artifact on the
-          # arm64 macos-14 runner.
+          # arm64 macos-15 runner.
           # `--types prod` skips dev and optional dependencies (such as cpu-features).
           electron_version="$(node -p "const p = require('../tabs-app/apps/desktop/package.json'); (p.dependencies && p.dependencies.electron) || (p.devDependencies && p.devDependencies.electron)")"
           echo "Rebuilding Code-OSS native modules for Tabs Electron $electron_version"

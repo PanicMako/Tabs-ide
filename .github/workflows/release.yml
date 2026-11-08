@@ -290,12 +290,12 @@ jobs:
       matrix:
         include:
           - label: macOS arm64
-            runner: macos-14
+            runner: macos-15
             platform: mac
             target: dmg
             arch: arm64
           - label: macOS x64
-            runner: macos-14
+            runner: macos-15
             platform: mac
             target: dmg
             arch: x64
@@ -392,7 +392,7 @@ jobs:
           # @parcel/watcher / node-pty / native-keymap must match its ABI or
           # they fail with NODE_MODULE_VERSION mismatch.
           #
-          # `--arch` matters: macos-14 is arm64, so the mac-x64 artifact must
+          # `--arch` matters: macos-15 is arm64, so the mac-x64 artifact must
           # cross-build x64 natives here, otherwise the x64 DMG ships arm64
           # binaries that won't load on Intel Macs.
           # `--types prod` skips dev and optional dependencies (such as cpu-features).
