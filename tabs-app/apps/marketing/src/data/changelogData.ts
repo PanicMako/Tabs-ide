@@ -21,15 +21,33 @@ export interface ChangelogRelease {
   }[];
 }
 
-export const TOTAL_TAGS_COUNT = 184;
+export const TOTAL_TAGS_COUNT = 185;
 
 export const changelogData: ChangelogRelease[] = [
+  {
+    tag: "v2.3.0",
+    title: "Guided workspace setup and a refreshed editor",
+    date: "November 8, 2026",
+    shortDate: "Nov 8",
+    isLatest: true,
+    type: "feature",
+    summary:
+      "Start with a project and follow a hands-on tour of Tabs. The embedded editor now runs Code OSS 1.145.0 and restores Markdown editing and preview in the installed app.",
+    highlights: [
+      "Open or create a local project, or clone into the current tab using a Git URL or a supported host such as GitHub or GitLab.",
+      "Explore Code, Dock, Git, and Browser at your own pace. Minimize the tour while you work and click the Tabs mascot to resume.",
+      "Follow optional setup through saving a Browser tab, Terminal tab, or Dock preset. The tour also walks through Quick Actions and shows where to connect a coding agent.",
+      "Turn off Quick Actions without losing your layout or shortcuts. Longer labels wrap inside the action wheel.",
+      "Edit thread titles from the thread list or conversation header. Titles are trimmed and blank titles are rejected.",
+      "Switch between Text Editor, Markdown editing, and Preview. The embedded browser stays with its owning project when you switch tools.",
+    ],
+    categories: [],
+  },
   {
     tag: "v2.2.2",
     title: "Quick Actions refinements and smaller editor caches",
     date: "November 3, 2026",
     shortDate: "Nov 3",
-    isLatest: true,
     type: "feature",
     summary:
       "Quick Actions makes searching and temporary clipboard items easier to manage. This update also reduces accumulated editor caches and improves backup recovery.",
