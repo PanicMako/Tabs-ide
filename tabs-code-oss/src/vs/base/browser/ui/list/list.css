@@ -36,6 +36,9 @@
 	box-sizing: border-box;
 	overflow: hidden;
 	width: 100%;
+}
+
+:where(html.tabs-embedded-workbench, html.tabs-native-sessions) .monaco-list-row {
 	border-radius: 4px;
 }
 

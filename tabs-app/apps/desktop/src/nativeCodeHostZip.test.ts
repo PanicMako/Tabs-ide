@@ -17,7 +17,7 @@ describe("createNativeCodeZip", () => {
     FS.writeFileSync(source, Buffer.from([1, 2, 3, 4]));
     const zip = vi.fn(async (destination: string) => FS.writeFileSync(destination, "zip"));
 
-    await createNativeCodeZip(
+    const result = await createNativeCodeZip(
       zip,
       { fsPath: Path.join(root, "out", "report.zip") },
       [
@@ -27,13 +27,37 @@ describe("createNativeCodeZip", () => {
       { maxEntries: 2, maxSize: 10 },
     );
 
-    expect(zip).toHaveBeenCalledWith(Path.join(root, "out", "report.zip"), [
+    expect(result).toEqual({ skippedFiles: [] });
+    expect(zip).toHaveBeenCalledWith(
+      Path.join(root, "out", "report.zip"),
+      [
+        { path: "summary.txt", contents: "ok" },
+        {
+          path: "data/source.bin",
+          localPath: source,
+          localPathSize: 3,
+        },
+      ],
+      expect.objectContaining({ onSourceError: expect.any(Function) }),
+    );
+  });
+
+  it("records skippedFiles when skipping source errors during stat and streaming", async () => {
+    const root = FS.mkdtempSync(Path.join(OS.tmpdir(), "tabs-skipped-zip-"));
+    const missing = Path.join(root, "missing.bin");
+    const zip: NativeZipWriter = async (destination, _files, options) => {
+      FS.writeFileSync(destination, "zip");
+      options?.onSourceError?.("stream/failed.bin", new Error("late read failure"));
+    };
+
+    const result = await createNativeCodeZip(zip, { fsPath: Path.join(root, "out.zip") }, [
       { path: "summary.txt", contents: "ok" },
-      {
-        path: "data/source.bin",
-        localPath: source,
-        localPathSize: 3,
-      },
+      { path: "missing.bin", source: { fsPath: missing }, skipSourceErrors: true },
+    ]);
+
+    expect(result.skippedFiles).toEqual([
+      expect.objectContaining({ path: "missing.bin" }),
+      { path: "stream/failed.bin", error: "late read failure" },
     ]);
   });
 

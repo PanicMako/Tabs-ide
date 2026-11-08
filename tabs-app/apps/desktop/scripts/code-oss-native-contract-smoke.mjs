@@ -155,17 +155,36 @@ try {
   );
   try {
     const path = join(temporary, "success.zip");
-    await success.create(1, { fsPath: path }, [{ path: "summary.txt", contents: "ok" }], {
-      operationId: "success",
-      maxEntries: 1,
-      maxSize: 1024,
-    });
+    const zipResult = await success.create(
+      1,
+      { fsPath: path },
+      [{ path: "summary.txt", contents: "ok" }],
+      {
+        operationId: "success",
+        maxEntries: 1,
+        maxSize: 1024,
+      },
+    );
+    assert.deepEqual(zipResult, { skippedFiles: [] }, "Clean ZIP must report empty skippedFiles");
     await validateZip(path, { maxEntries: 1, maxUncompressedSize: 1024 });
+    const partial = join(temporary, "with-skipped-file.zip");
+    const partialResult = await success.create(1, { fsPath: partial }, [
+      { path: "summary.txt", contents: "ok" },
+      {
+        path: "missing.txt",
+        source: { fsPath: join(temporary, "missing.txt") },
+        skipSourceErrors: true,
+      },
+    ]);
+    assert.equal(partialResult.skippedFiles.length, 1);
+    assert.equal(partialResult.skippedFiles[0].path, "missing.txt");
+    assert.match(partialResult.skippedFiles[0].error, /ENOENT/);
+    await validateZip(partial, { maxEntries: 1, maxUncompressedSize: 1024 });
   } finally {
     success.dispose();
   }
   console.log(
-    "PASS: real upstream ZIP streaming, cancellation, progress and partial-output cleanup",
+    "PASS: real upstream ZIP streaming, cancellation, progress, skipped files and partial-output cleanup",
   );
 } finally {
   await rm(temporary, { recursive: true, force: true });

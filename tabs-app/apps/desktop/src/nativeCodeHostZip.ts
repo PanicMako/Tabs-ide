@@ -34,10 +34,18 @@ export interface NativeZipCancellation {
   dispose(): void;
 }
 
+export interface INativeZipResult {
+  readonly skippedFiles: readonly { readonly path: string; readonly error: string }[];
+}
+
 export type NativeZipWriter = (
   zipPath: string,
   files: ZipEntry[],
-  options?: { token?: NativeZipToken; onProgress?: (bytes: number, path: string) => void },
+  options?: {
+    token?: NativeZipToken;
+    onProgress?: (bytes: number, path: string) => void;
+    onSourceError?: (path: string, error: Error) => void;
+  },
 ) => Promise<unknown>;
 
 function checkCancellation(token?: NativeZipToken): void {
@@ -57,7 +65,7 @@ export async function createNativeCodeZip(
     readonly token: NativeZipToken;
     readonly progress: (bytes: number, total: number, path: string) => void;
   },
-): Promise<void> {
+): Promise<INativeZipResult> {
   checkCancellation(execution?.token);
   const zipPath = filePathFromNativeUri(zipUri);
   if (!zipPath) throw new Error("ZIP destination must be a local file");
@@ -69,6 +77,7 @@ export async function createNativeCodeZip(
 
   const paths = new Set<string>();
   const entries: ZipEntry[] = [];
+  const skippedFiles: Array<{ readonly path: string; readonly error: string }> = [];
   let uncompressedSize = 0;
   for (const input of inputs) {
     checkCancellation(execution?.token);
@@ -107,6 +116,10 @@ export async function createNativeCodeZip(
         });
       } catch (error) {
         if (!input.skipSourceErrors) throw error;
+        skippedFiles.push({
+          path: normalizedPath,
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     }
     if (options?.maxSize !== undefined && uncompressedSize > options.maxSize) {
@@ -118,14 +131,21 @@ export async function createNativeCodeZip(
 
   await FS.promises.mkdir(Path.dirname(zipPath), { recursive: true });
   checkCancellation(execution?.token);
+  const onSourceError = (path: string, error: Error) => {
+    skippedFiles.push({
+      path,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  };
   try {
     if (execution) {
       await zip(zipPath, entries, {
         token: execution.token,
         onProgress: (bytes, path) => execution.progress(bytes, uncompressedSize, path),
+        onSourceError,
       });
     } else {
-      await zip(zipPath, entries);
+      await zip(zipPath, entries, { onSourceError });
     }
     checkCancellation(execution?.token);
   } catch (error) {
@@ -140,6 +160,7 @@ export async function createNativeCodeZip(
       throw new Error(`ZIP is too large (${archiveSize} bytes; limit ${options.maxSize})`);
     }
   }
+  return { skippedFiles };
 }
 
 export interface NativeZipProgress {
@@ -166,7 +187,7 @@ export class NativeCodeZipOperations {
     destination: unknown,
     files: readonly NativeZipInput[],
     options?: { maxSize?: number; maxEntries?: number; operationId?: string },
-  ): Promise<void> {
+  ): Promise<INativeZipResult> {
     if (this.disposed) throw new Error("ZIP service is shutting down");
     const key = options?.operationId ?? Symbol();
     const operations = this.active.get(owner) ?? new Map();
@@ -181,7 +202,7 @@ export class NativeCodeZipOperations {
     this.pending.add(completion);
     let lastReport = 0;
     try {
-      await createNativeCodeZip(this.zip, destination, files, options, {
+      return await createNativeCodeZip(this.zip, destination, files, options, {
         token: source.token,
         progress: (bytes, total, path) => {
           const now = Date.now();

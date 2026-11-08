@@ -1,3 +1,4 @@
+import { resolveNativeCodeExtensionEnvironment } from "./nativeCodeHostExtensionEnvironment";
 import { createNativeCodeHostShutdown } from "./nativeCodeHostShutdown";
 import {
   app,
@@ -115,6 +116,10 @@ type NativeCodeHostModules = {
   };
   NullPolicyService: new () => unknown;
   ExtensionHostStarter: new (...args: unknown[]) => {
+    start(
+      id: string,
+      options: { responseWindowId: number; env?: NodeJS.ProcessEnv },
+    ): Promise<{ pid: number | undefined }>;
     dispose(): void;
   };
   DiskFileSystemProvider: new (...args: unknown[]) => {
@@ -162,11 +167,10 @@ type NativeCodeHostModules = {
   ServiceCollection: new () => { set(id: unknown, service: unknown): unknown };
   InstantiationService: new (...args: unknown[]) => NativeInstantiationService;
   BrowserViewMainService: new (...args: never[]) => {
-    tryGetBrowserView(id: string): { readonly hostWindowId: number } | undefined;
-    layout(id: string, bounds: Electron.Rectangle): Promise<void>;
     dispose(): void;
   };
   BrowserViewGroupMainService: new (...args: never[]) => { dispose(): void };
+  LoadReason: { readonly RELOAD: number };
   IBrowserViewMainService: unknown;
   ipcBrowserViewChannelName: string;
   ipcBrowserViewGroupChannelName: string;
@@ -192,8 +196,10 @@ type NativeCodeWindow = {
   readonly win: BrowserWindow;
   readonly webContents: WebContents;
   readonly openedWorkspace?: { readonly id: string };
+  readonly tabsBrowserViewContainer?: Electron.View;
   readonly onDidClose: unknown;
   readonly onDidDestroy: unknown;
+  readonly onWillLoad: unknown;
   isDestroyed(): boolean;
 };
 
@@ -225,6 +231,8 @@ export interface NativeCodeHostMainBackend {
     ownerWindow?: BrowserWindow,
     projectId?: string,
     isAgentsWindow?: boolean,
+    workspaceId?: string,
+    browserViewContainer?: Electron.View,
   ): void;
   unregisterWindow(windowId: number): void;
   handleURL(url: string): Promise<boolean>;
@@ -270,6 +278,7 @@ async function loadNativeCodeHostModules(vscodeRoot: string): Promise<NativeCode
     browserViewGroupMainService,
     browserViewContract,
     browserViewGroupContract,
+    windowContract,
     environmentMainContract,
     windowsMainContract,
     auxiliaryWindowsMainContract,
@@ -334,6 +343,7 @@ async function loadNativeCodeHostModules(vscodeRoot: string): Promise<NativeCode
     ),
     import(moduleUrl(vscodeRoot, "vs/platform/browserView/common/browserView.js")),
     import(moduleUrl(vscodeRoot, "vs/platform/browserView/common/browserViewGroup.js")),
+    import(moduleUrl(vscodeRoot, "vs/platform/window/electron-main/window.js")),
     import(
       moduleUrl(vscodeRoot, "vs/platform/environment/electron-main/environmentMainService.js")
     ),
@@ -398,6 +408,7 @@ async function loadNativeCodeHostModules(vscodeRoot: string): Promise<NativeCode
     InstantiationService: instantiationService.InstantiationService,
     BrowserViewMainService: browserViewMainService.BrowserViewMainService,
     BrowserViewGroupMainService: browserViewGroupMainService.BrowserViewGroupMainService,
+    LoadReason: windowContract.LoadReason,
     IBrowserViewMainService: browserViewMainService.IBrowserViewMainService,
     ipcBrowserViewChannelName: browserViewContract.ipcBrowserViewChannelName,
     ipcBrowserViewGroupChannelName: browserViewGroupContract.ipcBrowserViewGroupChannelName,
@@ -474,6 +485,19 @@ export async function createNativeCodeHostMainBackend(
   const logService = new modules.NullLogService();
   const onWillShutdown = new modules.Emitter();
   const onWillLoadWindow = new modules.Emitter();
+  function observeWorkbenchLoad(webContents: WebContents) {
+    const onWillLoad = new modules.Emitter();
+    const onNavigation = (event: Electron.WebContentsDidStartNavigationEventParams) => {
+      if (event.isMainFrame && !event.isSameDocument) {
+        // A registered view keeps one workspace for its lifetime. A workspace
+        // change creates a new view, so later document loads are reloads.
+        onWillLoad.fire({ reason: modules.LoadReason.RELOAD });
+      }
+    };
+    webContents.on("did-start-navigation", onNavigation);
+    webContents.once("destroyed", () => onWillLoad.dispose());
+    return onWillLoad.event;
+  }
   // Extension/utility processes must reply to the embedded WebContents. Native
   // browser views, however, need the owning BrowserWindow so Electron can host
   // a WebContentsView. These IDs are intentionally the same, but the values
@@ -660,6 +684,16 @@ export async function createNativeCodeHostMainBackend(
     modules.NullTelemetryService,
     configurationService,
   );
+  const startExtensionHost = extensionHostStarter.start.bind(extensionHostStarter);
+  extensionHostStarter.start = (id, options) =>
+    startExtensionHost(id, {
+      ...options,
+      env: resolveNativeCodeExtensionEnvironment(
+        options.responseWindowId,
+        options.env,
+        projectIdsByWindow,
+      ),
+    });
   const diskFileSystemProvider = new modules.DiskFileSystemProvider(logService);
   const fileService = new modules.FileService(logService);
   const fileProviderRegistration = fileService.registerProvider("file", diskFileSystemProvider);
@@ -815,16 +849,6 @@ export async function createNativeCodeHostMainBackend(
   const browserViewMainService = browserInstantiationService.createInstance(
     modules.BrowserViewMainService,
   );
-  const layoutBrowserView = browserViewMainService.layout.bind(browserViewMainService);
-  browserViewMainService.layout = (id, bounds) => {
-    const hostWindowId = browserViewMainService.tryGetBrowserView(id)?.hostWindowId;
-    const hostBounds =
-      hostWindowId === undefined ? undefined : embeddedBounds.get(hostWindowId)?.();
-    return layoutBrowserView(
-      id,
-      hostBounds ? { ...bounds, x: bounds.x + hostBounds.x, y: bounds.y + hostBounds.y } : bounds,
-    );
-  };
   browserServices.set(modules.IBrowserViewMainService, browserViewMainService);
   const browserViewGroupMainService = browserInstantiationService.createInstance(
     modules.BrowserViewGroupMainService,
@@ -1089,6 +1113,7 @@ export async function createNativeCodeHostMainBackend(
         readBuffer?: (format: string) => Buffer;
         writeBuffer?: (format: string, buffer: Buffer, type?: "selection" | "clipboard") => void;
         readImage?: () => { toPNG(): Buffer };
+        writeImage?: (image: unknown, type?: "selection" | "clipboard") => void;
       };
       const osCommand = await handleNativeCodeHostCommand(command, args, {
         clipboard,
@@ -1666,12 +1691,69 @@ export async function createNativeCodeHostMainBackend(
       if (command === "createZipFile") {
         if (windowId === undefined || !webContents)
           throw new Error("ZIP requires a registered Code window");
-        await zipOperations.create(
+        return await zipOperations.create(
           windowId,
           args[1],
           (Array.isArray(args[2]) ? args[2] : []) as NativeZipInput[],
           args[3] as { maxSize?: number; maxEntries?: number; operationId?: string } | undefined,
         );
+      }
+      if (command === "startFileDrag") {
+        const options = args[2] as { targetWindowId?: number } | undefined;
+        const targetWindow = options?.targetWindowId
+          ? browserWindows.get(options.targetWindowId)
+          : embeddedWindow;
+        if (!targetWindow?.win || typeof args[1] !== "string" || !Path.isAbsolute(args[1])) {
+          return undefined;
+        }
+        const file = args[1];
+        try {
+          await import("node:fs/promises").then((fs) => fs.access(file));
+        } catch {
+          return undefined;
+        }
+        const icon = await app.getFileIcon(file, { size: "normal" });
+        targetWindow.webContents.startDrag({ file, icon });
+        return undefined;
+      }
+      if (command === "requestScreenCaptureAccess") {
+        if (process.platform !== "darwin") return true;
+        const status = systemPreferences.getMediaAccessStatus("screen");
+        if (status === "granted" || status === "restricted") {
+          return status === "granted";
+        }
+        const { desktopCapturer } = await import("electron");
+        await desktopCapturer.getSources({
+          types: ["screen"],
+          thumbnailSize: { width: 0, height: 0 },
+        });
+        return systemPreferences.getMediaAccessStatus("screen") === "granted";
+      }
+      if (command === "getFreeDiskSpace") {
+        if (typeof args[1] !== "string") {
+          throw new Error("A path is required to query free disk space");
+        }
+        let targetPath = Path.resolve(args[1]);
+        const fsPromises = await import("node:fs/promises");
+        while (true) {
+          try {
+            const stat = await fsPromises.statfs(targetPath);
+            return stat.bavail * stat.bsize;
+          } catch (error) {
+            const parent = Path.dirname(targetPath);
+            if ((error as NodeJS.ErrnoException).code !== "ENOENT" || parent === targetPath) {
+              throw error;
+            }
+            targetPath = parent;
+          }
+        }
+      }
+      if (command === "writeImage") {
+        const value = args[1] as { buffer?: Uint8Array } | Uint8Array | undefined;
+        const bytes = value instanceof Uint8Array ? value : value?.buffer;
+        if (bytes) {
+          nativeClipboard.writeImage?.(nativeImage.createFromBuffer(Buffer.from(bytes)));
+        }
         return undefined;
       }
       if (command === "cancelZipFile") {
@@ -1728,6 +1810,7 @@ export async function createNativeCodeHostMainBackend(
         webContents: window.webContents,
         onDidClose: onDidClose.event,
         onDidDestroy: onDidDestroy.event,
+        onWillLoad: observeWorkbenchLoad(window.webContents),
         isDestroyed: () => window.isDestroyed(),
       });
       window.once("closed", () => {
@@ -1739,7 +1822,15 @@ export async function createNativeCodeHostMainBackend(
         browserWindows.delete(windowId);
       });
     },
-    registerWebContents(webContents, getBounds, ownerWindow, projectId, isAgentsWindow = false) {
+    registerWebContents(
+      webContents,
+      getBounds,
+      ownerWindow,
+      projectId,
+      isAgentsWindow = false,
+      workspaceId,
+      browserViewContainer,
+    ) {
       const window = ownerWindow ?? BrowserWindow.fromWebContents(webContents);
       if (!window) {
         throw new Error("An owning BrowserWindow is required for embedded Code browser views.");
@@ -1756,6 +1847,9 @@ export async function createNativeCodeHostMainBackend(
         webContents,
         onDidClose: onDidClose.event,
         onDidDestroy: onDidDestroy.event,
+        onWillLoad: observeWorkbenchLoad(webContents),
+        ...(browserViewContainer ? { tabsBrowserViewContainer: browserViewContainer } : {}),
+        ...(workspaceId ? { openedWorkspace: { id: workspaceId } } : {}),
         isDestroyed: () => webContents.isDestroyed(),
       } satisfies NativeCodeWindow;
       if (isAgentsWindow) agentsWindowIds.add(webContents.id);

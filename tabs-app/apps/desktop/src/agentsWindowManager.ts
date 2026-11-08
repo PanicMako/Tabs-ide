@@ -153,12 +153,22 @@ export class AgentsWindowManager {
       reject: rejectReady,
     };
 
-    host.setNativeWebContentsRegistrar((webContents, bounds, projectId) => {
-      content = webContents;
-      record.content = webContents;
-      this.windows.set(webContents.id, record);
-      backend.registerWebContents(webContents, bounds, window, projectId, true);
-    });
+    host.setNativeWebContentsRegistrar(
+      (webContents, bounds, projectId, workspaceId, browserViewContainer) => {
+        content = webContents;
+        record.content = webContents;
+        this.windows.set(webContents.id, record);
+        backend.registerWebContents(
+          webContents,
+          bounds,
+          window,
+          projectId,
+          true,
+          workspaceId,
+          browserViewContainer,
+        );
+      },
+    );
     const projectId = `tabs-agents-${randomUUID()}`;
     const resize = () => {
       const [width = 0, height = 0] = window.getContentSize();

@@ -47,6 +47,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/tabs",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/typeHierarchy",
 			"project": "vscode-workbench"
 		},
@@ -144,6 +148,10 @@
 		},
 		{
 			"name": "vs/workbench/contrib/markers",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/mediaPreview",
 			"project": "vscode-workbench"
 		},
 		{
@@ -248,10 +256,6 @@
 		},
 		{
 			"name": "vs/workbench/contrib/surveys",
-			"project": "vscode-workbench"
-		},
-		{
-			"name": "vs/workbench/contrib/tabs",
 			"project": "vscode-workbench"
 		},
 		{
@@ -769,6 +773,10 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/sessions/contrib/inboxOne",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/layout",
 			"project": "vscode-sessions"
 		},
@@ -826,6 +834,14 @@
 		},
 		{
 			"name": "vs/sessions/contrib/onboardingTours",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/getStarted",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/worktreeSuggestion",
 			"project": "vscode-sessions"
 		}
 	]

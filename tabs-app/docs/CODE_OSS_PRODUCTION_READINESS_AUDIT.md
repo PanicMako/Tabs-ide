@@ -195,3 +195,87 @@ The pre-commit hygiene script now scopes staged paths and JavaScript allowlistin
 Independent packaged testing found that the outer renderer could start while the Code-OSS backend was unavailable: upstream changed `WebviewMainService` to injected instantiation/window/log services, but Tabs still passed the old file/window constructor arguments. This was repaired through the upstream instantiation service with a child window-service override, preserving embedded-view routing and disposal ownership. No upstream files or dependency versions were changed by the repair.
 
 `bun run test:code-oss` now builds the shell and runs the upstream adapter gate plus a real native workbench gate. The rebuilt DMG passed backend startup, exact bundled-runtime selection, opening a real file, loading Tabs radius CSS, and executing a real integrated-terminal command. The matching ZIP application code and selected runtime assets were compared to the tested DMG. The full 18-task test runner, 662 desktop tests, typechecks and formatting/lint passed; an isolated six-stage Electron smoke passed reconnect, persistence and orphan-free shutdown. Heavy concurrent runs produced teardown/reconnect timing failures before the isolated successful runs; assertions and timeouts were not weakened. See `code-oss-1.143-repair.md` and its structured evidence for the final checks. These remain local ad-hoc test artifacts; real-account and other-platform acceptance still require their own evidence.
+
+## VS Code 1.145.0 sync verification (2026-11-05)
+
+The original sync checks below are historical. The
+[independent review](code-oss-1.145-independent-review.md) found release
+packaging and extension-host routing defects beyond that smoke coverage.
+See [the repair and its verification](code-oss-1.145-repair.md) for the
+current release gates.
+
+### Baseline and target
+
+- **Baseline:** Microsoft VS Code `1.143.0` (`2d0b7506a36c1d6db9a466440131a8e01eab2289`).
+- **Target:** Microsoft VS Code `1.145.0` (`a717861c07586a53d83b80d742cd3f59b20a6273`).
+- **Isolation:** Dedicated worktree at `.worktrees/sync-vscode-1.145.0` on branch `chore/sync-vscode-1.145.0`. Base checkout at `d737a8047dc936f51010f0294ea7ffac83958552` preserved untouched.
+
+### Patch inventory and disposition
+
+- **Tabs-owned additions (13 files):** Retained and verified:
+  - `tabs-code-oss/TABS_ARCHITECTURE.md`: Architecture reference for the embedded Code-OSS integration.
+  - `tabs-code-oss/build/gulpfile.compile.ts`: Dedicated compile orchestration script for build automation.
+  - `tabs-code-oss/build/npm/patchNativeGyp.ts`: Deployment target patcher for native node-addon compilation.
+  - `tabs-code-oss/build/lib/test/copilot.test.ts`: Regression suite verifying Copilot packaging and production dependency exclusion invariants.
+  - `tabs-code-oss/build/lib/test/hygiene.test.ts`: Regression test asserting scoped vendored hygiene checks.
+  - `tabs-code-oss/src/vs/workbench/browser/parts/editor/media/tabs-logo.svg`: Branded Tabs SVG logo for editor watermark and branding.
+  - `tabs-code-oss/src/vs/workbench/browser/tabsEmbeddedLayout.ts`: Shared list row measurement helper preventing CSS height regressions.
+  - `tabs-code-oss/src/vs/workbench/contrib/tabs/browser/commitDraftMenu.ts`: Custom commit draft menu contributions for embedded SCM.
+  - `tabs-code-oss/src/vs/workbench/contrib/tabs/browser/media/embeddedWorkbench.css`: Embedded presentation and workbench boundary styling rules.
+  - `tabs-code-oss/src/vs/workbench/contrib/tabs/browser/media/tabs.css`: Hierarchical Code-OSS radii, notification frames, connected buttons, and selection geometry.
+  - `tabs-code-oss/src/vs/workbench/contrib/tabs/browser/railPresentation.ts`: Presentation contract adapter handling bounded `_tabs.setRailPresentation` coordinates.
+  - `tabs-code-oss/src/vs/workbench/contrib/tabs/browser/tabs.contribution.ts`: Primary workbench contribution, auxiliary bar assistant placement, and secondary container stability.
+  - `tabs-code-oss/src/vs/workbench/contrib/tabs/test/browser/tabs.contribution.test.ts`: Browser tests verifying container placement invariants and chat view management.
+- **Deliberate modifications (51 files):** All 51 modifications replayed and adapted to 1.145.0, covering bootstrap/preload IPC, workbench startup hooks, terminal request store handling, layout/card presentation, and build configuration.
+- **Upstream file purges:** 886 files deleted upstream between 1.143.0 and 1.145.0 were systematically identified, exported, and purged from `tabs-code-oss`.
+
+### Native-Host / IPC Contract (115 methods)
+
+- Audited `src/vs/platform/native/common/native.ts` `INativeHostService` / `ICommonNativeHostService` against 1.143.0:
+  - **4 new callable methods added upstream:**
+    - `startFileDrag(path: string, options?: INativeHostOptions): Promise<void>`: Electron webContents file drag initiation via `startDrag`.
+    - `requestScreenCaptureAccess(): Promise<boolean>`: Checks screen recording permission on macOS and uses Electron's `desktopCapturer` to trigger the system flow when needed.
+    - `getFreeDiskSpace(path: string): Promise<number>`: Available bytes (`bavail * bsize`) for the nearest existing path via Node `fs.statfs`.
+    - `writeImage(data: VSBuffer): Promise<void>`: Native clipboard image write dispatch via Electron `clipboard.writeImage`.
+  - **Contract modification:**
+    - `createZipFile(zipPath: URI, files: INativeZipFile[], options?: INativeZipOptions): Promise<INativeZipResult>`: The result includes a readonly array of `{ path, error }` entries in `skippedFiles`.
+  - The contract gate inventories all 115 callable names; runtime behavior and platform permissions require separate tests.
+
+### Extension Host Routing Adaptation
+
+- VS Code 1.145.0 no longer carries the window-scoped project ID into the utility process as Tabs expected. The repaired native host resolves it from the registered workbench window and supplies it to the extension host.
+- The control broker requires a project ID and routes only to the matching socket. The independent audit rejected the original anonymous socket fallback because it could cross project boundaries.
+
+### Completed verification gates
+
+- **Code-OSS compile & typecheck:**
+  - `npm run compile-client`: 0 errors.
+  - `npm run typecheck-client`: 0 errors.
+  - `node build/next/index.ts bundle --nls`: generated `out-build/nls.messages.json`.
+  - Core build assets verified: `preload.js`, `workbench-dev.html`, `nls.messages.json`, `product.json`.
+- **Code-OSS hygiene:**
+  - `npm run hygiene`: 14,253 files checked, 0 errors.
+- **Code-OSS production extensions:**
+  - `npm run compile-extensions-build`: successfully bundled 98 production extensions.
+  - `npm run gulp compile-copilot-extension-build`: successfully bundled Copilot extension.
+- **Code-OSS unit tests:**
+  - `env -u ELECTRON_RUN_AS_NODE ./scripts/test.sh`: passed with zero failures.
+- **Tabs outer application:**
+  - `vp check --fix`: 0 errors across 3,904 files.
+  - `vp run typecheck`: 16/16 packages passed with 0 errors.
+  - `vp test`: native code host contracts and zip tests passed (9/9).
+  - `bun run test:desktop-smoke`: 6-stage Electron launch, project/thread creation, navigation, composer, and graceful restart passed 100%.
+  - `bun --cwd=apps/desktop run test:code-oss-native`: passed.
+  - `bun --cwd=apps/desktop run test:code-oss-workbench` (dev mode): 3/3 gates passed:
+    - Complete embedded backend started (1.145.0).
+    - Bundled workbench extension & real integrated terminal shell execution.
+    - Visible Code session, real file contents, and Tabs radius CSS (`radius: "36px"`).
+- **Packaged fat desktop artifact verification:**
+  - Packaged fat desktop installer: `Tabs-2.2.2-arm64.dmg` (1.6 GB) containing bundled `Resources/tabs-code-oss` 1.145.0 via `scripts/build-desktop-artifact.ts --skip-build`.
+  - Mounted `/Volumes/Tabs/Tabs.app` and executed `bun --cwd=apps/desktop run test:code-oss-workbench --app="/Volumes/Tabs/Tabs.app"`.
+  - **All 3 gates passed on packaged DMG:**
+    - `PASS: complete embedded backend started (1.145.0)`
+    - `PASS: bundled workbench extension and real integrated terminal command`
+    - `PASS: visible Code session, real file contents and Tabs radius CSS` (`radius: "36px"`, real file audit marker verified).
+  - Evidence artifact saved at `_analysis/sync-1.145.0/evidence/packaged-workbench/result.json` and `workbench.png`.
+  - Volume `/Volumes/Tabs` unmounted and cleanly ejected.

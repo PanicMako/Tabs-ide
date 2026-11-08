@@ -8,11 +8,12 @@ import { isCancellationError, onUnexpectedError } from '../../../../../base/comm
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
-import { ICloudSandboxApiService, ICloudSandboxModelCatalog } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CloudSandboxAuthenticationRequiredError, ICloudSandboxApiService, ICloudSandboxModelCatalog } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../common/languageModels.js';
 import { AgentHostLanguageModelProvider } from '../agentSessions/agentHost/agentHostLanguageModelProvider.js';
+import { withCloudSandboxDraftModelConfig } from './cloudSandboxSessionConfig.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { createDecorator, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 
@@ -81,6 +82,10 @@ export class CloudSandboxModelCatalogService extends Disposable implements IClou
 				if (isCancellationError(error) || this._store.isDisposed || generation !== this._generation) {
 					return;
 				}
+				if (error instanceof CloudSandboxAuthenticationRequiredError) {
+					this._logService.debug('[CloudSandboxModels] Waiting for GitHub sign-in before loading cloud models');
+					return;
+				}
 				this._logService.error('[CloudSandboxModels] Failed to load cloud models', error);
 				const notification = this._notificationService.prompt(Severity.Error, localize('cloudSandbox.modelsFailed', "Could not load models for GitHub sandboxes."), [{
 					label: localize('cloudSandbox.retryModels', "Retry"),
@@ -110,7 +115,7 @@ export class CloudSandboxModels extends Disposable {
 	constructor(
 		sessionType: string,
 		vendor: string,
-		modelProvider: AgentHostLanguageModelProvider | undefined,
+		private readonly modelProvider: AgentHostLanguageModelProvider | undefined,
 		@ICloudSandboxModelCatalogService private readonly _catalogService: ICloudSandboxModelCatalogService,
 		@ILanguageModelsService languageModelsService: ILanguageModelsService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -146,7 +151,7 @@ export class CloudSandboxModels extends Disposable {
 			this._onDidChange.fire();
 			return;
 		}
-		this._provider.updateAdditionalModels(catalog.models);
+		this._provider.updateAdditionalModels(this.modelProvider ? catalog.models : catalog.models.map(withCloudSandboxDraftModelConfig));
 		const models = await this._provider.provideLanguageModelChatInfo({}, this._token);
 		if (this._store.isDisposed || generation !== this._generation) {
 			return;

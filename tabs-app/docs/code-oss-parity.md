@@ -35,8 +35,8 @@ customization.
 
 Updates are performed in an isolated clean worktree on a dedicated branch (`chore/sync-vscode-<version>`):
 
-1. **Pin exact upstream revision:** Verify the tag, full commit SHA, and release notes from `https://github.com/microsoft/vscode` (e.g. `1.143.0` at `2d0b7506a36c1d6db9a466440131a8e01eab2289`).
-2. **Export reviewed fork delta:** Re-derive all Tabs additions, modifications, file modes, and binary assets against the baseline upstream release (`1.142.0`), excluding generated outputs, build caches, and dependencies.
+1. **Pin exact upstream revision:** Verify the tag, full commit SHA, and release notes from `https://github.com/microsoft/vscode` (e.g. `1.145.0` at `a717861c07586a53d83b80d742cd3f59b20a6273` synced from `1.143.0` at `2d0b7506a36c1d6db9a466440131a8e01eab2289`).
+2. **Export reviewed fork delta:** Re-derive all Tabs additions, modifications, file modes, and binary assets against the baseline upstream release (`1.143.0`), excluding generated outputs, build caches, and dependencies.
 3. **Refresh comparison snapshot:** Extract the pristine upstream source into `vscode-main/` for clean diffing.
 4. **Refresh patched runtime:** Unpack the pristine upstream source into `tabs-code-oss/`, purge files removed upstream (`git diff --no-renames --diff-filter=D`), and semantically replay the reviewed Tabs fork patches.
 5. **Toolchain boundary:** Use Node/npm (Node v24) strictly inside `tabs-code-oss/` and Bun/Vite+ strictly inside `tabs-app/`. Never run `npm` or `yarn` inside `tabs-app/`.
@@ -54,22 +54,25 @@ Updates are performed in an isolated clean worktree on a dedicated branch (`chor
    ```bash
    npm run compile-extensions-build
    npm run gulp compile-copilot-extension-build
+   npm run gulp compile-extension-media-build
+   bun ../tabs-app/scripts/verify-code-oss-media.ts .build/extensions
    ```
 
 Resolve conflicts only in the documented Tabs integration surface. Treat new conflicts elsewhere as a signal that the patch boundary has expanded and needs review.
 
-For production packaging, build the production extension bundles before the
-Tabs artifact:
+For development, run `npm run gulp compile-extension-media` in
+`tabs-code-oss/` to populate the source extension directories as well. The
+production media command above runs after the production bundles and writes to
+`.build/extensions`; the artifact builder checks that tree and the staged
+payload. CI checks the media in the extracted Linux and Windows artifacts, and
+the macOS builder checks the mounted DMG.
 
 ```bash
-cd ../tabs-code-oss
-npm run compile-extensions-build
-npm run gulp compile-copilot-extension-build
-
 cd ../tabs-app
-bun install
-bun typecheck
-bun test
+bun install --frozen-lockfile
+bun x --no-install vp check
+bun x --no-install vp run typecheck
+bun x --no-install vp test
 bun run test:desktop-smoke
 bun run test:code-oss
 bun run dist:desktop:dmg:arm64
@@ -101,7 +104,21 @@ Windows caption controls use the renderer background, update symbol contrast whe
 
 ## Embedded-workbench release gate
 
-`bun run test:code-oss` builds the desktop shell, runs the real upstream native-adapter checks, and launches an isolated Electron instance with a registered temporary project. It requires an available native backend, a visible Code workbench, real file contents, the Tabs radius stylesheet, and an integrated terminal opened through the bundled integration extension that executes a real shell command. Its profile/workspace are removed after shutdown. Opening the outer `tabs://app/` page alone is not sufficient.
+`bun run test:code-oss` builds the desktop shell, runs the native adapter
+checks, and launches an isolated Electron instance with a registered temporary
+project. It checks the native backend, real editor contents, Tabs radius CSS,
+and a real integrated terminal command. It also exercises Markdown source,
+Editor and Preview, rendered notebook output, and a local page in the
+Integrated Browser. The native contract inventory covers 115 method names; runtime checks
+exercise selected methods. The extension host receives its project identity
+from its registered workbench window, and the control broker rejects anonymous
+connections. The smoke test removes its temporary profile and workspace.
+
+The Integrated Browser uses its owning workbench's native view as its
+container. It must move with the workbench, disappear when the user switches
+away from Code, and return with its page intact. Verify those transitions in
+the actual application window; a successful page request or renderer snapshot
+alone does not prove that the native view is in the right place.
 
 On macOS, also repeat the workbench check against the rebuilt application in the mounted DMG (or extracted ZIP):
 

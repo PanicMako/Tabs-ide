@@ -540,14 +540,18 @@ async function run() {
       cwd: desktopDir,
       stdio: ["pipe", "pipe", "pipe"],
       detached: isPosix,
-      env: {
-        ...process.env,
-        TABS_HOME: testHome,
-        TABS_DESKTOP_USER_DATA_DIR: join(testHome, "electron-profile"),
-        VITE_DEV_SERVER_URL: "",
-        ELECTRON_ENABLE_LOGGING: "1",
-        T3CODE_LOG_WS_EVENTS: "true",
-      },
+      env: (() => {
+        const e = {
+          ...process.env,
+          TABS_HOME: testHome,
+          TABS_DESKTOP_USER_DATA_DIR: join(testHome, "electron-profile"),
+          VITE_DEV_SERVER_URL: "",
+          ELECTRON_ENABLE_LOGGING: "1",
+          T3CODE_LOG_WS_EVENTS: "true",
+        };
+        delete e.ELECTRON_RUN_AS_NODE;
+        return e;
+      })(),
     });
 
     trackedPids.add(currentChild.pid);
@@ -1911,14 +1915,18 @@ async function run() {
       cwd: desktopDir,
       stdio: ["pipe", "pipe", "pipe"],
       detached: isPosix,
-      env: {
-        ...process.env,
-        TABS_HOME: testHome,
-        TABS_DESKTOP_USER_DATA_DIR: join(testHome, "electron-profile"),
-        VITE_DEV_SERVER_URL: "",
-        ELECTRON_ENABLE_LOGGING: "1",
-        T3CODE_LOG_WS_EVENTS: "true",
-      },
+      env: (() => {
+        const e = {
+          ...process.env,
+          TABS_HOME: testHome,
+          TABS_DESKTOP_USER_DATA_DIR: join(testHome, "electron-profile"),
+          VITE_DEV_SERVER_URL: "",
+          ELECTRON_ENABLE_LOGGING: "1",
+          T3CODE_LOG_WS_EVENTS: "true",
+        };
+        delete e.ELECTRON_RUN_AS_NODE;
+        return e;
+      })(),
     });
 
     const trackedPids2 = new Set([currentChild.pid]);

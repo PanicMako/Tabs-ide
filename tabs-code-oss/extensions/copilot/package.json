@@ -2,7 +2,7 @@
   "name": "copilot-chat",
   "displayName": "GitHub Copilot",
   "description": "AI chat features powered by Copilot",
-  "version": "0.71.0",
+  "version": "0.73.0",
   "build": "1",
   "completionsCoreVersion": "1.378.1799",
   "internalLargeStorageAriaKey": "ec712b3202c5462fb6877acae7f1f9d7-c19ad55e-3e3c-4f99-984b-827f6d95bd9e-6917",
@@ -22,7 +22,7 @@
   "icon": "assets/copilot.png",
   "pricing": "Trial",
   "engines": {
-    "vscode": "^1.143.0",
+    "vscode": "^1.145.0",
     "npm": ">=9.0.0",
     "node": ">=22.14.0"
   },
@@ -82,6 +82,7 @@
     "onLanguageModelChat:copilot",
     "onUri",
     "onCommand:_github.copilot.chat.reportModelFeedbackSurvey",
+    "onCommand:github.copilot.survey.signalUsage",
     "onSpeech",
     "onFileSystem:ccreq",
     "onFileSystem:ccsettings"
@@ -575,99 +576,6 @@
         }
       },
       {
-        "name": "copilot_createNewWorkspace",
-        "displayName": "%github.copilot.tools.createNewWorkspace.name%",
-        "toolReferenceName": "newWorkspace",
-        "legacyToolReferenceFullNames": [
-          "new/newWorkspace"
-        ],
-        "icon": "$(new-folder)",
-        "userDescription": "%github.copilot.tools.createNewWorkspace.userDescription%",
-        "when": "config.github.copilot.chat.newWorkspaceCreation.enabled",
-        "modelDescription": "Get comprehensive setup steps to help the user create complete project structures in a VS Code workspace. This tool is designed for full project initialization and scaffolding, not for creating individual files.\n\nWhen to use this tool:\n- User wants to create a new complete project from scratch\n- Setting up entire project frameworks (TypeScript projects, React apps, Node.js servers, etc.)\n- Initializing Model Context Protocol (MCP) servers with full structure\n- Creating VS Code extensions with proper scaffolding\n- Setting up Next.js, Vite, or other framework-based projects\n- User asks for \"new project\", \"create a workspace\", \"set up a [framework] project\"\n- Need to establish complete development environment with dependencies, config files, and folder structure\n\nWhen NOT to use this tool:\n- Creating single files or small code snippets\n- Adding individual files to existing projects\n- Making modifications to existing codebases\n- User asks to \"create a file\" or \"add a component\"\n- Simple code examples or demonstrations\n- Debugging or fixing existing code\n\nThis tool provides complete project setup including:\n- Folder structure creation\n- Package.json and dependency management\n- Configuration files (tsconfig, eslint, etc.)\n- Initial boilerplate code\n- Development environment setup\n- Build and run instructions\n\nUse other file creation tools for individual files within existing projects.",
-        "inputSchema": {
-          "type": "object",
-          "properties": {
-            "query": {
-              "type": "string",
-              "description": "The query to use to generate the new workspace. This should be a clear and concise description of the workspace the user wants to create."
-            }
-          },
-          "required": [
-            "query"
-          ]
-        },
-        "tags": [
-          "enable_other_tool_install_extension"
-        ]
-      },
-      {
-        "name": "copilot_installExtension",
-        "displayName": "Install Extension in VS Code",
-        "when": "!config.github.copilot.chat.installExtensionSkill.enabled",
-        "toolReferenceName": "installExtension",
-        "legacyToolReferenceFullNames": [
-          "new/installExtension"
-        ],
-        "modelDescription": "Install an extension in VS Code. Use this tool to install an extension in Visual Studio Code as part of a new workspace creation process only.",
-        "inputSchema": {
-          "type": "object",
-          "properties": {
-            "id": {
-              "type": "string",
-              "description": "The ID of the extension to install. This should be in the format <publisher>.<extension>."
-            },
-            "name": {
-              "type": "string",
-              "description": "The name of the extension to install. This should be a clear and concise description of the extension."
-            }
-          },
-          "required": [
-            "id",
-            "name"
-          ]
-        },
-        "tags": []
-      },
-      {
-        "name": "copilot_runVscodeCommand",
-        "displayName": "Run VS Code Command",
-        "toolReferenceName": "runCommand",
-        "legacyToolReferenceFullNames": [
-          "new/runVscodeCommand"
-        ],
-        "modelDescription": "Run a command in VS Code. Use this tool to run a command in Visual Studio Code as part of a new workspace creation process only.",
-        "inputSchema": {
-          "type": "object",
-          "properties": {
-            "commandId": {
-              "type": "string",
-              "description": "The ID of the command to execute. This should be in the format <command>."
-            },
-            "name": {
-              "type": "string",
-              "description": "The name of the command to execute. This should be a clear and concise description of the command."
-            },
-            "args": {
-              "type": "array",
-              "description": "The arguments to pass to the command. This should be an array of strings.",
-              "items": {
-                "type": "string"
-              }
-            },
-            "skipCheck": {
-              "type": "boolean",
-              "description": "If true, skip checking whether the command exists before executing it."
-            }
-          },
-          "required": [
-            "commandId",
-            "name"
-          ]
-        },
-        "tags": []
-      },
-      {
         "name": "copilot_createNewJupyterNotebook",
         "displayName": "Create New Jupyter Notebook",
         "icon": "$(notebook)",
@@ -1117,7 +1025,7 @@
         "toolReferenceName": "switchAgent",
         "displayName": "%copilot.tools.switchAgent.name%",
         "userDescription": "%copilot.tools.switchAgent.description%",
-        "modelDescription": "Switch to the Plan agent to align on approach before implementing. Plan will explore the codebase, gathers context, clarifies requirements with the user, and creates an actionable implementation plan.\n\nSWITCH TO PLAN when ANY of these apply:\n1. Adding new functionality - where should it go? What patterns to follow?\n2. Multiple valid approaches exist - choosing between technologies, patterns, or strategies\n3. Modifying existing behavior - unclear what should change or what side effects exist\n4. Architectural decisions required - choosing between design patterns or integration approaches\n5. Changes span multiple files - refactoring, migrations, or cross-cutting concerns\n6. Requirements are underspecified - need to explore before understanding scope\n\nEXAMPLES:\n✓ Switch to Plan:\n- \"Add authentication to the app\" → architectural decisions needed (session vs JWT, middleware)\n- \"Refactor this data flow\" → must understand component dependencies first\n- \"Migrate from X to Y\" → requires understanding current structure\n\n✗ Do NOT switch to Plan:\n- User attached a detailed spec, plan, or requirements doc → context already provided\n- You already started editing files in this conversation → too late to switch\n- Single obvious change like fixing a typo or renaming → just do it\n- User gave explicit step-by-step instructions → follow them directly",
+        "modelDescription": "Switch to the Plan agent to align on approach before implementing. Plan will explore the codebase, gathers context, clarifies requirements with the user, and creates an actionable implementation plan.\n\nSWITCH TO PLAN when ANY of these apply:\n1. Adding new functionality - where should it go? What patterns to follow?\n2. Multiple valid approaches exist - choosing between technologies, patterns, or strategies\n3. Modifying existing behavior - unclear what should change or what side effects exist\n4. Architectural decisions required - choosing between design patterns or integration approaches\n5. Changes span multiple files - refactoring, migrations, or cross-cutting concerns\n6. Requirements are underspecified - need to explore before understanding scope\n\nEXAMPLES:\n\u2713 Switch to Plan:\n- \"Add authentication to the app\" \u2192 architectural decisions needed (session vs JWT, middleware)\n- \"Refactor this data flow\" \u2192 must understand component dependencies first\n- \"Migrate from X to Y\" \u2192 requires understanding current structure\n\n\u2717 Do NOT switch to Plan:\n- User attached a detailed spec, plan, or requirements doc \u2192 context already provided\n- You already started editing files in this conversation \u2192 too late to switch\n- Single obvious change like fixing a typo or renaming \u2192 just do it\n- User gave explicit step-by-step instructions \u2192 follow them directly",
         "when": "config.github.copilot.chat.switchAgent.enabled",
         "icon": "$(arrow-swap)",
         "inputSchema": {
@@ -1141,7 +1049,7 @@
         "displayName": "Memory",
         "toolReferenceName": "memory",
         "userDescription": "Manage persistent memory across conversations",
-        "modelDescription": "Manage a persistent memory system with three scopes for storing notes and information across conversations.\n\nMemory is organized under /memories/ with three tiers:\n- `/memories/` — User memory: persistent notes that survive across all workspaces and conversations. Store preferences, patterns, and general insights here.\n- `/memories/session/` — Session memory: notes scoped to the current conversation. Store task-specific context and in-progress notes here. Cleared after the conversation ends.\n- `/memories/repo/` — Repository memory: repository-scoped notes stored locally in the workspace. Store codebase conventions, build commands, project structure facts, and verified practices here.\n\nIMPORTANT: Before creating new memory files, first view the /memories/ directory to understand what already exists. This helps avoid duplicates and maintain organized notes.\n\nCommands:\n- `view`: View contents of a file or list directory contents. Can be used on files or directories (e.g., \"/memories/\" to see all top-level items).\n- `create`: Create a new file at the specified path with the given content. Fails if the file already exists.\n- `str_replace`: Replace an exact string in a file with a new string. The old_str must appear exactly once in the file.\n- `insert`: Insert text at a specific line number in a file. Line 0 inserts at the beginning.\n- `delete`: Delete a file or directory (and all its contents).\n- `rename`: Rename or move a file or directory from path to new_path. Cannot rename across scopes.",
+        "modelDescription": "Manage a persistent memory system with three scopes for storing notes and information across conversations.\n\nMemory is organized under /memories/ with three tiers:\n- `/memories/` \u2014 User memory: persistent notes that survive across all workspaces and conversations. Store preferences, patterns, and general insights here.\n- `/memories/session/` \u2014 Session memory: notes scoped to the current conversation. Store task-specific context and in-progress notes here. Cleared after the conversation ends.\n- `/memories/repo/` \u2014 Repository memory: repository-scoped notes stored locally in the workspace. Store codebase conventions, build commands, project structure facts, and verified practices here.\n\nIMPORTANT: Before creating new memory files, first view the /memories/ directory to understand what already exists. This helps avoid duplicates and maintain organized notes.\n\nCommands:\n- `view`: View contents of a file or list directory contents. Can be used on files or directories (e.g., \"/memories/\" to see all top-level items).\n- `create`: Create a new file at the specified path with the given content. Fails if the file already exists.\n- `str_replace`: Replace an exact string in a file with a new string. The old_str must appear exactly once in the file.\n- `insert`: Insert text at a specific line number in a file. Line 0 inserts at the beginning.\n- `delete`: Delete a file or directory (and all its contents).\n- `rename`: Rename or move a file or directory from path to new_path. Cannot rename across scopes.",
         "inputSchema": {
           "type": "object",
           "properties": {
@@ -1241,7 +1149,7 @@
         "toolReferenceName": "sessionStoreSql",
         "when": "github.copilot.sessionSearch.enabled",
         "userDescription": "Query your Copilot session history using SQL",
-        "modelDescription": "Query the local session store containing history from past coding sessions. Uses SQLite syntax (NOT DuckDB or Postgres). SQL queries are read-only — only SELECT and WITH are allowed. Use `datetime('now', '-1 day')` for date math (NOT `now() - INTERVAL '1 day'`), FTS5 `MATCH` for text search.\n\nTables: `sessions`, `turns`, `session_files`, `session_refs`, `checkpoints`, `search_index`. For column details and query patterns, use the **chronicle** skill.\n\nActions: 'query' (execute SQL — supports JOINs, FTS5 MATCH, aggregations), 'reindex' (rebuild index from debug logs).",
+        "modelDescription": "Query the local session store containing history from past coding sessions. Uses SQLite syntax (NOT DuckDB or Postgres). SQL queries are read-only \u2014 only SELECT and WITH are allowed. Use `datetime('now', '-1 day')` for date math (NOT `now() - INTERVAL '1 day'`), FTS5 `MATCH` for text search.\n\nTables: `sessions`, `turns`, `session_files`, `session_refs`, `checkpoints`, `search_index`. For column details and query patterns, use the **chronicle** skill.\n\nActions: 'query' (execute SQL \u2014 supports JOINs, FTS5 MATCH, aggregations), 'reindex' (rebuild index from debug logs).",
         "tags": [],
         "canBeReferencedInPrompt": false,
         "inputSchema": {
@@ -1257,7 +1165,7 @@
             },
             "query": {
               "type": "string",
-              "description": "A single read-only SQL query to execute. Required when action is 'query'. Supports SELECT, WITH, JOINs, aggregations, and FTS5 MATCH. Only one statement per call — do not combine multiple queries with semicolons."
+              "description": "A single read-only SQL query to execute. Required when action is 'query'. Supports SELECT, WITH, JOINs, aggregations, and FTS5 MATCH. Only one statement per call \u2014 do not combine multiple queries with semicolons."
             },
             "force": {
               "type": "boolean",
@@ -1277,7 +1185,7 @@
                 "improve",
                 "reindex"
               ],
-              "description": "The chronicle subcommand that triggered this call (e.g. 'tips' for /chronicle tips). Used for telemetry attribution only — pass this whenever the call originates from a /chronicle slash command."
+              "description": "The chronicle subcommand that triggered this call (e.g. 'tips' for /chronicle tips). Used for telemetry attribution only \u2014 pass this whenever the call originates from a /chronicle slash command."
             }
           },
           "required": [
@@ -1339,11 +1247,8 @@
         "name": "vscode",
         "description": "",
         "tools": [
-          "installExtension",
           "memory",
-          "newWorkspace",
           "resolveMemoryFileUri",
-          "runCommand",
           "switchAgent",
           "toolSearch",
           "vscodeAPI"
@@ -1423,23 +1328,6 @@
             "name": "fix",
             "description": "%copilot.workspace.fix.description%",
             "sampleRequest": "%copilot.workspace.fix.sampleRequest%"
-          },
-          {
-            "name": "new",
-            "description": "%copilot.workspace.new.description%",
-            "sampleRequest": "%copilot.workspace.new.sampleRequest%",
-            "isSticky": true,
-            "disambiguation": [
-              {
-                "category": "create_new_workspace_or_extension",
-                "description": "The user wants to create a complete Visual Studio Code workspace from scratch, such as a new application or a Visual Studio Code extension. Use this category only if the question relates to generating or creating new workspaces in Visual Studio Code. Do not use this category for updating existing code or generating sample code snippets",
-                "examples": [
-                  "Scaffold a Node server.",
-                  "Create a sample project which uses the fileSystemProvider API.",
-                  "react application"
-                ]
-              }
-            ]
           },
           {
             "name": "newNotebook",
@@ -1553,23 +1441,6 @@
             "name": "fix",
             "description": "%copilot.workspace.fix.description%",
             "sampleRequest": "%copilot.workspace.fix.sampleRequest%"
-          },
-          {
-            "name": "new",
-            "description": "%copilot.workspace.new.description%",
-            "sampleRequest": "%copilot.workspace.new.sampleRequest%",
-            "isSticky": true,
-            "disambiguation": [
-              {
-                "category": "create_new_workspace_or_extension",
-                "description": "The user wants to create a complete Visual Studio Code workspace from scratch, such as a new application or a Visual Studio Code extension. Use this category only if the question relates to generating or creating new workspaces in Visual Studio Code. Do not use this category for updating existing code or generating sample code snippets",
-                "examples": [
-                  "Scaffold a Node server.",
-                  "Create a sample project which uses the fileSystemProvider API.",
-                  "react application"
-                ]
-              }
-            ]
           },
           {
             "name": "newNotebook",
@@ -1876,11 +1747,11 @@
               "secret": true,
               "description": "API key for the models",
               "title": "API Key",
-              "markdownDeprecationMessage": "**Deprecated.** Use the `customendpoint` provider (\"Custom Endpoint\") instead. It supports the Chat Completions API, the Responses API, and the Messages API — selectable per model via the `apiType` property."
+              "markdownDeprecationMessage": "**Deprecated.** Use the `customendpoint` provider (\"Custom Endpoint\") instead. It supports the Chat Completions API, the Responses API, and the Messages API \u2014 selectable per model via the `apiType` property."
             },
             "models": {
               "type": "array",
-              "markdownDeprecationMessage": "**Deprecated.** Use the `customendpoint` provider (\"Custom Endpoint\") instead. It supports the Chat Completions API, the Responses API, and the Messages API — selectable per model via the `apiType` property.",
+              "markdownDeprecationMessage": "**Deprecated.** Use the `customendpoint` provider (\"Custom Endpoint\") instead. It supports the Chat Completions API, the Responses API, and the Messages API \u2014 selectable per model via the `apiType` property.",
               "defaultSnippets": [
                 {
                   "label": "New Model",
@@ -1975,7 +1846,7 @@
                       "responses",
                       "messages"
                     ],
-                    "markdownDescription": "Body shape used to forward the reasoning effort to the model. `chat-completions` sends a top-level `reasoning_effort` string. `responses` sends a nested `reasoning.effort` object. `messages` sends the Anthropic Messages `output_config.effort` field. When unset the format follows the URL: `/responses` → nested, `/messages` → `output_config.effort`, otherwise top-level."
+                    "markdownDescription": "Body shape used to forward the reasoning effort to the model. `chat-completions` sends a top-level `reasoning_effort` string. `responses` sends a nested `reasoning.effort` object. `messages` sends the Anthropic Messages `output_config.effort` field. When unset the format follows the URL: `/responses` \u2192 nested, `/messages` \u2192 `output_config.effort`, otherwise top-level."
                   },
                   "requestHeaders": {
                     "type": "object",
@@ -2182,7 +2053,7 @@
                       "responses",
                       "messages"
                     ],
-                    "markdownDescription": "Body shape used to forward the reasoning effort to the model. `chat-completions` sends a top-level `reasoning_effort` string. `responses` sends a nested `reasoning.effort` object. `messages` sends the Anthropic Messages `output_config.effort` field. When unset the format follows the URL: `/responses` → nested, `/messages` → `output_config.effort`, otherwise top-level."
+                    "markdownDescription": "Body shape used to forward the reasoning effort to the model. `chat-completions` sends a top-level `reasoning_effort` string. `responses` sends a nested `reasoning.effort` object. `messages` sends the Anthropic Messages `output_config.effort` field. When unset the format follows the URL: `/responses` \u2192 nested, `/messages` \u2192 `output_config.effort`, otherwise top-level."
                   },
                   "requestHeaders": {
                     "type": "object",
@@ -2336,7 +2207,7 @@
                       "responses",
                       "messages"
                     ],
-                    "markdownDescription": "Body shape used to forward the reasoning effort to the model. `chat-completions` sends a top-level `reasoning_effort` string. `responses` sends a nested `reasoning.effort` object. `messages` sends the Anthropic Messages `output_config.effort` field. When unset the format follows the URL: `/responses` → nested, `/messages` → `output_config.effort`, otherwise top-level."
+                    "markdownDescription": "Body shape used to forward the reasoning effort to the model. `chat-completions` sends a top-level `reasoning_effort` string. `responses` sends a nested `reasoning.effort` object. `messages` sends the Anthropic Messages `output_config.effort` field. When unset the format follows the URL: `/responses` \u2192 nested, `/messages` \u2192 `output_config.effort`, otherwise top-level."
                   },
                   "requestHeaders": {
                     "type": "object",
@@ -2695,11 +2566,6 @@
         "enablement": "github.copilot-chat.activated && !github.copilot.interactiveSession.disabled",
         "icon": "$(feedback)",
         "category": "Chat"
-      },
-      {
-        "command": "github.copilot.debug.workbenchState",
-        "title": "%github.copilot.command.logWorkbenchState%",
-        "category": "Developer"
       },
       {
         "command": "github.copilot.debug.togglePowerSaveBlocker",
@@ -3269,18 +3135,18 @@
             "enumDescriptions": [
               "Use VS Code's configured display language",
               "English",
-              "français",
+              "fran\u00e7ais",
               "italiano",
               "Deutsch",
-              "español",
-              "русский",
-              "中文(简体)",
-              "中文(繁體)",
-              "日本語",
-              "한국어",
-              "čeština",
-              "português",
-              "Türkçe",
+              "espa\u00f1ol",
+              "\u0440\u0443\u0441\u0441\u043a\u0438\u0439",
+              "\u4e2d\u6587(\u7b80\u4f53)",
+              "\u4e2d\u6587(\u7e41\u9ad4)",
+              "\u65e5\u672c\u8a9e",
+              "\ud55c\uad6d\uc5b4",
+              "\u010de\u0161tina",
+              "portugu\u00eas",
+              "T\u00fcrk\u00e7e",
               "polski"
             ],
             "default": "auto",
@@ -3305,11 +3171,6 @@
             "type": "boolean",
             "default": false,
             "markdownDescription": "%github.copilot.config.scopeSelection%"
-          },
-          "github.copilot.chat.useProjectTemplates": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "%github.copilot.config.useProjectTemplates%"
           },
           "github.copilot.nextEditSuggestions.enabled": {
             "type": "boolean",
@@ -3415,8 +3276,10 @@
             "markdownDescription": "Enable or disable auto triggering of Copilot completions for specified [languages](https://code.visualstudio.com/docs/languages/identifiers). You can still trigger suggestions manually using `Alt + \\`",
             "agentsWindow": {
               "default": {
+                "*": true,
+                "plaintext": true,
                 "markdown": true,
-                "plaintext": true
+                "scminput": false
               }
             }
           },
@@ -3611,6 +3474,15 @@
             "type": "boolean",
             "default": false,
             "markdownDescription": "%github.copilot.config.switchAgent.enabled%",
+            "tags": [
+              "experimental",
+              "onExp"
+            ]
+          },
+          "github.copilot.chat.recordVideoSkill.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%github.copilot.config.recordVideoSkill.enabled%",
             "tags": [
               "experimental",
               "onExp"
@@ -3969,22 +3841,6 @@
               "onExP"
             ],
             "markdownDescription": "%github.copilot.chat.languageContext.inline.typescript.enabled%"
-          },
-          "github.copilot.chat.newWorkspaceCreation.enabled": {
-            "type": "boolean",
-            "default": true,
-            "tags": [
-              "experimental"
-            ],
-            "description": "%github.copilot.config.newWorkspaceCreation.enabled%"
-          },
-          "github.copilot.chat.newWorkspace.useContext7": {
-            "type": "boolean",
-            "default": false,
-            "tags": [
-              "experimental"
-            ],
-            "markdownDescription": "%github.copilot.config.newWorkspace.useContext7%"
           },
           "github.copilot.chat.notebook.followCellExecution.enabled": {
             "type": "boolean",
@@ -4389,7 +4245,7 @@
               "null"
             ],
             "default": null,
-            "markdownDescription": "Advanced model configuration for the next edit suggestions xtab provider.\n\n**Note**: This is an advanced setting.",
+            "markdownDescription": "%github.copilot.config.inlineEdits.xtabProvider.modelConfiguration%",
             "tags": [
               "advanced",
               "experimental"
@@ -4446,40 +4302,6 @@
             },
             "tags": [
               "advanced"
-            ]
-          },
-          "github.copilot.chat.installExtensionSkill.enabled": {
-            "type": "boolean",
-            "default": false,
-            "tags": [
-              "advanced",
-              "experimental",
-              "onExp"
-            ],
-            "description": "%github.copilot.config.installExtensionSkill.enabled%"
-          },
-          "github.copilot.chat.debug.promptOverrideString": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "default": null,
-            "markdownDescription": "YAML string that overrides the system prompt and/or tool descriptions sent to the model. When both this setting and `github.copilot.chat.debug.promptOverrideFile` are configured, this setting takes precedence.\n\n**Note**: This is an advanced debugging setting.",
-            "tags": [
-              "advanced",
-              "experimental"
-            ]
-          },
-          "github.copilot.chat.debug.promptOverrideFile": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "default": null,
-            "markdownDescription": "Path to a YAML file that overrides the system prompt and/or tool descriptions sent to the model.\n\n**Note**: This is an advanced debugging setting.",
-            "tags": [
-              "advanced",
-              "experimental"
             ]
           },
           "github.copilot.chat.edits.gemini3MultiReplaceString": {
@@ -4900,6 +4722,7 @@
             ]
           },
           "github.copilot.chat.omitBaseAgentInstructions": {
+            "scope": "application",
             "type": "boolean",
             "default": false,
             "markdownDescription": "%github.copilot.config.omitBaseAgentInstructions%",
@@ -5435,7 +5258,7 @@
             "default": 0,
             "minimum": 0,
             "scope": "application",
-            "markdownDescription": "Maximum size **in characters** for free-form OTel content attributes (prompts, responses, tool arguments/results, hook input/output). `0` (the default) disables truncation so backends without per-attribute size limits receive full JSON payloads. Set to a positive value when your OTel backend caps attribute size — consult your backend's documentation for its per-attribute limit. Truncated values are suffixed with `...[truncated, original N chars]`. Configurable in user settings only. Env var `COPILOT_OTEL_MAX_ATTRIBUTE_SIZE_CHARS` takes precedence. Requires window reload.",
+            "markdownDescription": "Maximum size **in characters** for free-form OTel content attributes (prompts, responses, tool arguments/results, hook input/output). `0` (the default) disables truncation so backends without per-attribute size limits receive full JSON payloads. Set to a positive value when your OTel backend caps attribute size \u2014 consult your backend's documentation for its per-attribute limit. Truncated values are suffixed with `...[truncated, original N chars]`. Configurable in user settings only. Env var `COPILOT_OTEL_MAX_ATTRIBUTE_SIZE_CHARS` takes precedence. Requires window reload.",
             "tags": [
               "advanced"
             ]
@@ -5683,6 +5506,10 @@
       ],
       "commandPalette": [
         {
+          "command": "github.copilot.report",
+          "when": "false"
+        },
+        {
           "command": "github.copilot.cli.openInCopilotCLI",
           "when": "false"
         },
@@ -5709,10 +5536,6 @@
         {
           "command": "github.copilot.interactiveSession.feedback",
           "when": "github.copilot-chat.activated && !github.copilot.interactiveSession.disabled"
-        },
-        {
-          "command": "github.copilot.debug.workbenchState",
-          "when": "true"
         },
         {
           "command": "github.copilot.chat.rerunWithCopilotDebug",
@@ -6370,7 +6193,7 @@
         {
           "command": "github.copilot.cli.sessions.rename",
           "when": "sessionType == copilotcli && sessionProviderId == default-copilot",
-          "group": "1_edit@4"
+          "group": "4_manage@2"
         }
       ],
       "chat/multiDiff/context": [
@@ -6854,33 +6677,6 @@
     ],
     "chatSkills": [
       {
-        "path": "./assets/prompts/skills/project-setup-info-local/SKILL.md",
-        "when": "!config.github.copilot.chat.newWorkspace.useContext7",
-        "sessionTypes": [
-          "local"
-        ]
-      },
-      {
-        "path": "./assets/prompts/skills/project-setup-info-context7/SKILL.md",
-        "when": "config.github.copilot.chat.newWorkspace.useContext7",
-        "sessionTypes": [
-          "local"
-        ]
-      },
-      {
-        "path": "./assets/prompts/skills/install-vscode-extension/SKILL.md",
-        "when": "config.github.copilot.chat.installExtensionSkill.enabled && config.github.copilot.chat.newWorkspaceCreation.enabled",
-        "sessionTypes": [
-          "local"
-        ]
-      },
-      {
-        "path": "./assets/prompts/skills/get-search-view-results/SKILL.md",
-        "sessionTypes": [
-          "local"
-        ]
-      },
-      {
         "path": "./assets/prompts/skills/troubleshoot/SKILL.md",
         "sessionTypes": [
           "local",
@@ -6951,6 +6747,13 @@
         "sessionTypes": [
           "local"
         ]
+      },
+      {
+        "path": "./assets/prompts/skills/record-video/SKILL.md",
+        "when": "config.github.copilot.chat.recordVideoSkill.enabled",
+        "sessionTypes": [
+          "copilotcli"
+        ]
       }
     ],
     "terminal": {
@@ -7001,7 +6804,6 @@
     "setup:dotnet": "run-script-os",
     "setup:dotnet:darwin:linux": "curl -O https://raw.githubusercontent.com/dotnet/install-scripts/main/src/dotnet-install.sh && chmod u+x dotnet-install.sh && ./dotnet-install.sh --channel 10.0 && rm dotnet-install.sh",
     "setup:dotnet:win32": "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"Invoke-WebRequest -Uri https://raw.githubusercontent.com/dotnet/install-scripts/main/src/dotnet-install.ps1 -OutFile dotnet-install.ps1; ./dotnet-install.ps1 -channel 10.0; Remove-Item dotnet-install.ps1\"",
-    "analyze-edits": "tsx script/analyzeEdits.ts",
     "extract-chat-lib": "tsx script/build/extractChatLib.ts",
     "create_venv": "tsx script/setup/createVenv.mts",
     "package": "vsce package",
@@ -7040,7 +6842,7 @@
     "@typescript-eslint/eslint-plugin": "^8.35.0",
     "@typescript-eslint/parser": "^8.32.0",
     "@typescript-eslint/typescript-estree": "^8.26.1",
-    "@typescript/native": "npm:typescript@7.1.0-dev.20260818.1",
+    "@typescript/native": "npm:typescript@7.1.0-dev.20261027.1",
     "@vitest/coverage-v8": "^4.1.8",
     "@vitest/snapshot": "^1.5.0",
     "@vscode/debugadapter": "^1.68.0",
@@ -7098,7 +6900,7 @@
     "@google/genai": "1.30.0",
     "@humanwhocodes/gitignore-to-minimatch": "1.0.2",
     "@microsoft/tiktokenizer": "^1.0.10",
-    "@modelcontextprotocol/sdk": "^1.25.2",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/api-logs": "^0.212.0",
     "@opentelemetry/exporter-logs-otlp-grpc": "^0.219.0",

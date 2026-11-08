@@ -134,7 +134,11 @@ export class CodeControlChannel {
         // Token check: the first message must be a `hello` carrying the exact
         // per-launch token; anything else gets the connection destroyed.
         if (!authed) {
-          if (message.type !== "hello" || message.token !== this.token) {
+          if (
+            message.type !== "hello" ||
+            message.token !== this.token ||
+            !message.projectId.trim()
+          ) {
             socket.destroy();
             return;
           }
