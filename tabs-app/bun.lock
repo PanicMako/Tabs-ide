@@ -17,7 +17,7 @@
     },
     "apps/desktop": {
       "name": "@tabs/desktop",
-      "version": "2.2.2",
+      "version": "2.3.0",
       "dependencies": {
         "@clerk/electron": "0.0.37",
         "@clerk/electron-passkeys": "0.0.3",
@@ -96,7 +96,7 @@
     },
     "apps/server": {
       "name": "tabs",
-      "version": "2.2.2",
+      "version": "2.3.0",
       "bin": {
         "tabs": "./dist/index.mjs",
       },
@@ -156,7 +156,7 @@
     },
     "apps/web": {
       "name": "@tabs/web",
-      "version": "2.2.2",
+      "version": "2.3.0",
       "dependencies": {
         "@base-ui/react": "^1.2.0",
         "@clerk/electron": "0.0.37",
@@ -259,7 +259,7 @@
     },
     "packages/contracts": {
       "name": "@tabs/contracts",
-      "version": "2.2.2",
+      "version": "2.3.0",
       "dependencies": {
         "effect": "catalog:",
       },
