@@ -109,31 +109,6 @@
   width: 13px;
   height: 13px;
 }
-.theme-collection-actions {
-  margin-top: 22px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-.theme-collection-actions button {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  text-align: left;
-  font-size: 12px;
-  color: var(--muted-foreground);
-}
-.theme-collection-actions button:hover {
-  color: var(--foreground);
-}
-.theme-collection-actions svg {
-  width: 14px;
-  height: 14px;
-}
-.theme-collection-actions button span {
-  margin-left: auto;
-}
 .theme-collection-feature {
   position: sticky;
   top: 20px;
@@ -533,16 +508,63 @@ html .theme-collection .theme-collection-choice[aria-pressed="true"] {
   color: var(--muted-foreground);
 }
 .theme-collection-actions {
-  margin-top: 24px;
-  padding-top: 18px;
+  display: grid;
+  gap: 2px;
+  margin-top: 20px;
+  padding-top: 10px;
   border-top: 1px solid var(--border);
-  gap: 6px;
 }
+
 .theme-collection-actions button {
-  min-height: 44px;
-  padding: 8px 4px;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) 16px;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px;
+  border-radius: var(--radius-control);
+  color: var(--muted-foreground);
+  text-align: start;
   font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    color 150ms ease,
+    background-color 150ms ease;
 }
+
+.theme-collection-actions button:first-child {
+  color: var(--foreground);
+}
+
+.theme-collection-actions button:hover {
+  color: var(--foreground);
+  background: var(--muted);
+}
+
+.theme-collection-actions button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+.theme-collection-actions button svg {
+  width: 15px;
+  height: 15px;
+}
+
+.theme-collection-actions button svg:last-child {
+  width: 13px;
+  height: 13px;
+  justify-self: end;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-collection-actions button {
+    transition: none;
+  }
+}
+
 @container theme-collection (width < 650px) {
   .theme-collection-layout {
     grid-template-columns: minmax(0, 1fr);

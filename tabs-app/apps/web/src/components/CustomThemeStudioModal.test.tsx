@@ -21,9 +21,15 @@ import { clearAllDraftSources, settingsDraftRegistryAtom } from "../state/settin
 vi.mock("./ui/dialog", () => ({
   DialogTitle: ({ children, ...props }: any) => <h2 {...props}>{children}</h2>,
   DialogDescription: ({ children, ...props }: any) => <p {...props}>{children}</p>,
+  DialogDetails: ({ children, title }: any) => (
+    <details>
+      <summary>{title}</summary>
+      {children}
+    </details>
+  ),
   Dialog: ({ children, open }: any) => (open ? <div data-slot="dialog">{children}</div> : null),
-  DialogPopup: ({ children, showCloseButton: _showCloseButton, ...props }: any) => (
-    <div data-slot="dialog-popup" {...props}>
+  DialogPopup: ({ children, className }: any) => (
+    <div data-slot="dialog-popup" className={className}>
       {children}
     </div>
   ),

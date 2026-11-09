@@ -5,6 +5,7 @@ import { page } from "vitest/browser";
 import { render } from "vitest-browser-react";
 import workbenchStyles from "../../../../../../tabs-code-oss/src/vs/workbench/contrib/tabs/browser/media/tabs.css?raw";
 import embeddedWorkbenchStyles from "../../../../../../tabs-code-oss/src/vs/workbench/contrib/tabs/browser/media/embeddedWorkbench.css?raw";
+import { previewTheme, restoreThemeSnapshot, snapshotThemeState } from "../../hooks/useTheme";
 import { Button } from "./button";
 import { Input } from "./input";
 
@@ -280,6 +281,98 @@ it("preserves authentic project tabs with rounded top corners and flush bottom c
     await view.unmount();
   }
 });
+
+it.each(["true-black", "solarized-light"] as const)(
+  "joins the New Tab strip to the Welcome canvas in %s",
+  async (theme) => {
+    const snapshot = snapshotThemeState();
+    previewTheme(theme);
+    const view = await render(
+      <>
+        <div
+          data-slot="workspace-tabbar"
+          data-surface="welcome"
+          className="w-96 border-b px-3 pt-2"
+        >
+          <div className="flex items-end gap-2.5 overflow-x-auto">
+            <div className="border border-transparent px-4 py-2">Passes</div>
+            <div
+              data-slot="workspace-project-tab"
+              data-active="true"
+              className="relative -mb-px rounded-t-xl border bg-card px-4 py-2"
+            >
+              New Tab
+              {["-left-2.5 -scale-x-100", "-right-2.5"].map((side) => (
+                <svg
+                  key={side}
+                  className={`tab-bottom-fillet absolute -bottom-px ${side}`}
+                  width="12"
+                  height="10"
+                  viewBox="0 0 12 10"
+                >
+                  <path className="tab-bottom-fillet-fill" d="M0 0 H2 A10 10 0 0 0 12 10 H0 Z" />
+                  <path
+                    className="tab-bottom-fillet-stroke"
+                    fill="none"
+                    d="M2 0 A10 10 0 0 0 12 10"
+                  />
+                </svg>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div data-slot="workspace-welcome" className="bg-background">
+          Welcome
+        </div>
+      </>,
+    );
+    try {
+      const bar = view.container.querySelector('[data-slot="workspace-tabbar"]')!;
+      const tab = bar.querySelector('[data-active="true"]')!;
+      const welcome = view.container.querySelector('[data-slot="workspace-welcome"]')!;
+      const canvas = getComputedStyle(welcome).backgroundColor;
+      expect(getComputedStyle(bar).backgroundColor).toBe(canvas);
+      expect(getComputedStyle(tab).backgroundColor).toBe(canvas);
+      expect(getComputedStyle(bar.querySelector(".tab-bottom-fillet-fill")!).fill).toBe(canvas);
+      expect(getComputedStyle(bar.querySelector(".tab-bottom-fillet-stroke")!).stroke).toBe(
+        getComputedStyle(tab).borderTopColor,
+      );
+      expect(getComputedStyle(bar).borderBottomWidth).toBe("0px");
+      expect(getComputedStyle(tab).borderBottomWidth).toBe("0px");
+
+      const { base64 } = await page.screenshot({
+        element: bar,
+        base64: true,
+        path: `__screenshots__/welcome-tab-strip-${theme}.png`,
+      });
+      const image = new Image();
+      image.src = `data:image/png;base64,${base64}`;
+      await image.decode();
+      const screenshot = document.createElement("canvas");
+      screenshot.width = image.width;
+      screenshot.height = image.height;
+      const context = screenshot.getContext("2d")!;
+      context.drawImage(image, 0, 0);
+      const pixel = (x: number, y: number) => Array.from(context.getImageData(x, y, 1, 1).data);
+      const bounds = bar.getBoundingClientRect();
+      const selected = tab.getBoundingClientRect();
+      const tabCenter = Math.round(
+        ((selected.left + selected.width / 2 - bounds.left) / bounds.width) * image.width,
+      );
+      const background = pixel(4, 4);
+      const bottom = image.height - 1;
+      const divider = pixel(4, bottom);
+      const difference = (a: number[], b: number[]) =>
+        Math.max(...a.map((channel, index) => Math.abs(channel - b[index]!)));
+      expect(difference(divider, background)).toBeGreaterThan(4);
+      expect(difference(pixel(image.width - 5, bottom), divider)).toBeLessThanOrEqual(2);
+      expect(difference(pixel(tabCenter, bottom), background)).toBeLessThanOrEqual(2);
+    } finally {
+      await view.unmount();
+      restoreThemeSnapshot(snapshot);
+    }
+  },
+);
 
 it("centers text vertically and maintains pill radius in inputs across sizes and flex containers", async () => {
   const view = await render(

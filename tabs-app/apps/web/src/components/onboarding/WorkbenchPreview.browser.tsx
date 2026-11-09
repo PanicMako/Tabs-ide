@@ -150,13 +150,17 @@ it.each(["light", "dark"] as const)(
     );
     try {
       const custom = page.getByRole("button", { name: "Add Custom", exact: true });
-      await custom.click();
       assertReadable(custom.element() as HTMLElement);
-      const add = page.getByRole("button", { name: "Add", exact: true });
-      const input = page.getByPlaceholder("Paste image URL (https://...)");
-      await input.fill("https://example.com/wallpaper.jpg");
-      assertReadable(add.element() as HTMLElement);
-      assertReadable(page.getByRole("dialog").element() as HTMLElement);
+      await custom.click();
+      const importDialog = page.getByRole("dialog", { name: "Add custom wallpaper" });
+      await importDialog.getByRole("radio", { name: "From URL" }).click();
+      await importDialog
+        .getByRole("textbox", { name: "Image URL" })
+        .fill("https://example.com/wallpaper.jpg");
+      assertReadable(
+        importDialog.getByRole("button", { name: "Add Image" }).element() as HTMLElement,
+      );
+      assertReadable(importDialog.element() as HTMLElement);
     } finally {
       await view.unmount();
     }

@@ -1170,19 +1170,29 @@ export default function ExtensionsSettings({ onBack }: { onBack?: () => void } =
                       className="extension-installed-card"
                     >
                       <div className="installed-manage-hero">
-                        <div className="mb-3 flex items-center gap-3">
+                        <div className="installed-identity-row">
                           <InstalledExtensionLogo bridge={bridge} extension={extension} />
-                          <h3
-                            id={`extension-manage-${extension.id}`}
-                            tabIndex={-1}
-                            className="installed-manage-title min-w-0 flex-1 font-semibold"
-                            style={{
-                              fontFamily: "var(--font-display, var(--font-sans))",
-                              letterSpacing: "var(--font-section-tracking, -0.01em)",
-                            }}
-                          >
-                            {extension.manifest.displayName}
-                          </h3>
+                          <div className="min-w-0 flex-1">
+                            <h3
+                              id={`extension-manage-${extension.id}`}
+                              tabIndex={-1}
+                              className="installed-manage-title min-w-0 flex-1 font-semibold"
+                              style={{
+                                fontFamily: "var(--font-display, var(--font-sans))",
+                                letterSpacing: "var(--font-section-tracking, -0.01em)",
+                              }}
+                            >
+                              {extension.manifest.displayName}
+                            </h3>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {extension.manifest.publisher} · v{extension.manifest.version} ·{" "}
+                              {extension.source === "exchange"
+                                ? "Tabs Exchange"
+                                : extension.source === "local-package"
+                                  ? "Local package"
+                                  : "Development folder"}
+                            </p>
+                          </div>
                           <label className="installed-hero-enable">
                             <Switch
                               aria-label={`Enable ${extension.manifest.displayName}`}
@@ -1209,15 +1219,7 @@ export default function ExtensionsSettings({ onBack }: { onBack?: () => void } =
                             </span>
                           </label>
                         </div>
-                        <p className="text-xs text-muted-foreground">
-                          {extension.manifest.publisher} · v{extension.manifest.version} ·{" "}
-                          {extension.source === "exchange"
-                            ? "Tabs Exchange"
-                            : extension.source === "local-package"
-                              ? "Local package"
-                              : "Development folder"}
-                        </p>
-                        <p className="mt-1 text-sm text-muted-foreground">
+                        <p className="mt-3 text-sm text-muted-foreground">
                           {extension.manifest.description}
                         </p>
                         {extension.manifest.contributes.commands?.length ? (
@@ -1279,11 +1281,16 @@ export default function ExtensionsSettings({ onBack }: { onBack?: () => void } =
                       {manageSection === "projects" ? (
                         <div className="installed-project-workspace">
                           <section className="installed-control-section installed-projects-section">
-                            <div>
-                              <h4>Choose your projects</h4>
-                              <p className="installed-control-help">
-                                Where would you like this extension to appear?
-                              </p>
+                            <div className="flex flex-wrap items-baseline justify-between gap-2">
+                              <div>
+                                <h4>Project availability</h4>
+                                <p className="installed-control-help">
+                                  Choose where this extension appears in the workspace toolbar.
+                                </p>
+                              </div>
+                              <span className="text-xs text-muted-foreground">
+                                Changes save automatically
+                              </span>
                             </div>
                             <div
                               className="installed-project-scope"
@@ -1392,38 +1399,39 @@ export default function ExtensionsSettings({ onBack }: { onBack?: () => void } =
                               })}
                             </div>
                           </section>
-                          <aside className="installed-project-guide">
-                            <div className="installed-guide-art" aria-hidden="true">
-                              <FolderIcon className="size-7" />
-                              <CheckIcon className="size-4" />
-                            </div>
-                            <h4>Right where you work.</h4>
-                            <p>Selected projects get this extension in their tools toolbar.</p>
-                            <span>
-                              <CheckIcon className="size-3.5" aria-hidden="true" />
-                              Your choices save automatically
-                            </span>
-                            {extension.disabled && !extension.compatibilityError && (
-                              <p>
-                                Enable the switch above when you’re ready. Your project choices will
-                                stay here.
-                              </p>
+                          <aside
+                            className="installed-project-summary"
+                            aria-label="Project scope summary"
+                          >
+                            <h4>Project access</h4>
+                            <p className="installed-project-count">
+                              <strong>
+                                {
+                                  projects.filter(({ id }) =>
+                                    extension.assignment.enabledGlobally
+                                      ? !extension.assignment.disabledProjectIds.includes(id)
+                                      : extension.assignment.enabledProjectIds.includes(id),
+                                  ).length
+                                }
+                              </strong>
+                              <span>
+                                of {projects.length}{" "}
+                                {projects.length === 1 ? "project" : "projects"}
+                              </span>
+                            </p>
+                            <p>
+                              {extension.assignment.enabledGlobally
+                                ? "New projects get access automatically."
+                                : "New projects need to be added here."}
+                            </p>
+                            {extension.disabled && (
+                              <p>The extension is paused. Your project choices are saved.</p>
                             )}
                           </aside>
                         </div>
                       ) : manageSection === "accounts" ? (
-                        <div className="installed-project-workspace">
-                          <div className="space-y-5 min-w-0">
-                            <section className="installed-control-section installed-projects-section">
-                              <div>
-                                <h4>Accounts & access</h4>
-                                <p className="installed-control-help">
-                                  Manage named accounts, storage isolation, and project permissions
-                                  for {extension.manifest.displayName}.
-                                </p>
-                              </div>
-                            </section>
-
+                        <div className="installed-accounts-workspace">
+                          <div className="grid min-w-0 gap-4">
                             {/* Card 1: Profiles & Storage Scopes */}
                             <section className="installed-control-section space-y-4">
                               <div className="flex items-center justify-between gap-4">
@@ -1692,119 +1700,127 @@ export default function ExtensionsSettings({ onBack }: { onBack?: () => void } =
 
                                       {/* Permissions checklist for this project */}
                                       {hasCapabilities ? (
-                                        <div className="pt-2.5 border-t border-border/40 grid gap-2 ps-1">
-                                          {extension.manifest.capabilities?.includes(
-                                            "profile-storage",
-                                          ) ? (
-                                            <label className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground cursor-pointer select-none">
-                                              <ExtensionCheckbox
-                                                aria-label={`Allow ${extension.manifest.displayName} profile storage in ${project.name}`}
-                                                checked={
-                                                  extension.assignment.storageGrantedProjectIds?.includes(
-                                                    project.id,
-                                                  ) ?? false
-                                                }
-                                                disabled={busy}
-                                                onCheckedChange={(checked) => {
-                                                  const ids =
-                                                    extension.assignment.storageGrantedProjectIds ??
-                                                    [];
-                                                  assign(extension, {
-                                                    ...extension.assignment,
-                                                    storageGrantedProjectIds: checked
-                                                      ? [...ids, project.id]
-                                                      : ids.filter((id) => id !== project.id),
-                                                  });
-                                                }}
-                                              />
-                                              <span>Allow non-secret profile storage</span>
-                                            </label>
-                                          ) : null}
+                                        <details className="border-t border-border/60 pt-2">
+                                          <summary className="cursor-pointer rounded text-xs font-medium text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring">
+                                            Permissions{" "}
+                                            <span className="sr-only">for {project.name}</span>
+                                          </summary>
+                                          <div className="grid gap-2 px-1 pt-3">
+                                            {extension.manifest.capabilities?.includes(
+                                              "profile-storage",
+                                            ) ? (
+                                              <label className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground cursor-pointer select-none">
+                                                <ExtensionCheckbox
+                                                  aria-label={`Allow ${extension.manifest.displayName} profile storage in ${project.name}`}
+                                                  checked={
+                                                    extension.assignment.storageGrantedProjectIds?.includes(
+                                                      project.id,
+                                                    ) ?? false
+                                                  }
+                                                  disabled={busy}
+                                                  onCheckedChange={(checked) => {
+                                                    const ids =
+                                                      extension.assignment
+                                                        .storageGrantedProjectIds ?? [];
+                                                    assign(extension, {
+                                                      ...extension.assignment,
+                                                      storageGrantedProjectIds: checked
+                                                        ? [...ids, project.id]
+                                                        : ids.filter((id) => id !== project.id),
+                                                    });
+                                                  }}
+                                                />
+                                                <span>Allow non-secret profile storage</span>
+                                              </label>
+                                            ) : null}
 
-                                          {extension.manifest.capabilities?.includes(
-                                            "workspace-read",
-                                          ) ? (
-                                            <label className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground cursor-pointer select-none">
-                                              <ExtensionCheckbox
-                                                aria-label={`Allow ${extension.manifest.displayName} to read workspace files in ${project.name}`}
-                                                checked={
-                                                  extension.assignment.workspaceReadGrantedProjectIds?.includes(
-                                                    project.id,
-                                                  ) ?? false
-                                                }
-                                                disabled={busy}
-                                                onCheckedChange={(checked) => {
-                                                  const ids =
-                                                    extension.assignment
-                                                      .workspaceReadGrantedProjectIds ?? [];
-                                                  assign(extension, {
-                                                    ...extension.assignment,
-                                                    workspaceReadGrantedProjectIds: checked
-                                                      ? [...ids, project.id]
-                                                      : ids.filter((id) => id !== project.id),
-                                                  });
-                                                }}
-                                              />
-                                              <span>Allow reading workspace files</span>
-                                            </label>
-                                          ) : null}
+                                            {extension.manifest.capabilities?.includes(
+                                              "workspace-read",
+                                            ) ? (
+                                              <label className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground cursor-pointer select-none">
+                                                <ExtensionCheckbox
+                                                  aria-label={`Allow ${extension.manifest.displayName} to read workspace files in ${project.name}`}
+                                                  checked={
+                                                    extension.assignment.workspaceReadGrantedProjectIds?.includes(
+                                                      project.id,
+                                                    ) ?? false
+                                                  }
+                                                  disabled={busy}
+                                                  onCheckedChange={(checked) => {
+                                                    const ids =
+                                                      extension.assignment
+                                                        .workspaceReadGrantedProjectIds ?? [];
+                                                    assign(extension, {
+                                                      ...extension.assignment,
+                                                      workspaceReadGrantedProjectIds: checked
+                                                        ? [...ids, project.id]
+                                                        : ids.filter((id) => id !== project.id),
+                                                    });
+                                                  }}
+                                                />
+                                                <span>Allow reading workspace files</span>
+                                              </label>
+                                            ) : null}
 
-                                          {extension.manifest.capabilities?.includes(
-                                            "git-status",
-                                          ) ? (
-                                            <label className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground cursor-pointer select-none">
-                                              <ExtensionCheckbox
-                                                aria-label={`Allow ${extension.manifest.displayName} to read Git status in ${project.name}`}
-                                                checked={
-                                                  extension.assignment.gitStatusGrantedProjectIds?.includes(
-                                                    project.id,
-                                                  ) ?? false
-                                                }
-                                                disabled={busy}
-                                                onCheckedChange={(checked) => {
-                                                  const ids =
-                                                    extension.assignment
-                                                      .gitStatusGrantedProjectIds ?? [];
-                                                  assign(extension, {
-                                                    ...extension.assignment,
-                                                    gitStatusGrantedProjectIds: checked
-                                                      ? [...ids, project.id]
-                                                      : ids.filter((id) => id !== project.id),
-                                                  });
-                                                }}
-                                              />
-                                              <span>Allow reading Git repository status</span>
-                                            </label>
-                                          ) : null}
+                                            {extension.manifest.capabilities?.includes(
+                                              "git-status",
+                                            ) ? (
+                                              <label className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground cursor-pointer select-none">
+                                                <ExtensionCheckbox
+                                                  aria-label={`Allow ${extension.manifest.displayName} to read Git status in ${project.name}`}
+                                                  checked={
+                                                    extension.assignment.gitStatusGrantedProjectIds?.includes(
+                                                      project.id,
+                                                    ) ?? false
+                                                  }
+                                                  disabled={busy}
+                                                  onCheckedChange={(checked) => {
+                                                    const ids =
+                                                      extension.assignment
+                                                        .gitStatusGrantedProjectIds ?? [];
+                                                    assign(extension, {
+                                                      ...extension.assignment,
+                                                      gitStatusGrantedProjectIds: checked
+                                                        ? [...ids, project.id]
+                                                        : ids.filter((id) => id !== project.id),
+                                                    });
+                                                  }}
+                                                />
+                                                <span>Allow reading Git repository status</span>
+                                              </label>
+                                            ) : null}
 
-                                          {extension.manifest.capabilities?.includes("ai-tools") ? (
-                                            <label className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground cursor-pointer select-none">
-                                              <ExtensionCheckbox
-                                                aria-label={`Allow agents to run ${extension.manifest.displayName} commands in ${project.name}`}
-                                                checked={
-                                                  extension.assignment.aiToolGrantedProjectIds?.includes(
-                                                    project.id,
-                                                  ) ?? false
-                                                }
-                                                disabled={busy}
-                                                onCheckedChange={(checked) => {
-                                                  const ids =
-                                                    extension.assignment.aiToolGrantedProjectIds ??
-                                                    [];
-                                                  assign(extension, {
-                                                    ...extension.assignment,
-                                                    aiToolGrantedProjectIds: checked
-                                                      ? [...ids, project.id]
-                                                      : ids.filter((id) => id !== project.id),
-                                                  });
-                                                }}
-                                              />
-                                              <span>
-                                                Allow agents to run commands in chat threads
-                                              </span>
-                                            </label>
-                                          ) : null}
-                                        </div>
+                                            {extension.manifest.capabilities?.includes(
+                                              "ai-tools",
+                                            ) ? (
+                                              <label className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground cursor-pointer select-none">
+                                                <ExtensionCheckbox
+                                                  aria-label={`Allow agents to run ${extension.manifest.displayName} commands in ${project.name}`}
+                                                  checked={
+                                                    extension.assignment.aiToolGrantedProjectIds?.includes(
+                                                      project.id,
+                                                    ) ?? false
+                                                  }
+                                                  disabled={busy}
+                                                  onCheckedChange={(checked) => {
+                                                    const ids =
+                                                      extension.assignment
+                                                        .aiToolGrantedProjectIds ?? [];
+                                                    assign(extension, {
+                                                      ...extension.assignment,
+                                                      aiToolGrantedProjectIds: checked
+                                                        ? [...ids, project.id]
+                                                        : ids.filter((id) => id !== project.id),
+                                                    });
+                                                  }}
+                                                />
+                                                <span>
+                                                  Allow agents to run commands in chat threads
+                                                </span>
+                                              </label>
+                                            ) : null}
+                                          </div>
+                                        </details>
                                       ) : null}
                                     </div>
                                   );
@@ -2055,36 +2071,6 @@ export default function ExtensionsSettings({ onBack }: { onBack?: () => void } =
                               </section>
                             ) : null}
                           </div>
-
-                          {/* Right Column: Explanatory Guide Card */}
-                          <aside className="installed-project-guide">
-                            <div className="installed-guide-art" aria-hidden="true">
-                              <UsersIcon className="size-7" />
-                              <ShieldCheckIcon className="size-4" />
-                            </div>
-                            <h4>Accounts & access</h4>
-                            <p>Keep personal and work context separate across your projects.</p>
-                            <div className="space-y-3 mt-4 text-xs text-muted-foreground leading-relaxed">
-                              <div>
-                                <strong className="text-foreground block font-medium mb-0.5">
-                                  Shared profiles
-                                </strong>
-                                One shared storage space across all projects. Great for personal
-                                notes and global tools.
-                              </div>
-                              <div>
-                                <strong className="text-foreground block font-medium mb-0.5">
-                                  Project-isolated profiles
-                                </strong>
-                                Keeps storage, caches, and history strictly confined to each
-                                project. Recommended for client work.
-                              </div>
-                            </div>
-                            <span>
-                              <CheckIcon className="size-3.5 text-primary" aria-hidden="true" />
-                              Your choices save automatically
-                            </span>
-                          </aside>
                         </div>
                       ) : (
                         <div className="installed-advanced-workspace">
@@ -2208,7 +2194,7 @@ export default function ExtensionsSettings({ onBack }: { onBack?: () => void } =
                             </section>
                           ) : null}
                           <section className="installed-control-section installed-removal-section">
-                            <div className="flex items-center justify-between gap-4">
+                            <div className="flex flex-wrap items-center justify-between gap-4">
                               <div className="min-w-0">
                                 <h4>Installation</h4>
                                 <p className="installed-control-help">
@@ -2221,7 +2207,7 @@ export default function ExtensionsSettings({ onBack }: { onBack?: () => void } =
                                   </p>
                                 )}
                               </div>
-                              <div className="flex items-center gap-2 shrink-0">
+                              <div className="flex flex-wrap items-center gap-2">
                                 {extension.source === "development" &&
                                   bridge?.reloadDevelopmentExtension && (
                                     <Button

@@ -1,3 +1,4 @@
+import { resolveToolbarStyle } from "../lib/toolbarStyles";
 import {
   WorkspaceToolActions,
   KeepWorkspaceToolDialog,
@@ -1054,6 +1055,7 @@ function ProjectTabs(props: {
   showSettings?: boolean;
   onOpenSettings?: () => void;
   hasToolbar?: boolean;
+  showWelcome?: boolean;
 }) {
   const windowControlsInset = useWindowControlsInset(
     isWindowsDesktop || isMacDesktop,
@@ -1091,6 +1093,7 @@ function ProjectTabs(props: {
     <div
       ref={titlebarRef}
       data-slot="workspace-tabbar"
+      data-surface={props.showWelcome ? "welcome" : undefined}
       className={cn(
         "drag-region flex items-end justify-between gap-2 px-3 pt-2 select-none backdrop-blur-md transition-colors duration-200",
         props.hasToolbar ? "border-b-0" : "border-b border-border/80",
@@ -1358,11 +1361,13 @@ function ProjectToolBar(props: {
         }}
         className={cn(
           "nav-track",
-          `design-${toolbarStyle ?? "solid"}`,
+          `design-${resolveToolbarStyle(toolbarStyle ?? "solid")}`,
           "overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
         )}
       >
-        <div ref={pillRef} className="active-pill" />
+        <div ref={pillRef} className="active-pill" aria-hidden="true">
+          <div key={props.activeToolId} className="toolbar-pill-effect" data-animate="" />
+        </div>
         {props.availableTools.map((tool) => {
           const active = tool.id === props.activeToolId;
           const isAgentsTool = tool.kind === "agents";
@@ -13336,6 +13341,8 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
 
   const isSettingsRoute = location.pathname === "/settings";
   const isSettingsSurfaceActive = isSettingsRoute || isSettingsNavigationPending;
+  const isWelcomeSurface =
+    !isSettingsSurfaceActive && (isActivePendingTab || !activeProject || !activeProjectSettings);
   const shouldHideShellChrome = embeddedMode.enabled;
   const isEmbeddedWorkspacePending =
     embeddedMode.enabled &&
@@ -13814,6 +13821,7 @@ export function WorkspaceShell(props: { agentsContent: ReactNode; settingsConten
                 !isSettingsSurfaceActive && Boolean(activeProject) && availableTools.length <= 1
               }
               onOpenSettings={openSettings}
+              showWelcome={isWelcomeSurface}
               hasToolbar={
                 !isSettingsSurfaceActive && Boolean(activeProject) && availableTools.length >= 2
               }

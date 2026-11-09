@@ -406,18 +406,6 @@ html[data-reduced-motion="reduce"]
 /* Window Controls Overlay: active when Electron exposes native titlebar control geometry. */
 @custom-variant wco (&:is(.wco, .wco *));
 
-@property --angle {
-  syntax: "<angle>";
-  initial-value: 0deg;
-  inherits: false;
-}
-
-@keyframes spin {
-  to {
-    --angle: 360deg;
-  }
-}
-
 @property --assistant-citation-highlight-opacity {
   syntax: "<number>";
   inherits: true;
@@ -1950,24 +1938,35 @@ label:has(> select#reasoning-effort) select {
   background-color: var(--app-chrome-background, var(--background));
   border: 1px solid var(--border);
   padding: 4px;
-  border-radius: var(--radius-control);
+  border-radius: 999px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
 .nav-tab {
+  --radius-surface: 999px;
   position: relative;
   z-index: 10;
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 6px 14px;
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-surface);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   color: var(--muted-foreground);
   transition: color 0.2s ease;
   user-select: none;
+}
+
+[data-slot="workspace-toolbar"] .nav-tab {
+  font-size: 12px;
+  line-height: 18px;
+}
+
+[data-slot="workspace-toolbar"] .nav-tab-icon :is(svg, img) {
+  max-inline-size: 15px;
+  max-block-size: 15px;
 }
 
 .nav-tab svg {
@@ -2000,10 +1999,9 @@ label:has(> select#reasoning-effort) select {
 
 .active-pill {
   position: absolute;
-  top: 4px;
-  bottom: 4px;
+  inset-block: 4px;
   left: 0;
-  border-radius: var(--radius-control);
+  border-radius: 999px;
   pointer-events: none;
   transition:
     transform 0.4s cubic-bezier(0.25, 1.1, 0.4, 1.05),
@@ -2011,67 +2009,93 @@ label:has(> select#reasoning-effort) select {
   z-index: 5;
 }
 
-/* 1. Vercel Style */
-.design-linear-edge .active-pill {
-  background: var(--accent);
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, var(--background) 50%, transparent),
-    0 4px 12px color-mix(in srgb, var(--foreground) 15%, transparent);
-  border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
-}
-.design-linear-edge .nav-tab.active {
-  text-shadow: 0 0 10px color-mix(in srgb, var(--background) 30%, transparent);
-}
-
-/* 2. Traveling Light */
-.design-traveling-border .active-pill {
-  background: transparent;
-  overflow: hidden;
-}
-.design-traveling-border .active-pill::before {
-  content: "";
+/* The effect can replay without restarting the indicator's slide between tools. */
+.toolbar-pill-effect {
   position: absolute;
   inset: 0;
-  border-radius: var(--radius-control);
-  padding: 2px;
-  background: conic-gradient(from var(--angle), transparent 70%, var(--primary) 100%);
-  -webkit-mask:
-    linear-gradient(#fff 0 0) content-box,
-    linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  animation: spin 3s linear infinite;
-}
-.design-traveling-border .nav-tab.active {
-  color: var(--foreground);
+  border-radius: inherit;
 }
 
-/* 3. Ghost Mesh */
-.design-ghost-mesh .active-pill {
-  background: radial-gradient(
-    120% 100% at 50% 100%,
-    color-mix(in srgb, var(--primary) 15%, transparent) 0%,
-    transparent 80%
-  );
-  border-bottom: 1px solid var(--primary);
-  box-shadow: inset 0 -4px 12px color-mix(in srgb, var(--foreground) 10%, transparent);
-}
-.design-ghost-mesh .nav-tab.active {
-  text-shadow: 0 0 12px color-mix(in srgb, var(--primary) 40%, transparent);
+.nav-track:is(
+    .design-ghost-mesh,
+    .design-spotlight,
+    .design-titanium,
+    .design-dot,
+    .design-material
+  )
+  .active-pill {
+  transition:
+    transform 0.5s cubic-bezier(0.3, 1.35, 0.5, 1),
+    width 0.5s cubic-bezier(0.3, 1.35, 0.5, 1);
 }
 
-/* 4. Top Spotlight */
-.design-spotlight .active-pill {
-  background: linear-gradient(
-    to bottom,
-    color-mix(in srgb, var(--primary) 15%, transparent) 0%,
-    transparent 100%
-  );
-  border-top: 1px solid var(--primary);
-  box-shadow: inset 0 10px 20px -10px color-mix(in srgb, var(--primary) 40%, transparent);
+/* Aurora */
+.design-ghost-mesh .toolbar-pill-effect {
+  background:
+    radial-gradient(
+      60% 120% at 20% 110%,
+      oklch(from var(--primary) clamp(0, calc(l + 0.12), 1) calc(c * 0.7) h / 0.42),
+      transparent 60%
+    ),
+    radial-gradient(
+      60% 120% at 80% 110%,
+      color-mix(in srgb, var(--primary) 66%, transparent),
+      transparent 60%
+    ),
+    radial-gradient(
+      70% 100% at 50% 0,
+      color-mix(in srgb, var(--primary) 26%, transparent),
+      transparent 70%
+    ),
+    var(--card);
+  background-size: 200% 200%;
+  box-shadow:
+    0 10px 26px -10px color-mix(in srgb, var(--primary) 58%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--foreground) 14%, transparent);
 }
-.design-spotlight .nav-tab.active {
-  text-shadow: 0 0 10px color-mix(in srgb, var(--primary) 40%, transparent);
+.design-ghost-mesh .toolbar-pill-effect[data-animate] {
+  animation: toolbar-aurora-drift 5s ease-in-out alternate var(--toolbar-effect-repetitions, 1)
+    var(--toolbar-effect-play-state, running);
+}
+@keyframes toolbar-aurora-drift {
+  to {
+    background-position: 100% 60%;
+  }
+}
+
+/* Rim Light: the capsule masks a rotating light, with a stationary inner surface. */
+.design-spotlight .toolbar-pill-effect {
+  overflow: hidden;
+  background: var(--card);
+}
+.design-spotlight .toolbar-pill-effect::before,
+.design-spotlight .toolbar-pill-effect::after {
+  content: "";
+  position: absolute;
+}
+.design-spotlight .toolbar-pill-effect::before {
+  inset: -80%;
+  background: conic-gradient(
+    var(--primary),
+    transparent 35%,
+    oklch(from var(--primary) l calc(c * 0.8) calc(h + 55)) 50%,
+    transparent 85%,
+    var(--primary)
+  );
+}
+.design-spotlight .toolbar-pill-effect::after {
+  inset: 1.5px;
+  border-radius: inherit;
+  background: var(--card);
+}
+.design-spotlight .toolbar-pill-effect[data-animate]::before {
+  animation: toolbar-rim-sweep 4s linear var(--toolbar-effect-repetitions, 1)
+    var(--toolbar-effect-play-state, running);
+}
+@keyframes toolbar-rim-sweep {
+  to {
+    transform: rotate(1turn);
+  }
 }
 
 /* 5. Solid Elastic */
@@ -2099,55 +2123,24 @@ label:has(> select#reasoning-effort) select {
   stroke-width: 2.3 !important;
 }
 
-/* 6. Minimal Dot */
-.design-dot .active-pill {
-  background: transparent;
+/* Ghost Outline */
+.design-dot .toolbar-pill-effect {
+  box-shadow:
+    inset 0 0 0 1.5px var(--primary),
+    0 0 22px -6px var(--primary),
+    inset 0 0 18px -8px var(--primary);
 }
-.design-dot .active-pill::after {
-  content: "";
-  position: absolute;
-  bottom: -4px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background-color: var(--primary);
-  box-shadow: 0 0 8px 2px color-mix(in srgb, var(--primary) 40%, transparent);
+.design-dot .nav-tab.active {
+  color: var(--primary);
 }
-
-:root {
-  /* Nav Highlights: Frosted Lens & Brushed Aluminum (Light Mode) */
-  --glass-dot: rgba(0, 0, 0, 0.15);
-  --glass-border: rgba(0, 0, 0, 0.08);
-  --glass-bg: rgba(255, 255, 255, 0.7);
-  --glass-shadow: 0 4px 12px rgba(0, 0, 0, 0.06), inset 0 1px 1px rgba(255, 255, 255, 1);
-  --glass-text-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
-
-  --foil-1: #f3f4f6;
-  --foil-2: #ffffff;
-  --foil-border: rgba(0, 0, 0, 0.08);
-  --foil-border-bottom: rgba(0, 0, 0, 0.12);
-  --foil-shadow: 0 4px 10px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.9);
-}
-
-.dark {
-  /* Nav Highlights: Frosted Lens & Brushed Aluminum (Dark Mode) */
-  --glass-dot: rgba(255, 255, 255, 0.15);
-  --glass-border: rgba(255, 255, 255, 0.15);
-  --glass-bg: rgba(255, 255, 255, 0.03);
-  --glass-shadow: 0 8px 16px rgba(0, 0, 0, 0.6), inset 0 1px 1px rgba(255, 255, 255, 0.3);
-  --glass-text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
-
-  --foil-1: #1a1a1a;
-  --foil-2: rgba(255, 255, 255, 0.15);
-  --foil-border: rgba(255, 255, 255, 0.3);
-  --foil-border-bottom: rgba(0, 0, 0, 0.2);
-  --foil-shadow: 0 4px 10px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+.design-dot .nav-tab.active svg {
+  color: var(--primary) !important;
 }
 
 /* Normal mode dark top chrome contrast & definition */
 .dark [data-slot="workspace-tabbar"] {
+  --workspace-active-tab-fill: #16171b;
+  --workspace-active-tab-border: rgb(255 255 255 / 14%);
   background: #101012;
 }
 
@@ -2157,33 +2150,45 @@ label:has(> select#reasoning-effort) select {
 }
 
 .dark [data-slot="workspace-project-tab"][data-active="true"] {
-  background: #16171b;
-  border-color: rgba(255, 255, 255, 0.14);
+  background: var(--workspace-active-tab-fill, #16171b);
+  border-color: var(--workspace-active-tab-border, rgb(255 255 255 / 14%));
   color: #ffffff;
   box-shadow:
     0 -1px 4px rgba(0, 0, 0, 0.4),
     inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 
+[data-slot="workspace-tabbar"][data-surface="welcome"] {
+  --workspace-active-tab-fill: var(--background);
+  --workspace-active-tab-border: var(--border);
+  background: var(--workspace-active-tab-fill);
+  border-bottom-width: 0;
+  /* Paint inside the strip so the selected tab and its fillets cover the center. */
+  box-shadow: inset 0 -1px var(--workspace-active-tab-border);
+}
+
+[data-slot="workspace-tabbar"][data-surface="welcome"]
+  [data-slot="workspace-project-tab"][data-active="true"] {
+  background: var(--workspace-active-tab-fill);
+  border-color: var(--workspace-active-tab-border);
+  border-bottom-width: 0;
+  margin-bottom: 0;
+  box-shadow: none;
+}
+
+[data-slot="workspace-tabbar"][data-surface="welcome"] .tab-bottom-fillet {
+  bottom: 0;
+}
+
 /* Normal mode tab fillet rules */
 .tab-bottom-fillet {
-  color: var(--card, #ffffff);
+  color: var(--workspace-active-tab-fill, var(--card, #ffffff));
 }
 .tab-bottom-fillet-fill {
-  fill: var(--card, #ffffff);
+  fill: currentColor;
 }
 .tab-bottom-fillet-stroke {
-  stroke: var(--border, rgba(0, 0, 0, 0.08));
-}
-
-.dark .tab-bottom-fillet,
-.dark .tab-bottom-fillet-fill {
-  color: #16171b !important;
-  fill: #16171b !important;
-}
-
-.dark .tab-bottom-fillet-stroke {
-  stroke: rgba(255, 255, 255, 0.14) !important;
+  stroke: var(--workspace-active-tab-border, var(--border, rgb(0 0 0 / 8%)));
 }
 
 /* Inactive tabs & toolbar controls high-contrast visibility in Dark mode */
@@ -2216,84 +2221,131 @@ label:has(> select#reasoning-effort) select {
   color: #ffffff;
 }
 
-/* 7. Refraction Glass (Frosted Lens) */
+/* Frosted Lens */
 .design-refraction {
-  background-image: radial-gradient(var(--glass-dot) 1px, transparent 1px);
-  background-size: 6px 6px;
-  background-position: center;
+  --lens-dot: color-mix(in srgb, var(--foreground) 33%, transparent);
+  --lens-fill: rgb(255 255 255 / 30%);
+  --lens-sheen: rgb(255 255 255 / 72%);
+  --lens-edge: color-mix(in srgb, var(--foreground) 18%, transparent);
+  --lens-track: color-mix(
+    in srgb,
+    var(--foreground) 4%,
+    var(--app-chrome-background, var(--background))
+  );
+  /* Leave a clean gutter between the dot field and the curved track edge. */
+  background:
+    radial-gradient(circle, var(--lens-dot) 0.8px, transparent 1.2px) center / 7px 7px content-box,
+    var(--lens-track) padding-box;
+}
+
+.dark .design-refraction {
+  --lens-dot: rgb(255 255 255 / 36%);
+  --lens-fill: rgb(255 255 255 / 10%);
+  --lens-sheen: rgb(255 255 255 / 21%);
+  --lens-edge: rgb(255 255 255 / 20%);
 }
 
 .design-refraction .active-pill {
-  background: var(--glass-bg);
-  backdrop-filter: blur(6px) saturate(250%) brightness(1.2);
-  -webkit-backdrop-filter: blur(6px) saturate(250%) brightness(1.2);
-  border: 1px solid var(--glass-border);
-  box-shadow: var(--glass-shadow);
-}
-
-.design-refraction .nav-tab.active {
-  color: var(--foreground);
-  text-shadow: var(--glass-text-shadow);
-}
-
-/* 8. Material Surface */
-.design-material {
-  background: var(--accent);
-  border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
-  box-shadow: none;
-}
-.design-material .active-pill {
-  background-color: color-mix(in srgb, var(--primary) 15%, transparent);
-  border-radius: var(--radius-control);
-}
-.design-material .nav-tab.active {
-  color: var(--foreground);
-  font-weight: 600;
-}
-
-/* 9. Titanium Foil (Brushed Aluminum) */
-.design-titanium .active-pill {
-  background: linear-gradient(110deg, var(--foil-1) 25%, var(--foil-2) 50%, var(--foil-1) 75%);
-  background-size: 200% 100%;
-  animation: titanium-sweep 3s infinite linear;
-  border-top: 1px solid var(--foil-border);
-  border-bottom: 1px solid var(--foil-border-bottom);
-  box-shadow: var(--foil-shadow);
-}
-@keyframes titanium-sweep {
-  to {
-    background-position: -200% center;
-  }
-}
-.design-titanium .nav-tab.active {
-  color: var(--foreground);
-}
-
-/* 10. Tactile Groove */
-.design-groove {
-  background: color-mix(in srgb, var(--background) 95%, var(--foreground));
+  background: linear-gradient(165deg, var(--lens-sheen), var(--lens-fill) 62%);
+  backdrop-filter: blur(2.8px);
+  border: 1px solid var(--lens-edge);
   box-shadow:
-    inset 0 3px 8px color-mix(in srgb, var(--foreground) 15%, transparent),
-    inset 0 0 0 1px color-mix(in srgb, var(--foreground) 5%, transparent);
-  border: none;
+    inset 0 1px 0 var(--lens-sheen),
+    inset 0 -2px 4px rgb(0 0 0 / 8%),
+    0 3px 8px -3px rgb(0 0 0 / 32%);
 }
-.design-groove .active-pill {
+
+.design-refraction[data-slot="workspace-toolbar"] {
+  padding: 6px;
+}
+
+.design-refraction[data-slot="workspace-toolbar"] .nav-tab {
+  padding: 8px 12px;
+}
+
+html:not([data-interface-study]) .design-refraction[data-slot="workspace-toolbar"] .active-pill {
+  inset-block: 6px;
+}
+
+/* Soft Clay */
+.design-titanium .toolbar-pill-effect {
   background: linear-gradient(
-    to bottom,
-    color-mix(in srgb, var(--background) 80%, var(--foreground)),
-    var(--background)
+    145deg,
+    color-mix(in srgb, var(--primary) 62%, white),
+    var(--primary)
   );
   box-shadow:
-    0 4px 8px color-mix(in srgb, var(--foreground) 20%, transparent),
-    inset 0 1px 1px color-mix(in srgb, var(--background) 30%, transparent),
-    inset 0 -1px 1px color-mix(in srgb, var(--foreground) 10%, transparent);
-  border: 1px solid var(--border);
-  top: 4px;
-  bottom: 4px;
+    inset 4px 4px 8px color-mix(in srgb, var(--foreground) 50%, transparent),
+    inset -5px -6px 10px color-mix(in srgb, var(--primary) 50%, black),
+    0 12px 18px -8px rgb(0 0 0 / 45%);
 }
-.design-groove .nav-tab.active {
-  color: var(--foreground);
-  text-shadow: 0 1px 2px color-mix(in srgb, var(--background) 50%, transparent);
+.design-titanium .nav-tab.active {
+  color: var(--primary-foreground);
+}
+.design-titanium .nav-tab.active svg {
+  color: var(--primary-foreground) !important;
+}
+
+/* Focus Pull */
+.design-material {
+  --focus-pull-blur: 0.5px;
+  --focus-pull-opacity: 1;
+  background-color: color-mix(
+    in srgb,
+    var(--foreground) 5%,
+    var(--app-chrome-background, var(--background))
+  );
+}
+.dark .design-material {
+  --focus-pull-opacity: 0.84;
+}
+.toolbar-style-tile .design-material {
+  --focus-pull-blur: 0.8px;
+  --focus-pull-opacity: 0.55;
+}
+.design-material .toolbar-pill-effect {
+  background: color-mix(in srgb, var(--foreground) 9%, transparent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--foreground) 25%, transparent),
+    inset 0 0 12px color-mix(in srgb, var(--primary) 14%, transparent),
+    0 0 22px -3px color-mix(in srgb, var(--primary) 55%, transparent);
+}
+.design-material .nav-tab {
+  transition:
+    transform 400ms ease,
+    color 400ms ease,
+    filter 400ms ease,
+    opacity 400ms ease;
+}
+.design-material .nav-tab.active {
+  transform: scale(1.1);
+}
+.design-material .nav-tab:not(.active, :hover, :focus-visible) {
+  transform: scale(0.94);
+}
+:where(html:not([data-interface-study]) .design-material, .toolbar-style-tile .design-material)
+  .nav-tab:not(.active, :hover, :focus-visible) {
+  filter: blur(var(--focus-pull-blur));
+  opacity: var(--focus-pull-opacity);
+}
+.design-material[data-slot="workspace-toolbar"] .nav-tab:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+html[data-reduced-motion="reduce"] .nav-track :is(.active-pill, .nav-tab, .toolbar-pill-effect),
+html[data-reduced-motion="reduce"] .nav-track .toolbar-pill-effect::before {
+  animation: none;
+  transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  html:not([data-reduced-motion="no-preference"])
+    .nav-track
+    :is(.active-pill, .nav-tab, .toolbar-pill-effect),
+  html:not([data-reduced-motion="no-preference"]) .nav-track .toolbar-pill-effect::before {
+    animation: none;
+    transition: none;
+  }
 }
 
 /* Living Wallpaper Cinematic Drift (Ken Burns Breathing Motion) */

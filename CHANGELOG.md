@@ -2,6 +2,20 @@
 
 All notable changes to Tabs IDE will be documented in this file.
 
+## [v2.3.1] - 2026-11-09
+
+### A more personal workspace
+
+Themes makes it easier to build a palette and preview how your toolbar will look in the workspace. Wallpaper controls and installed extension settings are easier to scan.
+
+### What changed
+
+- Create palettes with randomized colors, check contrast, and delete saved palettes you no longer use. Import a theme from a file or pasted JSON, or export your current theme.
+- Browse seven toolbar styles in your current theme before applying one. Aurora follows your accent color, Frosted Lens gives the active tool a glass highlight, and Focus Pull softens the surrounding tools.
+- See which wallpaper is active, browse the redesigned gallery, and add images from your computer or a URL. Manage workspace and per-thread wallpapers from one settings page.
+- See where an installed extension is enabled and find its accounts, project profiles, credentials, and updates in separate sections.
+- Read smaller workspace toolbar labels and icons. On the Welcome screen, the New Tab outline joins the tab strip on both sides.
+
 ## [v2.3.0] - 2026-11-08
 
 ### Guided workspace setup and a refreshed editor

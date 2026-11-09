@@ -1,15 +1,11 @@
-import { OrbitGroup } from "./ui/orbit-group";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
   CheckCircle2,
   Download,
   Maximize2,
-  Moon,
-  Palette,
   RefreshCw,
   Shuffle,
-  Sun,
   Upload,
   Wand2,
   X,
@@ -45,7 +41,10 @@ import { CustomColorPicker } from "./ui/CustomColorPicker";
 import { WorkbenchMiniPreview } from "./WorkbenchMiniPreview";
 import { ThemeImportExportModal } from "./ThemeImportExportModal";
 import { Button } from "./ui/button";
-import { Dialog, DialogPopup, DialogTitle, DialogDescription } from "./ui/dialog";
+import { Dialog, DialogPopup, DialogTitle, DialogDescription, DialogDetails } from "./ui/dialog";
+import { SegmentedControl } from "./ui/segmented-control";
+import { ThemeWorkspaceSpecimen } from "./settings/ThemeWorkspaceSpecimen";
+import "./settings/palette-studio.css";
 import { Input } from "./ui/input";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "./ui/select";
 import { toastManager } from "./ui/toast";
@@ -94,6 +93,7 @@ export const CustomThemeStudioModal: React.FC<CustomThemeStudioModalProps> = ({
       setDraftConfig(config);
       setDraftFonts(undefined);
       setApplyError(null);
+      setAutoTuneFeedback(null);
       setPresetNameInput(initialPresetName);
       previewTheme("custom", config);
     }
@@ -272,364 +272,245 @@ export const CustomThemeStudioModal: React.FC<CustomThemeStudioModalProps> = ({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && handleDismiss()}>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && !isApplying && handleDismiss()}>
       <DialogPopup
         showCloseButton={false}
-        className="max-h-[92vh] w-full max-w-5xl flex-col p-0 overflow-hidden rounded-3xl border border-border/80 bg-card text-card-foreground shadow-2xl"
+        bottomStickOnMobile={false}
+        backdropClassName="bg-black/50 backdrop-blur-none"
+        className="palette-studio max-w-5xl overflow-hidden bg-background"
       >
-        {/* Clean Neutral Header Bar */}
-        <div className="flex items-center justify-between border-b border-border/70 px-5 py-3 bg-background/60 shrink-0">
-          <div className="flex items-center gap-3">
-            <Palette className="size-5 text-muted-foreground" />
-            <div>
-              <DialogTitle className="text-base font-bold text-foreground tracking-tight">
-                Custom Theme Studio
-              </DialogTitle>
-              <DialogDescription className="text-xs text-muted-foreground mt-0.5">
-                Tune colors and preview contrast.
-              </DialogDescription>
-            </div>
+        <header className="palette-studio-header">
+          <div>
+            <DialogTitle className="text-xl">Custom Theme Studio</DialogTitle>
+            <DialogDescription className="mt-1">
+              Build a palette for your Tabs workspace.
+            </DialogDescription>
           </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setImportExportTab("import");
-                setIsImportExportOpen(true);
-              }}
-              className="flex items-center gap-1.5 rounded-xl border border-border/80 bg-muted/50 px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-muted transition-colors cursor-pointer shadow-xs whitespace-nowrap"
-              title="Import theme from JSON or VS Code color theme file"
-            >
-              <Upload className="size-3.5" />
-              <span>Import</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setImportExportTab("export");
-                setIsImportExportOpen(true);
-              }}
-              className="flex items-center gap-1.5 rounded-xl border border-border/80 bg-muted/50 px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-muted transition-colors cursor-pointer shadow-xs whitespace-nowrap"
-              title="Export theme to JSON file or clipboard"
-            >
-              <Download className="size-3.5" />
-              <span>Export</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setIsPreviewModalOpen(true)}
-              className="flex items-center gap-1.5 rounded-xl border border-primary/40 bg-primary/10 px-3.5 py-1.5 text-xs font-bold text-foreground hover:bg-primary/20 transition-colors cursor-pointer shadow-xs whitespace-nowrap"
-            >
-              <Maximize2 className="size-3.5" />
-              <span>Live Preview</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleResetToDefault}
-              className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors cursor-pointer"
-              title="Reset theme to default"
-            >
-              <RefreshCw className="size-3.5" />
-              <span>Reset</span>
-            </button>
-            <button
-              type="button"
-              onClick={handleDismiss}
-              aria-label="Close Custom Theme Studio"
-              className="rounded-xl p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
-            >
-              <X className="size-4" />
-            </button>
-          </div>
-        </div>
-
-        {/* Actionable Error Alert if Apply Failed */}
-        {applyError && (
-          <div
-            role="alert"
-            className="flex items-center justify-between border-b border-destructive/30 bg-destructive/10 px-6 py-2.5 text-xs font-medium text-destructive"
+          <Button
+            size="icon"
+            variant="ghost"
+            aria-label="Close Custom Theme Studio"
+            onClick={handleDismiss}
+            disabled={isApplying}
           >
-            <div className="flex items-center gap-2">
-              <AlertCircle className="size-4 shrink-0" />
-              <span>{applyError}</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setApplyError(null)}
-              className="hover:underline cursor-pointer"
-            >
-              Dismiss
-            </button>
-          </div>
-        )}
+            <X aria-hidden="true" />
+          </Button>
+        </header>
 
-        {/* Modal Main Content Area: Spacious 2-Column Driver Layout */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          {/* Top Control Bar */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
-            {/* Start from Built-in Preset Baseline Loader */}
-            <div className="flex items-center justify-between rounded-2xl border border-border/70 bg-background/50 p-3 hover:border-primary/30 transition-all">
-              <div>
-                <span className="text-xs font-semibold text-foreground block tracking-tight">
-                  Start from Built-in Preset
-                </span>
-                <span className="text-[11px] text-muted-foreground">
-                  Import a baseline theme to customize
-                </span>
+        <div className="palette-studio-body">
+          <div className="palette-studio-layout">
+            <figure className="palette-studio-preview">
+              <figcaption className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-sm font-semibold">Workspace preview</span>
+                <Button size="sm" variant="ghost" onClick={() => setIsPreviewModalOpen(true)}>
+                  <Maximize2 aria-hidden="true" /> Expand preview
+                </Button>
+              </figcaption>
+              <ThemeWorkspaceSpecimen config={draftConfig} />
+              <div className="palette-studio-strip" aria-hidden="true">
+                {[
+                  draftConfig.colors.background,
+                  draftConfig.colors.card,
+                  draftConfig.colors.border,
+                  draftConfig.colors.foreground,
+                  draftConfig.colors.primary,
+                ].map((color, index) => (
+                  <span key={index} style={{ backgroundColor: color }} />
+                ))}
               </div>
-              <Select onValueChange={handleLoadBuiltinPreset}>
-                <SelectTrigger className="h-8 border-border/80 bg-muted/30 text-xs font-medium px-3 rounded-xl min-w-[140px]">
-                  <SelectValue placeholder="Select Baseline..." />
-                </SelectTrigger>
-                <SelectPopup align="end">
-                  {Object.values(THEME_DEFINITIONS)
-                    .filter((t) => t.id !== "custom")
-                    .map((def) => (
-                      <SelectItem key={def.id} value={def.id} className="text-xs">
-                        {def.name}
-                      </SelectItem>
-                    ))}
-                </SelectPopup>
-              </Select>
-            </div>
-
-            {/* Base Variant Switcher */}
-            <div className="flex items-center justify-between rounded-2xl border border-border/70 bg-background/50 p-3 hover:border-primary/30 transition-all">
-              <div>
-                <span className="text-xs font-semibold text-foreground block tracking-tight">
-                  Base Window Variant
-                </span>
-                <span className="text-[11px] text-muted-foreground">
-                  Titlebar &amp; window frame chrome theme
-                </span>
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                <div role="status" className="flex items-center gap-2 text-muted-foreground">
+                  {lowContrastCount > 0 ? (
+                    <AlertCircle
+                      className="size-4 shrink-0 text-amber-600 dark:text-amber-400"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <CheckCircle2 className="size-4 shrink-0" aria-hidden="true" />
+                  )}
+                  <span>
+                    {lowContrastCount > 0
+                      ? `${lowContrastCount} color ${lowContrastCount === 1 ? "pair needs" : "pairs need"} more contrast`
+                      : `All ${wcagResults.length} contrast checks passed`}
+                  </span>
+                  {autoTuneFeedback && <span className="sr-only">{autoTuneFeedback}</span>}
+                </div>
+                <Button size="sm" variant="ghost" onClick={handleAutoFixContrast}>
+                  <Wand2 aria-hidden="true" /> Auto-tune
+                </Button>
               </div>
-              <OrbitGroup
-                className="tabs-segmented inline-flex items-center rounded-full w-fit"
-                role="group"
-                aria-label="Base window variant"
-              >
-                <button
-                  type="button"
-                  onClick={() => updateDraft({ ...draftConfig, baseVariant: "dark" })}
-                  aria-pressed={draftConfig.baseVariant === "dark"}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full transition-all cursor-pointer ${
-                    draftConfig.baseVariant === "dark"
-                      ? "bg-background text-foreground font-bold shadow-xs border border-border/50"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  <Moon className="size-3.5" />
-                  <span>Dark</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => updateDraft({ ...draftConfig, baseVariant: "light" })}
-                  aria-pressed={draftConfig.baseVariant === "light"}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full transition-all cursor-pointer ${
-                    draftConfig.baseVariant === "light"
-                      ? "bg-background text-foreground font-bold shadow-xs border border-border/50"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  <Sun className="size-3.5" />
-                  <span>Light</span>
-                </button>
-              </OrbitGroup>
-            </div>
-          </div>
+              <div className="flex flex-wrap items-end gap-2 border-t border-border/60 pt-3">
+                <label className="grid min-w-40 flex-1 gap-1.5 text-xs font-medium">
+                  Preset name
+                  <Input
+                    type="text"
+                    placeholder="Name your palette"
+                    value={presetNameInput}
+                    onChange={(event) => setPresetNameInput(event.target.value)}
+                  />
+                </label>
+                <Button variant="outline" onClick={handleSavePresetAction}>
+                  Save Preset
+                </Button>
+              </div>
+            </figure>
 
-          {/* Section Heading */}
-          <div className="flex items-center justify-between pt-2 border-t border-border/60">
-            <div>
-              <h4 className="text-xs font-bold uppercase tracking-wider text-foreground">
-                Palette Driver Controls (8 Granular Keys)
-              </h4>
-              <p className="text-[11px] text-muted-foreground mt-0.5">
-                Core color drivers that automatically compute all ~95 VS Code &amp; app tokens.
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2 rounded-full bg-muted/60 px-3 py-1 text-[11px] font-medium text-foreground border border-border/80 shadow-2xs">
-              <span className="size-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399] animate-pulse" />
-              <span className="text-xs font-medium">Derivation Active</span>
-            </div>
-          </div>
-
-          {/* Spacious 2-Column Driver Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Left Column: Drivers 1 to 4 */}
-            <div className="space-y-3.5">
-              <CustomColorPicker
-                label="1. Canvas Background"
-                description="Editor canvas & main container background"
-                value={draftConfig.colors.background}
-                onChange={(val) => updatePrimaryColor("background", val)}
-              />
-              <CustomColorPicker
-                label="2. Text / Foreground"
-                description="Headings, body typography, labels, code text"
-                value={draftConfig.colors.foreground}
-                onChange={(val) => updatePrimaryColor("foreground", val)}
-              />
-              <CustomColorPicker
-                label="3. Card / Surface"
-                description="Sidebar, tab bars, modals, floating popovers"
-                value={draftConfig.colors.card}
-                onChange={(val) => updatePrimaryColor("card", val)}
-              />
-              <CustomColorPicker
-                label="4. Border Outlines"
-                description="Dividers, card outlines, tab borders"
-                value={draftConfig.colors.border}
-                onChange={(val) => updatePrimaryColor("border", val)}
-              />
-            </div>
-
-            {/* Right Column: Drivers 5 to 8 */}
-            <div className="space-y-3.5">
-              <CustomColorPicker
-                label="5. Primary Accent"
-                description="Active tab line, focus ring, primary buttons"
-                value={draftConfig.colors.primary}
-                onChange={(val) => updatePrimaryColor("primary", val)}
-              />
-              <CustomColorPicker
-                label="6. Muted / Secondary Text"
-                description="Subtle typography, line numbers, disabled labels"
-                value={mutedFgColor}
-                onChange={(val) => updateTokenOverride("app.mutedForeground", val)}
-              />
-              <CustomColorPicker
-                label="7. Selection / Active Highlight"
-                description="Code selection highlight & active row glow"
-                value={selectionColor}
-                onChange={(val) => updateTokenOverride("editor.selectionBackground", val)}
-              />
-              <CustomColorPicker
-                label="8. Hover & Interactive Wash"
-                description="Button hover states & list item highlights"
-                value={hoverWashColor}
-                onChange={(val) => updateTokenOverride("list.hoverBackground", val)}
-              />
-            </div>
+            <section aria-label="Palette controls" className="palette-studio-controls">
+              <div className="palette-studio-baseline">
+                <div className="grid min-w-0 gap-1.5">
+                  <span className="text-xs font-medium">Starting palette</span>
+                  <Select onValueChange={handleLoadBuiltinPreset}>
+                    <SelectTrigger aria-label="Starting palette" className="w-full min-w-0">
+                      <SelectValue placeholder="Choose a preset" />
+                    </SelectTrigger>
+                    <SelectPopup align="start">
+                      {Object.values(THEME_DEFINITIONS)
+                        .filter((theme) => theme.id !== "custom")
+                        .map((theme) => (
+                          <SelectItem key={theme.id} value={theme.id}>
+                            {theme.name}
+                          </SelectItem>
+                        ))}
+                    </SelectPopup>
+                  </Select>
+                </div>
+                <div className="grid gap-1.5">
+                  <span className="text-xs font-medium">Window appearance</span>
+                  <SegmentedControl
+                    size="sm"
+                    aria-label="Window appearance"
+                    value={draftConfig.baseVariant}
+                    onValueChange={(baseVariant) => updateDraft({ ...draftConfig, baseVariant })}
+                    options={[
+                      { value: "dark", label: "Dark" },
+                      { value: "light", label: "Light" },
+                    ]}
+                  />
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-card p-2.5">
+                <span className="text-xs font-medium">Generate colors</span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Select
+                    value={randomStyle}
+                    onValueChange={(value) => value && setRandomStyle(value as RandomStyleMode)}
+                  >
+                    <SelectTrigger aria-label="Random palette style">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectPopup align="start">
+                      {RANDOM_STYLE_OPTIONS.map((option) => (
+                        <SelectItem key={option.id} value={option.id}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectPopup>
+                  </Select>
+                  <Button size="sm" variant="outline" onClick={handleRandomize}>
+                    <Shuffle aria-hidden="true" /> Randomize
+                  </Button>
+                </div>
+              </div>
+              <div className="palette-studio-colors">
+                <h3 className="mb-1 text-sm font-semibold">Palette colors</h3>
+                <CustomColorPicker
+                  label="Background"
+                  description="Editor and workspace"
+                  value={draftConfig.colors.background}
+                  onChange={(value) => updatePrimaryColor("background", value)}
+                />
+                <CustomColorPicker
+                  label="Text"
+                  description="Labels and code"
+                  value={draftConfig.colors.foreground}
+                  onChange={(value) => updatePrimaryColor("foreground", value)}
+                />
+                <CustomColorPicker
+                  label="Surfaces"
+                  description="Tabs, sidebars and dialogs"
+                  value={draftConfig.colors.card}
+                  onChange={(value) => updatePrimaryColor("card", value)}
+                />
+                <CustomColorPicker
+                  label="Accent"
+                  description="Buttons, focus and active tabs"
+                  value={draftConfig.colors.primary}
+                  onChange={(value) => updatePrimaryColor("primary", value)}
+                />
+              </div>
+              <DialogDetails title="Advanced colors">
+                <CustomColorPicker
+                  label="Borders"
+                  description="Outlines and dividers"
+                  value={draftConfig.colors.border}
+                  onChange={(value) => updatePrimaryColor("border", value)}
+                />
+                <CustomColorPicker
+                  label="Secondary text"
+                  description="Hints and line numbers"
+                  value={mutedFgColor}
+                  onChange={(value) => updateTokenOverride("app.mutedForeground", value)}
+                />
+                <CustomColorPicker
+                  label="Selection"
+                  description="Selected text and rows"
+                  value={selectionColor}
+                  onChange={(value) => updateTokenOverride("editor.selectionBackground", value)}
+                />
+                <CustomColorPicker
+                  label="Hover"
+                  description="Buttons and list rows"
+                  value={hoverWashColor}
+                  onChange={(value) => updateTokenOverride("list.hoverBackground", value)}
+                />
+              </DialogDetails>
+              <DialogDetails title="Palette tools">
+                <div className="flex flex-wrap gap-1">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setImportExportTab("import");
+                      setIsImportExportOpen(true);
+                    }}
+                  >
+                    <Upload aria-hidden="true" /> Import
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setImportExportTab("export");
+                      setIsImportExportOpen(true);
+                    }}
+                  >
+                    <Download aria-hidden="true" /> Export
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={handleResetToDefault}>
+                    <RefreshCw aria-hidden="true" /> Reset colors
+                  </Button>
+                </div>
+              </DialogDetails>
+            </section>
           </div>
         </div>
 
-        {/* Footer Action & WCAG Audit Bar */}
-        <div className="flex flex-col sm:flex-row items-center justify-between border-t border-border/70 px-6 py-4 bg-muted/20 gap-4 shrink-0">
-          {/* WCAG Audit Badge */}
-          <div className="flex items-center gap-2">
-            {lowContrastCount > 0 ? (
-              <div className="flex items-center gap-2 rounded-xl bg-amber-500/10 border border-amber-500/30 px-3.5 py-1.5 text-xs text-amber-700 dark:text-amber-400 font-medium">
-                <AlertCircle className="size-4 shrink-0" />
-                <span>
-                  {lowContrastCount} Low Contrast Pair{lowContrastCount > 1 ? "s" : ""}
-                </span>
-                <button
-                  type="button"
-                  onClick={handleAutoFixContrast}
-                  className="ms-1 underline font-bold hover:text-amber-900 dark:hover:text-amber-300 cursor-pointer flex items-center gap-1 whitespace-nowrap"
-                >
-                  <Wand2 className="size-3" />
-                  <span>Auto-Tune</span>
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2 rounded-xl bg-card border border-border/80 px-3.5 py-1.5 text-xs text-foreground font-medium shadow-2xs">
-                <CheckCircle2 className="size-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                <span>
-                  WCAG AA Contrast Compliant ({wcagResults.length}/{wcagResults.length} Pairs Pass)
-                </span>
-                <button
-                  type="button"
-                  onClick={handleAutoFixContrast}
-                  className="ms-2 px-2.5 py-1 rounded-lg bg-primary/10 text-foreground text-xs font-bold hover:bg-primary/20 cursor-pointer flex items-center gap-1 whitespace-nowrap"
-                  title="Optimize button & token contrast"
-                >
-                  <Wand2 className="size-3.5" />
-                  <span>Auto-Tune</span>
-                </button>
-              </div>
-            )}
-
-            {autoTuneFeedback && (
-              <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 animate-in fade-in duration-200 ms-1">
-                {autoTuneFeedback}
-              </span>
-            )}
-          </div>
-
-          {/* Preset Generator & Final Apply / Cancel Actions */}
-          <div className="flex items-center flex-wrap gap-2.5 w-full sm:w-auto justify-end">
-            <div className="flex items-center rounded-xl border border-border/80 bg-background/80 p-1 shadow-2xs">
-              <Select
-                value={randomStyle}
-                onValueChange={(val) => val && setRandomStyle(val as RandomStyleMode)}
-              >
-                <SelectTrigger className="h-8 border-0 bg-transparent text-xs font-medium px-2.5 rounded-lg focus:ring-0 shadow-none">
-                  <SelectValue placeholder="Style" />
-                </SelectTrigger>
-                <SelectPopup align="start">
-                  {RANDOM_STYLE_OPTIONS.map((opt) => (
-                    <SelectItem key={opt.id} value={opt.id} className="text-xs">
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectPopup>
-              </Select>
-              <div className="h-4 w-px bg-border/80 mx-1" />
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={handleRandomize}
-                className="gap-1.5 rounded-lg text-xs font-semibold h-8 px-3 cursor-pointer hover:bg-muted"
-              >
-                <Shuffle className="size-3.5 text-foreground/80" />
-                <span>Randomize</span>
-              </Button>
-            </div>
-
-            <Input
-              type="text"
-              placeholder="Preset Name..."
-              value={presetNameInput}
-              onChange={(e) => setPresetNameInput(e.target.value)}
-              className="w-36 h-9 text-xs rounded-xl bg-background border-border/80"
-            />
-
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleSavePresetAction}
-              className="h-9 px-3.5 text-xs font-semibold rounded-xl border-border/80 hover:bg-muted cursor-pointer whitespace-nowrap"
-            >
-              Save Preset
-            </Button>
-
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={handleDismiss}
-              className="h-9 px-3.5 text-xs font-medium rounded-xl hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer whitespace-nowrap"
-            >
+        {applyError && (
+          <p role="alert" className="px-6 py-2 text-sm text-destructive">
+            {applyError}
+          </p>
+        )}
+        <footer className="palette-studio-footer">
+          <span className="text-xs text-muted-foreground">Apply to use this palette in Tabs.</span>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="ghost" onClick={handleDismiss} disabled={isApplying}>
               Cancel
             </Button>
-
-            <Button
-              size="sm"
-              onClick={handleApplyAction}
-              disabled={isApplying}
-              aria-busy={isApplying}
-              className="h-9 px-5 text-xs font-semibold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm cursor-pointer whitespace-nowrap"
-            >
-              {isApplying ? "Applying..." : "Apply Theme"}
+            <Button onClick={handleApplyAction} disabled={isApplying} aria-busy={isApplying}>
+              {isApplying ? "Applying…" : "Apply Theme"}
             </Button>
           </div>
-        </div>
+        </footer>
       </DialogPopup>
 
       {/* Dedicated Full-Width Live Preview Modal Overlay */}
@@ -667,6 +548,7 @@ export const CustomThemeStudioModal: React.FC<CustomThemeStudioModalProps> = ({
           currentConfig={draftConfig}
           currentName={presetNameInput || "Custom Theme"}
           initialTab={importExportTab}
+          destination="draft"
           onImportTheme={(name, importedConfig) => {
             const nextFonts = buildFontPreferencesFromThemeConfig(importedConfig);
             updateDraft(importedConfig, nextFonts);

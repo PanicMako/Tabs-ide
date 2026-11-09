@@ -1,23 +1,23 @@
-import { OrbitGroup } from "./ui/orbit-group";
-import React, { useState, useMemo, useRef } from "react";
-import {
-  AlertCircle,
-  Check,
-  CheckCircle2,
-  Copy,
-  Download,
-  FileCode2,
-  Upload,
-  X,
-} from "lucide-react";
-import type { CustomThemeConfig } from "@tabs/shared/themeDerivation";
+import { useId, useMemo, useRef, useState } from "react";
+import { CheckCircle2, Copy, Download, FileCode2, Upload } from "lucide-react";
+import { runThemeWcagCheck, type CustomThemeConfig } from "@tabs/shared/themeDerivation";
 import {
   exportCustomThemeAsJson,
+  MAX_THEME_FILE_BYTES,
   validateAndParseThemeString,
 } from "@tabs/shared/themeImportExport";
-import { runThemeWcagCheck } from "@tabs/shared/themeDerivation";
+import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
-import { Dialog, DialogPopup, DialogTitle, DialogDescription } from "./ui/dialog";
+import {
+  Dialog,
+  DialogDescription,
+  DialogDetails,
+  DialogFooter,
+  DialogHeader,
+  DialogPopup,
+  DialogTitle,
+} from "./ui/dialog";
+import { SegmentedControl } from "./ui/segmented-control";
 
 interface ThemeImportExportModalProps {
   isOpen: boolean;
@@ -26,356 +26,288 @@ interface ThemeImportExportModalProps {
   currentName?: string;
   onImportTheme: (name: string, config: CustomThemeConfig) => void;
   initialTab?: "import" | "export";
+  destination?: "library" | "draft";
 }
 
-export const ThemeImportExportModal: React.FC<ThemeImportExportModalProps> = ({
+export function ThemeImportExportModal({
   isOpen,
   onClose,
   currentConfig,
   currentName = "Custom Theme",
   onImportTheme,
   initialTab = "import",
-}) => {
-  const [activeTab, setActiveTab] = useState<"import" | "export">(initialTab);
+  destination = "library",
+}: ThemeImportExportModalProps) {
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [jsonInput, setJsonInput] = useState("");
-  const [copied, setCopied] = useState(false);
+  const [fileName, setFileName] = useState("");
+  const [fileError, setFileError] = useState("");
+  const [copyStatus, setCopyStatus] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const readVersion = useRef(0);
+  const validationId = useId();
 
-  // Live validation of pasted or uploaded JSON
-  const validationResult = useMemo(() => {
-    if (!jsonInput.trim()) return null;
-    return validateAndParseThemeString(jsonInput);
-  }, [jsonInput]);
-
-  const wcagResults = useMemo(() => {
-    if (validationResult?.success) {
-      return runThemeWcagCheck(validationResult.config);
-    }
-    return [];
-  }, [validationResult]);
-
-  const lowContrastCount = useMemo(
-    () => wcagResults.filter((r) => r.isLowContrast).length,
-    [wcagResults],
+  const validation = useMemo(
+    () => (jsonInput.trim() ? validateAndParseThemeString(jsonInput) : null),
+    [jsonInput],
+  );
+  const contrastIssues = useMemo(
+    () =>
+      validation?.success
+        ? runThemeWcagCheck(validation.config).filter((result) => result.isLowContrast).length
+        : 0,
+    [validation],
+  );
+  const exportedJson = useMemo(
+    () => exportCustomThemeAsJson(currentConfig, currentName),
+    [currentConfig, currentName],
   );
 
-  const exportedJson = useMemo(() => {
-    return exportCustomThemeAsJson(currentConfig, currentName);
-  }, [currentConfig, currentName]);
+  async function readFile(file: File) {
+    const version = ++readVersion.current;
+    setFileName(file.name);
+    setFileError("");
+    setJsonInput("");
+    if (file.size > MAX_THEME_FILE_BYTES) {
+      setFileError("Choose a theme file that is 256 KB or smaller.");
+      return;
+    }
+    try {
+      const content = await file.text();
+      if (version !== readVersion.current) return;
+      if (!content.trim()) {
+        setFileError("This file is empty. Choose another theme file.");
+        return;
+      }
+      setJsonInput(content);
+    } catch {
+      if (version === readVersion.current) {
+        setFileError("Tabs couldn’t read this file. Try choosing it again.");
+      }
+    }
+  }
 
-  if (!isOpen) return null;
-
-  const handleCopyJson = async () => {
+  async function copyJson() {
     try {
       await navigator.clipboard.writeText(exportedJson);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      setCopyStatus("JSON copied.");
     } catch {
-      // Fallback
+      setCopyStatus("Couldn’t copy automatically. Select the JSON or download the file.");
     }
-  };
+  }
 
-  const handleDownloadJson = () => {
-    const filename = `${currentName.toLowerCase().replace(/[^a-z0-9]+/g, "-") || "custom-theme"}.tabs-theme.json`;
-    const blob = new Blob([exportedJson], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
+  function downloadJson() {
+    const name = currentName.toLowerCase().replace(/[^a-z0-9]+/g, "-") || "custom-theme";
+    const url = URL.createObjectURL(new Blob([exportedJson], { type: "application/json" }));
     const link = document.createElement("a");
     link.href = url;
-    link.download = filename;
+    link.download = `${name}.tabs-theme.json`;
     document.body.appendChild(link);
     link.click();
-    document.body.removeChild(link);
+    link.remove();
     URL.revokeObjectURL(url);
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    readThemeFile(file);
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setDragOver(false);
-    const file = e.dataTransfer.files?.[0];
-    if (!file) return;
-    readThemeFile(file);
-  };
-
-  const readThemeFile = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const content = event.target?.result;
-      if (typeof content === "string") {
-        setJsonInput(content);
-        setActiveTab("import");
-      }
-    };
-    reader.readAsText(file);
-  };
-
-  const handleApplyImport = () => {
-    if (!validationResult || !validationResult.success) return;
-    onImportTheme(validationResult.name, validationResult.config);
-    onClose();
-  };
-
-  if (!isOpen) return null;
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogPopup
-        showCloseButton={false}
-        className="max-h-[85vh] w-full max-w-2xl flex-col p-0 overflow-hidden rounded-3xl border border-border/80 bg-card text-card-foreground shadow-2xl"
+        bottomStickOnMobile={false}
+        backdropClassName="bg-black/50 backdrop-blur-none"
+        className="max-w-xl overflow-hidden bg-background"
       >
-        {/* Header Bar */}
-        <div className="flex items-center justify-between border-b border-border/70 px-5 py-3 bg-background/60 shrink-0">
-          <div className="flex items-center gap-2.5">
-            <FileCode2 className="size-5 text-foreground" />
-            <div>
-              <DialogTitle className="text-base font-bold text-foreground tracking-tight">
-                Theme transfer
-              </DialogTitle>
-              <DialogDescription className="text-xs text-muted-foreground mt-0.5">
-                Import or export a color theme.
-              </DialogDescription>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <OrbitGroup
-              className="tabs-segmented inline-flex items-center text-xs rounded-full w-fit"
-              role="group"
-              aria-label="Theme transfer mode"
-            >
-              <button
-                type="button"
-                onClick={() => setActiveTab("import")}
-                aria-pressed={activeTab === "import"}
-                className={`rounded-full px-3 py-1 font-semibold transition-colors cursor-pointer ${
-                  activeTab === "import"
-                    ? "bg-background text-foreground shadow-xs"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                Import
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab("export")}
-                aria-pressed={activeTab === "export"}
-                className={`rounded-full px-3 py-1 font-semibold transition-colors cursor-pointer ${
-                  activeTab === "export"
-                    ? "bg-background text-foreground shadow-xs"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                Export
-              </button>
-            </OrbitGroup>
-
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-xl p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer ml-2"
-            >
-              <X className="size-4" />
-            </button>
-          </div>
-        </div>
-
-        {/* Tab Content */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-5">
+        <DialogHeader>
+          <DialogTitle className="text-xl">
+            {activeTab === "import" ? "Import a theme" : "Export theme"}
+          </DialogTitle>
+          <DialogDescription>
+            {activeTab === "export"
+              ? "Take a copy of this palette with you."
+              : destination === "draft"
+                ? "Use a Tabs or VS Code theme as the starting point for this draft."
+                : "Add a Tabs or VS Code theme to your palette collection."}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="min-h-0 space-y-4 overflow-y-auto px-5 pb-5">
+          <SegmentedControl
+            size="sm"
+            value={activeTab}
+            onValueChange={setActiveTab}
+            options={[
+              { value: "import", label: "Import" },
+              { value: "export", label: "Export" },
+            ]}
+            aria-label="Theme transfer mode"
+            className="w-fit"
+          />
           {activeTab === "import" ? (
-            <div className="space-y-4">
-              {/* Drag and drop zone */}
+            <>
               <div
-                onDragOver={(e) => {
-                  e.preventDefault();
+                className={cn(
+                  "flex flex-wrap items-center gap-3 rounded-2xl border border-dashed bg-card px-4 py-4 transition-colors",
+                  dragOver ? "border-primary bg-primary/10" : "border-border",
+                )}
+                onDragOver={(event) => {
+                  event.preventDefault();
                   setDragOver(true);
                 }}
-                onDragLeave={() => setDragOver(false)}
-                onDrop={handleDrop}
-                onClick={() => fileInputRef.current?.click()}
-                className={`flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-5 text-center cursor-pointer transition-colors ${
-                  dragOver
-                    ? "border-primary bg-primary/10"
-                    : "border-border/70 hover:border-primary/50 hover:bg-muted/30"
-                }`}
+                onDragLeave={(event) => {
+                  if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                    setDragOver(false);
+                  }
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  setDragOver(false);
+                  const file = event.dataTransfer.files[0];
+                  if (file) void readFile(file);
+                }}
               >
+                <div className="min-w-0 flex-1">
+                  <p className="wrap-anywhere text-sm font-medium">{fileName || "Theme file"}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Drop a JSON file here or browse. Up to 256 KB.
+                  </p>
+                </div>
+                <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+                  <Upload aria-hidden="true" /> {fileName ? "Choose another file" : "Choose file"}
+                </Button>
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".json"
-                  className="hidden"
-                  onChange={handleFileChange}
+                  accept=".json,application/json"
+                  hidden
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) void readFile(file);
+                    event.target.value = "";
+                  }}
                 />
-                <Upload className="size-6 text-muted-foreground mb-1.5" />
-                <p className="text-xs font-semibold text-foreground">
-                  Click to select a JSON file or drag and drop here
-                </p>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Accepts standard VS Code{" "}
-                  <code className="font-mono text-foreground">*-color-theme.json</code> or Tabs
-                  custom theme files (max 256 KB)
-                </p>
               </div>
-
-              {/* Paste JSON Textarea */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-foreground flex items-center justify-between">
-                  <span>Or paste theme JSON directly:</span>
-                  {jsonInput && (
-                    <button
-                      type="button"
-                      onClick={() => setJsonInput("")}
-                      className="text-[11px] text-muted-foreground hover:text-foreground"
-                    >
-                      Clear
-                    </button>
-                  )}
-                </label>
+              <DialogDetails title="Paste theme JSON">
                 <textarea
+                  aria-label="Theme JSON"
+                  aria-describedby={validationId}
+                  aria-invalid={validation?.success === false}
                   value={jsonInput}
-                  onChange={(e) => setJsonInput(e.target.value)}
-                  placeholder='Paste JSON here (e.g. { "colors": { "editor.background": "#121824", ... } })'
-                  rows={6}
-                  className="w-full rounded-2xl border border-border/80 bg-background/50 p-3 font-mono text-xs text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/50"
+                  onChange={(event) => {
+                    readVersion.current++;
+                    setFileName("");
+                    setFileError("");
+                    setJsonInput(event.target.value);
+                  }}
+                  spellCheck={false}
+                  rows={5}
+                  placeholder='{ "colors": { "editor.background": "#121824" } }'
+                  className="w-full rounded-xl border border-border bg-background p-3 font-mono text-xs focus-visible:outline-2 focus-visible:outline-ring"
                 />
-              </div>
+                {jsonInput && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setJsonInput("");
+                      setFileName("");
+                    }}
+                  >
+                    Clear JSON
+                  </Button>
+                )}
+              </DialogDetails>
 
-              {/* Validation Feedback & Preview */}
-              {validationResult ? (
-                validationResult.success ? (
-                  <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle2 className="size-4 text-emerald-500 shrink-0" />
-                        <div>
-                          <p className="text-xs font-bold text-foreground">
-                            {validationResult.name}
-                          </p>
-                          <p className="text-[11px] text-muted-foreground">
-                            {validationResult.config.baseVariant.toUpperCase()} palette detected
-                          </p>
-                        </div>
-                      </div>
-                      <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-                        {lowContrastCount === 0
-                          ? "Contrast Compliant"
-                          : `${lowContrastCount} low-contrast notices`}
-                      </span>
-                    </div>
-
-                    {/* Color Swatches Preview */}
-                    <div className="flex items-center gap-2 pt-1 border-t border-emerald-500/20">
-                      <div className="flex items-center gap-1.5">
-                        <span
-                          className="size-4 rounded-full border border-black/20 shadow-xs"
-                          style={{ backgroundColor: validationResult.config.colors.background }}
-                          title={`Background: ${validationResult.config.colors.background}`}
-                        />
-                        <span
-                          className="size-4 rounded-full border border-black/20 shadow-xs"
-                          style={{ backgroundColor: validationResult.config.colors.card }}
-                          title={`Card: ${validationResult.config.colors.card}`}
-                        />
-                        <span
-                          className="size-4 rounded-full border border-black/20 shadow-xs"
-                          style={{ backgroundColor: validationResult.config.colors.primary }}
-                          title={`Primary: ${validationResult.config.colors.primary}`}
-                        />
-                        <span
-                          className="size-4 rounded-full border border-black/20 shadow-xs"
-                          style={{ backgroundColor: validationResult.config.colors.foreground }}
-                          title={`Foreground: ${validationResult.config.colors.foreground}`}
-                        />
-                      </div>
-                      <span className="text-[11px] font-mono text-muted-foreground ml-auto">
-                        Ready to import
-                      </span>
-                    </div>
-
-                    {/* VS Code tokenColors notice */}
-                    {jsonInput.includes("tokenColors") && (
-                      <div className="flex items-start gap-2 pt-1 border-t border-emerald-500/20">
-                        <AlertCircle className="size-3.5 text-amber-500 shrink-0 mt-0.5" />
-                        <p className="text-[11px] text-muted-foreground leading-relaxed">
-                          <span className="font-semibold text-amber-500">Note:</span>{" "}
-                          <code className="font-mono text-foreground">tokenColors</code> (syntax
-                          highlighting rules) are not imported — only UI workbench colors are
-                          mapped. The editor will use Tabs' default syntax theme.
+              <div id={validationId} aria-live="polite">
+                {fileError || validation?.success === false ? (
+                  <p className="text-sm text-destructive">
+                    {fileError || (validation?.success === false ? validation.error : "")}
+                  </p>
+                ) : validation?.success ? (
+                  <div className="space-y-2 rounded-xl border border-border bg-card p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="flex items-center gap-2 wrap-anywhere text-sm font-semibold">
+                          <CheckCircle2 className="size-4 shrink-0" aria-hidden="true" />{" "}
+                          {validation.name}
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {validation.config.baseVariant === "dark" ? "Dark" : "Light"} palette
+                          {contrastIssues > 0 ? ` · ${contrastIssues} contrast warnings` : ""}
                         </p>
                       </div>
+                      <div
+                        aria-hidden="true"
+                        className="flex overflow-hidden rounded-full border border-border"
+                      >
+                        {Object.entries(validation.config.colors).map(([name, color]) => (
+                          <span key={name} className="h-5 w-6" style={{ backgroundColor: color }} />
+                        ))}
+                      </div>
+                    </div>
+                    {jsonInput.includes("tokenColors") && (
+                      <p className="text-xs text-muted-foreground">
+                        Tabs imports workbench colors and keeps its own syntax highlighting.
+                      </p>
                     )}
                   </div>
-                ) : (
-                  <div className="rounded-2xl border border-destructive/40 bg-destructive/10 p-3.5 flex items-start gap-2.5">
-                    <AlertCircle className="size-4 text-destructive shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-xs font-bold text-destructive">Invalid Theme</p>
-                      <p className="text-[11px] text-muted-foreground mt-0.5">
-                        {validationResult.error}
-                      </p>
-                    </div>
-                  </div>
-                )
-              ) : null}
-            </div>
+                ) : null}
+              </div>
+            </>
           ) : (
-            <div className="space-y-4">
-              <p className="text-xs text-muted-foreground">
-                This JSON includes the complete palette configuration, token overrides, and font
-                preferences for <strong className="text-foreground">{currentName}</strong>.
-              </p>
-              <div className="relative">
+            <>
+              <div className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4">
+                <FileCode2 className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                <div className="min-w-0">
+                  <p className="wrap-anywhere text-sm font-semibold">{currentName}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Palette, color overrides and typography settings
+                  </p>
+                </div>
+              </div>
+              <DialogDetails title="View export JSON">
                 <textarea
+                  aria-label="Exported theme JSON"
                   readOnly
                   value={exportedJson}
-                  rows={10}
-                  className="w-full rounded-2xl border border-border/80 bg-background/80 p-3 font-mono text-xs text-foreground focus:outline-none select-all"
+                  rows={7}
+                  className="w-full rounded-xl border border-border bg-background p-3 font-mono text-xs focus-visible:outline-2 focus-visible:outline-ring"
                 />
-              </div>
-            </div>
+              </DialogDetails>
+              {copyStatus && (
+                <p role="status" className="text-xs text-muted-foreground">
+                  {copyStatus}
+                </p>
+              )}
+            </>
           )}
         </div>
-
-        {/* Footer Actions */}
-        <div className="flex items-center justify-between border-t border-border/70 px-6 py-4 bg-background/40 shrink-0">
-          <Button variant="ghost" size="sm" onClick={onClose}>
-            Cancel
-          </Button>
-
+        <DialogFooter className="flex-row flex-wrap justify-end">
           {activeTab === "import" ? (
-            <Button
-              variant="default"
-              size="sm"
-              disabled={!validationResult || !validationResult.success}
-              onClick={handleApplyImport}
-              className="gap-1.5"
-            >
-              <Check className="size-3.5" />
-              <span>Apply & Save Theme</span>
-            </Button>
+            <>
+              <Button variant="ghost" onClick={onClose}>
+                Cancel
+              </Button>
+              <Button
+                disabled={!validation?.success}
+                onClick={() => {
+                  if (!validation?.success) return;
+                  onImportTheme(validation.name, validation.config);
+                  onClose();
+                }}
+              >
+                {destination === "draft" ? "Use in draft" : "Import and apply"}
+              </Button>
+            </>
           ) : (
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={handleCopyJson} className="gap-1.5">
-                {copied ? (
-                  <Check className="size-3.5 text-emerald-500" />
-                ) : (
-                  <Copy className="size-3.5" />
-                )}
-                <span>{copied ? "Copied!" : "Copy JSON"}</span>
+            <>
+              <Button variant="outline" onClick={() => void copyJson()}>
+                <Copy aria-hidden="true" /> Copy JSON
               </Button>
-              <Button variant="default" size="sm" onClick={handleDownloadJson} className="gap-1.5">
-                <Download className="size-3.5" />
-                <span>Download .json</span>
+              <Button onClick={downloadJson}>
+                <Download aria-hidden="true" /> Download JSON
               </Button>
-            </div>
+            </>
           )}
-        </div>
+        </DialogFooter>
       </DialogPopup>
     </Dialog>
   );
-};
+}

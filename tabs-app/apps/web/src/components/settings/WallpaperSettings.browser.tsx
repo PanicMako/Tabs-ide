@@ -10,6 +10,8 @@ it("imports a wallpaper in a dialog without expanding the settings page", async 
     const opener = page.getByRole("button", { name: "Add Custom Wallpaper", exact: true });
     await opener.click();
     const dialog = page.getByRole("dialog", { name: "Add custom wallpaper" });
+    await expect.element(dialog.getByRole("button", { name: "Choose image" })).toBeVisible();
+    await dialog.getByRole("radio", { name: "From URL" }).click();
     await expect.element(dialog).toBeVisible();
     await expect
       .element(dialog.getByRole("button", { name: "Add Image", exact: true }))
@@ -22,6 +24,7 @@ it("imports a wallpaper in a dialog without expanding the settings page", async 
     await expect.element(dialog).not.toBeInTheDocument();
     await expect.element(opener).toHaveFocus();
     await opener.click();
+    await dialog.getByRole("radio", { name: "From URL" }).click();
     await expect
       .element(dialog.getByRole("textbox", { name: "Image URL", exact: true }))
       .toHaveValue("https://example.com/sky.png");

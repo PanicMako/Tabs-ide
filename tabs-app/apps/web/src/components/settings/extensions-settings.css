@@ -1174,21 +1174,23 @@
   margin-bottom: 18px;
 }
 .extensions-settings .extension-installed-card > .installed-manage-hero {
-  padding: 24px;
+  padding: clamp(16px, 3vw, 24px);
   border: 1px solid var(--border);
-  border-radius: var(--radius-surface);
-  background: linear-gradient(
-    120deg,
-    color-mix(in srgb, var(--primary) 7%, var(--background)),
-    var(--background) 70%
-  );
+  border-radius: 20px;
+  background: var(--card);
+}
+.installed-identity-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
 }
 .installed-manage-hero .market-logo {
   width: 52px;
   height: 52px;
   border-radius: var(--radius-surface);
 }
-.installed-manage-hero > p:nth-of-type(2) {
+.installed-manage-hero > p {
   max-width: 66ch;
   line-height: 1.6;
 }
@@ -1224,15 +1226,16 @@
 }
 .installed-project-workspace {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 230px;
-  gap: 28px;
+  grid-template-columns: minmax(0, 1fr) minmax(160px, 210px);
+  gap: clamp(14px, 3vw, 26px);
   align-items: start;
 }
 .installed-project-workspace .installed-projects-section {
-  padding: 0;
-  border: 0;
-  background: transparent;
-  gap: 16px;
+  min-width: 0;
+  padding: clamp(14px, 2vw, 20px);
+  border-radius: 18px;
+  background: var(--card);
+  gap: 14px;
 }
 .installed-projects-section h4 {
   font-size: 19px;
@@ -1264,17 +1267,17 @@
   color: var(--muted-foreground);
 }
 .installed-project-scope button[aria-pressed="true"] {
-  border-color: var(--primary);
-  background: color-mix(in srgb, var(--primary) 7%, transparent);
+  border-color: color-mix(in srgb, var(--foreground) 38%, var(--border));
+  background: var(--muted);
 }
 .installed-selection-hint {
   font-size: 11px;
   color: var(--muted-foreground);
 }
 .installed-project-workspace .installed-project-list {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-surface);
-  padding: 0 14px;
+  border: 0;
+  border-top: 1px solid var(--border);
+  padding: 4px 0 0;
 }
 .installed-project-row {
   min-height: 54px;
@@ -1303,52 +1306,43 @@
   font-weight: 500;
   overflow-wrap: anywhere;
 }
-.installed-project-guide {
-  padding: 22px 18px;
-  border-radius: var(--radius-surface);
-  background: color-mix(in srgb, var(--primary) 4%, var(--background));
+.installed-project-summary {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 18px;
+  background: var(--card);
 }
-.installed-guide-art {
-  position: relative;
-  display: grid;
-  place-items: center;
-  width: 62px;
-  height: 62px;
-  margin: 0 0 20px 5px;
-  border: 1px solid color-mix(in srgb, var(--primary) 25%, var(--border));
-  border-radius: var(--radius-surface);
-  color: var(--primary);
-  transform: rotate(-7deg);
-}
-.installed-guide-art > svg:last-child {
-  position: absolute;
-  right: -7px;
-  bottom: -5px;
-  padding: 3px;
-  width: 24px;
-  height: 24px;
-  background: var(--primary);
-  color: var(--primary-foreground);
-  border-radius: 50%;
-}
-.installed-project-guide h4 {
-  font-size: 15px;
+.installed-project-summary h4 {
+  font-size: 14px;
   font-weight: 600;
 }
-.installed-project-guide p {
-  font-size: 12px;
-  line-height: 1.7;
-  color: var(--muted-foreground);
+.installed-project-summary p {
   margin-top: 8px;
-}
-.installed-project-guide > span {
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  margin-top: 20px;
-  font-size: 10px;
-  line-height: 1.6;
   color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.installed-project-summary .installed-project-count {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.installed-project-count strong {
+  color: var(--foreground);
+  font-size: 28px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.installed-accounts-workspace,
+.installed-advanced-workspace {
+  min-width: 0;
+}
+.installed-accounts-workspace .installed-control-section,
+.installed-advanced-workspace .installed-control-section {
+  border-radius: 18px;
+  background: var(--card);
 }
 .installed-advanced-workspace {
   display: grid;
@@ -1372,15 +1366,9 @@
   .installed-project-workspace {
     grid-template-columns: 1fr;
   }
-  .installed-project-guide {
-    display: none;
-  }
   .installed-manage-nav {
     gap: 16px;
     flex-wrap: wrap;
-  }
-  .installed-hero-enable span {
-    display: none;
   }
   .installed-project-scope {
     gap: 7px;

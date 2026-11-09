@@ -247,6 +247,14 @@ test("ExtensionsSettings: navigates views, manages focus on dialogs, and support
     .element(screen.getByRole("combobox", { name: "Dashboard profile for Alpha Project" }))
     .toBeVisible();
 
+  const profileStorage = screen.getByRole("checkbox", {
+    name: "Allow Dashboard profile storage in Alpha Project",
+  });
+  const permissions = screen.getByText("Permissions for Alpha Project", { exact: true });
+  expect(permissions.element().closest("details")?.open).toBe(false);
+  await permissions.click();
+  await expect.element(profileStorage).toBeVisible();
+
   const scope = screen.getByRole("combobox", { name: "Storage scope for new Dashboard profile" });
   await scope.click();
   await screen.getByRole("option", { name: "Isolated per project" }).click();

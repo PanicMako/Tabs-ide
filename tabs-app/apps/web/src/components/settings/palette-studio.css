@@ -1,0 +1,107 @@
+.palette-studio-header,
+.palette-studio-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px clamp(16px, 3vw, 28px);
+}
+
+.palette-studio-header {
+  border-bottom: 1px solid var(--border);
+}
+
+.palette-studio-footer {
+  flex-wrap: wrap;
+  border-top: 1px solid var(--border);
+}
+
+.palette-studio-footer > div {
+  margin-inline-start: auto;
+}
+
+.palette-studio-body {
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: clamp(16px, 3vw, 28px);
+}
+
+.palette-studio-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  grid-template-areas: "preview controls";
+  gap: clamp(16px, 3vw, 32px);
+}
+
+.palette-studio-preview {
+  grid-area: preview;
+  display: grid;
+  align-content: start;
+  align-self: start;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-surface);
+  background: var(--card);
+}
+
+.palette-studio-preview .theme-specimen-tree {
+  display: none;
+}
+
+.palette-studio-preview .theme-specimen-top {
+  gap: 8px;
+}
+
+.palette-studio-strip {
+  display: grid;
+  grid-template-columns: 2fr 1.4fr 0.7fr 1fr 1fr;
+  height: 14px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+}
+
+.palette-studio-controls {
+  grid-area: controls;
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.palette-studio-baseline {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 10px;
+}
+
+.palette-studio-colors {
+  padding-block: 6px;
+}
+
+.palette-studio-colors > div + div {
+  border-top: 1px solid var(--border);
+}
+
+@media (max-width: 760px) {
+  .palette-studio-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "preview" "controls";
+  }
+  .palette-studio-preview .theme-specimen-body {
+    min-height: 0;
+  }
+  .palette-studio-preview .theme-specimen-code {
+    padding-block: 6px;
+    line-height: 16px;
+  }
+}
+
+@media (max-width: 410px) {
+  .palette-studio-baseline {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

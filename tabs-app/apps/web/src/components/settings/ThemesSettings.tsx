@@ -1,3 +1,4 @@
+import { ToolbarStyleReel } from "./ToolbarStyleReel";
 import { TypographyReel } from "./TypographyReel";
 import {
   Dialog,
@@ -18,6 +19,8 @@ import {
   DownloadIcon,
   PaletteIcon,
   PencilIcon,
+  EllipsisIcon,
+  ArrowUpRightIcon,
   RotateCcwIcon,
   SlidersHorizontalIcon,
   Trash2Icon,
@@ -40,6 +43,7 @@ import {
   useTheme,
   buildFontPreferencesFromThemeConfig,
   commitCustomTheme,
+  resolveActiveThemeId,
 } from "../../hooks/useTheme";
 import {
   useDebouncedSettingsUpdate,
@@ -50,6 +54,7 @@ import { useServerConfig } from "../../state/settings";
 import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
+import { Menu, MenuItem, MenuPopup, MenuTrigger } from "../ui/menu";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { toastManager } from "../ui/toast";
 import { CustomThemeStudioModal } from "../CustomThemeStudioModal";
@@ -96,87 +101,6 @@ function saveSavedPresetsToStorage(presets: SavedCustomPreset[]) {
   try {
     localStorage.setItem(SAVED_PRESETS_KEY, JSON.stringify(presets));
   } catch {}
-}
-
-const TOOLBAR_STYLES = [
-  {
-    id: "solid",
-    label: "Elevated Solid",
-    description: "Pure high-contrast accent block with a soft elastic slide.",
-  },
-  {
-    id: "ghost-mesh",
-    label: "Ambient Mesh",
-    description: "Soft radial gradient mesh fading elegantly from the bottom edge.",
-  },
-  {
-    id: "spotlight",
-    label: "Edge Illumination",
-    description: "Directional light emitting smoothly from the top boundary.",
-  },
-  {
-    id: "dot",
-    label: "Minimal Indicator",
-    description: "Ultra-minimal glowing indicator tracking below the active tab.",
-  },
-  {
-    id: "refraction",
-    label: "Frosted Lens",
-    description: "Physical glass lens distorting a micro-dot matrix track.",
-  },
-  {
-    id: "titanium",
-    label: "Brushed Aluminum",
-    description: "Machined brushed metal aesthetic with an animated sweeping glare.",
-  },
-] as const;
-
-function ToolbarPreview({ styleId }: { styleId: string }) {
-  const [activeTab, setActiveTab] = useState(0);
-  const trackRef = useRef<HTMLDivElement>(null);
-  const pillRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!trackRef.current || !pillRef.current) return;
-    const timeoutId = setTimeout(() => {
-      const tabs = trackRef.current?.querySelectorAll<HTMLButtonElement>(".nav-tab");
-      if (!tabs) return;
-      const targetTab = tabs[activeTab];
-      if (!targetTab) return;
-
-      const targetLeft = targetTab.offsetLeft;
-      const targetWidth = targetTab.offsetWidth;
-
-      if (pillRef.current) {
-        pillRef.current.style.transform = `translateX(${targetLeft}px)`;
-        pillRef.current.style.width = `${targetWidth}px`;
-      }
-    }, 10);
-    return () => clearTimeout(timeoutId);
-  }, [activeTab]);
-
-  return (
-    <div
-      className="flex items-center justify-center p-4 bg-background/50 rounded-xl border border-border/40 my-2"
-      onClick={(e) => {
-        e.stopPropagation();
-      }}
-    >
-      <div ref={trackRef} className={cn("nav-track", `design-${styleId}`)}>
-        <div ref={pillRef} className="active-pill" />
-        {["Code", "Agents", "Browser"].map((label, i) => (
-          <button
-            key={label}
-            type="button"
-            className={cn("nav-tab", activeTab === i && "active")}
-            onClick={() => setActiveTab(i)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
 }
 
 const CURATED_STUDIO_SWATCHES = [
@@ -422,6 +346,7 @@ export function ThemePickerGrid({
   onSelectTheme,
   onOpenStudio,
   onOpenImport,
+  onOpenExport,
   onDeletePreset,
   onRenamePreset,
   onEditPresetInStudio,
@@ -431,8 +356,9 @@ export function ThemePickerGrid({
   customConfig: CustomThemeConfig;
   savedPresets: SavedCustomPreset[];
   onSelectTheme: (theme: ThemePreference, customOverride?: CustomThemeConfig) => void;
-  onOpenStudio: () => void;
-  onOpenImport?: () => void;
+  onOpenStudio: (config: CustomThemeConfig) => void;
+  onOpenImport?: (name: string, config: CustomThemeConfig) => void;
+  onOpenExport?: (name: string, config: CustomThemeConfig) => void;
   onDeletePreset: (presetId: string) => void;
   onRenamePreset: (presetId: string, newName: string) => void;
   onEditPresetInStudio?: (preset: SavedCustomPreset) => void;
@@ -442,17 +368,15 @@ export function ThemePickerGrid({
   const [editingNameInput, setEditingNameInput] = useState("");
   const [appearanceFilter, setAppearanceFilter] = useState("All");
   const [previewOpen, setPreviewOpen] = useState(false);
-  const selectedDefinition = THEME_DEFINITIONS[activeTheme as keyof typeof THEME_DEFINITIONS];
+  const selectedDefinition =
+    activeTheme === "custom"
+      ? undefined
+      : THEME_DEFINITIONS[resolveActiveThemeId(activeTheme) as keyof typeof THEME_DEFINITIONS];
   const publishedTheme = activeTheme.startsWith("environment:")
     ? environmentThemes?.find((theme) => `environment:${theme.id}` === activeTheme)
     : undefined;
   const fallbackDefinition =
-    THEME_DEFINITIONS[
-      publishedTheme?.appearance === "light" ||
-      (!publishedTheme && !window.matchMedia("(prefers-color-scheme: dark)").matches)
-        ? "tabs-monotone-light"
-        : "tabs-monotone"
-    ];
+    THEME_DEFINITIONS[publishedTheme?.appearance === "light" ? "tabs-light" : "tabs-dark"];
   const selectedConfig: CustomThemeConfig =
     activeTheme === "custom"
       ? customConfig
@@ -461,32 +385,52 @@ export function ThemePickerGrid({
             selectedDefinition?.baseVariant ??
             publishedTheme?.appearance ??
             fallbackDefinition.baseVariant,
-          colors: selectedDefinition?.colors ?? {
+          colors: {
             background:
+              selectedDefinition?.colors.background ??
               publishedTheme?.colors?.background ??
               publishedTheme?.canvas ??
               fallbackDefinition.colors.background,
             card:
+              selectedDefinition?.colors.card ??
               publishedTheme?.colors?.card ??
               publishedTheme?.colors?.cardBackground ??
               fallbackDefinition.colors.card,
-            foreground: publishedTheme?.colors?.foreground ?? fallbackDefinition.colors.foreground,
-            border: publishedTheme?.colors?.border ?? fallbackDefinition.colors.border,
+            foreground:
+              selectedDefinition?.colors.foreground ??
+              publishedTheme?.colors?.foreground ??
+              fallbackDefinition.colors.foreground,
+            border:
+              selectedDefinition?.colors.border ??
+              publishedTheme?.colors?.border ??
+              fallbackDefinition.colors.border,
             primary:
+              selectedDefinition?.colors.primary ??
               publishedTheme?.colors?.primary ??
               publishedTheme?.accent ??
               fallbackDefinition.colors.primary,
           },
           fonts: customConfig.fonts,
         };
+  const activeSavedPalette =
+    activeTheme === "custom"
+      ? savedPresets.find(
+          ({ config }) =>
+            config.baseVariant === customConfig.baseVariant &&
+            (["background", "card", "border", "foreground", "primary"] as const).every(
+              (key) => config.colors[key] === customConfig.colors[key],
+            ) &&
+            JSON.stringify(config.tokenOverrides ?? {}) ===
+              JSON.stringify(customConfig.tokenOverrides ?? {}),
+        )
+      : undefined;
   const selectedName =
-    selectedDefinition?.name ??
-    publishedTheme?.name ??
-    (activeTheme === "system"
+    activeTheme === "system"
       ? "System Auto"
-      : (savedPresets.find(
-          (preset) => JSON.stringify(preset.config.colors) === JSON.stringify(customConfig.colors),
-        )?.name ?? "Custom palette"));
+      : (selectedDefinition?.name ??
+        publishedTheme?.name ??
+        activeSavedPalette?.name ??
+        "Custom palette");
 
   const curatedThemes = [
     {
@@ -606,15 +550,24 @@ export function ThemePickerGrid({
                 );
               })}
           </div>
-          <div className="theme-collection-actions">
-            <button type="button" onClick={onOpenStudio}>
-              <PaletteIcon />
-              Create a palette<span>↗</span>
+          <div className="theme-collection-actions" role="group" aria-label="Palette actions">
+            <button type="button" onClick={() => onOpenStudio(selectedConfig)}>
+              <PaletteIcon aria-hidden="true" />
+              <span>Create a palette</span>
+              <ArrowUpRightIcon aria-hidden="true" />
             </button>
             {onOpenImport && (
-              <button type="button" onClick={onOpenImport}>
-                <DownloadIcon />
-                Import a theme<span>↗</span>
+              <button type="button" onClick={() => onOpenImport(selectedName, selectedConfig)}>
+                <DownloadIcon aria-hidden="true" />
+                <span>Import a theme</span>
+                <ArrowUpRightIcon aria-hidden="true" />
+              </button>
+            )}
+            {onOpenExport && (
+              <button type="button" onClick={() => onOpenExport(selectedName, selectedConfig)}>
+                <UploadIcon aria-hidden="true" />
+                <span>Export current theme</span>
+                <ArrowUpRightIcon aria-hidden="true" />
               </button>
             )}
           </div>
@@ -632,149 +585,105 @@ export function ThemePickerGrid({
           <div className="theme-collection-custom-grid">
             {/* User Saved Presets */}
             {savedPresets.map((preset) => {
-              const isSelected =
-                activeTheme === "custom" &&
-                JSON.stringify(customConfig.colors) === JSON.stringify(preset.config.colors);
+              const isSelected = activeSavedPalette?.id === preset.id;
               const isEditing = editingPresetId === preset.id;
 
               return (
                 <div
-                  data-shape="preview"
                   key={preset.id}
-                  className={cn(
-                    "group relative flex flex-col justify-between overflow-hidden rounded-2xl border p-3.5 text-left transition-all duration-300 select-none",
-                    isSelected
-                      ? "border-foreground/50 bg-card/90 shadow-md"
-                      : "border-border/60 bg-card/40 backdrop-blur-md hover:border-border hover:bg-card/70 hover:shadow-lg hover:-translate-y-0.5",
-                  )}
+                  className="min-w-0 rounded-2xl border border-border bg-card p-3"
                 >
-                  {!isEditing && (
-                    <div className="absolute top-2.5 right-2.5 z-20 opacity-0 group-hover:opacity-100 transition-all duration-200 flex items-center gap-0.5 rounded-xl border border-border/80 bg-background/95 p-1 shadow-lg backdrop-blur-md">
-                      <button
-                        type="button"
-                        title="Edit Theme in Studio"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onEditPresetInStudio?.(preset);
-                        }}
-                        className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
-                      >
-                        <SlidersHorizontalIcon className="size-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        title="Rename Preset"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setEditingPresetId(preset.id);
-                          setEditingNameInput(preset.name);
-                        }}
-                        className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
-                      >
-                        <PencilIcon className="size-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        title="Delete Saved Preset"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onDeletePreset(preset.id);
-                        }}
-                        className="p-1.5 rounded-lg text-muted-foreground hover:bg-destructive/15 hover:text-destructive transition-colors cursor-pointer"
-                      >
-                        <Trash2Icon className="size-3.5" />
-                      </button>
-                    </div>
-                  )}
-
                   <button
                     type="button"
-                    onClick={() => !isEditing && onSelectTheme("custom", preset.config)}
-                    className="w-full text-left flex flex-col justify-between h-full cursor-pointer"
+                    aria-label={`Use palette ${preset.name}`}
+                    aria-pressed={isSelected}
+                    onClick={() => onSelectTheme("custom", preset.config)}
+                    className="group block w-full cursor-pointer overflow-hidden rounded-xl border border-border focus-visible:outline-2 focus-visible:outline-ring"
                   >
-                    <div
-                      data-shape="thumbnail"
-                      className="relative h-24 w-full overflow-hidden rounded-xl border border-black/10 dark:border-white/10 shadow-xs transition-transform duration-300 group-hover:scale-[1.02]"
-                      style={{
-                        background: preset.config.colors.background,
-                        backgroundClip: "padding-box",
+                    <span className="flex h-12" aria-hidden="true">
+                      {(["background", "card", "border", "foreground", "primary"] as const).map(
+                        (key) => (
+                          <span
+                            key={key}
+                            className="flex-1"
+                            style={{ backgroundColor: preset.config.colors[key] }}
+                          />
+                        ),
+                      )}
+                    </span>
+                  </button>
+
+                  {isEditing ? (
+                    <form
+                      className="mt-2 flex items-center gap-1.5"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        onRenamePreset(preset.id, editingNameInput);
+                        setEditingPresetId(null);
                       }}
                     >
-                      <div
-                        className="flex items-center justify-between px-2.5 py-1.5 border-b border-black/10 dark:border-white/10"
-                        style={{ backgroundColor: preset.config.colors.card }}
+                      <Input
+                        autoFocus
+                        aria-label="Palette name"
+                        value={editingNameInput}
+                        onChange={(event) => setEditingNameInput(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Escape") setEditingPresetId(null);
+                        }}
+                      />
+                      <Button
+                        type="submit"
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label="Save palette name"
+                        disabled={!editingNameInput.trim()}
                       >
-                        <div className="flex items-center gap-1.5">
-                          <div
-                            className="size-2 rounded-full"
-                            style={{
-                              backgroundColor: preset.config.colors.primary,
-                            }}
-                          />
-                        </div>
-                        <div className="h-1.5 w-10 rounded-full opacity-50 bg-foreground" />
+                        <CheckIcon aria-hidden="true" />
+                      </Button>
+                    </form>
+                  ) : (
+                    <div className="mt-2 flex items-center justify-between gap-1">
+                      <div className="min-w-0">
+                        <p title={preset.name} className="truncate text-sm font-medium">
+                          {preset.name}
+                        </p>
+                        {isSelected && (
+                          <span className="text-xs text-muted-foreground">In use</span>
+                        )}
                       </div>
-
-                      <div className="flex h-full p-2 flex-col gap-1.5">
-                        <div
-                          className="h-1.5 w-12 rounded-full"
-                          style={{ backgroundColor: preset.config.colors.primary }}
-                        />
-                        <div
-                          className="h-1.5 w-20 rounded-full opacity-70"
-                          style={{
-                            backgroundColor: preset.config.colors.foreground,
-                          }}
-                        />
-                      </div>
-                    </div>
-
-                    {isEditing ? (
-                      <div
-                        className="mt-3 flex items-center gap-1.5"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <Input
-                          autoFocus
-                          value={editingNameInput}
-                          onChange={(e) => setEditingNameInput(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                              onRenamePreset(preset.id, editingNameInput);
-                              setEditingPresetId(null);
-                            } else if (e.key === "Escape") {
-                              setEditingPresetId(null);
-                            }
-                          }}
-                          className="h-7 text-xs rounded-lg bg-background border-border/80 text-foreground px-2"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            onRenamePreset(preset.id, editingNameInput);
-                            setEditingPresetId(null);
-                          }}
-                          className="p-1 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors cursor-pointer shrink-0"
+                      <Menu>
+                        <MenuTrigger
+                          render={
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label={`Manage palette ${preset.name}`}
+                            />
+                          }
                         >
-                          <CheckIcon className="size-3.5" />
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="mt-3.5 flex items-end justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                          <span className="text-xs font-bold tracking-tight text-foreground block truncate">
-                            {preset.name}
-                          </span>
-                          <p className="text-[11px] text-muted-foreground line-clamp-1 mt-0.5 font-normal">
-                            User Saved Preset
-                          </p>
-                        </div>
-                        <span className="shrink-0 rounded-full px-2 py-0.5 text-[9px] font-mono font-semibold uppercase tracking-wider bg-muted text-muted-foreground border border-border/80">
-                          SAVED
-                        </span>
-                      </div>
-                    )}
-                  </button>
+                          <EllipsisIcon aria-hidden="true" />
+                        </MenuTrigger>
+                        <MenuPopup align="end">
+                          {onEditPresetInStudio && (
+                            <MenuItem onClick={() => onEditPresetInStudio(preset)}>
+                              <SlidersHorizontalIcon aria-hidden="true" /> Edit palette
+                            </MenuItem>
+                          )}
+                          <MenuItem
+                            onClick={() => {
+                              setEditingPresetId(preset.id);
+                              setEditingNameInput(preset.name);
+                            }}
+                          >
+                            <PencilIcon aria-hidden="true" /> Rename
+                          </MenuItem>
+                          <MenuItem variant="destructive" onClick={() => onDeletePreset(preset.id)}>
+                            <Trash2Icon aria-hidden="true" /> Delete
+                          </MenuItem>
+                        </MenuPopup>
+                      </Menu>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -786,7 +695,7 @@ export function ThemePickerGrid({
 }
 
 export function ThemesSettings() {
-  const { confirm } = useConfirm();
+  const { confirm, confirmDialog } = useConfirm();
   const {
     theme,
     setTheme,
@@ -802,8 +711,11 @@ export function ThemesSettings() {
 
   const [isStudioOpen, setIsStudioOpen] = useState(false);
   const [studioInitialConfig, setStudioInitialConfig] = useState<CustomThemeConfig | null>(null);
-  const [isImportExportOpen, setIsImportExportOpen] = useState(false);
-  const [importExportTab, setImportExportTab] = useState<"import" | "export">("import");
+  const [transfer, setTransfer] = useState<{
+    tab: "import" | "export";
+    name: string;
+    config: CustomThemeConfig;
+  } | null>(null);
   const [isCustomFontMode, setIsCustomFontMode] = useState(false);
   const [typographyTuneOpen, setTypographyTuneOpen] = useState(false);
   const [editingStudioPresetName, setEditingStudioPresetName] = useState("");
@@ -829,7 +741,7 @@ export function ThemesSettings() {
       // Sync imported fonts into the FontPreferences store so the DOM updates
       const nextFontPrefs = buildFontPreferencesFromThemeConfig(config);
       setFontPreferences(nextFontPrefs);
-      setIsImportExportOpen(false);
+      setTransfer(null);
       toastManager.add({
         type: "success",
         title: "Theme Imported",
@@ -874,7 +786,9 @@ export function ThemesSettings() {
 
   const handleDeletePreset = useCallback(
     async (presetId: string) => {
-      const confirmed = await confirm("Are you sure you want to delete this custom preset?");
+      const preset = savedPresets.find(({ id }) => id === presetId);
+      if (!preset) return;
+      const confirmed = await confirm(`Delete “${preset.name}” from Your palettes?`);
       if (!confirmed) return;
 
       setSavedPresets((prev) => {
@@ -888,7 +802,7 @@ export function ThemesSettings() {
         description: "Custom theme preset removed.",
       });
     },
-    [confirm],
+    [confirm, savedPresets],
   );
 
   const handleRenamePreset = useCallback((presetId: string, newName: string) => {
@@ -906,65 +820,11 @@ export function ThemesSettings() {
   }, []);
 
   const showCustomMixer = isCustomFontMode;
-
   return (
     <div className="space-y-6">
       <SettingsSectionHeader
         title="Themes"
-        description="Choose from curated palettes or build a fully personalized custom color and typography theme."
-        actions={
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                setFontPreferences(DEFAULT_FONT_PREFERENCES);
-                toastManager.add({
-                  type: "info",
-                  title: "Fonts Reset",
-                  description: "Typography preferences restored to defaults.",
-                });
-              }}
-              className="gap-2 rounded-xl text-xs px-3.5 py-2 font-medium shadow-xs text-muted-foreground hover:text-foreground cursor-pointer"
-            >
-              <RotateCcwIcon className="size-3.5" />
-              Reset to Defaults
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                setImportExportTab("import");
-                setIsImportExportOpen(true);
-              }}
-              className="gap-2 rounded-xl text-xs px-3.5 py-2 font-medium shadow-xs cursor-pointer"
-            >
-              <DownloadIcon className="size-4 text-foreground" />
-              Import Theme
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                setImportExportTab("export");
-                setIsImportExportOpen(true);
-              }}
-              className="gap-2 rounded-xl text-xs px-3.5 py-2 font-medium shadow-xs cursor-pointer"
-            >
-              <UploadIcon className="size-4 text-foreground" />
-              Export Theme
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setIsStudioOpen(true)}
-              className="gap-2 rounded-xl text-xs px-3.5 py-2 font-medium shadow-xs cursor-pointer"
-            >
-              <PaletteIcon className="size-4 text-foreground" />
-              Open Custom Studio
-            </Button>
-          </div>
-        }
+        description="Choose a palette and personalize your fonts."
       />
 
       <BrandIdentitySettings />
@@ -983,15 +843,13 @@ export function ThemesSettings() {
               setTheme(t);
             }
           }}
-          onOpenStudio={() => {
+          onOpenStudio={(config) => {
             setEditingStudioPresetName("");
-            setStudioInitialConfig(null);
+            setStudioInitialConfig(config);
             setIsStudioOpen(true);
           }}
-          onOpenImport={() => {
-            setImportExportTab("import");
-            setIsImportExportOpen(true);
-          }}
+          onOpenImport={(name, config) => setTransfer({ tab: "import", name, config })}
+          onOpenExport={(name, config) => setTransfer({ tab: "export", name, config })}
           onDeletePreset={handleDeletePreset}
           onRenamePreset={handleRenamePreset}
           onEditPresetInStudio={(preset) => {
@@ -1370,73 +1228,15 @@ export function ThemesSettings() {
         </Dialog>
       </SettingsSection>
 
-      <SettingsSection title="Toolbar Style">
-        <div className="flex flex-col gap-8 p-4 sm:p-5">
-          <div className="relative mx-auto w-full max-w-2xl overflow-hidden rounded-2xl border border-border shadow-sm">
-            <div className="absolute inset-0 bg-gradient-to-br from-background via-card to-background opacity-80" />
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-primary/5 via-transparent to-transparent opacity-50" />
-            <div className="relative flex flex-col items-center justify-center p-8 pt-14 pb-10 min-h-[260px] gap-6">
-              <h3 className="absolute top-5 left-6 text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground/60">
-                Preview Stage
-              </h3>
-              <div className="flex-1 flex items-center justify-center">
-                <ToolbarPreview styleId={settings.toolbarStyle} />
-              </div>
-
-              {(() => {
-                const activeStyle =
-                  TOOLBAR_STYLES.find((s) => s.id === settings.toolbarStyle) ?? TOOLBAR_STYLES[0];
-                return (
-                  <div className="flex flex-col items-center text-center">
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <h4 className="font-medium text-[15px] tracking-tight text-foreground">
-                        {activeStyle?.label}
-                      </h4>
-                      <span className="bg-muted text-foreground border border-border px-2 py-0.5 rounded-full text-[9px] uppercase font-bold tracking-wider">
-                        Active
-                      </span>
-                    </div>
-                    <p className="text-xs text-muted-foreground max-w-[280px] leading-relaxed">
-                      {activeStyle?.description}
-                    </p>
-                  </div>
-                );
-              })()}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-            {TOOLBAR_STYLES.map((style) => {
-              const isSelected = settings.toolbarStyle === style.id;
-              return (
-                <button
-                  data-shape="preview"
-                  key={style.id}
-                  type="button"
-                  onClick={() => updateSettings({ toolbarStyle: style.id })}
-                  className={cn(
-                    "group relative flex flex-col items-start p-4 rounded-xl border transition-all duration-300 text-left overflow-hidden cursor-pointer",
-                    isSelected
-                      ? "bg-card border-foreground/30 shadow-xs"
-                      : "bg-transparent border-border/40 hover:bg-card/50 hover:border-border/80",
-                  )}
-                >
-                  <div className="relative flex items-center justify-between w-full mb-1.5">
-                    <span className="font-semibold text-sm transition-colors text-foreground">
-                      {style.label}
-                    </span>
-                    {isSelected && (
-                      <div className="size-2 rounded-full bg-foreground/90 shadow-[0_0_6px_rgba(255,255,255,0.4)]" />
-                    )}
-                  </div>
-                  <p className="relative text-[12px] text-muted-foreground line-clamp-2 leading-relaxed">
-                    {style.description}
-                  </p>
-                </button>
-              );
-            })}
-          </div>
-        </div>
+      <SettingsSection
+        title="Toolbar Style"
+        description="Preview how the active tool looks in your current theme."
+        contentClassName="toolbar-style-panel"
+      >
+        <ToolbarStyleReel
+          value={settings.toolbarStyle}
+          onApply={(toolbarStyle) => updateSettings({ toolbarStyle })}
+        />
       </SettingsSection>
 
       <CustomThemeStudioModal
@@ -1451,63 +1251,30 @@ export function ThemesSettings() {
         onApply={handleApplyStudio}
       />
 
-      {(() => {
-        // Derive the correct config and name for export based on the *active* theme
-        // (not always the custom slot — e.g. when Dracula or Abyss is selected).
-        let exportConfig: CustomThemeConfig = {
-          ...customThemeConfig,
-          fonts: {
-            ...customThemeConfig.fonts,
-            uiFont: fontPreferences.uiFont,
-            editorFont: fontPreferences.editorFont,
-            headingFont: fontPreferences.headingFont || fontPreferences.uiFont,
-            ...(fontPreferences.sectionFont ? { sectionFont: fontPreferences.sectionFont } : {}),
-            ...(fontPreferences.supportingFont
-              ? { supportingFont: fontPreferences.supportingFont }
-              : {}),
-          },
-        };
-        let exportName = editingStudioPresetName || "Custom Theme";
+      {confirmDialog}
 
-        if (theme !== "custom" && theme !== "system" && !theme.startsWith("environment:")) {
-          const def = THEME_DEFINITIONS[theme as import("../../lib/themes").ThemeId];
-          if (def) {
-            exportConfig = {
-              baseVariant: def.baseVariant,
-              colors: {
-                background: def.colors.background,
-                foreground: def.colors.foreground,
-                card: def.colors.card,
-                border: def.colors.border,
-                primary: def.colors.primary,
-              },
-              fonts: {
-                uiFont: fontPreferences.uiFont,
-                editorFont: fontPreferences.editorFont,
-                headingFont: fontPreferences.headingFont || fontPreferences.uiFont,
-                ...(fontPreferences.sectionFont
-                  ? { sectionFont: fontPreferences.sectionFont }
-                  : {}),
-                ...(fontPreferences.supportingFont
-                  ? { supportingFont: fontPreferences.supportingFont }
-                  : {}),
-              },
-            };
-            exportName = def.name;
-          }
-        }
-
-        return (
-          <ThemeImportExportModal
-            isOpen={isImportExportOpen}
-            onClose={() => setIsImportExportOpen(false)}
-            currentConfig={exportConfig}
-            currentName={exportName}
-            initialTab={importExportTab}
-            onImportTheme={handleImportTheme}
-          />
-        );
-      })()}
+      {transfer && (
+        <ThemeImportExportModal
+          isOpen
+          onClose={() => setTransfer(null)}
+          currentConfig={{
+            ...transfer.config,
+            fonts: {
+              ...transfer.config.fonts,
+              uiFont: fontPreferences.uiFont,
+              editorFont: fontPreferences.editorFont,
+              headingFont: fontPreferences.headingFont || fontPreferences.uiFont,
+              ...(fontPreferences.sectionFont ? { sectionFont: fontPreferences.sectionFont } : {}),
+              ...(fontPreferences.supportingFont
+                ? { supportingFont: fontPreferences.supportingFont }
+                : {}),
+            },
+          }}
+          currentName={transfer.name}
+          initialTab={transfer.tab}
+          onImportTheme={handleImportTheme}
+        />
+      )}
     </div>
   );
 }

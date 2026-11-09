@@ -1,5 +1,6 @@
 import "../../index.css";
 import { useState } from "react";
+import { Code2Icon, Globe2Icon, MessageCircleIcon } from "lucide-react";
 import { expect, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 import { render } from "vitest-browser-react";
@@ -250,6 +251,137 @@ it("keeps selected tool text readable when hovered in a dark toolbar", async () 
   await button.hover();
   await expect.poll(() => getComputedStyle(button.element()).color).toBe(initialColor);
   await view.unmount();
+});
+
+it("gives the workspace lens vertical room and keeps the dots inside the track", async () => {
+  const snapshot = snapshotThemeState();
+  previewTheme("true-black");
+  const view = await render(
+    <div className="flex gap-4 bg-background p-4">
+      {["solid", "refraction"].map((style) => (
+        <div key={style} data-slot="workspace-toolbar-shell" className="p-2">
+          <div
+            role="tablist"
+            aria-label={style}
+            data-slot="workspace-toolbar"
+            className={`nav-track design-${style} overflow-x-auto`}
+          >
+            <div className="active-pill" aria-hidden="true" />
+            {[
+              { label: "Code", Icon: Code2Icon },
+              { label: "Agents", Icon: MessageCircleIcon },
+              { label: "Browser", Icon: Globe2Icon },
+            ].map(({ label, Icon }, index) => (
+              <button
+                key={label}
+                type="button"
+                role="tab"
+                aria-selected={index === 0}
+                className={`nav-tab${index === 0 ? " active" : ""}`}
+              >
+                <Icon className="size-4" aria-hidden="true" />
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>,
+  );
+  try {
+    const solid = page.getByRole("tablist", { name: "solid" });
+    const frosted = page.getByRole("tablist", { name: "refraction" });
+    const code = frosted.getByRole("tab", { name: "Code" }).element() as HTMLButtonElement;
+    const solidCode = solid.getByRole("tab", { name: "Code" }).element() as HTMLButtonElement;
+    const pill = frosted.element().querySelector<HTMLElement>(".active-pill")!;
+    pill.style.width = `${code.offsetWidth}px`;
+    pill.style.transform = `translateX(${code.offsetLeft}px)`;
+    expect(code.offsetHeight).toBeGreaterThan(solidCode.offsetHeight);
+    expect(code.offsetWidth).toBeLessThan(solidCode.offsetWidth);
+    expect(getComputedStyle(pill).insetBlock).toBe("6px");
+    expect(getComputedStyle(frosted.element()).backgroundClip).toBe("content-box, padding-box");
+    await page.screenshot({
+      element: frosted.element().parentElement!,
+      path: "__screenshots__/toolbar-style/frosted-lens-workspace.png",
+    });
+  } finally {
+    await view.unmount();
+    restoreThemeSnapshot(snapshot);
+  }
+});
+
+it("pulls focus to the selected workspace tool and sharpens hovered or keyboard-focused tools", async () => {
+  const snapshot = snapshotThemeState();
+  previewTheme("true-black");
+  function Fixture() {
+    const [active, setActive] = useState("Code");
+    return (
+      <div data-slot="workspace-toolbar-shell" className="inline-flex p-2">
+        <div
+          data-slot="workspace-toolbar"
+          role="tablist"
+          aria-label="Project tools"
+          className="nav-track design-material overflow-x-auto"
+        >
+          <div className="active-pill" aria-hidden="true">
+            <div className="toolbar-pill-effect" />
+          </div>
+          {[
+            { label: "Code", Icon: Code2Icon },
+            { label: "Agents", Icon: MessageCircleIcon },
+            { label: "Browser", Icon: Globe2Icon },
+          ].map(({ label, Icon }) => (
+            <button
+              key={label}
+              type="button"
+              role="tab"
+              aria-selected={label === active}
+              className={`nav-tab${label === active ? " active" : ""}`}
+              onClick={() => setActive(label)}
+            >
+              <span className="nav-tab-icon">
+                <Icon className="size-4" aria-hidden="true" />
+              </span>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+  const view = await render(<Fixture />);
+  try {
+    const code = page.getByRole("tab", { name: "Code" });
+    const agents = page.getByRole("tab", { name: "Agents" });
+    const blur = (tool: typeof code) => getComputedStyle(tool.element()).filter;
+    const pill = view.container.querySelector<HTMLElement>(".active-pill")!;
+    const selected = code.element() as HTMLButtonElement;
+    expect(getComputedStyle(selected).fontSize).toBe("12px");
+    expect(getComputedStyle(selected.querySelector("svg")!).width).toBe("15px");
+    expect(selected.offsetHeight).toBe(30);
+    pill.style.width = `${selected.offsetWidth}px`;
+    pill.style.transform = `translateX(${selected.offsetLeft}px)`;
+    expect(blur(code)).toBe("none");
+    await expect.poll(() => blur(agents)).toBe("blur(0.5px)");
+    await page.screenshot({
+      element: view.container.querySelector('[data-slot="workspace-toolbar-shell"]')!,
+      path: "__screenshots__/toolbar-style/focus-pull-workspace.png",
+    });
+
+    await agents.hover();
+    await expect.poll(() => blur(agents)).toBe("none");
+    await agents.click();
+    await expect.element(agents).toHaveAttribute("aria-selected", "true");
+    await expect.poll(() => blur(code)).toBe("blur(0.5px)");
+
+    await userEvent.keyboard("{Shift>}{Tab}{/Shift}");
+    await expect.element(code).toHaveFocus();
+    await expect.poll(() => blur(code)).toBe("none");
+    expect(getComputedStyle(code.element()).outlineStyle).toBe("solid");
+  } finally {
+    await view.unmount();
+    restoreThemeSnapshot(snapshot);
+  }
 });
 
 it("keeps the light rail gutter on the workspace surface and rounds both search ends", async () => {

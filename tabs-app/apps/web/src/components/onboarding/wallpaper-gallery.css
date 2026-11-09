@@ -1,0 +1,145 @@
+.wallpaper-gallery {
+  --gallery-inset: clamp(14px, 2.5vw, 28px);
+  max-height: min(820px, calc(100dvh - 2rem));
+}
+
+.wallpaper-gallery-header,
+.wallpaper-gallery-footer {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px var(--gallery-inset);
+}
+
+.wallpaper-gallery-header {
+  border-bottom: 1px solid var(--border);
+}
+
+.wallpaper-gallery-footer {
+  flex-wrap: wrap;
+  border-top: 1px solid var(--border);
+}
+
+.wallpaper-gallery-scroll {
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: var(--gallery-inset);
+}
+
+.wallpaper-gallery-layout {
+  display: grid;
+  gap: 20px;
+}
+
+.wallpaper-gallery-current {
+  display: grid;
+  gap: 12px;
+  align-self: start;
+  min-width: 0;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-surface);
+  background: var(--card);
+}
+
+.wallpaper-gallery-current figcaption {
+  padding: 0 4px 4px;
+}
+
+.wallpaper-gallery-library {
+  min-width: 0;
+  container-type: inline-size;
+}
+
+.wallpaper-gallery-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.wallpaper-gallery-filters > div:first-child {
+  grid-column: 1 / -1;
+}
+
+@container (min-width: 450px) {
+  .wallpaper-gallery-filters {
+    grid-template-columns: minmax(0, 1fr) minmax(128px, 0.5fr) auto;
+  }
+  .wallpaper-gallery-filters > div:first-child {
+    grid-column: auto;
+  }
+}
+
+.wallpaper-gallery-results {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 156px), 1fr));
+  gap: 16px 12px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.wallpaper-gallery-tile {
+  display: grid;
+  width: 100%;
+  gap: 8px;
+  border-radius: min(var(--radius-thumbnail), 14px);
+  text-align: start;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--foreground);
+}
+
+.wallpaper-gallery-tile > img {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: min(var(--radius-thumbnail), 14px);
+  border: 1px solid var(--border);
+  background: var(--muted);
+}
+
+.wallpaper-gallery-tile:hover > img,
+.wallpaper-gallery-tile[aria-pressed="true"] > img {
+  border-color: var(--foreground);
+}
+
+.wallpaper-gallery-tile > span {
+  padding-inline: 3px;
+}
+
+.wallpaper-gallery-tile.has-delete > span {
+  padding-inline-end: 30px;
+}
+
+.wallpaper-gallery-tile:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+
+@media (min-width: 870px) {
+  .wallpaper-gallery-layout.has-current {
+    grid-template-columns: minmax(235px, 0.8fr) minmax(0, 2fr);
+  }
+
+  .wallpaper-gallery-current {
+    position: sticky;
+    top: 0;
+  }
+}
+
+@media (max-width: 420px) {
+  .wallpaper-gallery-results {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .wallpaper-gallery-current > img {
+    max-height: 140px;
+  }
+}

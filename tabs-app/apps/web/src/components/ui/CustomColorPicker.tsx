@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, ChevronUp, Copy, Pipette, X } from "lucide-react";
 import { toHexColor } from "@tabs/shared/themeDerivation";
+import { Popover, PopoverClose, PopoverPopup, PopoverTitle, PopoverTrigger } from "./popover";
 import { SegmentedControl } from "./segmented-control";
 
 interface CustomColorPickerProps {
@@ -155,16 +156,12 @@ export const CustomColorPicker: React.FC<CustomColorPickerProps> = ({
   value,
   onChange,
 }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [openUpward, setOpenUpward] = useState(false);
   const [showSwatches, setShowSwatches] = useState(false);
   const [colorMode, setColorMode] = useState<ColorMode>("hex");
   const [inputVal, setInputVal] = useState(value);
   const [copied, setCopied] = useState(false);
   const [hsv, setHsv] = useState(() => hexToHsv(value));
 
-  const triggerRef = useRef<HTMLDivElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
   const satCanvasRef = useRef<HTMLDivElement>(null);
   const hueSliderRef = useRef<HTMLDivElement>(null);
   const isDraggingSat = useRef(false);
@@ -174,25 +171,6 @@ export const CustomColorPicker: React.FC<CustomColorPickerProps> = ({
     setInputVal(formatColorString(value, colorMode));
     setHsv(hexToHsv(value));
   }, [value, colorMode]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-
-    if (triggerRef.current) {
-      const rect = triggerRef.current.getBoundingClientRect();
-      const spaceBelow = window.innerHeight - rect.bottom;
-      setOpenUpward(spaceBelow < 300);
-    }
-
-    const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [isOpen]);
 
   const updateSatValFromMouse = (e: MouseEvent | React.MouseEvent) => {
     if (!satCanvasRef.current) return;
@@ -283,50 +261,27 @@ export const CustomColorPicker: React.FC<CustomColorPickerProps> = ({
   const visibleSwatches = showSwatches ? SWATCH_PALETTE : SWATCH_PALETTE.slice(0, 6);
 
   return (
-    <div className="relative" ref={containerRef}>
-      {/* Driver Control Card */}
-      <div
-        ref={triggerRef}
-        className="flex items-center justify-between rounded-2xl border border-border/70 bg-background/50 p-3 hover:border-primary/40 transition-all shadow-xs"
-      >
-        <div className="min-w-0 flex-1 pe-4">
-          <span className="text-xs font-semibold text-foreground block tracking-tight">
-            {label}
-          </span>
-          <span className="text-[11px] text-muted-foreground block mt-0.5 truncate">
-            {description}
-          </span>
-        </div>
-
-        {/* Swatch & Color Value Trigger Button */}
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={() => setIsOpen(!isOpen)}
-            className="group flex items-center gap-2.5 rounded-xl border border-border/80 bg-card p-1.5 pe-3 hover:border-primary/50 hover:bg-muted/60 transition-all cursor-pointer shadow-xs"
-          >
-            <div
-              className="size-5.5 rounded-lg border border-white/20 shadow-inner transition-transform group-hover:scale-105"
-              style={{ backgroundColor: value }}
-            />
-            <span className="font-mono text-xs font-semibold text-foreground tracking-wider uppercase">
-              {value.toUpperCase()}
-            </span>
-          </button>
-        </div>
+    <div className="flex items-center justify-between gap-2 py-2">
+      <div className="min-w-0">
+        <span className="block text-sm font-medium">{label}</span>
+        <span className="block text-xs text-muted-foreground">{description}</span>
       </div>
-
-      {/* 100% Theme-Aware Popover Custom Color Studio */}
-      {isOpen && (
-        <div
-          className={`absolute right-0 z-50 w-76 rounded-2xl border border-border/80 bg-card text-card-foreground p-4 shadow-2xl backdrop-blur-xl animate-in zoom-in-95 fade-in duration-150 select-none ${
-            openUpward ? "bottom-full mb-2" : "top-full mt-2"
-          }`}
+      <Popover>
+        <PopoverTrigger
+          aria-label={`Edit ${label.toLowerCase()} color, ${value.toUpperCase()}`}
+          className="flex shrink-0 cursor-pointer items-center gap-2 rounded-full border border-border bg-card px-2 py-1 text-foreground transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring"
         >
-          {/* Header & Mode Switcher */}
-          <div className="flex items-center justify-between pb-2.5 border-b border-border/60">
-            <span className="text-xs font-bold text-foreground tracking-tight">Color Studio</span>
+          <span
+            aria-hidden="true"
+            className="size-5 rounded-full border border-foreground/20"
+            style={{ backgroundColor: value }}
+          />
+          <span className="min-w-[8ch] text-left font-mono text-xs">{value.toUpperCase()}</span>
+        </PopoverTrigger>
 
+        <PopoverPopup align="end" className="w-76 max-w-(--available-width) select-none">
+          <div className="flex flex-wrap items-center justify-between gap-1 border-b border-border/60 pb-2.5">
+            <PopoverTitle>{label}</PopoverTitle>
             <SegmentedControl
               size="sm"
               value={colorMode}
@@ -341,13 +296,12 @@ export const CustomColorPicker: React.FC<CustomColorPickerProps> = ({
               aria-label="Color mode"
             />
 
-            <button
-              type="button"
-              onClick={() => setIsOpen(false)}
-              className="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+            <PopoverClose
+              aria-label="Close color picker"
+              className="cursor-pointer rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
             >
-              <X className="size-3.5" />
-            </button>
+              <X className="size-3.5" aria-hidden="true" />
+            </PopoverClose>
           </div>
 
           {/* 1. 2D Saturation / Value Canvas */}
@@ -462,6 +416,7 @@ export const CustomColorPicker: React.FC<CustomColorPickerProps> = ({
                   type="text"
                   value={inputVal}
                   onChange={handleInputChange}
+                  aria-label={`${label} color value`}
                   placeholder="#000000"
                   className="w-full font-mono text-xs font-semibold h-8.5 px-2.5 rounded-xl bg-background border border-border/80 text-foreground uppercase tracking-wider focus:outline-none focus:ring-1 focus:ring-primary"
                 />
@@ -492,8 +447,8 @@ export const CustomColorPicker: React.FC<CustomColorPickerProps> = ({
               </button>
             </div>
           </div>
-        </div>
-      )}
+        </PopoverPopup>
+      </Popover>
     </div>
   );
 };
