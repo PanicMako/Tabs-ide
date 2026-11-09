@@ -27,8 +27,30 @@ export async function ensureElectronTypes(): Promise<void> {
 	}
 
 	const { electronVersion } = getElectronVersion();
-	const url = `https://github.com/electron/electron/releases/download/v${electronVersion}/electron.d.ts`;
-	const contents = await download(url, { checksumSha256: expectedChecksum });
+	const candidateUrls: string[] = [];
+	if (process.env.ELECTRON_MIRROR) {
+		const mirror = process.env.ELECTRON_MIRROR.replace(/\/+$/, '');
+		candidateUrls.push(`${mirror}/v${electronVersion}/electron.d.ts`);
+	}
+	candidateUrls.push(
+		`https://github.com/electron/electron/releases/download/v${electronVersion}/electron.d.ts`,
+		`https://cdn.npmmirror.com/binaries/electron/v${electronVersion}/electron.d.ts`
+	);
+
+	let contents: Uint8Array | undefined;
+	let lastError: Error | undefined;
+	for (const candidateUrl of candidateUrls) {
+		try {
+			contents = await download(candidateUrl, { checksumSha256: expectedChecksum });
+			break;
+		} catch (error) {
+			lastError = error instanceof Error ? error : new Error(String(error));
+		}
+	}
+
+	if (!contents) {
+		throw lastError ?? new Error(`Failed to download electron.d.ts for v${electronVersion}`);
+	}
 
 	fs.mkdirSync(path.dirname(electronTypesPath), { recursive: true });
 	fs.writeFileSync(electronTypesPath, contents);

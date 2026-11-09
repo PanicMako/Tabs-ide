@@ -22,10 +22,10 @@ Work from the repository root and treat GitHub Actions, the GitHub release, and 
 2. Before making a new tag, identify the previous stable tag and review the changes in that version range. Follow the linked Tabs release-notes skill, author `.github/release-notes/<tag>.md`, update `CHANGELOG.md`, run the release-note validator, and review the rendered copy. Commit the notes with the intended release changes before creating the tag.
 3. If a matching desktop release run is active, follow that exact run. Do not dispatch a duplicate.
 4. Wait for job transitions with `gh run view` or `gh run watch`. Avoid repeated full local builds while CI is already executing them.
-5. On failure, retrieve only failed-job logs first. Identify the earliest causal error; warnings and downstream suite failures are not separate root causes.
+5. On failure, do not wait around for unrelated parallel jobs if a fresh release will be required. Retrieve only failed-job logs first. Identify the earliest causal error; warnings and downstream suite failures are not separate root causes.
 6. Classify the failure:
    - For a transient network/runner failure, rerun failed jobs once without changing code.
-   - For a deterministic code, test, packaging, or workflow defect, reproduce the narrowest useful slice, implement the real fix, run focused validation, commit exact files, push, and dispatch a fresh release from the new commit.
+   - For a deterministic defect or persistent failure requiring a code/workflow fix, cancel the active run immediately (`gh run cancel <run-id>`) rather than waiting for parallel matrix builds to slowly complete. Reproduce the narrowest useful slice, implement the real fix, run focused validation, commit exact files, push, and dispatch a fresh release from the new commit.
    - Never weaken production behavior or assertions just to make CI green.
 7. Continue until all platform builds, publication, and finalization succeed.
 8. **Babysit the Website Deployment**:
