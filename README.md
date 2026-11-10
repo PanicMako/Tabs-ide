@@ -8,7 +8,7 @@
 
 </div>
 
-<img src="docs/readme/note.png" alt="Made by one student. Tabs is a small public beta, so expect rough edges. I don’t have an Apple Developer account yet, so the Mac app is unsigned and macOS warns you the first time you open it." width="100%" />
+<img src="docs/readme/note.png" alt="An indie project. I’m building Tabs on my own while studying. It’s a small public beta, so expect rough edges. I don’t have an Apple Developer account yet, so the Mac app is unsigned and macOS warns you the first time you open it." width="100%" />
 
 <div align="center">
 
