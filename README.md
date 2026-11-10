@@ -1,56 +1,156 @@
-# Tabs IDE
+<div align="center">
 
-[![Tabs IDE. One window. All your projects. Project tabs above, your tools below. Watch the workspace tour.](docs/readme/tabs-cover.png)](#workspace-tour)
+<a href="https://buildwithtabs.com"><img src="docs/readme/cover.png" alt="Tabs. Every project. One window. Agents, editor, terminals, browser and Git, with one tab per project. Public beta for macOS, Windows and Linux at buildwithtabs.com." width="100%" /></a>
 
-Tabs brings your projects, coding agents, and everyday tools into one desktop window. When you switch project tabs, that project’s files, conversations, and toolbar are right there.
+<br />
 
-**[Download Tabs](https://buildwithtabs.com/downloads)** · [Watch the 51-second tour](#workspace-tour) · [What’s new](CHANGELOG.md) · [Build from source](#build-from-source)
+**[Download Tabs](https://buildwithtabs.com/downloads)** &nbsp;·&nbsp; [Watch the launch film](docs/readme/tabs-launch.mp4) &nbsp;·&nbsp; [What’s new](CHANGELOG.md) &nbsp;·&nbsp; [Build it yourself](#build-it-yourself)
 
-Tabs is in public beta for macOS, Windows, and Linux. The installers include the editor.
+[![Latest release](https://img.shields.io/github/v/release/PanicMako/Tabs-ide?style=flat-square&label=release&color=0E2AF3)](https://github.com/PanicMako/Tabs-ide/releases)
+![Platforms: macOS, Windows, Linux](https://img.shields.io/badge/macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-public%20beta-0E2AF3?style=flat-square)
+[![MIT license](https://img.shields.io/badge/license-MIT-0E2AF3?style=flat-square)](LICENSE)
 
-> [!NOTE]
-> **A note on the macOS beta.** I’m building Tabs independently while I’m a student, so Apple Developer ID signing and notarization are currently unavailable for the macOS beta. If your Mac blocks the first launch, see [Apple’s guidance](https://support.apple.com/102445) or [build from source](#build-from-source).
+</div>
 
-## Workspace tour
+> [!IMPORTANT]
+> **Tabs is made by one person.** I’m an indie developer and a student. I built Tabs for my own work, and this is a small public beta, so expect rough edges.
+>
+> **The macOS build is unsigned.** I don’t have an Apple Developer account yet, so the Mac app isn’t signed or notarized and macOS will warn you the first time you open it. You can [allow it in two clicks](#if-macos-blocks-the-app), or [build Tabs yourself](#build-it-yourself) from this repository.
 
-Switch projects, add browser and terminal tools to the toolbar, compare your site at different screen sizes, and launch common tasks with Quick Actions.
+## Nine windows. One job.
 
-https://github.com/user-attachments/assets/5ab47177-eba3-439b-8b5d-d098fb46cc26
+Building one feature usually means an editor, a terminal, a browser preview, an agent chat, a Git client, a design file and a couple of AI tabs, all in separate windows.
 
-[Download the tour (MP4)](https://raw.githubusercontent.com/PanicMako/Tabs-ide/377e48dc97796d438c47994e227b027a54dda482/docs/readme/replay.mp4)
+Tabs puts them in one window and gives each project its own tab.
 
-## Start with a project
+<div align="center">
+<a href="docs/readme/tabs-launch.mp4"><img src="docs/readme/launch.gif" alt="Nine separate app windows pile up, shrink into pills, and line up as one toolbar that grows into the Tabs window." width="760" /></a>
+<br />
+<sub>From the launch film. <a href="docs/readme/tabs-launch.mp4">Watch all 41 seconds, with sound.</a></sub>
+</div>
 
-1. **Install Tabs.** On a Mac, open **Apple menu → About This Mac** to check whether you need the Apple Silicon or Intel download. On Windows, run the `.exe` installer. On Linux, use the `.AppImage` and allow it to run as a program if your system asks.
-2. **Open a folder.** Pick a folder you already work in, create a project, or paste a Git repository URL to clone a copy. The guided tour walks through the workspace. If you minimize it, click the mascot to pick up where you left off.
-3. **Connect an agent when you’re ready.** Open **Settings → Providers** and follow the setup for the one you use. You can explore your files, browser, and terminal before connecting an agent.
-4. **Try a small first task.** Open **Agents** and ask, “What’s in this project, and where should I start?” Open a file in **Code** as you follow along, and use **Git** to review any changes you make.
+## Projects are tabs
 
-<details>
-<summary>If macOS blocks the app on first launch</summary>
+The top row is your projects. Switch between them the way you switch browser tabs. Each project keeps its own files, agent conversations, terminals and toolbar, so the Figma file you pinned for one project stays out of the way in another.
 
-If you trust the download, try opening Tabs once. Then go to **System Settings → Privacy & Security** and choose **Open Anyway**.
+<div align="center">
+<img src="docs/readme/projects.gif" alt="Switching between three project tabs. The toolbar, accent colour and open tool change with each project." width="760" />
+</div>
 
-</details>
+## What’s in the toolbar
 
-<a name="why-tabs"></a>
+The row under the project tabs is that project’s tools.
 
-## Inside the workspace
+| Tool | What you do there |
+| --- | --- |
+| **Code** | Read and edit files in a full Code OSS editor, the open-source core of VS Code. |
+| **Agents** | Chat with Claude, Codex, Cursor and other coding agents in a focused view, using your own accounts. |
+| **Dock** | Run terminals side by side, such as a dev server next to an API. |
+| **Git** | Review diffs, commit, and work with branches and pull requests. |
+| **Browser** | Preview your local site, or compare it at different screen sizes. |
+| **Your own tabs** | Pin any website (Figma, ChatGPT, Vercel) or any terminal command (Claude Code, a build script) to the toolbar. |
+
+**Quick Actions.** Press **⌘ + Option + K** on macOS, or **Ctrl + Alt + K** on Windows and Linux, to open the wheel. Jump to a tool, start an agent conversation, or open a temporary browser or terminal for a quick search.
+
+This is the real app:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="tabs-app/apps/marketing/public/product/agents-dark.png" />
-  <img src="tabs-app/apps/marketing/public/product/agents-light.png" alt="Tabs workspace with a project sidebar, an agent conversation, and the model picker open." width="960" />
+  <img src="tabs-app/apps/marketing/public/product/agents-light.png" alt="Tabs workspace with a project sidebar, an agent conversation, and the model picker open." width="100%" />
 </picture>
 
-- **Projects.** The top row switches between projects. The toolbar below it switches tools for the selected project. A site you pin for one project can stay separate from the tools you use in another.
-- **Agents and Code.** Ask an agent to explain a file or help plan a change, then open **Code** to read and edit those files in the built-in Code OSS editor. You can also preview Markdown as you edit it.
-- **Browser tabs.** Under **Settings → Workspace → Project Tools → Browser Tabs**, save a URL such as your Figma file or a local preview. Open it again from the project toolbar. Choose a project-shared, isolated, or named browser profile to control which tabs share sign-ins.
-- **Terminal tabs.** Under **Project Tools → Terminal Tabs**, save a command you use often, such as starting a preview server or opening a CLI. Give it a name and working directory, then launch it from the toolbar. Use **Toolbar Tools** to arrange your saved tools.
-- **Quick Actions.** Press **⌘ + Option + K** on macOS or **Ctrl + Alt + K** on Windows and Linux to open the wheel. Jump to Code, start an agent conversation, or open a temporary browser or terminal.
-- **Git.** Review changed files and diffs before committing, then work with branches and pull requests from the same workspace.
-- **Appearance and extensions.** Set a theme or wallpaper, preview a different toolbar style, or browse extensions in [Tabs Exchange](https://exchange.buildwithtabs.com).
+<details>
+<summary>Where to set up your own tabs</summary>
 
-**Try it out.** From a local checkout, open [`docs/readme/workspace-tour.html`](docs/readme/workspace-tour.html) in your browser. The interactive prototype lets you switch sample projects, add tools, and try Quick Actions.
+- **Browser tabs.** Under **Settings → Workspace → Project Tools → Browser Tabs**, save a URL such as your Figma file or a local preview. Choose a project-shared, isolated, or named browser profile to control which tabs share sign-ins.
+- **Terminal tabs.** Under **Project Tools → Terminal Tabs**, save a command you use often. Give it a name and working directory, then launch it from the toolbar.
+- **Toolbar order.** Use **Toolbar Tools** to arrange what you saved.
+- **Appearance and extensions.** Set a theme or wallpaper, try a different toolbar style, or browse extensions in [Tabs Exchange](https://exchange.buildwithtabs.com).
+
+You can also try the layout without installing anything: from a local checkout, open [`docs/readme/workspace-tour.html`](docs/readme/workspace-tour.html) in your browser.
+
+</details>
+
+## Get Tabs
+
+1. **Download it** from **[buildwithtabs.com/downloads](https://buildwithtabs.com/downloads)**. The installer includes the editor.
+   - **Mac:** open **Apple menu → About This Mac** to see whether you need the Apple Silicon or Intel download.
+   - **Windows:** run the `.exe` installer.
+   - **Linux:** use the `.AppImage` and allow it to run as a program if your system asks.
+2. **Open a folder.** Pick a folder you already work in, create a project, or paste a Git repository URL to clone it. A guided tour walks you through the workspace. If you minimize it, click the mascot to continue.
+3. **Connect an agent when you’re ready.** Open **Settings → Providers** and follow the setup for the one you use. The editor, browser and terminal work before you connect anything.
+4. **Try a small first task.** Open **Agents** and ask, “What’s in this project, and where should I start?”
+
+<a name="if-macos-blocks-the-app"></a>
+
+<details>
+<summary><b>If macOS blocks the app</b></summary>
+
+<br />
+
+macOS shows a warning because the beta isn’t signed with an Apple Developer ID (see the note at the top).
+
+1. Try to open Tabs once and dismiss the warning.
+2. Open **System Settings → Privacy & Security**, scroll down, and choose **Open Anyway**.
+
+[Apple’s guide](https://support.apple.com/102445) covers the same steps. If you’d rather not run an unsigned app, [build Tabs yourself](#build-it-yourself).
+
+</details>
+
+<a name="build-from-source"></a>
+<a name="quick-start"></a>
+
+## Build it yourself
+
+You can compile and run Tabs from this repository. Two folders matter:
+
+<img src="docs/readme/folders.png" alt="Step 1: tabs-code-oss is the editor’s source code, a fork of Code OSS. Compile it once. Step 2: tabs-app is Tabs itself. This is the folder you run the app from." width="100%" />
+
+| Folder | What it is | What you do with it |
+| --- | --- | --- |
+| [`tabs-code-oss/`](tabs-code-oss) | The source code of the editor, a fork of Code OSS. | **Compile it once.** You don’t run anything from here. |
+| [`tabs-app/`](tabs-app) | Tabs itself: the window, project tabs, agents, terminals and browser. | **Run the app from here**, every time. |
+
+### Before you start
+
+| You need | Version |
+| --- | --- |
+| [Node.js](https://nodejs.org) and npm | The version in [`tabs-code-oss/.nvmrc`](tabs-code-oss/.nvmrc) |
+| [Bun](https://bun.sh) | 1.3.9 or newer in the 1.3 line |
+| Native build tools | Python 3 and a C/C++ toolchain for your OS |
+| Git | Any recent version |
+
+### 1 · Get the code
+
+```sh
+git clone https://github.com/PanicMako/Tabs-ide.git
+cd Tabs-ide
+```
+
+### 2 · Compile the editor
+
+This builds the copy of Code OSS that Tabs opens when you select **Code**. The first run takes a while.
+
+```sh
+cd tabs-code-oss
+npm install
+npm run compile
+node build/next/index.ts bundle --nls
+```
+
+### 3 · Run Tabs
+
+When the editor has finished compiling, go back to the repository root and start the app.
+
+```sh
+cd ../tabs-app
+bun install
+bun run dev:desktop
+```
+
+`bun run dev:desktop` opens the Tabs window. Leave that terminal running while you use the app. Next time, you only need this third step.
+
+If the editor doesn’t appear inside Tabs, or you want to work on the code, see the [developer guide](tabs-app/README.md). If you’re changing Code OSS itself, run `npm run watch` in `tabs-code-oss` so your edits keep compiling.
 
 <a name="supported-providers"></a>
 
@@ -60,6 +160,8 @@ Tabs connects through your provider’s local tool, sign-in, or API key. Your pr
 
 <details>
 <summary>Supported providers and setup</summary>
+
+<br />
 
 | Provider           | How to connect                                                                             |
 | ------------------ | ------------------------------------------------------------------------------------------ |
@@ -79,31 +181,6 @@ In **Settings → Providers**, you can also add multiple instances of the same p
 
 </details>
 
-<a name="quick-start"></a>
-
-## Build from source
-
-Clone this repository and open two terminals in its root folder. You’ll need the Node.js version in [`tabs-code-oss/.nvmrc`](tabs-code-oss/.nvmrc), npm, [Bun](https://bun.sh/) 1.3.9 or newer in the 1.3 line, and your OS’s native build tools (Python 3 and a C/C++ toolchain).
-
-**Terminal 1 · Build the embedded editor.** This prepares the copy of Code OSS that Tabs opens when you select **Code**.
-
-```sh
-cd tabs-code-oss
-npm install
-npm run compile
-node build/next/index.ts bundle --nls
-```
-
-**Terminal 2 · Start Tabs.** After the editor build finishes, run the following from the repository root.
-
-```sh
-cd tabs-app
-bun install
-bun run dev:desktop
-```
-
-`bun run dev:desktop` launches the Electron app. Leave it running while you work. If you’re editing Code OSS itself, run `npm run watch` in Terminal 1 after the initial build so editor changes keep compiling. See the [developer guide](tabs-app/README.md) for troubleshooting and contribution checks.
-
 ## Privacy and feedback
 
 Tabs does not collect your code, chats, or provider keys. Requests go to the provider you configure. Packaged releases send an anonymous daily activity ping with installation and version metadata. Set `TABS_TELEMETRY_ENABLED=false` before starting Tabs to turn that ping off. [Read the privacy details](tabs-app/docs/privacy.md).
@@ -115,3 +192,14 @@ Tabs does not collect your code, chats, or provider keys. Requests go to the pro
 ## Built on open source
 
 [T3 Code](https://github.com/pingdotgg/t3code) provided the foundation for the agent workspace, [Code OSS](https://github.com/microsoft/vscode) powers the embedded editor, and [Synara](https://trysynara.com) inspired multi-agent workflows. See the [MIT license](LICENSE) and [component notices](LICENSING.md). [View verified build activity on Not a Cent](https://notacent.app/en/app/tabs-ide).
+
+The launch film, cover and diagrams on this page are generated from code in [`docs/launch-film`](docs/launch-film).
+
+<div align="center">
+<br />
+<a href="https://buildwithtabs.com"><img src="tabs-app/apps/marketing/public/brand/signature-icon.svg" alt="Tabs mascot" width="72" /></a>
+<br /><br />
+<b>Every project. Every tool. One window.</b>
+<br />
+<a href="https://buildwithtabs.com">buildwithtabs.com</a>
+</div>
