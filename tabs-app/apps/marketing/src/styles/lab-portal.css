@@ -56,7 +56,20 @@
 .v1-nav.on-dark .v1-nav__logo .lab-mark__body, .v1-nav.on-dark .v1-nav__logo .lab-mark__foot { fill: var(--ivory); }
 .v1-nav.on-dark .v1-nav__logo .lab-mark__eyes { fill: var(--ink); }
 .v1-nav.on-dark .v1-btn--sm { background: var(--ivory); color: var(--ink); }
-@media (max-width: 760px) { .v1-nav nav { display: none; } .v1-nav { padding: 14px 16px; } }
+.v1-nav__ext { margin-left: 3px; font-size: .85em; opacity: .55; }
+.v1-nav__end { display: flex; align-items: center; gap: 8px; }
+.v1-nav__menu { display: none; position: relative; width: 42px; height: 42px; border: 0; border-radius: 50%; background: rgba(250, 248, 244, .8); box-shadow: 0 0 0 1px var(--line); cursor: pointer; }
+.v1-nav__menu i { position: absolute; left: 13px; right: 13px; height: 1.6px; border-radius: 2px; background: var(--ink); transition: transform .4s cubic-bezier(.2, 1, .3, 1); }
+.v1-nav__menu i:first-child { top: 17px; } .v1-nav__menu i:last-child { top: 23px; }
+.v1-nav__menu[aria-expanded="true"] i:first-child { transform: translateY(3px) rotate(45deg); }
+.v1-nav__menu[aria-expanded="true"] i:last-child { transform: translateY(-3px) rotate(-45deg); }
+.v1-sheet { position: fixed; z-index: 490; top: 0; left: 0; right: 0; padding: 84px 20px 28px; background: #fbfcfe; box-shadow: 0 30px 60px -30px rgba(11, 13, 31, .35); }
+.v1-sheet[hidden] { display: none; }
+.v1-sheet nav { display: grid; gap: 4px; }
+.v1-sheet nav a:not(.v1-btn) { padding: 14px 4px; border-bottom: 1px solid var(--line); color: var(--ink); text-decoration: none; font-size: 22px; font-weight: 500; letter-spacing: -.02em; }
+.v1-sheet .v1-btn { justify-content: center; margin-top: 18px; }
+@media (max-width: 960px) { .v1-nav nav.v1-nav__links { display: none; } .v1-nav__menu { display: block; } .v1-nav { padding: 14px 16px; } }
+@media (max-width: 420px) { .v1-nav__end .v1-btn--sm { display: none; } }
 
 /* Finale + footer */
 .v1-end { position: relative; background: var(--cobalt); color: var(--ivory); padding: 160px 0 0; overflow: hidden; border-radius: 40px 40px 0 0; }

@@ -6,6 +6,14 @@ interface Props {
   home?: string;
 }
 const { current = "home", home = "/" } = Astro.props;
+// Product, then updates, people, the extension marketplace and the source.
+const items = [
+  { label: "Inside Tabs", href: current === "home" ? "#portal" : `${home}#portal`, current: false, external: false },
+  { label: "Changelog", href: links.changelog, current: current === "changelog", external: false },
+  { label: "Community", href: links.community, current: false, external: false },
+  { label: "Exchange", href: links.exchange, current: false, external: true },
+  { label: "GitHub", href: links.github, current: false, external: true },
+];
 ---
 <div class="v1-cursor" aria-hidden="true"></div>
 <header class="v1-nav">
@@ -14,11 +22,44 @@ const { current = "home", home = "/" } = Astro.props;
     <span class="v1-nav__sep" aria-hidden="true"></span>
     <a class="v1-nav__beta" href="/changelog"><span>Public beta</span></a>
   </div>
-  <nav aria-label="Primary">
-    <a href={current === "home" ? "#portal" : `${home}#portal`}>Workspace</a>
-    <a href={current === "home" ? "#agents" : `${home}#agents`}>Agents</a>
-    <a href={links.changelog} aria-current={current === "changelog" ? "page" : undefined}>Changelog</a>
-    <a href={links.github}>GitHub</a>
+  <nav aria-label="Primary" class="v1-nav__links">
+    {items.map((it) => (
+      <a href={it.href} aria-current={it.current ? "page" : undefined} {...(it.external ? { rel: "noopener" } : {})}>
+        {it.label}{it.external && <span class="v1-nav__ext" aria-hidden="true">↗</span>}
+      </a>
+    ))}
   </nav>
-  <a class="v1-btn v1-btn--sm" href={links.download} data-magnetic="0.3" aria-current={current === "downloads" ? "page" : undefined}><span>Download</span></a>
+  <div class="v1-nav__end">
+    <a class="v1-btn v1-btn--sm" href={links.download} data-magnetic="0.3" aria-current={current === "downloads" ? "page" : undefined}><span>Download</span></a>
+    <button type="button" class="v1-nav__menu" aria-expanded="false" aria-controls="v1-menu" aria-label="Menu"><i></i><i></i></button>
+  </div>
 </header>
+<div class="v1-sheet" id="v1-menu" hidden>
+  <nav aria-label="Menu">
+    {items.map((it) => <a href={it.href}>{it.label}{it.external && <span aria-hidden="true"> ↗</span>}</a>)}
+    <a class="v1-btn" href={links.download}><span>Download Tabs</span></a>
+  </nav>
+</div>
+
+<script>
+  import { gsap } from "../../../lib/lab/common";
+  const btn = document.querySelector<HTMLButtonElement>(".v1-nav__menu");
+  const sheet = document.querySelector<HTMLElement>(".v1-sheet");
+  if (btn && sheet) {
+    const toggle = (open: boolean) => {
+      btn.setAttribute("aria-expanded", String(open));
+      document.documentElement.classList.toggle("v1-menu-open", open);
+      if (open) {
+        sheet.hidden = false;
+        gsap.fromTo(sheet, { clipPath: "inset(0 0 100% 0 round 0 0 24px 24px)" }, { clipPath: "inset(0 0 0% 0 round 0 0 24px 24px)", duration: 0.6, ease: "expo.out" });
+        gsap.from(sheet.querySelectorAll("a"), { y: 18, autoAlpha: 0, stagger: 0.04, duration: 0.5, ease: "expo.out", delay: 0.1 });
+      } else {
+        gsap.to(sheet, { clipPath: "inset(0 0 100% 0 round 0 0 24px 24px)", duration: 0.4, ease: "expo.in", onComplete: () => { sheet.hidden = true; } });
+      }
+    };
+    btn.addEventListener("click", () => toggle(btn.getAttribute("aria-expanded") !== "true"));
+    sheet.addEventListener("click", (e) => { if ((e.target as HTMLElement).closest("a")) toggle(false); });
+    addEventListener("keydown", (e) => { if (e.key === "Escape" && btn.getAttribute("aria-expanded") === "true") toggle(false); });
+  }
+</script>
+
